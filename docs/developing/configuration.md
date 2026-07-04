@@ -298,7 +298,7 @@ Goal AppServer methods:
 | `thread/goal/get` | Read current Thread goal state |
 | `thread/goal/clear` | Clear current Thread goal |
 
-Hook commands live in `hooks.json`, not in `config.json`. DotCraft loads global hooks from `~/.craft/hooks.json`, workspace hooks from `.craft/hooks.json`, and plugin hooks from enabled plugin hook files.
+Hook commands live in `hooks.json`, not in `config.json`. DotCraft loads global hooks from `~/.craft/hooks.json`, workspace hooks from `.craft/hooks.json`, and plugin hooks from enabled plugin hook files. For a user-facing overview and the Desktop workflow, start with [Lifecycle Hooks](../features/agent-system/hooks).
 
 Hook quick start (`.craft/hooks.json`):
 
@@ -335,27 +335,44 @@ Hook handler fields:
 | `type` | Supports `"command"` |
 | `command` | Shell command to run |
 | `timeout` | Hook timeout in seconds |
+| `if` | Optional condition such as `Bash(git commit:*)` |
+| `shell` | Optional shell override |
+| `statusMessage` | Optional UI status label |
+| `async` | Run without blocking the current action |
+| `asyncRewake` | Allows hook feedback to enqueue a follow-up turn |
+| `rewakeMessage` | Prefix for follow-up feedback |
+| `rewakeSummary` | Short follow-up summary |
 
 Lifecycle events:
 
 | Event | Purpose |
 |---|---|
 | `SessionStart` | Runs when a new session starts |
-| `PrePrompt` | Runs before a user prompt is submitted |
+| `UserPromptSubmit` | Runs when a user prompt is submitted, before prompt assembly |
+| `PrePrompt` | DotCraft-native compatibility event before the assembled prompt is sent |
 | `PreToolUse` | Checks or blocks before tool calls |
+| `PermissionRequest` | Runs before a permission request is shown |
 | `PostToolUse` | Logs, formats, or notifies after successful tool calls |
 | `PostToolUseFailure` | Runs after a tool call fails |
-| `Stop` | Runs right before DotCraft ends its turn |
+| `PreCompact` / `PostCompact` | Run around context compaction |
+| `SubagentStart` / `SubagentStop` | Run around subagent lifecycle |
+| `Stop` | Runs after the assistant response and can enqueue follow-up feedback |
+| `StopFailure` | Runs after Stop hook handling fails |
 
 Tool-related Hook stdin usually includes:
 
 ```json
 {
-  "event": "PreToolUse",
-  "workspace": "F:\\project",
+  "hook_event_name": "PreToolUse",
+  "cwd": "/workspace/example",
   "sessionId": "thread-id",
-  "toolName": "Exec",
-  "arguments": {
+  "session_id": "thread-id",
+  "toolName": "Bash",
+  "tool_name": "Bash",
+  "toolArgs": {
+    "command": "dotnet test"
+  },
+  "tool_input": {
     "command": "dotnet test"
   }
 }
@@ -365,19 +382,27 @@ Turn-related Hook stdin usually includes:
 
 ```json
 {
-  "event": "Stop",
-  "workspace": "F:\\project",
+  "hook_event_name": "Stop",
+  "cwd": "/workspace/example",
   "sessionId": "thread-id",
-  "summary": "Agent completed the turn"
+  "session_id": "thread-id",
+  "last_assistant_message": "Agent completed the turn",
+  "stop_hook_active": false
 }
 ```
+
+DotCraft emits both camelCase and snake_case field names. JSON stdout can return
+`hookSpecificOutput.additionalContext` to inject model-visible context, or
+`decision: "block"` plus `reason` to block supported events or request a rewake
+follow-up from an `asyncRewake` hook. The complete engineering contract lives in
+`specs/core/lifecycle-hooks.md`.
 
 Exit code semantics:
 
 | Exit code | Meaning |
 |---|---|
 | `0` | Success, continue |
-| `2` | Block the current operation and stop running later hooks for that event |
+| `2` | Block supported events, or request follow-up feedback for rewake hooks |
 | Other non-zero | Hook failed; DotCraft records the failure and continues according to the event's runtime policy |
 
 Matcher examples:
@@ -434,7 +459,23 @@ Dashboard example:
 }
 ```
 
-External channel registration example:
+External channel registration examples:
+
+Desktop-managed built-in TypeScript channel:
+
+```json
+{
+  "ExternalChannels": {
+    "qq": {
+      "enabled": true,
+      "transport": "managedWebsocket",
+      "builtinModule": "channel-qq"
+    }
+  }
+}
+```
+
+Standalone adapter:
 
 ```json
 {
@@ -447,11 +488,6 @@ External channel registration example:
     }
   },
   "ExternalChannels": {
-    "qq": {
-      "enabled": true,
-      "transport": "subprocess",
-      "builtinModule": "channel-qq"
-    },
     "wecom": {
       "enabled": true,
       "transport": "websocket"
@@ -460,7 +496,7 @@ External channel registration example:
 }
 ```
 
-Platform connections, allowlists, and approval timeouts live in adapter-specific files such as `.craft/qq.json` and `.craft/wecom.json`.
+Platform connections, allowlists, and approval timeouts live in adapter-specific files such as `.craft/qq.json` and `.craft/wecom.json`. See [Channel configuration reference](./channels/reference) for TypeScript channel examples.
 
 ## Plugins MCP and LSP
 

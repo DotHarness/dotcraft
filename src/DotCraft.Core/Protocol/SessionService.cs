@@ -1876,7 +1876,44 @@ public sealed partial class SessionService(
                     }
                 }
 
-                var sessionStartHookContext = await RunSessionStartHookOnceAsync(threadId, executionCt);
+                EnsureHookRewakeHandler();
+
+                var stopHookActive = string.Equals(TurnTriggerScope.Current?.Kind, "hook", StringComparison.Ordinal);
+                var promptHookContext = await RunPromptLifecycleHookAsync(
+                    HookEvent.UserPromptSubmit,
+                    threadId,
+                    turn.Id,
+                    thread.WorkspacePath,
+                    text,
+                    stopHookActive,
+                    executionCt);
+                if (promptHookContext.Blocked)
+                {
+                    var errorMsg = $"Prompt blocked by hook: {promptHookContext.BlockReason ?? "no reason given"}";
+                    await FailAndPersistTurnAsync(errorMsg, "hook_blocked");
+                    return;
+                }
+
+                var prePromptHookContext = await RunPromptLifecycleHookAsync(
+                    HookEvent.PrePrompt,
+                    threadId,
+                    turn.Id,
+                    thread.WorkspacePath,
+                    text,
+                    stopHookActive,
+                    executionCt);
+                if (prePromptHookContext.Blocked)
+                {
+                    var errorMsg = $"Prompt blocked by hook: {prePromptHookContext.BlockReason ?? "no reason given"}";
+                    await FailAndPersistTurnAsync(errorMsg, "hook_blocked");
+                    return;
+                }
+
+                var sessionStartHookContext = await RunSessionStartHookOnceAsync(threadId, turn.Id, thread.WorkspacePath, stopHookActive, executionCt);
+                var lifecycleHookContext = CombineHookContext(
+                    ExtractHookContext(sessionStartHookContext),
+                    ExtractHookContext(promptHookContext),
+                    ExtractHookContext(prePromptHookContext));
 
                 var userMessage = new ChatMessage(
                     ChatRole.User,
@@ -1886,20 +1923,7 @@ public sealed partial class SessionService(
                         thread.WorkspacePath,
                         hasActivePlan,
                         threadGoalForContext,
-                        sessionStartHookContext));
-
-                // Step 5d: Run PrePrompt hooks
-                if (hookRunner != null)
-                {
-                    var hookInput = new HookInput { SessionId = threadId, Prompt = text };
-                    var hookResult = await hookRunner.RunAsync(HookEvent.PrePrompt, hookInput, executionCt);
-                    if (hookResult.Blocked)
-                    {
-                        var errorMsg = $"Prompt blocked by hook: {hookResult.BlockReason ?? "no reason given"}";
-                        await FailAndPersistTurnAsync(errorMsg, "hook_blocked");
-                        return;
-                    }
-                }
+                        lifecycleHookContext));
 
                 // Step 5e: Set up approval service override
                 var approvalPolicy = ResolveApprovalPolicy(thread.Configuration?.ApprovalPolicy ?? ApprovalPolicy.Default);
@@ -2505,7 +2529,15 @@ public sealed partial class SessionService(
                 // Step 5j: Run Stop hooks
                 if (hookRunner != null)
                 {
-                    var stopInput = new HookInput { SessionId = threadId, Response = agentText };
+                    var stopInput = new HookInput
+                    {
+                        SessionId = threadId,
+                        TurnId = turn.Id,
+                        Cwd = thread.WorkspacePath,
+                        Response = agentText,
+                        LastAssistantMessage = agentText,
+                        StopHookActive = string.Equals(TurnTriggerScope.Current?.Kind, "hook", StringComparison.Ordinal)
+                    };
                     await hookRunner.RunAsync(HookEvent.Stop, stopInput, CancellationToken.None);
                 }
 
@@ -2951,21 +2983,70 @@ public sealed partial class SessionService(
     private void MarkMemoryContextDirty() =>
         agentFactory.ToolProviderContext.ContextPageManager?.MarkDirty(ContextPageKeys.MemoryLongTerm("*"));
 
-    private async Task<string?> RunSessionStartHookOnceAsync(string threadId, CancellationToken ct)
+    private void EnsureHookRewakeHandler()
+    {
+        if (hookRunner != null)
+            hookRunner.RewakeHandler ??= EnqueueHookRewakeAsync;
+    }
+
+    private async Task<HookResult> RunPromptLifecycleHookAsync(
+        HookEvent evt,
+        string threadId,
+        string turnId,
+        string? workspacePath,
+        string prompt,
+        bool stopHookActive,
+        CancellationToken ct)
     {
         if (hookRunner == null)
-            return null;
-
-        if (!_sessionStartHookThreads.TryAdd(threadId, 0))
-            return null;
+            return new HookResult();
 
         try
         {
-            var hookInput = new HookInput { SessionId = threadId };
-            var hookResult = await hookRunner.RunAsync(HookEvent.SessionStart, hookInput, ct).ConfigureAwait(false);
-            return string.IsNullOrWhiteSpace(hookResult.Output)
-                ? null
-                : hookResult.Output;
+            var hookInput = new HookInput
+            {
+                SessionId = threadId,
+                TurnId = turnId,
+                Cwd = workspacePath,
+                Prompt = prompt,
+                StopHookActive = stopHookActive
+            };
+            return await hookRunner.RunAsync(evt, hookInput, ct).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            logger?.LogWarning(ex, "{EventName} hook failed for thread {ThreadId}", evt, threadId);
+            return new HookResult();
+        }
+    }
+
+    private async Task<HookResult> RunSessionStartHookOnceAsync(
+        string threadId,
+        string turnId,
+        string? workspacePath,
+        bool stopHookActive,
+        CancellationToken ct)
+    {
+        if (hookRunner == null)
+            return new HookResult();
+
+        if (!_sessionStartHookThreads.TryAdd(threadId, 0))
+            return new HookResult();
+
+        try
+        {
+            var hookInput = new HookInput
+            {
+                SessionId = threadId,
+                TurnId = turnId,
+                Cwd = workspacePath,
+                StopHookActive = stopHookActive
+            };
+            return await hookRunner.RunAsync(HookEvent.SessionStart, hookInput, ct).ConfigureAwait(false);
         }
         catch (OperationCanceledException)
         {
@@ -2974,7 +3055,55 @@ public sealed partial class SessionService(
         catch (Exception ex)
         {
             logger?.LogWarning(ex, "SessionStart hook failed for thread {ThreadId}", threadId);
-            return null;
+            return new HookResult();
+        }
+    }
+
+    private static string? ExtractHookContext(HookResult result)
+    {
+        if (!string.IsNullOrWhiteSpace(result.AdditionalContext))
+            return result.AdditionalContext;
+        return string.IsNullOrWhiteSpace(result.Output) ? null : result.Output;
+    }
+
+    private static string? CombineHookContext(params string?[] contexts)
+    {
+        var parts = contexts
+            .Where(static context => !string.IsNullOrWhiteSpace(context))
+            .Select(static context => context!.Trim())
+            .ToList();
+        return parts.Count == 0 ? null : string.Join("\n\n", parts);
+    }
+
+    private async Task EnqueueHookRewakeAsync(HookRewakeRequest request, CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(request.ThreadId) || string.IsNullOrWhiteSpace(request.Prompt))
+            return;
+
+        try
+        {
+            var label = string.IsNullOrWhiteSpace(request.Summary) ? "Hook feedback" : request.Summary;
+            using var triggerScope = TurnTriggerScope.Set(new TurnTriggerInfo
+            {
+                Kind = "hook",
+                Label = label,
+                RefId = request.HookKey
+            });
+            await EnqueueTurnInputAsync(
+                request.ThreadId,
+                [new TextContent(request.Prompt)],
+                sender: null,
+                ct,
+                inputSnapshot: null).ConfigureAwait(false);
+            await TryStartNextQueuedTurnAsync(request.ThreadId, CancellationToken.None).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            logger?.LogWarning(ex, "Failed to enqueue hook rewake for thread {ThreadId}", request.ThreadId);
         }
     }
 

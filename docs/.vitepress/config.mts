@@ -49,6 +49,7 @@ const enSidebar: DefaultTheme.Sidebar = collapseSidebarGroups([
           { text: withIcon('sparkles', 'Skills & Self-Learning'), link: '/features/agent-system/skills' },
           { text: withIcon('puzzle', 'Plugins & Tools'), link: '/features/agent-system/plugins-tools' },
           { text: withIcon('workflow', 'Automations & Goals'), link: '/features/agent-system/automations' },
+          { text: withIcon('anchor', 'Lifecycle Hooks'), link: '/features/agent-system/hooks' },
           { text: withIcon('bot', 'Agent Profiles'), link: '/features/agent-system/agent-profiles' },
           { text: withIcon('users', 'SubAgents'), link: '/features/agent-system/subagents' },
           { text: withIcon('network', 'Teams'), link: '/features/agent-system/teams' }
@@ -124,7 +125,7 @@ const enSidebar: DefaultTheme.Sidebar = collapseSidebarGroups([
           { text: withIcon('puzzle', 'Tools & Approvals'), link: '/developing/sdks/tools' },
           { text: withIcon('satelliteDish', 'Channel Adapters'), link: '/developing/sdks/channels' },
           { text: withIcon('typescript', 'TypeScript'), link: '/developing/sdks/typescript' },
-          { text: withIcon('fileCode', '.NET'), link: '/developing/sdks/dotnet' },
+          { text: withIcon('dotnet', '.NET'), link: '/developing/sdks/dotnet' },
           { text: withIcon('python', 'Python'), link: '/developing/sdks/python' }
         ]
       },
@@ -142,12 +143,13 @@ const enSidebar: DefaultTheme.Sidebar = collapseSidebarGroups([
       {
         text: withIcon('satelliteDish', 'Channels'),
         items: [
-          { text: withIcon('messageSquare', 'QQ'), link: '/developing/channels/qq' },
-          { text: withIcon('building', 'WeCom'), link: '/developing/channels/wecom' },
-          { text: withIcon('feather', 'Feishu'), link: '/developing/channels/feishu' },
-          { text: withIcon('send', 'Telegram (TypeScript)'), link: '/developing/channels/telegram' },
-          { text: withIcon('messagesSquare', 'Weixin'), link: '/developing/channels/weixin' },
-          { text: withIcon('botMessage', 'Telegram (Python)'), link: '/developing/channels/python-telegram' }
+          { text: withIcon('qq', 'QQ'), link: '/developing/channels/qq' },
+          { text: withIcon('wecom', 'WeCom'), link: '/developing/channels/wecom' },
+          { text: withIcon('feishu', 'Feishu'), link: '/developing/channels/feishu' },
+          { text: withIcon('telegram', 'Telegram (TypeScript)'), link: '/developing/channels/telegram' },
+          { text: withIcon('weixin', 'Weixin'), link: '/developing/channels/weixin' },
+          { text: withIcon('fileCog', 'Configuration reference'), link: '/developing/channels/reference' },
+          { text: withIcon('telegram', 'Telegram (Python)'), link: '/developing/channels/python-telegram' }
         ]
       }
     ]
@@ -174,6 +176,7 @@ const zhSidebar: DefaultTheme.Sidebar = collapseSidebarGroups([
           { text: withIcon('sparkles', 'Skills 与自学习'), link: '/zh/features/agent-system/skills' },
           { text: withIcon('puzzle', '插件与工具'), link: '/zh/features/agent-system/plugins-tools' },
           { text: withIcon('workflow', 'Automations 与 Goals'), link: '/zh/features/agent-system/automations' },
+          { text: withIcon('anchor', '生命周期 Hooks'), link: '/zh/features/agent-system/hooks' },
           { text: withIcon('bot', '个性化智能体'), link: '/zh/features/agent-system/agent-profiles' },
           { text: withIcon('users', 'SubAgents'), link: '/zh/features/agent-system/subagents' },
           { text: withIcon('network', 'Teams'), link: '/zh/features/agent-system/teams' }
@@ -249,7 +252,7 @@ const zhSidebar: DefaultTheme.Sidebar = collapseSidebarGroups([
           { text: withIcon('puzzle', '工具与审批'), link: '/zh/developing/sdks/tools' },
           { text: withIcon('satelliteDish', '渠道适配器'), link: '/zh/developing/sdks/channels' },
           { text: withIcon('typescript', 'TypeScript'), link: '/zh/developing/sdks/typescript' },
-          { text: withIcon('fileCode', '.NET'), link: '/zh/developing/sdks/dotnet' },
+          { text: withIcon('dotnet', '.NET'), link: '/zh/developing/sdks/dotnet' },
           { text: withIcon('python', 'Python'), link: '/zh/developing/sdks/python' }
         ]
       },
@@ -267,12 +270,13 @@ const zhSidebar: DefaultTheme.Sidebar = collapseSidebarGroups([
       {
         text: withIcon('satelliteDish', 'Channels'),
         items: [
-          { text: withIcon('messageSquare', 'QQ'), link: '/zh/developing/channels/qq' },
-          { text: withIcon('building', '企业微信'), link: '/zh/developing/channels/wecom' },
-          { text: withIcon('feather', '飞书'), link: '/zh/developing/channels/feishu' },
-          { text: withIcon('send', 'Telegram (TypeScript)'), link: '/zh/developing/channels/telegram' },
-          { text: withIcon('messagesSquare', '微信'), link: '/zh/developing/channels/weixin' },
-          { text: withIcon('botMessage', 'Telegram (Python)'), link: '/zh/developing/channels/python-telegram' }
+          { text: withIcon('qq', 'QQ'), link: '/zh/developing/channels/qq' },
+          { text: withIcon('wecom', '企业微信'), link: '/zh/developing/channels/wecom' },
+          { text: withIcon('feishu', '飞书'), link: '/zh/developing/channels/feishu' },
+          { text: withIcon('telegram', 'Telegram (TypeScript)'), link: '/zh/developing/channels/telegram' },
+          { text: withIcon('weixin', '微信'), link: '/zh/developing/channels/weixin' },
+          { text: withIcon('fileCog', '配置参考'), link: '/zh/developing/channels/reference' },
+          { text: withIcon('telegram', 'Telegram (Python)'), link: '/zh/developing/channels/python-telegram' }
         ]
       }
     ]
@@ -308,9 +312,9 @@ const redirectMap: Record<string, string> = {
   'subagents_guide.md': 'features/agent-system/subagents.md',
   'external_cli_subagents_guide.md': 'features/agent-system/subagents.md',
   'automations_guide.md': 'features/agent-system/automations.md',
-  'hooks_guide.md': 'features/agent-system/automations.md',
+  'hooks_guide.md': 'features/agent-system/hooks.md',
   'automations/reference.md': 'features/agent-system/automations.md',
-  'hooks/reference.md': 'features/agent-system/automations.md',
+  'hooks/reference.md': 'developing/configuration.md#automations-goals-and-hooks',
   'config/security.md': 'features/self-hosted/security.md',
   'settings-lifecycle.md': 'developing/lifecycle/settings-lifecycle.md',
   'features/workspace-handoff.md': 'developing/workflow/workspace-handoff.md',
@@ -378,6 +382,7 @@ for (const [from, to] of Object.entries(redirectMap)) {
 // Map any leftover /en/<page> to root
 rewrites['en/index.md'] = 'index.md'
 rewrites['en/getting-started.md'] = 'getting-started.md'
+rewrites['zh/hooks/reference.md'] = 'zh/developing/configuration.md#automations-goals-与-hooks'
 
 export default withMermaid(defineConfig({
   title: 'DotCraft',

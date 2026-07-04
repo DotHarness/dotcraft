@@ -29,10 +29,12 @@ A DotCraft plugin packages reusable workspace capabilities into an installable e
 | Dynamic tool | Agent-callable tool, optionally executed by a local stdio process |
 | Skill | Plugin-contained skill that joins the skill list when the plugin is enabled |
 | Desktop extension | Trusted local UI bundle that contributes Desktop surfaces such as a sidebar main view |
+| Lifecycle hook | Script hook that runs at lifecycle moments after you review and trust it |
 | Metadata | Name, description, developer, category, icon, default prompt, related links |
 
 Plugin-bundled skills follow plugin lifecycle: available when the plugin is enabled, hidden when disabled or removed.
 Desktop extensions follow the same lifecycle: Desktop loads their local bundles only after the plugin is installed and enabled.
+Plugin-bundled hooks are discovered when the plugin is enabled, then managed from **Settings -> Hooks**. They do not run until you trust them. See [Lifecycle Hooks](./hooks).
 
 ### Desktop Extensions
 
@@ -85,7 +87,7 @@ Alternatively, point DotCraft at a directory you maintain externally. Desktop ne
 
 The fastest path is the built-in `$plugin-creator` skill: let it scaffold first, then refine documentation, tool logic, and verification steps.
 
-If your goal is just adding one workflow to a single project, prefer creating a plain skill. Use a plugin only when you want to distribute skills, dynamic tools, icon, and install-page metadata together.
+If your goal is just adding one workflow to a single project, prefer creating a plain skill. Use a plugin only when you want to distribute skills, dynamic tools, hooks, icon, and install-page metadata together.
 
 ### Bootstrap with plugin creator
 
@@ -101,7 +103,7 @@ Or specify runtime, language, and validation:
 $plugin-creator Create a local plugin that exposes an EchoText dynamic tool via a Python process, and produce install validation steps.
 ```
 
-`plugin-creator` generates the plugin directory and manifest, a plugin-contained skill, optional MCP config, optional hooks, and an optional Desktop extension. After generation, usually three things remain:
+`plugin-creator` generates the plugin directory and manifest, a plugin-contained skill, optional MCP config, optional [hooks](./hooks), and an optional Desktop extension. After generation, usually three things remain:
 
 1. Replace the placeholder text and sample copy
 2. Implement or adjust the tool process logic
@@ -109,13 +111,14 @@ $plugin-creator Create a local plugin that exposes an EchoText dynamic tool via 
 
 ### What a plugin can contribute
 
-A single plugin can ship any mix of three things, all driven by one manifest:
+A single plugin can ship any mix of these content types, all driven by one manifest:
 
 - **Dynamic tools** the agent can call, optionally backed by a local process.
 - **Skills** that join the skill list whenever the plugin is enabled.
 - **Desktop extensions** — local UI bundles that add their own surfaces to Desktop, such as a sidebar view, and can read (and, when authorized, write) their app's data through a sandboxed host bridge.
+- **Lifecycle hooks** that run scripts at session, prompt, tool, or turn moments after the user trusts each handler.
 
-Let `plugin-creator` scaffold the manifest and the matching files; the generated manifest is your working reference when you tune or distribute the plugin. For the wire-level contract behind dynamic tools and Desktop extensions — manifest fields, tool schemas, the host bridge, and write authorization — see [Build an App](../../developing/integrations/build-an-app) and [App Binding](../../developing/integrations/app-binding).
+Let `plugin-creator` scaffold the manifest and the matching files; the generated manifest is your working reference when you tune or distribute the plugin. For the wire-level contract behind dynamic tools and Desktop extensions — manifest fields, tool schemas, the host bridge, and write authorization — see [Build an App](../../developing/integrations/build-an-app) and [App Binding](../../developing/integrations/app-binding). For hook behavior and trust, see [Lifecycle Hooks](./hooks).
 
 ## MCP Servers
 
@@ -133,6 +136,7 @@ MCP server registration, deferred loading options, and the complete field list l
 Installing a plugin adds new tools and skills to the workspace's capability surface. Plugins with a `process` backend may launch a local stdio process declared in the manifest to execute dynamic tools. **Only install and enable plugins whose source, code, and dependencies you trust**.
 
 - Plugin tool calls still pass through DotCraft's session, approvals, and tool-call records.
+- Plugin hooks do not run until each handler is trusted in **Settings -> Hooks**; changed hook commands must be trusted again.
 - Desktop extension bundles run inside the Desktop renderer as trusted local UI code. Descriptor-bound host capabilities are still enforced by Desktop's main process; extension v1 is not an untrusted code sandbox.
 - Plugin detail pages link to website, privacy policy, and ToS for source verification.
 - Blacklists, workspace boundary, sandbox, and other restrictions also apply to plugin tools. See [Security & Sandbox](../self-hosted/security).
@@ -140,7 +144,7 @@ Installing a plugin adds new tools and skills to the workspace's capability surf
 ## Related docs
 
 - [Skills & Self-Learning](./skills) — relationship between skills and plugins
+- [Lifecycle Hooks](./hooks) — plugin-bundled scripts that run at lifecycle moments
 - [Desktop Extensions](../../developing/integrations/desktop-extensions) — plugins that embed their own view inside Desktop
 - [Build an App](../../developing/integrations/build-an-app) — manifest fields, tool schemas, and Desktop extension authoring
-- [Observability](../self-hosted/observability) — view plugin tool calls and approvals in Dashboard
 - [Security & Sandbox](../self-hosted/security) — global constraints on tool capabilities

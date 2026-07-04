@@ -1,87 +1,76 @@
 # Channels 与 Bots
 
-DotCraft 可以把同一个 Agent 接进你团队本来就在用的聊天平台——QQ、企业微信、飞书 / Lark、Telegram、微信。渠道机器人和其他入口共用同一份会话核心、记忆、技能和安全策略，你在 Desktop 看到的上下文，就是机器人干活时用的同一份。
+DotCraft 可以在你团队已经使用的聊天工具中回复：QQ、企业微信、飞书 / Lark、Telegram 和微信。
 
 ![DotCraft Channels 配置与会话](https://github.com/DotHarness/resources/raw/master/dotcraft/whats-new/channels.gif)
 
-## 提供形式
+## 接入渠道
 
-| 渠道 | SDK 语言 | 文档 |
-|---|---|---|
-| QQ | TypeScript | [channel-qq](../../developing/channels/qq) |
-| 企业微信 / WeCom | TypeScript | [channel-wecom](../../developing/channels/wecom) |
-| 飞书 / Lark | TypeScript | [channel-feishu](../../developing/channels/feishu) |
-| Telegram（TypeScript） | TypeScript | [channel-telegram](../../developing/channels/telegram) |
-| 微信 | TypeScript | [channel-weixin](../../developing/channels/weixin) |
-| Telegram（Python） | Python | [python-telegram](../../developing/channels/python-telegram) |
+1. 在 DotCraft Desktop 打开一个 workspace。
+2. 打开 **Channels**。
+3. 选择要接入的平台。
+4. 填写表单中显示的平台凭据。
+5. 在对应平台后台或 Bot 工具里完成设置。
+6. 启用渠道。
+7. 给 Bot 发送一条测试消息。
 
-TypeScript 频道模块统一遵循 [TypeScript Module 集成契约](../../developing/integrations/typescript-module)，有标准的 `manifest`、`createModule`、`configDescriptors`、生命周期状态。
+Desktop 会为你管理内置 TypeScript 渠道进程。只有在想自行运行适配器时，才使用独立适配器路径。
 
-## 接入路径
+## 内置渠道
+
+| 平台 | 接入方式 | 主要能力 | 设置 |
+|---|---|---|---|
+| **QQ** | NapCat 或 OneBot v11 反向 WebSocket | 私聊、群聊、审批关键词、媒体投递 | [QQ 设置](../../developing/channels/qq) |
+| **企业微信 / WeCom** | 群机器人回调 URL、Token、EncodingAESKey | 企业微信群聊、审批、文件和图片投递 | [企业微信设置](../../developing/channels/wecom) |
+| **飞书 / Lark** | 启用 Bot 和 WebSocket 事件订阅的自建应用 | 卡片回复、审批、reaction、可选 docx/wiki 工具 | [飞书设置](../../developing/channels/feishu) |
+| **Telegram** | BotFather token 和 long polling | 私聊、群聊、`/new`、`/help`、inline 审批 | [Telegram 设置](../../developing/channels/telegram) |
+| **微信 / Weixin** | 腾讯 iLink 二维码登录 | 微信聊天、保存登录会话、纯文本回复、文件和图片投递 | [微信设置](../../developing/channels/weixin) |
+| **Telegram（Python）** | Python 独立适配器 | 自定义 Python 渠道工作的参考适配器 | [Python Telegram 设置](../../developing/channels/python-telegram) |
+
+## 渠道会话如何工作
 
 ![DotCraft channel adapter topology](/channel-adapter-topology.svg)
 
-三种接入方式：
+- 发给已连接 Bot 的消息会成为 DotCraft 会话回合。
+- 回复会自动投递回同一个聊天。
+- 平台支持时，审批和用户输入请求会出现在聊天里。
+- 支持斜杠命令的渠道中，`/new` 会开启新会话。
+- Desktop 可以打开同一个 workspace，用来查看历史或继续会话。
 
-- **Desktop 内嵌渠道**：Desktop 替你启动渠道。打开 Desktop **Channels** 页面，填写平台 token、回调地址、白名单或扫码认证后一键启用。
-- **服务器 Compose 部署**：使用 [服务器部署](../self-hosted/server-deployment)，通过 Docker Compose 启动 AppServer、内置 TypeScript 渠道和可选 OpenSandbox。
-- **独立运行的适配器**：把渠道作为你自己的进程运行，并以 WebSocket 连接 AppServer，适合需要自行运维适配器的场景。
+底层模型见 [Unified Session Core](../../developing/architecture/session-core)。
 
-这几种方式背后的渠道注册与传输字段，见 [入口与服务](../../developing/configuration#entry-points-and-services)。各平台的连接、权限白名单和审批超时在 [配置完整参考](../../developing/configuration) 中设置。
-
-## 渠道与统一会话核心
-
-- 一条群聊 = 一个 Thread；同一个用户多次发言 = Thread 内追加 Turn / Item。
-- 渠道收到的消息会带上群组、用户、消息类型等元信息，DotCraft 用这些元信息判断 Thread 归属。
-- Agent 想发起审批（写文件、Shell 命令）时，渠道会把审批请求渲染成平台原生消息（按钮 / 引用），用户点同意才会执行。
-- Desktop / TUI 可同时连接同一个 AppServer，看到机器人会话历史、接管会话、修正回复。
-
-详细机制见 [统一会话核心](../../developing/architecture/session-core)。
-
-## 把会话交接到社交渠道
+## 交接会话
 
 ![DotCraft 社交渠道接续](https://github.com/DotHarness/resources/raw/master/dotcraft/whats-new/channel-handoff.gif)
 
-你可以把 Desktop 中已有的会话绑定到已连接的社交渠道。在会话的 Apps 菜单中选择一个已连接渠道，然后在目标聊天里发送界面显示的 `/bind 123456` 命令。DotCraft 会把该聊天连接到同一个 Thread，后续来自该渠道的消息会继续这条会话，而不是创建一条新的机器人会话。
+在会话的 Apps 菜单中，可以把已有 Desktop 会话绑定到已连接的社交渠道。DotCraft 会显示一个 `/bind 123456` 命令；在目标聊天里发送该命令后，就能在那里继续同一条会话。
 
-绑定只作用于这个目标聊天。其他未绑定的聊天仍会使用该渠道原本的机器人会话和 thread 路由。
+绑定只作用于该聊天。其他聊天仍使用各自正常的渠道会话。
 
-由社交渠道触发的回复会自动投递回该渠道；你在 Desktop 中发送的消息仍只留在 Desktop，除非这一轮是由渠道消息触发的。
+## 安全清单
 
-## 适用场景
+把 Bot 暴露到群聊或公开聊天前：
 
-| 场景 | 推荐 |
-|---|---|
-| 团队内部知识库 bot | 飞书 / WeCom，企业内已有 IT 流程 |
-| 开源社区答疑 | Telegram / QQ |
-| 项目客服 / 售后 | 微信 / WeCom |
-| 想在群里调 Agent 跑 CI 报告 | 任意渠道 + [Automations](../agent-system/automations) |
-| 想在 Desktop 里看群聊历史并接管回复 | 任意渠道 + Desktop 同工作区 |
-| 把 Desktop 会话接续到社交聊天 | 任意已连接渠道 + 在目标聊天中发送 `/bind` |
+- 让文件和 Shell 操作保持审批。
+- 平台支持时，将渠道限制到可信用户、群或会话。
+- 独立适配器使用强随机 AppServer WebSocket token。
+- 平台需要回调 DotCraft 时，生产部署使用 HTTPS。
+- 需要更强工具隔离时，使用 [OpenSandbox](../self-hosted/security#沙箱opensandbox)。
 
-## 安全建议
+完整清单和准确字段见 [安全与沙箱](../self-hosted/security) 与 [配置完整参考](../../developing/configuration#tools-security-与-sandbox)。
 
-接入外部渠道相当于把 Agent 暴露给可信度未知的用户输入，建议同时配置：
+## 构建自定义渠道
 
-- 工作区外文件和 Shell 操作需要审批
-- 收紧到必要工具表面积
-- 使用强随机 AppServer WebSocket token
-- 必要时启用 [OpenSandbox](../self-hosted/security#沙箱opensandbox)
+当内置渠道覆盖你的平台时，优先使用内置渠道。需要接入新平台或自定义部署时：
 
-完整建议和准确字段见 [安全与沙箱](../self-hosted/security) 与 [配置完整参考](../../developing/configuration#tools-security-与-sandbox)。
-
-## 何时直接用 SDK 写自定义渠道
-
-DotCraft 内置 5 个常用渠道。需要接入其他平台（Slack、Discord、Lark 私有部署、企业 IM 等）时：
-
-- TypeScript：参考 [TypeScript SDK](../../developing/sdks/typescript) 与 [Module 集成契约](../../developing/integrations/typescript-module)
-- Python：参考 [Python SDK](../../developing/sdks/python)
-- 任何语言：直接对接 [AppServer Protocol](../../developing/protocols/appserver-protocol)
+- TypeScript 模块：[TypeScript Module 集成](../../developing/integrations/typescript-module)
+- 渠道适配器基类：[Channel adapters](../../developing/sdks/channels)
+- Python SDK：[Python SDK](../../developing/sdks/python)
+- Wire 协议：[AppServer Protocol](../../developing/protocols/appserver-protocol)
 
 ## 相关文档
 
-- [统一会话核心](../../developing/architecture/session-core)
+- [渠道配置参考](../../developing/channels/reference)
+- [Channel adapters](../../developing/sdks/channels)
 - [安全与沙箱](../self-hosted/security)
 - [服务器部署](../self-hosted/server-deployment)
-- [TypeScript SDK](../../developing/sdks/typescript) · [Python SDK](../../developing/sdks/python)
-- [TypeScript Module 集成契约](../../developing/integrations/typescript-module)

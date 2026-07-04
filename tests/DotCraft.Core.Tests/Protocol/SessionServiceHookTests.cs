@@ -89,6 +89,43 @@ public sealed class SessionServiceHookTests : IDisposable
         Assert.Contains("SECOND_SESSION_START_OUTPUT", text);
     }
 
+    [Fact]
+    public async Task SubmitInputAsync_InjectsUserPromptSubmitAdditionalContextIntoPrompt()
+    {
+        var marker = "USER_PROMPT_SUBMIT_CONTEXT";
+        var chatClient = new CapturingChatClient("ok");
+        await using var agentFactory = CreateAgentFactory();
+        var service = CreateService(
+            agentFactory,
+            chatClient,
+            CreateRunner(HookEvent.UserPromptSubmit, JsonAdditionalContextCommand("UserPromptSubmit", marker)));
+        var thread = await CreateThreadAsync(service);
+
+        await DrainAsync(service.SubmitInputAsync(thread.Id, [new TextContent("hello")]));
+
+        var request = Assert.Single(chatClient.CapturedRequests);
+        var userMessage = request.Last(message => message.Role == ChatRole.User);
+        var text = MessageText(userMessage);
+        Assert.Contains(marker, text);
+        Assert.DoesNotContain("hookSpecificOutput", text);
+    }
+
+    [Fact]
+    public async Task SubmitInputAsync_UserPromptSubmitExitTwoBlocksBeforeAgent()
+    {
+        var chatClient = new CapturingChatClient("ok");
+        await using var agentFactory = CreateAgentFactory();
+        var service = CreateService(
+            agentFactory,
+            chatClient,
+            CreateRunner(HookEvent.UserPromptSubmit, StderrAndExitCommand("prompt denied", 2)));
+        var thread = await CreateThreadAsync(service);
+
+        await DrainAsync(service.SubmitInputAsync(thread.Id, [new TextContent("hello")]));
+
+        Assert.Empty(chatClient.CapturedRequests);
+    }
+
     private SessionService CreateService(AgentFactory agentFactory, IChatClient chatClient, HookRunner hookRunner)
     {
         var defaultAgent = chatClient.AsAIAgent(new ChatClientAgentOptions());
@@ -118,12 +155,15 @@ public sealed class SessionServiceHookTests : IDisposable
         CreateSessionStartRunnerFromCommands(EchoCommand(output));
 
     private HookRunner CreateSessionStartRunnerFromCommands(params string[] commands)
+        => CreateRunner(HookEvent.SessionStart, commands);
+
+    private HookRunner CreateRunner(HookEvent evt, params string[] commands)
     {
         var config = new HooksFileConfig
         {
             Hooks =
             {
-                [nameof(HookEvent.SessionStart)] =
+                [evt.ToString()] =
                 [
                     new HookMatcherGroup
                     {
@@ -153,6 +193,19 @@ public sealed class SessionServiceHookTests : IDisposable
         OperatingSystem.IsWindows()
             ? $"Write-Output '{output}'; exit {exitCode}"
             : $"printf '%s\\n' '{output}'; exit {exitCode}";
+
+    private static string StderrAndExitCommand(string output, int exitCode) =>
+        OperatingSystem.IsWindows()
+            ? $"[Console]::Error.WriteLine('{output}'); exit {exitCode}"
+            : $"printf '%s\\n' '{output}' >&2; exit {exitCode}";
+
+    private static string JsonAdditionalContextCommand(string eventName, string output)
+    {
+        var json = "{\"hookSpecificOutput\":{\"hookEventName\":\"" + eventName + "\",\"additionalContext\":\"" + output + "\"}}";
+        return OperatingSystem.IsWindows()
+            ? $"Write-Output '{json}'"
+            : $"printf '%s\\n' '{json}'";
+    }
 
     private async Task<SessionThread> CreateThreadAsync(SessionService service) =>
         await service.CreateThreadAsync(new SessionIdentity

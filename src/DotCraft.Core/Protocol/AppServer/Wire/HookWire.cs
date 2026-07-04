@@ -49,9 +49,27 @@ public sealed class HookMetadataWire
     public string? Matcher { get; set; }
 
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Condition { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? Command { get; set; }
 
     public int TimeoutSec { get; set; }
+
+    public string ExecutionMode { get; set; } = "sync";
+
+    public bool AsyncRewake { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? RewakeMessage { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? RewakeSummary { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Shell { get; set; }
+
+    public bool Once { get; set; }
 
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? StatusMessage { get; set; }

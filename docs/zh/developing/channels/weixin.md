@@ -1,147 +1,67 @@
-﻿# DotCraft 微信渠道适配器
+# 将 DotCraft 接入微信
 
-`@dotcraft/channel-weixin` 通过 WebSocket 外部渠道协议，将腾讯 iLink（微信机器人 API）接入 DotCraft。
+通过腾讯 iLink 把微信接入 DotCraft。首次登录需要扫码，普通回复会以纯文本发送。
 
-## 功能概览
+## 快速设置
 
-- 通过 WebSocket 连接 DotCraft AppServer
-- 首次登录采用二维码交互认证
-- 会话状态持久化到模块专属状态目录
-- 支持流式回合回复与审批处理
-- 支持 `/new` 新建会话命令
-- 提供真实文件/图片发送工具：`WeixinSendFileToCurrentChat`、`WeixinSendImageToCurrentChat`
-- 支持结构化 `file` / `image` 投递（本地路径或 base64 数据源）
-- 微信 iLink 不提供 Markdown 渲染入口，普通回复和媒体 caption 会转为纯文本发送
+1. 确认微信账号具备腾讯 iLink 机器人接入能力。
+2. 在 DotCraft Desktop 打开目标 workspace。
+3. 打开 **Channels**，选择 **微信**。
+4. 除非腾讯提供了不同端点，否则保持默认 iLink API 地址。
+5. 保存渠道并启用。
+6. 扫描 Desktop 中显示的二维码。
+7. 等到 Desktop 中的微信渠道显示为 connected。
+8. 给微信机器人账号发送一条消息。
 
-## 安装
+## 平台设置细节
+
+微信渠道以认证为主：
+
+1. 使用已被腾讯 iLink 授权接入机器人的微信账号。
+2. 首次二维码登录完成前，保持 Desktop 打开。
+3. 正常重启 Desktop 会复用已保存会话。
+4. 当 Desktop 要求重新认证时，扫描新的二维码。
+
+Desktop 托管的微信渠道不需要公网回调 URL。
+
+## 测试连接
+
+1. 给微信机器人账号发送 `hello`。
+2. 确认 DotCraft 在同一聊天中回复。
+3. 发送 `/new`，再发送一条消息，确认它开启新的会话。
+4. 让 DotCraft 执行一个需要审批的操作，并用审批关键词回复。
+5. 如果工作流依赖媒体投递，测试一次返回文件或图片的任务。
+
+## 设置后可用能力
+
+- `/new` 会在当前微信聊天中开启新的 DotCraft 会话。
+- 登录会话会保存下来，正常重启时可复用。
+- 会话过期时，Desktop 会显示新的二维码。
+- iLink 不提供 Markdown 渲染入口，因此普通回复和媒体 caption 会转为纯文本。
+- 文件和图片投递可通过渠道投递工具使用。
+- 审批回复支持 `同意`、`允许`、`yes`、`approve` 和 `reject` 等纯聊天关键词。
+
+## 独立适配器
+
+只有在不由 Desktop 管理渠道进程时，才需要自己运行微信适配器。
 
 ```bash
 cd sdk/typescript
-npm install
-npm run build:all
-```
-
-## 1）工作区配置（`.craft/config.json`）
-
-将本目录的 `config.example.json` 合并到工作区 `.craft/config.json`，启用 `weixin` 外部渠道：
-
-```json
-{
-  "AppServer": {
-    "Mode": "stdioAndWebSocket",
-    "WebSocket": {
-      "Host": "127.0.0.1",
-      "Port": 9100,
-      "Token": ""
-    }
-  },
-  "ExternalChannels": {
-    "weixin": {
-      "enabled": true,
-      "transport": "websocket"
-    }
-  }
-}
-```
-
-## 2）适配器配置（`.craft/weixin.json`）
-
-在目标工作区创建 `.craft/weixin.json`：
-
-```json
-{
-  "dotcraft": {
-    "wsUrl": "ws://127.0.0.1:9100/ws",
-    "token": ""
-  },
-  "weixin": {
-    "apiBaseUrl": "https://ilinkai.weixin.qq.com",
-    "pollIntervalMs": 3000,
-    "pollTimeoutMs": 30000,
-    "approvalTimeoutMs": 120000,
-    "botType": "3"
-  }
-}
-```
-
-字段说明：
-
-- `dotcraft.wsUrl`：DotCraft AppServer WebSocket 地址
-- `dotcraft.token`：可选 AppServer 鉴权令牌
-- `weixin.apiBaseUrl`：iLink API 基础地址
-- `weixin.pollIntervalMs`：可选轮询间隔
-- `weixin.pollTimeoutMs`：可选长轮询超时
-- `weixin.approvalTimeoutMs`：可选审批超时时间
-- `weixin.botType`：可选二维码登录 bot 类型
-
-## 3）CLI 使用方式
-
-推荐方式：
-
-```bash
+npm run build --workspace @dotcraft/channel-weixin
 npx dotcraft-channel-weixin --workspace /path/to/workspace
 ```
 
-可选配置覆盖：
+当适配器配置不在 `.craft/weixin.json` 时，使用 `--config /custom/weixin.json`。终端模式会在终端中渲染二维码。
 
-```bash
-npx dotcraft-channel-weixin --workspace /path/to/workspace --config /custom/weixin.json
-```
+独立 WebSocket 适配器注册方式见共享的 [渠道配置参考](./reference)。
 
-## 4）交互式初始化（二维码登录）
+## 参考
 
-- 首次运行若无已保存会话，会进入 `authRequired`
-- 终端模式会在终端渲染二维码
-- 用户扫码确认后，适配器进入 `ready`
-- 会话过期时生命周期为 `authExpired -> authRequired`，需要重新扫码
-
-## 5）状态与临时目录布局
-
-模块数据统一存储在工作区 `.craft/` 下：
-
-- 持久状态：`.craft/state/weixin-standard/`
-  - 凭据、同步游标、上下文 token
-- 临时文件：`.craft/tmp/weixin-standard/`
-  - 二维码 URL 与二维码图片产物
-
-## 6）宿主集成方式
-
-宿主通过模块契约导入并监听生命周期：
-
-```typescript
-import { manifest, createModule } from "@dotcraft/channel-weixin";
-
-const instance = createModule({
-  workspaceRoot: "/path/to/workspace",
-  craftPath: "/path/to/workspace/.craft",
-  channelName: "weixin",
-  moduleId: "weixin-standard",
-});
-
-instance.onStatusChange((status, error) => {
-  // status: configMissing | configInvalid | starting | authRequired | authExpired | ready | stopped
-});
-
-await instance.start();
-```
-
-## 开发说明
-
-- 构建所有 TypeScript 包：
-  - `cd sdk/typescript && npm run build:all`
-- 运行全部测试：
-  - `cd sdk/typescript && npm run test:all`
-- 仅运行本包测试：
-  - `npm run test --workspace @dotcraft/channel-weixin`
-- 预览打包产物：
-  - `cd sdk/typescript/packages/channel-weixin && npm pack --dry-run`
-
-## 致谢
-
-[@tencent-weixin/openclaw-weixin](https://www.npmjs.com/package/@tencent-weixin/openclaw-weixin)
+微信的 JSON 示例、`ExternalChannels` 注册方式和字段表见 [渠道配置参考](./reference)。
 
 ## 相关文档
 
-- [Channels & Bots](../../features/entry-points/channels)——所有聊天渠道的总览。
-- [TypeScript 模块集成](../integrations/typescript-module)——本模块实现的宿主契约。
-- [企业微信渠道适配器](./wecom)——独立的企业微信渠道。
+- [Channels 与 Bots](../../features/entry-points/channels)
+- [渠道配置参考](./reference)
+- [企业微信渠道](./wecom)
+- [Channel adapters](../sdks/channels)

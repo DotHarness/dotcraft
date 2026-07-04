@@ -1,162 +1,67 @@
-# DotCraft WeCom Channel Adapter
+# Connect DotCraft to WeCom
 
-`@dotcraft/channel-wecom` connects WeCom to DotCraft through the WebSocket external channel protocol. The adapter connects to DotCraft AppServer and starts a local WeCom bot HTTP(S) callback service.
+Connect a WeCom group bot to DotCraft with the WeCom callback settings from your enterprise admin console.
 
-Personal Weixin `@dotcraft/channel-weixin` and WeCom `@dotcraft/channel-wecom` are separate channels.
+## Quick setup
 
-## Feature Summary
+1. Open the target workspace in DotCraft Desktop.
+2. Open **Channels**, then select **WeCom**.
+3. Set the callback listen host, port, and scheme. The default local listener is `0.0.0.0:9000`.
+4. Add a robot entry with a callback path, Token, and EncodingAESKey.
+5. Add at least one admin user, allowed user, or allowed chat.
+6. Save the channel and turn it on.
+7. In WeCom, set the group bot callback URL to the public URL that reaches the DotCraft listener.
+8. Paste the same Token and EncodingAESKey into the WeCom bot settings.
 
-- Connects to DotCraft AppServer over WebSocket
-- Starts a WeCom HTTP(S) callback service
-- Supports XML message push APIs and JSON smart bot callback format
-- Supports text, images, speech-to-text, files, attachments, mixed image/text messages, and events
-- Downloads image and mixed image/text message images as temporary local images for multimodal input
-- Maps each WeCom ChatId to one DotCraft thread
-- Supports approval inside the WeCom conversation
-- Provides voice and file runtime tools
+Desktop should show the WeCom channel as connected after WeCom verifies the callback.
 
-## Prerequisites
+## Platform setup details
 
-| Requirement | Notes |
-|-------------|-------|
-| WeCom bot | Self-built app or smart bot with callback URL, Token, and EncodingAESKey |
-| DotCraft AppServer | WebSocket mode must be enabled |
-| WeCom channel package | In releases: `resources/modules/channel-wecom`; in development: `sdk/typescript/packages/channel-wecom` |
-| Public callback URL | WeCom must reach the adapter callback URL; production deployments should usually expose HTTPS through a reverse proxy |
+In the WeCom admin console:
 
-## 1) Workspace Config (`.craft/config.json`)
+1. Create or open the group bot that should call DotCraft.
+2. Enable callback mode.
+3. Set the callback URL to your public HTTPS endpoint plus the robot path from Desktop.
+4. Set Token to the same robot token from Desktop.
+5. Set EncodingAESKey to the same robot AES key from Desktop.
+6. Add the bot to the chats where DotCraft should respond.
 
-Enable AppServer WebSocket and register the WeCom external channel in `.craft/config.json`:
+WeCom must reach the callback from the public internet. For local Desktop use, put an HTTPS reverse proxy or tunnel in front of the Desktop listener.
 
-```json
-{
-  "AppServer": {
-    "Mode": "WebSocket",
-    "WebSocket": {
-      "Host": "127.0.0.1",
-      "Port": 9100,
-      "Token": ""
-    }
-  },
-  "ExternalChannels": {
-    "wecom": {
-      "enabled": true,
-      "transport": "websocket"
-    }
-  }
-}
-```
+## Test the connection
 
-## 2) Adapter Config (`.craft/wecom.json`)
+1. Send a message in an allowed WeCom chat.
+2. Confirm DotCraft replies in the same chat.
+3. Ask DotCraft to do something that needs approval.
+4. Confirm the approval request appears in WeCom and that your reply is accepted.
 
-Create `.craft/wecom.json` in the target workspace:
+## What works after setup
 
-```json
-{
-  "dotcraft": {
-    "wsUrl": "ws://127.0.0.1:9100/ws",
-    "token": ""
-  },
-  "wecom": {
-    "host": "0.0.0.0",
-    "port": 9000,
-    "scheme": "http",
-    "adminUsers": ["zhangsan"],
-    "whitelistedUsers": [],
-    "whitelistedChats": [],
-    "approvalTimeoutMs": 60000,
-    "robots": [
-      {
-        "path": "/dotcraft",
-        "token": "your_token_here",
-        "aesKey": "your_43_char_aeskey"
-      }
-    ]
-  }
-}
-```
+- WeCom messages from allowed users or chats can start DotCraft turns.
+- Admin users can approve higher-risk actions from WeCom.
+- Approval replies accept the normal approve and reject keywords.
+- File and image delivery are available through channel delivery tools.
+- Messages from users or chats outside the allowlist are ignored.
 
-Field reference:
+## Standalone adapter
 
-| Field | Description | Default |
-|-------|-------------|---------|
-| `dotcraft.wsUrl` | DotCraft AppServer WebSocket URL | `ws://127.0.0.1:9100/ws` |
-| `dotcraft.token` | AppServer WebSocket token | Empty |
-| `wecom.host` | Callback service listen host | `0.0.0.0` |
-| `wecom.port` | Callback service listen port | `9000` |
-| `wecom.scheme` | Local callback protocol, `http` or `https` | `http` |
-| `wecom.tls.certPath` / `keyPath` | Certificate and private key paths for `https` mode | Empty |
-| `wecom.adminUsers` | WeCom UserIds with admin permission | `[]` |
-| `wecom.whitelistedUsers` | WeCom UserIds allowed to chat with DotCraft | `[]` |
-| `wecom.whitelistedChats` | ChatIds allowed to chat with DotCraft | `[]` |
-| `wecom.approvalTimeoutMs` | Approval timeout in milliseconds | `60000` |
-| `wecom.robots` | Bot callback credential list | `[]` |
-
-Single robot config:
-
-| Field | Required | Description |
-|-------|----------|-------------|
-| `path` | Yes | Callback path, such as `/dotcraft` |
-| `token` | Yes | Token configured in the WeCom console |
-| `aesKey` | Yes | EncodingAESKey, usually 43 characters without `=` |
-
-## 3) WeCom Console Setup
-
-Configure message receiving in the WeCom admin console:
-
-- URL: `http://your-server:9000/dotcraft`
-- Token: same as `robots[].token` in `.craft/wecom.json`
-- EncodingAESKey: same as `robots[].aesKey` in `.craft/wecom.json`
-
-If HTTPS is exposed through Nginx, Caddy, or another reverse proxy, the adapter can still listen on local HTTP.
-
-## 4) Start
-
-Desktop discovers the packaged `wecom-standard` external channel and can start it from the channel management UI.
-
-For development:
+Run the WeCom adapter yourself only when Desktop is not managing the channel process.
 
 ```bash
 cd sdk/typescript
 npm run build --workspace @dotcraft/channel-wecom
-npx dotcraft-channel-wecom --workspace F:\examples\workspace
+npx dotcraft-channel-wecom --workspace /path/to/workspace
 ```
 
-Or from the package directory:
+Register the channel as a standalone WebSocket adapter in the shared [channel configuration reference](./reference).
 
-```bash
-cd sdk/typescript/packages/channel-wecom
-npm run build
-npm start -- --workspace F:\examples\workspace
-```
+## Reference
 
-## Usage
-
-- Files and attachments return diagnostic messages and are not submitted directly to the agent.
-- Conversations are isolated by ChatId; `channelContext` is `chat:<ChatId>`.
-- Multiple WeCom users in the same ChatId share one DotCraft thread, with the actual sender recorded on each turn.
-- `/new`, `/help`, Heartbeat, Cron, and common delivery flows are supported.
-- Approval keywords include `同意`, `同意全部`, `拒绝`, `yes`, `yes all`, and `no`.
-
-## Runtime Tools
-
-| Tool | Purpose | Notes |
-|------|---------|-------|
-| `WeComSendVoice(filePath)` | Send voice to the current WeCom chat | AMR only; local absolute path; uploads temporary media first |
-| `WeComSendFile(filePath)` | Send a file to the current WeCom chat | Local absolute path; uploads temporary media first |
-
-These tools are exposed by the adapter through external channel capabilities. Tool names stay PascalCase.
-
-## Cron and Heartbeat
-
-| `channel` | `to` | Delivery target | Prerequisite |
-|-----------|------|-----------------|--------------|
-| `"wecom"` | `"chat:<ChatId>"` or `"<ChatId>"` | WeCom conversation | That ChatId has received a message and the adapter has cached its webhook |
-
-Create Cron tasks from inside the WeCom conversation so the task binds to the current ChatId automatically. If the target ChatId has no cached webhook yet, delivery fails with `No WeCom webhook is available for target ...`.
+See [Channel configuration reference](./reference) for the WeCom JSON example, `ExternalChannels` registration, and field table.
 
 ## Related docs
 
-- [Channels & Bots](../../features/entry-points/channels) — overview of every chat channel.
-- [Channel adapters](../sdks/channels) — the adapter base class and wire contract.
-- [Weixin Channel Adapter](./weixin) — the separate personal WeChat channel.
+- [Channels & Bots](../../features/entry-points/channels)
+- [Channel configuration reference](./reference)
+- [Weixin channel](./weixin)
+- [Channel adapters](../sdks/channels)

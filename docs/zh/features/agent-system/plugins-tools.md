@@ -29,10 +29,12 @@ DotCraft 插件用来把可复用的工作区能力打包成可安装扩展，�
 | Dynamic tool | Agent 可调用的工具，可由本地 stdio 进程执行 |
 | Skill | 随插件分发的 plugin-contained skill，启用时进入 skill 列表 |
 | Desktop extension | 受信任的本地 UI bundle，可向 Desktop 增加 sidebar main view 等界面 |
+| Lifecycle hook | 在你检查并信任后，于生命周期时机运行的脚本 hook |
 | 元数据 | 名称、描述、开发者、分类、图标、默认 prompt、相关链接 |
 
 插件内置的 skill 跟随插件生命周期：启用插件时可用，禁用或移除插件后不再进入 Agent 上下文。
 Desktop extension 也跟随插件生命周期：只有插件安装并启用后，Desktop 才会加载它的本地 bundle。
+插件内置 hooks 会在插件启用时被发现，然后在 **Settings -> Hooks** 中管理。信任前它们不会运行。参见 [生命周期 Hooks](./hooks)。
 
 ### Desktop 扩展
 
@@ -85,7 +87,7 @@ Desktop extension 也跟随插件生命周期：只有插件安装并启用后�
 
 最快方式是让内置 `$plugin-creator` 先搭好结构，再补充说明、工具逻辑和验证步骤。
 
-如果只是给当前项目补充一段工作流，优先创建普通 skill。需要把 skills、dynamic tools、图标和安装页信息一起打包分发时，再创建 plugin。
+如果只是给当前项目补充一段工作流，优先创建普通 skill。需要把 skills、dynamic tools、hooks、图标和安装页信息一起打包分发时，再创建 plugin。
 
 ### 用 plugin creator 起步
 
@@ -101,7 +103,7 @@ $plugin-creator 创建一个名为 External Process Echo 的插件，包含一�
 $plugin-creator 创建一个本地插件，用 Python 进程提供 EchoText dynamic tool，并生成安装验证说明。
 ```
 
-`plugin-creator` 会生成插件目录和 manifest、plugin-contained skill、可选 MCP 配置、可选 hooks，以及可选 Desktop extension。生成后通常只需要：
+`plugin-creator` 会生成插件目录和 manifest、plugin-contained skill、可选 MCP 配置、可选 [hooks](./hooks)，以及可选 Desktop extension。生成后通常只需要：
 
 1. 替换占位文案和示例内容
 2. 实现或调整 tool 进程逻辑
@@ -109,13 +111,14 @@ $plugin-creator 创建一个本地插件，用 Python 进程提供 EchoText dyna
 
 ### 一个插件能贡献什么
 
-一个插件可以打包以下三类内容的任意组合，全部由一份 manifest 驱动：
+一个插件可以打包以下内容的任意组合，全部由一份 manifest 驱动：
 
 - **Dynamic tools** —— Agent 可调用的工具，可选由本地进程支撑。
 - **Skills** —— 插件启用时即加入 skill 列表。
 - **Desktop extension** —— 本地 UI bundle，向 Desktop 添加自己的界面（例如 sidebar 视图），并可通过受控的宿主桥读取（在获得授权时写入）其 App 的数据。
+- **Lifecycle hooks** —— 在用户信任每个 handler 后，于会话、prompt、工具或 turn 时机运行脚本。
 
-让 `plugin-creator` 生成 manifest 和配套文件；生成的 manifest 就是你后续调整或分发时的工作参考。Dynamic tool 与 Desktop extension 背后的底层契约——manifest 字段、tool schema、宿主桥、写入授权——见 [构建 App](../../developing/integrations/build-an-app) 与 [App Binding](../../developing/integrations/app-binding)。
+让 `plugin-creator` 生成 manifest 和配套文件；生成的 manifest 就是你后续调整或分发时的工作参考。Dynamic tool 与 Desktop extension 背后的底层契约——manifest 字段、tool schema、宿主桥、写入授权——见 [构建 App](../../developing/integrations/build-an-app) 与 [App Binding](../../developing/integrations/app-binding)。Hook 行为和信任机制见 [生命周期 Hooks](./hooks)。
 
 ## MCP Servers
 
@@ -133,6 +136,7 @@ MCP server 注册、延迟加载选项和完整字段列表见 [配置完整参�
 安装插件会把新的 tools 和 skills 加入工作区能力范围。启用带 `process` backend 的插件后，DotCraft 可以启动插件 manifest 中声明的本地 stdio 进程来执行 dynamic tools。**只安装和启用你信任来源、代码和依赖的插件**。
 
 - 插件 tool 调用仍会经过 DotCraft 的会话、审批和工具调用记录。
+- 插件 hooks 在 **Settings -> Hooks** 中逐条信任前不会运行；hook 命令修改后需要重新信任。
 - Desktop extension bundle 会作为受信任本地 UI 代码运行在 Desktop renderer 中。Descriptor 声明的 host 能力仍由 Desktop main process 强制执行；extension v1 不是不可信代码沙箱。
 - 插件详情中的网站、隐私政策和服务条款链接用于帮助你确认插件来源和行为边界。
 - 黑名单、工作区边界、沙箱等限制对插件 tools 同样生效。详见 [安全与沙箱](../self-hosted/security)。
@@ -140,7 +144,7 @@ MCP server 注册、延迟加载选项和完整字段列表见 [配置完整参�
 ## 相关文档
 
 - [Skills 与自学习](./skills) — Skill 与 Plugin 的关系
+- [生命周期 Hooks](./hooks) — 插件分发的生命周期脚本
 - [Desktop 扩展](../../developing/integrations/desktop-extensions) — 在 Desktop 内嵌入自有界面的插件
 - [构建 App](../../developing/integrations/build-an-app) — manifest 字段、tool schema 与 Desktop extension 开发
-- [可观测性](../self-hosted/observability) — 在 Dashboard 看插件 tool 调用与审批
 - [安全与沙箱](../self-hosted/security) — 工具能力的全局约束

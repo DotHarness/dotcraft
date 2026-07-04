@@ -44,9 +44,9 @@ Use the configuration reference when you need a precise allow-list, web-search p
 
 ## Hooks
 
-Hooks let DotCraft run external commands during lifecycle events. They are useful for formatting, auditing, notifications, environment checks, and security guards. Start with an observing Hook, then add blocking Hooks once behavior is clear.
+Hooks can turn security checks into lifecycle guardrails: inspect a shell command before it runs, review edits after tool use, or ask DotCraft to pause risky work until you approve the next step.
 
-Hook configuration, lifecycle events, stdin payloads, matcher rules, exit-code behavior, and examples live in [Automations, Goals, and Hooks](../../developing/configuration#automations-goals-and-hooks).
+For the user-facing overview, see [Lifecycle Hooks](../agent-system/hooks). For exact fields, events, matcher rules, and exit-code behavior, see [Configuration Reference](../../developing/configuration#automations-goals-and-hooks).
 
 Best practices:
 

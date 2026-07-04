@@ -81,13 +81,13 @@ Automations 适合"按时间或手动触发一次任务"，Goals 适合"让同�
 | 自动跑测试套件并把摘要写入对话 | Automations，带完成摘要 |
 | 持续推进一项重构或文档整理 | Goals |
 | 让定时任务沿着同一长期目标推进 | Automations + Goals |
-| 文件写入后自动 lint/format | [Hooks](../self-hosted/security#hooks) `PostToolUse` |
-| 阻止危险 Shell 命令 | [Hooks](../self-hosted/security#hooks) `PreToolUse` |
+| 文件写入后自动 lint/format | [生命周期 Hooks](./hooks) `PostToolUse` |
+| 阻止危险 Shell 命令 | [生命周期 Hooks](./hooks) `PreToolUse` |
 
 ## 相关文档
 
 - [项目级工作区](../project-first) — `.craft/tasks/`、`.craft/automations/` 在整体目录里的位置
 - [统一会话核心](../../developing/architecture/session-core) — Thread / Turn / Item 与目标状态的关系
 - [可观测性](../self-hosted/observability) — Dashboard 上的 Trace 和审批
-- [安全与沙箱](../self-hosted/security#hooks) — Hooks、安全守卫与沙箱隔离
+- [生命周期 Hooks](./hooks) — 在会话、prompt、工具和 turn 时机运行脚本
 - [配置完整参考](../../developing/configuration#automations-goals-与-hooks) — Automations、Goals 与 Hooks 字段

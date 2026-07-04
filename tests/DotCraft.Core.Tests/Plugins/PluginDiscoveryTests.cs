@@ -149,6 +149,66 @@ public sealed class PluginDiscoveryTests
     }
 
     [Fact]
+    public void ManifestParser_AcceptsTopLevelDefaultHooksManifest()
+    {
+        var root = NewTempDir();
+        var pluginRoot = Path.Combine(root, "demo");
+        Directory.CreateDirectory(Path.Combine(pluginRoot, ".craft-plugin"));
+        File.WriteAllText(
+            Path.Combine(pluginRoot, ".craft-plugin", "plugin.json"),
+            """
+{
+  "schemaVersion": 1,
+  "id": "demo-plugin",
+  "version": "1.0.0",
+  "displayName": "Demo",
+  "description": "Demo plugin.",
+  "capabilities": ["hooks"]
+}
+""");
+        File.WriteAllText(Path.Combine(pluginRoot, "hooks.json"), HookJson("echo top-level"));
+
+        var result = PluginManifestParser.Load(pluginRoot);
+
+        Assert.DoesNotContain(result.Diagnostics, d => d.Severity == PluginDiagnosticSeverity.Error);
+        Assert.NotNull(result.Manifest);
+        var hooksPath = Assert.Single(result.Manifest!.Hooks!.Paths);
+        Assert.Equal(Path.Combine(pluginRoot, "hooks.json"), hooksPath);
+    }
+
+    [Fact]
+    public void ManifestParser_ExplicitHooksSuppressesDefaultHookDiscovery()
+    {
+        var root = NewTempDir();
+        var pluginRoot = Path.Combine(root, "demo");
+        Directory.CreateDirectory(Path.Combine(pluginRoot, ".craft-plugin"));
+        Directory.CreateDirectory(Path.Combine(pluginRoot, "hooks"));
+        File.WriteAllText(Path.Combine(pluginRoot, "hooks", "one.json"), HookJson("echo explicit"));
+        File.WriteAllText(Path.Combine(pluginRoot, "hooks", "hooks.json"), HookJson("echo default"));
+        File.WriteAllText(Path.Combine(pluginRoot, "hooks.json"), HookJson("echo top-level"));
+        File.WriteAllText(
+            Path.Combine(pluginRoot, ".craft-plugin", "plugin.json"),
+            """
+{
+  "schemaVersion": 1,
+  "id": "demo-plugin",
+  "version": "1.0.0",
+  "displayName": "Demo",
+  "description": "Demo plugin.",
+  "capabilities": ["hooks"],
+  "hooks": "./hooks/one.json"
+}
+""");
+
+        var result = PluginManifestParser.Load(pluginRoot);
+
+        Assert.DoesNotContain(result.Diagnostics, d => d.Severity == PluginDiagnosticSeverity.Error);
+        Assert.NotNull(result.Manifest);
+        var hooksPath = Assert.Single(result.Manifest!.Hooks!.Paths);
+        Assert.Equal(Path.Combine(pluginRoot, "hooks", "one.json"), hooksPath);
+    }
+
+    [Fact]
     public void ManifestParser_AcceptsExplicitAndInlineHooks()
     {
         var root = NewTempDir();
@@ -236,6 +296,9 @@ public sealed class PluginDiscoveryTests
         Assert.Equal("demo-plugin:hooks/hooks.json:pre_tool_use:0:0", hook.Key);
         Assert.Equal(HookSources.Plugin, hook.Source);
         Assert.Equal("demo-plugin", hook.PluginId);
+        Assert.Equal("Bash(git commit:*)", hook.Condition);
+        Assert.Equal("async", hook.ExecutionMode);
+        Assert.True(hook.AsyncRewake);
         Assert.Equal(HookTrustStatuses.Untrusted, hook.TrustStatus);
         Assert.Contains(pluginRoot, hook.Command);
         Assert.Empty(first.RuntimeConfig.Hooks);
@@ -249,6 +312,12 @@ public sealed class PluginDiscoveryTests
         var group = Assert.Single(trusted.RuntimeConfig.Hooks[nameof(HookEvent.PreToolUse)]);
         var runtimeHook = Assert.Single(group.Hooks);
         Assert.Equal(pluginRoot, runtimeHook.EnvironmentVariables["DOTCRAFT_PLUGIN_ROOT"]);
+        Assert.Equal(pluginRoot, runtimeHook.EnvironmentVariables["CLAUDE_PLUGIN_ROOT"]);
+        Assert.Equal(runtimeHook.EnvironmentVariables["DOTCRAFT_PLUGIN_DATA"], runtimeHook.EnvironmentVariables["CLAUDE_PLUGIN_DATA"]);
+        Assert.Equal(
+            Path.Combine(runtimeHook.EnvironmentVariables["DOTCRAFT_PLUGIN_DATA"], "claude-compat"),
+            runtimeHook.EnvironmentVariables["CLAUDE_CONFIG_DIR"]);
+        Assert.Equal("Bash(git commit:*)", runtimeHook.If);
         Assert.Equal("demo-plugin", runtimeHook.PluginId);
     }
 
@@ -1552,7 +1621,12 @@ description: Test skill
           {
             "type": "command",
             "command": "{{command}}",
-            "timeout": 7
+            "timeout": 7,
+            "if": "Bash(git commit:*)",
+            "async": true,
+            "asyncRewake": true,
+            "rewakeMessage": "Review feedback",
+            "rewakeSummary": "Review found issues"
           }
         ]
       }

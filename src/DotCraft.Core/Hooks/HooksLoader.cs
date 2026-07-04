@@ -238,22 +238,38 @@ public sealed class HooksLoader(string craftPath)
                     var key = source == HookSources.Plugin && pluginId != null && sourceRelativePath != null
                         ? HookKeys.ForPlugin(pluginId, sourceRelativePath, eventName, groupIndex, hookIndex)
                         : HookKeys.ForConfig(sourcePath, eventName, groupIndex, hookIndex);
-                    var currentHash = ComputeHash(eventName, group.Matcher, hook.Command, timeout);
+                    var currentHash = ComputeHash(eventName, group.Matcher, hook, timeout);
                     appConfig.Hooks.State.TryGetValue(key, out var state);
                     var isManaged = false;
                     var stateEnabled = state?.Enabled != false;
                     var enabled = hooksGloballyEnabled && stateEnabled;
                     var trustStatus = ResolveTrustStatus(isManaged, currentHash, state?.TrustedHash);
                     var command = ExpandPluginVariables(hook.Command, pluginRoot, pluginDataPath);
+                    var environment = BuildHookEnvironment(pluginRoot, pluginDataPath);
+                    foreach (var (envKey, value) in hook.EnvironmentVariables)
+                    {
+                        if (!string.IsNullOrWhiteSpace(envKey) && value != null)
+                            environment[envKey] = ExpandPluginVariables(value, pluginRoot, pluginDataPath);
+                    }
+
                     var entry = new HookEntry
                     {
+                        Key = key,
                         Type = "command",
                         Command = command,
+                        If = hook.If,
+                        Shell = hook.Shell,
                         Timeout = timeout,
+                        StatusMessage = hook.StatusMessage,
+                        Async = hook.Async,
+                        AsyncRewake = hook.AsyncRewake,
+                        RewakeMessage = hook.RewakeMessage,
+                        RewakeSummary = hook.RewakeSummary,
+                        Once = hook.Once,
                         SourcePath = sourcePath,
                         Source = source,
                         PluginId = pluginId,
-                        EnvironmentVariables = BuildHookEnvironment(pluginRoot, pluginDataPath)
+                        EnvironmentVariables = environment
                     };
 
                     metadata.Add(new HookMetadata
@@ -262,8 +278,16 @@ public sealed class HooksLoader(string craftPath)
                         EventName = eventName,
                         HandlerType = "command",
                         Matcher = string.IsNullOrEmpty(group.Matcher) ? null : group.Matcher,
+                        Condition = hook.If,
                         Command = command,
                         TimeoutSec = timeout,
+                        ExecutionMode = hook.Async || hook.AsyncRewake ? "async" : "sync",
+                        AsyncRewake = hook.AsyncRewake,
+                        RewakeMessage = hook.RewakeMessage,
+                        RewakeSummary = hook.RewakeSummary,
+                        Shell = hook.Shell,
+                        Once = hook.Once,
+                        StatusMessage = hook.StatusMessage,
                         SourcePath = sourcePath,
                         Source = source,
                         PluginId = pluginId,
@@ -313,14 +337,22 @@ public sealed class HooksLoader(string craftPath)
             : HookTrustStatuses.Modified;
     }
 
-    private static string ComputeHash(string eventName, string? matcher, string command, int timeout)
+    private static string ComputeHash(string eventName, string? matcher, HookEntry hook, int timeout)
     {
         var normalized = string.Join(
             "\n",
             HookKeys.ToSnakeCase(eventName),
             matcher ?? string.Empty,
-            command,
-            timeout.ToString(System.Globalization.CultureInfo.InvariantCulture));
+            hook.If ?? string.Empty,
+            hook.Command,
+            hook.Shell ?? string.Empty,
+            timeout.ToString(System.Globalization.CultureInfo.InvariantCulture),
+            hook.StatusMessage ?? string.Empty,
+            hook.Async ? "async" : "sync",
+            hook.AsyncRewake ? "rewake" : string.Empty,
+            hook.RewakeMessage ?? string.Empty,
+            hook.RewakeSummary ?? string.Empty,
+            hook.Once ? "once" : string.Empty);
         var bytes = SHA256.HashData(Encoding.UTF8.GetBytes(normalized));
         return "sha256:" + Convert.ToHexString(bytes).ToLowerInvariant();
     }
@@ -336,17 +368,31 @@ public sealed class HooksLoader(string craftPath)
             .Replace(@"${DOTCRAFT_PLUGIN_ROOT}\", (pluginRoot ?? string.Empty) + separator, StringComparison.Ordinal)
             .Replace("${DOTCRAFT_PLUGIN_DATA}/", (pluginDataPath ?? string.Empty) + separator, StringComparison.Ordinal)
             .Replace(@"${DOTCRAFT_PLUGIN_DATA}\", (pluginDataPath ?? string.Empty) + separator, StringComparison.Ordinal)
+            .Replace("${CLAUDE_PLUGIN_ROOT}/", (pluginRoot ?? string.Empty) + separator, StringComparison.Ordinal)
+            .Replace(@"${CLAUDE_PLUGIN_ROOT}\", (pluginRoot ?? string.Empty) + separator, StringComparison.Ordinal)
+            .Replace("${CLAUDE_PLUGIN_DATA}/", (pluginDataPath ?? string.Empty) + separator, StringComparison.Ordinal)
+            .Replace(@"${CLAUDE_PLUGIN_DATA}\", (pluginDataPath ?? string.Empty) + separator, StringComparison.Ordinal)
             .Replace("${DOTCRAFT_PLUGIN_ROOT}", pluginRoot ?? string.Empty, StringComparison.Ordinal)
-            .Replace("${DOTCRAFT_PLUGIN_DATA}", pluginDataPath ?? string.Empty, StringComparison.Ordinal);
+            .Replace("${DOTCRAFT_PLUGIN_DATA}", pluginDataPath ?? string.Empty, StringComparison.Ordinal)
+            .Replace("${CLAUDE_PLUGIN_ROOT}", pluginRoot ?? string.Empty, StringComparison.Ordinal)
+            .Replace("${CLAUDE_PLUGIN_DATA}", pluginDataPath ?? string.Empty, StringComparison.Ordinal);
     }
 
     private static Dictionary<string, string> BuildHookEnvironment(string? pluginRoot, string? pluginDataPath)
     {
         var env = new Dictionary<string, string>(StringComparer.Ordinal);
         if (!string.IsNullOrWhiteSpace(pluginRoot))
+        {
             env["DOTCRAFT_PLUGIN_ROOT"] = pluginRoot;
+            env["CLAUDE_PLUGIN_ROOT"] = pluginRoot;
+        }
         if (!string.IsNullOrWhiteSpace(pluginDataPath))
+        {
             env["DOTCRAFT_PLUGIN_DATA"] = pluginDataPath;
+            env["CLAUDE_PLUGIN_DATA"] = pluginDataPath;
+            env["CLAUDE_CONFIG_DIR"] = Path.Combine(pluginDataPath, "claude-compat");
+            env["SECURITY_WARNINGS_STATE_DIR"] = Path.Combine(pluginDataPath, "security");
+        }
         return env;
     }
 

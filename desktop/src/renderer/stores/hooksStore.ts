@@ -8,8 +8,15 @@ export interface HookMetadata {
   eventName: string
   handlerType: string
   matcher?: string | null
+  condition?: string | null
   command?: string | null
   timeoutSec?: number | null
+  executionMode?: string | null
+  asyncRewake?: boolean
+  rewakeMessage?: string | null
+  rewakeSummary?: string | null
+  shell?: string | null
+  once?: boolean
   statusMessage?: string | null
   sourcePath?: string | null
   source: HookSource

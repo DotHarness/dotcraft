@@ -5224,7 +5224,7 @@ Server notification emitted when one server's runtime status changes.
 
 ### 22A.1 Scope
 
-These methods expose lifecycle hook metadata discovered from user config, workspace config, and enabled plugins. They do not edit hook commands. The command-bearing files remain the source of truth; AppServer only persists per-user state such as enablement and trust.
+These methods expose lifecycle hook metadata discovered from user config, workspace config, and enabled plugins. They do not edit hook commands. The command-bearing files remain the source of truth; AppServer only persists per-user state such as enablement and trust. Runtime semantics are defined by [Lifecycle Hooks](../core/lifecycle-hooks.md).
 
 Clients must check `capabilities.hooksManagement` before calling `hooks/list` or `hooks/setState`. If absent or `false`, the server returns `-32601` (Method not found).
 
@@ -5236,8 +5236,11 @@ Clients must check `capabilities.hooksManagement` before calling `hooks/list` or
   "eventName": "SessionStart",
   "handlerType": "command",
   "matcher": null,
+  "condition": null,
   "command": "${DOTCRAFT_PLUGIN_ROOT}\\hooks\\session-start.cmd",
   "timeoutSec": 30,
+  "executionMode": "sync",
+  "asyncRewake": false,
   "statusMessage": null,
   "sourcePath": "/workspace/.craft/plugins/review-tools/hooks/hooks.json",
   "source": "plugin",
@@ -5253,11 +5256,16 @@ Clients must check `capabilities.hooksManagement` before calling `hooks/list` or
 | Field | Type | Description |
 |-------|------|-------------|
 | `key` | string | Stable hook identity. Config hook keys use `<absoluteSourcePath>:<snake_case_event>:<groupIndex>:<handlerIndex>`; plugin hook keys use `<pluginId>:<sourceRelativePath>:<snake_case_event>:<groupIndex>:<handlerIndex>`. |
-| `eventName` | string | One of `SessionStart`, `PreToolUse`, `PostToolUse`, `PostToolUseFailure`, `PrePrompt`, or `Stop`. |
-| `handlerType` | string | Currently `command`. |
+| `eventName` | string | Lifecycle hook event name defined by the Lifecycle Hooks spec. |
+| `handlerType` | string | `command`, or a reserved unsupported handler type returned with diagnostics. |
 | `matcher` | string? | Tool matcher for tool events. Empty or null matches all applicable tool events. |
+| `condition` | string? | Optional command condition such as `Bash(git commit:*)`. |
 | `command` | string? | Declared command string after runtime variable expansion for plugin hooks. |
 | `timeoutSec` | integer? | Command timeout in seconds. |
+| `executionMode` | string | `sync` or `async`. |
+| `asyncRewake` | boolean | True when the hook may enqueue hook-origin follow-up feedback. |
+| `rewakeMessage` | string? | Optional continuation message prefix. |
+| `rewakeSummary` | string? | Optional short continuation summary. |
 | `statusMessage` | string? | Optional diagnostic or state message for clients. |
 | `sourcePath` | string? | Absolute source file path when available. |
 | `source` | string | `user`, `workspace`, `plugin`, or `unknown`. |
@@ -5265,7 +5273,7 @@ Clients must check `capabilities.hooksManagement` before calling `hooks/list` or
 | `displayOrder` | integer | Effective execution order for UI sorting. |
 | `enabled` | boolean | Effective state after global enablement, per-hook disable, and trust checks. |
 | `isManaged` | boolean | Reserved for runtime-managed hooks. Config and plugin hooks currently return `false`. |
-| `currentHash` | string | Normalized hash over event, matcher, command, and timeout. Machine-specific expanded paths are excluded. |
+| `currentHash` | string | Normalized hash over behavior-affecting hook identity fields. Machine-specific expanded paths are excluded. |
 | `trustStatus` | string | `trusted`, `untrusted`, `modified`, or `managed`. |
 
 ### 22A.3 `hooks/list`

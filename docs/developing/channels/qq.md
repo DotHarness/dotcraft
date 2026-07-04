@@ -1,147 +1,72 @@
-# DotCraft QQ Channel Adapter
+# Connect DotCraft to QQ
 
-`@dotcraft/channel-qq` connects QQ to DotCraft through the WebSocket external channel protocol. The adapter connects to DotCraft AppServer and exposes a local OneBot v11 reverse WebSocket endpoint for NapCat or another OneBot implementation.
-
-## Feature Summary
-
-- Connects to DotCraft AppServer over WebSocket
-- Exposes a OneBot v11 reverse WebSocket server
-- Supports QQ private chats and group chats
-- Responds in groups only when the bot is mentioned by default
-- Maps each QQ private chat user or group chat to a separate DotCraft thread
-- Supports approval inside the QQ conversation
-- Provides voice, video, and file runtime tools
+Connect a QQ account to DotCraft through NapCat or another OneBot v11 gateway.
 
 > [!CAUTION]
-> Third-party QQ protocol frameworks may create account risk. Evaluate that risk before using them.
+> Third-party QQ protocol frameworks can create account risk. Use a dedicated QQ account and review the risk before deployment.
 
-## Prerequisites
+## Quick setup
 
-| Requirement | Notes |
-|-------------|-------|
-| QQ account | Used as the bot account; a secondary account is recommended |
-| OneBot v11 implementation | NapCat is recommended for QQ login and reverse WebSocket connection |
-| DotCraft AppServer | WebSocket mode must be enabled |
-| QQ channel package | In releases: `resources/modules/channel-qq`; in development: `sdk/typescript/packages/channel-qq` |
+1. Open the target workspace in DotCraft Desktop.
+2. Open **Channels**, then select **QQ**.
+3. Set the OneBot listen address. The default is `127.0.0.1:6700`.
+4. Enter an access token if NapCat should authenticate to the DotCraft endpoint.
+5. Add at least one admin user, allowed user, or allowed group.
+6. Save the channel and turn it on.
+7. In NapCat WebUI, add a reverse WebSocket connection to `ws://127.0.0.1:6700/`.
+8. Set the NapCat message format to `array`.
 
-## 1) Workspace Config (`.craft/config.json`)
+Desktop should show the QQ channel as connected after NapCat reaches the DotCraft listener.
 
-Enable AppServer WebSocket and register the QQ external channel in `.craft/config.json`:
+## Platform setup details
 
-```json
-{
-  "AppServer": {
-    "Mode": "WebSocket",
-    "WebSocket": {
-      "Host": "127.0.0.1",
-      "Port": 9100,
-      "Token": ""
-    }
-  },
-  "ExternalChannels": {
-    "qq": {
-      "enabled": true,
-      "transport": "websocket"
-    }
-  }
-}
-```
+In NapCat, configure the QQ account that will speak for DotCraft:
 
-## 2) Adapter Config (`.craft/qq.json`)
+1. Log in with the dedicated QQ account.
+2. Open the OneBot / WebSocket client settings.
+3. Set the reverse WebSocket URL to the DotCraft listen address.
+4. Set the Token to the same value you entered in Desktop.
+5. Set message format to `array`.
 
-Create `.craft/qq.json` in the target workspace:
+If NapCat runs in Docker or on another machine, replace `127.0.0.1` with an address that can reach the machine running DotCraft Desktop.
 
-```json
-{
-  "dotcraft": {
-    "wsUrl": "ws://127.0.0.1:9100/ws",
-    "token": ""
-  },
-  "qq": {
-    "host": "127.0.0.1",
-    "port": 6700,
-    "accessToken": "",
-    "adminUsers": [123456789],
-    "whitelistedUsers": [],
-    "whitelistedGroups": [],
-    "approvalTimeoutMs": 60000,
-    "requireMentionInGroups": true
-  }
-}
-```
+## Test the connection
 
-Field reference:
+1. Send a private message to the QQ account from an allowed user.
+2. In a group, @mention the bot account.
+3. Confirm DotCraft replies in the same QQ conversation.
+4. Ask DotCraft to do something that needs approval, then reply with `同意`, `允许`, `yes`, or `approve`.
 
-| Field | Description | Default |
-|-------|-------------|---------|
-| `dotcraft.wsUrl` | DotCraft AppServer WebSocket URL | `ws://127.0.0.1:9100/ws` |
-| `dotcraft.token` | AppServer WebSocket token | Empty |
-| `qq.host` | OneBot reverse WebSocket listen host | `127.0.0.1` |
-| `qq.port` | OneBot reverse WebSocket listen port | `6700` |
-| `qq.accessToken` | OneBot access token; must match NapCat | Empty |
-| `qq.adminUsers` | QQ user IDs with admin permission | `[]` |
-| `qq.whitelistedUsers` | QQ user IDs allowed to chat with DotCraft | `[]` |
-| `qq.whitelistedGroups` | QQ group IDs allowed to chat with DotCraft | `[]` |
-| `qq.approvalTimeoutMs` | Approval timeout in milliseconds | `60000` |
-| `qq.requireMentionInGroups` | Whether group chats require mentioning the bot | `true` |
+## What works after setup
 
-If `adminUsers`, `whitelistedUsers`, and `whitelistedGroups` are all empty, the adapter will not respond to any QQ user. Configure at least one admin user.
+- Private chats keep a separate DotCraft conversation per QQ user.
+- A QQ group shares one conversation, with the actual sender recorded on each message.
+- Group messages require an @mention by default.
+- Empty admin and allowlist settings mean the bot ignores QQ messages.
+- Approval replies accept `同意`, `允许`, `yes`, `approve`, `拒绝`, `no`, `reject`, and `deny`.
+- Voice, video, and file delivery are available through channel delivery tools.
 
-## 3) Configure NapCat
+## Standalone adapter
 
-Create a WebSocket client (reverse WS) in the NapCat WebUI:
-
-1. Set URL to `ws://127.0.0.1:6700/`.
-2. Set Token to the same value as `qq.accessToken`.
-3. Set message format to `array`.
-
-If NapCat runs in Docker or on another machine, replace `127.0.0.1` with an address that can reach the QQ adapter.
-
-## 4) Start
-
-Desktop discovers the packaged `qq-standard` external channel and can start it from the channel management UI.
-
-For development:
+Run the QQ adapter yourself only when Desktop is not managing the channel process.
 
 ```bash
 cd sdk/typescript
 npm run build --workspace @dotcraft/channel-qq
-npx dotcraft-channel-qq --workspace F:\examples\workspace
+npx dotcraft-channel-qq --workspace /path/to/workspace
 ```
 
-Or from the package directory:
+Use `--config /custom/qq.json` when the adapter config is not stored at `.craft/qq.json`.
 
-```bash
-cd sdk/typescript/packages/channel-qq
-npm run build
-npm start -- --workspace F:\examples\workspace
-```
+Register the channel as a standalone WebSocket adapter in the shared [channel configuration reference](./reference).
 
-## Usage
+## Reference
 
-- Group chats respond only when the bot is mentioned by default.
-- Private chats use a separate thread per user.
-- Each QQ group maps to one shared DotCraft thread, with each sender recorded on the individual turn.
-- When an admin triggers an action that needs approval, the adapter sends an approval prompt in the QQ conversation.
-- Reply `同意`, `允许`, `yes`, or `approve` to approve; reply `拒绝`, `no`, `reject`, or `deny` to reject.
-
-## Runtime Tools
-
-The QQ channel provides these tools for explicit cross-target delivery:
-
-| Tool | Target | Source |
-|------|--------|--------|
-| `QQSendGroupVoice` | QQ group | Local path, HTTP URL, `base64://...` |
-| `QQSendPrivateVoice` | QQ user | Local path, HTTP URL, `base64://...` |
-| `QQSendGroupVideo` | QQ group | Local path, HTTP URL |
-| `QQSendPrivateVideo` | QQ user | Local path, HTTP URL |
-| `QQUploadGroupFile` | QQ group | Local absolute path |
-| `QQUploadPrivateFile` | QQ user | Local absolute path |
-
-These tools are exposed by the adapter through external channel capabilities. Tool names stay PascalCase.
+See [Channel configuration reference](./reference) for the QQ JSON example, `ExternalChannels` registration, and field table.
 
 ## Related docs
 
-- [Channels & Bots](../../features/entry-points/channels) — overview of every chat channel.
-- [Channel adapters](../sdks/channels) — the adapter base class and wire contract.
-- [WeCom Channel Adapter](./wecom) — another callback-based TypeScript channel.
+- [Channels & Bots](../../features/entry-points/channels)
+- [Channel configuration reference](./reference)
+- [Channel adapters](../sdks/channels)
+- [TypeScript Module Integration](../integrations/typescript-module)

@@ -85,20 +85,45 @@ For plugin hooks, commands may use `${DOTCRAFT_PLUGIN_ROOT}` and `${DOTCRAFT_PLU
 
 | Event | Trigger | Can Block? | stdin JSON Fields |
 |-------|---------|-----------|-------------------|
-| `SessionStart` | Session created/resumed | No | `sessionId` |
-| `PreToolUse` | Before tool executes | Yes (exit 2) | `sessionId`, `toolName`, `toolArgs` |
-| `PostToolUse` | After tool succeeds | No | `sessionId`, `toolName`, `toolArgs`, `toolResult` |
-| `PostToolUseFailure` | After tool fails | No | `sessionId`, `toolName`, `toolArgs`, `error` |
-| `PrePrompt` | Before prompt sent to agent | Yes (exit 2) | `sessionId`, `prompt` |
-| `Stop` | After agent finishes | No | `sessionId` |
+| `SessionStart` | First usable turn for a session | No | `sessionId`/`session_id`, `cwd`, `hook_event_name` |
+| `UserPromptSubmit` | User prompt submitted before prompt assembly | Yes | `sessionId`/`session_id`, `turnId`/`turn_id`, `prompt`, `cwd` |
+| `PrePrompt` | DotCraft compatibility event before assembled prompt is sent | Yes | `sessionId`/`session_id`, `turnId`/`turn_id`, `prompt`, `cwd` |
+| `PreToolUse` | Before tool executes | Yes | `toolName`/`tool_name`, `toolArgs`/`tool_args`, `tool_input` |
+| `PermissionRequest` | Before permission is requested | Yes | permission context when available |
+| `PostToolUse` | After tool succeeds | No | `toolName`/`tool_name`, `tool_input`, `toolResult`/`tool_result` |
+| `PostToolUseFailure` | After tool fails | No | `toolName`/`tool_name`, `tool_input`, `error` |
+| `PreCompact` / `PostCompact` | Around context compaction | Pre can block | compaction context when available |
+| `SubagentStart` / `SubagentStop` | Around subagent lifecycle | No | subagent context when available |
+| `Stop` | After assistant response | Rewake only | `last_assistant_message`, `stop_hook_active` |
+| `StopFailure` | After Stop handling fails | No | failure context when available |
+
+DotCraft emits both camelCase and snake_case field names. Prefer snake_case in portable scripts.
 
 ## Exit Codes
 
 | Code | Meaning | Behavior |
 |------|---------|----------|
 | `0` | Success | Continue |
-| `2` | Block | Block the action (only `PreToolUse` and `PrePrompt`). stderr = block reason |
+| `2` | Block / feedback | Block supported events, or request follow-up feedback for `asyncRewake` hooks |
 | Other | Error | **Fail-open**: warning logged, execution continues |
+
+## JSON Output
+
+Hooks may print plain text or JSON. Plain text becomes additional context for context-capable events. JSON output can use:
+
+```json
+{
+  "hookSpecificOutput": {
+    "hookEventName": "PostToolUse",
+    "additionalContext": "Model-visible guidance"
+  },
+  "decision": "block",
+  "reason": "Why the action should stop or continue with feedback",
+  "systemMessage": "Optional user-visible status"
+}
+```
+
+Use `hookSpecificOutput.additionalContext` for guidance that should be shown to the model without leaking raw JSON.
 
 ## Built-in Tool Names (for `matcher`)
 
@@ -115,6 +140,8 @@ For plugin hooks, commands may use `${DOTCRAFT_PLUGIN_ROOT}` and `${DOTCRAFT_PLU
 | `SpawnAgent` | Spawn a subagent child thread for background tasks |
 
 Matcher is case-insensitive regex. Examples: `""` (all), `"WriteFile|EditFile"` (write ops), `".*File"` (all file ops), `"Exec"` (shell only).
+
+The optional `if` field supports portable conditions such as `Bash(git commit:*)`. DotCraft maps common tool aliases: shell execution to `Bash`, full-file writes to `Write`, and search/replace edits to `Edit`.
 
 ## Platform Differences
 
@@ -155,7 +182,7 @@ TOOL_ARGS=$(echo "$INPUT" | jq -c '.toolArgs')
 2. **Use `jq` (bash) or `ConvertFrom-Json` (PowerShell)** for JSON parsing
 3. **Append `|| true` (bash) or `try/catch` (PowerShell)** inside helper scripts for non-critical work
 4. **Set reasonable timeouts** — default is 30s, increase for slow operations
-5. **Only use `exit 2` to block** — reserve for `PreToolUse` and `PrePrompt` when you genuinely want to prevent the action
+5. **Use `exit 2` intentionally** — reserve it for blocking events or for `asyncRewake` feedback
 6. **Write block reasons to stderr** — `echo "reason" >&2` (bash) or `[Console]::Error.WriteLine("reason")` (PowerShell)
 7. **No interactive commands** — hooks run in background without user input
 8. **Place complex logic in script files** — store in `.craft/hooks/` and reference from `hooks.json`
@@ -168,7 +195,7 @@ When generating hooks for the user:
 2. **For complex hooks, create script files** in the selected hooks directory and reference them in the `command` field
 3. **Always create the hooks script directory** before placing script files there
 4. **Merge with existing config** — if `.craft/hooks.json` already exists, read it first and merge new hooks into the existing config rather than overwriting
-5. **Validate event names** — only use: `SessionStart`, `PreToolUse`, `PostToolUse`, `PostToolUseFailure`, `PrePrompt`, `Stop`
+5. **Validate event names** — use events from `specs/core/lifecycle-hooks.md`; common choices are `SessionStart`, `UserPromptSubmit`, `PreToolUse`, `PostToolUse`, `PrePrompt`, and `Stop`
 6. **Validate matcher patterns** — ensure regex is valid
 7. **Ensure hooks are enabled** — check that `config.json` does not have `"Hooks": { "Enabled": false }`
 8. **Leave trust to the user** — mention that new or modified hooks must be trusted through Desktop Hooks settings or `hooks/setState`
