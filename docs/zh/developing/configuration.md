@@ -298,7 +298,7 @@ Goal AppServer 方法：
 | `thread/goal/get` | 读取当前 Thread goal 状态 |
 | `thread/goal/clear` | 清除当前 Thread goal |
 
-Hook 命令放在 `hooks.json`，不是 `config.json`。DotCraft 会从 `~/.craft/hooks.json` 加载全局 hooks，从 `.craft/hooks.json` 加载工作区 hooks，并从已启用插件的 hook 文件加载 plugin hooks。
+Hook 命令放在 `hooks.json`，不是 `config.json`。DotCraft 会从 `~/.craft/hooks.json` 加载全局 hooks，从 `.craft/hooks.json` 加载工作区 hooks，并从已启用插件的 hook 文件加载 plugin hooks。概念说明和 Desktop 操作入口见 [生命周期 Hooks](../features/agent-system/hooks)。
 
 Hook 快速示例（`.craft/hooks.json`）：
 
@@ -335,27 +335,44 @@ Hook handler 字段：
 | `type` | 支持 `"command"` |
 | `command` | 要运行的 Shell 命令 |
 | `timeout` | Hook 超时时间（秒） |
+| `if` | 可选条件，例如 `Bash(git commit:*)` |
+| `shell` | 可选 Shell 覆盖 |
+| `statusMessage` | 可选 UI 状态文案 |
+| `async` | 不阻塞当前动作，异步运行 |
+| `asyncRewake` | 允许 hook 反馈入队为后续 turn |
+| `rewakeMessage` | 后续反馈的前缀 |
+| `rewakeSummary` | 简短后续反馈摘要 |
 
 生命周期事件：
 
 | Event | 用途 |
 |---|---|
 | `SessionStart` | 新会话开始时运行 |
-| `PrePrompt` | 用户 prompt 提交前运行 |
+| `UserPromptSubmit` | 用户提交 prompt 时运行，早于 prompt 组装 |
+| `PrePrompt` | DotCraft 原生兼容事件，在组装后的 prompt 发送前运行 |
 | `PreToolUse` | 工具调用前检查或阻塞 |
+| `PermissionRequest` | 请求权限前运行 |
 | `PostToolUse` | 工具调用成功后记录、格式化或通知 |
 | `PostToolUseFailure` | 工具调用失败后运行 |
-| `Stop` | DotCraft 结束本轮前运行 |
+| `PreCompact` / `PostCompact` | 上下文压缩前后运行 |
+| `SubagentStart` / `SubagentStop` | 子 Agent 生命周期前后运行 |
+| `Stop` | assistant 响应后运行，并可入队后续反馈 |
+| `StopFailure` | Stop hook 处理失败后运行 |
 
 工具相关 Hook stdin 通常包含：
 
 ```json
 {
-  "event": "PreToolUse",
-  "workspace": "F:\\project",
+  "hook_event_name": "PreToolUse",
+  "cwd": "/workspace/example",
   "sessionId": "thread-id",
-  "toolName": "Exec",
-  "arguments": {
+  "session_id": "thread-id",
+  "toolName": "Bash",
+  "tool_name": "Bash",
+  "toolArgs": {
+    "command": "dotnet test"
+  },
+  "tool_input": {
     "command": "dotnet test"
   }
 }
@@ -365,19 +382,26 @@ Turn 相关 Hook stdin 通常包含：
 
 ```json
 {
-  "event": "Stop",
-  "workspace": "F:\\project",
+  "hook_event_name": "Stop",
+  "cwd": "/workspace/example",
   "sessionId": "thread-id",
-  "summary": "Agent completed the turn"
+  "session_id": "thread-id",
+  "last_assistant_message": "Agent completed the turn",
+  "stop_hook_active": false
 }
 ```
+
+DotCraft 会同时输出 camelCase 和 snake_case 字段。JSON stdout 可以返回
+`hookSpecificOutput.additionalContext` 注入模型可见上下文，也可以返回
+`decision: "block"` 和 `reason` 来阻塞支持阻塞的事件，或让 `asyncRewake`
+hook 入队后续反馈。完整工程协议位于 `specs/core/lifecycle-hooks.md`。
 
 退出码语义：
 
 | 退出码 | 含义 |
 |---|---|
 | `0` | 成功，继续执行 |
-| `2` | 阻塞当前操作，并停止执行该事件后续 hooks |
+| `2` | 阻塞支持阻塞的事件，或为 rewake hooks 请求后续反馈 |
 | 其他非零 | Hook 失败；DotCraft 记录失败并按该事件的运行时策略继续 |
 
 Matcher 示例：
@@ -436,6 +460,22 @@ Dashboard 示例：
 
 外部渠道注册示例：
 
+Desktop 托管的内置 TypeScript 渠道：
+
+```json
+{
+  "ExternalChannels": {
+    "qq": {
+      "enabled": true,
+      "transport": "managedWebsocket",
+      "builtinModule": "channel-qq"
+    }
+  }
+}
+```
+
+独立适配器：
+
 ```json
 {
   "AppServer": {
@@ -447,11 +487,6 @@ Dashboard 示例：
     }
   },
   "ExternalChannels": {
-    "qq": {
-      "enabled": true,
-      "transport": "subprocess",
-      "builtinModule": "channel-qq"
-    },
     "wecom": {
       "enabled": true,
       "transport": "websocket"
@@ -460,7 +495,7 @@ Dashboard 示例：
 }
 ```
 
-平台连接、权限白名单和审批超时等渠道专属设置分别放在 `.craft/qq.json`、`.craft/wecom.json` 等适配器配置文件中。
+平台连接、权限白名单和审批超时等渠道专属设置分别放在 `.craft/qq.json`、`.craft/wecom.json` 等适配器配置文件中。TypeScript 渠道示例见 [渠道配置参考](./channels/reference)。
 
 ## Plugins MCP 与 LSP
 

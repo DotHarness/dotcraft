@@ -1,147 +1,72 @@
-# DotCraft QQ 渠道适配器
+# 将 DotCraft 接入 QQ
 
-`@dotcraft/channel-qq` 通过 WebSocket 外部渠道协议将 QQ 接入 DotCraft。适配器连接 DotCraft AppServer，并在本地提供 OneBot v11 反向 WebSocket 服务，供 NapCat 等 OneBot 实现连接。
-
-## 功能概览
-
-- 通过 WebSocket 连接 DotCraft AppServer
-- 提供 OneBot v11 反向 WebSocket 服务
-- 支持 QQ 私聊和群聊
-- 群聊默认仅在 @机器人 时响应
-- 每个 QQ 私聊用户或 QQ 群映射到独立 DotCraft thread
-- 支持 QQ 会话内审批
-- 提供语音、视频、文件相关 Runtime 工具
+通过 NapCat 或其他 OneBot v11 网关，把一个 QQ 账号接入 DotCraft。
 
 > [!CAUTION]
-> 使用第三方 QQ 协议框架存在账号风险，请自行评估。
+> 第三方 QQ 协议框架可能带来账号风险。部署前请使用专用 QQ 账号，并自行评估风险。
 
-## 前置条件
+## 快速设置
 
-| 需求 | 说明 |
-|------|------|
-| QQ 账号 | 用作机器人的 QQ 号，建议使用小号 |
-| OneBot v11 实现 | 推荐 NapCat，负责登录 QQ 并连接反向 WebSocket |
-| DotCraft AppServer | 需要启用 WebSocket 模式 |
-| QQ 渠道包 | 发布包中位于 `resources/modules/channel-qq`，开发环境中位于 `sdk/typescript/packages/channel-qq` |
+1. 在 DotCraft Desktop 打开目标 workspace。
+2. 打开 **Channels**，选择 **QQ**。
+3. 设置 OneBot 监听地址。默认是 `127.0.0.1:6700`。
+4. 如果希望 NapCat 连接 DotCraft 端点时带鉴权，填写 access token。
+5. 至少添加一个管理员用户、允许用户或允许群。
+6. 保存渠道并启用。
+7. 在 NapCat WebUI 中添加反向 WebSocket 连接，地址为 `ws://127.0.0.1:6700/`。
+8. 将 NapCat 消息格式设置为 `array`。
 
-## 1）工作区配置（`.craft/config.json`）
+NapCat 连上 DotCraft 监听地址后，Desktop 中的 QQ 渠道应显示为 connected。
 
-在工作区 `.craft/config.json` 中启用 AppServer WebSocket，并注册 QQ 外部渠道：
+## 平台设置细节
 
-```json
-{
-  "AppServer": {
-    "Mode": "WebSocket",
-    "WebSocket": {
-      "Host": "127.0.0.1",
-      "Port": 9100,
-      "Token": ""
-    }
-  },
-  "ExternalChannels": {
-    "qq": {
-      "enabled": true,
-      "transport": "websocket"
-    }
-  }
-}
-```
+在 NapCat 中配置代表 DotCraft 发言的 QQ 账号：
 
-## 2）适配器配置（`.craft/qq.json`）
+1. 使用专用 QQ 账号登录。
+2. 打开 OneBot / WebSocket 客户端设置。
+3. 将反向 WebSocket URL 设置为 DotCraft 监听地址。
+4. 将 Token 设置为 Desktop 中填写的同一个值。
+5. 将消息格式设置为 `array`。
 
-在目标工作区创建 `.craft/qq.json`：
+如果 NapCat 在 Docker 或另一台机器上运行，请把 `127.0.0.1` 替换成能访问 DotCraft Desktop 所在机器的地址。
 
-```json
-{
-  "dotcraft": {
-    "wsUrl": "ws://127.0.0.1:9100/ws",
-    "token": ""
-  },
-  "qq": {
-    "host": "127.0.0.1",
-    "port": 6700,
-    "accessToken": "",
-    "adminUsers": [123456789],
-    "whitelistedUsers": [],
-    "whitelistedGroups": [],
-    "approvalTimeoutMs": 60000,
-    "requireMentionInGroups": true
-  }
-}
-```
+## 测试连接
 
-字段说明：
+1. 从允许用户向 QQ 账号发送私聊消息。
+2. 在群里 @ 机器人账号。
+3. 确认 DotCraft 在同一个 QQ 会话中回复。
+4. 让 DotCraft 执行一个需要审批的操作，然后回复 `同意`、`允许`、`yes` 或 `approve`。
 
-| 配置项 | 说明 | 默认值 |
-|--------|------|--------|
-| `dotcraft.wsUrl` | DotCraft AppServer WebSocket 地址 | `ws://127.0.0.1:9100/ws` |
-| `dotcraft.token` | AppServer WebSocket Token | 空 |
-| `qq.host` | OneBot 反向 WebSocket 监听地址 | `127.0.0.1` |
-| `qq.port` | OneBot 反向 WebSocket 监听端口 | `6700` |
-| `qq.accessToken` | OneBot 鉴权 Token，需与 NapCat 一致 | 空 |
-| `qq.adminUsers` | 管理员 QQ 号列表 | `[]` |
-| `qq.whitelistedUsers` | 白名单用户 QQ 号列表 | `[]` |
-| `qq.whitelistedGroups` | 白名单群号列表 | `[]` |
-| `qq.approvalTimeoutMs` | 操作审批超时，毫秒 | `60000` |
-| `qq.requireMentionInGroups` | 群聊是否必须 @ 机器人 | `true` |
+## 设置后可用能力
 
-如果 `adminUsers`、`whitelistedUsers`、`whitelistedGroups` 都为空，适配器不会响应任何 QQ 用户。请至少配置一个管理员。
+- 私聊会为每个 QQ 用户保留独立的 DotCraft 会话。
+- 一个 QQ 群共享一条会话，每条消息会记录实际发送者。
+- 群聊默认需要 @ 机器人后才响应。
+- 管理员和白名单都为空时，机器人会忽略 QQ 消息。
+- 审批回复支持 `同意`、`允许`、`yes`、`approve`、`拒绝`、`no`、`reject` 和 `deny`。
+- 语音、视频和文件投递可通过渠道投递工具使用。
 
-## 3）配置 NapCat
+## 独立适配器
 
-在 NapCat WebUI 中创建 WebSocket 客户端（反向 WS）：
-
-1. URL 填写 `ws://127.0.0.1:6700/`。
-2. Token 填写与 `qq.accessToken` 相同的值。
-3. 消息格式选择 `array`。
-
-如果 NapCat 运行在 Docker 或另一台机器上，请把 `127.0.0.1` 替换为 QQ 适配器所在机器的可访问地址。
-
-## 4）启动
-
-Desktop 会从打包资源中识别 `qq-standard` 外部渠道，可在渠道管理界面启动。
-
-开发环境可以直接运行：
+只有在不由 Desktop 管理渠道进程时，才需要自己运行 QQ 适配器。
 
 ```bash
 cd sdk/typescript
 npm run build --workspace @dotcraft/channel-qq
-npx dotcraft-channel-qq --workspace F:\examples\workspace
+npx dotcraft-channel-qq --workspace /path/to/workspace
 ```
 
-也可以在包目录下运行：
+当适配器配置不在 `.craft/qq.json` 时，使用 `--config /custom/qq.json`。
 
-```bash
-cd sdk/typescript/packages/channel-qq
-npm run build
-npm start -- --workspace F:\examples\workspace
-```
+独立 WebSocket 适配器注册方式见共享的 [渠道配置参考](./reference)。
 
-## 使用说明
+## 参考
 
-- 群聊默认只响应 @ 机器人的消息。
-- 私聊会进入对应用户的独立会话。
-- 每个 QQ 群共享一条 DotCraft thread，每条 turn 会记录真实发言人。
-- 管理员触发需要审批的操作时，适配器会在 QQ 会话里发送审批提示。
-- 回复 `同意`、`允许`、`yes`、`approve` 会通过审批；回复 `拒绝`、`no`、`reject`、`deny` 会拒绝审批。
-
-## Runtime 工具
-
-QQ 渠道提供以下工具，供 Agent 执行显式跨目标投递：
-
-| 工具 | 目标 | 来源 |
-|------|------|------|
-| `QQSendGroupVoice` | QQ 群 | 本地路径、HTTP URL、`base64://...` |
-| `QQSendPrivateVoice` | QQ 用户 | 本地路径、HTTP URL、`base64://...` |
-| `QQSendGroupVideo` | QQ 群 | 本地路径、HTTP URL |
-| `QQSendPrivateVideo` | QQ 用户 | 本地路径、HTTP URL |
-| `QQUploadGroupFile` | QQ 群 | 本地绝对路径 |
-| `QQUploadPrivateFile` | QQ 用户 | 本地绝对路径 |
-
-这些工具由适配器通过 external channel capabilities 暴露。工具名保持 PascalCase。
+QQ 的 JSON 示例、`ExternalChannels` 注册方式和字段表见 [渠道配置参考](./reference)。
 
 ## 相关文档
 
-- [Channels & Bots](../../features/entry-points/channels)——所有聊天渠道的总览。
-- [Channel adapters](../sdks/channels)——适配器基类与线协议契约。
-- [企业微信渠道适配器](./wecom)——另一个基于回调的 TypeScript 渠道。
+- [Channels 与 Bots](../../features/entry-points/channels)
+- [渠道配置参考](./reference)
+- [Channel adapters](../sdks/channels)
+- [TypeScript Module 集成](../integrations/typescript-module)

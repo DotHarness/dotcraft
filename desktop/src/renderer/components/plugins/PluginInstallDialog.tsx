@@ -1,13 +1,13 @@
 import { useCallback, useEffect, useMemo, useState, type CSSProperties, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
-import { Box, Check, Code2, ExternalLink, Link2, RefreshCw, Server, Settings, Wrench, X } from 'lucide-react'
+import { Anchor, Box, Check, Code2, ExternalLink, Link2, RefreshCw, Server, Settings, Wrench, X } from 'lucide-react'
 import { useT } from '../../contexts/LocaleContext'
 import type { PluginAppInfo, PluginEntry } from '../../stores/pluginStore'
 import { useAppBindingStore, type AppInfo } from '../../stores/appBindingStore'
 import { addToast } from '../../stores/toastStore'
 import { PluginIcon, pluginSubtitle, pluginTitle } from './PluginCatalogItem'
 import { openAppHandoff } from './AppBindingPanel'
-import { getPluginDesktopExtensionContents } from '../../utils/pluginDesktopExtensions'
+import { getPluginContentSummaries, type PluginContentType } from '../../utils/pluginContentSummaries'
 
 type NativeStatus = 'installed' | 'missing' | 'unknown'
 type SetupStage = 'pluginInstall' | 'nativeAppRequired' | 'nativeAppPending' | 'appConnect' | 'handoffOpened' | 'complete'
@@ -241,31 +241,35 @@ export function PluginInstallDialog({
 
 function ContentChips({ plugin }: { plugin: PluginEntry }): JSX.Element {
   const t = useT()
+  const contents = getPluginContentSummaries(plugin, t)
+  if (contents.length === 0) {
+    return (
+      <div style={chips}>
+        <span style={muted}>{t('plugins.detail.noContents')}</span>
+      </div>
+    )
+  }
+
   return (
     <div style={chips}>
-      {getPluginDesktopExtensionContents(plugin, t).map((extension) => (
-        <span key={extension.key} style={chip}>
-          <Settings size={12} aria-hidden />
-          <span>{extension.title} · {extension.kind}</span>
+      {contents.map((item) => (
+        <span key={item.key} style={chip}>
+          <PluginContentChipIcon type={item.type} />
+          <span>{item.type === 'desktopExtension' || item.type === 'hooks' ? `${item.title} · ${item.kind}` : item.title}</span>
         </span>
-      ))}
-      {(plugin.apps ?? []).map((app) => (
-        <span key={`app:${app.appId}`} style={chip}><Link2 size={12} aria-hidden />{app.displayName}</span>
-      ))}
-      {plugin.skills.map((skill) => (
-        <span key={`skill:${skill.name}`} style={chip}><Box size={12} aria-hidden />{skill.displayName || skill.name}</span>
-      ))}
-      {plugin.functions.map((fn) => (
-        <span key={`tool:${fn.name}`} style={chip}><Wrench size={12} aria-hidden />{fn.name}</span>
-      ))}
-      {(plugin.mcpServers ?? []).map((server) => (
-        <span key={`mcp:${server.runtimeName}`} style={chip}><Server size={12} aria-hidden />{server.runtimeName}</span>
-      ))}
-      {(plugin.lspServers ?? []).map((server) => (
-        <span key={`lsp:${server.runtimeName}`} style={chip}><Code2 size={12} aria-hidden />{server.runtimeName}</span>
       ))}
     </div>
   )
+}
+
+function PluginContentChipIcon({ type }: { type: PluginContentType }): JSX.Element {
+  if (type === 'app') return <Link2 size={12} aria-hidden />
+  if (type === 'desktopExtension') return <Settings size={12} aria-hidden />
+  if (type === 'hooks') return <Anchor size={12} aria-hidden />
+  if (type === 'skill') return <Box size={12} aria-hidden />
+  if (type === 'mcp') return <Server size={12} aria-hidden />
+  if (type === 'lsp') return <Code2 size={12} aria-hidden />
+  return <Wrench size={12} aria-hidden />
 }
 
 function CurrentSetupStage({

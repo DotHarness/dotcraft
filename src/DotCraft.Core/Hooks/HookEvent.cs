@@ -12,6 +12,12 @@ public enum HookEvent
     SessionStart,
 
     /// <summary>
+    /// Fired when a user prompt is submitted, before prompt assembly and model execution.
+    /// Exit code 2 or a blocking JSON decision blocks the prompt.
+    /// </summary>
+    UserPromptSubmit,
+
+    /// <summary>
     /// Fired before a tool executes.
     /// Exit code 2 blocks the tool call; stderr becomes the block reason.
     /// </summary>
@@ -34,7 +40,37 @@ public enum HookEvent
     PrePrompt,
 
     /// <summary>
+    /// Fired before a permission request is shown.
+    /// </summary>
+    PermissionRequest,
+
+    /// <summary>
+    /// Fired before context compaction.
+    /// </summary>
+    PreCompact,
+
+    /// <summary>
+    /// Fired after context compaction.
+    /// </summary>
+    PostCompact,
+
+    /// <summary>
+    /// Fired before a subagent starts.
+    /// </summary>
+    SubagentStart,
+
+    /// <summary>
+    /// Fired after a subagent stops.
+    /// </summary>
+    SubagentStop,
+
+    /// <summary>
     /// Fired after the agent finishes responding to a prompt.
     /// </summary>
-    Stop
+    Stop,
+
+    /// <summary>
+    /// Fired after Stop hook execution or continuation fails.
+    /// </summary>
+    StopFailure
 }

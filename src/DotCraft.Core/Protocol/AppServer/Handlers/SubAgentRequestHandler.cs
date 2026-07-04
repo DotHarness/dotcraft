@@ -303,7 +303,10 @@ internal sealed class SubAgentRequestHandler(
             ParentThread = parent,
             ParentTurnId = string.Empty,
             RootThreadId = string.IsNullOrWhiteSpace(source?.RootThreadId) ? parent.Id : source.RootThreadId,
-            Depth = source?.Depth ?? 0
+            Depth = source?.Depth ?? 0,
+            LifecycleHook = sessionService is SessionService service
+                ? service.RunSubAgentLifecycleHookAsync
+                : null
         };
     }
 

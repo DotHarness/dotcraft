@@ -411,8 +411,12 @@ public static partial class PluginManifestParser
         if (rawHooks == null)
         {
             var defaultPath = Path.Combine(pluginRoot, "hooks", "hooks.json");
-            return File.Exists(defaultPath)
-                ? new PluginManifestHooks { Paths = [Path.GetFullPath(defaultPath)] }
+            if (File.Exists(defaultPath))
+                return new PluginManifestHooks { Paths = [Path.GetFullPath(defaultPath)] };
+
+            var topLevelPath = Path.Combine(pluginRoot, "hooks.json");
+            return File.Exists(topLevelPath)
+                ? new PluginManifestHooks { Paths = [Path.GetFullPath(topLevelPath)] }
                 : null;
         }
 

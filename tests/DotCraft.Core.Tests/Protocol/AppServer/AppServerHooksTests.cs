@@ -58,6 +58,9 @@ public sealed class AppServerHooksTests : IDisposable
         var key = hook.GetProperty("key").GetString()!;
         var hash = hook.GetProperty("currentHash").GetString()!;
         Assert.Equal("workspace", hook.GetProperty("source").GetString());
+        Assert.Equal("Bash(git commit:*)", hook.GetProperty("condition").GetString());
+        Assert.Equal("async", hook.GetProperty("executionMode").GetString());
+        Assert.True(hook.GetProperty("asyncRewake").GetBoolean());
         Assert.Equal("untrusted", hook.GetProperty("trustStatus").GetString());
         Assert.True(hook.GetProperty("enabled").GetBoolean());
         Assert.False(runner.HasToolHooks);
@@ -89,6 +92,22 @@ public sealed class AppServerHooksTests : IDisposable
         var plugin = Assert.Single(
             response.RootElement.GetProperty("result").GetProperty("plugins").EnumerateArray(),
             item => item.GetProperty("id").GetString() == "demo-plugin");
+        var hook = Assert.Single(plugin.GetProperty("hooks").EnumerateArray());
+        Assert.Equal("demo-plugin:hooks/hooks.json:pre_tool_use:0:0", hook.GetProperty("key").GetString());
+        Assert.Equal(nameof(HookEvent.PreToolUse), hook.GetProperty("eventName").GetString());
+    }
+
+    [Fact]
+    public async Task PluginView_IncludesHookSummaries()
+    {
+        WriteHookPlugin(Path.Combine(_workspaceCraftPath, "plugins", "demo"), "demo-plugin");
+        using var harness = new AppServerTestHarness(workspaceCraftPath: _workspaceCraftPath);
+        await harness.InitializeAsync();
+
+        await harness.ExecuteRequestAsync(harness.BuildRequest(AppServerMethods.PluginView, new { id = "demo-plugin" }));
+        using var response = await harness.Transport.ReadNextSentAsync();
+        AppServerTestHarness.AssertIsSuccessResponse(response);
+        var plugin = response.RootElement.GetProperty("result").GetProperty("plugin");
         var hook = Assert.Single(plugin.GetProperty("hooks").EnumerateArray());
         Assert.Equal("demo-plugin:hooks/hooks.json:pre_tool_use:0:0", hook.GetProperty("key").GetString());
         Assert.Equal(nameof(HookEvent.PreToolUse), hook.GetProperty("eventName").GetString());
@@ -129,7 +148,11 @@ public sealed class AppServerHooksTests : IDisposable
           {
             "type": "command",
             "command": "{{command}}",
-            "timeout": 7
+            "timeout": 7,
+            "if": "Bash(git commit:*)",
+            "asyncRewake": true,
+            "rewakeMessage": "Review feedback",
+            "rewakeSummary": "Review found issues"
           }
         ]
       }

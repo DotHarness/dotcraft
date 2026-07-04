@@ -81,13 +81,13 @@ Automations are best for "run this task on a schedule or on demand." Goals are b
 | Run a test suite and write the summary to a conversation | Automations with a completion summary |
 | Keep advancing a refactor or documentation pass | Goals |
 | Make scheduled work follow the same long-running objective | Automations + Goals |
-| Auto-lint / format after file writes | [Hooks](../self-hosted/security#hooks) `PostToolUse` |
-| Block dangerous shell commands | [Hooks](../self-hosted/security#hooks) `PreToolUse` |
+| Auto-lint / format after file writes | [Lifecycle Hooks](./hooks) `PostToolUse` |
+| Block dangerous shell commands | [Lifecycle Hooks](./hooks) `PreToolUse` |
 
 ## Related docs
 
 - [Project Workspace](../project-first) — where `.craft/tasks/` and `.craft/automations/` sit
 - [Unified Session Core](../../developing/architecture/session-core) — how Thread / Turn / Item relate to goal state
 - [Observability](../self-hosted/observability) — Trace and approvals in Dashboard
-- [Security & Sandbox](../self-hosted/security#hooks) — Hooks, security guards, and sandbox isolation
+- [Lifecycle Hooks](./hooks) — scripts that run at session, prompt, tool, and turn moments
 - [Configuration Reference](../../developing/configuration#automations-goals-and-hooks) for Automations, Goals, and Hooks fields

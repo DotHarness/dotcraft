@@ -5,6 +5,7 @@ using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
 using DotCraft.Agents;
 using DotCraft.Configuration;
+using DotCraft.Hooks;
 using DotCraft.Security;
 using DotCraft.Tools;
 using Microsoft.Extensions.AI;
@@ -22,6 +23,19 @@ public sealed class SubAgentSessionContext
     public required string RootThreadId { get; init; }
 
     public int Depth { get; init; }
+
+    internal Func<SubAgentLifecycleHookRequest, CancellationToken, Task>? LifecycleHook { get; init; }
+}
+
+internal sealed class SubAgentLifecycleHookRequest
+{
+    public required HookEvent Event { get; init; }
+
+    public required SessionThread ChildThread { get; init; }
+
+    public string? Status { get; init; }
+
+    public string? Message { get; init; }
 }
 
 public static class SubAgentSessionScope
@@ -299,13 +313,21 @@ public static class SubAgentSessionControl
         }, ct);
         NotifyAgentChange();
 
+        await RunLifecycleHookAsync(
+            context.LifecycleHook,
+            HookEvent.SubagentStart,
+            childThread,
+            "running",
+            message: null,
+            ct);
+
         var childCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
         var initialTrigger = CreateSubAgentTrigger(SubAgentInputTriggerKind, nickname, agentPath.Value);
         var completion = string.Equals(runtimeType, NativeSubAgentRuntime.RuntimeTypeName, StringComparison.OrdinalIgnoreCase)
             ? RunChildTurnAsync(context.SessionService, childThread.Id, prompt, initialTrigger, childCts.Token)
             : RunExternalChildTurnsAsync(context.SessionService, coordinator, prepared!, childThread.Id, prompt, initialTrigger, childCts.Token);
         RunningChildren[childThread.Id] = new RunningChild(context.ParentThread.Id, childCts, completion);
-        _ = ObserveChildCompletionAsync(context.SessionService, childThread.Id, completion);
+        _ = ObserveChildCompletionAsync(context.SessionService, childThread.Id, completion, context.LifecycleHook);
 
         if (!waitForCompletion)
         {
@@ -461,6 +483,7 @@ public static class SubAgentSessionControl
                 coordinator,
                 requireExternalResume: false,
                 CreateSubAgentTrigger(SubAgentFollowupTriggerKind, BuildFollowupTriggerLabel(resolved), resolved.Path.Value),
+                context.LifecycleHook,
                 ct);
         }
 
@@ -547,6 +570,21 @@ public static class SubAgentSessionControl
         SubAgentCoordinator? coordinator,
         CancellationToken ct)
     {
+        Func<SubAgentLifecycleHookRequest, CancellationToken, Task>? lifecycleHook = null;
+        if (sessionService is SessionService service)
+            lifecycleHook = service.RunSubAgentLifecycleHookAsync;
+
+        return await SendInputAsync(sessionService, childThreadId, message, coordinator, lifecycleHook, ct);
+    }
+
+    internal static async Task<SubAgentControlResult> SendInputAsync(
+        ISessionService sessionService,
+        string childThreadId,
+        string message,
+        SubAgentCoordinator? coordinator,
+        Func<SubAgentLifecycleHookRequest, CancellationToken, Task>? lifecycleHook,
+        CancellationToken ct)
+    {
         var normalizedMessage = NormalizeRequired(message, nameof(message));
         var child = await sessionService.GetThreadAsync(childThreadId, ct);
         return await StartChildTurnAsync(
@@ -556,6 +594,7 @@ public static class SubAgentSessionControl
             coordinator,
             requireExternalResume: true,
             CreateSubAgentTrigger(SubAgentInputTriggerKind, BuildChildTriggerLabel(child), child.Source.SubAgent?.AgentPath),
+            lifecycleHook,
             ct);
     }
 
@@ -566,6 +605,7 @@ public static class SubAgentSessionControl
         SubAgentCoordinator? coordinator,
         bool requireExternalResume,
         TurnTriggerInfo? triggerInfo,
+        Func<SubAgentLifecycleHookRequest, CancellationToken, Task>? lifecycleHook,
         CancellationToken ct)
     {
         var childThreadId = child.Id;
@@ -579,6 +619,14 @@ public static class SubAgentSessionControl
         var source = child.Source.SubAgent;
         var runtimeType = source?.RuntimeType ?? NativeSubAgentRuntime.RuntimeTypeName;
         var resultCapabilities = ResolveCapabilities(runtimeType, null, coordinator);
+        await RunLifecycleHookAsync(
+            lifecycleHook,
+            HookEvent.SubagentStart,
+            child,
+            "running",
+            message: null,
+            ct);
+
         Task<SubAgentRunResult> completion;
         if (string.Equals(runtimeType, NativeSubAgentRuntime.RuntimeTypeName, StringComparison.OrdinalIgnoreCase))
         {
@@ -599,7 +647,7 @@ public static class SubAgentSessionControl
         }
 
         RunningChildren[childThreadId] = new RunningChild(parentThreadId, childCts, completion);
-        _ = ObserveChildCompletionAsync(sessionService, childThreadId, completion);
+        _ = ObserveChildCompletionAsync(sessionService, childThreadId, completion, lifecycleHook);
 
         return new SubAgentControlResult
         {
@@ -773,9 +821,23 @@ public static class SubAgentSessionControl
         if (string.Equals(senderPath.Value, resolved.Path.Value, StringComparison.Ordinal))
             throw new InvalidOperationException("CloseAgent target cannot be the current agent.");
 
+        var wasAlreadyClosed = string.Equals(resolved.Edge?.Status, ThreadSpawnEdgeStatus.Closed, StringComparison.Ordinal);
+        var hadRunningObserver = RunningChildren.ContainsKey(resolved.ThreadId);
         var result = await CloseAgentAsync(context.SessionService, resolved.ThreadId, ct);
         result.AgentPath = resolved.Path.Value;
         result.TaskName = resolved.Edge?.TaskName;
+        if (!hadRunningObserver && !wasAlreadyClosed)
+        {
+            var child = await context.SessionService.GetThreadAsync(resolved.ThreadId, ct);
+            await RunLifecycleHookAsync(
+                context.LifecycleHook,
+                HookEvent.SubagentStop,
+                child,
+                ThreadSpawnEdgeStatus.Closed,
+                message: null,
+                ct);
+        }
+
         return result;
     }
 
@@ -1450,10 +1512,71 @@ $$"""
 """;
     }
 
+    private static async Task RunLifecycleHookAsync(
+        Func<SubAgentLifecycleHookRequest, CancellationToken, Task>? lifecycleHook,
+        HookEvent evt,
+        SessionThread child,
+        string? status,
+        string? message,
+        CancellationToken ct)
+    {
+        if (lifecycleHook == null)
+            return;
+
+        try
+        {
+            await lifecycleHook(
+                new SubAgentLifecycleHookRequest
+                {
+                    Event = evt,
+                    ChildThread = child,
+                    Status = status,
+                    Message = message
+                },
+                ct).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch
+        {
+            // Lifecycle hooks are observational for SubAgents and must not break cleanup.
+        }
+    }
+
+    private static async Task RunLifecycleHookAsync(
+        Func<SubAgentLifecycleHookRequest, CancellationToken, Task>? lifecycleHook,
+        HookEvent evt,
+        ISessionService sessionService,
+        string childThreadId,
+        string? status,
+        string? message,
+        CancellationToken ct)
+    {
+        if (lifecycleHook == null)
+            return;
+
+        try
+        {
+            var child = await sessionService.GetThreadAsync(childThreadId, ct).ConfigureAwait(false);
+            await RunLifecycleHookAsync(lifecycleHook, evt, child, status, message, ct).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch
+        {
+            // Best-effort: lifecycle hooks should not prevent subagent cleanup.
+        }
+    }
+
     private static async Task ObserveChildCompletionAsync(
         ISessionService sessionService,
         string childThreadId,
-        Task<SubAgentRunResult> completion)
+        Task<SubAgentRunResult> completion,
+        Func<SubAgentLifecycleHookRequest, CancellationToken, Task>? lifecycleHook)
     {
         SubAgentRunResult result;
         try
@@ -1481,6 +1604,15 @@ $$"""
 
         try
         {
+            await RunLifecycleHookAsync(
+                lifecycleHook,
+                HookEvent.SubagentStop,
+                sessionService,
+                childThreadId,
+                result.Status,
+                result.Message,
+                CancellationToken.None).ConfigureAwait(false);
+
             await AddSubAgentCompletionNotificationAsync(
                 sessionService,
                 childThreadId,

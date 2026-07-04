@@ -35,9 +35,23 @@ public sealed class HookMetadata
 
     public string? Matcher { get; set; }
 
+    public string? Condition { get; set; }
+
     public string? Command { get; set; }
 
     public int TimeoutSec { get; set; }
+
+    public string ExecutionMode { get; set; } = "sync";
+
+    public bool AsyncRewake { get; set; }
+
+    public string? RewakeMessage { get; set; }
+
+    public string? RewakeSummary { get; set; }
+
+    public string? Shell { get; set; }
+
+    public bool Once { get; set; }
 
     public string? StatusMessage { get; set; }
 

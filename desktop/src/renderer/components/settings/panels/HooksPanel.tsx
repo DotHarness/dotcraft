@@ -41,11 +41,18 @@ interface HookSourceSummary {
 
 const EVENT_ORDER = [
   'SessionStart',
+  'UserPromptSubmit',
   'PrePrompt',
   'PreToolUse',
+  'PermissionRequest',
   'PostToolUse',
   'PostToolUseFailure',
-  'Stop'
+  'PreCompact',
+  'PostCompact',
+  'SubagentStart',
+  'SubagentStop',
+  'Stop',
+  'StopFailure'
 ]
 
 export function HooksPanel(): JSX.Element {
@@ -371,7 +378,10 @@ function HookRow({
         <div style={hookDetailStyle}>
           <DetailGridRow label={t('settings.hooks.field.handler')} value={hook.handlerType || 'command'} />
           {hook.matcher && <DetailGridRow label={t('settings.hooks.field.matcher')} value={hook.matcher} />}
+          {hook.condition && <DetailGridRow label={t('settings.hooks.field.condition')} value={hook.condition} />}
           {hook.command && <DetailGridRow label={t('settings.hooks.field.command')} value={hook.command} mono />}
+          {hook.shell && <DetailGridRow label={t('settings.hooks.field.shell')} value={hook.shell} />}
+          <DetailGridRow label={t('settings.hooks.field.execution')} value={executionLabel(hook, t)} />
           <DetailGridRow
             label={t('settings.hooks.field.timeout')}
             value={hook.timeoutSec == null
@@ -380,6 +390,8 @@ function HookRow({
           />
           {hook.sourcePath && <DetailGridRow label={t('settings.hooks.field.source')} value={hook.sourcePath} mono />}
           {hook.pluginId && <DetailGridRow label={t('settings.hooks.field.plugin')} value={hook.pluginId} />}
+          {hook.rewakeMessage && <DetailGridRow label={t('settings.hooks.field.rewakeMessage')} value={hook.rewakeMessage} />}
+          {hook.rewakeSummary && <DetailGridRow label={t('settings.hooks.field.rewakeSummary')} value={hook.rewakeSummary} />}
           {hook.statusMessage && <DetailGridRow label={t('settings.hooks.field.status')} value={hook.statusMessage} />}
           {!trusted && (
             <div style={trustActionRowStyle}>
@@ -392,6 +404,14 @@ function HookRow({
       )}
     </SettingsRow>
   )
+}
+
+function executionLabel(
+  hook: HookMetadata,
+  t: (key: MessageKey | string, vars?: Record<string, string | number>) => string
+): string {
+  const mode = hook.executionMode === 'async' ? t('settings.hooks.execution.async') : t('settings.hooks.execution.sync')
+  return hook.asyncRewake ? `${mode} · ${t('settings.hooks.execution.rewake')}` : mode
 }
 
 function DetailGridRow({

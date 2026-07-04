@@ -174,7 +174,7 @@ Dashboard 是 DotCraft 的可视化观察与配置入口，用于查看会话、
 
 ## 进阶
 
-- 使用 [Hooks](./features/self-hosted/security#hooks) 在生命周期事件中执行脚本。
+- 使用 [生命周期 Hooks](./features/agent-system/hooks) 在生命周期事件中执行脚本。
 - 使用 [安全与沙箱](./features/self-hosted/security) 限制文件、Shell 和网络能力。
 - 使用 [插件与工具](./features/agent-system/plugins-tools) 安装可复用能力包。
 - 想从架构角度了解，跳到 [架构总览](./developing/architecture/overview)。

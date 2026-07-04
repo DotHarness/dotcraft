@@ -1,87 +1,76 @@
 # Channels & Bots
 
-DotCraft can bring the same agent into the chat platforms your team already uses — QQ, WeCom, Feishu / Lark, Telegram, WeChat. A channel bot shares the same session core, memory, skills, and security policy as everything else, so what you see in Desktop is the same context the bot works from.
+DotCraft can answer from the chat tools your team already uses: QQ, WeCom, Feishu / Lark, Telegram, and WeChat.
 
 ![DotCraft Channels configuration and conversations](https://github.com/DotHarness/resources/raw/master/dotcraft/whats-new/channels.gif)
 
-## What's Provided
+## Connect a channel
 
-| Channel | SDK | Documentation |
-|---|---|---|
-| QQ | TypeScript | [channel-qq](../../developing/channels/qq) |
-| WeCom | TypeScript | [channel-wecom](../../developing/channels/wecom) |
-| Feishu / Lark | TypeScript | [channel-feishu](../../developing/channels/feishu) |
-| Telegram (TypeScript) | TypeScript | [channel-telegram](../../developing/channels/telegram) |
-| WeChat | TypeScript | [channel-weixin](../../developing/channels/weixin) |
-| Telegram (Python) | Python | [python-telegram](../../developing/channels/python-telegram) |
+1. Open a workspace in DotCraft Desktop.
+2. Open **Channels**.
+3. Select the platform you want to connect.
+4. Fill in the platform credentials shown on the form.
+5. Finish the matching setup in the platform console or bot tool.
+6. Turn the channel on.
+7. Send a test message to the bot.
 
-TypeScript channel modules follow the [TypeScript Module integration contract](../../developing/integrations/typescript-module): standard `manifest`, `createModule`, `configDescriptors`, and lifecycle states.
+Desktop manages the bundled TypeScript channel process for you. Use the standalone adapter path only when you want to run the adapter yourself.
 
-## Integration Path
+## Built-in channels
+
+| Platform | Connection | Main capabilities | Setup |
+|---|---|---|---|
+| **QQ** | NapCat or OneBot v11 reverse WebSocket | Private chats, groups, approval keywords, media delivery | [QQ setup](../../developing/channels/qq) |
+| **WeCom** | Group bot callback URL, Token, EncodingAESKey | Enterprise group chats, approvals, file and image delivery | [WeCom setup](../../developing/channels/wecom) |
+| **Feishu / Lark** | Self-built app with Bot and WebSocket event subscription | Card replies, approvals, reactions, optional docx/wiki tools | [Feishu setup](../../developing/channels/feishu) |
+| **Telegram** | BotFather token and long polling | Direct chats, groups, `/new`, `/help`, inline approvals | [Telegram setup](../../developing/channels/telegram) |
+| **WeChat / Weixin** | Tencent iLink QR login | Weixin chats, saved login session, plain-text replies, file and image delivery | [Weixin setup](../../developing/channels/weixin) |
+| **Telegram (Python)** | Python standalone adapter | Reference adapter for custom Python channel work | [Python Telegram setup](../../developing/channels/python-telegram) |
+
+## How channel conversations work
 
 ![DotCraft channel adapter topology](/channel-adapter-topology.svg)
 
-Three integration shapes:
+- Messages sent to a connected bot become DotCraft conversation turns.
+- Replies are delivered back to the same chat automatically.
+- Approval and user-input requests appear in the chat when the platform supports them.
+- `/new` starts a fresh conversation in channels that support slash commands.
+- Desktop can stay open on the same workspace to inspect history or continue the conversation.
 
-- **Embedded in Desktop**: Desktop launches the channel for you. Open the Desktop **Channels** page, fill in platform tokens, callbacks, allowlists, or QR-code auth, then enable in one click.
-- **Server Compose deployment**: Use [Server Deployment](../self-hosted/server-deployment) to run AppServer, the bundled TypeScript channels, and optional OpenSandbox from Docker Compose.
-- **Standalone adapter**: Run the channel as your own process and connect it to AppServer over WebSocket. Best when you need to operate a custom adapter yourself.
+For the underlying model, see [Unified Session Core](../../developing/architecture/session-core).
 
-For the channel registration and transport fields behind these shapes, see [Entry Points and Services](../../developing/configuration#entry-points-and-services). Each platform's connection, permission allowlists, and approval timeouts are set in the [Configuration Reference](../../developing/configuration).
-
-## Channels and Unified Session Core
-
-- A group chat = a Thread; multiple messages from the same user = additional Turns / Items in the Thread.
-- The channel passes group, user, and message-type metadata; DotCraft uses it to attribute messages to threads.
-- When the agent needs approval (write file, shell command), the channel renders the request as a native platform message (button / quote). Execution waits for user consent.
-- Desktop / TUI can connect to the same AppServer to see chat history, take over, or correct replies.
-
-See [Unified Session Core](../../developing/architecture/session-core) for the model.
-
-## Hand Off a Conversation to a Channel
+## Hand off a conversation
 
 ![DotCraft channel handoff](https://github.com/DotHarness/resources/raw/master/dotcraft/whats-new/channel-handoff.gif)
 
-You can bind an existing Desktop conversation to a connected social channel. Open the conversation's Apps menu, choose a connected channel, then send the shown `/bind 123456` command in the target chat. DotCraft links that chat to the same Thread, so future messages from the channel continue the conversation instead of creating a separate bot thread.
+Bind an existing Desktop conversation to a connected social channel from the conversation's Apps menu. DotCraft shows a `/bind 123456` command; send that command in the target chat to continue the same conversation there.
 
-Binding applies only to that target chat. Other chats that are not bound keep using the channel's normal bot conversation and thread routing.
+The binding applies only to that chat. Other chats keep their normal channel conversation.
 
-Replies triggered from the social channel are delivered back to that channel automatically. Messages you send from Desktop stay in Desktop unless a channel message starts the turn.
+## Security checklist
 
-## Scenarios
+Before exposing a bot to a group or public chat:
 
-| Scenario | Recommendation |
-|---|---|
-| Internal knowledge-base bot | Feishu / WeCom for enterprise IT |
-| OSS community Q&A | Telegram / QQ |
-| Project support / aftermarket | WeChat / WeCom |
-| Trigger an Agent CI report from a group | Any channel + [Automations](../agent-system/automations) |
-| Read group history in Desktop and take over | Any channel + Desktop on the same workspace |
-| Continue a Desktop conversation in a social chat | Any connected channel + `/bind` from the target chat |
-
-## Security Notes
-
-Connecting an external channel exposes the agent to arbitrary user input. Pair it with:
-
-- Approval for outside-workspace file and shell actions
-- A narrowed tool surface
-- A strong random AppServer WebSocket token
-- Optionally [OpenSandbox](../self-hosted/security#sandbox-opensandbox) for further isolation
+- Keep file and shell actions behind approval.
+- Limit the channel to trusted users, groups, or chats when the platform supports it.
+- Use a strong AppServer WebSocket token for standalone adapters.
+- Run production deployments behind HTTPS when the platform calls back to DotCraft.
+- Use [OpenSandbox](../self-hosted/security#sandbox-opensandbox) for stronger tool isolation when needed.
 
 Full checklist and exact fields: [Security & Sandbox](../self-hosted/security) and [Configuration Reference](../../developing/configuration#tools-security-and-sandbox).
 
-## Building a Custom Channel
+## Build a custom channel
 
-DotCraft ships five channels out of the box. To integrate other platforms (Slack, Discord, Lark private deployment, enterprise IM):
+Use the built-in channels first when they cover your platform. For a new platform or custom deployment:
 
-- TypeScript: see [TypeScript SDK](../../developing/sdks/typescript) and the [Module integration contract](../../developing/integrations/typescript-module)
-- Python: see [Python SDK](../../developing/sdks/python)
-- Any language: speak [AppServer Protocol](../../developing/protocols/appserver-protocol) directly
+- TypeScript modules: [TypeScript Module Integration](../../developing/integrations/typescript-module)
+- Channel adapter base class: [Channel adapters](../../developing/sdks/channels)
+- Python SDK: [Python SDK](../../developing/sdks/python)
+- Wire protocol: [AppServer Protocol](../../developing/protocols/appserver-protocol)
 
 ## Related docs
 
-- [Unified Session Core](../../developing/architecture/session-core)
+- [Channel configuration reference](../../developing/channels/reference)
+- [Channel adapters](../../developing/sdks/channels)
 - [Security & Sandbox](../self-hosted/security)
 - [Server Deployment](../self-hosted/server-deployment)
-- [TypeScript SDK](../../developing/sdks/typescript) · [Python SDK](../../developing/sdks/python)
-- [TypeScript Module integration contract](../../developing/integrations/typescript-module)

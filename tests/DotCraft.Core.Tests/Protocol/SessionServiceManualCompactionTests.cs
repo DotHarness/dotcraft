@@ -4,6 +4,7 @@ using DotCraft.Agents;
 using DotCraft.Configuration;
 using DotCraft.Context;
 using DotCraft.Context.Compaction;
+using DotCraft.Hooks;
 using DotCraft.Memory;
 using DotCraft.Protocol;
 using DotCraft.Security;
@@ -95,6 +96,59 @@ public sealed class SessionServiceManualCompactionTests : IDisposable
             $"{thread.Id}.jsonl"));
         Assert.Contains("context_compacted", rolloutJson, StringComparison.Ordinal);
         Assert.Contains("replacementHistory", rolloutJson, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task CompactThreadAsync_PreCompactHookCanBlockBeforeSummaryModel()
+    {
+        var mainChat = new StreamingReplyChatClient("ok");
+        var summaryChat = new SequenceSummaryChatClient("<summary>should not run</summary>");
+        await using var agentFactory = CreateAgentFactory(summaryChat);
+        var service = CreateService(
+            agentFactory,
+            mainChat,
+            hookRunner: CreateHookRunner((HookEvent.PreCompact, StderrAndExitCommand("compact denied", 2))));
+        var thread = await service.CreateThreadAsync(MakeIdentity());
+        for (var i = 0; i < 4; i++)
+        {
+            await DrainAsync(service.SubmitInputAsync(
+                thread.Id,
+                [new TextContent($"turn {i} " + new string('u', 1200))]));
+        }
+
+        var result = await service.CompactThreadAsync(thread.Id);
+
+        Assert.Equal("failed", result.Outcome);
+        Assert.Contains("compact denied", result.Message, StringComparison.Ordinal);
+        Assert.Empty(summaryChat.Calls);
+    }
+
+    [Fact]
+    public async Task CompactThreadAsync_RunsPreAndPostCompactHooks()
+    {
+        var logPath = Path.Combine(_tempDir, "compact-hooks.log");
+        var mainChat = new StreamingReplyChatClient("ok");
+        var summaryChat = new SummaryChatClient("<summary>older context summary</summary>");
+        await using var agentFactory = CreateAgentFactory(summaryChat);
+        var service = CreateService(
+            agentFactory,
+            mainChat,
+            hookRunner: CreateHookRunner(
+                (HookEvent.PreCompact, AppendFileCommand(logPath, "PreCompact")),
+                (HookEvent.PostCompact, AppendFileCommand(logPath, "PostCompact"))));
+        var thread = await service.CreateThreadAsync(MakeIdentity());
+        for (var i = 0; i < 4; i++)
+        {
+            await DrainAsync(service.SubmitInputAsync(
+                thread.Id,
+                [new TextContent($"turn {i} " + new string('u', 1200))]));
+        }
+
+        var result = await service.CompactThreadAsync(thread.Id);
+
+        Assert.Equal("partial", result.Outcome);
+        var log = await File.ReadAllLinesAsync(logPath);
+        Assert.Equal(["PreCompact", "PostCompact"], log);
     }
 
     [Fact]
@@ -447,7 +501,8 @@ public sealed class SessionServiceManualCompactionTests : IDisposable
     private SessionService CreateService(
         AgentFactory agentFactory,
         IChatClient mainChatClient,
-        TraceCollector? traceCollector = null)
+        TraceCollector? traceCollector = null,
+        HookRunner? hookRunner = null)
     {
         var defaultAgent = mainChatClient.AsAIAgent(new ChatClientAgentOptions());
         return new SessionService(
@@ -455,8 +510,44 @@ public sealed class SessionServiceManualCompactionTests : IDisposable
             defaultAgent,
             new SessionPersistenceService(new ThreadStore(_tempDir)),
             new SessionGate(),
+            hookRunner: hookRunner,
             traceCollector: traceCollector);
     }
+
+    private HookRunner CreateHookRunner(params (HookEvent Event, string Command)[] hooks)
+    {
+        var config = new HooksFileConfig();
+        foreach (var group in hooks.GroupBy(hook => hook.Event))
+        {
+            config.Hooks[group.Key.ToString()] =
+            [
+                new HookMatcherGroup
+                {
+                    Hooks =
+                    [
+                        ..group.Select(hook => new HookEntry
+                        {
+                            Type = "command",
+                            Command = hook.Command,
+                            Timeout = 10
+                        })
+                    ]
+                }
+            ];
+        }
+
+        return new HookRunner(config, _tempDir);
+    }
+
+    private static string AppendFileCommand(string path, string output) =>
+        OperatingSystem.IsWindows()
+            ? $"Add-Content -LiteralPath '{path}' -Value '{output}'"
+            : $"printf '%s\\n' '{output}' >> '{path}'";
+
+    private static string StderrAndExitCommand(string output, int exitCode) =>
+        OperatingSystem.IsWindows()
+            ? $"[Console]::Error.WriteLine('{output}'); exit {exitCode}"
+            : $"printf '%s\\n' '{output}' >&2; exit {exitCode}";
 
     private AgentFactory CreateAgentFactory(
         IChatClient compactionChatClient,

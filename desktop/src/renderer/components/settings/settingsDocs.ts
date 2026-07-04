@@ -19,8 +19,7 @@ interface SettingsDocsRoute {
 
 const SETTINGS_DOCS_ROUTES: Record<SettingsDocsTopic, SettingsDocsRoute> = {
   hooks: {
-    en: '/developing/configuration#automations-goals-and-hooks',
-    zhHans: '/developing/configuration#automations-goals-与-hooks'
+    en: '/features/agent-system/hooks'
   },
   servers: {
     en: '/features/self-hosted/server-deployment#connect-from-desktop',

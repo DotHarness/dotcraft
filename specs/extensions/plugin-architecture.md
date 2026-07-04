@@ -5,7 +5,7 @@
 | **Version** | 1.3.0 |
 | **Status** | Living |
 | **Date** | 2026-05-19 |
-| **Related Specs** | [AppServer Protocol](../protocols/appserver-protocol.md), [Plugin Registry](plugin-registry.md), [Tool Result Presentation](../protocols/tool-result-presentation.md), [Session Core](../core/session-core.md), [External Channel Adapter](../protocols/external-channel-adapter.md), [Desktop Client](../clients/desktop-client.md) |
+| **Related Specs** | [AppServer Protocol](../protocols/appserver-protocol.md), [Plugin Registry](plugin-registry.md), [Tool Result Presentation](../protocols/tool-result-presentation.md), [Session Core](../core/session-core.md), [Lifecycle Hooks](../core/lifecycle-hooks.md), [External Channel Adapter](../protocols/external-channel-adapter.md), [Desktop Client](../clients/desktop-client.md) |
 
 Purpose: define the durable architecture for DotCraft plugins, including plugin-contained skills, local plugin manifests, plugin-bundled MCP servers, client-facing plugin metadata, and the TypeScript external channel module contract.
 
@@ -73,9 +73,9 @@ Effective MCP merge rules:
 - `"hooks": { "hooks": { ... } }`
 - `"hooks": [{ "hooks": { ... } }]`
 
-If `hooks` is omitted, DotCraft automatically discovers `./hooks/hooks.json` under the plugin root. Hook paths use the same manifest-relative path rules as other plugin paths: they must start with `./`, must not escape the plugin root, and must resolve inside the plugin directory. Plugin hook files reuse the workspace `.craft/hooks.json` shape. v1 supports the existing hook events `SessionStart`, `PreToolUse`, `PostToolUse`, `PostToolUseFailure`, `PrePrompt`, and `Stop`, and command handlers with `type`, `command`, `timeout`, and `matcher`.
+If `hooks` is omitted, DotCraft automatically discovers `./hooks/hooks.json` under the plugin root. If that file is absent, DotCraft also checks a top-level `./hooks.json` for compatibility with imported plugin ecosystems. Explicit `hooks` declarations always take precedence and suppress default discovery. Hook paths use the same manifest-relative path rules as other plugin paths: they must start with `./`, must not escape the plugin root, and must resolve inside the plugin directory. Plugin hook files reuse the workspace `.craft/hooks.json` shape defined by [Lifecycle Hooks](../core/lifecycle-hooks.md). DotCraft executes command hooks and reports unsupported reserved handler types through plugin diagnostics.
 
-Plugin hooks are loaded only from installed and enabled plugins. They are listed by `hooks/list` with source `plugin`, and summarized in `plugin/list` / `plugin/view` as `{ key, eventName }`. Commands run from the workspace root, like config hooks. DotCraft expands `${DOTCRAFT_PLUGIN_ROOT}` and `${DOTCRAFT_PLUGIN_DATA}` in plugin hook commands and injects the same values as environment variables. Plugin data uses the LSP data location: `%LocalAppData%/DotCraft/plugins/<pluginId>/data` on Windows, with platform-equivalent app data paths elsewhere.
+Plugin hooks are loaded only from installed and enabled plugins. They are listed by `hooks/list` with source `plugin`, and summarized in `plugin/list` / `plugin/view` as `{ key, eventName }`. Commands run from the workspace root, like config hooks. DotCraft expands `${DOTCRAFT_PLUGIN_ROOT}` and `${DOTCRAFT_PLUGIN_DATA}` in plugin hook commands and injects the same values as environment variables. Plugin data uses the LSP data location: `%LocalAppData%/DotCraft/plugins/<pluginId>/data` on Windows, with platform-equivalent app data paths elsewhere. Compatibility aliases may be injected for imported plugin ecosystems, but DotCraft-authored plugins should use the `DOTCRAFT_*` variables.
 
 Plugin hooks are user-trusted runtime behavior. Installing or enabling a plugin does not automatically trust its hooks. First appearance and any hash-changing edit returns `trustStatus` `untrusted` or `modified` from `hooks/list`; the hook runs only after `hooks/setState` stores the current hash in user-global `Hooks.State`.
 

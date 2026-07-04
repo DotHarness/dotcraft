@@ -1,147 +1,67 @@
-﻿# DotCraft Weixin Channel Adapter
+# Connect DotCraft to Weixin
 
-`@dotcraft/channel-weixin` connects Tencent iLink (WeChat bot API) to DotCraft via the external channel protocol over WebSocket.
+Connect Weixin to DotCraft through Tencent iLink. The first login uses a QR code, and normal replies are sent as plain text.
 
-## Feature Summary
+## Quick setup
 
-- WebSocket transport to DotCraft AppServer
-- QR-based interactive setup for first login
-- Session persistence under module-scoped state directory
-- Streaming turn delivery and approval handling
-- `/new` command support to start a fresh conversation
-- Real file/image tools: `WeixinSendFileToCurrentChat`, `WeixinSendImageToCurrentChat`
-- Structured `file` / `image` delivery with local path or base64 sources
-- Weixin iLink does not expose a Markdown rendering entry, so regular replies and media captions are flattened to plain text
+1. Confirm the Weixin account has Tencent iLink bot access.
+2. Open the target workspace in DotCraft Desktop.
+3. Open **Channels**, then select **Weixin**.
+4. Keep the default iLink API address unless Tencent gave you a different endpoint.
+5. Save the channel and turn it on.
+6. Scan the QR code shown in Desktop.
+7. Wait until Desktop shows the Weixin channel as connected.
+8. Send a message to the Weixin bot account.
 
-## Installation
+## Platform setup details
+
+Weixin setup is authentication-first:
+
+1. Use the Weixin account that Tencent iLink authorizes for bot access.
+2. Keep Desktop open while the first QR login completes.
+3. Restarting Desktop normally reuses the saved session.
+4. Scan a new QR code when Desktop asks you to re-authenticate.
+
+No public callback URL is required for the Desktop-managed Weixin channel.
+
+## Test the connection
+
+1. Send `hello` to the Weixin bot account.
+2. Confirm DotCraft replies in the same chat.
+3. Send `/new`, then send another message and confirm it starts a fresh conversation.
+4. Ask DotCraft to do something that needs approval and reply with an approval keyword.
+5. Send a task that returns a file or image if your workflow depends on media delivery.
+
+## What works after setup
+
+- `/new` starts a fresh DotCraft conversation in the current Weixin chat.
+- The login session is saved for normal restarts.
+- If the session expires, Desktop shows a new QR code.
+- Regular replies and media captions are flattened to plain text because iLink does not expose Markdown rendering.
+- File and image delivery are available through channel delivery tools.
+- Approval replies accept plain chat keywords such as `同意`, `允许`, `yes`, `approve`, and `reject`.
+
+## Standalone adapter
+
+Run the Weixin adapter yourself only when Desktop is not managing the channel process.
 
 ```bash
 cd sdk/typescript
-npm install
-npm run build:all
-```
-
-## 1) Workspace Config (`.craft/config.json`)
-
-Merge `config.example.json` into workspace `.craft/config.json` to enable the `weixin` external channel:
-
-```json
-{
-  "AppServer": {
-    "Mode": "stdioAndWebSocket",
-    "WebSocket": {
-      "Host": "127.0.0.1",
-      "Port": 9100,
-      "Token": ""
-    }
-  },
-  "ExternalChannels": {
-    "weixin": {
-      "enabled": true,
-      "transport": "websocket"
-    }
-  }
-}
-```
-
-## 2) Adapter Config (`.craft/weixin.json`)
-
-Create `.craft/weixin.json` in your target workspace:
-
-```json
-{
-  "dotcraft": {
-    "wsUrl": "ws://127.0.0.1:9100/ws",
-    "token": ""
-  },
-  "weixin": {
-    "apiBaseUrl": "https://ilinkai.weixin.qq.com",
-    "pollIntervalMs": 3000,
-    "pollTimeoutMs": 30000,
-    "approvalTimeoutMs": 120000,
-    "botType": "3"
-  }
-}
-```
-
-Field notes:
-
-- `dotcraft.wsUrl`: DotCraft AppServer WebSocket endpoint
-- `dotcraft.token`: optional AppServer token
-- `weixin.apiBaseUrl`: iLink API base URL
-- `weixin.pollIntervalMs`: optional interval between polling cycles
-- `weixin.pollTimeoutMs`: optional long-poll timeout
-- `weixin.approvalTimeoutMs`: optional approval timeout
-- `weixin.botType`: optional bot type for QR login API
-
-## 3) CLI Usage
-
-Primary mode:
-
-```bash
+npm run build --workspace @dotcraft/channel-weixin
 npx dotcraft-channel-weixin --workspace /path/to/workspace
 ```
 
-Optional config override:
+Use `--config /custom/weixin.json` when the adapter config is not stored at `.craft/weixin.json`. In terminal mode, the QR code is rendered in the terminal.
 
-```bash
-npx dotcraft-channel-weixin --workspace /path/to/workspace --config /custom/weixin.json
-```
+Register the channel as a standalone WebSocket adapter in the shared [channel configuration reference](./reference).
 
-## 4) Interactive Setup (QR Login)
+## Reference
 
-- First run with no saved session transitions to `authRequired`
-- In terminal mode, QR is rendered in the terminal
-- After scan confirmation, adapter transitions to `ready`
-- When session expires, lifecycle transitions `authExpired -> authRequired`, then QR login is required again
-
-## 5) State and Temp Layout
-
-The module stores data under workspace `.craft/`:
-
-- Persistent state: `.craft/state/weixin-standard/`
-  - credentials, sync cursor, context tokens
-- Temporary artifacts: `.craft/tmp/weixin-standard/`
-  - QR URL and QR image artifacts
-
-## 6) Host Integration
-
-Hosts should import module contract exports and observe lifecycle:
-
-```typescript
-import { manifest, createModule } from "@dotcraft/channel-weixin";
-
-const instance = createModule({
-  workspaceRoot: "/path/to/workspace",
-  craftPath: "/path/to/workspace/.craft",
-  channelName: "weixin",
-  moduleId: "weixin-standard",
-});
-
-instance.onStatusChange((status, error) => {
-  // status: configMissing | configInvalid | starting | authRequired | authExpired | ready | stopped
-});
-
-await instance.start();
-```
-
-## Development Notes
-
-- Build all TypeScript packages:
-  - `cd sdk/typescript && npm run build:all`
-- Run all tests:
-  - `cd sdk/typescript && npm run test:all`
-- Run this package tests only:
-  - `npm run test --workspace @dotcraft/channel-weixin`
-- Dry-run package contents:
-  - `cd sdk/typescript/packages/channel-weixin && npm pack --dry-run`
-
-## Credits
-
-[@tencent-weixin/openclaw-weixin](https://www.npmjs.com/package/@tencent-weixin/openclaw-weixin)
+See [Channel configuration reference](./reference) for the Weixin JSON example, `ExternalChannels` registration, and field table.
 
 ## Related docs
 
-- [Channels & Bots](../../features/entry-points/channels) — overview of every chat channel.
-- [TypeScript Module Integration](../integrations/typescript-module) — the host contract this module implements.
-- [WeCom Channel Adapter](./wecom) — the separate WeCom (enterprise) channel.
+- [Channels & Bots](../../features/entry-points/channels)
+- [Channel configuration reference](./reference)
+- [WeCom channel](./wecom)
+- [Channel adapters](../sdks/channels)

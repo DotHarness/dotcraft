@@ -44,9 +44,9 @@ DotCraft 把 Agent 关在你能掌控的护栏里，一共四层：**文件黑�
 
 ## Hooks
 
-Hooks 允许 DotCraft 在生命周期事件中运行外部命令，适合格式化、审计、通知、环境检查和安全守卫。建议先用观察型 Hook 看清行为，再加入阻塞型 Hook。
+Hooks 可以把安全检查变成生命周期 guardrail：命令运行前检查 Shell、工具调用后审阅改动，或在高风险操作前让 DotCraft 暂停并等待你的下一步批准。
 
-Hook 配置、生命周期事件、stdin payload、matcher 规则、退出码语义和示例都放在 [Automations、Goals 与 Hooks](../../developing/configuration#automations-goals-与-hooks)。
+面向用户的概念说明见 [生命周期 Hooks](../agent-system/hooks)。字段、事件、matcher 规则和退出码语义见 [配置完整参考](../../developing/configuration#automations-goals-与-hooks)。
 
 最佳实践：
 

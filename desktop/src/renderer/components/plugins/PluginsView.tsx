@@ -1,8 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { CSSProperties, MouseEvent } from 'react'
-import { Box, ChevronLeft, Code2, Ellipsis, ExternalLink, FolderInput, Link, MessageCircle, Plus, Server, Settings, Trash2, Wrench } from 'lucide-react'
+import { Anchor, Box, ChevronLeft, Code2, Ellipsis, ExternalLink, FolderInput, Link, MessageCircle, Plus, Server, Settings, Trash2, Wrench } from 'lucide-react'
 import { useT } from '../../contexts/LocaleContext'
-import type { MessageKey } from '../../../shared/locales'
 import { usePluginStore, type PluginDiagnosticEntry, type PluginEntry } from '../../stores/pluginStore'
 import { useConnectionStore } from '../../stores/connectionStore'
 import { useConversationStore } from '../../stores/conversationStore'
@@ -25,7 +24,7 @@ import { RefreshIcon } from '../ui/AppIcons'
 import { PluginCatalogItem, PluginIcon, pluginSourceLabel, pluginSubtitle, pluginTitle } from './PluginCatalogItem'
 import { PluginInstallDialog } from './PluginInstallDialog'
 import { AppBindingPanel } from './AppBindingPanel'
-import { getPluginDesktopExtensionContents } from '../../utils/pluginDesktopExtensions'
+import { getPluginContentSummaries, type PluginContentType } from '../../utils/pluginContentSummaries'
 import { SkeletonCatalogGrid, SkeletonList } from '../ui/Skeleton'
 
 type Surface = PluginCatalogSurface
@@ -37,6 +36,7 @@ const FIXED_PLUGIN_CATEGORIES = [
   'coding',
   'design',
   'engineering',
+  'security',
   'lifestyle',
   'productivity',
   'research',
@@ -675,50 +675,7 @@ function PluginDetailView({
   const shouldOfferLspEnable = plugin.installed
     && plugin.enabled
     && (plugin.lspServers ?? []).some((server) => server.enabled && !server.active && !server.shadowedBy)
-  const contents = [
-    ...getPluginDesktopExtensionContents(plugin, t).map((extension) => ({
-      key: extension.key,
-      type: 'desktopExtension' as const,
-      kind: extension.kind,
-      title: extension.title,
-      description: extension.description
-    })),
-    ...(plugin.apps ?? []).map((app) => ({
-      key: `app:${app.appId}`,
-      type: 'app' as const,
-      kind: t('plugins.content.app'),
-      title: app.displayName,
-      description: app.description
-    })),
-    ...plugin.skills.map((skill) => ({
-      key: `skill:${skill.name}`,
-      type: 'skill' as const,
-      kind: t('plugins.content.skill'),
-      title: skill.displayName || skill.name,
-      description: skill.shortDescription || skill.description
-    })),
-    ...plugin.functions.map((fn) => ({
-      key: `function:${fn.name}`,
-      type: 'tool' as const,
-      kind: t('plugins.content.tool'),
-      title: fn.name,
-      description: fn.description
-    })),
-    ...(plugin.mcpServers ?? []).map((server) => ({
-      key: `mcp:${server.runtimeName}`,
-      type: 'mcp' as const,
-      kind: t('plugins.content.mcpServer'),
-      title: server.runtimeName,
-      description: describePluginMcpServer(server, t)
-    })),
-    ...(plugin.lspServers ?? []).map((server) => ({
-      key: `lsp:${server.runtimeName}`,
-      type: 'lsp' as const,
-      kind: t('plugins.content.lspServer'),
-      title: server.runtimeName,
-      description: describePluginLspServer(server, t)
-    }))
-  ]
+  const contents = getPluginContentSummaries(plugin, t)
   return (
     <div style={page}>
       <div style={detailBreadcrumbBar}>
@@ -771,43 +728,37 @@ function PluginDetailView({
           {loading && <p style={emptyText}>{t('plugins.loading')}</p>}
           <div style={promptPreview}>
             <span style={promptBubble}>
-              <PluginIcon plugin={plugin} size={18} />
-              <strong>{pluginTitle(plugin)}</strong>
-              {info?.defaultPrompt || t('plugins.defaultPromptFallback')}
+              <span style={promptBubblePrefix}>
+                <PluginIcon plugin={plugin} size={18} />
+                <strong style={promptBubbleTitle}>{pluginTitle(plugin)}</strong>
+              </span>
+              <span style={promptBubbleText}>{info?.defaultPrompt || t('plugins.defaultPromptFallback')}</span>
             </span>
           </div>
           <p style={longDescription}>{info?.longDescription || plugin.description}</p>
           <AppBindingPanel plugin={plugin} />
           <section style={detailSection}>
             <h2 style={detailSectionTitle}>{t('plugins.detail.contents')}</h2>
-            <div style={contentList}>
-              {contents.map((item) => (
-                <div key={item.key} style={contentItem}>
-                  <span style={contentIcon}>
-                    {item.type === 'app' ? (
-                      <Link size={16} aria-hidden />
-                    ) : item.type === 'desktopExtension' ? (
-                      <Settings size={16} aria-hidden />
-                    ) : item.type === 'skill' ? (
-                      <Box size={16} aria-hidden />
-                    ) : item.type === 'mcp' ? (
-                      <Server size={16} aria-hidden />
-                    ) : item.type === 'lsp' ? (
-                      <Code2 size={16} aria-hidden />
-                    ) : (
-                      <Wrench size={16} aria-hidden />
-                    )}
-                  </span>
-                  <span style={pluginText}>
-                    <span style={contentTitleLine}>
-                      <strong style={rowTitle}>{item.title}</strong>
-                      <span style={contentKind}>{item.kind}</span>
+            {contents.length > 0 ? (
+              <div style={contentList}>
+                {contents.map((item) => (
+                  <div key={item.key} style={contentItem}>
+                    <span style={contentIcon}>
+                      <PluginContentIcon type={item.type} size={16} />
                     </span>
-                    <span style={rowDesc}>{item.description}</span>
-                  </span>
-                </div>
-              ))}
-            </div>
+                    <span style={pluginText}>
+                      <span style={contentTitleLine}>
+                        <strong style={rowTitle}>{item.title}</strong>
+                        <span style={contentKind}>{item.kind}</span>
+                      </span>
+                      <span style={rowDesc}>{item.description}</span>
+                    </span>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p style={emptyText}>{t('plugins.detail.noContents')}</p>
+            )}
           </section>
           {shouldOfferLspEnable && (
             <div style={lspEnablePanel} role="status">
@@ -1018,6 +969,7 @@ function categoryLabel(category: string, t: ReturnType<typeof useT>): string {
   if (category === 'coding') return t('plugins.filter.category.coding')
   if (category === 'design') return t('plugins.filter.category.design')
   if (category === 'engineering') return t('plugins.filter.category.engineering')
+  if (category === 'security') return t('plugins.filter.category.security')
   if (category === 'lifestyle') return t('plugins.filter.category.lifestyle')
   if (category === 'productivity') return t('plugins.filter.category.productivity')
   if (category === 'research') return t('plugins.filter.category.research')
@@ -1053,29 +1005,14 @@ function tryPluginInChat(plugin: PluginEntry): void {
   ui.goToNewChat()
 }
 
-function describePluginMcpServer(
-  server: NonNullable<PluginEntry['mcpServers']>[number],
-  t: (key: MessageKey, vars?: Record<string, string>) => string
-): string {
-  const transport =
-    server.transport === 'stdio' ? t('settings.mcp.transport.stdio') : t('settings.mcp.transport.http')
-  let state = server.active ? t('plugins.content.mcp.active') : t('plugins.content.mcp.inactive')
-  if (!server.enabled) state = t('plugins.content.mcp.disabled')
-  if (server.shadowedBy === 'workspace') state = t('plugins.content.mcp.shadowedWorkspace')
-  if (server.shadowedBy === 'plugin') state = t('plugins.content.mcp.shadowedPlugin')
-  return `${transport} · ${state}`
-}
-
-function describePluginLspServer(
-  server: NonNullable<PluginEntry['lspServers']>[number],
-  t: (key: MessageKey, vars?: Record<string, string>) => string
-): string {
-  let state = server.active ? t('plugins.content.lsp.active') : t('plugins.content.lsp.inactive')
-  if (!server.enabled) state = t('plugins.content.lsp.disabled')
-  if (server.shadowedBy === 'workspace') state = t('plugins.content.lsp.shadowedWorkspace')
-  if (server.shadowedBy === 'plugin') state = t('plugins.content.lsp.shadowedPlugin')
-  const extensions = server.extensions.length > 0 ? ` · ${server.extensions.join(', ')}` : ''
-  return `${server.transport.toUpperCase()} · ${state}${extensions}`
+function PluginContentIcon({ type, size }: { type: PluginContentType; size: number }): JSX.Element {
+  if (type === 'app') return <Link size={size} aria-hidden />
+  if (type === 'desktopExtension') return <Settings size={size} aria-hidden />
+  if (type === 'hooks') return <Anchor size={size} aria-hidden />
+  if (type === 'skill') return <Box size={size} aria-hidden />
+  if (type === 'mcp') return <Server size={size} aria-hidden />
+  if (type === 'lsp') return <Code2 size={size} aria-hidden />
+  return <Wrench size={size} aria-hidden />
 }
 
 function filterVisibleDiagnostics(diagnostics: PluginDiagnosticEntry[]): PluginDiagnosticEntry[] {
@@ -1204,8 +1141,11 @@ const detailSubtitle: CSSProperties = { margin: 0, color: 'var(--text-secondary)
 const detailIconButton: CSSProperties = { width: 32, height: 32, borderRadius: 8, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-secondary)', textDecoration: 'none' }
 const secondaryDetailButton: CSSProperties = { border: 'none', borderRadius: 8, background: 'var(--bg-tertiary)', color: 'var(--text-primary)', padding: '8px 12px', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6 }
 const tryButton: CSSProperties = { border: 'none', borderRadius: 8, background: 'var(--text-primary)', color: 'var(--bg-primary)', fontWeight: 600, padding: '8px 12px', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6 }
-const promptPreview: CSSProperties = { height: 132, borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'linear-gradient(120deg, #b6cdf5, #d9cef7 58%, #f3f0fb)' }
-const promptBubble: CSSProperties = { display: 'inline-flex', alignItems: 'center', gap: 7, maxWidth: '80%', border: '1px solid rgba(0,0,0,0.12)', borderRadius: 13, background: 'rgba(255,255,255,0.82)', color: '#111', padding: '8px 12px', fontSize: 13, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }
+const promptPreview: CSSProperties = { minHeight: 132, borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'linear-gradient(120deg, #b6cdf5, #d9cef7 58%, #f3f0fb)', padding: '18px 24px', boxSizing: 'border-box' }
+const promptBubble: CSSProperties = { display: 'inline-flex', alignItems: 'center', flexWrap: 'wrap', columnGap: 7, rowGap: 4, maxWidth: '80%', border: '1px solid rgba(0,0,0,0.12)', borderRadius: 13, background: 'rgba(255,255,255,0.82)', color: '#111', padding: '8px 12px', fontSize: 13, lineHeight: 1.35 }
+const promptBubblePrefix: CSSProperties = { display: 'inline-flex', alignItems: 'center', gap: 7, flex: '0 1 auto', minWidth: 0, maxWidth: '100%', whiteSpace: 'nowrap' }
+const promptBubbleTitle: CSSProperties = { minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }
+const promptBubbleText: CSSProperties = { flex: '1 1 180px', minWidth: 0, whiteSpace: 'normal', overflowWrap: 'anywhere' }
 const longDescription: CSSProperties = { margin: '54px 8px 40px', lineHeight: 1.55, fontSize: 14, color: 'var(--text-primary)' }
 const detailSection: CSSProperties = { marginTop: 28 }
 const detailSectionTitle: CSSProperties = { margin: '0 0 12px', fontSize: 15, fontWeight: 600 }

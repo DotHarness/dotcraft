@@ -20,15 +20,61 @@ public sealed class HookEntry
     public string Command { get; set; } = string.Empty;
 
     /// <summary>
+    /// Optional command condition, such as <c>Bash(git commit:*)</c>.
+    /// </summary>
+    [JsonPropertyName("if")]
+    public string? If { get; set; }
+
+    /// <summary>
+    /// Optional shell override.
+    /// </summary>
+    public string? Shell { get; set; }
+
+    /// <summary>
     /// Timeout in seconds for this hook command (default: 30).
     /// </summary>
     public int Timeout { get; set; } = 30;
 
     /// <summary>
-    /// Runtime-only environment variables injected when executing the hook.
+    /// Extra environment variables injected when executing the hook.
+    /// </summary>
+    public Dictionary<string, string> EnvironmentVariables { get; set; } = new(StringComparer.Ordinal);
+
+    /// <summary>
+    /// Optional status message surfaced to clients while the hook runs.
+    /// </summary>
+    public string? StatusMessage { get; set; }
+
+    /// <summary>
+    /// Whether the hook can run asynchronously without blocking the current action.
+    /// </summary>
+    public bool Async { get; set; }
+
+    /// <summary>
+    /// Whether hook output can enqueue a hook-origin follow-up turn.
+    /// </summary>
+    public bool AsyncRewake { get; set; }
+
+    /// <summary>
+    /// Optional prefix for hook-origin follow-up feedback.
+    /// </summary>
+    public string? RewakeMessage { get; set; }
+
+    /// <summary>
+    /// Optional short summary for hook-origin follow-up feedback.
+    /// </summary>
+    public string? RewakeSummary { get; set; }
+
+    /// <summary>
+    /// Reserved for future per-session de-duplication.
+    /// </summary>
+    public bool Once { get; set; }
+
+    /// <summary>
+    /// Runtime-only stable hook key.
     /// </summary>
     [JsonIgnore]
-    public Dictionary<string, string> EnvironmentVariables { get; set; } = new(StringComparer.Ordinal);
+    public string Key { get; set; } = string.Empty;
 
     /// <summary>
     /// Runtime-only source path for diagnostics and listing.

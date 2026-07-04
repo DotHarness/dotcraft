@@ -1,6 +1,7 @@
 using DotCraft.Agents;
 using DotCraft.Context;
 using DotCraft.Context.Compaction;
+using DotCraft.Hooks;
 using Microsoft.Agents.AI;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Logging;
@@ -76,6 +77,33 @@ public sealed partial class SessionService
                     usageEstimate.Source,
                     usageEstimate.IsEstimate);
                 var broker = owner.GetOrCreateBroker(threadId);
+                var coveredTurnId = thread.Turns.LastOrDefault(t => t.Status == TurnStatus.Completed)?.Id;
+                var preCompactHook = await owner.RunCompactionHookAsync(
+                    HookEvent.PreCompact,
+                    thread,
+                    coveredTurnId,
+                    "manual",
+                    beforeThreshold,
+                    thresholdAfter: null,
+                    beforeUsage,
+                    outcome: null,
+                    maintenanceCt);
+                if (preCompactHook.Blocked)
+                {
+                    var message = BuildHookBlockedMessage("Context compaction", preCompactHook);
+                    broker.PublishSystemEvent(
+                        "compactFailed",
+                        message: message,
+                        percentLeft: beforeThreshold.PercentLeft,
+                        tokenCount: beforeThreshold.Tokens,
+                        contextUsage: beforeUsage);
+                    return await FinishAsync(new ThreadCompactResult
+                    {
+                        Outcome = "failed",
+                        Message = message,
+                        ContextUsage = beforeUsage
+                    });
+                }
 
                 broker.PublishSystemEvent(
                     "compacting",
@@ -181,6 +209,17 @@ public sealed partial class SessionService
                                     status.ThresholdAfter.Tokens),
                                 maintenanceCt);
                         }
+
+                        await owner.RunCompactionHookAsync(
+                            HookEvent.PostCompact,
+                            thread,
+                            coveredTurnId,
+                            "manual",
+                            status.ThresholdBefore,
+                            status.ThresholdAfter,
+                            contextUsage,
+                            CompactionOutcomeToWire(status.Outcome),
+                            maintenanceCt);
 
                         owner.ThreadRuntimeSignalForBroadcast?.Invoke(
                             threadId,
