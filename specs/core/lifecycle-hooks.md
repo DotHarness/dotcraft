@@ -4,7 +4,7 @@
 |-------|-------|
 | **Version** | 2.0.0 |
 | **Status** | Living |
-| **Date** | 2026-07-04 |
+| **Date** | 2026-07-05 |
 | **Related Specs** | [Session Core](session-core.md), [Plugin Architecture](../extensions/plugin-architecture.md), [AppServer Protocol](../protocols/appserver-protocol.md), [Desktop Client](../clients/desktop-client.md) |
 
 Purpose: define DotCraft lifecycle hooks as a durable runtime contract. Hooks let
@@ -45,6 +45,10 @@ or enabling a plugin does not trust its hooks. Any behavior-changing edit change
 the hook hash and returns the hook to `modified` until the user trusts the new
 hash. State is stored in user-global config so personal trust and disable choices
 are not committed to a workspace.
+
+Plugin hooks should be presented as a plugin-level trust decision. Clients may
+still store trust per hook through the underlying `Hooks.State` entries, but
+ordinary users should trust all current hooks from one plugin together.
 
 Runtime execution order is:
 
@@ -271,14 +275,20 @@ AppServer exposes `capabilities.hooksManagement` and the methods:
 
 - `hooks/list`
 - `hooks/setState`
+- `hooks/trustPlugin`
 
 `hooks/list` returns metadata, warnings, and errors for all discovered hooks.
 `hooks/setState` writes per-user enable/trust state, refreshes the runtime
 snapshot, and emits `workspace/configChanged` with region `hooks`.
+`hooks/trustPlugin` writes the current hash for every discovered hook from one
+enabled plugin into the same per-hook state map, refreshes the runtime snapshot,
+and emits `workspace/configChanged` with region `hooks`.
 
 Clients should display hooks grouped by source and event, show trust state and
-condition/execution metadata, and let users enable/disable or trust/re-trust
-individual hooks. Clients must not edit commands.
+condition/execution metadata. User and workspace hooks may expose per-hook
+enable/disable and trust actions. Plugin hook details should expose a single
+plugin-level trust action and read-only per-hook inspection. Clients must not edit
+commands.
 
 Hook run notifications are best-effort and transient. They include run id, hook
 key, event, thread id, turn id, status, duration, exit code, output entries, and
@@ -289,7 +299,8 @@ whether a continuation was queued.
 ## 9. Acceptance Checklist
 
 - Existing DotCraft config hooks continue to run.
-- Plugin hooks are discovered, listed, trusted, toggled, and executed.
+- Plugin hooks are discovered, listed, trusted as a plugin bundle, and executed.
+- User and workspace hooks can still be trusted and toggled individually.
 - `UserPromptSubmit` can inject additional context and block a prompt.
 - Tool hooks receive portable tool aliases and portable tool input.
 - `if` conditions match shell command patterns.

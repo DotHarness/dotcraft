@@ -133,6 +133,7 @@ public static class AppServerMethods
     public const string McpTest = "mcp/test";
     public const string HooksList = "hooks/list";
     public const string HooksSetState = "hooks/setState";
+    public const string HooksTrustPlugin = "hooks/trustPlugin";
 
     // Client → Server notification (no id)
     public const string Initialized = "initialized";

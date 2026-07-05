@@ -45,7 +45,7 @@ describe('Settings Hooks', () => {
         enabled: true,
         isManaged: false,
         currentHash: 'sha256:user',
-        trustStatus: 'trusted'
+        trustStatus: 'untrusted'
       },
       {
         key: 'review-tools:hooks/hooks.json:session_start:0:0',
@@ -77,6 +77,15 @@ describe('Settings Hooks', () => {
               ...hook,
               enabled: typeof params.enabled === 'boolean' ? params.enabled : hook.enabled,
               trustStatus: params.trustedHash === hook.currentHash ? 'trusted' : hook.trustStatus
+            }
+          : hook)
+        return { hooks, warnings: [], errors: [] }
+      }
+      if (method === 'hooks/trustPlugin') {
+        hooks = hooks.map((hook) => hook.pluginId === params?.pluginId
+          ? {
+              ...hook,
+              trustStatus: 'trusted'
             }
           : hook)
         return { hooks, warnings: [], errors: [] }
@@ -216,18 +225,18 @@ describe('Settings Hooks', () => {
     expect(screen.queryByText('Workspace config')).not.toBeInTheDocument()
   })
 
-  it('toggles, trusts, and opens a plugin hook owner', async () => {
+  it('keeps per-hook actions for config hooks', async () => {
     renderView()
     fireEvent.click(await screen.findByRole('button', { name: 'Hooks' }))
-    fireEvent.click(await screen.findByText('Review Tools'))
+    fireEvent.click(await screen.findByText('User config'))
 
     const toggle = await screen.findByRole('switch', { name: 'Enable or disable hook' })
     fireEvent.click(toggle)
 
     await waitFor(() => {
       expect(appServerSendRequest).toHaveBeenCalledWith('hooks/setState', {
-        key: 'review-tools:hooks/hooks.json:session_start:0:0',
-        enabled: true
+        key: '/user-config/.craft/hooks.json:pre_tool_use:0:0',
+        enabled: false
       })
     })
 
@@ -236,16 +245,38 @@ describe('Settings Hooks', () => {
 
     await waitFor(() => {
       expect(appServerSendRequest).toHaveBeenCalledWith('hooks/setState', {
-        key: 'review-tools:hooks/hooks.json:session_start:0:0',
-        trustedHash: 'sha256:plugin'
+        key: '/user-config/.craft/hooks.json:pre_tool_use:0:0',
+        trustedHash: 'sha256:user'
       })
     })
+  })
 
-    fireEvent.click(screen.getByRole('button', { name: 'View plugin' }))
+  it('trusts plugin hooks as a bundle and keeps plugin hook rows read-only', async () => {
+    renderView()
+    fireEvent.click(await screen.findByRole('button', { name: 'Hooks' }))
+    fireEvent.click(await screen.findByText('Review Tools'))
+
+    expect(await screen.findByText('Plugin hooks')).toBeInTheDocument()
+    expect(screen.getByText('Trust this plugin before its hooks can run.')).toBeInTheDocument()
+    expect(screen.queryByRole('switch', { name: 'Enable or disable hook' })).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Trust hooks' }))
 
     await waitFor(() => {
-      expect(appServerSendRequest).toHaveBeenCalledWith('plugin/view', { id: 'review-tools' })
+      expect(appServerSendRequest).toHaveBeenCalledWith('hooks/trustPlugin', {
+        pluginId: 'review-tools'
+      })
     })
-    expect(useUIStore.getState().activeMainView).toBe('skills')
+    expect(await screen.findByText('All hooks from this plugin are trusted.')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Trust hooks' })).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: /Hook 1/ }))
+
+    expect(screen.getByText('${DOTCRAFT_PLUGIN_ROOT}\\hooks\\start.cmd')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Trust' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Copy command' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Open source file' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'View plugin' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('switch', { name: 'Enable or disable hook' })).not.toBeInTheDocument()
   })
 })

@@ -20,7 +20,7 @@ Keep the script focused. If the logic grows, call a project script from the hook
 
 DotCraft can discover hooks from your personal config, the current workspace, and enabled plugins. That lets you keep private preferences for yourself, share team policy through the workspace, and install reusable hook bundles from plugins.
 
-Hooks that run local commands need trust. A newly discovered hook starts untrusted, and a changed hook becomes modified until you trust it again. This keeps a workspace or plugin from silently changing the commands that run on your machine.
+Hooks that run local commands need trust. A newly discovered hook starts untrusted, and a changed hook becomes modified until you trust it again. Plugin hooks are trusted as one plugin bundle, so you can review the plugin's hooks and allow the current set together.
 
 ## Manage hooks in Desktop
 
@@ -30,9 +30,10 @@ From this page you can:
 
 - See whether a hook came from user config, workspace config, or a plugin.
 - Expand a hook to inspect its command, matcher, source file, and trust state.
-- Enable or disable one hook without editing the source file.
-- Trust a new hook, or trust it again after the command changes.
-- Open the source file or jump to the plugin that provided it.
+- Enable or disable user and workspace hooks without editing the source file.
+- Trust a user or workspace hook after you add or change it.
+- Trust all current hooks from a plugin with one **Trust hooks** action.
+- Expand plugin hooks to inspect what the plugin declares before you trust it.
 
 Configuration files remain the source of truth for hook commands. Desktop manages only your personal enable and trust state.
 

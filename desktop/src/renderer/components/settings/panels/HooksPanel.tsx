@@ -4,7 +4,6 @@ import {
   ChevronDown,
   ChevronRight,
   Copy,
-  ExternalLink,
   FileSearch,
   RefreshCw,
   Settings as SettingsIcon,
@@ -16,7 +15,6 @@ import {
 import { useT } from '../../../contexts/LocaleContext'
 import { useHooksStore, type HookMetadata, type HookSource, type HookTrustStatus } from '../../../stores/hooksStore'
 import { usePluginStore, type PluginEntry } from '../../../stores/pluginStore'
-import { useUIStore } from '../../../stores/uiStore'
 import { addToast } from '../../../stores/toastStore'
 import type { MessageKey } from '../../../../shared/locales'
 import { PluginIcon, pluginTitle } from '../../plugins/PluginCatalogItem'
@@ -62,14 +60,13 @@ export function HooksPanel(): JSX.Element {
   const errors = useHooksStore((s) => s.errors)
   const loading = useHooksStore((s) => s.loading)
   const updatingKey = useHooksStore((s) => s.updatingKey)
+  const updatingPluginId = useHooksStore((s) => s.updatingPluginId)
   const error = useHooksStore((s) => s.error)
   const fetchHooks = useHooksStore((s) => s.fetchHooks)
   const setHookState = useHooksStore((s) => s.setHookState)
+  const trustPluginHooks = useHooksStore((s) => s.trustPluginHooks)
   const plugins = usePluginStore((s) => s.plugins)
   const fetchPlugins = usePluginStore((s) => s.fetchPlugins)
-  const selectPlugin = usePluginStore((s) => s.selectPlugin)
-  const setActiveMainView = useUIStore((s) => s.setActiveMainView)
-  const setPluginCatalogSurface = useUIStore((s) => s.setPluginCatalogSurface)
   const [selectedSourceKey, setSelectedSourceKey] = useState<SourceKey | null>(null)
   const [expandedKeys, setExpandedKeys] = useState<Set<string>>(() => new Set())
 
@@ -110,13 +107,12 @@ export function HooksPanel(): JSX.Element {
     }
   }
 
-  async function openPlugin(pluginId: string): Promise<void> {
+  async function trustPlugin(summary: HookSourceSummary): Promise<void> {
+    if (!summary.pluginId) return
     try {
-      await selectPlugin(pluginId)
-      setPluginCatalogSurface('plugins')
-      setActiveMainView('skills')
+      await trustPluginHooks(summary.pluginId)
     } catch (err) {
-      addToast(t('settings.hooks.openPluginFailed', { error: err instanceof Error ? err.message : String(err) }), 'error')
+      addToast(t('settings.hooks.updateFailed', { error: err instanceof Error ? err.message : String(err) }), 'error')
     }
   }
 
@@ -156,6 +152,7 @@ export function HooksPanel(): JSX.Element {
         <SourceDetail
           summary={selectedSummary}
           updatingKey={updatingKey}
+          updatingPluginId={updatingPluginId}
           expandedKeys={expandedKeys}
           onToggleExpanded={(key) => {
             setExpandedKeys((current) => {
@@ -167,7 +164,7 @@ export function HooksPanel(): JSX.Element {
           }}
           onToggleHook={(hook, enabled) => void toggleHook(hook, enabled)}
           onTrustHook={(hook) => void trustHook(hook)}
-          onOpenPlugin={(pluginId) => void openPlugin(pluginId)}
+          onTrustPlugin={(summary) => void trustPlugin(summary)}
         />
       </SettingsPanelShell>
     )
@@ -224,22 +221,25 @@ export function HooksPanel(): JSX.Element {
 function SourceDetail({
   summary,
   updatingKey,
+  updatingPluginId,
   expandedKeys,
   onToggleExpanded,
   onToggleHook,
   onTrustHook,
-  onOpenPlugin
+  onTrustPlugin
 }: {
   summary: HookSourceSummary
   updatingKey: string | null
+  updatingPluginId: string | null
   expandedKeys: Set<string>
   onToggleExpanded: (key: string) => void
   onToggleHook: (hook: HookMetadata, enabled: boolean) => void
   onTrustHook: (hook: HookMetadata) => void
-  onOpenPlugin: (pluginId: string) => void
+  onTrustPlugin: (summary: HookSourceSummary) => void
 }): JSX.Element {
   const t = useT()
   const groups = groupHooksByEvent(summary.hooks)
+  const pluginReadOnly = summary.source === 'plugin'
 
   if (summary.hooks.length === 0) {
     return (
@@ -253,6 +253,13 @@ function SourceDetail({
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+      {pluginReadOnly && (
+        <PluginTrustOverview
+          summary={summary}
+          updating={summary.pluginId != null && updatingPluginId === summary.pluginId}
+          onTrustPlugin={() => onTrustPlugin(summary)}
+        />
+      )}
       {groups.map((group) => (
         <SettingsGroup
           key={group.eventName}
@@ -266,15 +273,58 @@ function SourceDetail({
               index={index}
               expanded={expandedKeys.has(hook.key)}
               updating={updatingKey === hook.key}
+              readOnlyActions={pluginReadOnly}
               onToggleExpanded={() => onToggleExpanded(hook.key)}
               onToggleHook={(enabled) => onToggleHook(hook, enabled)}
               onTrustHook={() => onTrustHook(hook)}
-              onOpenPlugin={onOpenPlugin}
             />
           ))}
         </SettingsGroup>
       ))}
     </div>
+  )
+}
+
+function PluginTrustOverview({
+  summary,
+  updating,
+  onTrustPlugin
+}: {
+  summary: HookSourceSummary
+  updating: boolean
+  onTrustPlugin: () => void
+}): JSX.Element {
+  const t = useT()
+  const trustStatus = pluginTrustStatus(summary.hooks)
+  const needsTrust = trustStatus === 'untrusted' || trustStatus === 'modified'
+  const control = needsTrust ? (
+    <button
+      type="button"
+      onClick={onTrustPlugin}
+      disabled={updating}
+      style={{
+        ...trustActionStyle,
+        opacity: updating ? 0.65 : 1,
+        cursor: updating ? 'default' : 'pointer'
+      }}
+    >
+      {t('settings.hooks.pluginTrust.action')}
+    </button>
+  ) : (
+    <span style={trustBadgeStyle('trusted')}>
+      {trustIcon('trusted')}
+      {trustLabel('trusted', t)}
+    </span>
+  )
+
+  return (
+    <SettingsGroup>
+      <SettingsRow
+        label={t('settings.hooks.pluginTrust.title')}
+        description={pluginTrustDescription(trustStatus, t)}
+        control={control}
+      />
+    </SettingsGroup>
   )
 }
 
@@ -309,19 +359,19 @@ function HookRow({
   index,
   expanded,
   updating,
+  readOnlyActions,
   onToggleExpanded,
   onToggleHook,
-  onTrustHook,
-  onOpenPlugin
+  onTrustHook
 }: {
   hook: HookMetadata
   index: number
   expanded: boolean
   updating: boolean
+  readOnlyActions: boolean
   onToggleExpanded: () => void
   onToggleHook: (enabled: boolean) => void
   onTrustHook: () => void
-  onOpenPlugin: (pluginId: string) => void
 }): JSX.Element {
   const t = useT()
   const trusted = hook.trustStatus === 'trusted' || hook.trustStatus === 'managed'
@@ -337,7 +387,7 @@ function HookRow({
           {trustLabel(hook.trustStatus, t)}
         </span>
         <div style={{ flex: 1 }} />
-        {hook.command && (
+        {!readOnlyActions && hook.command && (
           <IconButton
             icon={<Copy size={14} aria-hidden />}
             label={t('settings.hooks.copyCommand')}
@@ -349,7 +399,7 @@ function HookRow({
             }}
           />
         )}
-        {hook.sourcePath && (
+        {!readOnlyActions && hook.sourcePath && (
           <IconButton
             icon={<FileSearch size={14} aria-hidden />}
             label={t('settings.hooks.openSource')}
@@ -358,21 +408,14 @@ function HookRow({
             onClick={() => void window.api.shell.showItemInFolder(hook.sourcePath ?? '')}
           />
         )}
-        {hook.pluginId && (
-          <IconButton
-            icon={<ExternalLink size={14} aria-hidden />}
-            label={t('settings.hooks.viewPlugin')}
-            tooltipLabel={t('settings.hooks.viewPlugin')}
-            size={28}
-            onClick={() => onOpenPlugin(hook.pluginId ?? '')}
+        {!readOnlyActions && (
+          <PillSwitch
+            checked={hook.enabled}
+            onChange={onToggleHook}
+            disabled={updating}
+            aria-label={t('settings.hooks.toggleHook')}
           />
         )}
-        <PillSwitch
-          checked={hook.enabled}
-          onChange={onToggleHook}
-          disabled={updating}
-          aria-label={t('settings.hooks.toggleHook')}
-        />
       </div>
       {expanded && (
         <div style={hookDetailStyle}>
@@ -393,7 +436,7 @@ function HookRow({
           {hook.rewakeMessage && <DetailGridRow label={t('settings.hooks.field.rewakeMessage')} value={hook.rewakeMessage} />}
           {hook.rewakeSummary && <DetailGridRow label={t('settings.hooks.field.rewakeSummary')} value={hook.rewakeSummary} />}
           {hook.statusMessage && <DetailGridRow label={t('settings.hooks.field.status')} value={hook.statusMessage} />}
-          {!trusted && (
+          {!readOnlyActions && !trusted && (
             <div style={trustActionRowStyle}>
               <button type="button" onClick={onTrustHook} disabled={updating} style={trustActionStyle}>
                 {hook.trustStatus === 'modified' ? t('settings.hooks.trustAgain') : t('settings.hooks.trust')}
@@ -404,6 +447,27 @@ function HookRow({
       )}
     </SettingsRow>
   )
+}
+
+function pluginTrustStatus(hooks: HookMetadata[]): HookTrustStatus {
+  if (hooks.some((hook) => hook.trustStatus === 'modified')) return 'modified'
+  if (hooks.some((hook) => hook.trustStatus === 'untrusted')) return 'untrusted'
+  return 'trusted'
+}
+
+function pluginTrustDescription(
+  status: HookTrustStatus,
+  t: (key: MessageKey | string) => string
+): string {
+  switch (status) {
+    case 'modified':
+      return t('settings.hooks.pluginTrust.modifiedDescription')
+    case 'untrusted':
+      return t('settings.hooks.pluginTrust.untrustedDescription')
+    case 'managed':
+    case 'trusted':
+      return t('settings.hooks.pluginTrust.trustedDescription')
+  }
 }
 
 function executionLabel(
@@ -691,12 +755,12 @@ const trustActionRowStyle: CSSProperties = {
 }
 
 const trustActionStyle: CSSProperties = {
-  minHeight: 28,
-  border: '1px solid color-mix(in srgb, var(--accent) 50%, var(--border-default))',
+  minHeight: 30,
+  border: '1px solid var(--text-primary)',
   borderRadius: 7,
-  background: 'color-mix(in srgb, var(--accent) 12%, var(--bg-secondary))',
-  color: 'var(--accent)',
-  padding: '0 10px',
+  background: 'var(--text-primary)',
+  color: 'var(--bg-primary)',
+  padding: '0 12px',
   fontSize: 12,
   fontWeight: 600,
   cursor: 'pointer'

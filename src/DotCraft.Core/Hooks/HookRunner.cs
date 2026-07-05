@@ -4,6 +4,7 @@ using System.Text.Encodings.Web;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using DotCraft.Diagnostics;
+using DotCraft.Utilities;
 
 namespace DotCraft.Hooks;
 
@@ -128,6 +129,11 @@ public sealed class HookRunner
         DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull,
         Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping
     };
+    private static readonly Encoding PowerShellScriptEncoding = new UTF8Encoding(encoderShouldEmitUTF8Identifier: true);
+    private static readonly Regex BareBashInvocationRegex = new(
+        "(^|[\\r\\n;|&])\\s*[\"']?bash(?:\\.exe)?[\"']?(?=\\s|$)",
+        RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.Compiled);
+    private const string MissingBashMessage = "Hook requires bash, but bash.exe was not found. Install Git for Windows or add bash.exe to PATH.";
 
     /// <summary>
     /// Optional logger for debug/warning output. When null, falls back to Console.Error.WriteLine.
@@ -229,6 +235,7 @@ public sealed class HookRunner
         var aggregateResult = new HookResult();
         var outputParts = new List<string>();
         var contextParts = new List<string>();
+        var blockReasonParts = new List<string>();
         var tool = HookToolAdapter.Build(input.ToolName, input.ToolArgs);
 
         foreach (var group in matcherGroups)
@@ -297,6 +304,9 @@ public sealed class HookRunner
 
                 await DispatchRewakeIfNeededAsync(evt, hookEntry, preparedInput, result, ct).ConfigureAwait(false);
 
+                if (result.Blocked && !string.IsNullOrWhiteSpace(result.BlockReason))
+                    blockReasonParts.Add(result.BlockReason);
+
                 if (result.Blocked && canBlock)
                 {
                     aggregateResult.Blocked = true;
@@ -311,6 +321,11 @@ public sealed class HookRunner
 
         aggregateResult.Output = outputParts.Count > 0 ? string.Join("\n", outputParts) : null;
         aggregateResult.AdditionalContext = contextParts.Count > 0 ? string.Join("\n", contextParts) : null;
+        if (blockReasonParts.Count > 0)
+        {
+            aggregateResult.BlockReason = string.Join("\n", blockReasonParts);
+            aggregateResult.ExitCode = 2;
+        }
         return aggregateResult;
     }
 
@@ -344,6 +359,14 @@ public sealed class HookRunner
             foreach (var (key, value) in hookEntry.EnvironmentVariables)
                 psi.EnvironmentVariables[key] = value;
 
+            if (isWindows && CommandReferencesBareBash(hookEntry.Command) && !TryConfigureWindowsBashPath(psi))
+            {
+                result.ExitCode = 127;
+                result.StdErr = MissingBashMessage;
+                WriteDebug($"[Hooks] Error executing '{hookEntry.Command}': {MissingBashMessage}");
+                return result;
+            }
+
             if (!string.IsNullOrWhiteSpace(hookEntry.Shell))
             {
                 ConfigureShellOverride(psi, hookEntry.Shell!, hookEntry.Command, isWindows);
@@ -354,9 +377,9 @@ public sealed class HookRunner
                 // losing the specific exit code (e.g., exit 2 for blocking).
                 // Using -File with a wrapper script preserves the actual exit code.
                 tempScript = Path.Combine(Path.GetTempPath(), $"dotcraft_hook_{Guid.NewGuid():N}.ps1");
-                File.WriteAllText(tempScript, hookEntry.Command, Encoding.UTF8);
+                File.WriteAllText(tempScript, BuildWindowsPowerShellScript(hookEntry.Command), PowerShellScriptEncoding);
                 psi.FileName = "powershell.exe";
-                psi.Arguments = $"-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File \"{tempScript}\"";
+                psi.Arguments = $"-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -OutputFormat Text -File \"{tempScript}\"";
             }
             else
             {
@@ -395,7 +418,9 @@ public sealed class HookRunner
             }
 
             var stdout = (await stdoutTask).TrimEnd();
-            var stderr = (await stderrTask).TrimEnd();
+            var stderr = isWindows
+                ? PowerShellStderrSanitizer.Sanitize((await stderrTask).TrimEnd())
+                : (await stderrTask).TrimEnd();
 
             result.Output = string.IsNullOrEmpty(stdout) ? null : stdout;
             result.StdErr = string.IsNullOrEmpty(stderr) ? null : stderr;
@@ -614,5 +639,62 @@ public sealed class HookRunner
     private static string EscapeShellArg(string arg)
     {
         return "'" + arg.Replace("'", "'\\''") + "'";
+    }
+
+    private static string BuildWindowsPowerShellScript(string command) =>
+        "$ProgressPreference = 'SilentlyContinue'\n" +
+        "[Console]::OutputEncoding = [System.Text.Encoding]::UTF8\n" +
+        "$OutputEncoding = [System.Text.Encoding]::UTF8\n" +
+        command;
+
+    internal static bool CommandReferencesBareBash(string command) =>
+        !string.IsNullOrWhiteSpace(command) && BareBashInvocationRegex.IsMatch(command);
+
+    internal static bool TryConfigureWindowsBashPath(ProcessStartInfo psi)
+    {
+        if (FindExecutableOnPath("bash.exe", GetPathEnvironment(psi)) != null)
+            return true;
+
+        var gitBashDir = GetWindowsGitBashCandidateDirectories()
+            .FirstOrDefault(dir => File.Exists(Path.Combine(dir, "bash.exe")));
+        if (gitBashDir == null)
+            return false;
+
+        var currentPath = GetPathEnvironment(psi);
+        psi.EnvironmentVariables["PATH"] = string.IsNullOrWhiteSpace(currentPath)
+            ? gitBashDir
+            : gitBashDir + Path.PathSeparator + currentPath;
+        return true;
+    }
+
+    private static string? GetPathEnvironment(ProcessStartInfo psi) =>
+        psi.EnvironmentVariables["PATH"] ??
+        psi.EnvironmentVariables["Path"] ??
+        Environment.GetEnvironmentVariable("PATH");
+
+    private static string? FindExecutableOnPath(string executableName, string? path)
+    {
+        if (string.IsNullOrWhiteSpace(path))
+            return null;
+
+        foreach (var rawDir in path.Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries))
+        {
+            var dir = rawDir.Trim().Trim('"');
+            if (string.IsNullOrWhiteSpace(dir))
+                continue;
+            var candidate = Path.Combine(dir, executableName);
+            if (File.Exists(candidate))
+                return candidate;
+        }
+
+        return null;
+    }
+
+    private static IEnumerable<string> GetWindowsGitBashCandidateDirectories()
+    {
+        yield return @"C:\Program Files\Git\bin";
+        yield return @"C:\Program Files\Git\usr\bin";
+        yield return @"C:\Program Files (x86)\Git\bin";
+        yield return @"C:\Program Files (x86)\Git\usr\bin";
     }
 }

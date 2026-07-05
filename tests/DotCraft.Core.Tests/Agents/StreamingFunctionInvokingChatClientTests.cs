@@ -1,6 +1,7 @@
 using DotCraft.Agents;
 using DotCraft.Configuration;
 using DotCraft.Context;
+using DotCraft.Hooks;
 using DotCraft.Protocol;
 using System.ClientModel.Primitives;
 using System.Text.Json;
@@ -42,6 +43,119 @@ public sealed partial class StreamingFunctionInvokingChatClientTests
         Assert.Equal(2, inner.Calls.Count);
         Assert.Contains(inner.Calls[1], message => message.Role == ChatRole.User && message.Text == "guidance text");
         Assert.Contains(updates, update => update.Contents.OfType<FunctionResultContent>().Any());
+    }
+
+    [Fact]
+    public async Task GetStreamingResponseAsync_AddsPostToolUseAdditionalContextToNextModelRequestOnly()
+    {
+        using var workspace = new TempDirectory("HookFeedback_");
+        var inner = new RoundTripFakeChatClient();
+        var tool = new HookWrappedFunction(
+            AIFunctionFactory.Create(() => "tool ok", name: "GetStatus"),
+            CreateHookRunner(workspace.Root, HookEvent.PostToolUse, JsonAdditionalContextCommand("PostToolUse", "SECURITY_CONTEXT")));
+        var client = new StreamingFunctionInvokingChatClient(inner)
+        {
+            AdditionalTools = [tool]
+        };
+
+        var updates = await CollectAsync(client.GetStreamingResponseAsync([new ChatMessage(ChatRole.User, "start")]));
+
+        Assert.Equal(2, inner.Calls.Count);
+        var reminder = Assert.Single(inner.Calls[1], message =>
+            message.Role == ChatRole.User &&
+            message.Text.Contains("Lifecycle Hook Feedback", StringComparison.Ordinal));
+        Assert.Contains("PostToolUse additionalContext", reminder.Text, StringComparison.Ordinal);
+        Assert.Contains("SECURITY_CONTEXT", reminder.Text, StringComparison.Ordinal);
+
+        var toolResult = Assert.Single(updates.SelectMany(update => update.Contents).OfType<FunctionResultContent>());
+        Assert.Equal("tool ok", toolResult.Result?.ToString());
+        Assert.DoesNotContain("SECURITY_CONTEXT", toolResult.Result?.ToString(), StringComparison.Ordinal);
+        Assert.DoesNotContain(updates, update =>
+            update.Contents.OfType<TextContent>().Any(text =>
+                text.Text.Contains("SECURITY_CONTEXT", StringComparison.Ordinal)));
+    }
+
+    [Fact]
+    public async Task GetStreamingResponseAsync_DoesNotAddHookFeedbackMessageWithoutAdditionalContext()
+    {
+        using var workspace = new TempDirectory("HookFeedback_");
+        var inner = new RoundTripFakeChatClient();
+        var tool = new HookWrappedFunction(
+            AIFunctionFactory.Create(() => "tool ok", name: "GetStatus"),
+            CreateHookRunner(workspace.Root, HookEvent.PostToolUse, JsonNoAdditionalContextCommand()));
+        var client = new StreamingFunctionInvokingChatClient(inner)
+        {
+            AdditionalTools = [tool]
+        };
+
+        var updates = await CollectAsync(client.GetStreamingResponseAsync([new ChatMessage(ChatRole.User, "start")]));
+
+        Assert.Equal(2, inner.Calls.Count);
+        Assert.DoesNotContain(inner.Calls[1], message =>
+            message.Role == ChatRole.User &&
+            message.Text.Contains("Lifecycle Hook Feedback", StringComparison.Ordinal));
+        var toolResult = Assert.Single(updates.SelectMany(update => update.Contents).OfType<FunctionResultContent>());
+        Assert.Equal("tool ok", toolResult.Result?.ToString());
+    }
+
+    [Fact]
+    public async Task GetStreamingResponseAsync_AddsPostToolUseExitCodeTwoFeedbackToNextModelRequestOnly()
+    {
+        using var workspace = new TempDirectory("HookFeedback_");
+        var inner = new RoundTripFakeChatClient();
+        var tool = new HookWrappedFunction(
+            AIFunctionFactory.Create(() => "tool ok", name: "GetStatus"),
+            CreateHookRunner(workspace.Root, HookEvent.PostToolUse, JsonBlockCommand("BLOCK_REASON")));
+        var client = new StreamingFunctionInvokingChatClient(inner)
+        {
+            AdditionalTools = [tool]
+        };
+
+        var updates = await CollectAsync(client.GetStreamingResponseAsync([new ChatMessage(ChatRole.User, "start")]));
+
+        Assert.Equal(2, inner.Calls.Count);
+        var reminder = Assert.Single(inner.Calls[1], message =>
+            message.Role == ChatRole.User &&
+            message.Text.Contains("Lifecycle Hook Feedback", StringComparison.Ordinal));
+        Assert.Contains("PostToolUse exit-code-2 feedback", reminder.Text, StringComparison.Ordinal);
+        Assert.Contains("BLOCK_REASON", reminder.Text, StringComparison.Ordinal);
+
+        var toolResult = Assert.Single(updates.SelectMany(update => update.Contents).OfType<FunctionResultContent>());
+        Assert.Equal("tool ok", toolResult.Result?.ToString());
+        Assert.DoesNotContain("BLOCK_REASON", toolResult.Result?.ToString(), StringComparison.Ordinal);
+        Assert.DoesNotContain(updates, update =>
+            update.Contents.OfType<TextContent>().Any(text =>
+                text.Text.Contains("BLOCK_REASON", StringComparison.Ordinal)));
+    }
+
+    [Fact]
+    public async Task GetStreamingResponseAsync_AddsPostToolUseFailureAdditionalContextToNextModelRequestOnly()
+    {
+        using var workspace = new TempDirectory("HookFeedback_");
+        var inner = new FailingToolFakeChatClient();
+        var tool = new HookWrappedFunction(
+            AIFunctionFactory.Create(ThrowBoom, name: "Fail"),
+            CreateHookRunner(workspace.Root, HookEvent.PostToolUseFailure, JsonAdditionalContextCommand("PostToolUseFailure", "FAILURE_CONTEXT")));
+        var client = new StreamingFunctionInvokingChatClient(inner)
+        {
+            AdditionalTools = [tool]
+        };
+
+        var updates = await CollectAsync(client.GetStreamingResponseAsync([new ChatMessage(ChatRole.User, "start")]));
+
+        Assert.Equal(2, inner.Calls.Count);
+        var reminder = Assert.Single(inner.Calls[1], message =>
+            message.Role == ChatRole.User &&
+            message.Text.Contains("Lifecycle Hook Feedback", StringComparison.Ordinal));
+        Assert.Contains("PostToolUseFailure additionalContext", reminder.Text, StringComparison.Ordinal);
+        Assert.Contains("FAILURE_CONTEXT", reminder.Text, StringComparison.Ordinal);
+
+        var toolResult = Assert.Single(updates.SelectMany(update => update.Contents).OfType<FunctionResultContent>());
+        Assert.Contains("Function failed", toolResult.Result?.ToString(), StringComparison.Ordinal);
+        Assert.DoesNotContain("FAILURE_CONTEXT", toolResult.Result?.ToString(), StringComparison.Ordinal);
+        Assert.DoesNotContain(updates, update =>
+            update.Contents.OfType<TextContent>().Any(text =>
+                text.Text.Contains("FAILURE_CONTEXT", StringComparison.Ordinal)));
     }
 
     [Fact]
@@ -851,6 +965,71 @@ public sealed partial class StreamingFunctionInvokingChatClientTests
         var raw = Assert.IsType<OpenAI.Chat.ChatCompletionOptions>(factory.Invoke(null!));
         using var document = JsonDocument.Parse(ModelReaderWriter.Write(raw).ToString());
         Assert.Equal("none", document.RootElement.GetProperty("tool_choice").GetString());
+    }
+
+    private static HookRunner CreateHookRunner(string workspacePath, HookEvent evt, string command) =>
+        new(new HooksFileConfig
+        {
+            Hooks =
+            {
+                [evt.ToString()] =
+                [
+                    new HookMatcherGroup
+                    {
+                        Hooks =
+                        [
+                            new HookEntry
+                            {
+                                Type = "command",
+                                Command = command
+                            }
+                        ]
+                    }
+                ]
+            }
+        }, workspacePath);
+
+    private static string JsonAdditionalContextCommand(string eventName, string output)
+    {
+        var json = "{\"hookSpecificOutput\":{\"hookEventName\":\"" + eventName + "\",\"additionalContext\":\"" + output + "\"}}";
+        return OperatingSystem.IsWindows()
+            ? $"Write-Output '{json}'"
+            : $"printf '%s\\n' '{json}'";
+    }
+
+    private static string JsonNoAdditionalContextCommand()
+    {
+        const string json = "{\"hookSpecificOutput\":{\"hookEventName\":\"PostToolUse\"}}";
+        return OperatingSystem.IsWindows()
+            ? $"Write-Output '{json}'"
+            : $"printf '%s\\n' '{json}'";
+    }
+
+    private static string JsonBlockCommand(string reason)
+    {
+        var json = "{\"decision\":\"block\",\"reason\":\"" + reason + "\"}";
+        return OperatingSystem.IsWindows()
+            ? $"Write-Output '{json}'; exit 2"
+            : $"printf '%s\\n' '{json}'; exit 2";
+    }
+
+    private sealed class TempDirectory : IDisposable
+    {
+        public TempDirectory(string prefix)
+        {
+            Root = System.IO.Path.Combine(
+                System.IO.Path.GetTempPath(),
+                prefix + Guid.NewGuid().ToString("N")[..8]);
+            Directory.CreateDirectory(Root);
+        }
+
+        public string Root { get; }
+
+        public void Dispose()
+        {
+            try { Directory.Delete(Root, recursive: true); }
+            catch { }
+        }
     }
 
     private sealed class RoundTripFakeChatClient : IChatClient

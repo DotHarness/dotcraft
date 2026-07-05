@@ -241,6 +241,7 @@ public sealed class AppServerRequestHandler(
         AppServerMethods.McpTest,
         AppServerMethods.HooksList,
         AppServerMethods.HooksSetState,
+        AppServerMethods.HooksTrustPlugin,
         AppServerMethods.ExternalChannelList,
         AppServerMethods.ExternalChannelGet,
         AppServerMethods.ExternalChannelUpsert,

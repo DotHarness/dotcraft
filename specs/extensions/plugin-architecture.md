@@ -77,7 +77,7 @@ If `hooks` is omitted, DotCraft automatically discovers `./hooks/hooks.json` und
 
 Plugin hooks are loaded only from installed and enabled plugins. They are listed by `hooks/list` with source `plugin`, and summarized in `plugin/list` / `plugin/view` as `{ key, eventName }`. Commands run from the workspace root, like config hooks. DotCraft expands `${DOTCRAFT_PLUGIN_ROOT}` and `${DOTCRAFT_PLUGIN_DATA}` in plugin hook commands and injects the same values as environment variables. Plugin data uses the LSP data location: `%LocalAppData%/DotCraft/plugins/<pluginId>/data` on Windows, with platform-equivalent app data paths elsewhere. Compatibility aliases may be injected for imported plugin ecosystems, but DotCraft-authored plugins should use the `DOTCRAFT_*` variables.
 
-Plugin hooks are user-trusted runtime behavior. Installing or enabling a plugin does not automatically trust its hooks. First appearance and any hash-changing edit returns `trustStatus` `untrusted` or `modified` from `hooks/list`; the hook runs only after `hooks/setState` stores the current hash in user-global `Hooks.State`.
+Plugin hooks are user-trusted runtime behavior. Installing or enabling a plugin does not automatically trust its hooks. First appearance and any hash-changing edit returns `trustStatus` `untrusted` or `modified` from `hooks/list`; plugin hooks run only after `hooks/trustPlugin` stores the current hash for every current hook from that plugin in user-global `Hooks.State`. `hooks/setState` remains the per-hook compatibility path for clients that need it.
 
 Example MCP plugin:
 
