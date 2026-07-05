@@ -1383,6 +1383,8 @@ const api = {
       translucentSidebar?: boolean
       locale?: AppLocale
       showThinkingContent?: boolean
+      projectsSectionCollapsed?: boolean
+      chatsSectionCollapsed?: boolean
       showInMenuBar?: boolean
       visibleChannels?: string[]
       lastOpenEditorId?: EditorId
@@ -1434,6 +1436,8 @@ const api = {
       translucentSidebar?: boolean
       locale?: AppLocale
       showThinkingContent?: boolean
+      projectsSectionCollapsed?: boolean
+      chatsSectionCollapsed?: boolean
       showInMenuBar?: boolean
       visibleChannels?: string[]
       lastOpenEditorId?: EditorId

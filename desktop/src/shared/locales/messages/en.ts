@@ -2084,6 +2084,7 @@ export const MESSAGES_EN = {
   'projectsRail.addProject': 'Add project',
   'projectsRail.noChats': 'No chats',
   'chatsRail.title': 'Chats',
+  'projectsRail.toggleSection': 'Toggle {{section}} section',
   'projectsRail.awaitingResponse': 'Awaiting response',
   'projectsRail.newChat': 'New chat in project',
   'projectsRail.moreActions': 'Project actions',

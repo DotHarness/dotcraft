@@ -1393,6 +1393,7 @@ export const MESSAGES_KO = {
   'projectsRail.addProject': '프로젝트 추가',
   'projectsRail.noChats': '채팅 없음',
   'chatsRail.title': '채팅',
+  'projectsRail.toggleSection': '{{section}} 섹션 토글',
   'projectsRail.awaitingResponse': '응답 대기 중',
   'projectsRail.newChat': '이 프로젝트에서 새 채팅',
   'projectsRail.moreActions': '프로젝트 작업',

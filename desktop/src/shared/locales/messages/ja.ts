@@ -1389,6 +1389,7 @@ export const MESSAGES_JA = {
   'projectsRail.addProject': 'プロジェクトを追加',
   'projectsRail.noChats': 'チャットはありません',
   'chatsRail.title': 'チャット',
+  'projectsRail.toggleSection': '{{section}} セクションを切り替え',
   'projectsRail.awaitingResponse': '応答待ち',
   'projectsRail.newChat': 'このプロジェクトで新規チャット',
   'projectsRail.moreActions': 'プロジェクト操作',

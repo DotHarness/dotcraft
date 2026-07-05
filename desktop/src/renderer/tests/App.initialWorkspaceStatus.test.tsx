@@ -497,7 +497,9 @@ describe('App initial workspace status bootstrap', () => {
     useUIStore.setState({
       activeMainView: 'conversation',
       pendingProjectThreadOpen: null,
-      whatsNewOpenRequestSeq: 0
+      whatsNewOpenRequestSeq: 0,
+      projectsSectionCollapsed: false,
+      chatsSectionCollapsed: false
     })
 
     Object.defineProperty(window, 'innerWidth', { configurable: true, value: 1200 })
@@ -547,6 +549,23 @@ describe('App initial workspace status bootstrap', () => {
     expect(screen.getByTestId('three-panel')).toBeInTheDocument()
     expect(screen.getByTestId('sidebar')).toHaveAttribute('data-workspace-name', 'Chats')
     expect(gitListBranches).not.toHaveBeenCalled()
+  })
+
+  it('hydrates sidebar section collapse preferences from settings on startup', async () => {
+    installApi(readyWorkspaceStatus, {
+      settingsGet: vi.fn().mockResolvedValue({
+        lastSeenWhatsNewVersion: '0.1.6',
+        projectsSectionCollapsed: true,
+        chatsSectionCollapsed: true
+      })
+    })
+
+    renderApp()
+
+    await waitFor(() => {
+      expect(useUIStore.getState().projectsSectionCollapsed).toBe(true)
+      expect(useUIStore.getState().chatsSectionCollapsed).toBe(true)
+    })
   })
 
   it('keeps a remote restored workspace covered while the initial connection is disconnected', () => {

@@ -106,6 +106,10 @@ export interface AppSettings {
   locale?: AppLocale
   /** Renderer-only preference; omitted or invalid values are treated as true */
   showThinkingContent?: boolean
+  /** Sidebar preference: whether the Projects section is collapsed. Omitted defaults to expanded. */
+  projectsSectionCollapsed?: boolean
+  /** Sidebar preference: whether the Chats section is collapsed. Omitted defaults to expanded. */
+  chatsSectionCollapsed?: boolean
   /** macOS-only preference controlling whether DotCraft appears in the menu bar. */
   showInMenuBar?: boolean
   /** Desktop-local What's New read marker. */
@@ -288,6 +292,16 @@ function normalizeShowThinkingContent(settings: AppSettings): boolean | undefine
     : undefined
 }
 
+function normalizeProjectsSectionCollapsed(settings: AppSettings): boolean | undefined {
+  // Sections default to expanded, so only persist an explicit collapse (true).
+  return settings.projectsSectionCollapsed === true ? true : undefined
+}
+
+function normalizeChatsSectionCollapsed(settings: AppSettings): boolean | undefined {
+  // Sections default to expanded, so only persist an explicit collapse (true).
+  return settings.chatsSectionCollapsed === true ? true : undefined
+}
+
 export function normalizeShowInMenuBar(settings: AppSettings): boolean | undefined {
   return typeof settings.showInMenuBar === 'boolean'
     ? settings.showInMenuBar
@@ -364,6 +378,8 @@ export function loadSettings(): AppSettings {
       raw.notifications = normalizeNotificationSettings(raw)
       raw.activeModuleVariants = normalizeActiveModuleVariants(raw)
       raw.showThinkingContent = normalizeShowThinkingContent(raw)
+      raw.projectsSectionCollapsed = normalizeProjectsSectionCollapsed(raw)
+      raw.chatsSectionCollapsed = normalizeChatsSectionCollapsed(raw)
       raw.showInMenuBar = normalizeShowInMenuBar(raw)
       raw.theme = normalizeUiTheme(raw)
       raw.accent = normalizeAccentSetting(raw)
@@ -408,6 +424,8 @@ export function saveSettings(settings: AppSettings): void {
     settings.notifications = normalizeNotificationSettings(settings)
     settings.activeModuleVariants = normalizeActiveModuleVariants(settings)
     settings.showThinkingContent = normalizeShowThinkingContent(settings)
+    settings.projectsSectionCollapsed = normalizeProjectsSectionCollapsed(settings)
+    settings.chatsSectionCollapsed = normalizeChatsSectionCollapsed(settings)
     settings.showInMenuBar = normalizeShowInMenuBar(settings)
     settings.theme = normalizeUiTheme(settings)
     settings.accent = normalizeAccentSetting(settings)

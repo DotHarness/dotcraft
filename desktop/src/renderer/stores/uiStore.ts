@@ -208,6 +208,10 @@ export interface UIState {
   planApprovalDismissed: Record<string, boolean>
   /** User preference for rendering reasoning text in the conversation. */
   showThinkingContent: boolean
+  /** Sidebar preference: whether the Projects section is collapsed. */
+  projectsSectionCollapsed: boolean
+  /** Sidebar preference: whether the Chats section is collapsed. */
+  chatsSectionCollapsed: boolean
   /** Appearance preference for how code diffs are rendered. */
   diffMarkers: DiffMarkerMode
 }
@@ -325,6 +329,10 @@ interface UIStore extends UIState {
   getWelcomeDraftForWorkspace(workspacePath: string): WelcomeDraft | null
   dismissPlanApproval(turnId: string): void
   setShowThinkingContent(visible: boolean): void
+  /** Toggle+persist whether the Projects sidebar section is collapsed. */
+  setProjectsSectionCollapsed(collapsed: boolean): void
+  /** Toggle+persist whether the Chats sidebar section is collapsed. */
+  setChatsSectionCollapsed(collapsed: boolean): void
   resetPlanApprovalDismissed(): void
 }
 
@@ -409,6 +417,8 @@ export const useUIStore = create<UIStore & InternalState>((set, get) => ({
   welcomeDraftWorkspacePath: null,
   planApprovalDismissed: {},
   showThinkingContent: false,
+  projectsSectionCollapsed: false,
+  chatsSectionCollapsed: false,
   diffMarkers: 'color',
 
   setActiveMainView(view) {
@@ -923,6 +933,20 @@ export const useUIStore = create<UIStore & InternalState>((set, get) => ({
 
   setShowThinkingContent(visible) {
     set({ showThinkingContent: visible })
+  },
+
+  setProjectsSectionCollapsed(collapsed) {
+    set({ projectsSectionCollapsed: collapsed })
+    void window.api?.settings
+      ?.set({ projectsSectionCollapsed: collapsed })
+      .catch((err: unknown) => console.error('settings:set projectsSectionCollapsed failed:', err))
+  },
+
+  setChatsSectionCollapsed(collapsed) {
+    set({ chatsSectionCollapsed: collapsed })
+    void window.api?.settings
+      ?.set({ chatsSectionCollapsed: collapsed })
+      .catch((err: unknown) => console.error('settings:set chatsSectionCollapsed failed:', err))
   },
 
   setDiffMarkers(mode) {

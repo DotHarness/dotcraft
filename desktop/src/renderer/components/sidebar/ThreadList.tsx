@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom'
 import { useShallow } from 'zustand/react/shallow'
 import {
   AlertCircle,
+  ChevronRight,
   Cloud,
   Copy,
   CircleDashed,
@@ -70,6 +71,10 @@ export function ThreadList({
   const chat = useWorkspaceProjectsStore((s) => s.chat)
   const foregroundWorkspacePath = useWorkspaceProjectsStore((s) => s.foregroundWorkspacePath)
   const foregroundProjectId = useWorkspaceProjectsStore((s) => s.foregroundProjectId)
+  const projectsSectionCollapsed = useUIStore((s) => s.projectsSectionCollapsed)
+  const chatsSectionCollapsed = useUIStore((s) => s.chatsSectionCollapsed)
+  const setProjectsSectionCollapsed = useUIStore((s) => s.setProjectsSectionCollapsed)
+  const setChatsSectionCollapsed = useUIStore((s) => s.setChatsSectionCollapsed)
   const [collapsedProjects, setCollapsedProjects] = useState<Set<string>>(() => new Set())
   // useShallow prevents infinite re-renders: selectFilteredThreads returns a new
   // array on every call (via .filter), so without shallow equality Zustand's
@@ -215,9 +220,13 @@ export function ThreadList({
             workspacePath={workspacePath || foregroundWorkspacePath}
             localWorkspacePath={localWorkspacePath}
             localActionsDisabled={localActionsDisabled}
+            collapsed={projectsSectionCollapsed}
+            onToggle={() => setProjectsSectionCollapsed(!projectsSectionCollapsed)}
           />
         )}
-        {showProjects && projectsForRender.map((project) => {
+        {showProjects && (
+          <CollapsibleThreads collapsed={projectsSectionCollapsed} marginTop={0}>
+            {projectsForRender.map((project) => {
           const projectKey = projectIdentity(project)
           const isForeground = isProjectForeground(project, effectiveForegroundProjectId, effectiveForegroundWorkspacePath)
           const cachedProjectThreads = orderSubAgentsAfterParents(filterProjectThreads(project, searchQuery))
@@ -276,7 +285,9 @@ export function ThreadList({
               </CollapsibleThreads>
             </div>
           )
-        })}
+            })}
+          </CollapsibleThreads>
+        )}
         {showChats && chat && (
           <ChatsSection
             chat={chat}
@@ -286,6 +297,8 @@ export function ThreadList({
             foregroundPinnedThreadIds={pinnedThreadIds}
             searchQuery={searchQuery}
             opening={chatIsForeground && (foregroundOpening || chat.state === 'connecting')}
+            collapsed={chatsSectionCollapsed}
+            onToggle={() => setChatsSectionCollapsed(!chatsSectionCollapsed)}
           />
         )}
       </div>
@@ -483,14 +496,53 @@ interface PinnedProjectRow {
   interactiveForeground: boolean
 }
 
+/**
+ * Small hover-only chevron marking a collapsible section/row's open state: it
+ * points right when collapsed and rotates down when expanded. Callers gate its
+ * visibility (opacity) on their own hover/focus state so it only appears while
+ * the header or row is hovered. `rotate` animates via CSS transform so the
+ * global reduce-motion rule degrades it to an instant snap.
+ */
+function CollapseChevron({
+  collapsed,
+  visible,
+  size = 14
+}: {
+  collapsed: boolean
+  visible: boolean
+  size?: number
+}): JSX.Element {
+  return (
+    <span
+      aria-hidden
+      style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        flexShrink: 0,
+        color: 'var(--text-dimmed)',
+        opacity: visible ? 1 : 0,
+        transform: collapsed ? 'rotate(0deg)' : 'rotate(90deg)',
+        transition: 'opacity 120ms ease, transform 160ms cubic-bezier(0.4, 0, 0.2, 1)'
+      }}
+    >
+      <ChevronRight size={size} strokeWidth={2} aria-hidden />
+    </span>
+  )
+}
+
 function ProjectsSectionHeader({
   workspacePath,
   localWorkspacePath,
-  localActionsDisabled
+  localActionsDisabled,
+  collapsed,
+  onToggle
 }: {
   workspacePath: string
   localWorkspacePath?: string
   localActionsDisabled: boolean
+  collapsed: boolean
+  onToggle: () => void
 }): JSX.Element {
   const t = useT()
   const [hovered, setHovered] = useState(false)
@@ -546,6 +598,16 @@ function ProjectsSectionHeader({
 
   return (
     <div
+      role="button"
+      tabIndex={0}
+      aria-expanded={!collapsed}
+      aria-label={t('projectsRail.toggleSection', { section: t('projectsRail.title') })}
+      onClick={onToggle}
+      onKeyDown={(event) => {
+        if (event.key !== 'Enter' && event.key !== ' ') return
+        event.preventDefault()
+        onToggle()
+      }}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
       onFocus={() => setFocused(true)}
@@ -555,13 +617,14 @@ function ProjectsSectionHeader({
         }
       }}
       style={{
-        display: 'grid',
-        gridTemplateColumns: 'minmax(0, 1fr) 56px',
+        display: 'flex',
         alignItems: 'center',
         gap: '4px',
         minHeight: '28px',
         padding: '8px 8px 2px',
-        position: 'relative'
+        position: 'relative',
+        cursor: 'pointer',
+        userSelect: 'none'
       }}
     >
       <span
@@ -573,9 +636,12 @@ function ProjectsSectionHeader({
       >
         {t('projectsRail.title')}
       </span>
+      <CollapseChevron collapsed={collapsed} visible={showActions} />
       <div
+        onClick={(event) => event.stopPropagation()}
         style={{
           width: '56px',
+          marginLeft: 'auto',
           display: 'inline-flex',
           alignItems: 'center',
           justifyContent: 'flex-end',
@@ -648,7 +714,9 @@ function ChatsSection({
   foregroundThreads,
   foregroundPinnedThreadIds,
   searchQuery,
-  opening
+  opening,
+  collapsed,
+  onToggle
 }: {
   chat: WorkspaceProjectSummary
   interactive: boolean
@@ -657,6 +725,8 @@ function ChatsSection({
   foregroundPinnedThreadIds: string[]
   searchQuery: string
   opening: boolean
+  collapsed: boolean
+  onToggle: () => void
 }): JSX.Element {
   const t = useT()
   const setActiveMainView = useUIStore((s) => s.setActiveMainView)
@@ -681,30 +751,44 @@ function ChatsSection({
 
   return (
     <div style={{ marginBottom: '6px' }}>
-      <ChatsSectionHeader onNewChat={() => { void newChat() }} />
-      {showSkeleton ? (
-        <ProjectThreadSkeletonList />
-      ) : threads.length === 0 ? (
-        <ProjectHint label={searchQuery ? t('threadList.noSearchResults') : t('projectsRail.noChats')} />
-      ) : (
-        threads.map((thread) => (
-          interactive ? (
-            <ThreadEntry key={thread.id} thread={thread} />
-          ) : (
-            <ReadonlyThreadRow
-              key={thread.id}
-              thread={thread}
-              project={chat}
-              pinned={pinnedIds.includes(thread.id)}
-            />
-          )
-        ))
-      )}
+      <ChatsSectionHeader
+        collapsed={collapsed}
+        onToggle={onToggle}
+        onNewChat={() => { void newChat() }}
+      />
+      <CollapsibleThreads collapsed={collapsed} marginTop={0}>
+        {showSkeleton ? (
+          <ProjectThreadSkeletonList />
+        ) : threads.length === 0 ? (
+          <ProjectHint label={searchQuery ? t('threadList.noSearchResults') : t('projectsRail.noChats')} />
+        ) : (
+          threads.map((thread) => (
+            interactive ? (
+              <ThreadEntry key={thread.id} thread={thread} />
+            ) : (
+              <ReadonlyThreadRow
+                key={thread.id}
+                thread={thread}
+                project={chat}
+                pinned={pinnedIds.includes(thread.id)}
+              />
+            )
+          ))
+        )}
+      </CollapsibleThreads>
     </div>
   )
 }
 
-function ChatsSectionHeader({ onNewChat }: { onNewChat: () => void }): JSX.Element {
+function ChatsSectionHeader({
+  collapsed,
+  onToggle,
+  onNewChat
+}: {
+  collapsed: boolean
+  onToggle: () => void
+  onNewChat: () => void
+}): JSX.Element {
   const t = useT()
   const [hovered, setHovered] = useState(false)
   const [focused, setFocused] = useState(false)
@@ -713,6 +797,16 @@ function ChatsSectionHeader({ onNewChat }: { onNewChat: () => void }): JSX.Eleme
   const showActions = hovered || focused
   return (
     <div
+      role="button"
+      tabIndex={0}
+      aria-expanded={!collapsed}
+      aria-label={t('projectsRail.toggleSection', { section: t('chatsRail.title') })}
+      onClick={onToggle}
+      onKeyDown={(event) => {
+        if (event.key !== 'Enter' && event.key !== ' ') return
+        event.preventDefault()
+        onToggle()
+      }}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
       onFocus={() => setFocused(true)}
@@ -722,12 +816,13 @@ function ChatsSectionHeader({ onNewChat }: { onNewChat: () => void }): JSX.Eleme
         }
       }}
       style={{
-        display: 'grid',
-        gridTemplateColumns: 'minmax(0, 1fr) 28px',
+        display: 'flex',
         alignItems: 'center',
         gap: '4px',
         minHeight: '28px',
-        padding: '8px 8px 2px'
+        padding: '8px 8px 2px',
+        cursor: 'pointer',
+        userSelect: 'none'
       }}
     >
       <span
@@ -739,8 +834,11 @@ function ChatsSectionHeader({ onNewChat }: { onNewChat: () => void }): JSX.Eleme
       >
         {t('chatsRail.title')}
       </span>
+      <CollapseChevron collapsed={collapsed} visible={showActions} />
       <div
+        onClick={(event) => event.stopPropagation()}
         style={{
+          marginLeft: 'auto',
           display: 'inline-flex',
           alignItems: 'center',
           justifyContent: 'flex-end',
@@ -1023,23 +1121,26 @@ function ProjectHeader({
       <ActionTooltip label={iconLabel} placement="right">
         <ProjectGlyph project={project} collapsed={collapsed} cold={cold} active={active} />
       </ActionTooltip>
-      <ActionTooltip label={detailLabel} wrapperStyle={{ minWidth: 0 }}>
-        <span
-          style={{
-            minWidth: 0,
-            color: active ? 'var(--text-primary)' : 'var(--text-secondary)',
-            fontSize: 'var(--type-ui-size)',
-            lineHeight: 'var(--type-ui-line-height)',
-            fontWeight: 'var(--type-ui-emphasis-weight)',
-            overflow: 'hidden',
-            textOverflow: 'ellipsis',
-            whiteSpace: 'nowrap',
-            display: 'block'
-          }}
-        >
-          {label}
-        </span>
-      </ActionTooltip>
+      <div style={{ minWidth: 0, display: 'flex', alignItems: 'center', gap: '4px' }}>
+        <ActionTooltip label={detailLabel} wrapperStyle={{ minWidth: 0 }}>
+          <span
+            style={{
+              minWidth: 0,
+              color: active ? 'var(--text-primary)' : 'var(--text-secondary)',
+              fontSize: 'var(--type-ui-size)',
+              lineHeight: 'var(--type-ui-line-height)',
+              fontWeight: 'var(--type-ui-emphasis-weight)',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
+              display: 'block'
+            }}
+          >
+            {label}
+          </span>
+        </ActionTooltip>
+        {!cold && <CollapseChevron collapsed={collapsed} visible={hovered} size={13} />}
+      </div>
       <div
         style={{
           width: actionColumnWidth,
@@ -1169,9 +1270,16 @@ const PROJECT_COLLAPSE_TRANSITION =
  */
 function CollapsibleThreads({
   collapsed,
+  marginTop = -2,
   children
 }: {
   collapsed: boolean
+  /**
+   * Top margin (px) used to cancel the preceding header's bottom margin. Defaults
+   * to -2 for the per-project list; group-level wrappers pass 0 because their
+   * section headers carry no bottom margin.
+   */
+  marginTop?: number
   children: ReactNode
 }): JSX.Element {
   const [present, setPresent] = useState(!collapsed)
@@ -1223,7 +1331,7 @@ function CollapsibleThreads({
         opacity: open ? 1 : 0,
         // Cancel the header's bottom margin, which this grid wrapper would
         // otherwise stop from collapsing into the project's bottom margin.
-        marginTop: '-2px',
+        marginTop: `${marginTop}px`,
         transition: PROJECT_COLLAPSE_TRANSITION
       }}
       onTransitionEnd={(event) => {

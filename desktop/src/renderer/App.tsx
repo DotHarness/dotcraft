@@ -1270,6 +1270,10 @@ export function App(): JSX.Element {
       .then((s) => {
         applyTheme(resolveTheme(s.theme))
         useUIStore.getState().setShowThinkingContent(s.showThinkingContent === true)
+        useUIStore.setState({
+          projectsSectionCollapsed: s.projectsSectionCollapsed === true,
+          chatsSectionCollapsed: s.chatsSectionCollapsed === true
+        })
       })
       .catch(() => {})
   }, [])

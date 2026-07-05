@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { LocaleProvider } from '../contexts/LocaleContext'
 import { ThreadList } from '../components/sidebar/ThreadList'
 import { useThreadStore } from '../stores/threadStore'
@@ -51,7 +51,9 @@ function resetStores(): void {
     pendingProjectThreadOpen: null,
     welcomeDraft: null,
     welcomeDraftsByWorkspace: {},
-    welcomeDraftWorkspacePath: null
+    welcomeDraftWorkspacePath: null,
+    projectsSectionCollapsed: false,
+    chatsSectionCollapsed: false
   })
 }
 
@@ -1081,5 +1083,264 @@ describe('ThreadList project-first layout', () => {
     // The foreground chat workspace is never synthesized as a Project row.
     expect(screen.queryByRole('button', { name: '/chats' })).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'a' })).toBeInTheDocument()
+  })
+
+  it('collapses the Projects section and persists the preference when its header is clicked', async () => {
+    useWorkspaceProjectsStore.getState().setPayload({
+      foregroundWorkspacePath: '/workspace/a',
+      foregroundProjectId: '/workspace/a',
+      secondaryLimit: 8,
+      projects: [
+        {
+          path: '/workspace/a',
+          name: 'alpha',
+          state: 'foreground',
+          running: true,
+          loaded: true,
+          threadCount: 1,
+          threads: [makeThread('a-1', 'Alpha thread')],
+          pinnedThreadIds: []
+        }
+      ]
+    })
+
+    renderList()
+
+    const header = screen.getByRole('button', { name: 'Toggle Projects section' })
+    expect(header).toHaveAttribute('aria-expanded', 'true')
+    expect(screen.getByRole('button', { name: 'alpha' })).toBeInTheDocument()
+
+    fireEvent.click(header)
+
+    expect(header).toHaveAttribute('aria-expanded', 'false')
+    expect(useUIStore.getState().projectsSectionCollapsed).toBe(true)
+    await waitFor(() => {
+      expect(settingsSet).toHaveBeenCalledWith({ projectsSectionCollapsed: true })
+    })
+  })
+
+  it('collapses the Projects section from the keyboard and unmounts rows after the collapse timeout', async () => {
+    vi.useFakeTimers()
+    useWorkspaceProjectsStore.getState().setPayload({
+      foregroundWorkspacePath: '/workspace/a',
+      foregroundProjectId: '/workspace/a',
+      secondaryLimit: 8,
+      projects: [
+        {
+          path: '/workspace/a',
+          name: 'alpha',
+          state: 'foreground',
+          running: true,
+          loaded: true,
+          threadCount: 1,
+          threads: [makeThread('a-1', 'Alpha thread')],
+          pinnedThreadIds: []
+        }
+      ]
+    })
+
+    renderList()
+
+    const header = screen.getByRole('button', { name: 'Toggle Projects section' })
+    fireEvent.keyDown(header, { key: 'Enter' })
+
+    expect(header).toHaveAttribute('aria-expanded', 'false')
+    expect(settingsSet).toHaveBeenCalledWith({ projectsSectionCollapsed: true })
+
+    await act(async () => {
+      vi.advanceTimersByTime(360)
+    })
+
+    expect(screen.queryByRole('button', { name: 'alpha' })).not.toBeInTheDocument()
+    expect(screen.queryByText('Alpha thread')).not.toBeInTheDocument()
+  })
+
+  it('collapses the Chats section and persists the preference when its header is clicked', async () => {
+    useWorkspaceProjectsStore.getState().setPayload({
+      foregroundWorkspacePath: '/workspace/a',
+      foregroundProjectId: '/workspace/a',
+      secondaryLimit: 8,
+      projects: [
+        {
+          path: '/workspace/a',
+          name: 'alpha',
+          state: 'foreground',
+          running: true,
+          loaded: true,
+          threadCount: 0,
+          threads: [],
+          pinnedThreadIds: []
+        }
+      ],
+      chat: {
+        projectId: '/chats',
+        kind: 'chat',
+        path: '/chats',
+        name: '/chats',
+        state: 'secondary',
+        running: true,
+        loaded: true,
+        threadCount: 1,
+        threads: [makeThread('chat-1', 'General chat thread')],
+        pinnedThreadIds: []
+      }
+    })
+
+    renderList()
+
+    const header = screen.getByRole('button', { name: 'Toggle Chats section' })
+    expect(header).toHaveAttribute('aria-expanded', 'true')
+
+    fireEvent.click(header)
+
+    expect(header).toHaveAttribute('aria-expanded', 'false')
+    expect(useUIStore.getState().chatsSectionCollapsed).toBe(true)
+    await waitFor(() => {
+      expect(settingsSet).toHaveBeenCalledWith({ chatsSectionCollapsed: true })
+    })
+  })
+
+  it('collapses the Chats section from the keyboard and unmounts rows after the collapse timeout', async () => {
+    vi.useFakeTimers()
+    useWorkspaceProjectsStore.getState().setPayload({
+      foregroundWorkspacePath: '/workspace/a',
+      foregroundProjectId: '/workspace/a',
+      secondaryLimit: 8,
+      projects: [
+        {
+          path: '/workspace/a',
+          name: 'alpha',
+          state: 'foreground',
+          running: true,
+          loaded: true,
+          threadCount: 0,
+          threads: [],
+          pinnedThreadIds: []
+        }
+      ],
+      chat: {
+        projectId: '/chats',
+        kind: 'chat',
+        path: '/chats',
+        name: '/chats',
+        state: 'secondary',
+        running: true,
+        loaded: true,
+        threadCount: 1,
+        threads: [makeThread('chat-1', 'General chat thread')],
+        pinnedThreadIds: []
+      }
+    })
+
+    renderList()
+
+    const header = screen.getByRole('button', { name: 'Toggle Chats section' })
+    expect(screen.getByText('General chat thread')).toBeInTheDocument()
+
+    fireEvent.keyDown(header, { key: ' ' })
+
+    expect(header).toHaveAttribute('aria-expanded', 'false')
+    expect(settingsSet).toHaveBeenCalledWith({ chatsSectionCollapsed: true })
+
+    await act(async () => {
+      vi.advanceTimersByTime(360)
+    })
+
+    expect(screen.queryByText('General chat thread')).not.toBeInTheDocument()
+  })
+
+  it('honors the persisted collapsed Projects preference on mount', () => {
+    useUIStore.setState({ projectsSectionCollapsed: true })
+    useWorkspaceProjectsStore.getState().setPayload({
+      foregroundWorkspacePath: '/workspace/a',
+      foregroundProjectId: '/workspace/a',
+      secondaryLimit: 8,
+      projects: [
+        {
+          path: '/workspace/a',
+          name: 'alpha',
+          state: 'foreground',
+          running: true,
+          loaded: true,
+          threadCount: 1,
+          threads: [makeThread('a-1', 'Alpha thread')],
+          pinnedThreadIds: []
+        }
+      ]
+    })
+
+    renderList()
+
+    expect(screen.getByRole('button', { name: 'Toggle Projects section' }))
+      .toHaveAttribute('aria-expanded', 'false')
+  })
+
+  it('honors the persisted collapsed Chats preference on mount', () => {
+    useUIStore.setState({ chatsSectionCollapsed: true })
+    useWorkspaceProjectsStore.getState().setPayload({
+      foregroundWorkspacePath: '/workspace/a',
+      foregroundProjectId: '/workspace/a',
+      secondaryLimit: 8,
+      projects: [
+        {
+          path: '/workspace/a',
+          name: 'alpha',
+          state: 'foreground',
+          running: true,
+          loaded: true,
+          threadCount: 0,
+          threads: [],
+          pinnedThreadIds: []
+        }
+      ],
+      chat: {
+        projectId: '/chats',
+        kind: 'chat',
+        path: '/chats',
+        name: '/chats',
+        state: 'secondary',
+        running: true,
+        loaded: true,
+        threadCount: 1,
+        threads: [makeThread('chat-1', 'General chat thread')],
+        pinnedThreadIds: []
+      }
+    })
+
+    renderList()
+
+    expect(screen.getByRole('button', { name: 'Toggle Chats section' }))
+      .toHaveAttribute('aria-expanded', 'false')
+    expect(screen.queryByText('General chat thread')).not.toBeInTheDocument()
+  })
+
+  it('does not trigger section collapse when a header action button is clicked', () => {
+    useWorkspaceProjectsStore.getState().setPayload({
+      foregroundWorkspacePath: '/workspace/a',
+      foregroundProjectId: '/workspace/a',
+      secondaryLimit: 8,
+      projects: [
+        {
+          path: '/workspace/a',
+          name: 'alpha',
+          state: 'foreground',
+          running: true,
+          loaded: true,
+          threadCount: 0,
+          threads: [],
+          pinnedThreadIds: []
+        }
+      ]
+    })
+
+    renderList({ workspacePath: '/workspace/a' })
+
+    fireEvent.mouseEnter(screen.getByText('Projects').parentElement as HTMLElement)
+    fireEvent.click(screen.getByRole('button', { name: 'Add project' }))
+
+    // Opening the add-project menu must not collapse the section.
+    expect(screen.getByRole('button', { name: 'Toggle Projects section' }))
+      .toHaveAttribute('aria-expanded', 'true')
+    expect(useUIStore.getState().projectsSectionCollapsed).toBe(false)
   })
 })

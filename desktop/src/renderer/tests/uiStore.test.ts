@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useThreadStore } from '../stores/threadStore'
 import {
   DETAIL_DEFAULT_MAIN_SURFACE_WIDTH,
@@ -42,6 +42,62 @@ describe('uiStore defaults', () => {
 
   it('starts with thinking content hidden', () => {
     expect(useUIStore.getState().showThinkingContent).toBe(false)
+  })
+
+  it('starts with sidebar project and chat sections expanded', () => {
+    expect(useUIStore.getState().projectsSectionCollapsed).toBe(false)
+    expect(useUIStore.getState().chatsSectionCollapsed).toBe(false)
+  })
+})
+
+const settingsSet = vi.fn()
+
+describe('uiStore sidebar section preferences', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    settingsSet.mockResolvedValue(undefined)
+    Object.defineProperty(globalThis, 'window', {
+      configurable: true,
+      value: {
+        api: {
+          settings: {
+            set: settingsSet
+          }
+        }
+      }
+    })
+    useUIStore.setState({
+      projectsSectionCollapsed: false,
+      chatsSectionCollapsed: false
+    })
+  })
+
+  afterEach(() => {
+    Reflect.deleteProperty(globalThis, 'window')
+  })
+
+  it('updates and persists the Projects section collapse preference', () => {
+    useUIStore.getState().setProjectsSectionCollapsed(true)
+
+    expect(useUIStore.getState().projectsSectionCollapsed).toBe(true)
+    expect(settingsSet).toHaveBeenLastCalledWith({ projectsSectionCollapsed: true })
+
+    useUIStore.getState().setProjectsSectionCollapsed(false)
+
+    expect(useUIStore.getState().projectsSectionCollapsed).toBe(false)
+    expect(settingsSet).toHaveBeenLastCalledWith({ projectsSectionCollapsed: false })
+  })
+
+  it('updates and persists the Chats section collapse preference', () => {
+    useUIStore.getState().setChatsSectionCollapsed(true)
+
+    expect(useUIStore.getState().chatsSectionCollapsed).toBe(true)
+    expect(settingsSet).toHaveBeenLastCalledWith({ chatsSectionCollapsed: true })
+
+    useUIStore.getState().setChatsSectionCollapsed(false)
+
+    expect(useUIStore.getState().chatsSectionCollapsed).toBe(false)
+    expect(settingsSet).toHaveBeenLastCalledWith({ chatsSectionCollapsed: false })
   })
 })
 
