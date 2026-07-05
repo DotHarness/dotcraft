@@ -78,8 +78,8 @@
         "de": "Führe vertrauenswürdige Prüfungen mit Lifecycle Hooks im richtigen Moment aus."
       },
       "media": {
-        "fileName": "life-cycles.gif",
-        "url": "https://github.com/DotHarness/resources/raw/master/dotcraft/whats-new/life-cycles.gif",
+        "fileName": "lifecycle-hooks.gif",
+        "url": "https://github.com/DotHarness/resources/raw/master/dotcraft/whats-new/lifecycle-hooks.gif",
         "sizeBytes": 1834101,
         "sha256": "6FD1EE6136E0992CA56BF64229844E33858D3D1937DF7DAEC287A1841189E53A"
       },
