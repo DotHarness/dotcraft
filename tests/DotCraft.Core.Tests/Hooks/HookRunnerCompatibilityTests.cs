@@ -86,7 +86,46 @@ public sealed class HookRunnerCompatibilityTests : IDisposable
             new HookInput { SessionId = "thread_1" },
             CancellationToken.None);
 
-        Assert.Equal($"{_tempDir}|{_tempDir}", result.Output);
+        var expected = $"{_tempDir}|{_tempDir}";
+        Assert.True(
+            string.Equals(expected, result.Output, StringComparison.Ordinal),
+            $"Expected output '{expected}', got '{result.Output ?? "<null>"}'. ExitCode={result.ExitCode}; StdErr={result.StdErr ?? "<null>"}");
+    }
+
+    [Fact]
+    public async Task RunAsync_PreservesOutputWhenHookClosesStdin()
+    {
+        if (OperatingSystem.IsWindows())
+            return;
+
+        var runner = new HookRunner(new HooksFileConfig
+        {
+            Hooks =
+            {
+                [nameof(HookEvent.SessionStart)] =
+                [
+                    new HookMatcherGroup
+                    {
+                        Hooks =
+                        [
+                            new HookEntry
+                            {
+                                Type = "command",
+                                Command = "exec 0<&-; printf '%s\\n' 'NO_STDIN_OK'"
+                            }
+                        ]
+                    }
+                ]
+            }
+        }, _tempDir);
+
+        var result = await runner.RunAsync(
+            HookEvent.SessionStart,
+            new HookInput { SessionId = "thread_1" },
+            CancellationToken.None);
+
+        Assert.Equal(0, result.ExitCode);
+        Assert.Equal("NO_STDIN_OK", result.Output);
     }
 
     [Fact]

@@ -395,10 +395,6 @@ public sealed class HookRunner
                 return result;
             }
 
-            // Write JSON context to stdin
-            await process.StandardInput.WriteAsync(stdinJson);
-            process.StandardInput.Close();
-
             var stdoutTask = process.StandardOutput.ReadToEndAsync(ct);
             var stderrTask = process.StandardError.ReadToEndAsync(ct);
 
@@ -407,6 +403,7 @@ public sealed class HookRunner
 
             try
             {
+                await WriteHookStdinAsync(process, stdinJson, timeoutCts.Token);
                 await process.WaitForExitAsync(timeoutCts.Token);
             }
             catch (OperationCanceledException) when (!ct.IsCancellationRequested)
@@ -476,6 +473,27 @@ public sealed class HookRunner
         }
 
         return result;
+    }
+
+    private static async Task WriteHookStdinAsync(Process process, string stdinJson, CancellationToken ct)
+    {
+        try
+        {
+            await process.StandardInput.WriteAsync(stdinJson.AsMemory(), ct);
+        }
+        catch (Exception ex) when (ex is IOException or InvalidOperationException)
+        {
+            return;
+        }
+
+        try
+        {
+            process.StandardInput.Close();
+        }
+        catch (Exception ex) when (ex is IOException or InvalidOperationException)
+        {
+            // Hooks are not required to consume stdin; fast commands may close it before we do.
+        }
     }
 
     private static HookInput PrepareInput(HookEvent evt, HookInput input, HookEntry hookEntry, HookToolView tool)

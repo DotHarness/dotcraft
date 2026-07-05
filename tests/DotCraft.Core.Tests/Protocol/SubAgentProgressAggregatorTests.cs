@@ -303,18 +303,17 @@ public sealed class SubAgentProgressAggregatorTests : IAsyncLifetime
         var entry = SubAgentProgressBridge.GetOrCreate("agent-A");
         entry.CurrentTool = "ReadFile";
 
-        await using var aggregator = new SubAgentProgressAggregator(
+        var aggregator = new SubAgentProgressAggregator(
             _channel, ThreadId, TurnId, interval: TimeSpan.FromMilliseconds(30));
         aggregator.TrackLabel("agent-A");
-
-        await Task.Delay(60);
+        await aggregator.DisposeAsync();
 
         List<SubAgentProgressPayload> snapshots;
         lock (_capturedPayloads)
             snapshots = [.. _capturedPayloads];
 
         Assert.NotEmpty(snapshots);
-        var e = Assert.Single(snapshots[0].Entries);
+        var e = Assert.Single(snapshots[^1].Entries);
         Assert.Equal("ReadFile", e.CurrentTool);
     }
 
