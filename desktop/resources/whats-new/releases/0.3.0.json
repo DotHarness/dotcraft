@@ -1,0 +1,89 @@
+{
+  "version": "0.3.0",
+  "cards": [
+    {
+      "id": "chats",
+      "title": {
+        "en": "Chats",
+        "zh-Hans": "Chats",
+        "ja": "Chats",
+        "ko": "Chats",
+        "es": "Chats",
+        "fr": "Chats",
+        "de": "Chats"
+      },
+      "summary": {
+        "en": "Chat with DotCraft anytime, no project required.",
+        "zh-Hans": "随时和 DotCraft 对话，无需先选择项目。",
+        "ja": "プロジェクトを選ばず、いつでも DotCraft と会話できます。",
+        "ko": "프로젝트를 고르지 않고 언제든 DotCraft와 대화하세요.",
+        "es": "Habla con DotCraft cuando quieras, sin elegir un proyecto.",
+        "fr": "Discutez avec DotCraft à tout moment, sans choisir de projet.",
+        "de": "Sprich jederzeit mit DotCraft, ohne zuerst ein Projekt zu wählen."
+      },
+      "media": {
+        "fileName": "chats.gif",
+        "url": "https://github.com/DotHarness/resources/raw/master/dotcraft/whats-new/chats.gif",
+        "sizeBytes": 1231898,
+        "sha256": "7F5DD4F702880DEA0F0F84FC58B74889BA2CBACC7BDBF6ADD5508D29BE2CF320"
+      },
+      "docsUrl": "https://www.dotcraft.net/features/project-first"
+    },
+    {
+      "id": "plugin-registry",
+      "title": {
+        "en": "Plugin Registry",
+        "zh-Hans": "插件注册表",
+        "ja": "プラグインレジストリ",
+        "ko": "플러그인 레지스트리",
+        "es": "Registro de plugins",
+        "fr": "Registre de plugins",
+        "de": "Plugin-Registry"
+      },
+      "summary": {
+        "en": "Choose official plugins and add new capabilities to DotCraft.",
+        "zh-Hans": "从官方插件库选择能力，一键加入 DotCraft。",
+        "ja": "公式プラグインから選んで、DotCraft に新しい機能を追加できます。",
+        "ko": "공식 플러그인에서 원하는 기능을 골라 DotCraft에 추가하세요.",
+        "es": "Elige plugins oficiales y añade nuevas capacidades a DotCraft.",
+        "fr": "Choisissez des plugins officiels et ajoutez de nouvelles capacités à DotCraft.",
+        "de": "Wähle offizielle Plugins und füge DotCraft neue Fähigkeiten hinzu."
+      },
+      "media": {
+        "fileName": "plugin-registry.gif",
+        "url": "https://github.com/DotHarness/resources/raw/master/dotcraft/whats-new/plugin-registry.gif",
+        "sizeBytes": 2634350,
+        "sha256": "C7AFE068971374FCB126B4479CDC0F79315BFC865442D01674C49D944FDE84F8"
+      },
+      "docsUrl": "https://www.dotcraft.net/features/agent-system/plugins-tools"
+    },
+    {
+      "id": "lifecycle-hooks",
+      "title": {
+        "en": "Lifecycle Hooks",
+        "zh-Hans": "生命周期 Hooks",
+        "ja": "ライフサイクル Hooks",
+        "ko": "수명 주기 Hooks",
+        "es": "Hooks de ciclo de vida",
+        "fr": "Hooks de cycle de vie",
+        "de": "Lifecycle Hooks"
+      },
+      "summary": {
+        "en": "Run trusted checks at the right moment with Lifecycle Hooks.",
+        "zh-Hans": "用生命周期 Hooks 在关键时刻执行你信任的检查。",
+        "ja": "ライフサイクル Hooks で、必要なタイミングに信頼したチェックを実行できます。",
+        "ko": "수명 주기 Hooks로 알맞은 순간에 신뢰한 검사를 실행하세요.",
+        "es": "Ejecuta comprobaciones de confianza en el momento adecuado con Hooks de ciclo de vida.",
+        "fr": "Lancez vos vérifications approuvées au bon moment avec les Hooks de cycle de vie.",
+        "de": "Führe vertrauenswürdige Prüfungen mit Lifecycle Hooks im richtigen Moment aus."
+      },
+      "media": {
+        "fileName": "life-cycles.gif",
+        "url": "https://github.com/DotHarness/resources/raw/master/dotcraft/whats-new/life-cycles.gif",
+        "sizeBytes": 1834101,
+        "sha256": "6FD1EE6136E0992CA56BF64229844E33858D3D1937DF7DAEC287A1841189E53A"
+      },
+      "docsUrl": "https://www.dotcraft.net/features/agent-system/hooks"
+    }
+  ]
+}

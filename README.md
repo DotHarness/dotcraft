@@ -98,6 +98,22 @@ While you work, Dreams quietly reviews recent activity in the background and dra
 
 *Bring your own tools, UIs, and services into the conversation.*
 
+#### Plugin Registry — Add Official Plugins
+
+![DotCraft Plugin Registry](https://github.com/DotHarness/resources/raw/master/dotcraft/whats-new/plugin-registry.gif)
+
+Choose from the official plugin library and add the capabilities you want: tools, skills, apps, hooks, or Desktop views.
+
+[Learn more →](https://www.dotcraft.net/features/agent-system/plugins-tools)
+
+#### Lifecycle Hooks — Run Safety Steps Automatically
+
+![DotCraft Lifecycle Hooks](https://github.com/DotHarness/resources/raw/master/dotcraft/whats-new/lifecycle-hooks.gif)
+
+Use Lifecycle Hooks to run trusted checks or project scripts at the right moment, so routine safeguards happen automatically.
+
+[Learn more →](https://www.dotcraft.net/features/agent-system/hooks)
+
 #### Desktop Extensions — Plugins with a Full View Inside Desktop
 
 ![DotCraft Desktop extensions](https://github.com/DotHarness/resources/raw/master/dotcraft/whats-new/desktop-extensions.gif)
@@ -159,7 +175,9 @@ See [Getting Started](https://www.dotcraft.net/getting-started) for the full gui
 | Install, configure, and run DotCraft for the first time | [Getting Started](https://www.dotcraft.net/getting-started) |
 | Use the graphical desktop client | [Desktop](https://www.dotcraft.net/features/entry-points/desktop) |
 | Use the full terminal interface | [TUI](https://www.dotcraft.net/features/entry-points/tui) |
-| Run local automation tasks | [Automations & Hooks](https://www.dotcraft.net/features/agent-system/automations) |
+| Run local automation tasks | [Automations & Goals](https://www.dotcraft.net/features/agent-system/automations) |
+| Add official plugins | [Plugins & Tools](https://www.dotcraft.net/features/agent-system/plugins-tools) |
+| Manage Lifecycle Hooks | [Lifecycle Hooks](https://www.dotcraft.net/features/agent-system/hooks) |
 | Connect clients, bots, or custom adapters | [Channels & Bots](https://www.dotcraft.net/features/entry-points/channels) |
 | Deploy DotCraft and channel bots on a server | [Server Deployment](https://www.dotcraft.net/developing/lifecycle/server-deployment) |
 | Architecture, SDKs, and protocols | [Architecture](https://www.dotcraft.net/developing/architecture/overview) |

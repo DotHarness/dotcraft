@@ -98,6 +98,22 @@ DotCraft 的能力，按它帮你做什么来归类。
 
 *把你自己的工具、界面和服务带进对话。*
 
+#### 插件注册表 — 为 DotCraft 添加能力
+
+![DotCraft 插件注册表](https://github.com/DotHarness/resources/raw/master/dotcraft/whats-new/plugin-registry.gif)
+
+从官方插件库选择想要的能力，一键加入 DotCraft：工具、技能、App、Hooks 或 Desktop 视图。
+
+[了解更多 →](https://www.dotcraft.net/zh/features/agent-system/plugins-tools)
+
+#### 生命周期 Hooks — 自动执行安全动作
+
+![DotCraft 生命周期 Hooks](https://github.com/DotHarness/resources/raw/master/dotcraft/whats-new/lifecycle-hooks.gif)
+
+用生命周期 Hooks 在关键时刻执行你信任的检查或项目脚本，让常规安全动作自动发生。
+
+[了解更多 →](https://www.dotcraft.net/zh/features/agent-system/hooks)
+
 #### Desktop 扩展 — 插件在 Desktop 内提供完整界面
 
 ![DotCraft Desktop 扩展](https://github.com/DotHarness/resources/raw/master/dotcraft/whats-new/desktop-extensions.gif)
@@ -159,7 +175,9 @@ DotCraft 的能力，按它帮你做什么来归类。
 | 第一次安装、配置和运行 | [快速开始](https://www.dotcraft.net/zh/getting-started) |
 | 使用图形化桌面客户端 | [Desktop](https://www.dotcraft.net/zh/features/entry-points/desktop) |
 | 在终端里使用完整界面 | [TUI](https://www.dotcraft.net/zh/features/entry-points/tui) |
-| 运行本地自动化任务 | [Automations 与 Hooks](https://www.dotcraft.net/zh/features/agent-system/automations) |
+| 运行本地自动化任务 | [Automations 与 Goals](https://www.dotcraft.net/zh/features/agent-system/automations) |
+| 添加官方插件 | [插件与工具](https://www.dotcraft.net/zh/features/agent-system/plugins-tools) |
+| 管理生命周期 Hooks | [Lifecycle Hooks](https://www.dotcraft.net/zh/features/agent-system/hooks) |
 | 接入外部客户端、机器人或自定义适配器 | [Channels 与 Bots](https://www.dotcraft.net/zh/features/entry-points/channels) |
 | 在服务器上一键部署 DotCraft 与渠道机器人 | [服务器部署](https://www.dotcraft.net/zh/developing/lifecycle/server-deployment) |
 | 架构、SDK 与协议 | [架构总览](https://www.dotcraft.net/zh/developing/architecture/overview) |
