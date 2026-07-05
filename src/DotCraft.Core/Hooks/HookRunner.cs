@@ -384,7 +384,7 @@ public sealed class HookRunner
             else
             {
                 psi.FileName = "/bin/bash";
-                psi.Arguments = $"-c {EscapeShellArg(hookEntry.Command)}";
+                ConfigureShellCommandArguments(psi, hookEntry.Command);
             }
 
             using var process = Process.Start(psi);
@@ -630,7 +630,13 @@ public sealed class HookRunner
         }
 
         psi.FileName = shell;
-        psi.Arguments = $"-c {EscapeShellArg(command)}";
+        ConfigureShellCommandArguments(psi, command);
+    }
+
+    internal static void ConfigureShellCommandArguments(ProcessStartInfo psi, string command)
+    {
+        psi.ArgumentList.Add("-c");
+        psi.ArgumentList.Add(command);
     }
 
     /// <summary>

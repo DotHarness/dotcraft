@@ -138,6 +138,18 @@ public sealed class HookRunnerCompatibilityTests : IDisposable
     }
 
     [Fact]
+    public void ConfigureShellCommandArguments_PreservesQuotedCommandAsSingleArgument()
+    {
+        var psi = new System.Diagnostics.ProcessStartInfo { FileName = "/bin/bash" };
+        const string command = "printf '%s\\n' 'quoted value'";
+
+        HookRunner.ConfigureShellCommandArguments(psi, command);
+
+        Assert.Equal(new[] { "-c", command }, psi.ArgumentList.ToArray());
+        Assert.Equal(string.Empty, psi.Arguments);
+    }
+
+    [Fact]
     public void PowerShellStderrSanitizer_ExtractsReadableCliXmlErrors()
     {
         const string cliXml = "#< CLIXML\r\n<Objs Version=\"1.1.0.1\" xmlns=\"http://schemas.microsoft.com/powershell/2004/04\"><S S=\"Error\">bash : The term 'bash' is not recognized_x000D__x000A_At line:1 char:1</S></Objs>";
