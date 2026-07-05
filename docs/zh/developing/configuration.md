@@ -427,7 +427,7 @@ Desktop 会把每个 hook 的用户态写入 `~/.craft/config.json`：
 }
 ```
 
-`Enabled: false` 可以在不编辑来源文件的情况下停用单个 hook。`TrustedHash` 记录上次信任的规范化 hook 定义。来自 config 和 plugins 的 hooks 必须被信任后才会运行；修改后的 hooks 需要重新信任。
+`Enabled: false` 可以在不编辑来源文件的情况下停用单个 hook。`TrustedHash` 记录上次信任的规范化 hook 定义。来自 config 和 plugins 的 hooks 必须被信任后才会运行；修改后的 hooks 需要重新信任。Desktop 通常把插件 hooks 作为一个插件能力包整体信任，但保存的状态仍然是每条 hook 一条。
 
 Plugin hook 文件使用同样的 `hooks.json` 结构。在 plugin hook 命令中，DotCraft 会展开 `${DOTCRAFT_PLUGIN_ROOT}` 和 `${DOTCRAFT_PLUGIN_DATA}`，并注入同名环境变量。
 

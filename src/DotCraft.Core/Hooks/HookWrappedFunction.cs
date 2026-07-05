@@ -90,8 +90,9 @@ internal sealed class HookWrappedFunction : DelegatingAIFunction, IPluginFunctio
                 ToolResult = ImageContentSanitizingChatClient.DescribeResult(result)
             };
 
-            await _hookRunner.RunAsync(
+            var postResult = await _hookRunner.RunAsync(
                 HookEvent.PostToolUse, postInput, cancellationToken);
+            ToolHookFeedbackScope.Current?.Add(HookEvent.PostToolUse, postResult);
 
             return result;
         }
@@ -110,8 +111,9 @@ internal sealed class HookWrappedFunction : DelegatingAIFunction, IPluginFunctio
                 Error = ex.Message
             };
 
-            await _hookRunner.RunAsync(
+            var failResult = await _hookRunner.RunAsync(
                 HookEvent.PostToolUseFailure, failInput, cancellationToken);
+            ToolHookFeedbackScope.Current?.Add(HookEvent.PostToolUseFailure, failResult);
 
             throw; // Re-throw original exception
         }

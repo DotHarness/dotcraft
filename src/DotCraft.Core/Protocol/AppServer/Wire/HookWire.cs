@@ -37,6 +37,20 @@ public sealed class HooksSetStateResult
     public List<HookErrorInfoWire> Errors { get; set; } = [];
 }
 
+public sealed class HooksTrustPluginParams
+{
+    public string PluginId { get; set; } = string.Empty;
+}
+
+public sealed class HooksTrustPluginResult
+{
+    public List<HookMetadataWire> Hooks { get; set; } = [];
+
+    public List<string> Warnings { get; set; } = [];
+
+    public List<HookErrorInfoWire> Errors { get; set; } = [];
+}
+
 public sealed class HookMetadataWire
 {
     public string Key { get; set; } = string.Empty;

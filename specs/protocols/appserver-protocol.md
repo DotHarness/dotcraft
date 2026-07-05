@@ -397,7 +397,7 @@ Built-in channels do not negotiate these capabilities over `initialize`; they pr
 | `capabilities.heartbeatManagement` | boolean | Server supports heartbeat management methods (`heartbeat/trigger`). Absent or `false` when the heartbeat service is not configured. |
 | `capabilities.skillsManagement` | boolean | Server supports skills management methods (`skills/list`, `skills/read`, `skills/view`, `skills/restoreOriginal`, `skills/setEnabled`, `skills/uninstall`). |
 | `capabilities.pluginManagement` | boolean | Server supports plugin management methods (`plugin/list`, `plugin/view`, `plugin/install`, `plugin/remove`, `plugin/setEnabled`). |
-| `capabilities.hooksManagement` | boolean | Server supports hook discovery and user-state methods (`hooks/list`, `hooks/setState`). |
+| `capabilities.hooksManagement` | boolean | Server supports hook discovery and user-state methods (`hooks/list`, `hooks/setState`, `hooks/trustPlugin`). |
 | `capabilities.skillVariants` | boolean | Server has skill variants enabled for the current runtime. Clients may use effective skill views and restore source-skill behavior (`skills/view`, `skills/restoreOriginal`) without exposing variant internals. |
 | `capabilities.toolCatalog` | boolean | Server supports the built-in tool catalog method (`tool/list`). Always `true` for servers built on this protocol version; the catalog is derived from server reflection and has no workspace dependency. |
 | `capabilities.commandManagement` | boolean | Server supports command management methods (`command/list`, `command/execute`). |
@@ -5226,7 +5226,7 @@ Server notification emitted when one server's runtime status changes.
 
 These methods expose lifecycle hook metadata discovered from user config, workspace config, and enabled plugins. They do not edit hook commands. The command-bearing files remain the source of truth; AppServer only persists per-user state such as enablement and trust. Runtime semantics are defined by [Lifecycle Hooks](../core/lifecycle-hooks.md).
 
-Clients must check `capabilities.hooksManagement` before calling `hooks/list` or `hooks/setState`. If absent or `false`, the server returns `-32601` (Method not found).
+Clients must check `capabilities.hooksManagement` before calling `hooks/list`, `hooks/setState`, or `hooks/trustPlugin`. If absent or `false`, the server returns `-32601` (Method not found).
 
 ### 22A.2 `HookMetadata` Wire DTO
 
@@ -5298,7 +5298,7 @@ Returns current hook metadata plus non-fatal discovery warnings and errors.
 
 ### 22A.4 `hooks/setState`
 
-Writes user-global hook state to `~/.craft/config.json` under `Hooks.State`. This avoids committing personal trust or disable choices to workspace config.
+Writes user-global hook state to `~/.craft/config.json` under `Hooks.State`. This avoids committing personal trust or disable choices to workspace config. Clients should use this for user/workspace hook controls and compatibility flows; plugin hook UIs should prefer `hooks/trustPlugin` for trust.
 
 **Params**:
 
@@ -5316,6 +5316,27 @@ Writes user-global hook state to `~/.craft/config.json` under `Hooks.State`. Thi
 - If the effective tool-hook set changes, existing thread agent caches are invalidated so future turns rebind tool wrappers.
 - On success, the server emits `workspace/configChanged` with `source: "hooks/setState"` and `regions: ["hooks"]`.
 - Trust is hash-based. A modified hook returns `trustStatus: "modified"` and does not run until the client writes the new hash.
+
+### 22A.5 `hooks/trustPlugin`
+
+Trusts all current hooks declared by one enabled plugin. The server writes each hook's `currentHash` into the existing per-hook `Hooks.State["<hook-key>"].TrustedHash` entries. No plugin-level trust schema is added.
+
+**Params**:
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `pluginId` | string | yes | Enabled plugin id whose current hooks should be trusted. |
+
+**Result**: same shape as `hooks/list`.
+
+**Semantics**:
+
+- The plugin must be enabled and currently contribute at least one hook; otherwise the server returns `-32602` (Invalid params).
+- `hooks/trustPlugin` does not change per-hook `enabled` state.
+- The method rebuilds the runtime hook snapshot immediately.
+- If the effective tool-hook set changes, existing thread agent caches are invalidated so future turns rebind tool wrappers.
+- On success, the server emits `workspace/configChanged` with `source: "hooks/trustPlugin"` and `regions: ["hooks"]`.
+- Trust is hash-based. If a plugin changes its hooks later, affected hooks return `trustStatus: "modified"` until `hooks/trustPlugin` writes the new hashes.
 
 ## 23. External Channel Management Methods
 
@@ -6155,7 +6176,7 @@ Server notification emitted after a successful workspace configuration write.
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `source` | string | RPC method that triggered the mutation (`provider/create`, `provider/update`, `provider/delete`, `workspace/config/update`, `memory/reset`, `skills/setEnabled`, `skills/uninstall`, `plugin/install`, `plugin/remove`, `plugin/setEnabled`, `mcp/upsert`, `mcp/remove`, `hooks/setState`, `externalChannel/upsert`, `externalChannel/remove`, `subagent/settings/update`, `subagent/profiles/setEnabled`, `subagent/profiles/upsert`, `subagent/profiles/remove`). |
+| `source` | string | RPC method that triggered the mutation (`provider/create`, `provider/update`, `provider/delete`, `workspace/config/update`, `memory/reset`, `skills/setEnabled`, `skills/uninstall`, `plugin/install`, `plugin/remove`, `plugin/setEnabled`, `mcp/upsert`, `mcp/remove`, `hooks/setState`, `hooks/trustPlugin`, `externalChannel/upsert`, `externalChannel/remove`, `subagent/settings/update`, `subagent/profiles/setEnabled`, `subagent/profiles/upsert`, `subagent/profiles/remove`). |
 | `regions` | string[] | Coarse region tags describing what changed. |
 | `changedAt` | string (ISO-8601) | Server-side UTC timestamp when the change event was emitted. |
 
@@ -6174,7 +6195,7 @@ Current `regions` taxonomy:
 | `workspace.defaultApprovalPolicy` | `workspace/config/update` |
 | `lsp` | `workspace/config/update`, `plugin/install`, `plugin/remove`, `plugin/setEnabled` |
 | `mcp` | `mcp/upsert`, `mcp/remove`, `plugin/install`, `plugin/remove`, `plugin/setEnabled` |
-| `hooks` | `hooks/setState`, `plugin/install`, `plugin/remove`, `plugin/setEnabled` |
+| `hooks` | `hooks/setState`, `hooks/trustPlugin`, `plugin/install`, `plugin/remove`, `plugin/setEnabled` |
 | `externalChannel` | `externalChannel/upsert`, `externalChannel/remove` |
 | `subagent` | `subagent/settings/update`, `subagent/profiles/setEnabled`, `subagent/profiles/upsert`, `subagent/profiles/remove` |
 | `sourceControl` | `sourceControl/update` |

@@ -116,7 +116,7 @@ $plugin-creator 创建一个本地插件，用 Python 进程提供 EchoText dyna
 - **Dynamic tools** —— Agent 可调用的工具，可选由本地进程支撑。
 - **Skills** —— 插件启用时即加入 skill 列表。
 - **Desktop extension** —— 本地 UI bundle，向 Desktop 添加自己的界面（例如 sidebar 视图），并可通过受控的宿主桥读取（在获得授权时写入）其 App 的数据。
-- **Lifecycle hooks** —— 在用户信任每个 handler 后，于会话、prompt、工具或 turn 时机运行脚本。
+- **Lifecycle hooks** —— 在用户信任插件当前 hooks 后，于会话、prompt、工具或 turn 时机运行脚本。
 
 让 `plugin-creator` 生成 manifest 和配套文件；生成的 manifest 就是你后续调整或分发时的工作参考。Dynamic tool 与 Desktop extension 背后的底层契约——manifest 字段、tool schema、宿主桥、写入授权——见 [构建 App](../../developing/integrations/build-an-app) 与 [App Binding](../../developing/integrations/app-binding)。Hook 行为和信任机制见 [生命周期 Hooks](./hooks)。
 
@@ -136,7 +136,7 @@ MCP server 注册、延迟加载选项和完整字段列表见 [配置完整参�
 安装插件会把新的 tools 和 skills 加入工作区能力范围。启用带 `process` backend 的插件后，DotCraft 可以启动插件 manifest 中声明的本地 stdio 进程来执行 dynamic tools。**只安装和启用你信任来源、代码和依赖的插件**。
 
 - 插件 tool 调用仍会经过 DotCraft 的会话、审批和工具调用记录。
-- 插件 hooks 在 **Settings -> Hooks** 中逐条信任前不会运行；hook 命令修改后需要重新信任。
+- 插件 hooks 在 **Settings -> Hooks** 中对插件当前 hooks 完成信任前不会运行；hook 命令修改后需要重新信任。
 - Desktop extension bundle 会作为受信任本地 UI 代码运行在 Desktop renderer 中。Descriptor 声明的 host 能力仍由 Desktop main process 强制执行；extension v1 不是不可信代码沙箱。
 - 插件详情中的网站、隐私政策和服务条款链接用于帮助你确认插件来源和行为边界。
 - 黑名单、工作区边界、沙箱等限制对插件 tools 同样生效。详见 [安全与沙箱](../self-hosted/security)。

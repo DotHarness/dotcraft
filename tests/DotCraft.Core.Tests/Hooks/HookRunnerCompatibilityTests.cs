@@ -1,4 +1,5 @@
 using DotCraft.Hooks;
+using DotCraft.Utilities;
 
 namespace DotCraft.Tests.Hooks;
 
@@ -86,6 +87,67 @@ public sealed class HookRunnerCompatibilityTests : IDisposable
             CancellationToken.None);
 
         Assert.Equal($"{_tempDir}|{_tempDir}", result.Output);
+    }
+
+    [Fact]
+    public async Task RunAsync_UsesStandardGitBashPathWhenBareBashIsNotOnPath()
+    {
+        if (!OperatingSystem.IsWindows() || !StandardGitBashExists())
+            return;
+
+        var runner = new HookRunner(new HooksFileConfig
+        {
+            Hooks =
+            {
+                [nameof(HookEvent.SessionStart)] =
+                [
+                    new HookMatcherGroup
+                    {
+                        Hooks =
+                        [
+                            new HookEntry
+                            {
+                                Type = "command",
+                                Command = "bash -lc \"printf '%s' git-bash-ok\"",
+                                EnvironmentVariables = { ["PATH"] = _tempDir }
+                            }
+                        ]
+                    }
+                ]
+            }
+        }, _tempDir);
+
+        var result = await runner.RunAsync(
+            HookEvent.SessionStart,
+            new HookInput { SessionId = "thread_1" },
+            CancellationToken.None);
+
+        Assert.Equal(0, result.ExitCode);
+        Assert.Equal("git-bash-ok", result.Output);
+    }
+
+    [Theory]
+    [InlineData("bash \"./hooks/check.sh\"", true)]
+    [InlineData("pwsh -c \"echo bash\"", false)]
+    [InlineData("echo bash", false)]
+    [InlineData("C:\\Program Files\\Git\\bin\\bash.exe -lc true", false)]
+    [InlineData("echo ok; bash -lc true", true)]
+    public void CommandReferencesBareBash_OnlyMatchesCommandTokens(string command, bool expected)
+    {
+        Assert.Equal(expected, HookRunner.CommandReferencesBareBash(command));
+    }
+
+    [Fact]
+    public void PowerShellStderrSanitizer_ExtractsReadableCliXmlErrors()
+    {
+        const string cliXml = "#< CLIXML\r\n<Objs Version=\"1.1.0.1\" xmlns=\"http://schemas.microsoft.com/powershell/2004/04\"><S S=\"Error\">bash : The term 'bash' is not recognized_x000D__x000A_At line:1 char:1</S></Objs>";
+
+        var stderr = PowerShellStderrSanitizer.Sanitize(cliXml);
+
+        Assert.Contains("The term 'bash' is not recognized", stderr);
+        Assert.Contains("At line:1 char:1", stderr);
+        Assert.DoesNotContain("CLIXML", stderr);
+        Assert.DoesNotContain("_x000D_", stderr);
     }
 
     [Fact]
@@ -276,6 +338,12 @@ public sealed class HookRunnerCompatibilityTests : IDisposable
         OperatingSystem.IsWindows()
             ? $"Write-Output '{output}'"
             : $"printf '%s\\n' '{output}'";
+
+    private static bool StandardGitBashExists() =>
+        File.Exists(@"C:\Program Files\Git\bin\bash.exe") ||
+        File.Exists(@"C:\Program Files\Git\usr\bin\bash.exe") ||
+        File.Exists(@"C:\Program Files (x86)\Git\bin\bash.exe") ||
+        File.Exists(@"C:\Program Files (x86)\Git\usr\bin\bash.exe");
 
     private static string WorkspaceEnvironmentCommand() =>
         OperatingSystem.IsWindows()

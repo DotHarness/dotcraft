@@ -7,6 +7,7 @@ using System.Runtime.ExceptionServices;
 using System.Text.RegularExpressions;
 using DotCraft.Context;
 using DotCraft.Context.Compaction;
+using DotCraft.Hooks;
 using DotCraft.Protocol;
 using DotCraft.Tracing;
 using Microsoft.Extensions.AI;
@@ -306,6 +307,12 @@ public sealed class StreamingFunctionInvokingChatClient(IChatClient innerClient,
                     CreatedAt = DateTimeOffset.UtcNow,
                     AdditionalProperties = message.AdditionalProperties
                 };
+            }
+
+            foreach (var message in toolMessages.ModelOnlyMessages)
+            {
+                nextHistory.Add(message);
+                responseMessages.Add(message);
             }
 
             consecutiveErrorCount = toolMessages.ConsecutiveErrorCount;
@@ -711,8 +718,10 @@ public sealed class StreamingFunctionInvokingChatClient(IChatClient innerClient,
         }
 
         var messageId = Guid.NewGuid().ToString("N");
+        var modelOnlyMessages = CreateHookFeedbackMessages(results);
         return new FunctionInvocationBatch(
             contents.Count == 0 ? [] : [new ChatMessage(ChatRole.Tool, contents) { MessageId = messageId }],
+            modelOnlyMessages,
             shouldTerminate,
             consecutiveErrorCount);
     }
@@ -761,14 +770,14 @@ public sealed class StreamingFunctionInvokingChatClient(IChatClient innerClient,
         {
             var message = prePolicyDecision.Message ?? "TOOL_POLICY_DENIED";
             CompleteDeniedToolCall(call, toolExecution, message);
-            return new FunctionInvocationOutcome(call, FunctionInvocationStatus.RanToCompletion, message, null, false);
+            return new FunctionInvocationOutcome(call, FunctionInvocationStatus.RanToCompletion, message, null, false, []);
         }
 
         var tool = FindTool(call.Name, options);
         if (tool is not AIFunction function)
         {
             toolExecution?.CompleteFailure($"Requested function \"{call.Name}\" not found.");
-            return new FunctionInvocationOutcome(call, FunctionInvocationStatus.NotFound, null, null, false);
+            return new FunctionInvocationOutcome(call, FunctionInvocationStatus.NotFound, null, null, false, []);
         }
 
         var arguments = new AIFunctionArguments(call.Arguments)
@@ -789,15 +798,17 @@ public sealed class StreamingFunctionInvokingChatClient(IChatClient innerClient,
         };
 
         var previousContext = CurrentInvocationContext.Value;
+        var hookFeedback = new ToolHookFeedbackCollector();
         try
         {
             CurrentInvocationContext.Value = context;
+            using var hookFeedbackScope = ToolHookFeedbackScope.Set(hookFeedback);
             var policyDecision = ModeToolPolicy?.Invoke(context);
             if (policyDecision is { Kind: not ModeToolPolicyDecisionKind.Allow })
             {
                 var message = policyDecision.Message ?? "MODE_POLICY_DENIED";
                 CompleteDeniedToolCall(call, toolExecution, message);
-                return new FunctionInvocationOutcome(call, FunctionInvocationStatus.RanToCompletion, message, null, context.Terminate);
+                return new FunctionInvocationOutcome(call, FunctionInvocationStatus.RanToCompletion, message, null, context.Terminate, hookFeedback.Snapshot());
             }
 
             var value = FunctionInvoker == null
@@ -808,7 +819,7 @@ public sealed class StreamingFunctionInvokingChatClient(IChatClient innerClient,
             else
                 toolExecution?.CompleteSuccess(value);
             await NotifyToolHandlerFinishedAsync(call.Name, call.CallId, cancellationToken);
-            return new FunctionInvocationOutcome(call, FunctionInvocationStatus.RanToCompletion, value, null, context.Terminate);
+            return new FunctionInvocationOutcome(call, FunctionInvocationStatus.RanToCompletion, value, null, context.Terminate, hookFeedback.Snapshot());
         }
         catch (OperationCanceledException ex)
         {
@@ -819,7 +830,7 @@ public sealed class StreamingFunctionInvokingChatClient(IChatClient innerClient,
         {
             toolExecution?.CompleteFailure(SanitizeToolFailureMessage(ex.Message));
             await NotifyToolHandlerFinishedAsync(call.Name, call.CallId, cancellationToken);
-            return new FunctionInvocationOutcome(call, FunctionInvocationStatus.Exception, null, ex, false);
+            return new FunctionInvocationOutcome(call, FunctionInvocationStatus.Exception, null, ex, false, hookFeedback.Snapshot());
         }
         catch (Exception ex)
         {
@@ -831,6 +842,37 @@ public sealed class StreamingFunctionInvokingChatClient(IChatClient innerClient,
         {
             CurrentInvocationContext.Value = previousContext;
         }
+    }
+
+    private static IReadOnlyList<ChatMessage> CreateHookFeedbackMessages(IReadOnlyList<FunctionInvocationOutcome> results)
+    {
+        var feedback = results
+            .SelectMany(result => result.HookFeedback)
+            .Where(item => !string.IsNullOrWhiteSpace(item.Text))
+            .ToList();
+        if (feedback.Count == 0)
+            return [];
+
+        return [new ChatMessage(ChatRole.User, BuildHookFeedbackReminder(feedback))];
+    }
+
+    private static string BuildHookFeedbackReminder(IReadOnlyList<ToolHookFeedback> feedback)
+    {
+        var sections = new List<string>
+        {
+            "<system-reminder>",
+            "## Lifecycle Hook Feedback",
+            "Model-visible context returned by lifecycle hooks."
+        };
+
+        foreach (var item in feedback)
+        {
+            var label = item.IsBlockingFeedback ? "exit-code-2 feedback" : "additionalContext";
+            sections.Add($"### {item.Event} {label}\n{item.Text}");
+        }
+
+        sections.Add("</system-reminder>");
+        return string.Join("\n\n", sections);
     }
 
     private static async Task NotifyToolHandlerFinishedAsync(
@@ -1007,6 +1049,7 @@ public sealed class StreamingFunctionInvokingChatClient(IChatClient innerClient,
 
     private sealed record FunctionInvocationBatch(
         IReadOnlyList<ChatMessage> Messages,
+        IReadOnlyList<ChatMessage> ModelOnlyMessages,
         bool ShouldTerminate,
         int ConsecutiveErrorCount);
 
@@ -1015,7 +1058,8 @@ public sealed class StreamingFunctionInvokingChatClient(IChatClient innerClient,
         FunctionInvocationStatus Status,
         object? Value,
         Exception? Exception,
-        bool ShouldTerminate);
+        bool ShouldTerminate,
+        IReadOnlyList<ToolHookFeedback> HookFeedback);
 
     private enum FunctionInvocationStatus
     {

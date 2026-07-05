@@ -428,7 +428,7 @@ Desktop manages per-user hook state in `~/.craft/config.json`:
 }
 ```
 
-`Enabled: false` disables one hook without editing the source file. `TrustedHash` records the last trusted normalized hook definition. Hooks from config and plugins must be trusted before they run, and modified hooks must be trusted again.
+`Enabled: false` disables one hook without editing the source file. `TrustedHash` records the last trusted normalized hook definition. Hooks from config and plugins must be trusted before they run, and modified hooks must be trusted again. Plugin hooks are usually trusted as one plugin bundle in Desktop, while the saved state remains per hook.
 
 Plugin hook files use the same `hooks.json` structure. In plugin hook commands, DotCraft expands `${DOTCRAFT_PLUGIN_ROOT}` and `${DOTCRAFT_PLUGIN_DATA}` and injects the same names as environment variables.
 

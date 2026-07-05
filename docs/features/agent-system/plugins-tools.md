@@ -116,7 +116,7 @@ A single plugin can ship any mix of these content types, all driven by one manif
 - **Dynamic tools** the agent can call, optionally backed by a local process.
 - **Skills** that join the skill list whenever the plugin is enabled.
 - **Desktop extensions** — local UI bundles that add their own surfaces to Desktop, such as a sidebar view, and can read (and, when authorized, write) their app's data through a sandboxed host bridge.
-- **Lifecycle hooks** that run scripts at session, prompt, tool, or turn moments after the user trusts each handler.
+- **Lifecycle hooks** that run scripts at session, prompt, tool, or turn moments after the user trusts the plugin's current hooks.
 
 Let `plugin-creator` scaffold the manifest and the matching files; the generated manifest is your working reference when you tune or distribute the plugin. For the wire-level contract behind dynamic tools and Desktop extensions — manifest fields, tool schemas, the host bridge, and write authorization — see [Build an App](../../developing/integrations/build-an-app) and [App Binding](../../developing/integrations/app-binding). For hook behavior and trust, see [Lifecycle Hooks](./hooks).
 
@@ -136,7 +136,7 @@ MCP server registration, deferred loading options, and the complete field list l
 Installing a plugin adds new tools and skills to the workspace's capability surface. Plugins with a `process` backend may launch a local stdio process declared in the manifest to execute dynamic tools. **Only install and enable plugins whose source, code, and dependencies you trust**.
 
 - Plugin tool calls still pass through DotCraft's session, approvals, and tool-call records.
-- Plugin hooks do not run until each handler is trusted in **Settings -> Hooks**; changed hook commands must be trusted again.
+- Plugin hooks do not run until the plugin's current hooks are trusted in **Settings -> Hooks**; changed hook commands must be trusted again.
 - Desktop extension bundles run inside the Desktop renderer as trusted local UI code. Descriptor-bound host capabilities are still enforced by Desktop's main process; extension v1 is not an untrusted code sandbox.
 - Plugin detail pages link to website, privacy policy, and ToS for source verification.
 - Blacklists, workspace boundary, sandbox, and other restrictions also apply to plugin tools. See [Security & Sandbox](../self-hosted/security).

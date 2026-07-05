@@ -42,16 +42,20 @@ interface HooksListResult {
 
 interface HooksSetStateResult extends HooksListResult {}
 
+interface HooksTrustPluginResult extends HooksListResult {}
+
 interface HooksState {
   hooks: HookMetadata[]
   warnings: HookErrorInfo[]
   errors: HookErrorInfo[]
   loading: boolean
   updatingKey: string | null
+  updatingPluginId: string | null
   error: string | null
 
   fetchHooks(): Promise<void>
   setHookState(key: string, state: { enabled?: boolean; trustedHash?: string }): Promise<void>
+  trustPluginHooks(pluginId: string): Promise<void>
   reset(): void
 }
 
@@ -61,6 +65,7 @@ export const useHooksStore = create<HooksState>((set) => ({
   errors: [],
   loading: false,
   updatingKey: null,
+  updatingPluginId: null,
   error: null,
 
   async fetchHooks() {
@@ -97,6 +102,24 @@ export const useHooksStore = create<HooksState>((set) => ({
     }
   },
 
+  async trustPluginHooks(pluginId) {
+    set({ updatingPluginId: pluginId, error: null })
+    try {
+      const result = (await window.api.appServer.sendRequest('hooks/trustPlugin', {
+        pluginId
+      })) as HooksTrustPluginResult
+      set({
+        hooks: normalizeHooks(result.hooks),
+        warnings: result.warnings ?? [],
+        errors: result.errors ?? [],
+        updatingPluginId: null
+      })
+    } catch (e: unknown) {
+      set({ error: errorMessage(e), updatingPluginId: null })
+      throw e
+    }
+  },
+
   reset() {
     set({
       hooks: [],
@@ -104,6 +127,7 @@ export const useHooksStore = create<HooksState>((set) => ({
       errors: [],
       loading: false,
       updatingKey: null,
+      updatingPluginId: null,
       error: null
     })
   }

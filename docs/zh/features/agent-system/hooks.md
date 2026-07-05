@@ -20,7 +20,7 @@ Hooks 适合做靠近 Agent 工作流的小型 guardrail 和可重复检查。
 
 DotCraft 可以从个人配置、当前 workspace 和已启用插件发现 hooks。这样你可以把私人偏好留给自己，把团队策略放进 workspace，也可以通过插件安装可复用的 hook bundle。
 
-会运行本地命令的 hooks 需要信任。新发现的 hook 默认未信任；hook 修改后会变成已修改，直到你重新信任。这样 workspace 或插件就不能悄悄改变会在你机器上运行的命令。
+会运行本地命令的 hooks 需要信任。新发现的 hook 默认未信任；hook 修改后会变成已修改，直到你重新信任。插件 hooks 会作为一个插件能力包一次性信任，你可以先检查插件声明的 hooks，再允许当前这一组 hooks 运行。
 
 ## 在 Desktop 中管理 hooks
 
@@ -30,9 +30,10 @@ DotCraft 可以从个人配置、当前 workspace 和已启用插件发现 hooks
 
 - 查看 hook 来自用户配置、workspace 配置还是插件。
 - 展开 hook，检查命令、matcher、来源文件和信任状态。
-- 不编辑来源文件，单独启用或停用某个 hook。
-- 信任新的 hook，或在命令修改后重新信任。
-- 打开来源文件，或跳转到提供该 hook 的插件。
+- 不编辑来源文件，启用或停用用户配置和 workspace 配置里的 hooks。
+- 在新增或修改后，信任用户配置或 workspace 配置里的 hook。
+- 对插件提供的当前 hooks 使用一次 **信任 hooks** 操作。
+- 信任插件前，可以展开单个 plugin hook 检查它声明的内容。
 
 配置文件仍然是 hook 命令的权威来源。Desktop 只管理你的个人启用状态和信任状态。
 
