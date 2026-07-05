@@ -49,7 +49,11 @@ import { PillSwitch } from '../ui/PillSwitch'
 import { Skeleton } from '../ui/Skeleton'
 import { ACTION_SHORTCUTS } from '../ui/shortcutKeys'
 import type { WorkspaceConfigChangedPayload } from '../../utils/workspaceConfigChanged'
-import { configObjectFromWorkspaceCore, type WorkspaceCoreConfigLike } from '../../utils/workspaceCoreConfig'
+import {
+  configObjectFromWorkspaceCore,
+  resolveConcreteApprovalPolicyFromConfig,
+  type WorkspaceCoreConfigLike
+} from '../../utils/workspaceCoreConfig'
 
 interface ConversationWelcomeProps {
   workspacePath: string
@@ -113,6 +117,12 @@ function sanitizeSuggestionTitle(raw: string): string {
   return sanitized
 }
 
+function normalizeWelcomeApprovalPolicy(value: unknown): VisibleApprovalPolicy | null {
+  if (value === 'autoApprove') return 'autoApprove'
+  if (value === 'prompt') return 'prompt'
+  return null
+}
+
 /**
  * Welcome state when the workspace is connected but no thread is selected.
  * Keeps the composer centered in the page so users can start a conversation
@@ -156,7 +166,9 @@ export function ConversationWelcome({
   useEffect(() => {
     setWelcomeChangelist('default')
   }, [identityPath])
-  const [welcomeApprovalPolicy, setWelcomeApprovalPolicy] = useState<VisibleApprovalPolicy>('default')
+  const [welcomeApprovalPolicy, setWelcomeApprovalPolicy] = useState<VisibleApprovalPolicy>('prompt')
+  const [welcomeDefaultApprovalPolicy, setWelcomeDefaultApprovalPolicy] = useState<VisibleApprovalPolicy>('prompt')
+  const [welcomeApprovalPolicyDirty, setWelcomeApprovalPolicyDirty] = useState(false)
   const [modelName, setModelName] = useState<string>('Default')
   const [reasoningConfig, setReasoningConfig] = useState<ResolvedReasoningConfig>(DEFAULT_REASONING_CONFIG)
   const [modelApplying, setModelApplying] = useState(false)
@@ -171,12 +183,23 @@ export function ConversationWelcome({
   const latestDraftTextRef = useRef('')
   const latestDraftSegmentsRef = useRef<ComposerDraftSegment[]>([])
   const latestDraftSelectionRef = useRef<{ start: number; end: number } | null>(null)
+  const welcomeApprovalPolicyRef = useRef<VisibleApprovalPolicy>('prompt')
+  const welcomeApprovalPolicyDirtyRef = useRef(false)
   const initialWelcomeDraftRef = useRef(useUIStore.getState().getWelcomeDraftForWorkspace(draftProjectKey))
   const workspaceLlmConfigChangedRef = useRef(false)
   const workspaceModelFromConfigRef = useRef<string | null>(null)
   const suggestionFingerprintRef = useRef<string | null>(null)
   const suggestionRequestSeqRef = useRef(0)
   const richRef = useRef<RichInputAreaHandle>(null)
+  useEffect(() => {
+    welcomeApprovalPolicyRef.current = welcomeApprovalPolicy
+  }, [welcomeApprovalPolicy])
+  const setWelcomeApprovalPolicyFromUser = useCallback((nextPolicy: VisibleApprovalPolicy): void => {
+    const dirty = nextPolicy !== welcomeDefaultApprovalPolicy
+    welcomeApprovalPolicyDirtyRef.current = dirty
+    setWelcomeApprovalPolicyDirty(dirty)
+    setWelcomeApprovalPolicy(nextPolicy)
+  }, [welcomeDefaultApprovalPolicy])
   const connectionStatus = useConnectionStore((s) => s.status)
   const capabilities = useConnectionStore((s) => s.capabilities)
   const locale = useLocale()
@@ -454,6 +477,47 @@ export function ConversationWelcome({
     const enabled = getCaseInsensitiveValue(section as Record<string, unknown>, 'Enabled')
     return typeof enabled === 'boolean' ? enabled : true
   }, [getCaseInsensitiveValue])
+
+  useEffect(() => {
+    let disposed = false
+    const applyResolvedDefault = (nextDefault: VisibleApprovalPolicy): void => {
+      setWelcomeDefaultApprovalPolicy(nextDefault)
+
+      const explicitDraftPolicy = normalizeWelcomeApprovalPolicy(initialWelcomeDraftRef.current?.approvalPolicy)
+      if (explicitDraftPolicy) {
+        if (!welcomeApprovalPolicyDirtyRef.current) {
+          welcomeApprovalPolicyDirtyRef.current = true
+          setWelcomeApprovalPolicyDirty(true)
+          setWelcomeApprovalPolicy(explicitDraftPolicy)
+        }
+        return
+      }
+
+      if (!welcomeApprovalPolicyDirtyRef.current) {
+        setWelcomeApprovalPolicy(nextDefault)
+        return
+      }
+
+      if (welcomeApprovalPolicyRef.current === nextDefault) {
+        welcomeApprovalPolicyDirtyRef.current = false
+        setWelcomeApprovalPolicyDirty(false)
+      }
+    }
+
+    const loadDefaultApprovalPolicy = async (): Promise<void> => {
+      try {
+        const cfg = await readWorkspaceConfig()
+        if (!disposed) applyResolvedDefault(resolveConcreteApprovalPolicyFromConfig(cfg))
+      } catch {
+        if (!disposed) applyResolvedDefault('prompt')
+      }
+    }
+
+    void loadDefaultApprovalPolicy()
+    return () => {
+      disposed = true
+    }
+  }, [readWorkspaceConfig, workspaceConfigChange, workspaceConfigChangeSeq])
 
   const suggestions: Suggestion[] = useMemo(
     () => [
@@ -756,7 +820,12 @@ export function ConversationWelcome({
     setImages(welcomeDraft.images)
     setFiles([...(welcomeDraft.files ?? [])])
     setWelcomeMode(welcomeDraft.mode)
-    setWelcomeApprovalPolicy(welcomeDraft.approvalPolicy ?? 'default')
+    const explicitDraftApprovalPolicy = normalizeWelcomeApprovalPolicy(welcomeDraft.approvalPolicy)
+    if (explicitDraftApprovalPolicy && !welcomeApprovalPolicyDirtyRef.current) {
+      welcomeApprovalPolicyDirtyRef.current = true
+      setWelcomeApprovalPolicyDirty(true)
+      setWelcomeApprovalPolicy(explicitDraftApprovalPolicy)
+    }
     setModelName(
       workspaceLlmConfigChangedRef.current && workspaceModelFromConfigRef.current != null
         ? workspaceModelFromConfigRef.current
@@ -845,7 +914,7 @@ export function ConversationWelcome({
       || reasoningConfig.output !== DEFAULT_REASONING_CONFIG.output
     const hasCustomSettings = welcomeMode !== 'agent'
       || model !== 'Default'
-      || welcomeApprovalPolicy !== 'default'
+      || welcomeApprovalPolicyDirty
       || hasCustomReasoning
     const fallbackCaret = text.length
 
@@ -866,7 +935,7 @@ export function ConversationWelcome({
       reasoning: reasoningConfig,
       approvalPolicy: welcomeApprovalPolicy
     }, draftProjectKey)
-  }, [clearWelcomeDraft, draftProjectKey, files, images, modelName, reasoningConfig, setWelcomeDraft, welcomeApprovalPolicy, welcomeMode])
+  }, [clearWelcomeDraft, draftProjectKey, files, images, modelName, reasoningConfig, setWelcomeDraft, welcomeApprovalPolicy, welcomeApprovalPolicyDirty, welcomeMode])
 
   useEffect(() => {
     if (!draftHydratedRef.current) return
@@ -876,7 +945,7 @@ export function ConversationWelcome({
     return () => {
       clearTimeout(timer)
     }
-  }, [contentRevision, files, flushWelcomeDraft, images, modelName, reasoningConfig, welcomeApprovalPolicy, welcomeMode])
+  }, [contentRevision, files, flushWelcomeDraft, images, modelName, reasoningConfig, welcomeApprovalPolicy, welcomeApprovalPolicyDirty, welcomeMode])
 
   useEffect(() => {
     return () => {
@@ -1567,7 +1636,7 @@ export function ConversationWelcome({
 
                   <ApprovalPolicyPicker
                     value={welcomeApprovalPolicy}
-                    onChange={setWelcomeApprovalPolicy}
+                    onChange={setWelcomeApprovalPolicyFromUser}
                     disabled={starting}
                   />
 

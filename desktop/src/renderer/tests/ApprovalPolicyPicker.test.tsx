@@ -56,14 +56,33 @@ describe('ApprovalPolicyPicker', () => {
     })
   })
 
-  it('renders the default policy control and option', async () => {
+  it('renders an inherited full-access workspace default without a visible default option', async () => {
     renderPicker()
 
     const trigger = await screen.findByTestId('approval-policy-trigger')
-    expect(screen.getByTestId('approval-policy-icon-default')).toBeInTheDocument()
+    await waitFor(() => {
+      expect(trigger).toHaveTextContent('Full access')
+    })
+    expect(screen.getByTestId('approval-policy-icon-autoApprove')).toBeInTheDocument()
 
     fireEvent.click(trigger)
-    expect(await screen.findByTestId('approval-policy-option-default')).toBeInTheDocument()
+    expect(await screen.findByTestId('approval-policy-option-prompt')).toBeInTheDocument()
+    expect(screen.getByTestId('approval-policy-option-autoApprove')).toBeInTheDocument()
+    expect(screen.queryByTestId('approval-policy-option-default')).toBeNull()
+  })
+
+  it('renders ask-for-approval when the workspace default is unset or ask', async () => {
+    workspaceConfigGetCore.mockResolvedValue({
+      workspace: { defaultApprovalPolicy: 'default' },
+      userDefaults: { defaultApprovalPolicy: null }
+    })
+
+    renderPicker()
+
+    const trigger = await screen.findByTestId('approval-policy-trigger')
+    await waitFor(() => {
+      expect(trigger).toHaveTextContent('Ask for approval')
+    })
   })
 
   it('selects ask-for-approval without a full-access warning and writes prompt', async () => {
@@ -72,7 +91,11 @@ describe('ApprovalPolicyPicker', () => {
 
     renderPicker()
 
-    fireEvent.click(await screen.findByTestId('approval-policy-trigger'))
+    const trigger = await screen.findByTestId('approval-policy-trigger')
+    await waitFor(() => {
+      expect(trigger).toHaveTextContent('Full access')
+    })
+    fireEvent.click(trigger)
     fireEvent.click(await screen.findByTestId('approval-policy-option-prompt'))
 
     await waitFor(() => {
@@ -91,10 +114,18 @@ describe('ApprovalPolicyPicker', () => {
   it('warns before enabling full access and merges thread config update', async () => {
     const confirm = vi.fn().mockResolvedValue(true)
     ;(window as Window & { __confirmDialog?: unknown }).__confirmDialog = confirm
+    workspaceConfigGetCore.mockResolvedValue({
+      workspace: { defaultApprovalPolicy: 'default' },
+      userDefaults: { defaultApprovalPolicy: null }
+    })
 
     renderPicker()
 
-    fireEvent.click(await screen.findByTestId('approval-policy-trigger'))
+    const trigger = await screen.findByTestId('approval-policy-trigger')
+    await waitFor(() => {
+      expect(trigger).toHaveTextContent('Ask for approval')
+    })
+    fireEvent.click(trigger)
     fireEvent.click(await screen.findByTestId('approval-policy-option-autoApprove'))
 
     await waitFor(() => {
@@ -112,10 +143,18 @@ describe('ApprovalPolicyPicker', () => {
 
   it('does not update when the warning is cancelled', async () => {
     ;(window as Window & { __confirmDialog?: unknown }).__confirmDialog = vi.fn().mockResolvedValue(false)
+    workspaceConfigGetCore.mockResolvedValue({
+      workspace: { defaultApprovalPolicy: 'default' },
+      userDefaults: { defaultApprovalPolicy: null }
+    })
 
     renderPicker()
 
-    fireEvent.click(await screen.findByTestId('approval-policy-trigger'))
+    const trigger = await screen.findByTestId('approval-policy-trigger')
+    await waitFor(() => {
+      expect(trigger).toHaveTextContent('Ask for approval')
+    })
+    fireEvent.click(trigger)
     fireEvent.click(await screen.findByTestId('approval-policy-option-autoApprove'))
 
     await waitFor(() => {
@@ -137,7 +176,7 @@ describe('ApprovalPolicyPicker', () => {
 
     render(
       <LocaleProvider>
-        <ApprovalPolicyPicker value="default" onChange={onChange} />
+        <ApprovalPolicyPicker value="prompt" onChange={onChange} />
       </LocaleProvider>
     )
 

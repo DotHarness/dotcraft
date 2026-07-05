@@ -1,9 +1,14 @@
 import { useCallback, useEffect, useId, useMemo, useRef, useState, type CSSProperties, type ComponentType } from 'react'
-import { Check, Hand, OctagonAlert, Settings2 } from 'lucide-react'
+import { Check, Hand, OctagonAlert } from 'lucide-react'
 import { useT } from '../../contexts/LocaleContext'
 import { useThreadStore } from '../../stores/threadStore'
 import { addToast } from '../../stores/toastStore'
 import type { ApprovalPolicyWire, ThreadConfigurationWire } from '../../types/thread'
+import {
+  resolveConcreteApprovalPolicyFromWorkspaceDefault,
+  type ConcreteApprovalPolicy,
+  type WorkspaceDefaultApprovalPolicy
+} from '../../utils/workspaceCoreConfig'
 import { ActionTooltip } from '../ui/ActionTooltip'
 import { useConfirmDialog } from '../ui/ConfirmDialog'
 import { ComposerOverlapBand, useComposerOverlapBandHeight } from './useComposerOverlapBand'
@@ -14,35 +19,29 @@ import {
   composerModelPillStyle
 } from './ComposerShell'
 
-export type VisibleApprovalPolicy = 'default' | 'prompt' | 'autoApprove'
-type WorkspaceDefaultPolicy = 'default' | 'autoApprove'
+export type VisibleApprovalPolicy = ConcreteApprovalPolicy
 
 interface ApprovalPolicyPickerProps {
   threadId?: string
   value?: VisibleApprovalPolicy
   onChange?: (next: VisibleApprovalPolicy) => void
   disabled?: boolean
-  workspaceDefault?: WorkspaceDefaultPolicy
+  workspaceDefault?: WorkspaceDefaultApprovalPolicy
 }
 
 interface WorkspaceCoreConfigWithApproval {
   workspace?: {
-    defaultApprovalPolicy?: VisibleApprovalPolicy | null
+    defaultApprovalPolicy?: WorkspaceDefaultApprovalPolicy | null
   }
   userDefaults?: {
-    defaultApprovalPolicy?: VisibleApprovalPolicy | null
+    defaultApprovalPolicy?: WorkspaceDefaultApprovalPolicy | null
   }
 }
 
-function normalizeVisiblePolicy(value: unknown): VisibleApprovalPolicy {
+function normalizeVisiblePolicy(value: unknown, workspaceDefault: VisibleApprovalPolicy): VisibleApprovalPolicy {
   if (value === 'autoApprove') return 'autoApprove'
   if (value === 'prompt') return 'prompt'
-  return 'default'
-}
-
-// The workspace default only ever resolves to "ask" (default) or "full access".
-function normalizeWorkspaceDefault(value: unknown): WorkspaceDefaultPolicy {
-  return value === 'autoApprove' ? 'autoApprove' : 'default'
+  return workspaceDefault
 }
 
 function setCaseInsensitiveField(target: Record<string, unknown>, key: string, value: unknown): void {
@@ -51,10 +50,9 @@ function setCaseInsensitiveField(target: Record<string, unknown>, key: string, v
   target[existingKey ?? key] = value
 }
 
-const OPTIONS: VisibleApprovalPolicy[] = ['default', 'prompt', 'autoApprove']
+const OPTIONS: VisibleApprovalPolicy[] = ['prompt', 'autoApprove']
 
 const POLICY_ICON: Record<VisibleApprovalPolicy, ComponentType<{ size?: number; strokeWidth?: number }>> = {
-  default: Settings2,
   prompt: Hand,
   autoApprove: OctagonAlert
 }
@@ -76,14 +74,14 @@ export function ApprovalPolicyPicker({
   const [highlight, setHighlight] = useState(0)
   const [saving, setSaving] = useState(false)
   const [triggerActive, setTriggerActive] = useState(false)
-  const [workspaceDefault, setWorkspaceDefault] = useState<WorkspaceDefaultPolicy>('default')
+  const [workspaceDefault, setWorkspaceDefault] = useState<VisibleApprovalPolicy>('prompt')
   const wrapRef = useRef<HTMLDivElement>(null)
   const popupRef = useRef<HTMLDivElement>(null)
   const listId = useId()
 
   const value = useMemo(
-    () => controlledValue ?? normalizeVisiblePolicy(activeThread?.configuration?.approvalPolicy),
-    [activeThread?.configuration?.approvalPolicy, controlledValue]
+    () => controlledValue ?? normalizeVisiblePolicy(activeThread?.configuration?.approvalPolicy, workspaceDefault),
+    [activeThread?.configuration?.approvalPolicy, controlledValue, workspaceDefault]
   )
   const selectedIndex = Math.max(0, OPTIONS.findIndex((option) => option === value))
   const interactive = !disabled && !saving
@@ -95,7 +93,7 @@ export function ApprovalPolicyPicker({
 
   useEffect(() => {
     if (workspaceDefaultOverride != null) {
-      setWorkspaceDefault(normalizeWorkspaceDefault(workspaceDefaultOverride))
+      setWorkspaceDefault(resolveConcreteApprovalPolicyFromWorkspaceDefault(workspaceDefaultOverride))
       return
     }
 
@@ -106,9 +104,9 @@ export function ApprovalPolicyPicker({
         if (disposed) return
         const workspacePolicy = result.workspace?.defaultApprovalPolicy
         const userPolicy = result.userDefaults?.defaultApprovalPolicy
-        setWorkspaceDefault(normalizeWorkspaceDefault(workspacePolicy ?? userPolicy))
+        setWorkspaceDefault(resolveConcreteApprovalPolicyFromWorkspaceDefault(workspacePolicy ?? userPolicy))
       } catch {
-        if (!disposed) setWorkspaceDefault('default')
+        if (!disposed) setWorkspaceDefault('prompt')
       }
     }
     void loadWorkspaceDefault()
@@ -161,7 +159,7 @@ export function ApprovalPolicyPicker({
     async (nextPolicy: VisibleApprovalPolicy): Promise<void> => {
       if (nextPolicy === value || saving || disabled) return
 
-      // Only full access carries real risk; "ask" / "workspace default" never need a warning.
+      // Only full access carries real risk; ask-for-approval never needs a warning.
       if (nextPolicy === 'autoApprove') {
         const confirmed = await confirm({
           title: t('settings.permissions.fullAccess.warningTitle'),
@@ -223,16 +221,7 @@ export function ApprovalPolicyPicker({
     [activeThread, confirm, disabled, onChange, saving, setActiveThread, t, threadId, value]
   )
 
-  const resolvedDefaultLabel =
-    workspaceDefault === 'autoApprove'
-      ? t('composer.approval.fullAccess.label')
-      : t('composer.approval.prompt.label')
-
-  // The trigger pill flags full access — including a "Workspace default" that inherits
-  // a full-access workspace setting — so the colour never lies about the effective mode.
-  const effectiveFullAccess =
-    value === 'autoApprove' || (value === 'default' && workspaceDefault === 'autoApprove')
-  const triggerColor = effectiveFullAccess ? ORANGE : 'var(--composer-footer-text)'
+  const triggerColor = value === 'autoApprove' ? ORANGE : 'var(--composer-footer-text)'
   const label = getPolicyLabel(t, value)
   const tooltipLabel = t('composer.approval.selectTitle')
 
@@ -336,7 +325,7 @@ export function ApprovalPolicyPicker({
                     {getPolicyLabel(t, option)}
                   </span>
                   <span style={{ fontSize: '11px', lineHeight: '15px', color: 'var(--text-dimmed)' }}>
-                    {getPolicyDescription(t, option, resolvedDefaultLabel)}
+                    {getPolicyDescription(t, option)}
                   </span>
                 </span>
                 <span
@@ -363,18 +352,12 @@ export function ApprovalPolicyPicker({
 
 function getPolicyLabel(t: ReturnType<typeof useT>, policy: VisibleApprovalPolicy): string {
   if (policy === 'autoApprove') return t('composer.approval.fullAccess.label')
-  if (policy === 'prompt') return t('composer.approval.prompt.label')
-  return t('composer.approval.default.label')
+  return t('composer.approval.prompt.label')
 }
 
-function getPolicyDescription(
-  t: ReturnType<typeof useT>,
-  policy: VisibleApprovalPolicy,
-  resolvedDefaultLabel: string
-): string {
+function getPolicyDescription(t: ReturnType<typeof useT>, policy: VisibleApprovalPolicy): string {
   if (policy === 'autoApprove') return t('composer.approval.fullAccess.description')
-  if (policy === 'prompt') return t('composer.approval.prompt.description')
-  return t('composer.approval.default.description', { policy: resolvedDefaultLabel })
+  return t('composer.approval.prompt.description')
 }
 
 function PolicyIcon({ policy, testId }: { policy: VisibleApprovalPolicy; testId?: string }): JSX.Element {

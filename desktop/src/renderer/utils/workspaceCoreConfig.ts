@@ -1,15 +1,16 @@
-export type VisibleApprovalPolicy = 'default' | 'autoApprove'
+export type WorkspaceDefaultApprovalPolicy = 'default' | 'autoApprove'
+export type ConcreteApprovalPolicy = 'prompt' | 'autoApprove'
 
 export interface WorkspaceCoreConfigLike {
   workspace?: {
     model?: string | null
     welcomeSuggestionsEnabled?: boolean | null
-    defaultApprovalPolicy?: VisibleApprovalPolicy | null
+    defaultApprovalPolicy?: WorkspaceDefaultApprovalPolicy | null
   } | null
   userDefaults?: {
     model?: string | null
     welcomeSuggestionsEnabled?: boolean | null
-    defaultApprovalPolicy?: VisibleApprovalPolicy | null
+    defaultApprovalPolicy?: WorkspaceDefaultApprovalPolicy | null
   } | null
 }
 
@@ -17,6 +18,27 @@ function normalizeOptionalModel(value: unknown): string | null {
   if (typeof value !== 'string') return null
   const trimmed = value.trim()
   return trimmed && trimmed !== 'Default' ? trimmed : null
+}
+
+function getCaseInsensitiveValue(record: Record<string, unknown>, key: string): unknown {
+  const expected = key.toLowerCase()
+  for (const [candidate, value] of Object.entries(record)) {
+    if (candidate.toLowerCase() === expected) return value
+  }
+  return undefined
+}
+
+export function resolveConcreteApprovalPolicyFromWorkspaceDefault(value: unknown): ConcreteApprovalPolicy {
+  return value === 'autoApprove' ? 'autoApprove' : 'prompt'
+}
+
+export function resolveConcreteApprovalPolicyFromConfig(config: Record<string, unknown>): ConcreteApprovalPolicy {
+  const permissions = getCaseInsensitiveValue(config, 'Permissions')
+  if (permissions == null || typeof permissions !== 'object' || Array.isArray(permissions)) {
+    return 'prompt'
+  }
+  const raw = getCaseInsensitiveValue(permissions as Record<string, unknown>, 'DefaultApprovalPolicy')
+  return resolveConcreteApprovalPolicyFromWorkspaceDefault(raw)
 }
 
 export function configObjectFromWorkspaceCore(core: WorkspaceCoreConfigLike): Record<string, unknown> {

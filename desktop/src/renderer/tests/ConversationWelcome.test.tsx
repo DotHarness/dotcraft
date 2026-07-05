@@ -808,10 +808,72 @@ describe('ConversationWelcome composer', () => {
         threadId: 'thread-welcome',
         text: 'Help me understand this workspace',
         mode: 'agent',
+        approvalPolicy: 'prompt',
         model: ''
       })
       expect(useThreadStore.getState().activeThreadId).toBe('thread-welcome')
       expect(useUIStore.getState().welcomeDraft).toBeNull()
+    })
+  })
+
+  it('uses the full-access workspace default as a concrete welcome approval policy', async () => {
+    fileReadFile.mockResolvedValue(JSON.stringify({
+      Permissions: {
+        DefaultApprovalPolicy: 'autoApprove'
+      }
+    }))
+
+    renderWelcome()
+
+    const approvalTrigger = await screen.findByTestId('approval-policy-trigger')
+    await waitFor(() => {
+      expect(approvalTrigger).toHaveTextContent('Full access')
+    })
+
+    const textbox = await screen.findByRole('textbox')
+    textbox.textContent = 'Use the configured workspace default'
+    fireEvent.input(textbox)
+    fireEvent.click(screen.getByRole('button', { name: 'Send message' }))
+
+    await waitFor(() => {
+      expect(useUIStore.getState().pendingWelcomeTurn).toMatchObject({
+        threadId: 'thread-welcome',
+        text: 'Use the configured workspace default',
+        approvalPolicy: 'autoApprove'
+      })
+    })
+  })
+
+  it('resolves a legacy default welcome draft approval policy to the current workspace default', async () => {
+    useUIStore.getState().setWelcomeDraft({
+      text: 'legacy default policy draft',
+      images: [],
+      mode: 'agent',
+      model: 'Default',
+      approvalPolicy: 'default'
+    })
+    fileReadFile.mockResolvedValue(JSON.stringify({
+      Permissions: {
+        DefaultApprovalPolicy: 'autoApprove'
+      }
+    }))
+
+    renderWelcome()
+
+    const textbox = await screen.findByRole('textbox')
+    await waitFor(() => {
+      expect(textbox.textContent).toContain('legacy default policy draft')
+      expect(screen.getByTestId('approval-policy-trigger')).toHaveTextContent('Full access')
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Send message' }))
+
+    await waitFor(() => {
+      expect(useUIStore.getState().pendingWelcomeTurn).toMatchObject({
+        threadId: 'thread-welcome',
+        text: 'legacy default policy draft',
+        approvalPolicy: 'autoApprove'
+      })
     })
   })
 
