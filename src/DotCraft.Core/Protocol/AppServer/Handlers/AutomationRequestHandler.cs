@@ -4,8 +4,7 @@ namespace DotCraft.Protocol.AppServer;
 /// Routes the <c>automation/*</c> wire methods to the host-provided
 /// <see cref="IAutomationsRequestHandler"/>. The Automations module owns the actual task/template
 /// logic; this handler is a thin pass-through that surfaces a method-not-found error when no
-/// automations handler is registered. Extracted from <see cref="AppServerRequestHandler"/> as part
-/// of the Core architecture refactor (M3).
+/// automations handler is registered.
 /// </summary>
 internal sealed class AutomationRequestHandler(IAutomationsRequestHandler? automationsHandler) : IAppServerDomainHandler
 {

@@ -109,6 +109,14 @@ The app owns:
 
 DotCraft validation is intentionally not a substitute for app-side authorization.
 
+### 4.1 Platform Responsibility Boundaries
+
+App Binding is the platform authority for app connection, authorization handoff, thread binding, app-supplied context, model-visible tool exposure, and trusted client interaction requests. A connected app remains authoritative for its own account, resource policy, grants, and external side effects.
+
+Connection lifecycle, binding lifecycle, tool exposure, context blocks, and interaction requests must stay as separate responsibility boundaries. State changes in one boundary must reconcile the others before clients or agents observe the result. For example, a binding status change must keep tool availability, context visibility, and notifications consistent with the new state.
+
+The App Binding specification describes platform behavior, security boundaries, lifecycle rules, and observable client contracts. It must not depend on or preserve any particular internal service decomposition.
+
 Connected apps may publish a small `publicMetadata` object when completing or refreshing an App Binding connection. DotCraft may expose this metadata through connection status only after validating that it is safe for Desktop clients. v1 public metadata is limited to redacted display values and loopback surface endpoints such as local HTTP or WebSocket URLs used by a trusted Desktop extension. Secret tokens, account credentials, raw grants, and app-private proof material must remain in `connectionProof` and must never be echoed to clients.
 
 A connected app may refresh its own `publicMetadata` after the initial connect — without a new user grant, handoff, or dialog — through `app/connection/refreshMetadata` (§9.6). This is a transport-only update: it lets an app that reopened on a new dynamic loopback port re-publish its current surface endpoints so durable Desktop surfaces keep working across app restarts. The refresh is authorized solely by the existing connection (matching `appId` plus the app-owned `connectionProof`) over the loopback app-server, mutates only `publicMetadata` (re-validated by the same loopback sanitizer), and never widens scope or changes grants — it is maintenance of an existing consent, analogous to renewing a lease, not a new authorization.

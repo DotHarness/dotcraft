@@ -4,8 +4,7 @@ namespace DotCraft.Protocol.AppServer;
 
 /// <summary>
 /// Handles the <c>terminal/*</c> wire methods: list, read, write-stdin, stop, and clean for the
-/// background terminal sessions bound to a thread. Extracted from
-/// <see cref="AppServerRequestHandler"/> as part of the Core architecture refactor (M3).
+/// background terminal sessions bound to a thread.
 /// </summary>
 internal sealed class TerminalRequestHandler(
     IBackgroundTerminalService? backgroundTerminalService,

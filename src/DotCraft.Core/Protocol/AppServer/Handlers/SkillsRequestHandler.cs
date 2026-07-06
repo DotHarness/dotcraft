@@ -6,8 +6,7 @@ namespace DotCraft.Protocol.AppServer;
 
 /// <summary>
 /// Handles the <c>skills/*</c> wire methods (spec Section 18): list, read, view, restore-original,
-/// set-enabled, and uninstall. Extracted from <see cref="AppServerRequestHandler"/> as part of the
-/// Core architecture refactor (M3). Skill-variant resolution is delegated to the shared
+/// set-enabled, and uninstall. Skill-variant resolution is delegated to the shared
 /// <see cref="SkillVariantContext"/>; the skills context page is invalidated via
 /// <see cref="AppServerContextInvalidation"/>.
 /// </summary>

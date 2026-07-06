@@ -27,8 +27,7 @@ namespace DotCraft.Protocol.AppServer;
 /// argument list. The four genuinely required collaborators (session service, connection,
 /// transport, channel-list contributor) remain positional constructor parameters.
 ///
-/// As domains move to dedicated handlers (refactor M3/M4), this bundle is the natural container to
-/// hand each handler the subset of services it needs.
+/// Domain handlers receive the subset of services they need from this bundle.
 /// </summary>
 public sealed record AppServerConnectionServices
 {

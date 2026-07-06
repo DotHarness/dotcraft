@@ -4,9 +4,8 @@ using DotCraft.Mcp;
 namespace DotCraft.Protocol.AppServer;
 
 /// <summary>
-/// Handles the <c>mcp/*</c> wire methods. Extracted from the AppServer dispatcher as part of the
-/// Core architecture refactor (M3), sharing workspace MCP persistence with plugin mutations through
-/// <see cref="AppServerMcpConfigService"/>.
+/// Handles the <c>mcp/*</c> wire methods, sharing workspace MCP persistence with plugin mutations
+/// through <see cref="AppServerMcpConfigService"/>.
 /// </summary>
 internal sealed class McpRequestHandler(
     McpClientManager? mcpClientManager,

@@ -5,8 +5,7 @@ namespace DotCraft.Protocol.AppServer;
 
 /// <summary>
 /// Handles the <c>usage/*</c> and <c>profile/insights</c> wire methods (spec Section 27A): usage
-/// summary, daily timeseries, and aggregated profile insights. Extracted from
-/// <see cref="AppServerRequestHandler"/> as part of the Core architecture refactor (M3).
+/// summary, daily timeseries, and aggregated profile insights.
 /// </summary>
 internal sealed class UsageRequestHandler(
     TraceStore? traceStore,

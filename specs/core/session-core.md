@@ -161,6 +161,16 @@ Server-managed channels
 - **Existing DotCraft.Core**: `AppConfig`, `SkillsLoader`, `MemoryStore`, `ToolProviderCollector` — workspace infrastructure.
 - **Channel transports**: Each channel's transport library (NapCat for QQ, ASP.NET for WeCom, custom stdio for ACP).
 
+### 3.6 Runtime State Ownership
+
+Session Core is the single authority for live state associated with threads and turns. This includes active execution, event delivery, approval and user-input pauses, maintenance work, background continuation, and transient state used to resume, cancel, or report work.
+
+Each thread's live runtime state must have one ownership boundary. Related state must not be duplicated across independent owners that can drift apart or be cleaned up separately. Channel adapters, protocol projections, and background workers may request operations or observe events, but they must not maintain competing mutable thread runtime state.
+
+Thread deletion is both a persistence operation and a runtime teardown. Deleting a thread must stop or invalidate outstanding work for that thread and clear all live state owned by Session Core. Background completion, cleanup, retry, or notification paths must not recreate runtime state for a thread that is being permanently deleted.
+
+Any concurrent flow that touches thread runtime state must explicitly distinguish between reading existing state and creating or restoring state as part of a lifecycle operation. Incidental event delivery, cleanup, and delayed background continuations must use the existing-state path so they cannot resurrect a deleted or archived execution context.
+
 ## 4. Core Domain Model
 
 ### 4.1 Entities

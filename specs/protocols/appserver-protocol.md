@@ -2894,6 +2894,10 @@ The core wire protocol (Sections 3–10) covers the `ISessionService` surface. M
 - Client-to-server module methods may use stable product namespaces; they are standard protocol extensions even when implemented by a module instead of Core.
 - `initialize` may advertise extension availability in `capabilities.extensions`. Compatibility top-level capability fields may coexist during migration.
 - Clients must treat the spec as the source of truth for a documented extension's method names and payloads; implementation location inside the server is not wire-visible.
+- The server must validate method ownership from one authoritative namespace view before dispatch. Core methods and extension methods must not be allowed to conflict, and duplicate extension ownership must fail before the method can be invoked.
+- Built-in capabilities and extension capabilities must be reported consistently during the initialization handshake. Capability aggregation is part of protocol readiness, not a later best-effort discovery step.
+- The server-side routing layer is a protocol boundary. It handles readiness checks, method dispatch, parameter conversion, error mapping, and capability aggregation; business semantics remain owned by the relevant domain specification.
+- Documentation-only cleanup of server routing internals must not change wire shapes, method names, error codes, capability fields, notification names, serialization rules, or initialization timing.
 
 ### 11.2 Unified Channel Runtime (Remote Projection)
 

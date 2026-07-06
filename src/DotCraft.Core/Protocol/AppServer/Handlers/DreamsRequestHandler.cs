@@ -7,9 +7,8 @@ namespace DotCraft.Protocol.AppServer;
 
 /// <summary>
 /// Handles the <c>dreams/*</c> wire methods (spec: core/dreams): status, run, create, get, list,
-/// cancel, archive, apply, discard. Extracted from <see cref="AppServerRequestHandler"/> as part of
-/// the Core architecture refactor (M3). Dreams-local mapping/validation helpers travel with the
-/// handler; cross-domain memory-page invalidation goes through
+/// cancel, archive, apply, discard. Dreams-local mapping/validation helpers stay with the handler;
+/// cross-domain memory-page invalidation goes through
 /// <see cref="AppServerContextInvalidation"/>.
 /// </summary>
 internal sealed class DreamsRequestHandler(

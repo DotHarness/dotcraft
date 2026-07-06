@@ -26,7 +26,7 @@ area they are changing.
 
 ## Files By Domain
 
-- Core: [session-core.md](core/session-core.md), [goal-design.md](core/goal-design.md), [memory-consolidation.md](core/memory-consolidation.md), [dreams.md](core/dreams.md), [context-export-cli.md](core/context-export-cli.md), [core-architecture-refactor.md](core/core-architecture-refactor.md)
+- Core: [session-core.md](core/session-core.md), [goal-design.md](core/goal-design.md), [memory-consolidation.md](core/memory-consolidation.md), [dreams.md](core/dreams.md), [context-export-cli.md](core/context-export-cli.md)
 - Protocols: [appserver-protocol.md](protocols/appserver-protocol.md), [external-channel-adapter.md](protocols/external-channel-adapter.md), [app-binding.md](protocols/app-binding.md), [tool-result-presentation.md](protocols/tool-result-presentation.md)
 - Clients: [desktop-client.md](clients/desktop-client.md), [Desktop DESIGN.md](clients/DESIGN.md), [tui-client.md](clients/tui-client.md)
 - Runtime: [hub-architecture.md](runtime/hub-architecture.md), [automations-lifecycle.md](runtime/automations-lifecycle.md), [chrome-browser-runtime.md](runtime/chrome-browser-runtime.md), [desktop-inapp-browser.md](runtime/desktop-inapp-browser.md), [openai-subscription-auth.md](runtime/openai-subscription-auth.md), [prompt-cache.md](runtime/prompt-cache.md), [reasoning-settings.md](runtime/reasoning-settings.md)

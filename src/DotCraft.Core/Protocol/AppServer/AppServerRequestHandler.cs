@@ -96,10 +96,9 @@ public sealed class AppServerRequestHandler(
     private AppServerMethodTable? _domainMethods;
 
     /// <summary>
-    /// Methods owned by built-in domain handlers extracted from this class (refactor M3/M4). The
-    /// dispatcher resolves a request against this table first, then the in-class switch for
-    /// not-yet-extracted domains, then protocol extensions. Built lazily so domain handlers can
-    /// capture the connection-scoped services initialized above.
+    /// Methods owned by built-in domain handlers. The dispatcher resolves a request against this
+    /// table before protocol extensions. Built lazily so domain handlers can capture the
+    /// connection-scoped services initialized above.
     /// </summary>
     private AppServerMethodTable DomainMethods => _domainMethods ??= BuildDomainMethods();
 

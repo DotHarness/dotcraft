@@ -5,8 +5,7 @@ namespace DotCraft.Protocol.AppServer;
 
 /// <summary>
 /// Handles the <c>cron/*</c> wire methods (spec Section 16): listing, removing, enabling, and
-/// running scheduled jobs. Extracted from <see cref="AppServerRequestHandler"/> as part of the
-/// Core architecture refactor (M3).
+/// running scheduled jobs.
 /// </summary>
 internal sealed class CronRequestHandler(
     CronService? cronService,
