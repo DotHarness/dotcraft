@@ -189,6 +189,9 @@ Deep-thinking adapter 文件：
 | `Tools.Web.SearchProvider` | 搜索引擎提供商：`Bing` / `Exa` | `Exa` |
 | `Tools.Lsp.Enabled` | 是否启用内置 LSP 工具 | `false` |
 | `Tools.Lsp.MaxFileSize` | LSP 打开或同步文件时允许的最大文件大小 | `10485760` |
+| `Tools.ImageGeneration.Enabled` | 允许支持的 OpenAI Responses provider 在对话中生成图片 | `true` |
+| `Tools.ImageGeneration.Model` | 预留给图片客户端集成；对话生图使用当前 Responses 模型 | `gpt-image-2` |
+| `Tools.ImageGeneration.MaxReferenceImages` | 预留给支持参考图的图片客户端集成 | `5` |
 | `Tools.Sandbox.Enabled` | 是否启用沙箱模式 | `false` |
 | `Tools.Sandbox.Domain` | OpenSandbox 服务地址 | `localhost:5880` |
 | `Tools.Sandbox.ApiKey` | OpenSandbox API Key | 空 |
@@ -201,6 +204,10 @@ Deep-thinking adapter 文件：
 | `Tools.Sandbox.AllowedEgressDomains` | 自定义允许出站域名列表 | `[]` |
 | `Tools.Sandbox.IdleTimeoutSeconds` | 空闲超时（秒） | `300` |
 | `Tools.Sandbox.SyncWorkspace` | 是否同步 workspace 到容器 | `true` |
+
+使用支持的 OpenAI Responses provider 时，你可以在普通对话里直接让 DotCraft 生成图片。DotCraft 会向 provider 请求 PNG 输出，并在支持富内容的客户端中以内联图片展示。
+
+图片生成默认只在 ChatGPT OAuth 或官方 OpenAI API key endpoint（`https://api.openai.com/v1`）上启用。OpenAI-compatible 自定义 endpoint 和非 Responses provider 不会自动启用，因为不同 provider 对图片生成的支持并不一致。
 
 个人本地 hardening 示例：
 

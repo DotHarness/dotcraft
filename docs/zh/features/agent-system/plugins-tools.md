@@ -14,11 +14,14 @@ DotCraft 默认提供一组通用工具，覆盖大多数 coding agent 需求：
 | Shell | `Exec` | 审批策略、超时和沙箱 |
 | Web | `WebSearch` / `WebFetch` | 网络与抓取限制 |
 | LSP | 内置 LSP 工具 | 可选 LSP 工具设置 |
+| 图片 | 按描述生成图片、基于参考图编辑图片 | 支持的模型服务与图片生成设置 |
 | Plan / Todo | `CreatePlan` / `UpdateTodos` / `TodoWrite` | 由 SubAgent role 策略控制 |
 
 `ReadFile` 读取文本文件，并把支持的图片作为视觉输入返回。PDF 和其他二进制文件会被拒绝并返回提示信息，不会被解码为文本。
 
-工具开关、allow-list、Web 限制和 LSP 设置见 [配置完整参考](../../developing/configuration#tools-security-与-sandbox)。
+当当前模型服务支持图片能力时，Agent 可以根据你的描述生成图片，也可以基于你提供的参考图继续调整。生成结果会直接出现在会话里，方便你查看、下载，或继续作为下一步的参考图使用。
+
+工具开关、allow-list、Web 限制、LSP 设置和生图设置见 [配置完整参考](../../developing/configuration#tools-security-与-sandbox)。
 
 ## 安装与使用插件
 

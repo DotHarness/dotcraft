@@ -2296,6 +2296,21 @@ public sealed partial class SessionService(
                                     break;
                                 }
 
+                                case HostedImageGenerationContent hostedImage:
+                                {
+                                    FinalizeStreamingReasoning();
+                                    FinalizeStreamingAgentMessage();
+                                    await AddHostedImageGenerationItemsAsync(
+                                        threadId,
+                                        turn,
+                                        hostedImage,
+                                        effectiveWorkspacePath,
+                                        eventChannel,
+                                        NextItemSeq,
+                                        cts.Token).ConfigureAwait(false);
+                                    break;
+                                }
+
                                 case FunctionCallContent fc:
                                 {
                                     var isPluginFunctionTool = IsPluginFunctionTool(pluginFunctionToolNames, fc.Name);
@@ -3647,6 +3662,141 @@ public sealed partial class SessionService(
             images.Add(image);
         }
         return images;
+    }
+
+    private async Task AddHostedImageGenerationItemsAsync(
+        string threadId,
+        SessionTurn turn,
+        HostedImageGenerationContent content,
+        string workspacePath,
+        SessionEventChannel eventChannel,
+        Func<int> nextItemSeq,
+        CancellationToken ct)
+    {
+        var callId = string.IsNullOrWhiteSpace(content.Id)
+            ? "ig_" + Guid.NewGuid().ToString("N")
+            : content.Id.Trim();
+        var now = DateTimeOffset.UtcNow;
+        var arguments = new JsonObject();
+        if (!string.IsNullOrWhiteSpace(content.RevisedPrompt))
+            arguments["revisedPrompt"] = content.RevisedPrompt;
+
+        var toolCallItem = new SessionItem
+        {
+            Id = SessionIdGenerator.NewItemId(nextItemSeq()),
+            TurnId = turn.Id,
+            Type = ItemType.ToolCall,
+            Status = ItemStatus.Completed,
+            CreatedAt = now,
+            CompletedAt = now,
+            Payload = new ToolCallPayload
+            {
+                ToolName = HostedImageGenerationContent.ToolName,
+                Arguments = arguments,
+                CallId = callId
+            }
+        };
+        turn.Items.Add(toolCallItem);
+        eventChannel.EmitItemStarted(toolCallItem);
+        eventChannel.EmitItemCompleted(toolCallItem);
+
+        if (content.Succeeded && content.ImageBytes is { Length: > 0 } imageBytes)
+            await SaveHostedImageGenerationAsync(workspacePath, threadId, callId, imageBytes, ct).ConfigureAwait(false);
+
+        var resultText = BuildHostedImageGenerationResultText(content);
+        var contentItems = BuildHostedImageGenerationContentItems(content, resultText);
+        var toolResultItem = new SessionItem
+        {
+            Id = SessionIdGenerator.NewItemId(nextItemSeq()),
+            TurnId = turn.Id,
+            Type = ItemType.ToolResult,
+            Status = ItemStatus.Completed,
+            CreatedAt = DateTimeOffset.UtcNow,
+            CompletedAt = DateTimeOffset.UtcNow,
+            Payload = new ToolResultPayload
+            {
+                CallId = callId,
+                Result = resultText,
+                ContentItems = contentItems,
+                Success = content.Succeeded
+            }
+        };
+        turn.Items.Add(toolResultItem);
+        eventChannel.EmitItemStarted(toolResultItem);
+        eventChannel.EmitItemCompleted(toolResultItem);
+    }
+
+    private async Task SaveHostedImageGenerationAsync(
+        string workspacePath,
+        string threadId,
+        string callId,
+        byte[] imageBytes,
+        CancellationToken ct)
+    {
+        try
+        {
+            var outputDirectory = Path.Combine(
+                workspacePath,
+                ".craft",
+                "generated_images",
+                SanitizePathSegment(threadId));
+            Directory.CreateDirectory(outputDirectory);
+
+            var outputPath = Path.Combine(outputDirectory, SanitizePathSegment(callId) + ".png");
+            await File.WriteAllBytesAsync(outputPath, imageBytes, ct).ConfigureAwait(false);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException or PathTooLongException)
+        {
+            Logger?.LogWarning(ex, "Failed to persist hosted image generation output for thread {ThreadId}", threadId);
+        }
+    }
+
+    private static string BuildHostedImageGenerationResultText(HostedImageGenerationContent content)
+    {
+        if (!string.IsNullOrWhiteSpace(content.ErrorMessage))
+            return "Error: image generation failed: " + content.ErrorMessage.Trim();
+
+        return string.IsNullOrWhiteSpace(content.RevisedPrompt)
+            ? "Generated image."
+            : content.RevisedPrompt.Trim();
+    }
+
+    private static IReadOnlyList<PluginFunctionContentItem>? BuildHostedImageGenerationContentItems(
+        HostedImageGenerationContent content,
+        string resultText)
+    {
+        if (!content.Succeeded || content.ImageBytes is not { Length: > 0 } imageBytes)
+            return null;
+
+        var mediaType = string.IsNullOrWhiteSpace(content.MediaType)
+            ? "image/png"
+            : content.MediaType.Trim();
+        return
+        [
+            new PluginFunctionContentItem
+            {
+                Type = "text",
+                Text = resultText
+            },
+            new PluginFunctionContentItem
+            {
+                Type = "image",
+                MediaType = mediaType,
+                DataBase64 = Convert.ToBase64String(imageBytes)
+            }
+        ];
+    }
+
+    private static string SanitizePathSegment(string value)
+    {
+        var trimmed = string.IsNullOrWhiteSpace(value) ? "image" : value.Trim();
+        var invalid = Path.GetInvalidFileNameChars();
+        var chars = trimmed.Select(ch =>
+            invalid.Contains(ch) || ch is '/' or '\\' or ':' || char.IsControl(ch)
+                ? '_'
+                : ch).ToArray();
+        var sanitized = new string(chars).Trim('.', ' ');
+        return string.IsNullOrWhiteSpace(sanitized) ? "image" : sanitized;
     }
 
     private static IReadOnlyList<PluginFunctionContentItem>? ExtractToolResultContentItems(object? result)

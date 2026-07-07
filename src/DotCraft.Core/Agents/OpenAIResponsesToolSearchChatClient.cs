@@ -71,9 +71,13 @@ internal sealed class OpenAIResponsesToolSearchChatClient : IChatClient
         if (traceCollector != null)
             sdkUpdates = RecordProviderResponseDiagnostics(sdkUpdates, traceCollector, cancellationToken);
         var functionCallNamespaces = new Dictionary<string, string>(StringComparer.Ordinal);
-        var normalizedUpdates = ResponsesToolSearchMapper.NormalizeToolSearchCalls(
-            sdkUpdates,
-            functionCallNamespaces,
+        var hostedImageGenerationContents = new Queue<HostedImageGenerationContent>();
+        var normalizedUpdates = ResponsesToolSearchMapper.CaptureHostedImageGenerationCalls(
+            ResponsesToolSearchMapper.NormalizeToolSearchCalls(
+                sdkUpdates,
+                functionCallNamespaces,
+                cancellationToken),
+            hostedImageGenerationContents,
             cancellationToken);
 
         await foreach (var update in normalizedUpdates
@@ -82,6 +86,13 @@ internal sealed class OpenAIResponsesToolSearchChatClient : IChatClient
         {
             ResponsesToolSearchMapper.ApplyRecordedFunctionCallNamespaces(update, functionCallNamespaces);
             yield return SuppressProviderContinuation(update);
+        }
+
+        while (hostedImageGenerationContents.Count > 0)
+        {
+            yield return SuppressProviderContinuation(new ChatResponseUpdate(
+                ChatRole.Assistant,
+                [hostedImageGenerationContents.Dequeue()]));
         }
     }
 

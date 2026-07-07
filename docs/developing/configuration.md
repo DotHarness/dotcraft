@@ -189,6 +189,9 @@ The built-in catalog exposes full reasoning choices for unlisted Anthropic-proto
 | `Tools.Web.SearchProvider` | `Bing` / `Exa` | `Exa` |
 | `Tools.Lsp.Enabled` | Enables built-in LSP tools | `false` |
 | `Tools.Lsp.MaxFileSize` | Max LSP file size | `10485760` |
+| `Tools.ImageGeneration.Enabled` | Allows supported OpenAI Responses providers to generate images in conversation | `true` |
+| `Tools.ImageGeneration.Model` | Reserved for image-client integrations; conversation image generation uses the active Responses model | `gpt-image-2` |
+| `Tools.ImageGeneration.MaxReferenceImages` | Reserved for image-client integrations that accept reference images | `5` |
 | `Tools.Sandbox.Enabled` | Enable sandbox | `false` |
 | `Tools.Sandbox.Domain` | OpenSandbox service address | `localhost:5880` |
 | `Tools.Sandbox.ApiKey` | OpenSandbox API key | Empty |
@@ -201,6 +204,10 @@ The built-in catalog exposes full reasoning choices for unlisted Anthropic-proto
 | `Tools.Sandbox.AllowedEgressDomains` | Custom allowed egress domains | `[]` |
 | `Tools.Sandbox.IdleTimeoutSeconds` | Idle timeout in seconds | `300` |
 | `Tools.Sandbox.SyncWorkspace` | Sync workspace into container | `true` |
+
+With a supported OpenAI Responses provider, ask DotCraft to generate an image in a normal conversation. DotCraft requests PNG output from the provider and shows the image inline in clients that support rich content.
+
+Image generation is enabled by default only when the active provider is ChatGPT OAuth or the official OpenAI API key endpoint (`https://api.openai.com/v1`). OpenAI-compatible custom endpoints and non-Responses providers do not automatically receive image generation because support varies by provider.
 
 Personal local hardening example:
 

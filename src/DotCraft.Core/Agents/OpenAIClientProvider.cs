@@ -1,13 +1,17 @@
 using System.ClientModel;
 using System.ClientModel.Primitives;
 using System.Collections.Concurrent;
+using System.Net;
 using System.Net.Http.Headers;
+using System.Text.Json;
 using DotCraft.Auth.OpenAI;
 using DotCraft.Configuration;
+using DotCraft.Tracing;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Logging;
 using OpenAI;
 using OpenAI.Chat;
+using OpenAI.Images;
 using OpenAI.Responses;
 
 #pragma warning disable OPENAI001
@@ -23,6 +27,7 @@ public sealed class OpenAIClientProvider
 
     private readonly ConcurrentDictionary<OpenAIClientKey, OpenAIClient> _openAIClients = new();
     private readonly ConcurrentDictionary<OpenAIChatClientKey, ChatClient> _openAIChatClients = new();
+    private readonly ConcurrentDictionary<OpenAIImageClientKey, ImageClient> _openAIImageClients = new();
     private readonly ConcurrentDictionary<OpenAIClientKey, ResponsesClient> _openAIResponsesClients = new();
     private readonly ConcurrentDictionary<OpenAIChatClientKey, IChatClient> _openAIResponsesChatClients = new();
     private readonly IOpenAIAuthService? _openAIAuthService;
@@ -93,6 +98,68 @@ public sealed class OpenAIClientProvider
         var key = OpenAIChatClientKey.From(runtime);
         return _openAIChatClients.GetOrAdd(key, static (chatKey, provider) =>
             provider.GetOpenAIClient(chatKey.Client).GetChatClient(chatKey.Model), this);
+    }
+
+    /// <summary>
+    /// Gets a cached OpenAI SDK image client for OpenAI protocol integrations.
+    /// </summary>
+    public ImageClient GetOpenAIImageClient(EffectiveModelRuntime runtime, string imageModel)
+    {
+        ArgumentNullException.ThrowIfNull(runtime);
+        if (!runtime.IsOpenAICompatible)
+            throw new ArgumentException($"Provider '{runtime.ProviderId}' does not use the OpenAI protocol.", nameof(runtime));
+
+        var key = OpenAIImageClientKey.From(runtime, imageModel);
+        return _openAIImageClients.GetOrAdd(key, static (imageKey, provider) =>
+            provider.GetOpenAIClient(imageKey.Client).GetImageClient(imageKey.Model), this);
+    }
+
+    /// <summary>
+    /// Sends a multipart multi-image edit request for SDK gaps while preserving provider auth.
+    /// </summary>
+    internal async Task<byte[]> GenerateOpenAIImageEditAsync(
+        EffectiveModelRuntime runtime,
+        string imageModel,
+        string prompt,
+        IReadOnlyList<OpenAIImageEditInput> images,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(runtime);
+        ArgumentNullException.ThrowIfNull(images);
+        if (!runtime.IsOpenAICompatible)
+            throw new ArgumentException($"Provider '{runtime.ProviderId}' does not use the OpenAI protocol.", nameof(runtime));
+        if (images.Count == 0)
+            throw new ArgumentException("At least one image is required.", nameof(images));
+
+        var model = NormalizeRequiredModel(imageModel);
+        if (!Uri.TryCreate(runtime.EndPoint, UriKind.Absolute, out var endpoint))
+            throw new ArgumentException("Endpoint must be an absolute URI.", nameof(runtime));
+
+        using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        timeoutCts.CancelAfter(TimeSpan.FromSeconds(NormalizeNetworkTimeoutSeconds(runtime.NetworkTimeoutSeconds)));
+
+        var response = await SendImageEditRequestAsync(
+            endpoint,
+            runtime,
+            model,
+            prompt,
+            images,
+            forceRefresh: false,
+            timeoutCts.Token).ConfigureAwait(false);
+        if (runtime.IsChatGptOAuth && response.StatusCode == HttpStatusCode.Unauthorized)
+        {
+            response.Dispose();
+            response = await SendImageEditRequestAsync(
+                endpoint,
+                runtime,
+                model,
+                prompt,
+                images,
+                forceRefresh: true,
+                timeoutCts.Token).ConfigureAwait(false);
+        }
+
+        return await ReadImageEditResponseAsync(response, timeoutCts.Token).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -244,6 +311,119 @@ public sealed class OpenAIClientProvider
             cancellationToken).ConfigureAwait(false);
     }
 
+    private async Task<HttpResponseMessage> SendImageEditRequestAsync(
+        Uri endpoint,
+        EffectiveModelRuntime runtime,
+        string imageModel,
+        string prompt,
+        IReadOnlyList<OpenAIImageEditInput> images,
+        bool forceRefresh,
+        CancellationToken cancellationToken)
+    {
+        var baseUri = new Uri(endpoint.ToString().TrimEnd('/') + "/");
+        using var request = new HttpRequestMessage(HttpMethod.Post, new Uri(baseUri, "images/edits"));
+        request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+        request.Headers.TryAddWithoutValidation("User-Agent", DotCraftUserAgentPipelinePolicy.UserAgentValue);
+        await ApplyImageEditAuthHeadersAsync(request, runtime, forceRefresh, cancellationToken).ConfigureAwait(false);
+
+        var content = new MultipartFormDataContent
+        {
+            { new StringContent(imageModel), "model" },
+            { new StringContent(prompt), "prompt" },
+            { new StringContent("b64_json"), "response_format" },
+            { new StringContent("png"), "output_format" }
+        };
+
+        foreach (var image in images)
+        {
+            var imageContent = new ByteArrayContent(image.Bytes);
+            imageContent.Headers.ContentType = new MediaTypeHeaderValue(image.MediaType);
+            content.Add(imageContent, "image[]", image.FileName);
+        }
+
+        request.Content = content;
+        return await _chatGptHttpClient.SendAsync(
+            request,
+            HttpCompletionOption.ResponseHeadersRead,
+            cancellationToken).ConfigureAwait(false);
+    }
+
+    private async Task ApplyImageEditAuthHeadersAsync(
+        HttpRequestMessage request,
+        EffectiveModelRuntime runtime,
+        bool forceRefresh,
+        CancellationToken cancellationToken)
+    {
+        if (runtime.IsChatGptOAuth)
+        {
+            if (_openAIAuthService is null)
+                throw new InvalidOperationException(
+                    "ChatGPT OAuth provider requested but no IOpenAIAuthService was registered.");
+
+            var token = await _openAIAuthService.GetAccessTokenAsync(forceRefresh, cancellationToken).ConfigureAwait(false);
+            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+            var accountId = ResolveChatGptAccountId(runtime);
+            if (!string.IsNullOrWhiteSpace(accountId))
+                request.Headers.TryAddWithoutValidation(OpenAIAuthConstants.AccountIdHeader, accountId);
+            request.Headers.TryAddWithoutValidation(OpenAIAuthConstants.OriginatorHeader, OpenAIAuthConstants.Originator);
+
+            var installationId = _installationIdProvider?.GetInstallationId();
+            if (!string.IsNullOrWhiteSpace(installationId))
+                request.Headers.TryAddWithoutValidation(OpenAIAuthConstants.InstallationIdHeader, installationId);
+
+            var sessionKey = TracingChatClient.CurrentSessionKey ?? TracingChatClient.GetActiveSessionKey();
+            if (!string.IsNullOrWhiteSpace(sessionKey))
+            {
+                var trimmed = sessionKey.Trim();
+                request.Headers.TryAddWithoutValidation(OpenAIAuthConstants.SessionIdHeader, trimmed);
+                request.Headers.TryAddWithoutValidation(OpenAIAuthConstants.ThreadIdHeader, trimmed);
+                request.Headers.TryAddWithoutValidation(OpenAIAuthConstants.SessionIdCompatHeader, trimmed);
+                request.Headers.TryAddWithoutValidation(OpenAIAuthConstants.ConversationIdHeader, trimmed);
+            }
+
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(runtime.ApiKey))
+            throw new ArgumentException("API key must be configured.", nameof(runtime));
+
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", runtime.ApiKey);
+    }
+
+    private static async Task<byte[]> ReadImageEditResponseAsync(
+        HttpResponseMessage response,
+        CancellationToken cancellationToken)
+    {
+        using (response)
+        {
+            var body = response.Content is null
+                ? string.Empty
+                : await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
+            if (!response.IsSuccessStatusCode)
+            {
+                var snippet = body.Length > 1000 ? body[..1000] : body;
+                throw new HttpRequestException(
+                    $"Image edit request failed with HTTP {(int)response.StatusCode}: {snippet}");
+            }
+
+            using var document = JsonDocument.Parse(body);
+            if (!document.RootElement.TryGetProperty("data", out var data) ||
+                data.ValueKind != JsonValueKind.Array ||
+                data.GetArrayLength() == 0 ||
+                !data[0].TryGetProperty("b64_json", out var b64Json) ||
+                b64Json.ValueKind != JsonValueKind.String)
+            {
+                throw new InvalidOperationException("Image edit response did not include image bytes.");
+            }
+
+            var base64 = b64Json.GetString();
+            if (string.IsNullOrWhiteSpace(base64))
+                throw new InvalidOperationException("Image edit response included empty image bytes.");
+
+            return Convert.FromBase64String(base64);
+        }
+    }
+
     private static async Task<ChatGptCodexModelsHttpResponse> ReadChatGptCodexModelsResponseAsync(
         HttpResponseMessage response,
         CancellationToken cancellationToken)
@@ -315,6 +495,12 @@ public sealed class OpenAIClientProvider
             new(OpenAIClientKey.From(runtime), NormalizeRequiredModel(runtime.Model));
     }
 
+    private readonly record struct OpenAIImageClientKey(OpenAIClientKey Client, string Model)
+    {
+        public static OpenAIImageClientKey From(EffectiveModelRuntime runtime, string imageModel) =>
+            new(OpenAIClientKey.From(runtime), NormalizeRequiredModel(imageModel));
+    }
+
     private static int NormalizeNetworkTimeoutSeconds(int seconds) => Math.Max(1, seconds);
 
     private static string? NormalizeOptional(string? value)
@@ -328,3 +514,8 @@ internal sealed record ChatGptCodexModelsHttpResponse(
     int StatusCode,
     string Content,
     string? ETag);
+
+internal sealed record OpenAIImageEditInput(
+    byte[] Bytes,
+    string FileName,
+    string MediaType);

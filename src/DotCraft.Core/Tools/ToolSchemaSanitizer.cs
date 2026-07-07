@@ -89,7 +89,12 @@ internal static class ToolSchemaSanitizer
 /// Wraps an <see cref="AIFunction"/> while exposing a provider-compatible input schema.
 /// </summary>
 internal sealed class ToolSchemaSanitizingFunction(AIFunction innerFunction)
-    : DelegatingAIFunction(innerFunction), IPluginFunctionTool, IDeferredToolMetadata, IGeneratedToolMetadata, IToolNamespaceMetadata
+    : DelegatingAIFunction(innerFunction),
+        IPluginFunctionTool,
+        IDeferredToolMetadata,
+        IGeneratedToolMetadata,
+        IToolNamespaceMetadata,
+        IOpenAIResponsesFunctionToolMetadata
 {
     private readonly JsonElement _jsonSchema = ToolSchemaSanitizer.SanitizeJsonSchema(innerFunction.JsonSchema);
 
@@ -111,6 +116,9 @@ internal sealed class ToolSchemaSanitizingFunction(AIFunction innerFunction)
 
     public string? ToolNamespace =>
         ToolNamespaceMetadataResolver.TryGet(InnerFunction, out var toolNamespace) ? toolNamespace : null;
+
+    public bool? Strict =>
+        InnerFunction is IOpenAIResponsesFunctionToolMetadata metadata ? metadata.Strict : null;
 
     public bool StreamArgumentsEnabled =>
         !GeneratedToolMetadataResolver.TryGet(InnerFunction, out var metadata) || metadata.StreamArgumentsEnabled;
