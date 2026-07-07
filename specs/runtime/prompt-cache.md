@@ -58,7 +58,7 @@ The wire body emitted on every Responses request:
   "model": "<model>",
   "instructions": "<system prompt>",
   "input": [ /* message / function_call / function_call_output / reasoning items */ ],
-  "tools": [ /* function / tool_search definitions */ ],
+  "tools": [ /* function / namespace / tool_search definitions */ ],
   "store": false,
   "stream": true,
   "include": ["reasoning.encrypted_content"],
@@ -74,6 +74,7 @@ Invariants the runtime must uphold:
 - **`prompt_cache_key` equals the active thread id** across every request issued on that thread, including maintenance forks and session-backed subagent turns scoped to the parent thread. Isolated legacy/function-style subagent runtimes that execute outside the parent thread may use a deterministic derived identity because they are separate provider conversations; they must not overwrite the parent thread's remembered cache breakpoints.
 - **`store=false`**. The backend MUST be treated as stateless; conversation state lives in DotCraft. Reasoning items round-trip through `include: ["reasoning.encrypted_content"]`.
 - **Input is rebuilt deterministically each turn**. Reasoning items keep their original `encrypted_content` blob byte-for-byte. Re-encrypting or stripping them breaks prefix equality.
+- **Namespaced tools keep their provider-visible namespace shape**. Runtime tools with a namespace are serialized as Responses `namespace` tool definitions that wrap their child `function` definitions. Namespaced `function_call` and matching `function_call_output` input items both retain the namespace. Prompt-cache request-shape hashes include these provider-visible namespace wrappers so flat and namespaced tools cannot share the same tool-schema hash.
 - **No volatile content in system / assistant turns**. Timestamps, randomised tool ordering, in-place mutation of caller options — all forbidden inside the cached prefix. Volatile content belongs only at the tail of the latest user turn.
 
 **Empirical envelope:** ~60% on a light baseline and ~40% on a heavy baseline. Exact numbers vary by gateway because each implements its own prefix-cache layer.
