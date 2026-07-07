@@ -246,6 +246,7 @@ internal static class ResponsesToolSearchMapper
         ChatOptions? options)
     {
         var input = new JsonArray();
+        var callNamespaces = new Dictionary<string, string>(StringComparer.Ordinal);
         foreach (var message in messages)
         {
             if (message.Role == ChatRole.System)
@@ -289,17 +290,23 @@ internal static class ResponsesToolSearchMapper
                     case FunctionCallContent call:
                         FlushMessage();
                         if (!string.IsNullOrWhiteSpace(call.CallId))
+                        {
                             callNames[call.CallId] = call.Name;
+                            if (TryReadFunctionCallNamespace(call, out var functionNamespace))
+                                callNamespaces[call.CallId] = functionNamespace;
+                        }
+
                         input.Add(CreateFunctionCallItem(call));
                         break;
 
                     case FunctionResultContent result:
                         FlushMessage();
                         callNames.TryGetValue(result.CallId, out var toolName);
+                        callNamespaces.TryGetValue(result.CallId, out var toolNamespace);
                         input.Add(string.Equals(toolName, NativeToolSearchTool.ToolName, StringComparison.Ordinal)
                             || IsToolSearchOutput(result.Result)
                             ? CreateToolSearchOutputItem(result)
-                            : CreateFunctionCallOutputItem(result));
+                            : CreateFunctionCallOutputItem(result, toolNamespace));
                         break;
 
                     default:
@@ -339,6 +346,7 @@ internal static class ResponsesToolSearchMapper
     private static JsonArray BuildTools(ChatOptions? options)
     {
         var tools = new JsonArray();
+        var namespaceToolArrays = new Dictionary<string, JsonArray>(StringComparer.Ordinal);
         foreach (var tool in options?.Tools ?? [])
         {
             if (string.Equals(tool.Name, NativeToolSearchTool.ToolName, StringComparison.Ordinal))
@@ -353,17 +361,43 @@ internal static class ResponsesToolSearchMapper
                 continue;
             }
 
-            tools.Add(new JsonObject
+            var functionTool = CreateFunctionTool(tool);
+            if (ToolNamespaceMetadataResolver.TryGet(tool, out var toolNamespace))
             {
-                ["type"] = "function",
-                ["name"] = tool.Name,
-                ["description"] = tool.Description,
-                ["parameters"] = CloneJsonElement(GetJsonSchema(tool))
-            });
+                if (!namespaceToolArrays.TryGetValue(toolNamespace, out var namespaceTools))
+                {
+                    namespaceTools = [];
+                    namespaceToolArrays[toolNamespace] = namespaceTools;
+                    tools.Add(CreateNamespaceTool(toolNamespace, namespaceTools));
+                }
+
+                namespaceTools.Add(functionTool);
+                continue;
+            }
+
+            tools.Add(functionTool);
         }
 
         return tools;
     }
+
+    private static JsonObject CreateFunctionTool(AITool tool) =>
+        new()
+        {
+            ["type"] = "function",
+            ["name"] = tool.Name,
+            ["description"] = tool.Description,
+            ["parameters"] = CloneJsonElement(GetJsonSchema(tool))
+        };
+
+    private static JsonObject CreateNamespaceTool(string namespaceName, JsonArray tools) =>
+        new()
+        {
+            ["type"] = "namespace",
+            ["name"] = namespaceName,
+            ["description"] = $"Tools in the {namespaceName} namespace.",
+            ["tools"] = tools
+        };
 
     private static ResponseReasoningOptions? CreateReasoningOptions(ReasoningOptions? reasoning)
     {
@@ -593,13 +627,20 @@ internal static class ResponsesToolSearchMapper
         return item;
     }
 
-    private static JsonObject CreateFunctionCallOutputItem(FunctionResultContent result) =>
-        new()
+    private static JsonObject CreateFunctionCallOutputItem(FunctionResultContent result, string? functionNamespace)
+    {
+        var item = new JsonObject
         {
             ["type"] = "function_call_output",
             ["call_id"] = result.CallId,
             ["output"] = SerializeResult(result.Result)
         };
+
+        if (!string.IsNullOrWhiteSpace(functionNamespace))
+            item["namespace"] = functionNamespace;
+
+        return item;
+    }
 
     private static bool TryCreateReasoningItem(
         TextReasoningContent reasoning,

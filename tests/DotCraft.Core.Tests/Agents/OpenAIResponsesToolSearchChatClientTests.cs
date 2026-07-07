@@ -2,9 +2,12 @@ using System.ClientModel.Primitives;
 using System.Runtime.CompilerServices;
 using System.Reflection;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using DotCraft.Agents;
 using DotCraft.Configuration;
 using DotCraft.Context;
+using DotCraft.Protocol;
+using DotCraft.Protocol.AppServer;
 using DotCraft.Tools;
 using DotCraft.Tracing;
 using Microsoft.Extensions.AI;
@@ -335,6 +338,55 @@ public sealed class OpenAIResponsesToolSearchChatClientTests
     }
 
     [Fact]
+    public void CreateResponseOptions_EmitsNamespacedDynamicToolDefinition()
+    {
+        var dynamicTool = CreateRuntimeDynamicTool("image_gen", "imagegen");
+
+        using var document = JsonDocument.Parse(CreateRequestJson(
+            "gpt-test",
+            [new ChatMessage(ChatRole.User, "make an image")],
+            new ChatOptions
+            {
+                Tools = [dynamicTool]
+            }));
+
+        var namespaceTool = Assert.Single(document.RootElement.GetProperty("tools").EnumerateArray());
+        Assert.Equal("namespace", namespaceTool.GetProperty("type").GetString());
+        Assert.Equal("image_gen", namespaceTool.GetProperty("name").GetString());
+        Assert.Equal("Tools in the image_gen namespace.", namespaceTool.GetProperty("description").GetString());
+
+        var child = Assert.Single(namespaceTool.GetProperty("tools").EnumerateArray());
+        Assert.Equal("function", child.GetProperty("type").GetString());
+        Assert.Equal("imagegen", child.GetProperty("name").GetString());
+        Assert.Equal("Generate an image.", child.GetProperty("description").GetString());
+        Assert.Equal("object", child.GetProperty("parameters").GetProperty("type").GetString());
+        Assert.False(child.TryGetProperty("namespace", out _));
+        Assert.False(child.TryGetProperty("defer_loading", out _));
+    }
+
+    [Fact]
+    public void CreateResponseOptions_LeavesFlatFunctionToolDefinitionUnchanged()
+    {
+        var tool = new TestFunction("imagegen", "Generate an image.");
+
+        using var document = JsonDocument.Parse(CreateRequestJson(
+            "gpt-test",
+            [new ChatMessage(ChatRole.User, "make an image")],
+            new ChatOptions
+            {
+                Tools = [tool]
+            }));
+
+        var functionTool = Assert.Single(document.RootElement.GetProperty("tools").EnumerateArray());
+        Assert.Equal("function", functionTool.GetProperty("type").GetString());
+        Assert.Equal("imagegen", functionTool.GetProperty("name").GetString());
+        Assert.Equal("Generate an image.", functionTool.GetProperty("description").GetString());
+        Assert.Equal("object", functionTool.GetProperty("parameters").GetProperty("type").GetString());
+        Assert.False(functionTool.TryGetProperty("namespace", out _));
+        Assert.False(functionTool.TryGetProperty("tools", out _));
+    }
+
+    [Fact]
     public void CreateResponseOptions_NormalizesLegacyToolSearchArguments()
     {
         using var document = JsonDocument.Parse(CreateRequestJson(
@@ -531,6 +583,28 @@ public sealed class OpenAIResponsesToolSearchChatClientTests
         Assert.Equal(1, shape.ToolCount);
         Assert.True(shape.StreamingEnabled);
         Assert.DoesNotContain("sample user prompt", shapeJson, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void CreateResponseRequestShape_DistinguishesFlatAndNamespacedTools()
+    {
+        var flatTool = new TestFunction("imagegen", "Generate an image.");
+        var namespacedTool = new TestFunction("imagegen", "Generate an image.", "image_gen");
+
+        var flatShape = ResponsesToolSearchMapper.CreateResponseRequest(
+            "gpt-test",
+            [new ChatMessage(ChatRole.User, "make an image")],
+            new ChatOptions { Tools = [flatTool] }).Shape;
+        var namespacedShape = ResponsesToolSearchMapper.CreateResponseRequest(
+            "gpt-test",
+            [new ChatMessage(ChatRole.User, "make an image")],
+            new ChatOptions { Tools = [namespacedTool] }).Shape;
+
+        Assert.Equal(1, flatShape.ToolCount);
+        Assert.Equal(1, namespacedShape.ToolCount);
+        Assert.StartsWith("sha256:", flatShape.ToolsHash, StringComparison.Ordinal);
+        Assert.StartsWith("sha256:", namespacedShape.ToolsHash, StringComparison.Ordinal);
+        Assert.NotEqual(flatShape.ToolsHash, namespacedShape.ToolsHash);
     }
 
     [Fact]
@@ -833,6 +907,7 @@ public sealed class OpenAIResponsesToolSearchChatClientTests
         Assert.Equal("workflow", functionCall.GetProperty("namespace").GetString());
 
         var output = input.Single(item => item.GetProperty("type").GetString() == "function_call_output");
+        Assert.Equal("workflow", output.GetProperty("namespace").GetString());
         var outputText = output.GetProperty("output").GetString();
         Assert.Equal("Created Workflow App task DEF-188.\n{\"id\":\"DEF-188\"}", outputText);
         Assert.DoesNotContain(nameof(TextContent), outputText, StringComparison.Ordinal);
@@ -1090,6 +1165,7 @@ public sealed class OpenAIResponsesToolSearchChatClientTests
         Assert.Equal("workflow", functionCall.GetProperty("namespace").GetString());
 
         var functionOutput = thirdInput.Single(item => item.GetProperty("type").GetString() == "function_call_output");
+        Assert.Equal("workflow", functionOutput.GetProperty("namespace").GetString());
         var outputText = functionOutput.GetProperty("output").GetString();
         Assert.Equal("Created Workflow App task DEF-188.\n{\"id\":\"DEF-188\"}", outputText);
         Assert.DoesNotContain(nameof(TextContent), outputText, StringComparison.Ordinal);
@@ -1379,6 +1455,39 @@ public sealed class OpenAIResponsesToolSearchChatClientTests
             transport,
             traceCollector);
 
+    private static AITool CreateRuntimeDynamicTool(string? toolNamespace, string name)
+    {
+        var proxy = new WireDynamicToolProxy();
+        var thread = new SessionThread
+        {
+            Id = $"thread_{Guid.NewGuid():N}",
+            WorkspacePath = Environment.CurrentDirectory,
+            OriginChannel = "appserver",
+            Status = ThreadStatus.Active,
+            CreatedAt = DateTimeOffset.UtcNow,
+            LastActiveAt = DateTimeOffset.UtcNow,
+            Configuration = new ThreadConfiguration()
+        };
+
+        proxy.BindThread(
+            thread.Id,
+            new NoopAppServerTransport(),
+            new AppServerConnection(),
+            [
+                new DynamicToolSpec
+                {
+                    Namespace = toolNamespace,
+                    Name = name,
+                    Description = "Generate an image.",
+                    InputSchema = new JsonObject { ["type"] = "object" }
+                }
+            ]);
+
+        return Assert.Single(proxy.CreateToolsForThread(
+            thread,
+            new HashSet<string>(StringComparer.Ordinal)));
+    }
+
     private static byte[] CreateImageBytes(string mediaType)
     {
         using var image = new Image<Rgba32>(1, 1, new Rgba32(0xff, 0, 0));
@@ -1468,6 +1577,58 @@ public sealed class OpenAIResponsesToolSearchChatClientTests
     }
 
     private sealed class UnknownContent : AIContent;
+
+    private sealed class NoopAppServerTransport : IAppServerTransport
+    {
+        public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+
+        public Task<AppServerIncomingMessage?> ReadMessageAsync(CancellationToken ct = default) =>
+            Task.FromResult<AppServerIncomingMessage?>(null);
+
+        public Task WriteMessageAsync(object message, CancellationToken ct = default) =>
+            Task.CompletedTask;
+
+        public Task<AppServerIncomingMessage> SendClientRequestAsync(
+            string method,
+            object? @params,
+            CancellationToken ct = default,
+            TimeSpan? timeout = null) =>
+            throw new NotSupportedException();
+    }
+
+    private sealed class TestFunction(
+        string name,
+        string description,
+        string? toolNamespace = null) : AIFunction, IToolNamespaceMetadata
+    {
+        private static readonly JsonElement Schema = JsonSerializer.SerializeToElement(new
+        {
+            type = "object"
+        });
+
+        public string? ToolNamespace => toolNamespace;
+
+        public override string Name => name;
+
+        public override string Description => description;
+
+        public override JsonElement JsonSchema => Schema;
+
+        public override JsonElement? ReturnJsonSchema => null;
+
+        public override MethodInfo? UnderlyingMethod => null;
+
+        public override JsonSerializerOptions JsonSerializerOptions => JsonSerializerOptions.Default;
+
+        protected override ValueTask<object?> InvokeCoreAsync(
+            AIFunctionArguments arguments,
+            CancellationToken cancellationToken)
+        {
+            _ = arguments;
+            _ = cancellationToken;
+            return ValueTask.FromResult<object?>("ok");
+        }
+    }
 
     private sealed class DeferredDynamicFunction(
         string name,

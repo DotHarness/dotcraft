@@ -3,6 +3,7 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using DotCraft.Protocol;
 using DotCraft.Security;
+using DotCraft.Tools;
 using Microsoft.Extensions.AI;
 
 namespace DotCraft.Plugins;
@@ -10,7 +11,7 @@ namespace DotCraft.Plugins;
 /// <summary>
 /// MEAI function wrapper used for plugin function descriptors.
 /// </summary>
-public sealed class PluginFunctionRuntimeFunction : AIFunction, IPluginFunctionTool
+public sealed class PluginFunctionRuntimeFunction : AIFunction, IPluginFunctionTool, IToolNamespaceMetadata
 {
     private readonly PluginFunctionRegistration _registration;
     private readonly JsonElement _jsonSchema;
@@ -28,6 +29,8 @@ public sealed class PluginFunctionRuntimeFunction : AIFunction, IPluginFunctionT
     public PluginFunctionDescriptor Descriptor => _registration.Descriptor;
 
     public PluginFunctionDescriptor? PluginFunctionDescriptor => Descriptor;
+
+    public string? ToolNamespace => Descriptor.Namespace;
 
     public override string Name => Descriptor.Name;
 

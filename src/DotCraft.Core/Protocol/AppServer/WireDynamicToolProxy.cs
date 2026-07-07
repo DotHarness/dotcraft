@@ -5,6 +5,7 @@ using System.Text.Json.Nodes;
 using DotCraft.Abstractions;
 using DotCraft.Plugins;
 using DotCraft.Security;
+using DotCraft.Tools;
 using Microsoft.Extensions.AI;
 
 namespace DotCraft.Protocol.AppServer;
@@ -302,11 +303,13 @@ public sealed class WireDynamicToolProxy : IThreadRuntimeToolProvider
     private sealed class DynamicToolRuntimeFunction(
         WireDynamicToolProxy proxy,
         DynamicToolThreadBinding binding,
-        DynamicToolSpec spec) : AIFunction, IDynamicToolRuntimeTool
+        DynamicToolSpec spec) : AIFunction, IDynamicToolRuntimeTool, IToolNamespaceMetadata
     {
         private readonly JsonElement _jsonSchema = ToJsonElement(spec.InputSchema ?? new JsonObject { ["type"] = "object" });
 
         public DynamicToolSpec Spec => spec;
+
+        public string? ToolNamespace => spec.Namespace;
 
         public override string Name => spec.Name;
 
