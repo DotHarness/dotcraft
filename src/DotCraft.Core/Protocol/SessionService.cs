@@ -2025,6 +2025,7 @@ public sealed partial class SessionService(
                 // Step 5g: Run agent
                 var pluginFunctionCallIds = new HashSet<string>(StringComparer.Ordinal);
                 var dynamicToolCallIds = new HashSet<string>(StringComparer.Ordinal);
+                var imageGenerationItemsByCallId = new Dictionary<string, SessionItem>(StringComparer.Ordinal);
                 int? currentUsageRequestIndex = null;
                 ChatFinishReason? lastFinishReason = null;
                 var usageAccumulator = new TokenUsageRequestAccumulator();
@@ -2296,13 +2297,45 @@ public sealed partial class SessionService(
                                     break;
                                 }
 
+                                case ImageGenerationToolCallContent imageGenerationCall:
+                                {
+                                    FinalizeStreamingReasoning();
+                                    FinalizeStreamingAgentMessage();
+                                    RegisterImageGenerationStarted(
+                                        turn,
+                                        imageGenerationItemsByCallId,
+                                        ResolveImageGenerationCallId(imageGenerationCall.CallId),
+                                        TryReadImageGenerationRevisedPrompt(imageGenerationCall),
+                                        eventChannel,
+                                        NextItemSeq);
+                                    break;
+                                }
+
+                                case ImageGenerationToolResultContent imageGenerationResult:
+                                {
+                                    FinalizeStreamingReasoning();
+                                    FinalizeStreamingAgentMessage();
+                                    await CompleteImageGenerationAsync(
+                                        threadId,
+                                        turn,
+                                        imageGenerationItemsByCallId,
+                                        ResolveImageGenerationCallId(imageGenerationResult.CallId),
+                                        imageGenerationResult,
+                                        effectiveWorkspacePath,
+                                        eventChannel,
+                                        NextItemSeq,
+                                        cts.Token).ConfigureAwait(false);
+                                    break;
+                                }
+
                                 case HostedImageGenerationContent hostedImage:
                                 {
                                     FinalizeStreamingReasoning();
                                     FinalizeStreamingAgentMessage();
-                                    await AddHostedImageGenerationItemsAsync(
+                                    await CompleteHostedImageGenerationAsync(
                                         threadId,
                                         turn,
+                                        imageGenerationItemsByCallId,
                                         hostedImage,
                                         effectiveWorkspacePath,
                                         eventChannel,
@@ -3664,9 +3697,10 @@ public sealed partial class SessionService(
         return images;
     }
 
-    private async Task AddHostedImageGenerationItemsAsync(
+    private async Task CompleteHostedImageGenerationAsync(
         string threadId,
         SessionTurn turn,
+        Dictionary<string, SessionItem> imageGenerationItemsByCallId,
         HostedImageGenerationContent content,
         string workspacePath,
         SessionEventChannel eventChannel,
@@ -3676,57 +3710,158 @@ public sealed partial class SessionService(
         var callId = string.IsNullOrWhiteSpace(content.Id)
             ? "ig_" + Guid.NewGuid().ToString("N")
             : content.Id.Trim();
-        var now = DateTimeOffset.UtcNow;
-        var arguments = new JsonObject();
-        if (!string.IsNullOrWhiteSpace(content.RevisedPrompt))
-            arguments["revisedPrompt"] = content.RevisedPrompt;
-
-        var toolCallItem = new SessionItem
-        {
-            Id = SessionIdGenerator.NewItemId(nextItemSeq()),
-            TurnId = turn.Id,
-            Type = ItemType.ToolCall,
-            Status = ItemStatus.Completed,
-            CreatedAt = now,
-            CompletedAt = now,
-            Payload = new ToolCallPayload
-            {
-                ToolName = HostedImageGenerationContent.ToolName,
-                Arguments = arguments,
-                CallId = callId
-            }
-        };
-        turn.Items.Add(toolCallItem);
-        eventChannel.EmitItemStarted(toolCallItem);
-        eventChannel.EmitItemCompleted(toolCallItem);
+        var item = RegisterImageGenerationStarted(
+            turn,
+            imageGenerationItemsByCallId,
+            callId,
+            content.RevisedPrompt,
+            eventChannel,
+            nextItemSeq);
 
         if (content.Succeeded && content.ImageBytes is { Length: > 0 } imageBytes)
-            await SaveHostedImageGenerationAsync(workspacePath, threadId, callId, imageBytes, ct).ConfigureAwait(false);
+        {
+            var mediaType = NormalizeImageGenerationMediaType(content.MediaType);
+            var savedPath = await SaveHostedImageGenerationAsync(workspacePath, threadId, callId, imageBytes, ct)
+                .ConfigureAwait(false);
+            CompleteImageGenerationItem(
+                item,
+                imageGenerationItemsByCallId,
+                new ImageGenerationPayload
+                {
+                    CallId = callId,
+                    Status = "completed",
+                    RevisedPrompt = content.RevisedPrompt,
+                    Result = Convert.ToBase64String(imageBytes),
+                    MediaType = mediaType,
+                    SavedPath = savedPath
+                },
+                eventChannel);
+            return;
+        }
 
-        var resultText = BuildHostedImageGenerationResultText(content);
-        var contentItems = BuildHostedImageGenerationContentItems(content, resultText);
-        var toolResultItem = new SessionItem
+        CompleteImageGenerationItem(
+            item,
+            imageGenerationItemsByCallId,
+            new ImageGenerationPayload
+            {
+                CallId = callId,
+                Status = "failed",
+                RevisedPrompt = content.RevisedPrompt,
+                MediaType = NormalizeImageGenerationMediaType(content.MediaType),
+                ErrorMessage = string.IsNullOrWhiteSpace(content.ErrorMessage)
+                    ? "Image generation failed."
+                    : content.ErrorMessage.Trim()
+            },
+            eventChannel);
+    }
+
+    private async Task CompleteImageGenerationAsync(
+        string threadId,
+        SessionTurn turn,
+        Dictionary<string, SessionItem> imageGenerationItemsByCallId,
+        string callId,
+        ImageGenerationToolResultContent result,
+        string workspacePath,
+        SessionEventChannel eventChannel,
+        Func<int> nextItemSeq,
+        CancellationToken ct)
+    {
+        var revisedPrompt = TryReadImageGenerationRevisedPrompt(result);
+        var item = RegisterImageGenerationStarted(
+            turn,
+            imageGenerationItemsByCallId,
+            callId,
+            revisedPrompt,
+            eventChannel,
+            nextItemSeq);
+
+        if (TryExtractImageGenerationImage(result, out var imageBytes, out var mediaType, out var errorMessage))
+        {
+            var savedPath = await SaveHostedImageGenerationAsync(workspacePath, threadId, callId, imageBytes, ct)
+                .ConfigureAwait(false);
+            CompleteImageGenerationItem(
+                item,
+                imageGenerationItemsByCallId,
+                new ImageGenerationPayload
+                {
+                    CallId = callId,
+                    Status = "completed",
+                    RevisedPrompt = revisedPrompt ?? item.AsImageGeneration?.RevisedPrompt,
+                    Result = Convert.ToBase64String(imageBytes),
+                    MediaType = mediaType,
+                    SavedPath = savedPath
+                },
+                eventChannel);
+            return;
+        }
+
+        CompleteImageGenerationItem(
+            item,
+            imageGenerationItemsByCallId,
+            new ImageGenerationPayload
+            {
+                CallId = callId,
+                Status = "failed",
+                RevisedPrompt = revisedPrompt ?? item.AsImageGeneration?.RevisedPrompt,
+                MediaType = mediaType,
+                ErrorMessage = errorMessage
+            },
+            eventChannel);
+    }
+
+    private static SessionItem RegisterImageGenerationStarted(
+        SessionTurn turn,
+        Dictionary<string, SessionItem> imageGenerationItemsByCallId,
+        string callId,
+        string? revisedPrompt,
+        SessionEventChannel eventChannel,
+        Func<int> nextItemSeq)
+    {
+        if (imageGenerationItemsByCallId.TryGetValue(callId, out var existing))
+        {
+            if (!string.IsNullOrWhiteSpace(revisedPrompt)
+                && existing.AsImageGeneration is { RevisedPrompt: null } existingPayload)
+            {
+                existing.Payload = existingPayload with { RevisedPrompt = revisedPrompt.Trim() };
+            }
+
+            return existing;
+        }
+
+        var item = new SessionItem
         {
             Id = SessionIdGenerator.NewItemId(nextItemSeq()),
             TurnId = turn.Id,
-            Type = ItemType.ToolResult,
-            Status = ItemStatus.Completed,
+            Type = ItemType.ImageGeneration,
+            Status = ItemStatus.Started,
             CreatedAt = DateTimeOffset.UtcNow,
-            CompletedAt = DateTimeOffset.UtcNow,
-            Payload = new ToolResultPayload
+            Payload = new ImageGenerationPayload
             {
                 CallId = callId,
-                Result = resultText,
-                ContentItems = contentItems,
-                Success = content.Succeeded
+                Status = "inProgress",
+                RevisedPrompt = string.IsNullOrWhiteSpace(revisedPrompt) ? null : revisedPrompt.Trim()
             }
         };
-        turn.Items.Add(toolResultItem);
-        eventChannel.EmitItemStarted(toolResultItem);
-        eventChannel.EmitItemCompleted(toolResultItem);
+        imageGenerationItemsByCallId[callId] = item;
+        turn.Items.Add(item);
+        eventChannel.EmitItemStarted(item);
+        return item;
     }
 
-    private async Task SaveHostedImageGenerationAsync(
+    private static void CompleteImageGenerationItem(
+        SessionItem item,
+        Dictionary<string, SessionItem> imageGenerationItemsByCallId,
+        ImageGenerationPayload payload,
+        SessionEventChannel eventChannel)
+    {
+        item.Status = ItemStatus.Completed;
+        item.CompletedAt = DateTimeOffset.UtcNow;
+        item.Payload = payload;
+        imageGenerationItemsByCallId.Remove(payload.CallId);
+        eventChannel.EmitItemCompleted(item);
+    }
+
+    private async Task<string?> SaveHostedImageGenerationAsync(
         string workspacePath,
         string threadId,
         string callId,
@@ -3744,48 +3879,79 @@ public sealed partial class SessionService(
 
             var outputPath = Path.Combine(outputDirectory, SanitizePathSegment(callId) + ".png");
             await File.WriteAllBytesAsync(outputPath, imageBytes, ct).ConfigureAwait(false);
+            return outputPath;
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException or PathTooLongException)
         {
             Logger?.LogWarning(ex, "Failed to persist hosted image generation output for thread {ThreadId}", threadId);
+            return null;
         }
     }
 
-    private static string BuildHostedImageGenerationResultText(HostedImageGenerationContent content)
-    {
-        if (!string.IsNullOrWhiteSpace(content.ErrorMessage))
-            return "Error: image generation failed: " + content.ErrorMessage.Trim();
+    private static string ResolveImageGenerationCallId(string? callId) =>
+        string.IsNullOrWhiteSpace(callId)
+            ? "ig_" + Guid.NewGuid().ToString("N")
+            : callId.Trim();
 
-        return string.IsNullOrWhiteSpace(content.RevisedPrompt)
-            ? "Generated image."
-            : content.RevisedPrompt.Trim();
+    private static string? TryReadImageGenerationRevisedPrompt(AIContent content)
+    {
+        if (TryGetStringProperty(content.AdditionalProperties, "revisedPrompt", out var revisedPrompt) ||
+            TryGetStringProperty(content.AdditionalProperties, "revised_prompt", out revisedPrompt))
+        {
+            return revisedPrompt;
+        }
+
+        return null;
     }
 
-    private static IReadOnlyList<PluginFunctionContentItem>? BuildHostedImageGenerationContentItems(
-        HostedImageGenerationContent content,
-        string resultText)
+    private static bool TryExtractImageGenerationImage(
+        ImageGenerationToolResultContent result,
+        out byte[] imageBytes,
+        out string mediaType,
+        out string errorMessage)
     {
-        if (!content.Succeeded || content.ImageBytes is not { Length: > 0 } imageBytes)
-            return null;
+        imageBytes = [];
+        mediaType = "image/png";
+        errorMessage = "Image generation returned no inline image data.";
+        var sawRemoteImage = false;
 
-        var mediaType = string.IsNullOrWhiteSpace(content.MediaType)
-            ? "image/png"
-            : content.MediaType.Trim();
-        return
-        [
-            new PluginFunctionContentItem
+        if (result.Outputs is not { Count: > 0 } outputs)
+            return false;
+
+        foreach (var output in outputs)
+        {
+            switch (output)
             {
-                Type = "text",
-                Text = resultText
-            },
-            new PluginFunctionContentItem
-            {
-                Type = "image",
-                MediaType = mediaType,
-                DataBase64 = Convert.ToBase64String(imageBytes)
+                case DataContent data when IsImageMediaType(data.MediaType):
+                    try
+                    {
+                        var bytes = data.Data.ToArray();
+                        if (bytes.Length > 0)
+                        {
+                            imageBytes = bytes;
+                            mediaType = NormalizeImageGenerationMediaType(data.MediaType);
+                            errorMessage = string.Empty;
+                            return true;
+                        }
+                    }
+                    catch (InvalidOperationException)
+                    {
+                    }
+                    break;
+                case UriContent uri when uri.HasTopLevelMediaType("image"):
+                    sawRemoteImage = true;
+                    mediaType = NormalizeImageGenerationMediaType(uri.MediaType);
+                    break;
             }
-        ];
+        }
+
+        if (sawRemoteImage)
+            errorMessage = "Image generation returned a remote image URI, but no inline image data.";
+        return false;
     }
+
+    private static string NormalizeImageGenerationMediaType(string? mediaType) =>
+        string.IsNullOrWhiteSpace(mediaType) ? "image/png" : mediaType.Trim();
 
     private static string SanitizePathSegment(string value)
     {
@@ -3836,11 +4002,13 @@ public sealed partial class SessionService(
         mediaType?.StartsWith("image/", StringComparison.OrdinalIgnoreCase) == true;
 
     private static bool TryGetStringProperty(
-        IReadOnlyDictionary<string, object?> properties,
+        IReadOnlyDictionary<string, object?>? properties,
         string key,
         out string value)
     {
         value = string.Empty;
+        if (properties == null)
+            return false;
         if (!properties.TryGetValue(key, out var raw) || raw == null)
             return false;
         var text = raw as string ?? raw.ToString();

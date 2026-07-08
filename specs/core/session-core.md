@@ -368,6 +368,7 @@ Fields:
   - `ReasoningContent` — Agent's internal reasoning/thinking (if exposed by the model).
   - `CommandExecution` — Server-observed shell execution projection for `Exec`-style tools. Payload includes command metadata and aggregated output for persistence, history summaries, and non-terminal-capable fallback rendering.
   - `ToolExecution` — Server-observed runtime lifecycle for a normal tool invocation. Payload includes call id, tool name, status, duration, and optional preview/error text.
+  - `ImageGeneration` — Hosted image generation lifecycle. Payload includes provider call id, in-progress/completed/failed status, revised prompt, generated image bytes when available, saved path, and error text.
   - `ToolCall` — Agent invokes a tool. Payload includes tool name and arguments.
   - `PluginFunctionCall` — Agent invokes a Plugin Function. Payload includes plugin identity, function name, arguments, content items, structured result, and success/failure metadata. Plugin-backed tools do not create companion `ToolResult` items.
   - `DynamicToolCall` — Agent invokes a runtime dynamic tool declared by an AppServer client. Payload includes optional namespace, tool name, arguments, content items, structured result, and success/failure metadata. Runtime dynamic tools do not create companion `ToolCall` / `ToolResult` items.
@@ -494,6 +495,22 @@ Delta payload (during streaming):
 ```
 
 `ToolExecution` is a runtime projection for UIs. It does not replace `ToolCall` or `ToolResult`: `ToolCall` remains the model-request/final-arguments item, and `ToolResult` remains the complete model-visible result.
+
+#### ImageGeneration
+
+```
+{
+  "callId": string,        // Provider image generation call id
+  "status": string,        // "inProgress", "completed", or "failed"
+  "revisedPrompt": string, // Optional provider-revised prompt
+  "result": string,        // Base64 image bytes when completed with inline image data
+  "mediaType": string,     // Image media type; defaults to "image/png"
+  "savedPath": string,     // Optional local path under .craft/generated_images/{threadId}/{callId}.png
+  "errorMessage": string   // Optional human-readable failure or unsupported-result message
+}
+```
+
+`ImageGeneration` represents hosted image generation as a first-class Session item. Session Core creates the item from the SDK-hosted image generation call content and completes the same item when the result content arrives. If the result arrives before the call, Session Core creates and immediately completes a single `ImageGeneration` item. Completed inline image bytes are persisted under `.craft/generated_images/{threadId}/{callId}.png`; the payload also carries base64 bytes for wire clients. Historical `image_generation` `ToolCall` / `ToolResult` items remain readable for compatibility, but new turns SHOULD use `ImageGeneration`.
 
 #### PluginFunctionCall
 
@@ -831,6 +848,7 @@ WaitingApproval/WaitingInput ──────────► Cancelled
 - `Started` → `Completed` (for non-streaming items)
     - Items like `ToolResult`, `ApprovalRequest`, `ApprovalResponse`, `UserInputRequest`, `UserInputResponse`, `Error` are created with their full payload and immediately completed.
     - `ToolCall` is usually completed directly, but hosts may expose an intermediate streaming preview of argument construction before the final completed payload is persisted.
+    - `ImageGeneration` starts when hosted image generation begins and completes with inline image data or a visible failure/unsupported-result payload.
     - `PluginFunctionCall` starts when the plugin wrapper begins execution and completes with the plugin result payload.
     - `DynamicToolCall` starts when the runtime dynamic tool wrapper begins execution and completes with the AppServer client callback result payload.
 
@@ -852,7 +870,7 @@ A typical Turn produces Items in this order:
 ```
 1. UserMessage (input)
 2. [ReasoningContent] (if model exposes thinking)
-3. [ToolCall → ToolResult | PluginFunctionCall | DynamicToolCall]* (zero or more tool invocations)
+3. [ToolCall → ToolResult | ImageGeneration | PluginFunctionCall | DynamicToolCall]* (zero or more tool/hosted invocations)
    3a. [ApprovalRequest → ApprovalResponse] (within a tool call, if approval needed)
    3b. [UserInputRequest → UserInputResponse] (Plan Mode only, if the agent needs a user decision before continuing)
 4. AgentMessage (final response, streamed)

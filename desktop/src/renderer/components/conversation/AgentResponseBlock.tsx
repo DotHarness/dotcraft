@@ -1,5 +1,5 @@
 import { memo, useEffect, useState, type CSSProperties, type ReactNode } from 'react'
-import { Info } from 'lucide-react'
+import { Image as ImageIcon, Info } from 'lucide-react'
 import type { ConversationItem, ConversationTurn, PluginFunctionContentItem } from '../../types/conversation'
 import { isToolLikeItemType } from '../../types/conversation'
 import { ThinkingIndicator } from './ThinkingIndicator'
@@ -18,6 +18,7 @@ import { SystemNoticeBlock } from './SystemNoticeBlock'
 import { UserMessageBlock } from './UserMessageBlock'
 import { ContextMenu, type ContextMenuEntry, type ContextMenuPosition } from '../ui/ContextMenu'
 import { ActionTooltip } from '../ui/ActionTooltip'
+import { Skeleton } from '../ui/Skeleton'
 import { planToolRunRender } from '../../utils/toolCallAggregation'
 import type { AggregatedToolCall } from '../../utils/toolCallAggregation'
 import type { ToolGroupCategory } from '../../utils/toolCallAggregation'
@@ -170,6 +171,11 @@ export const AgentResponseBlock = memo(function AgentResponseBlock({
             )
           })
         }
+      } else if (item.type === 'imageGeneration') {
+        nodes.push({
+          kind: 'tool',
+          node: <ImageGenerationEntry key={item.id} item={item} />
+        })
       } else if (item.type === 'userMessage' && item.deliveryMode === 'guidance') {
         nodes.push({
           kind: 'user',
@@ -342,14 +348,18 @@ export const AgentResponseBlock = memo(function AgentResponseBlock({
   if (shouldCollapseIntermediate) {
     if (trimHistoricalToolContent) {
       const beforeFinalItems = collapseSourceItems.slice(0, lastFinalAgentMessageIndex)
+      const pinnedTrimmedIndices = collectTrimmedPinnedIntermediateIndices(beforeFinalItems)
       const intermediateNodes = renderItemSequence(
-        beforeFinalItems.filter(isTrimmedHistoryCollapsedItem),
+        beforeFinalItems.filter((item, index) =>
+          !pinnedTrimmedIndices.has(index) && isTrimmedHistoryCollapsedItem(item)
+        ),
         'trimmed-history-intermediate'
       )
-      const pinnedPlanNodes = renderItemSequence(
-        beforeFinalItems.filter(isCreatePlanItem),
-        'trimmed-history-plan'
-      )
+      const pinnedTrimmedNodes = Array.from(pinnedTrimmedIndices)
+        .sort((a, b) => a - b)
+        .flatMap((pinnedIndex, position) =>
+          renderItemSequence([beforeFinalItems[pinnedIndex]], `trimmed-history-pinned-${position}`)
+        )
       const trailingNodes = renderItemSequence(
         collapseSourceItems.slice(lastFinalAgentMessageIndex).filter(isTrimmedHistoryRenderableItem),
         'trimmed-history-trailing'
@@ -367,10 +377,10 @@ export const AgentResponseBlock = memo(function AgentResponseBlock({
           </TurnCollapsedSummary>
         )
       })
-      renderNodes.push(...pinnedPlanNodes)
+      renderNodes.push(...pinnedTrimmedNodes)
       renderNodes.push(...trailingNodes)
     } else {
-      // Pin the last CreatePlan and the last interactive card out of the collapsed
+      // Pin durable user-facing results out of the collapsed
       // summary (tool-result-presentation M‑vii). Split the intermediate run at each
       // pinned boundary so a pinned card never merges the tool runs on either side.
       const pinnedIndices = collectPinnedIntermediateIndices(renderableItems, lastFinalAgentMessageIndex)
@@ -517,6 +527,69 @@ function StreamRetryRow({ signal }: { signal: StreamRetrySignal }): JSX.Element 
       <span style={streamRetryLabelStyle}>{label}</span>
     </div>
   )
+}
+
+function ImageGenerationEntry({ item }: { item: ConversationItem }): JSX.Element {
+  const locale = useLocale()
+  const status = item.imageGenerationStatus ?? (item.status === 'completed' ? 'completed' : 'inProgress')
+  const image = status === 'completed' ? getImageGenerationOutputImage(item) : null
+  const isInProgress = status === 'inProgress'
+
+  if (status === 'failed') {
+    return (
+      <ErrorBlock
+        message={item.errorMessage?.trim() || translate(locale, 'conversation.imageGeneration.failed')}
+      />
+    )
+  }
+
+  if (status === 'completed' && image == null) {
+    return <ErrorBlock message={translate(locale, 'conversation.imageGeneration.noImageData')} />
+  }
+
+  const label = status === 'completed'
+    ? translate(locale, 'conversation.imageGeneration.completed')
+    : translate(locale, 'conversation.imageGeneration.generating')
+
+  return (
+    <ToolEntryWithOutputs images={image ? [image] : []}>
+      <div
+        role={isInProgress ? 'status' : undefined}
+        aria-live={isInProgress ? 'polite' : undefined}
+        aria-busy={isInProgress ? true : undefined}
+        aria-label={isInProgress ? label : undefined}
+        style={isInProgress ? imageGenerationProgressStyle : undefined}
+      >
+        <div
+          data-testid="image-generation-row"
+          style={imageGenerationRowStyle}
+        >
+          <ImageIcon size={15} strokeWidth={1.8} aria-hidden="true" style={imageGenerationIconStyle} />
+          <span
+            className={isInProgress ? 'tool-running-gradient-text' : undefined}
+            style={imageGenerationLabelStyle}
+          >
+            {label}
+          </span>
+        </div>
+        {isInProgress && (
+          <div data-testid="image-generation-skeleton" style={imageGenerationSkeletonFrameStyle}>
+            <Skeleton width="100%" height="100%" radius={4} />
+          </div>
+        )}
+      </div>
+    </ToolEntryWithOutputs>
+  )
+}
+
+function getImageGenerationOutputImage(item: ConversationItem): ToolOutputImageItem | null {
+  const dataBase64 = item.result?.trim()
+  if (!dataBase64) return null
+  return {
+    id: `${item.id}-image-0`,
+    mediaType: item.mediaType?.trim() || 'image/png',
+    dataBase64
+  }
 }
 
 function TurnCompletionContent({ turnId }: { turnId: string }): JSX.Element {
@@ -811,6 +884,43 @@ const streamRetryLabelStyle: CSSProperties = {
   textOverflow: 'ellipsis',
   whiteSpace: 'nowrap',
   fontWeight: 600
+}
+
+const imageGenerationProgressStyle: CSSProperties = {
+  display: 'flex',
+  flexDirection: 'column',
+  gap: '6px'
+}
+
+const imageGenerationRowStyle: CSSProperties = {
+  display: 'flex',
+  alignItems: 'center',
+  gap: '8px',
+  minHeight: '28px',
+  padding: '3px 6px',
+  color: 'var(--text-secondary)',
+  fontSize: '12px',
+  lineHeight: 1.35,
+  userSelect: 'none'
+}
+
+const imageGenerationIconStyle: CSSProperties = {
+  flex: '0 0 auto',
+  color: 'var(--text-dimmed)'
+}
+
+const imageGenerationLabelStyle: CSSProperties = {
+  minWidth: 0,
+  overflow: 'hidden',
+  textOverflow: 'ellipsis',
+  whiteSpace: 'nowrap',
+  fontWeight: 600
+}
+
+const imageGenerationSkeletonFrameStyle: CSSProperties = {
+  width: '180px',
+  height: '180px',
+  padding: '0 6px'
 }
 
 // ── Grouped tool call row ─────────────────────────────────────────────────────
@@ -1146,10 +1256,24 @@ function findLastInteractiveCardIndexBefore(items: ConversationItem[], beforeInd
   return -1
 }
 
+function isCompletedImageGenerationResult(item: ConversationItem): boolean {
+  const status = item.imageGenerationStatus ?? (item.status === 'completed' ? 'completed' : undefined)
+  return item.type === 'imageGeneration'
+    && status === 'completed'
+    && (item.result ?? '').trim().length > 0
+}
+
+function findLastImageGenerationIndexBefore(items: ConversationItem[], beforeIndex: number): number {
+  for (let i = beforeIndex - 1; i >= 0; i--) {
+    if (isCompletedImageGenerationResult(items[i])) return i
+  }
+  return -1
+}
+
 /**
  * Intermediate items (before the final agent message) that should be pinned out of the
- * collapsed turn summary rather than folded into "Processed in Xs": the last CreatePlan
- * and the last interactive card. Returned ascending so the renderer can split the
+ * collapsed turn summary rather than folded into "Processed in Xs". Returned ascending
+ * so the renderer can split the
  * intermediate run at each pinned boundary and render the pinned items in order.
  */
 function collectPinnedIntermediateIndices(items: ConversationItem[], beforeIndex: number): number[] {
@@ -1158,7 +1282,19 @@ function collectPinnedIntermediateIndices(items: ConversationItem[], beforeIndex
   if (planIndex >= 0) indices.add(planIndex)
   const cardIndex = findLastInteractiveCardIndexBefore(items, beforeIndex)
   if (cardIndex >= 0) indices.add(cardIndex)
+  const imageIndex = findLastImageGenerationIndexBefore(items, beforeIndex)
+  if (imageIndex >= 0) indices.add(imageIndex)
   return Array.from(indices).sort((a, b) => a - b)
+}
+
+function collectTrimmedPinnedIntermediateIndices(items: ConversationItem[]): Set<number> {
+  const indices = new Set<number>()
+  items.forEach((item, index) => {
+    if (isCreatePlanItem(item)) indices.add(index)
+  })
+  const imageIndex = findLastImageGenerationIndexBefore(items, items.length)
+  if (imageIndex >= 0) indices.add(imageIndex)
+  return indices
 }
 
 function isGuidanceUserMessage(item: ConversationItem): boolean {
@@ -1186,6 +1322,7 @@ function isTrimmedHistoryRenderableItem(item: ConversationItem): boolean {
   if (item.type === 'userMessage') return item.deliveryMode === 'guidance'
   if (item.type === 'error') return true
   if (item.type === 'systemNotice') return true
+  if (isCompletedImageGenerationResult(item)) return true
   return isCreatePlanItem(item)
 }
 
@@ -1221,6 +1358,12 @@ function shouldRenderIdleThinkingFallback({
       return streamingMessage.trim().length > 0 && !streamingMessageStalled
     }
     if (isToolLikeItemType(item.type) && isToolItemLive(item, { turnRunning: true })) {
+      return true
+    }
+    if (
+      item.type === 'imageGeneration' &&
+      (item.imageGenerationStatus === 'inProgress' || item.status === 'started')
+    ) {
       return true
     }
     if (item.type === 'approvalCard' && item.approvalState === 'pending') {

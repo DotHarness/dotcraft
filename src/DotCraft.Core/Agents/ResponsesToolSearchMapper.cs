@@ -1091,7 +1091,7 @@ internal static class ResponsesToolSearchMapper
             var status = ReadJsonString(rawObject, "status") ?? "completed";
             var revisedPrompt = ReadJsonString(rawObject, "revised_prompt");
 
-            if (!string.Equals(status, "completed", StringComparison.OrdinalIgnoreCase))
+            if (string.Equals(status, "failed", StringComparison.OrdinalIgnoreCase))
             {
                 content = new HostedImageGenerationContent
                 {
@@ -1103,6 +1103,9 @@ internal static class ResponsesToolSearchMapper
                 };
                 return true;
             }
+
+            if (!string.Equals(status, "completed", StringComparison.OrdinalIgnoreCase))
+                return false;
 
             var result = ReadJsonString(rawObject, "result");
             if (string.IsNullOrWhiteSpace(result))

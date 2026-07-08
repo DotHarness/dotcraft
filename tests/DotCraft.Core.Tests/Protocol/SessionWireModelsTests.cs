@@ -191,6 +191,46 @@ public sealed class SessionWireModelsTests
         Assert.Equal("agent done", root.GetProperty("resultPreview").GetString());
     }
 
+    [Fact]
+    public void ToWire_ImageGenerationItem_SerializesPayloadKindAndShape()
+    {
+        var item = new SessionItem
+        {
+            Id = "item_1",
+            TurnId = "turn_1",
+            Type = ItemType.ImageGeneration,
+            Status = ItemStatus.Completed,
+            CreatedAt = new DateTimeOffset(2026, 5, 4, 10, 0, 0, TimeSpan.Zero),
+            CompletedAt = new DateTimeOffset(2026, 5, 4, 10, 0, 1, TimeSpan.Zero),
+            Payload = new ImageGenerationPayload
+            {
+                CallId = "ig_1",
+                Status = "completed",
+                RevisedPrompt = "A red square",
+                Result = "AQID",
+                MediaType = "image/png",
+                SavedPath = "<workspace>/.craft/generated_images/thread_1/ig_1.png"
+            }
+        };
+
+        var wire = item.ToWire();
+        Assert.Equal("imageGeneration", wire.PayloadKind);
+        var wireJson = JsonSerializer.Serialize(wire, SessionWireJsonOptions.Default);
+        Assert.Contains("\"type\":\"imageGeneration\"", wireJson, StringComparison.Ordinal);
+        Assert.Contains("\"payloadKind\":\"imageGeneration\"", wireJson, StringComparison.Ordinal);
+
+        var payloadJson = System.Text.Json.JsonSerializer.Serialize(
+            wire.Payload, SessionWireJsonOptions.Default);
+        using var doc = System.Text.Json.JsonDocument.Parse(payloadJson);
+        var root = doc.RootElement;
+        Assert.Equal("ig_1", root.GetProperty("callId").GetString());
+        Assert.Equal("completed", root.GetProperty("status").GetString());
+        Assert.Equal("A red square", root.GetProperty("revisedPrompt").GetString());
+        Assert.Equal("AQID", root.GetProperty("result").GetString());
+        Assert.Equal("image/png", root.GetProperty("mediaType").GetString());
+        Assert.Equal("<workspace>/.craft/generated_images/thread_1/ig_1.png", root.GetProperty("savedPath").GetString());
+    }
+
     private static SessionThread BuildThread(TurnStatus turnStatus)
     {
         var completedAt = turnStatus is TurnStatus.Completed or TurnStatus.Failed or TurnStatus.Cancelled

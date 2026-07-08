@@ -332,6 +332,17 @@ public sealed class ContextExportService
                     AppendResult(sb, toolExecution.ResultPreview!, options.ToolResults, options.ToolResultPreviewChars, "Tool execution preview");
                 break;
 
+            case ItemType.ImageGeneration when item.AsImageGeneration is { } imageGeneration:
+                AppendMetadata(sb, "Call Id", imageGeneration.CallId);
+                AppendMetadata(sb, "Status", imageGeneration.Status);
+                if (!string.IsNullOrWhiteSpace(imageGeneration.RevisedPrompt))
+                    AppendMetadata(sb, "Revised Prompt", imageGeneration.RevisedPrompt!);
+                if (!string.IsNullOrWhiteSpace(imageGeneration.SavedPath))
+                    AppendMetadata(sb, "Saved Path", imageGeneration.SavedPath!);
+                if (!string.IsNullOrWhiteSpace(imageGeneration.ErrorMessage))
+                    AppendMetadata(sb, "Error", imageGeneration.ErrorMessage!);
+                break;
+
             case ItemType.ToolCall when item.AsToolCall is { } toolCall:
                 AppendMetadata(sb, "Tool", toolCall.ToolName);
                 AppendMetadata(sb, "Call Id", toolCall.CallId);
@@ -574,6 +585,7 @@ public sealed class ContextExportService
         ItemType.ReasoningContent => "Reasoning",
         ItemType.CommandExecution => "Command",
         ItemType.ToolExecution => "Tool Execution",
+        ItemType.ImageGeneration => "Image Generation",
         ItemType.ToolCall => "Tool Call",
         ItemType.PluginFunctionCall => "Plugin Function Call",
         ItemType.DynamicToolCall => "Dynamic Tool Call",

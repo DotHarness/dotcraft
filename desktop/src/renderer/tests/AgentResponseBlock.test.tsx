@@ -9,6 +9,8 @@ import { useThreadStore } from '../stores/threadStore'
 import type { ConversationItem, ConversationTurn } from '../types/conversation'
 import type { FileDiff } from '../types/toolCall'
 
+const TEST_IMAGE_BASE64 = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=='
+
 function makeToolCallItem(
   id: string,
   toolCallId: string,
@@ -45,6 +47,26 @@ function makeCreatePlanItem(
     },
     success: true,
     createdAt
+  }
+}
+
+function makeImageGenerationItem(
+  id: string,
+  imageGenerationStatus: 'inProgress' | 'completed' | 'failed',
+  createdAt: string,
+  result = TEST_IMAGE_BASE64
+): ConversationItem {
+  return {
+    id,
+    type: 'imageGeneration',
+    status: imageGenerationStatus === 'completed' ? 'completed' : 'started',
+    imageGenerationStatus,
+    toolCallId: `${id}-call`,
+    result: imageGenerationStatus === 'completed' ? result : undefined,
+    mediaType: 'image/png',
+    savedPath: `<workspace>/.craft/generated_images/thread-1/${id}.png`,
+    createdAt,
+    completedAt: imageGenerationStatus === 'completed' ? createdAt : undefined
   }
 }
 
@@ -2049,6 +2071,70 @@ describe('AgentResponseBlock idle running fallback', () => {
   })
 })
 
+describe('AgentResponseBlock image generation', () => {
+  beforeEach(() => {
+    Object.defineProperty(window, 'api', {
+      configurable: true,
+      value: {
+        settings: {
+          get: async () => ({ locale: 'en' })
+        }
+      }
+    })
+  })
+
+  it('renders in-progress image generation with a running status and skeleton', () => {
+    const turn: ConversationTurn = {
+      id: 'turn-image-running',
+      threadId: 'thread-1',
+      status: 'running',
+      startedAt: '2026-04-18T11:00:00.000Z',
+      items: [
+        makeImageGenerationItem('image-running', 'inProgress', '2026-04-18T11:00:01.000Z')
+      ]
+    }
+
+    const { container } = render(
+      <LocaleProvider>
+        <AgentResponseBlock turn={turn} isRunning />
+      </LocaleProvider>
+    )
+
+    expect(screen.getByRole('status', { name: 'Generating image' })).toHaveAttribute('aria-busy', 'true')
+    expect(screen.getByText('Generating image')).toBeInTheDocument()
+    expect(container.querySelector('.tool-running-gradient-text')).toBeInTheDocument()
+    expect(screen.getByTestId('image-generation-skeleton')).toBeInTheDocument()
+    expect(screen.queryByTestId('tool-output-image-gallery')).toBeNull()
+  })
+
+  it('renders completed image generation output without the running placeholder', () => {
+    const turn: ConversationTurn = {
+      id: 'turn-image-completed',
+      threadId: 'thread-1',
+      status: 'completed',
+      startedAt: '2026-04-18T11:05:00.000Z',
+      completedAt: '2026-04-18T11:05:03.000Z',
+      items: [
+        makeImageGenerationItem('image-completed', 'completed', '2026-04-18T11:05:02.000Z')
+      ]
+    }
+
+    const { container } = render(
+      <LocaleProvider>
+        <AgentResponseBlock turn={turn} />
+      </LocaleProvider>
+    )
+
+    expect(screen.getByText('Generated image')).toBeInTheDocument()
+    expect(screen.getByTestId('tool-output-image')).toHaveAttribute(
+      'src',
+      `data:image/png;base64,${TEST_IMAGE_BASE64}`
+    )
+    expect(screen.queryByTestId('image-generation-skeleton')).toBeNull()
+    expect(container.querySelector('.tool-running-gradient-text')).toBeNull()
+  })
+})
+
 describe('AgentResponseBlock completed turn folding', () => {
   beforeEach(() => {
     Object.defineProperty(window, 'api', {
@@ -2262,6 +2348,104 @@ describe('AgentResponseBlock completed turn folding', () => {
     fireEvent.click(screen.getByRole('button', { name: /Processed in 8s/ }))
 
     expect(screen.getByText('First Plan')).toBeInTheDocument()
+  })
+
+  it('keeps the latest completed image generation result visible while folding earlier work', () => {
+    const turn: ConversationTurn = {
+      id: 'turn-folded-image',
+      threadId: 'thread-1',
+      status: 'completed',
+      startedAt: '2026-04-18T11:50:00.000Z',
+      completedAt: '2026-04-18T11:50:09.000Z',
+      items: [
+        {
+          id: 'tool-1',
+          type: 'toolCall',
+          status: 'completed',
+          toolCallId: 'call-1',
+          toolName: 'ReadFile',
+          arguments: { path: 'src/main.ts' },
+          success: true,
+          createdAt: '2026-04-18T11:50:01.000Z'
+        },
+        makeImageGenerationItem('image-latest', 'completed', '2026-04-18T11:50:05.000Z'),
+        {
+          id: 'assistant-final',
+          type: 'agentMessage',
+          status: 'completed',
+          text: 'final response after image',
+          createdAt: '2026-04-18T11:50:07.000Z'
+        }
+      ]
+    }
+
+    render(
+      <LocaleProvider>
+        <AgentResponseBlock turn={turn} />
+      </LocaleProvider>
+    )
+
+    expect(screen.getByRole('button', { name: /Processed in 7s/ })).toBeInTheDocument()
+    expect(screen.getByText('Generated image')).toBeInTheDocument()
+    expect(screen.getByTestId('tool-output-image')).toBeInTheDocument()
+    expect(screen.getByText('final response after image')).toBeInTheDocument()
+    expect(screen.queryByText('Read main.ts')).toBeNull()
+
+    fireEvent.click(screen.getByRole('button', { name: /Processed in 7s/ }))
+
+    expect(screen.getByText('Read main.ts')).toBeInTheDocument()
+  })
+
+  it('pins only the latest completed image generation result before the final message', () => {
+    const firstImage = 'AQID'
+    const latestImage = 'BAUG'
+    const turn: ConversationTurn = {
+      id: 'turn-folded-two-images',
+      threadId: 'thread-1',
+      status: 'completed',
+      startedAt: '2026-04-18T12:10:00.000Z',
+      completedAt: '2026-04-18T12:10:10.000Z',
+      items: [
+        makeImageGenerationItem('image-first', 'completed', '2026-04-18T12:10:01.000Z', firstImage),
+        {
+          id: 'tool-1',
+          type: 'toolCall',
+          status: 'completed',
+          toolCallId: 'call-1',
+          toolName: 'ReadFile',
+          arguments: { path: 'src/main.ts' },
+          success: true,
+          createdAt: '2026-04-18T12:10:03.000Z'
+        },
+        makeImageGenerationItem('image-latest', 'completed', '2026-04-18T12:10:06.000Z', latestImage),
+        {
+          id: 'assistant-final',
+          type: 'agentMessage',
+          status: 'completed',
+          text: 'final response after latest image',
+          createdAt: '2026-04-18T12:10:08.000Z'
+        }
+      ]
+    }
+
+    render(
+      <LocaleProvider>
+        <AgentResponseBlock turn={turn} />
+      </LocaleProvider>
+    )
+
+    expect(screen.getAllByTestId('tool-output-image')).toHaveLength(1)
+    expect(screen.getByTestId('tool-output-image')).toHaveAttribute(
+      'src',
+      `data:image/png;base64,${latestImage}`
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: /Processed in 8s/ }))
+
+    const images = screen.getAllByTestId('tool-output-image')
+    expect(images).toHaveLength(2)
+    expect(images.some((image) => image.getAttribute('src') === `data:image/png;base64,${firstImage}`)).toBe(true)
+    expect(images.some((image) => image.getAttribute('src') === `data:image/png;base64,${latestImage}`)).toBe(true)
   })
 })
 
@@ -2525,6 +2709,7 @@ describe('AgentResponseBlock historical tool trimming', () => {
           createdAt: '2026-04-18T12:00:05.000Z'
         },
         makeCreatePlanItem('plan-1', 'Visible Plan', '2026-04-18T12:00:06.000Z'),
+        makeImageGenerationItem('image-trimmed', 'completed', '2026-04-18T12:00:07.000Z'),
         {
           id: 'assistant-final',
           type: 'agentMessage',
@@ -2542,6 +2727,8 @@ describe('AgentResponseBlock historical tool trimming', () => {
     )
 
     expect(screen.getByText('Visible Plan')).toBeInTheDocument()
+    expect(screen.getByText('Generated image')).toBeInTheDocument()
+    expect(screen.getByTestId('tool-output-image')).toBeInTheDocument()
     expect(screen.getByText('final response stays visible')).toBeInTheDocument()
     const processedSummary = screen.getByRole('button', { name: /Processed in 8s/ })
     expect(processedSummary).toBeInTheDocument()

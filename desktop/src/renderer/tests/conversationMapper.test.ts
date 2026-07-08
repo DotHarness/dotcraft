@@ -371,6 +371,51 @@ describe('wireItemToConversationItem — nested payload format (thread/read)', (
     expect(item.success).toBe(true)
   })
 
+  it('maps imageGeneration payload fields', () => {
+    const item = wireItemToConversationItem({
+      id: 'image-generation-1',
+      type: 'imageGeneration',
+      payload: {
+        callId: 'ig_123',
+        status: 'completed',
+        revisedPrompt: 'A red square',
+        result: 'AQID',
+        mediaType: 'image/png',
+        savedPath: '<workspace>/.craft/generated_images/thread/ig_123.png'
+      },
+      createdAt: '2025-01-01T00:00:00Z'
+    })
+
+    expect(item.type).toBe('imageGeneration')
+    expect(item.toolCallId).toBe('ig_123')
+    expect(item.imageGenerationStatus).toBe('completed')
+    expect(item.revisedPrompt).toBe('A red square')
+    expect(item.result).toBe('AQID')
+    expect(item.mediaType).toBe('image/png')
+    expect(item.savedPath).toBe('<workspace>/.craft/generated_images/thread/ig_123.png')
+  })
+
+  it('maps PascalCase ImageGeneration item type from persisted core history', () => {
+    const item = wireItemToConversationItem({
+      id: 'image-generation-2',
+      type: 'ImageGeneration',
+      payload: {
+        callId: 'ig_456',
+        status: 'completed',
+        result: 'BAUG',
+        mediaType: 'image/png',
+        savedPath: '<workspace>/.craft/generated_images/thread/ig_456.png'
+      },
+      createdAt: '2025-01-01T00:00:00Z'
+    })
+
+    expect(item.type).toBe('imageGeneration')
+    expect(item.toolCallId).toBe('ig_456')
+    expect(item.imageGenerationStatus).toBe('completed')
+    expect(item.result).toBe('BAUG')
+    expect(item.savedPath).toBe('<workspace>/.craft/generated_images/thread/ig_456.png')
+  })
+
   it('extracts command execution payload fields', () => {
     const item = wireItemToConversationItem({
       id: 'i4b',

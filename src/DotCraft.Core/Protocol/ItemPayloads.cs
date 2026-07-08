@@ -339,6 +339,35 @@ public sealed record ToolExecutionPayload
 }
 
 /// <summary>
+/// Payload for hosted image generation lifecycle items.
+/// </summary>
+public sealed record ImageGenerationPayload
+{
+    /// <summary>
+    /// Provider image generation call id.
+    /// </summary>
+    public string CallId { get; init; } = string.Empty;
+
+    /// <summary>
+    /// "inProgress", "completed", or "failed".
+    /// </summary>
+    public string Status { get; init; } = "inProgress";
+
+    public string? RevisedPrompt { get; init; }
+
+    /// <summary>
+    /// Base64-encoded image bytes when generation completed successfully.
+    /// </summary>
+    public string? Result { get; init; }
+
+    public string MediaType { get; init; } = "image/png";
+
+    public string? SavedPath { get; init; }
+
+    public string? ErrorMessage { get; init; }
+}
+
+/// <summary>
 /// Delta payload emitted while tool-call arguments are still streaming.
 /// </summary>
 public sealed record ToolCallArgumentsDelta

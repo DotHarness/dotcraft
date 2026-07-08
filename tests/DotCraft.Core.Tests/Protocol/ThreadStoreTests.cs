@@ -731,6 +731,51 @@ public sealed class ThreadStoreTests : IDisposable
     }
 
     [Fact]
+    public async Task RebuildAndSaveSessionFromThreadAsync_ReplaysImageGenerationItemAsAssistantContent()
+    {
+        var thread = CreateThread();
+        AddTurnWithMessages(thread, "hello", "before image", TurnStatus.Completed);
+        var turn = thread.Turns[0];
+        var imageBytes = "png-bytes"u8.ToArray();
+        turn.Items.Add(new SessionItem
+        {
+            Id = SessionIdGenerator.NewItemId(3),
+            TurnId = turn.Id,
+            Type = ItemType.ImageGeneration,
+            Status = ItemStatus.Completed,
+            CreatedAt = DateTimeOffset.UtcNow,
+            CompletedAt = DateTimeOffset.UtcNow,
+            Payload = new ImageGenerationPayload
+            {
+                CallId = "ig_new",
+                Status = "completed",
+                RevisedPrompt = "A blue square",
+                Result = Convert.ToBase64String(imageBytes),
+                MediaType = "image/png"
+            }
+        });
+        await _store.SaveThreadAsync(thread);
+
+        var agent = CreateAgent();
+        await _store.RebuildAndSaveSessionFromThreadAsync(agent, thread.Id);
+        var session = await _store.LoadOrCreateSessionAsync(agent, thread.Id);
+
+        Assert.True(session.TryGetInMemoryChatHistory(
+            out var chatHistory,
+            jsonSerializerOptions: SessionPersistenceJsonOptions.Default));
+        Assert.DoesNotContain(
+            chatHistory.SelectMany(message => message.Contents),
+            content => content is FunctionCallContent { Name: "image_generation" } or FunctionResultContent { CallId: "ig_new" });
+        var imageContent = chatHistory
+            .SelectMany(message => message.Contents)
+            .OfType<HostedImageGenerationContent>()
+            .Single();
+        Assert.Equal("ig_new", imageContent.Id);
+        Assert.Equal("A blue square", imageContent.RevisedPrompt);
+        Assert.Equal(imageBytes, imageContent.ImageBytes);
+    }
+
+    [Fact]
     public async Task RebuildAndSaveSessionFromThreadAsync_SubAgentMailboxUserItem_ReplaysAsUserMessage()
     {
         var thread = CreateThread();

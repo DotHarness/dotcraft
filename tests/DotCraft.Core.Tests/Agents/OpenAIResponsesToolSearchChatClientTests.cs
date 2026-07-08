@@ -196,21 +196,28 @@ public sealed class OpenAIResponsesToolSearchChatClientTests
     }
 
     [Fact]
-    public async Task GetStreamingResponseAsync_WithHostedImageGenerationCompletedEvent_EmitsHostedContent()
+    public void TryCreateHostedImageGenerationContent_GeneratingStatus_ReturnsFalse()
+    {
+        var item = CreateHostedImageGenerationCallItem(
+            "ig_generating",
+            "generating",
+            "A red square",
+            resultBase64: null);
+
+        Assert.False(ResponsesToolSearchMapper.TryCreateHostedImageGenerationContent(item, out _));
+    }
+
+    [Fact]
+    public void TryCreateHostedImageGenerationContent_CompletedStatus_ReturnsHostedContent()
     {
         var imageBytes = CreateImageBytes("image/png");
-        var inner = new FakeChatClient(new ChatResponse([new ChatMessage(ChatRole.Assistant, "inner response")]));
-        var transport = new FakeToolSearchTransport(CreateHostedImageGenerationCompletedUpdate(
+        var item = CreateHostedImageGenerationCallItem(
             "ig_123",
+            "completed",
             "A red square",
-            imageBytes));
-        using var client = CreateClient(inner, transport);
+            Convert.ToBase64String(imageBytes));
 
-        var updates = await CollectStreamingAsync(client.GetStreamingResponseAsync(
-            [new ChatMessage(ChatRole.User, "make an image")],
-            new ChatOptions()));
-
-        var content = Assert.Single(updates.SelectMany(update => update.Contents).OfType<HostedImageGenerationContent>());
+        Assert.True(ResponsesToolSearchMapper.TryCreateHostedImageGenerationContent(item, out var content));
         Assert.True(content.Succeeded);
         Assert.Equal("ig_123", content.Id);
         Assert.Equal("A red square", content.RevisedPrompt);
@@ -1456,19 +1463,26 @@ public sealed class OpenAIResponsesToolSearchChatClientTests
             BinaryData.FromString(json),
             ModelReaderWriterOptions.Json)!;
 
-    private static StreamingResponseUpdate CreateHostedImageGenerationCompletedUpdate(
+    private static ResponseItem CreateHostedImageGenerationCallItem(
         string itemId,
+        string status,
         string revisedPrompt,
-        byte[] imageBytes) =>
-        CreateStreamingUpdate(JsonSerializer.Serialize(new
+        string? resultBase64)
+    {
+        var payload = new Dictionary<string, object?>
         {
-            type = "response.image_generation_call.completed",
-            sequence_number = 1,
-            item_id = itemId,
-            output_index = 0,
-            revised_prompt = revisedPrompt,
-            result = Convert.ToBase64String(imageBytes)
-        }, JsonOptions));
+            ["type"] = "image_generation_call",
+            ["id"] = itemId,
+            ["status"] = status,
+            ["revised_prompt"] = revisedPrompt
+        };
+        if (resultBase64 != null)
+            payload["result"] = resultBase64;
+
+        return ModelReaderWriter.Read<ResponseItem>(
+            BinaryData.FromString(JsonSerializer.Serialize(payload, JsonOptions)),
+            ModelReaderWriterOptions.Json)!;
+    }
 
     private static ResponseItem CreateUnknownToolSearchCallItem(string callId, object arguments)
     {

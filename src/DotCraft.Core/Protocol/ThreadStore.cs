@@ -676,6 +676,12 @@ public sealed class ThreadStore
                 FlushAssistantSegment(history, assistantBuilder);
                 history.Add(toolResultMessage);
             }
+            else if (item.Type == ItemType.ImageGeneration &&
+                     TryBuildImageGenerationMessage(item, out var imageGenerationMessage))
+            {
+                FlushAssistantSegment(history, assistantBuilder);
+                history.Add(imageGenerationMessage);
+            }
         }
 
         FlushAssistantSegment(history, assistantBuilder);
@@ -880,6 +886,52 @@ public sealed class ThreadStore
             ImageBytes = imageBytes,
             MediaType = string.IsNullOrWhiteSpace(imageItem?.MediaType) ? "image/png" : imageItem.MediaType!,
             ErrorMessage = payload.Success ? null : payload.Result
+        };
+        message = new ChatMessage(ChatRole.Assistant, (IList<AIContent>)[content]);
+        return true;
+    }
+
+    private static bool TryBuildImageGenerationMessage(
+        SessionItem item,
+        out ChatMessage message)
+    {
+        message = new ChatMessage(ChatRole.Assistant, string.Empty);
+        if (item.AsImageGeneration is not { } payload ||
+            string.IsNullOrWhiteSpace(payload.CallId) ||
+            string.Equals(payload.Status, "inProgress", StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        byte[]? imageBytes = null;
+        string? errorMessage = payload.ErrorMessage;
+        if (string.Equals(payload.Status, "completed", StringComparison.OrdinalIgnoreCase))
+        {
+            if (!string.IsNullOrWhiteSpace(payload.Result))
+            {
+                try
+                {
+                    imageBytes = Convert.FromBase64String(payload.Result);
+                }
+                catch (FormatException)
+                {
+                    errorMessage = "Image generation returned invalid image data.";
+                }
+            }
+            else
+            {
+                errorMessage = "Image generation completed without image data.";
+            }
+        }
+
+        var content = new HostedImageGenerationContent
+        {
+            Id = payload.CallId,
+            Status = imageBytes is { Length: > 0 } ? "completed" : "failed",
+            RevisedPrompt = payload.RevisedPrompt,
+            ImageBytes = imageBytes,
+            MediaType = string.IsNullOrWhiteSpace(payload.MediaType) ? "image/png" : payload.MediaType,
+            ErrorMessage = errorMessage
         };
         message = new ChatMessage(ChatRole.Assistant, (IList<AIContent>)[content]);
         return true;

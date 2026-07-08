@@ -286,6 +286,31 @@ public class SerializationTests
     }
 
     [Fact]
+    public void SessionItem_ImageGeneration_RoundTrip()
+    {
+        var item = BuildItem(ItemType.ImageGeneration, ItemStatus.Completed,
+            new ImageGenerationPayload
+            {
+                CallId = "ig_abc",
+                Status = "completed",
+                RevisedPrompt = "A red square",
+                Result = "AQID",
+                MediaType = "image/png",
+                SavedPath = "<workspace>/.craft/generated_images/thread/ig_abc.png"
+            });
+
+        var deserialized = RoundTrip(item);
+        var payload = deserialized.AsImageGeneration;
+        Assert.NotNull(payload);
+        Assert.Equal("ig_abc", payload.CallId);
+        Assert.Equal("completed", payload.Status);
+        Assert.Equal("A red square", payload.RevisedPrompt);
+        Assert.Equal("AQID", payload.Result);
+        Assert.Equal("image/png", payload.MediaType);
+        Assert.Equal("<workspace>/.craft/generated_images/thread/ig_abc.png", payload.SavedPath);
+    }
+
+    [Fact]
     public void SessionItem_ToolResult_RoundTrip()
     {
         var item = BuildItem(ItemType.ToolResult, ItemStatus.Completed,
