@@ -154,6 +154,8 @@ Deep-thinking adapter catalog files:
 
 The built-in catalog exposes full reasoning choices for unlisted Anthropic-protocol models, but does not assume they support Anthropic `adaptive` request shaping. Add `anthropicThinking` entries for models or endpoints that explicitly support that shape.
 
+For Anthropic-compatible providers, `anthropicMessageContent` can declare how DotCraft reasoning history should be represented. The built-in DeepSeek Anthropic adapter maps historical `TextReasoningContent` to Anthropic-compatible `thinking` blocks before sending history; it is not a generic unsupported-block filter.
+
 ```json
 {
   "deepThinking": {
@@ -166,6 +168,15 @@ The built-in catalog exposes full reasoning choices for unlisted Anthropic-proto
         "models": ["my-adaptive-anthropic-model-"],
         "thinking": { "type": "adaptive", "display": "fromReasoningOutput" },
         "outputConfig": { "effort": "fromReasoningEffort" }
+      }
+    ]
+  },
+  "anthropicMessageContent": {
+    "adapters": [
+      {
+        "models": ["deepseek"],
+        "endpoints": ["deepseek"],
+        "reasoningHistory": { "blockType": "thinking" }
       }
     ]
   }

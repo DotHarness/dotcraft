@@ -211,6 +211,8 @@ Rules:
 
 Catalog entries must support model prefix matching and namespaced suffix matching, so a namespaced model ID ending in `claude-opus-4-7` matches `claude-opus-4-7`. Protocol-level reasoning capability entries can expose the full reasoning control surface for unlisted Anthropic-protocol models, but Anthropic `thinking.type="adaptive"` request shaping is applied only by explicit `anthropicThinking` model or endpoint adapters.
 
+Anthropic-compatible providers may also declare provider-visible reasoning-history compatibility in `anthropicMessageContent.adapters`. These entries use the same model and endpoint matching rules and can set `reasoningHistory.blockType` for historical assistant `TextReasoningContent`. The built-in DeepSeek Anthropic adapter maps DotCraft reasoning history to Anthropic-compatible `thinking` blocks before sending historical assistant messages to the provider; it is not a generic unsupported-block filter.
+
 ### 6.2 OpenAI Protocols
 
 For `openai-chat-completions` and `openai-responses` protocol runtimes:

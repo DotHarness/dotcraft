@@ -143,6 +143,17 @@ internal static class ProviderChatClientAdapters
         }
         else if (string.Equals(normalizedProtocol, ModelProviderProtocols.Anthropic, StringComparison.Ordinal))
         {
+            var messageContentAdapter = ModelThinkingAdapterCatalog.ResolveAnthropicMessageContentAdapter(
+                config,
+                endpoint,
+                model);
+            if (messageContentAdapter != null)
+            {
+                builder.Use(innerClient => new DeepSeekAnthropicReasoningHistoryChatClient(
+                    innerClient,
+                    messageContentAdapter));
+            }
+
             builder.Use(innerClient => new AnthropicThinkingChatClient(
                 innerClient,
                 config,

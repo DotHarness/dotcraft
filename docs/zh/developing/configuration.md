@@ -154,6 +154,8 @@ Deep-thinking adapter 文件：
 
 内置 catalog 会为未列入的 Anthropic 协议模型开放完整思考选项，但不会假设它们支持 Anthropic `adaptive` 请求形状。只有明确支持该形状的模型或 endpoint，才应添加 `anthropicThinking` 条目。
 
+对 Anthropic-compatible provider，`anthropicMessageContent` 可以声明 DotCraft 推理历史应如何表示。内置 DeepSeek Anthropic adapter 会在发送历史前，把历史 `TextReasoningContent` 映射为 Anthropic-compatible `thinking` block；它不是通用的 unsupported-block 过滤器。
+
 ```json
 {
   "deepThinking": {
@@ -166,6 +168,15 @@ Deep-thinking adapter 文件：
         "models": ["my-adaptive-anthropic-model-"],
         "thinking": { "type": "adaptive", "display": "fromReasoningOutput" },
         "outputConfig": { "effort": "fromReasoningEffort" }
+      }
+    ]
+  },
+  "anthropicMessageContent": {
+    "adapters": [
+      {
+        "models": ["deepseek"],
+        "endpoints": ["deepseek"],
+        "reasoningHistory": { "blockType": "thinking" }
       }
     ]
   }
