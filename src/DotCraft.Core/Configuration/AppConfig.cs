@@ -541,6 +541,12 @@ public sealed class AppConfig
         [ConfigField(Min = 1, Hint = "Streaming idle timeout in milliseconds.")]
         public int? StreamIdleTimeoutMs { get; set; }
 
+        /// <summary>
+        /// Provider-specific support flag for hosted OpenAI Responses image generation.
+        /// When omitted, official OpenAI Responses providers and ChatGPT OAuth default to enabled.
+        /// </summary>
+        public bool? SupportsHostedImageGeneration { get; set; }
+
         public ModelProviderConfig Clone() => new()
         {
             DisplayName = DisplayName,
@@ -553,7 +559,8 @@ public sealed class AppConfig
             NetworkTimeoutSeconds = NetworkTimeoutSeconds,
             MaxOutputTokens = MaxOutputTokens,
             StreamMaxRetries = StreamMaxRetries,
-            StreamIdleTimeoutMs = StreamIdleTimeoutMs
+            StreamIdleTimeoutMs = StreamIdleTimeoutMs,
+            SupportsHostedImageGeneration = SupportsHostedImageGeneration
         };
     }
 

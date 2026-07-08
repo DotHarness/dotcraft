@@ -36,10 +36,27 @@ public sealed class ImageGenerationToolProviderTests : IDisposable
         Assert.True(ImageGenerationToolProvider.ShouldEnableHostedImageGeneration(CreateContext(CreateChatGptOAuthConfig())));
 
         var customEndpoint = CreateOpenAIConfig(endpoint: "https://openai-compatible.example/v1");
-        Assert.True(ImageGenerationToolProvider.ShouldEnableHostedImageGeneration(CreateContext(customEndpoint)));
+        Assert.False(ImageGenerationToolProvider.ShouldEnableHostedImageGeneration(CreateContext(customEndpoint)));
+
+        var optedInCustomEndpoint = CreateOpenAIConfig(
+            endpoint: "https://openai-compatible.example/v1",
+            supportsHostedImageGeneration: true);
+        Assert.True(ImageGenerationToolProvider.ShouldEnableHostedImageGeneration(CreateContext(optedInCustomEndpoint)));
+
+        var disabledOfficial = CreateOpenAIConfig(supportsHostedImageGeneration: false);
+        Assert.False(ImageGenerationToolProvider.ShouldEnableHostedImageGeneration(CreateContext(disabledOfficial)));
+
+        var disabledOAuth = CreateChatGptOAuthConfig(supportsHostedImageGeneration: false);
+        Assert.False(ImageGenerationToolProvider.ShouldEnableHostedImageGeneration(CreateContext(disabledOAuth)));
 
         var missingApiKey = CreateOpenAIConfig(apiKey: string.Empty);
         Assert.False(ImageGenerationToolProvider.ShouldEnableHostedImageGeneration(CreateContext(missingApiKey)));
+
+        var optedInMissingApiKey = CreateOpenAIConfig(apiKey: string.Empty, supportsHostedImageGeneration: true);
+        Assert.False(ImageGenerationToolProvider.ShouldEnableHostedImageGeneration(CreateContext(optedInMissingApiKey)));
+
+        var unsupportedAuth = CreateOpenAIConfig(authMethod: "customOAuth", supportsHostedImageGeneration: true);
+        Assert.False(ImageGenerationToolProvider.ShouldEnableHostedImageGeneration(CreateContext(unsupportedAuth)));
 
         var chatCompletions = CreateOpenAIConfig(protocol: ModelProviderProtocols.OpenAIChatCompletions);
         Assert.False(ImageGenerationToolProvider.ShouldEnableHostedImageGeneration(CreateContext(chatCompletions)));
@@ -79,7 +96,9 @@ public sealed class ImageGenerationToolProviderTests : IDisposable
     private static AppConfig CreateOpenAIConfig(
         string? endpoint = null,
         string protocol = ModelProviderProtocols.OpenAIResponses,
-        string apiKey = "sk-test")
+        string apiKey = "sk-test",
+        bool? supportsHostedImageGeneration = null,
+        string authMethod = ModelProviderAuthMethods.ApiKey)
     {
         var config = new AppConfig
         {
@@ -90,12 +109,14 @@ public sealed class ImageGenerationToolProviderTests : IDisposable
         {
             Protocol = protocol,
             ApiKey = apiKey,
-            EndPoint = endpoint ?? string.Empty
+            EndPoint = endpoint ?? string.Empty,
+            AuthMethod = authMethod,
+            SupportsHostedImageGeneration = supportsHostedImageGeneration
         };
         return config;
     }
 
-    private static AppConfig CreateChatGptOAuthConfig()
+    private static AppConfig CreateChatGptOAuthConfig(bool? supportsHostedImageGeneration = null)
     {
         var config = new AppConfig
         {
@@ -105,7 +126,8 @@ public sealed class ImageGenerationToolProviderTests : IDisposable
         config.Providers["chatgpt"] = new AppConfig.ModelProviderConfig
         {
             Protocol = ModelProviderProtocols.OpenAIResponses,
-            AuthMethod = ModelProviderAuthMethods.ChatGptOAuth
+            AuthMethod = ModelProviderAuthMethods.ChatGptOAuth,
+            SupportsHostedImageGeneration = supportsHostedImageGeneration
         };
         return config;
     }

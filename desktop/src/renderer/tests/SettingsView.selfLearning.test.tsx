@@ -42,6 +42,7 @@ const providerListResult = {
       hasApiKey: true,
       endPoint: '',
       networkTimeoutSeconds: null,
+      supportsHostedImageGeneration: true,
       isImplicit: false
     },
     {
@@ -731,6 +732,63 @@ describe('SettingsView self-learning settings', () => {
     })
   })
 
+  it('sends hosted image generation support when creating a Responses provider', async () => {
+    enableProviderManagement()
+    renderView()
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Model Providers' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'New provider' }))
+    fireEvent.change(await screen.findByLabelText('Provider id'), { target: { value: 'responses-main' } })
+
+    const imageGenerationSwitch = await screen.findByRole('switch', { name: 'Support Image Generation' })
+    expect(imageGenerationSwitch).toHaveAttribute('aria-checked', 'true')
+    expect(screen.queryByRole('button', { name: 'Auto' })).not.toBeInTheDocument()
+
+    appServerSendRequest.mockClear()
+    fireEvent.click(await screen.findByRole('button', { name: 'Create provider' }))
+
+    await waitFor(() => {
+      expect(appServerSendRequest).toHaveBeenCalledWith('provider/create', expect.objectContaining({
+        id: 'responses-main',
+        protocol: 'openai-responses',
+        supportsHostedImageGeneration: true
+      }), 20_000)
+    })
+  })
+
+  it('sends hosted image generation off when updating a Responses provider', async () => {
+    enableProviderManagement()
+    const defaultSendRequest = appServerSendRequest.getMockImplementation()
+    appServerSendRequest.mockImplementation(async (method: string, params?: Record<string, unknown>) => {
+      if (method === 'provider/list') {
+        return {
+          providers: providerListResult.providers.map((provider) => provider.id === 'openai-responses'
+            ? { ...provider, supportsHostedImageGeneration: false }
+            : provider)
+        }
+      }
+      return defaultSendRequest?.(method, params)
+    })
+    renderView()
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Model Providers' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Edit provider OpenAI Responses' }))
+
+    const imageGenerationSwitch = await screen.findByRole('switch', { name: 'Support Image Generation' })
+    expect(imageGenerationSwitch).toHaveAttribute('aria-checked', 'false')
+    expect(screen.queryByRole('button', { name: 'Auto' })).not.toBeInTheDocument()
+
+    appServerSendRequest.mockClear()
+    fireEvent.click(await screen.findByRole('button', { name: 'Update provider' }))
+
+    await waitFor(() => {
+      expect(appServerSendRequest).toHaveBeenCalledWith('provider/update', expect.objectContaining({
+        id: 'openai-responses',
+        supportsHostedImageGeneration: false
+      }), 20_000)
+    })
+  })
+
   it('locks id and displayName to canonical values when ChatGPT subscription auth is selected', async () => {
     enableProviderManagement()
     renderView()
@@ -982,8 +1040,9 @@ describe('SettingsView self-learning settings', () => {
     renderView()
 
     fireEvent.click(await screen.findByRole('button', { name: 'Model Providers' }))
-    const modelSelect = await screen.findByLabelText('Model') as HTMLSelectElement
-    fireEvent.change(modelSelect, { target: { value: 'deepseek-v4-pro' } })
+    const modelSelect = await screen.findByRole('combobox', { name: 'Model' })
+    fireEvent.click(modelSelect)
+    fireEvent.click(await screen.findByRole('option', { name: 'deepseek-v4-pro' }))
 
     await waitFor(() => {
       expect(appServerSendRequest).toHaveBeenCalledWith('workspace/config/update', { model: 'deepseek-v4-pro' }, 20_000)

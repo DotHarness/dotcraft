@@ -61,11 +61,19 @@ public sealed class ImageGenerationToolProvider : IAgentToolProvider
         if (!runtime.IsOpenAIResponses)
             return false;
 
+        if (!runtime.SupportsHostedImageGeneration)
+            return false;
+
+        return HasValidHostedImageGenerationAuth(runtime);
+    }
+
+    private static bool HasValidHostedImageGenerationAuth(EffectiveModelRuntime runtime)
+    {
         if (runtime.IsChatGptOAuth)
             return true;
 
         return string.Equals(
-                   ModelProviderAuthMethods.Normalize(runtime.AuthMethod),
+                   runtime.AuthMethod?.Trim(),
                    ModelProviderAuthMethods.ApiKey,
                    StringComparison.OrdinalIgnoreCase) &&
                !string.IsNullOrWhiteSpace(runtime.ApiKey);
@@ -125,7 +133,7 @@ public sealed class ImageGenerationTools
             if (!ImageGenerationToolProvider.IsSupportedRuntime(_runtime))
             {
                 return TextOnly(
-                    "Error: image generation is only enabled for ChatGPT OAuth and OpenAI Responses API-key providers.");
+                    "Error: image generation is not enabled for this provider. Turn on SupportsHostedImageGeneration for a compatible OpenAI Responses provider.");
             }
 
             var imageModel = _context.Config.Tools.ImageGeneration.Model.Trim();

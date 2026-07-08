@@ -61,6 +61,8 @@ public sealed class ProviderInfo
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public int? StreamIdleTimeoutMs { get; set; }
 
+    public bool SupportsHostedImageGeneration { get; set; }
+
     public bool IsImplicit { get; set; }
 
     /// <summary>
@@ -109,6 +111,8 @@ public sealed class ProviderCreateParams
 
     public int? StreamIdleTimeoutMs { get; set; }
 
+    public bool? SupportsHostedImageGeneration { get; set; }
+
     public string? AuthMethod { get; set; }
 }
 
@@ -131,6 +135,8 @@ public sealed class ProviderUpdateParams
     public int? StreamMaxRetries { get; set; }
 
     public int? StreamIdleTimeoutMs { get; set; }
+
+    public bool? SupportsHostedImageGeneration { get; set; }
 
     public string? AuthMethod { get; set; }
 }

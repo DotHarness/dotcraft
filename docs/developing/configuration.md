@@ -58,6 +58,7 @@ Provider object fields:
 | `NetworkTimeoutSeconds` | Per-provider request timeout, overriding the global `NetworkTimeoutSeconds` | Empty |
 | `StreamMaxRetries` | Per-provider streaming reconnection attempts for dropped or idle provider streams; `0` disables stream retry | `5` |
 | `StreamIdleTimeoutMs` | Per-provider idle timeout for streaming responses, in milliseconds | `300000` |
+| `SupportsHostedImageGeneration` | Enables hosted image generation for this provider. When omitted, ChatGPT OAuth and the official OpenAI Responses API-key endpoint default to `true`; custom OpenAI-compatible Responses endpoints default to `false`. | Provider default |
 
 ## Workspace Memory and Skills
 
@@ -207,7 +208,7 @@ The built-in catalog exposes full reasoning choices for unlisted Anthropic-proto
 
 With a supported OpenAI Responses provider, ask DotCraft to generate an image in a normal conversation. DotCraft requests PNG output from the provider and shows the image inline in clients that support rich content.
 
-Image generation is enabled by default for ChatGPT OAuth and OpenAI Responses API-key providers, including OpenAI-compatible custom endpoints. Non-Responses providers do not receive the hosted image generation tool. If a custom Responses endpoint does not support the native `image_generation` tool, set `Tools.ImageGeneration.Enabled` to `false`.
+`Tools.ImageGeneration.Enabled` is the global image generation switch and defaults to `true`. A provider must also have `SupportsHostedImageGeneration` set to `true` before DotCraft injects the hosted `image_generation` tool. When the provider field is omitted, ChatGPT OAuth and the official OpenAI Responses API-key endpoint default to `true`; custom OpenAI-compatible Responses endpoints default to `false` and should be enabled only when they support the hosted tool.
 
 Personal local hardening example:
 
