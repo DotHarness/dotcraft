@@ -128,6 +128,27 @@ public sealed class ModelThinkingAdapterCatalogTests : IDisposable
     }
 
     [Fact]
+    public void ResolveAnthropicMessageContentAdapter_UsesBuiltInDeepSeekCatalog()
+    {
+        var adapter = ModelThinkingAdapterCatalog.ResolveAnthropicMessageContentAdapter(
+            endpoint: "https://api.deepseek.com/anthropic",
+            model: "deepseek-v4-pro");
+
+        Assert.NotNull(adapter);
+        Assert.Equal("thinking", adapter.ReasoningHistoryBlockType);
+    }
+
+    [Fact]
+    public void ResolveAnthropicMessageContentAdapter_DoesNotMatchOfficialAnthropic()
+    {
+        var adapter = ModelThinkingAdapterCatalog.ResolveAnthropicMessageContentAdapter(
+            endpoint: "https://api.anthropic.com",
+            model: "claude-opus-4-7");
+
+        Assert.Null(adapter);
+    }
+
+    [Fact]
     public void ResolveAnthropicThinkingAdapter_MergesGlobalAndWorkspaceCatalogs()
     {
         var globalPath = WriteCatalog("global", """
@@ -294,6 +315,18 @@ public sealed class ModelThinkingAdapterCatalogTests : IDisposable
                     "thinking": { "type": "adaptive" }
                   }
                 ]
+              },
+              "anthropicMessageContent": {
+                "adapters": [
+                  {
+                    "endpoints": ["deepseek"],
+                    "reasoningHistory": { "blockType": "thinking" }
+                  },
+                  {
+                    "models": ["missing-block-type"],
+                    "reasoningHistory": {}
+                  }
+                ]
               }
             }
             """);
@@ -307,6 +340,9 @@ public sealed class ModelThinkingAdapterCatalogTests : IDisposable
         Assert.Equal("summarized", adapter.ThinkingDisplay);
         Assert.Equal("medium", adapter.OutputConfigEffort);
         Assert.Equal("max", adapter.OutputConfigEffortMap["extraHigh"]);
+        var messageAdapter = Assert.Single(catalog.AnthropicMessageContent.Adapters);
+        Assert.Contains("deepseek", messageAdapter.Endpoints);
+        Assert.Equal("thinking", messageAdapter.ReasoningHistoryBlockType);
     }
 
     private string WriteCatalog(string directoryName, string json)

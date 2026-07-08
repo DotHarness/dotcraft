@@ -65,6 +65,33 @@ internal static class ModelThinkingAdapterCatalog
         return catalog.AnthropicThinking.Resolve(endpoint, model);
     }
 
+    public static AnthropicMessageContentAdapterData? ResolveAnthropicMessageContentAdapter(
+        AppConfig config,
+        string? endpoint,
+        string? model)
+    {
+        ArgumentNullException.ThrowIfNull(config);
+
+        return ResolveAnthropicMessageContentAdapter(
+            endpoint,
+            model,
+            CatalogPathForConfig(config.GlobalConfigPath),
+            CatalogPathForConfig(config.WorkspaceConfigPath));
+    }
+
+    public static AnthropicMessageContentAdapterData? ResolveAnthropicMessageContentAdapter(
+        string? endpoint,
+        string? model,
+        string? globalCatalogPath = null,
+        string? workspaceCatalogPath = null)
+    {
+        var catalog = LoadBuiltInCatalog();
+        MergeFile(catalog, globalCatalogPath);
+        MergeFile(catalog, workspaceCatalogPath);
+
+        return catalog.AnthropicMessageContent.Resolve(endpoint, model);
+    }
+
     public static ReasoningCapabilityData? ResolveReasoningCapability(
         AppConfig config,
         string? protocol,
@@ -140,6 +167,31 @@ internal static class ModelThinkingAdapterCatalog
 
                 if (adapter.HasMatch && adapter.HasRequestShape)
                     catalog.AnthropicThinking.Adapters.Add(adapter);
+            }
+        }
+
+        if (TryGetProperty(root, "anthropicMessageContent", out var anthropicMessageContentElement)
+            && anthropicMessageContentElement.ValueKind == JsonValueKind.Object
+            && TryGetProperty(anthropicMessageContentElement, "adapters", out var messageAdaptersElement)
+            && messageAdaptersElement.ValueKind == JsonValueKind.Array)
+        {
+            foreach (var adapterElement in messageAdaptersElement.EnumerateArray())
+            {
+                if (adapterElement.ValueKind != JsonValueKind.Object)
+                    continue;
+
+                var adapter = new AnthropicMessageContentAdapterData();
+                ReadStringArray(adapterElement, "models", adapter.Models);
+                ReadStringArray(adapterElement, "endpoints", adapter.Endpoints);
+
+                if (TryGetProperty(adapterElement, "reasoningHistory", out var reasoningHistoryElement)
+                    && reasoningHistoryElement.ValueKind == JsonValueKind.Object)
+                {
+                    adapter.ReasoningHistoryBlockType = ReadString(reasoningHistoryElement, "blockType");
+                }
+
+                if (adapter.HasMatch && adapter.HasReasoningHistory)
+                    catalog.AnthropicMessageContent.Adapters.Add(adapter);
             }
         }
 
@@ -443,6 +495,8 @@ internal static class ModelThinkingAdapterCatalog
 
         public AnthropicThinkingData AnthropicThinking { get; } = new();
 
+        public AnthropicMessageContentData AnthropicMessageContent { get; } = new();
+
         public ReasoningCapabilitiesData ReasoningCapabilities { get; } = new();
 
         public static CatalogData WithDefault()
@@ -468,6 +522,7 @@ internal static class ModelThinkingAdapterCatalog
                 DeepThinking.Endpoints.Add(endpoint);
 
             AnthropicThinking.MergeFrom(other.AnthropicThinking);
+            AnthropicMessageContent.MergeFrom(other.AnthropicMessageContent);
             ReasoningCapabilities.MergeFrom(other.ReasoningCapabilities);
         }
     }
@@ -521,6 +576,52 @@ internal static class ModelThinkingAdapterCatalog
             !string.IsNullOrWhiteSpace(ThinkingType) ||
             !string.IsNullOrWhiteSpace(ThinkingDisplay) ||
             !string.IsNullOrWhiteSpace(OutputConfigEffort);
+    }
+
+    internal sealed class AnthropicMessageContentData
+    {
+        public List<AnthropicMessageContentAdapterData> Adapters { get; } = [];
+
+        public AnthropicMessageContentAdapterData? Resolve(string? endpoint, string? model)
+        {
+            for (var i = Adapters.Count - 1; i >= 0; i--)
+            {
+                var adapter = Adapters[i];
+                if (MatchesModel(model, adapter.Models) || MatchesEndpoint(endpoint, adapter.Endpoints))
+                    return adapter.Clone();
+            }
+
+            return null;
+        }
+
+        public void MergeFrom(AnthropicMessageContentData other)
+        {
+            Adapters.AddRange(other.Adapters.Select(static adapter => adapter.Clone()));
+        }
+    }
+
+    internal sealed class AnthropicMessageContentAdapterData
+    {
+        public HashSet<string> Models { get; } = new(StringComparer.OrdinalIgnoreCase);
+
+        public HashSet<string> Endpoints { get; } = new(StringComparer.OrdinalIgnoreCase);
+
+        public string? ReasoningHistoryBlockType { get; set; }
+
+        public bool HasMatch => Models.Count > 0 || Endpoints.Count > 0;
+
+        public bool HasReasoningHistory => !string.IsNullOrWhiteSpace(ReasoningHistoryBlockType);
+
+        public AnthropicMessageContentAdapterData Clone()
+        {
+            var clone = new AnthropicMessageContentAdapterData();
+            foreach (var model in Models)
+                clone.Models.Add(model);
+            foreach (var endpoint in Endpoints)
+                clone.Endpoints.Add(endpoint);
+            clone.ReasoningHistoryBlockType = ReasoningHistoryBlockType;
+            return clone;
+        }
     }
 
     internal sealed class ReasoningCapabilitiesData

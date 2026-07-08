@@ -46,6 +46,21 @@
       }
     ]
   },
+  "anthropicMessageContent": {
+    "adapters": [
+      {
+        "models": [
+          "deepseek"
+        ],
+        "endpoints": [
+          "deepseek"
+        ],
+        "reasoningHistory": {
+          "blockType": "thinking"
+        }
+      }
+    ]
+  },
   "reasoningCapabilities": {
     "adapters": [
       {
