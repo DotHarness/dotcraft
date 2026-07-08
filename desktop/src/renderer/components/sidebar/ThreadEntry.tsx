@@ -61,7 +61,6 @@ export function ThreadEntry({ thread }: ThreadEntryProps): JSX.Element {
   const [hovered, setHovered] = useState(false)
   const [pinButtonFocused, setPinButtonFocused] = useState(false)
   const [archiveButtonFocused, setArchiveButtonFocused] = useState(false)
-  const [archiveConfirming, setArchiveConfirming] = useState(false)
   const [dropActive, setDropActive] = useState(false)
   // `anim` drives the two transient post-drop animations. `success` plays
   // `dropSuccessPulse` on the row + `slideInBadge` on the inline bound icon;
@@ -101,8 +100,6 @@ export function ThreadEntry({ thread }: ThreadEntryProps): JSX.Element {
     canPin && !renaming && !dragKind && (hovered || pinButtonFocused || isPinned)
   const showArchiveAction =
     !isSubAgent && !renaming && !dragKind && (hovered || archiveButtonFocused)
-  const showArchiveConfirm = showArchiveAction && archiveConfirming
-  const confirm = useConfirmDialog()
   const showPendingApprovalBadge = !isActive && hasPendingApproval
   const showPendingUserInputBadge = !isActive && !showPendingApprovalBadge && hasPendingUserInput
   const showPendingPlanBadge =
@@ -120,31 +117,22 @@ export function ThreadEntry({ thread }: ThreadEntryProps): JSX.Element {
   const showRelativeTimeStatus = !hasRunningTurn && !showUnreadCompletedDot && !showStatusIcon
   const compactStatusColumn = '24px'
   const relativeTimeStatusColumn = 'minmax(24px, max-content)'
-  const confirmStatusColumn = 'minmax(64px, max-content)'
+  // On hover the archive action replaces the status content in a compact 24px
+  // slot; otherwise the relative-time slot may grow to fit its content.
   const showRelativeTimeSlot = !showArchiveAction && showRelativeTimeStatus
   const usesRelativeTimeColumn = showRelativeTimeSlot
-  const statusColumn = showArchiveConfirm
-    ? confirmStatusColumn
-    : usesRelativeTimeColumn
-      ? relativeTimeStatusColumn
-      : compactStatusColumn
-  const statusSlotWidth = showArchiveConfirm
-    ? '100%'
-    : usesRelativeTimeColumn
-      ? 'max-content'
-      : compactStatusColumn
-  const statusSlotMinWidth = showArchiveConfirm
-    ? '64px'
-    : usesRelativeTimeColumn
-      ? compactStatusColumn
-      : compactStatusColumn
-  const statusSlotJustifySelf = showArchiveConfirm ? 'stretch' : usesRelativeTimeColumn ? 'end' : 'center'
+  const statusColumn = usesRelativeTimeColumn ? relativeTimeStatusColumn : compactStatusColumn
+  const statusSlotWidth = usesRelativeTimeColumn ? 'max-content' : compactStatusColumn
+  const statusSlotMinWidth = compactStatusColumn
+  const statusSlotJustifySelf = usesRelativeTimeColumn ? 'end' : 'center'
   // Center the relative time within its (>=24px) slot so it shares the same
   // horizontal center as the spinner / archive / status icons that replace it,
   // instead of hugging the right edge and sitting ~4px off from them.
   const statusContentJustify = 'center'
 
   const performArchiveThread = useCallback(async (): Promise<void> => {
+    // One-click archive: archived threads are restorable anytime from
+    // Settings → Archived Threads, so no extra confirmation is needed.
     try {
       await window.api.appServer.sendRequest('thread/archive', { threadId: thread.id })
     } catch {
@@ -152,25 +140,10 @@ export function ThreadEntry({ thread }: ThreadEntryProps): JSX.Element {
     }
     if (activeThreadId === thread.id) setActiveThreadId(null)
     useThreadStore.getState().removeThreadTree(thread.id)
-  }, [activeThreadId, confirm, setActiveThreadId, t, thread.id])
-
-  const archiveThreadWithDialog = useCallback(async (): Promise<void> => {
-    const ok = await confirm({
-      title: t('threadEntry.archiveTitle'),
-      message: t('threadEntry.archiveMessage'),
-      confirmLabel: t('threadEntry.archiveConfirm')
-    })
-    if (!ok) return
-    await performArchiveThread()
-  }, [confirm, performArchiveThread, t])
-
-  const beginInlineArchiveConfirm = useCallback((): void => {
-    setArchiveConfirming(true)
-  }, [])
+  }, [activeThreadId, setActiveThreadId, thread.id])
 
   const resetArchiveActionState = useCallback((): void => {
     setArchiveButtonFocused(false)
-    setArchiveConfirming(false)
   }, [])
 
   function handleClick(): void {
@@ -181,20 +154,17 @@ export function ThreadEntry({ thread }: ThreadEntryProps): JSX.Element {
 
   function handleContextMenu(e: React.MouseEvent): void {
     e.preventDefault()
-    setArchiveConfirming(false)
     setContextMenu({ x: e.clientX, y: e.clientY })
   }
 
   function handleTogglePinned(e: React.MouseEvent<HTMLButtonElement>): void {
     e.stopPropagation()
-    setArchiveConfirming(false)
     togglePinnedThread(thread.id)
   }
 
   function startRename(): void {
     setRenameValue(thread.displayName ?? '')
     setRenaming(true)
-    setArchiveConfirming(false)
     setContextMenu(null)
     // Focus after render
     setTimeout(() => renameInputRef.current?.select(), 0)
@@ -362,7 +332,6 @@ export function ThreadEntry({ thread }: ThreadEntryProps): JSX.Element {
           onMouseEnter: () => setHovered(true),
           onMouseLeave: () => {
             setHovered(false)
-            setArchiveConfirming(false)
           }
         }}
         leading={
@@ -623,99 +592,51 @@ export function ThreadEntry({ thread }: ThreadEntryProps): JSX.Element {
         }
         statusExtra={
           !isSubAgent ? (
-            <>
-              <ActionTooltip label={t('threadEntry.archive')} placement="right">
-                <button
-                  className="dotcraft-sidebar-control-radius"
-                  type="button"
-                  aria-label={t('threadEntry.archive')}
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    beginInlineArchiveConfirm()
-                  }}
-                  onFocus={() => setArchiveButtonFocused(true)}
-                  style={{
-                    width: '24px',
-                    height: '24px',
-                    padding: 0,
-                    border: 'none',
-                    borderRadius: 'var(--sidebar-icon-control-radius)',
-                    backgroundColor: 'transparent',
-                    color: isActive ? 'var(--text-secondary)' : 'var(--text-dimmed)',
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    cursor: showArchiveAction && !showArchiveConfirm ? 'pointer' : 'default',
-                    position: 'absolute',
-                    right: 0,
-                    top: '50%',
-                    transform: 'translateY(-50%)',
-                    opacity: showArchiveAction && !showArchiveConfirm ? 1 : 0,
-                    pointerEvents: showArchiveAction && !showArchiveConfirm ? 'auto' : 'none',
-                    transition: 'opacity 120ms ease, background-color 120ms ease, color 120ms ease',
-                    zIndex: 2
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.backgroundColor = 'var(--sidebar-control-hover)'
-                    e.currentTarget.style.color = 'var(--error)'
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.backgroundColor = 'transparent'
-                    e.currentTarget.style.color = isActive
-                      ? 'var(--text-secondary)'
-                      : 'var(--text-dimmed)'
-                  }}
-                >
-                  <Archive size={14} strokeWidth={2} aria-hidden="true" />
-                </button>
-              </ActionTooltip>
-              <ActionTooltip label={t('threadEntry.archiveConfirm')} placement="right">
-                <button
-                  type="button"
-                  tabIndex={showArchiveConfirm ? 0 : -1}
-                  aria-label={t('threadEntry.archiveConfirm')}
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    void performArchiveThread()
-                  }}
-                  onFocus={() => setArchiveButtonFocused(true)}
-                  style={{
-                    height: '24px',
-                    padding: '0 8px',
-                    minWidth: '64px',
-                    border: '1px solid color-mix(in srgb, var(--error) 42%, transparent)',
-                    borderRadius: '999px',
-                    backgroundColor: 'color-mix(in srgb, var(--error) 12%, transparent)',
-                    color: 'var(--error)',
-                    fontSize: 'var(--type-secondary-size)',
-                    lineHeight: 'var(--type-secondary-line-height)',
-                    fontWeight: 'var(--type-ui-emphasis-weight)',
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    cursor: showArchiveConfirm ? 'pointer' : 'default',
-                    position: 'absolute',
-                    right: 0,
-                    top: '50%',
-                    transform: 'translateY(-50%)',
-                    opacity: showArchiveConfirm ? 1 : 0,
-                    pointerEvents: showArchiveConfirm ? 'auto' : 'none',
-                    transition: 'opacity 120ms ease, background-color 120ms ease',
-                    zIndex: 2
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.backgroundColor =
-                      'color-mix(in srgb, var(--error) 18%, transparent)'
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.backgroundColor =
-                      'color-mix(in srgb, var(--error) 12%, transparent)'
-                  }}
-                >
-                  {t('threadEntry.archiveConfirm')}
-                </button>
-              </ActionTooltip>
-            </>
+            <ActionTooltip label={t('threadEntry.archive')} placement="right">
+              <button
+                className="dotcraft-sidebar-control-radius"
+                type="button"
+                aria-label={t('threadEntry.archive')}
+                onClick={(e) => {
+                  e.stopPropagation()
+                  void performArchiveThread()
+                }}
+                onFocus={() => setArchiveButtonFocused(true)}
+                style={{
+                  width: '24px',
+                  height: '24px',
+                  padding: 0,
+                  border: 'none',
+                  borderRadius: 'var(--sidebar-icon-control-radius)',
+                  backgroundColor: 'transparent',
+                  color: isActive ? 'var(--text-secondary)' : 'var(--text-dimmed)',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  cursor: showArchiveAction ? 'pointer' : 'default',
+                  position: 'absolute',
+                  right: 0,
+                  top: '50%',
+                  transform: 'translateY(-50%)',
+                  opacity: showArchiveAction ? 1 : 0,
+                  pointerEvents: showArchiveAction ? 'auto' : 'none',
+                  transition: 'opacity 120ms ease, background-color 120ms ease, color 120ms ease',
+                  zIndex: 2
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.backgroundColor = 'var(--sidebar-control-hover)'
+                  e.currentTarget.style.color = 'var(--error)'
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.backgroundColor = 'transparent'
+                  e.currentTarget.style.color = isActive
+                    ? 'var(--text-secondary)'
+                    : 'var(--text-dimmed)'
+                }}
+              >
+                <Archive size={14} strokeWidth={2} aria-hidden="true" />
+              </button>
+            </ActionTooltip>
           ) : undefined
         }
       />
@@ -726,7 +647,7 @@ export function ThreadEntry({ thread }: ThreadEntryProps): JSX.Element {
           position={contextMenu}
           onClose={() => setContextMenu(null)}
           onRename={startRename}
-          onArchive={archiveThreadWithDialog}
+          onArchive={performArchiveThread}
           thread={thread}
           allowLifecycleActions={!isSubAgent}
         />

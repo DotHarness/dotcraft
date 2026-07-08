@@ -16,6 +16,8 @@ const workspaceDisconnectRemote = vi.fn()
 const workspaceGetRecent = vi.fn()
 const workspaceClearRecent = vi.fn()
 const workspaceClearSelection = vi.fn()
+const workspaceStop = vi.fn()
+const workspaceArchiveThread = vi.fn()
 
 function makeThread(id: string, displayName: string, minutesAgo = 0): ThreadSummary {
   const time = new Date(Date.now() - minutesAgo * 60 * 1000).toISOString()
@@ -69,6 +71,8 @@ describe('ThreadList project-first layout', () => {
     workspaceGetRecent.mockResolvedValue([])
     workspaceClearRecent.mockResolvedValue(undefined)
     workspaceClearSelection.mockResolvedValue(undefined)
+    workspaceStop.mockResolvedValue(undefined)
+    workspaceArchiveThread.mockResolvedValue(undefined)
     Object.defineProperty(window, 'api', {
       configurable: true,
       value: {
@@ -81,7 +85,9 @@ describe('ThreadList project-first layout', () => {
           disconnectRemote: workspaceDisconnectRemote,
           getRecent: workspaceGetRecent,
           clearRecent: workspaceClearRecent,
-          clearSelection: workspaceClearSelection
+          clearSelection: workspaceClearSelection,
+          stop: workspaceStop,
+          archiveThread: workspaceArchiveThread
         },
         shell: { openPath: vi.fn() }
       }
@@ -150,8 +156,17 @@ describe('ThreadList project-first layout', () => {
     expect(screen.getAllByText('Pinned A')).toHaveLength(1)
     expect(screen.getAllByText('Pinned B')).toHaveLength(1)
     expect(screen.getByTestId('thread-pin-pinned-a')).toHaveAttribute('aria-pressed', 'true')
-    expect(screen.getByTestId('project-thread-pinned-/workspace/b-pinned-b')).toBeInTheDocument()
-    expect(screen.queryByTestId('project-thread-pinned-/workspace/b-normal-b')).not.toBeInTheDocument()
+    // Secondary (local) rows now expose an interactive pin toggle instead of the
+    // static read-only marker.
+    expect(screen.getByTestId('project-thread-pin-/workspace/b-pinned-b')).toHaveAttribute(
+      'aria-pressed',
+      'true'
+    )
+    expect(screen.getByTestId('project-thread-pin-/workspace/b-normal-b')).toHaveAttribute(
+      'aria-pressed',
+      'false'
+    )
+    expect(screen.queryByTestId('project-thread-pinned-/workspace/b-pinned-b')).not.toBeInTheDocument()
     expect(screen.getByText('Normal A')).toBeInTheDocument()
     expect(screen.getByText('Normal B')).toBeInTheDocument()
 
@@ -786,7 +801,7 @@ describe('ThreadList project-first layout', () => {
     expect(useThreadStore.getState().activeThreadId).toBe('thread-b')
   })
 
-  it('renders cached foreground pinned rows with a static pinned icon while the global rows belong elsewhere', async () => {
+  it('renders cached foreground pinned rows with an interactive pin toggle while the global rows belong elsewhere', async () => {
     useThreadStore.getState().setThreadList([
       makeThread('thread-a', 'Thread from A')
     ], '/workspace/a')
@@ -812,11 +827,17 @@ describe('ThreadList project-first layout', () => {
     })
 
     renderList()
-    fireEvent.click(screen.getByText('Cached B pinned thread'))
 
-    expect(screen.getByTestId('project-thread-pinned-/workspace/b-thread-b')).toBeInTheDocument()
-    expect(screen.queryByTestId('thread-pin-thread-b')).not.toBeInTheDocument()
+    // Local cached rows now expose an interactive pin toggle (not the static marker)
+    // so cross-workspace pin works even before the workspace becomes foreground.
+    expect(screen.getByTestId('project-thread-pin-/workspace/b-thread-b')).toHaveAttribute(
+      'aria-pressed',
+      'true'
+    )
+    expect(screen.queryByTestId('project-thread-pinned-/workspace/b-thread-b')).not.toBeInTheDocument()
     expect(screen.queryByText('Thread from A')).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByText('Cached B pinned thread'))
     await waitFor(() => {
       expect(useThreadStore.getState().activeThreadId).toBe('thread-b')
     })
@@ -1342,5 +1363,149 @@ describe('ThreadList project-first layout', () => {
     expect(screen.getByRole('button', { name: 'Toggle Projects section' }))
       .toHaveAttribute('aria-expanded', 'true')
     expect(useUIStore.getState().projectsSectionCollapsed).toBe(false)
+  })
+
+  it('toggles pin for a secondary-workspace thread by persisting per-workspace settings', async () => {
+    useThreadStore.getState().setThreadList([makeThread('thread-a', 'Thread from A')], '/workspace/a')
+    useWorkspaceProjectsStore.getState().setPayload({
+      foregroundWorkspacePath: '/workspace/a',
+      foregroundProjectId: '/workspace/a',
+      secondaryLimit: 8,
+      projects: [
+        {
+          kind: 'local',
+          path: '/workspace/a',
+          name: 'a',
+          state: 'foreground',
+          running: true,
+          loaded: true,
+          threadCount: 1,
+          threads: [],
+          pinnedThreadIds: []
+        },
+        {
+          kind: 'local',
+          path: '/workspace/b',
+          name: 'b',
+          state: 'secondary',
+          running: true,
+          loaded: true,
+          threadCount: 1,
+          threads: [makeThread('thread-b', 'Thread B')],
+          pinnedThreadIds: []
+        }
+      ]
+    })
+
+    renderList()
+
+    fireEvent.click(screen.getByTestId('project-thread-pin-/workspace/b-thread-b'))
+
+    await waitFor(() => {
+      expect(settingsSet).toHaveBeenCalledWith({
+        pinnedThreadIdsByWorkspace: { '/workspace/b': ['thread-b'] }
+      })
+    })
+  })
+
+  it('archives a secondary-workspace thread through the workspace archive IPC', async () => {
+    useThreadStore.getState().setThreadList([makeThread('thread-a', 'Thread from A')], '/workspace/a')
+    useWorkspaceProjectsStore.getState().setPayload({
+      foregroundWorkspacePath: '/workspace/a',
+      foregroundProjectId: '/workspace/a',
+      secondaryLimit: 8,
+      projects: [
+        {
+          kind: 'local',
+          path: '/workspace/a',
+          name: 'a',
+          state: 'foreground',
+          running: true,
+          loaded: true,
+          threadCount: 1,
+          threads: [],
+          pinnedThreadIds: []
+        },
+        {
+          kind: 'local',
+          path: '/workspace/b',
+          name: 'b',
+          state: 'secondary',
+          running: true,
+          loaded: true,
+          threadCount: 1,
+          threads: [makeThread('thread-b', 'Thread B')],
+          pinnedThreadIds: []
+        }
+      ]
+    })
+
+    renderList()
+
+    fireEvent.click(screen.getByTestId('project-thread-archive-/workspace/b-thread-b'))
+
+    await waitFor(() => {
+      expect(workspaceArchiveThread).toHaveBeenCalledWith('/workspace/b', 'thread-b')
+    })
+  })
+
+  it('auto-switches to the MRU running workspace when stopping the foreground project', async () => {
+    useThreadStore.getState().setThreadList([], '/workspace/a')
+    useWorkspaceProjectsStore.getState().setPayload({
+      foregroundWorkspacePath: '/workspace/a',
+      foregroundProjectId: '/workspace/a',
+      secondaryLimit: 8,
+      projects: [
+        {
+          kind: 'local',
+          path: '/workspace/a',
+          name: 'a',
+          state: 'foreground',
+          running: true,
+          loaded: true,
+          threadCount: 0,
+          threads: [],
+          pinnedThreadIds: [],
+          lastOpenedAt: '2026-07-01T00:00:00.000Z'
+        },
+        {
+          kind: 'local',
+          path: '/workspace/b',
+          name: 'b',
+          state: 'secondary',
+          running: true,
+          loaded: true,
+          threadCount: 0,
+          threads: [],
+          pinnedThreadIds: [],
+          lastOpenedAt: '2026-07-05T00:00:00.000Z'
+        },
+        {
+          kind: 'local',
+          path: '/workspace/c',
+          name: 'c',
+          state: 'secondary',
+          running: true,
+          loaded: true,
+          threadCount: 0,
+          threads: [],
+          pinnedThreadIds: [],
+          lastOpenedAt: '2026-07-03T00:00:00.000Z'
+        }
+      ]
+    })
+
+    renderList()
+
+    // Open the foreground project's action menu and stop it.
+    fireEvent.mouseEnter(screen.getByRole('button', { name: 'a' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Project actions' }))
+    fireEvent.click(await screen.findByText('Stop Workspace'))
+
+    await waitFor(() => {
+      expect(workspaceStop).toHaveBeenCalledWith('/workspace/a')
+      // /workspace/b has the most recent lastOpenedAt among running others.
+      expect(workspaceSwitch).toHaveBeenCalledWith('/workspace/b')
+    })
   })
 })

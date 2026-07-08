@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom'
 import { useShallow } from 'zustand/react/shallow'
 import {
   AlertCircle,
+  Archive,
   ChevronRight,
   Cloud,
   Copy,
@@ -470,6 +471,70 @@ function collectPinnedProjectRows(
 
 function excludePinnedThreadTrees(threads: ThreadSummary[], pinnedThreadIds: string[]): ThreadSummary[] {
   return partitionPinnedThreads(threads, pinnedThreadIds).unpinnedThreads
+}
+
+/**
+ * Toggle a thread's pinned state for a non-foreground (secondary / Chats)
+ * workspace. Pin is a Desktop-local setting keyed by workspace path, so we
+ * persist the whole `pinnedThreadIdsByWorkspace[key]` list directly. The main
+ * process re-pushes the workspace projects payload after the settings write, so
+ * the row moves between the pinned section and its project group automatically.
+ */
+function toggleWorkspacePin(
+  workspacePath: string,
+  threadId: string,
+  currentPinnedIds: string[]
+): void {
+  const workspaceKey = normalizeWorkspaceProjectKey(workspacePath)
+  const id = threadId.trim()
+  if (!workspaceKey || !id) return
+  const next = currentPinnedIds.includes(id)
+    ? currentPinnedIds.filter((existing) => existing !== id)
+    : [id, ...currentPinnedIds]
+  void window.api?.settings
+    ?.set({ pinnedThreadIdsByWorkspace: { [workspaceKey]: next } })
+    .catch((err: unknown) =>
+      console.error('settings:set pinnedThreadIdsByWorkspace failed:', err)
+    )
+}
+
+/**
+ * When the foreground workspace is stopped, choose where to move the main view so
+ * it never lingers on a dead connection. Prefers the most-recently-used *other*
+ * running (secondary) workspace; if none are running, falls back to the default
+ * Chats workspace. Returns null when nothing suitable exists (e.g. the Chats
+ * workspace itself was stopped and no other workspace is running).
+ */
+function pickNextWorkspaceAfterStop(
+  stoppedPath: string
+): { path: string; name: string } | null {
+  const { projects, chat } = useWorkspaceProjectsStore.getState()
+  const stoppedKey = normalizeWorkspaceProjectKey(stoppedPath)
+  const runningOthers = projects
+    .filter((candidate) => candidate.kind !== 'remote')
+    .filter((candidate) => normalizeWorkspaceProjectKey(candidate.path) !== stoppedKey)
+    .filter((candidate) => candidate.running && candidate.state !== 'error')
+    .sort((left, right) =>
+      (right.lastOpenedAt ?? '').localeCompare(left.lastOpenedAt ?? '')
+    )
+  const mru = runningOthers[0]
+  if (mru) return { path: mru.path, name: mru.name || mru.path }
+  // Fall back to the default Chats workspace unless it was the one just stopped.
+  if (chat && normalizeWorkspaceProjectKey(chat.path) !== stoppedKey) {
+    return { path: chat.path, name: chat.name || chat.path }
+  }
+  return null
+}
+
+/** Archive a thread that lives in a non-foreground workspace connection. */
+async function archiveWorkspaceThread(workspacePath: string, threadId: string): Promise<void> {
+  try {
+    await window.api.workspace.archiveThread(workspacePath, threadId)
+  } catch (err) {
+    // Best-effort: warm secondary connections normally succeed; a rare failure
+    // just leaves the row in place instead of surfacing a modal.
+    console.error('Failed to archive project thread:', err)
+  }
 }
 
 function getProjectActivity(threads: ThreadSummary[]): ProjectActivity {
@@ -1064,7 +1129,20 @@ function ProjectHeader({
 
   async function stopWorkspace(): Promise<void> {
     if (isRemoteProject(project)) return
+    // Stopping the foreground workspace leaves the main view pointed at a now-dead
+    // connection until the user manually switches away. Pre-resolve the next target
+    // (most-recently-used other running workspace, else the default Chats workspace)
+    // and switch there right after the stop request so the UI stays live.
+    const nextTarget = active ? pickNextWorkspaceAfterStop(project.path) : null
     await window.api.workspace.stop(project.path)
+    if (nextTarget) {
+      try {
+        await window.api.workspace.switch(nextTarget.path)
+        addToast(t('projectsRail.stoppedSwitched', { project: nextTarget.name }), 'info')
+      } catch (err) {
+        console.error('Failed to switch workspace after stop:', err)
+      }
+    }
   }
 
   function handlePrimaryAction(): void {
@@ -1487,13 +1565,29 @@ function ReadonlyThreadRow({
   const rowProjectKey = projectIdentity(project)
   const subAgent = isSubAgentThread(thread)
   const subAgentDepth = getSubAgentDepth(thread)
-  const statusColumn = running
+  const [hovered, setHovered] = useState(false)
+  const [pinButtonFocused, setPinButtonFocused] = useState(false)
+  const [archiveButtonFocused, setArchiveButtonFocused] = useState(false)
+  // Pin/archive route to the target workspace connection by path, so they only
+  // apply to local secondary / Chats rows. Remote rows keep the static marker.
+  const supportsLocalActions = !subAgent && !isRemoteProject(project)
+  const isPinned = pinned
+  const showPinAction =
+    supportsLocalActions && (hovered || pinButtonFocused || isPinned)
+  const showArchiveAction =
+    supportsLocalActions && (hovered || archiveButtonFocused)
+  // On hover the archive action replaces the status content in a compact 24px
+  // slot; otherwise the relative-time / waiting badge slot may grow to fit.
+  const statusColumn = showArchiveAction
     ? '24px'
-    : waiting
-      ? 'minmax(74px, max-content)'
-      : 'minmax(24px, max-content)'
-  const statusSlotWidth = running ? '24px' : 'max-content'
-  const statusSlotJustifySelf = running ? 'center' : 'end'
+    : running
+      ? '24px'
+      : waiting
+        ? 'minmax(74px, max-content)'
+        : 'minmax(24px, max-content)'
+  const statusSlotWidth = showArchiveAction ? '24px' : running ? '24px' : 'max-content'
+  const statusSlotMinWidth = '24px'
+  const statusSlotJustifySelf = showArchiveAction ? 'center' : running ? 'center' : 'end'
   // Center the time/badge within its (>=24px) slot so secondary-project rows line
   // up with the foreground ThreadEntry's centered status slot.
   const statusContentJustify = 'center'
@@ -1521,8 +1615,9 @@ function ReadonlyThreadRow({
 
   const statusContent = (
     <span
+      aria-hidden={showArchiveAction}
       style={{
-        display: 'inline-flex',
+        display: showArchiveAction ? 'none' : 'inline-flex',
         alignItems: 'center',
         justifyContent: statusContentJustify,
         width: running ? '100%' : 'auto',
@@ -1531,7 +1626,8 @@ function ReadonlyThreadRow({
         lineHeight: 'var(--type-secondary-line-height)',
         whiteSpace: 'nowrap',
         overflow: 'hidden',
-        textOverflow: 'clip'
+        textOverflow: 'clip',
+        opacity: showArchiveAction ? 0 : 1
       }}
     >
       {running ? (
@@ -1563,11 +1659,56 @@ function ReadonlyThreadRow({
               data-testid={`project-thread-leading-${rowProjectKey}-${thread.id}`}
               style={readonlyLeadingSlotStyle}
             >
-              {pinned && (
-                <ReadonlyPinnedIcon
-                  label={t('threadGroup.pinned')}
-                  testId={`project-thread-pinned-${rowProjectKey}-${thread.id}`}
-                />
+              {supportsLocalActions ? (
+                <ActionTooltip
+                  label={isPinned ? t('threadEntry.unpin') : t('threadEntry.pin')}
+                  placement="right"
+                >
+                  <button
+                    type="button"
+                    aria-label={isPinned ? t('threadEntry.unpin') : t('threadEntry.pin')}
+                    aria-pressed={isPinned}
+                    data-testid={`project-thread-pin-${rowProjectKey}-${thread.id}`}
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      toggleWorkspacePin(project.path, thread.id, project.pinnedThreadIds ?? [])
+                    }}
+                    onFocus={() => setPinButtonFocused(true)}
+                    onBlur={() => setPinButtonFocused(false)}
+                    style={{
+                      width: '22px',
+                      height: '22px',
+                      padding: 0,
+                      border: 'none',
+                      backgroundColor: 'transparent',
+                      color: isPinned ? 'var(--text-secondary)' : 'var(--text-dimmed)',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      cursor: showPinAction ? 'pointer' : 'default',
+                      opacity: showPinAction ? 1 : 0,
+                      pointerEvents: showPinAction ? 'auto' : 'none',
+                      transition: 'opacity 120ms ease, color 120ms ease'
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.color = 'var(--text-primary)'
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.color = isPinned
+                        ? 'var(--text-secondary)'
+                        : 'var(--text-dimmed)'
+                    }}
+                  >
+                    <PinIcon filled={isPinned} />
+                  </button>
+                </ActionTooltip>
+              ) : (
+                pinned && (
+                  <ReadonlyPinnedIcon
+                    label={t('threadGroup.pinned')}
+                    testId={`project-thread-pinned-${rowProjectKey}-${thread.id}`}
+                  />
+                )
               )}
             </span>
           )
@@ -1576,16 +1717,68 @@ function ReadonlyThreadRow({
         nameStyle={{ fontWeight: 'var(--type-ui-weight)' }}
         statusColumn={statusColumn}
         statusSlotWidth={statusSlotWidth}
+        statusSlotMinWidth={statusSlotMinWidth}
         statusJustifySelf={statusSlotJustifySelf}
         status={statusContent}
+        statusExtra={
+          supportsLocalActions ? (
+            <ActionTooltip label={t('threadEntry.archive')} placement="right">
+              <button
+                className="dotcraft-sidebar-control-radius"
+                type="button"
+                aria-label={t('threadEntry.archive')}
+                data-testid={`project-thread-archive-${rowProjectKey}-${thread.id}`}
+                onClick={(e) => {
+                  e.stopPropagation()
+                  void archiveWorkspaceThread(project.path, thread.id)
+                }}
+                onFocus={() => setArchiveButtonFocused(true)}
+                onBlur={() => setArchiveButtonFocused(false)}
+                style={{
+                  width: '24px',
+                  height: '24px',
+                  padding: 0,
+                  border: 'none',
+                  borderRadius: 'var(--sidebar-icon-control-radius)',
+                  backgroundColor: 'transparent',
+                  color: 'var(--text-dimmed)',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  cursor: showArchiveAction ? 'pointer' : 'default',
+                  position: 'absolute',
+                  right: 0,
+                  top: '50%',
+                  transform: 'translateY(-50%)',
+                  opacity: showArchiveAction ? 1 : 0,
+                  pointerEvents: showArchiveAction ? 'auto' : 'none',
+                  transition: 'opacity 120ms ease, background-color 120ms ease, color 120ms ease',
+                  zIndex: 2
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.backgroundColor = 'var(--sidebar-control-hover)'
+                  e.currentTarget.style.color = 'var(--error)'
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.backgroundColor = 'transparent'
+                  e.currentTarget.style.color = 'var(--text-dimmed)'
+                }}
+              >
+                <Archive size={14} strokeWidth={2} aria-hidden="true" />
+              </button>
+            </ActionTooltip>
+          ) : undefined
+        }
         containerStyle={{ cursor: 'pointer', textAlign: 'left' }}
         containerProps={{
           onClick: () => void openThread(),
           onMouseEnter: (e) => {
+            setHovered(true)
             ;(e.currentTarget as HTMLDivElement).style.backgroundColor =
               'var(--sidebar-control-hover)'
           },
           onMouseLeave: (e) => {
+            setHovered(false)
             ;(e.currentTarget as HTMLDivElement).style.backgroundColor = 'transparent'
           }
         }}

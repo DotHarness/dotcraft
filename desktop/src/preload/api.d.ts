@@ -533,6 +533,8 @@ declare global {
         disconnectRemote(): Promise<void>
         restart(path: string): Promise<void>
         stop(path: string): Promise<void>
+        /** Archives a thread that belongs to a (possibly non-foreground) workspace connection. */
+        archiveThread(workspacePath: string, threadId: string): Promise<void>
         onProjectsChange(callback: (payload: WorkspaceProjectsPayload) => void): UnsubscribeFn
         clearRecent(): Promise<void>
         getStatus(): Promise<WorkspaceStatusPayload>

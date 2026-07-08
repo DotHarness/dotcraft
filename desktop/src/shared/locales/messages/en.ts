@@ -1953,9 +1953,6 @@ export const MESSAGES_EN = {
   'systemNotice.memoryConsolidated.title': 'Long-term memory updated',
   'systemNotice.memoryConsolidated.updated': 'Long-term memory updated',
   'threadEntry.turnRunning': 'Turn running',
-  'threadEntry.archiveTitle': 'Archive conversation?',
-  'threadEntry.archiveMessage':
-    'This conversation will be moved to your archive and removed from this list.',
   'threadEntry.deleteTitle': 'Delete conversation?',
   'threadEntry.deleteMessage':
     'This conversation will be permanently deleted. This cannot be undone.',
@@ -1964,7 +1961,6 @@ export const MESSAGES_EN = {
   'threadEntry.unpin': 'Unpin conversation',
   'threadEntry.archive': 'Archive',
   'threadEntry.delete': 'Delete',
-  'threadEntry.archiveConfirm': 'Confirm',
   'threadEntry.pendingApproval': 'Awaiting approval',
   'threadEntry.pendingUserInput': 'Needs answer',
   'threadEntry.pendingPlanConfirmation': 'Awaiting confirmation',
@@ -2098,6 +2094,7 @@ export const MESSAGES_EN = {
   'projectsRail.disconnectRemote': 'Disconnect remote',
   'projectsRail.removeProject': 'Remove from Projects',
   'projectsRail.pathCopied': 'Project path copied',
+  'projectsRail.stoppedSwitched': 'Switched to {{project}}',
   'composer.modeTitle': 'Mode: {{mode}}',
   'composer.mode.agent': 'Agent',
   'composer.mode.plan': 'Plan',

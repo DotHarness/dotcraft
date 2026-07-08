@@ -16,7 +16,6 @@ import { ActionTooltip } from '../ui/ActionTooltip'
 import { ACTION_SHORTCUTS } from '../ui/shortcutKeys'
 import { ThreadAppBindingsButton } from './ThreadAppBindingsButton'
 import { ContextMenu, type ContextMenuPosition } from '../ui/ContextMenu'
-import { useConfirmDialog } from '../ui/ConfirmDialog'
 import { isSubAgentThread } from '../../utils/subAgentThreads'
 import { canForkThread, canForkWorktree, runThreadFork } from '../../utils/threadFork'
 
@@ -74,7 +73,6 @@ export function ThreadHeader({
     : 'default'
   const changelistState = usePerforceChangelistStore((s) => s.byThreadId[threadId])
   const selectedChangelist = changelistState?.snapshot?.target?.changelist ?? metadataChangelist
-  const confirm = useConfirmDialog()
 
   useEffect(() => {
     ensureSourceControl(workspacePath, sourceControlEnabled)
@@ -139,14 +137,9 @@ export function ThreadHeader({
   }
 
   async function archiveThread(): Promise<void> {
+    // One-click archive: archived threads are restorable anytime from
+    // Settings → Archived Threads, so no extra confirmation is needed.
     setMenuPosition(null)
-    const ok = await confirm({
-      title: t('threadEntry.archiveTitle'),
-      message: t('threadEntry.archiveMessage'),
-      confirmLabel: t('threadEntry.archiveConfirm')
-    })
-    if (!ok) return
-
     try {
       await window.api.appServer.sendRequest('thread/archive', { threadId })
     } catch {
