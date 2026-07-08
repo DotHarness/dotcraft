@@ -1015,7 +1015,7 @@ public sealed class OpenAIResponsesToolSearchChatClientTests
         Assert.Equal("workflow", functionCall.GetProperty("namespace").GetString());
 
         var output = input.Single(item => item.GetProperty("type").GetString() == "function_call_output");
-        Assert.Equal("workflow", output.GetProperty("namespace").GetString());
+        AssertFunctionCallOutputHasOnlyProviderFields(output, "create-call");
         var outputText = output.GetProperty("output").GetString();
         Assert.Equal("Created Workflow App task DEF-188.\n{\"id\":\"DEF-188\"}", outputText);
         Assert.DoesNotContain(nameof(TextContent), outputText, StringComparison.Ordinal);
@@ -1273,7 +1273,7 @@ public sealed class OpenAIResponsesToolSearchChatClientTests
         Assert.Equal("workflow", functionCall.GetProperty("namespace").GetString());
 
         var functionOutput = thirdInput.Single(item => item.GetProperty("type").GetString() == "function_call_output");
-        Assert.Equal("workflow", functionOutput.GetProperty("namespace").GetString());
+        AssertFunctionCallOutputHasOnlyProviderFields(functionOutput, "create-call");
         var outputText = functionOutput.GetProperty("output").GetString();
         Assert.Equal("Created Workflow App task DEF-188.\n{\"id\":\"DEF-188\"}", outputText);
         Assert.DoesNotContain(nameof(TextContent), outputText, StringComparison.Ordinal);
@@ -1449,6 +1449,19 @@ public sealed class OpenAIResponsesToolSearchChatClientTests
 
     private static string SerializeOptions(CreateResponseOptions options) =>
         ModelReaderWriter.Write(options).ToString();
+
+    private static void AssertFunctionCallOutputHasOnlyProviderFields(JsonElement output, string callId)
+    {
+        Assert.Equal("function_call_output", output.GetProperty("type").GetString());
+        Assert.Equal(callId, output.GetProperty("call_id").GetString());
+        Assert.False(output.TryGetProperty("namespace", out _));
+        Assert.Equal(
+            ["call_id", "output", "type"],
+            output.EnumerateObject()
+                .Select(property => property.Name)
+                .OrderBy(name => name, StringComparer.Ordinal)
+                .ToArray());
+    }
 
     private static StreamingResponseOutputItemDoneUpdate CreateOutputItemDone(ResponseItem item) =>
         new()
