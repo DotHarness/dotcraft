@@ -104,6 +104,63 @@ public sealed class OpenAIClientProviderTests : IDisposable
     }
 
     [Fact]
+    public void GetOpenAIImageClient_CacheKeyIncludesImageModel()
+    {
+        var provider = new OpenAIClientProvider();
+        var runtime = Runtime(ModelProviderProtocols.OpenAI);
+
+        var first = provider.GetOpenAIImageClient(runtime, "gpt-image-2");
+        var same = provider.GetOpenAIImageClient(runtime, "gpt-image-2");
+        var differentModel = provider.GetOpenAIImageClient(runtime, "gpt-image-2-mini");
+
+        Assert.Same(first, same);
+        Assert.NotSame(first, differentModel);
+    }
+
+    [Fact]
+    public async Task GenerateOpenAIImageEditAsync_SendsMultipartWithProviderHeaders()
+    {
+        var expectedBytes = new byte[] { 4, 5, 6, 7 };
+        await using var server = RecordingHttpServer.Start(JsonResponse(
+            $$"""
+            {
+              "created": 1778544000,
+              "data": [
+                { "b64_json": "{{Convert.ToBase64String(expectedBytes)}}" }
+              ]
+            }
+            """));
+        var provider = new OpenAIClientProvider();
+        var runtime = Runtime(
+            ModelProviderProtocols.OpenAI,
+            networkTimeoutSeconds: 5,
+            endpoint: $"{server.Endpoint}/v1");
+
+        var result = await provider.GenerateOpenAIImageEditAsync(
+            runtime,
+            "gpt-image-2",
+            "edit both references",
+            [
+                new OpenAIImageEditInput([1, 2, 3], "first.png", "image/png"),
+                new OpenAIImageEditInput([8, 9, 10], "second.webp", "image/webp")
+            ],
+            CancellationToken.None);
+
+        Assert.Equal(expectedBytes, result);
+        var request = Assert.Single(server.Requests);
+        Assert.Equal("POST", request.Method);
+        Assert.Equal("/v1/images/edits", request.Path);
+        Assert.Equal("Bearer sk-test", request.Headers["Authorization"]);
+        Assert.Contains("DotCraft/", request.Headers["User-Agent"], StringComparison.Ordinal);
+        Assert.Contains("name=model", request.Body, StringComparison.Ordinal);
+        Assert.Contains("gpt-image-2", request.Body, StringComparison.Ordinal);
+        Assert.Contains("name=prompt", request.Body, StringComparison.Ordinal);
+        Assert.Contains("edit both references", request.Body, StringComparison.Ordinal);
+        Assert.Contains("filename=first.png", request.Body, StringComparison.Ordinal);
+        Assert.Contains("filename=second.webp", request.Body, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void GetOpenAIClient_RejectsNonOpenAIProtocol()
     {
         var provider = new OpenAIClientProvider();

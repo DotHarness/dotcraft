@@ -136,6 +136,119 @@ describe('turn lifecycle', () => {
     expect(s().turns[0].items.filter((i) => i.id === 'item-1')).toHaveLength(1)
   })
 
+  it('onItemStarted/onItemCompleted keeps live imageGeneration output with following assistant text', () => {
+    s().onTurnStarted(makeTurn())
+
+    s().onItemStarted({
+      turnId: 'turn-1',
+      item: {
+        id: 'image-generation-1',
+        type: 'imageGeneration',
+        status: 'started',
+        payload: {
+          callId: 'ig_live',
+          status: 'inProgress',
+          mediaType: 'image/png'
+        },
+        createdAt: '2026-07-08T04:31:00.000Z'
+      }
+    })
+
+    let imageItem = s().turns[0].items.find((item) => item.id === 'image-generation-1')
+    expect(imageItem?.type).toBe('imageGeneration')
+    expect(imageItem?.status).toBe('started')
+    expect(imageItem?.imageGenerationStatus).toBe('inProgress')
+
+    s().onItemCompleted({
+      turnId: 'turn-1',
+      item: {
+        id: 'image-generation-1',
+        type: 'imageGeneration',
+        status: 'completed',
+        payload: {
+          callId: 'ig_live',
+          status: 'completed',
+          revisedPrompt: 'A bright plaza',
+          result: 'AQID',
+          mediaType: 'image/png',
+          savedPath: '<workspace>/.craft/generated_images/thread/ig_live.png'
+        },
+        createdAt: '2026-07-08T04:31:00.000Z',
+        completedAt: '2026-07-08T04:31:02.000Z'
+      }
+    })
+    s().onItemStarted({
+      turnId: 'turn-1',
+      item: {
+        id: 'agent-message-1',
+        type: 'agentMessage',
+        createdAt: '2026-07-08T04:31:03.000Z'
+      }
+    })
+    s().onAgentMessageDelta('Generated image.')
+    s().onItemCompleted({
+      turnId: 'turn-1',
+      item: {
+        id: 'agent-message-1',
+        type: 'agentMessage',
+        text: 'Generated image.',
+        completedAt: '2026-07-08T04:31:04.000Z'
+      }
+    })
+
+    const items = s().turns[0].items
+    expect(items.map((item) => item.id)).toEqual(['image-generation-1', 'agent-message-1'])
+    imageItem = items.find((item) => item.id === 'image-generation-1')
+    expect(imageItem?.status).toBe('completed')
+    expect(imageItem?.imageGenerationStatus).toBe('completed')
+    expect(imageItem?.result).toBe('AQID')
+    expect(imageItem?.mediaType).toBe('image/png')
+    expect(imageItem?.savedPath).toBe('<workspace>/.craft/generated_images/thread/ig_live.png')
+    expect(items.find((item) => item.id === 'agent-message-1')?.text).toBe('Generated image.')
+  })
+
+  it('onItemCompleted creates imageGeneration output before start and ignores stale start', () => {
+    s().onTurnStarted(makeTurn())
+
+    s().onItemCompleted({
+      turnId: 'turn-1',
+      item: {
+        id: 'image-generation-early',
+        type: 'ImageGeneration',
+        status: 'completed',
+        payload: {
+          callId: 'ig_early',
+          status: 'completed',
+          result: 'BAUG',
+          mediaType: 'image/png'
+        },
+        createdAt: '2026-07-08T04:31:00.000Z',
+        completedAt: '2026-07-08T04:31:02.000Z'
+      }
+    })
+    s().onItemStarted({
+      turnId: 'turn-1',
+      item: {
+        id: 'image-generation-early',
+        type: 'ImageGeneration',
+        status: 'started',
+        payload: {
+          callId: 'ig_early',
+          status: 'inProgress',
+          mediaType: 'image/png'
+        },
+        createdAt: '2026-07-08T04:31:00.000Z'
+      }
+    })
+
+    const images = s().turns[0].items.filter((item) => item.id === 'image-generation-early')
+    expect(images).toHaveLength(1)
+    expect(images[0].type).toBe('imageGeneration')
+    expect(images[0].status).toBe('completed')
+    expect(images[0].imageGenerationStatus).toBe('completed')
+    expect(images[0].result).toBe('BAUG')
+  })
+
   it('onItemStarted/onItemCompleted appends guidance userMessage without duplicating it', () => {
     s().onTurnStarted(makeTurn({
       items: [

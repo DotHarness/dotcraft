@@ -50,6 +50,9 @@ internal sealed class ProviderRequestHandler(
     {
         _ = ct;
         EnsureProviderManagementAvailable();
+        if (!msg.Params.HasValue || msg.Params.Value.ValueKind != JsonValueKind.Object)
+            throw AppServerErrors.InvalidParams("'id' is required.");
+        var paramsElement = msg.Params.Value;
         var p = AppServerParams.Get<ProviderCreateParams>(msg);
         var id = NormalizeProviderId(p.Id);
         var protocol = NormalizeProviderProtocol(p.Protocol);
@@ -70,6 +73,15 @@ internal sealed class ProviderRequestHandler(
 
         var provider = new JsonObject();
         providers[id] = provider;
+        var createAuthMethod = ModelProviderAuthMethods.Normalize(p.AuthMethod);
+        var supportsHostedImageGeneration = TryGetCaseInsensitiveProperty(paramsElement, "supportsHostedImageGeneration", out var supportsHostedImageGenerationEl)
+            ? ParseBoolean(supportsHostedImageGenerationEl, "supportsHostedImageGeneration")
+            : ModelProviderResolver.ResolveHostedImageGenerationSupport(new AppConfig.ModelProviderConfig
+            {
+                Protocol = protocol,
+                EndPoint = p.EndPoint,
+                AuthMethod = createAuthMethod
+            });
         WorkspaceConfigEditor.UpsertOrRemoveValue(provider, null, "DisplayName", NormalizeOptionalString(p.DisplayName) ?? id);
         WorkspaceConfigEditor.UpsertOrRemoveValue(provider, null, "Protocol", protocol);
         WorkspaceConfigEditor.UpsertOrRemoveValue(provider, null, "ApiKey", NormalizeOptionalString(p.ApiKey));
@@ -78,7 +90,7 @@ internal sealed class ProviderRequestHandler(
         WorkspaceConfigEditor.UpsertOrRemoveValue(provider, null, "MaxOutputTokens", NormalizeMaxOutputTokens(p.MaxOutputTokens));
         WorkspaceConfigEditor.UpsertOrRemoveValue(provider, null, "StreamMaxRetries", NormalizeStreamMaxRetries(p.StreamMaxRetries));
         WorkspaceConfigEditor.UpsertOrRemoveValue(provider, null, "StreamIdleTimeoutMs", NormalizeStreamIdleTimeoutMs(p.StreamIdleTimeoutMs));
-        var createAuthMethod = ModelProviderAuthMethods.Normalize(p.AuthMethod);
+        WorkspaceConfigEditor.UpsertOrRemoveValue(provider, null, "SupportsHostedImageGeneration", supportsHostedImageGeneration);
         WorkspaceConfigEditor.UpsertOrRemoveValue(provider, null, "AuthMethod",
             createAuthMethod == ModelProviderAuthMethods.ApiKey ? null : createAuthMethod);
         WorkspaceConfigEditor.WriteObject(configPath, root);
@@ -162,6 +174,9 @@ internal sealed class ProviderRequestHandler(
         if (TryGetCaseInsensitiveProperty(msg.Params.Value, "streamIdleTimeoutMs", out _))
             WorkspaceConfigEditor.UpsertOrRemoveValue(provider, WorkspaceConfigEditor.FindCaseInsensitiveKey(provider, "StreamIdleTimeoutMs"), "StreamIdleTimeoutMs",
                 NormalizeStreamIdleTimeoutMs(streamIdleTimeoutMs));
+        if (TryGetCaseInsensitiveProperty(msg.Params.Value, "supportsHostedImageGeneration", out var supportsHostedImageGenerationEl))
+            WorkspaceConfigEditor.UpsertOrRemoveValue(provider, WorkspaceConfigEditor.FindCaseInsensitiveKey(provider, "SupportsHostedImageGeneration"), "SupportsHostedImageGeneration",
+                ParseBoolean(supportsHostedImageGenerationEl, "supportsHostedImageGeneration"));
         if (TryGetCaseInsensitiveProperty(msg.Params.Value, "authMethod", out var authMethodEl))
         {
             var updatedAuthMethod = ModelProviderAuthMethods.Normalize(ParseNullableString(authMethodEl, "authMethod"));
@@ -513,6 +528,16 @@ internal sealed class ProviderRequestHandler(
             JsonValueKind.Null => null,
             JsonValueKind.Number when element.TryGetInt32(out var value) => value,
             _ => throw AppServerErrors.InvalidParams($"'{fieldName}' must be an integer or null.")
+        };
+    }
+
+    private static bool ParseBoolean(JsonElement element, string fieldName)
+    {
+        return element.ValueKind switch
+        {
+            JsonValueKind.True => true,
+            JsonValueKind.False => false,
+            _ => throw AppServerErrors.InvalidParams($"'{fieldName}' must be a boolean.")
         };
     }
 

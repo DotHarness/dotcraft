@@ -9,6 +9,11 @@ internal interface IToolNamespaceMetadata
     string? ToolNamespace { get; }
 }
 
+internal interface IOpenAIResponsesFunctionToolMetadata
+{
+    bool? Strict { get; }
+}
+
 internal static class ToolNamespaceMetadataResolver
 {
     public static bool TryGet(AITool tool, out string toolNamespace)

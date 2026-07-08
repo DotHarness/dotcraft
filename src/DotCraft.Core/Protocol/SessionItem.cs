@@ -56,6 +56,10 @@ public sealed class SessionItem
         Payload as ToolExecutionPayload;
 
     [JsonIgnore]
+    public ImageGenerationPayload? AsImageGeneration =>
+        Payload as ImageGenerationPayload;
+
+    [JsonIgnore]
     public ToolCallPayload? AsToolCall =>
         Payload as ToolCallPayload;
 

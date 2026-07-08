@@ -763,6 +763,12 @@ async function updateSharedSettings(partial: Partial<AppSettings>): Promise<void
       applyWindowBackdropTheme(win, resolveInitialTheme(sharedSettings, nativeTheme.shouldUseDarkColors))
     }
   }
+  // Pin is a Desktop-local, per-workspace setting. Re-push the projects payload so
+  // secondary / Chats rows reflect a pin toggle (moving between the pinned section
+  // and their project group) without waiting for another workspace event.
+  if (partial.pinnedThreadIdsByWorkspace !== undefined) {
+    emitWorkspaceProjects()
+  }
 }
 
 browserUseManager.setPolicyHost({
@@ -2436,6 +2442,18 @@ function buildCallbacks(): IpcHandlerCallbacks {
     stopWorkspace: async (workspacePath: string) => {
       const hubClient = createHubClient(sharedSettings)
       await hubClient.stopAppServer(workspacePath)
+    },
+    archiveThreadInWorkspace: async (workspacePath: string, threadId: string) => {
+      const id = threadId.trim()
+      if (!id) throw new Error('A thread id is required to archive.')
+      const entry = getWorkspaceConnection(workspacePath)
+      if (!entry || !entry.connected) {
+        throw new Error('Workspace connection is not available for archiving.')
+      }
+      await entry.client.sendRequest('thread/archive', { threadId: id })
+      // Re-fetch the connection's thread list so the archived row drops out of the
+      // secondary project group immediately (thread/list omits archived threads).
+      await refreshConnectionThreadList(entry)
     },
     onAppServerRequestCompleted: (client, method, params) => {
       observeAppServerRequestCompletion(client, method, params)

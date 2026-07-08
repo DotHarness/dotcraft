@@ -4,7 +4,7 @@ namespace DotCraft.Agents;
 
 internal sealed class DotCraftUserAgentPipelinePolicy : PipelinePolicy
 {
-    private static readonly string UserAgent = BuildUserAgent();
+    internal static readonly string UserAgentValue = BuildUserAgent();
 
     public override void Process(PipelineMessage message, IReadOnlyList<PipelinePolicy> pipeline, int currentIndex)
     {
@@ -22,7 +22,7 @@ internal sealed class DotCraftUserAgentPipelinePolicy : PipelinePolicy
     }
 
     private static void Apply(PipelineMessage message)
-        => message.Request.Headers.Set("User-Agent", UserAgent);
+        => message.Request.Headers.Set("User-Agent", UserAgentValue);
 
     private static string BuildUserAgent()
     {

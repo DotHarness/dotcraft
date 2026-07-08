@@ -503,12 +503,15 @@ public sealed class AgentFactory : IAsyncDisposable
             ctx.Config.PromptCaching,
             _traceCollector);
         var configuredChatClient = chatClientBuilder.Build();
+        var chatOptions = CreateChatOptions(tools, ctx.EffectiveReasoning, instructions);
+        if (ImageGenerationToolProvider.ShouldEnableHostedImageGeneration(ctx))
+            ResponsesToolSearchMapper.EnableHostedImageGeneration(chatOptions);
 
         var options = new ChatClientAgentOptions
         {
             Name = "DotCraft",
             UseProvidedChatClientAsIs = true,
-            ChatOptions = CreateChatOptions(tools, ctx.EffectiveReasoning, instructions)
+            ChatOptions = chatOptions
         };
 
         // Custom instructions: skip MemoryContextProvider so ChatOptions.Instructions is the system prompt (e.g. commit-suggest).

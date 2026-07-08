@@ -79,6 +79,7 @@ public sealed class AppServerToolCatalogTests
         Assert.Contains("GrepFiles", names);
         Assert.DoesNotContain("WriteFile", names);
         Assert.DoesNotContain("EditFile", names);
+        Assert.DoesNotContain("imagegen", names);
     }
 
     [Fact]
@@ -90,6 +91,7 @@ public sealed class AppServerToolCatalogTests
         Assert.Equal(names.Distinct(StringComparer.Ordinal).Count(), names.Count);
         Assert.Equal(names.OrderBy(name => name, StringComparer.Ordinal).ToList(), names);
         Assert.All(descriptors, descriptor => Assert.False(string.IsNullOrEmpty(descriptor.Icon)));
+        Assert.DoesNotContain(descriptors, descriptor => descriptor.Name == "imagegen");
     }
 
     [Fact]

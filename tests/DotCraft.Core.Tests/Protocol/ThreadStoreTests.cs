@@ -1,6 +1,7 @@
 using System.Reflection;
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using DotCraft.Agents;
 using DotCraft.Context.Compaction;
 using DotCraft.Protocol;
 using Microsoft.Agents.AI;
@@ -660,6 +661,118 @@ public sealed class ThreadStoreTests : IDisposable
                 "assistant:partial answer"
             ],
             FormatHistoryWithContents(session));
+    }
+
+    [Fact]
+    public async Task RebuildAndSaveSessionFromThreadAsync_ReplaysHostedImageGenerationAsAssistantContent()
+    {
+        var thread = CreateThread();
+        AddTurnWithMessages(thread, "hello", "before image", TurnStatus.Completed);
+        var turn = thread.Turns[0];
+        var imageBytes = "png-bytes"u8.ToArray();
+        turn.Items.Add(new SessionItem
+        {
+            Id = SessionIdGenerator.NewItemId(3),
+            TurnId = turn.Id,
+            Type = ItemType.ToolCall,
+            Status = ItemStatus.Completed,
+            CreatedAt = DateTimeOffset.UtcNow,
+            CompletedAt = DateTimeOffset.UtcNow,
+            Payload = new ToolCallPayload
+            {
+                ToolName = HostedImageGenerationContent.ToolName,
+                CallId = "ig_123",
+                Arguments = new JsonObject()
+            }
+        });
+        turn.Items.Add(new SessionItem
+        {
+            Id = SessionIdGenerator.NewItemId(4),
+            TurnId = turn.Id,
+            Type = ItemType.ToolResult,
+            Status = ItemStatus.Completed,
+            CreatedAt = DateTimeOffset.UtcNow,
+            CompletedAt = DateTimeOffset.UtcNow,
+            Payload = new ToolResultPayload
+            {
+                CallId = "ig_123",
+                Result = "A red square",
+                Success = true,
+                ContentItems =
+                [
+                    new DotCraft.Plugins.PluginFunctionContentItem
+                    {
+                        Type = "image",
+                        MediaType = "image/png",
+                        DataBase64 = Convert.ToBase64String(imageBytes)
+                    }
+                ]
+            }
+        });
+        await _store.SaveThreadAsync(thread);
+
+        var agent = CreateAgent();
+        await _store.RebuildAndSaveSessionFromThreadAsync(agent, thread.Id);
+        var session = await _store.LoadOrCreateSessionAsync(agent, thread.Id);
+
+        Assert.True(session.TryGetInMemoryChatHistory(
+            out var chatHistory,
+            jsonSerializerOptions: SessionPersistenceJsonOptions.Default));
+        Assert.DoesNotContain(
+            chatHistory.SelectMany(message => message.Contents),
+            content => content is FunctionCallContent { Name: "image_generation" } or FunctionResultContent { CallId: "ig_123" });
+        var imageContent = chatHistory
+            .SelectMany(message => message.Contents)
+            .OfType<HostedImageGenerationContent>()
+            .Single();
+        Assert.Equal("ig_123", imageContent.Id);
+        Assert.Equal("A red square", imageContent.RevisedPrompt);
+        Assert.Equal(imageBytes, imageContent.ImageBytes);
+    }
+
+    [Fact]
+    public async Task RebuildAndSaveSessionFromThreadAsync_ReplaysImageGenerationItemAsAssistantContent()
+    {
+        var thread = CreateThread();
+        AddTurnWithMessages(thread, "hello", "before image", TurnStatus.Completed);
+        var turn = thread.Turns[0];
+        var imageBytes = "png-bytes"u8.ToArray();
+        turn.Items.Add(new SessionItem
+        {
+            Id = SessionIdGenerator.NewItemId(3),
+            TurnId = turn.Id,
+            Type = ItemType.ImageGeneration,
+            Status = ItemStatus.Completed,
+            CreatedAt = DateTimeOffset.UtcNow,
+            CompletedAt = DateTimeOffset.UtcNow,
+            Payload = new ImageGenerationPayload
+            {
+                CallId = "ig_new",
+                Status = "completed",
+                RevisedPrompt = "A blue square",
+                Result = Convert.ToBase64String(imageBytes),
+                MediaType = "image/png"
+            }
+        });
+        await _store.SaveThreadAsync(thread);
+
+        var agent = CreateAgent();
+        await _store.RebuildAndSaveSessionFromThreadAsync(agent, thread.Id);
+        var session = await _store.LoadOrCreateSessionAsync(agent, thread.Id);
+
+        Assert.True(session.TryGetInMemoryChatHistory(
+            out var chatHistory,
+            jsonSerializerOptions: SessionPersistenceJsonOptions.Default));
+        Assert.DoesNotContain(
+            chatHistory.SelectMany(message => message.Contents),
+            content => content is FunctionCallContent { Name: "image_generation" } or FunctionResultContent { CallId: "ig_new" });
+        var imageContent = chatHistory
+            .SelectMany(message => message.Contents)
+            .OfType<HostedImageGenerationContent>()
+            .Single();
+        Assert.Equal("ig_new", imageContent.Id);
+        Assert.Equal("A blue square", imageContent.RevisedPrompt);
+        Assert.Equal(imageBytes, imageContent.ImageBytes);
     }
 
     [Fact]

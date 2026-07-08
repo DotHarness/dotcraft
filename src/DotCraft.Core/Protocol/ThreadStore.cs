@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using DotCraft.Agents;
 using DotCraft.Context.Compaction;
 using DotCraft.State;
 using Microsoft.Agents.AI;
@@ -643,7 +644,7 @@ public sealed class ThreadStore
         var completedItems = turn.Items
             .Where(static item => item.Status == ItemStatus.Completed)
             .ToList();
-        var pairedToolCallIds = CollectPairedToolCallIds(completedItems);
+        var pairedToolCalls = CollectPairedToolCalls(completedItems);
         var assistantBuilder = new AssistantSamplingSegmentBuilder();
 
         foreach (var item in completedItems)
@@ -665,15 +666,21 @@ public sealed class ThreadStore
                 assistantBuilder.AddText(agentText.Trim());
             }
             else if (item.Type == ItemType.ToolCall &&
-                     TryBuildToolCallContent(item, pairedToolCallIds, out var toolCallContent))
+                     TryBuildToolCallContent(item, pairedToolCalls, out var toolCallContent))
             {
                 assistantBuilder.AddToolCall(toolCallContent);
             }
             else if (item.Type == ItemType.ToolResult &&
-                     TryBuildToolResultMessage(item, pairedToolCallIds, out var toolResultMessage))
+                     TryBuildToolResultMessage(item, pairedToolCalls, out var toolResultMessage))
             {
                 FlushAssistantSegment(history, assistantBuilder);
                 history.Add(toolResultMessage);
+            }
+            else if (item.Type == ItemType.ImageGeneration &&
+                     TryBuildImageGenerationMessage(item, out var imageGenerationMessage))
+            {
+                FlushAssistantSegment(history, assistantBuilder);
+                history.Add(imageGenerationMessage);
             }
         }
 
@@ -768,7 +775,7 @@ public sealed class ThreadStore
         return true;
     }
 
-    private static HashSet<string> CollectPairedToolCallIds(IReadOnlyList<SessionItem> items)
+    private static Dictionary<string, string> CollectPairedToolCalls(IReadOnlyList<SessionItem> items)
     {
         var resultIds = items
             .Select(static item => item.Payload as ToolResultPayload)
@@ -779,14 +786,20 @@ public sealed class ThreadStore
         if (resultIds.Count == 0)
             return [];
 
-        return items
-            .Select(static item => item.Payload as ToolCallPayload)
-            .Where(payload =>
-                !string.IsNullOrWhiteSpace(payload?.CallId) &&
-                !string.IsNullOrWhiteSpace(payload.ToolName) &&
-                resultIds.Contains(payload.CallId))
-            .Select(static payload => payload!.CallId)
-            .ToHashSet(StringComparer.Ordinal);
+        var paired = new Dictionary<string, string>(StringComparer.Ordinal);
+        foreach (var payload in items.Select(static item => item.Payload as ToolCallPayload))
+        {
+            if (string.IsNullOrWhiteSpace(payload?.CallId) ||
+                string.IsNullOrWhiteSpace(payload.ToolName) ||
+                !resultIds.Contains(payload.CallId))
+            {
+                continue;
+            }
+
+            paired.TryAdd(payload.CallId, payload.ToolName);
+        }
+
+        return paired;
     }
 
     private static void FlushAssistantSegment(
@@ -800,14 +813,15 @@ public sealed class ThreadStore
 
     private static bool TryBuildToolCallContent(
         SessionItem item,
-        IReadOnlySet<string> pairedToolCallIds,
+        IReadOnlyDictionary<string, string> pairedToolCalls,
         out FunctionCallContent content)
     {
         content = new FunctionCallContent(string.Empty, string.Empty);
         if (item.Payload is not ToolCallPayload payload ||
             string.IsNullOrWhiteSpace(payload.CallId) ||
             string.IsNullOrWhiteSpace(payload.ToolName) ||
-            !pairedToolCallIds.Contains(payload.CallId))
+            !pairedToolCalls.ContainsKey(payload.CallId) ||
+            string.Equals(payload.ToolName, HostedImageGenerationContent.ToolName, StringComparison.Ordinal))
         {
             return false;
         }
@@ -821,20 +835,105 @@ public sealed class ThreadStore
 
     private static bool TryBuildToolResultMessage(
         SessionItem item,
-        IReadOnlySet<string> pairedToolCallIds,
+        IReadOnlyDictionary<string, string> pairedToolCalls,
         out ChatMessage message)
     {
         message = new ChatMessage(ChatRole.Tool, string.Empty);
         if (item.Payload is not ToolResultPayload payload ||
             string.IsNullOrWhiteSpace(payload.CallId) ||
-            !pairedToolCallIds.Contains(payload.CallId))
+            !pairedToolCalls.TryGetValue(payload.CallId, out var toolName))
         {
             return false;
         }
 
+        if (string.Equals(toolName, HostedImageGenerationContent.ToolName, StringComparison.Ordinal))
+            return TryBuildHostedImageGenerationMessage(payload, out message);
+
         message = new ChatMessage(
             ChatRole.Tool,
             (IList<AIContent>)[new FunctionResultContent(payload.CallId, payload.Result)]);
+        return true;
+    }
+
+    private static bool TryBuildHostedImageGenerationMessage(
+        ToolResultPayload payload,
+        out ChatMessage message)
+    {
+        message = new ChatMessage(ChatRole.Assistant, string.Empty);
+        var imageItem = payload.ContentItems?
+            .FirstOrDefault(static item =>
+                string.Equals(item.Type, "image", StringComparison.OrdinalIgnoreCase) &&
+                !string.IsNullOrWhiteSpace(item.DataBase64));
+
+        byte[]? imageBytes = null;
+        if (imageItem?.DataBase64 is { } dataBase64)
+        {
+            try
+            {
+                imageBytes = Convert.FromBase64String(dataBase64);
+            }
+            catch (FormatException)
+            {
+                imageBytes = null;
+            }
+        }
+
+        var content = new HostedImageGenerationContent
+        {
+            Id = payload.CallId,
+            Status = payload.Success ? "completed" : "failed",
+            RevisedPrompt = string.IsNullOrWhiteSpace(payload.Result) ? null : payload.Result,
+            ImageBytes = imageBytes,
+            MediaType = string.IsNullOrWhiteSpace(imageItem?.MediaType) ? "image/png" : imageItem.MediaType!,
+            ErrorMessage = payload.Success ? null : payload.Result
+        };
+        message = new ChatMessage(ChatRole.Assistant, (IList<AIContent>)[content]);
+        return true;
+    }
+
+    private static bool TryBuildImageGenerationMessage(
+        SessionItem item,
+        out ChatMessage message)
+    {
+        message = new ChatMessage(ChatRole.Assistant, string.Empty);
+        if (item.AsImageGeneration is not { } payload ||
+            string.IsNullOrWhiteSpace(payload.CallId) ||
+            string.Equals(payload.Status, "inProgress", StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        byte[]? imageBytes = null;
+        string? errorMessage = payload.ErrorMessage;
+        if (string.Equals(payload.Status, "completed", StringComparison.OrdinalIgnoreCase))
+        {
+            if (!string.IsNullOrWhiteSpace(payload.Result))
+            {
+                try
+                {
+                    imageBytes = Convert.FromBase64String(payload.Result);
+                }
+                catch (FormatException)
+                {
+                    errorMessage = "Image generation returned invalid image data.";
+                }
+            }
+            else
+            {
+                errorMessage = "Image generation completed without image data.";
+            }
+        }
+
+        var content = new HostedImageGenerationContent
+        {
+            Id = payload.CallId,
+            Status = imageBytes is { Length: > 0 } ? "completed" : "failed",
+            RevisedPrompt = payload.RevisedPrompt,
+            ImageBytes = imageBytes,
+            MediaType = string.IsNullOrWhiteSpace(payload.MediaType) ? "image/png" : payload.MediaType,
+            ErrorMessage = errorMessage
+        };
+        message = new ChatMessage(ChatRole.Assistant, (IList<AIContent>)[content]);
         return true;
     }
 

@@ -995,6 +995,10 @@ const api = {
       return ipcRenderer.invoke('workspace:stop', path)
     },
 
+    archiveThread(workspacePath: string, threadId: string): Promise<void> {
+      return ipcRenderer.invoke('workspace:archive-thread', { workspacePath, threadId })
+    },
+
     onProjectsChange(callback: (payload: WorkspaceProjectsPayload) => void): UnsubscribeFn {
       const token = ++workspaceProjectsToken
       activeWorkspaceProjectsCallback = callback

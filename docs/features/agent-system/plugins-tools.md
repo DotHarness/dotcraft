@@ -14,11 +14,14 @@ DotCraft ships a default toolbelt that covers most coding agent needs:
 | Shell | `Exec` | Approval policy, timeout, and sandbox |
 | Web | `WebSearch` / `WebFetch` | Network and fetch limits |
 | LSP | Built-in LSP tools | Optional LSP tool settings |
+| Images | Prompt-based image creation and reference image editing | Supported model services and image generation settings |
 | Plan / Todo | `CreatePlan` / `UpdateTodos` / `TodoWrite` | Subagent role policies |
 
 `ReadFile` reads text files and returns supported images as vision input. PDF and other binary files are rejected with a guidance message instead of being decoded as text.
 
-Tool switches, allow-lists, web limits, and LSP settings are listed in the [Configuration Reference](../../developing/configuration#tools-security-and-sandbox).
+When the current model service supports image creation, the agent can generate images from your description or refine images using references you provide. Results appear directly in the conversation, so you can review them, download them, or use them as references in the next step.
+
+Tool switches, allow-lists, web limits, LSP settings, and image generation settings are listed in the [Configuration Reference](../../developing/configuration#tools-security-and-sandbox).
 
 ## Install & Use Plugins
 

@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using System.Net;
 using System.Net.Sockets;
 using System.Text;
@@ -129,10 +130,129 @@ public sealed class ProviderManagementTests : IDisposable
         Assert.Equal(ModelProviderProtocols.OpenAIResponses, provider.GetProperty("protocol").GetString());
         Assert.True(provider.GetProperty("capabilities").GetProperty("responsesApi").GetBoolean());
         Assert.True(provider.GetProperty("capabilities").GetProperty("nativeDeferredToolLoading").GetBoolean());
+        Assert.True(provider.GetProperty("supportsHostedImageGeneration").GetBoolean());
 
         var personal = JsonDocument.Parse(await File.ReadAllTextAsync(harness.Monitor.Current.GlobalConfigPath!));
         var persisted = personal.RootElement.GetProperty("Providers").GetProperty("openai-responses");
         Assert.Equal(ModelProviderProtocols.OpenAIResponses, persisted.GetProperty("Protocol").GetString());
+        Assert.True(persisted.GetProperty("SupportsHostedImageGeneration").GetBoolean());
+    }
+
+    [Fact]
+    public async Task ProviderCreate_CustomResponsesEndpointDefaultsHostedImageGenerationOff()
+    {
+        using var harness = new AppServerTestHarness(workspaceCraftPath: _workspaceCraftPath);
+        await harness.InitializeAsync();
+
+        await harness.ExecuteRequestAsync(harness.BuildRequest(AppServerMethods.ProviderCreate, new
+        {
+            id = "custom-responses",
+            displayName = "Custom Responses",
+            protocol = ModelProviderProtocols.OpenAIResponses,
+            apiKey = "sk-openai",
+            endPoint = "https://openai-compatible.example/v1"
+        }));
+
+        var response = AssertSingleResult(await harness.Transport.WaitAndDrainAsync(1, TimeSpan.FromSeconds(5)));
+        var provider = response.RootElement.GetProperty("result").GetProperty("provider");
+        Assert.False(provider.GetProperty("supportsHostedImageGeneration").GetBoolean());
+
+        var personal = JsonDocument.Parse(await File.ReadAllTextAsync(harness.Monitor.Current.GlobalConfigPath!));
+        var persisted = personal.RootElement.GetProperty("Providers").GetProperty("custom-responses");
+        Assert.False(persisted.GetProperty("SupportsHostedImageGeneration").GetBoolean());
+    }
+
+    [Fact]
+    public async Task ProviderCreate_PersistsHostedImageGenerationOverride()
+    {
+        using var harness = new AppServerTestHarness(workspaceCraftPath: _workspaceCraftPath);
+        await harness.InitializeAsync();
+
+        await harness.ExecuteRequestAsync(harness.BuildRequest(AppServerMethods.ProviderCreate, new
+        {
+            id = "responses-on",
+            displayName = "Responses On",
+            protocol = ModelProviderProtocols.OpenAIResponses,
+            apiKey = "sk-openai",
+            supportsHostedImageGeneration = true
+        }));
+
+        var enabledResponse = AssertSingleResult(await harness.Transport.WaitAndDrainAsync(1, TimeSpan.FromSeconds(5)));
+        var enabledProvider = enabledResponse.RootElement.GetProperty("result").GetProperty("provider");
+        Assert.True(enabledProvider.GetProperty("supportsHostedImageGeneration").GetBoolean());
+
+        await harness.ExecuteRequestAsync(harness.BuildRequest(AppServerMethods.ProviderCreate, new
+        {
+            id = "responses-off",
+            displayName = "Responses Off",
+            protocol = ModelProviderProtocols.OpenAIResponses,
+            apiKey = "sk-openai",
+            supportsHostedImageGeneration = false
+        }));
+
+        var disabledResponse = AssertSingleResult(await harness.Transport.WaitAndDrainAsync(1, TimeSpan.FromSeconds(5)));
+        var disabledProvider = disabledResponse.RootElement.GetProperty("result").GetProperty("provider");
+        Assert.False(disabledProvider.GetProperty("supportsHostedImageGeneration").GetBoolean());
+
+        var personal = JsonDocument.Parse(await File.ReadAllTextAsync(harness.Monitor.Current.GlobalConfigPath!));
+        var providers = personal.RootElement.GetProperty("Providers");
+        Assert.True(providers.GetProperty("responses-on").GetProperty("SupportsHostedImageGeneration").GetBoolean());
+        Assert.False(providers.GetProperty("responses-off").GetProperty("SupportsHostedImageGeneration").GetBoolean());
+    }
+
+    [Fact]
+    public async Task ProviderUpdate_PreservesHostedImageGenerationAndRejectsNull()
+    {
+        using var harness = new AppServerTestHarness(workspaceCraftPath: _workspaceCraftPath);
+        await WritePersonalConfigAsync(
+            harness,
+            """
+            {
+              "Providers": {
+                "openai-responses": {
+                  "DisplayName": "OpenAI Responses",
+                  "Protocol": "openai-responses",
+                  "ApiKey": "old-key",
+                  "SupportsHostedImageGeneration": true
+                }
+              }
+            }
+            """);
+        await harness.InitializeAsync();
+
+        await harness.ExecuteRequestAsync(harness.BuildRequest(AppServerMethods.ProviderUpdate, new
+        {
+            id = "openai-responses",
+            displayName = "Renamed Responses"
+        }));
+
+        var preservedResponse = AssertSingleResult(await harness.Transport.WaitAndDrainAsync(1, TimeSpan.FromSeconds(5)));
+        var preservedProvider = preservedResponse.RootElement.GetProperty("result").GetProperty("provider");
+        Assert.True(preservedProvider.GetProperty("supportsHostedImageGeneration").GetBoolean());
+
+        var personalAfterPreserve = JsonDocument.Parse(await File.ReadAllTextAsync(harness.Monitor.Current.GlobalConfigPath!));
+        Assert.True(personalAfterPreserve.RootElement
+            .GetProperty("Providers")
+            .GetProperty("openai-responses")
+            .GetProperty("SupportsHostedImageGeneration")
+            .GetBoolean());
+
+        var nullParams = new JsonObject
+        {
+            ["id"] = "openai-responses",
+            ["supportsHostedImageGeneration"] = null
+        };
+        await harness.ExecuteRequestAsync(harness.BuildRequest(AppServerMethods.ProviderUpdate, nullParams));
+
+        var nullResponse = Assert.Single(await harness.Transport.WaitAndDrainAsync(1, TimeSpan.FromSeconds(5)));
+        AppServerTestHarness.AssertIsErrorResponse(nullResponse, AppServerErrors.InvalidParamsCode);
+
+        var personalAfterNull = JsonDocument.Parse(await File.ReadAllTextAsync(harness.Monitor.Current.GlobalConfigPath!));
+        Assert.True(personalAfterNull.RootElement
+            .GetProperty("Providers")
+            .GetProperty("openai-responses")
+            .GetProperty("SupportsHostedImageGeneration")
+            .GetBoolean());
     }
 
     [Fact]

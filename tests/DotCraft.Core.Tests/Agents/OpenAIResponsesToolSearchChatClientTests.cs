@@ -196,6 +196,57 @@ public sealed class OpenAIResponsesToolSearchChatClientTests
     }
 
     [Fact]
+    public void TryCreateHostedImageGenerationContent_GeneratingStatus_ReturnsFalse()
+    {
+        var item = CreateHostedImageGenerationCallItem(
+            "ig_generating",
+            "generating",
+            "A red square",
+            resultBase64: null);
+
+        Assert.False(ResponsesToolSearchMapper.TryCreateHostedImageGenerationContent(item, out _));
+    }
+
+    [Fact]
+    public void TryCreateHostedImageGenerationContent_CompletedStatus_ReturnsHostedContent()
+    {
+        var imageBytes = CreateImageBytes("image/png");
+        var item = CreateHostedImageGenerationCallItem(
+            "ig_123",
+            "completed",
+            "A red square",
+            Convert.ToBase64String(imageBytes));
+
+        Assert.True(ResponsesToolSearchMapper.TryCreateHostedImageGenerationContent(item, out var content));
+        Assert.True(content.Succeeded);
+        Assert.Equal("ig_123", content.Id);
+        Assert.Equal("A red square", content.RevisedPrompt);
+        Assert.Equal("image/png", content.MediaType);
+        Assert.Equal(imageBytes, content.ImageBytes);
+    }
+
+    [Fact]
+    public void TryCreateHostedImageGenerationContent_InvalidBase64_ReturnsVisibleErrorContent()
+    {
+        var update = CreateStreamingUpdate("""
+            {
+              "type": "response.image_generation_call.completed",
+              "sequence_number": 1,
+              "item_id": "ig_bad",
+              "output_index": 0,
+              "revised_prompt": "Broken",
+              "result": "not-base64"
+            }
+            """);
+
+        Assert.True(ResponsesToolSearchMapper.TryCreateHostedImageGenerationContent(update, out var content));
+        Assert.False(content.Succeeded);
+        Assert.Equal("ig_bad", content.Id);
+        Assert.Equal("Image generation returned invalid image data.", content.ErrorMessage);
+        Assert.Null(content.ImageBytes);
+    }
+
+    [Fact]
     public void CreateResponseOptions_DegradesUnsupportedContentWithVisiblePlaceholder()
     {
         using var document = JsonDocument.Parse(CreateRequestJson(
@@ -362,6 +413,63 @@ public sealed class OpenAIResponsesToolSearchChatClientTests
         Assert.Equal("object", child.GetProperty("parameters").GetProperty("type").GetString());
         Assert.False(child.TryGetProperty("namespace", out _));
         Assert.False(child.TryGetProperty("defer_loading", out _));
+    }
+
+    [Fact]
+    public void CreateResponseOptions_EmitsHostedImageGenerationToolWhenEnabled()
+    {
+        var dynamicTool = CreateRuntimeDynamicTool("image_gen", "imagegen");
+        var options = new ChatOptions
+        {
+            Tools = [dynamicTool]
+        };
+        ResponsesToolSearchMapper.EnableHostedImageGeneration(options);
+
+        using var document = JsonDocument.Parse(CreateRequestJson(
+            "gpt-test",
+            [new ChatMessage(ChatRole.User, "make an image")],
+            options));
+
+        var hostedTool = Assert.Single(document.RootElement.GetProperty("tools").EnumerateArray());
+        Assert.Equal("image_generation", hostedTool.GetProperty("type").GetString());
+        Assert.Equal("png", hostedTool.GetProperty("output_format").GetString());
+        Assert.False(hostedTool.TryGetProperty("name", out _));
+        Assert.DoesNotContain(
+            document.RootElement.GetProperty("tools").EnumerateArray(),
+            tool => tool.TryGetProperty("name", out var name) && name.GetString() == "image_gen");
+        Assert.DoesNotContain(
+            document.RootElement.GetProperty("tools").EnumerateArray(),
+            tool => tool.TryGetProperty("tools", out var children)
+                    && children.EnumerateArray().Any(child =>
+                        child.TryGetProperty("name", out var childName) && childName.GetString() == "imagegen"));
+    }
+
+    [Fact]
+    public void CreateResponseOptions_ReplaysHostedImageGenerationCallInput()
+    {
+        var imageBytes = CreateImageBytes("image/png");
+
+        using var document = JsonDocument.Parse(CreateRequestJson(
+            "gpt-test",
+            [
+                new ChatMessage(ChatRole.Assistant, [
+                    new HostedImageGenerationContent
+                    {
+                        Id = "ig_123",
+                        Status = "completed",
+                        RevisedPrompt = "A red square",
+                        ImageBytes = imageBytes
+                    }
+                ])
+            ],
+            new ChatOptions()));
+
+        var item = Assert.Single(document.RootElement.GetProperty("input").EnumerateArray());
+        Assert.Equal("image_generation_call", item.GetProperty("type").GetString());
+        Assert.Equal("ig_123", item.GetProperty("id").GetString());
+        Assert.Equal("completed", item.GetProperty("status").GetString());
+        Assert.Equal("A red square", item.GetProperty("revised_prompt").GetString());
+        Assert.Equal(Convert.ToBase64String(imageBytes), item.GetProperty("result").GetString());
     }
 
     [Fact]
@@ -1354,6 +1462,27 @@ public sealed class OpenAIResponsesToolSearchChatClientTests
         ModelReaderWriter.Read<StreamingResponseUpdate>(
             BinaryData.FromString(json),
             ModelReaderWriterOptions.Json)!;
+
+    private static ResponseItem CreateHostedImageGenerationCallItem(
+        string itemId,
+        string status,
+        string revisedPrompt,
+        string? resultBase64)
+    {
+        var payload = new Dictionary<string, object?>
+        {
+            ["type"] = "image_generation_call",
+            ["id"] = itemId,
+            ["status"] = status,
+            ["revised_prompt"] = revisedPrompt
+        };
+        if (resultBase64 != null)
+            payload["result"] = resultBase64;
+
+        return ModelReaderWriter.Read<ResponseItem>(
+            BinaryData.FromString(JsonSerializer.Serialize(payload, JsonOptions)),
+            ModelReaderWriterOptions.Json)!;
+    }
 
     private static ResponseItem CreateUnknownToolSearchCallItem(string callId, object arguments)
     {

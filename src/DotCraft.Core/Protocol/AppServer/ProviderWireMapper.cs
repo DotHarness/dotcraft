@@ -32,6 +32,7 @@ internal static class ProviderWireMapper
             MaxOutputTokens = provider.MaxOutputTokens,
             StreamMaxRetries = provider.StreamMaxRetries,
             StreamIdleTimeoutMs = provider.StreamIdleTimeoutMs,
+            SupportsHostedImageGeneration = ModelProviderResolver.ResolveHostedImageGenerationSupport(provider),
             IsImplicit = isImplicit,
             AuthMethod = authMethod,
             ChatGptAccountId = authMethod == ModelProviderAuthMethods.ChatGptOAuth && !string.IsNullOrWhiteSpace(provider.ChatGptAccountId)

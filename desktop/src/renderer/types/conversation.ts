@@ -18,6 +18,7 @@ export type ItemType =
   | 'reasoningContent'
   | 'commandExecution'
   | 'toolExecution'
+  | 'imageGeneration'
   | 'toolCall'
   | 'pluginFunctionCall'
   | 'dynamicToolCall'
@@ -108,6 +109,14 @@ export interface ConversationItem {
   exitCode?: number | null
   /** Runtime status for commandExecution items */
   executionStatus?: 'inProgress' | 'completed' | 'failed' | 'cancelled'
+  /** Hosted image generation lifecycle status */
+  imageGenerationStatus?: 'inProgress' | 'completed' | 'failed'
+  /** Revised prompt returned by the hosted image generation service */
+  revisedPrompt?: string
+  /** Media type for imageGeneration result data */
+  mediaType?: string
+  /** Local path where the generated image was persisted */
+  savedPath?: string
   /** Tool call arguments from item/started payload for toolCall items */
   arguments?: Record<string, unknown>
   /** Raw incremental tool-call arguments JSON from item/toolCall/argumentsDelta */
@@ -247,6 +256,40 @@ export function isToolLikeItemType(
   type: string | undefined
 ): type is 'toolCall' | 'pluginFunctionCall' | 'dynamicToolCall' {
   return type === 'toolCall' || type === 'pluginFunctionCall' || type === 'dynamicToolCall'
+}
+
+const CONVERSATION_ITEM_TYPE_ALIASES: Record<string, ItemType> = {
+  userMessage: 'userMessage',
+  UserMessage: 'userMessage',
+  agentMessage: 'agentMessage',
+  AgentMessage: 'agentMessage',
+  reasoningContent: 'reasoningContent',
+  ReasoningContent: 'reasoningContent',
+  commandExecution: 'commandExecution',
+  CommandExecution: 'commandExecution',
+  toolExecution: 'toolExecution',
+  ToolExecution: 'toolExecution',
+  imageGeneration: 'imageGeneration',
+  ImageGeneration: 'imageGeneration',
+  toolCall: 'toolCall',
+  ToolCall: 'toolCall',
+  pluginFunctionCall: 'pluginFunctionCall',
+  PluginFunctionCall: 'pluginFunctionCall',
+  dynamicToolCall: 'dynamicToolCall',
+  DynamicToolCall: 'dynamicToolCall',
+  toolResult: 'toolResult',
+  ToolResult: 'toolResult',
+  error: 'error',
+  Error: 'error',
+  approvalCard: 'approvalCard',
+  ApprovalCard: 'approvalCard',
+  systemNotice: 'systemNotice',
+  SystemNotice: 'systemNotice'
+}
+
+export function normalizeConversationItemType(value: unknown): ItemType | undefined {
+  if (typeof value !== 'string') return undefined
+  return CONVERSATION_ITEM_TYPE_ALIASES[value.trim()]
 }
 
 function isStructuredInvocationType(type: ItemType): type is 'pluginFunctionCall' | 'dynamicToolCall' {
@@ -455,7 +498,7 @@ export function normalizeToolUiDescriptor(value: unknown): ToolUiDescriptor | un
 }
 
 export function wireItemToConversationItem(raw: Record<string, unknown>): ConversationItem {
-  const type = (raw.type as ItemType) ?? 'agentMessage'
+  const type = normalizeConversationItemType(raw.type) ?? ((raw.type as ItemType | undefined) ?? 'agentMessage')
   const payload = (raw.payload ?? {}) as Record<string, unknown>
   const isStructuredInvocation = isStructuredInvocationType(type)
   const invocationContentItems = isStructuredInvocation
@@ -559,6 +602,18 @@ export function wireItemToConversationItem(raw: Record<string, unknown>): Conver
       ?? (payload.exitCode as number | null | undefined),
     executionStatus: (raw.executionStatus as ConversationItem['executionStatus'] | undefined)
       ?? (payload.status as ConversationItem['executionStatus'] | undefined),
+    imageGenerationStatus: type === 'imageGeneration'
+      ? normalizeImageGenerationStatus((raw.imageGenerationStatus as unknown) ?? (payload.status as unknown))
+      : undefined,
+    revisedPrompt: type === 'imageGeneration'
+      ? ((raw.revisedPrompt as string | undefined) ?? (payload.revisedPrompt as string | undefined))
+      : undefined,
+    mediaType: type === 'imageGeneration'
+      ? ((raw.mediaType as string | undefined) ?? (payload.mediaType as string | undefined) ?? 'image/png')
+      : undefined,
+    savedPath: type === 'imageGeneration'
+      ? ((raw.savedPath as string | undefined) ?? (payload.savedPath as string | undefined))
+      : undefined,
     resultPreview: (raw.resultPreview as string | undefined)
       ?? (payload.resultPreview as string | undefined),
     arguments: (raw.arguments as Record<string, unknown> | undefined)
@@ -655,6 +710,13 @@ function normalizeDeliveryMode(value: unknown): 'normal' | 'queued' | 'guidance'
   ) {
     return normalized
   }
+  return undefined
+}
+
+function normalizeImageGenerationStatus(
+  value: unknown
+): ConversationItem['imageGenerationStatus'] | undefined {
+  if (value === 'inProgress' || value === 'completed' || value === 'failed') return value
   return undefined
 }
 

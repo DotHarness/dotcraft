@@ -3,6 +3,7 @@ import type { ConversationTurn, ConversationItem, TurnStatus } from '../types/co
 import {
   derivePluginFunctionResultText,
   isToolLikeItemType,
+  normalizeConversationItemType,
   normalizePluginFunctionContentItems,
   wireItemToConversationItem,
   wireTurnToConversationTurn
@@ -22,6 +23,17 @@ function sortItemsByCreatedAt(items: ConversationItem[]): ConversationItem[] {
   return [...items].sort(
     (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
   )
+}
+
+function upsertItemById(items: ConversationItem[], item: ConversationItem): ConversationItem[] {
+  const existingIndex = items.findIndex((candidate) => candidate.id === item.id)
+  if (existingIndex < 0) {
+    return sortItemsByCreatedAt([...items, item])
+  }
+
+  const next = [...items]
+  next[existingIndex] = { ...next[existingIndex], ...item }
+  return sortItemsByCreatedAt(next)
 }
 
 function isTerminalExecutionStatus(status: ConversationItem['executionStatus'] | undefined): boolean {
@@ -408,7 +420,7 @@ export const useReviewPanelStore = create<ReviewPanelState>((set, get) => ({
 
   async openReviewPanel(taskId: string) {
     const prev = get()
-    
+
     // Unsubscribe from previous thread if any
     if (prev.subscriptionActive && prev.reviewThreadId) {
       void window.api.appServer
@@ -478,7 +490,7 @@ export const useReviewPanelStore = create<ReviewPanelState>((set, get) => ({
         threadId,
         includeTurns: true
       })) as { thread?: { turns?: Array<Record<string, unknown>> } }
-      
+
       // Check if still valid
       if (get()._seq !== seqAtStart) {
         console.debug('loadThreadSnapshot: stale request, ignoring')
@@ -609,7 +621,7 @@ export const useReviewPanelStore = create<ReviewPanelState>((set, get) => ({
 
   onItemStarted(params) {
     const item = params.item as Record<string, unknown>
-    const type = item?.type as string
+    const type = normalizeConversationItemType(item?.type) ?? (item?.type as string | undefined)
     const itemId = item?.id as string
     const turnId = params.turnId as string
 
@@ -644,6 +656,30 @@ export const useReviewPanelStore = create<ReviewPanelState>((set, get) => ({
         turns: state.turns.map((t) =>
           t.id === turnId ? { ...t, items: sortItemsByCreatedAt([...t.items, newItem]) } : t
         )
+      }))
+    } else if (type === 'imageGeneration') {
+      const mappedItem = wireItemToConversationItem(item)
+      const newItem: ConversationItem = {
+        ...mappedItem,
+        status: mappedItem.imageGenerationStatus === 'completed' || mappedItem.imageGenerationStatus === 'failed'
+          ? 'completed'
+          : 'started',
+        imageGenerationStatus: mappedItem.imageGenerationStatus ?? 'inProgress'
+      }
+      set((state) => ({
+        turns: state.turns.map((t) => {
+          if (t.id !== turnId) return t
+          const existing = t.items.find((candidate) => candidate.id === newItem.id)
+          if (
+            existing?.type === 'imageGeneration' &&
+            (existing.status === 'completed' ||
+              existing.imageGenerationStatus === 'completed' ||
+              existing.imageGenerationStatus === 'failed')
+          ) {
+            return t
+          }
+          return { ...t, items: upsertItemById(t.items, newItem) }
+        })
       }))
     } else if (isToolLikeItemType(type)) {
       const newItem = buildToolLikeItem(item, type, 'started')
@@ -778,7 +814,7 @@ export const useReviewPanelStore = create<ReviewPanelState>((set, get) => ({
 
   onItemCompleted(params) {
     const item = params.item as Record<string, unknown>
-    const type = item?.type as string
+    const type = normalizeConversationItemType(item?.type) ?? (item?.type as string | undefined)
     const turnId = params.turnId as string
     const state = get()
 
@@ -896,6 +932,16 @@ export const useReviewPanelStore = create<ReviewPanelState>((set, get) => ({
       set((s) => ({
         turns: s.turns.map((t) =>
           t.id === turnId ? { ...t, items: sortItemsByCreatedAt([...t.items, newItem]) } : t
+        )
+      }))
+    } else if (type === 'imageGeneration') {
+      const completedItem: ConversationItem = {
+        ...wireItemToConversationItem(item),
+        status: 'completed'
+      }
+      set((s) => ({
+        turns: s.turns.map((t) =>
+          t.id === turnId ? { ...t, items: upsertItemById(t.items, completedItem) } : t
         )
       }))
     } else if (type === 'toolCall') {

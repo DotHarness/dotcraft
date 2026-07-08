@@ -270,6 +270,7 @@ Reason: denied by test policy
     [InlineData(GoalToolNames.GetGoal)]
     [InlineData(GoalToolNames.CreateGoal)]
     [InlineData(GoalToolNames.UpdateGoal)]
+    [InlineData("imagegen")]
     public async Task StreamingClient_DeniesPlanModeGoalTools(string toolName)
     {
         var modeManager = new AgentModeManager();

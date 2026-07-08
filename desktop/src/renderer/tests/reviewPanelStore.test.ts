@@ -68,6 +68,46 @@ describe('reviewPanelStore streaming message timing', () => {
     expect(s().streamingMessageLastDeltaAt).toBeNull()
   })
 
+  it('keeps review imageGeneration item through live completion', () => {
+    s().onTurnStarted(makeTurn())
+    s().onItemStarted({
+      turnId: 'turn-review-1',
+      item: {
+        id: 'review-image-1',
+        type: 'imageGeneration',
+        payload: {
+          callId: 'ig_review',
+          status: 'inProgress',
+          mediaType: 'image/png'
+        },
+        createdAt: '2026-07-08T04:31:00.000Z'
+      }
+    })
+    s().onItemCompleted({
+      turnId: 'turn-review-1',
+      item: {
+        id: 'review-image-1',
+        type: 'imageGeneration',
+        payload: {
+          callId: 'ig_review',
+          status: 'completed',
+          result: 'AQID',
+          mediaType: 'image/png',
+          savedPath: '<workspace>/.craft/generated_images/thread/ig_review.png'
+        },
+        createdAt: '2026-07-08T04:31:00.000Z',
+        completedAt: '2026-07-08T04:31:02.000Z'
+      }
+    })
+
+    const imageItem = s().turns[0].items.find((item) => item.id === 'review-image-1')
+    expect(imageItem?.type).toBe('imageGeneration')
+    expect(imageItem?.status).toBe('completed')
+    expect(imageItem?.imageGenerationStatus).toBe('completed')
+    expect(imageItem?.result).toBe('AQID')
+    expect(imageItem?.savedPath).toBe('<workspace>/.craft/generated_images/thread/ig_review.png')
+  })
+
   it('applies terminal output that arrives before the matching review Exec toolCall item', () => {
     s().onTurnStarted(makeTurn())
     s().onTerminalEvent({

@@ -17,6 +17,7 @@ internal static class ResponsesToolSearchMapper
 {
     internal const string FunctionCallNamespaceMetadataKey = "openai.responses.function_call.namespace";
     internal const string PromptCacheKeyAdditionalProperty = "prompt_cache_key";
+    internal const string HostedImageGenerationEnabledAdditionalProperty = "dotcraft.openai.responses.image_generation.enabled";
 
     private const int PromptCacheRequestShapeSchemaVersion = 1;
     private const string OpenAIResponsesProtocolName = "openai-responses";
@@ -58,6 +59,13 @@ internal static class ResponsesToolSearchMapper
         options.AdditionalProperties ??= new AdditionalPropertiesDictionary();
         options.AdditionalProperties[PromptCacheKeyAdditionalProperty] = promptCacheKey.Trim();
         PatchOpenAIResponsesRawRepresentationFactory(options, promptCacheKey.Trim());
+    }
+
+    internal static void EnableHostedImageGeneration(ChatOptions options)
+    {
+        ArgumentNullException.ThrowIfNull(options);
+        options.AdditionalProperties ??= new AdditionalPropertiesDictionary();
+        options.AdditionalProperties[HostedImageGenerationEnabledAdditionalProperty] = true;
     }
 
     public static CreateResponseOptions CreateResponseOptions(
@@ -219,6 +227,38 @@ internal static class ResponsesToolSearchMapper
         }
     }
 
+    public static async IAsyncEnumerable<StreamingResponseUpdate> CaptureHostedImageGenerationCalls(
+        IAsyncEnumerable<StreamingResponseUpdate> updates,
+        Queue<HostedImageGenerationContent> captured,
+        [EnumeratorCancellation] CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(captured);
+        var capturedIds = new HashSet<string>(StringComparer.Ordinal);
+
+        await foreach (var update in updates.WithCancellation(cancellationToken).ConfigureAwait(false))
+        {
+            if (update is StreamingResponseOutputItemDoneUpdate done
+                && TryCreateHostedImageGenerationContent(done.Item, out var content))
+            {
+                EnqueueIfNew(content);
+            }
+            else if (TryCreateHostedImageGenerationContent(update, out content))
+            {
+                EnqueueIfNew(content);
+            }
+
+            yield return update;
+        }
+
+        void EnqueueIfNew(HostedImageGenerationContent content)
+        {
+            if (!string.IsNullOrWhiteSpace(content.Id) && !capturedIds.Add(content.Id))
+                return;
+
+            captured.Enqueue(content);
+        }
+    }
+
     public static void ApplyRecordedFunctionCallNamespaces(
         ChatResponseUpdate update,
         IReadOnlyDictionary<string, string> functionCallNamespaces)
@@ -287,6 +327,11 @@ internal static class ResponsesToolSearchMapper
                             input.Add(reasoningItem);
                         break;
 
+                    case HostedImageGenerationContent imageGeneration:
+                        FlushMessage();
+                        input.Add(CreateImageGenerationCallItem(imageGeneration));
+                        break;
+
                     case FunctionCallContent call:
                         FlushMessage();
                         if (!string.IsNullOrWhiteSpace(call.CallId))
@@ -347,8 +392,12 @@ internal static class ResponsesToolSearchMapper
     {
         var tools = new JsonArray();
         var namespaceToolArrays = new Dictionary<string, JsonArray>(StringComparer.Ordinal);
+        var hostedImageGenerationEnabled = IsHostedImageGenerationEnabled(options);
         foreach (var tool in options?.Tools ?? [])
         {
+            if (hostedImageGenerationEnabled && IsReservedImageGenerationFunction(tool))
+                continue;
+
             if (string.Equals(tool.Name, NativeToolSearchTool.ToolName, StringComparison.Ordinal))
             {
                 tools.Add(new JsonObject
@@ -378,17 +427,33 @@ internal static class ResponsesToolSearchMapper
             tools.Add(functionTool);
         }
 
+        if (hostedImageGenerationEnabled)
+        {
+            tools.Add(new JsonObject
+            {
+                ["type"] = HostedImageGenerationContent.ToolName,
+                ["output_format"] = "png"
+            });
+        }
+
         return tools;
     }
 
-    private static JsonObject CreateFunctionTool(AITool tool) =>
-        new()
+    private static JsonObject CreateFunctionTool(AITool tool)
+    {
+        var functionTool = new JsonObject
         {
             ["type"] = "function",
             ["name"] = tool.Name,
             ["description"] = tool.Description,
             ["parameters"] = CloneJsonElement(GetJsonSchema(tool))
         };
+
+        if (tool is IOpenAIResponsesFunctionToolMetadata { Strict: { } strict })
+            functionTool["strict"] = strict;
+
+        return functionTool;
+    }
 
     private static JsonObject CreateNamespaceTool(string namespaceName, JsonArray tools) =>
         new()
@@ -627,6 +692,22 @@ internal static class ResponsesToolSearchMapper
         return item;
     }
 
+    private static JsonObject CreateImageGenerationCallItem(HostedImageGenerationContent content)
+    {
+        var item = new JsonObject
+        {
+            ["type"] = HostedImageGenerationContent.ToolName + "_call",
+            ["id"] = string.IsNullOrWhiteSpace(content.Id) ? Guid.NewGuid().ToString("N") : content.Id,
+            ["status"] = string.IsNullOrWhiteSpace(content.Status) ? "completed" : content.Status
+        };
+
+        if (!string.IsNullOrWhiteSpace(content.RevisedPrompt))
+            item["revised_prompt"] = content.RevisedPrompt;
+        if (content.ImageBytes is { Length: > 0 })
+            item["result"] = Convert.ToBase64String(content.ImageBytes);
+        return item;
+    }
+
     private static JsonObject CreateFunctionCallOutputItem(FunctionResultContent result, string? functionNamespace)
     {
         var item = new JsonObject
@@ -808,6 +889,19 @@ internal static class ResponsesToolSearchMapper
     private static bool IsToolSearchOutput(object? result) =>
         ExtractToolSearchTools(result).Count > 0;
 
+    private static bool IsHostedImageGenerationEnabled(ChatOptions? options) =>
+        TryReadBool(options?.AdditionalProperties, HostedImageGenerationEnabledAdditionalProperty, out var enabled) &&
+        enabled;
+
+    private static bool IsReservedImageGenerationFunction(AITool tool)
+    {
+        if (!string.Equals(tool.Name, ImageGenerationToolProvider.ToolName, StringComparison.Ordinal))
+            return false;
+
+        return ToolNamespaceMetadataResolver.TryGet(tool, out var toolNamespace) &&
+               string.Equals(toolNamespace, ImageGenerationToolProvider.ToolNamespace, StringComparison.Ordinal);
+    }
+
     private static string SerializeArguments(object? arguments)
     {
         if (arguments == null)
@@ -973,6 +1067,214 @@ internal static class ResponsesToolSearchMapper
         }
     }
 
+    internal static bool TryCreateHostedImageGenerationContent(
+        ResponseItem item,
+        out HostedImageGenerationContent content)
+    {
+        content = null!;
+
+        try
+        {
+            if (!TryReadJsonObjectFromRaw(item, out var rawObject))
+                return false;
+            if (!string.Equals(
+                    ReadJsonString(rawObject, "type"),
+                    HostedImageGenerationContent.ToolName + "_call",
+                    StringComparison.Ordinal))
+            {
+                return false;
+            }
+
+            var id = ReadJsonString(rawObject, "id")
+                ?? ReadJsonString(rawObject, "call_id")
+                ?? Guid.NewGuid().ToString("N");
+            var status = ReadJsonString(rawObject, "status") ?? "completed";
+            var revisedPrompt = ReadJsonString(rawObject, "revised_prompt");
+
+            if (string.Equals(status, "failed", StringComparison.OrdinalIgnoreCase))
+            {
+                content = new HostedImageGenerationContent
+                {
+                    Id = id,
+                    Status = status,
+                    RevisedPrompt = revisedPrompt,
+                    ErrorMessage = ReadImageGenerationError(rawObject)
+                        ?? $"Image generation {status}."
+                };
+                return true;
+            }
+
+            if (!string.Equals(status, "completed", StringComparison.OrdinalIgnoreCase))
+                return false;
+
+            var result = ReadJsonString(rawObject, "result");
+            if (string.IsNullOrWhiteSpace(result))
+            {
+                content = new HostedImageGenerationContent
+                {
+                    Id = id,
+                    Status = status,
+                    RevisedPrompt = revisedPrompt,
+                    ErrorMessage = "Image generation completed without image data."
+                };
+                return true;
+            }
+
+            byte[] imageBytes;
+            try
+            {
+                imageBytes = Convert.FromBase64String(result.Trim());
+            }
+            catch (FormatException)
+            {
+                content = new HostedImageGenerationContent
+                {
+                    Id = id,
+                    Status = status,
+                    RevisedPrompt = revisedPrompt,
+                    ErrorMessage = "Image generation returned invalid image data."
+                };
+                return true;
+            }
+
+            content = new HostedImageGenerationContent
+            {
+                Id = id,
+                Status = status,
+                RevisedPrompt = revisedPrompt,
+                ImageBytes = imageBytes,
+                MediaType = "image/png"
+            };
+            return true;
+        }
+        catch (Exception ex) when (ex is InvalidOperationException or NotSupportedException or JsonException or ArgumentException)
+        {
+            return false;
+        }
+    }
+
+    internal static bool TryCreateHostedImageGenerationContent(
+        StreamingResponseUpdate update,
+        out HostedImageGenerationContent content)
+    {
+        content = null!;
+
+        try
+        {
+            var rawJson = ModelReaderWriter.Write(update).ToString();
+            if (OpenAIResponsesRequestBodyCanonicalizer.NormalizeTopLevelObject(rawJson) is not { } normalizedJson)
+                return false;
+
+            using var document = JsonDocument.Parse(normalizedJson);
+            var root = document.RootElement;
+            var eventType = ReadString(root, "type");
+            if (!string.Equals(eventType, "response.image_generation_call.completed", StringComparison.Ordinal) &&
+                !string.Equals(eventType, "response.image_generation_call.failed", StringComparison.Ordinal))
+            {
+                return false;
+            }
+
+            var id = ReadString(root, "item_id")
+                ?? ReadString(root, "id")
+                ?? ReadString(root, "call_id")
+                ?? Guid.NewGuid().ToString("N");
+            var revisedPrompt = ReadString(root, "revised_prompt");
+            var status = string.Equals(eventType, "response.image_generation_call.completed", StringComparison.Ordinal)
+                ? "completed"
+                : "failed";
+
+            if (!string.Equals(status, "completed", StringComparison.Ordinal))
+            {
+                content = new HostedImageGenerationContent
+                {
+                    Id = id,
+                    Status = status,
+                    RevisedPrompt = revisedPrompt,
+                    ErrorMessage = ReadImageGenerationError(root) ?? "Image generation failed."
+                };
+                return true;
+            }
+
+            var result = ReadString(root, "result");
+            if (string.IsNullOrWhiteSpace(result))
+            {
+                content = new HostedImageGenerationContent
+                {
+                    Id = id,
+                    Status = status,
+                    RevisedPrompt = revisedPrompt,
+                    ErrorMessage = "Image generation completed without image data."
+                };
+                return true;
+            }
+
+            byte[] imageBytes;
+            try
+            {
+                imageBytes = Convert.FromBase64String(result.Trim());
+            }
+            catch (FormatException)
+            {
+                content = new HostedImageGenerationContent
+                {
+                    Id = id,
+                    Status = status,
+                    RevisedPrompt = revisedPrompt,
+                    ErrorMessage = "Image generation returned invalid image data."
+                };
+                return true;
+            }
+
+            content = new HostedImageGenerationContent
+            {
+                Id = id,
+                Status = status,
+                RevisedPrompt = revisedPrompt,
+                ImageBytes = imageBytes,
+                MediaType = "image/png"
+            };
+            return true;
+        }
+        catch (Exception ex) when (ex is InvalidOperationException or NotSupportedException or JsonException or ArgumentException)
+        {
+            return false;
+        }
+    }
+
+    private static string? ReadImageGenerationError(JsonObject rawObject)
+    {
+        if (ReadJsonString(rawObject, "error") is { } textError)
+            return textError;
+
+        if (!rawObject.TryGetPropertyValue("error", out var errorNode) || errorNode is not JsonObject errorObject)
+            return null;
+
+        var message = ReadJsonString(errorObject, "message");
+        var code = ReadJsonString(errorObject, "code");
+        return string.IsNullOrWhiteSpace(code)
+            ? message
+            : string.IsNullOrWhiteSpace(message)
+                ? code
+                : $"{code}: {message}";
+    }
+
+    private static string? ReadImageGenerationError(JsonElement root)
+    {
+        if (ReadString(root, "error") is { } textError)
+            return textError;
+
+        if (!TryGetProperty(root, "error", out var error) || error.ValueKind != JsonValueKind.Object)
+            return null;
+
+        var message = ReadString(error, "message");
+        var code = ReadString(error, "code");
+        return string.IsNullOrWhiteSpace(code)
+            ? message
+            : string.IsNullOrWhiteSpace(message)
+                ? code
+                : $"{code}: {message}";
+    }
+
     private static bool TryReadFunctionCallNamespace(
         FunctionCallContent call,
         out string functionNamespace)
@@ -1071,6 +1373,42 @@ internal static class ResponsesToolSearchMapper
             case JsonValue jsonValue when jsonValue.TryGetValue<string>(out var text)
                                       && !string.IsNullOrWhiteSpace(text):
                 value = text;
+                return true;
+
+            default:
+                return false;
+        }
+    }
+
+    private static bool TryReadBool(
+        AdditionalPropertiesDictionary? properties,
+        string name,
+        out bool value)
+    {
+        value = false;
+        if (properties == null || !properties.TryGetValue(name, out var propertyValue))
+            return false;
+
+        switch (propertyValue)
+        {
+            case bool boolean:
+                value = boolean;
+                return true;
+
+            case JsonElement { ValueKind: JsonValueKind.True }:
+                value = true;
+                return true;
+
+            case JsonElement { ValueKind: JsonValueKind.False }:
+                value = false;
+                return true;
+
+            case JsonValue jsonValue when jsonValue.TryGetValue<bool>(out var boolean):
+                value = boolean;
+                return true;
+
+            case string text when bool.TryParse(text, out var boolean):
+                value = boolean;
                 return true;
 
             default:

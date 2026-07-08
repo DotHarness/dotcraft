@@ -29,6 +29,7 @@ public enum ItemType
     ReasoningContent,
     CommandExecution,
     ToolExecution,
+    ImageGeneration,
     ToolCall,
     PluginFunctionCall,
     DynamicToolCall,

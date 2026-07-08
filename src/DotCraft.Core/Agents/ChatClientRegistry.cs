@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using DotCraft.Configuration;
 using Microsoft.Extensions.AI;
+using OpenAI.Images;
 
 namespace DotCraft.Agents;
 
@@ -146,6 +147,23 @@ public sealed class ChatClientRegistry(
                     TimeSpan.FromMilliseconds(runtime.StreamIdleTimeoutMs)));
         }, this);
     }
+
+    /// <summary>
+    /// Gets a cached OpenAI SDK image client for a provider runtime and image model.
+    /// </summary>
+    public ImageClient GetOpenAIImageClient(EffectiveModelRuntime runtime, string imageModel) =>
+        _openAIClientProvider.GetOpenAIImageClient(runtime, imageModel);
+
+    /// <summary>
+    /// Sends a multipart image edit request for SDK image-edit gaps.
+    /// </summary>
+    internal Task<byte[]> GenerateOpenAIImageEditAsync(
+        EffectiveModelRuntime runtime,
+        string imageModel,
+        string prompt,
+        IReadOnlyList<OpenAIImageEditInput> images,
+        CancellationToken cancellationToken) =>
+        _openAIClientProvider.GenerateOpenAIImageEditAsync(runtime, imageModel, prompt, images, cancellationToken);
 
     /// <summary>
     /// Gets a cached provider-neutral chat client for a provider/model pair.

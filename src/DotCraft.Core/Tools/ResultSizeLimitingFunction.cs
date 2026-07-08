@@ -8,7 +8,12 @@ namespace DotCraft.Tools;
 /// Wraps an <see cref="AIFunction"/> to normalize empty results and enforce per-tool result size limits
 /// (spill-to-disk with preview when exceeded). Intended as the outermost wrapper so hooks see full results.
 /// </summary>
-internal sealed class ResultSizeLimitingFunction : DelegatingAIFunction, IPluginFunctionTool, IDeferredToolMetadata, IGeneratedToolMetadata, IToolNamespaceMetadata
+internal sealed class ResultSizeLimitingFunction : DelegatingAIFunction,
+    IPluginFunctionTool,
+    IDeferredToolMetadata,
+    IGeneratedToolMetadata,
+    IToolNamespaceMetadata,
+    IOpenAIResponsesFunctionToolMetadata
 {
     private readonly int _maxResultChars;
     private readonly string _workspacePath;
@@ -42,6 +47,9 @@ internal sealed class ResultSizeLimitingFunction : DelegatingAIFunction, IPlugin
 
     public string? ToolNamespace =>
         ToolNamespaceMetadataResolver.TryGet(InnerFunction, out var toolNamespace) ? toolNamespace : null;
+
+    public bool? Strict =>
+        InnerFunction is IOpenAIResponsesFunctionToolMetadata metadata ? metadata.Strict : null;
 
     public bool StreamArgumentsEnabled =>
         !GeneratedToolMetadataResolver.TryGet(InnerFunction, out var metadata) || metadata.StreamArgumentsEnabled;

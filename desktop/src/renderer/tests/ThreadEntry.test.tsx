@@ -190,7 +190,7 @@ describe('ThreadEntry', () => {
     })
   })
 
-  it('enters inline confirm on first archive click and archives on second click', async () => {
+  it('archives immediately on a single archive click (no confirm step)', async () => {
     const thread = makeThread()
     useThreadStore.setState({ threadList: [thread] })
     renderThreadEntry(thread)
@@ -198,12 +198,8 @@ describe('ThreadEntry', () => {
     fireEvent.mouseEnter(await screen.findByTestId('thread-entry-thread-1'))
     fireEvent.click(screen.getByRole('button', { name: 'Archive' }))
 
-    expect(useThreadStore.getState().activeThreadId).toBeNull()
-    expect(appServerSendRequest).not.toHaveBeenCalledWith('thread/archive', { threadId: 'thread-1' })
-    const confirmButton = screen.getByRole('button', { name: 'Confirm' })
-    expect(confirmButton).toBeVisible()
-
-    fireEvent.click(confirmButton)
+    // There is no longer a two-step "Confirm" pill.
+    expect(screen.queryByRole('button', { name: 'Confirm' })).not.toBeInTheDocument()
 
     await waitFor(() => {
       expect(appServerSendRequest).toHaveBeenCalledWith('thread/archive', { threadId: 'thread-1' })
@@ -212,40 +208,24 @@ describe('ThreadEntry', () => {
     })
   })
 
-  it('cancels inline confirm when the pointer leaves the row', async () => {
-    renderThreadEntry(makeThread())
-
-    const row = await screen.findByTestId('thread-entry-thread-1')
-    fireEvent.mouseEnter(row)
-    fireEvent.click(screen.getByRole('button', { name: 'Archive' }))
-    expect(screen.getByRole('button', { name: 'Confirm' })).toBeVisible()
-
-    fireEvent.mouseLeave(row)
-
-    await waitFor(() => {
-      expect(screen.getByText('1h')).toBeVisible()
-      expect(screen.getByRole('button', { name: 'Confirm' })).not.toBeVisible()
-    })
-  })
-
-  it('supports keyboard focus for inline confirm and cancels when focus leaves', async () => {
-    renderThreadEntry(makeThread())
+  it('supports keyboard focus to reveal and trigger the archive action', async () => {
+    const thread = makeThread()
+    useThreadStore.setState({ threadList: [thread] })
+    renderThreadEntry(thread)
 
     const archiveButton = screen.getByRole('button', { name: 'Archive' })
     fireEvent.focus(archiveButton)
+    expect(archiveButton).toBeVisible()
+
     fireEvent.click(archiveButton)
 
-    const confirmButton = await screen.findByRole('button', { name: 'Confirm' })
-    expect(confirmButton).toBeVisible()
-
-    fireEvent.blur(confirmButton, { relatedTarget: null })
-
     await waitFor(() => {
-      expect(screen.getByRole('button', { name: 'Confirm' })).not.toBeVisible()
+      expect(appServerSendRequest).toHaveBeenCalledWith('thread/archive', { threadId: 'thread-1' })
+      expect(useThreadStore.getState().threadList).toEqual([])
     })
   })
 
-  it('reuses the same archive flow from the context menu', async () => {
+  it('archives directly from the context menu without a confirm dialog', async () => {
     const thread = makeThread()
     useThreadStore.setState({ threadList: [thread] })
     renderThreadEntry(thread)
@@ -256,10 +236,7 @@ describe('ThreadEntry', () => {
     })
 
     fireEvent.click(await screen.findByRole('menuitem', { name: 'Archive' }))
-    const dialog = screen.getByRole('dialog')
-    expect(dialog).toBeInTheDocument()
-
-    fireEvent.click(within(dialog).getByRole('button', { name: 'Confirm' }))
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
 
     await waitFor(() => {
       expect(appServerSendRequest).toHaveBeenCalledWith('thread/archive', { threadId: 'thread-1' })
@@ -623,14 +600,13 @@ describe('ThreadEntry', () => {
     expect(screen.getByLabelText('New result')).toBeInTheDocument()
   })
 
-  it('keeps origin channel icon visible during archive confirm state', async () => {
+  it('keeps origin channel icon visible while the archive action is revealed on hover', async () => {
     renderThreadEntry(makeThread({ originChannel: 'qq' }))
 
     const row = await screen.findByTestId('thread-entry-thread-1')
     fireEvent.mouseEnter(row)
-    fireEvent.click(screen.getByRole('button', { name: 'Archive' }))
 
-    expect(screen.getByRole('button', { name: 'Confirm' })).toBeVisible()
+    expect(screen.getByRole('button', { name: 'Archive' })).toBeVisible()
     expect(screen.getByLabelText('Origin channel: qq')).toBeVisible()
   })
 

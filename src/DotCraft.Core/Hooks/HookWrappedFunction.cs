@@ -18,7 +18,12 @@ namespace DotCraft.Hooks;
 /// <see cref="HookEvent.PostToolUseFailure"/> (on exception) hooks.
 /// </para>
 /// </summary>
-internal sealed class HookWrappedFunction : DelegatingAIFunction, IPluginFunctionTool, IDeferredToolMetadata, IGeneratedToolMetadata, IToolNamespaceMetadata
+internal sealed class HookWrappedFunction : DelegatingAIFunction,
+    IPluginFunctionTool,
+    IDeferredToolMetadata,
+    IGeneratedToolMetadata,
+    IToolNamespaceMetadata,
+    IOpenAIResponsesFunctionToolMetadata
 {
     private readonly HookRunner _hookRunner;
 
@@ -44,6 +49,9 @@ internal sealed class HookWrappedFunction : DelegatingAIFunction, IPluginFunctio
 
     public string? ToolNamespace =>
         ToolNamespaceMetadataResolver.TryGet(InnerFunction, out var toolNamespace) ? toolNamespace : null;
+
+    public bool? Strict =>
+        InnerFunction is IOpenAIResponsesFunctionToolMetadata metadata ? metadata.Strict : null;
 
     public bool StreamArgumentsEnabled =>
         !GeneratedToolMetadataResolver.TryGet(InnerFunction, out var metadata) || metadata.StreamArgumentsEnabled;

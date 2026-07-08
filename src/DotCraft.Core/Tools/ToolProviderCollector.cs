@@ -41,6 +41,7 @@ public static class ToolProviderCollector
             providers.Add(new AgentProfileBuilderToolProvider());
             providers.Add(new NodeReplPluginFunctionProvider());
             providers.Add(new CronToolProvider());
+            providers.Add(new ImageGenerationToolProvider());
 
             providers.Add(new McpToolProvider());
 

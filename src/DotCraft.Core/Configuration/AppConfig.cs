@@ -541,6 +541,12 @@ public sealed class AppConfig
         [ConfigField(Min = 1, Hint = "Streaming idle timeout in milliseconds.")]
         public int? StreamIdleTimeoutMs { get; set; }
 
+        /// <summary>
+        /// Provider-specific support flag for hosted OpenAI Responses image generation.
+        /// When omitted, official OpenAI Responses providers and ChatGPT OAuth default to enabled.
+        /// </summary>
+        public bool? SupportsHostedImageGeneration { get; set; }
+
         public ModelProviderConfig Clone() => new()
         {
             DisplayName = DisplayName,
@@ -553,7 +559,8 @@ public sealed class AppConfig
             NetworkTimeoutSeconds = NetworkTimeoutSeconds,
             MaxOutputTokens = MaxOutputTokens,
             StreamMaxRetries = StreamMaxRetries,
-            StreamIdleTimeoutMs = StreamIdleTimeoutMs
+            StreamIdleTimeoutMs = StreamIdleTimeoutMs,
+            SupportsHostedImageGeneration = SupportsHostedImageGeneration
         };
     }
 
@@ -827,7 +834,27 @@ public sealed class AppConfig
         public int MaxFileSize { get; set; } = 10 * 1024 * 1024;
     }
 
-    [ConfigSection("Tools.DeferredLoading", DisplayName = "Tools > Deferred Loading", Order = 24)]
+    [ConfigSection("Tools.ImageGeneration", DisplayName = "Tools > Image Generation", Order = 25)]
+    public sealed class ImageGenerationToolsConfig
+    {
+        /// <summary>
+        /// Enables hosted OpenAI image generation in conversations when the active provider supports it.
+        /// </summary>
+        public bool Enabled { get; set; } = true;
+
+        /// <summary>
+        /// Reserved for image-client integrations. Hosted Responses image generation uses the active model.
+        /// </summary>
+        public string Model { get; set; } = "gpt-image-2";
+
+        /// <summary>
+        /// Reserved for image-client integrations that accept reference images.
+        /// </summary>
+        [ConfigField(Min = 1, Max = 5)]
+        public int MaxReferenceImages { get; set; } = 5;
+    }
+
+    [ConfigSection("Tools.DeferredLoading", DisplayName = "Tools > Deferred Loading", Order = 26)]
     public sealed class DeferredLoadingConfig
     {
         /// <summary>
@@ -877,6 +904,8 @@ public sealed class AppConfig
 
         public LspToolsConfig Lsp { get; set; } = new();
 
+        public ImageGenerationToolsConfig ImageGeneration { get; set; } = new();
+
         public DeferredLoadingConfig DeferredLoading { get; set; } = new();
 
         /// <summary>
@@ -885,7 +914,7 @@ public sealed class AppConfig
         public ToolResultLimitsConfig ResultLimits { get; set; } = new();
     }
 
-    [ConfigSection("Plugins", DisplayName = "Plugins", Order = 26)]
+    [ConfigSection("Plugins", DisplayName = "Plugins", Order = 27)]
     public sealed class PluginsConfig
     {
         /// <summary>

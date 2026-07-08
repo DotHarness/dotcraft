@@ -741,6 +741,7 @@ public static class SessionWireMapper
             ToolCallArgumentsDelta => "toolCallArgumentsDelta",
             CommandExecutionPayload => "commandExecution",
             ToolExecutionPayload => "toolExecution",
+            ImageGenerationPayload => "imageGeneration",
             ApprovalRequestPayload => "approvalRequest",
             ApprovalResponsePayload => "approvalResponse",
             UserInputRequestPayload => "userInputRequest",

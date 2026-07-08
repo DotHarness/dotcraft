@@ -13,6 +13,7 @@ import type {
 import {
   derivePluginFunctionResultText,
   isToolLikeItemType,
+  normalizeConversationItemType,
   normalizePluginFunctionContentItems,
   normalizeToolUiDescriptor,
   wireItemToConversationItem,
@@ -2052,7 +2053,7 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
 
   onItemStarted(params) {
     const item = params.item as Record<string, unknown>
-    const type = item?.type as string
+    const type = normalizeConversationItemType(item?.type) ?? (item?.type as string | undefined)
     const itemId = item?.id as string
     const turnId = params.turnId as string
 
@@ -2099,6 +2100,30 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
             ? { ...t, items: sortItemsByCreatedAt([...t.items, newItem]) }
             : t
         )
+      }))
+    } else if (type === 'imageGeneration') {
+      const mappedItem = wireItemToConversationItem(item)
+      const newItem: ConversationItem = {
+        ...mappedItem,
+        status: mappedItem.imageGenerationStatus === 'completed' || mappedItem.imageGenerationStatus === 'failed'
+          ? 'completed'
+          : 'started',
+        imageGenerationStatus: mappedItem.imageGenerationStatus ?? 'inProgress'
+      }
+      set((state) => ({
+        turns: state.turns.map((t) => {
+          if (t.id !== turnId) return t
+          const existing = t.items.find((candidate) => candidate.id === newItem.id)
+          if (
+            existing?.type === 'imageGeneration' &&
+            (existing.status === 'completed' ||
+              existing.imageGenerationStatus === 'completed' ||
+              existing.imageGenerationStatus === 'failed')
+          ) {
+            return t
+          }
+          return { ...t, items: upsertItemById(t.items, newItem) }
+        })
       }))
     } else if (isToolLikeItemType(type)) {
       const baseItem = buildToolLikeItem(item, type, 'started')
@@ -2431,7 +2456,7 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
 
   onItemCompleted(params) {
     const item = params.item as Record<string, unknown>
-    const type = item?.type as string
+    const type = normalizeConversationItemType(item?.type) ?? (item?.type as string | undefined)
     const turnId = params.turnId as string
     const state = get()
 
@@ -2587,6 +2612,16 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
           return { ...t, items: sortItemsByCreatedAt([...t.items, newItem]) }
         }),
         contextUsage: applyCompactedNoticeToContextUsage(s.contextUsage, notice)
+      }))
+    } else if (type === 'imageGeneration') {
+      const completedItem: ConversationItem = {
+        ...wireItemToConversationItem(item),
+        status: 'completed'
+      }
+      set((s) => ({
+        turns: s.turns.map((t) =>
+          t.id === turnId ? { ...t, items: upsertItemById(t.items, completedItem) } : t
+        )
       }))
     } else if (type === 'toolCall') {
       // Mark the tool call item itself as completed and merge finalized payload fields.
