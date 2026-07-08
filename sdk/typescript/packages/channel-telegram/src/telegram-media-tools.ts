@@ -1,7 +1,10 @@
-import { stat } from "node:fs/promises";
-import { resolve } from "node:path";
-
-import type { ChannelToolDescriptor } from "@dotcraft/sdk/channel";
+import {
+  mediaSourceFromToolBase64,
+  mediaSourceFromToolPath,
+  mediaSourceFromToolUrl,
+  prepareMediaBytes,
+  type ChannelToolDescriptor,
+} from "@dotcraft/sdk/channel";
 import { InputFile } from "grammy";
 
 export const DOCUMENT_TOOL_NAME = "TelegramSendDocumentToCurrentChat";
@@ -281,22 +284,25 @@ export class TelegramMediaTools {
     expected: "document" | "voice",
   ): Promise<TelegramPreparedMedia> {
     if (sourceName === "filePath") {
-      const fullPath = resolve(value);
-      const fileStats = await stat(fullPath).catch(() => null);
-      if (!fileStats?.isFile()) {
-        throw new TelegramMediaError("InvalidArguments", `File '${fullPath}' does not exist.`);
-      }
-
-      const actualName = fileName || fileNameFromPath(fullPath);
-      this.validateSource(expected, actualName, fullPath);
+      const prepared = await prepareMediaBytes(
+        mediaSourceFromToolPath(value, { fieldName: "filePath", errorFactory: telegramMediaError }),
+        {
+          fileName,
+          fallbackFileName: fileName,
+          errorFactory: telegramMediaError,
+        },
+      );
+      const actualName = prepared.fileName;
+      this.validateSource(expected, actualName, prepared.resolvedPath ?? actualName);
       return {
         sourceKind: "filePath",
-        media: new InputFile(fullPath, actualName),
+        media: new InputFile(prepared.bytes, actualName),
         fileName: actualName,
       };
     }
 
     if (sourceName === "fileUrl") {
+      mediaSourceFromToolUrl(value, { fieldName: "fileUrl", errorFactory: telegramMediaError });
       this.validateSource(expected, fileName, value);
       return {
         sourceKind: "fileUrl",
@@ -306,11 +312,18 @@ export class TelegramMediaTools {
     }
 
     if (sourceName === "fileBase64") {
-      const raw = decodeBase64(value);
+      const prepared = await prepareMediaBytes(
+        mediaSourceFromToolBase64(value, { fieldName: "fileBase64", errorFactory: telegramMediaError }),
+        {
+          fileName,
+          fallbackFileName: fileName,
+          errorFactory: telegramMediaError,
+        },
+      );
       this.validateSource(expected, fileName, fileName);
       return {
         sourceKind: "fileBase64",
-        media: new InputFile(raw, fileName),
+        media: new InputFile(prepared.bytes, fileName),
         fileName,
       };
     }
@@ -418,11 +431,6 @@ function optionalInteger(value: unknown): number | null {
   return parsed;
 }
 
-function fileNameFromPath(fullPath: string): string {
-  const parts = fullPath.replaceAll("\\", "/").split("/");
-  return parts[parts.length - 1] ?? "attachment";
-}
-
 function extension(value: string): string {
   let normalized = value.toLowerCase();
   try {
@@ -446,14 +454,6 @@ function isHttpUrl(value: string): boolean {
   return value.startsWith("http://") || value.startsWith("https://");
 }
 
-function decodeBase64(value: string): Uint8Array {
-  const normalized = value.replace(/\s+/g, "");
-  if (!normalized || normalized.length % 4 === 1 || /[^A-Za-z0-9+/=]/.test(normalized)) {
-    throw new TelegramMediaError("InvalidArguments", "fileBase64 did not contain valid base64.");
-  }
-  try {
-    return Buffer.from(normalized, "base64");
-  } catch {
-    throw new TelegramMediaError("InvalidArguments", "fileBase64 did not contain valid base64.");
-  }
+function telegramMediaError(code: string, message: string): TelegramMediaError {
+  return new TelegramMediaError(code, message);
 }

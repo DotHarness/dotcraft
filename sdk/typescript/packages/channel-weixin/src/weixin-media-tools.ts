@@ -1,8 +1,12 @@
 import { createCipheriv, createHash, randomBytes } from "node:crypto";
-import { readFile } from "node:fs/promises";
-import { basename, resolve } from "node:path";
+import { basename } from "node:path";
 
-import type { ChannelToolDescriptor } from "@dotcraft/sdk/channel";
+import {
+  mediaSourceFromToolPath,
+  prepareMediaBytes,
+  type ChannelToolDescriptor,
+  type PreparedMediaBytes,
+} from "@dotcraft/sdk/channel";
 import {
   buildFileMessageReq,
   buildImageMessageReq,
@@ -205,7 +209,7 @@ export class WeixinMediaTools {
         kind: "file",
         fileName: optionalText(args.fileName) ?? basename(filePath),
         caption: optionalText(args.caption),
-        source: { kind: "hostPath", hostPath: filePath },
+        source: mediaSourceFromToolPath(filePath, { fieldName: "filePath", errorFactory: weixinMediaError }),
       };
     }
     if (toolName === WEIXIN_SEND_IMAGE_TOOL) {
@@ -214,7 +218,7 @@ export class WeixinMediaTools {
         kind: "image",
         fileName: optionalText(args.fileName) ?? basename(imagePath),
         caption: optionalText(args.caption),
-        source: { kind: "hostPath", hostPath: imagePath },
+        source: mediaSourceFromToolPath(imagePath, { fieldName: "imagePath", errorFactory: weixinMediaError }),
       };
     }
     throw new WeixinMediaError("UnsupportedTool", `Unknown tool '${toolName}'.`);
@@ -358,12 +362,8 @@ export class WeixinMediaTools {
   }
 }
 
-interface PreparedMedia {
-  bytes: Buffer;
-  fileName: string;
+interface PreparedMedia extends PreparedMediaBytes {
   fileKey: string;
-  md5: string;
-  sourceKind: string;
 }
 
 async function prepareMediaSource(
@@ -371,29 +371,14 @@ async function prepareMediaSource(
   requestedFileName: string | undefined,
   fallbackFileName: string,
 ): Promise<PreparedMedia> {
-  const kind = String(source.kind ?? "");
-  let bytes: Buffer;
-  let fileName = requestedFileName ?? (fallbackFileName.trim() || "attachment");
-  if (kind === "hostPath") {
-    const path = resolve(requiredText(source.hostPath, "hostPath"));
-    bytes = await readFile(path).catch((error: unknown) => {
-      throw new WeixinMediaError(
-        "InvalidArguments",
-        `Cannot read file '${path}': ${error instanceof Error ? error.message : String(error)}`,
-      );
-    });
-    if (!requestedFileName) fileName = basename(path);
-  } else if (kind === "dataBase64") {
-    bytes = decodeBase64(requiredText(source.dataBase64, "dataBase64"));
-  } else {
-    throw new WeixinMediaError("UnsupportedMediaSource", `Weixin media delivery only supports hostPath or dataBase64, got '${kind || "unknown"}'.`);
-  }
+  const prepared = await prepareMediaBytes(source, {
+    fileName: requestedFileName,
+    fallbackFileName,
+    errorFactory: weixinMediaError,
+  });
   return {
-    bytes,
-    fileName,
+    ...prepared,
     fileKey: randomBytes(16).toString("hex"),
-    md5: md5Hex(bytes),
-    sourceKind: kind,
   };
 }
 
@@ -435,14 +420,6 @@ async function formatCdnErrorDetail(response: Response): Promise<string> {
   return [header, body].filter(Boolean).join(" ");
 }
 
-function decodeBase64(value: string): Buffer {
-  const normalized = value.replace(/\s+/g, "");
-  if (!normalized || normalized.length % 4 === 1 || /[^A-Za-z0-9+/=]/.test(normalized)) {
-    throw new WeixinMediaError("InvalidArguments", "dataBase64 did not contain valid base64.");
-  }
-  return Buffer.from(normalized, "base64");
-}
-
 function asRecord(value: unknown): Record<string, unknown> {
   return value && typeof value === "object" ? (value as Record<string, unknown>) : {};
 }
@@ -456,4 +433,8 @@ function requiredText(value: unknown, field: string): string {
 function optionalText(value: unknown): string | undefined {
   const text = String(value ?? "").trim();
   return text || undefined;
+}
+
+function weixinMediaError(code: string, message: string): WeixinMediaError {
+  return new WeixinMediaError(code, message);
 }

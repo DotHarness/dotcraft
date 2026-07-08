@@ -789,6 +789,7 @@ test("FeishuEmbedDocxMedia uploads and binds media", async () => {
   try {
     let uploaded = false;
     let updated = false;
+    let uploadParams: Record<string, unknown> = {};
     const client = {
       async getWikiNode() {
         throw new Error("should not call");
@@ -799,8 +800,9 @@ test("FeishuEmbedDocxMedia uploads and binds media", async () => {
       async createDocxBlocks() {
         return { documentId: DOC_ID, blocks: [{ blockId: "blk_1", blockType: 27 }] };
       },
-      async uploadDocxMedia() {
+      async uploadDocxMedia(params: Record<string, unknown>) {
         uploaded = true;
+        uploadParams = params;
         return { fileToken: "file_tok_1" };
       },
       async updateDocxBlocks() {
@@ -815,6 +817,10 @@ test("FeishuEmbedDocxMedia uploads and binds media", async () => {
     });
     assert.equal(result?.success, true);
     assert.equal(uploaded, true);
+    assert.equal(uploadParams.fileName, path.basename(filePath));
+    assert.equal(Buffer.isBuffer(uploadParams.data), true);
+    assert.equal((uploadParams.data as Buffer).toString("utf-8"), "hello media");
+    assert.equal(uploadParams.mediaType, "text/plain");
     assert.equal(updated, true);
   } finally {
     await temp.unlink(filePath).catch(() => {});

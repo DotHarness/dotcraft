@@ -45,6 +45,7 @@ If NapCat runs in Docker or on another machine, replace `127.0.0.1` with an addr
 - Empty admin and allowlist settings mean the bot ignores QQ messages.
 - Approval replies accept `同意`, `允许`, `yes`, `approve`, `拒绝`, `no`, `reject`, and `deny`.
 - Voice, video, and file delivery are available through channel delivery tools.
+- For file uploads, DotCraft reads the file before sending it to NapCat. Docker deployments do not need to mount the workspace into the NapCat container.
 
 ## Standalone adapter
 

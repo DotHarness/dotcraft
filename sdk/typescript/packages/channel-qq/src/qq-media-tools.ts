@@ -1,8 +1,8 @@
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { extname, join } from "node:path";
-
-import type { ChannelToolDescriptor } from "@dotcraft/sdk/channel";
+import {
+  mediaSourceFromToolPath,
+  prepareMediaUploadUri,
+  type ChannelToolDescriptor,
+} from "@dotcraft/sdk/channel";
 
 import type { OneBotActionResponse } from "./onebot.js";
 import {
@@ -48,11 +48,13 @@ export class QQMediaTools {
         },
         file: {
           supportsHostPath: true,
+          supportsUrl: true,
           supportsBase64: true,
         },
         video: {
           supportsHostPath: true,
           supportsUrl: true,
+          supportsBase64: true,
         },
       },
     };
@@ -187,7 +189,7 @@ export class QQMediaTools {
       return toDeliveryResult(response);
     }
     if (kind === "video") {
-      const file = this.resolveVideoSource(asRecord(message.source));
+      const file = await this.resolveVideoSource(asRecord(message.source), String(message.fileName ?? "video.mp4"));
       const response = await this.sendMessage(server, parsed, [videoSegment(file)]);
       return toDeliveryResult(response);
     }
@@ -255,7 +257,7 @@ export class QQMediaTools {
             kind: "file",
             fileName: requiredText(args.fileName, "fileName"),
             folder: optionalText(args.folder),
-            source: { kind: "hostPath", hostPath: requiredText(args.filePath, "filePath") },
+            source: mediaSourceFromToolPath(args.filePath, { fieldName: "filePath", errorFactory: qqMediaError }),
           },
         };
       case QQ_UPLOAD_PRIVATE_FILE_TOOL:
@@ -264,7 +266,7 @@ export class QQMediaTools {
           message: {
             kind: "file",
             fileName: requiredText(args.fileName, "fileName"),
-            source: { kind: "hostPath", hostPath: requiredText(args.filePath, "filePath") },
+            source: mediaSourceFromToolPath(args.filePath, { fieldName: "filePath", errorFactory: qqMediaError }),
           },
         };
       default:
@@ -293,36 +295,40 @@ export class QQMediaTools {
     message: Record<string, unknown>,
   ): Promise<Record<string, unknown>> {
     const source = asRecord(message.source);
-    const fileName = optionalText(message.fileName) ?? inferFileName(source) ?? "attachment.bin";
     const folder = optionalText(message.folder);
-    let cleanupPath: string | undefined;
-    try {
-      const file = await resolveFileSource(source, fileName);
-      cleanupPath = file.cleanupPath;
-      const response = target.kind === "group"
-        ? await server.sendAction(uploadGroupFileAction(target.id, file.path, fileName, folder))
-        : await server.sendAction(uploadPrivateFileAction(target.id, file.path, fileName));
-      return toDeliveryResult(response);
-    } finally {
-      if (cleanupPath) await rm(cleanupPath, { force: true }).catch(() => undefined);
-    }
+    const file = await prepareMediaUploadUri(source, {
+      fileName: optionalText(message.fileName),
+      fallbackFileName: "attachment.bin",
+      errorFactory: qqMediaError,
+    });
+    const response = target.kind === "group"
+      ? await server.sendAction(uploadGroupFileAction(target.id, file.uri, file.fileName, folder))
+      : await server.sendAction(uploadPrivateFileAction(target.id, file.uri, file.fileName));
+    return toDeliveryResult(response);
   }
 
   private async resolveAudioSource(source: Record<string, unknown>, fileName: string): Promise<string> {
     const kind = String(source.kind ?? "");
-    if (kind === "hostPath") {
-      return `base64://${await fileToBase64(requiredText(source.hostPath, "hostPath"))}`;
+    if (kind === "hostPath" || kind === "url" || kind === "dataBase64") {
+      return (await prepareMediaUploadUri(source, {
+        fileName,
+        fallbackFileName: fileName,
+        errorFactory: qqMediaError,
+      })).uri;
     }
-    if (kind === "url") return requiredText(source.url, "url");
-    if (kind === "dataBase64") return `base64://${requiredText(source.dataBase64, "dataBase64")}`;
     if (kind === "") return await this.resolveAudioSource(parseLegacyFileSource(fileName).source as Record<string, unknown>, fileName);
     throw new QQMediaError("UnsupportedMediaSource", `Unsupported QQ audio source kind '${kind}'.`);
   }
 
-  private resolveVideoSource(source: Record<string, unknown>): string {
+  private async resolveVideoSource(source: Record<string, unknown>, fileName: string): Promise<string> {
     const kind = String(source.kind ?? "");
-    if (kind === "hostPath") return requiredText(source.hostPath, "hostPath");
-    if (kind === "url") return requiredText(source.url, "url");
+    if (kind === "hostPath" || kind === "url" || kind === "dataBase64") {
+      return (await prepareMediaUploadUri(source, {
+        fileName,
+        fallbackFileName: fileName,
+        errorFactory: qqMediaError,
+      })).uri;
+    }
     throw new QQMediaError("UnsupportedMediaSource", `Unsupported QQ video source kind '${kind}'.`);
   }
 }
@@ -340,33 +346,6 @@ function parseLegacyFileSource(value: unknown): Record<string, unknown> {
     return { source: { kind: "url", url: file } };
   }
   return { source: { kind: "hostPath", hostPath: file } };
-}
-
-async function resolveFileSource(source: Record<string, unknown>, fileName: string): Promise<{ path: string; cleanupPath?: string }> {
-  const kind = String(source.kind ?? "");
-  if (kind === "hostPath") return { path: requiredText(source.hostPath, "hostPath") };
-  if (kind === "dataBase64") {
-    const dir = await mkdtemp(join(tmpdir(), "dotcraft-qq-file-"));
-    const path = join(dir, fileName);
-    await writeFile(path, Buffer.from(requiredText(source.dataBase64, "dataBase64"), "base64"));
-    return { path, cleanupPath: dir };
-  }
-  throw new QQMediaError("UnsupportedMediaSource", `QQ file delivery only supports hostPath or dataBase64, got '${kind}'.`);
-}
-
-async function fileToBase64(path: string): Promise<string> {
-  const { readFile } = await import("node:fs/promises");
-  return (await readFile(path)).toString("base64");
-}
-
-function inferFileName(source: Record<string, unknown>): string | null {
-  const hostPath = optionalText(source.hostPath);
-  if (hostPath) {
-    const name = hostPath.split(/[\\/]/).pop();
-    if (name) return name;
-  }
-  const ext = extname(optionalText(source.url) ?? "");
-  return ext ? `attachment${ext}` : null;
 }
 
 function toDeliveryResult(response: OneBotActionResponse): Record<string, unknown> {
@@ -397,4 +376,8 @@ function requiredId(value: unknown, field: string): string {
 
 function asRecord(value: unknown): Record<string, unknown> {
   return value && typeof value === "object" ? (value as Record<string, unknown>) : {};
+}
+
+function qqMediaError(code: string, message: string): QQMediaError {
+  return new QQMediaError(code, message);
 }

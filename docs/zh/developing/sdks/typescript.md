@@ -27,6 +27,8 @@ npm install @dotcraft/sdk
 | `@dotcraft/sdk/channel` | 渠道适配器与托管模块 runtime。 |
 | `@dotcraft/sdk/testing` | 一致性测试辅助。 |
 
+`@dotcraft/sdk/channel` 也导出 media source 辅助函数，供渠道模块把已审批的路径、base64 载荷和允许的 URL 统一转换为 bytes、临时文件或上传 URI 字符串，同时保持工具 schema 稳定。
+
 ## 顶层导出
 
 `DotCraft`、`DotCraftThread`、`DotCraftRunResult`、`DotCraftRunEvent`、`DotCraftError`、typed error 类（`TurnInProgressError`、`TurnFailedError` 等）、输入 part 构造器（`textPart`、`imageUrlPart`、`localImagePart`、`skillRefPart`、`commandRefPart`、`fileRefPart`）、App Binding 辅助（`parseAppBindingHandoff`、`appBindingToolError`、`APP_BINDING_ERROR_CODES`），以及审批决策常量。

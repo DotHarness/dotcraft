@@ -1,8 +1,10 @@
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { basename, extname, join } from "node:path";
+import { basename } from "node:path";
 
-import type { ChannelToolDescriptor } from "@dotcraft/sdk/channel";
+import {
+  mediaSourceFromToolPath,
+  prepareMediaBytes,
+  type ChannelToolDescriptor,
+} from "@dotcraft/sdk/channel";
 
 import { WeComPusher } from "./wecom-pusher.js";
 
@@ -113,7 +115,7 @@ export class WeComMediaTools {
 
     const result = await this.sendStructuredMessage(pusher, {
       kind,
-      source: { kind: "hostPath", hostPath: filePath },
+      source: mediaSourceFromToolPath(filePath, { fieldName: "filePath", errorFactory: weComMediaError }),
       fileName: basename(filePath),
     });
 
@@ -137,41 +139,20 @@ export class WeComMediaTools {
 
   private async sendMedia(pusher: WeComPusher, message: Record<string, unknown>, mediaKind: "voice" | "file"): Promise<void> {
     const source = asRecord(message.source);
-    const fileName = optionalText(message.fileName) ?? inferFileName(source) ?? `${mediaKind}.bin`;
+    const prepared = await prepareMediaBytes(source, {
+      fileName: optionalText(message.fileName),
+      fallbackFileName: `${mediaKind}.bin`,
+      errorFactory: weComMediaError,
+    });
+    const fileName = prepared.fileName;
     if (mediaKind === "voice" && !fileName.toLowerCase().endsWith(".amr")) {
       throw new WeComMediaError("UnsupportedVoiceFormat", "WeCom voice delivery only supports AMR files.");
     }
 
-    let cleanupDir: string | undefined;
-    try {
-      const path = await resolveFileSource(source, fileName);
-      cleanupDir = path.cleanupDir;
-      const mediaId = await pusher.uploadMediaFromPath(path.path, fileName, mediaKind);
-      if (mediaKind === "voice") await pusher.pushVoice(mediaId);
-      else await pusher.pushFile(mediaId);
-    } finally {
-      if (cleanupDir) await rm(cleanupDir, { recursive: true, force: true }).catch(() => undefined);
-    }
+    const mediaId = await pusher.uploadMedia(prepared.bytes, fileName, mediaKind);
+    if (mediaKind === "voice") await pusher.pushVoice(mediaId);
+    else await pusher.pushFile(mediaId);
   }
-}
-
-async function resolveFileSource(source: Record<string, unknown>, fileName: string): Promise<{ path: string; cleanupDir?: string }> {
-  const kind = String(source.kind ?? "");
-  if (kind === "hostPath") return { path: requiredText(source.hostPath, "hostPath") };
-  if (kind === "dataBase64") {
-    const dir = await mkdtemp(join(tmpdir(), "dotcraft-wecom-file-"));
-    const path = join(dir, fileName);
-    await writeFile(path, Buffer.from(requiredText(source.dataBase64, "dataBase64"), "base64"));
-    return { path, cleanupDir: dir };
-  }
-  throw new WeComMediaError("UnsupportedMediaSource", `WeCom media delivery only supports hostPath or dataBase64, got '${kind}'.`);
-}
-
-function inferFileName(source: Record<string, unknown>): string | null {
-  const hostPath = optionalText(source.hostPath);
-  if (hostPath) return basename(hostPath);
-  const ext = extname(optionalText(source.url) ?? "");
-  return ext ? `attachment${ext}` : null;
 }
 
 function requiredText(value: unknown, field: string): string {
@@ -189,3 +170,6 @@ function asRecord(value: unknown): Record<string, unknown> {
   return value && typeof value === "object" ? (value as Record<string, unknown>) : {};
 }
 
+function weComMediaError(code: string, message: string): WeComMediaError {
+  return new WeComMediaError(code, message);
+}

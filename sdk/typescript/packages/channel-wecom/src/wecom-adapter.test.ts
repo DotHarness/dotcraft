@@ -1,5 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { mkdtempSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 
 import { parseWeComApprovalDecision } from "./approval.js";
 import { WeComPermissionService } from "./permission.js";
@@ -57,6 +60,34 @@ test("WeComMediaTools preserves legacy tool names and current-chat requirement",
   assert.ok(tools.every((tool) => tool.requiresChatContext === true));
   assert.equal((tools[0]?.display as Record<string, unknown> | undefined)?.icon, "🎤");
   assert.equal((tools[1]?.display as Record<string, unknown> | undefined)?.icon, "📁");
+});
+
+test("WeComMediaTools uploads file tool paths as bytes", async () => {
+  const tempDir = mkdtempSync(join(tmpdir(), "dotcraft-wecom-upload-"));
+  const filePath = join(tempDir, "report.txt");
+  writeFileSync(filePath, "hello wecom", "utf-8");
+  const uploads: Array<{ bytes: Buffer; filename: string; type: string }> = [];
+  let pushedFile = "";
+  const pusher = {
+    getChatId: () => "chat:chat-1",
+    uploadMedia: async (bytes: Buffer, filename: string, type: "voice" | "file") => {
+      uploads.push({ bytes, filename, type });
+      return "media-1";
+    },
+    pushFile: async (mediaId: string) => {
+      pushedFile = mediaId;
+    },
+    pushVoice: async () => undefined,
+    pushText: async () => undefined,
+  };
+
+  const result = await new WeComMediaTools().executeToolCall(pusher as never, WE_COM_SEND_FILE_TOOL, { filePath });
+
+  assert.equal(result.success, true);
+  assert.equal(uploads[0]?.filename, "report.txt");
+  assert.equal(uploads[0]?.type, "file");
+  assert.equal(uploads[0]?.bytes.toString("utf-8"), "hello wecom");
+  assert.equal(pushedFile, "media-1");
 });
 
 test("WeComAdapter uses chat thread identity and real sender context", async () => {
