@@ -207,7 +207,7 @@ The built-in catalog exposes full reasoning choices for unlisted Anthropic-proto
 
 With a supported OpenAI Responses provider, ask DotCraft to generate an image in a normal conversation. DotCraft requests PNG output from the provider and shows the image inline in clients that support rich content.
 
-Image generation is enabled by default only when the active provider is ChatGPT OAuth or the official OpenAI API key endpoint (`https://api.openai.com/v1`). OpenAI-compatible custom endpoints and non-Responses providers do not automatically receive image generation because support varies by provider.
+Image generation is enabled by default for ChatGPT OAuth and OpenAI Responses API-key providers, including OpenAI-compatible custom endpoints. Non-Responses providers do not receive the hosted image generation tool. If a custom Responses endpoint does not support the native `image_generation` tool, set `Tools.ImageGeneration.Enabled` to `false`.
 
 Personal local hardening example:
 

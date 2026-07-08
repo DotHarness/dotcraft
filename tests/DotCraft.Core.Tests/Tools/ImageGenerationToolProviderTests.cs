@@ -36,7 +36,10 @@ public sealed class ImageGenerationToolProviderTests : IDisposable
         Assert.True(ImageGenerationToolProvider.ShouldEnableHostedImageGeneration(CreateContext(CreateChatGptOAuthConfig())));
 
         var customEndpoint = CreateOpenAIConfig(endpoint: "https://openai-compatible.example/v1");
-        Assert.False(ImageGenerationToolProvider.ShouldEnableHostedImageGeneration(CreateContext(customEndpoint)));
+        Assert.True(ImageGenerationToolProvider.ShouldEnableHostedImageGeneration(CreateContext(customEndpoint)));
+
+        var missingApiKey = CreateOpenAIConfig(apiKey: string.Empty);
+        Assert.False(ImageGenerationToolProvider.ShouldEnableHostedImageGeneration(CreateContext(missingApiKey)));
 
         var chatCompletions = CreateOpenAIConfig(protocol: ModelProviderProtocols.OpenAIChatCompletions);
         Assert.False(ImageGenerationToolProvider.ShouldEnableHostedImageGeneration(CreateContext(chatCompletions)));
@@ -75,7 +78,8 @@ public sealed class ImageGenerationToolProviderTests : IDisposable
 
     private static AppConfig CreateOpenAIConfig(
         string? endpoint = null,
-        string protocol = ModelProviderProtocols.OpenAIResponses)
+        string protocol = ModelProviderProtocols.OpenAIResponses,
+        string apiKey = "sk-test")
     {
         var config = new AppConfig
         {
@@ -85,7 +89,7 @@ public sealed class ImageGenerationToolProviderTests : IDisposable
         config.Providers["openai"] = new AppConfig.ModelProviderConfig
         {
             Protocol = protocol,
-            ApiKey = "sk-test",
+            ApiKey = apiKey,
             EndPoint = endpoint ?? string.Empty
         };
         return config;

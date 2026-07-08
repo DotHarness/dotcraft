@@ -207,7 +207,7 @@ Deep-thinking adapter 文件：
 
 使用支持的 OpenAI Responses provider 时，你可以在普通对话里直接让 DotCraft 生成图片。DotCraft 会向 provider 请求 PNG 输出，并在支持富内容的客户端中以内联图片展示。
 
-图片生成默认只在 ChatGPT OAuth 或官方 OpenAI API key endpoint（`https://api.openai.com/v1`）上启用。OpenAI-compatible 自定义 endpoint 和非 Responses provider 不会自动启用，因为不同 provider 对图片生成的支持并不一致。
+图片生成默认对 ChatGPT OAuth 和 OpenAI Responses API-key provider 启用，也包括 OpenAI-compatible 自定义 endpoint。非 Responses provider 不会收到 hosted image generation tool。如果某个自定义 Responses endpoint 不支持原生 `image_generation` tool，请将 `Tools.ImageGeneration.Enabled` 设为 `false`。
 
 个人本地 hardening 示例：
 

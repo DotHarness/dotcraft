@@ -64,37 +64,16 @@ public sealed class ImageGenerationToolProvider : IAgentToolProvider
         if (runtime.IsChatGptOAuth)
             return true;
 
-        if (!string.Equals(
-                ModelProviderAuthMethods.Normalize(runtime.AuthMethod),
-                ModelProviderAuthMethods.ApiKey,
-                StringComparison.OrdinalIgnoreCase) ||
-            string.IsNullOrWhiteSpace(runtime.ApiKey))
-        {
-            return false;
-        }
-
-        return IsOfficialOpenAIEndpoint(runtime.EndPoint);
+        return string.Equals(
+                   ModelProviderAuthMethods.Normalize(runtime.AuthMethod),
+                   ModelProviderAuthMethods.ApiKey,
+                   StringComparison.OrdinalIgnoreCase) &&
+               !string.IsNullOrWhiteSpace(runtime.ApiKey);
     }
 
     internal static int NormalizeMaxReferenceImages(int configured) =>
         Math.Clamp(configured, 1, HardMaxReferenceImages);
 
-    internal static bool IsOfficialOpenAIEndpoint(string endpoint)
-    {
-        if (!Uri.TryCreate(endpoint, UriKind.Absolute, out var candidate) ||
-            !Uri.TryCreate(ModelProviderDefaults.DefaultOpenAIEndpoint, UriKind.Absolute, out var official))
-        {
-            return false;
-        }
-
-        return string.Equals(candidate.Scheme, official.Scheme, StringComparison.OrdinalIgnoreCase) &&
-               string.Equals(candidate.Host, official.Host, StringComparison.OrdinalIgnoreCase) &&
-               candidate.Port == official.Port &&
-               string.Equals(
-                   candidate.AbsolutePath.TrimEnd('/'),
-                   official.AbsolutePath.TrimEnd('/'),
-                   StringComparison.OrdinalIgnoreCase);
-    }
 }
 
 /// <summary>
@@ -146,7 +125,7 @@ public sealed class ImageGenerationTools
             if (!ImageGenerationToolProvider.IsSupportedRuntime(_runtime))
             {
                 return TextOnly(
-                    "Error: image generation is only enabled for ChatGPT OAuth and the official OpenAI API key provider.");
+                    "Error: image generation is only enabled for ChatGPT OAuth and OpenAI Responses API-key providers.");
             }
 
             var imageModel = _context.Config.Tools.ImageGeneration.Model.Trim();
