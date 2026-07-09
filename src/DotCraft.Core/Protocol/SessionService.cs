@@ -776,10 +776,10 @@ public sealed partial class SessionService(
         var captured = source == null
             ? new ThreadConfiguration()
             : CloneThreadConfiguration(source);
+        var currentConfig = _appConfigMonitor?.Current ?? agentFactory.ToolProviderContext.Config;
 
         if (string.IsNullOrWhiteSpace(captured.Model))
         {
-            var currentConfig = _appConfigMonitor?.Current ?? agentFactory.ToolProviderContext.Config;
             var runtime = agentFactory.ToolProviderContext.ChatClientRegistry
                 .ResolveMainRuntime(currentConfig, captured.ProviderId);
             captured.ProviderId = runtime.ProviderId;
@@ -787,15 +787,24 @@ public sealed partial class SessionService(
         }
         else
         {
-            var currentConfig = _appConfigMonitor?.Current ?? agentFactory.ToolProviderContext.Config;
             var runtime = agentFactory.ToolProviderContext.ChatClientRegistry
                 .ResolveMainRuntime(currentConfig, captured.ProviderId, captured.Model);
             captured.ProviderId = runtime.ProviderId;
             captured.Model = captured.Model.Trim();
         }
 
-        captured.Reasoning ??= CloneReasoningConfig(
-            (_appConfigMonitor?.Current ?? agentFactory.ToolProviderContext.Config).Reasoning);
+        captured.Reasoning ??= CloneReasoningConfig(currentConfig.Reasoning);
+        if (captured.ContextWindow == null && currentConfig.Compaction.ContextWindowMode == ContextWindowMode.Max)
+        {
+            var capability = ModelContextWindowCatalog.ResolveContextWindowCapability(currentConfig, captured.Model);
+            if (capability.SupportsMax)
+            {
+                captured.ContextWindow = new ThreadContextWindowConfig
+                {
+                    Mode = ContextWindowMode.Max
+                };
+            }
+        }
 
         return captured;
     }
@@ -814,6 +823,7 @@ public sealed partial class SessionService(
         ProviderId = source.ProviderId,
         Model = source.Model,
         Reasoning = CloneNullableReasoningConfig(source.Reasoning),
+        ContextWindow = CloneNullableContextWindowConfig(source.ContextWindow),
         WorkspaceOverride = source.WorkspaceOverride,
         ExecutionWorkspaceOverride = source.ExecutionWorkspaceOverride,
         ToolProfile = source.ToolProfile,
@@ -842,6 +852,14 @@ public sealed partial class SessionService(
         Effort = source.Effort,
         Output = source.Output
     };
+
+    private static ThreadContextWindowConfig? CloneNullableContextWindowConfig(ThreadContextWindowConfig? source) =>
+        source == null
+            ? null
+            : new ThreadContextWindowConfig
+            {
+                Mode = source.Mode
+            };
 
     private static ThreadToolPolicy? CloneToolPolicy(ThreadToolPolicy? source) =>
         source == null

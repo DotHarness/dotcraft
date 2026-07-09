@@ -396,6 +396,74 @@ public sealed class WorkspaceConfigChangedTests : IDisposable
     }
 
     [Fact]
+    public async Task WorkspaceConfigUpdate_ContextWindowMax_WritesConfigUpdatesMonitorAndEmitsRegion()
+    {
+        var configPath = Path.Combine(_workspaceCraftPath, "config.json");
+        var monitor = new AppConfigMonitor(AppConfigTestFactory.CreateOpenAI(model: "gpt-5.5"));
+        using var harness = new AppServerTestHarness(workspaceCraftPath: _workspaceCraftPath, appConfigMonitor: monitor);
+        using var bridge = AttachConfigChangedBridge(harness);
+        await harness.InitializeAsync(configChange: true);
+
+        var req = harness.BuildRequest(AppServerMethods.WorkspaceConfigUpdate, new
+        {
+            contextWindow = new
+            {
+                mode = "max"
+            }
+        });
+        await harness.ExecuteRequestAsync(req);
+
+        var sent = await harness.Transport.WaitAndDrainAsync(2, TimeSpan.FromSeconds(5));
+        AssertSingleConfigChanged(sent, AppServerMethods.WorkspaceConfigUpdate, ConfigChangeRegions.WorkspaceContextWindow);
+        var response = sent.Single(message => message.RootElement.TryGetProperty("id", out _));
+        var result = response.RootElement.GetProperty("result");
+        Assert.Equal("max", result.GetProperty("contextWindow").GetProperty("mode").GetString());
+        Assert.Equal(ContextWindowMode.Max, harness.Monitor.Current.Compaction.ContextWindowMode);
+
+        var json = await File.ReadAllTextAsync(configPath);
+        using var doc = JsonDocument.Parse(json);
+        Assert.Equal(
+            "Max",
+            doc.RootElement.GetProperty("Compaction").GetProperty("ContextWindowMode").GetString());
+    }
+
+    [Fact]
+    public async Task WorkspaceConfigUpdate_ContextWindowNull_RemovesLeafAndPrunesEmptySection()
+    {
+        var configPath = Path.Combine(_workspaceCraftPath, "config.json");
+        await File.WriteAllTextAsync(
+            configPath,
+            """
+            {
+              "Compaction": {
+                "ContextWindowMode": "Max"
+              }
+            }
+            """);
+
+        var monitor = new AppConfigMonitor(AppConfigTestFactory.CreateOpenAI(model: "gpt-5.5"));
+        monitor.Current.Compaction.ContextWindowMode = ContextWindowMode.Max;
+        using var harness = new AppServerTestHarness(workspaceCraftPath: _workspaceCraftPath, appConfigMonitor: monitor);
+        using var bridge = AttachConfigChangedBridge(harness);
+        await harness.InitializeAsync(configChange: true);
+
+        var req = harness.BuildRequest(
+            AppServerMethods.WorkspaceConfigUpdate,
+            new System.Text.Json.Nodes.JsonObject { ["contextWindow"] = null });
+        await harness.ExecuteRequestAsync(req);
+
+        var sent = await harness.Transport.WaitAndDrainAsync(2, TimeSpan.FromSeconds(5));
+        AssertSingleConfigChanged(sent, AppServerMethods.WorkspaceConfigUpdate, ConfigChangeRegions.WorkspaceContextWindow);
+        var response = sent.Single(message => message.RootElement.TryGetProperty("id", out _));
+        Assert.Equal(JsonValueKind.Null, response.RootElement.GetProperty("result").GetProperty("contextWindow").ValueKind);
+
+        var json = await File.ReadAllTextAsync(configPath);
+        using var doc = JsonDocument.Parse(json);
+        Assert.False(doc.RootElement.TryGetProperty("Compaction", out _));
+        Assert.Equal(ContextWindowMode.Default, harness.Monitor.Current.Compaction.ContextWindowMode);
+    }
+
+    [Fact]
     public async Task WorkspaceConfigUpdate_ModelWelcomeSuggestionsAndSelfLearning_EmitsAllWorkspaceRegions()
     {
         using var harness = new AppServerTestHarness(workspaceCraftPath: _workspaceCraftPath);

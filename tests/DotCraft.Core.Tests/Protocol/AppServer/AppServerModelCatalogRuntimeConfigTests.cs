@@ -58,6 +58,50 @@ public sealed class AppServerModelCatalogRuntimeConfigTests : IDisposable
         Assert.Equal("appserver-remote", model.GetProperty("id").GetString());
     }
 
+    [Fact]
+    public async Task ModelList_ReturnsContextWindowMetadata()
+    {
+        var monitor = new AppConfigMonitor(new AppConfig
+        {
+            GlobalConfigPath = Path.Combine(_tempRoot, "global-context", "config.json"),
+            WorkspaceConfigPath = Path.Combine(_workspaceCraftPath, "config.json"),
+            ProviderId = "openai",
+            Model = ModelProviderDefaults.DefaultChatGptCodexModel
+        });
+        monitor.Current.Providers["openai"] = new AppConfig.ModelProviderConfig
+        {
+            DisplayName = "OpenAI (ChatGPT)",
+            Protocol = ModelProviderProtocols.OpenAIResponses,
+            AuthMethod = ModelProviderAuthMethods.ChatGptOAuth,
+            ChatGptAccountId = "acct_test"
+        };
+        var handler = new RecordingHandler((HttpStatusCode.OK, """
+            {
+              "models": [
+                { "slug": "gpt-5.5", "visibility": "list", "priority": 1, "minimal_client_version": "0.98.0" }
+              ]
+            }
+            """));
+        using var harness = new AppServerTestHarness(
+            workspaceCraftPath: _workspaceCraftPath,
+            appConfigMonitor: monitor,
+            openAIClientProvider: new OpenAIClientProvider(new FakeOpenAIAuthService(), handler));
+        await harness.InitializeAsync();
+
+        await harness.ExecuteRequestAsync(harness.BuildRequest(AppServerMethods.ModelList, new { }));
+
+        var sent = await harness.Transport.WaitAndDrainAsync(1, TimeSpan.FromSeconds(5));
+        var response = Assert.Single(sent);
+        var result = response.RootElement.GetProperty("result");
+        Assert.True(result.GetProperty("success").GetBoolean());
+        var model = Assert.Single(result.GetProperty("models").EnumerateArray());
+        var contextWindow = model.GetProperty("contextWindow");
+        Assert.Equal(1_050_000, contextWindow.GetProperty("catalogWindow").GetInt32());
+        Assert.Equal(256_000, contextWindow.GetProperty("configuredWindow").GetInt32());
+        Assert.True(contextWindow.GetProperty("supportsMax").GetBoolean());
+        Assert.Equal(1_050_000, contextWindow.GetProperty("maxWindow").GetInt32());
+    }
+
     public void Dispose()
     {
         try

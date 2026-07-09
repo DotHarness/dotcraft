@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { LocaleProvider } from '../contexts/LocaleContext'
 import { ConversationWelcome } from '../components/conversation/ConversationWelcome'
 import { COMMAND_REF_CLASS, FILE_REF_CLASS, SKILL_REF_CLASS } from '../components/conversation/richInputConstants'
@@ -356,6 +356,162 @@ describe('ConversationWelcome composer', () => {
     expect(screen.queryByRole('combobox', { name: 'Bind an app before first turn' })).toBeNull()
     fireEvent.click(screen.getByRole('button', { name: 'Add attachment' }))
     expect(screen.getByRole('menuitemcheckbox', { name: 'Plan mode' })).toHaveAttribute('aria-checked', 'false')
+  })
+
+  it('shows the Context MAX section in the welcome model picker', async () => {
+    useModelCatalogStore.setState({
+      status: 'ready',
+      modelOptions: ['gpt-5.5'],
+      models: [
+        {
+          id: 'gpt-5.5',
+          contextWindow: {
+            catalogWindow: 1_000_000,
+            configuredWindow: 256_000,
+            supportsMax: true,
+            maxWindow: 1_000_000
+          }
+        }
+      ],
+      modelListUnsupportedEndpoint: false
+    })
+    fileReadFile.mockResolvedValue(JSON.stringify({ Model: 'gpt-5.5' }))
+
+    renderWelcome()
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Select model' })).toHaveTextContent('gpt-5.5')
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Select model' }))
+
+    const listbox = screen.getByRole('listbox', { name: 'Select model' })
+    expect(within(listbox).getByText('Context')).toBeInTheDocument()
+    expect(within(listbox).getByRole('switch', { name: 'MAX Mode' })).not.toBeDisabled()
+  })
+
+  it('stores explicit welcome MAX context on the first pending turn', async () => {
+    useModelCatalogStore.setState({
+      status: 'ready',
+      modelOptions: ['gpt-5.5'],
+      models: [
+        {
+          id: 'gpt-5.5',
+          contextWindow: {
+            catalogWindow: 1_000_000,
+            configuredWindow: 256_000,
+            supportsMax: true,
+            maxWindow: 1_000_000
+          }
+        }
+      ],
+      modelListUnsupportedEndpoint: false
+    })
+    fileReadFile.mockResolvedValue(JSON.stringify({ Model: 'gpt-5.5' }))
+
+    renderWelcome()
+
+    const textbox = await screen.findByRole('textbox')
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Select model' })).toHaveTextContent('gpt-5.5')
+    })
+    textbox.textContent = 'Use the largest context for this first thread'
+    fireEvent.input(textbox)
+    fireEvent.click(screen.getByRole('button', { name: 'Select model' }))
+    fireEvent.click(within(screen.getByRole('listbox', { name: 'Select model' })).getByRole('switch', { name: 'MAX Mode' }))
+    fireEvent.keyDown(window, { key: 'Escape' })
+    fireEvent.click(screen.getByRole('button', { name: 'Send message' }))
+
+    await waitFor(() => {
+      expect(useUIStore.getState().pendingWelcomeTurn).toMatchObject({
+        threadId: 'thread-welcome',
+        text: 'Use the largest context for this first thread',
+        contextWindow: { mode: 'max' }
+      })
+    })
+  })
+
+  it('does not write welcome contextWindow when workspace MAX default is untouched', async () => {
+    useModelCatalogStore.setState({
+      status: 'ready',
+      modelOptions: ['gpt-5.5'],
+      models: [
+        {
+          id: 'gpt-5.5',
+          contextWindow: {
+            catalogWindow: 1_000_000,
+            configuredWindow: 256_000,
+            supportsMax: true,
+            maxWindow: 1_000_000
+          }
+        }
+      ],
+      modelListUnsupportedEndpoint: false
+    })
+    fileReadFile.mockResolvedValue(JSON.stringify({
+      Model: 'gpt-5.5',
+      Compaction: { ContextWindowMode: 'Max' }
+    }))
+
+    renderWelcome()
+
+    const textbox = await screen.findByRole('textbox')
+    textbox.textContent = 'Inherit the workspace context default'
+    fireEvent.input(textbox)
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Select model' })).toHaveTextContent('MAX')
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Send message' }))
+
+    await waitFor(() => {
+      expect(useUIStore.getState().pendingWelcomeTurn?.threadId).toBe('thread-welcome')
+    })
+    expect(useUIStore.getState().pendingWelcomeTurn?.contextWindow).toBeUndefined()
+  })
+
+  it('writes explicit default when welcome MAX inherits from workspace and the user switches it off', async () => {
+    useModelCatalogStore.setState({
+      status: 'ready',
+      modelOptions: ['gpt-5.5'],
+      models: [
+        {
+          id: 'gpt-5.5',
+          contextWindow: {
+            catalogWindow: 1_000_000,
+            configuredWindow: 256_000,
+            supportsMax: true,
+            maxWindow: 1_000_000
+          }
+        }
+      ],
+      modelListUnsupportedEndpoint: false
+    })
+    fileReadFile.mockResolvedValue(JSON.stringify({
+      Model: 'gpt-5.5',
+      Compaction: { ContextWindowMode: 'Max' }
+    }))
+
+    renderWelcome()
+
+    const textbox = await screen.findByRole('textbox')
+    textbox.textContent = 'Use default context for this first thread'
+    fireEvent.input(textbox)
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Select model' })).toHaveTextContent('MAX')
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Select model' }))
+    const maxSwitch = within(screen.getByRole('listbox', { name: 'Select model' })).getByRole('switch', { name: 'MAX Mode' })
+    expect(maxSwitch).toHaveAttribute('aria-checked', 'true')
+    fireEvent.click(maxSwitch)
+    fireEvent.keyDown(window, { key: 'Escape' })
+    fireEvent.click(screen.getByRole('button', { name: 'Send message' }))
+
+    await waitFor(() => {
+      expect(useUIStore.getState().pendingWelcomeTurn).toMatchObject({
+        threadId: 'thread-welcome',
+        text: 'Use default context for this first thread',
+        contextWindow: { mode: 'default' }
+      })
+    })
   })
 
   it('shows ChatGPT subscription usage in the welcome composer footer', async () => {

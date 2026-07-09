@@ -24,7 +24,7 @@ internal sealed class WorktreeRequestHandler(
     {
         var p = AppServerParams.Get<WorktreeCreateAndForkParams>(msg);
         threadBinder.ValidateRuntimeInputs(p.DynamicTools, p.AdditionalContext);
-        ValidateReasoning(p.Config);
+        ValidateRuntimeConfiguration(p.Config);
 
         var identity = p.Identity == null ? null : NormalizeIdentityWorkspace(p.Identity);
         var result = await sessionService.CreateWorktreeAndForkAsync(
@@ -63,7 +63,7 @@ internal sealed class WorktreeRequestHandler(
     {
         var p = AppServerParams.Get<WorktreeCreateAndStartParams>(msg);
         threadBinder.ValidateRuntimeInputs(p.DynamicTools, p.AdditionalContext);
-        ValidateReasoning(p.Config);
+        ValidateRuntimeConfiguration(p.Config);
 
         var result = await sessionService.CreateWorktreeAndStartAsync(
             new WorktreeCreateAndStartOptions
@@ -151,16 +151,29 @@ internal sealed class WorktreeRequestHandler(
         };
     }
 
-    private void ValidateReasoning(ThreadConfiguration? config)
+    private void ValidateRuntimeConfiguration(ThreadConfiguration? config)
     {
-        if (config?.Reasoning == null)
+        if (config == null)
             return;
 
-        AppServerRuntimeRequestValidator.ValidateReasoningForRuntime(
-            appConfigMonitor?.Current ?? workspaceConfig.LoadCurrentMergedConfig(),
-            config.ProviderId,
-            config.Model,
-            config.Reasoning);
+        var currentConfig = appConfigMonitor?.Current ?? workspaceConfig.LoadCurrentMergedConfig();
+        if (config.Reasoning != null)
+        {
+            AppServerRuntimeRequestValidator.ValidateReasoningForRuntime(
+                currentConfig,
+                config.ProviderId,
+                config.Model,
+                config.Reasoning);
+        }
+
+        if (config.ContextWindow != null)
+        {
+            AppServerRuntimeRequestValidator.ValidateContextWindowForRuntime(
+                currentConfig,
+                config.ProviderId,
+                config.Model,
+                config.ContextWindow);
+        }
     }
 
     private SessionIdentity NormalizeIdentityWorkspace(SessionIdentity identity)

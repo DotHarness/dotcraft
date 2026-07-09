@@ -1,4 +1,5 @@
 using DotCraft.Agents;
+using DotCraft.Configuration;
 using DotCraft.Context;
 using DotCraft.Context.Compaction;
 using DotCraft.Hooks;
@@ -360,7 +361,8 @@ public sealed partial class SessionService
                 threadId,
                 thread?.Configuration?.ProviderId,
                 thread?.Configuration?.Model,
-                owner._appConfigMonitor?.Current ?? owner.AgentFactory.ToolProviderContext.Config);
+                owner._appConfigMonitor?.Current ?? owner.AgentFactory.ToolProviderContext.Config,
+                thread?.Configuration?.ContextWindow?.Mode ?? ContextWindowMode.Default);
 
         public void CompleteThreadMaintenance(string threadId, ThreadMaintenanceState state)
         {
@@ -635,7 +637,8 @@ public sealed partial class SessionService
             var consolidator = owner.AgentFactory.CreateConsolidatorForRuntime(
                 currentConfig,
                 thread.Configuration?.ProviderId,
-                thread.Configuration?.Model);
+                thread.Configuration?.Model,
+                thread.Configuration?.ContextWindow?.Mode ?? ContextWindowMode.Default);
             if (consolidator is null)
             {
                 const string message = "memory_consolidator_unavailable";

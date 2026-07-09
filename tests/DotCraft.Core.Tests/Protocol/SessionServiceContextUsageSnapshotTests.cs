@@ -123,6 +123,48 @@ public sealed class SessionServiceContextUsageSnapshotTests : IDisposable
     }
 
     [Fact]
+    public async Task TryGetContextUsageSnapshot_MaxContextWindowModeUsesCatalogWindow()
+    {
+        var config = AppConfigTestFactory.CreateOpenAI(model: "gpt-5.5");
+        ModelContextWindowCatalog.ApplyToConfig(
+            config,
+            System.Text.Json.Nodes.JsonNode.Parse("""{ "Model": "gpt-5.5" }""")!,
+            globalConfigPath: null,
+            workspaceConfigPath: null);
+
+        await using var agentFactory = CreateAgentFactory(config);
+        var service = CreateSessionService(agentFactory);
+        var identity = new SessionIdentity
+        {
+            WorkspacePath = _tempDir,
+            ChannelName = "desktop",
+            UserId = "user"
+        };
+
+        await service.CreateThreadAsync(
+            identity,
+            new ThreadConfiguration { Model = "gpt-5.5" },
+            threadId: "thread-default-window");
+        await service.CreateThreadAsync(
+            identity,
+            new ThreadConfiguration
+            {
+                Model = "gpt-5.5",
+                ContextWindow = new ThreadContextWindowConfig { Mode = ContextWindowMode.Max }
+            },
+            threadId: "thread-max-window");
+
+        var defaultSnapshot = service.TryGetContextUsageSnapshot("thread-default-window");
+        var maxSnapshot = service.TryGetContextUsageSnapshot("thread-max-window");
+
+        Assert.NotNull(defaultSnapshot);
+        Assert.NotNull(maxSnapshot);
+        Assert.Equal(236_000, defaultSnapshot!.ContextWindow);
+        Assert.Equal(1_030_000, maxSnapshot!.ContextWindow);
+        Assert.Equal(1_017_000, maxSnapshot.AutoCompactThreshold);
+    }
+
+    [Fact]
     public async Task TryGetContextUsageSnapshot_UsesPersistedUsage_WhenTrackerExists()
     {
         const string threadId = "thread-active";

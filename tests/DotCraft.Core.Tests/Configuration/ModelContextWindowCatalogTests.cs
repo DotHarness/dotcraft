@@ -34,6 +34,17 @@ public sealed class ModelContextWindowCatalogTests : IDisposable
     }
 
     [Fact]
+    public void ResolveDetailed_MarksUnknownModelAsFallback()
+    {
+        var resolution = ModelContextWindowCatalog.ResolveDetailed("unknown-model");
+
+        Assert.Equal(256_000, resolution.ContextWindow);
+        Assert.False(resolution.HasExplicitMatch);
+        Assert.Null(resolution.MatchedPattern);
+        Assert.Null(resolution.MatchKind);
+    }
+
+    [Fact]
     public void Resolve_UsesLongestPrefix()
     {
         var catalogPath = WriteCatalog("global", """
@@ -48,6 +59,26 @@ public sealed class ModelContextWindowCatalogTests : IDisposable
         var contextWindow = ModelContextWindowCatalog.Resolve("test-long-v1", globalCatalogPath: catalogPath);
 
         Assert.Equal(200_000, contextWindow);
+    }
+
+    [Fact]
+    public void ResolveDetailed_RecordsExplicitPrefixMatch()
+    {
+        var catalogPath = WriteCatalog("global", """
+            {
+              "models": {
+                "test-": 100000,
+                "test-long": 200000
+              }
+            }
+            """);
+
+        var resolution = ModelContextWindowCatalog.ResolveDetailed("test-long-v1", globalCatalogPath: catalogPath);
+
+        Assert.Equal(200_000, resolution.ContextWindow);
+        Assert.True(resolution.HasExplicitMatch);
+        Assert.Equal("test-long", resolution.MatchedPattern);
+        Assert.Equal("prefix", resolution.MatchKind);
     }
 
     [Fact]
@@ -115,6 +146,60 @@ public sealed class ModelContextWindowCatalogTests : IDisposable
 
         Assert.Equal(256_000, config.Compaction.ContextWindow);
         Assert.Equal(236_000, config.Compaction.EffectiveContextWindow());
+    }
+
+    [Fact]
+    public void ResolveCompactionConfig_MaxModeUsesExplicitCatalogWindow()
+    {
+        var config = new AppConfig
+        {
+            Model = "gpt-5.5"
+        };
+        ModelContextWindowCatalog.ApplyToConfig(
+            config,
+            System.Text.Json.Nodes.JsonNode.Parse("""{ "Model": "gpt-5.5" }""")!,
+            globalConfigPath: null,
+            workspaceConfigPath: null);
+
+        var defaultCompaction = ModelContextWindowCatalog.ResolveCompactionConfig(
+            config,
+            "gpt-5.5",
+            ContextWindowMode.Default);
+        var maxCompaction = ModelContextWindowCatalog.ResolveCompactionConfig(
+            config,
+            "gpt-5.5",
+            ContextWindowMode.Max);
+
+        Assert.Equal(256_000, defaultCompaction.ContextWindow);
+        Assert.Equal(1_050_000, maxCompaction.ContextWindow);
+        Assert.Equal(1_030_000, maxCompaction.EffectiveContextWindow());
+    }
+
+    [Fact]
+    public void ResolveContextWindowCapability_DoesNotEnableMaxForFallbackCatalogResolution()
+    {
+        var config = new AppConfig
+        {
+            Model = "unknown-model"
+        };
+        ModelContextWindowCatalog.ApplyToConfig(
+            config,
+            System.Text.Json.Nodes.JsonNode.Parse("""{ "Model": "unknown-model" }""")!,
+            globalConfigPath: null,
+            workspaceConfigPath: null);
+
+        var capability = ModelContextWindowCatalog.ResolveContextWindowCapability(config, "unknown-model");
+        var maxCompaction = ModelContextWindowCatalog.ResolveCompactionConfig(
+            config,
+            "unknown-model",
+            ContextWindowMode.Max);
+
+        Assert.Equal(256_000, capability.CatalogWindow);
+        Assert.Equal(256_000, capability.ConfiguredWindow);
+        Assert.False(capability.SupportsMax);
+        Assert.False(capability.HasExplicitCatalogMatch);
+        Assert.Equal(256_000, capability.MaxWindow);
+        Assert.Equal(256_000, maxCompaction.ContextWindow);
     }
 
     [Fact]

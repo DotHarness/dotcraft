@@ -1847,6 +1847,7 @@ $$"""
             ProviderId = source.ProviderId,
             Model = source.Model,
             Reasoning = CloneReasoningConfig(source.Reasoning),
+            ContextWindow = CloneContextWindowConfig(source.ContextWindow),
             WorkspaceOverride = source.WorkspaceOverride,
             ToolProfile = source.ToolProfile,
             UseToolProfileOnly = source.UseToolProfileOnly,
@@ -1877,6 +1878,14 @@ $$"""
                 Enabled = source.Enabled,
                 Effort = source.Effort,
                 Output = source.Output
+            };
+
+    private static ThreadContextWindowConfig? CloneContextWindowConfig(ThreadContextWindowConfig? source) =>
+        source == null
+            ? null
+            : new ThreadContextWindowConfig
+            {
+                Mode = source.Mode
             };
 
     private static ThreadToolPolicy? CloneToolPolicy(ThreadToolPolicy? source) =>

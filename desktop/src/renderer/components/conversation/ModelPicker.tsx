@@ -1,6 +1,7 @@
-import { useEffect, useId, useMemo, useRef, useState, type CSSProperties, type JSX } from 'react'
+import { Fragment, useEffect, useId, useMemo, useRef, useState, type CSSProperties, type JSX } from 'react'
 import { useT } from '../../contexts/LocaleContext'
 import type { ModelCatalogItem, ReasoningEffortWire } from '../../stores/modelCatalogStore'
+import type { ContextWindowMode } from '../../types/thread'
 import { ActionTooltip } from '../ui/ActionTooltip'
 import type { ShortcutSpec } from '../ui/shortcutKeys'
 import {
@@ -27,6 +28,16 @@ interface ModelPickerProps {
   onRetry?: () => void
   shortcut?: ShortcutSpec
   triggerStyle: CSSProperties
+  /**
+   * Context-window (MAX) controls. The Context section only renders when
+   * `onContextModeChange` is provided, so surfaces that do not support MAX
+   * (e.g. the welcome composer today) are unaffected.
+   */
+  contextMode?: ContextWindowMode
+  contextSupportsMax?: boolean
+  contextDegraded?: boolean
+  contextConfiguredWindow?: number
+  onContextModeChange?: (mode: ContextWindowMode) => void
 }
 
 type PickerRow =
@@ -48,9 +59,16 @@ export function ModelPicker({
   onReasoningChange,
   onRetry,
   shortcut,
-  triggerStyle
+  triggerStyle,
+  contextMode = 'default',
+  contextSupportsMax = false,
+  contextDegraded = false,
+  contextConfiguredWindow = 0,
+  onContextModeChange
 }: ModelPickerProps): JSX.Element {
   const t = useT()
+  const contextEnabled = typeof onContextModeChange === 'function'
+  const contextMaxActive = contextMode === 'max' || contextDegraded
   const [open, setOpen] = useState(false)
   const [highlight, setHighlight] = useState(0)
   const [triggerActive, setTriggerActive] = useState(false)
@@ -227,6 +245,128 @@ export function ModelPicker({
       ? t('composer.modelListUnsupportedTitle')
       : undefined
 
+  const renderContextSection = (): JSX.Element => {
+    const maxOn = contextMode === 'max' || contextDegraded
+    const switchDisabled = loading || (!contextSupportsMax && !contextDegraded)
+    const accentColor = contextDegraded ? 'var(--permission-full-access)' : 'var(--accent)'
+    return (
+      <>
+        <div
+          style={{
+            padding: '10px 10px 4px',
+            color: 'var(--text-dimmed)',
+            fontSize: '11px',
+            fontWeight: 700,
+            letterSpacing: 0,
+            textTransform: 'uppercase'
+          }}
+        >
+          {t('composer.context.heading')}
+        </div>
+        <div
+          style={{
+            width: '100%',
+            display: 'flex',
+            alignItems: 'flex-start',
+            justifyContent: 'space-between',
+            gap: '12px',
+            borderRadius: '10px',
+            padding: '8px 10px'
+          }}
+        >
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', minWidth: 0 }}>
+            <span
+              style={{
+                fontSize: 'var(--type-secondary-size)',
+                lineHeight: 'var(--type-secondary-line-height)',
+                fontWeight: 'var(--type-ui-emphasis-weight)',
+                color: maxOn ? 'var(--text-primary)' : 'var(--text-secondary)'
+              }}
+            >
+              {t('composer.context.label')}
+            </span>
+            {contextDegraded ? (
+              <span
+                style={{
+                  fontSize: '11px',
+                  lineHeight: 1.3,
+                  color: 'var(--permission-full-access)',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '2px'
+                }}
+              >
+                <span>{t('composer.context.degraded', { window: formatContextWindow(contextConfiguredWindow) })}</span>
+                <button
+                  type="button"
+                  onClick={() => onContextModeChange?.('default')}
+                  style={{
+                    alignSelf: 'flex-start',
+                    border: 'none',
+                    background: 'transparent',
+                    padding: 0,
+                    color: 'var(--permission-full-access)',
+                    textDecoration: 'underline',
+                    cursor: 'pointer',
+                    fontWeight: 600,
+                    fontSize: '11px'
+                  }}
+                >
+                  {t('composer.context.reset')}
+                </button>
+              </span>
+            ) : !contextSupportsMax ? (
+              <span style={{ fontSize: '11px', lineHeight: 1.3, color: 'var(--text-dimmed)' }}>
+                {t('composer.context.unsupported')}
+              </span>
+            ) : null}
+          </div>
+          <button
+            type="button"
+            role="switch"
+            aria-checked={maxOn}
+            aria-label={t('composer.context.label')}
+            disabled={switchDisabled}
+            onClick={() => {
+              if (switchDisabled) return
+              onContextModeChange?.(contextMode === 'max' ? 'default' : 'max')
+            }}
+            style={{
+              width: '30px',
+              height: '16px',
+              borderRadius: '999px',
+              border: 'none',
+              padding: 0,
+              position: 'relative',
+              flexShrink: 0,
+              marginTop: '1px',
+              background: maxOn ? accentColor : 'color-mix(in srgb, var(--text-primary) 22%, transparent)',
+              opacity: switchDisabled ? 0.45 : 1,
+              cursor: switchDisabled ? 'not-allowed' : 'pointer',
+              transition: 'background 140ms ease'
+            }}
+          >
+            <span
+              aria-hidden
+              style={{
+                position: 'absolute',
+                top: '2px',
+                left: '2px',
+                width: '12px',
+                height: '12px',
+                borderRadius: '999px',
+                background: 'var(--on-accent)',
+                boxShadow: '0 1px 2px rgba(0,0,0,0.35)',
+                transform: maxOn ? 'translateX(14px)' : 'none',
+                transition: 'transform 140ms ease'
+              }}
+            />
+          </button>
+        </div>
+      </>
+    )
+  }
+
   return (
     <div
       ref={wrapRef}
@@ -314,6 +454,23 @@ export function ModelPicker({
               >
                 {reasoningDisplayLabel}
               </span>
+              {contextEnabled && contextMaxActive && (
+                <span
+                  style={{
+                    flexShrink: 0,
+                    fontSize: '10px',
+                    lineHeight: 1,
+                    fontWeight: 700,
+                    letterSpacing: '0.4px',
+                    color: contextDegraded ? 'var(--permission-full-access)' : 'var(--accent)',
+                    background: `color-mix(in srgb, ${contextDegraded ? 'var(--permission-full-access)' : 'var(--accent)'} 16%, transparent)`,
+                    borderRadius: '5px',
+                    padding: '3px 5px'
+                  }}
+                >
+                  MAX
+                </span>
+              )}
             </span>
           )}
           {interactive && (
@@ -413,9 +570,8 @@ export function ModelPicker({
           )}
           {rows.map((row, index) => {
             if (row.kind === 'heading') {
-              return (
+              const headingEl = (
                 <div
-                  key={row.id}
                   style={{
                     padding: index === 0 ? '6px 10px 4px' : '10px 10px 4px',
                     color: 'var(--text-dimmed)',
@@ -428,6 +584,16 @@ export function ModelPicker({
                   {row.label}
                 </div>
               )
+              // The Context (MAX) section sits between Thinking and Model.
+              if (row.id === 'heading-model' && contextEnabled) {
+                return (
+                  <Fragment key={row.id}>
+                    {renderContextSection()}
+                    {headingEl}
+                  </Fragment>
+                )
+              }
+              return <Fragment key={row.id}>{headingEl}</Fragment>
             }
 
             const selected = row.kind === 'model'
@@ -497,6 +663,15 @@ export function ModelPicker({
       )}
     </div>
   )
+}
+
+function formatContextWindow(n: number): string {
+  if (!Number.isFinite(n) || n <= 0) return ''
+  if (n >= 1_000_000) {
+    const v = n / 1_000_000
+    return `${v % 1 === 0 ? v.toFixed(0) : v.toFixed(1)}M`
+  }
+  return `${Math.round(n / 1000)}K`
 }
 
 function reasoningQuickLabel(t: ReturnType<typeof useT>, value: ReasoningQuickValue): string {

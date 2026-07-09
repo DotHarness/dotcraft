@@ -8,7 +8,8 @@ import {
 } from '../../stores/modelCatalogStore'
 import { addToast } from '../../stores/toastStore'
 import { useThreadStore } from '../../stores/threadStore'
-import type { Thread, ThreadConfigurationWire } from '../../types/thread'
+import { useConversationStore } from '../../stores/conversationStore'
+import type { Thread, ThreadConfigurationWire, ContextWindowMode } from '../../types/thread'
 import type { WorkspaceConfigChangedPayload } from '../../utils/workspaceConfigChanged'
 import { parseJsonConfig } from '../../../shared/jsonConfig'
 import { configObjectFromWorkspaceCore, type WorkspaceCoreConfigLike } from '../../utils/workspaceCoreConfig'
@@ -30,8 +31,17 @@ export interface ComposerModelControls {
   modelListUnsupportedEndpoint: boolean
   modelCatalogError: boolean
   modelCatalogErrorMessage: string | null
+  /** Effective per-thread context-window mode (MAX vs default). */
+  contextMode: ContextWindowMode
+  /** Whether the effective model's catalog entry advertises MAX support. */
+  contextSupportsMax: boolean
+  /** Thread wants MAX but the effective model no longer supports it (catalog resolved). */
+  contextDegraded: boolean
+  /** Effective model's default compaction window, used for degraded copy. */
+  contextConfiguredWindow: number
   onModelChange: (model: string) => void
   onReasoningChange: (value: ReasoningQuickValue) => void
+  onContextModeChange: (mode: ContextWindowMode) => void
   onModelCatalogRetry: () => void
   threadStartConfig: ThreadConfigurationWire
 }
@@ -73,10 +83,12 @@ export function useComposerModelControls({
   const loadModels = useModelCatalogStore((s) => s.loadIfNeeded)
   const [modelName, setModelName] = useState<string>('Default')
   const [reasoningConfig, setReasoningConfig] = useState<ResolvedReasoningConfig>(DEFAULT_REASONING_CONFIG)
+  const [contextMode, setContextMode] = useState<ContextWindowMode>('default')
   const [modelApplying, setModelApplying] = useState(false)
   const [detachedModelTouched, setDetachedModelTouched] = useState(false)
   const [detachedReasoningTouched, setDetachedReasoningTouched] = useState(false)
   const [detachedReasoningOverride, setDetachedReasoningOverride] = useState<ResolvedReasoningConfig | null>(null)
+  const [detachedContextTouched, setDetachedContextTouched] = useState(false)
 
   const modelApiAvailable =
     capabilities?.modelCatalogManagement === true &&
@@ -149,6 +161,16 @@ export function useComposerModelControls({
     []
   )
 
+  // Context-window mode is read from the thread's captured configuration only. New
+  // threads already capture the workspace default at creation (see spec §4), so the
+  // composer does not need to read the workspace default separately.
+  const resolveEffectiveContextMode = useCallback((thread: Thread | null): ContextWindowMode => {
+    const raw = thread?.configuration?.contextWindow ?? thread?.configuration?.ContextWindow
+    if (!raw || typeof raw !== 'object') return 'default'
+    const modeRaw = (raw as { mode?: unknown; Mode?: unknown }).mode ?? (raw as { Mode?: unknown }).Mode
+    return modeRaw === 'max' ? 'max' : 'default'
+  }, [])
+
   useEffect(() => {
     if (!modelApiAvailable) return
     void loadModels()
@@ -166,6 +188,9 @@ export function useComposerModelControls({
         if (!detached || !detachedReasoningTouched) {
           setReasoningConfig(resolveEffectiveReasoning(activeThread, workspaceCfg))
         }
+        if (!detached || !detachedContextTouched) {
+          setContextMode(resolveEffectiveContextMode(activeThread))
+        }
       } catch {
         if (disposed) return
         if (!detached || !detachedModelTouched) {
@@ -178,6 +203,9 @@ export function useComposerModelControls({
             readReasoningObject(activeThread?.configuration?.reasoning ?? activeThread?.configuration?.Reasoning)
               ?? DEFAULT_REASONING_CONFIG
           )
+        }
+        if (!detached || !detachedContextTouched) {
+          setContextMode(resolveEffectiveContextMode(activeThread))
         }
       }
     }
@@ -192,12 +220,16 @@ export function useComposerModelControls({
     activeThread?.configuration?.model,
     activeThread?.configuration?.Reasoning,
     activeThread?.configuration?.reasoning,
+    activeThread?.configuration?.contextWindow,
+    activeThread?.configuration?.ContextWindow,
     detached,
     detachedModelTouched,
     detachedReasoningTouched,
+    detachedContextTouched,
     readWorkspaceConfig,
     resolveEffectiveModel,
     resolveEffectiveReasoning,
+    resolveEffectiveContextMode,
     workspaceConfigChange,
     workspaceConfigChangeSeq
   ])
@@ -345,12 +377,99 @@ export function useComposerModelControls({
     ]
   )
 
+  // MAX context is a per-thread override only. Unlike model/reasoning, it does NOT
+  // dual-write the workspace default (Settings owns that), so toggling MAX here never
+  // changes other or new threads. The server validates `max` and may reject it.
+  const handleContextModeChange = useCallback(
+    async (nextMode: ContextWindowMode): Promise<void> => {
+      if (nextMode === contextMode) return
+      if (detached) {
+        setDetachedContextTouched(true)
+        setContextMode(nextMode)
+        return
+      }
+      if (!activeThread) return
+
+      setModelApplying(true)
+      const previousMode = contextMode
+      setContextMode(nextMode)
+      try {
+        const readRes = (await window.api.appServer.sendRequest('thread/read', {
+          threadId: activeThread.id,
+          includeTurns: false
+        })) as { thread?: { configuration?: ThreadConfigurationWire | null } }
+        const existingConfig =
+          readRes.thread?.configuration && typeof readRes.thread.configuration === 'object'
+            ? { ...(readRes.thread.configuration as Record<string, unknown>) }
+            : {}
+        if (nextMode === 'max') {
+          setCaseInsensitiveField(existingConfig, 'contextWindow', { mode: 'max' })
+        } else {
+          deleteCaseInsensitiveField(existingConfig, 'contextWindow')
+        }
+
+        await window.api.appServer.sendRequest('thread/config/update', {
+          threadId: activeThread.id,
+          config: existingConfig
+        })
+
+        const active = useThreadStore.getState().activeThread
+        if (active && active.id === activeThread.id) {
+          const mergedCfg: Record<string, unknown> = { ...(active.configuration ?? {}) }
+          if (nextMode === 'max') {
+            deleteCaseInsensitiveField(mergedCfg, 'contextWindow')
+            mergedCfg.contextWindow = { mode: 'max' }
+          } else {
+            deleteCaseInsensitiveField(mergedCfg, 'contextWindow')
+          }
+          useThreadStore.getState().setActiveThread({
+            ...active,
+            configuration: mergedCfg as typeof active.configuration
+          })
+        }
+
+        // MAX changes the effective context window (the ring denominator), but the
+        // thread/updated broadcast does not refresh contextUsage. Re-read to update it.
+        try {
+          const refreshed = (await window.api.appServer.sendRequest('thread/read', {
+            threadId: activeThread.id,
+            includeTurns: false
+          })) as { thread?: { contextUsage?: unknown } }
+          const usage = refreshed.thread?.contextUsage
+          if (usage && useThreadStore.getState().activeThread?.id === activeThread.id) {
+            useConversationStore.getState().setContextUsage(usage as never)
+          }
+        } catch {
+          // Non-fatal: the ring will refresh on the next usage delta.
+        }
+
+        addToast(nextMode === 'max' ? 'MAX context on for this thread' : 'MAX context off', 'success')
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err)
+        setContextMode(previousMode)
+        addToast(
+          nextMode === 'max' ? `Couldn't enable MAX context: ${msg}` : `Failed to update MAX context: ${msg}`,
+          'error'
+        )
+      } finally {
+        setModelApplying(false)
+      }
+    },
+    [activeThread, contextMode, deleteCaseInsensitiveField, detached, setCaseInsensitiveField]
+  )
+
   const reasoningValue: ReasoningQuickValue =
     detached && detachedReasoningTouched && detachedReasoningOverride == null
       ? 'default'
       : reasoningConfig.enabled
         ? reasoningConfig.effort
         : 'off'
+
+  const activeCatalogItem = modelCatalog.find((item) => item.id === modelName)
+  const contextSupportsMax = activeCatalogItem?.contextWindow?.supportsMax === true
+  const contextConfiguredWindow = activeCatalogItem?.contextWindow?.configuredWindow ?? 0
+  // Only flag degraded once the catalog is resolved, so we do not false-alarm while it loads.
+  const contextDegraded = contextMode === 'max' && modelCatalogStatus === 'ready' && !contextSupportsMax
 
   const threadStartConfig = useMemo<ThreadConfigurationWire>(() => {
     if (!detached) return {}
@@ -361,8 +480,19 @@ export function useComposerModelControls({
     if (detachedReasoningTouched && detachedReasoningOverride != null) {
       config.reasoning = detachedReasoningOverride
     }
+    if (detachedContextTouched && contextMode === 'max') {
+      config.contextWindow = { mode: 'max' }
+    }
     return config
-  }, [detached, detachedModelTouched, detachedReasoningOverride, detachedReasoningTouched, modelName])
+  }, [
+    contextMode,
+    detached,
+    detachedContextTouched,
+    detachedModelTouched,
+    detachedReasoningOverride,
+    detachedReasoningTouched,
+    modelName
+  ])
 
   return {
     modelName,
@@ -377,11 +507,18 @@ export function useComposerModelControls({
       modelCatalogStatus === 'error' && modelCatalogErrorCode
         ? `${modelCatalogErrorCode}: ${modelCatalogErrorMessage ?? ''}`.trim()
         : modelCatalogErrorMessage,
+    contextMode,
+    contextSupportsMax,
+    contextDegraded,
+    contextConfiguredWindow,
     onModelChange: (model) => {
       void handleModelChange(model)
     },
     onReasoningChange: (reasoning) => {
       void handleReasoningChange(reasoning)
+    },
+    onContextModeChange: (nextMode) => {
+      void handleContextModeChange(nextMode)
     },
     onModelCatalogRetry: () => {
       void loadModels(true)

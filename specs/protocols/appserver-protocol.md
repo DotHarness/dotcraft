@@ -450,7 +450,7 @@ Create a new thread. The server generates a Thread ID and persists initial state
 | `displayName` | string | no | Explicit thread display name. |
 | `spawnedFromThreadId` | string | no | Id of the thread that started this thread on the user's behalf (e.g. the Desktop `CreateThread` tool invoked from another thread). The server records it as a non-subagent origin on the new thread's `ThreadSource` (`kind` stays `"user"`) and mirrors it into thread metadata as `spawnedFromThreadId`, so the new thread stays an ordinary sibling thread (it does not become a subagent and does not enter the SubAgent dock) while its first user message can link back to the source thread. Self-references are ignored. |
 
-When `config.agentProfileId` is set, AppServer resolves the Agent Profile for the normalized workspace, compiles the Markdown profile into a `ThreadConfiguration`, applies only the supported runtime overlays (`providerId`, `model`, `reasoning`), captures normal defaults for omitted fields, and persists the resolved snapshot on the new thread. Capability-expanding overlay fields such as tools, MCP, plugins, skills, approval bypass, `agentInstructions`, `overrideBasePrompt`, and workspace overrides are rejected with `AgentProfileValidationFailed`.
+When `config.agentProfileId` is set, AppServer resolves the Agent Profile for the normalized workspace, compiles the Markdown profile into a `ThreadConfiguration`, applies only the supported runtime overlays (`providerId`, `model`, `reasoning`, `contextWindow`), captures normal defaults for omitted fields, and persists the resolved snapshot on the new thread. Capability-expanding overlay fields such as tools, MCP, plugins, skills, approval bypass, `agentInstructions`, `overrideBasePrompt`, and workspace overrides are rejected with `AgentProfileValidationFailed`.
 
 #### 4.1.0 Runtime Dynamic Tools
 
@@ -639,6 +639,9 @@ Thread-management tools are dynamic client callbacks, while thread lifecycle, st
     "effort": "high",
     "output": "full"
   },
+  "contextWindow": {
+    "mode": "max"
+  },
   "requireApprovalOutsideWorkspace": true
 }
 ```
@@ -672,6 +675,7 @@ Fields:
 | `approvalPolicy` | string | Thread-scoped approval mode: `default`, `prompt`, `autoApprove`, or `interrupt`. `default` means the thread consults the workspace default approval policy; `prompt` always uses the interactive approval flow regardless of the workspace default. |
 | `automationTaskDirectory` | string | Optional local automation task directory. |
 | `reasoning` | object | Optional per-thread reasoning configuration. When absent, old threads fall back to current workspace defaults. Uses camelCase wire enum values such as `low`, `medium`, `high`, `extraHigh` and output values such as `none`, `summary`, or `full`. |
+| `contextWindow` | object | Optional per-thread context-window mode. Shape: `{ "mode": "default" | "max" }`. Omitted or null means `default`. Servers reject explicit `max` when the effective model lacks an explicit catalog window larger than the configured default window. |
 | `requireApprovalOutsideWorkspace` | boolean | Optional override for the workspace file/shell outside-boundary behavior. |
 
 Approval semantics:
@@ -959,7 +963,7 @@ The `Thread` wire object may include `plan?: PlanSnapshot | null`. When present,
 }
 ```
 
-The same snapshot is also embedded on `thread/start` and `thread/resume` responses (and their matching `thread/started` / `thread/resumed` notifications) so clients can seed the token ring without an extra round-trip. Clients must prefer server-provided `contextUsage` over local token or ring estimates and must not independently enter compacting state from local estimates when the server snapshot is present. When `Compaction.ContextWindow` is inferred from the model catalog, `contextWindow` is computed from the thread's effective model, including `Thread.configuration.model` overrides. Freshly-created threads initialize persisted context usage to `tokens = 0`; the field is omitted only for older threads or hosts that have no persisted context usage state yet.
+The same snapshot is also embedded on `thread/start` and `thread/resume` responses (and their matching `thread/started` / `thread/resumed` notifications) so clients can seed the token ring without an extra round-trip. Clients must prefer server-provided `contextUsage` over local token or ring estimates and must not independently enter compacting state from local estimates when the server snapshot is present. When `Compaction.ContextWindow` is inferred from the model catalog, `contextWindow` is computed from the thread's effective model, including `Thread.configuration.model` overrides. `ContextUsageSnapshot.contextWindow` is the effective denominator after Session Core reserve and buffer rules, not the raw catalog window advertised by `model/list`. Freshly-created threads initialize persisted context usage to `tokens = 0`; the field is omitted only for older threads or hosts that have no persisted context usage state yet.
 
 Persisted context usage is display state. A stored provider token count without a matching provider anchor for the current model-visible history and request shape must not by itself trigger automatic compaction. Replacement-history estimates saved after rollback, compaction, or history rebuild may drive automatic compaction because they describe the current model-visible history rather than a stale provider snapshot.
 
@@ -1121,7 +1125,7 @@ After the display name is persisted, the server **broadcasts** a `thread/renamed
 
 ### 4.14 `thread/config/update`
 
-Update per-thread agent configuration (MCP servers, extensions, etc.).
+Update per-thread agent configuration (MCP servers, extensions, context-window mode, etc.).
 
 **Direction**: client → server (request)
 
@@ -1133,6 +1137,8 @@ Update per-thread agent configuration (MCP servers, extensions, etc.).
 | `config` | ThreadConfiguration | yes | Configuration patch. |
 
 **Result**: `{}`
+
+The server validates model-aware fields such as `reasoning` and `contextWindow` before persisting. Explicit `{ "contextWindow": { "mode": "max" } }` is accepted only when the thread's effective model has an explicit model-context catalog entry larger than the configured default window. On success, the server rebuilds the thread agent/compaction pipeline, persists the configuration, and broadcasts `thread/updated`.
 
 ---
 
@@ -4955,6 +4961,12 @@ Provider mutations emit `workspace/configChanged` with region `providers`.
     "defaultEffort": "medium",
     "supportedOutputs": ["none", "summary", "full"],
     "defaultOutput": "full"
+  },
+  "contextWindow": {
+    "catalogWindow": 1000000,
+    "configuredWindow": 256000,
+    "supportsMax": true,
+    "maxWindow": 1000000
   }
 }
 ```
@@ -4965,6 +4977,7 @@ Provider mutations emit `workspace/configChanged` with region `providers`.
 | `ownedBy` | string | Provider-reported owner string when available; may be empty. |
 | `createdAt` | string (ISO 8601 UTC) | Provider-reported creation time. |
 | `reasoning` | object | Optional server-authored reasoning UI capability metadata. Clients must not hardcode model compatibility rules; use this metadata when present. |
+| `contextWindow` | object | Server-authored context-window metadata for the model. Clients use this to decide whether to offer MAX. |
 
 `reasoning` fields:
 
@@ -4975,6 +4988,15 @@ Provider mutations emit `workspace/configChanged` with region `providers`.
 | `defaultEffort` | string | Model default effort for Default/inherited behavior. |
 | `supportedOutputs` | string[] | Supported reasoning output visibility values (`none`, `summary`, `full`). Quick pickers may leave this unchanged. |
 | `defaultOutput` | string | Model default reasoning output visibility. |
+
+`contextWindow` fields:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `catalogWindow` | number | Raw catalog context window after model catalog resolution. This may be the catalog default/fallback when no explicit model entry matches. |
+| `configuredWindow` | number | Default configured compaction window for this model after normal cap rules. |
+| `supportsMax` | boolean | True when `catalogWindow` is explicit and greater than `configuredWindow`. |
+| `maxWindow` | number | The effective window used by `max` when `supportsMax` is true; otherwise equal to `configuredWindow`. |
 
 ### 21.5 `model/list`
 
@@ -6113,6 +6135,7 @@ Update workspace-level config values.
 | `defaultApprovalPolicy` | string \| null | no | Workspace default approval policy for threads whose `ThreadConfiguration.approvalPolicy` is `default` or unset. Supported values are `default` and `autoApprove`; `null` removes the explicit workspace override so server defaults apply. |
 | `toolsLspEnabled` | boolean \| null | no | Workspace-level override for `Tools.Lsp.Enabled`. `true` enables the built-in LSP tool, `false` disables it, and `null` removes the explicit override so server defaults apply. |
 | `reasoning` | object \| null | no | Workspace default reasoning override. Omitted means no change; `null` removes the workspace `Reasoning` section; an object may set `enabled`, `effort`, and/or `output` using camelCase wire enum values. |
+| `contextWindow` | object \| null | no | Workspace default context-window mode for newly created threads. Shape: `{ "mode": "default" | "max" }`. Omitted means no change; `null` or `{ "mode": "default" }` removes the explicit workspace default; `{ "mode": "max" }` persists `Compaction.ContextWindowMode = Max`. |
 
 **Result**:
 
@@ -6133,6 +6156,9 @@ Update workspace-level config values.
     "enabled": true,
     "effort": "high",
     "output": "full"
+  },
+  "contextWindow": {
+    "mode": "max"
   }
 }
 ```
@@ -6150,7 +6176,7 @@ If `model` is removed, the result returns:
 - This method updates **workspace default** only, not any active thread state.
 - Clients that need immediate effect in a running thread should additionally call `thread/config/update`.
 - Server preserves unrelated configuration state.
-- At least one of `providerId`, `model`, `welcomeSuggestionsEnabled`, `skillsSelfLearningEnabled`, `memoryAutoConsolidateEnabled`, `dreamsEnabled`, `dreamsInterval`, `dreamsThreadLookbackCount`, `dreamsAutoApply`, `defaultApprovalPolicy`, `toolsLspEnabled`, or `reasoning` must be provided.
+- At least one of `providerId`, `model`, `welcomeSuggestionsEnabled`, `skillsSelfLearningEnabled`, `memoryAutoConsolidateEnabled`, `dreamsEnabled`, `dreamsInterval`, `dreamsThreadLookbackCount`, `dreamsAutoApply`, `defaultApprovalPolicy`, `toolsLspEnabled`, `reasoning`, or `contextWindow` must be provided.
 - Key matching is case-insensitive and normalized in-place (`ProviderId`, `Model`, and nested sections).
 - Provider-aware saves persist only `ProviderId` and `Model` to workspace config. Credentials and endpoints are changed through `provider/create` and `provider/update`.
 - Requests containing legacy root-level `apiKey` or `endPoint` parameters are rejected.
@@ -6160,7 +6186,8 @@ If `model` is removed, the result returns:
 - When `defaultApprovalPolicy` is provided, the server writes the value to `Permissions.DefaultApprovalPolicy`. Setting it to `null` removes the leaf, and the server prunes the empty `Permissions` object when no other keys remain.
 - When `toolsLspEnabled` is provided, the server writes the boolean to `Tools.Lsp.Enabled`. Setting it to `null` removes the leaf, and the server prunes empty `Tools.Lsp` / `Tools` objects when no other keys remain.
 - When `reasoning` is provided, `null` removes the workspace `Reasoning` section. `enabled: false` writes an explicit Off override; `enabled: true` or a payload that only sets `effort` writes an enabled override. Missing `effort` and `output` are filled from existing workspace values, merged config values, then `medium` / `full`.
-- On success, the server emits `workspace/configChanged` (see [Section 25.5](#255-workspaceconfigchanged)) with `source: "workspace/config/update"` and one or more regions from `workspace.provider`, `workspace.model`, `workspace.reasoning`, `providers`, `welcomeSuggestions`, `skills`, `memory`, `workspace.defaultApprovalPolicy`, or `lsp`.
+- When `contextWindow` is provided, `null` or `{ "mode": "default" }` removes `Compaction.ContextWindowMode`; `{ "mode": "max" }` writes `Compaction.ContextWindowMode = Max`. Explicit `max` is validated against the current or updated workspace provider/model before saving.
+- On success, the server emits `workspace/configChanged` (see [Section 25.5](#255-workspaceconfigchanged)) with `source: "workspace/config/update"` and one or more regions from `workspace.provider`, `workspace.model`, `workspace.reasoning`, `workspace.contextWindow`, `providers`, `welcomeSuggestions`, `skills`, `memory`, `workspace.defaultApprovalPolicy`, or `lsp`.
 
 ### 25.4 Capability Advertisement
 
@@ -6198,6 +6225,7 @@ Current `regions` taxonomy:
 | `workspace.provider` | `workspace/config/update` |
 | `workspace.model` | `workspace/config/update` |
 | `workspace.reasoning` | `workspace/config/update` |
+| `workspace.contextWindow` | `workspace/config/update` |
 | `welcomeSuggestions` | `workspace/config/update` |
 | `skills` | `skills/setEnabled`, `skills/uninstall`, `plugin/install`, `plugin/remove`, `plugin/setEnabled`, `workspace/config/update` |
 | `plugins` | `plugin/install`, `plugin/remove`, `plugin/setEnabled` |

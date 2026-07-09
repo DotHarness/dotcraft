@@ -104,6 +104,12 @@ public sealed partial class SessionService
                 : source.Configuration != null
                     ? CloneThreadConfiguration(source.Configuration)
                     : owner.CaptureThreadConfigurationForNewThread(null);
+            if (options.Config != null
+                && options.Config.ContextWindow == null
+                && source.Configuration?.ContextWindow != null)
+            {
+                config.ContextWindow = CloneNullableContextWindowConfig(source.Configuration.ContextWindow);
+            }
             var forkedThreadId = SessionIdGenerator.NewThreadId();
             var forkedTurns = CloneForkTurns(source, options.ForkPoint, forkedThreadId, source.Id, now);
             var forked = new SessionThread

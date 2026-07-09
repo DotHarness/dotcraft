@@ -18,11 +18,28 @@ export interface ModelReasoningCapability {
   defaultOutput: ReasoningOutputWire
 }
 
+/**
+ * Server-authored context-window metadata for a model (see
+ * specs/features/context-window-mode.md §5). Clients use `supportsMax` to decide
+ * whether to offer the MAX context switch; they must not hardcode model rules.
+ */
+export interface ModelContextWindowMeta {
+  /** Raw catalog window after model-catalog resolution (may be a fallback default). */
+  catalogWindow: number
+  /** Default configured compaction window after normal cap rules. */
+  configuredWindow: number
+  /** True only when the catalog window is explicit and greater than the configured window. */
+  supportsMax: boolean
+  /** Window used by MAX mode when supported; otherwise equal to `configuredWindow`. */
+  maxWindow: number
+}
+
 export interface ModelCatalogItem {
   id: string
   ownedBy?: string
   createdAt?: string
   reasoning?: ModelReasoningCapability | null
+  contextWindow?: ModelContextWindowMeta | null
 }
 
 /** AppServer `model/list` error when the upstream endpoint does not support listing models. */
@@ -112,10 +129,26 @@ function parseReasoningCapability(value: unknown): ModelReasoningCapability | nu
   }
 }
 
+function parseContextWindowMeta(value: unknown): ModelContextWindowMeta | null {
+  if (!value || typeof value !== 'object') return null
+  const typed = value as Record<string, unknown>
+  const num = (camel: unknown, pascal: unknown): number => {
+    const raw = typeof camel === 'number' ? camel : typeof pascal === 'number' ? pascal : NaN
+    return Number.isFinite(raw) ? raw : 0
+  }
+  const supportsRaw = typed.supportsMax ?? typed.SupportsMax
+  return {
+    catalogWindow: num(typed.catalogWindow, typed.CatalogWindow),
+    configuredWindow: num(typed.configuredWindow, typed.ConfiguredWindow),
+    supportsMax: supportsRaw === true,
+    maxWindow: num(typed.maxWindow, typed.MaxWindow)
+  }
+}
+
 function parseModelCatalogItems(payload: unknown): ModelCatalogItem[] {
   const typed = payload as {
     success?: boolean
-    models?: Array<{ id?: string; Id?: string; ownedBy?: string; OwnedBy?: string; createdAt?: string; CreatedAt?: string; reasoning?: unknown; Reasoning?: unknown }>
+    models?: Array<{ id?: string; Id?: string; ownedBy?: string; OwnedBy?: string; createdAt?: string; CreatedAt?: string; reasoning?: unknown; Reasoning?: unknown; contextWindow?: unknown; ContextWindow?: unknown }>
   }
   if (!typed.success || !Array.isArray(typed.models)) return []
   const byId = new Map<string, ModelCatalogItem>()
@@ -126,7 +159,8 @@ function parseModelCatalogItems(payload: unknown): ModelCatalogItem[] {
       id,
       ownedBy: typeof (model.ownedBy ?? model.OwnedBy) === 'string' ? String(model.ownedBy ?? model.OwnedBy) : undefined,
       createdAt: typeof (model.createdAt ?? model.CreatedAt) === 'string' ? String(model.createdAt ?? model.CreatedAt) : undefined,
-      reasoning: parseReasoningCapability(model.reasoning ?? model.Reasoning)
+      reasoning: parseReasoningCapability(model.reasoning ?? model.Reasoning),
+      contextWindow: parseContextWindowMeta(model.contextWindow ?? model.ContextWindow)
     })
   }
   return Array.from(byId.values()).sort((a, b) => a.id.localeCompare(b.id))

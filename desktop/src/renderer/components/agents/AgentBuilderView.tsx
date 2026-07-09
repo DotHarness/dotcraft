@@ -947,6 +947,11 @@ function IntroBuilderComposer({
         onModelChange={modelControls.onModelChange}
         onReasoningChange={modelControls.onReasoningChange}
         onModelCatalogRetry={modelControls.onModelCatalogRetry}
+        contextMode={modelControls.contextMode}
+        contextSupportsMax={modelControls.contextSupportsMax}
+        contextDegraded={modelControls.contextDegraded}
+        contextConfiguredWindow={modelControls.contextConfiguredWindow}
+        onContextModeChange={modelControls.onContextModeChange}
         dockPadding={0}
       />
     </div>
@@ -1001,6 +1006,11 @@ function DetachedAgentBuilderChat({
         onModelChange={modelControls.onModelChange}
         onReasoningChange={modelControls.onReasoningChange}
         onModelCatalogRetry={modelControls.onModelCatalogRetry}
+        contextMode={modelControls.contextMode}
+        contextSupportsMax={modelControls.contextSupportsMax}
+        contextDegraded={modelControls.contextDegraded}
+        contextConfiguredWindow={modelControls.contextConfiguredWindow}
+        onContextModeChange={modelControls.onContextModeChange}
       />
     </div>
   )

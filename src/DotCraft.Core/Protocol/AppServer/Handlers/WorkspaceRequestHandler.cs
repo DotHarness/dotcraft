@@ -98,7 +98,7 @@ internal sealed class WorkspaceRequestHandler(
             "At least one of 'providerId', 'model', 'welcomeSuggestionsEnabled', " +
             "'skillsSelfLearningEnabled', 'memoryAutoConsolidateEnabled', 'dreamsEnabled', 'dreamsInterval', " +
             "'dreamsThreadLookbackCount', 'dreamsAutoApply', 'defaultApprovalPolicy', 'toolsLspEnabled', " +
-            "or 'reasoning' is required.";
+            "'reasoning', or 'contextWindow' is required.";
 
         if (string.IsNullOrWhiteSpace(workspaceCraftPath))
             throw AppServerErrors.MethodNotFound(AppServerMethods.WorkspaceConfigUpdate);
@@ -152,6 +152,10 @@ internal sealed class WorkspaceRequestHandler(
             msg.Params.Value,
             "reasoning",
             out var reasoningEl);
+        var hasContextWindow = TryGetCaseInsensitiveProperty(
+            msg.Params.Value,
+            "contextWindow",
+            out var contextWindowEl);
         if (!hasProviderId
             && !hasModel
             && !hasWelcomeSuggestionsEnabled
@@ -163,7 +167,8 @@ internal sealed class WorkspaceRequestHandler(
             && !hasDreamsAutoApply
             && !hasDefaultApprovalPolicy
             && !hasToolsLspEnabled
-            && !hasReasoning)
+            && !hasReasoning
+            && !hasContextWindow)
         {
             throw AppServerErrors.InvalidParams(requiredFieldMessage);
         }
@@ -201,14 +206,25 @@ internal sealed class WorkspaceRequestHandler(
         var reasoning = hasReasoning
             ? ParseNullableReasoningConfig(reasoningEl, "reasoning", currentConfig.Reasoning)
             : null;
+        var contextWindow = hasContextWindow
+            ? ParseNullableWorkspaceContextWindowConfig(contextWindowEl, "contextWindow")
+            : null;
 
         if (hasReasoning && reasoning != null)
         {
-            ValidateReasoningForRuntime(
+            AppServerRuntimeRequestValidator.ValidateReasoningForRuntime(
                 currentConfig,
                 hasProviderId ? providerId : currentConfig.ProviderId,
                 hasModel ? NormalizeWorkspaceModel(model) : currentConfig.Model,
                 reasoning);
+        }
+        if (hasContextWindow && contextWindow != null)
+        {
+            AppServerRuntimeRequestValidator.ValidateContextWindowForRuntime(
+                currentConfig,
+                hasProviderId ? providerId : currentConfig.ProviderId,
+                hasModel ? NormalizeWorkspaceModel(model) : currentConfig.Model,
+                contextWindow);
         }
 
         var saveResult = SaveWorkspaceCoreConfig(
@@ -225,6 +241,7 @@ internal sealed class WorkspaceRequestHandler(
             hasDefaultApprovalPolicy ? NormalizeDefaultApprovalPolicy(defaultApprovalPolicy) : null,
             toolsLspEnabled,
             reasoning,
+            contextWindow,
             hasProviderId,
             hasModel,
             hasWelcomeSuggestionsEnabled,
@@ -236,7 +253,8 @@ internal sealed class WorkspaceRequestHandler(
             hasDreamsAutoApply,
             hasDefaultApprovalPolicy,
             hasToolsLspEnabled,
-            hasReasoning);
+            hasReasoning,
+            hasContextWindow);
 
         var changedRegions = new List<string>();
         if (saveResult.ProviderIdChanged)
@@ -290,6 +308,11 @@ internal sealed class WorkspaceRequestHandler(
             runtimeConfig.RefreshCurrentReasoningConfig();
             runtimeConfig.InvalidateThreadAgents();
         }
+        if (saveResult.ContextWindowChanged)
+        {
+            changedRegions.Add(ConfigChangeRegions.WorkspaceContextWindow);
+            runtimeConfig.RefreshCurrentContextWindowConfig();
+        }
         if (changedRegions.Count > 0)
         {
             appConfigMonitor?.NotifyChanged(
@@ -310,7 +333,8 @@ internal sealed class WorkspaceRequestHandler(
             DreamsAutoApply = saveResult.DreamsAutoApply,
             DefaultApprovalPolicy = saveResult.DefaultApprovalPolicy,
             ToolsLspEnabled = saveResult.ToolsLspEnabled,
-            Reasoning = CloneNullableReasoningConfig(saveResult.Reasoning)
+            Reasoning = CloneNullableReasoningConfig(saveResult.Reasoning),
+            ContextWindow = CloneNullableContextWindowConfig(saveResult.ContextWindow)
         };
     }
 
@@ -363,52 +387,6 @@ internal sealed class WorkspaceRequestHandler(
         await lspServerManager.InitializeAsync(ct);
     }
 
-    private static void ValidateReasoningForRuntime(
-        AppConfig config,
-        string? providerId,
-        string? model,
-        AppConfig.ReasoningConfig reasoning)
-    {
-        EffectiveModelRuntime runtime;
-        try
-        {
-            runtime = ModelProviderResolver.ResolveMain(config, providerId, model);
-        }
-        catch (ArgumentException)
-        {
-            return;
-        }
-        catch (ModelProviderConfigurationException)
-        {
-            return;
-        }
-
-        var capability = ModelThinkingAdapterCatalog.ResolveReasoningCapability(
-            config,
-            runtime.Protocol,
-            runtime.EndPoint,
-            runtime.Model);
-        if (capability == null)
-            return;
-
-        if (!reasoning.Enabled)
-        {
-            if (!capability.SupportsDisable)
-            {
-                throw AppServerErrors.InvalidParams(
-                    $"Model '{runtime.Model}' does not support disabling reasoning.");
-            }
-
-            return;
-        }
-
-        if (capability.SupportedEfforts.All(option => option.Effort != reasoning.Effort))
-        {
-            throw AppServerErrors.InvalidParams(
-                $"Model '{runtime.Model}' does not support reasoning effort '{reasoning.Effort}'.");
-        }
-    }
-
     private static string? NormalizeOptionalString(string? value)
     {
         var trimmed = value?.Trim();
@@ -455,6 +433,7 @@ internal sealed class WorkspaceRequestHandler(
         string? defaultApprovalPolicy,
         bool? toolsLspEnabled,
         AppConfig.ReasoningConfig? reasoning,
+        ThreadContextWindowConfig? contextWindow,
         bool updateProviderId,
         bool updateModel,
         bool updateWelcomeSuggestionsEnabled,
@@ -466,7 +445,8 @@ internal sealed class WorkspaceRequestHandler(
         bool updateDreamsAutoApply,
         bool updateDefaultApprovalPolicy,
         bool updateToolsLspEnabled,
-        bool updateReasoning)
+        bool updateReasoning,
+        bool updateContextWindow)
     {
         var configPath = Path.Combine(workspaceCraftPath, "config.json");
         Directory.CreateDirectory(workspaceCraftPath);
@@ -501,6 +481,8 @@ internal sealed class WorkspaceRequestHandler(
             : GetOrCreateConfigSection(toolsSection, "Lsp", createIfMissing: updateToolsLspEnabled);
         var toolsLspEnabledKey = lspSection == null ? null : FindCaseInsensitiveKey(lspSection, "Enabled");
         var reasoningSection = GetOrCreateConfigSection(root, "Reasoning", createIfMissing: updateReasoning && reasoning != null);
+        var compactionSection = GetOrCreateConfigSection(root, "Compaction", createIfMissing: updateContextWindow && contextWindow != null);
+        var contextWindowModeKey = compactionSection == null ? null : FindCaseInsensitiveKey(compactionSection, "ContextWindowMode");
 
         var existingProviderId = NormalizeOptionalString(ReadConfigStringValue(root, providerIdKey));
         var existingModel = NormalizeWorkspaceModel(ReadConfigStringValue(root, modelKey));
@@ -514,6 +496,7 @@ internal sealed class WorkspaceRequestHandler(
         var existingDefaultApprovalPolicy = NormalizeDefaultApprovalPolicy(ReadConfigStringValue(permissionsSection, defaultApprovalPolicyKey));
         var existingToolsLspEnabled = ReadConfigBooleanValue(lspSection, toolsLspEnabledKey);
         var existingReasoning = ReadConfigReasoningValue(reasoningSection);
+        var existingContextWindow = ReadConfigContextWindowValue(compactionSection, contextWindowModeKey);
 
         var providerIdChanged = updateProviderId && !string.Equals(existingProviderId, providerId, StringComparison.Ordinal);
         var modelChanged = updateModel && !string.Equals(existingModel, model, StringComparison.Ordinal);
@@ -537,6 +520,8 @@ internal sealed class WorkspaceRequestHandler(
             && existingToolsLspEnabled != toolsLspEnabled;
         var reasoningChanged = updateReasoning
             && !ReasoningConfigEquals(existingReasoning, reasoning);
+        var contextWindowChanged = updateContextWindow
+            && !ContextWindowConfigEquals(existingContextWindow, contextWindow);
 
         if (updateProviderId)
             UpsertOrRemoveConfigValue(root, providerIdKey, "ProviderId", providerId);
@@ -620,6 +605,28 @@ internal sealed class WorkspaceRequestHandler(
                 UpsertOrRemoveConfigValue(section, FindCaseInsensitiveKey(section, "Output"), "Output", reasoning.Output.ToString());
             }
         }
+        if (updateContextWindow)
+        {
+            if (contextWindow == null)
+            {
+                var section = GetOrCreateConfigSection(root, "Compaction", createIfMissing: false);
+                if (section != null)
+                {
+                    var existingKey = FindCaseInsensitiveKey(section, "ContextWindowMode");
+                    UpsertOrRemoveConfigValue(section, existingKey, "ContextWindowMode", (string?)null);
+                    RemoveConfigSectionIfEmpty(root, "Compaction");
+                }
+            }
+            else
+            {
+                var section = GetOrCreateConfigSection(root, "Compaction", createIfMissing: true)!;
+                UpsertOrRemoveConfigValue(
+                    section,
+                    FindCaseInsensitiveKey(section, "ContextWindowMode"),
+                    "ContextWindowMode",
+                    contextWindow.Mode.ToString());
+            }
+        }
 
         if (providerIdChanged
             || modelChanged
@@ -633,6 +640,7 @@ internal sealed class WorkspaceRequestHandler(
             || defaultApprovalPolicyChanged
             || toolsLspEnabledChanged
             || reasoningChanged
+            || contextWindowChanged
             || legacyLanguageRemoved)
         {
             WriteConfigObject(configPath, root);
@@ -672,6 +680,9 @@ internal sealed class WorkspaceRequestHandler(
             Reasoning = updateReasoning
                 ? CloneNullableReasoningConfig(reasoning)
                 : CloneNullableReasoningConfig(existingReasoning),
+            ContextWindow = updateContextWindow
+                ? CloneNullableContextWindowConfig(contextWindow)
+                : CloneNullableContextWindowConfig(existingContextWindow),
             ProviderIdChanged = providerIdChanged,
             ModelChanged = modelChanged,
             WelcomeSuggestionsChanged = welcomeSuggestionsChanged,
@@ -680,7 +691,8 @@ internal sealed class WorkspaceRequestHandler(
             DreamsChanged = dreamsEnabledChanged || dreamsIntervalChanged || dreamsThreadLookbackCountChanged || dreamsAutoApplyChanged,
             DefaultApprovalPolicyChanged = defaultApprovalPolicyChanged,
             ToolsLspEnabledChanged = toolsLspEnabledChanged,
-            ReasoningChanged = reasoningChanged
+            ReasoningChanged = reasoningChanged,
+            ContextWindowChanged = contextWindowChanged
         };
     }
 
@@ -762,6 +774,32 @@ internal sealed class WorkspaceRequestHandler(
             Effort = effort ?? fallback.Effort,
             Output = output ?? fallback.Output
         };
+    }
+
+    private static ThreadContextWindowConfig? ParseNullableWorkspaceContextWindowConfig(
+        JsonElement element,
+        string fieldName)
+    {
+        if (element.ValueKind == JsonValueKind.Null)
+            return null;
+
+        if (element.ValueKind != JsonValueKind.Object)
+            throw AppServerErrors.InvalidParams($"'{fieldName}' must be an object or null.");
+
+        if (!TryGetCaseInsensitiveProperty(element, "mode", out var modeEl))
+            throw AppServerErrors.InvalidParams($"'{fieldName}' must contain 'mode'.");
+        if (modeEl.ValueKind != JsonValueKind.String)
+            throw AppServerErrors.InvalidParams($"'{fieldName}.mode' must be 'default' or 'max'.");
+
+        if (!ContextWindowModeJsonConverter.TryParse(modeEl.GetString(), out var mode))
+            throw AppServerErrors.InvalidParams($"'{fieldName}.mode' must be 'default' or 'max'.");
+
+        return mode == ContextWindowMode.Default
+            ? null
+            : new ThreadContextWindowConfig
+            {
+                Mode = mode
+            };
     }
 
     private static ReasoningEffort? ParseNullableReasoningEffort(JsonElement element, string fieldName)
@@ -868,6 +906,18 @@ internal sealed class WorkspaceRequestHandler(
         };
     }
 
+    private static ThreadContextWindowConfig? ReadConfigContextWindowValue(JsonObject? root, string? key)
+    {
+        var raw = ReadConfigStringValue(root, key);
+        if (!ContextWindowModeJsonConverter.TryParse(raw, out var mode) || mode == ContextWindowMode.Default)
+            return null;
+
+        return new ThreadContextWindowConfig
+        {
+            Mode = mode
+        };
+    }
+
     private static AppConfig.ReasoningConfig CloneReasoningConfig(AppConfig.ReasoningConfig source) => new()
     {
         Enabled = source.Enabled,
@@ -878,6 +928,14 @@ internal sealed class WorkspaceRequestHandler(
     private static AppConfig.ReasoningConfig? CloneNullableReasoningConfig(AppConfig.ReasoningConfig? source) =>
         source == null ? null : CloneReasoningConfig(source);
 
+    private static ThreadContextWindowConfig? CloneNullableContextWindowConfig(ThreadContextWindowConfig? source) =>
+        source == null
+            ? null
+            : new ThreadContextWindowConfig
+            {
+                Mode = source.Mode
+            };
+
     private static bool ReasoningConfigEquals(AppConfig.ReasoningConfig? left, AppConfig.ReasoningConfig? right)
     {
         if (left == null || right == null)
@@ -886,6 +944,14 @@ internal sealed class WorkspaceRequestHandler(
         return left.Enabled == right.Enabled
                && left.Effort == right.Effort
                && left.Output == right.Output;
+    }
+
+    private static bool ContextWindowConfigEquals(ThreadContextWindowConfig? left, ThreadContextWindowConfig? right)
+    {
+        if (left == null || right == null)
+            return left == null && right == null;
+
+        return left.Mode == right.Mode;
     }
 
     private static int? ReadConfigIntegerValue(JsonObject? root, string? key)
@@ -1027,6 +1093,8 @@ internal sealed class WorkspaceRequestHandler(
 
         public AppConfig.ReasoningConfig? Reasoning { get; init; }
 
+        public ThreadContextWindowConfig? ContextWindow { get; init; }
+
         public bool ProviderIdChanged { get; init; }
 
         public bool ModelChanged { get; init; }
@@ -1044,5 +1112,7 @@ internal sealed class WorkspaceRequestHandler(
         public bool ToolsLspEnabledChanged { get; init; }
 
         public bool ReasoningChanged { get; init; }
+
+        public bool ContextWindowChanged { get; init; }
     }
 }

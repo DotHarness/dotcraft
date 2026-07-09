@@ -10,7 +10,7 @@ import { useSkillsStore } from '../../stores/skillsStore'
 import { useSubAgentStore } from '../../stores/subAgentStore'
 import { useThreadStore } from '../../stores/threadStore'
 import { useComposerDraftStore, threadComposerDraftHasContent } from '../../stores/composerDraftStore'
-import type { ContextUsageSnapshotWire, Thread, ThreadGoal } from '../../types/thread'
+import type { ContextUsageSnapshotWire, ContextWindowMode, Thread, ThreadGoal } from '../../types/thread'
 import type { ComposerDraftSegment } from '../../types/composerDraft'
 import { wireTurnToConversationTurn } from '../../types/conversation'
 import type {
@@ -135,6 +135,11 @@ interface InputComposerProps {
   onModelChange?: (model: string) => void
   onReasoningChange?: (value: ReasoningQuickValue) => void
   onModelCatalogRetry?: () => void
+  contextMode?: ContextWindowMode
+  contextSupportsMax?: boolean
+  contextDegraded?: boolean
+  contextConfiguredWindow?: number
+  onContextModeChange?: (mode: ContextWindowMode) => void
   /**
    * Minimal chrome for embedded composers (e.g. the conversational Agent Builder pane): hides the
    * workspace/worktree+branch footer, the approval-policy (permissions) picker, and the ChatGPT
@@ -185,6 +190,11 @@ export function InputComposer({
   onModelChange,
   onReasoningChange,
   onModelCatalogRetry,
+  contextMode,
+  contextSupportsMax,
+  contextDegraded,
+  contextConfiguredWindow,
+  onContextModeChange,
   minimalChrome = false,
   mascotAvatar,
   variant = 'default',
@@ -1644,6 +1654,11 @@ export function InputComposer({
               onChange={onModelChange}
               onReasoningChange={onReasoningChange}
               onRetry={onModelCatalogRetry}
+              contextMode={contextMode}
+              contextSupportsMax={contextSupportsMax}
+              contextDegraded={contextDegraded}
+              contextConfiguredWindow={contextConfiguredWindow}
+              onContextModeChange={onContextModeChange}
               shortcut={ACTION_SHORTCUTS.selectModel}
               triggerStyle={composerModelPillStyle(
                 modelDisabled || modelLoading ? 'var(--composer-footer-muted)' : 'var(--composer-footer-highlight)',

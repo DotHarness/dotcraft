@@ -725,7 +725,9 @@ internal sealed class TestableSessionService : ISessionService, IThreadAgentRefr
     {
         var t = await GetOrLoadAsync(threadId, ct);
         t.Configuration = config;
+        _cache[t.Id] = t;
         await _store.SaveThreadAsync(t, ct);
+        ThreadUpdatedForBroadcast?.Invoke(t);
     }
 
     public Task DeleteThreadPermanentlyAsync(string threadId, CancellationToken ct = default)

@@ -1650,7 +1650,10 @@ ThreadConfiguration
 ├── Mode: string                                 // Agent mode: "agent", "plan", etc. (default: "agent")
 ├── Extensions: string[]?                        // Active extension prefixes, e.g. ["_unity"]
 ├── CustomTools: string[]?                       // Additional tool names to enable
+├── ProviderId: string?                          // Per-thread provider id captured at thread creation
 ├── Model: string?                               // Per-thread model; defaults to the effective workspace model at thread creation
+├── Reasoning: ReasoningConfig?                  // Per-thread reasoning configuration
+├── ContextWindow: { mode: "default"|"max" }?    // Per-thread context-window mode
 ├── WorkspaceOverride: string?                   // Alternate workspace root for this thread
 ├── ExecutionWorkspaceOverride: string?          // Runtime execution root, typically a registered worktree
 ├── ToolProfile: string?                         // Named tool profile to inject
@@ -1679,6 +1682,15 @@ Model resolution is thread-aware:
 - DotCraft-managed native SubAgents use workspace `AppConfig.SubAgent.Model` when set
 - when `AppConfig.SubAgent.Model` is empty, native SubAgents inherit the thread's effective MainAgent model
 - workspace `model`, `apiKey`, `endpoint`, and `subagent` configuration changes invalidate cached thread agents so the next turn uses freshly resolved clients; existing threads keep their captured model unless their thread configuration is explicitly changed, and an already-running turn is not switched mid-flight
+
+Context-window resolution is thread-aware:
+
+- `ThreadConfiguration.ContextWindow` is an optional object `{ mode: "default" | "max" }`; omitted or null means `default`.
+- `default` preserves today's compaction behavior: explicit `Compaction.ContextWindow` wins, otherwise the model catalog is inferred and capped by `Compaction.MaxContextWindow`.
+- `max` is valid only when the model-context catalog has an explicit match for the thread's effective model and that catalog window is greater than the configured default window. When valid, Session Core sets the effective compaction `ContextWindow` to the raw catalog window and bypasses `Compaction.MaxContextWindow`.
+- New threads capture the workspace default context-window mode when one is set on `Compaction.ContextWindowMode` and the resolved thread model supports that mode; otherwise they omit the field and use `default`.
+- Forks copy the source thread's context-window configuration unless the fork request supplies a replacement `ThreadConfiguration`.
+- `UpdateThreadConfiguration` validates explicit `max`, rebuilds the thread agent and compaction pipeline before the next turn, persists the new configuration, and emits `thread/updated`.
 
 Workspace resolution is thread-aware:
 
@@ -1883,4 +1895,3 @@ This is specified in the [External Channel Adapter Specification](../protocols/e
 ### 20.3 Relationship to AppServer Protocol
 
 The AppServer protocol is the server-managed entry point for persistent threads and structured events.
-
