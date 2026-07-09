@@ -105,6 +105,7 @@ import {
 import { encodeInitialWorkspaceStatusArg } from '../shared/initialWorkspaceStatus'
 import { getEnabledEmbeddedModuleChannelNames } from '../shared/channelModulePersistence'
 import { applyWindowBackdropTheme, resolveInitialTheme, resolveWindowBackdropOptions } from './windowTheme'
+import { applyNativeThemeSource } from './nativeThemeSource'
 import { resolveThemeMode } from '../shared/theme'
 import { normalizeInterfaceZoom } from '../shared/appearance'
 import {
@@ -747,7 +748,11 @@ async function updateSharedSettings(partial: Partial<AppSettings>): Promise<void
   const next = mergeUpdatedSettings(sharedSettings, partial)
   Object.assign(sharedSettings, next)
   saveSettings(sharedSettings)
-  if (partial.locale !== undefined && normalizeLocale(sharedSettings.locale) !== prevLocale) {
+  const localeChanged = partial.locale !== undefined && normalizeLocale(sharedSettings.locale) !== prevLocale
+  if (partial.theme !== undefined) {
+    applyNativeThemeSource(nativeTheme, sharedSettings)
+    refreshAppMenu()
+  } else if (localeChanged) {
     refreshAppMenu()
   }
   if (process.platform === 'darwin' && partial.showInMenuBar !== undefined) {
@@ -2949,6 +2954,7 @@ app.whenReady().then(async () => {
   installDotCraftAppProtocolHandler(() => wireClient)
   registerMenuPopupIpc()
   sharedSettings = loadSettings()
+  applyNativeThemeSource(nativeTheme, sharedSettings)
   refreshAppMenu()
   try {
     ensureTrayProcess(sharedSettings)

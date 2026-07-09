@@ -84,6 +84,7 @@ const electronMocks = vi.hoisted(() => {
   const setToolTip = vi.fn()
   const setContextMenu = vi.fn()
   const destroy = vi.fn()
+  const nativeTheme = { themeSource: 'system' as 'system' | 'light' | 'dark' }
   return {
     show,
     notificationOn,
@@ -93,6 +94,7 @@ const electronMocks = vi.hoisted(() => {
     setToolTip,
     setContextMenu,
     destroy,
+    nativeTheme,
     triggerClick: () => {
       notificationClickHandler?.()
     },
@@ -106,6 +108,7 @@ const electronMocks = vi.hoisted(() => {
       notificationClickHandler = null
       trayClickHandler = null
       beforeQuitHandlers.splice(0)
+      nativeTheme.themeSource = 'system'
     },
     openExternal,
     Notification: vi.fn().mockImplementation(() => ({ show, on: notificationOn }))
@@ -120,6 +123,7 @@ vi.mock('electron', () => ({
     on: electronMocks.appOn
   },
   Menu: { buildFromTemplate: vi.fn((template) => ({ template })) },
+  nativeTheme: electronMocks.nativeTheme,
   nativeImage: {
     createFromPath: vi.fn(() => ({
       setTemplateImage: vi.fn(),
@@ -528,6 +532,23 @@ describe('trayManager notifications', () => {
       { workspacePath: 'F:/examples/workspace', threadId: 'thread_1' }
     )
     expect(childProcessMocks.spawn).not.toHaveBeenCalled()
+  })
+})
+
+describe('trayManager native theme sync', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    electronMocks.nativeTheme.themeSource = 'system'
+  })
+
+  it('applies the persisted app theme to Electron native tray UI', async () => {
+    const { applyTrayNativeThemeSource } = await import('../trayManager')
+
+    applyTrayNativeThemeSource({ theme: 'dark' })
+    expect(electronMocks.nativeTheme.themeSource).toBe('dark')
+
+    applyTrayNativeThemeSource({ theme: 'system' })
+    expect(electronMocks.nativeTheme.themeSource).toBe('system')
   })
 })
 

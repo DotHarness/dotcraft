@@ -1,4 +1,4 @@
-import { app, Menu, nativeImage, Notification, shell, Tray, type MenuItemConstructorOptions } from 'electron'
+import { app, Menu, nativeImage, nativeTheme, Notification, shell, Tray, type MenuItemConstructorOptions } from 'electron'
 import { spawn } from 'child_process'
 import { basename, join } from 'path'
 import { existsSync } from 'fs'
@@ -22,6 +22,7 @@ import {
   parseWorkspaceOpenDeepLink
 } from './desktopDeepLink'
 import { NO_WORKSPACE_ARG } from './workspaceArgs'
+import { applyNativeThemeSource } from './nativeThemeSource'
 
 interface TrayState {
   appServers: HubAppServerResponse[]
@@ -437,11 +438,17 @@ export async function showHubNotificationForSettings(
   return showHubNotificationPayload(payload)
 }
 
+export function applyTrayNativeThemeSource(settings: Pick<AppSettings, 'theme'>): void {
+  applyNativeThemeSource(nativeTheme, settings)
+}
+
 export async function runTrayProcess(): Promise<void> {
-  if (!shouldRunTrayProcess(loadSettings())) {
+  let settings: AppSettings = loadSettings()
+  if (!shouldRunTrayProcess(settings)) {
     app.quit()
     return
   }
+  applyTrayNativeThemeSource(settings)
 
   const lock = tryAcquireTrayLock()
   if (!lock) {
@@ -450,7 +457,6 @@ export async function runTrayProcess(): Promise<void> {
   }
 
   let tray: Tray | null = new Tray(createTrayIcon())
-  let settings: AppSettings = loadSettings()
   const hubClient = new HubClient({
     binarySource: settings.binarySource,
     binaryPath: settings.appServerBinaryPath,
@@ -488,6 +494,7 @@ export async function runTrayProcess(): Promise<void> {
       app.quit()
       return
     }
+    applyTrayNativeThemeSource(settings)
     try {
       const [, appServers] = await Promise.all([
         hubClient.getStatus(),
