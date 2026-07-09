@@ -1,6 +1,7 @@
 using System.Text;
 using System.Text.Json.Nodes;
 using DotCraft.Protocol.AppServer;
+using DotCraft.SourceControl;
 using DotCraft.Tools;
 using DotCraft.Utilities;
 using Microsoft.Extensions.AI;
@@ -9,7 +10,7 @@ using Microsoft.Extensions.Logging;
 namespace DotCraft.Protocol;
 
 /// <summary>
-/// Orchestrates commit-message suggestion via an ephemeral thread and the <see cref="CommitSuggestToolProvider"/> profile.
+/// Orchestrates source-control summary suggestion via an ephemeral thread and the <see cref="CommitSuggestToolProvider"/> profile.
 /// </summary>
 public interface ICommitMessageSuggestService
 {
@@ -21,7 +22,9 @@ public interface ICommitMessageSuggestService
 public sealed class CommitMessageSuggestService(
     ISessionService sessionService,
     string workspaceRoot,
-    ILogger<CommitMessageSuggestService>? logger = null) : ICommitMessageSuggestService
+    ILogger<CommitMessageSuggestService>? logger = null,
+    Func<SourceControlConfig>? sourceControlConfigProvider = null,
+    Func<string, string, TimeSpan, IDictionary<string, string>?, ILogger?, IPerforceCommandRunner>? perforceRunnerFactory = null) : ICommitMessageSuggestService
 {
     private const int DefaultMaxDiffChars = 100_000;
     private const int MaxContextChars = 60_000;
@@ -50,16 +53,22 @@ public sealed class CommitMessageSuggestService(
         using var timeoutCts = new CancellationTokenSource(SuggestTimeout);
         using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, timeoutCts.Token);
 
+        var provider = NormalizeProvider(parameters.Provider);
         var maxDiff = parameters.MaxDiffChars is > 0 and int m ? m : DefaultMaxDiffChars;
-        var diffText = await RunGitDiffAsync(ws, parameters.Paths, maxDiff, logger, linked.Token)
+        var changeContext = await BuildChangeContextAsync(provider, ws, parameters.Paths, maxDiff, logger, linked.Token)
             .ConfigureAwait(false);
-        if (string.IsNullOrWhiteSpace(diffText))
-            throw new InvalidOperationException("No diff for the given paths (nothing to commit or not a git repository).");
+        if (string.IsNullOrWhiteSpace(changeContext))
+        {
+            var message = provider == SourceControlProviders.Perforce
+                ? "No Perforce diff for the given paths."
+                : "No diff for the given paths (nothing to commit or not a git repository).";
+            throw new InvalidOperationException(message);
+        }
 
         var history = BuildHistoryMessages(sourceThread, MaxContextChars);
         if (history.Count == 0)
             history.Add(new ChatMessage(ChatRole.User, "[No prior user or agent messages in this thread.]"));
-        var userPrompt = BuildUserPrompt(parameters.Paths, diffText);
+        var userPrompt = BuildUserPrompt(provider, parameters.Paths, changeContext);
 
         string? tempThreadId = null;
         try
@@ -148,14 +157,55 @@ public sealed class CommitMessageSuggestService(
         }
     }
 
-    private static string BuildUserPrompt(string[] paths, string diffText)
+    private async Task<string> BuildChangeContextAsync(
+        string provider,
+        string workspaceRoot,
+        string[] paths,
+        int maxChars,
+        ILogger? log,
+        CancellationToken ct)
+    {
+        return provider switch
+        {
+            SourceControlProviders.Git => await RunGitDiffAsync(workspaceRoot, paths, maxChars, log, ct)
+                .ConfigureAwait(false),
+            SourceControlProviders.Perforce => await RunPerforceDiffAsync(workspaceRoot, paths, maxChars, log, ct)
+                .ConfigureAwait(false),
+            _ => throw new InvalidOperationException($"Unsupported source-control provider '{provider}'.")
+        };
+    }
+
+    private static string NormalizeProvider(string? provider)
+    {
+        var value = provider?.Trim();
+        if (string.IsNullOrWhiteSpace(value))
+            return SourceControlProviders.Git;
+        if (string.Equals(value, SourceControlProviders.Git, StringComparison.OrdinalIgnoreCase))
+            return SourceControlProviders.Git;
+        if (string.Equals(value, SourceControlProviders.Perforce, StringComparison.OrdinalIgnoreCase))
+            return SourceControlProviders.Perforce;
+        throw new InvalidOperationException($"Unsupported source-control provider '{value}'.");
+    }
+
+    private static string BuildUserPrompt(string provider, string[] paths, string changeContext)
     {
         var sb = new StringBuilder();
-        sb.AppendLine("Produce a git commit message for the following changes.");
+        if (provider == SourceControlProviders.Perforce)
+        {
+            sb.AppendLine("Produce a Perforce pending changelist description for the following changes.");
+            sb.AppendLine("Use a concise first line and optional detail lines. Do not use Conventional Commits unless the project context clearly asks for it.");
+        }
+        else
+        {
+            sb.AppendLine("Produce a git commit message for the following changes.");
+            sb.AppendLine("Use Conventional Commits style and imperative mood.");
+        }
         sb.AppendLine("Paths (relative to workspace): " + string.Join(", ", paths));
         sb.AppendLine();
-        sb.AppendLine("--- unified diff ---");
-        sb.AppendLine(diffText);
+        sb.AppendLine(provider == SourceControlProviders.Perforce
+            ? "--- perforce opened/diff context ---"
+            : "--- unified diff ---");
+        sb.AppendLine(changeContext);
         return sb.ToString();
     }
 
@@ -207,9 +257,9 @@ public sealed class CommitMessageSuggestService(
                 throw new InvalidOperationException("paths must not contain empty entries.");
             if (p.Contains("..", StringComparison.Ordinal))
                 throw new InvalidOperationException("paths must not contain '..'.");
-            
+
             var combined = Path.GetFullPath(Path.Combine(workspaceRoot, p));
-            
+
             // Resolve symbolic links and junctions to prevent path traversal attacks
             string resolvedPath;
             try
@@ -221,10 +271,10 @@ public sealed class CommitMessageSuggestService(
                 // Path doesn't exist or cannot be accessed - validate the path itself
                 resolvedPath = combined;
             }
-            
+
             // Resolve workspace root as well to handle symlinks in the workspace path
             string resolvedWorkspace = ResolveSymbolicLink(workspaceRoot);
-            
+
             if (!resolvedPath.StartsWith(resolvedWorkspace, StringComparison.OrdinalIgnoreCase) ||
                 (resolvedPath.Length > resolvedWorkspace.Length &&
                  resolvedPath[resolvedWorkspace.Length] != Path.DirectorySeparatorChar &&
@@ -232,7 +282,7 @@ public sealed class CommitMessageSuggestService(
                 throw new InvalidOperationException($"Path escapes workspace: {p}");
         }
     }
-    
+
     /// <summary>Maximum symlink hops to follow (defense in depth alongside cycle detection).</summary>
     private const int MaxSymlinkResolveDepth = 64;
 
@@ -292,6 +342,138 @@ public sealed class CommitMessageSuggestService(
         }
 
         return Path.GetFullPath(path);
+    }
+
+    private async Task<string> RunPerforceDiffAsync(
+        string workspaceRoot,
+        string[] paths,
+        int maxChars,
+        ILogger? log,
+        CancellationToken ct)
+    {
+        var config = sourceControlConfigProvider?.Invoke() ?? new SourceControlConfig();
+        var effective = SourceControlResolver.ResolveEffectiveProvider(config, workspaceRoot);
+        if (!string.Equals(effective, SourceControlProviders.Perforce, StringComparison.OrdinalIgnoreCase))
+            throw new InvalidOperationException("Perforce summary generation requires a Perforce source control binding.");
+        if (!config.Perforce.Online)
+            throw new InvalidOperationException("Perforce source control is offline. Test the connection and save it online before generating a changelist description.");
+
+        var perforce = config.Perforce;
+        var timeoutSeconds = perforce.TimeoutSeconds > 0 ? perforce.TimeoutSeconds : 30;
+        var executable = string.IsNullOrWhiteSpace(perforce.P4ExecutablePath) ? "p4" : perforce.P4ExecutablePath.Trim();
+        var mode = SourceControlConnectionModes.Normalize(config.ConnectionMode);
+        var env = new Dictionary<string, string>(StringComparer.Ordinal);
+        if (mode == SourceControlConnectionModes.P4Config && !string.IsNullOrWhiteSpace(perforce.P4ConfigName))
+            env["P4CONFIG"] = perforce.P4ConfigName.Trim();
+
+        var timeout = TimeSpan.FromSeconds(timeoutSeconds);
+        var runner = perforceRunnerFactory?.Invoke(executable, workspaceRoot, timeout, env, log)
+            ?? new DefaultPerforceCommandRunner(executable, workspaceRoot, timeout, env, log);
+        var globals = BuildPerforceGlobals(mode, perforce);
+
+        var sb = new StringBuilder();
+        var hasDiff = false;
+        foreach (var path in paths)
+        {
+            var fullPath = Path.IsPathRooted(path)
+                ? Path.GetFullPath(path)
+                : Path.GetFullPath(Path.Combine(workspaceRoot, path.Replace('/', Path.DirectorySeparatorChar)));
+
+            var opened = await runner.RunAsync([.. globals, "opened", fullPath], null, ct)
+                .ConfigureAwait(false);
+            var openedText = TrimPerforceOutput(opened);
+            if (!opened.Ok && !IsPerforceNotOpened(openedText))
+                throw new InvalidOperationException(MapPerforceFailure(opened, "Unable to read Perforce opened file state."));
+            if (!opened.Ok)
+                continue;
+
+            var diff = await runner.RunAsync([.. globals, "diff", "-du", fullPath], null, ct)
+                .ConfigureAwait(false);
+            var diffText = diff.StdOut.TrimEnd();
+            if (!diff.Ok && string.IsNullOrWhiteSpace(diffText))
+                throw new InvalidOperationException(MapPerforceFailure(diff, "Unable to read Perforce diff."));
+            if (string.IsNullOrWhiteSpace(diffText))
+                continue;
+
+            hasDiff = true;
+            if (sb.Length > 0)
+                sb.AppendLine().AppendLine();
+            sb.AppendLine($"--- path: {path} ---");
+            if (!string.IsNullOrWhiteSpace(openedText))
+            {
+                sb.AppendLine("--- p4 opened ---");
+                sb.AppendLine(openedText);
+            }
+            sb.AppendLine("--- p4 diff -du ---");
+            sb.AppendLine(diffText);
+
+            if (sb.Length > maxChars)
+                return sb.ToString(0, maxChars) + "\n\n[diff truncated]";
+        }
+
+        return hasDiff ? sb.ToString() : string.Empty;
+    }
+
+    private static List<string> BuildPerforceGlobals(string mode, PerforceConnectionConfig perforce)
+    {
+        var args = new List<string>();
+        if (mode == SourceControlConnectionModes.Manual)
+        {
+            AddPerforceOption(args, "-p", perforce.Port);
+            AddPerforceOption(args, "-c", perforce.Client);
+            AddPerforceOption(args, "-u", perforce.User);
+        }
+        AddPerforceOption(args, "-C", perforce.Charset);
+        return args;
+    }
+
+    private static void AddPerforceOption(List<string> args, string flag, string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+            return;
+        args.Add(flag);
+        args.Add(value.Trim());
+    }
+
+    private static string TrimPerforceOutput(PerforceCommandResult result)
+    {
+        var stdout = result.StdOut.Trim();
+        var stderr = result.StdErr.Trim();
+        if (string.IsNullOrWhiteSpace(stdout))
+            return stderr;
+        if (string.IsNullOrWhiteSpace(stderr))
+            return stdout;
+        return stdout + "\n" + stderr;
+    }
+
+    private static bool IsPerforceNotOpened(string text) =>
+        text.Contains("not opened", StringComparison.OrdinalIgnoreCase);
+
+    private static string MapPerforceFailure(PerforceCommandResult result, string fallback)
+    {
+        if (result.ExecutableMissing)
+            return "p4 was not found in the server environment.";
+        if (result.TimedOut)
+            return "The Perforce command timed out.";
+        var detail = FirstNonEmptyLine(result.StdErr) ?? FirstNonEmptyLine(result.StdOut);
+        if (detail?.Contains("login", StringComparison.OrdinalIgnoreCase) == true
+            || detail?.Contains("password", StringComparison.OrdinalIgnoreCase) == true
+            || detail?.Contains("ticket", StringComparison.OrdinalIgnoreCase) == true)
+        {
+            return "Perforce login is required before generating a changelist description.";
+        }
+        return string.IsNullOrWhiteSpace(detail) ? fallback : detail;
+    }
+
+    private static string? FirstNonEmptyLine(string text)
+    {
+        foreach (var raw in text.Split('\n'))
+        {
+            var line = raw.Trim();
+            if (line.Length > 0)
+                return line;
+        }
+        return null;
     }
 
     private static async Task<string> RunGitDiffAsync(

@@ -160,7 +160,7 @@ public sealed class PerforceChangelistManager(
         var created = false;
         if (target != PerforceChangelistIds.Default)
         {
-            var targetError = await EnsureNumberedTargetReadyAsync(target, description, ct).ConfigureAwait(false);
+            var targetError = await EnsureNumberedTargetExistsAsync(target, ct).ConfigureAwait(false);
             if (targetError != null)
                 return targetError;
         }
@@ -181,16 +181,8 @@ public sealed class PerforceChangelistManager(
             }
 
             var opened = openedResult.Changelist;
-            if (opened is { Length: > 0 }
-                && opened != PerforceChangelistIds.Default
-                && !string.Equals(opened, target, StringComparison.Ordinal))
-            {
-                skipped.Add(path);
-                warnings.Add(new PerforceChangelistDiagnostic(
-                    PerforceChangelistCodes.FileAlreadyInOtherChangelist,
-                    $"File '{Path.GetFileName(path)}' is already opened in changelist {opened}; it was not moved."));
+            if (opened is not { Length: > 0 })
                 continue;
-            }
 
             if (target == PerforceChangelistIds.Default || !string.Equals(opened, target, StringComparison.Ordinal))
                 toMove.Add(path);
@@ -206,11 +198,28 @@ public sealed class PerforceChangelistManager(
         if (toMove.Count > 0)
         {
             var reopen = await runner.RunAsync(
-                [.. BuildGlobals(), "reopen", "-c", target, "--", .. toMove],
+                [.. BuildGlobals(), "reopen", "-c", target, .. toMove],
                 null,
                 ct).ConfigureAwait(false);
             if (!reopen.Ok)
-                return Error(ClassifyFailureCode(reopen), FailureText(reopen, "Unable to move files to the Perforce changelist."), target);
+                return Error(
+                    ClassifyFailureCode(reopen),
+                    FailureText(reopen, "Unable to move files to the Perforce changelist."),
+                    target,
+                    created: created);
+        }
+
+        if (!created && target != PerforceChangelistIds.Default && !string.IsNullOrWhiteSpace(description))
+        {
+            var descriptionError = await TryUpdateDescriptionAsync(target, description, ct).ConfigureAwait(false);
+            if (descriptionError != null)
+            {
+                return Error(
+                    ClassifyFailureCode(descriptionError.Value),
+                    FailureText(descriptionError.Value, $"Unable to update Perforce changelist {target} description."),
+                    target,
+                    movedPaths: toMove);
+            }
         }
 
         return new PerforceChangelistPrepareResult
@@ -239,9 +248,8 @@ public sealed class PerforceChangelistManager(
         return new OpenedChangelistLookup(match.Success ? match.Groups[1].Value : null, null);
     }
 
-    private async Task<PerforceChangelistPrepareResult?> EnsureNumberedTargetReadyAsync(
+    private async Task<PerforceChangelistPrepareResult?> EnsureNumberedTargetExistsAsync(
         string target,
-        string description,
         CancellationToken ct)
     {
         var specResult = await runner.RunAsync([.. BuildGlobals(), "change", "-o", target], null, ct).ConfigureAwait(false);
@@ -254,19 +262,21 @@ public sealed class PerforceChangelistManager(
             return Error(code, FailureText(specResult, fallback), target);
         }
 
-        if (string.IsNullOrWhiteSpace(description))
-            return null;
+        return null;
+    }
 
+    private async Task<PerforceCommandResult?> TryUpdateDescriptionAsync(
+        string target,
+        string description,
+        CancellationToken ct)
+    {
+        var specResult = await runner.RunAsync([.. BuildGlobals(), "change", "-o", target], null, ct).ConfigureAwait(false);
+        if (!specResult.Ok)
+            return specResult;
         var updatedSpec = ReplaceDescription(specResult.StdOut, description);
         var updateResult = await runner.RunAsync([.. BuildGlobals(), "change", "-i"], updatedSpec, ct).ConfigureAwait(false);
         if (!updateResult.Ok)
-        {
-            return Error(
-                ClassifyFailureCode(updateResult),
-                FailureText(updateResult, $"Unable to update Perforce changelist {target}."),
-                target);
-        }
-
+            return updateResult;
         return null;
     }
 
@@ -468,11 +478,18 @@ public sealed class PerforceChangelistManager(
         throw new InvalidOperationException(FailureText(result, fallback));
     }
 
-    private static PerforceChangelistPrepareResult Error(string code, string fallback, string changelist) => new()
+    private static PerforceChangelistPrepareResult Error(
+        string code,
+        string fallback,
+        string changelist,
+        IReadOnlyList<string>? movedPaths = null,
+        bool created = false) => new()
     {
         Status = "error",
         Code = code,
         Changelist = changelist,
+        Created = created,
+        MovedPaths = movedPaths ?? [],
         Errors = [new PerforceChangelistDiagnostic(code, fallback)]
     };
 

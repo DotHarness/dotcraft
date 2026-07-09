@@ -10,7 +10,7 @@ import { addToast, useToastStore } from '../../stores/toastStore'
 import { CommitDialog, toRelativePath } from '../detail/CommitDialog'
 import { PerforcePrepareDialog } from '../detail/PerforcePrepareDialog'
 import { CommitIcon } from '../ui/AppIcons'
-import { usePerforceChangelistStore } from '../../stores/perforceChangelistStore'
+import { usePerforceChangelistStore, type PerforceChangelistEntry } from '../../stores/perforceChangelistStore'
 import { OpenWorkspaceButton } from './OpenWorkspaceButton'
 import { ActionTooltip } from '../ui/ActionTooltip'
 import { ACTION_SHORTCUTS } from '../ui/shortcutKeys'
@@ -72,7 +72,16 @@ export function ThreadHeader({
     ? activeThread.metadata['sourceControl.perforce.changelist']
     : 'default'
   const changelistState = usePerforceChangelistStore((s) => s.byThreadId[threadId])
-  const selectedChangelist = changelistState?.snapshot?.target?.changelist ?? metadataChangelist
+  const changelistSnapshot = changelistState?.snapshot ?? null
+  const selectedChangelist = changelistSnapshot?.target?.changelist ?? metadataChangelist
+  const prepareChangelists: PerforceChangelistEntry[] = changelistSnapshot?.changelists.length
+    ? changelistSnapshot.changelists
+    : [
+        { id: 'default', isDefault: true, description: '', user: '', client: '', status: 'pending' },
+        ...(selectedChangelist !== 'default'
+          ? [{ id: selectedChangelist, isDefault: false, description: '', user: '', client: '', status: 'pending' }]
+          : [])
+      ]
 
   useEffect(() => {
     ensureSourceControl(workspacePath, sourceControlEnabled)
@@ -211,7 +220,7 @@ export function ThreadHeader({
     }
   }
 
-  async function runPrepareChangelist(description: string): Promise<void> {
+  async function runPrepareChangelist(description: string, target: string): Promise<void> {
     if (!canPreparePerforce) {
       addToast(t('perforcePrepare.toast.offline'), 'warning')
       return
@@ -228,13 +237,36 @@ export function ThreadHeader({
     }
 
     try {
+      const paths = files.map((f) => toRelativePath(f.filePath, workspacePath))
+      let finalDescription = description
+      const prepareTarget = target.trim() || selectedChangelist
+      if (!finalDescription) {
+        const isConnected = useConnectionStore.getState().status === 'connected'
+        if (!isConnected) {
+          clearPreparing()
+          addToast(t('commit.generateTitle.disconnected'), 'error')
+          return
+        }
+        const suggest = await window.api.appServer.sendRequest(
+          'workspace/commitMessage/suggest',
+          { threadId, paths, provider: 'perforce' },
+          120_000
+        ) as { message?: string }
+        if (!suggest?.message?.trim()) {
+          clearPreparing()
+          addToast(t('commit.error.emptyServer'), 'error')
+          return
+        }
+        finalDescription = suggest.message.trim()
+      }
+
       const result = await window.api.appServer.sendRequest(
         'sourceControl/changelist/prepare',
         {
           threadId,
-          description: description || threadName,
-          paths: files.map((f) => toRelativePath(f.filePath, workspacePath)),
-          target: selectedChangelist
+          description: finalDescription,
+          paths,
+          target: prepareTarget
         },
         60_000
       ) as {
@@ -255,8 +287,8 @@ export function ThreadHeader({
       const warning = result.warnings?.[0]?.fallbackText
       addToast(
         warning
-          ? t('perforcePrepare.toast.doneWithWarning', { changelist: result.changelist ?? selectedChangelist, warning })
-          : t('perforcePrepare.toast.done', { changelist: result.changelist ?? selectedChangelist }),
+          ? t('perforcePrepare.toast.doneWithWarning', { changelist: result.changelist ?? prepareTarget, warning })
+          : t('perforcePrepare.toast.done', { changelist: result.changelist ?? prepareTarget }),
         warning ? 'warning' : 'success'
       )
     } catch (err) {
@@ -485,8 +517,9 @@ export function ThreadHeader({
         <PerforcePrepareDialog
           workspacePath={workspacePath}
           changelist={selectedChangelist}
-          onPrepare={(description) => {
-            void runPrepareChangelist(description)
+          changelists={prepareChangelists}
+          onPrepare={(description, target) => {
+            void runPrepareChangelist(description, target)
           }}
           onClose={() => setPrepareOpen(false)}
         />

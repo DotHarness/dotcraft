@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { LocaleProvider } from '../contexts/LocaleContext'
 import { ThreadHeader } from '../components/conversation/ThreadHeader'
 import { useConnectionStore } from '../stores/connectionStore'
@@ -41,6 +41,59 @@ function renderHeader(remoteWorkspace = false, workspacePath = 'fixtures\\sample
       />
     </LocaleProvider>
   )
+}
+
+function setupOnlinePerforceThread(workspacePath = 'C:\\workspace\\sample-app'): void {
+  useConnectionStore.setState({
+    status: 'connected',
+    capabilities: { sourceControlManagement: true }
+  })
+  const thread = makeThread({
+    workspacePath,
+    effectiveWorkspacePath: workspacePath,
+    metadata: {
+      'sourceControl.provider': 'perforce',
+      'sourceControl.perforce.changelist': '123'
+    }
+  })
+  useThreadStore.setState({
+    activeThreadId: thread.id,
+    activeThread: thread,
+    threadList: [thread]
+  })
+  useSourceControlStore.setState({
+    workspacePath,
+    effectiveProvider: 'perforce',
+    status: 'connected',
+    perforceChangelist: true
+  })
+  usePerforceChangelistStore.setState({
+    byThreadId: {
+      'thread-1': {
+        threadId: 'thread-1',
+        status: 'available',
+        snapshot: {
+          changelists: [
+            { id: 'default', isDefault: true, description: 'Default changelist', user: 'me', client: 'ws', status: 'pending' },
+            { id: '123', isDefault: false, description: 'Task CL', user: 'me', client: 'ws', status: 'pending' }
+          ],
+          target: { provider: 'perforce', changelist: '123' }
+        },
+        errorMessage: null,
+        requestId: 1
+      }
+    }
+  })
+  useConversationStore.getState().upsertChangedFile({
+    filePath: `${workspacePath}\\src\\a.ts`,
+    turnId: 'turn-1',
+    turnIds: ['turn-1'],
+    additions: 2,
+    deletions: 1,
+    diffHunks: [],
+    status: 'written',
+    isNewFile: false
+  })
 }
 
 describe('ThreadHeader', () => {
@@ -191,7 +244,7 @@ describe('ThreadHeader', () => {
     expect(prepareButton).not.toBeDisabled()
     fireEvent.click(prepareButton)
     expect(screen.getByRole('dialog', { name: 'Prepare changelist' })).toBeInTheDocument()
-    fireEvent.change(screen.getByPlaceholderText('Describe the pending changelist...'), {
+    fireEvent.change(screen.getByPlaceholderText('Leave blank to auto-generate changelist description'), {
       target: { value: 'Prepare task CL' }
     })
     fireEvent.click(screen.getByRole('button', { name: 'Checkout' }))
@@ -208,6 +261,172 @@ describe('ThreadHeader', () => {
         60_000
       )
     })
+    expect(appServerSendRequest).not.toHaveBeenCalledWith(
+      'workspace/commitMessage/suggest',
+      expect.anything(),
+      expect.anything()
+    )
+    expect(gitCommit).not.toHaveBeenCalled()
+  })
+
+  it('auto-generates a Perforce changelist description when Checkout description is blank', async () => {
+    const workspacePath = 'C:\\workspace\\sample-app'
+    setupOnlinePerforceThread(workspacePath)
+    appServerSendRequest.mockImplementation(async (method: string) => {
+      if (method === 'workspace/commitMessage/suggest') {
+        return { message: 'Generated CL summary' }
+      }
+      if (method === 'sourceControl/changelist/prepare') {
+        return {
+          status: 'ok',
+          changelist: '123',
+          movedPaths: ['src/a.ts'],
+          skippedPaths: [],
+          warnings: []
+        }
+      }
+      if (method === 'sourceControl/changelist/list') {
+        return {
+          changelists: [
+            { id: 'default', isDefault: true, description: 'Default changelist', user: 'me', client: 'ws', status: 'pending' },
+            { id: '123', isDefault: false, description: 'Task CL', user: 'me', client: 'ws', status: 'pending' }
+          ],
+          target: { provider: 'perforce', changelist: '123' }
+        }
+      }
+      return {}
+    })
+
+    renderHeader(true, workspacePath)
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Prepare Perforce changelist' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Checkout' }))
+
+    await waitFor(() => {
+      expect(appServerSendRequest).toHaveBeenCalledWith(
+        'workspace/commitMessage/suggest',
+        {
+          threadId: 'thread-1',
+          paths: ['src/a.ts'],
+          provider: 'perforce'
+        },
+        120_000
+      )
+    })
+    await waitFor(() => {
+      expect(appServerSendRequest).toHaveBeenCalledWith(
+        'sourceControl/changelist/prepare',
+        {
+          threadId: 'thread-1',
+          description: 'Generated CL summary',
+          paths: ['src/a.ts'],
+          target: '123'
+        },
+        60_000
+      )
+    })
+    expect(gitCommit).not.toHaveBeenCalled()
+  })
+
+  it('auto-generates a Perforce description and prepares a new changelist', async () => {
+    const workspacePath = 'C:\\workspace\\sample-app'
+    setupOnlinePerforceThread(workspacePath)
+    appServerSendRequest.mockImplementation(async (method: string) => {
+      if (method === 'workspace/commitMessage/suggest') {
+        return { message: 'Generated new CL summary' }
+      }
+      if (method === 'sourceControl/changelist/prepare') {
+        return {
+          status: 'ok',
+          changelist: '321',
+          movedPaths: ['src/a.ts'],
+          skippedPaths: [],
+          warnings: []
+        }
+      }
+      if (method === 'sourceControl/changelist/list') {
+        return {
+          changelists: [
+            { id: 'default', isDefault: true, description: 'Default changelist', user: 'me', client: 'ws', status: 'pending' },
+            { id: '123', isDefault: false, description: 'Task CL', user: 'me', client: 'ws', status: 'pending' },
+            { id: '321', isDefault: false, description: 'Generated new CL summary', user: 'me', client: 'ws', status: 'pending' }
+          ],
+          target: { provider: 'perforce', changelist: '321' }
+        }
+      }
+      return {}
+    })
+
+    renderHeader(true, workspacePath)
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Prepare Perforce changelist' }))
+    const targetSelect = screen.getByRole('combobox', { name: 'Target' })
+    const newOption = within(targetSelect).getByRole('option', { name: 'New Changelist' })
+    fireEvent.change(targetSelect, { target: { value: newOption.getAttribute('value') } })
+    fireEvent.click(screen.getByRole('button', { name: 'Checkout' }))
+
+    await waitFor(() => {
+      expect(appServerSendRequest).toHaveBeenCalledWith(
+        'workspace/commitMessage/suggest',
+        {
+          threadId: 'thread-1',
+          paths: ['src/a.ts'],
+          provider: 'perforce'
+        },
+        120_000
+      )
+    })
+    await waitFor(() => {
+      expect(appServerSendRequest).toHaveBeenCalledWith(
+        'sourceControl/changelist/prepare',
+        {
+          threadId: 'thread-1',
+          description: 'Generated new CL summary',
+          paths: ['src/a.ts'],
+          target: 'default'
+        },
+        60_000
+      )
+    })
+    expect(gitCommit).not.toHaveBeenCalled()
+  })
+
+  it('does not prepare a Perforce changelist when description generation returns empty', async () => {
+    const workspacePath = 'C:\\workspace\\sample-app'
+    setupOnlinePerforceThread(workspacePath)
+    appServerSendRequest.mockImplementation(async (method: string) => {
+      if (method === 'workspace/commitMessage/suggest') {
+        return { message: '   ' }
+      }
+      if (method === 'sourceControl/changelist/list') {
+        return {
+          changelists: [
+            { id: 'default', isDefault: true, description: 'Default changelist', user: 'me', client: 'ws', status: 'pending' },
+            { id: '123', isDefault: false, description: 'Task CL', user: 'me', client: 'ws', status: 'pending' }
+          ],
+          target: { provider: 'perforce', changelist: '123' }
+        }
+      }
+      return {}
+    })
+
+    renderHeader(true, workspacePath)
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Prepare Perforce changelist' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Checkout' }))
+
+    await waitFor(() => {
+      expect(appServerSendRequest).toHaveBeenCalledWith(
+        'workspace/commitMessage/suggest',
+        expect.objectContaining({ provider: 'perforce' }),
+        120_000
+      )
+    })
+    expect(appServerSendRequest).not.toHaveBeenCalledWith(
+      'sourceControl/changelist/prepare',
+      expect.anything(),
+      expect.anything()
+    )
     expect(gitCommit).not.toHaveBeenCalled()
   })
 
@@ -312,7 +531,7 @@ describe('ThreadHeader', () => {
     renderHeader(true, workspacePath)
 
     fireEvent.click(await screen.findByRole('button', { name: 'Prepare Perforce changelist' }))
-    fireEvent.change(screen.getByPlaceholderText('Describe the pending changelist...'), {
+    fireEvent.change(screen.getByPlaceholderText('Leave blank to auto-generate changelist description'), {
       target: { value: 'Prepare task CL' }
     })
     fireEvent.click(screen.getByRole('button', { name: 'Checkout' }))

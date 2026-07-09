@@ -308,15 +308,19 @@ public sealed class WorkspaceRuntime : IAsyncDisposable
                 sessionService.SubAgentGraphChangedForBroadcast =
                     (parentThreadId, childThreadId) => SubAgentGraphChanged?.Invoke(parentThreadId, childThreadId);
 
+                var loggerFactory = Services.GetService<ILoggerFactory>();
                 var commitMessageSuggestService =
-                    new CommitMessageSuggestService(sessionService, Paths.WorkspacePath);
+                    new CommitMessageSuggestService(
+                        sessionService,
+                        Paths.WorkspacePath,
+                        loggerFactory?.CreateLogger<CommitMessageSuggestService>(),
+                        () => _appConfigMonitor.Current.SourceControl);
                 welcomeSuggestionService = new WelcomeSuggestionService(
                     sessionService,
                     Services.GetRequiredService<SessionPersistenceService>(),
                     MemoryStore,
                     Paths.WorkspacePath,
-                    Services.GetService<ILoggerFactory>()
-                        ?.CreateLogger<WelcomeSuggestionService>());
+                    loggerFactory?.CreateLogger<WelcomeSuggestionService>());
                 var cronService = Services.GetRequiredService<CronService>();
                 var agentRunner = new AgentRunner(Paths.WorkspacePath, sessionService, quiet: true);
                 heartbeatService = new HeartbeatService(
