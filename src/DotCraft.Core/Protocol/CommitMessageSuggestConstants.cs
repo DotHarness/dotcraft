@@ -1,7 +1,7 @@
 namespace DotCraft.Protocol;
 
 /// <summary>
-/// Channel identity and tool profile for ephemeral commit-message suggestion threads.
+/// Channel identity and tool profile for ephemeral source-control summary suggestion threads.
 /// </summary>
 public static class CommitMessageSuggestConstants
 {

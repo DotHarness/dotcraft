@@ -1,22 +1,26 @@
 import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { ChevronDown, ChevronRight, ListChecks } from 'lucide-react'
+import { ChevronDown, ChevronRight, ListChecks, Plus } from 'lucide-react'
 import { useT } from '../../contexts/LocaleContext'
 import { useConversationStore } from '../../stores/conversationStore'
-import { changelistLabel } from '../../stores/perforceChangelistStore'
+import { changelistLabel, type PerforceChangelistEntry } from '../../stores/perforceChangelistStore'
 import { ModalHeader } from '../ui/ModalHeader'
 import { toRelativePath } from './CommitDialog'
+
+const NEW_CHANGELIST_VALUE = '__new_changelist__'
 
 interface PerforcePrepareDialogProps {
   workspacePath: string
   changelist: string
-  onPrepare: (description: string) => void
+  changelists: PerforceChangelistEntry[]
+  onPrepare: (description: string, target: string) => void
   onClose: () => void
 }
 
 export function PerforcePrepareDialog({
   workspacePath,
   changelist,
+  changelists,
   onPrepare,
   onClose
 }: PerforcePrepareDialogProps): JSX.Element {
@@ -27,6 +31,7 @@ export function PerforcePrepareDialog({
   const revertedCount = allFiles.length - writtenFiles.length
   const [description, setDescription] = useState('')
   const [filesExpanded, setFilesExpanded] = useState(false)
+  const [targetChoice, setTargetChoice] = useState(initialTargetChoice(changelist))
   const descriptionRef = useRef<HTMLTextAreaElement>(null)
   const totalAdditions = writtenFiles.reduce((sum, file) => sum + file.additions, 0)
   const totalDeletions = writtenFiles.reduce((sum, file) => sum + file.deletions, 0)
@@ -41,11 +46,17 @@ export function PerforcePrepareDialog({
     return () => document.removeEventListener('keydown', handleKeyDown)
   }, [onClose])
 
+  useEffect(() => {
+    setTargetChoice(initialTargetChoice(changelist))
+  }, [changelist])
+
   function handleSubmit(): void {
     if (!hasFiles) return
-    onPrepare(description.trim())
+    onPrepare(description.trim(), targetChoice === NEW_CHANGELIST_VALUE ? 'default' : targetChoice)
     onClose()
   }
+
+  const targetEntries = normalizeChangelists(changelists, changelist)
 
   const dialog = (
     <div
@@ -86,13 +97,25 @@ export function PerforcePrepareDialog({
           closeLabel={t('perforcePrepare.close')}
         />
 
-        <div style={infoRowStyle}>
+        <label style={{ ...infoRowStyle, gap: '12px' }}>
           <span style={infoLabelStyle}>{t('perforcePrepare.targetLabel')}</span>
-          <span style={infoValueStyle}>
-            <ListChecks size={14} />
-            {changelistLabel(changelist)}
+          <span style={{ ...selectWrapperStyle, flex: 1 }}>
+            {targetChoice === NEW_CHANGELIST_VALUE ? <Plus size={14} aria-hidden /> : <ListChecks size={14} aria-hidden />}
+            <select
+              aria-label={t('perforcePrepare.targetLabel')}
+              value={targetChoice}
+              onChange={(e) => setTargetChoice(e.target.value)}
+              style={targetSelectStyle}
+            >
+              <option value={NEW_CHANGELIST_VALUE}>{t('perforcePrepare.newChangelist')}</option>
+              {targetEntries.map((entry) => (
+                <option key={entry.id} value={entry.id}>
+                  {changelistOptionLabel(entry)}
+                </option>
+              ))}
+            </select>
           </span>
-        </div>
+        </label>
 
         <button
           type="button"
@@ -247,4 +270,62 @@ const infoValueStyle: React.CSSProperties = {
   gap: '6px',
   color: 'var(--text-primary)',
   fontFamily: 'var(--font-mono)'
+}
+
+const selectWrapperStyle: React.CSSProperties = {
+  display: 'flex',
+  alignItems: 'center',
+  gap: '6px',
+  minWidth: 0,
+  color: 'var(--text-primary)',
+  background: 'var(--bg-primary)',
+  borderRadius: '8px',
+  padding: '7px 9px'
+}
+
+const targetSelectStyle: React.CSSProperties = {
+  flex: 1,
+  minWidth: 0,
+  border: 'none',
+  outline: 'none',
+  background: 'transparent',
+  color: 'var(--text-primary)',
+  font: 'inherit'
+}
+
+function initialTargetChoice(changelist: string): string {
+  return changelistLabel(changelist) === 'default' ? NEW_CHANGELIST_VALUE : changelistLabel(changelist)
+}
+
+function normalizeChangelists(
+  changelists: PerforceChangelistEntry[],
+  selectedChangelist: string
+): PerforceChangelistEntry[] {
+  const entries = changelists.length > 0
+    ? changelists
+    : [{ id: 'default', isDefault: true, description: '', user: '', client: '', status: 'pending' }]
+  const selected = changelistLabel(selectedChangelist)
+  const withSelected = entries.some((entry) => entry.id === selected)
+    ? entries
+    : [
+        ...entries,
+        { id: selected, isDefault: selected === 'default', description: '', user: '', client: '', status: 'pending' }
+      ]
+  return [...withSelected]
+    .filter((entry, index, all) => all.findIndex((candidate) => candidate.id === entry.id) === index)
+    .sort((a, b) => {
+      if (a.id === 'default') return -1
+      if (b.id === 'default') return 1
+      const left = Number(a.id)
+      const right = Number(b.id)
+      return Number.isFinite(left) && Number.isFinite(right)
+        ? left - right
+        : a.id.localeCompare(b.id)
+    })
+}
+
+function changelistOptionLabel(entry: PerforceChangelistEntry): string {
+  const label = changelistLabel(entry.id)
+  const description = entry.description.trim()
+  return description && label !== 'default' ? `${label} - ${description}` : label
 }

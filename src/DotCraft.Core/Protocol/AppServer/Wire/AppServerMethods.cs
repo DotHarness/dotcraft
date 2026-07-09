@@ -67,7 +67,7 @@ public static class AppServerMethods
     public const string TerminalStop = "terminal/stop";
     public const string TerminalClean = "terminal/clean";
 
-    /// <summary>Generate a suggested git commit message from thread context and diff (Desktop).</summary>
+    /// <summary>Generate a suggested source-control summary from thread context and provider change context (Desktop).</summary>
     public const string WorkspaceCommitMessageSuggest = "workspace/commitMessage/suggest";
     public const string WelcomeSuggestions = "welcome/suggestions";
     public const string WorkspaceConfigSchema = "workspace/config/schema";

@@ -142,7 +142,7 @@ Client name: game-main
                 return Ok("Change 321 created.\n");
             if (args.SequenceEqual(["-p", "ssl:p4:1666", "-c", "client", "-u", "alice", "opened", file]))
                 return Ok("//depot/src/main.cs#1 - edit default change (text)\n");
-            if (args.SequenceEqual(["-p", "ssl:p4:1666", "-c", "client", "-u", "alice", "reopen", "-c", "321", "--", file]))
+            if (args.SequenceEqual(["-p", "ssl:p4:1666", "-c", "client", "-u", "alice", "reopen", "-c", "321", file]))
                 return Ok("//depot/src/main.cs#1 - reopened; change 321\n");
             return Fail("unexpected " + string.Join(" ", args));
         });
@@ -154,10 +154,12 @@ Client name: game-main
         Assert.True(result.Created);
         Assert.Equal("321", result.Changelist);
         Assert.Equal([file], result.MovedPaths);
+        var reopenCall = Assert.Single(runner.Calls, args => args.Contains("reopen"));
+        Assert.DoesNotContain("--", reopenCall);
     }
 
     [Fact]
-    public async Task PrepareAsync_DefaultTarget_AllFilesInOtherChangelists_DoesNotCreateEmptyChange()
+    public async Task PrepareAsync_DefaultTarget_AllFilesInOtherChangelists_CreatesNumberedChangeAndMovesFiles()
     {
         using var workspace = new TempWorkspace();
         var keepA = Path.Combine(workspace.Path, "keep-a.cs");
@@ -171,6 +173,10 @@ Client name: game-main
                 return Ok("//depot/keep-a.cs#1 - edit change 777 (text)\n");
             if (args.SequenceEqual(["-p", "ssl:p4:1666", "-c", "client", "-u", "alice", "opened", keepB]))
                 return Ok("//depot/keep-b.cs#1 - edit change 888 (text)\n");
+            if (args.SequenceEqual(["-p", "ssl:p4:1666", "-c", "client", "-u", "alice", "change", "-i"]))
+                return Ok("Change 321 created.\n");
+            if (args.SequenceEqual(["-p", "ssl:p4:1666", "-c", "client", "-u", "alice", "reopen", "-c", "321", keepA, keepB]))
+                return Ok("//depot/keep-a.cs#1 - reopened; change 321\n//depot/keep-b.cs#1 - reopened; change 321\n");
             return Fail("unexpected " + string.Join(" ", args));
         });
 
@@ -178,13 +184,11 @@ Client name: game-main
         var result = await manager.PrepareAsync([keepA, keepB], "default", "Thread result");
 
         Assert.Equal("ok", result.Status);
-        Assert.False(result.Created);
-        Assert.Equal("default", result.Changelist);
-        Assert.Empty(result.MovedPaths);
-        Assert.Equal([keepA, keepB], result.SkippedPaths);
-        Assert.Equal(2, result.Warnings.Count);
-        Assert.DoesNotContain(runner.Calls, args => args.SequenceEqual(["-p", "ssl:p4:1666", "-c", "client", "-u", "alice", "change", "-i"]));
-        Assert.DoesNotContain(runner.Calls, args => args.Contains("reopen"));
+        Assert.True(result.Created);
+        Assert.Equal("321", result.Changelist);
+        Assert.Equal([keepA, keepB], result.MovedPaths);
+        Assert.Empty(result.SkippedPaths);
+        Assert.Empty(result.Warnings);
     }
 
     [Theory]
@@ -217,7 +221,7 @@ Client name: game-main
     }
 
     [Fact]
-    public async Task PrepareAsync_NumberedTarget_SkipsFilesAlreadyOpenedInOtherChangelist()
+    public async Task PrepareAsync_NumberedTarget_MovesFilesAlreadyOpenedInOtherChangelist()
     {
         using var workspace = new TempWorkspace();
         var keep = Path.Combine(workspace.Path, "keep.cs");
@@ -229,14 +233,14 @@ Client name: game-main
         {
             if (args.SequenceEqual(["-p", "ssl:p4:1666", "-c", "client", "-u", "alice", "change", "-o", "555"]))
                 return Ok("Change:\t555\n\nDescription:\n\tOld\n");
-            if (args.SequenceEqual(["-p", "ssl:p4:1666", "-c", "client", "-u", "alice", "change", "-i"]))
-                return Ok("Change 555 updated.\n");
             if (args.SequenceEqual(["-p", "ssl:p4:1666", "-c", "client", "-u", "alice", "opened", keep]))
                 return Ok("//depot/keep.cs#1 - edit change 777 (text)\n");
             if (args.SequenceEqual(["-p", "ssl:p4:1666", "-c", "client", "-u", "alice", "opened", move]))
                 return Ok("//depot/move.cs#1 - edit default change (text)\n");
-            if (args.SequenceEqual(["-p", "ssl:p4:1666", "-c", "client", "-u", "alice", "reopen", "-c", "555", "--", move]))
+            if (args.SequenceEqual(["-p", "ssl:p4:1666", "-c", "client", "-u", "alice", "reopen", "-c", "555", keep, move]))
                 return Ok("");
+            if (args.SequenceEqual(["-p", "ssl:p4:1666", "-c", "client", "-u", "alice", "change", "-i"]))
+                return Ok("Change 555 updated.\n");
             return Fail("unexpected " + string.Join(" ", args));
         });
 
@@ -244,9 +248,73 @@ Client name: game-main
         var result = await manager.PrepareAsync([keep, move], "555", "Updated");
 
         Assert.Equal("ok", result.Status);
-        Assert.Equal([move], result.MovedPaths);
-        Assert.Equal([keep], result.SkippedPaths);
-        Assert.Contains(result.Warnings, w => w.Code == PerforceChangelistCodes.FileAlreadyInOtherChangelist);
+        Assert.Equal([keep, move], result.MovedPaths);
+        Assert.Empty(result.SkippedPaths);
+        Assert.Empty(result.Warnings);
+        Assert.Equal("change", runner.Calls[0][6]);
+        Assert.Equal("opened", runner.Calls[1][6]);
+        Assert.Equal("opened", runner.Calls[2][6]);
+        Assert.Equal("reopen", runner.Calls[3][6]);
+        Assert.Equal("change", runner.Calls[4][6]);
+        Assert.Equal("change", runner.Calls[5][6]);
+        Assert.DoesNotContain("--", runner.Calls[3]);
+    }
+
+    [Fact]
+    public async Task PrepareAsync_NumberedTarget_ReopenFailure_DoesNotUpdateDescription()
+    {
+        using var workspace = new TempWorkspace();
+        var file = Path.Combine(workspace.Path, "main.cs");
+        await File.WriteAllTextAsync(file, "");
+
+        var runner = new FakeRunner((args, _) =>
+        {
+            if (args.SequenceEqual(["-p", "ssl:p4:1666", "-c", "client", "-u", "alice", "change", "-o", "555"]))
+                return Ok("Change:\t555\n\nDescription:\n\tOld\n");
+            if (args.SequenceEqual(["-p", "ssl:p4:1666", "-c", "client", "-u", "alice", "opened", file]))
+                return Ok("//depot/main.cs#1 - edit default change (text)\n");
+            if (args.SequenceEqual(["-p", "ssl:p4:1666", "-c", "client", "-u", "alice", "reopen", "-c", "555", file]))
+                return Fail("Usage: reopen [-c changelist#] [-t filetype | -Si] file...\n");
+            return Fail("unexpected " + string.Join(" ", args));
+        });
+
+        var manager = CreateManager(runner, workspace.Path);
+        var result = await manager.PrepareAsync([file], "555", "Updated");
+
+        Assert.Equal("error", result.Status);
+        Assert.Equal(PerforceChangelistCodes.P4CommandFailed, result.Code);
+        Assert.Empty(result.MovedPaths);
+        Assert.DoesNotContain(runner.Calls, args => args.SequenceEqual(["-p", "ssl:p4:1666", "-c", "client", "-u", "alice", "change", "-i"]));
+        Assert.Single(runner.Calls, args => args.SequenceEqual(["-p", "ssl:p4:1666", "-c", "client", "-u", "alice", "change", "-o", "555"]));
+    }
+
+    [Fact]
+    public async Task PrepareAsync_NumberedTarget_DescriptionUpdateFailure_ReturnsMovedPaths()
+    {
+        using var workspace = new TempWorkspace();
+        var file = Path.Combine(workspace.Path, "main.cs");
+        await File.WriteAllTextAsync(file, "");
+
+        var runner = new FakeRunner((args, _) =>
+        {
+            if (args.SequenceEqual(["-p", "ssl:p4:1666", "-c", "client", "-u", "alice", "change", "-o", "555"]))
+                return Ok("Change:\t555\n\nDescription:\n\tOld\n");
+            if (args.SequenceEqual(["-p", "ssl:p4:1666", "-c", "client", "-u", "alice", "opened", file]))
+                return Ok("//depot/main.cs#1 - edit default change (text)\n");
+            if (args.SequenceEqual(["-p", "ssl:p4:1666", "-c", "client", "-u", "alice", "reopen", "-c", "555", file]))
+                return Ok("//depot/main.cs#1 - reopened; change 555\n");
+            if (args.SequenceEqual(["-p", "ssl:p4:1666", "-c", "client", "-u", "alice", "change", "-i"]))
+                return Fail("Change 555 not updated.");
+            return Fail("unexpected " + string.Join(" ", args));
+        });
+
+        var manager = CreateManager(runner, workspace.Path);
+        var result = await manager.PrepareAsync([file], "555", "Updated");
+
+        Assert.Equal("error", result.Status);
+        Assert.Equal(PerforceChangelistCodes.P4CommandFailed, result.Code);
+        Assert.Equal("555", result.Changelist);
+        Assert.Equal([file], result.MovedPaths);
     }
 
     [Theory]

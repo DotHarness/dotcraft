@@ -6,7 +6,7 @@ using Microsoft.Extensions.AI;
 namespace DotCraft.Tools;
 
 /// <summary>
-/// Single-tool profile for ephemeral commit-message suggestion threads.
+/// Single-tool profile for ephemeral source-control summary suggestion threads.
 /// </summary>
 public sealed class CommitSuggestToolProvider : IAgentToolProvider
 {
@@ -17,7 +17,7 @@ public sealed class CommitSuggestToolProvider : IAgentToolProvider
 }
 
 /// <summary>
-/// Tool invoked by the model to submit the suggested git commit message.
+/// Tool invoked by the model to submit the suggested source-control summary.
 /// </summary>
 public static class CommitSuggestMethods
 {
@@ -25,9 +25,9 @@ public static class CommitSuggestMethods
 
     [GeneratedTool]
     [Description(
-        "Submit the suggested git commit message. Call once with a concise summary line (Conventional Commits style) and an optional body.")]
+        "Submit the suggested source-control summary. Call once with a concise summary line and an optional body.")]
     public static string CommitSuggest(
-        [Description("Short subject line, ~72 characters or less.")] string summary,
+        [Description("Short subject or description line, ~72 characters or less.")] string summary,
         [Description("Optional body: bullet points or paragraphs separated by newlines.")] string? body = null)
     {
         _ = summary;

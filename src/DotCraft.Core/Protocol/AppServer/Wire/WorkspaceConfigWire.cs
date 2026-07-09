@@ -13,6 +13,8 @@ public sealed class WorkspaceCommitMessageSuggestParams
 
     public string[] Paths { get; set; } = [];
 
+    public string Provider { get; set; } = "git";
+
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public int? MaxDiffChars { get; set; }
 }

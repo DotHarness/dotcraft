@@ -1609,7 +1609,7 @@ The server first marks the queued input as `guidancePending` and broadcasts `thr
 
 ### 5.3 `workspace/commitMessage/suggest`
 
-Suggest a git commit message from the **source thread’s** recent conversation context plus a **unified diff** for the given file paths. The AppServer runs an internal **temporary thread** (dedicated channel identity, commit-suggest-only tool) so this request does not contend with a user turn on the source thread.
+Suggest a source-control summary from the **source thread’s** recent conversation context plus provider-specific change context for the given file paths. The default provider is Git, where the result is a commit message built from a unified diff. Perforce callers may pass `provider = "perforce"` to generate a pending changelist description from AppServer-side Perforce opened/diff state. The AppServer runs an internal **temporary thread** (dedicated channel identity, commit-suggest-only tool) so this request does not contend with a user turn on the source thread.
 
 **Direction**: client → server (request)
 
@@ -1618,16 +1618,17 @@ Suggest a git commit message from the **source thread’s** recent conversation 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
 | `threadId` | string | yes | Source thread whose messages supply context. Must belong to the server’s workspace. |
-| `paths` | string[] | yes | Paths **relative to the workspace root** for `git diff`. Empty is invalid. |
-| `maxDiffChars` | number | no | Optional cap on diff size sent to the model (server may truncate further). |
+| `paths` | string[] | yes | Paths **relative to the workspace root** for provider change inspection. Empty is invalid. |
+| `provider` | string | no | `git` (default) or `perforce`. Git uses `git diff`; Perforce uses the server-side Perforce binding and never runs `p4` in the client. |
+| `maxDiffChars` | number | no | Optional cap on change-context size sent to the model (server may truncate further). |
 
 **Result**:
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `message` | string | Full commit message (first line subject; optional blank line and body). |
+| `message` | string | Full suggested summary text. For Git this is a commit message (first line subject; optional blank line and body). For Perforce this is a changelist description. |
 
-**Errors** (non-exhaustive): source thread not found; paths outside workspace; not a git repository; empty diff; model did not emit the `CommitSuggest` tool; timeout. If the server cannot run the suggest pipeline (e.g. no session service), it returns an appropriate JSON-RPC error.
+**Errors** (non-exhaustive): source thread not found; paths outside workspace; unsupported provider; Git repository/diff unavailable; Perforce binding unavailable/offline; empty change context; model did not emit the `CommitSuggest` tool; timeout. If the server cannot run the suggest pipeline (e.g. no session service), it returns an appropriate JSON-RPC error.
 
 **Note**: The server may create and delete an **ephemeral** thread for this operation. Clients may observe transient `thread/*` / `turn/*` notifications for that internal thread; implementations typically filter or ignore threads whose origin channel marks commit-message generation.
 
@@ -6518,9 +6519,9 @@ Result:
 
 Prepare semantics:
 
-- If target is `"default"`, the server creates a numbered pending changelist and then moves this thread's files into it with `p4 reopen -c <change> -- <paths>`. On success it updates the thread target to the new id and emits `thread/updated`.
-- If target is a numbered changelist, the server confirms it exists with `p4 change -o <change>`, updates its description when provided, and moves default-opened/current-thread files into it.
-- If a file is already opened in a different pending changelist, v1 leaves it there, adds the path to `skippedPaths`, and returns a warning with code `FileAlreadyInOtherChangelist`; it does not automatically move user-owned CLs.
+- If target is `"default"`, the server creates a numbered pending changelist and then moves this thread's opened files into it with `p4 reopen -c <change> <paths>`. On success it updates the thread target to the new id and emits `thread/updated`.
+- If target is a numbered changelist, the server confirms it exists with `p4 change -o <change>`, moves all provided opened files that are not already in the target into it with `p4 reopen -c <change> <paths>`, and then updates its description when provided. Files already opened in a different pending changelist are moved because `sourceControl/changelist/prepare` is an explicit user checkout/prepare action. If moving files succeeds but the description update fails, the result is an error that still reports the target changelist and moved paths.
+- Files that are already in the target changelist are left as-is. Files that are not opened are ignored for movement unless Perforce reports an error while reading opened state.
 - Stable result/error codes include `Prepared`, `Created`, `NoFiles`, `Timeout`, `LoginRequired`, `ChangelistNotFound`, `FileAlreadyInOtherChangelist`, `P4ExecutableNotFound`, and `P4CommandFailed`.
 
 Tool write coordination:
@@ -6528,7 +6529,7 @@ Tool write coordination:
 - When the effective workspace provider is `perforce` and source control is online, AppServer file tools coordinate writes against the current thread target.
 - Existing mapped files are opened with `p4 edit -c <target>` before `WriteFile`/`EditFile` writes. New files are added with `p4 add -c <target>` after a successful write.
 - If the target is a numbered changelist that no longer exists, the write fails with a stable source-control error and the client should ask the user to choose another target.
-- Files already opened in a different pending numbered changelist are not reopened by v1; the write may continue with a warning so user-owned changelist membership is preserved.
+- Files already opened in a different pending numbered changelist are not reopened by ordinary write coordination; the write may continue with a warning so user-owned changelist membership is preserved. Explicit `sourceControl/changelist/prepare` may move them into the selected target.
 - This protocol version does not define a general delete file tool. Future delete-type operations under Perforce MUST use `p4 delete -c <target>`.
 
 ### 25A.9 Status and Error Taxonomy
