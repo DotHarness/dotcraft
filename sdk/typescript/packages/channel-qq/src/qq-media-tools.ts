@@ -1,5 +1,7 @@
 import {
+  mediaSourceFromToolBase64,
   mediaSourceFromToolPath,
+  mediaSourceFromToolUrl,
   prepareMediaUploadUri,
   type ChannelToolDescriptor,
 } from "@dotcraft/sdk/channel";
@@ -61,63 +63,81 @@ export class QQMediaTools {
   }
 
   getChannelTools(): ChannelToolDescriptor[] {
+    const mediaSourceProperties = {
+      filePath: { type: "string" },
+      fileUrl: { type: "string" },
+      fileBase64: { type: "string" },
+      file: { type: "string" },
+    };
+    const filePathApproval = {
+      kind: "file",
+      targetArgument: "filePath",
+      operation: "read",
+    };
+
     return [
       {
         name: QQ_SEND_GROUP_VOICE_TOOL,
         description:
-          "Send a voice/audio message to a QQ group chat. The file can be a local absolute path, an HTTP URL, or a base64:// string.",
+          "Send a voice/audio message to a QQ group chat. Use filePath for local files, fileUrl for HTTP(S), fileBase64 for raw base64, or file for URL/base64:// sources.",
         requiresChatContext: false,
         display: { icon: "\u{1F3A4}", title: "Send voice to QQ group" },
+        approval: filePathApproval,
         inputSchema: {
           type: "object",
           properties: {
             groupId: { type: "integer" },
-            file: { type: "string" },
+            ...mediaSourceProperties,
           },
-          required: ["groupId", "file"],
+          required: ["groupId"],
         },
       },
       {
         name: QQ_SEND_PRIVATE_VOICE_TOOL,
         description:
-          "Send a voice/audio message to a QQ private chat. The file can be a local absolute path, an HTTP URL, or a base64:// string.",
+          "Send a voice/audio message to a QQ private chat. Use filePath for local files, fileUrl for HTTP(S), fileBase64 for raw base64, or file for URL/base64:// sources.",
         requiresChatContext: false,
         display: { icon: "\u{1F3A4}", title: "Send voice to QQ user" },
+        approval: filePathApproval,
         inputSchema: {
           type: "object",
           properties: {
             userId: { type: "integer" },
-            file: { type: "string" },
+            ...mediaSourceProperties,
           },
-          required: ["userId", "file"],
+          required: ["userId"],
         },
       },
       {
         name: QQ_SEND_GROUP_VIDEO_TOOL,
-        description: "Send a video message to a QQ group chat. The file can be a local absolute path or an HTTP URL.",
+        description:
+          "Send a video message to a QQ group chat. Use filePath for local files, fileUrl for HTTP(S), fileBase64 for raw base64, or file for URL/base64:// sources.",
         requiresChatContext: false,
         display: { icon: "\u{1F39E}", title: "Send video to QQ group" },
+        approval: filePathApproval,
         inputSchema: {
           type: "object",
           properties: {
             groupId: { type: "integer" },
-            file: { type: "string" },
+            ...mediaSourceProperties,
           },
-          required: ["groupId", "file"],
+          required: ["groupId"],
         },
       },
       {
         name: QQ_SEND_PRIVATE_VIDEO_TOOL,
-        description: "Send a video message to a QQ private chat. The file can be a local absolute path or an HTTP URL.",
+        description:
+          "Send a video message to a QQ private chat. Use filePath for local files, fileUrl for HTTP(S), fileBase64 for raw base64, or file for URL/base64:// sources.",
         requiresChatContext: false,
         display: { icon: "\u{1F39E}", title: "Send video to QQ user" },
+        approval: filePathApproval,
         inputSchema: {
           type: "object",
           properties: {
             userId: { type: "integer" },
-            file: { type: "string" },
+            ...mediaSourceProperties,
           },
-          required: ["userId", "file"],
+          required: ["userId"],
         },
       },
       {
@@ -243,13 +263,13 @@ export class QQMediaTools {
   ): Promise<{ target: string; message: Record<string, unknown> } | null> {
     switch (toolName) {
       case QQ_SEND_GROUP_VOICE_TOOL:
-        return { target: `group:${requiredId(args.groupId, "groupId")}`, message: mediaMessage("audio", parseLegacyFileSource(args.file)) };
+        return { target: `group:${requiredId(args.groupId, "groupId")}`, message: mediaMessage("audio", parseToolMediaSource(args)) };
       case QQ_SEND_PRIVATE_VOICE_TOOL:
-        return { target: requiredId(args.userId, "userId"), message: mediaMessage("audio", parseLegacyFileSource(args.file)) };
+        return { target: requiredId(args.userId, "userId"), message: mediaMessage("audio", parseToolMediaSource(args)) };
       case QQ_SEND_GROUP_VIDEO_TOOL:
-        return { target: `group:${requiredId(args.groupId, "groupId")}`, message: mediaMessage("video", parseLegacyFileSource(args.file)) };
+        return { target: `group:${requiredId(args.groupId, "groupId")}`, message: mediaMessage("video", parseToolMediaSource(args)) };
       case QQ_SEND_PRIVATE_VIDEO_TOOL:
-        return { target: requiredId(args.userId, "userId"), message: mediaMessage("video", parseLegacyFileSource(args.file)) };
+        return { target: requiredId(args.userId, "userId"), message: mediaMessage("video", parseToolMediaSource(args)) };
       case QQ_UPLOAD_GROUP_FILE_TOOL:
         return {
           target: `group:${requiredId(args.groupId, "groupId")}`,
@@ -337,6 +357,34 @@ function mediaMessage(kind: string, payload: Record<string, unknown>): Record<st
   return { kind, source: payload.source };
 }
 
+function parseToolMediaSource(args: Record<string, unknown>): Record<string, unknown> {
+  const sourceValues = {
+    filePath: optionalText(args.filePath),
+    fileUrl: optionalText(args.fileUrl),
+    fileBase64: optionalText(args.fileBase64),
+    file: optionalText(args.file),
+  };
+  const populated = Object.entries(sourceValues).filter(([, value]) => Boolean(value));
+  if (populated.length !== 1) {
+    throw new QQMediaError(
+      "InvalidArguments",
+      "Exactly one of filePath, fileUrl, fileBase64, or file must be provided.",
+    );
+  }
+
+  const [sourceName, value] = populated[0] as [string, string];
+  if (sourceName === "filePath") {
+    return { source: mediaSourceFromToolPath(value, { fieldName: "filePath", errorFactory: qqMediaError }) };
+  }
+  if (sourceName === "fileUrl") {
+    return { source: mediaSourceFromToolUrl(value, { fieldName: "fileUrl", errorFactory: qqMediaError }) };
+  }
+  if (sourceName === "fileBase64") {
+    return { source: mediaSourceFromToolBase64(value, { fieldName: "fileBase64", errorFactory: qqMediaError }) };
+  }
+  return parseLegacyFileSource(value);
+}
+
 function parseLegacyFileSource(value: unknown): Record<string, unknown> {
   const file = requiredText(value, "file");
   if (file.toLowerCase().startsWith("base64://")) {
@@ -345,7 +393,10 @@ function parseLegacyFileSource(value: unknown): Record<string, unknown> {
   if (/^https?:\/\//i.test(file)) {
     return { source: { kind: "url", url: file } };
   }
-  return { source: { kind: "hostPath", hostPath: file } };
+  throw new QQMediaError(
+    "InvalidArguments",
+    "The file argument only supports HTTP(S) URLs or base64:// payloads. Use filePath for local files.",
+  );
 }
 
 function toDeliveryResult(response: OneBotActionResponse): Record<string, unknown> {

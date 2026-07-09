@@ -1119,6 +1119,8 @@ The TypeScript Channel SDK owns media source normalization for upload-capable ch
 
 This normalization keeps existing channel tool names and argument schemas stable. A tool may continue to expose an existing path, URL, base64, or platform-file identifier argument. The SDK converts that caller-provided source into the representation required by the target platform during `ext/channel/toolCall` handling.
 
+When a channel tool can read a host path and can also accept URL, base64, or platform-file sources, the host path must have a dedicated argument that can be used as `approval.targetArgument`. Do not route host paths through the same overloaded argument that also accepts non-local sources, because server-side file approval is argument-based.
+
 Media source handling uses these source categories:
 
 - host path: a file path readable by the Node.js channel process;
