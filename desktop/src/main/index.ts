@@ -2283,6 +2283,8 @@ async function ensureDefaultChatConnection(): Promise<void> {
 
   try {
     ensureDefaultChatWorkspace()
+    if (getWorkspaceStatus(chatPath).status !== 'ready') return
+
     const ensured = await createHubClient(sharedSettings).ensureAppServer(chatPath, {
       runtimeTools: resolveDotCraftRuntimeTools()
     })
