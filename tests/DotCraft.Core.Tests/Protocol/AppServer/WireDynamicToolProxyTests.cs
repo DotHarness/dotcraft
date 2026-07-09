@@ -164,6 +164,88 @@ public sealed class WireDynamicToolProxyTests
     }
 
     [Fact]
+    public async Task RuntimeDynamicTool_OptionalApprovalTargetMissing_DispatchesWithoutApproval()
+    {
+        var proxy = new WireDynamicToolProxy();
+        var thread = CreateThread();
+        var turn = CreateTurn(thread.Id);
+        var transport = new RecordingTransport(new DynamicToolCallResult
+        {
+            Success = true,
+            ContentItems = [new ExtChannelToolContentItem { Type = "text", Text = "done" }]
+        });
+        var connection = new AppServerConnection();
+        var spec = CreateOptionalApprovalToolSpec();
+
+        proxy.BindThread(thread.Id, transport, connection, [spec]);
+        var tool = Assert.IsAssignableFrom<AIFunction>(Assert.Single(proxy.CreateToolsForThread(thread, EmptyReservedNames())));
+
+        var seq = 0;
+        using var scope = PluginFunctionExecutionScope.Set(new PluginFunctionExecutionContext
+        {
+            ThreadId = thread.Id,
+            TurnId = turn.Id,
+            OriginChannel = "appserver",
+            WorkspacePath = Environment.CurrentDirectory,
+            RequireApprovalOutsideWorkspace = false,
+            ApprovalService = new RejectingApprovalService(),
+            Turn = turn,
+            NextItemSequence = () => ++seq,
+            EmitItemStarted = _ => { },
+            EmitItemCompleted = _ => { }
+        });
+
+        await tool.InvokeAsync(new AIFunctionArguments(new Dictionary<string, object?>
+        {
+            ["url"] = "https://example.test/report.pdf"
+        }));
+
+        Assert.Equal(AppServerMethods.ItemToolCall, transport.Method);
+        var payload = Assert.IsType<DynamicToolCallPayload>(Assert.Single(turn.Items).Payload);
+        Assert.True(payload.Success);
+    }
+
+    [Fact]
+    public async Task RuntimeDynamicTool_OptionalApprovalTargetPresent_BlocksClientDispatchWhenRejected()
+    {
+        var proxy = new WireDynamicToolProxy();
+        var thread = CreateThread();
+        var turn = CreateTurn(thread.Id);
+        var transport = new RecordingTransport(new DynamicToolCallResult { Success = true });
+        var connection = new AppServerConnection();
+        var spec = CreateOptionalApprovalToolSpec();
+
+        proxy.BindThread(thread.Id, transport, connection, [spec]);
+        var tool = Assert.IsAssignableFrom<AIFunction>(Assert.Single(proxy.CreateToolsForThread(thread, EmptyReservedNames())));
+
+        var seq = 0;
+        using var scope = PluginFunctionExecutionScope.Set(new PluginFunctionExecutionContext
+        {
+            ThreadId = thread.Id,
+            TurnId = turn.Id,
+            OriginChannel = "appserver",
+            WorkspacePath = Environment.CurrentDirectory,
+            RequireApprovalOutsideWorkspace = false,
+            ApprovalService = new RejectingApprovalService(),
+            Turn = turn,
+            NextItemSequence = () => ++seq,
+            EmitItemStarted = _ => { },
+            EmitItemCompleted = _ => { }
+        });
+
+        await tool.InvokeAsync(new AIFunctionArguments(new Dictionary<string, object?>
+        {
+            ["url"] = "https://example.test/report.pdf",
+            ["resource"] = "https://example.test/report.pdf"
+        }));
+
+        Assert.Null(transport.Method);
+        var payload = Assert.IsType<DynamicToolCallPayload>(Assert.Single(turn.Items).Payload);
+        Assert.False(payload.Success);
+        Assert.Equal("AccessDenied", payload.ErrorCode);
+    }
+
+    [Fact]
     public async Task RuntimeDynamicTool_InterruptApprovalPolicyReturnsAccessDeniedWithoutCancellingTurn()
     {
         var proxy = new WireDynamicToolProxy();
@@ -347,6 +429,28 @@ public sealed class WireDynamicToolProxyTests
                 ["required"] = new JsonArray("body")
             },
             Approval = approval
+        };
+
+    private static DynamicToolSpec CreateOptionalApprovalToolSpec()
+        => new()
+        {
+            Name = "SendRemoteReport",
+            Description = "Send a report from either a URL or an approval-gated resource.",
+            InputSchema = new JsonObject
+            {
+                ["type"] = "object",
+                ["properties"] = new JsonObject
+                {
+                    ["url"] = new JsonObject { ["type"] = "string" },
+                    ["resource"] = new JsonObject { ["type"] = "string" }
+                }
+            },
+            Approval = new ChannelToolApprovalDescriptor
+            {
+                Kind = "remoteResource",
+                TargetArgument = "resource",
+                Operation = "fetch"
+            }
         };
 
     private sealed class RecordingTransport(object result) : IAppServerTransport

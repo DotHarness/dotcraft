@@ -61,24 +61,39 @@ internal sealed class AppUiInteractionService(
         if (runtimeState != AppBindingStates.Active)
             return AppToolAttachmentService.Failed(AppBindingErrorCodes.Offline, $"The app binding for tool '{tool}' is {runtimeState}.");
 
-        if (spec.Approval != null)
+        if (spec.Approval is { } approval)
         {
-            if (approvalGate == null)
+            var targetState = ApprovalArgumentResolver.ResolveTargetArgument(
+                arguments,
+                spec.InputSchema,
+                approval.TargetArgument,
+                out _);
+            if (targetState == ApprovalTargetArgumentState.MissingRequired)
+            {
                 return AppToolAttachmentService.Failed(
-                    AppBindingErrorCodes.ApprovalRequired,
-                    $"Tool '{tool}' requires approval, which this client cannot prompt for.");
+                    "InvalidArguments",
+                    $"Tool '{tool}' requires string argument '{approval.TargetArgument}' for approval routing.");
+            }
 
-            var approved = await approvalGate(BuildUiToolApprovalInfo(spec, arguments), cancellationToken);
-            AddAuditWithSave(
-                workspaceCraftPath,
-                approved ? "binding.uiToolApproval.accepted" : "binding.uiToolApproval.declined",
-                threadId,
-                binding.BindingId,
-                binding.AppId,
-                userId,
-                $"tool={tool}");
-            if (!approved)
-                return AppToolAttachmentService.Failed(AppBindingErrorCodes.ApprovalDeclined, $"The user declined to run '{tool}'.");
+            if (targetState == ApprovalTargetArgumentState.Present)
+            {
+                if (approvalGate == null)
+                    return AppToolAttachmentService.Failed(
+                        AppBindingErrorCodes.ApprovalRequired,
+                        $"Tool '{tool}' requires approval, which this client cannot prompt for.");
+
+                var approved = await approvalGate(BuildUiToolApprovalInfo(spec, arguments), cancellationToken);
+                AddAuditWithSave(
+                    workspaceCraftPath,
+                    approved ? "binding.uiToolApproval.accepted" : "binding.uiToolApproval.declined",
+                    threadId,
+                    binding.BindingId,
+                    binding.AppId,
+                    userId,
+                    $"tool={tool}");
+                if (!approved)
+                    return AppToolAttachmentService.Failed(AppBindingErrorCodes.ApprovalDeclined, $"The user declined to run '{tool}'.");
+            }
         }
 
         var callId = $"uitool_{Guid.NewGuid():N}";

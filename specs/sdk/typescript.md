@@ -1111,7 +1111,7 @@ Display metadata may include:
 - `title`;
 - `subtitle`.
 
-Approval metadata is descriptive and server-owned. The adapter does not make local approval policy decisions from descriptor metadata.
+Approval metadata is descriptive and server-owned. The adapter does not make local approval policy decisions from descriptor metadata. For multi-source media tools, `approval.targetArgument` may point at an optional host-path argument: AppServer gates calls that provide that argument as a non-empty string, and skips that approval when the call uses another source such as URL, base64, or a platform file id.
 
 ### 16.8 Media Source Handling
 

@@ -206,6 +206,8 @@ Client                              Server
           "inputSchema": {
             "type": "object",
             "properties": {
+              "filePath": { "type": "string" },
+              "fileUrl": { "type": "string" },
               "fileName": { "type": "string" }
             },
             "required": ["fileName"]
@@ -313,7 +315,7 @@ Channel tool names should use PascalCase. For cross-runtime icon support, adapte
 When `approval` is present, it is a descriptive risk declaration rather than an adapter-owned policy block:
 
 - `approval.kind` identifies the server approval category. Initial standard values are `file`, `shell`, and `remoteResource`. `remoteResource` targets non-local resources (e.g. third-party SaaS documents or wiki nodes); the server asks the user once and does not run path/command parsing for it.
-- `approval.targetArgument` names the tool argument that contains the primary approval target, such as `filePath` or `workingDirectory`.
+- `approval.targetArgument` names the tool argument that contains the primary approval target, such as `filePath` or `workingDirectory`. The server applies the approval only when the runtime call provides this argument as a non-empty string. If the argument is optional and absent/blank, the approval is skipped for that call; if the argument is listed in `inputSchema.required`, absent/blank still fails before dispatch.
 - `approval.operation` is an optional static label forwarded to the server approval layer.
 - `approval.operationArgument` is an optional argument name whose value is forwarded as the operation string.
 - Policy resolution remains server-owned. The adapter must not treat descriptor metadata as a private approval configuration source.

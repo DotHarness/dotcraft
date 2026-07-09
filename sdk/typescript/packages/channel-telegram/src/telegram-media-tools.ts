@@ -91,6 +91,11 @@ export class TelegramMediaTools {
           icon: "\u{1F4CE}",
           title: "Send document to current Telegram chat",
         },
+        approval: {
+          kind: "file",
+          targetArgument: "filePath",
+          operation: "read",
+        },
         inputSchema: {
           type: "object",
           properties: {
@@ -108,6 +113,11 @@ export class TelegramMediaTools {
         display: {
           icon: "\u{1F3A4}",
           title: "Send voice to current Telegram chat",
+        },
+        approval: {
+          kind: "file",
+          targetArgument: "filePath",
+          operation: "read",
         },
         inputSchema: {
           type: "object",

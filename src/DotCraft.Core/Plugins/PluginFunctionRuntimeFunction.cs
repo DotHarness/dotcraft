@@ -155,7 +155,14 @@ public sealed class PluginFunctionRuntimeFunction : AIFunction, IPluginFunctionT
         if (approval == null)
             return null;
 
-        if (!TryReadStringArgument(argsObject, approval.TargetArgument, out var approvalTarget))
+        var targetState = ApprovalArgumentResolver.ResolveTargetArgument(
+            argsObject,
+            Descriptor.InputSchema,
+            approval.TargetArgument,
+            out var approvalTarget);
+        if (targetState == ApprovalTargetArgumentState.MissingOptional)
+            return null;
+        if (targetState == ApprovalTargetArgumentState.MissingRequired)
         {
             return (
                 "InvalidArguments",
@@ -190,7 +197,7 @@ public sealed class PluginFunctionRuntimeFunction : AIFunction, IPluginFunctionT
         }
 
         if (!string.IsNullOrWhiteSpace(approval.OperationArgument)
-            && TryReadStringArgument(argsObject, approval.OperationArgument!, out var operationArgument))
+            && ApprovalArgumentResolver.TryReadStringArgument(argsObject, approval.OperationArgument!, out var operationArgument))
         {
             operation = operationArgument;
             error = string.Empty;
@@ -398,21 +405,6 @@ public sealed class PluginFunctionRuntimeFunction : AIFunction, IPluginFunctionT
         item.Payload = CreatePayload(callId, argsObject, result);
         scope.EmitItemCompleted(item);
         return MapToolResultToModelValue(result);
-    }
-
-    private static bool TryReadStringArgument(JsonObject argsObject, string argumentName, out string value)
-    {
-        value = string.Empty;
-        if (string.IsNullOrWhiteSpace(argumentName)
-            || !argsObject.TryGetPropertyValue(argumentName, out var node)
-            || node == null
-            || node.GetValueKind() != JsonValueKind.String)
-        {
-            return false;
-        }
-
-        value = node.GetValue<string>() ?? string.Empty;
-        return !string.IsNullOrWhiteSpace(value);
     }
 
     private static string ResolveAgainstWorkspace(string workspacePath, string path)

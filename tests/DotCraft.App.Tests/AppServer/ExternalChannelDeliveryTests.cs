@@ -1219,6 +1219,192 @@ public sealed class ExternalChannelDeliveryTests : IDisposable
     }
 
     [Fact]
+    public async Task ExternalChannelToolProvider_OptionalFileApprovalTargetMissing_DispatchesWithoutApproval()
+    {
+        var registry = new ExternalChannelRegistry();
+        var host = CreateHost("telegram");
+        var transport = new StubTransport(new ExtChannelToolCallResult
+        {
+            Success = true,
+            ContentItems = [new ExtChannelToolContentItem { Type = "text", Text = "Document sent." }]
+        });
+        AttachFakeAdapter(host, transport, CreateToolAdapterConnection(
+            "telegram",
+            [
+                new ChannelToolDescriptor
+                {
+                    Name = "TelegramSendDocumentToCurrentChat",
+                    Description = "Send a document to the current Telegram chat.",
+                    RequiresChatContext = true,
+                    Approval = new ChannelToolApprovalDescriptor
+                    {
+                        Kind = "file",
+                        TargetArgument = "filePath",
+                        Operation = "read"
+                    },
+                    InputSchema = new JsonObject
+                    {
+                        ["type"] = "object",
+                        ["properties"] = new JsonObject
+                        {
+                            ["filePath"] = new JsonObject { ["type"] = "string" },
+                            ["fileUrl"] = new JsonObject { ["type"] = "string" },
+                            ["fileName"] = new JsonObject { ["type"] = "string" }
+                        }
+                    }
+                }
+            ]));
+        registry.Register("telegram", host);
+
+        var provider = new ExternalChannelToolProvider(registry);
+        provider.ConfigureReservedToolNames([]);
+        var fn = Assert.IsAssignableFrom<AIFunction>(Assert.Single(provider.CreateToolsForThread(
+            new SessionThread
+            {
+                Id = "thread_optional_approval_skip",
+                WorkspacePath = _tempDir,
+                OriginChannel = "telegram",
+                ChannelContext = "chat_123",
+                Status = ThreadStatus.Active
+            },
+            new HashSet<string>(StringComparer.Ordinal))));
+        var turn = new SessionTurn
+        {
+            Id = "turn_optional_approval_skip",
+            ThreadId = "thread_optional_approval_skip",
+            Status = TurnStatus.Running,
+            StartedAt = DateTimeOffset.UtcNow
+        };
+        var approvalService = new RecordingApprovalService(approve: false);
+
+        using var scope = PluginFunctionExecutionScope.Set(
+            new PluginFunctionExecutionContext
+            {
+                ThreadId = "thread_optional_approval_skip",
+                TurnId = "turn_optional_approval_skip",
+                OriginChannel = "telegram",
+                ChannelContext = "chat_123",
+                GroupId = "chat_123",
+                WorkspacePath = _tempDir,
+                RequireApprovalOutsideWorkspace = true,
+                ApprovalService = approvalService,
+                Turn = turn,
+                NextItemSequence = () => turn.Items.Count + 1,
+                EmitItemStarted = _ => { },
+                EmitItemCompleted = _ => { }
+            });
+
+        await fn.InvokeAsync(
+            new AIFunctionArguments(new Dictionary<string, object?>
+            {
+                ["fileUrl"] = "https://example.test/report.pdf",
+                ["fileName"] = "report.pdf"
+            }),
+            CancellationToken.None);
+
+        Assert.Equal(AppServerMethods.ExtChannelToolCall, transport.LastMethod);
+        var toolParams = Assert.IsType<ExtChannelToolCallParams>(transport.LastParams);
+        Assert.Equal("https://example.test/report.pdf", toolParams.Arguments["fileUrl"]?.GetValue<string>());
+        Assert.Null(approvalService.LastPath);
+    }
+
+    [Fact]
+    public async Task ExternalChannelToolProvider_OptionalFileApprovalTargetPresent_BlocksDispatchWhenRejected()
+    {
+        var registry = new ExternalChannelRegistry();
+        var host = CreateHost("telegram");
+        var transport = new StubTransport(new ExtChannelToolCallResult { Success = true });
+        AttachFakeAdapter(host, transport, CreateToolAdapterConnection(
+            "telegram",
+            [
+                new ChannelToolDescriptor
+                {
+                    Name = "TelegramSendDocumentToCurrentChat",
+                    Description = "Send a document to the current Telegram chat.",
+                    RequiresChatContext = true,
+                    Approval = new ChannelToolApprovalDescriptor
+                    {
+                        Kind = "file",
+                        TargetArgument = "filePath",
+                        Operation = "read"
+                    },
+                    InputSchema = new JsonObject
+                    {
+                        ["type"] = "object",
+                        ["properties"] = new JsonObject
+                        {
+                            ["filePath"] = new JsonObject { ["type"] = "string" },
+                            ["fileUrl"] = new JsonObject { ["type"] = "string" },
+                            ["fileName"] = new JsonObject { ["type"] = "string" }
+                        }
+                    }
+                }
+            ]));
+        registry.Register("telegram", host);
+
+        var provider = new ExternalChannelToolProvider(registry);
+        provider.ConfigureReservedToolNames([]);
+        var fn = Assert.IsAssignableFrom<AIFunction>(Assert.Single(provider.CreateToolsForThread(
+            new SessionThread
+            {
+                Id = "thread_optional_approval_reject",
+                WorkspacePath = _tempDir,
+                OriginChannel = "telegram",
+                ChannelContext = "chat_123",
+                Status = ThreadStatus.Active
+            },
+            new HashSet<string>(StringComparer.Ordinal))));
+        var turn = new SessionTurn
+        {
+            Id = "turn_optional_approval_reject",
+            ThreadId = "thread_optional_approval_reject",
+            Status = TurnStatus.Running,
+            StartedAt = DateTimeOffset.UtcNow
+        };
+        var approvalService = new RecordingApprovalService(approve: false);
+        var outsidePath = Path.Combine(Path.GetTempPath(), $"ext_tool_optional_reject_{Guid.NewGuid():N}.txt");
+        await File.WriteAllTextAsync(outsidePath, "demo");
+
+        try
+        {
+            using var scope = PluginFunctionExecutionScope.Set(
+                new PluginFunctionExecutionContext
+                {
+                    ThreadId = "thread_optional_approval_reject",
+                    TurnId = "turn_optional_approval_reject",
+                    OriginChannel = "telegram",
+                    ChannelContext = "chat_123",
+                    GroupId = "chat_123",
+                    WorkspacePath = _tempDir,
+                    RequireApprovalOutsideWorkspace = true,
+                    ApprovalService = approvalService,
+                    Turn = turn,
+                    NextItemSequence = () => turn.Items.Count + 1,
+                    EmitItemStarted = _ => { },
+                    EmitItemCompleted = _ => { }
+                });
+
+            var result = await fn.InvokeAsync(
+                new AIFunctionArguments(new Dictionary<string, object?>
+                {
+                    ["filePath"] = outsidePath,
+                    ["fileName"] = "report.pdf"
+                }),
+                CancellationToken.None);
+
+            Assert.Contains("AccessDenied", ExtractResultText(result));
+            Assert.Null(transport.LastMethod);
+            Assert.Equal("read", approvalService.LastOperation);
+            Assert.Equal(Path.GetFullPath(outsidePath), approvalService.LastPath);
+        }
+        finally
+        {
+            try { File.Delete(outsidePath); }
+            catch { }
+        }
+    }
+
+    [Fact]
     public void ExternalChannelToolProvider_RegistersDescriptorDisplayMetadata()
     {
         var registry = new ExternalChannelRegistry();
