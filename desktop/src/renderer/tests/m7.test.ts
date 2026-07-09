@@ -95,6 +95,7 @@ describe('recent workspaces LRU', () => {
     expect(recents).toHaveLength(1)
     expect(recents[0].path).toBe('/path/to/workspace-a')
     expect(recents[0].name).toBe('workspace-a')
+    expect(settings.lastForegroundEntry).toBe('workspace')
   })
 
   it('moves an existing workspace to the front on re-open', () => {

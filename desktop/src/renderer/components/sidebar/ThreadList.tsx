@@ -85,10 +85,14 @@ export function ThreadList({
   const dragHintTitle =
     dragActive?.kind === 'automation-task' ? dragActive.title : null
 
-  const showProjects = projects.length > 0
   // The default Chat workspace is surfaced as a dedicated `Chats` group sibling to
   // `Projects`. Once present it drives the same grouped layout so Chats always shows.
   const showChats = chat != null
+  const hasProjectRows = projects.length > 0
+  const chatIsCurrentWorkspace =
+    chat != null &&
+    sameWorkspacePath(chat.path, workspacePath || foregroundWorkspacePath || foregroundProjectId)
+  const showProjects = hasProjectRows || showChats
   const showGroupedLayout = showProjects || showChats
 
   if (loading && !showGroupedLayout) {
@@ -218,7 +222,7 @@ export function ThreadList({
         )}
         {showProjects && (
           <ProjectsSectionHeader
-            workspacePath={workspacePath || foregroundWorkspacePath}
+            workspacePath={hasProjectRows || !chatIsCurrentWorkspace ? (workspacePath || foregroundWorkspacePath) : ''}
             localWorkspacePath={localWorkspacePath}
             localActionsDisabled={localActionsDisabled}
             collapsed={projectsSectionCollapsed}
