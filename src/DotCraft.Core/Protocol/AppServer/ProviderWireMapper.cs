@@ -68,6 +68,16 @@ internal static class ProviderWireMapper
         };
     }
 
+    public static ModelContextWindowCapabilityWire MapContextWindowCapability(
+        ModelContextWindowCapability capability)
+        => new()
+        {
+            CatalogWindow = capability.CatalogWindow,
+            ConfiguredWindow = capability.ConfiguredWindow,
+            SupportsMax = capability.SupportsMax,
+            MaxWindow = capability.MaxWindow
+        };
+
     public static string? FormatModelListErrorMessage(string? message, string? endpoint)
     {
         if (string.IsNullOrWhiteSpace(endpoint))

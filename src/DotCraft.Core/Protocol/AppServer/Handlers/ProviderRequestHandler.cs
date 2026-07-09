@@ -255,7 +255,9 @@ internal sealed class ProviderRequestHandler(
                     config,
                     result.Protocol,
                     result.EndPoint,
-                    m.Id))
+                    m.Id)),
+                ContextWindow = ProviderWireMapper.MapContextWindowCapability(
+                    ModelContextWindowCatalog.ResolveContextWindowCapability(config, m.Id))
             })],
             ErrorCode = result.Success ? null : result.ErrorCode.ToString(),
             ErrorMessage = result.Success ? null : ProviderWireMapper.FormatModelListErrorMessage(result.ErrorMessage, result.EndPoint)
@@ -323,7 +325,9 @@ internal sealed class ProviderRequestHandler(
                     config,
                     result.Protocol ?? NormalizeProviderProtocol(p.Protocol),
                     result.EndPoint,
-                    m.Id))
+                    m.Id)),
+                ContextWindow = ProviderWireMapper.MapContextWindowCapability(
+                    ModelContextWindowCatalog.ResolveContextWindowCapability(config, m.Id))
             })],
             ErrorCode = result.Success ? null : result.ErrorCode.ToString(),
             ErrorMessage = result.Success ? null : ProviderWireMapper.FormatModelListErrorMessage(result.ErrorMessage, result.EndPoint)

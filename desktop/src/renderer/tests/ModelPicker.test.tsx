@@ -155,4 +155,96 @@ describe('ModelPicker', () => {
     expect(within(listbox).getByRole('option', { name: /超高/ })).toBeInTheDocument()
     expect(within(listbox).getByText('支持模型的最高深度。')).toBeInTheDocument()
   })
+
+  it('omits the Context (MAX) section when no context handler is provided', () => {
+    render(
+      <LocaleProvider>
+        <ModelPicker modelName="gpt-5.5" modelOptions={['gpt-5.5']} reasoningValue="off" triggerStyle={{}} />
+      </LocaleProvider>
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Select model' }))
+    const listbox = screen.getByRole('listbox', { name: 'Select model' })
+    expect(within(listbox).queryByText('Context')).not.toBeInTheDocument()
+    expect(within(listbox).queryByRole('switch', { name: 'MAX Mode' })).not.toBeInTheDocument()
+  })
+
+  it('toggles MAX on for a supported model', () => {
+    const onContextModeChange = vi.fn()
+    render(
+      <LocaleProvider>
+        <ModelPicker
+          modelName="gpt-5.5"
+          modelOptions={['gpt-5.5']}
+          reasoningValue="off"
+          triggerStyle={{}}
+          contextMode="default"
+          contextSupportsMax
+          onContextModeChange={onContextModeChange}
+        />
+      </LocaleProvider>
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Select model' }))
+    const listbox = screen.getByRole('listbox', { name: 'Select model' })
+    const maxSwitch = within(listbox).getByRole('switch', { name: 'MAX Mode' })
+    expect(maxSwitch).not.toBeDisabled()
+    expect(maxSwitch).toHaveAttribute('aria-checked', 'false')
+
+    fireEvent.click(maxSwitch)
+    expect(onContextModeChange).toHaveBeenCalledWith('max')
+  })
+
+  it('disables MAX and explains why when the model does not support it', () => {
+    const onContextModeChange = vi.fn()
+    render(
+      <LocaleProvider>
+        <ModelPicker
+          modelName="my-local-model"
+          modelOptions={['my-local-model']}
+          reasoningValue="off"
+          triggerStyle={{}}
+          contextMode="default"
+          contextSupportsMax={false}
+          onContextModeChange={onContextModeChange}
+        />
+      </LocaleProvider>
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Select model' }))
+    const listbox = screen.getByRole('listbox', { name: 'Select model' })
+    const maxSwitch = within(listbox).getByRole('switch', { name: 'MAX Mode' })
+    expect(maxSwitch).toBeDisabled()
+    expect(within(listbox).getByText(/available for the current model/)).toBeInTheDocument()
+
+    fireEvent.click(maxSwitch)
+    expect(onContextModeChange).not.toHaveBeenCalled()
+  })
+
+  it('surfaces a degraded MAX thread with a reset affordance', () => {
+    const onContextModeChange = vi.fn()
+    render(
+      <LocaleProvider>
+        <ModelPicker
+          modelName="my-local-model"
+          modelOptions={['my-local-model']}
+          reasoningValue="off"
+          triggerStyle={{}}
+          contextMode="max"
+          contextSupportsMax={false}
+          contextDegraded
+          contextConfiguredWindow={128000}
+          onContextModeChange={onContextModeChange}
+        />
+      </LocaleProvider>
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Select model' }))
+    const listbox = screen.getByRole('listbox', { name: 'Select model' })
+    expect(within(listbox).getByRole('switch', { name: 'MAX Mode' })).toHaveAttribute('aria-checked', 'true')
+    expect(within(listbox).getByText(/128K/)).toBeInTheDocument()
+
+    fireEvent.click(within(listbox).getByRole('button', { name: 'Switch to default' }))
+    expect(onContextModeChange).toHaveBeenCalledWith('default')
+  })
 })

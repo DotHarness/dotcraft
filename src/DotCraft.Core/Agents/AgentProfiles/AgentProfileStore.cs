@@ -568,6 +568,8 @@ public sealed partial class AgentProfileStore
             resolved.Model = NormalizeNullableString(requested.Model);
         if (HasConfigProperty(configElement, "reasoning"))
             resolved.Reasoning = CloneReasoning(requested.Reasoning);
+        if (HasConfigProperty(configElement, "contextWindow"))
+            resolved.ContextWindow = CloneContextWindow(requested.ContextWindow);
 
         return resolved;
     }
@@ -593,7 +595,8 @@ public sealed partial class AgentProfileStore
         string.Equals(name, "agentProfileId", StringComparison.OrdinalIgnoreCase)
         || string.Equals(name, "providerId", StringComparison.OrdinalIgnoreCase)
         || string.Equals(name, "model", StringComparison.OrdinalIgnoreCase)
-        || string.Equals(name, "reasoning", StringComparison.OrdinalIgnoreCase);
+        || string.Equals(name, "reasoning", StringComparison.OrdinalIgnoreCase)
+        || string.Equals(name, "contextWindow", StringComparison.OrdinalIgnoreCase);
 
     private static bool IsBenignSerializedDefaultOverlay(JsonProperty property)
     {
@@ -1679,6 +1682,7 @@ public sealed partial class AgentProfileStore
         ProviderId = source.ProviderId,
         Model = source.Model,
         Reasoning = CloneReasoning(source.Reasoning),
+        ContextWindow = CloneContextWindow(source.ContextWindow),
         WorkspaceOverride = source.WorkspaceOverride,
         ExecutionWorkspaceOverride = source.ExecutionWorkspaceOverride,
         ToolProfile = source.ToolProfile,
@@ -1748,6 +1752,14 @@ public sealed partial class AgentProfileStore
                 Enabled = source.Enabled,
                 Effort = source.Effort,
                 Output = source.Output
+            };
+
+    private static ThreadContextWindowConfig? CloneContextWindow(ThreadContextWindowConfig? source) =>
+        source == null
+            ? null
+            : new ThreadContextWindowConfig
+            {
+                Mode = source.Mode
             };
 
     private static IEnumerable<BuiltInAgentProfile> BuiltInProfiles()

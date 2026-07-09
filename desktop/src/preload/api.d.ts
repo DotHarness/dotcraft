@@ -416,6 +416,7 @@ declare global {
             dreamsThreadLookbackCount: number | null
             dreamsAutoApply: boolean | null
             defaultApprovalPolicy: 'default' | 'autoApprove' | null
+            contextWindowMode: 'default' | 'max' | null
           }
       userDefaults: {
         providerId: string | null
@@ -428,6 +429,7 @@ declare global {
             dreamsThreadLookbackCount: number | null
             dreamsAutoApply: boolean | null
             defaultApprovalPolicy: 'default' | 'autoApprove' | null
+            contextWindowMode: 'default' | 'max' | null
           }
         }>
       }

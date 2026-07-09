@@ -404,6 +404,7 @@ internal sealed class AgentProfileRequestHandler(
         refreshed.ProviderId ??= current.ProviderId;
         refreshed.Model ??= current.Model;
         refreshed.Reasoning ??= current.Reasoning;
+        refreshed.ContextWindow ??= current.ContextWindow;
         refreshed.WorkspaceOverride = current.WorkspaceOverride;
         refreshed.ExecutionWorkspaceOverride = current.ExecutionWorkspaceOverride;
         refreshed.Extensions = current.Extensions;

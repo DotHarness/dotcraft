@@ -38,6 +38,12 @@ public sealed class CompactionConfig
     public int MaxContextWindow { get; set; } = 256_000;
 
     /// <summary>
+    /// Workspace default context-window mode captured by newly created threads.
+    /// </summary>
+    [ConfigField(Hint = "Default per-thread context-window mode: Default or Max.")]
+    public ContextWindowMode ContextWindowMode { get; set; } = ContextWindowMode.Default;
+
+    /// <summary>
     /// Tokens reserved for the summary output so auto-compact triggers before
     /// the prefix + expected summary exceed the window.
     /// </summary>
@@ -146,6 +152,7 @@ public sealed class CompactionConfig
         ReactiveCompactEnabled = ReactiveCompactEnabled,
         ContextWindow = ContextWindow,
         MaxContextWindow = MaxContextWindow,
+        ContextWindowMode = ContextWindowMode,
         SummaryReserveTokens = SummaryReserveTokens,
         SummaryMaxOutputTokens = SummaryMaxOutputTokens,
         AutoCompactBufferTokens = AutoCompactBufferTokens,

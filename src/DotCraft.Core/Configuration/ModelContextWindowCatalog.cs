@@ -36,31 +36,74 @@ internal static class ModelContextWindowCatalog
     }
 
     public static CompactionConfig ResolveCompactionConfig(AppConfig config, string? model)
+        => ResolveCompactionConfig(config, model, config.Compaction.ContextWindowMode);
+
+    public static CompactionConfig ResolveCompactionConfig(
+        AppConfig config,
+        string? model,
+        ContextWindowMode contextWindowMode)
     {
         ArgumentNullException.ThrowIfNull(config);
 
-        var compaction = config.Compaction.Clone();
-        if (config.CompactionContextWindowExplicit)
+        var compaction = ResolveDefaultCompactionConfig(config, model);
+        if (contextWindowMode != ContextWindowMode.Max)
             return compaction;
 
-        compaction.ContextWindow = ApplyMaxContextWindow(
-            Resolve(
-                model,
-                CatalogPathForConfig(config.GlobalConfigPath),
-                CatalogPathForConfig(config.WorkspaceConfigPath)),
-            compaction.MaxContextWindow);
+        var resolution = ResolveDetailed(
+            model,
+            CatalogPathForConfig(config.GlobalConfigPath),
+            CatalogPathForConfig(config.WorkspaceConfigPath));
+        if (resolution.HasExplicitMatch && resolution.ContextWindow > compaction.ContextWindow)
+            compaction.ContextWindow = resolution.ContextWindow;
+
         return compaction;
     }
 
     public static int Resolve(string? model, string? globalCatalogPath = null, string? workspaceCatalogPath = null)
+        => ResolveDetailed(model, globalCatalogPath, workspaceCatalogPath).ContextWindow;
+
+    public static ModelContextWindowResolution ResolveDetailed(
+        string? model,
+        string? globalCatalogPath = null,
+        string? workspaceCatalogPath = null)
     {
         var catalog = LoadBuiltInCatalog();
         MergeFile(catalog, globalCatalogPath);
         MergeFile(catalog, workspaceCatalogPath);
 
-        return ResolveModelWindow(model, catalog.Models)
-            ?? catalog.DefaultContextWindow
-            ?? DefaultContextWindow;
+        var match = ResolveModelWindow(model, catalog.Models);
+        return match == null
+            ? new ModelContextWindowResolution(
+                catalog.DefaultContextWindow ?? DefaultContextWindow,
+                HasExplicitMatch: false,
+                MatchedPattern: null,
+                MatchKind: null)
+            : new ModelContextWindowResolution(
+                match.ContextWindow,
+                HasExplicitMatch: true,
+                match.Pattern,
+                match.MatchKind);
+    }
+
+    public static ModelContextWindowCapability ResolveContextWindowCapability(AppConfig config, string? model)
+    {
+        ArgumentNullException.ThrowIfNull(config);
+
+        var defaultCompaction = ResolveDefaultCompactionConfig(config, model);
+        var resolution = ResolveDetailed(
+            model,
+            CatalogPathForConfig(config.GlobalConfigPath),
+            CatalogPathForConfig(config.WorkspaceConfigPath));
+        var supportsMax = resolution.HasExplicitMatch && resolution.ContextWindow > defaultCompaction.ContextWindow;
+
+        return new ModelContextWindowCapability(
+            CatalogWindow: resolution.ContextWindow,
+            ConfiguredWindow: defaultCompaction.ContextWindow,
+            SupportsMax: supportsMax,
+            MaxWindow: supportsMax ? resolution.ContextWindow : defaultCompaction.ContextWindow,
+            HasExplicitCatalogMatch: resolution.HasExplicitMatch,
+            MatchedPattern: resolution.MatchedPattern,
+            MatchKind: resolution.MatchKind);
     }
 
     internal static CatalogData LoadJson(string json)
@@ -147,7 +190,22 @@ internal static class ModelContextWindowCatalog
         }
     }
 
-    private static int? ResolveModelWindow(string? model, IReadOnlyDictionary<string, int> models)
+    private static CompactionConfig ResolveDefaultCompactionConfig(AppConfig config, string? model)
+    {
+        var compaction = config.Compaction.Clone();
+        if (config.CompactionContextWindowExplicit)
+            return compaction;
+
+        compaction.ContextWindow = ApplyMaxContextWindow(
+            Resolve(
+                model,
+                CatalogPathForConfig(config.GlobalConfigPath),
+                CatalogPathForConfig(config.WorkspaceConfigPath)),
+            compaction.MaxContextWindow);
+        return compaction;
+    }
+
+    private static CatalogMatch? ResolveModelWindow(string? model, IReadOnlyDictionary<string, int> models)
     {
         var normalizedModel = model?.Trim();
         if (string.IsNullOrWhiteSpace(normalizedModel))
@@ -157,10 +215,10 @@ internal static class ModelContextWindowCatalog
             ?? ResolveNamespacedSuffixes(normalizedModel, models);
     }
 
-    private static int? ResolveNamespacedSuffixes(string model, IReadOnlyDictionary<string, int> models)
+    private static CatalogMatch? ResolveNamespacedSuffixes(string model, IReadOnlyDictionary<string, int> models)
     {
         var bestLength = -1;
-        int? bestValue = null;
+        CatalogMatch? bestMatch = null;
         for (var i = 0; i < model.Length; i++)
         {
             if (model[i] != '/' || i == model.Length - 1)
@@ -176,17 +234,17 @@ internal static class ModelContextWindowCatalog
                     continue;
 
                 bestLength = pattern.Length;
-                bestValue = contextWindow;
+                bestMatch = new CatalogMatch(pattern, contextWindow, "namespacedSuffix");
             }
         }
 
-        return bestValue;
+        return bestMatch;
     }
 
-    private static int? ResolveByLongestPrefix(string model, IReadOnlyDictionary<string, int> models)
+    private static CatalogMatch? ResolveByLongestPrefix(string model, IReadOnlyDictionary<string, int> models)
     {
         var bestLength = -1;
-        int? bestValue = null;
+        CatalogMatch? bestMatch = null;
         foreach (var (pattern, contextWindow) in models)
         {
             if (!model.StartsWith(pattern, StringComparison.OrdinalIgnoreCase))
@@ -196,10 +254,10 @@ internal static class ModelContextWindowCatalog
                 continue;
 
             bestLength = pattern.Length;
-            bestValue = contextWindow;
+            bestMatch = new CatalogMatch(pattern, contextWindow, "prefix");
         }
 
-        return bestValue;
+        return bestMatch;
     }
 
     private static string? CatalogPathForConfig(string? configPath)
@@ -287,4 +345,21 @@ internal static class ModelContextWindowCatalog
                 Models[model] = contextWindow;
         }
     }
+
+    private sealed record CatalogMatch(string Pattern, int ContextWindow, string MatchKind);
 }
+
+internal sealed record ModelContextWindowResolution(
+    int ContextWindow,
+    bool HasExplicitMatch,
+    string? MatchedPattern,
+    string? MatchKind);
+
+internal sealed record ModelContextWindowCapability(
+    int CatalogWindow,
+    int ConfiguredWindow,
+    bool SupportsMax,
+    int MaxWindow,
+    bool HasExplicitCatalogMatch,
+    string? MatchedPattern,
+    string? MatchKind);

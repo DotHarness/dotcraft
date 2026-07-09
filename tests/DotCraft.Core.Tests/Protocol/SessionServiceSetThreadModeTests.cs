@@ -130,6 +130,7 @@ public sealed class SessionServiceSetThreadModeTests : IDisposable
             Effort = ReasoningEffort.High,
             Output = ReasoningOutput.Full
         };
+        config.Compaction.ContextWindowMode = ContextWindowMode.Max;
         var monitor = new AppConfigMonitor(config);
 
         await using var agentFactory = CreateAgentFactory(config);
@@ -147,6 +148,7 @@ public sealed class SessionServiceSetThreadModeTests : IDisposable
         Assert.True(existingThread.Configuration?.Reasoning?.Enabled);
         Assert.Equal(ReasoningEffort.High, existingThread.Configuration?.Reasoning?.Effort);
         Assert.Equal(ReasoningOutput.Full, existingThread.Configuration?.Reasoning?.Output);
+        Assert.Equal(ContextWindowMode.Max, existingThread.Configuration?.ContextWindow?.Mode);
         Assert.Null(svc.DebugGetRuntime(existingThread.Id)?.Agent);
 
         monitor.Current.Model = "model-b";
@@ -156,6 +158,7 @@ public sealed class SessionServiceSetThreadModeTests : IDisposable
             Effort = ReasoningEffort.Low,
             Output = ReasoningOutput.Full
         };
+        monitor.Current.Compaction.ContextWindowMode = ContextWindowMode.Default;
         svc.InvalidateThreadAgents();
 
         var existingAfterChange = await svc.EnsureThreadLoadedAsync(existingThread.Id);
@@ -164,20 +167,24 @@ public sealed class SessionServiceSetThreadModeTests : IDisposable
         Assert.Equal("model-a", existingAfterChange.Configuration?.Model);
         Assert.True(existingAfterChange.Configuration?.Reasoning?.Enabled);
         Assert.Equal(ReasoningEffort.High, existingAfterChange.Configuration?.Reasoning?.Effort);
+        Assert.Equal(ContextWindowMode.Max, existingAfterChange.Configuration?.ContextWindow?.Mode);
         Assert.Equal("model-a", persistedExisting?.Configuration?.Model);
         Assert.True(persistedExisting?.Configuration?.Reasoning?.Enabled);
         Assert.Equal(ReasoningEffort.High, persistedExisting?.Configuration?.Reasoning?.Effort);
+        Assert.Equal(ContextWindowMode.Max, persistedExisting?.Configuration?.ContextWindow?.Mode);
 
         var newThread = await svc.CreateThreadAsync(identity);
         Assert.Equal("model-b", newThread.Configuration?.Model);
         Assert.False(newThread.Configuration?.Reasoning?.Enabled);
         Assert.Equal(ReasoningEffort.Low, newThread.Configuration?.Reasoning?.Effort);
+        Assert.Null(newThread.Configuration?.ContextWindow);
 
         var explicitThread = await svc.CreateThreadAsync(
             identity,
             new ThreadConfiguration
             {
                 Model = "model-c",
+                ContextWindow = new ThreadContextWindowConfig { Mode = ContextWindowMode.Default },
                 Reasoning = new AppConfig.ReasoningConfig
                 {
                     Enabled = true,
@@ -189,6 +196,58 @@ public sealed class SessionServiceSetThreadModeTests : IDisposable
         Assert.True(explicitThread.Configuration?.Reasoning?.Enabled);
         Assert.Equal(ReasoningEffort.Medium, explicitThread.Configuration?.Reasoning?.Effort);
         Assert.Equal(ReasoningOutput.Summary, explicitThread.Configuration?.Reasoning?.Output);
+        Assert.Equal(ContextWindowMode.Default, explicitThread.Configuration?.ContextWindow?.Mode);
+    }
+
+    [Fact]
+    public async Task ForkThreadAsync_PreservesContextWindowUnlessRequestOverridesIt()
+    {
+        var store = new ThreadStore(_tempDir);
+        var persistence = new SessionPersistenceService(store);
+        var identity = new SessionIdentity
+        {
+            ChannelName = "test",
+            UserId = "u",
+            WorkspacePath = _tempDir
+        };
+
+        await using var agentFactory = CreateAgentFactory();
+        var defaultAgent = agentFactory.CreateAgentForMode(AgentMode.Agent);
+        var svc = new SessionService(agentFactory, defaultAgent, persistence, new SessionGate());
+
+        var source = await svc.CreateThreadAsync(
+            identity,
+            new ThreadConfiguration
+            {
+                Model = "gpt-5.5",
+                ContextWindow = new ThreadContextWindowConfig { Mode = ContextWindowMode.Max }
+            });
+
+        var inheritedFork = await svc.ForkThreadAsync(source.Id, null);
+        Assert.Equal(ContextWindowMode.Max, inheritedFork.Configuration?.ContextWindow?.Mode);
+
+        var partialOverrideFork = await svc.ForkThreadAsync(
+            source.Id,
+            new ThreadForkOptions
+            {
+                Config = new ThreadConfiguration
+                {
+                    Model = "gpt-5.5"
+                }
+            });
+        Assert.Equal(ContextWindowMode.Max, partialOverrideFork.Configuration?.ContextWindow?.Mode);
+
+        var explicitDefaultFork = await svc.ForkThreadAsync(
+            source.Id,
+            new ThreadForkOptions
+            {
+                Config = new ThreadConfiguration
+                {
+                    Model = "gpt-5.5",
+                    ContextWindow = new ThreadContextWindowConfig { Mode = ContextWindowMode.Default }
+                }
+            });
+        Assert.Equal(ContextWindowMode.Default, explicitDefaultFork.Configuration?.ContextWindow?.Mode);
     }
 
     [Fact]

@@ -256,6 +256,11 @@ export function ConversationPanel({
           onModelChange={modelControls.onModelChange}
           onReasoningChange={modelControls.onReasoningChange}
           onModelCatalogRetry={modelControls.onModelCatalogRetry}
+          contextMode={modelControls.contextMode}
+          contextSupportsMax={modelControls.contextSupportsMax}
+          contextDegraded={modelControls.contextDegraded}
+          contextConfiguredWindow={modelControls.contextConfiguredWindow}
+          onContextModeChange={modelControls.onContextModeChange}
         />
       )}
     </div>

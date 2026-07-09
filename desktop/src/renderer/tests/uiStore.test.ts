@@ -134,7 +134,8 @@ describe('uiStore goToNewChat', () => {
       images: [],
       files: [],
       mode: 'agent',
-      model: 'Default'
+      model: 'Default',
+      contextWindow: { mode: 'max' }
     }, '/workspace/a')
     useUIStore.getState().setWelcomeDraft({
       text: 'Draft B',
@@ -146,6 +147,7 @@ describe('uiStore goToNewChat', () => {
 
     useUIStore.getState().setWelcomeDraftWorkspace('/workspace/a')
     expect(useUIStore.getState().welcomeDraft?.text).toBe('Draft A')
+    expect(useUIStore.getState().welcomeDraft?.contextWindow).toEqual({ mode: 'max' })
 
     useUIStore.getState().setWelcomeDraftWorkspace('/workspace/b')
     expect(useUIStore.getState().welcomeDraft?.text).toBe('Draft B')
@@ -189,6 +191,18 @@ describe('uiStore pending welcome turn', () => {
     const pending = useUIStore.getState().consumePendingWelcomeTurnIfMatch('thread-reasoning')
 
     expect(pending?.reasoning).toEqual(reasoning)
+  })
+
+  it('preserves contextWindow when consuming the pending welcome turn', () => {
+    useUIStore.getState().setPendingWelcomeTurn({
+      threadId: 'thread-context',
+      text: 'hello',
+      contextWindow: { mode: 'max' }
+    })
+
+    const pending = useUIStore.getState().consumePendingWelcomeTurnIfMatch('thread-context')
+
+    expect(pending?.contextWindow).toEqual({ mode: 'max' })
   })
 
   it('preserves sentAsGoal when consuming the pending welcome turn', () => {

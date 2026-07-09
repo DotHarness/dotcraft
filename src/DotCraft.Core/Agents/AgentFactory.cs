@@ -182,12 +182,16 @@ public sealed class AgentFactory : IAsyncDisposable
         string sessionKey,
         string? providerIdOverride = null,
         string? modelOverride = null,
-        AppConfig? configOverride = null)
+        AppConfig? configOverride = null,
+        ContextWindowMode? contextWindowModeOverride = null)
     {
         var effectiveConfig = configOverride ?? _config;
         var runtime = _chatClientRegistry.ResolveMainRuntime(effectiveConfig, providerIdOverride, modelOverride);
         var effectiveMainModel = runtime.Model;
-        var compactionConfig = ModelContextWindowCatalog.ResolveCompactionConfig(effectiveConfig, effectiveMainModel);
+        var compactionConfig = ModelContextWindowCatalog.ResolveCompactionConfig(
+            effectiveConfig,
+            effectiveMainModel,
+            contextWindowModeOverride ?? effectiveConfig.Compaction.ContextWindowMode);
         var key = CompactionPipelineKey.From(
             string.IsNullOrWhiteSpace(sessionKey) ? string.Empty : sessionKey.Trim(),
             runtime,
@@ -220,7 +224,8 @@ public sealed class AgentFactory : IAsyncDisposable
     public IMemoryConsolidator? CreateConsolidatorForRuntime(
         AppConfig config,
         string? providerIdOverride,
-        string? modelOverride)
+        string? modelOverride,
+        ContextWindowMode? contextWindowModeOverride = null)
     {
         if (_memoryConsolidatorOverride != null)
             return _memoryConsolidatorOverride;
@@ -257,7 +262,8 @@ public sealed class AgentFactory : IAsyncDisposable
             consolidationRuntime.Model,
             ModelContextWindowCatalog.ResolveCompactionConfig(
                 config,
-                mainRuntime.Model).BlockingLimit(),
+                mainRuntime.Model,
+                contextWindowModeOverride ?? config.Compaction.ContextWindowMode).BlockingLimit(),
             _toolProviderContext.WorkspacePath);
     }
 

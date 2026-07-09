@@ -204,6 +204,79 @@ public sealed class AppServerThreadLifecycleTests : IDisposable
     }
 
     [Fact]
+    public async Task ThreadStart_WithUnsupportedContextWindowMax_ReturnsInvalidParams()
+    {
+        var msg = _h.BuildRequest(AppServerMethods.ThreadStart, new
+        {
+            identity = new { channelName = "appserver", userId = "test_user", workspacePath = _h.Identity.WorkspacePath },
+            config = new
+            {
+                model = "manual-model-without-catalog-entry",
+                contextWindow = new { mode = "max" }
+            }
+        });
+        await _h.ExecuteRequestAsync(msg);
+
+        var response = await _h.Transport.ReadNextSentAsync();
+        AppServerTestHarness.AssertIsErrorResponse(response, AppServerErrors.InvalidParamsCode);
+    }
+
+    [Fact]
+    public async Task ThreadConfigUpdate_WithSupportedContextWindowMax_BroadcastsThreadUpdated()
+    {
+        _h.Service.ThreadUpdatedForBroadcast = thread =>
+        {
+            _h.Transport.WriteMessageAsync(new
+            {
+                jsonrpc = "2.0",
+                method = AppServerMethods.ThreadUpdated,
+                @params = new { thread = thread.ToWire() }
+            }, default).GetAwaiter().GetResult();
+        };
+
+        var start = _h.BuildRequest(AppServerMethods.ThreadStart, new
+        {
+            identity = new { channelName = "appserver", userId = "test_user", workspacePath = _h.Identity.WorkspacePath },
+            config = new
+            {
+                model = "gpt-5.5"
+            }
+        });
+        await _h.ExecuteRequestAsync(start);
+        var startResponse = await _h.Transport.ReadNextSentAsync();
+        _ = await _h.Transport.ReadNextSentAsync();
+        var threadId = startResponse.RootElement.GetProperty("result").GetProperty("thread").GetProperty("id").GetString()!;
+
+        try
+        {
+            var update = _h.BuildRequest(AppServerMethods.ThreadConfigUpdate, new
+            {
+                threadId,
+                config = new
+                {
+                    mode = "agent",
+                    model = "gpt-5.5",
+                    contextWindow = new { mode = "max" }
+                }
+            });
+            await _h.ExecuteRequestAsync(update);
+
+            var sent = await _h.Transport.WaitAndDrainAsync(2, TimeSpan.FromSeconds(5));
+            Assert.Contains(sent, message => message.RootElement.TryGetProperty("result", out _));
+            var notification = Assert.Single(sent, message =>
+                message.RootElement.TryGetProperty("method", out var method)
+                && method.GetString() == AppServerMethods.ThreadUpdated);
+            var thread = notification.RootElement.GetProperty("params").GetProperty("thread");
+            Assert.Equal(threadId, thread.GetProperty("id").GetString());
+            Assert.Equal("max", thread.GetProperty("configuration").GetProperty("contextWindow").GetProperty("mode").GetString());
+        }
+        finally
+        {
+            _h.Service.ThreadUpdatedForBroadcast = null;
+        }
+    }
+
+    [Fact]
     public async Task ThreadStart_EmitsThreadStartedNotification()
     {
         var msg = _h.BuildRequest(AppServerMethods.ThreadStart, new

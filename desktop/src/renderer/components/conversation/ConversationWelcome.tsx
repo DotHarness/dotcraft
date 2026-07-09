@@ -13,7 +13,7 @@ import { addToast } from '../../stores/toastStore'
 import { useCustomCommandCatalog } from '../../hooks/useCustomCommandCatalog'
 import type { ComposerFileAttachment, ImageAttachment, ThreadMode } from '../../types/conversation'
 import type { ComposerDraftSegment } from '../../types/composerDraft'
-import type { ThreadSummary } from '../../types/thread'
+import type { ContextWindowConfigurationWire, ContextWindowMode, ThreadSummary } from '../../types/thread'
 import { parseJsonConfig } from '../../../shared/jsonConfig'
 import {
   classifyDroppedComposerFiles,
@@ -123,6 +123,21 @@ function normalizeWelcomeApprovalPolicy(value: unknown): VisibleApprovalPolicy |
   return null
 }
 
+function normalizeContextWindowMode(value: unknown): ContextWindowMode | null {
+  if (typeof value !== 'string') return null
+  const normalized = value.trim().toLowerCase()
+  if (normalized === 'max' || normalized === 'maximum') return 'max'
+  if (normalized === 'default') return 'default'
+  return null
+}
+
+function normalizeContextWindowConfig(value: unknown): ContextWindowConfigurationWire | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null
+  const obj = value as Record<string, unknown>
+  const mode = normalizeContextWindowMode(obj.mode ?? obj.Mode)
+  return mode == null ? null : { mode }
+}
+
 /**
  * Welcome state when the workspace is connected but no thread is selected.
  * Keeps the composer centered in the page so users can start a conversation
@@ -171,6 +186,8 @@ export function ConversationWelcome({
   const [welcomeApprovalPolicyDirty, setWelcomeApprovalPolicyDirty] = useState(false)
   const [modelName, setModelName] = useState<string>('Default')
   const [reasoningConfig, setReasoningConfig] = useState<ResolvedReasoningConfig>(DEFAULT_REASONING_CONFIG)
+  const [welcomeContextMode, setWelcomeContextMode] = useState<ContextWindowMode>('default')
+  const [welcomeContextExplicit, setWelcomeContextExplicit] = useState(false)
   const [modelApplying, setModelApplying] = useState(false)
   const [welcomeSuggestionsConfigReady, setWelcomeSuggestionsConfigReady] = useState(false)
   const [welcomeSuggestionsEnabled, setWelcomeSuggestionsEnabled] = useState(true)
@@ -320,6 +337,9 @@ export function ConversationWelcome({
     capabilities?.modelCatalogManagement === true &&
     capabilities?.workspaceConfigManagement === true
   const modelLoading = modelApiAvailable && modelCatalogStatus === 'loading'
+  const activeCatalogItem = modelCatalog.find((item) => item.id === modelName)
+  const contextSupportsMax = activeCatalogItem?.contextWindow?.supportsMax === true
+  const contextConfiguredWindow = activeCatalogItem?.contextWindow?.configuredWindow ?? 0
   const workspaceConfigPath = useMemo(() => {
     if (!workspacePath) return ''
     const normalized = workspacePath.replace(/[\\/]+$/, '')
@@ -468,6 +488,16 @@ export function ConversationWelcome({
   const resolveReasoningFromConfig = useCallback((cfg: Record<string, unknown>): ResolvedReasoningConfig => {
     return readReasoningObject(cfg.Reasoning ?? cfg.reasoning) ?? DEFAULT_REASONING_CONFIG
   }, [])
+
+  const resolveContextModeFromConfig = useCallback((cfg: Record<string, unknown>): ContextWindowMode => {
+    const compaction = getCaseInsensitiveValue(cfg, 'Compaction')
+    if (compaction == null || typeof compaction !== 'object' || Array.isArray(compaction)) {
+      return 'default'
+    }
+    return normalizeContextWindowMode(
+      getCaseInsensitiveValue(compaction as Record<string, unknown>, 'ContextWindowMode')
+    ) ?? 'default'
+  }, [getCaseInsensitiveValue])
 
   const resolveWelcomeSuggestionsEnabled = useCallback((cfg: Record<string, unknown>): boolean => {
     const section = getCaseInsensitiveValue(cfg, 'WelcomeSuggestions')
@@ -826,6 +856,11 @@ export function ConversationWelcome({
       setWelcomeApprovalPolicyDirty(true)
       setWelcomeApprovalPolicy(explicitDraftApprovalPolicy)
     }
+    const explicitDraftContextWindow = normalizeContextWindowConfig(welcomeDraft.contextWindow)
+    if (explicitDraftContextWindow) {
+      setWelcomeContextMode(explicitDraftContextWindow.mode ?? 'default')
+      setWelcomeContextExplicit(true)
+    }
     setModelName(
       workspaceLlmConfigChangedRef.current && workspaceModelFromConfigRef.current != null
         ? workspaceModelFromConfigRef.current
@@ -847,8 +882,21 @@ export function ConversationWelcome({
       const workspaceReasoningChanged =
         workspaceConfigChangeSeq > 0 &&
         workspaceConfigChange?.regions.includes('workspace.reasoning') === true
+      const workspaceContextChanged =
+        workspaceConfigChangeSeq > 0 &&
+        workspaceConfigChange?.regions.includes('workspace.contextWindow') === true
       const hasInitialDraft = initialWelcomeDraftRef.current != null
-      if (hasInitialDraft && !workspaceModelChanged && !workspaceReasoningChanged) return
+      const hasInitialDraftContext =
+        normalizeContextWindowConfig(initialWelcomeDraftRef.current?.contextWindow) != null
+      if (
+        hasInitialDraft &&
+        hasInitialDraftContext &&
+        !workspaceModelChanged &&
+        !workspaceReasoningChanged &&
+        !workspaceContextChanged
+      ) {
+        return
+      }
       if (!workspaceConfigPath) {
         if (!hasInitialDraft || workspaceModelChanged) {
           workspaceLlmConfigChangedRef.current = true
@@ -857,6 +905,10 @@ export function ConversationWelcome({
         }
         if (!hasInitialDraft || workspaceReasoningChanged) {
           setReasoningConfig(DEFAULT_REASONING_CONFIG)
+        }
+        if (!hasInitialDraftContext || workspaceContextChanged) {
+          setWelcomeContextMode('default')
+          setWelcomeContextExplicit(false)
         }
         return
       }
@@ -873,6 +925,10 @@ export function ConversationWelcome({
         if (!hasInitialDraft || workspaceReasoningChanged) {
           setReasoningConfig(resolveReasoningFromConfig(cfg))
         }
+        if (!hasInitialDraftContext || workspaceContextChanged) {
+          setWelcomeContextMode(resolveContextModeFromConfig(cfg))
+          setWelcomeContextExplicit(false)
+        }
       } catch {
         if (!disposed) {
           if (!hasInitialDraft || workspaceModelChanged) {
@@ -882,6 +938,10 @@ export function ConversationWelcome({
           }
           if (!hasInitialDraft || workspaceReasoningChanged) {
             setReasoningConfig(DEFAULT_REASONING_CONFIG)
+          }
+          if (!hasInitialDraftContext || workspaceContextChanged) {
+            setWelcomeContextMode('default')
+            setWelcomeContextExplicit(false)
           }
         }
       }
@@ -893,12 +953,17 @@ export function ConversationWelcome({
     }
   }, [
     readWorkspaceConfig,
+    resolveContextModeFromConfig,
     resolveModelFromConfig,
     resolveReasoningFromConfig,
     workspaceConfigChange,
     workspaceConfigChangeSeq,
     workspaceConfigPath
   ])
+
+  const buildWelcomeContextWindowConfig = useCallback((): ContextWindowConfigurationWire | undefined => {
+    return welcomeContextExplicit ? { mode: welcomeContextMode } : undefined
+  }, [welcomeContextExplicit, welcomeContextMode])
 
   const flushWelcomeDraft = useCallback((): void => {
     if (skipDraftPersistRef.current) return
@@ -916,6 +981,7 @@ export function ConversationWelcome({
       || model !== 'Default'
       || welcomeApprovalPolicyDirty
       || hasCustomReasoning
+      || welcomeContextExplicit
     const fallbackCaret = text.length
 
     if (!hasText && !hasImages && !hasFiles && !hasCustomSettings) {
@@ -933,9 +999,10 @@ export function ConversationWelcome({
       mode: welcomeMode,
       model,
       reasoning: reasoningConfig,
+      contextWindow: buildWelcomeContextWindowConfig(),
       approvalPolicy: welcomeApprovalPolicy
     }, draftProjectKey)
-  }, [clearWelcomeDraft, draftProjectKey, files, images, modelName, reasoningConfig, setWelcomeDraft, welcomeApprovalPolicy, welcomeApprovalPolicyDirty, welcomeMode])
+  }, [buildWelcomeContextWindowConfig, clearWelcomeDraft, draftProjectKey, files, images, modelName, reasoningConfig, setWelcomeDraft, welcomeApprovalPolicy, welcomeApprovalPolicyDirty, welcomeContextExplicit, welcomeMode])
 
   useEffect(() => {
     if (!draftHydratedRef.current) return
@@ -945,7 +1012,7 @@ export function ConversationWelcome({
     return () => {
       clearTimeout(timer)
     }
-  }, [contentRevision, files, flushWelcomeDraft, images, modelName, reasoningConfig, welcomeApprovalPolicy, welcomeApprovalPolicyDirty, welcomeMode])
+  }, [contentRevision, files, flushWelcomeDraft, images, modelName, reasoningConfig, welcomeApprovalPolicy, welcomeApprovalPolicyDirty, welcomeContextExplicit, welcomeContextMode, welcomeMode])
 
   useEffect(() => {
     return () => {
@@ -1003,6 +1070,17 @@ export function ConversationWelcome({
     },
     [reasoningConfig, workspaceConfigPath]
   )
+
+  const handleContextModeChange = useCallback((nextMode: ContextWindowMode): void => {
+    setWelcomeContextExplicit(true)
+    setWelcomeContextMode(nextMode)
+  }, [])
+
+  useEffect(() => {
+    if (!welcomeContextExplicit || welcomeContextMode !== 'max') return
+    if (modelCatalogStatus !== 'ready' || contextSupportsMax) return
+    setWelcomeContextMode('default')
+  }, [contextSupportsMax, modelCatalogStatus, welcomeContextExplicit, welcomeContextMode])
 
   const saveDataUrlAsTemp = useCallback(
     async (dataUrl: string, fileName: string, mimeType: string): Promise<void> => {
@@ -1098,6 +1176,7 @@ export function ConversationWelcome({
     const capturedApprovalPolicy = welcomeApprovalPolicy
     const capturedModel = modelName === 'Default' ? '' : modelName
     const capturedReasoning = reasoningConfig
+    const capturedContextWindow = buildWelcomeContextWindowConfig()
     const capturedProfileId = selectedProfileId
     let createdThreadId: string | null = null
     try {
@@ -1134,6 +1213,7 @@ export function ConversationWelcome({
         approvalPolicy: capturedApprovalPolicy,
         model: capturedModel,
         reasoning: capturedReasoning,
+        contextWindow: capturedContextWindow,
         sentAsGoal: true
       })
       setActiveThreadId(thread.id)
@@ -1150,6 +1230,7 @@ export function ConversationWelcome({
   }, [
     addThread,
     applyWelcomeProfile,
+    buildWelcomeContextWindowConfig,
     canUseThreadGoals,
     clearWelcomeDraft,
     connectionStatus,
@@ -1239,6 +1320,7 @@ export function ConversationWelcome({
     const capturedApprovalPolicy = welcomeApprovalPolicy
     const capturedModel = modelName === 'Default' ? '' : modelName
     const capturedReasoning = reasoningConfig
+    const capturedContextWindow = buildWelcomeContextWindowConfig()
     const capturedProfileId = selectedProfileId
     let createdThreadId: string | null = null
     try {
@@ -1267,7 +1349,8 @@ export function ConversationWelcome({
         mode: capturedMode,
         approvalPolicy: capturedApprovalPolicy,
         model: capturedModel,
-        reasoning: capturedReasoning
+        reasoning: capturedReasoning,
+        contextWindow: capturedContextWindow
       })
       addThread(thread)
       setActiveThreadId(thread.id)
@@ -1289,6 +1372,7 @@ export function ConversationWelcome({
     connectionStatus,
     addThread,
     applyWelcomeProfile,
+    buildWelcomeContextWindowConfig,
     selectedProfileId,
     setActiveThreadId,
     startWelcomeAppBindings,
@@ -1697,6 +1781,11 @@ export function ConversationWelcome({
                     onReasoningChange={(nextReasoning) => {
                       void handleReasoningChange(nextReasoning)
                     }}
+                    contextMode={welcomeContextMode}
+                    contextSupportsMax={contextSupportsMax}
+                    contextDegraded={false}
+                    contextConfiguredWindow={contextConfiguredWindow}
+                    onContextModeChange={handleContextModeChange}
                     onRetry={() => {
                       void loadModels(true)
                     }}

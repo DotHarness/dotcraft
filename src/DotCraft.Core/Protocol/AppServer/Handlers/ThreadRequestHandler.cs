@@ -75,7 +75,7 @@ internal sealed class ThreadRequestHandler(
         var historyMode = p.HistoryMode?.ToLowerInvariant() == "client"
             ? HistoryMode.Client
             : HistoryMode.Server;
-        ValidateReasoning(p.Config);
+        ValidateRuntimeConfiguration(p.Config);
 
         var spawnSource = !string.IsNullOrWhiteSpace(p.SpawnedFromThreadId)
             ? ThreadSource.SpawnedFromThread(p.SpawnedFromThreadId.Trim())
@@ -150,7 +150,7 @@ internal sealed class ThreadRequestHandler(
     {
         var p = AppServerParams.Get<ThreadForkParams>(msg);
         threadBinder.ValidateRuntimeInputs(p.DynamicTools, p.AdditionalContext);
-        ValidateReasoning(p.Config);
+        ValidateRuntimeConfiguration(p.Config);
 
         var identity = p.Identity == null ? null : NormalizeIdentityWorkspace(p.Identity);
         var thread = await sessionService.ForkThreadAsync(
@@ -822,21 +822,34 @@ internal sealed class ThreadRequestHandler(
     private async Task<object?> HandleThreadConfigUpdateAsync(AppServerIncomingMessage msg, CancellationToken ct)
     {
         var p = AppServerParams.Get<ThreadConfigUpdateParams>(msg);
-        ValidateReasoning(p.Config);
+        ValidateRuntimeConfiguration(p.Config);
         await sessionService.UpdateThreadConfigurationAsync(p.ThreadId, p.Config, ct);
         return new { };
     }
 
-    private void ValidateReasoning(ThreadConfiguration? config)
+    private void ValidateRuntimeConfiguration(ThreadConfiguration? config)
     {
-        if (config?.Reasoning == null)
+        if (config == null)
             return;
 
-        AppServerRuntimeRequestValidator.ValidateReasoningForRuntime(
-            appConfigMonitor?.Current ?? workspaceConfig.LoadCurrentMergedConfig(),
-            config.ProviderId,
-            config.Model,
-            config.Reasoning);
+        var currentConfig = appConfigMonitor?.Current ?? workspaceConfig.LoadCurrentMergedConfig();
+        if (config.Reasoning != null)
+        {
+            AppServerRuntimeRequestValidator.ValidateReasoningForRuntime(
+                currentConfig,
+                config.ProviderId,
+                config.Model,
+                config.Reasoning);
+        }
+
+        if (config.ContextWindow != null)
+        {
+            AppServerRuntimeRequestValidator.ValidateContextWindowForRuntime(
+                currentConfig,
+                config.ProviderId,
+                config.Model,
+                config.ContextWindow);
+        }
     }
 
     private static IReadOnlyList<string>? ResolveCrossChannelOriginsForThreadList(ThreadListParams p) =>

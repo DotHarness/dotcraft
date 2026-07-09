@@ -313,6 +313,9 @@ public sealed class ModelCatalogItem
 
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public ModelReasoningCapability? Reasoning { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public ModelContextWindowCapabilityWire? ContextWindow { get; set; }
 }
 
 public sealed class ModelReasoningCapability
@@ -335,6 +338,17 @@ public sealed class ModelReasoningEffortOption
     public string Label { get; set; } = string.Empty;
 
     public string Description { get; set; } = string.Empty;
+}
+
+public sealed class ModelContextWindowCapabilityWire
+{
+    public int CatalogWindow { get; set; }
+
+    public int ConfiguredWindow { get; set; }
+
+    public bool SupportsMax { get; set; }
+
+    public int MaxWindow { get; set; }
 }
 
 /// <summary>

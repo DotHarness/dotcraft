@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import type { ComposerFileAttachment, ImageAttachment, InputPart, ThreadMode } from '../types/conversation'
 import type { ComposerDraftSegment } from '../types/composerDraft'
-import type { ApprovalPolicyWire } from '../types/thread'
+import type { ApprovalPolicyWire, ContextWindowConfigurationWire } from '../types/thread'
 import type { ReasoningEffortWire, ReasoningOutputWire } from './modelCatalogStore'
 import type { SettingsTab } from '../types/settings'
 import type { DiffMarkerMode } from '../../shared/appearance'
@@ -84,6 +84,7 @@ export interface WelcomeDraft {
     effort: ReasoningEffortWire
     output: ReasoningOutputWire
   }
+  contextWindow?: ContextWindowConfigurationWire
   approvalPolicy?: Extract<ApprovalPolicyWire, 'default' | 'prompt' | 'autoApprove'>
   updatedAt: number
 }
@@ -190,6 +191,8 @@ export interface UIState {
       effort: ReasoningEffortWire
       output: ReasoningOutputWire
     }
+    /** Context-window choice selected on Welcome before thread exists; applied after thread/read. */
+    contextWindow?: ContextWindowConfigurationWire
     /** Approval policy chosen on Welcome before thread exists; applied after thread/read. */
     approvalPolicy?: Extract<ApprovalPolicyWire, 'default' | 'prompt' | 'autoApprove'>
     /** True when this first turn establishes the thread goal (durable "sent as goal"). */
@@ -296,6 +299,7 @@ interface UIStore extends UIState {
         effort: ReasoningEffortWire
         output: ReasoningOutputWire
       }
+      contextWindow?: ContextWindowConfigurationWire
       approvalPolicy?: Extract<ApprovalPolicyWire, 'default' | 'prompt' | 'autoApprove'>
       sentAsGoal?: boolean
     } | null
@@ -315,6 +319,7 @@ interface UIStore extends UIState {
       effort: ReasoningEffortWire
       output: ReasoningOutputWire
     }
+    contextWindow?: ContextWindowConfigurationWire
     approvalPolicy?: Extract<ApprovalPolicyWire, 'default' | 'prompt' | 'autoApprove'>
     sentAsGoal?: boolean
   } | null
@@ -375,7 +380,8 @@ function cloneWelcomeDraft(draft: WelcomeDraft): WelcomeDraft {
     ...draft,
     images: [...draft.images],
     files: draft.files ? [...draft.files] : [],
-    segments: draft.segments ? [...draft.segments] : undefined
+    segments: draft.segments ? [...draft.segments] : undefined,
+    contextWindow: draft.contextWindow ? { ...draft.contextWindow } : undefined
   }
 }
 
@@ -779,7 +785,11 @@ export const useUIStore = create<UIStore & InternalState>((set, get) => ({
     }, PENDING_WELCOME_TIMEOUT_MS)
 
     set({
-      pendingWelcomeTurn: { ...payload, createdAt: Date.now() },
+      pendingWelcomeTurn: {
+        ...payload,
+        ...(payload.contextWindow !== undefined ? { contextWindow: { ...payload.contextWindow } } : {}),
+        createdAt: Date.now()
+      },
       _pendingWelcomeTimer: timer
     })
   },
@@ -793,7 +803,7 @@ export const useUIStore = create<UIStore & InternalState>((set, get) => ({
         clearTimeout(timer)
       }
       set({ pendingWelcomeTurn: null, _pendingWelcomeTimer: null })
-      const { text, inputParts, images, files, mode, model, reasoning, approvalPolicy, sentAsGoal } = p
+      const { text, inputParts, images, files, mode, model, reasoning, contextWindow, approvalPolicy, sentAsGoal } = p
       return {
         text,
         ...(inputParts !== undefined ? { inputParts } : {}),
@@ -802,6 +812,7 @@ export const useUIStore = create<UIStore & InternalState>((set, get) => ({
         ...(mode !== undefined ? { mode } : {}),
         ...(model !== undefined ? { model } : {}),
         ...(reasoning !== undefined ? { reasoning } : {}),
+        ...(contextWindow !== undefined ? { contextWindow: { ...contextWindow } } : {}),
         ...(approvalPolicy !== undefined ? { approvalPolicy } : {}),
         ...(sentAsGoal !== undefined ? { sentAsGoal } : {})
       }
@@ -888,6 +899,7 @@ export const useUIStore = create<UIStore & InternalState>((set, get) => ({
       images: [...draft.images],
       files: draft.files ? [...draft.files] : [],
       segments: draft.segments ? [...draft.segments] : undefined,
+      contextWindow: draft.contextWindow ? { ...draft.contextWindow } : undefined,
       selectionStart: draft.selectionStart,
       selectionEnd: draft.selectionEnd,
       updatedAt: Date.now()

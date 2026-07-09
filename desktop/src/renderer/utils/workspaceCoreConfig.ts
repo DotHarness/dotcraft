@@ -1,16 +1,19 @@
 export type WorkspaceDefaultApprovalPolicy = 'default' | 'autoApprove'
 export type ConcreteApprovalPolicy = 'prompt' | 'autoApprove'
+export type WorkspaceContextWindowMode = 'default' | 'max'
 
 export interface WorkspaceCoreConfigLike {
   workspace?: {
     model?: string | null
     welcomeSuggestionsEnabled?: boolean | null
     defaultApprovalPolicy?: WorkspaceDefaultApprovalPolicy | null
+    contextWindowMode?: WorkspaceContextWindowMode | null
   } | null
   userDefaults?: {
     model?: string | null
     welcomeSuggestionsEnabled?: boolean | null
     defaultApprovalPolicy?: WorkspaceDefaultApprovalPolicy | null
+    contextWindowMode?: WorkspaceContextWindowMode | null
   } | null
 }
 
@@ -18,6 +21,14 @@ function normalizeOptionalModel(value: unknown): string | null {
   if (typeof value !== 'string') return null
   const trimmed = value.trim()
   return trimmed && trimmed !== 'Default' ? trimmed : null
+}
+
+function normalizeContextWindowMode(value: unknown): WorkspaceContextWindowMode | null {
+  if (typeof value !== 'string') return null
+  const normalized = value.trim().toLowerCase()
+  if (normalized === 'max' || normalized === 'maximum') return 'max'
+  if (normalized === 'default') return 'default'
+  return null
 }
 
 function getCaseInsensitiveValue(record: Record<string, unknown>, key: string): unknown {
@@ -58,6 +69,15 @@ export function configObjectFromWorkspaceCore(core: WorkspaceCoreConfigLike): Re
     core.workspace?.defaultApprovalPolicy ?? core.userDefaults?.defaultApprovalPolicy
   if (defaultApprovalPolicy === 'default' || defaultApprovalPolicy === 'autoApprove') {
     config.Permissions = { DefaultApprovalPolicy: defaultApprovalPolicy }
+  }
+
+  const contextWindowMode = normalizeContextWindowMode(
+    core.workspace?.contextWindowMode ?? core.userDefaults?.contextWindowMode
+  )
+  if (contextWindowMode != null) {
+    config.Compaction = {
+      ContextWindowMode: contextWindowMode === 'max' ? 'Max' : 'Default'
+    }
   }
 
   return config

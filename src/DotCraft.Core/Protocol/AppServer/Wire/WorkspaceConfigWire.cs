@@ -138,6 +138,12 @@ public sealed class WorkspaceConfigUpdateParams
     /// </summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.Never)]
     public AppConfig.ReasoningConfig? Reasoning { get; set; }
+
+    /// <summary>
+    /// Workspace default context-window mode for newly created threads. Null removes the workspace override.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.Never)]
+    public ThreadContextWindowConfig? ContextWindow { get; set; }
 }
 
 /// <summary>
@@ -227,6 +233,13 @@ public sealed class WorkspaceConfigUpdateResult
     /// </summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.Never)]
     public AppConfig.ReasoningConfig? Reasoning { get; set; }
+
+    /// <summary>
+    /// Persisted workspace context-window mode after normalization.
+    /// Null means the workspace Compaction.ContextWindowMode override was removed or is absent.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.Never)]
+    public ThreadContextWindowConfig? ContextWindow { get; set; }
 }
 
 /// <summary>
