@@ -29,6 +29,7 @@ export interface RecentWorkspace {
 export type UiTheme = 'system' | 'dark' | 'light'
 export type ConnectionMode = 'local' | 'remote'
 export type BinarySource = 'bundled' | 'path' | 'custom'
+export type LastForegroundEntry = 'workspace' | 'chats' | 'welcome'
 export type LastOpenEditorId =
   | 'explorer'
   | 'vs'
@@ -76,6 +77,7 @@ export interface ProfileSettings {
 
 export interface AppSettings {
   lastWorkspacePath?: string
+  lastForegroundEntry?: LastForegroundEntry
   modulesDirectory?: string
   activeModuleVariants?: Record<string, string>
   binarySource?: BinarySource
@@ -329,6 +331,13 @@ function normalizeActiveRemoteStack(settings: AppSettings): ActiveRemoteStackSet
   return hostId && stackId ? { hostId, stackId } : undefined
 }
 
+function normalizeLastForegroundEntry(settings: AppSettings): LastForegroundEntry | undefined {
+  const value = settings.lastForegroundEntry
+  return value === 'workspace' || value === 'chats' || value === 'welcome'
+    ? value
+    : undefined
+}
+
 export function normalizePinnedThreadIdsByWorkspace(settings: AppSettings): Record<string, string[]> | undefined {
   const raw = settings.pinnedThreadIdsByWorkspace
   if (raw == null || typeof raw !== 'object' || Array.isArray(raw)) {
@@ -370,6 +379,7 @@ export function loadSettings(): AppSettings {
   try {
     if (existsSync(filePath)) {
       const raw = JSON.parse(readFileSync(filePath, 'utf8')) as AppSettings
+      raw.lastForegroundEntry = normalizeLastForegroundEntry(raw)
       raw.binarySource = normalizeBinarySource(raw)
       raw.connectionMode = normalizeConnectionMode(raw)
       raw.modulesDirectory = normalizeModulesDirectory(raw)
@@ -417,6 +427,7 @@ export function saveSettings(settings: AppSettings): void {
     const dir = join(filePath, '..')
     if (!existsSync(dir)) mkdirSync(dir, { recursive: true })
     settings.binarySource = normalizeBinarySource(settings)
+    settings.lastForegroundEntry = normalizeLastForegroundEntry(settings)
     settings.connectionMode = normalizeConnectionMode(settings)
     settings.modulesDirectory = normalizeModulesDirectory(settings)
     settings.lastOpenEditorId = normalizeLastOpenEditorId(settings)
@@ -467,6 +478,7 @@ export function addRecentWorkspace(settings: AppSettings, workspacePath: string)
   const filtered = existing.filter((r) => !sameWorkspaceProjectKey(r.path, workspacePath))
   settings.recentWorkspaces = [entry, ...filtered].slice(0, MAX_RECENT)
   settings.lastWorkspacePath = workspacePath
+  settings.lastForegroundEntry = 'workspace'
   return settings
 }
 

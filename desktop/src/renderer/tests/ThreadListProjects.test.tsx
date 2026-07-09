@@ -1020,6 +1020,40 @@ describe('ThreadList project-first layout', () => {
     expect(screen.getByText('No chats')).toBeInTheDocument()
   })
 
+  it('keeps the Projects header available when Chats is foreground with no projects', async () => {
+    useWorkspaceProjectsStore.getState().setPayload({
+      foregroundWorkspacePath: '/chats',
+      foregroundProjectId: '/chats',
+      secondaryLimit: 8,
+      projects: [],
+      chat: {
+        projectId: '/chats',
+        kind: 'chat',
+        path: '/chats',
+        identityWorkspacePath: '/chats',
+        name: '/chats',
+        state: 'foreground',
+        running: true,
+        loaded: true,
+        threadCount: 0,
+        threads: [],
+        pinnedThreadIds: []
+      }
+    })
+
+    renderList({ workspacePath: '/chats' })
+
+    expect(screen.getByText('Projects')).toBeInTheDocument()
+    expect(screen.getByText('Chats')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Workspace options' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '/chats' })).not.toBeInTheDocument()
+
+    fireEvent.mouseEnter(screen.getByText('Projects').parentElement as HTMLElement)
+    fireEvent.click(screen.getByRole('button', { name: 'Add project' }))
+
+    expect(await screen.findByRole('menuitem', { name: 'Use an existing folder' })).toBeInTheDocument()
+  })
+
   it('New chat in the Chats group switches to the chat workspace and opens a new chat', async () => {
     useThreadStore.getState().setActiveThreadId('old-thread')
     useWorkspaceProjectsStore.getState().setPayload({

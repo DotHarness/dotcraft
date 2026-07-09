@@ -1,9 +1,11 @@
 import { describe, expect, it, vi } from 'vitest'
 import {
   NO_WORKSPACE_ARG,
-  resolveWorkspacePathFromArgs,
-  shouldOpenDefaultChatWorkspaceOnStartup
+  resolveStartupWorkspacePath,
+  resolveWorkspacePathFromArgs
 } from '../workspaceArgs'
+
+const defaultChatsPath = 'C:/Users/me/.craft/workspaces/chats'
 
 describe('workspace argument resolution', () => {
   it('uses the last workspace when no explicit workspace mode is provided', () => {
@@ -41,40 +43,90 @@ describe('workspace argument resolution', () => {
     )).toBe('E:/linked')
   })
 
-  it('uses the default chat workspace only for ordinary local startup with no workspace', () => {
-    expect(shouldOpenDefaultChatWorkspaceOnStartup(
+  it('shows welcome on first launch with no foreground entry or legacy workspace', () => {
+    expect(resolveStartupWorkspacePath(
       {},
       ['electron', 'main.js'],
       () => false,
+      defaultChatsPath,
       'local'
-    )).toBe(true)
+    )).toBeNull()
+  })
 
-    expect(shouldOpenDefaultChatWorkspaceOnStartup(
+  it('restores a legacy last workspace when no foreground entry has been recorded yet', () => {
+    const exists = vi.fn(() => true)
+
+    expect(resolveStartupWorkspacePath(
       { lastWorkspacePath: 'E:/recent' },
       ['electron', 'main.js'],
-      () => true,
+      exists,
+      defaultChatsPath,
       'local'
-    )).toBe(false)
+    )).toBe('E:/recent')
+    expect(exists).toHaveBeenCalledWith('E:/recent')
+  })
 
-    expect(shouldOpenDefaultChatWorkspaceOnStartup(
-      { lastWorkspacePath: 'E:/recent' },
+  it('restores Chats when it was the last foreground entry', () => {
+    const exists = vi.fn(() => true)
+
+    expect(resolveStartupWorkspacePath(
+      { lastForegroundEntry: 'chats', lastWorkspacePath: 'E:/recent' },
+      ['electron', 'main.js'],
+      exists,
+      defaultChatsPath,
+      'local'
+    )).toBe(defaultChatsPath)
+    expect(exists).not.toHaveBeenCalled()
+  })
+
+  it('keeps the welcome chooser when it was the last foreground entry', () => {
+    const exists = vi.fn(() => true)
+
+    expect(resolveStartupWorkspacePath(
+      { lastForegroundEntry: 'welcome', lastWorkspacePath: 'E:/recent' },
+      ['electron', 'main.js'],
+      exists,
+      defaultChatsPath,
+      'local'
+    )).toBeNull()
+    expect(exists).not.toHaveBeenCalled()
+  })
+
+  it('lets explicit startup targets override the recorded foreground entry', () => {
+    expect(resolveStartupWorkspacePath(
+      { lastForegroundEntry: 'welcome', lastWorkspacePath: 'E:/recent' },
+      ['electron', 'main.js', '--workspace', 'E:/arg'],
+      () => true,
+      defaultChatsPath,
+      'local'
+    )).toBe('E:/arg')
+
+    expect(resolveStartupWorkspacePath(
+      { lastForegroundEntry: 'welcome', lastWorkspacePath: 'E:/recent' },
+      ['electron', 'main.js', 'dotcraft://workspace/open?path=E%3A%2Flinked'],
+      () => true,
+      defaultChatsPath,
+      'local'
+    )).toBe('E:/linked')
+  })
+
+  it('lets no-workspace suppress the recorded foreground entry', () => {
+    expect(resolveStartupWorkspacePath(
+      { lastForegroundEntry: 'chats', lastWorkspacePath: 'E:/recent' },
       ['electron', 'main.js', NO_WORKSPACE_ARG],
       () => true,
+      defaultChatsPath,
       'local'
-    )).toBe(false)
+    )).toBeNull()
+  })
 
-    expect(shouldOpenDefaultChatWorkspaceOnStartup(
-      {},
-      ['electron', 'main.js'],
-      () => false,
-      'remote'
-    )).toBe(false)
-
-    expect(shouldOpenDefaultChatWorkspaceOnStartup(
-      {},
+  it('does not restore Chats for remote endpoint startup', () => {
+    expect(resolveStartupWorkspacePath(
+      { lastForegroundEntry: 'chats' },
       ['electron', 'main.js', '--remote', 'ws://127.0.0.1:9100/ws'],
       () => false,
+      defaultChatsPath,
       'local'
-    )).toBe(false)
+    )).toBeNull()
   })
 })

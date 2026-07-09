@@ -13,11 +13,7 @@ export function hasRemoteEndpointArg(argv: readonly string[] = process.argv): bo
   return remoteIdx !== -1 && Boolean(argv[remoteIdx + 1])
 }
 
-export function resolveWorkspacePathFromArgs(
-  settings: AppSettings,
-  argv: readonly string[] = process.argv,
-  pathExists: (path: string) => boolean = existsSync
-): string | null {
+function resolveExplicitWorkspacePathFromArgs(argv: readonly string[]): string | null {
   const workspaceOpen = findWorkspaceOpenDeepLink(argv)
   if (workspaceOpen) {
     return workspaceOpen.workspacePath
@@ -28,7 +24,18 @@ export function resolveWorkspacePathFromArgs(
     return argv[argIdx + 1]
   }
 
-  if (argv.includes(NO_WORKSPACE_ARG)) {
+  return null
+}
+
+export function resolveWorkspacePathFromArgs(
+  settings: AppSettings,
+  argv: readonly string[] = process.argv,
+  pathExists: (path: string) => boolean = existsSync
+): string | null {
+  const explicitWorkspacePath = resolveExplicitWorkspacePathFromArgs(argv)
+  if (explicitWorkspacePath) return explicitWorkspacePath
+
+  if (hasNoWorkspaceArg(argv)) {
     return null
   }
 
@@ -39,14 +46,36 @@ export function resolveWorkspacePathFromArgs(
   return null
 }
 
-export function shouldOpenDefaultChatWorkspaceOnStartup(
+export function resolveStartupWorkspacePath(
   settings: AppSettings,
   argv: readonly string[] = process.argv,
   pathExists: (path: string) => boolean = existsSync,
+  defaultChatWorkspacePath = '',
   connectionMode: 'local' | 'remote' = 'local'
-): boolean {
-  if (connectionMode !== 'local') return false
-  if (hasNoWorkspaceArg(argv)) return false
-  if (hasRemoteEndpointArg(argv)) return false
-  return resolveWorkspacePathFromArgs(settings, argv, pathExists) == null
+): string | null {
+  const explicitWorkspacePath = resolveExplicitWorkspacePathFromArgs(argv)
+  if (explicitWorkspacePath) return explicitWorkspacePath
+
+  if (hasNoWorkspaceArg(argv)) {
+    return null
+  }
+
+  if (
+    connectionMode === 'local' &&
+    !hasRemoteEndpointArg(argv) &&
+    settings.lastForegroundEntry === 'chats' &&
+    defaultChatWorkspacePath.trim()
+  ) {
+    return defaultChatWorkspacePath
+  }
+
+  if (settings.lastForegroundEntry === 'welcome') {
+    return null
+  }
+
+  if (settings.lastWorkspacePath && pathExists(settings.lastWorkspacePath)) {
+    return settings.lastWorkspacePath
+  }
+
+  return null
 }

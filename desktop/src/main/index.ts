@@ -86,8 +86,7 @@ import {
 import {
   NO_WORKSPACE_ARG,
   hasRemoteEndpointArg,
-  resolveWorkspacePathFromArgs,
-  shouldOpenDefaultChatWorkspaceOnStartup
+  resolveStartupWorkspacePath
 } from './workspaceArgs'
 import {
   ensureDefaultChatWorkspace,
@@ -777,27 +776,22 @@ browserUseManager.setPolicyHost({
   updateSettings: updateSharedSettings
 })
 
-function resolveWorkspacePath(settings: AppSettings): string | null {
-  return resolveWorkspacePathFromArgs(settings, process.argv, existsSync)
-}
-
 function resolveConnectionMode(settings: AppSettings): ConnectionMode {
   const mode = settings.connectionMode
   return mode === 'remote' ? 'remote' : 'local'
 }
 
 function resolveInitialWorkspacePath(settings: AppSettings): string | null {
-  const workspacePath = resolveWorkspacePath(settings)
-  if (!shouldOpenDefaultChatWorkspaceOnStartup(
+  const workspacePath = resolveStartupWorkspacePath(
     settings,
     process.argv,
     existsSync,
+    resolveDefaultChatWorkspacePath(),
     resolveConnectionMode(settings)
-  )) {
-    return workspacePath
-  }
-
-  return ensureDefaultChatWorkspace()
+  )
+  return workspacePath && isDefaultChatWorkspace(workspacePath)
+    ? ensureDefaultChatWorkspace()
+    : workspacePath
 }
 
 function workspaceTitleName(workspacePath: string | null | undefined, locale: AppLocale): string {
@@ -2382,6 +2376,8 @@ function buildCallbacks(): IpcHandlerCallbacks {
       // Ensure its skeleton first so it never diverts into the setup wizard.
       if (isDefaultChatWorkspace(newPath)) {
         ensureDefaultChatWorkspace()
+        sharedSettings.lastForegroundEntry = 'chats'
+        saveSettings(sharedSettings)
       } else {
         addRecentWorkspace(sharedSettings, newPath)
         saveSettings(sharedSettings)
@@ -2515,7 +2511,7 @@ async function clearWorkspaceSelection(): Promise<void> {
   setViewerWorkspaceRoot('')
   currentWorkspacePath = ''
   ensureWorkspaceActivation('')
-  delete sharedSettings.lastWorkspacePath
+  sharedSettings.lastForegroundEntry = 'welcome'
   saveSettings(sharedSettings)
 
   const win = mainWindow
@@ -2992,7 +2988,10 @@ app.whenReady().then(async () => {
     if (!initialActiveStack) {
       acquireWorkspaceLock(workspacePath)
     }
-    if (!isDefaultChatWorkspace(workspacePath)) {
+    if (isDefaultChatWorkspace(workspacePath)) {
+      sharedSettings.lastForegroundEntry = 'chats'
+      saveSettings(sharedSettings)
+    } else {
       addRecentWorkspace(sharedSettings, workspacePath)
       saveSettings(sharedSettings)
     }
@@ -3054,7 +3053,10 @@ app.whenReady().then(async () => {
         if (!activeStack) {
           acquireWorkspaceLock(wsPath)
         }
-        if (!isDefaultChatWorkspace(wsPath)) {
+        if (isDefaultChatWorkspace(wsPath)) {
+          sharedSettings.lastForegroundEntry = 'chats'
+          saveSettings(sharedSettings)
+        } else {
           addRecentWorkspace(sharedSettings, wsPath)
           saveSettings(sharedSettings)
         }
