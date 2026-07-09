@@ -160,6 +160,7 @@ The Channel Adapter profile is required only for languages that ship first-party
 - Slash command routing through AppServer command methods.
 - Turn stream reduction with segment boundaries.
 - Delivery, channel tool, approval, and heartbeat dispatch.
+- Media source normalization for upload-capable channel tools, when the SDK profile exposes such helpers.
 - Hosted module manifests, config descriptors, workspace context, lifecycle state, and conformance helpers (TypeScript hosted-module sub-profile).
 
 ## 4. Shared API Families
@@ -245,6 +246,23 @@ SDKs should expose stable error codes for common AppServer and SDK cases:
 
 Exact class names and inheritance are language binding concerns.
 
+### 4.7 Media Source Handling
+
+Media source handling is an SDK-local normalization layer for channel tools and SDK helpers that need to send user-provided media to an external platform.
+
+It does not change the AppServer wire shape, including `ext/channel/toolCall`, and it does not require model-visible tool schemas to change. Existing tool arguments may continue to use channel-specific names such as a path, URL, or base64 field when those names are already part of the tool contract.
+
+The shared media source semantics are:
+
+- A host path means a file path readable by the SDK process handling the tool call.
+- A base64 source is decoded by the SDK before platform upload.
+- A URL source is passed through only when the channel tool and platform allow URL input.
+- Preparation resolves file name, media type, byte size, and readable bytes when bytes are required.
+- Preparation fails with a stable SDK/tool error when the source is missing, unreadable, invalid, not allowed, or larger than the applicable channel limit.
+- Platform-specific upload forms are produced after normalization. Examples include bytes/form-data, temporary files, platform URLs, or platform-specific inline data URIs.
+
+SDKs must not assume that a downstream messaging platform, gateway, or helper process can read the same filesystem path as the SDK process. Channel tool descriptions should describe the expected source argument from the agent's perspective and avoid exposing adapter-internal deployment details.
+
 ## 5. Capability Matrix
 
 Status values:
@@ -304,6 +322,7 @@ Parity Target applies to every general-purpose SDK (TypeScript, .NET, Python) un
 | App Binding tool error shape | App Binding | Typed | Typed | Typed | Required App Binding profile |
 | Channel adapter base class | External Channel Adapter | Profile | Gap | Profile | TypeScript + Python profile |
 | Channel runtime reducers/dispatchers | External Channel Adapter | Profile | Gap | Profile | TypeScript + Python profile |
+| Media source normalization for channel tools | SDK | Profile | Gap | Gap | TypeScript profile |
 | Hosted channel module manifest | External Channel Adapter | Profile | Gap | Gap | TypeScript profile |
 | Module conformance helper | SDK | Profile | Gap | Gap | TypeScript profile |
 | SDK conformance fixtures | SDK | Typed | Typed | Typed | Required for new wrappers |
@@ -343,6 +362,7 @@ Shared conformance expectations:
 - App Binding method shape for typed or generic helpers.
 - Run profile event order, text merge, failure, cancellation, abort, and enqueue behavior.
 - Channel profile queueing, thread resolution, command routing, delivery/tool/approval dispatch, lifecycle, and conformance helpers.
+- Media source normalization for channel tools where the profile is implemented.
 
 Language binding specs own the exact commands.
 

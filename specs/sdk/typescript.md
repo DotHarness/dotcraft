@@ -278,6 +278,7 @@ The top-level package should not expose every raw DTO by default. Raw protocol t
 - `ModuleInstance`
 - lifecycle and config helper types
 - channel capability and tool descriptor types
+- media source helper types and utilities for upload-capable channel tools
 
 ### 4.7 Testing Exports
 
@@ -1040,6 +1041,7 @@ The channel SDK should factor reusable runtime pieces:
 | `ChannelToolDispatcher` | Handle `ext/channel/toolCall`. |
 | `ApprovalDispatcher` | Route `item/approval/request` to platform approval hooks. |
 | `UserInputDispatcher` | Route `item/tool/requestUserInput` to platform question hooks. |
+| `MediaSourcePreparer` | Normalize upload tool media sources into bytes, temporary files, URLs, or platform-ready upload references. |
 | `ModuleConfigLoader` | Load and validate workspace config files. |
 | `ModuleLifecycleState` | Track `stopped`, `starting`, `ready`, `configMissing`, `configInvalid`, `authRequired`, `authExpired`, and failure statuses. |
 
@@ -1109,7 +1111,30 @@ Display metadata may include:
 - `title`;
 - `subtitle`.
 
-Approval metadata is descriptive and server-owned. The adapter does not make local approval policy decisions from descriptor metadata.
+Approval metadata is descriptive and server-owned. The adapter does not make local approval policy decisions from descriptor metadata. For multi-source media tools, `approval.targetArgument` may point at an optional host-path argument: AppServer gates calls that provide that argument as a non-empty string, and skips that approval when the call uses another source such as URL, base64, or a platform file id.
+
+### 16.8 Media Source Handling
+
+The TypeScript Channel SDK owns media source normalization for upload-capable channel tools.
+
+This normalization keeps existing channel tool names and argument schemas stable. A tool may continue to expose an existing path, URL, base64, or platform-file identifier argument. The SDK converts that caller-provided source into the representation required by the target platform during `ext/channel/toolCall` handling.
+
+When a channel tool can read a host path and can also accept URL, base64, or platform-file sources, the host path must have a dedicated argument that can be used as `approval.targetArgument`. Do not route host paths through the same overloaded argument that also accepts non-local sources, because server-side file approval is argument-based.
+
+Media source handling uses these source categories:
+
+- host path: a file path readable by the Node.js channel process;
+- base64 data: decoded by the SDK before upload;
+- URL: passed through only when the channel tool and platform allow URL sources;
+- temporary file: materialized only when a platform SDK requires a local file path.
+
+The preparer resolves the effective file name, media type, byte length, and byte content when bytes are needed. It rejects missing files, unreadable files, invalid base64 input, disallowed URL input, and sources exceeding the channel's configured size limit.
+
+Upload-capable tools must not forward a host path to a downstream platform merely because that path exists in the DotCraft workspace. The SDK process is responsible for reading the path it can access and producing a platform-ready upload reference, byte payload, form-data body, or temporary file as appropriate.
+
+Public helper names should describe media source or media upload preparation, not a single channel or downstream protocol. Platform-specific conversions may exist behind the helper boundary, but first-party channel packages should share the same source parsing, file-name inference, media-type inference, size checking, and error formatting.
+
+Tool descriptions shown to agents should describe the source argument in product terms, such as a local file path, URL, or base64 payload. They should not mention adapter internals or deployment topology.
 
 ---
 
@@ -1284,6 +1309,7 @@ First-party channel package tests must continue to cover:
 - delivery capabilities;
 - channel tool descriptors;
 - media tool behavior;
+- media source normalization for host paths, base64 data, allowed and disallowed URLs, inferred file metadata, size limits, and platform-ready upload references;
 - stream reducer behavior;
 - platform-specific parsing and permission logic.
 

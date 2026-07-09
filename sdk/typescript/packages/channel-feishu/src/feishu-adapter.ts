@@ -1,13 +1,4 @@
 import {
-  readFile,
-  stat,
-} from "node:fs/promises";
-import {
-  basename,
-  resolve,
-} from "node:path";
-
-import {
   DECISION_CANCEL,
   DECISION_DECLINE,
   textPart,
@@ -35,6 +26,8 @@ import {
   type UserInputResponse,
   type WorkspaceContext,
   mergeReplyTextFromDeltaAndSnapshot,
+  mediaSourceFromToolPath,
+  prepareMediaBytes,
 } from "@dotcraft/sdk/channel";
 import {
   buildApprovalCard,
@@ -407,22 +400,18 @@ export class FeishuAdapter extends ModuleChannelAdapter<FeishuConfig> {
     }
 
     try {
-      const resolvedPath = resolve(filePath);
-      const fileStats = await stat(resolvedPath);
-      if (!fileStats.isFile()) {
-        return {
-          success: false,
-          errorCode: "InvalidFilePath",
-          errorMessage: `Path '${resolvedPath}' is not a file.`,
-        };
-      }
-
-      const data = await readFile(resolvedPath);
-      const effectiveFileName = fileName || basename(resolvedPath);
+      const prepared = await prepareMediaBytes(
+        mediaSourceFromToolPath(filePath, { fieldName: "filePath" }),
+        {
+          fileName: fileName || undefined,
+          maxBytes: 30 * 1024 * 1024,
+        },
+      );
+      const effectiveFileName = prepared.fileName;
       const sendResult = await this.getFeishuClient().sendFile(target, {
         fileName: effectiveFileName,
-        data,
-        mediaType: inferMediaType(effectiveFileName),
+        data: prepared.bytes,
+        mediaType: prepared.mediaType,
       });
       if (caption) {
         await this.sendCaptionCard(target, caption, {
@@ -1094,51 +1083,17 @@ async function resolveOutboundFilePayload(
   mediaType?: string;
 }> {
   const source = (message.source as Record<string, unknown> | undefined) ?? {};
-  const sourceKind = String(source.kind ?? "");
   const fileName = String(message.fileName ?? fallbackFileName).trim() || "attachment";
-  const mediaType = String(message.mediaType ?? inferMediaType(fileName));
-
-  if (sourceKind === "dataBase64") {
-    const base64 = String(source.dataBase64 ?? "");
-    if (!base64) {
-      throw new Error("Feishu file delivery requires source.dataBase64 for dataBase64 sources.");
-    }
-    try {
-      return {
-        fileName,
-        data: Buffer.from(base64, "base64"),
-        mediaType,
-      };
-    } catch {
-      throw new Error("Feishu file delivery received invalid base64 data.");
-    }
-  }
-
-  if (sourceKind === "hostPath") {
-    const hostPath = String(source.hostPath ?? "");
-    if (!hostPath) {
-      throw new Error("Feishu file delivery requires source.hostPath for hostPath sources.");
-    }
-    const resolvedPath = resolve(hostPath);
-    const fileData = await readFile(resolvedPath);
-    return {
-      fileName: fileName || basename(resolvedPath),
-      data: fileData,
-      mediaType,
-    };
-  }
-
-  throw new Error(`Feishu file delivery does not support source kind '${sourceKind || "unknown"}'.`);
-}
-
-function inferMediaType(fileName: string): string {
-  const lower = fileName.toLowerCase();
-  if (lower.endsWith(".pdf")) return "application/pdf";
-  if (lower.endsWith(".json")) return "application/json";
-  if (lower.endsWith(".xml")) return "application/xml";
-  if (lower.endsWith(".txt")) return "text/plain";
-  if (lower.endsWith(".csv")) return "text/csv";
-  if (lower.endsWith(".md")) return "text/markdown";
-  return "application/octet-stream";
+  const mediaType = String(message.mediaType ?? "").trim() || undefined;
+  const prepared = await prepareMediaBytes(source, {
+    fileName,
+    mediaType,
+    maxBytes: 30 * 1024 * 1024,
+  });
+  return {
+    fileName: prepared.fileName,
+    data: prepared.bytes,
+    mediaType: prepared.mediaType,
+  };
 }
 

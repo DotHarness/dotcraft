@@ -1200,22 +1200,28 @@ export class FeishuClient {
   }
 
   async uploadDocxMedia(params: {
-    filePath: string;
+    filePath?: string;
+    fileName?: string;
+    data?: Buffer;
+    mediaType?: string;
     parentType: "docx_image" | "docx_file";
     parentNode: string;
     documentId?: string;
   }): Promise<FeishuDriveMediaUploadResult> {
-    const normalizedPath = params.filePath.trim();
-    if (!normalizedPath) {
-      throw new TypeError("Feishu docx media upload requires filePath.");
-    }
     const normalizedParentNode = params.parentNode.trim();
     if (!normalizedParentNode) {
       throw new TypeError("Feishu docx media upload requires parentNode.");
     }
 
-    const fileBuffer = await readFile(normalizedPath);
-    const fileName = path.basename(normalizedPath);
+    const normalizedPath = params.filePath?.trim() ?? "";
+    const fileBuffer = params.data ?? (normalizedPath ? await readFile(normalizedPath) : undefined);
+    if (!fileBuffer) {
+      throw new TypeError("Feishu docx media upload requires data or filePath.");
+    }
+    const fileName = (params.fileName?.trim() || (normalizedPath ? path.basename(normalizedPath) : "")).trim();
+    if (!fileName) {
+      throw new TypeError("Feishu docx media upload requires fileName.");
+    }
     const token = await this.getTenantAccessToken();
     const formData = new FormData();
     formData.set("file_name", fileName);
@@ -1225,7 +1231,7 @@ export class FeishuClient {
     if (params.documentId?.trim()) {
       formData.set("extra", JSON.stringify({ drive_route_token: params.documentId.trim() }));
     }
-    formData.set("file", new Blob([fileBuffer], { type: inferMediaType(fileName) }), fileName);
+    formData.set("file", new Blob([fileBuffer], { type: params.mediaType ?? inferMediaType(fileName) }), fileName);
 
     const payload = await this.callJsonApi(
       () =>

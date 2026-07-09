@@ -105,3 +105,24 @@ export {
   extractAgentReplyTextsFromTurnCompletedParams,
   mergeReplyTextFromDeltaAndSnapshot,
 } from "./turnReply.js";
+export {
+  MediaSourceError,
+  decodeBase64Media,
+  inferMediaTypeFromFileName,
+  mediaSourceFromToolBase64,
+  mediaSourceFromToolPath,
+  mediaSourceFromToolUrl,
+  prepareMediaBytes,
+  prepareMediaTempFile,
+  prepareMediaUploadUri,
+} from "./mediaSource.js";
+export type {
+  ChannelMediaSource,
+  MediaErrorFactory,
+  PreparedMediaBytes,
+  PreparedMediaUploadUri,
+  PreparedMediaTempFile,
+  PrepareMediaBytesOptions,
+  PrepareMediaUploadUriOptions,
+  PrepareMediaTempFileOptions,
+} from "./mediaSource.js";

@@ -27,6 +27,8 @@ The package is split into subpath exports so apps only pull in what they use:
 | `@dotcraft/sdk/channel` | Channel adapter and hosted module runtime. |
 | `@dotcraft/sdk/testing` | Conformance test helpers. |
 
+`@dotcraft/sdk/channel` also exports media source helpers for channel modules. They normalize approved path, base64, and URL sources into bytes, temporary files, or upload URI strings while preserving stable tool schemas.
+
 ## Top-level exports
 
 `DotCraft`, `DotCraftThread`, `DotCraftRunResult`, `DotCraftRunEvent`, `DotCraftError`, the typed error classes (`TurnInProgressError`, `TurnFailedError`, …), input part builders (`textPart`, `imageUrlPart`, `localImagePart`, `skillRefPart`, `commandRefPart`, `fileRefPart`), App Binding helpers (`parseAppBindingHandoff`, `appBindingToolError`, `APP_BINDING_ERROR_CODES`), and the approval decision constants.

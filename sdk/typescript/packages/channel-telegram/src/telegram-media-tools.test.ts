@@ -43,6 +43,20 @@ class FakeTelegramApi implements TelegramApiLike {
   }
 }
 
+test("getChannelTools exposes filePath approval metadata", () => {
+  const descriptors = new TelegramMediaTools().getChannelTools();
+  const documentTool = descriptors.find((tool) => tool.name === DOCUMENT_TOOL_NAME);
+  const voiceTool = descriptors.find((tool) => tool.name === VOICE_TOOL_NAME);
+
+  for (const tool of [documentTool, voiceTool]) {
+    assert.deepEqual(tool?.approval, {
+      kind: "file",
+      targetArgument: "filePath",
+      operation: "read",
+    });
+  }
+});
+
 test("executeToolCall sends document and returns structured result", async () => {
   const tempDir = mkdtempSync(join(tmpdir(), "telegram-doc-"));
   const filePath = join(tempDir, "report.pdf");

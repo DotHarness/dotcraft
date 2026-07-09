@@ -1,8 +1,10 @@
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { extname, join } from "node:path";
-
-import type { ChannelToolDescriptor } from "@dotcraft/sdk/channel";
+import {
+  mediaSourceFromToolBase64,
+  mediaSourceFromToolPath,
+  mediaSourceFromToolUrl,
+  prepareMediaUploadUri,
+  type ChannelToolDescriptor,
+} from "@dotcraft/sdk/channel";
 
 import type { OneBotActionResponse } from "./onebot.js";
 import {
@@ -48,74 +50,94 @@ export class QQMediaTools {
         },
         file: {
           supportsHostPath: true,
+          supportsUrl: true,
           supportsBase64: true,
         },
         video: {
           supportsHostPath: true,
           supportsUrl: true,
+          supportsBase64: true,
         },
       },
     };
   }
 
   getChannelTools(): ChannelToolDescriptor[] {
+    const mediaSourceProperties = {
+      filePath: { type: "string" },
+      fileUrl: { type: "string" },
+      fileBase64: { type: "string" },
+      file: { type: "string" },
+    };
+    const filePathApproval = {
+      kind: "file",
+      targetArgument: "filePath",
+      operation: "read",
+    };
+
     return [
       {
         name: QQ_SEND_GROUP_VOICE_TOOL,
         description:
-          "Send a voice/audio message to a QQ group chat. The file can be a local absolute path, an HTTP URL, or a base64:// string.",
+          "Send a voice/audio message to a QQ group chat. Use filePath for local files, fileUrl for HTTP(S), fileBase64 for raw base64, or file for URL/base64:// sources.",
         requiresChatContext: false,
         display: { icon: "\u{1F3A4}", title: "Send voice to QQ group" },
+        approval: filePathApproval,
         inputSchema: {
           type: "object",
           properties: {
             groupId: { type: "integer" },
-            file: { type: "string" },
+            ...mediaSourceProperties,
           },
-          required: ["groupId", "file"],
+          required: ["groupId"],
         },
       },
       {
         name: QQ_SEND_PRIVATE_VOICE_TOOL,
         description:
-          "Send a voice/audio message to a QQ private chat. The file can be a local absolute path, an HTTP URL, or a base64:// string.",
+          "Send a voice/audio message to a QQ private chat. Use filePath for local files, fileUrl for HTTP(S), fileBase64 for raw base64, or file for URL/base64:// sources.",
         requiresChatContext: false,
         display: { icon: "\u{1F3A4}", title: "Send voice to QQ user" },
+        approval: filePathApproval,
         inputSchema: {
           type: "object",
           properties: {
             userId: { type: "integer" },
-            file: { type: "string" },
+            ...mediaSourceProperties,
           },
-          required: ["userId", "file"],
+          required: ["userId"],
         },
       },
       {
         name: QQ_SEND_GROUP_VIDEO_TOOL,
-        description: "Send a video message to a QQ group chat. The file can be a local absolute path or an HTTP URL.",
+        description:
+          "Send a video message to a QQ group chat. Use filePath for local files, fileUrl for HTTP(S), fileBase64 for raw base64, or file for URL/base64:// sources.",
         requiresChatContext: false,
         display: { icon: "\u{1F39E}", title: "Send video to QQ group" },
+        approval: filePathApproval,
         inputSchema: {
           type: "object",
           properties: {
             groupId: { type: "integer" },
-            file: { type: "string" },
+            ...mediaSourceProperties,
           },
-          required: ["groupId", "file"],
+          required: ["groupId"],
         },
       },
       {
         name: QQ_SEND_PRIVATE_VIDEO_TOOL,
-        description: "Send a video message to a QQ private chat. The file can be a local absolute path or an HTTP URL.",
+        description:
+          "Send a video message to a QQ private chat. Use filePath for local files, fileUrl for HTTP(S), fileBase64 for raw base64, or file for URL/base64:// sources.",
         requiresChatContext: false,
         display: { icon: "\u{1F39E}", title: "Send video to QQ user" },
+        approval: filePathApproval,
         inputSchema: {
           type: "object",
           properties: {
             userId: { type: "integer" },
-            file: { type: "string" },
+            ...mediaSourceProperties,
           },
-          required: ["userId", "file"],
+          required: ["userId"],
         },
       },
       {
@@ -187,7 +209,7 @@ export class QQMediaTools {
       return toDeliveryResult(response);
     }
     if (kind === "video") {
-      const file = this.resolveVideoSource(asRecord(message.source));
+      const file = await this.resolveVideoSource(asRecord(message.source), String(message.fileName ?? "video.mp4"));
       const response = await this.sendMessage(server, parsed, [videoSegment(file)]);
       return toDeliveryResult(response);
     }
@@ -241,13 +263,13 @@ export class QQMediaTools {
   ): Promise<{ target: string; message: Record<string, unknown> } | null> {
     switch (toolName) {
       case QQ_SEND_GROUP_VOICE_TOOL:
-        return { target: `group:${requiredId(args.groupId, "groupId")}`, message: mediaMessage("audio", parseLegacyFileSource(args.file)) };
+        return { target: `group:${requiredId(args.groupId, "groupId")}`, message: mediaMessage("audio", parseToolMediaSource(args)) };
       case QQ_SEND_PRIVATE_VOICE_TOOL:
-        return { target: requiredId(args.userId, "userId"), message: mediaMessage("audio", parseLegacyFileSource(args.file)) };
+        return { target: requiredId(args.userId, "userId"), message: mediaMessage("audio", parseToolMediaSource(args)) };
       case QQ_SEND_GROUP_VIDEO_TOOL:
-        return { target: `group:${requiredId(args.groupId, "groupId")}`, message: mediaMessage("video", parseLegacyFileSource(args.file)) };
+        return { target: `group:${requiredId(args.groupId, "groupId")}`, message: mediaMessage("video", parseToolMediaSource(args)) };
       case QQ_SEND_PRIVATE_VIDEO_TOOL:
-        return { target: requiredId(args.userId, "userId"), message: mediaMessage("video", parseLegacyFileSource(args.file)) };
+        return { target: requiredId(args.userId, "userId"), message: mediaMessage("video", parseToolMediaSource(args)) };
       case QQ_UPLOAD_GROUP_FILE_TOOL:
         return {
           target: `group:${requiredId(args.groupId, "groupId")}`,
@@ -255,7 +277,7 @@ export class QQMediaTools {
             kind: "file",
             fileName: requiredText(args.fileName, "fileName"),
             folder: optionalText(args.folder),
-            source: { kind: "hostPath", hostPath: requiredText(args.filePath, "filePath") },
+            source: mediaSourceFromToolPath(args.filePath, { fieldName: "filePath", errorFactory: qqMediaError }),
           },
         };
       case QQ_UPLOAD_PRIVATE_FILE_TOOL:
@@ -264,7 +286,7 @@ export class QQMediaTools {
           message: {
             kind: "file",
             fileName: requiredText(args.fileName, "fileName"),
-            source: { kind: "hostPath", hostPath: requiredText(args.filePath, "filePath") },
+            source: mediaSourceFromToolPath(args.filePath, { fieldName: "filePath", errorFactory: qqMediaError }),
           },
         };
       default:
@@ -293,42 +315,74 @@ export class QQMediaTools {
     message: Record<string, unknown>,
   ): Promise<Record<string, unknown>> {
     const source = asRecord(message.source);
-    const fileName = optionalText(message.fileName) ?? inferFileName(source) ?? "attachment.bin";
     const folder = optionalText(message.folder);
-    let cleanupPath: string | undefined;
-    try {
-      const file = await resolveFileSource(source, fileName);
-      cleanupPath = file.cleanupPath;
-      const response = target.kind === "group"
-        ? await server.sendAction(uploadGroupFileAction(target.id, file.path, fileName, folder))
-        : await server.sendAction(uploadPrivateFileAction(target.id, file.path, fileName));
-      return toDeliveryResult(response);
-    } finally {
-      if (cleanupPath) await rm(cleanupPath, { force: true }).catch(() => undefined);
-    }
+    const file = await prepareMediaUploadUri(source, {
+      fileName: optionalText(message.fileName),
+      fallbackFileName: "attachment.bin",
+      errorFactory: qqMediaError,
+    });
+    const response = target.kind === "group"
+      ? await server.sendAction(uploadGroupFileAction(target.id, file.uri, file.fileName, folder))
+      : await server.sendAction(uploadPrivateFileAction(target.id, file.uri, file.fileName));
+    return toDeliveryResult(response);
   }
 
   private async resolveAudioSource(source: Record<string, unknown>, fileName: string): Promise<string> {
     const kind = String(source.kind ?? "");
-    if (kind === "hostPath") {
-      return `base64://${await fileToBase64(requiredText(source.hostPath, "hostPath"))}`;
+    if (kind === "hostPath" || kind === "url" || kind === "dataBase64") {
+      return (await prepareMediaUploadUri(source, {
+        fileName,
+        fallbackFileName: fileName,
+        errorFactory: qqMediaError,
+      })).uri;
     }
-    if (kind === "url") return requiredText(source.url, "url");
-    if (kind === "dataBase64") return `base64://${requiredText(source.dataBase64, "dataBase64")}`;
     if (kind === "") return await this.resolveAudioSource(parseLegacyFileSource(fileName).source as Record<string, unknown>, fileName);
     throw new QQMediaError("UnsupportedMediaSource", `Unsupported QQ audio source kind '${kind}'.`);
   }
 
-  private resolveVideoSource(source: Record<string, unknown>): string {
+  private async resolveVideoSource(source: Record<string, unknown>, fileName: string): Promise<string> {
     const kind = String(source.kind ?? "");
-    if (kind === "hostPath") return requiredText(source.hostPath, "hostPath");
-    if (kind === "url") return requiredText(source.url, "url");
+    if (kind === "hostPath" || kind === "url" || kind === "dataBase64") {
+      return (await prepareMediaUploadUri(source, {
+        fileName,
+        fallbackFileName: fileName,
+        errorFactory: qqMediaError,
+      })).uri;
+    }
     throw new QQMediaError("UnsupportedMediaSource", `Unsupported QQ video source kind '${kind}'.`);
   }
 }
 
 function mediaMessage(kind: string, payload: Record<string, unknown>): Record<string, unknown> {
   return { kind, source: payload.source };
+}
+
+function parseToolMediaSource(args: Record<string, unknown>): Record<string, unknown> {
+  const sourceValues = {
+    filePath: optionalText(args.filePath),
+    fileUrl: optionalText(args.fileUrl),
+    fileBase64: optionalText(args.fileBase64),
+    file: optionalText(args.file),
+  };
+  const populated = Object.entries(sourceValues).filter(([, value]) => Boolean(value));
+  if (populated.length !== 1) {
+    throw new QQMediaError(
+      "InvalidArguments",
+      "Exactly one of filePath, fileUrl, fileBase64, or file must be provided.",
+    );
+  }
+
+  const [sourceName, value] = populated[0] as [string, string];
+  if (sourceName === "filePath") {
+    return { source: mediaSourceFromToolPath(value, { fieldName: "filePath", errorFactory: qqMediaError }) };
+  }
+  if (sourceName === "fileUrl") {
+    return { source: mediaSourceFromToolUrl(value, { fieldName: "fileUrl", errorFactory: qqMediaError }) };
+  }
+  if (sourceName === "fileBase64") {
+    return { source: mediaSourceFromToolBase64(value, { fieldName: "fileBase64", errorFactory: qqMediaError }) };
+  }
+  return parseLegacyFileSource(value);
 }
 
 function parseLegacyFileSource(value: unknown): Record<string, unknown> {
@@ -339,34 +393,10 @@ function parseLegacyFileSource(value: unknown): Record<string, unknown> {
   if (/^https?:\/\//i.test(file)) {
     return { source: { kind: "url", url: file } };
   }
-  return { source: { kind: "hostPath", hostPath: file } };
-}
-
-async function resolveFileSource(source: Record<string, unknown>, fileName: string): Promise<{ path: string; cleanupPath?: string }> {
-  const kind = String(source.kind ?? "");
-  if (kind === "hostPath") return { path: requiredText(source.hostPath, "hostPath") };
-  if (kind === "dataBase64") {
-    const dir = await mkdtemp(join(tmpdir(), "dotcraft-qq-file-"));
-    const path = join(dir, fileName);
-    await writeFile(path, Buffer.from(requiredText(source.dataBase64, "dataBase64"), "base64"));
-    return { path, cleanupPath: dir };
-  }
-  throw new QQMediaError("UnsupportedMediaSource", `QQ file delivery only supports hostPath or dataBase64, got '${kind}'.`);
-}
-
-async function fileToBase64(path: string): Promise<string> {
-  const { readFile } = await import("node:fs/promises");
-  return (await readFile(path)).toString("base64");
-}
-
-function inferFileName(source: Record<string, unknown>): string | null {
-  const hostPath = optionalText(source.hostPath);
-  if (hostPath) {
-    const name = hostPath.split(/[\\/]/).pop();
-    if (name) return name;
-  }
-  const ext = extname(optionalText(source.url) ?? "");
-  return ext ? `attachment${ext}` : null;
+  throw new QQMediaError(
+    "InvalidArguments",
+    "The file argument only supports HTTP(S) URLs or base64:// payloads. Use filePath for local files.",
+  );
 }
 
 function toDeliveryResult(response: OneBotActionResponse): Record<string, unknown> {
@@ -397,4 +427,8 @@ function requiredId(value: unknown, field: string): string {
 
 function asRecord(value: unknown): Record<string, unknown> {
   return value && typeof value === "object" ? (value as Record<string, unknown>) : {};
+}
+
+function qqMediaError(code: string, message: string): QQMediaError {
+  return new QQMediaError(code, message);
 }

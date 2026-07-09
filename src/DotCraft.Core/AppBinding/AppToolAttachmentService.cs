@@ -651,7 +651,14 @@ internal sealed class AppToolAttachmentService(
             if (approval == null)
                 return null;
 
-            if (!TryReadStringArgument(argsObject, approval.TargetArgument, out var approvalTarget))
+            var targetState = ApprovalArgumentResolver.ResolveTargetArgument(
+                argsObject,
+                spec.InputSchema,
+                approval.TargetArgument,
+                out var approvalTarget);
+            if (targetState == ApprovalTargetArgumentState.MissingOptional)
+                return null;
+            if (targetState == ApprovalTargetArgumentState.MissingRequired)
             {
                 return (
                     "InvalidArguments",
@@ -686,7 +693,7 @@ internal sealed class AppToolAttachmentService(
             }
 
             if (!string.IsNullOrWhiteSpace(approval.OperationArgument)
-                && TryReadStringArgument(argsObject, approval.OperationArgument!, out var operationArgument))
+                && ApprovalArgumentResolver.TryReadStringArgument(argsObject, approval.OperationArgument!, out var operationArgument))
             {
                 operation = operationArgument;
                 error = string.Empty;
@@ -855,21 +862,6 @@ internal sealed class AppToolAttachmentService(
                 DataBase64 = item.DataBase64,
                 MediaType = item.MediaType
             };
-
-        private static bool TryReadStringArgument(JsonObject argsObject, string argumentName, out string value)
-        {
-            value = string.Empty;
-            if (string.IsNullOrWhiteSpace(argumentName)
-                || !argsObject.TryGetPropertyValue(argumentName, out var node)
-                || node == null
-                || node.GetValueKind() != JsonValueKind.String)
-            {
-                return false;
-            }
-
-            value = node.GetValue<string>() ?? string.Empty;
-            return !string.IsNullOrWhiteSpace(value);
-        }
 
         private static JsonObject ToJsonObject(AIFunctionArguments arguments)
         {

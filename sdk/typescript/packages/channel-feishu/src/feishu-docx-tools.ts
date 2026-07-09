@@ -1,7 +1,10 @@
-import { stat } from "node:fs/promises";
 import { randomUUID } from "node:crypto";
 
-import type { ChannelToolDescriptor } from "@dotcraft/sdk/channel";
+import {
+  mediaSourceFromToolPath,
+  prepareMediaBytes,
+  type ChannelToolDescriptor,
+} from "@dotcraft/sdk/channel";
 
 import type { FeishuClient } from "./feishu-client.js";
 import type { FeishuConfig } from "./feishu-types.js";
@@ -1269,10 +1272,13 @@ async function executeEmbedDocxMediaTool(params: {
   const align = optionalText(params.args.align);
   const fileView = optionalText(params.args.fileView);
   const caption = optionalText(params.args.caption);
-  const fileInfo = await stat(filePath).catch(() => null);
-  if (!fileInfo || !fileInfo.isFile()) {
-    throw new DocxToolError("InvalidArguments", `FeishuEmbedDocxMedia cannot access regular file '${filePath}'.`);
-  }
+  const preparedMedia = await prepareMediaBytes(
+    mediaSourceFromToolPath(filePath, { fieldName: "filePath", errorFactory: docxToolError }),
+    {
+      fallbackFileName: mediaType === "file" ? "attachment" : "image",
+      errorFactory: docxToolError,
+    },
+  );
 
   const root = await params.client.getDocxBlock(documentId, documentId);
   const rootChildren = root.children ?? [];
@@ -1304,7 +1310,9 @@ async function executeEmbedDocxMediaTool(params: {
   let rollbackError: string | undefined;
   try {
     const uploaded = await params.client.uploadDocxMedia({
-      filePath,
+      fileName: preparedMedia.fileName,
+      data: preparedMedia.bytes,
+      mediaType: preparedMedia.mediaType,
       parentType: mediaType === "file" ? "docx_file" : "docx_image",
       parentNode: createdBlock.blockId,
       documentId,
@@ -1332,6 +1340,7 @@ async function executeEmbedDocxMediaTool(params: {
         documentId,
         mediaType,
         filePath,
+        fileName: preparedMedia.fileName,
         blockId: createdBlock.blockId,
         insertIndex,
         fileToken: uploaded.fileToken,
@@ -1643,6 +1652,10 @@ function requiredText(value: unknown, fieldName: string): string {
     throw new DocxToolError("InvalidArguments", `Feishu docx tool requires a non-empty '${fieldName}'.`);
   }
   return text;
+}
+
+function docxToolError(code: string, message: string): DocxToolError {
+  return new DocxToolError(code, message);
 }
 
 function optionalText(value: unknown): string | undefined {
