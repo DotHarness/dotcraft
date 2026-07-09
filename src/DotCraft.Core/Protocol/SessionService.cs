@@ -796,10 +796,14 @@ public sealed partial class SessionService(
         captured.Reasoning ??= CloneReasoningConfig(currentConfig.Reasoning);
         if (captured.ContextWindow == null && currentConfig.Compaction.ContextWindowMode == ContextWindowMode.Max)
         {
-            captured.ContextWindow = new ThreadContextWindowConfig
+            var capability = ModelContextWindowCatalog.ResolveContextWindowCapability(currentConfig, captured.Model);
+            if (capability.SupportsMax)
             {
-                Mode = ContextWindowMode.Max
-            };
+                captured.ContextWindow = new ThreadContextWindowConfig
+                {
+                    Mode = ContextWindowMode.Max
+                };
+            }
         }
 
         return captured;

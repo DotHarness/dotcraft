@@ -1688,7 +1688,7 @@ Context-window resolution is thread-aware:
 - `ThreadConfiguration.ContextWindow` is an optional object `{ mode: "default" | "max" }`; omitted or null means `default`.
 - `default` preserves today's compaction behavior: explicit `Compaction.ContextWindow` wins, otherwise the model catalog is inferred and capped by `Compaction.MaxContextWindow`.
 - `max` is valid only when the model-context catalog has an explicit match for the thread's effective model and that catalog window is greater than the configured default window. When valid, Session Core sets the effective compaction `ContextWindow` to the raw catalog window and bypasses `Compaction.MaxContextWindow`.
-- New threads capture the workspace default context-window mode when one is set on `Compaction.ContextWindowMode`; otherwise they omit the field and use `default`.
+- New threads capture the workspace default context-window mode when one is set on `Compaction.ContextWindowMode` and the resolved thread model supports that mode; otherwise they omit the field and use `default`.
 - Forks copy the source thread's context-window configuration unless the fork request supplies a replacement `ThreadConfiguration`.
 - `UpdateThreadConfiguration` validates explicit `max`, rebuilds the thread agent and compaction pipeline before the next turn, persists the new configuration, and emits `thread/updated`.
 

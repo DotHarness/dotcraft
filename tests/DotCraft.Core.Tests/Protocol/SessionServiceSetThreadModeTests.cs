@@ -123,7 +123,7 @@ public sealed class SessionServiceSetThreadModeTests : IDisposable
             UserId = "u",
             WorkspacePath = _tempDir
         };
-        var config = AppConfigTestFactory.CreateOpenAI(model: "model-a");
+        var config = AppConfigTestFactory.CreateOpenAI(model: "gpt-5.5");
         config.Reasoning = new AppConfig.ReasoningConfig
         {
             Enabled = true,
@@ -144,7 +144,7 @@ public sealed class SessionServiceSetThreadModeTests : IDisposable
 
         var existingThread = await svc.CreateThreadAsync(identity);
 
-        Assert.Equal("model-a", existingThread.Configuration?.Model);
+        Assert.Equal("gpt-5.5", existingThread.Configuration?.Model);
         Assert.True(existingThread.Configuration?.Reasoning?.Enabled);
         Assert.Equal(ReasoningEffort.High, existingThread.Configuration?.Reasoning?.Effort);
         Assert.Equal(ReasoningOutput.Full, existingThread.Configuration?.Reasoning?.Output);
@@ -164,11 +164,11 @@ public sealed class SessionServiceSetThreadModeTests : IDisposable
         var existingAfterChange = await svc.EnsureThreadLoadedAsync(existingThread.Id);
         var persistedExisting = await store.LoadThreadAsync(existingThread.Id);
 
-        Assert.Equal("model-a", existingAfterChange.Configuration?.Model);
+        Assert.Equal("gpt-5.5", existingAfterChange.Configuration?.Model);
         Assert.True(existingAfterChange.Configuration?.Reasoning?.Enabled);
         Assert.Equal(ReasoningEffort.High, existingAfterChange.Configuration?.Reasoning?.Effort);
         Assert.Equal(ContextWindowMode.Max, existingAfterChange.Configuration?.ContextWindow?.Mode);
-        Assert.Equal("model-a", persistedExisting?.Configuration?.Model);
+        Assert.Equal("gpt-5.5", persistedExisting?.Configuration?.Model);
         Assert.True(persistedExisting?.Configuration?.Reasoning?.Enabled);
         Assert.Equal(ReasoningEffort.High, persistedExisting?.Configuration?.Reasoning?.Effort);
         Assert.Equal(ContextWindowMode.Max, persistedExisting?.Configuration?.ContextWindow?.Mode);
@@ -197,6 +197,48 @@ public sealed class SessionServiceSetThreadModeTests : IDisposable
         Assert.Equal(ReasoningEffort.Medium, explicitThread.Configuration?.Reasoning?.Effort);
         Assert.Equal(ReasoningOutput.Summary, explicitThread.Configuration?.Reasoning?.Output);
         Assert.Equal(ContextWindowMode.Default, explicitThread.Configuration?.ContextWindow?.Mode);
+    }
+
+    [Fact]
+    public async Task CreateThreadAsync_DoesNotInheritWorkspaceMaxContextWindowForUnsupportedModels()
+    {
+        var store = new ThreadStore(_tempDir);
+        var persistence = new SessionPersistenceService(store);
+        var identity = new SessionIdentity
+        {
+            ChannelName = "test",
+            UserId = "u",
+            WorkspacePath = _tempDir
+        };
+        var config = AppConfigTestFactory.CreateOpenAI(model: "model-a");
+        config.Compaction.ContextWindowMode = ContextWindowMode.Max;
+        var monitor = new AppConfigMonitor(config);
+
+        await using var agentFactory = CreateAgentFactory(config);
+        var defaultAgent = agentFactory.CreateAgentForMode(AgentMode.Agent);
+        var svc = new SessionService(
+            agentFactory,
+            defaultAgent,
+            persistence,
+            new SessionGate(),
+            appConfigMonitor: monitor);
+
+        var defaultThread = await svc.CreateThreadAsync(identity);
+        var explicitModelThread = await svc.CreateThreadAsync(
+            identity,
+            new ThreadConfiguration
+            {
+                Model = "unknown-model"
+            });
+        var persistedDefaultThread = await store.LoadThreadAsync(defaultThread.Id);
+        var persistedExplicitModelThread = await store.LoadThreadAsync(explicitModelThread.Id);
+
+        Assert.Equal("model-a", defaultThread.Configuration?.Model);
+        Assert.Null(defaultThread.Configuration?.ContextWindow);
+        Assert.Null(persistedDefaultThread?.Configuration?.ContextWindow);
+        Assert.Equal("unknown-model", explicitModelThread.Configuration?.Model);
+        Assert.Null(explicitModelThread.Configuration?.ContextWindow);
+        Assert.Null(persistedExplicitModelThread?.Configuration?.ContextWindow);
     }
 
     [Fact]

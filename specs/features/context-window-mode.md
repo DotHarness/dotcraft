@@ -69,9 +69,9 @@ Thread-level configuration uses:
 
 Workspace default configuration is persisted as `Compaction.ContextWindowMode`:
 
-- `max` persists the workspace default for newly created threads.
+- `max` persists the workspace default preference for newly created threads.
 - `default` or `null` removes the explicit workspace default.
-- New threads capture the workspace default context-window mode when it is set.
+- New threads capture the workspace default context-window mode only when their resolved model supports it.
 - Existing threads keep their captured thread configuration until explicitly updated.
 - Forks copy the source thread's context-window configuration unless the fork request supplies an override.
 
