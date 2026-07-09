@@ -46,4 +46,4 @@ Hooks 很强大，因为它们会运行本地命令。建议先从只观察、�
 - [配置完整参考](../../developing/configuration#automations-goals-与-hooks) — hook 文件结构、事件、状态和示例
 - [插件与工具](./plugins-tools) — 可分发可复用 hooks 的插件
 - [安全与沙箱](../self-hosted/security) — 文件、Shell 和沙箱行为的 guardrail
-- [Lifecycle Hooks 规范](https://github.com/DotHarness/dotcraft/blob/master/specs/core/lifecycle-hooks.md) — 面向实现者的工程契约
+- [Lifecycle Hooks 规范](https://github.com/DotHarness/dotcraft/blob/master/specs/features/lifecycle-hooks.md) — 面向实现者的工程契约

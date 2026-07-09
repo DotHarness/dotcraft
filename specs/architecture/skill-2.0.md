@@ -5,7 +5,7 @@
 | **Version** | 0.2.0 |
 | **Status** | Draft |
 | **Date** | 2026-05-01 |
-| **Parent Specs** | [Session Core](../core/session-core.md), [AppServer Protocol](../protocols/appserver-protocol.md) |
+| **Parent Specs** | [Session Core](session-core.md), [AppServer Protocol](../protocols/appserver-protocol.md) |
 
 Purpose: Define **Skill 2.0**, an experimental extension of DotCraft's self-learning skill system. Skill 2.0 makes skills safer to import and evolve, easier to adapt to the current workspace and runtime environment, and useful as long-lived procedural memory without exposing internal compiler or VM concepts to ordinary users.
 

@@ -186,7 +186,7 @@ Terminal KeyEvent ──► InputRouter ────────┘
 
 ## 5. Connection Modes
 
-The TUI supports two connection modes. Local mode uses Hub discovery as defined in [hub-architecture.md](../runtime/hub-architecture.md); both modes speak the AppServer WebSocket transport defined in [appserver-protocol.md §15](../protocols/appserver-protocol.md#15-websocket-transport).
+The TUI supports two connection modes. Local mode uses Hub discovery as defined in [hub-architecture.md](../architecture/hub-architecture.md); both modes speak the AppServer WebSocket transport defined in [appserver-protocol.md §15](../protocols/appserver-protocol.md#15-websocket-transport).
 
 ### 5.1 Hub-Managed Local Mode (Default)
 

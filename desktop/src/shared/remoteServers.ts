@@ -10,7 +10,7 @@
  * Security model: the renderer never supplies command strings. The main process
  * chooses a fixed, allow-listed operation and a saved host/stack; this module
  * builds the exact argv/remote-command from validated, individually-quoted
- * parameters. See specs/runtime/remote-server-management.md.
+ * parameters. See specs/features/remote-server-management.md.
  */
 
 // ─────────────────────────────────────────────────────────────────────────────

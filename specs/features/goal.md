@@ -5,7 +5,7 @@
 | **Version** | 0.2.1 |
 | **Status** | Living |
 | **Date** | 2026-06-21 |
-| **Parent Specs** | [Session Core](session-core.md), [AppServer Protocol](../protocols/appserver-protocol.md) |
+| **Parent Specs** | [Session Core](../architecture/session-core.md), [AppServer Protocol](../protocols/appserver-protocol.md) |
 
 Purpose: Define DotCraft's server-managed persistent thread goal feature, including the Session Core domain model, runtime lifecycle, persistence contract, model tool surface, AppServer wire projection, and client UX expectations.
 

@@ -5,7 +5,7 @@
 | **Version** | 0.1.0 |
 | **Status** | Living |
 | **Date** | 2026-06-03 |
-| **Related Specs** | [Unified SDK Specification](sdk.md), [AppServer Protocol](../protocols/appserver-protocol.md), [Hub Architecture](../runtime/hub-architecture.md), [App Binding](../protocols/app-binding.md), [External Channel Adapter](../protocols/external-channel-adapter.md), [Session Core](../core/session-core.md), [TypeScript SDK Binding](typescript.md), [.NET SDK Binding](dotnet.md) |
+| **Related Specs** | [Unified SDK Specification](sdk.md), [AppServer Protocol](../protocols/appserver-protocol.md), [Hub Architecture](../architecture/hub-architecture.md), [App Binding](../protocols/app-binding.md), [External Channel Adapter](../protocols/external-channel-adapter.md), [Session Core](../architecture/session-core.md), [TypeScript SDK Binding](typescript.md), [.NET SDK Binding](dotnet.md) |
 
 Purpose: Define the Python binding — package identity, runtime baseline, full general-purpose client surface, channel adapter, and compatibility strategy — for the DotCraft Python SDK.
 
@@ -68,10 +68,10 @@ It defines:
 This specification does not define:
 
 - The AppServer JSON-RPC wire protocol. See [AppServer Protocol](../protocols/appserver-protocol.md).
-- Hub HTTP endpoint semantics. See [Hub Architecture](../runtime/hub-architecture.md).
+- Hub HTTP endpoint semantics. See [Hub Architecture](../architecture/hub-architecture.md).
 - App Binding product semantics. See [App Binding](../protocols/app-binding.md).
 - External channel wire extensions. See [External Channel Adapter](../protocols/external-channel-adapter.md).
-- Session persistence, turn lifecycle semantics, item payload semantics, or agent execution internals. See [Session Core](../core/session-core.md).
+- Session persistence, turn lifecycle semantics, item payload semantics, or agent execution internals. See [Session Core](../architecture/session-core.md).
 - A public PyPI publishing process. The SDK may remain repository-local until a publishing phase is approved.
 
 ### 1.3 Primary Audiences

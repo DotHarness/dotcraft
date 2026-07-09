@@ -3,7 +3,7 @@ using System.Collections.Concurrent;
 namespace DotCraft.Tools;
 
 /// <summary>
-/// One conversational-builder thread's working draft (see specs/agents/agent-profiles.md §12A.1).
+/// One conversational-builder thread's working draft (see specs/features/agent-profiles.md §12A.1).
 /// </summary>
 public sealed record ProfileBuilderDraftEntry(string TargetId, string TargetSource, string Markdown);
 

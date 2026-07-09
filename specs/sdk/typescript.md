@@ -5,7 +5,7 @@
 | **Version** | 0.1.0 |
 | **Status** | Living |
 | **Date** | 2026-05-18 |
-| **Related Specs** | [Unified SDK Specification](sdk.md), [AppServer Protocol](../protocols/appserver-protocol.md), [Hub Architecture](../runtime/hub-architecture.md), [External Channel Adapter](../protocols/external-channel-adapter.md), [Session Core](../core/session-core.md), [.NET SDK Binding](dotnet.md), [Python SDK Binding](python.md), [Plugin Architecture](../extensions/plugin-architecture.md) |
+| **Related Specs** | [Unified SDK Specification](sdk.md), [AppServer Protocol](../protocols/appserver-protocol.md), [Hub Architecture](../architecture/hub-architecture.md), [External Channel Adapter](../protocols/external-channel-adapter.md), [Session Core](../architecture/session-core.md), [.NET SDK Binding](dotnet.md), [Python SDK Binding](python.md), [Plugin Architecture](../architecture/plugin-architecture.md) |
 
 Purpose: Define the TypeScript binding, package contract, Node.js runtime requirements, channel runtime, documentation model, and compatibility strategy for `@dotcraft/sdk`.
 
@@ -66,9 +66,9 @@ It defines:
 This specification does not define:
 
 - The AppServer JSON-RPC wire protocol. That contract is defined by [AppServer Protocol](../protocols/appserver-protocol.md).
-- Hub HTTP endpoint semantics. Those are defined by [Hub Architecture](../runtime/hub-architecture.md).
+- Hub HTTP endpoint semantics. Those are defined by [Hub Architecture](../architecture/hub-architecture.md).
 - External channel wire extensions. Those are defined by [External Channel Adapter](../protocols/external-channel-adapter.md).
-- Session persistence, turn lifecycle semantics, item payload semantics, or agent execution internals. Those are defined by [Session Core](../core/session-core.md).
+- Session persistence, turn lifecycle semantics, item payload semantics, or agent execution internals. Those are defined by [Session Core](../architecture/session-core.md).
 - Desktop-specific renderer behavior, Browser runtime behavior, or Chrome extension behavior.
 - A public npm release process. The SDK may remain repository-local until a publishing phase is approved.
 

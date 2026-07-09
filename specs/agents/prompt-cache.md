@@ -5,7 +5,7 @@
 | **Version** | 0.1.0 |
 | **Status** | Living |
 | **Date** | 2026-05-26 |
-| **Parent Specs** | [Session Core](../core/session-core.md), [AppServer Protocol](../protocols/appserver-protocol.md), [OpenAI Subscription Auth](openai-subscription-auth.md) |
+| **Parent Specs** | [Session Core](../architecture/session-core.md), [AppServer Protocol](../protocols/appserver-protocol.md), [OpenAI Subscription Auth](../architecture/openai-subscription-auth.md) |
 
 Purpose: define the per-protocol contract DotCraft must satisfy for the provider's prompt cache to hit, and the empirical hit-rate envelope each protocol is expected to deliver. This is a design document — it constrains what the runtime emits on the wire, not how it builds the request internally.
 
@@ -93,7 +93,7 @@ of additional sticky-routing hints for the
 |------|----------|-------|
 | `Authorization: Bearer <access_token>` | HTTP header | OAuth access token |
 | `chatgpt-account-id` | HTTP header | ChatGPT account id, resolved from the signed-in token/account store before runtime config |
-| `originator` | HTTP header | Fixed identifier the backend recognises (see [openai-subscription-auth](openai-subscription-auth.md)) |
+| `originator` | HTTP header | Fixed identifier the backend recognises (see [openai-subscription-auth](../architecture/openai-subscription-auth.md)) |
 | `x-codex-installation-id` | HTTP header **and** request body `client_metadata` | Per-machine UUID v4, stable across processes and accounts |
 | `session-id` | HTTP header | Active thread id; upstream HTTP baseline |
 | `thread-id` | HTTP header | Active thread id; upstream HTTP baseline |

@@ -195,7 +195,7 @@ When generating hooks for the user:
 2. **For complex hooks, create script files** in the selected hooks directory and reference them in the `command` field
 3. **Always create the hooks script directory** before placing script files there
 4. **Merge with existing config** — if `.craft/hooks.json` already exists, read it first and merge new hooks into the existing config rather than overwriting
-5. **Validate event names** — use events from `specs/core/lifecycle-hooks.md`; common choices are `SessionStart`, `UserPromptSubmit`, `PreToolUse`, `PostToolUse`, `PrePrompt`, and `Stop`
+5. **Validate event names** — use events from `specs/features/lifecycle-hooks.md`; common choices are `SessionStart`, `UserPromptSubmit`, `PreToolUse`, `PostToolUse`, `PrePrompt`, and `Stop`
 6. **Validate matcher patterns** — ensure regex is valid
 7. **Ensure hooks are enabled** — check that `config.json` does not have `"Hooks": { "Enabled": false }`
 8. **Leave trust to the user** — mention that new or modified hooks must be trusted through Desktop Hooks settings or `hooks/setState`

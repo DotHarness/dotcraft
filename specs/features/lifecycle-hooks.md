@@ -5,7 +5,7 @@
 | **Version** | 2.0.0 |
 | **Status** | Living |
 | **Date** | 2026-07-05 |
-| **Related Specs** | [Session Core](session-core.md), [Plugin Architecture](../extensions/plugin-architecture.md), [AppServer Protocol](../protocols/appserver-protocol.md), [Desktop Client](../clients/desktop-client.md) |
+| **Related Specs** | [Session Core](../architecture/session-core.md), [Plugin Architecture](../architecture/plugin-architecture.md), [AppServer Protocol](../protocols/appserver-protocol.md), [Desktop Client](../clients/desktop-client.md) |
 
 Purpose: define DotCraft lifecycle hooks as a durable runtime contract. Hooks let
 user config, workspace config, and enabled plugins run trusted local commands at

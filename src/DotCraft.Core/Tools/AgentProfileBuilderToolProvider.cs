@@ -11,7 +11,7 @@ namespace DotCraft.Tools;
 
 /// <summary>
 /// Exposes the conversational Agent Builder's fine-grained, model-visible profile-editing tools
-/// (see specs/agents/agent-profiles.md §12A). Each tool mutates exactly one field of the thread's
+/// (see specs/features/agent-profiles.md §12A). Each tool mutates exactly one field of the thread's
 /// working draft and returns a compact change descriptor — the changed field path and its delta —
 /// rather than the whole document, so clients can drive the per-field cursor highlight from the
 /// tool-call stream. The authoritative draft is the server-side working draft injected into prompt

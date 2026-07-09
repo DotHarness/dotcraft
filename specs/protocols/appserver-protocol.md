@@ -5,7 +5,7 @@
 | **Version** | 0.2.15 |
 | **Status** | Living |
 | **Date** | 2026-06-01 |
-| **Parent Spec** | [Session Core](../core/session-core.md) (Section 20) |
+| **Parent Spec** | [Session Core](../architecture/session-core.md) (Section 20) |
 | **Related Specs** | [Interactive Tool UI](tool-result-presentation.md) |
 
 Purpose: Define a language-neutral JSON-RPC wire protocol that exposes Session Core (`ISessionService`) and related AppServer capabilities to out-of-process clients, enabling them to create and resume threads, submit turns, stream events, participate in approval flows, and call server-level management methods through one transport-stable contract.
@@ -63,7 +63,7 @@ This specification defines the wire protocol — message formats, methods, notif
 
 ### 1.2 What This Spec Does Not Define
 
-- **Domain model semantics**: Thread, Turn, and Item lifecycle rules, persistence layout, and state machine invariants are defined in the [Session Core Specification](../core/session-core.md). This spec references them but does not redefine them.
+- **Domain model semantics**: Thread, Turn, and Item lifecycle rules, persistence layout, and state machine invariants are defined in the [Session Core Specification](../architecture/session-core.md). This spec references them but does not redefine them.
 - **Agent execution internals**: Model orchestration, tool invocation internals, hook execution, and other host-side implementation details are not part of this wire protocol.
 - **Channel-specific UX**: How a client renders events, approvals, or status is a client concern.
 - **Host implementation patterns**: In-process adapter wiring, dependency injection structure, persistence layout, and runtime service composition are internal to the server and not part of this wire protocol.
@@ -430,7 +430,7 @@ No response. Signals the client is ready to receive notifications.
 
 ## 4. Thread Methods
 
-Thread methods correspond to `ISessionService` thread lifecycle operations defined in the [Session Core Specification, Section 5.1](../core/session-core.md#51-thread-lifecycle).
+Thread methods correspond to `ISessionService` thread lifecycle operations defined in the [Session Core Specification, Section 5.1](../architecture/session-core.md#51-thread-lifecycle).
 
 ### 4.1 `thread/start`
 
@@ -442,7 +442,7 @@ Create a new thread. The server generates a Thread ID and persists initial state
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `identity` | SessionIdentity | yes | Channel identity for thread ownership. See [Session Core, Section 4.1.4](../core/session-core.md#414-sessionidentity). |
+| `identity` | SessionIdentity | yes | Channel identity for thread ownership. See [Session Core, Section 4.1.4](../architecture/session-core.md#414-sessionidentity). |
 | `config` | ThreadConfiguration | no | Per-thread agent configuration. Null means workspace defaults. |
 | `dynamicTools` | DynamicToolSpec[] | no | Thread-scoped runtime tools implemented by the AppServer client that creates or resumes the thread. |
 | `additionalContext` | RuntimeAdditionalContext | no | Thread-bound runtime context supplied by the AppServer client. Requires `capabilities.runtimeAdditionalContext`. |
@@ -832,7 +832,7 @@ List threads matching a given identity.
 | `includeArchived` | boolean | no | Default `false`. When `true`, archived threads are included in the result set alongside non-archived threads. |
 | `includeSubAgents` | boolean | no | Default `false`. When `true`, session-backed subagent child threads may be included in the mixed result set. Children whose parent is archived are still hidden unless `includeArchived` is also true. Widget-style clients should prefer `subagent/children/list` for a parent thread. |
 | `includeInternal` | boolean | no | Default `false`. When `false`, DotCraft-owned helper threads marked with `dotcraft.internal` metadata or known internal origins are excluded. This should only be enabled by diagnostics. |
-| `crossChannelOrigins` | string[] \| null | no | When **omitted** or JSON `null`, no cross-channel origin list is applied. When present as an array (possibly empty), non-empty values additionally return threads whose `originChannel` is in the list with the same `workspacePath` and `userId` as `identity`, ignoring `channelContext`. See [Session Core §9.5](../core/session-core.md#95-cross-channel-resume-protocol). |
+| `crossChannelOrigins` | string[] \| null | no | When **omitted** or JSON `null`, no cross-channel origin list is applied. When present as an array (possibly empty), non-empty values additionally return threads whose `originChannel` is in the list with the same `workspacePath` and `userId` as `identity`, ignoring `channelContext`. See [Session Core §9.5](../architecture/session-core.md#95-cross-channel-resume-protocol). |
 | `channelName` | string | no | When set, post-filters results to threads whose persisted `originChannel` matches (case-insensitive). Same as existing filter. |
 | `query` | string | no | Optional case-insensitive text filter applied to thread id, display name, origin channel, status, and channel context before pagination. |
 | `limit` | number | no | Optional page size. Must be positive and at most 100. If omitted with `cursor`, the server uses 50. If both `limit` and `cursor` are omitted, the server returns the full compatible list. |
@@ -1138,7 +1138,7 @@ Update per-thread agent configuration (MCP servers, extensions, etc.).
 
 ### 4.15 Thread Goal Methods
 
-Thread goal behavior is defined by [Goal Design](../core/goal-design.md). AppServer projects the Session Core goal runtime through these JSON-RPC methods:
+Thread goal behavior is defined by [Goal Design](../features/goal.md). AppServer projects the Session Core goal runtime through these JSON-RPC methods:
 
 | Method | Params | Result |
 |--------|--------|--------|
@@ -1375,13 +1375,13 @@ This method is a lightweight refresh path for worktree indicators. Full file, di
 
 ## 5. Turn Methods
 
-Turn methods correspond to `ISessionService` turn lifecycle operations defined in the [Session Core Specification, Section 5.2](../core/session-core.md#52-turn-lifecycle).
+Turn methods correspond to `ISessionService` turn lifecycle operations defined in the [Session Core Specification, Section 5.2](../architecture/session-core.md#52-turn-lifecycle).
 
 ### 5.1 `turn/start`
 
 Submit user input to a thread and begin agent execution. The server creates a new Turn, records the user input as a `UserMessage` Item, and starts the agent.
 
-Before starting the agent, the server **must** ensure the in-memory thread is loaded from persistence if needed and that any persisted `thread.configuration` (mode, MCP servers, etc.) is applied to the execution-time agent, so turns do not silently use workspace-default tooling after a cold load or when only `thread/read` was used earlier ([Session Core](../core/session-core.md) `EnsureThreadLoaded`).
+Before starting the agent, the server **must** ensure the in-memory thread is loaded from persistence if needed and that any persisted `thread.configuration` (mode, MCP servers, etc.) is applied to the execution-time agent, so turns do not silently use workspace-default tooling after a cold load or when only `thread/read` was used earlier ([Session Core](../architecture/session-core.md) `EnsureThreadLoaded`).
 
 The response is returned **immediately** with the initial Turn object (status `"running"`, empty `items`). The agent's output then streams as notifications: `turn/started`, followed by `item/*` events, and finally `turn/completed` (or `turn/failed` / `turn/cancelled`).
 
@@ -1677,7 +1677,7 @@ The result is advisory and read-only. The server derives these suggestions from 
 
 ## 6. Event Notifications
 
-Event notifications are server-initiated messages (no `id`) that stream the turn lifecycle to the client. They correspond 1:1 to the `SessionEvent` types defined in the [Session Core Specification, Section 6](../core/session-core.md#6-event-model).
+Event notifications are server-initiated messages (no `id`) that stream the turn lifecycle to the client. They correspond 1:1 to the `SessionEvent` types defined in the [Session Core Specification, Section 6](../architecture/session-core.md#6-event-model).
 
 All notifications share the pattern:
 
@@ -1870,7 +1870,7 @@ Emitted whenever a thread queue changes because input was enqueued, removed, deq
 
 ### 6.3 Item Notifications
 
-Items follow the lifecycle: `item/started` → zero or more `item/*/delta` → `item/completed`. See [Session Core, Section 5.3](../core/session-core.md#53-item-lifecycle).
+Items follow the lifecycle: `item/started` → zero or more `item/*/delta` → `item/completed`. See [Session Core, Section 5.3](../architecture/session-core.md#53-item-lifecycle).
 
 #### `item/started`
 
@@ -1897,7 +1897,7 @@ Emitted when a new item is created within a turn.
 }
 ```
 
-The canonical item payload schemas are defined in [Session Core, Section 4.2](../core/session-core.md#42-item-payload-schemas). On the wire, clients should treat `item.type` as the discriminator and apply the following mapping rules:
+The canonical item payload schemas are defined in [Session Core, Section 4.2](../architecture/session-core.md#42-item-payload-schemas). On the wire, clients should treat `item.type` as the discriminator and apply the following mapping rules:
 
 | `item.type` | Wire-specific notes |
 |-------------|---------------------|
@@ -1908,7 +1908,7 @@ The canonical item payload schemas are defined in [Session Core, Section 4.2](..
 | `commandExecution` | Command execution payload uses camelCase fields such as `command`, `workingDirectory`, `source`, `status`, `aggregatedOutput`, `exitCode`, `durationMs`, and `callId`. |
 | `toolExecution` | Runtime lifecycle enhancement for a normal tool invocation. Payload uses `callId`, `toolName`, `status`, `success`, `durationMs`, `resultPreview`, and `errorMessage`. It is emitted only when the client advertises `capabilities.toolExecutionLifecycle = true`. |
 | `imageGeneration` | Hosted image generation lifecycle item. Payload uses `callId`, `status` (`"inProgress"` / `"completed"` / `"failed"`), optional `revisedPrompt`, optional base64 `result`, `mediaType`, optional `savedPath`, and optional `errorMessage`. Clients should render it independently from ordinary tool aggregation and must not treat `"inProgress"` provider status as failure. |
-| `pluginFunctionCall` | Plugin function payload uses camelCase fields such as `pluginId`, `namespace`, `functionName`, `callId`, `arguments`, `contentItems`, `structuredResult`, `success`, `errorCode`, and `errorMessage`. For plugin-backed tools, including adapter-declared channel tools, this is the only conversation-item projection: the server emits `item/started` -> `item/completed` for `pluginFunctionCall` and does not emit companion `toolCall`/`toolResult` items. Plugin discovery and manifest architecture are defined in [plugin-architecture.md](../extensions/plugin-architecture.md). |
+| `pluginFunctionCall` | Plugin function payload uses camelCase fields such as `pluginId`, `namespace`, `functionName`, `callId`, `arguments`, `contentItems`, `structuredResult`, `success`, `errorCode`, and `errorMessage`. For plugin-backed tools, including adapter-declared channel tools, this is the only conversation-item projection: the server emits `item/started` -> `item/completed` for `pluginFunctionCall` and does not emit companion `toolCall`/`toolResult` items. Plugin discovery and manifest architecture are defined in [plugin-architecture.md](../architecture/plugin-architecture.md). |
 | `dynamicToolCall` | Runtime dynamic tool payload uses camelCase fields such as `namespace`, `toolName`, `callId`, `arguments`, `contentItems`, `structuredResult`, `success`, `errorCode`, and `errorMessage`. Dynamic tools are thread-scoped AppServer client callbacks declared on `thread/start`; the server emits `item/started` -> `item/completed` for `dynamicToolCall` and does not emit companion `toolCall`/`toolResult` items. |
 | `toolResult` | Result payload uses canonical fields such as `callId`, `result`, optional `contentItems`, and `success`; transport serialization preserves nested JSON values losslessly. `result` remains the text fallback and history reconstruction source, while clients may use `contentItems` for richer presentation. |
 | `approvalRequest` | Approval payload uses the canonical fields plus wire enum/string serialization rules from this spec. |
@@ -2351,9 +2351,9 @@ Emitted when a system-level maintenance operation occurs during a Turn's post-pr
 - Auto-compaction is a synchronous pair: `compacting` → one of `compacted` / `compactSkipped` / `compactFailed`.
 - Reactive compaction fires on the Turn's error path when the model rejects a request with `prompt_too_long`, `context_length_exceeded`, or another conservatively classified context-overflow equivalent. The Turn still fails, but `compacting` and its terminal event are emitted first so UIs know the history was repaired before the user retries.
 - Provider stream retry emits `streamError` during agent execution before the retry delay. The event is transient and does not persist a `SystemNotice`. Servers only retry attempts that have not emitted visible item output; after visible assistant/reasoning/tool output, a stream failure remains a normal failed Turn with partial state preserved. Idle-timeout detection must surface retry or failure promptly; cleanup of the failed provider stream is best-effort and must not indefinitely delay the retry notification or terminal failure.
-- Automatic memory consolidation is fire-and-forget after a configured number of successful Turns; it is independent from compaction and the Turn completes without awaiting it. Its start event is turn-scoped `consolidating` and should be displayed as a non-blocking background status. The terminal event is one of `consolidated`, `consolidationSkipped`, or `consolidationFailed`. Manual consolidation emits thread-scoped `consolidating` and remains blocking thread maintenance. See [Memory Consolidation](../core/memory-consolidation.md) for the design contract.
+- Automatic memory consolidation is fire-and-forget after a configured number of successful Turns; it is independent from compaction and the Turn completes without awaiting it. Its start event is turn-scoped `consolidating` and should be displayed as a non-blocking background status. The terminal event is one of `consolidated`, `consolidationSkipped`, or `consolidationFailed`. Manual consolidation emits thread-scoped `consolidating` and remains blocking thread maintenance. See [Memory Consolidation](../features/memory-consolidation.md) for the design contract.
 - Clients that do not need system maintenance status can opt out via `optOutNotificationMethods: ["system/event"]` during `initialize`.
-- On a successful summary-producing `compacted` event (auto, reactive, or manual trigger with `mode = "partial"`), Session Core includes `contextUsage` when available and additionally persists a `SystemNotice` SessionItem (kind = `"compacted"`) into the current or latest completed turn, emitting the normal `item/started` + `item/completed` pair for it. This gives clients a persistent timeline marker that survives thread reload, alongside the transient `system/event` notification used to drive toast/status-line and context-ring UX. Cold-cache tool-result clearing that returns `outcome = "micro"` is transient, updates optimized session/context usage, and must not append a persistent notice. See [Session Core](../core/session-core.md#systemnotice) for the payload schema.
+- On a successful summary-producing `compacted` event (auto, reactive, or manual trigger with `mode = "partial"`), Session Core includes `contextUsage` when available and additionally persists a `SystemNotice` SessionItem (kind = `"compacted"`) into the current or latest completed turn, emitting the normal `item/started` + `item/completed` pair for it. This gives clients a persistent timeline marker that survives thread reload, alongside the transient `system/event` notification used to drive toast/status-line and context-ring UX. Cold-cache tool-result clearing that returns `outcome = "micro"` is transient, updates optimized session/context usage, and must not append a persistent notice. See [Session Core](../architecture/session-core.md#systemnotice) for the payload schema.
 - On a successful `consolidated` event, Session Core additionally persists a `SystemNotice` SessionItem (kind = `"memoryConsolidated"`) into the completed turn and emits the normal `item/started` + `item/completed` pair through the thread event broker. `consolidationSkipped` does not create a persistent notice.
 - Thread fork creation additionally places a persistent `SystemNotice` SessionItem (kind = `"forked"`, `sourceThreadId = <source thread id>`) at the end of the selected copied history in the forked thread. This marker is returned by `thread/fork`, `worktree/createAndFork`, and `thread/read` when turns are included. The `thread/started` broadcast keeps its normal compact shape and does not include turns.
 
@@ -2688,7 +2688,7 @@ Errors follow the standard JSON-RPC 2.0 error response format:
 | `-32054` | Task already exists | `automation/task/create`: a task with the same ID already exists. |
 | `-32055` | Thread binding invalid | `automation/task/updateBinding` / `automation/task/create`: the target `threadId` does not exist or is archived. |
 
-Automation task methods are defined in full in [automations-lifecycle.md §13](../runtime/automations-lifecycle.md). Summary of the v1 wire surface:
+Automation task methods are defined in full in [automations-lifecycle.md §13](../features/automations-lifecycle.md). Summary of the v1 wire surface:
 
 - `automation/task/list`, `automation/task/read`, `automation/task/create`, `automation/task/updateBinding`, `automation/task/discardWorktree`, `automation/task/delete` — CRUD, binding updates, and managed worktree cleanup for local automation tasks. Task-level review and cancel endpoints are not part of this surface.
 - `automation/task/updateBinding` `{ taskId, threadBinding?: { threadId, mode } | null }` → `{ task }` — rewrites only the `thread_binding` block on disk; pass `null` to unbind.
@@ -2699,7 +2699,7 @@ Automation task methods are defined in full in [automations-lifecycle.md §13](.
 - User template disk layout: `<CraftPath>/automations/templates/<id>/template.md` (overridable via `Automations.UserTemplatesRoot`). The file is YAML front matter (`id`, `title`, `description`, `icon`, `category`, `default_schedule`, `default_workspace_mode`, `default_approval_policy`, `default_agent_profile_id`, `needs_thread_binding`, `default_title`, `default_description`, `created_at`, `updated_at`) followed by the complete `workflow.md` body that is copied into new tasks applying the template.
 - `AutomationTaskWire.status` is one of `pending`, `running`, `completed`, or `failed`, and carries `workspaceMode` (`project` or `worktree`), nullable `worktree` (`{ branchName, path }`), optional `schedule` (mirrors `CronSchedule`), `threadBinding` (`{ threadId, mode: "run-in-thread" }`), and `nextRunAt` (ISO-8601 UTC). `worktree` is null before provisioning, for project-mode or bound tasks, and when worktree-mode execution falls back to the legacy task workspace.
 - `automation/task/create` accepts `schedule`, `workspaceMode`, `threadBinding`, `templateId`, and `agentProfileId` in addition to the existing fields. `workspaceMode` accepts canonical `project` or `worktree`; legacy `isolated` input is normalized to `worktree`. When both `templateId` and explicit fields are supplied, the explicit fields win.
-- `agentProfileId` (on `automation/task/create`, persisted as `agent_profile_id` in `task.md`) binds the task to an Agent Profile that governs the agent's capabilities (tools, MCP, skills, model, instructions). The automation still force-overrides its operational fields (auto-approve, task directory, approval-outside-workspace) on top of the resolved profile, and always injects its `CompleteLocalTask` completion tool — kept reachable even under a restrictive profile allow-list — so the run can finish. The profile's capability policy is the source of truth for general tools; the default source tool profile is not merged on top. Only the id is stored; the profile is resolved at each dispatch (latest definition wins). A bound profile that no longer resolves fails the run. See [automations-lifecycle.md §Agent Profile Binding](../runtime/automations-lifecycle.md#agent-profile-binding).
+- `agentProfileId` (on `automation/task/create`, persisted as `agent_profile_id` in `task.md`) binds the task to an Agent Profile that governs the agent's capabilities (tools, MCP, skills, model, instructions). The automation still force-overrides its operational fields (auto-approve, task directory, approval-outside-workspace) on top of the resolved profile, and always injects its `CompleteLocalTask` completion tool — kept reachable even under a restrictive profile allow-list — so the run can finish. The profile's capability policy is the source of truth for general tools; the default source tool profile is not merged on top. Only the id is stored; the profile is resolved at each dispatch (latest definition wins). A bound profile that no longer resolves fails the run. See [automations-lifecycle.md §Agent Profile Binding](../features/automations-lifecycle.md#agent-profile-binding).
 
 ### 8.4 Turn-Level Errors
 
@@ -3174,7 +3174,7 @@ The ACP (Agent Client Protocol) integration allows the agent's tools to access t
 
 The browser integrations expose agent tools through a **server -> client** Node REPL backend. The server only sends these requests to a thread-bound client that declared both `capabilities.nodeRepl` and `capabilities.browserUse` during `initialize`.
 
-Clients may back the runtime with Desktop embedded browser tabs, a Chrome extension connected through Native Messaging, or another compatible backend declared in `capabilities.browserUse.backends`. Backend-specific setup and user-consent rules are owned by the contributing plugin skill, but all backends share the same `ext/nodeRepl/*` transport. Desktop in-app browser lifecycle, transport, diagnostics, and browser-use compatibility are defined in [Desktop In-App Browser Runtime](../runtime/desktop-inapp-browser.md). Chrome-specific browser session lifecycle, tab ownership, timeout, diagnostics, and migration goals are defined in [Chrome Browser Runtime](../runtime/chrome-browser-runtime.md).
+Clients may back the runtime with Desktop embedded browser tabs, a Chrome extension connected through Native Messaging, or another compatible backend declared in `capabilities.browserUse.backends`. Backend-specific setup and user-consent rules are owned by the contributing plugin skill, but all backends share the same `ext/nodeRepl/*` transport. Desktop in-app browser lifecycle, transport, diagnostics, and browser-use compatibility are defined in [Desktop In-App Browser Runtime](../features/desktop-inapp-browser.md). Chrome-specific browser session lifecycle, tab ownership, timeout, diagnostics, and migration goals are defined in [Chrome Browser Runtime](../features/chrome-browser-runtime.md).
 
 #### `ext/nodeRepl/evaluate`
 
@@ -3187,7 +3187,7 @@ Clients may back the runtime with Desktop embedded browser tabs, a Chrome extens
 | `threadId` | string | yes | Thread ID whose Desktop runtime owns the persistent REPL. |
 | `turnId` | string | no | Current turn ID when the server can resolve one from tool execution scope. |
 | `evaluationId` | string | yes | Unique ID for this evaluation, used for cancellation and late-result suppression. |
-| `browserSession` | object | no | Browser session identity forwarded to embedded browser and Chrome backends. See [Desktop In-App Browser Runtime](../runtime/desktop-inapp-browser.md) and [Chrome Browser Runtime](../runtime/chrome-browser-runtime.md). |
+| `browserSession` | object | no | Browser session identity forwarded to embedded browser and Chrome backends. See [Desktop In-App Browser Runtime](../features/desktop-inapp-browser.md) and [Chrome Browser Runtime](../features/chrome-browser-runtime.md). |
 | `code` | string | yes | JavaScript source to evaluate in the thread-bound persistent Node REPL. |
 | `timeoutMs` | number | no | Requested overall timeout in milliseconds. Client may clamp to its supported range. |
 
@@ -4291,7 +4291,7 @@ On success, the server removes the skill from `Skills.DisabledSkills`, deletes a
 
 ### 18.9 Plugin Management Methods
 
-Clients must check `capabilities.pluginManagement` before calling any `plugin/*` method. These methods expose local plugin discovery and workspace enablement state for Desktop and other UI clients. Plugin architecture, manifest fields, plugin-bundled MCP servers, and plugin-contained skills are defined in [Plugin Architecture](../extensions/plugin-architecture.md).
+Clients must check `capabilities.pluginManagement` before calling any `plugin/*` method. These methods expose local plugin discovery and workspace enablement state for Desktop and other UI clients. Plugin architecture, manifest fields, plugin-bundled MCP servers, and plugin-contained skills are defined in [Plugin Architecture](../architecture/plugin-architecture.md).
 
 #### `plugin/list`
 
@@ -5234,7 +5234,7 @@ Server notification emitted when one server's runtime status changes.
 
 ### 22A.1 Scope
 
-These methods expose lifecycle hook metadata discovered from user config, workspace config, and enabled plugins. They do not edit hook commands. The command-bearing files remain the source of truth; AppServer only persists per-user state such as enablement and trust. Runtime semantics are defined by [Lifecycle Hooks](../core/lifecycle-hooks.md).
+These methods expose lifecycle hook metadata discovered from user config, workspace config, and enabled plugins. They do not edit hook commands. The command-bearing files remain the source of truth; AppServer only persists per-user state such as enablement and trust. Runtime semantics are defined by [Lifecycle Hooks](../features/lifecycle-hooks.md).
 
 Clients must check `capabilities.hooksManagement` before calling `hooks/list`, `hooks/setState`, or `hooks/trustPlugin`. If absent or `false`, the server returns `-32601` (Method not found).
 

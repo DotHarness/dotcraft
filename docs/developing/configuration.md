@@ -414,7 +414,7 @@ DotCraft emits both camelCase and snake_case field names. JSON stdout can return
 `hookSpecificOutput.additionalContext` to inject model-visible context, or
 `decision: "block"` plus `reason` to block supported events or request a rewake
 follow-up from an `asyncRewake` hook. The complete engineering contract lives in
-`specs/core/lifecycle-hooks.md`.
+`specs/features/lifecycle-hooks.md`.
 
 Exit code semantics:
 

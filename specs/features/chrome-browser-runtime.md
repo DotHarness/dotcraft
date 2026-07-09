@@ -5,7 +5,7 @@
 | **Version** | 1.0.0 |
 | **Status** | Living |
 | **Date** | 2026-05-11 |
-| **Parent Specs** | [AppServer Protocol](../protocols/appserver-protocol.md), [Plugin Architecture](../extensions/plugin-architecture.md), [Desktop Client](../clients/desktop-client.md) |
+| **Parent Specs** | [AppServer Protocol](../protocols/appserver-protocol.md), [Plugin Architecture](../architecture/plugin-architecture.md), [Desktop Client](../clients/desktop-client.md) |
 
 Purpose: define the behavior contract for DotCraft's Chrome-backed browser automation runtime. Browser work is thread-bound, session-scoped, cancellable, recoverable, and safe to diagnose without exposing Chrome profile data.
 

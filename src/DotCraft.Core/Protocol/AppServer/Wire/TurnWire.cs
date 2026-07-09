@@ -49,7 +49,7 @@ public sealed class TurnStartParams
     /// <summary>
     /// True when this submission establishes the thread goal (the objective sent "as a goal").
     /// Persisted as <c>sentAsGoal</c> on the resulting user-message item so clients can render
-    /// the "sent as goal" badge deterministically (see specs/core/goal-design.md §7.5).
+    /// the "sent as goal" badge deterministically (see specs/features/goal.md §7.5).
     /// </summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public bool? SentAsGoal { get; set; }

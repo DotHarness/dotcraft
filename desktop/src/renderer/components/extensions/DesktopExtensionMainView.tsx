@@ -241,7 +241,7 @@ function createDesktopExtensionHost(
         // Scoped write transport: only extensions that declared surfaceWriteScopes
         // may mutate. Loopback origin is enforced in the main process; per-request
         // authorization is enforced by the app's surface. See
-        // specs/extensions/plugin-architecture.md.
+        // specs/architecture/plugin-architecture.md.
         if ((entry.extension.surfaceWriteScopes ?? []).length === 0) {
           return Promise.reject(new Error(`Desktop extension '${entry.extension.id}' did not declare surfaceWriteScopes and cannot write.`))
         }

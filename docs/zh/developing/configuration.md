@@ -413,7 +413,7 @@ Turn 相关 Hook stdin 通常包含：
 DotCraft 会同时输出 camelCase 和 snake_case 字段。JSON stdout 可以返回
 `hookSpecificOutput.additionalContext` 注入模型可见上下文，也可以返回
 `decision: "block"` 和 `reason` 来阻塞支持阻塞的事件，或让 `asyncRewake`
-hook 入队后续反馈。完整工程协议位于 `specs/core/lifecycle-hooks.md`。
+hook 入队后续反馈。完整工程协议位于 `specs/features/lifecycle-hooks.md`。
 
 退出码语义：
 

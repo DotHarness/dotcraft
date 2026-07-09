@@ -2,7 +2,7 @@
  * Agent Builder — conversational session lifecycle.
  *
  * Drives the hidden "builder thread" that backs the conversational profile-builder
- * (specs/agents/agent-profiles.md §12A). Because the renderer's conversation view and Composer are
+ * (specs/features/agent-profiles.md §12A). Because the renderer's conversation view and Composer are
  * singletons bound to the one active thread, the builder thread becomes the app's active thread while
  * the chat pane is open; the previous active thread is restored on close. The hook also listens to the
  * raw notification stream and surfaces each builder tool's result (the fine-grained change descriptor)

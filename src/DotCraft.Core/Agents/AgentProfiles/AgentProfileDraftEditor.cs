@@ -2,7 +2,7 @@ namespace DotCraft.Agents;
 
 /// <summary>
 /// The conversational builder's working-draft shape. Mirrors the Agent Profile frontmatter
-/// (see specs/agents/agent-profiles.md) and the renderer's <c>ProfileDraft</c>
+/// (see specs/features/agent-profiles.md) and the renderer's <c>ProfileDraft</c>
 /// (desktop/src/renderer/components/agents/agentProfileDraft.ts) field-for-field, so a draft edited
 /// by the builder tools round-trips through both the renderer's parser and the real
 /// <see cref="AgentProfileStore"/> YAML parser. Operational <c>mode</c> is intentionally absent —

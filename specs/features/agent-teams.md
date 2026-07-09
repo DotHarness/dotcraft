@@ -2,7 +2,7 @@
 
 | Field | Value |
 |-------|-------|
-| **Related Specs** | [Prompt Composition](prompt-composition.md), [Agent Profiles](agent-profiles.md), [App Binding](../protocols/app-binding.md), [Session Core](../core/session-core.md), [AppServer Protocol](../protocols/appserver-protocol.md), [Desktop Client](../clients/desktop-client.md), [SDK](../sdk/sdk.md) |
+| **Related Specs** | [Prompt Composition](../agents/prompt-composition.md), [Agent Profiles](agent-profiles.md), [App Binding](../protocols/app-binding.md), [Session Core](../architecture/session-core.md), [AppServer Protocol](../protocols/appserver-protocol.md), [Desktop Client](../clients/desktop-client.md), [SDK](../sdk/sdk.md) |
 
 Purpose: define Agent Teams as an App Binding validation scenario and first-party managed app runtime without making teams a DotCraft Core entity.
 

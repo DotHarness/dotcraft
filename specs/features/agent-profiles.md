@@ -5,7 +5,7 @@
 | **Version** | 0.2.0 |
 | **Status** | Draft |
 | **Date** | 2026-06-14 |
-| **Related Specs** | [Prompt Composition](prompt-composition.md), [Agent Teams](agent-teams.md), [Session Core](../core/session-core.md), [AppServer Protocol](../protocols/appserver-protocol.md), [App Binding](../protocols/app-binding.md) |
+| **Related Specs** | [Prompt Composition](../agents/prompt-composition.md), [Agent Teams](agent-teams.md), [Session Core](../architecture/session-core.md), [AppServer Protocol](../protocols/appserver-protocol.md), [App Binding](../protocols/app-binding.md) |
 
 Purpose: define Agent Profiles as reusable agent configuration templates. A profile gives a thread a role, default runtime preferences, and enforceable capability policy without replacing DotCraft's generated base instructions.
 
@@ -168,7 +168,7 @@ Policy semantics:
 
 ## 7. Prompt Composition
 
-Agent Profiles use the role-instruction layer described in [Prompt Composition](prompt-composition.md).
+Agent Profiles use the role-instruction layer described in [Prompt Composition](../agents/prompt-composition.md).
 
 Rules:
 

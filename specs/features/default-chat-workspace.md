@@ -5,7 +5,7 @@
 | **Version** | 0.1.0 |
 | **Status** | Draft |
 | **Date** | 2026-06-23 |
-| **Related Specs** | [Hub Architecture](hub-architecture.md), [Session Core](../core/session-core.md), [AppServer Protocol](../protocols/appserver-protocol.md), [Unified SDK](../sdk/sdk.md) |
+| **Related Specs** | [Hub Architecture](../architecture/hub-architecture.md), [Session Core](../architecture/session-core.md), [AppServer Protocol](../protocols/appserver-protocol.md), [Unified SDK](../sdk/sdk.md) |
 
 ## 1. Overview
 

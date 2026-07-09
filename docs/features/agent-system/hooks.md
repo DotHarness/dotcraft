@@ -46,4 +46,4 @@ Hooks are powerful because they run local commands. Start with hooks that only o
 - [Configuration Reference](../../developing/configuration#automations-goals-and-hooks) — hook file shape, events, state, and examples
 - [Plugins & Tools](./plugins-tools) — plugins that can ship reusable hooks
 - [Security & Sandbox](../self-hosted/security) — guardrails for file, shell, and sandbox behavior
-- [Lifecycle Hooks Specification](https://github.com/DotHarness/dotcraft/blob/master/specs/core/lifecycle-hooks.md) — engineering contract for hook implementers
+- [Lifecycle Hooks Specification](https://github.com/DotHarness/dotcraft/blob/master/specs/features/lifecycle-hooks.md) — engineering contract for hook implementers

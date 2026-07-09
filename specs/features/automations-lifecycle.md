@@ -5,7 +5,7 @@
 | **Version** | 0.1.0 |
 | **Status** | Living |
 | **Date** | 2026-05-18 |
-| **Related Specs** | [AppServer Protocol](../protocols/appserver-protocol.md), [Session Core](../core/session-core.md) |
+| **Related Specs** | [AppServer Protocol](../protocols/appserver-protocol.md), [Session Core](../architecture/session-core.md) |
 
 DotCraft native Automations covers local tasks only. It watches local task files in the current workspace, dispatches Agents for runnable tasks, preserves scheduling and thread binding, and records completion through `CompleteLocalTask`.
 

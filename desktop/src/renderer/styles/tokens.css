@@ -1,5 +1,5 @@
 /* DotCraft Design Tokens */
-/* Based on specs/clients/DESIGN.md */
+/* Based on specs/architecture/DESIGN.md */
 
 @import "tailwindcss";
 
@@ -190,7 +190,7 @@
   /* Floating overlay surface: solid + opaque so menus, popovers, pickers, toasts,
      and the workspace switcher render identically over any backdrop. A translucent
      surface tints with whatever sits behind it, which made submenus and the
-     channels menu look inconsistent. See specs/clients/DESIGN.md. */
+     channels menu look inconsistent. See specs/architecture/DESIGN.md. */
   --glass-surface-strong: var(--bg-elevated);
   --glass-surface-soft: color-mix(in srgb, var(--bg-secondary) 58%, transparent);
   --glass-border: color-mix(in srgb, var(--text-primary) 10%, transparent);
@@ -216,7 +216,7 @@
      on the card's left edge — brightest at center, fading to transparent toward
      the top and bottom. Painted only while the divider is hovered/dragged; the
      rest-state edge stays the plain --main-surface-left-border hairline that the
-     frame shadow already draws. See ThreePanel and specs/clients/DESIGN.md. */
+     frame shadow already draws. See ThreePanel and specs/architecture/DESIGN.md. */
   --main-surface-edge-glow-width: 2px;
   --main-surface-edge-glow:
     linear-gradient(

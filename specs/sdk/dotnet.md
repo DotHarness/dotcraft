@@ -5,7 +5,7 @@
 | **Version** | 0.1.0 |
 | **Status** | Living |
 | **Date** | 2026-05-19 |
-| **Related Specs** | [Unified SDK Specification](sdk.md), [AppServer Protocol](../protocols/appserver-protocol.md), [Hub Architecture](../runtime/hub-architecture.md), [App Binding](../protocols/app-binding.md), [Session Core](../core/session-core.md), [TypeScript SDK Binding](typescript.md), [Python SDK Binding](python.md) |
+| **Related Specs** | [Unified SDK Specification](sdk.md), [AppServer Protocol](../protocols/appserver-protocol.md), [Hub Architecture](../architecture/hub-architecture.md), [App Binding](../protocols/app-binding.md), [Session Core](../architecture/session-core.md), [TypeScript SDK Binding](typescript.md), [Python SDK Binding](python.md) |
 
 Purpose: Define the .NET binding, public API shape, AppServer method coverage, App Binding helper surface, testing expectations, and compatibility strategy for `DotCraft.Sdk`.
 
@@ -64,9 +64,9 @@ It defines:
 This specification does not define:
 
 - The AppServer JSON-RPC wire protocol. That contract is defined by [AppServer Protocol](../protocols/appserver-protocol.md).
-- Hub HTTP endpoint semantics. Those are defined by [Hub Architecture](../runtime/hub-architecture.md).
+- Hub HTTP endpoint semantics. Those are defined by [Hub Architecture](../architecture/hub-architecture.md).
 - App Binding product semantics. Those are defined by [App Binding](../protocols/app-binding.md).
-- Session persistence, turn lifecycle semantics, item payload semantics, or agent execution internals. Those are defined by [Session Core](../core/session-core.md).
+- Session persistence, turn lifecycle semantics, item payload semantics, or agent execution internals. Those are defined by [Session Core](../architecture/session-core.md).
 - TypeScript channel module behavior or the TypeScript SDK package contract. Those are defined by [TypeScript SDK](typescript.md).
 - A public NuGet publishing process. The SDK may remain source-referenced until a publishing phase is approved.
 

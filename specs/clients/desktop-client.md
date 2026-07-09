@@ -6,7 +6,7 @@
 | **Status** | Living |
 | **Date** | 2026-06-07 |
 | **Parent Spec** | [AppServer Protocol](../protocols/appserver-protocol.md) |
-| **Related Specs** | [Plugin Architecture](../extensions/plugin-architecture.md), [Tool Result Presentation](../protocols/tool-result-presentation.md), [Goal Design](../core/goal-design.md), [Remote Server Management](../runtime/remote-server-management.md), [Desktop DESIGN.md](DESIGN.md) |
+| **Related Specs** | [Plugin Architecture](../architecture/plugin-architecture.md), [Tool Result Presentation](../protocols/tool-result-presentation.md), [Goal Design](../features/goal.md), [Remote Server Management](../features/remote-server-management.md), [Desktop DESIGN.md](../architecture/DESIGN.md) |
 
 Purpose: Define the stable user-experience behavior of **DotCraft Desktop** as a protocol client for DotCraft AppServer. This document specifies user-visible flows, interaction rules, state transitions, and recovery behavior. It does not define frontend implementation details, visual design, or framework choices.
 
@@ -56,9 +56,9 @@ Purpose: Define the stable user-experience behavior of **DotCraft Desktop** as a
 ### 1.2 What This Spec Does Not Define
 
 - Wire protocol payloads, transport rules, or server semantics already defined in [appserver-protocol.md](../protocols/appserver-protocol.md).
-- TypeScript module contract details (manifest schema, package exports, launcher contract, and conformance rules) defined in [plugin-architecture.md](../extensions/plugin-architecture.md).
+- TypeScript module contract details (manifest schema, package exports, launcher contract, and conformance rules) defined in [plugin-architecture.md](../architecture/plugin-architecture.md).
 - Frontend frameworks, component trees, IPC method signatures, process architecture, or state-store structure.
-- Layout geometry, colors, typography, icons, spacing, animation, or other visual design details. Stable Desktop visual decision rules are defined separately in [Desktop DESIGN.md](DESIGN.md).
+- Layout geometry, colors, typography, icons, spacing, animation, or other visual design details. Stable Desktop visual decision rules are defined separately in [Desktop DESIGN.md](../architecture/DESIGN.md).
 - Platform-specific implementation APIs for notifications, menus, file search, or file persistence.
 - Arbitrary third-party UI code execution for tool results.
 - Untrusted third-party plugin sandboxing. Desktop extension v1 is limited to installed, trusted plugins.
@@ -103,7 +103,7 @@ Purpose: Define the stable user-experience behavior of **DotCraft Desktop** as a
 - Remote connection changes are applied with test-and-connect semantics: Desktop validates the draft `ws://` or `wss://` URL and token, completes a WebSocket `initialize` probe against that draft endpoint with a bounded timeout, then persists the settings and switches to the new connection only after the probe succeeds.
 - If the remote probe fails, Desktop leaves the persisted connection settings unchanged so the next launch is not trapped behind a newly saved bad endpoint.
 - When Desktop is launched with an explicit transient `--remote` endpoint, persistent connection-mode switching is unavailable. Settings must explain that the launch argument owns the current connection for that session.
-- Remote connections opened through the Servers surface (see [§6.10](#610-remote-servers) and [remote-server-management.md](../runtime/remote-server-management.md)) are a tunnel-fronted special case of Remote mode: Desktop connects to a `ws://127.0.0.1:<port>/ws` local tunnel endpoint and reuses this same test-and-connect path. Remote AppServer lifecycle remains owned by the remote environment; Desktop manages only the SSH tunnel and the deployment-level container lifecycle, never a remote AppServer process restart.
+- Remote connections opened through the Servers surface (see [§6.10](#610-remote-servers) and [remote-server-management.md](../features/remote-server-management.md)) are a tunnel-fronted special case of Remote mode: Desktop connects to a `ws://127.0.0.1:<port>/ws` local tunnel endpoint and reuses this same test-and-connect path. Remote AppServer lifecycle remains owned by the remote environment; Desktop manages only the SSH tunnel and the deployment-level container lifecycle, never a remote AppServer process restart.
 - A Remote-mode session is represented as a distinct foreground project identity, separate from the local workspace that initiated the connection. Servers-managed, manual URL, and transient command-line remote sessions each keep local threads, pinned state, and welcome drafts isolated from the remote foreground project.
 - Connecting to a remote project records the previous local foreground workspace when one exists. Disconnecting the remote project or selecting a local project closes the remote client/tunnel and returns Desktop to local mode, restoring the previous local foreground when possible.
 
@@ -478,7 +478,7 @@ Worktree execution:
 
 ### 5.11 Manage Thread Goal
 
-Desktop goal behavior is defined by [Goal Design §11.7](../core/goal-design.md#117-desktop-ux-contract).
+Desktop goal behavior is defined by [Goal Design §11.7](../features/goal.md#117-desktop-ux-contract).
 
 At the Desktop UX level:
 
@@ -623,7 +623,7 @@ The Settings surface remains within Desktop scope as a workflow contract rather 
 
 Required behavior:
 
-- Desktop follows the three-tier configuration model defined in [settings-reload-ux-m3.md](settings-reload-ux-m3.md): live-apply fields, subsystem-restart fields, and process-restart fields.
+- Desktop follows the three-tier configuration model: live-apply fields, subsystem-restart fields, and process-restart fields.
 - When `providerManagement` is available, Desktop exposes provider-aware model settings:
   - personal providers can be created, edited, tested, and deleted from Settings;
   - `openai` is a normal explicit provider id and can be created, selected, edited, and deleted like other providers when it is not the active workspace selection;
@@ -676,7 +676,7 @@ This section defines the user-visible workflow for Desktop-managed TypeScript ch
 
 - Module configuration is workspace-scoped and stored in `.craft/<configFileName>`.
 - Desktop must allow users to view and update module configuration values required for runtime startup.
-- Configuration key semantics and descriptor contracts remain defined by [plugin-architecture.md](../extensions/plugin-architecture.md).
+- Configuration key semantics and descriptor contracts remain defined by [plugin-architecture.md](../architecture/plugin-architecture.md).
 - Fields intended for interactive setup only are not treated as ordinary manual-entry fields in the default config workflow.
 
 #### 6.8.3 Enable, Disable, and Runtime Expectations
@@ -743,7 +743,7 @@ Desktop owns a versioned What's New surface for release highlights. It is a clie
 
 ### 6.10 Remote Servers
 
-Desktop owns a **Servers** surface for managing remote DotCraft Docker stacks over SSH. The full architecture, settings schema, API contract, SSH/Compose operations, and security model are defined in [remote-server-management.md](../runtime/remote-server-management.md); this section states the Desktop UX workflow contract.
+Desktop owns a **Servers** surface for managing remote DotCraft Docker stacks over SSH. The full architecture, settings schema, API contract, SSH/Compose operations, and security model are defined in [remote-server-management.md](../features/remote-server-management.md); this section states the Desktop UX workflow contract.
 
 - The Servers surface is a dedicated Settings tab, separate from the Connections group, with **list → detail drill-in** navigation: a list of saved servers, a per-server detail view, and a back path. No new top-level navigation is added.
 - A **server (host)** is an SSH target; a **stack** is one DotCraft Compose deployment on that host. One host has many stacks. Host SSH-reachability and the active Desktop session are distinct signals and must not be conflated; reachability is shown per host, and an "active" marker indicates the host whose stack is the current session.
@@ -755,7 +755,7 @@ Desktop owns a **Servers** surface for managing remote DotCraft Docker stacks ov
 - "Open in Desktop" reads the remote `workspace/.craft/appserver.token`, opens a local SSH tunnel, and connects through the existing remote-mode test-and-connect path (§3.1.1) using a `ws://127.0.0.1:<port>/ws` URL. Desktop must not expose remote AppServer restart; stack lifecycle (start/stop/restart) is a deployment action distinct from AppServer process restart.
 - A Servers-opened stack appears in the Projects rail as a distinct remote foreground project. Its thread list, pinned threads, and welcome draft are isolated from the local workspace used before the remote connection. Disconnecting the remote project closes the tunnel/client and returns Desktop to local mode when a local workspace is available.
 - There is one source of truth for the active connection. While a Servers stack is the active session, the Connections group shows a read-only "Connected via Servers ▸ &lt;host&gt; / &lt;stack&gt;" banner linking back to Servers instead of an editable raw URL; the raw URL/token form remains for the manual/advanced case.
-- The visual treatment follows [Desktop DESIGN.md](DESIGN.md): neutral-first surfaces, semantic color only for state and risk, and the neutral inverted primary for Open in Desktop.
+- The visual treatment follows [Desktop DESIGN.md](../architecture/DESIGN.md): neutral-first surfaces, semantic color only for state and risk, and the neutral inverted primary for Open in Desktop.
 
 ---
 
@@ -875,7 +875,7 @@ User input request delivery follows the same reliability expectation: if the dia
 
 - When Desktop declares the browser capability, embedded browser tabs may be controlled by the active agent through the thread-bound browser runtime.
 - Desktop must declare `browserUse.backend` and may also declare `browserUse.backends` when it supports more than one browser automation backend. `desktop-iab` identifies the embedded browser backend; `chrome-extension` identifies the user's Chrome backend.
-- The Desktop embedded browser runtime contract is defined in [Desktop In-App Browser Runtime](../runtime/desktop-inapp-browser.md).
+- The Desktop embedded browser runtime contract is defined in [Desktop In-App Browser Runtime](../features/desktop-inapp-browser.md).
 - Agent-controlled browser tabs remain regular viewer tabs: opening a browser tab may focus it on first open, but subsequent automation updates must not steal focus from the user's current thread or active tab.
 - While an agent is actively operating a browser tab, Desktop must surface an automation state on the tab chrome, including the session name when available and a concise last-action hint when useful.
 - Coordinate and locator-driven browser actions should render a virtual cursor inside the page whenever the page can accept the injected overlay. Failure to render the overlay must not block the underlying browser action.

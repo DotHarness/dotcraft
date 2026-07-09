@@ -5,7 +5,7 @@
 | **Version** | 0.3.0 |
 | **Status** | Living |
 | **Date** | 2026-05-18 |
-| **Related Specs** | [AppServer Protocol](../protocols/appserver-protocol.md), [Default Chat Workspace](default-chat-workspace.md), [Desktop Client](../clients/desktop-client.md), [TUI Client](../clients/tui-client.md) |
+| **Related Specs** | [AppServer Protocol](../protocols/appserver-protocol.md), [Default Chat Workspace](../features/default-chat-workspace.md), [Desktop Client](../clients/desktop-client.md), [TUI Client](../clients/tui-client.md) |
 
 Purpose: Define DotCraft Hub as a local coordinator that discovers, starts, reuses, monitors, and stops workspace-bound AppServer processes without changing the AppServer Protocol or replacing DotCraft's per-workspace runtime model.
 

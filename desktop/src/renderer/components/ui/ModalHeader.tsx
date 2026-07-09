@@ -25,7 +25,7 @@ interface ModalHeaderProps {
  *
  * This is the single source of truth for the "icon badge + title" lockup so
  * every dialog that carries an identity icon reads as one family. See the
- * Dialog Headers section in specs/clients/DESIGN.md.
+ * Dialog Headers section in specs/architecture/DESIGN.md.
  */
 export function ModalHeader({
   icon,

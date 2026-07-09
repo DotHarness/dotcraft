@@ -1,7 +1,7 @@
 /**
  * Agent Builder — live draft synchronization from the conversational builder.
  *
- * The conversational profile-builder agent (specs/agents/agent-profiles.md §12A) edits a profile by
+ * The conversational profile-builder agent (specs/features/agent-profiles.md §12A) edits a profile by
  * calling fine-grained tools whose results are compact change descriptors, NOT the whole document:
  *   { ok: true, field: "tools.allow", change: { op: "add", values: [...], rejected: [...], list: [...] } }
  * This module reads one such result off the streamed tool-call output and applies it to the local

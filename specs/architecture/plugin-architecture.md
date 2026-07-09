@@ -5,7 +5,7 @@
 | **Version** | 1.3.0 |
 | **Status** | Living |
 | **Date** | 2026-05-19 |
-| **Related Specs** | [AppServer Protocol](../protocols/appserver-protocol.md), [Plugin Registry](plugin-registry.md), [Tool Result Presentation](../protocols/tool-result-presentation.md), [Session Core](../core/session-core.md), [Lifecycle Hooks](../core/lifecycle-hooks.md), [External Channel Adapter](../protocols/external-channel-adapter.md), [Desktop Client](../clients/desktop-client.md) |
+| **Related Specs** | [AppServer Protocol](../protocols/appserver-protocol.md), [Plugin Registry](plugin-registry.md), [Tool Result Presentation](../protocols/tool-result-presentation.md), [Session Core](session-core.md), [Lifecycle Hooks](../features/lifecycle-hooks.md), [External Channel Adapter](../protocols/external-channel-adapter.md), [Desktop Client](../clients/desktop-client.md) |
 
 Purpose: define the durable architecture for DotCraft plugins, including plugin-contained skills, local plugin manifests, plugin-bundled MCP servers, client-facing plugin metadata, and the TypeScript external channel module contract.
 
@@ -73,7 +73,7 @@ Effective MCP merge rules:
 - `"hooks": { "hooks": { ... } }`
 - `"hooks": [{ "hooks": { ... } }]`
 
-If `hooks` is omitted, DotCraft automatically discovers `./hooks/hooks.json` under the plugin root. If that file is absent, DotCraft also checks a top-level `./hooks.json` for compatibility with imported plugin ecosystems. Explicit `hooks` declarations always take precedence and suppress default discovery. Hook paths use the same manifest-relative path rules as other plugin paths: they must start with `./`, must not escape the plugin root, and must resolve inside the plugin directory. Plugin hook files reuse the workspace `.craft/hooks.json` shape defined by [Lifecycle Hooks](../core/lifecycle-hooks.md). DotCraft executes command hooks and reports unsupported reserved handler types through plugin diagnostics.
+If `hooks` is omitted, DotCraft automatically discovers `./hooks/hooks.json` under the plugin root. If that file is absent, DotCraft also checks a top-level `./hooks.json` for compatibility with imported plugin ecosystems. Explicit `hooks` declarations always take precedence and suppress default discovery. Hook paths use the same manifest-relative path rules as other plugin paths: they must start with `./`, must not escape the plugin root, and must resolve inside the plugin directory. Plugin hook files reuse the workspace `.craft/hooks.json` shape defined by [Lifecycle Hooks](../features/lifecycle-hooks.md). DotCraft executes command hooks and reports unsupported reserved handler types through plugin diagnostics.
 
 Plugin hooks are loaded only from installed and enabled plugins. They are listed by `hooks/list` with source `plugin`, and summarized in `plugin/list` / `plugin/view` as `{ key, eventName }`. Commands run from the workspace root, like config hooks. DotCraft expands `${DOTCRAFT_PLUGIN_ROOT}` and `${DOTCRAFT_PLUGIN_DATA}` in plugin hook commands and injects the same values as environment variables. Plugin data uses the LSP data location: `%LocalAppData%/DotCraft/plugins/<pluginId>/data` on Windows, with platform-equivalent app data paths elsewhere. Compatibility aliases may be injected for imported plugin ecosystems, but DotCraft-authored plugins should use the `DOTCRAFT_*` variables.
 
@@ -244,7 +244,7 @@ When Chrome is installed and enabled, DotCraft may expose the server-owned `Node
 
 Chrome setup detection must not inspect cookies, passwords, session stores, local storage, or browsing databases. The development extension uses a fixed manifest key for deterministic unpacked extension IDs; production distribution must replace it with the official Chrome Web Store, private, unlisted, or enterprise-managed extension ID.
 
-The long-term Chrome automation runtime contract is defined in [Chrome Browser Runtime](../runtime/chrome-browser-runtime.md). Plugin architecture owns contribution and installation semantics; Chrome Browser Runtime owns browser session lifecycle, tab ownership, command timeout, diagnostics, and runtime migration goals.
+The long-term Chrome automation runtime contract is defined in [Chrome Browser Runtime](../features/chrome-browser-runtime.md). Plugin architecture owns contribution and installation semantics; Chrome Browser Runtime owns browser session lifecycle, tab ownership, command timeout, diagnostics, and runtime migration goals.
 
 ### External Integration Registry Plugins
 
@@ -341,6 +341,6 @@ Workspace-level MCP configuration continues to use `McpServers`. Plugin-bundled 
 ## 9. Protocol Boundaries
 
 - AppServer JSON-RPC methods and capability negotiation are defined in [AppServer Protocol](../protocols/appserver-protocol.md).
-- Session item payloads, including `pluginFunctionCall`, are defined in [Session Core](../core/session-core.md).
+- Session item payloads, including `pluginFunctionCall`, are defined in [Session Core](session-core.md).
 - External channel adapter handshake, delivery, and `ext/channel/*` requests are defined in [External Channel Adapter](../protocols/external-channel-adapter.md).
 - Desktop user-facing module workflows are defined in [Desktop Client](../clients/desktop-client.md).

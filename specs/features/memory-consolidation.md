@@ -5,7 +5,7 @@
 | **Version** | 0.1.1 |
 | **Status** | Living |
 | **Date** | 2026-05-28 |
-| **Parent Specs** | [Session Core](session-core.md), [AppServer Protocol](../protocols/appserver-protocol.md) |
+| **Parent Specs** | [Session Core](../architecture/session-core.md), [AppServer Protocol](../protocols/appserver-protocol.md) |
 
 Purpose: Define DotCraft's long-term memory consolidation flow. Memory consolidation is an independent persistence workflow for durable user and workspace knowledge. It is not a context compaction mechanism and does not depend on `CompactionPipeline`.
 

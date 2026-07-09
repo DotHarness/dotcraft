@@ -1,36 +1,34 @@
 # DotCraft Specifications
 
-This directory contains the normative and design specifications for DotCraft.
-Specifications are grouped by system domain so readers can start from the
-area they are changing.
+This directory contains DotCraft's normative and design specifications. Specs
+are grouped by document purpose so readers can distinguish foundational
+architecture, feature designs, internal agent mechanics, public protocols,
+first-party clients, and SDK bindings.
 
 ## Core Reading Path
 
-1. [Session Core](core/session-core.md) for the Thread -> Turn -> Item domain model.
+1. [Session Core](architecture/session-core.md) for the Thread -> Turn -> Item domain model.
 2. [AppServer Protocol](protocols/appserver-protocol.md) for the JSON-RPC projection used by clients and SDKs.
-3. [Plugin Architecture](extensions/plugin-architecture.md) and [Plugin Registry](extensions/plugin-registry.md) for extension loading, plugin boundaries, and public plugin distribution.
-4. [Desktop Client](clients/desktop-client.md) and [TUI Client](clients/tui-client.md) for first-party client behavior.
+3. [Plugin Architecture](architecture/plugin-architecture.md), [Skill 2.0](architecture/skill-2.0.md), and [Plugin Registry](architecture/plugin-registry.md) for extension loading, skill resolution, plugin boundaries, and public plugin distribution.
+4. [Desktop Client](clients/desktop-client.md), [TUI Client](clients/tui-client.md), and [Desktop DESIGN.md](architecture/DESIGN.md) for first-party client behavior and shared Desktop visual rules.
 5. [SDK](sdk/sdk.md) for cross-language client binding expectations.
 
-## Domains
+## Categories
 
 | Directory | Purpose |
 |-----------|---------|
-| [core](core/) | Session lifecycle, goals, memory, and durable agent-facing workspace state. |
-| [protocols](protocols/) | AppServer wire surface, app binding, external channel contracts, and result presentation. |
-| [clients](clients/) | Desktop and TUI client UX contracts, including shared Desktop visual rules. |
-| [runtime](runtime/) | Host/runtime services such as Hub, automations, provider auth, prompt cache, and browser runtime. |
-| [agents](agents/) | Multi-agent coordination and external subagent execution design. |
-| [extensions](extensions/) | Plugin, skill, and LSP extension architecture. |
-| [sdk](sdk/) | Shared SDK contract plus TypeScript and .NET binding specs. |
+| [architecture](architecture/) | Foundational models, subsystem architecture, contribution systems, runtime architecture, design systems, and long-lived structural contracts. |
+| [features](features/) | Standalone product or platform capabilities with their own UX, lifecycle, or service contract. |
+| [agents](agents/) | Internal agent execution, prompt/runtime mechanics, subagent orchestration, and model-context behavior. |
+| [protocols](protocols/) | Wire, API, and app-facing contracts consumed across processes, clients, SDKs, or external adapters. |
+| [clients](clients/) | First-party client behavior specs. Shared visual design lives in `architecture/DESIGN.md`. |
+| [sdk](sdk/) | Shared SDK contract plus language binding specifications. |
 
-## Files By Domain
+## Files By Category
 
-- Core: [session-core.md](core/session-core.md), [goal-design.md](core/goal-design.md), [memory-consolidation.md](core/memory-consolidation.md), [dreams.md](core/dreams.md), [context-export-cli.md](core/context-export-cli.md)
+- Architecture: [session-core.md](architecture/session-core.md), [hub-architecture.md](architecture/hub-architecture.md), [plugin-architecture.md](architecture/plugin-architecture.md), [plugin-registry.md](architecture/plugin-registry.md), [skill-2.0.md](architecture/skill-2.0.md), [lsp-plugin.md](architecture/lsp-plugin.md), [DESIGN.md](architecture/DESIGN.md), [openai-subscription-auth.md](architecture/openai-subscription-auth.md)
+- Features: [agent-profiles.md](features/agent-profiles.md), [agent-teams.md](features/agent-teams.md), [goal.md](features/goal.md), [memory-consolidation.md](features/memory-consolidation.md), [dreams.md](features/dreams.md), [lifecycle-hooks.md](features/lifecycle-hooks.md), [context-export-cli.md](features/context-export-cli.md), [automations-lifecycle.md](features/automations-lifecycle.md), [default-chat-workspace.md](features/default-chat-workspace.md), [reasoning-settings.md](features/reasoning-settings.md), [remote-server-management.md](features/remote-server-management.md), [chrome-browser-runtime.md](features/chrome-browser-runtime.md), [desktop-inapp-browser.md](features/desktop-inapp-browser.md)
+- Agents: [prompt-composition.md](agents/prompt-composition.md), [prompt-cache.md](agents/prompt-cache.md), [external-cli-subagent.md](agents/external-cli-subagent.md)
 - Protocols: [appserver-protocol.md](protocols/appserver-protocol.md), [external-channel-adapter.md](protocols/external-channel-adapter.md), [app-binding.md](protocols/app-binding.md), [tool-result-presentation.md](protocols/tool-result-presentation.md)
-- Clients: [desktop-client.md](clients/desktop-client.md), [Desktop DESIGN.md](clients/DESIGN.md), [tui-client.md](clients/tui-client.md)
-- Runtime: [hub-architecture.md](runtime/hub-architecture.md), [automations-lifecycle.md](runtime/automations-lifecycle.md), [chrome-browser-runtime.md](runtime/chrome-browser-runtime.md), [desktop-inapp-browser.md](runtime/desktop-inapp-browser.md), [openai-subscription-auth.md](runtime/openai-subscription-auth.md), [prompt-cache.md](runtime/prompt-cache.md), [reasoning-settings.md](runtime/reasoning-settings.md)
-- Agents: [agent-profiles.md](agents/agent-profiles.md), [prompt-composition.md](agents/prompt-composition.md), [agent-teams.md](agents/agent-teams.md), [external-cli-subagent-design.md](agents/external-cli-subagent-design.md)
-- Extensions: [plugin-architecture.md](extensions/plugin-architecture.md), [plugin-registry.md](extensions/plugin-registry.md), [skill-2.0.md](extensions/skill-2.0.md), [lsp-plugin.md](extensions/lsp-plugin.md)
-- SDK: [sdk.md](sdk/sdk.md), [typescript.md](sdk/typescript.md), [dotnet.md](sdk/dotnet.md)
-
+- Clients: [desktop-client.md](clients/desktop-client.md), [tui-client.md](clients/tui-client.md)
+- SDK: [sdk.md](sdk/sdk.md), [typescript.md](sdk/typescript.md), [dotnet.md](sdk/dotnet.md), [python.md](sdk/python.md)

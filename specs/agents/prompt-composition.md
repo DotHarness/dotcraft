@@ -5,7 +5,7 @@
 | **Version** | 0.2.0 |
 | **Status** | Draft |
 | **Date** | 2026-06-14 |
-| **Related Specs** | [Agent Profiles](agent-profiles.md), [Agent Teams](agent-teams.md), [App Binding](../protocols/app-binding.md), [Session Core](../core/session-core.md), [Prompt Cache](../runtime/prompt-cache.md), [External CLI SubAgent](external-cli-subagent-design.md) |
+| **Related Specs** | [Agent Profiles](../features/agent-profiles.md), [Agent Teams](../features/agent-teams.md), [App Binding](../protocols/app-binding.md), [Session Core](../architecture/session-core.md), [Prompt Cache](prompt-cache.md), [External CLI SubAgent](external-cli-subagent.md) |
 
 Purpose: define where model-visible instructions and runtime context come from, and how DotCraft composes them across ordinary threads, Agent Profiles, SubAgents, Agent Teams, App Binding, and AppServer clients.
 

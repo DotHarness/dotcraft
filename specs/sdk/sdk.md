@@ -5,7 +5,7 @@
 | **Version** | 0.3.0 |
 | **Status** | Living |
 | **Date** | 2026-06-03 |
-| **Related Specs** | [AppServer Protocol](../protocols/appserver-protocol.md), [Hub Architecture](../runtime/hub-architecture.md), [App Binding](../protocols/app-binding.md), [External Channel Adapter](../protocols/external-channel-adapter.md), [Session Core](../core/session-core.md), [TypeScript SDK Binding](typescript.md), [.NET SDK Binding](dotnet.md), [Python SDK Binding](python.md) |
+| **Related Specs** | [AppServer Protocol](../protocols/appserver-protocol.md), [Hub Architecture](../architecture/hub-architecture.md), [App Binding](../protocols/app-binding.md), [External Channel Adapter](../protocols/external-channel-adapter.md), [Session Core](../architecture/session-core.md), [TypeScript SDK Binding](typescript.md), [.NET SDK Binding](dotnet.md), [Python SDK Binding](python.md) |
 
 Purpose: define the shared SDK design contract for DotCraft across languages while allowing each language binding to keep idiomatic package structure, runtime constraints, publishing rules, and environment-specific helpers.
 
@@ -26,9 +26,9 @@ This specification defines:
 This specification does not define:
 
 - AppServer JSON-RPC wire semantics. See [AppServer Protocol](../protocols/appserver-protocol.md).
-- Hub HTTP endpoint semantics. See [Hub Architecture](../runtime/hub-architecture.md).
+- Hub HTTP endpoint semantics. See [Hub Architecture](../architecture/hub-architecture.md).
 - App Binding product semantics. See [App Binding](../protocols/app-binding.md).
-- Session persistence, turn lifecycle, item payload semantics, or agent internals. See [Session Core](../core/session-core.md).
+- Session persistence, turn lifecycle, item payload semantics, or agent internals. See [Session Core](../architecture/session-core.md).
 - Exact package exports, class names, namespace layout, or publishing workflows. Those live in the language binding specs.
 
 ## 2. Design Principles

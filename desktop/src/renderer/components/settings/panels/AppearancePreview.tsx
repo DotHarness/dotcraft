@@ -52,7 +52,7 @@ function rightLines(accent: string, codeFontSize: number): CodeLine[] {
  * Live Appearance preview rendered as a split (before/after) code diff, mirroring the editor's
  * theme: it reflects the applied theme colors, accent, and code font size, and follows the diff
  * style (tinted lines vs +/- markers). Purely presentational — a documented visualization
- * surface (see specs/clients/DESIGN.md).
+ * surface (see specs/architecture/DESIGN.md).
  */
 export function AppearancePreview({
   accent,

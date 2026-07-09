@@ -5,7 +5,7 @@ using DotCraft.Tools;
 namespace DotCraft.Agents;
 
 /// <summary>
-/// Injects the conversational Agent Builder's thread-scoped context (see specs/agents/agent-profiles.md
+/// Injects the conversational Agent Builder's thread-scoped context (see specs/features/agent-profiles.md
 /// §12A.3): the Agent Profile frontmatter schema and field semantics, the working draft, and the built-in
 /// tool catalog. Active only on a builder thread — one that has a working-draft entry in
 /// <see cref="ProfileBuilderDraftStore"/>; ordinary threads get nothing. The key is constant so the section

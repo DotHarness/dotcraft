@@ -1,7 +1,7 @@
 /*
  * Agent Builder (DotCraft Desktop mainView).
  *
- * All colors resolve from DotCraft tokens (specs/clients/DESIGN.md), so the view
+ * All colors resolve from DotCraft tokens (specs/architecture/DESIGN.md), so the view
  * follows the host light/dark theme. Every selector is scoped under `.agent-builder`.
  * Primary actions use neutral inversion (text-primary bg), not accent blue.
  */

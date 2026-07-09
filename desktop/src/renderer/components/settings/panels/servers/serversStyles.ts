@@ -3,7 +3,7 @@ import type { CSSProperties } from 'react'
 /**
  * Token-based styles for the Servers surface. Mirrors the approved design
  * prototype (dotcraft-design/desktop/remote-servers). Neutral-first; semantic
- * color only on status dots/badges per specs/clients/DESIGN.md.
+ * color only on status dots/badges per specs/architecture/DESIGN.md.
  */
 
 export type StatusTone = 'success' | 'warning' | 'error' | 'info' | 'neutral'

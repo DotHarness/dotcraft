@@ -38,7 +38,7 @@ interface MentionPopoverSurfaceProps extends ContainerOptions {
  * overlay is frameless; its overlap with the same-tone composer card is drawn by
  * {@link ComposerOverlapBand}. The list scrolls on an inner wrapper so the
  * absolutely-positioned band stays pinned to the popover's bottom instead of scrolling
- * away with the rows. See specs/clients/DESIGN.md.
+ * away with the rows. See specs/architecture/DESIGN.md.
  */
 export function MentionPopoverSurface({
   popupRef,

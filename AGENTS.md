@@ -24,7 +24,7 @@ Prerequisite: .NET 10 SDK (preview).
 - **Modules**: all interaction modes are `IDotCraftModule`, discovered by `DotCraft.Gen` source generator.
   Types: Host (standalone entry), Channel (managed by Gateway), Tool-only (tool providers only).
   Host priority: CLI=0. Gateway runs when no higher-priority Host is active.
-- **Session Core**: defined in `specs/core/session-core.md` with `Thread -> Turn -> Item` model.
+- **Session Core**: defined in `specs/architecture/session-core.md` with `Thread -> Turn -> Item` model.
   `ISessionService` is the central API for thread lifecycle, input submission, and approvals.
   Used by CLI, ACP, Automations, and external channel adapters.
 - **AppServer**: defined in `specs/protocols/appserver-protocol.md`.
@@ -54,6 +54,6 @@ Prerequisite: .NET 10 SDK (preview).
 
 - Development norms: `dev-guide` skill
 - Large feature workflow: `feature-workflow` skill
-- Protocol specs: `specs/core/session-core.md`, `specs/protocols/appserver-protocol.md`, `specs/protocols/external-channel-adapter.md`
-- Desktop visual design: `specs/clients/DESIGN.md` (read before changing Desktop colors, buttons, inputs, cards, modals, menus, or view styling)
+- Protocol specs: `specs/architecture/session-core.md`, `specs/protocols/appserver-protocol.md`, `specs/protocols/external-channel-adapter.md`
+- Desktop visual design: `specs/architecture/DESIGN.md` (read before changing Desktop colors, buttons, inputs, cards, modals, menus, or view styling)
 - Client docs: `tui/README.md`, `desktop/README.md`

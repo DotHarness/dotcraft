@@ -10,7 +10,7 @@ import { useLayoutEffect, useRef, useState, type RefObject } from 'react'
  * found). Callers draw a hairline band of this height on the popup's bottom + side
  * edges so the seam is drawn exactly where the two same-tone surfaces meet, and the
  * part above the card (over the darker message area, where shadow separates it)
- * stays open. See specs/clients/DESIGN.md (overlay overlap rule).
+ * stays open. See specs/architecture/DESIGN.md (overlay overlap rule).
  */
 export function useComposerOverlapBandHeight(
   popupRef: RefObject<HTMLElement | null>,

@@ -5,7 +5,7 @@
 | **Version** | 0.1.0 |
 | **Status** | Draft |
 | **Date** | 2026-06-01 |
-| **Parent Spec** | [Session Core](session-core.md) |
+| **Parent Spec** | [Session Core](../architecture/session-core.md) |
 
 Purpose: define a local, read-only CLI that turns DotCraft workspace sessions, trace metadata, and memory into handoff artifacts for external coding agents and troubleshooting workflows.
 

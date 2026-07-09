@@ -5,7 +5,7 @@
 | **Version** | 0.1.0 |
 | **Status** | Draft |
 | **Date** | 2026-06-01 |
-| **Related Specs** | [Desktop Client](../clients/desktop-client.md), [Desktop DESIGN.md](../clients/DESIGN.md), [AppServer Protocol](../protocols/appserver-protocol.md), [Hub Architecture](hub-architecture.md) |
+| **Related Specs** | [Desktop Client](../clients/desktop-client.md), [Desktop DESIGN.md](../architecture/DESIGN.md), [AppServer Protocol](../protocols/appserver-protocol.md), [Hub Architecture](../architecture/hub-architecture.md) |
 | **Reference** | [deploy/docker/README_ZH.md](../../deploy/docker/README_ZH.md), [deploy/docker/README.md](../../deploy/docker/README.md) |
 
 Purpose: Define a Desktop-owned visual manager for remote DotCraft Docker stacks over SSH. Desktop manages multiple servers, and multiple DotCraft Compose stacks per server, using the system `ssh` client and a fixed allow-list of `docker compose` operations. It connects Desktop to a remote AppServer and Dashboard through local SSH tunnels, reusing the existing remote-connection path without changing AppServer Protocol or Hub Protocol.
@@ -22,7 +22,7 @@ Purpose: Define a Desktop-owned visual manager for remote DotCraft Docker stacks
 - The SSH execution and command-building model, including allow-listing and secret redaction.
 - The DotCraft-specific Compose operations: status, logs, start/stop/restart, and one-click update.
 - The tunnel-first connection model that bridges a remote stack into the existing Desktop remote AppServer flow.
-- The UX workflow contract for the Servers surface (the visual contract is governed by [Desktop DESIGN.md](../clients/DESIGN.md)).
+- The UX workflow contract for the Servers surface (the visual contract is governed by [Desktop DESIGN.md](../architecture/DESIGN.md)).
 
 ### 1.2 What This Spec Does Not Define
 
@@ -207,7 +207,7 @@ Status also reports `composeOk`, `envOk`, `configOk`, `tokenPresent`, optional `
 
 ## 9. Desktop Servers Surface (UX Contract)
 
-The visual contract is governed by [Desktop DESIGN.md](../clients/DESIGN.md). This section defines the workflow contract; it does not freeze geometry.
+The visual contract is governed by [Desktop DESIGN.md](../architecture/DESIGN.md). This section defines the workflow contract; it does not freeze geometry.
 
 ### 9.1 Placement and Navigation
 
@@ -321,6 +321,6 @@ These are the v1 defaults; they are intended to be revisited in design review an
 ## 13. Related Specs
 
 - [Desktop Client](../clients/desktop-client.md) — connection lifecycle, remote-mode ownership, settings surface.
-- [Desktop DESIGN.md](../clients/DESIGN.md) — color roles, action hierarchy, control styling.
+- [Desktop DESIGN.md](../architecture/DESIGN.md) — color roles, action hierarchy, control styling.
 - [AppServer Protocol](../protocols/appserver-protocol.md) — the connection contract reused over the tunnel.
-- [Hub Architecture](hub-architecture.md) — local AppServer coordination (unchanged by this feature).
+- [Hub Architecture](../architecture/hub-architecture.md) — local AppServer coordination (unchanged by this feature).
