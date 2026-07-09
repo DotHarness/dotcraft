@@ -110,6 +110,7 @@ const CHATGPT_CODEX_FALLBACK_MODELS = [
   'gpt-5.3-codex',
   'gpt-5.2'
 ]
+const DEFAULT_WORKSPACE_MODEL = 'gpt-4o-mini'
 
 function buildBinaryResolutionError(settings: AppSettings): Error {
   const resolved = resolveBinaryLocation({
@@ -186,6 +187,17 @@ function normalizeOptionalString(value: unknown): string | undefined {
   return typeof value === 'string' && value.trim() ? value.trim() : undefined
 }
 
+function readConfigString(
+  config: Record<string, unknown> | null,
+  key: string
+): { present: boolean; value: string } {
+  if (!config) return { present: false, value: '' }
+  const matchedKey = Object.keys(config).find((candidate) => candidate.toLowerCase() === key.toLowerCase())
+  if (!matchedKey) return { present: false, value: '' }
+  const value = config[matchedKey]
+  return { present: true, value: typeof value === 'string' ? value.trim() : '' }
+}
+
 function normalizeOptionalNumber(value: unknown): number | null {
   return typeof value === 'number' && Number.isFinite(value) ? value : null
 }
@@ -223,11 +235,9 @@ function readExplicitProviders(config: Record<string, unknown>): WorkspaceSetupP
     .sort((a, b) => a.displayName.localeCompare(b.displayName))
 }
 
-function getUserConfigStatus(
-  userConfigPath?: string
+function getUserConfigStatusFromParsed(
+  parsed: Record<string, unknown> | null
 ): Pick<WorkspaceStatusPayload, 'hasUserConfig' | 'userConfigDefaults' | 'providers'> {
-  const globalConfigPath = userConfigPath ?? join(homedir(), '.craft', 'config.json')
-  const parsed = readJsonObject(globalConfigPath)
   if (!parsed) {
     return {
       hasUserConfig: false,
@@ -250,6 +260,48 @@ function getUserConfigStatus(
     },
     providers
   }
+}
+
+function mergeProviderSummaries(
+  ...providerGroups: WorkspaceSetupProviderSummary[][]
+): WorkspaceSetupProviderSummary[] {
+  const merged = new Map<string, WorkspaceSetupProviderSummary>()
+  for (const providers of providerGroups) {
+    for (const provider of providers) {
+      merged.set(provider.id.toLowerCase(), provider)
+    }
+  }
+  return [...merged.values()].sort((a, b) => a.displayName.localeCompare(b.displayName))
+}
+
+function resolveEffectiveProviderId(
+  workspaceConfig: Record<string, unknown> | null,
+  userConfig: Record<string, unknown> | null
+): string {
+  const workspaceProviderId = readConfigString(workspaceConfig, 'ProviderId')
+  if (workspaceProviderId.present) return workspaceProviderId.value
+
+  const userProviderId = readConfigString(userConfig, 'ProviderId')
+  return userProviderId.present ? userProviderId.value : ''
+}
+
+function resolveEffectiveModel(
+  workspaceConfig: Record<string, unknown> | null,
+  userConfig: Record<string, unknown> | null
+): string {
+  const workspaceModel = readConfigString(workspaceConfig, 'Model')
+  if (workspaceModel.present) return workspaceModel.value
+
+  const userModel = readConfigString(userConfig, 'Model')
+  return userModel.present ? userModel.value : DEFAULT_WORKSPACE_MODEL
+}
+
+function hasConfiguredProvider(
+  providerId: string,
+  providers: WorkspaceSetupProviderSummary[]
+): boolean {
+  if (!providerId || isImplicitProviderId(providerId)) return false
+  return providers.some((provider) => provider.id.toLowerCase() === providerId.toLowerCase())
 }
 
 function parseModelIds(payload: unknown): string[] {
@@ -502,7 +554,9 @@ export function getWorkspaceStatus(
   workspacePath: string | null | undefined,
   options?: { userConfigPath?: string }
 ): WorkspaceStatusPayload {
-  const userConfigStatus = getUserConfigStatus(options?.userConfigPath)
+  const userConfigPath = options?.userConfigPath ?? join(homedir(), '.craft', 'config.json')
+  const userConfig = readJsonObject(userConfigPath)
+  const userConfigStatus = getUserConfigStatusFromParsed(userConfig)
   const trimmed = workspacePath?.trim() ?? ''
   if (!trimmed) {
     return {
@@ -513,7 +567,18 @@ export function getWorkspaceStatus(
   }
 
   const configPath = join(trimmed, '.craft', 'config.json')
-  const status: WorkspaceSetupState = existsSync(configPath) ? 'ready' : 'needs-setup'
+  const workspaceConfigExists = existsSync(configPath)
+  const workspaceConfig = workspaceConfigExists ? readJsonObject(configPath) : null
+  const workspaceProviders = workspaceConfig ? readExplicitProviders(workspaceConfig) : []
+  const providers = mergeProviderSummaries(userConfigStatus.providers, workspaceProviders)
+  const effectiveProviderId = resolveEffectiveProviderId(workspaceConfig, userConfig)
+  const effectiveModel = resolveEffectiveModel(workspaceConfig, userConfig)
+  const status: WorkspaceSetupState =
+    workspaceConfigExists &&
+    hasConfiguredProvider(effectiveProviderId, providers) &&
+    effectiveModel.length > 0
+      ? 'ready'
+      : 'needs-setup'
   const bootstrapImportSources = status === 'needs-setup'
     ? detectWorkspaceSetupBootstrapImportSources(trimmed)
     : []
@@ -522,8 +587,18 @@ export function getWorkspaceStatus(
     status,
     workspacePath: trimmed,
     ...userConfigStatus,
+    providers,
     ...(bootstrapImportSources.length > 0 ? { bootstrapImportSources } : {})
   }
+}
+
+export function shouldRouteWorkspaceThroughSetupBeforeAppServerStart(
+  workspacePath: string | null | undefined,
+  options?: { userConfigPath?: string; usingRemoteConnection?: boolean }
+): boolean {
+  if (options?.usingRemoteConnection) return false
+  const statusOptions = options?.userConfigPath ? { userConfigPath: options.userConfigPath } : undefined
+  return getWorkspaceStatus(workspacePath, statusOptions).status === 'needs-setup'
 }
 
 function appendProviderArgs(args: string[], request: WorkspaceSetupRequest): void {

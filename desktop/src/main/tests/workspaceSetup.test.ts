@@ -7,7 +7,8 @@ import {
   createUniqueSetupProviderId,
   detectWorkspaceSetupBootstrapImportSources,
   getWorkspaceStatus,
-  listSetupModels
+  listSetupModels,
+  shouldRouteWorkspaceThroughSetupBeforeAppServerStart
 } from '../workspaceSetup'
 
 const tempDirs: string[] = []
@@ -16,6 +17,11 @@ function createTempWorkspace(): string {
   const dir = mkdtempSync(join(tmpdir(), 'dotcraft-workspace-'))
   tempDirs.push(dir)
   return dir
+}
+
+function writeJson(path: string, value: unknown): void {
+  mkdirSync(join(path, '..'), { recursive: true })
+  writeFileSync(path, JSON.stringify(value), 'utf8')
 }
 
 afterEach(() => {
@@ -34,17 +40,140 @@ describe('getWorkspaceStatus', () => {
     })
   })
 
-  it('returns ready when .craft/config.json exists', () => {
+  it('keeps empty workspace config in setup until a provider is configured', () => {
     const workspace = createTempWorkspace()
     const configPath = join(workspace, '.craft', 'config.json')
     mkdirSync(join(workspace, '.craft'), { recursive: true })
     writeFileSync(configPath, '{}', 'utf8')
 
     expect(getWorkspaceStatus(workspace, { userConfigPath: join(createTempWorkspace(), '.craft', 'config.json') })).toEqual({
-      status: 'ready',
+      status: 'needs-setup',
       workspacePath: workspace,
       hasUserConfig: false,
       providers: []
+    })
+  })
+
+  it('returns ready when empty workspace config inherits a valid user default provider', () => {
+    const workspace = createTempWorkspace()
+    const userHome = createTempWorkspace()
+    const userConfigPath = join(userHome, '.craft', 'config.json')
+    mkdirSync(join(workspace, '.craft'), { recursive: true })
+    writeFileSync(join(workspace, '.craft', 'config.json'), '{}', 'utf8')
+    writeJson(userConfigPath, {
+      ProviderId: 'openai',
+      Model: 'gpt-4.1',
+      Providers: {
+        openai: {
+          DisplayName: 'OpenAI',
+          Protocol: 'openai-responses',
+          ApiKey: 'sk-test'
+        }
+      }
+    })
+
+    expect(getWorkspaceStatus(workspace, { userConfigPath })).toEqual({
+      status: 'ready',
+      workspacePath: workspace,
+      hasUserConfig: true,
+      userConfigDefaults: {
+        providerId: 'openai',
+        model: 'gpt-4.1'
+      },
+      providers: [
+        {
+          id: 'openai',
+          displayName: 'OpenAI',
+          protocol: 'openai-responses',
+          hasApiKey: true,
+          endPoint: '',
+          networkTimeoutSeconds: null
+        }
+      ]
+    })
+  })
+
+  it('returns ready when workspace selects a provider from user config', () => {
+    const workspace = createTempWorkspace()
+    const userHome = createTempWorkspace()
+    const userConfigPath = join(userHome, '.craft', 'config.json')
+    mkdirSync(join(workspace, '.craft'), { recursive: true })
+    writeJson(join(workspace, '.craft', 'config.json'), {
+      ProviderId: 'anthropic'
+    })
+    writeJson(userConfigPath, {
+      Providers: {
+        anthropic: {
+          DisplayName: 'Anthropic',
+          Protocol: 'anthropic',
+          ApiKey: 'sk-ant',
+          EndPoint: 'https://api.anthropic.com'
+        }
+      }
+    })
+
+    expect(getWorkspaceStatus(workspace, { userConfigPath })).toMatchObject({
+      status: 'ready',
+      workspacePath: workspace,
+      hasUserConfig: true,
+      providers: [
+        expect.objectContaining({
+          id: 'anthropic',
+          protocol: 'anthropic'
+        })
+      ]
+    })
+  })
+
+  it('returns needs-setup when selected provider is not configured', () => {
+    const workspace = createTempWorkspace()
+    const userHome = createTempWorkspace()
+    const userConfigPath = join(userHome, '.craft', 'config.json')
+    writeJson(join(workspace, '.craft', 'config.json'), {
+      ProviderId: 'missing',
+      Model: 'gpt-4.1'
+    })
+    writeJson(userConfigPath, {
+      Providers: {
+        openai: {
+          DisplayName: 'OpenAI',
+          Protocol: 'openai-responses',
+          ApiKey: 'sk-test'
+        }
+      }
+    })
+
+    expect(getWorkspaceStatus(workspace, { userConfigPath })).toMatchObject({
+      status: 'needs-setup',
+      workspacePath: workspace,
+      hasUserConfig: true
+    })
+  })
+
+  it('returns needs-setup when model is explicitly empty', () => {
+    const workspace = createTempWorkspace()
+    const userHome = createTempWorkspace()
+    const userConfigPath = join(userHome, '.craft', 'config.json')
+    writeJson(join(workspace, '.craft', 'config.json'), {
+      ProviderId: 'openai',
+      Model: ''
+    })
+    writeJson(userConfigPath, {
+      ProviderId: 'openai',
+      Model: 'gpt-4.1',
+      Providers: {
+        openai: {
+          DisplayName: 'OpenAI',
+          Protocol: 'openai-responses',
+          ApiKey: 'sk-test'
+        }
+      }
+    })
+
+    expect(getWorkspaceStatus(workspace, { userConfigPath })).toMatchObject({
+      status: 'needs-setup',
+      workspacePath: workspace,
+      hasUserConfig: true
     })
   })
 
@@ -123,6 +252,54 @@ describe('getWorkspaceStatus', () => {
   })
 })
 
+describe('shouldRouteWorkspaceThroughSetupBeforeAppServerStart', () => {
+  it('routes local setup-required workspaces through setup before AppServer start', () => {
+    const workspace = createTempWorkspace()
+    mkdirSync(join(workspace, '.craft'), { recursive: true })
+    writeFileSync(join(workspace, '.craft', 'config.json'), '{}', 'utf8')
+
+    expect(
+      shouldRouteWorkspaceThroughSetupBeforeAppServerStart(workspace, {
+        userConfigPath: join(createTempWorkspace(), '.craft', 'config.json')
+      })
+    ).toBe(true)
+  })
+
+  it('does not block remote AppServer connection modes', () => {
+    const workspace = createTempWorkspace()
+    mkdirSync(join(workspace, '.craft'), { recursive: true })
+    writeFileSync(join(workspace, '.craft', 'config.json'), '{}', 'utf8')
+
+    expect(
+      shouldRouteWorkspaceThroughSetupBeforeAppServerStart(workspace, {
+        usingRemoteConnection: true,
+        userConfigPath: join(createTempWorkspace(), '.craft', 'config.json')
+      })
+    ).toBe(false)
+  })
+
+  it('allows local ready workspaces to start AppServer', () => {
+    const workspace = createTempWorkspace()
+    const userHome = createTempWorkspace()
+    const userConfigPath = join(userHome, '.craft', 'config.json')
+    writeJson(join(workspace, '.craft', 'config.json'), {
+      ProviderId: 'openai',
+      Model: 'gpt-4.1'
+    })
+    writeJson(userConfigPath, {
+      Providers: {
+        openai: {
+          DisplayName: 'OpenAI',
+          Protocol: 'openai-responses',
+          ApiKey: 'sk-test'
+        }
+      }
+    })
+
+    expect(shouldRouteWorkspaceThroughSetupBeforeAppServerStart(workspace, { userConfigPath })).toBe(false)
+  })
+})
+
 describe('workspace setup bootstrap import detection', () => {
   it('detects nearest AGENTS.md and CLAUDE.md sources in AGENTS.md-first order', () => {
     const workspace = createTempWorkspace()
@@ -150,9 +327,20 @@ describe('workspace setup bootstrap import detection', () => {
 
   it('includes setup import candidates only while the workspace needs setup', () => {
     const workspace = createTempWorkspace()
+    const userHome = createTempWorkspace()
+    const userConfigPath = join(userHome, '.craft', 'config.json')
     writeFileSync(join(workspace, 'AGENTS.md'), 'agents', 'utf8')
+    writeJson(userConfigPath, {
+      Providers: {
+        openai: {
+          DisplayName: 'OpenAI',
+          Protocol: 'openai-responses',
+          ApiKey: 'sk-test'
+        }
+      }
+    })
 
-    expect(getWorkspaceStatus(workspace, { userConfigPath: join(createTempWorkspace(), '.craft', 'config.json') }))
+    expect(getWorkspaceStatus(workspace, { userConfigPath }))
       .toMatchObject({
         status: 'needs-setup',
         bootstrapImportSources: [
@@ -164,8 +352,8 @@ describe('workspace setup bootstrap import detection', () => {
       })
 
     mkdirSync(join(workspace, '.craft'), { recursive: true })
-    writeFileSync(join(workspace, '.craft', 'config.json'), '{}', 'utf8')
-    expect(getWorkspaceStatus(workspace, { userConfigPath: join(createTempWorkspace(), '.craft', 'config.json') }))
+    writeFileSync(join(workspace, '.craft', 'config.json'), '{"ProviderId":"openai"}', 'utf8')
+    expect(getWorkspaceStatus(workspace, { userConfigPath }))
       .not.toHaveProperty('bootstrapImportSources')
   })
 
