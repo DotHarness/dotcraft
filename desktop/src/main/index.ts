@@ -96,6 +96,7 @@ import {
 } from './defaultChatWorkspace'
 import {
   getWorkspaceStatus,
+  shouldRouteWorkspaceThroughSetupBeforeAppServerStart,
   runWorkspaceSetup,
   listSetupModels,
   type WorkspaceStatusPayload,
@@ -1252,7 +1253,11 @@ function ensureWorkspaceActivation(workspacePath: string): void {
         return
       }
       void connectToAppServer(request.workspacePath)
-        .then(() => openCurrentWorkspaceThread(request.threadId))
+        .then((connected) => {
+          if (connected) {
+            openCurrentWorkspaceThread(request.threadId)
+          }
+        })
         .catch((error) => {
           console.warn('[desktop] failed to activate requested workspace', error)
         })
@@ -1279,7 +1284,11 @@ function handleWorkspaceOpenDeepLink(link: WorkspaceOpenDeepLink): void {
       openCurrentWorkspaceThread(link.threadId)
     } else {
       void connectToAppServer(link.workspacePath)
-        .then(() => openCurrentWorkspaceThread(link.threadId))
+        .then((connected) => {
+          if (connected) {
+            openCurrentWorkspaceThread(link.threadId)
+          }
+        })
         .catch((error) => {
           console.warn('[desktop] failed to open workspace deep link in current window', error)
         })
@@ -2041,7 +2050,9 @@ async function retryCurrentAppServerConnection(request?: RetryConnectionRequest)
     currentWorkspacePath,
     launchedWithRemote: process.argv.includes('--remote'),
     connectionMode: resolveConnectionMode(sharedSettings),
-    reconnect: () => connectToAppServer(currentWorkspacePath),
+    reconnect: async () => {
+      await connectToAppServer(currentWorkspacePath)
+    },
     restartManaged: restartCurrentManagedAppServer
   })
 }
@@ -2376,12 +2387,7 @@ function buildCallbacks(): IpcHandlerCallbacks {
         saveSettings(sharedSettings)
       }
       emitWorkspaceProjects()
-      const workspaceStatus = getWorkspaceStatus(newPath)
-      if (workspaceStatus.status === 'needs-setup') {
-        await openWorkspaceWithoutConnection(newPath)
-      } else {
-        await connectToAppServer(newPath)
-      }
+      await connectToAppServer(newPath)
       if (mainWindow && !mainWindow.isDestroyed()) {
         const loc = normalizeLocale(sharedSettings.locale)
         mainWindow.setTitle(
@@ -2524,15 +2530,20 @@ async function clearWorkspaceSelection(): Promise<void> {
   emitConnectionStatus(win, { status: 'disconnected' })
 }
 
-async function connectToAppServer(workspacePath: string): Promise<void> {
+async function connectToAppServer(workspacePath: string): Promise<boolean> {
   if (isAppQuitting) {
-    return
+    return false
   }
   const remoteIdx = process.argv.indexOf('--remote')
   const launchedWithRemoteUrl = hasRemoteEndpointArg()
   const connectionMode = resolveConnectionMode(sharedSettings)
   const usingRemoteConnection = launchedWithRemoteUrl || connectionMode === 'remote'
   const preserveLocalConnections = !usingRemoteConnection && connectionMode === 'local'
+
+  if (shouldRouteWorkspaceThroughSetupBeforeAppServerStart(workspacePath, { usingRemoteConnection })) {
+    await openWorkspaceWithoutConnection(workspacePath)
+    return false
+  }
 
   if (!usingRemoteConnection) {
     acquireWorkspaceLock(workspacePath)
@@ -2556,7 +2567,7 @@ async function connectToAppServer(workspacePath: string): Promise<void> {
     if (existingConnection?.connected) {
       promoteWorkspaceConnection(existingConnection)
       void refreshSecondaryWorkspaceConnections()
-      return
+      return true
     }
     if (currentWorkspacePath && currentWorkspacePath !== workspacePath) {
       const previous = getWorkspaceConnection(currentWorkspacePath)
@@ -2605,7 +2616,7 @@ async function connectToAppServer(workspacePath: string): Promise<void> {
       displayPath: project.displayPath,
       remote: project.remote
     })
-    return
+    return true
   }
 
   if (connectionMode === 'remote') {
@@ -2641,6 +2652,7 @@ async function connectToAppServer(workspacePath: string): Promise<void> {
             tokenPresent: result.tokenPresent
           }
         })
+        return true
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err)
         emitConnectionStatus(win, {
@@ -2654,7 +2666,7 @@ async function connectToAppServer(workspacePath: string): Promise<void> {
           errorType: 'remote-config-invalid'
         })
       }
-      return
+      return false
     }
 
     if (sharedSettings.activeRemoteStack?.hostId || sharedSettings.activeRemoteStack?.stackId) {
@@ -2664,7 +2676,7 @@ async function connectToAppServer(workspacePath: string): Promise<void> {
         errorMessage: 'Saved remote stack was not found. Check Servers settings or disconnect this stack.',
         errorType: 'remote-config-invalid'
       })
-      return
+      return false
     }
 
     const remoteConfig = resolveRemoteWebSocketConfig(sharedSettings.remote)
@@ -2675,7 +2687,7 @@ async function connectToAppServer(workspacePath: string): Promise<void> {
         errorMessage: remoteConfig.message,
         errorType: 'remote-config-invalid'
       })
-      return
+      return false
     }
     const project = buildEndpointRemoteProject('manual', remoteConfig.connectUrl, workspacePath)
     prepareRemoteForeground(project)
@@ -2690,7 +2702,7 @@ async function connectToAppServer(workspacePath: string): Promise<void> {
       displayPath: project.displayPath,
       remote: project.remote
     })
-    return
+    return true
   }
 
   setActiveRemoteProject(null)
@@ -2704,11 +2716,12 @@ async function connectToAppServer(workspacePath: string): Promise<void> {
     const ensured = await hubClient.ensureAppServer(workspacePath, {
       runtimeTools: resolveDotCraftRuntimeTools()
     })
-    if (currentWorkspacePath !== workspacePath || isAppQuitting) return
+    if (currentWorkspacePath !== workspacePath || isAppQuitting) return false
 
     startHubEventSubscription(workspacePath, hubClient)
     await connectViaWebSocket(workspacePath, getManagedAppServerEndpoint(ensured))
     void refreshSecondaryWorkspaceConnections()
+    return true
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err)
     const isBinaryError =
@@ -2721,6 +2734,7 @@ async function connectToAppServer(workspacePath: string): Promise<void> {
         ...(isBinaryError ? { errorType: 'binary-not-found' } : {})
       } as ConnectionStatusPayload)
     }
+    return false
   }
 }
 

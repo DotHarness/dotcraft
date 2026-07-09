@@ -7,7 +7,8 @@ import {
   createUniqueSetupProviderId,
   detectWorkspaceSetupBootstrapImportSources,
   getWorkspaceStatus,
-  listSetupModels
+  listSetupModels,
+  shouldRouteWorkspaceThroughSetupBeforeAppServerStart
 } from '../workspaceSetup'
 
 const tempDirs: string[] = []
@@ -248,6 +249,54 @@ describe('getWorkspaceStatus', () => {
         }
       ]
     })
+  })
+})
+
+describe('shouldRouteWorkspaceThroughSetupBeforeAppServerStart', () => {
+  it('routes local setup-required workspaces through setup before AppServer start', () => {
+    const workspace = createTempWorkspace()
+    mkdirSync(join(workspace, '.craft'), { recursive: true })
+    writeFileSync(join(workspace, '.craft', 'config.json'), '{}', 'utf8')
+
+    expect(
+      shouldRouteWorkspaceThroughSetupBeforeAppServerStart(workspace, {
+        userConfigPath: join(createTempWorkspace(), '.craft', 'config.json')
+      })
+    ).toBe(true)
+  })
+
+  it('does not block remote AppServer connection modes', () => {
+    const workspace = createTempWorkspace()
+    mkdirSync(join(workspace, '.craft'), { recursive: true })
+    writeFileSync(join(workspace, '.craft', 'config.json'), '{}', 'utf8')
+
+    expect(
+      shouldRouteWorkspaceThroughSetupBeforeAppServerStart(workspace, {
+        usingRemoteConnection: true,
+        userConfigPath: join(createTempWorkspace(), '.craft', 'config.json')
+      })
+    ).toBe(false)
+  })
+
+  it('allows local ready workspaces to start AppServer', () => {
+    const workspace = createTempWorkspace()
+    const userHome = createTempWorkspace()
+    const userConfigPath = join(userHome, '.craft', 'config.json')
+    writeJson(join(workspace, '.craft', 'config.json'), {
+      ProviderId: 'openai',
+      Model: 'gpt-4.1'
+    })
+    writeJson(userConfigPath, {
+      Providers: {
+        openai: {
+          DisplayName: 'OpenAI',
+          Protocol: 'openai-responses',
+          ApiKey: 'sk-test'
+        }
+      }
+    })
+
+    expect(shouldRouteWorkspaceThroughSetupBeforeAppServerStart(workspace, { userConfigPath })).toBe(false)
   })
 })
 

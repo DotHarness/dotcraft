@@ -592,6 +592,15 @@ export function getWorkspaceStatus(
   }
 }
 
+export function shouldRouteWorkspaceThroughSetupBeforeAppServerStart(
+  workspacePath: string | null | undefined,
+  options?: { userConfigPath?: string; usingRemoteConnection?: boolean }
+): boolean {
+  if (options?.usingRemoteConnection) return false
+  const statusOptions = options?.userConfigPath ? { userConfigPath: options.userConfigPath } : undefined
+  return getWorkspaceStatus(workspacePath, statusOptions).status === 'needs-setup'
+}
+
 function appendProviderArgs(args: string[], request: WorkspaceSetupRequest): void {
   if (request.providerMode === 'skip') {
     args.push('--skip-provider')
