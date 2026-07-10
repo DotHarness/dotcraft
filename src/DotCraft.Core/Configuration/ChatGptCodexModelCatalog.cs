@@ -185,11 +185,14 @@ internal static class ChatGptCodexModelCatalog
 
     private static IReadOnlyList<CodexModelInfo> HardcodedFallbackModels() =>
     [
-        new() { Slug = ModelProviderDefaults.DefaultChatGptCodexModel, Visibility = "list", Priority = 0, MinimalClientVersion = "0.124.0" },
-        new() { Slug = "gpt-5.4", Visibility = "list", Priority = 1, MinimalClientVersion = "0.98.0" },
-        new() { Slug = "gpt-5.4-mini", Visibility = "list", Priority = 2, MinimalClientVersion = "0.98.0" },
-        new() { Slug = "gpt-5.3-codex", Visibility = "list", Priority = 3, MinimalClientVersion = "0.98.0" },
-        new() { Slug = "gpt-5.2", Visibility = "list", Priority = 4, MinimalClientVersion = "0.0.1" }
+        new() { Slug = ModelProviderDefaults.DefaultChatGptCodexModel, Visibility = "list", Priority = 1, MinimalClientVersion = "0.144.0" },
+        new() { Slug = "gpt-5.6-terra", Visibility = "list", Priority = 2, MinimalClientVersion = "0.144.0" },
+        new() { Slug = "gpt-5.6-luna", Visibility = "list", Priority = 3, MinimalClientVersion = "0.144.0" },
+        new() { Slug = "gpt-5.5", Visibility = "list", Priority = 7, MinimalClientVersion = "0.124.0" },
+        new() { Slug = "gpt-5.4", Visibility = "list", Priority = 16, MinimalClientVersion = "0.98.0" },
+        new() { Slug = "gpt-5.4-mini", Visibility = "list", Priority = 23, MinimalClientVersion = "0.98.0" },
+        new() { Slug = "gpt-5.3-codex", Visibility = "list", Priority = 24, MinimalClientVersion = "0.98.0" },
+        new() { Slug = "gpt-5.2", Visibility = "list", Priority = 29, MinimalClientVersion = "0.0.1" }
     ];
 
     internal static List<CodexModelInfo> ParseModelsResponse(string json)

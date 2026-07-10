@@ -39,7 +39,7 @@ public sealed class OpenAIModelCatalogOAuthTests : IDisposable
         Assert.Single(handler.Requests);
         var request = handler.Requests[0];
         Assert.Equal("/backend-api/codex/models", request.Path);
-        Assert.Equal("?client_version=0.124.0", request.Query);
+        Assert.Equal("?client_version=0.144.0", request.Query);
         Assert.Equal("Bearer access-token", request.Authorization);
         Assert.Equal("acct_test", request.Headers[OpenAIAuthConstants.AccountIdHeader]);
         Assert.Equal(OpenAIAuthConstants.Originator, request.Headers[OpenAIAuthConstants.OriginatorHeader]);
