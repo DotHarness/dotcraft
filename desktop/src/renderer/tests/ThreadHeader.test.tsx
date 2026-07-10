@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { LocaleProvider } from '../contexts/LocaleContext'
 import { ThreadHeader } from '../components/conversation/ThreadHeader'
 import { useConnectionStore } from '../stores/connectionStore'
@@ -361,8 +361,8 @@ describe('ThreadHeader', () => {
 
     fireEvent.click(await screen.findByRole('button', { name: 'Prepare Perforce changelist' }))
     const targetSelect = screen.getByRole('combobox', { name: 'Target' })
-    const newOption = within(targetSelect).getByRole('option', { name: 'New Changelist' })
-    fireEvent.change(targetSelect, { target: { value: newOption.getAttribute('value') } })
+    fireEvent.click(targetSelect)
+    fireEvent.click(screen.getByRole('option', { name: 'New Changelist' }))
     fireEvent.click(screen.getByRole('button', { name: 'Checkout' }))
 
     await waitFor(() => {

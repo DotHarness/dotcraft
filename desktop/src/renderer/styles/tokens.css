@@ -2513,7 +2513,7 @@ kbd {
   border-top: 1px solid var(--border-default);
 }
 
-/* ─── Settings select ─── */
+/* ─── Shared select (field default, optional frameless trigger) ─── */
 .dc-settings-select {
   width: 100%;
   min-height: 35px;
@@ -2549,6 +2549,21 @@ kbd {
   background: var(--bg-tertiary);
 }
 
+.dc-settings-select[data-appearance="frameless"] {
+  border-color: transparent;
+  background: transparent;
+}
+
+.dc-settings-select[data-appearance="frameless"]:hover:not(:disabled) {
+  border-color: transparent;
+  background: var(--sidebar-control-hover);
+}
+
+.dc-settings-select[data-appearance="frameless"][data-open="true"] {
+  border-color: transparent;
+  background: var(--sidebar-control-active);
+}
+
 .dc-settings-select:focus-visible {
   outline: 2px solid color-mix(in srgb, var(--accent) 72%, transparent);
   outline-offset: 2px;
@@ -2581,7 +2596,7 @@ kbd {
 
 .dc-settings-select-menu {
   position: fixed;
-  z-index: 10000;
+  z-index: 10001;
   padding: 5px;
   border: none;
   border-radius: 10px;

@@ -240,12 +240,10 @@ export function CommitDialog({ workspacePath, onCommit, onClose }: CommitDialogP
               display: 'inline-flex',
               alignItems: 'center',
               justifyContent: 'center',
-              gap: '7px',
               cursor: hasFiles ? 'pointer' : 'default',
               opacity: hasFiles ? 1 : 0.5
             }}
           >
-            <GitCommitHorizontal size={16} />
             {t('commit.button')}
           </button>
         </div>

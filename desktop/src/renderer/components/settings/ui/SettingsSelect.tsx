@@ -26,7 +26,9 @@ export interface SettingsSelectOption<T extends string = string> {
   disabled?: boolean
 }
 
-interface SettingsSelectProps<T extends string = string> {
+export type SettingsSelectAppearance = 'field' | 'frameless'
+
+export interface SettingsSelectProps<T extends string = string> {
   id?: string
   value: T
   options: ReadonlyArray<SettingsSelectOption<T>>
@@ -36,6 +38,7 @@ interface SettingsSelectProps<T extends string = string> {
   style?: CSSProperties
   valueProps?: HTMLAttributes<HTMLSpanElement>
   menuMaxHeight?: number
+  appearance?: SettingsSelectAppearance
 }
 
 interface MenuPosition {
@@ -54,7 +57,8 @@ export function SettingsSelect<T extends string = string>({
   disabled = false,
   style,
   valueProps,
-  menuMaxHeight = 280
+  menuMaxHeight = 280,
+  appearance = 'field'
 }: SettingsSelectProps<T>): JSX.Element {
   const reactId = useId()
   const listboxId = `${id ?? reactId}-listbox`
@@ -234,6 +238,7 @@ export function SettingsSelect<T extends string = string>({
       case 'Escape':
         if (!open) return
         event.preventDefault()
+        event.stopPropagation()
         setOpen(false)
         break
     }
@@ -314,6 +319,7 @@ export function SettingsSelect<T extends string = string>({
         disabled={disabled}
         data-open={open || undefined}
         data-disabled={disabled || undefined}
+        data-appearance={appearance}
         className="dc-settings-select"
         onClick={() => {
           if (open) {

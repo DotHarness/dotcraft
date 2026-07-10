@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { ChevronDown, ChevronRight, ListChecks, Plus } from 'lucide-react'
+import { ChevronDown, ChevronRight, ListChecks } from 'lucide-react'
 import { useT } from '../../contexts/LocaleContext'
 import { useConversationStore } from '../../stores/conversationStore'
 import { changelistLabel, type PerforceChangelistEntry } from '../../stores/perforceChangelistStore'
 import { ModalHeader } from '../ui/ModalHeader'
+import { Select, type SelectOption } from '../ui/Select'
 import { toRelativePath } from './CommitDialog'
 
 const NEW_CHANGELIST_VALUE = '__new_changelist__'
@@ -40,6 +41,7 @@ export function PerforcePrepareDialog({
   useEffect(() => {
     descriptionRef.current?.focus()
     function handleKeyDown(e: KeyboardEvent): void {
+      if (e.defaultPrevented) return
       if (e.key === 'Escape') onClose()
     }
     document.addEventListener('keydown', handleKeyDown)
@@ -57,6 +59,13 @@ export function PerforcePrepareDialog({
   }
 
   const targetEntries = normalizeChangelists(changelists, changelist)
+  const targetOptions: SelectOption[] = [
+    { value: NEW_CHANGELIST_VALUE, label: t('perforcePrepare.newChangelist') },
+    ...targetEntries.map((entry) => ({
+      value: entry.id,
+      label: changelistOptionLabel(entry)
+    }))
+  ]
 
   const dialog = (
     <div
@@ -97,25 +106,18 @@ export function PerforcePrepareDialog({
           closeLabel={t('perforcePrepare.close')}
         />
 
-        <label style={{ ...infoRowStyle, gap: '12px' }}>
+        <div style={{ ...infoRowStyle, gap: '12px' }}>
           <span style={infoLabelStyle}>{t('perforcePrepare.targetLabel')}</span>
-          <span style={{ ...selectWrapperStyle, flex: 1 }}>
-            {targetChoice === NEW_CHANGELIST_VALUE ? <Plus size={14} aria-hidden /> : <ListChecks size={14} aria-hidden />}
-            <select
-              aria-label={t('perforcePrepare.targetLabel')}
+          <span style={{ flex: 1, minWidth: 0 }}>
+            <Select
+              ariaLabel={t('perforcePrepare.targetLabel')}
+              appearance="frameless"
               value={targetChoice}
-              onChange={(e) => setTargetChoice(e.target.value)}
-              style={targetSelectStyle}
-            >
-              <option value={NEW_CHANGELIST_VALUE}>{t('perforcePrepare.newChangelist')}</option>
-              {targetEntries.map((entry) => (
-                <option key={entry.id} value={entry.id}>
-                  {changelistOptionLabel(entry)}
-                </option>
-              ))}
-            </select>
+              options={targetOptions}
+              onValueChange={setTargetChoice}
+            />
           </span>
-        </label>
+        </div>
 
         <button
           type="button"
@@ -236,12 +238,10 @@ export function PerforcePrepareDialog({
               display: 'inline-flex',
               alignItems: 'center',
               justifyContent: 'center',
-              gap: '7px',
               cursor: hasFiles ? 'pointer' : 'default',
               opacity: hasFiles ? 1 : 0.5
             }}
           >
-            <ListChecks size={16} />
             {t('perforcePrepare.button')}
           </button>
         </div>
@@ -270,27 +270,6 @@ const infoValueStyle: React.CSSProperties = {
   gap: '6px',
   color: 'var(--text-primary)',
   fontFamily: 'var(--font-mono)'
-}
-
-const selectWrapperStyle: React.CSSProperties = {
-  display: 'flex',
-  alignItems: 'center',
-  gap: '6px',
-  minWidth: 0,
-  color: 'var(--text-primary)',
-  background: 'var(--bg-primary)',
-  borderRadius: '8px',
-  padding: '7px 9px'
-}
-
-const targetSelectStyle: React.CSSProperties = {
-  flex: 1,
-  minWidth: 0,
-  border: 'none',
-  outline: 'none',
-  background: 'transparent',
-  color: 'var(--text-primary)',
-  font: 'inherit'
 }
 
 function initialTargetChoice(changelist: string): string {
