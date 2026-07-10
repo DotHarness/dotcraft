@@ -1204,7 +1204,10 @@ function ProjectHeader({
         <ProjectGlyph project={project} collapsed={collapsed} cold={cold} active={active} />
       </ActionTooltip>
       <div style={{ minWidth: 0, display: 'flex', alignItems: 'center', gap: '4px' }}>
-        <ActionTooltip label={detailLabel} wrapperStyle={{ minWidth: 0 }}>
+        <ActionTooltip
+          label={detailLabel}
+          wrapperStyle={{ display: 'block', flex: 1, minWidth: 0, overflow: 'hidden' }}
+        >
           <span
             style={{
               minWidth: 0,

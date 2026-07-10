@@ -691,6 +691,13 @@ kbd {
   will-change: opacity, filter;
 }
 
+/* Composer card popovers need to clear the workspace footer below the card.
+   Raise this layer only while an in-card overlay is open so the footer's own
+   upward-opening menus can still paint above the card at every other time. */
+[data-composer-card-layer]:has([data-composer-overlay-open='true']) {
+  z-index: 2;
+}
+
 /* Send launch: crouch anticipation → stretch jump → squash landing → settle. */
 @keyframes composer-mascot-launch {
   0% {

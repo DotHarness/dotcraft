@@ -14,6 +14,18 @@ import { useUIStore } from '../stores/uiStore'
 import { useGitStore } from '../stores/gitStore'
 import type { ConversationTurn } from '../types/conversation'
 
+class ResizeObserverMock {
+  observe(): void {}
+  unobserve(): void {}
+  disconnect(): void {}
+}
+
+Object.defineProperty(globalThis, 'ResizeObserver', {
+  configurable: true,
+  writable: true,
+  value: ResizeObserverMock
+})
+
 const settingsGet = vi.fn()
 const appServerSendRequest = vi.fn()
 
@@ -160,10 +172,12 @@ describe('InputComposer layout', () => {
     expect(within(tooltip).getByText('M')).toBeInTheDocument()
 
     fireEvent.keyDown(window, { key: 'M', ctrlKey: true, shiftKey: true })
-    const listbox = screen.getByRole('listbox', { name: 'Select model' })
+    const menu = screen.getByRole('menu', { name: 'Select model' })
+    fireEvent.click(within(menu).getByRole('menuitem', { name: /Model/ }))
+    const listbox = screen.getByRole('listbox', { name: 'Model' })
 
     expect(listbox).toBeInTheDocument()
-    expect(screen.getByRole('option', { name: 'gpt-5.4-mini' })).toBeInTheDocument()
+    expect(within(listbox).getByRole('option', { name: 'gpt-5.4-mini' })).toBeInTheDocument()
   })
 
   it('keeps send button available alongside the inline toolbar', () => {

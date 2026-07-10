@@ -71,7 +71,6 @@ function trackStyle(
       : 'var(--border-active)',
     transition: 'background-color 150ms ease',
     position: 'relative',
-    outline: 'none',
     opacity: disabled ? 0.7 : 1
   }
 }

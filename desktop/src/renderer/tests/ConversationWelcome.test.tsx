@@ -349,8 +349,8 @@ describe('ConversationWelcome composer', () => {
     expect(screen.queryByRole('button', { name: 'Agent' })).toBeNull()
     expect(screen.queryByRole('button', { name: 'Disable plan mode' })).toBeNull()
     fireEvent.keyDown(window, { key: 'M', ctrlKey: true, shiftKey: true })
-    const listbox = screen.getByRole('listbox', { name: 'Select model' })
-    expect(listbox).toBeInTheDocument()
+    const menu = screen.getByRole('menu', { name: 'Select model' })
+    expect(menu).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Send message' })).toBeInTheDocument()
     expect(screen.queryByText('Attach file')).not.toBeInTheDocument()
     expect(screen.queryByRole('combobox', { name: 'Bind an app before first turn' })).toBeNull()
@@ -384,9 +384,9 @@ describe('ConversationWelcome composer', () => {
     })
     fireEvent.click(screen.getByRole('button', { name: 'Select model' }))
 
-    const listbox = screen.getByRole('listbox', { name: 'Select model' })
-    expect(within(listbox).getByText('Context')).toBeInTheDocument()
-    expect(within(listbox).getByRole('switch', { name: 'MAX Mode' })).not.toBeDisabled()
+    const menu = screen.getByRole('menu', { name: 'Select model' })
+    expect(within(menu).getByText('MAX Mode')).toBeInTheDocument()
+    expect(within(menu).getByRole('switch', { name: 'MAX Mode' })).not.toBeDisabled()
   })
 
   it('stores explicit welcome MAX context on the first pending turn', async () => {
@@ -417,7 +417,7 @@ describe('ConversationWelcome composer', () => {
     textbox.textContent = 'Use the largest context for this first thread'
     fireEvent.input(textbox)
     fireEvent.click(screen.getByRole('button', { name: 'Select model' }))
-    fireEvent.click(within(screen.getByRole('listbox', { name: 'Select model' })).getByRole('switch', { name: 'MAX Mode' }))
+    fireEvent.click(within(screen.getByRole('menu', { name: 'Select model' })).getByRole('switch', { name: 'MAX Mode' }))
     fireEvent.keyDown(window, { key: 'Escape' })
     fireEvent.click(screen.getByRole('button', { name: 'Send message' }))
 
@@ -499,7 +499,7 @@ describe('ConversationWelcome composer', () => {
       expect(screen.getByRole('button', { name: 'Select model' })).toHaveTextContent('MAX')
     })
     fireEvent.click(screen.getByRole('button', { name: 'Select model' }))
-    const maxSwitch = within(screen.getByRole('listbox', { name: 'Select model' })).getByRole('switch', { name: 'MAX Mode' })
+    const maxSwitch = within(screen.getByRole('menu', { name: 'Select model' })).getByRole('switch', { name: 'MAX Mode' })
     expect(maxSwitch).toHaveAttribute('aria-checked', 'true')
     fireEvent.click(maxSwitch)
     fireEvent.keyDown(window, { key: 'Escape' })

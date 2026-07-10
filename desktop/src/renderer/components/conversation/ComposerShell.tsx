@@ -588,7 +588,7 @@ export function ComposerShell({
       )}
       {/* Card-only wrapper: scopes the focus glow to the card (not the outer
           container, which also holds the footer) so the halo hugs the card. */}
-      <div style={{ position: 'relative' }}>
+      <div data-composer-card-layer style={{ position: 'relative' }}>
         {/* Brand-gradient glow behind the composer. Always mounted so it can ease
             in and out on hover instead of popping the moment the pointer crosses
             the edge; transparent at rest, a calmer static halo on hover, and it
