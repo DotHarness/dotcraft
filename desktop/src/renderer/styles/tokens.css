@@ -691,6 +691,13 @@ kbd {
   will-change: opacity, filter;
 }
 
+/* Composer card popovers need to clear the workspace footer below the card.
+   Raise this layer only while an in-card overlay is open so the footer's own
+   upward-opening menus can still paint above the card at every other time. */
+[data-composer-card-layer]:has([data-composer-overlay-open='true']) {
+  z-index: 2;
+}
+
 /* Send launch: crouch anticipation → stretch jump → squash landing → settle. */
 @keyframes composer-mascot-launch {
   0% {
@@ -2506,7 +2513,7 @@ kbd {
   border-top: 1px solid var(--border-default);
 }
 
-/* ─── Settings select ─── */
+/* ─── Shared select (field default, optional frameless trigger) ─── */
 .dc-settings-select {
   width: 100%;
   min-height: 35px;
@@ -2542,6 +2549,21 @@ kbd {
   background: var(--bg-tertiary);
 }
 
+.dc-settings-select[data-appearance="frameless"] {
+  border-color: transparent;
+  background: transparent;
+}
+
+.dc-settings-select[data-appearance="frameless"]:hover:not(:disabled) {
+  border-color: transparent;
+  background: var(--sidebar-control-hover);
+}
+
+.dc-settings-select[data-appearance="frameless"][data-open="true"] {
+  border-color: transparent;
+  background: var(--sidebar-control-active);
+}
+
 .dc-settings-select:focus-visible {
   outline: 2px solid color-mix(in srgb, var(--accent) 72%, transparent);
   outline-offset: 2px;
@@ -2574,7 +2596,7 @@ kbd {
 
 .dc-settings-select-menu {
   position: fixed;
-  z-index: 10000;
+  z-index: 10001;
   padding: 5px;
   border: none;
   border-radius: 10px;

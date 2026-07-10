@@ -1,12 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { fireEvent, render, screen, within } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
 import { LocaleProvider } from '../contexts/LocaleContext'
 import { PerforcePrepareDialog } from '../components/detail/PerforcePrepareDialog'
 import { useConversationStore } from '../stores/conversationStore'
 
 const settingsGet = vi.fn()
 
-function renderDialog(onPrepare = vi.fn()): ReturnType<typeof vi.fn> {
+function renderDialog(onPrepare = vi.fn(), onClose = vi.fn()): ReturnType<typeof vi.fn> {
   useConversationStore.getState().upsertChangedFile({
     filePath: 'C:\\workspace\\sample-app\\src\\a.ts',
     turnId: 'turn-1',
@@ -29,7 +29,7 @@ function renderDialog(onPrepare = vi.fn()): ReturnType<typeof vi.fn> {
           { id: '456', isDefault: false, description: 'Other CL', user: 'me', client: 'ws', status: 'pending' }
         ]}
         onPrepare={onPrepare}
-        onClose={vi.fn()}
+        onClose={onClose}
       />
     </LocaleProvider>
   )
@@ -54,8 +54,8 @@ describe('PerforcePrepareDialog', () => {
     const onPrepare = renderDialog()
 
     const targetSelect = screen.getByRole('combobox', { name: 'Target' })
-    const option = within(targetSelect).getByRole('option', { name: '456 - Other CL' })
-    fireEvent.change(targetSelect, { target: { value: option.getAttribute('value') } })
+    fireEvent.click(targetSelect)
+    fireEvent.click(screen.getByRole('option', { name: '456 - Other CL' }))
     fireEvent.change(screen.getByPlaceholderText('Leave blank to auto-generate changelist description'), {
       target: { value: 'Prepare existing CL' }
     })
@@ -68,10 +68,31 @@ describe('PerforcePrepareDialog', () => {
     const onPrepare = renderDialog()
 
     const targetSelect = screen.getByRole('combobox', { name: 'Target' })
-    const option = within(targetSelect).getByRole('option', { name: 'New Changelist' })
-    fireEvent.change(targetSelect, { target: { value: option.getAttribute('value') } })
+    fireEvent.click(targetSelect)
+    fireEvent.click(screen.getByRole('option', { name: 'New Changelist' }))
     fireEvent.click(screen.getByRole('button', { name: 'Checkout' }))
 
     expect(onPrepare).toHaveBeenCalledWith('', 'default')
+  })
+
+  it('supports keyboard selection and closes only the selector on Escape', () => {
+    const onPrepare = vi.fn()
+    const onClose = vi.fn()
+    renderDialog(onPrepare, onClose)
+
+    const targetSelect = screen.getByRole('combobox', { name: 'Target' })
+    fireEvent.keyDown(targetSelect, { key: 'ArrowDown' })
+    fireEvent.keyDown(targetSelect, { key: 'ArrowDown' })
+    fireEvent.keyDown(targetSelect, { key: 'Enter' })
+
+    fireEvent.click(targetSelect)
+    expect(screen.getByRole('listbox', { name: 'Target' })).toBeInTheDocument()
+    fireEvent.keyDown(targetSelect, { key: 'Escape' })
+
+    expect(screen.queryByRole('listbox', { name: 'Target' })).not.toBeInTheDocument()
+    expect(onClose).not.toHaveBeenCalled()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Checkout' }))
+    expect(onPrepare).toHaveBeenCalledWith('', '456')
   })
 })

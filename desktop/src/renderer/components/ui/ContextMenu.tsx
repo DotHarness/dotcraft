@@ -1,6 +1,7 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type MouseEvent as ReactMouseEvent, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { ChevronRight } from 'lucide-react'
+import { useMenuAim } from '../../hooks/useMenuAim'
 import { ActionTooltip } from './ActionTooltip'
 
 export interface ContextMenuItem {
@@ -43,6 +44,7 @@ interface SubmenuAnchor {
  */
 export function ContextMenu({ items, position, onClose }: ContextMenuProps): JSX.Element {
   const menuRef = useRef<HTMLDivElement>(null)
+  const submenuRef = useRef<HTMLDivElement>(null)
   const [openSubmenuIndex, setOpenSubmenuIndex] = useState<number | null>(null)
   const [submenuAnchor, setSubmenuAnchor] = useState<SubmenuAnchor | null>(null)
   const [hoveredItemIndex, setHoveredItemIndex] = useState<number | null>(null)
@@ -76,15 +78,27 @@ export function ContextMenu({ items, position, onClose }: ContextMenuProps): JSX
   const submenuTop = clampMenuTop(submenuAnchor?.top ?? top, submenuEstimatedHeight)
   const submenuLeftOffset = submenuLeft - left
   const submenuTopOffset = submenuTop - top
+  const {
+    track: trackMenuAim,
+    guard: guardMenuAim,
+    cancel: cancelMenuAim
+  } = useMenuAim({
+    submenuRef,
+    side: submenuOpensLeft ? 'left' : 'right'
+  })
 
   useEffect(() => {
     function handleMouseDown(e: MouseEvent): void {
       if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        cancelMenuAim()
         onClose()
       }
     }
     function handleKeyDown(e: KeyboardEvent): void {
-      if (e.key === 'Escape') onClose()
+      if (e.key === 'Escape') {
+        cancelMenuAim()
+        onClose()
+      }
     }
     document.addEventListener('mousedown', handleMouseDown)
     document.addEventListener('keydown', handleKeyDown)
@@ -92,7 +106,7 @@ export function ContextMenu({ items, position, onClose }: ContextMenuProps): JSX
       document.removeEventListener('mousedown', handleMouseDown)
       document.removeEventListener('keydown', handleKeyDown)
     }
-  }, [onClose])
+  }, [cancelMenuAim, onClose])
 
   function openSubmenu(index: number, element: HTMLElement): void {
     setOpenSubmenuIndex(index)
@@ -103,6 +117,52 @@ export function ContextMenu({ items, position, onClose }: ContextMenuProps): JSX
     setOpenSubmenuIndex(null)
     setSubmenuAnchor(null)
     setHoveredSubmenuItemIndex(null)
+  }
+
+  function handleParentItemPointer(
+    item: ContextMenuItem,
+    index: number,
+    event: ReactMouseEvent<HTMLButtonElement>
+  ): void {
+    if (item.disabled) {
+      setHoveredItemIndex(index)
+      return
+    }
+
+    if (item.submenu) {
+      if (openSubmenuIndex === index) {
+        setHoveredItemIndex(index)
+        trackMenuAim(event)
+        return
+      }
+
+      const row = event.currentTarget
+      if (openSubmenuIndex !== null) {
+        guardMenuAim(event, () => {
+          setHoveredItemIndex(index)
+          openSubmenu(index, row)
+        })
+        return
+      }
+
+      cancelMenuAim()
+      setHoveredItemIndex(index)
+      openSubmenu(index, row)
+      trackMenuAim(event)
+      return
+    }
+
+    if (openSubmenuIndex !== null) {
+      guardMenuAim(event, () => {
+        setHoveredItemIndex(index)
+        closeSubmenu()
+      })
+      return
+    }
+
+    cancelMenuAim()
+    setHoveredItemIndex(index)
+    closeSubmenu()
   }
 
   const menu = (
@@ -148,6 +208,7 @@ export function ContextMenu({ items, position, onClose }: ContextMenuProps): JSX
             aria-expanded={item.submenu ? openSubmenuIndex === i : undefined}
             disabled={item.disabled}
             onClick={(event) => {
+              cancelMenuAim()
               if (!item.disabled) {
                 if (item.submenu) {
                   if (openSubmenuIndex === i) {
@@ -181,15 +242,8 @@ export function ContextMenu({ items, position, onClose }: ContextMenuProps): JSX
               cursor: item.disabled ? 'default' : 'pointer',
               transition: 'background-color 80ms ease'
             }}
-            onMouseEnter={(e) => {
-              setHoveredItemIndex(i)
-              if (item.disabled) return
-              if (item.submenu) {
-                openSubmenu(i, e.currentTarget)
-              } else {
-                closeSubmenu()
-              }
-            }}
+            onMouseEnter={(event) => handleParentItemPointer(item, i, event)}
+            onMouseMove={(event) => handleParentItemPointer(item, i, event)}
             onMouseLeave={() => {
               setHoveredItemIndex((current) => current === i ? null : current)
             }}
@@ -230,7 +284,10 @@ export function ContextMenu({ items, position, onClose }: ContextMenuProps): JSX
       })}
       {submenuItems && submenuItems.length > 0 && (
         <div
+          ref={submenuRef}
           role="menu"
+          onMouseEnter={cancelMenuAim}
+          onMouseMove={cancelMenuAim}
           style={{
             position: 'absolute',
             top: submenuTopOffset,
@@ -272,6 +329,7 @@ export function ContextMenu({ items, position, onClose }: ContextMenuProps): JSX
                 role="menuitem"
                 disabled={item.disabled}
                 onClick={() => {
+                  cancelMenuAim()
                   if (!item.disabled) {
                     item.onClick()
                     onClose()
