@@ -8,7 +8,7 @@
 
 Purpose: let an App Binding app present a **rich, interactive UI for tool results** by shipping a sandboxed UI resource that DotCraft Desktop renders in an iframe, with a postMessage JSON‑RPC bridge between the UI and the host. DotCraft adopts the MCP Apps interaction + security model and binds it to DotCraft's App Binding authority: the app plays the MCP‑server role (tools + `ui://` resources) over its trusted, locally‑installed loopback connection; AppServer brokers; Desktop is the host that renders and bridges. Because apps are trusted and locally installed, the sandbox is defense‑in‑depth — authority is still enforced by App Binding.
 
-Interactive UI renders only on Desktop (iframe). Non‑Desktop clients (TUI, channels) receive the text fallback (§12).
+Interactive UI renders only on Desktop (iframe). Clients that do not negotiate the capability receive the text fallback (§12).
 
 ---
 
@@ -35,7 +35,7 @@ Does not define a declarative block/card vocabulary, cross‑client rich renderi
 
 ## 3. Capability Negotiation
 
-Interactive UI is explicitly negotiated. A client that can render it sets the boolean `interactiveToolUi` capability at `initialize` (default `false`). Only DotCraft Desktop declares it; TUI and channel adapters do not and receive the text fallback (§12). For a client that did not declare it, AppServer does not honor the `ui/*` host methods (`ui/resource/read`, `ui/tool/call`, `ui/open-link`, `ui/update-model-context`, `item/widget-state/set`) — they are rejected as unsupported — so a non‑declaring client can neither serve nor drive an app's `ui://` surface.
+Interactive UI is explicitly negotiated. A client that can render it sets the boolean `interactiveToolUi` capability at `initialize` (default `false`). Only DotCraft Desktop declares it; channel adapters do not and receive the text fallback (§12). For a client that did not declare it, AppServer does not honor the `ui/*` host methods (`ui/resource/read`, `ui/tool/call`, `ui/open-link`, `ui/update-model-context`, `item/widget-state/set`) — they are rejected as unsupported — so a non‑declaring client can neither serve nor drive an app's `ui://` surface.
 
 ---
 
@@ -178,7 +178,7 @@ The UI's access to its own app backend (direct `fetch`) is governed by CSP `conn
 
 ## 12. Fallback (non‑Desktop)
 
-Clients that did not negotiate `interactiveToolUi` (TUI, chat channels) and any failure to render MUST fall back to the tool result's text — `contentItems` / `structuredResult` / error fields, with `_meta` excluded. Apps MUST always return useful text; the interactive UI is an enhancement, never required for correctness.
+Clients that did not negotiate `interactiveToolUi`, including chat channels, and any failure to render MUST fall back to the tool result's text — `contentItems` / `structuredResult` / error fields, with `_meta` excluded. Apps MUST always return useful text; the interactive UI is an enhancement, never required for correctness.
 
 ---
 

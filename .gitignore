@@ -32,10 +32,6 @@ venv
 tmp
 *.tmp.md
 
-# Ignore Rust dependencies
-
-target/
-
 # E2E test artifacts
 desktop/e2e/screenshots/
 /sdk/typescript/packages/channel-weixin/data

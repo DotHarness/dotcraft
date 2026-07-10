@@ -4573,7 +4573,7 @@ These methods expose the server-side command registry to wire clients.
 - `command/execute` executes a slash command and returns a normalized `CommandResult`.
 
 Command resolution and execution semantics are server-authoritative.
-Client-local UX commands (for example CLI/TUI `/clear`) are intentionally outside this registry surface and do not need to appear in `command/list`.
+Client-local UX commands are intentionally outside this registry surface and do not need to appear in `command/list`.
 
 ### 19.2 `CommandInfo` Wire DTO
 
@@ -4747,7 +4747,7 @@ Servers that have a client-declared `backgroundTerminals` capability may emit:
 
 Notifications use the same terminal snapshot shape. `terminal/outputDelta` additionally carries the output delta text.
 
-First-party terminal-capable clients such as Desktop and TUI use these notifications for live Shell tool output, including foreground `Exec` calls. When a terminal originates from an `Exec` tool call, `terminal.callId` correlates it to the `toolCall` item that should receive live output and status updates. `terminal.threadId` scopes the update to the owning thread, and `terminal.turnId` scopes it to the originating turn when available.
+Clients with terminal rendering support, such as Desktop, use these notifications for live Shell tool output, including foreground `Exec` calls. When a terminal originates from an `Exec` tool call, `terminal.callId` correlates it to the `toolCall` item that should receive live output and status updates. `terminal.threadId` scopes the update to the owning thread, and `terminal.turnId` scopes it to the originating turn when available.
 
 If `terminal.backgroundReason = "runInBackground"`, the client must not keep appending later process output into the inline foreground `Exec` card. The inline card may show the returned session/status/final summary, while the background terminal UI owns ongoing process output.
 
@@ -6763,7 +6763,7 @@ Review semantics:
 ### 27A.1 Scope
 
 These methods expose the workspace's trace/usage telemetry over the JSON-RPC surface,
-so in-process clients (Desktop, TUI) can render usage overviews without opening the
+so clients such as Desktop can render usage overviews without opening the
 hosted HTML Dashboard. `usage/summary` returns the workspace aggregate (the same number
 the Dashboard serves at `GET /dashboard/api/summary`); `usage/timeseries` returns a
 per-day breakdown for activity charts. Both are independent of whether the HTML

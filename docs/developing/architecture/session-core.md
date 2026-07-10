@@ -1,6 +1,6 @@
 # Unified Session Core
 
-DotCraft does not maintain a separate agent loop per client. The **Unified Session Core** consolidates execution, state, approvals, and observability into a single engine. CLI, Desktop, TUI, ACP, QQ bots, and automations all connect to the same core.
+DotCraft does not maintain a separate agent loop per client. The **Unified Session Core** consolidates execution, state, approvals, and observability into a single engine. CLI, Desktop, ACP, QQ bots, and automations all connect to the same core.
 
 This page targets integrators and contributors. It explains the session model and the cross-entry boundaries that matter when you build a client or debug shared sessions.
 
@@ -22,7 +22,7 @@ This page targets integrators and contributors. It explains the session model an
 
 Key points:
 
-- **Hub** assembles one AppServer per workspace on the local machine. Desktop and TUI use this path by default, so opening the same project from any entry connects to the same process.
+- **Hub** assembles one AppServer per workspace on the local machine. Desktop and CLI use this path by default, so opening the same project from either entry connects to the same process.
 - **AppServer** projects `ISessionService` as JSON-RPC ([full protocol](../protocols/appserver-protocol)). Any language can implement a client.
 - **Workspace `.craft/`** is the persistence layer: threads in `threads/`, session metadata in `sessions/`, dreams in `dreams/`. After a restart, any entry point can resume.
 
@@ -33,7 +33,6 @@ Session Core surfaces "may this tool call run" as a discrete approval event, so 
 | Entry | How approval is shown |
 |---|---|
 | Desktop | Modal / Approvals panel |
-| TUI | Inline shortcut |
 | ACP (IDE) | Forwarded as `requestPermission` to the editor UI |
 | QQ / WeCom / channels | Native platform reply |
 
@@ -59,7 +58,7 @@ Typical flows:
 
 DotCraft has two layers of local coordination:
 
-- **Hub** — Per-user coordinator that starts/reuses one AppServer per workspace and prevents the same workspace from being held by multiple AppServers. Desktop / TUI users do not need to think about it.
+- **Hub** — Per-user coordinator that starts/reuses one AppServer per workspace and prevents the same workspace from being held by multiple AppServers. Desktop and CLI users do not need to think about it.
 - **AppServer** — Per-workspace runtime that owns every Thread / tool / approval / event stream.
 
 When you need direct control (remote deploy, CI, bots, debugging), see:

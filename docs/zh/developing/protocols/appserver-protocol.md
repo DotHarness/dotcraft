@@ -1,6 +1,6 @@
 # AppServer Protocol
 
-AppServer Protocol 是 DotCraft 暴露给外部客户端的 JSON-RPC wire protocol。Desktop、TUI、ACP bridge、外部 channel adapter 和自定义 IDE client 都可以通过它创建或恢复线程、提交用户输入、消费流式事件，并参与命令执行或文件变更审批。
+AppServer Protocol 是 DotCraft 暴露给外部客户端的 JSON-RPC wire protocol。Desktop、ACP bridge、外部 channel adapter 和自定义 IDE client 都可以通过它创建或恢复线程、提交用户输入、消费流式事件，并参与命令执行或文件变更审批。
 
 如果你只是在本机寻找或启动工作区 AppServer，请先使用 [Hub Protocol](./hub-protocol)。Hub 返回 AppServer WebSocket endpoint 后，后续会话流量才进入本协议。
 
@@ -8,7 +8,7 @@ AppServer Protocol 是 DotCraft 暴露给外部客户端的 JSON-RPC wire protoc
 
 使用 AppServer Protocol 适合：
 
-- 构建 Desktop、TUI、IDE、编辑器或浏览器前端。
+- 构建桌面、IDE、编辑器或浏览器前端。
 - 构建非 C# client，例如 Node.js、Python、Rust 或 Swift 应用。
 - 将 DotCraft 嵌入已有产品，复用会话、工具、审批和流式事件。
 - 实现外部 channel adapter，让社交平台或机器人接入同一个工作区运行时。

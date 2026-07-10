@@ -1,6 +1,6 @@
 # DotCraft 快速开始
 
-这条路径面向第一次使用 DotCraft 的用户：先安装 Desktop，选择项目目录初始化工作区，配置模型提供商，然后发起第一次对话。完成后再按需要进入 TUI、AppServer、API、SDK 或 Automations。
+这条路径面向第一次使用 DotCraft 的用户：先安装 Desktop，选择项目目录初始化工作区，配置模型提供商，然后发起第一次对话。完成后再按需要进入 CLI、AppServer、API、SDK 或 Automations。
 
 ## 快速开始
 
@@ -17,7 +17,7 @@
 
 Desktop 是推荐的第一入口，因为它把工作区选择、模型配置、会话、Diff、计划、自动化审核和运行状态放在同一个界面里。
 
-如果你只需要 CLI 和 TUI 二进制，可以直接安装：
+如果你只需要 CLI，可以直接安装：
 
 ```bash
 curl -fsSL https://www.dotcraft.net/install.sh | bash
@@ -29,11 +29,11 @@ Windows PowerShell：
 irm https://www.dotcraft.net/install.ps1 | iex
 ```
 
-Windows PowerShell 安装脚本会自动选择 x64 或 ARM64 的 CLI/TUI 归档。macOS/Linux shell 安装脚本会在 macOS 上自动选择 x64 或 ARM64；Linux 的 CLI Release 归档目前仍只提供 x64。
+Windows PowerShell 安装脚本会自动选择 x64 或 ARM64 的 CLI 归档。macOS/Linux shell 安装脚本会在 macOS 上自动选择 x64 或 ARM64；Linux 的 CLI Release 归档目前仍只提供 x64。
 
 ![DotCraft](https://github.com/DotHarness/resources/raw/master/dotcraft/desktop.png)
 
-如果你更喜欢从源码构建，请先安装 [.NET 10 SDK](https://dotnet.microsoft.com/download)、Rust toolchain 和 Node.js，然后在仓库根目录运行：
+如果你更喜欢从源码构建，请先安装 [.NET 10 SDK](https://dotnet.microsoft.com/download) 和 Node.js，然后在仓库根目录运行：
 
 ```bash
 build.bat
@@ -111,7 +111,7 @@ API Key 和端点放在全局文件 `~/.craft/config.json`；工作区通常只�
 dotcraft exec "请阅读这个仓库的 README 和 docs/index.md，告诉我这个项目怎么启动。"
 ```
 
-直接运行 `dotcraft` 只负责首次初始化——在已经有 `.craft/` 的工作区里，它不会进入交互式聊天。需要终端会话，请继续阅读 [TUI 指南](./features/entry-points/tui)。
+直接运行 `dotcraft` 只负责首次初始化——在已经有 `.craft/` 的工作区里，它不会进入交互式聊天。一次性终端任务请使用 `dotcraft exec`。
 
 ## 一个工作区，连接所有入口
 
@@ -139,7 +139,7 @@ DotCraft 把 Desktop、终端、IDE、机器人与自动化都连接到同一个
 | 我想做什么 | 下一步 |
 |------------|--------|
 | 使用图形界面持续协作 | [Desktop](./features/entry-points/desktop) |
-| 在终端里使用完整界面 | [TUI](./features/entry-points/tui) |
+| 在终端或 CI 中运行一次性任务 | [使用 `dotcraft exec`](#4-第一次运行) |
 | 远程或多客户端共享工作区 | [AppServer 模式](./developing/lifecycle/appserver) |
 | 接入 IDE 或编辑器 | [IDE / 编辑器（ACP）](./features/entry-points/editors) |
 | 构建机器人或外部适配器 | [Channels 与 Bots](./features/entry-points/channels) |

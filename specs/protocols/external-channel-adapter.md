@@ -54,7 +54,7 @@ The gateway-style architecture used by Nanobot/OpenClaw (a central `MessageBus` 
 
 The External Channel Adapter pattern instead makes the adapter a **full Wire Protocol client**. The adapter controls the full thread and turn lifecycle, receives all session events including bidirectional approval requests, and remains responsible for platform-specific presentation. The Wire Protocol's JSON-RPC 2.0 framing is language-agnostic, so no C# binding is required.
 
-This mirrors exactly how the CLI already works: the CLI is a Wire Protocol client that bridges a terminal UI to Session Core. An external channel adapter is a Wire Protocol client that bridges a social platform.
+This follows the same full-client pattern as `dotcraft exec`: the CLI maps a one-shot command to Session Core, while an external channel adapter maps a social platform to Session Core.
 
 ---
 

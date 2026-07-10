@@ -10,7 +10,7 @@ Many agents share a single workspace across every project; DotCraft gives each p
 
 | Concept | Meaning |
 |---|---|
-| **Workspace** | Project root that contains a `.craft/` directory. Desktop, TUI, ACP, bots, and automations all act on the same workspace. |
+| **Workspace** | Project root that contains a `.craft/` directory. Desktop, CLI, ACP, bots, and automations all act on the same workspace. |
 | **Bootstrap files** | `.craft/AGENTS.md`, `.craft/SOUL.md`, `.craft/USER.md` — agent rules, personality, and user profile. |
 | **Memory & History** | `.craft/MEMORY.md` and `.craft/HISTORY.md` — long-term memory and history maintained by the agent and readable by humans. |
 | **Skills / Plugins** | `.craft/skills/` and `.craft/plugins/` — capability bundles that travel with the workspace. |
@@ -23,7 +23,7 @@ Many agents share a single workspace across every project; DotCraft gives each p
 
 Every entry point reads the workspace **before doing anything**. That means:
 
-- Switching entry points never loses context: a session opened in Desktop continues in TUI.
+- Switching entry points never loses context: a session opened in Desktop can continue through ACP or another AppServer client.
 - Restoring on another machine costs nothing: sync the project directory.
 - Teams share one baseline: commit the shareable parts of `.craft/` (skills, commands, AGENTS.md) and every teammate's Desktop boots with the same agent constraints.
 

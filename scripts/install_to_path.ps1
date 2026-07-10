@@ -18,7 +18,6 @@ Write-Host ""
 
 # Check if required files exist
 $exePath = Join-Path $installDir "dotcraft.exe"
-$tuiPath = Join-Path $installDir "dotcraft-tui.exe"
 
 if (-not (Test-Path $exePath)) {
     Write-Host "Error: Missing required file: dotcraft.exe" -ForegroundColor Red
@@ -31,11 +30,6 @@ if (-not (Test-Path $exePath)) {
 }
 
 Write-Host "Found: dotcraft.exe" -ForegroundColor Green
-if (Test-Path $tuiPath) {
-    Write-Host "Found: dotcraft-tui.exe (TUI client)" -ForegroundColor Green
-} else {
-    Write-Host "Note: dotcraft-tui.exe not found (optional TUI client)" -ForegroundColor Gray
-}
 Write-Host ""
 
 # Check if running as administrator
@@ -72,9 +66,6 @@ Write-Host "================================" -ForegroundColor Cyan
 Write-Host ""
 Write-Host "Commands available from PATH:" -ForegroundColor Cyan
 Write-Host "  - dotcraft       (CLI / AppServer launcher)" -ForegroundColor White
-if (Test-Path $tuiPath) {
-    Write-Host "  - dotcraft-tui   (TUI client, same directory)" -ForegroundColor White
-}
 Write-Host ""
 Write-Host "IMPORTANT: " -ForegroundColor Yellow -NoNewline
 Write-Host "Please restart your terminal for PATH changes to take effect" -ForegroundColor White

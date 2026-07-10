@@ -94,7 +94,7 @@
     <line x1="28" y1="64" x2="380" y2="64" stroke="#D9E0EA"/>
     <text x="28" y="100" class="mono">group chat = Thread</text>
     <text x="28" y="126" class="mono">message = Turn / Item</text>
-    <text x="28" y="158" class="muted">Desktop and TUI can inspect or take over.</text>
+    <text x="28" y="158" class="muted">Desktop and other clients can inspect or continue.</text>
   </g>
 
   <g transform="translate(72 768)">

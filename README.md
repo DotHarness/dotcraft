@@ -13,7 +13,7 @@ AI Agent lives in your project. All in one workspace.
 DotCraft is a .NET 10 / C# Agent Harness. It organizes AI workflows around a real project folder, allowing multiple entry points to share one session core, configuration, skills, tools, tasks, and observability surface.
 
 - Project first: plugins, skills, sessions, and memory are integrated with the project, the agent can better understand your project.
-- Unified session model: CLI, Desktop, TUI, chatbots, etc, all applications reuse the same execution engine.
+- Unified session model: CLI, Desktop, editors, chatbots, and other applications reuse the same execution engine.
 - Observability and governance: approvals, traces, Dashboard, Hooks, and sandbox settings make agent workflows easier to inspect and control.
 - Extensibility and integration: AppServer, SDKs, and plugins support custom entry points and business workflows.
 - Bring your own model: works with any OpenAI- or Anthropic-protocol provider, reuses an active ChatGPT subscription, and natively supports DeepSeek V4 and MiMo V2.5 reasoning models.
@@ -174,7 +174,7 @@ See [Getting Started](https://www.dotcraft.net/getting-started) for the full gui
 |------|----------|
 | Install, configure, and run DotCraft for the first time | [Getting Started](https://www.dotcraft.net/getting-started) |
 | Use the graphical desktop client | [Desktop](https://www.dotcraft.net/features/entry-points/desktop) |
-| Use the full terminal interface | [TUI](https://www.dotcraft.net/features/entry-points/tui) |
+| Run a one-shot terminal or script task | [`dotcraft exec`](https://www.dotcraft.net/getting-started) |
 | Run local automation tasks | [Automations & Goals](https://www.dotcraft.net/features/agent-system/automations) |
 | Add official plugins | [Plugins & Tools](https://www.dotcraft.net/features/agent-system/plugins-tools) |
 | Manage Lifecycle Hooks | [Lifecycle Hooks](https://www.dotcraft.net/features/agent-system/hooks) |

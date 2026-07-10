@@ -2,7 +2,7 @@
 
 An App Binding tool can ship a **rich, interactive UI for its results**. The tool declares a `ui://` HTML resource; DotCraft **Desktop** renders it in a sandboxed iframe and runs a small postMessage JSON-RPC bridge between the UI and the host. This adopts the **MCP Apps** model and binds it to App Binding authority: the iframe is isolated, and every UI-initiated action is re-validated against the thread's binding (scope, risk, approval) and audited.
 
-Interactive UI renders **only on Desktop**. TUI and chat channels fall back to the tool's text result — the UI is always an enhancement, never required for correctness.
+Interactive UI renders **only on Desktop**. Clients that do not negotiate `interactiveToolUi`, including chat channels, fall back to the tool's text result — the UI is always an enhancement, never required for correctness.
 
 > [!NOTE]
 > Examples use **Oratorio** as the running example. Swap the namespace, tool names, and `ui://` paths for your own app.

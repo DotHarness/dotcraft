@@ -8,10 +8,6 @@ Thank you for considering contributing to DotCraft!
 - .NET 10 SDK (preview)
 - Recommended editors: VS Code or Visual Studio 2022
 
-### Rust / TUI (Optional)
-- Rust 1.75+ (`rustup`)
-- See `tui/README.md` for dependencies
-
 ### TypeScript / Desktop (Optional)
 - Node.js 20+ LTS
 - See `desktop/README.md` for dependencies
@@ -84,7 +80,6 @@ Reference the development guidelines:
 | Stack | Style Guide | Key Requirements |
 |-------|-------------|------------------|
 | C# | Official conventions + modern features | file-scoped namespace, sealed class, XML doc |
-| Rust | Idiomatic Rust | `snake_case`, `anyhow::Result`, `#[tokio::main]` |
 | TypeScript/React | Standard React | Functional components, Zustand, Tailwind CSS 4 |
 
 See the `dev-guide` skill from the official `dotcraft-dev` plugin for complete guidelines.
@@ -98,11 +93,6 @@ See the `dev-guide` skill from the official `dotcraft-dev` plugin for complete g
 - [ ] Documentation provided in both English and Chinese
 - [ ] Configuration validated with appropriate error messages
 - [ ] Tested manually in real environment
-
-### Rust Code
-- [ ] `cargo clippy` passes without warnings
-- [ ] `cargo fmt` applied
-- [ ] New modules have documentation comments
 
 ### TypeScript/React Code
 - [ ] ESLint passes without errors

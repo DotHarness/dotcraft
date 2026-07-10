@@ -40,32 +40,27 @@ jobs:
             os_name: linux
             runtime_id: linux-x64
             output_name: DotCraft-linux-x64
-            cargo_target: x86_64-unknown-linux-gnu
             electron_builder_args: ''
           - os: windows-latest
             os_name: windows
             runtime_id: win-x64
             output_name: DotCraft-win-x64
-            cargo_target: x86_64-pc-windows-msvc
             electron_builder_args: --win --x64
           - os: windows-latest
             os_name: windows
             runtime_id: win-arm64
             output_name: DotCraft-win-arm64
-            cargo_target: aarch64-pc-windows-msvc
             electron_builder_args: --win --arm64
           - os: macos-15-intel
             os_name: macos
             runtime_id: osx-x64
             output_name: DotCraft-macos-x64
-            cargo_target: x86_64-apple-darwin
             file_arch: x86_64
             electron_builder_args: --mac --x64
           - os: macos-15
             os_name: macos
             runtime_id: osx-arm64
             output_name: DotCraft-macos-arm64
-            cargo_target: aarch64-apple-darwin
             file_arch: arm64
             electron_builder_args: --mac --arm64
 
@@ -83,61 +78,20 @@ jobs:
     - name: Restore dependencies
       run: dotnet restore src/DotCraft.App/DotCraft.App.csproj
 
-    - name: Setup Rust
-      uses: dtolnay/rust-toolchain@stable
-
-    - name: Install Rust target
-      run: rustup target add ${{ matrix.cargo_target }}
-
-    - name: Cache Rust dependencies
-      uses: Swatinem/rust-cache@v2
-      with:
-        workspaces: tui
-
     - name: Build ${{ matrix.os_name }}
       run: dotnet publish src/DotCraft.App/DotCraft.App.csproj -c Release -r ${{ matrix.runtime_id }} -p:PublishProfile=ReleaseProfile -o ./publish/${{ matrix.output_name }}
-
-    - name: Setup MSVC x64 tools
-      if: matrix.runtime_id == 'win-x64'
-      uses: ilammy/msvc-dev-cmd@v1
-      with:
-        arch: x64
-
-    - name: Setup MSVC ARM64 cross tools
-      if: matrix.runtime_id == 'win-arm64'
-      uses: ilammy/msvc-dev-cmd@v1
-      with:
-        arch: amd64_arm64
-
-    - name: Build TUI (dotcraft-tui)
-      run: |
-        cargo build --release --target ${{ matrix.cargo_target }}
-      working-directory: tui
-
-    - name: Copy TUI binary to publish - Windows
-      if: runner.os == 'Windows'
-      run: Copy-Item -Path tui\target\${{ matrix.cargo_target }}\release\dotcraft-tui.exe -Destination publish\${{ matrix.output_name }}\
-
-    - name: Copy TUI binary to publish - Linux/macOS
-      if: runner.os != 'Windows'
-      run: cp tui/target/${{ matrix.cargo_target }}/release/dotcraft-tui publish/${{ matrix.output_name }}/
 
     - name: Verify macOS binary architectures
       if: runner.os == 'macOS'
       shell: bash
       run: |
         expected_arch="${{ matrix.file_arch }}"
-        file_output="$(file publish/${{ matrix.output_name }}/dotcraft publish/${{ matrix.output_name }}/dotcraft-tui)"
+        file_output="$(file publish/${{ matrix.output_name }}/dotcraft)"
         echo "$file_output"
         if ! grep -q "dotcraft:.*Mach-O.*${expected_arch}" <<< "$file_output"; then
           echo "::error::dotcraft is not a ${expected_arch} Mach-O binary"
           exit 1
         fi
-        if ! grep -q "dotcraft-tui:.*Mach-O.*${expected_arch}" <<< "$file_output"; then
-          echo "::error::dotcraft-tui is not a ${expected_arch} Mach-O binary"
-          exit 1
-        fi
-
     - name: Create archive for Linux/macOS
       if: runner.os != 'Windows'
       run: |
@@ -292,10 +246,10 @@ jobs:
       run: |
         VERSION=${GITHUB_REF#refs/tags/}
         echo "Version: $VERSION"
-        
+
         # Create release directory
         mkdir -p release
-        
+
         # Rename CLI artifacts
         for file in artifacts/DotCraft-*/DotCraft-*.tar.gz; do
           [ -f "$file" ] || continue
@@ -306,7 +260,7 @@ jobs:
           cp "$file" "release/$new_name"
           echo "Renamed: $(basename "$file") -> $new_name"
         done
-        
+
         for file in artifacts/DotCraft-*/DotCraft-*.zip; do
           [ -f "$file" ] || continue
           target=$(basename "$file")
@@ -316,7 +270,7 @@ jobs:
           cp "$file" "release/$new_name"
           echo "Renamed: $(basename "$file") -> $new_name"
         done
-        
+
         # Rename app artifacts - Windows
         for file in artifacts/DotCraft-Installer-win-*/*.exe; do
           [ -f "$file" ] || continue
@@ -337,7 +291,7 @@ jobs:
           cp "$file" "release/$new_name"
           echo "Renamed: $(basename "$file") -> $new_name"
         done
-        
+
         echo "Final release files:"
         ls -lh release/
 

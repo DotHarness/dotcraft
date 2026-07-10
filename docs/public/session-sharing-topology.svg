@@ -28,11 +28,10 @@
     <text x="28" y="44" class="cardTitle" fill="#153E33">Clients</text>
     <line x1="28" y1="64" x2="270" y2="64" stroke="#B7DED0"/>
     <text x="28" y="100" class="mono">Desktop</text>
-    <text x="28" y="130" class="mono">TUI</text>
-    <text x="28" y="160" class="mono">ACP / editor</text>
-    <text x="28" y="190" class="mono">CLI</text>
-    <text x="28" y="220" class="mono">Channels</text>
-    <text x="28" y="250" class="mono">SDK clients</text>
+    <text x="28" y="136" class="mono">ACP / editor</text>
+    <text x="28" y="172" class="mono">Channels</text>
+    <text x="28" y="208" class="mono">Automations</text>
+    <text x="28" y="244" class="mono">SDK clients</text>
     <text x="28" y="342" class="muted">Approvals, deltas, and</text>
     <text x="28" y="364" class="muted">tool state render in</text>
     <text x="28" y="386" class="muted">each client UI.</text>

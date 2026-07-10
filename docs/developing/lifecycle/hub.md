@@ -1,6 +1,6 @@
 # Hub Local Coordination
 
-This page targets integrators and contributors; most users never touch Hub directly. Hub is DotCraft's local runtime coordinator. It runs per OS user and discovers, starts, reuses, and stops the AppServer process for each workspace. Desktop / TUI use Hub by default.
+This page targets integrators and contributors; most users never touch Hub directly. Hub is DotCraft's local runtime coordinator. It runs per OS user and discovers, starts, reuses, and stops the AppServer process for each workspace. Desktop and CLI use Hub by default.
 
 > [!NOTE]
 > Remote, CI, bots, or explicit AppServer protocol debugging go through [AppServer Mode](./appserver).
@@ -41,7 +41,7 @@ Each workspace also has:
 
 It records which AppServer process owns the workspace and prevents multiple local AppServers from running against the same workspace.
 
-When Hub or AppServer finds a stale `appserver.lock` left by a dead process, it removes the lock and continues. If the lock points to a still-running AppServer with a healthy WebSocket endpoint, Hub reuses that endpoint instead of starting a duplicate process. When the lock points to a live AppServer that Hub cannot safely reuse, close the Desktop / TUI / CLI holding that workspace, or stop the workspace runtime from the tray, then reopen it.
+When Hub or AppServer finds a stale `appserver.lock` left by a dead process, it removes the lock and continues. If the lock points to a still-running AppServer with a healthy WebSocket endpoint, Hub reuses that endpoint instead of starting a duplicate process. When the lock points to a live AppServer that Hub cannot safely reuse, close the Desktop or CLI process holding that workspace, or stop the workspace runtime from the tray, then reopen it.
 
 ## Desktop and the Tray
 

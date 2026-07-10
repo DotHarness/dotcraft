@@ -1,6 +1,6 @@
 # Hub Protocol
 
-Hub Protocol is the local protocol DotCraft clients use to discover and manage workspace AppServers. It is intended for Desktop, TUI, editor extensions, and other local clients. If you want to talk to the agent, normal session traffic still uses [AppServer Protocol](./appserver-protocol).
+Hub Protocol is the local protocol DotCraft clients use to discover and manage workspace AppServers. It is intended for Desktop, CLI, editor extensions, and other local clients. If you want to talk to the agent, normal session traffic still uses [AppServer Protocol](./appserver-protocol).
 
 Hub coordinates local runtimes. It is not a session proxy:
 
@@ -13,7 +13,7 @@ Hub coordinates local runtimes. It is not a session proxy:
 
 Implement a Hub client when:
 
-- You are building the DotCraft app, TUI, an IDE extension, or a local GUI.
+- You are building the DotCraft app, a CLI integration, an IDE extension, or a local GUI.
 - You want multiple local clients to share one runtime per workspace.
 - You need to show local workspace status, tray menus, or system notifications.
 - You want to start AppServer on demand while avoiding duplicate AppServers for the same workspace.

@@ -1,6 +1,6 @@
 # AppServer Protocol
 
-AppServer Protocol is DotCraft's JSON-RPC wire protocol for external clients. Desktop, TUI, ACP bridges, external channel adapters, and custom IDE clients can use it to create or resume threads, submit user input, consume streaming events, and participate in command or file-change approvals.
+AppServer Protocol is DotCraft's JSON-RPC wire protocol for external clients. Desktop, ACP bridges, external channel adapters, and custom IDE clients can use it to create or resume threads, submit user input, consume streaming events, and participate in command or file-change approvals.
 
 If you only need to find or start a local workspace AppServer, use [Hub Protocol](./hub-protocol) first. After Hub returns an AppServer WebSocket endpoint, session traffic uses this protocol.
 
@@ -8,7 +8,7 @@ If you only need to find or start a local workspace AppServer, use [Hub Protocol
 
 Use AppServer Protocol when you want to:
 
-- Build Desktop, TUI, IDE, editor, or browser frontends.
+- Build desktop, IDE, editor, or browser frontends.
 - Build non-C# clients in Node.js, Python, Rust, Swift, or another language.
 - Embed DotCraft into an existing product while reusing sessions, tools, approvals, and streaming events.
 - Implement an external channel adapter that connects social platforms or bots to the same workspace runtime.

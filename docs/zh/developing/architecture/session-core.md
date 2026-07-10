@@ -1,6 +1,6 @@
 # 统一会话核心
 
-DotCraft 不为每个客户端维护一套独立的 Agent 流程。**Unified Session Core** 是把执行、状态、审批、可观测性收敛到一个引擎上的设计——CLI、Desktop、TUI、ACP、QQ 机器人、自动化任务都连同一个核心。
+DotCraft 不为每个客户端维护一套独立的 Agent 流程。**Unified Session Core** 是把执行、状态、审批、可观测性收敛到一个引擎上的设计——CLI、Desktop、ACP、QQ 机器人、自动化任务都连同一个核心。
 
 本页面向集成方与贡献者，说明会话模型，以及在你构建客户端或排查共享会话时需要关注的跨入口边界。
 
@@ -22,7 +22,7 @@ DotCraft 不为每个客户端维护一套独立的 Agent 流程。**Unified Ses
 
 要点：
 
-- **Hub** 在本机为每个工作区启动一个 AppServer。Desktop 和 TUI 默认走这条路，所以同一个项目目录无论从哪个入口打开，都连到同一个进程。
+- **Hub** 在本机为每个工作区启动一个 AppServer。Desktop 和 CLI 默认走这条路，所以同一个项目目录无论从哪个入口打开，都连到同一个进程。
 - **AppServer** 把 ISessionService 投影成 JSON-RPC（[完整协议](../protocols/appserver-protocol)），任何语言都可以做客户端。
 - **Workspace `.craft/`** 是持久化层：Thread 写到 `threads/`，Session 元信息写到 `sessions/`，Dreams 写到 `dreams/`，重启后任何入口都能恢复。
 
@@ -33,7 +33,6 @@ Session Core 把"工具调用是否允许执行"独立成审批事件，让前�
 | 入口 | 审批呈现方式 |
 |---|---|
 | Desktop | 模态框 / Approvals 面板 |
-| TUI | 内联快捷键 |
 | ACP（IDE） | `requestPermission` 转给编辑器 UI |
 | QQ / WeCom 等渠道 | 平台原生消息回复 |
 
@@ -59,7 +58,7 @@ Session Core 把"工具调用是否允许执行"独立成审批事件，让前�
 
 DotCraft 在本机有两层协调：
 
-- **Hub** —— 用户级协调器，按需启动/复用每个工作区的 AppServer，避免一个工作区被多个 AppServer 同时占用。日常 Desktop / TUI 不用关心。
+- **Hub** —— 用户级协调器，按需启动/复用每个工作区的 AppServer，避免一个工作区被多个 AppServer 同时占用。日常 Desktop 与 CLI 用户不用关心。
 - **AppServer** —— 工作区级运行时，所有 Thread / 工具 / 审批 / 事件流的真实承担者。
 
 需要直接控制 AppServer（远程部署、CI、机器人、调试）时，参考：

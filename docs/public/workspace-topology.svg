@@ -21,7 +21,7 @@
     <text x="28" y="34" fill="#17203A" font-size="17" font-weight="760">Entry points</text>
     <g transform="translate(28 52)">
       <rect x="0" y="0" width="128" height="34" rx="8" fill="#E9F5F0"/><text x="64" y="22" text-anchor="middle" fill="#247A57" font-size="14" font-weight="720">Desktop</text>
-      <rect x="146" y="0" width="96" height="34" rx="8" fill="#E9F5F0"/><text x="194" y="22" text-anchor="middle" fill="#247A57" font-size="14" font-weight="720">TUI</text>
+      <rect x="146" y="0" width="96" height="34" rx="8" fill="#E9F5F0"/><text x="194" y="22" text-anchor="middle" fill="#247A57" font-size="14" font-weight="720">CLI</text>
       <rect x="260" y="0" width="156" height="34" rx="8" fill="#E9F5F0"/><text x="338" y="22" text-anchor="middle" fill="#247A57" font-size="14" font-weight="720">IDE / ACP</text>
       <rect x="434" y="0" width="172" height="34" rx="8" fill="#E9F5F0"/><text x="520" y="22" text-anchor="middle" fill="#247A57" font-size="14" font-weight="720">Channels / Bots</text>
       <rect x="624" y="0" width="146" height="34" rx="8" fill="#E9F5F0"/><text x="697" y="22" text-anchor="middle" fill="#247A57" font-size="14" font-weight="720">Automations</text>
@@ -67,7 +67,7 @@
     <text x="28" y="146" class="mono">.craft/threads/archived/</text>
     <text x="28" y="170" class="mono">.craft/sessions/</text>
     <text x="28" y="194" class="mono">.craft/state.db</text>
-    <text x="28" y="224" class="muted">Desktop, TUI, channels, and SDKs resume here.</text>
+    <text x="28" y="224" class="muted">Desktop, ACP, channels, and SDKs resume here.</text>
   </g>
 
   <g transform="translate(72 594)">

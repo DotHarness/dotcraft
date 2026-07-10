@@ -16,7 +16,7 @@ dotcraft gateway
 
 ### 打开
 
-默认地址 `http://127.0.0.1:8080/dashboard`。从 CLI、Desktop、TUI 或其他入口发起一次对话后，Dashboard 即可看到会话、工具调用、错误和配置状态。
+默认地址 `http://127.0.0.1:8080/dashboard`。从 CLI、Desktop 或其他入口发起一次对话后，Dashboard 即可看到会话、工具调用、错误和配置状态。
 
 ## 主要页面
 

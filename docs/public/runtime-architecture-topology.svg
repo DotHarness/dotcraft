@@ -77,11 +77,11 @@
     <text x="28" y="44" class="cardTitle" fill="#15384B">Clients and SDKs</text>
     <line x1="28" y1="64" x2="368" y2="64" stroke="#BBDCEE"/>
     <text x="28" y="96" class="label" fill="#2B7599">Out-of-process users</text>
-    <text x="28" y="122" class="mono">Desktop / TUI</text>
+    <text x="28" y="122" class="mono">Desktop / CLI</text>
     <text x="28" y="146" class="mono">external clients</text>
     <text x="28" y="170" class="mono">SDKs: TypeScript, .NET, Python</text>
     <text x="28" y="194" class="mono">external channel adapters</text>
-    <text x="28" y="236" class="muted">They subscribe, render, approve, and call raw methods.</text>
+    <text x="28" y="236" class="muted">They connect, subscribe, and call protocol methods.</text>
   </g>
 
   <g transform="translate(72 804)">
@@ -99,7 +99,7 @@
     <text x="28" y="96" class="mono">.craft/threads</text>
     <text x="222" y="96" class="mono">.craft/state.db</text>
     <text x="418" y="96" class="mono">skills / plugins / automations</text>
-    <text x="28" y="124" class="muted">Durable state lets every entry point resume the same work.</text>
+    <text x="28" y="124" class="muted">Durable state lets capable clients resume the same work.</text>
   </g>
 
   <path d="M468 292H512" stroke="#A8B4C6" stroke-width="2" stroke-linecap="round"/>

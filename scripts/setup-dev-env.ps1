@@ -161,113 +161,6 @@ function Test-NodeToolchain {
     return New-ToolResult -Id "node" -Name "Node.js/npm" -Installed $true -Detail "found Node $nodeText, npm $npmText."
 }
 
-function Test-RustToolchain {
-    $action = New-WingetAction `
-        -Name "Rustup/Rust stable toolchain" `
-        -DisplayCommand "winget install --exact --id Rustlang.Rustup --source winget --silent --accept-package-agreements --accept-source-agreements" `
-        -Arguments @("install", "--exact", "--id", "Rustlang.Rustup", "--source", "winget", "--silent", "--accept-package-agreements", "--accept-source-agreements")
-
-    $cargo = Get-Command cargo -ErrorAction SilentlyContinue
-    $rustc = Get-Command rustc -ErrorAction SilentlyContinue
-
-    if (-not $cargo -and -not $rustc) {
-        return New-ToolResult -Id "rust" -Name "Rust toolchain" -Installed $false -Detail "cargo and rustc commands not found." -InstallAction $action
-    }
-
-    if (-not $cargo) {
-        return New-ToolResult -Id "rust" -Name "Rust toolchain" -Installed $false -Detail "cargo command not found." -InstallAction $action
-    }
-
-    if (-not $rustc) {
-        return New-ToolResult -Id "rust" -Name "Rust toolchain" -Installed $false -Detail "rustc command not found." -InstallAction $action
-    }
-
-    $cargoText = (& $cargo.Source --version 2>$null | Select-Object -First 1)
-    $rustcText = (& $rustc.Source --version 2>$null | Select-Object -First 1)
-    return New-ToolResult -Id "rust" -Name "Rust toolchain" -Installed $true -Detail "found $rustcText, $cargoText."
-}
-
-function Get-VsWherePath {
-    $candidates = @()
-    $programFilesX86 = ${env:ProgramFiles(x86)}
-    if (-not [string]::IsNullOrWhiteSpace($programFilesX86)) {
-        $candidates += Join-Path $programFilesX86 "Microsoft Visual Studio\Installer\vswhere.exe"
-    }
-
-    if (-not [string]::IsNullOrWhiteSpace($env:ProgramFiles)) {
-        $candidates += Join-Path $env:ProgramFiles "Microsoft Visual Studio\Installer\vswhere.exe"
-    }
-
-    foreach ($candidate in $candidates) {
-        if (Test-Path -LiteralPath $candidate) {
-            return $candidate
-        }
-    }
-
-    $command = Get-Command vswhere -ErrorAction SilentlyContinue
-    if ($command) {
-        return $command.Source
-    }
-
-    return $null
-}
-
-function Find-VcVars64 {
-    $programFilesX86 = ${env:ProgramFiles(x86)}
-    $roots = @()
-    if (-not [string]::IsNullOrWhiteSpace($env:ProgramFiles)) {
-        $roots += Join-Path $env:ProgramFiles "Microsoft Visual Studio\2022"
-    }
-
-    if (-not [string]::IsNullOrWhiteSpace($programFilesX86)) {
-        $roots += Join-Path $programFilesX86 "Microsoft Visual Studio\2022"
-    }
-
-    foreach ($root in $roots) {
-        if (-not (Test-Path -LiteralPath $root)) {
-            continue
-        }
-
-        $editions = @(Get-ChildItem -LiteralPath $root -Directory -ErrorAction SilentlyContinue)
-        foreach ($edition in $editions) {
-            $vcVarsPath = Join-Path $edition.FullName "VC\Auxiliary\Build\vcvars64.bat"
-            if (Test-Path -LiteralPath $vcVarsPath) {
-                return $vcVarsPath
-            }
-        }
-    }
-
-    return $null
-}
-
-function Test-MsvcToolchain {
-    $action = New-WingetAction `
-        -Name "Visual Studio 2022 Build Tools with C++ workload" `
-        -DisplayCommand 'winget install --exact --id Microsoft.VisualStudio.2022.BuildTools --source winget --accept-package-agreements --accept-source-agreements --override "--passive --wait --norestart --add Microsoft.VisualStudio.Workload.VCTools --includeRecommended"' `
-        -Arguments @("install", "--exact", "--id", "Microsoft.VisualStudio.2022.BuildTools", "--source", "winget", "--accept-package-agreements", "--accept-source-agreements", "--override", "--passive --wait --norestart --add Microsoft.VisualStudio.Workload.VCTools --includeRecommended")
-
-    $vswhere = Get-VsWherePath
-    if ($vswhere) {
-        $args = @("-latest", "-products", "*", "-requires", "Microsoft.VisualStudio.Component.VC.Tools.x86.x64", "-property", "installationPath")
-        $installPath = @(& $vswhere @args 2>$null | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | Select-Object -First 1)
-        if ($installPath.Count -gt 0) {
-            $vcVarsPath = Join-Path $installPath[0] "VC\Auxiliary\Build\vcvars64.bat"
-            if (Test-Path -LiteralPath $vcVarsPath) {
-                return New-ToolResult -Id "msvc" -Name "MSVC C++ Build Tools" -Installed $true -Detail "found VC tools at $($installPath[0])."
-            }
-
-            return New-ToolResult -Id "msvc" -Name "MSVC C++ Build Tools" -Installed $true -Detail "found Visual Studio VC tools component at $($installPath[0])."
-        }
-    }
-
-    $vcVars = Find-VcVars64
-    if ($vcVars) {
-        return New-ToolResult -Id "msvc" -Name "MSVC C++ Build Tools" -Installed $true -Detail "found $vcVars."
-    }
-
-    return New-ToolResult -Id "msvc" -Name "MSVC C++ Build Tools" -Installed $false -Detail "Visual Studio C++ tools were not found; Rust Windows native builds need the MSVC linker and Windows SDK." -InstallAction $action
-}
-
 function Test-Winget {
     $winget = Get-Command winget -ErrorAction SilentlyContinue
     if ($winget) {
@@ -303,7 +196,6 @@ function Update-ProcessPath {
     }
 
     $knownToolPaths = @(
-        (Join-Path $env:USERPROFILE ".cargo\bin"),
         (Join-Path $env:ProgramFiles "dotnet"),
         (Join-Path $env:ProgramFiles "nodejs")
     )
@@ -321,9 +213,7 @@ function Update-ProcessPath {
 function Get-ToolResults {
     return @(
         (Test-DotNetSdk),
-        (Test-NodeToolchain),
-        (Test-RustToolchain),
-        (Test-MsvcToolchain)
+        (Test-NodeToolchain)
     )
 }
 
@@ -418,8 +308,6 @@ function Write-ManualInstallHelp {
     Write-Host "Install the missing tools manually from official sources, then rerun setup.bat /check:"
     Write-Host "  .NET 10 SDK: https://learn.microsoft.com/dotnet/core/install/windows"
     Write-Host "  Node.js LTS: https://nodejs.org/en/download"
-    Write-Host "  Rustup:      https://rust-lang.org/tools/install/"
-    Write-Host "  MSVC tools:  https://rust-lang.github.io/rustup/installation/windows-msvc.html"
 }
 
 function Invoke-InstallAction {

@@ -125,19 +125,6 @@ function Update-NpmLockLinkedSdkVersion {
     Write-Utf8NoBomFile -Path $Path -Content $content
 }
 
-function Update-CargoLockDotcraftTui {
-    param(
-        [Parameter(Mandatory = $true)][string]$Path,
-        [Parameter(Mandatory = $true)][string]$NewVersion
-    )
-
-    Assert-Exists -Path $Path
-    $content = [System.IO.File]::ReadAllText($Path)
-    $pattern = '(\[\[package\]\]\s*name\s*=\s*"dotcraft-tui"\s*version\s*=\s*")[^"]+(")'
-    $content = Replace-Regex -Content $content -Pattern $pattern -Replacement ('${1}' + $NewVersion + '${2}') -Singleline
-    Write-Utf8NoBomFile -Path $Path -Content $content
-}
-
 if ([string]::IsNullOrWhiteSpace($Version)) {
     throw "Version is required. Example: 0.1.2"
 }
@@ -152,8 +139,6 @@ $targets = @(
     @{ Type = "xml"; Path = "src/DotCraft.App/DotCraft.App.csproj" },
     @{ Type = "dotnetPackage"; Path = "sdk/dotnet/src/DotCraft.Sdk/DotCraft.Sdk.csproj" },
     @{ Type = "toml"; Path = "sdk/python/pyproject.toml" },
-    @{ Type = "toml"; Path = "tui/Cargo.toml" },
-    @{ Type = "cargoLock"; Path = "tui/Cargo.lock" },
     @{ Type = "packageJson"; Path = "desktop/package.json" },
     @{ Type = "npmLock"; Path = "desktop/package-lock.json"; Name = "dotcraft-desktop" },
     @{ Type = "packageJson"; Path = "sdk/typescript/package.json" },
@@ -190,9 +175,6 @@ foreach ($target in $targets) {
             if ($target.ContainsKey("UpdateLinkedSdk") -and $target.UpdateLinkedSdk) {
                 Update-NpmLockLinkedSdkVersion -Path $absolutePath -NewVersion $Version
             }
-        }
-        "cargoLock" {
-            Update-CargoLockDotcraftTui -Path $absolutePath -NewVersion $Version
         }
         default {
             throw "Unknown target type: $($target.Type)"

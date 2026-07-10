@@ -68,8 +68,8 @@ export function isBuiltinTool(toolName: string): boolean {
 
 /**
  * Best-effort extraction of a string field from a partial JSON fragment.
- * Tolerates incomplete strings (returns whatever has arrived so far when the
- * closing quote is missing). Mirrors the helper in TUI's `tool_format.rs`.
+ * Tolerates incomplete strings by returning whatever has arrived when the
+ * closing quote is missing, which keeps streaming previews useful.
  */
 export function extractPartialJsonStringValue(json: string, key: string): string | null {
   const keyPattern = `"${key}"`

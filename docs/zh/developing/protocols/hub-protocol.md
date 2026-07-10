@@ -1,6 +1,6 @@
 # Hub Protocol
 
-Hub Protocol 是 DotCraft 本地客户端用来发现和管理工作区 AppServer 的本机协议。它面向 Desktop、TUI、编辑器扩展和其他本地客户端；如果你只想和 Agent 对话，真正的会话流量仍然走 [AppServer Protocol](./appserver-protocol)。
+Hub Protocol 是 DotCraft 本地客户端用来发现和管理工作区 AppServer 的本机协议。它面向 Desktop、CLI、编辑器扩展和其他本地客户端；如果你只想和 Agent 对话，真正的会话流量仍然走 [AppServer Protocol](./appserver-protocol)。
 
 Hub 的职责是本地协调，不是会话代理：
 
@@ -13,7 +13,7 @@ Hub 的职责是本地协调，不是会话代理：
 
 实现 Hub 客户端适合这些场景：
 
-- 你正在开发 DotCraft 应用、TUI、IDE 扩展或本地 GUI。
+- 你正在开发 DotCraft 应用、CLI 集成、IDE 扩展或本地 GUI。
 - 你希望多个本地客户端共享同一个工作区运行时。
 - 你需要显示本机工作区运行状态、托盘菜单或系统通知。
 - 你希望按需启动 AppServer，同时避免同一个工作区被重复启动。

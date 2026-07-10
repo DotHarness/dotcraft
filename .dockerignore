@@ -11,5 +11,4 @@ docs/.vitepress/dist
 docs/node_modules
 sdk/typescript/node_modules
 sdk/typescript/packages/*/dist
-tui/target
 *.log
