@@ -37,14 +37,14 @@ Session Core 定义 `Thread → Turn → Item` 模型，并以 `ISessionService`
 AppServer 将 `ISessionService` 暴露为面向外部客户端的 JSON-RPC 2.0：
 
 - **传输**：stdio（JSONL 一行一消息）和 WebSocket（每帧一条消息）
-- **客户端**：TUI、Desktop、ACP、外部渠道适配器、SDK（TypeScript / .NET / Python）
+- **客户端**：Desktop、CLI、ACP、外部渠道适配器、SDK（TypeScript / .NET / Python）
 - **认证**：WebSocket `?token=` 查询参数（[完整说明](../lifecycle/appserver)）
 
 详见 [AppServer 协议](../protocols/appserver-protocol) 与 [AppServer 模式](../lifecycle/appserver)。
 
 ## Hub
 
-每个用户在本机有一个 [Hub](../lifecycle/hub)，按需启动/复用每个工作区的 AppServer，并在 `~/.craft/hub/` 维护发现信息和锁。Desktop / TUI 默认通过 Hub 工作。手动管理 AppServer（远程、CI、机器人、协议调试）时绕过 Hub，使用 [AppServer 模式](../lifecycle/appserver)。
+每个用户在本机有一个 [Hub](../lifecycle/hub)，按需启动/复用每个工作区的 AppServer，并在 `~/.craft/hub/` 维护发现信息和锁。Desktop 与 CLI 默认通过 Hub 工作。手动管理 AppServer（远程、CI、机器人、协议调试）时绕过 Hub，使用 [AppServer 模式](../lifecycle/appserver)。
 
 ## Agents
 

@@ -1,6 +1,6 @@
 # DotCraft Getting Started
 
-This path is for first-time DotCraft users: install Desktop, choose a project folder, configure a model provider, then run your first session. After that, move into TUI, AppServer, API, SDK, or Automations as needed.
+This path is for first-time DotCraft users: install Desktop, choose a project folder, configure a model provider, then run your first session. After that, move into CLI, AppServer, API, SDK, or Automations as needed.
 
 ## Quick Start
 
@@ -17,7 +17,7 @@ Go to [GitHub Releases](https://github.com/DotHarness/dotcraft/releases) and dow
 
 Desktop is the recommended first entry point because workspace selection, model configuration, sessions, diffs, plans, automation review, and runtime status live in one UI.
 
-If you only need the CLI and TUI binaries, install them directly:
+If you only need the CLI, install it directly:
 
 ```bash
 curl -fsSL https://www.dotcraft.net/install.sh | bash
@@ -29,11 +29,11 @@ Windows PowerShell:
 irm https://www.dotcraft.net/install.ps1 | iex
 ```
 
-The Windows PowerShell installer auto-selects the x64 or ARM64 CLI/TUI archive. The macOS/Linux shell installer auto-selects x64 or ARM64 on macOS; Linux CLI release archives are currently x64-only.
+The Windows PowerShell installer auto-selects the x64 or ARM64 CLI archive. The macOS/Linux shell installer auto-selects x64 or ARM64 on macOS; Linux CLI release archives are currently x64-only.
 
 ![DotCraft](https://github.com/DotHarness/resources/raw/master/dotcraft/desktop.png)
 
-If you prefer building from source, install the [.NET 10 SDK](https://dotnet.microsoft.com/download), Rust toolchain, and Node.js, then run this from the repository root:
+If you prefer building from source, install the [.NET 10 SDK](https://dotnet.microsoft.com/download) and Node.js, then run this from the repository root:
 
 ```bash
 build.bat
@@ -111,7 +111,7 @@ If you prefer a script-friendly command-line entry, run a one-shot task from the
 dotcraft exec "Read this repository's README and docs/index.md, then tell me how to start the project."
 ```
 
-Running plain `dotcraft` only handles first-time setup — in a workspace that already has `.craft/`, it won't open an interactive chat. For a terminal session, continue with the [TUI guide](./features/entry-points/tui).
+Running plain `dotcraft` only handles first-time setup — in a workspace that already has `.craft/`, it won't open an interactive chat. Use `dotcraft exec` for one-shot terminal tasks.
 
 ## One workspace, every entry point
 
@@ -139,7 +139,7 @@ If unsure, put providers globally and let the workspace override only `ProviderI
 | Goal | Next step |
 |------|-----------|
 | Work visually with sessions and diffs | [Desktop](./features/entry-points/desktop) |
-| Use a full terminal interface | [TUI](./features/entry-points/tui) |
+| Run a one-shot terminal or CI task | [Use `dotcraft exec`](#4-run-the-first-session) |
 | Share a workspace across remote or multiple clients | [AppServer Mode](./developing/lifecycle/appserver) |
 | Connect an IDE or editor | [IDE / Editors (ACP)](./features/entry-points/editors) |
 | Build bots or external adapters | [Channels & Bots](./features/entry-points/channels) |

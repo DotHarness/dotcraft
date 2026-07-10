@@ -57,7 +57,7 @@ curl -fL "$url" -o "$tmpdir/$archive"
 
 mkdir -p "$INSTALL_DIR"
 tar -xzf "$tmpdir/$archive" -C "$INSTALL_DIR"
-chmod +x "$INSTALL_DIR/dotcraft" "$INSTALL_DIR/dotcraft-tui" 2>/dev/null || true
+chmod +x "$INSTALL_DIR/dotcraft" 2>/dev/null || true
 
 echo "DotCraft ${VERSION} installed to ${INSTALL_DIR}"
 case ":$PATH:" in

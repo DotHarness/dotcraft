@@ -90,13 +90,13 @@ Desktop 升级后，会在进入可用工作区主界面时显示一次 **What's
 
 ## 进阶
 
-- Desktop 是一个 AppServer 客户端，与 TUI、ACP、外部渠道共享同一个 [会话核心](../../developing/architecture/session-core)——在这里开的线程，可以在它们中任意一个继续。
+- Desktop 是一个 AppServer 客户端，与 ACP、外部渠道共享同一个 [会话核心](../../developing/architecture/session-core)——在这里开的线程，可以在其他 AppServer 客户端中继续。
 - 图片附件在重启后仍然保留；重新打开会话，缩略图依旧在。
 - Markdown 内容区会把标记为 `mermaid` / `mmd` 的 fenced code block 渲染为 Mermaid 图。图表无法渲染时，Desktop 会回退显示源码块。
 
 ## 相关文档
 
 - [快速开始](../../getting-started)
-- [TUI](./tui)
+- [入口总览](./)
 - [可观测性](../self-hosted/observability)
 - [设置生效层级](../../developing/lifecycle/settings-lifecycle)

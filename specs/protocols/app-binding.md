@@ -1306,7 +1306,7 @@ M1 App Binding uses Runtime Dynamic Tools as the executable tool transport. App-
 - Ordinary Runtime Dynamic Tools are bound to a declaring AppServer client connection.
 - App-bound tools are bound to a persisted Thread App Binding and may be reattached by the app.
 - App-bound tools are exposed by DotCraft's binding exposure layer, not directly by a transient client connection.
-- Desktop and TUI clients must display app-bound tool invocations as normal tool activity. The AppServer projection is `dynamicToolCall`, so clients must render that item without requiring a companion `toolCall` or `toolResult`.
+- Clients that render thread activity must display app-bound tool invocations as normal tool activity. The AppServer projection is `dynamicToolCall`, so clients must render that item without requiring a companion `toolCall` or `toolResult`.
 - App-bound tools may return optional Tool Result Presentation payloads. Presentation is client-only display data and must not replace `contentItems` or `structuredResult`.
 
 ### 13.2 Namespace and Catalog Validation
@@ -1596,7 +1596,7 @@ Oratorio board tools should validate Interactive Tool UI with these first-versio
 - `ListBoardItems` declares `_meta.ui.resourceUri = ui://oratorio/board`; the iframe renders the board, "Open in Oratorio" uses `ui/open-link` (no tool call), and refresh re-`fetch`es the app's loopback backend under CSP `connectDomains`.
 - `GetBoardItem` declares `ui://oratorio/item` for one item plus activity.
 - `QueueReviewRound` declares `ui://oratorio/review`; the queue action uses `tools/call` (risk `externalWrite` → approval) or an app-side operation request.
-- Non-Desktop clients (TUI, channels) fall back to the tool result's text (`structuredResult` / `contentItems`).
+- Clients that do not negotiate interactive tool UI, including channels, fall back to the tool result's text (`structuredResult` / `contentItems`).
 
 Product validation requires:
 

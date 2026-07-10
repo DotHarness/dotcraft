@@ -49,7 +49,7 @@ This spec covers:
 - automatic continuation turns
 - model-visible goal tools
 - AppServer JSON-RPC methods and notifications
-- client UX expectations for CLI, TUI, Desktop, ACP, and external channels
+- client UX expectations for Desktop, ACP, external channels, and custom clients
 
 ### 1.2 Relationship to Existing Specs
 
@@ -58,14 +58,13 @@ This spec covers:
 | `session-core.md` | Owns Thread / Turn / Item lifecycle. Goal state is an extension of the Thread domain model and is executed by Session Core. |
 | `appserver-protocol.md` | Projects Session Core goal APIs to out-of-process clients through JSON-RPC. |
 | `automations-lifecycle.md` | Automations may bind to or resume goal-backed threads, but goal state remains owned by Session Core. |
-| `tui-client.md` / `desktop-client.md` | Client UX may expose goal controls, but this spec defines behavior rather than visual layout. |
+| `desktop-client.md` | Client UX may expose goal controls, but this spec defines behavior rather than visual layout. |
 
 ### 1.3 In Scope Channels
 
 Goals apply only to server-managed channels that execute through `ISessionService`:
 
 - CLI
-- TUI
 - ACP
 - Desktop through AppServer
 - QQ
@@ -103,7 +102,7 @@ Design intent:
 
 ```text
 Client UX
-  CLI / TUI / Desktop / ACP / Bot adapters
+  Desktop / ACP / Bot adapters / custom clients
       |
       | goal commands, buttons, AppServer JSON-RPC
       v
@@ -919,7 +918,6 @@ Clients may expose equivalent buttons or menus instead of slash commands.
 
 When a client has not yet created a thread:
 
-- CLI/TUI may queue the goal command until the thread is created.
 - Desktop may create the thread first, call `thread/goal/set`, then submit the objective text as the first normal `turn/start` input so conversation history shows the user's goal as the first user message.
 - Control commands (`pause`, `resume`, `clear`) should not be queued before a thread exists.
 

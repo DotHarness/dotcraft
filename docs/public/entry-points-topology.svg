@@ -27,7 +27,7 @@
     <text x="32" y="112" class="mono">.craft/</text>
     <text x="32" y="140" class="mono">threads, memory, skills</text>
     <text x="32" y="168" class="mono">config, plugins, tools</text>
-    <text x="32" y="210" class="muted">The same Thread can move between entry points.</text>
+    <text x="32" y="210" class="muted">Threads, memory, and tools stay in one shared workspace.</text>
   </g>
 
   <g transform="translate(72 196)">
@@ -38,9 +38,9 @@
   </g>
   <g transform="translate(72 388)">
     <rect x="0" y="0" width="310" height="150" rx="8" fill="#E9F5F0" stroke="#B7DED0"/>
-    <text x="24" y="42" class="cardTitle" fill="#153E33">TUI</text>
-    <text x="24" y="78" class="label" fill="#2E6B56">Terminal-native surface</text>
-    <text x="24" y="110" class="muted">SSH, remote shells, lightweight use.</text>
+    <text x="24" y="42" class="cardTitle" fill="#153E33">CLI</text>
+    <text x="24" y="78" class="label" fill="#2E6B56">One-shot command line</text>
+    <text x="24" y="110" class="muted">Scripts, SSH, CI, lightweight tasks.</text>
   </g>
   <g transform="translate(72 580)">
     <rect x="0" y="0" width="310" height="150" rx="8" fill="#FFF1E6" stroke="#F3C9A4"/>

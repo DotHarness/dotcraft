@@ -25,7 +25,7 @@
     <rect x="0" y="0" width="286" height="330" rx="8" fill="#EAF0FF" stroke="#C2CEF7"/>
     <text x="28" y="44" class="cardTitle" fill="#23305F">Clients</text>
     <line x1="28" y1="64" x2="258" y2="64" stroke="#C2CEF7"/>
-    <text x="28" y="100" class="mono">Desktop / TUI</text>
+    <text x="28" y="100" class="mono">Desktop</text>
     <text x="28" y="130" class="mono">ACP / custom UI</text>
     <text x="28" y="160" class="mono">dotcraft exec</text>
     <text x="28" y="190" class="mono">external channels</text>

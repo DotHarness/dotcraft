@@ -1,6 +1,6 @@
 # AppServer Mode
 
-This page targets integrators and contributors who manage AppServer directly. AppServer is DotCraft's wire protocol server. It exposes Agent capabilities (session management, tool invocation, approval flows) to external clients via JSON-RPC. TUI, Desktop, ACP, external channel adapters, and custom integrations can all connect to the same AppServer.
+This page targets integrators and contributors who manage AppServer directly. AppServer is DotCraft's wire protocol server. It exposes Agent capabilities (session management, tool invocation, approval flows) to external clients via JSON-RPC. Desktop, ACP, `dotcraft exec`, external channel adapters, and custom integrations can all connect to the same AppServer.
 
 Use cases:
 
@@ -10,7 +10,7 @@ Use cases:
 - Building non-C# clients (any language with WebSocket / stdio support)
 
 > [!NOTE]
-> Day-to-day Desktop / TUI go through [Hub local coordination](./hub). This page is for manual AppServer management.
+> Day-to-day Desktop and `dotcraft exec` go through [Hub local coordination](./hub). This page is for manual AppServer management.
 
 ## Starting AppServer
 
@@ -63,7 +63,7 @@ dotcraft exec --remote ws://server:9100/ws --token my-secret "Summarize this wor
 
 ### stdio (Default)
 
-AppServer communicates over stdin/stdout using newline-delimited JSON (JSONL). This is the local subprocess communication method commonly used by TUI, Desktop, ACP, and custom clients.
+AppServer communicates over stdin/stdout using newline-delimited JSON (JSONL). This is the local subprocess communication method commonly used by ACP and custom clients.
 
 ```
 Client (stdin) → JSON-RPC Request → AppServer
@@ -115,7 +115,7 @@ dotcraft app-server --listen ws://0.0.0.0:9100 --token my-secret
 dotcraft exec --remote ws://server:9100/ws --token my-secret "Check status"
 ```
 
-The token is passed via the WebSocket query: `ws://host:port/ws?token=<value>`. Once the server sets `--token`, every client — TUI, Desktop, ACP, `dotcraft exec`, and custom clients — must send the same token; an empty token is rejected.
+The token is passed via the WebSocket query: `ws://host:port/ws?token=<value>`. Once the server sets `--token`, every client — Desktop, ACP, `dotcraft exec`, and custom clients — must send the same token; an empty token is rejected.
 
 > [!CAUTION]
 > Binding to `0.0.0.0` without a token leaves AppServer fully open.
@@ -182,7 +182,7 @@ Suitable for fixed deployments. `ExternalChannels` tells DotCraft how to launch 
 | Scenario | Approach |
 |---|---|
 | Run one task from a script | `dotcraft exec "..."` |
-| Share one backend across Desktop / TUI / ACP | `dotcraft app-server --listen ws://127.0.0.1:9100` |
+| Share one backend across Desktop / ACP / custom clients | `dotcraft app-server --listen ws://127.0.0.1:9100` |
 | Connect to a remote workspace | Listen with WebSocket; clients connect to `/ws` |
 | Build a custom client | Speak JSON-RPC 2.0 over stdio or WebSocket |
 
@@ -190,5 +190,5 @@ Suitable for fixed deployments. `ExternalChannels` tells DotCraft how to launch 
 
 - [Configuration Reference](../configuration) — `AppServer.*` / `CLI.*` fields
 - [AppServer Protocol](../protocols/appserver-protocol) — client protocol overview
-- [Hub Local Coordination](./hub) — the path Desktop / TUI take by default
+- [Hub Local Coordination](./hub) — the path Desktop and CLI take by default
 - [Unified Session Core](../architecture/session-core) — Thread / Turn / Item model

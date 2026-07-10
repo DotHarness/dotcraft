@@ -10,7 +10,7 @@
 
 | 概念 | 含义 |
 |---|---|
-| **Workspace** | 含 `.craft/` 子目录的项目根。Desktop、TUI、ACP、Bot、Automations 都围绕同一个 workspace 工作。 |
+| **Workspace** | 含 `.craft/` 子目录的项目根。Desktop、CLI、ACP、Bot、Automations 都围绕同一个 workspace 工作。 |
 | **Bootstrap files** | `.craft/AGENTS.md`、`.craft/SOUL.md`、`.craft/USER.md`——分别约束 Agent 的行为规则、个性与表达、用户画像。 |
 | **Memory & History** | `.craft/MEMORY.md`、`.craft/HISTORY.md`——长期记忆与历史记录，由 Agent 维护、用户可读。 |
 | **Skills / Plugins** | `.craft/skills/` 与 `.craft/plugins/`——工作区内自带的能力包。 |
@@ -23,7 +23,7 @@
 
 任何入口接入工作区时，**先读这一份目录，后做事**。这样：
 
-- 切换入口不丢上下文：在 Desktop 开启的会话可以在 TUI 继续。
+- 切换入口不丢上下文：在 Desktop 开启的会话可以通过 ACP 或其他 AppServer 客户端继续。
 - 跨设备恢复零成本：把整个项目目录同步到另一台机器即可。
 - 团队协作有共同基线：把 `.craft/` 的可分享部分（skills、commands、AGENTS.md 等）提交到仓库，团队成员一开 Desktop 就拿到同一份 Agent 行为约束。
 

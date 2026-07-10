@@ -5,7 +5,7 @@
 | **Version** | 0.1.0 |
 | **Status** | Living |
 | **Date** | 2026-05-18 |
-| **Parent Specs** | [AppServer Protocol](../protocols/appserver-protocol.md), [Desktop Client](../clients/desktop-client.md), [TUI Client](../clients/tui-client.md) |
+| **Parent Specs** | [AppServer Protocol](../protocols/appserver-protocol.md), [Desktop Client](../clients/desktop-client.md) |
 
 Purpose: Define a provider-neutral reasoning settings contract for DotCraft clients and runtime adapters. The goal is to make reasoning depth easy to select alongside model selection while preserving provider-specific request shaping for OpenAI-compatible and Anthropic protocols.
 
@@ -28,7 +28,7 @@ Provider-specific request details stay behind server-side adapters and `model-th
 ### Goals
 
 1. Provide one DotCraft reasoning control that works for `openai-chat-completions`, `openai-responses`, and `anthropic` provider protocols.
-2. Let Desktop and TUI render model-aware reasoning choices without hardcoding model ids.
+2. Let Desktop render model-aware reasoning choices without hardcoding model ids.
 3. Preserve the existing persisted config shape: `Reasoning.Enabled`, `Reasoning.Effort`, and `Reasoning.Output`.
 4. Support workspace defaults, per-thread overrides, and new-thread pending selections.
 5. Keep provider request shaping catalog-driven through `model-thinking-adapters.json`.
@@ -238,7 +238,7 @@ For `anthropic` protocol runtimes:
 
 ### 7.1 Composite Model Picker
 
-Desktop and TUI should evolve the current model picker into a composite model/reasoning picker.
+Desktop should evolve the current model picker into a composite model/reasoning picker.
 
 Required behavior:
 
@@ -253,13 +253,6 @@ Recommended Desktop shape:
 - Top-level menu contains Thinking choices first: Off/Low/Medium/High/Extra High.
 - A separate Model row opens the model submenu while keeping the top-level Thinking choices compact.
 - The trigger text should remain compact, for example `claude-opus-4-7 High`.
-
-Recommended TUI shape:
-
-- Reuse the existing model picker overlay shell.
-- Add a left or top section for Thinking choices and a model list section.
-- Keyboard navigation must keep single-keystroke close/apply behavior.
-- Add a slash command alias such as `/thinking [default|off|low|medium|high|extra-high]` for users who prefer commands.
 
 ### 7.2 Save Scope
 
@@ -299,17 +292,16 @@ Clients must recompute effective model and reasoning when:
 2. Extend AppServer DTOs and spec sections for `thread/config/update`, `workspace/config/update`, `workspace/configChanged`, and `model/list`.
 3. Extend `model-thinking-adapters.json` and its catalog loader to expose reasoning capabilities for OpenAI-compatible and Anthropic models.
 4. Update Desktop model catalog store and composite `ModelPicker` to carry reasoning metadata and save reasoning updates.
-5. Update TUI model cache, picker overlay, status display, and slash commands.
-6. Add protocol, server, Desktop, and TUI tests for capability metadata, persistence, active-thread updates, and unsupported model fallback.
+5. Add protocol, server, and Desktop tests for capability metadata, persistence, active-thread updates, and unsupported model fallback.
 
 ---
 
 ## 10. Acceptance Criteria
 
-- Desktop and TUI can show and change reasoning depth from the model picker.
+- Desktop can show and change reasoning depth from the model picker.
 - The same UI works for OpenAI and Anthropic provider protocols without client-side model hardcoding.
 - Workspace config persists to the existing `Reasoning` section.
 - Active thread changes take effect without restarting AppServer.
 - Existing config files without `Reasoning` continue to behave as reasoning disabled.
 - `dotnet test` passes for AppServer/Core changes.
-- Desktop and TUI tests cover model catalog parsing, picker behavior, and config update calls.
+- Desktop tests cover model catalog parsing, picker behavior, and config update calls.

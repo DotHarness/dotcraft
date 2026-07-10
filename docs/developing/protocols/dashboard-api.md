@@ -4,7 +4,7 @@ Dashboard API is intended for the debugging UI and internal tools. Most users sh
 
 ## Standalone Read-Only Viewer
 
-Use Dashboard without starting AppServer, Desktop, TUI, channels, Dreams, Automations, MCP, or LSP:
+Use Dashboard without starting AppServer, Desktop, channels, Dreams, Automations, MCP, or LSP:
 
 ```bash
 dotcraft dashboard --workspace /path/to/workspace

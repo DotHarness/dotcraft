@@ -5,7 +5,7 @@
 | **Version** | 0.3.0 |
 | **Status** | Living |
 | **Date** | 2026-05-18 |
-| **Related Specs** | [AppServer Protocol](../protocols/appserver-protocol.md), [Default Chat Workspace](../features/default-chat-workspace.md), [Desktop Client](../clients/desktop-client.md), [TUI Client](../clients/tui-client.md) |
+| **Related Specs** | [AppServer Protocol](../protocols/appserver-protocol.md), [Default Chat Workspace](../features/default-chat-workspace.md), [Desktop Client](../clients/desktop-client.md) |
 
 Purpose: Define DotCraft Hub as a local coordinator that discovers, starts, reuses, monitors, and stops workspace-bound AppServer processes without changing the AppServer Protocol or replacing DotCraft's per-workspace runtime model.
 
@@ -19,7 +19,7 @@ DotCraft is intentionally workspace-centric:
 
 - One AppServer process owns one workspace runtime.
 - The AppServer loads that workspace's `.craft/` state, sessions, memory, skills, tools, MCP servers, channels, and configuration.
-- Desktop, TUI, CLI, ACP, and future clients speak AppServer Protocol to a workspace-bound server.
+- Desktop, CLI, ACP, and future clients speak AppServer Protocol to a workspace-bound server.
 
 This ownership model is a feature and must be preserved.
 
@@ -61,7 +61,7 @@ dotcraft app-server, one per workspace
   - exposes AppServer Protocol over WebSocket
   - holds workspace appserver.lock
 
-Desktop / TUI / CLI
+Desktop / CLI
   - locate or start Hub
   - ask Hub to ensure the workspace AppServer
   - connect directly to the returned AppServer WebSocket URL
@@ -86,7 +86,7 @@ Core properties:
 - It stores best-effort registry metadata under `~/.craft/hub/appservers.json`.
 - It reports `tray=false`; tray presence is a Desktop capability, not a Hub capability.
 
-Hub may be started explicitly by the user, or automatically by Desktop, TUI, CLI, or tray bootstrap.
+Hub may be started explicitly by the user, or automatically by Desktop, CLI, or tray bootstrap.
 
 ---
 
@@ -249,7 +249,7 @@ Local clients should default to Hub-managed local mode:
 6. Perform normal AppServer Protocol handshake.
 7. Continue without Hub in the normal conversation path.
 
-Desktop, TUI, and CLI expose local mode as Hub-managed local execution. Explicit remote WebSocket mode remains available and bypasses Hub.
+Desktop and CLI expose local mode as Hub-managed local execution. Explicit remote WebSocket mode remains available and bypasses Hub.
 
 Local mode does not require users to configure AppServer or Dashboard ports. Hub owns those runtime allocations for managed processes.
 
@@ -352,7 +352,7 @@ ACP itself remains an AppServer client bridge: it translates editor ACP stdio tr
 
 The implemented Hub design still leaves several product and hardening areas for future work:
 
-- Optional ACP local bootstrap alignment: ACP's protocol bridge is already AppServer-based; only its default local subprocess startup would need Hub if IDE integrations should share the same managed AppServer as Desktop/TUI/CLI.
+- Optional ACP local bootstrap alignment: ACP's protocol bridge is already AppServer-based; only its default local subprocess startup would need Hub if IDE integrations should share the same managed AppServer as Desktop and CLI.
 - More complete Desktop multi-workspace management UI beyond recent local workspace secondary connections.
 - Notification preferences such as quiet hours, per-workspace mute, and frequency control.
 - Better recovery or explicit cleanup flow for live AppServers left behind after Hub restart.

@@ -13,7 +13,7 @@
 DotCraft 是一个 .NET 10 / C# Agent Harness。它围绕真实项目目录组织 AI 工作流，让多个入口共享同一套会话核心、配置、技能、工具、任务和可观测能力。
 
 - 项目为先：插件、技能、会话与记忆随项目走，Agent 更能理解你的项目。
-- 统一会话模型：CLI、Desktop、TUI 聊天机器人等等，所有应用复用同一执行引擎。
+- 统一会话模型：CLI、Desktop、编辑器、聊天机器人等应用复用同一执行引擎。
 - 可观测与治理：审批、Trace、Dashboard、Hooks 和沙箱配置让 agent 工作流更容易检查和约束。
 - 扩展与集成：AppServer、SDK 与插件体系支持自定义入口和业务工作流。
 - 自由换模：兼容所有 OpenAI 与 Anthropic 协议的 Provider，可直接复用 ChatGPT 订阅，并原生适配 DeepSeek V4、MiMo V2.5 等推理模型。
@@ -174,7 +174,7 @@ DotCraft 的能力，按它帮你做什么来归类。
 |------|------|
 | 第一次安装、配置和运行 | [快速开始](https://www.dotcraft.net/zh/getting-started) |
 | 使用图形化桌面客户端 | [Desktop](https://www.dotcraft.net/zh/features/entry-points/desktop) |
-| 在终端里使用完整界面 | [TUI](https://www.dotcraft.net/zh/features/entry-points/tui) |
+| 在终端或脚本中运行一次性任务 | [`dotcraft exec`](https://www.dotcraft.net/zh/getting-started) |
 | 运行本地自动化任务 | [Automations 与 Goals](https://www.dotcraft.net/zh/features/agent-system/automations) |
 | 添加官方插件 | [插件与工具](https://www.dotcraft.net/zh/features/agent-system/plugins-tools) |
 | 管理生命周期 Hooks | [Lifecycle Hooks](https://www.dotcraft.net/zh/features/agent-system/hooks) |

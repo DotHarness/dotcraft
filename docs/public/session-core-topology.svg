@@ -27,12 +27,11 @@
     <text x="28" y="34" fill="#17203A" font-size="17" font-weight="760">Entry surfaces</text>
     <g transform="translate(28 52)">
       <rect x="0" y="0" width="114" height="34" rx="8" fill="#E9F5F0"/><text x="57" y="22" text-anchor="middle" fill="#247A57" font-size="14" font-weight="720">Desktop</text>
-      <rect x="132" y="0" width="90" height="34" rx="8" fill="#E9F5F0"/><text x="177" y="22" text-anchor="middle" fill="#247A57" font-size="14" font-weight="720">TUI</text>
-      <rect x="240" y="0" width="108" height="34" rx="8" fill="#E9F5F0"/><text x="294" y="22" text-anchor="middle" fill="#247A57" font-size="14" font-weight="720">ACP</text>
-      <rect x="366" y="0" width="134" height="34" rx="8" fill="#E9F5F0"/><text x="433" y="22" text-anchor="middle" fill="#247A57" font-size="14" font-weight="720">Channels</text>
-      <rect x="518" y="0" width="142" height="34" rx="8" fill="#E9F5F0"/><text x="589" y="22" text-anchor="middle" fill="#247A57" font-size="14" font-weight="720">Automations</text>
-      <rect x="678" y="0" width="94" height="34" rx="8" fill="#E9F5F0"/><text x="725" y="22" text-anchor="middle" fill="#247A57" font-size="14" font-weight="720">CLI</text>
-      <rect x="790" y="0" width="94" height="34" rx="8" fill="#E9F5F0"/><text x="837" y="22" text-anchor="middle" fill="#247A57" font-size="14" font-weight="720">SDKs</text>
+      <rect x="132" y="0" width="108" height="34" rx="8" fill="#E9F5F0"/><text x="186" y="22" text-anchor="middle" fill="#247A57" font-size="14" font-weight="720">ACP</text>
+      <rect x="258" y="0" width="134" height="34" rx="8" fill="#E9F5F0"/><text x="325" y="22" text-anchor="middle" fill="#247A57" font-size="14" font-weight="720">Channels</text>
+      <rect x="410" y="0" width="142" height="34" rx="8" fill="#E9F5F0"/><text x="481" y="22" text-anchor="middle" fill="#247A57" font-size="14" font-weight="720">Automations</text>
+      <rect x="570" y="0" width="94" height="34" rx="8" fill="#E9F5F0"/><text x="617" y="22" text-anchor="middle" fill="#247A57" font-size="14" font-weight="720">CLI</text>
+      <rect x="682" y="0" width="94" height="34" rx="8" fill="#E9F5F0"/><text x="729" y="22" text-anchor="middle" fill="#247A57" font-size="14" font-weight="720">SDKs</text>
     </g>
     <path d="M932 68H1038" stroke="#A8B4C6" stroke-width="2" marker-end="url(#arrow)"/>
     <g transform="translate(1070 28)">

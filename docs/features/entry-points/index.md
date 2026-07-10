@@ -9,7 +9,7 @@ There's more than one way to open a DotCraft workspace. Whichever you choose, yo
 | Entry | Surface | Best for |
 |---|---|---|
 | [Desktop](./desktop) | Graphical desktop app | First-time use / long-running collaboration / complex diffs & approvals |
-| [TUI](./tui) | Rust-native terminal UI | Terminal-native, SSH remote, lightweight |
+| [CLI](../../getting-started) | One-shot command | Scripts, SSH, CI, lightweight tasks |
 | [IDE / Editor (ACP)](./editors) | Inside JetBrains / Obsidian / Unity / etc. | Read unsaved buffers, run via editor-managed terminal |
 | [Channels / Bots](./channels) | QQ / WeCom / Feishu / Telegram / WeChat | Group chats, knowledge bots, support bots |
 
@@ -18,7 +18,7 @@ There's more than one way to open a DotCraft workspace. Whichever you choose, yo
 | I want to… | Recommended |
 |---|---|
 | Start using DotCraft for the first time | [Desktop](./desktop) |
-| Work over SSH on a remote server | [TUI](./tui) or [AppServer + remote TUI/Desktop](../../developing/lifecycle/appserver) |
+| Work over SSH on a remote server | [`dotcraft exec`](../../getting-started) or [AppServer + remote client](../../developing/lifecycle/appserver) |
 | Let the IDE feed unsaved buffers to the agent | [ACP](./editors) |
 | Bring an agent assistant into a Discord / QQ group | [Channels](./channels) |
 | Share one workspace across multiple clients | [AppServer Mode](../../developing/lifecycle/appserver) + any of the above |
@@ -28,7 +28,7 @@ There's more than one way to open a DotCraft workspace. Whichever you choose, yo
 ## Cross-Entry Sharing Principles
 
 - **One AppServer per workspace**: locally coordinated by [Hub](../../developing/lifecycle/hub); you do not manage it by hand.
-- **Threads resume across entries**: a Thread opened in Desktop can continue in TUI / ACP; approvals render natively per platform.
+- **Threads resume across entries**: a Thread opened in Desktop can continue in ACP or another AppServer client; approvals render natively per platform.
 - **Single source of truth for config**: model, security, automations all in `.craft/config.json` and `~/.craft/config.json`; every entry reads the same file.
 - **Entry switches are independent**: ACP, Dashboard, Automations, and external channels are enabled per workspace.
 
@@ -38,7 +38,7 @@ If you have not started yet:
 
 1. Follow [Getting Started](../../getting-started) to install Desktop.
 2. Walk through "select workspace + configure a model + first chat" inside Desktop.
-3. Add a second entry (TUI / ACP / Channels) only when a real need shows up.
+3. Add a second entry (CLI / ACP / Channels) only when a real need shows up.
 
 ## Related docs
 

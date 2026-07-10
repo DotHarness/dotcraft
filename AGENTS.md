@@ -29,7 +29,7 @@ Prerequisite: .NET 10 SDK (preview).
   Used by CLI, ACP, Automations, and external channel adapters.
 - **AppServer**: defined in `specs/protocols/appserver-protocol.md`.
   JSON-RPC 2.0 over stdio/WebSocket, projecting `ISessionService` to out-of-process clients.
-  Used by TUI, Desktop, and external channel adapters (see `sdk/python/`).
+  Used by Desktop, CLI, ACP, and external channel adapters (see `sdk/python/`).
 - **Agents**: built on `Microsoft.Extensions.AI` in `DotCraft.Core.Agents`
   (agent factory/runner, tool injection/filtering, subagents, context compaction pipeline).
 - **Config**: global `~/.craft/config.json` + workspace `.craft/config.json`.
@@ -41,7 +41,7 @@ Prerequisite: .NET 10 SDK (preview).
 - Feature modules: `src/DotCraft.{Unity,Automations,...}/`
 - TypeScript channel packages: `sdk/typescript/packages/channel-{qq,wecom,feishu,weixin,telegram}/`
 - Specs and tests: `specs/`, `tests/`
-- SDKs and clients: `sdk/`, `tui/`, `desktop/`
+- SDKs and clients: `sdk/`, `desktop/`
 - Docs: `docs/` (English root, Chinese under `docs/zh/`)
 
 ## Localization
@@ -56,4 +56,4 @@ Prerequisite: .NET 10 SDK (preview).
 - Large feature workflow: `feature-workflow` skill
 - Protocol specs: `specs/architecture/session-core.md`, `specs/protocols/appserver-protocol.md`, `specs/protocols/external-channel-adapter.md`
 - Desktop visual design: `specs/architecture/DESIGN.md` (read before changing Desktop colors, buttons, inputs, cards, modals, menus, or view styling)
-- Client docs: `tui/README.md`, `desktop/README.md`
+- Client docs: `desktop/README.md`

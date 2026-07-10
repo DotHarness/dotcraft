@@ -16,7 +16,7 @@ dotcraft gateway
 
 ### Open
 
-Default URL `http://127.0.0.1:8080/dashboard`. After a CLI, Desktop, TUI, or other entry point sends one conversation, the Dashboard shows sessions, tool calls, errors, and configuration state.
+Default URL `http://127.0.0.1:8080/dashboard`. After a CLI, Desktop, or other entry point sends one conversation, the Dashboard shows sessions, tool calls, errors, and configuration state.
 
 ## Main Pages
 

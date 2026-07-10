@@ -61,7 +61,6 @@ const enSidebar: DefaultTheme.Sidebar = collapseSidebarGroups([
         items: [
           { text: withIcon('globe', 'Overview'), link: '/features/entry-points/' },
           { text: withIcon('monitor', 'Desktop'), link: '/features/entry-points/desktop' },
-          { text: withIcon('terminal', 'TUI'), link: '/features/entry-points/tui' },
           { text: withIcon('code', 'IDE / Editors (ACP)'), link: '/features/entry-points/editors' },
           { text: withIcon('bot', 'Channels & Bots'), link: '/features/entry-points/channels' }
         ]
@@ -188,7 +187,6 @@ const zhSidebar: DefaultTheme.Sidebar = collapseSidebarGroups([
         items: [
           { text: withIcon('globe', '入口总览'), link: '/zh/features/entry-points/' },
           { text: withIcon('monitor', 'Desktop'), link: '/zh/features/entry-points/desktop' },
-          { text: withIcon('terminal', 'TUI'), link: '/zh/features/entry-points/tui' },
           { text: withIcon('code', 'IDE / 编辑器（ACP）'), link: '/zh/features/entry-points/editors' },
           { text: withIcon('bot', 'Channels 与 Bots'), link: '/zh/features/entry-points/channels' }
         ]
@@ -303,7 +301,6 @@ const redirectMap: Record<string, string> = {
   'getting-started.md': 'getting-started.md',
   'config_guide.md': 'features/project-first.md',
   'desktop_guide.md': 'features/entry-points/desktop.md',
-  'tui_guide.md': 'features/entry-points/tui.md',
   'acp_guide.md': 'features/entry-points/editors.md',
   'unity_guide.md': 'features/entry-points/editors.md',
   'appserver_guide.md': 'developing/lifecycle/appserver.md',

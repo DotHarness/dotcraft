@@ -2,7 +2,7 @@
 
 DotCraft can run right inside your editor as a coding assistant — JetBrains, Obsidian, Unity, and more — with no cloud subscription, no proprietary plugin, and no vendor lock-in. It does this by speaking [Agent Client Protocol (ACP)](https://agentclientprotocol.com/), an open standard for connecting coding agents to editors (think LSP, but for AI agents). Any ACP-compatible editor can talk to any ACP-compatible agent, and DotCraft speaks ACP natively.
 
-The editor launches DotCraft and talks to it; DotCraft bridges that conversation to its [AppServer](../../developing/lifecycle/appserver), which runs the agent. So an ACP session shares the same workspace, sessions, memory, and tools as TUI, Desktop, and channels — the editor is just another window onto the same agent. By default DotCraft starts a local AppServer for you; point it at a remote one when you need to.
+The editor launches DotCraft and talks to it; DotCraft bridges that conversation to its [AppServer](../../developing/lifecycle/appserver), which runs the agent. So an ACP session shares the same workspace, sessions, memory, and tools as Desktop and channels — the editor is just another window onto the same agent. By default DotCraft starts a local AppServer for you; point it at a remote one when you need to.
 
 ## Supported Editors
 
@@ -29,7 +29,7 @@ dotcraft setup
 
 Follow the prompts for provider / model / api-key. See [Configuration Reference](../../developing/configuration) for full fields, or run `dotcraft setup --help` for supported options.
 
-Once setup completes, the workspace is ready for ACP, TUI, Desktop, or automation entries.
+Once setup completes, the workspace is ready for ACP, Desktop, or automation entries.
 
 ### 2. Configure ACP in the Editor
 
@@ -111,7 +111,7 @@ For the full list of ACP methods DotCraft implements and how the bridge maps the
 
 ## Sessions shared across clients
 
-An ACP session is a full workspace session — it lives in the same store as your TUI, Desktop, and bot sessions, and they all share the same long-term memory. Knowledge captured in an ACP session is available in a TUI, Desktop, or QQ bot session in the same workspace, and vice versa.
+An ACP session is a full workspace session — it lives in the same store as your Desktop and bot sessions, and they all share the same long-term memory. Knowledge captured in an ACP session is available in a Desktop or QQ bot session in the same workspace, and vice versa.
 
 With `--remote`, several clients connect to one AppServer at once. A session you open in Obsidian is visible and continuable in the desktop app in real time. See [Unified Session Core](../../developing/architecture/session-core) for the model behind this.
 

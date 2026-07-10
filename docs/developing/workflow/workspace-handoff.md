@@ -8,7 +8,7 @@ There are two collaboration modes:
 
 | Mode | Use when | Interface |
 |---|---|---|
-| Live client | The other tool can integrate with DotCraft directly | AppServer, ACP, SDKs, Desktop/TUI |
+| Live client | The other tool can integrate with DotCraft directly | AppServer, ACP, SDKs, Desktop |
 | Handoff document | The other coding agent only accepts files or prompt context | `dotcraft context` Markdown export |
 
 This page focuses on the handoff document flow. For live clients, see [Unified Session Core](../architecture/session-core) and [AppServer Mode](../lifecycle/appserver).

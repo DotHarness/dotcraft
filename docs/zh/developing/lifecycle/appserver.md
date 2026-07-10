@@ -1,6 +1,6 @@
 # AppServer 模式
 
-本页面向直接管理 AppServer 的集成方与贡献者。AppServer 是 DotCraft 的 wire protocol 服务器。它把 Agent 能力（会话管理、工具调用、审批流）以 JSON-RPC 协议暴露给外部客户端，TUI、Desktop、ACP、外部渠道适配器和自定义集成都可以连接同一个 AppServer。
+本页面向直接管理 AppServer 的集成方与贡献者。AppServer 是 DotCraft 的 wire protocol 服务器。它把 Agent 能力（会话管理、工具调用、审批流）以 JSON-RPC 协议暴露给外部客户端，Desktop、ACP、`dotcraft exec`、外部渠道适配器和自定义集成都可以连接同一个 AppServer。
 
 适用场景：
 
@@ -10,7 +10,7 @@
 - 构建非 C# 客户端（任何支持 WebSocket / stdio 的语言）
 
 > [!NOTE]
-> 日常 Desktop / TUI 走 [Hub 本地协调](./hub)，本页只在你需要手动管理 AppServer 时使用。
+> 日常 Desktop 与 `dotcraft exec` 走 [Hub 本地协调](./hub)，本页只在你需要手动管理 AppServer 时使用。
 
 ## 启动
 
@@ -63,7 +63,7 @@ dotcraft exec --remote ws://server:9100/ws --token my-secret "总结当前工作
 
 ### stdio（默认）
 
-AppServer 通过 stdin/stdout 以换行分隔的 JSON（JSONL）格式通信。这是 TUI、Desktop、ACP 和自定义客户端常用的本地子进程通信方式。
+AppServer 通过 stdin/stdout 以换行分隔的 JSON（JSONL）格式通信。这是 ACP 和自定义客户端常用的本地子进程通信方式。
 
 ```
 Client (stdin) → JSON-RPC Request → AppServer
@@ -115,7 +115,7 @@ dotcraft app-server --listen ws://0.0.0.0:9100 --token my-secret
 dotcraft exec --remote ws://server:9100/ws --token my-secret "检查状态"
 ```
 
-Token 通过 WebSocket 连接 URL 的查询参数传递：`ws://host:port/ws?token=<value>`。服务端一旦设置 `--token`，所有客户端——TUI、Desktop、ACP、`dotcraft exec` 和自定义客户端——都必须携带同一个 Token，空 Token 会被拒绝。
+Token 通过 WebSocket 连接 URL 的查询参数传递：`ws://host:port/ws?token=<value>`。服务端一旦设置 `--token`，所有客户端——Desktop、ACP、`dotcraft exec` 和自定义客户端——都必须携带同一个 Token，空 Token 会被拒绝。
 
 > [!CAUTION]
 > 绑定到 `0.0.0.0` 时不设置 Token 等于把 AppServer 完全开放。
@@ -182,7 +182,7 @@ dotcraft app-server --listen ws://127.0.0.1:9100 --token my-secret
 | 场景 | 做法 |
 |---|---|
 | 用脚本运行一次性任务 | `dotcraft exec "..."` |
-| 在 Desktop / TUI / ACP 之间共享一个后端 | `dotcraft app-server --listen ws://127.0.0.1:9100` |
+| 在 Desktop / ACP / 自定义客户端之间共享一个后端 | `dotcraft app-server --listen ws://127.0.0.1:9100` |
 | 连接到远程工作区 | 用 WebSocket 监听，客户端连接 `/ws` |
 | 构建自定义客户端 | 通过 stdio 或 WebSocket 收发 JSON-RPC 2.0 |
 
@@ -190,5 +190,5 @@ dotcraft app-server --listen ws://127.0.0.1:9100 --token my-secret
 
 - [配置参考](../configuration) — `AppServer.*` / `CLI.*` 字段
 - [AppServer 协议](../protocols/appserver-protocol) — 客户端协议概览
-- [Hub 本地协调](./hub) — 日常 Desktop / TUI 走的路径
+- [Hub 本地协调](./hub) — 日常 Desktop 与 CLI 走的路径
 - [统一会话核心](../architecture/session-core) — Thread / Turn / Item 模型

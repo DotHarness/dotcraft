@@ -4,7 +4,7 @@ Dashboard API 面向调试界面和内部工具。普通用户通常只需要使
 
 ## 独立只读查看器
 
-可以只启动 Dashboard，不启动 AppServer、Desktop、TUI、channels、Dreams、Automations、MCP 或 LSP：
+可以只启动 Dashboard，不启动 AppServer、Desktop、channels、Dreams、Automations、MCP 或 LSP：
 
 ```bash
 dotcraft dashboard --workspace /path/to/workspace

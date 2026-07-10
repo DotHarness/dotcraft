@@ -203,7 +203,7 @@ lastUpdated: false
             <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="16" y="16" width="6" height="6" rx="1"/><rect x="2" y="16" width="6" height="6" rx="1"/><rect x="9" y="2" width="6" height="6" rx="1"/><path d="M5 16v-3a1 1 0 0 1 1-1h12a1 1 0 0 1 1 1v3"/><path d="M12 12V8"/></svg>
           </span>
           <h3>一个 Agent，处处可达</h3>
-          <p>Desktop、TUI、IDE、群聊机器人、HTTP API 共用同一个会话核心。在电脑上开的会话，换设备、换平台都能接着聊。</p>
+          <p>Desktop、IDE、群聊机器人和 SDK/API 客户端共用同一个会话核心。在电脑上开的会话，换设备、换平台都能接着聊。</p>
           <span class="dc-feature__arrow" aria-hidden="true">
             <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
           </span>
@@ -232,7 +232,7 @@ lastUpdated: false
             </span>
             <span class="dc-preview__body">
               <span class="dc-preview__body-inner">
-                <span class="dc-preview__text">Desktop 是推荐的第一入口。下载、选工作区、配模型，5 分钟就能跑通；之后再按需打开 TUI、IDE、自动化和群聊机器人。</span>
+                <span class="dc-preview__text">Desktop 是推荐的第一入口。下载、选工作区、配模型，5 分钟就能跑通；之后再按需使用 CLI、IDE、自动化和群聊机器人。</span>
                 <span class="dc-preview__actions">
                   <a class="dc-button dc-button--primary" href="./getting-started">5 分钟快速开始</a>
                   <a class="dc-button" href="./features/entry-points/desktop">Desktop 指南</a>

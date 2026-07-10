@@ -203,7 +203,7 @@ lastUpdated: false
             <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="16" y="16" width="6" height="6" rx="1"/><rect x="2" y="16" width="6" height="6" rx="1"/><rect x="9" y="2" width="6" height="6" rx="1"/><path d="M5 16v-3a1 1 0 0 1 1-1h12a1 1 0 0 1 1 1v3"/><path d="M12 12V8"/></svg>
           </span>
           <h3>One core, many entry points</h3>
-          <p>Desktop, TUI, IDEs, chat bots, and HTTP APIs share the same session core; the same conversation continues across devices and platforms.</p>
+          <p>Desktop, IDEs, chat bots, and SDK/API clients share the same session core; the same conversation continues across devices and platforms.</p>
           <span class="dc-feature__arrow" aria-hidden="true">
             <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
           </span>
@@ -232,7 +232,7 @@ lastUpdated: false
             </span>
             <span class="dc-preview__body">
               <span class="dc-preview__body-inner">
-                <span class="dc-preview__text">Desktop is the recommended first entry point. Download, choose a workspace, configure a model — five minutes to a working setup. Then add TUI, IDEs, automations, and chat bots as needed.</span>
+                <span class="dc-preview__text">Desktop is the recommended first entry point. Download, choose a workspace, configure a model — five minutes to a working setup. Then add CLI, IDEs, automations, and chat bots as needed.</span>
                 <span class="dc-preview__actions">
                   <a class="dc-button dc-button--primary" href="./getting-started">5-minute start</a>
                   <a class="dc-button" href="./features/entry-points/desktop">Desktop guide</a>

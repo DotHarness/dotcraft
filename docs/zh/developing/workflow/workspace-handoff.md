@@ -8,7 +8,7 @@ DotCraft 支持两种协作方式：
 
 | 方式 | 适用场景 | 接口 |
 |---|---|---|
-| 实时接入 | 对方工具可以直接接入 DotCraft | AppServer、ACP、SDK、Desktop/TUI |
+| 实时接入 | 对方工具可以直接接入 DotCraft | AppServer、ACP、SDK、Desktop |
 | 文档交接 | 对方 coding agent 只能接收文件或 prompt 上下文 | `dotcraft context` Markdown 导出 |
 
 本文重点讲文档交接。实时接入请看 [统一会话核心](../architecture/session-core) 和 [AppServer 模式](../lifecycle/appserver)。

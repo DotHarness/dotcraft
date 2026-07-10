@@ -2,7 +2,7 @@
 
 App Binding 工具可以为它的结果提供**富交互 UI**。工具声明一个 `ui://` HTML 资源；DotCraft **桌面端**会把它渲染在一个沙箱 iframe 中，并在 UI 与宿主之间运行一个小型的 postMessage JSON-RPC 桥。这套模型采用 **MCP Apps**，并绑定到 App Binding 的权限体系：iframe 是隔离的，每个由 UI 发起的动作都会按线程绑定（scope、风险、审批）重新校验并写入审计。
 
-交互式 UI **仅在桌面端**渲染。TUI 和聊天渠道会回退到工具的文本结果——UI 始终是增强，绝不是正确性的前提。
+交互式 UI **仅在桌面端**渲染。未协商 `interactiveToolUi` capability 的客户端（包括聊天渠道）会回退到工具的文本结果——UI 始终是增强，绝不是正确性的前提。
 
 > [!NOTE]
 > 示例以 **Oratorio** 为例。请把命名空间、工具名和 `ui://` 路径替换成你自己应用的。

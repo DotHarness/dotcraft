@@ -1,6 +1,6 @@
 /**
- * WebSearch / WebFetch / SearchTools / tool_search display — aligned with DotCraft.Core
- * CoreToolDisplays and TUI `tool_format.rs`.
+ * WebSearch / WebFetch / SearchTools / tool_search display aligned with
+ * DotCraft.Core CoreToolDisplays.
  */
 
 import { translate, type AppLocale } from '../../shared/locales'
@@ -38,7 +38,7 @@ export function truncate(s: string, max: number): string {
   return chars.slice(0, max).join('') + '…'
 }
 
-/** JSON string field only — matches TUI `parse_string_field` / standalone invocation detection. */
+/** Accept string fields only so mistyped values use the generic invocation fallback. */
 function getJsonStringField(args: Record<string, unknown> | undefined, key: string): string | undefined {
   if (!args) return undefined
   const v = args[key]
@@ -50,8 +50,9 @@ function getToolSearchQuery(args: Record<string, unknown> | undefined): string |
 }
 
 /**
- * Human-readable invocation line (matches CoreToolDisplays / format_invocation_display).
- * Returns null when required string fields are missing or not JSON strings (TUI: fall back to generic "Called …").
+ * Human-readable invocation line aligned with CoreToolDisplays.
+ * Returns null when required string fields are missing or not JSON strings so
+ * the caller can use the generic "Called …" label.
  */
 export function formatInvocationDisplay(
   toolName: string,
@@ -79,7 +80,7 @@ export function formatInvocationDisplay(
   return null
 }
 
-/** When true, ToolCallCard should use "Calling …" + toolName; when false, show standalone sentence only (TUI parity). */
+/** When true, ToolCallCard uses "Calling …" + toolName; otherwise it shows the standalone sentence. */
 export function invocationNeedsCallingPrefix(
   toolName: string,
   args: Record<string, unknown> | undefined

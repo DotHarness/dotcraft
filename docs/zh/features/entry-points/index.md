@@ -9,7 +9,7 @@
 | 入口 | 界面形态 | 适合 |
 |---|---|---|
 | [Desktop](./desktop) | 图形化桌面应用 | 第一次使用 / 长期协作 / 复杂 diff & approval |
-| [TUI](./tui) | Rust 终端富界面 | 终端原生、SSH 远程、轻量化 |
+| [CLI](../../getting-started) | 一次性命令 | 脚本、SSH、CI、轻量任务 |
 | [IDE / Editor (ACP)](./editors) | IDE 内嵌（JetBrains / Obsidian / Unity 等） | 在编辑器里直接读写未保存文件、用编辑器原生终端 |
 | [Channels / Bots](./channels) | QQ / 企业微信 / 飞书 / Telegram / 微信 | 团队群聊、知识库 bot、客服 bot |
 
@@ -18,7 +18,7 @@
 | 我想… | 推荐入口 |
 |---|---|
 | 第一次使用 DotCraft | [Desktop](./desktop) |
-| 在远程服务器上用 SSH 工作 | [TUI](./tui) 或 [AppServer + 远程 TUI/Desktop](../../developing/lifecycle/appserver) |
+| 在远程服务器上用 SSH 工作 | [`dotcraft exec`](../../getting-started) 或 [AppServer + 远程客户端](../../developing/lifecycle/appserver) |
 | 在 IDE 里让 Agent 直接读未保存文件 | [ACP](./editors) |
 | 让一个 Discord/QQ 群获得 Agent 助手 | [Channels](./channels) |
 | 多个客户端共享同一个工作区 | [AppServer 模式](../../developing/lifecycle/appserver) + 任意上面入口 |
@@ -28,7 +28,7 @@
 ## 跨入口共享原则
 
 - **同一工作区只跑一个 AppServer**：本机由 [Hub](../../developing/lifecycle/hub) 协调，不需要手动管理。
-- **会话可跨入口接管**：在 Desktop 开的 Thread，可以在 TUI / ACP 继续；审批 UI 用每个平台原生的方式呈现。
+- **会话可跨入口接管**：在 Desktop 开的 Thread，可以在 ACP 或其他 AppServer 客户端继续；审批 UI 用每个平台原生的方式呈现。
 - **配置单源真相**：模型、安全、自动化都在 `.craft/config.json` 与 `~/.craft/config.json`，所有入口读同一份。
 - **入口开关在工作区配置**：ACP、Dashboard、Automations 与外部渠道按需启用。
 
@@ -38,7 +38,7 @@
 
 1. 先按 [快速开始](../../getting-started) 装 Desktop。
 2. 在 Desktop 里跑通"选工作区 + 配模型 + 第一次对话"。
-3. 再按真实需求决定要不要打开第二种入口（TUI / ACP / 频道）。
+3. 再按真实需求决定要不要打开第二种入口（CLI / ACP / 频道）。
 
 ## 相关文档
 

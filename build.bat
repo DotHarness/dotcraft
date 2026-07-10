@@ -85,22 +85,6 @@ cd ..\..
 
 echo.
 echo =====================================
-echo  Building TUI (dotcraft-tui)...
-echo =====================================
-echo.
-
-cd tui
-call cargo build --release
-if %ERRORLEVEL% neq 0 (
-    echo TUI build failed with exit code %ERRORLEVEL%.
-    cd ..
-    goto :failure
-)
-copy /Y "target\release\dotcraft-tui.exe" "..\build\release\dotcraft-tui.exe"
-cd ..
-
-echo.
-echo =====================================
 echo  Building Desktop (dotcraft-desktop)...
 echo =====================================
 echo.
@@ -257,4 +241,4 @@ echo =====================================
 echo  Packaging completed!
 echo =====================================
 echo.
-pause 
+pause

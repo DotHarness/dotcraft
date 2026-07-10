@@ -7,7 +7,7 @@
 | **Date** | 2026-05-18 |
 | **Related Specs** | [Session Core](../architecture/session-core.md), [AppServer Protocol](../protocols/appserver-protocol.md), [Memory Consolidation](memory-consolidation.md), [Desktop Client](../clients/desktop-client.md), [Automations Lifecycle](automations-lifecycle.md) |
 
-Purpose: Define **Dreams**, DotCraft's workspace-level background memory maintenance product and runtime capability. Dreams gives each workspace an offline memory management loop that can run from AppServer without an active Desktop, TUI, or conversation session.
+Purpose: Define **Dreams**, DotCraft's workspace-level background memory maintenance product and runtime capability. Dreams gives each workspace an offline memory management loop that can run from AppServer without an active client or conversation session.
 
 ---
 
@@ -44,7 +44,7 @@ Dreams is not a chat feature and not a standalone app. It is a workspace memory 
 
 - Replacing `MEMORY.md` or turn-time memory consolidation.
 - Creating a standalone Dreams app in the baseline design.
-- Requiring Desktop or TUI to be open for background memory maintenance.
+- Requiring a client to remain open for background memory maintenance.
 - Introducing remote memory administration or cross-workspace memory sharing.
 - Automatically applying background-generated passive memory.
 - Building semantic/vector retrieval or intelligent scheduling as part of the baseline Dreams design.

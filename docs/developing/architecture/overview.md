@@ -37,14 +37,14 @@ Session Core defines `Thread → Turn → Item` and uses `ISessionService` as th
 AppServer exposes `ISessionService` to external clients as JSON-RPC 2.0:
 
 - **Transport**: stdio (JSONL, one message per line) and WebSocket (one message per frame)
-- **Clients**: TUI, Desktop, ACP, external channel adapters, SDKs (TypeScript / .NET / Python)
+- **Clients**: Desktop, CLI, ACP, external channel adapters, SDKs (TypeScript / .NET / Python)
 - **Auth**: WebSocket `?token=` query string ([details](../lifecycle/appserver))
 
 See [AppServer Protocol](../protocols/appserver-protocol) and [AppServer Mode](../lifecycle/appserver).
 
 ## Hub
 
-Each user has one [Hub](../lifecycle/hub) on the machine. Hub starts/reuses one AppServer per workspace and maintains discovery info and locks under `~/.craft/hub/`. Desktop and TUI use Hub by default. Bypass Hub for remote, CI, bots, or protocol debugging — use [AppServer Mode](../lifecycle/appserver).
+Each user has one [Hub](../lifecycle/hub) on the machine. Hub starts/reuses one AppServer per workspace and maintains discovery info and locks under `~/.craft/hub/`. Desktop and CLI use Hub by default. Bypass Hub for remote, CI, bots, or protocol debugging — use [AppServer Mode](../lifecycle/appserver).
 
 ## Agents
 
