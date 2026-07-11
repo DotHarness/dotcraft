@@ -14,7 +14,7 @@ import {
 import { Bot, ListChecks, Loader2, Square, X } from 'lucide-react'
 import { ActionTooltip } from '../ui/ActionTooltip'
 import { MascotRobot, type MascotExpression, type MascotLight } from './MascotRobot'
-import { paletteOf, type AvatarSpec } from '../agents/agentAvatar'
+import { mascotPaletteOf, type AvatarSpec } from '../agents/agentAvatar'
 import { MascotBubble, type MascotBubbleAction, type MascotBubbleTone } from './MascotBubble'
 import { consumeMascotHandoff, recordMascotHandoff } from './mascotHandoff'
 import { ContextMenu, type ContextMenuItem, type ContextMenuPosition } from '../ui/ContextMenu'
@@ -47,6 +47,8 @@ export interface ComposerMascotInteraction {
    *  "?" sign — used by the approval composer. Suppresses the laptop prop. */
   hold?: 'sign'
 }
+
+export type ComposerMascotReasoningEffort = 'off' | 'low' | 'medium' | 'high' | 'extraHigh'
 
 /**
  * Shared mascot pose for the bottom-dock decision composers (tool approval,
@@ -90,6 +92,10 @@ interface ComposerShellProps {
   mascotBounceSignal?: number
   /** State-driven expression/light/bubble/right-click menu for the mascot. */
   mascotInteraction?: ComposerMascotInteraction
+  /** Effective reasoning intensity used by the mascot's body-energy treatment. */
+  mascotReasoningEffort?: ComposerMascotReasoningEffort
+  /** Whether the composer currently uses the MAX context window. */
+  mascotContextMax?: boolean
   /** Optional Agent Profile character: recolors the mascot to the profile's palette. */
   mascotAvatar?: AvatarSpec
   /** Participate in cross-composer position handoff: when this shell replaces
@@ -107,8 +113,45 @@ const MASCOT_HIDDEN_RATIO = 0.06
 const MASCOT_RAISE = 3
 /** Ambient idle time before the mascot dozes off (woken by any interaction). */
 const MASCOT_SLEEP_AFTER_MS = 90_000
+const MASCOT_ACTIVE_IDLE_MIN_MS = 35_000
+const MASCOT_ACTIVE_IDLE_JITTER_MS = 30_000
+const MASCOT_ACTIVE_IDLE_ACTIVITY_THROTTLE_MS = 500
 
 type MascotMicro = 'blink' | 'look-l' | 'look-r' | 'bob'
+type MascotActiveIdleMotion = 'hop' | 'rocket' | 'hover'
+type MascotActiveIdlePhase = 'outbound' | 'away' | 'inbound'
+
+interface MascotActiveIdleState {
+  motion: MascotActiveIdleMotion
+  phase: MascotActiveIdlePhase
+}
+
+interface MascotProfileTransition {
+  revision: number
+  fromAccent: string
+  toAccent: string
+}
+
+const MASCOT_PROFILE_TRANSITION_SWAP_MS = 620
+const MASCOT_PROFILE_TRANSITION_DURATION_MS = 1240
+
+const MASCOT_ACTIVE_IDLE_TRAVEL_MS: Record<MascotActiveIdleMotion, number> = {
+  hop: 2400,
+  rocket: 1800,
+  hover: 1800
+}
+
+const MASCOT_ACTIVE_IDLE_HOLD_MS: Record<MascotActiveIdleMotion, number> = {
+  hop: 1400,
+  rocket: 1400,
+  hover: 2800
+}
+
+function pickMascotActiveIdle(random: number, previous: MascotActiveIdleMotion | null): MascotActiveIdleMotion {
+  const selected: MascotActiveIdleMotion = random < 0.65 ? 'hop' : random < 0.9 ? 'rocket' : 'hover'
+  if (selected !== previous) return selected
+  return selected === 'hop' ? 'rocket' : selected === 'rocket' ? 'hop' : 'rocket'
+}
 
 /** Deterministic star-burst offsets for the success celebration. */
 const MASCOT_SPARKLES = Array.from({ length: 7 }, (_, i) => {
@@ -122,10 +165,19 @@ const MASCOT_SPARKLES = Array.from({ length: 7 }, (_, i) => {
 })
 
 function prefersReducedMotion(): boolean {
+  const configuredPreference =
+    typeof document !== 'undefined' ? document.documentElement.dataset.reduceMotion : undefined
+  if (configuredPreference === 'on') return true
+  if (configuredPreference === 'off') return false
+
   // matchMedia is always present in Electron; guard for the jsdom test env.
   return typeof window.matchMedia === 'function'
     ? window.matchMedia('(prefers-reduced-motion: reduce)').matches
     : false
+}
+
+function mascotAvatarKey(avatar?: AvatarSpec): string {
+  return avatar ? `${avatar.palette}:${avatar.face}:${avatar.accessory}` : 'default'
 }
 
 /**
@@ -144,6 +196,7 @@ function prefersReducedMotion(): boolean {
  * - success light: raised-arm cheer with a green flash and star burst;
  * - error light: head shake, then a deflated droop while the light stays red;
  * - drag-over: eager hop with arms spread;
+ * - active idle: one low-frequency hop, rocket cruise, or hover survey before sleep;
  * - ambient idle for a while: dozes off (Zzz, dim light), startled awake;
  * - interaction.hold === 'sign': right arm raises (wave hinge) holding the
  *   "?" sign — the approval composer's pose;
@@ -155,14 +208,22 @@ function ComposerMascot({
   dragOver,
   bounceSignal,
   interaction,
+  reasoningEffort,
+  contextMax,
   avatar,
+  profileTransition,
+  profileTransitionRevision,
   handoff = false
 }: {
   focused: boolean
   dragOver: boolean
   bounceSignal: number
   interaction?: ComposerMascotInteraction
+  reasoningEffort: ComposerMascotReasoningEffort
+  contextMax: boolean
   avatar?: AvatarSpec
+  profileTransition: MascotProfileTransition | null
+  profileTransitionRevision: number
   handoff?: boolean
 }): JSX.Element {
   const [menuPos, setMenuPos] = useState<ContextMenuPosition | null>(null)
@@ -176,7 +237,11 @@ function ComposerMascot({
   const [shaking, setShaking] = useState(false)
   const [nodding, setNodding] = useState(false)
   const [landing, setLanding] = useState(false)
+  const [activeIdle, setActiveIdle] = useState<MascotActiveIdleState | null>(null)
+  const [activityRevision, setActivityRevision] = useState(0)
   const rootRef = useRef<HTMLDivElement | null>(null)
+  const lastActivityRef = useRef(0)
+  const lastActiveIdleRef = useRef<MascotActiveIdleMotion | null>(null)
 
   // Conversation state overrides the ambient focus/drag expression when present.
   const baseExpression: MascotExpression =
@@ -198,7 +263,88 @@ function ComposerMascot({
     light === 'default'
   // Local behaviors (sleep, wave) override the face; conversation light stays.
   const expression: MascotExpression = sleeping ? 'sleep' : waving ? 'happy' : baseExpression
-  const mascotShadowColor = avatar ? paletteOf(avatar).shadow : '#0b3d62'
+  const mascotPalette = mascotPaletteOf(avatar)
+  const ambient =
+    !focused &&
+    !dragOver &&
+    !bubble &&
+    !holdSign &&
+    menuPos == null &&
+    baseExpression === 'neutral' &&
+    light === 'default'
+
+  const markActivity = useCallback(() => {
+    setActiveIdle(null)
+    setSleeping((current) => {
+      if (current && !prefersReducedMotion()) setStartled(true)
+      return false
+    })
+    const now = Date.now()
+    if (now - lastActivityRef.current < MASCOT_ACTIVE_IDLE_ACTIVITY_THROTTLE_MS) return
+    lastActivityRef.current = now
+    setActivityRevision((value) => value + 1)
+  }, [])
+
+  useEffect(() => {
+    const markPointerMoveActivity = (): void => {
+      if (Date.now() - lastActivityRef.current >= MASCOT_ACTIVE_IDLE_ACTIVITY_THROTTLE_MS) {
+        markActivity()
+      }
+    }
+    window.addEventListener('keydown', markActivity)
+    window.addEventListener('pointerdown', markActivity)
+    window.addEventListener('pointermove', markPointerMoveActivity, { passive: true })
+    window.addEventListener('wheel', markActivity, { passive: true })
+    window.addEventListener('focusin', markActivity)
+    return () => {
+      window.removeEventListener('keydown', markActivity)
+      window.removeEventListener('pointerdown', markActivity)
+      window.removeEventListener('pointermove', markPointerMoveActivity)
+      window.removeEventListener('wheel', markActivity)
+      window.removeEventListener('focusin', markActivity)
+    }
+  }, [markActivity])
+
+  useEffect(() => {
+    if (!ambient || prefersReducedMotion()) {
+      setActiveIdle(null)
+      return undefined
+    }
+
+    let timer = 0
+    const start = (): void => {
+      if (prefersReducedMotion()) return
+      if (document.hidden) {
+        timer = window.setTimeout(start, 5000)
+        return
+      }
+      const motion = pickMascotActiveIdle(Math.random(), lastActiveIdleRef.current)
+      lastActiveIdleRef.current = motion
+      setMicro(null)
+      setActiveIdle({ motion, phase: 'outbound' })
+    }
+    timer = window.setTimeout(
+      start,
+      MASCOT_ACTIVE_IDLE_MIN_MS + Math.random() * MASCOT_ACTIVE_IDLE_JITTER_MS
+    )
+    return () => window.clearTimeout(timer)
+  }, [ambient, activityRevision])
+
+  useEffect(() => {
+    if (!activeIdle) return undefined
+    const delay = activeIdle.phase === 'away'
+      ? MASCOT_ACTIVE_IDLE_HOLD_MS[activeIdle.motion]
+      : MASCOT_ACTIVE_IDLE_TRAVEL_MS[activeIdle.motion] + 160
+    const timer = window.setTimeout(() => {
+      setActiveIdle((current) => {
+        if (!current) return null
+        if (current.phase === 'outbound') return { ...current, phase: 'away' }
+        if (current.phase === 'away') return { ...current, phase: 'inbound' }
+        return null
+      })
+    }, delay)
+    return () => window.clearTimeout(timer)
+  }, [activeIdle])
 
   // Cross-composer ride: the approval composer replaces the input composer (a
   // full remount), so the outgoing mascot records its screen position in the
@@ -259,8 +405,6 @@ function ComposerMascot({
 
   // Doze off after a long ambient idle; any state change wakes the mascot.
   useEffect(() => {
-    const ambient =
-      !focused && !dragOver && !bubble && baseExpression === 'neutral' && light === 'default'
     if (!ambient || prefersReducedMotion()) {
       setSleeping(false)
       return
@@ -268,7 +412,7 @@ function ComposerMascot({
     if (sleeping) return
     const timer = window.setTimeout(() => setSleeping(true), MASCOT_SLEEP_AFTER_MS)
     return () => window.clearTimeout(timer)
-  }, [focused, dragOver, bubble, baseExpression, light, sleeping])
+  }, [ambient, activityRevision, sleeping])
 
   const wake = useCallback(() => {
     setSleeping(false)
@@ -277,7 +421,7 @@ function ComposerMascot({
 
   // Idle micro-behaviors: occasional blink / glance / antenna bob.
   useEffect(() => {
-    if (sleeping || prefersReducedMotion()) return
+    if (sleeping || activeIdle || prefersReducedMotion()) return
     if (baseExpression !== 'neutral' && baseExpression !== 'happy') return
     let cancelled = false
     let timer = 0
@@ -301,7 +445,7 @@ function ComposerMascot({
       cancelled = true
       window.clearTimeout(timer)
     }
-  }, [sleeping, baseExpression])
+  }, [sleeping, baseExpression, activeIdle])
 
   // Typing nod: keystrokes land here only while the composer editor is focused;
   // the animation's own duration throttles the cadence.
@@ -317,6 +461,21 @@ function ComposerMascot({
 
   // One-shot states clear when their animation finishes (events bubble up here).
   const onAnimationEnd = (event: AnimationEvent<HTMLDivElement>): void => {
+    if (activeIdle) {
+      const expected = activeIdle.motion === 'hop'
+        ? 'composer-mascot-idle-hop-travel'
+        : activeIdle.motion === 'rocket'
+          ? 'composer-mascot-idle-rocket-flight-x'
+          : activeIdle.phase === 'outbound'
+            ? 'composer-mascot-idle-hover-launch-body'
+            : 'composer-mascot-idle-hover-land-body'
+      if (event.animationName === expected) {
+        setActiveIdle((current) => {
+          if (!current) return null
+          return current.phase === 'outbound' ? { ...current, phase: 'away' } : null
+        })
+      }
+    }
     switch (event.animationName) {
       case 'composer-mascot-blink':
         // Neutral's caret flash runs longer than the eye squash; let it finish.
@@ -393,6 +552,7 @@ function ComposerMascot({
   const rootClassName =
     [
       micro ? `composer-mascot-${micro}` : null,
+      activeIdle ? 'composer-mascot-active-idle' : null,
       waving ? 'composer-mascot-wave' : null,
       sleeping ? 'composer-mascot-sleeping' : null,
       light === 'success' ? 'composer-mascot-celebrate' : null,
@@ -409,14 +569,27 @@ function ComposerMascot({
       aria-hidden={interaction ? undefined : true}
       ref={rootRef}
       className={rootClassName}
+      data-mascot-effort={reasoningEffort}
+      data-mascot-context={contextMax ? 'max' : 'default'}
+      data-mascot-profile-transition={profileTransition ? 'active' : 'idle'}
+      data-mascot-active-idle={activeIdle?.motion}
+      data-mascot-idle-phase={activeIdle?.phase}
       onAnimationEnd={onAnimationEnd}
       style={{
+        '--mascot-body-dark': mascotPalette.bodyD,
+        '--mascot-body-mid': mascotPalette.bodyM,
+        '--mascot-body-light': mascotPalette.bodyL,
+        '--mascot-mark-dark': mascotPalette.markD,
+        '--mascot-mark-energy': mascotPalette.markM,
+        '--mascot-energy-accent': mascotPalette.accent,
+        '--mascot-profile-from-accent': profileTransition?.fromAccent ?? mascotPalette.accent,
+        '--mascot-profile-to-accent': profileTransition?.toAccent ?? mascotPalette.accent,
         position: 'absolute',
         right: '40px',
         top: `${-(MASCOT_SIZE * (1 - MASCOT_HIDDEN_RATIO)) - MASCOT_RAISE}px`,
         zIndex: 0,
         pointerEvents: 'none'
-      }}
+      } as CSSProperties}
     >
       {bubble && (
         <div
@@ -440,13 +613,14 @@ function ComposerMascot({
       {/* Display scale: shrinks size + all nested motion uniformly, feet planted.
           Also the prefers-reduced-motion scope (see tokens.css). */}
       <div
+        key={profileTransitionRevision}
         className="composer-mascot-motion"
         style={{
           transformOrigin: 'bottom center',
           transform: `scale(${MASCOT_SCALE})`,
           // Mascot drop-shadow biases downward so it reads with the contact shadow on
           // the rim below. It follows the profile palette's shadow color.
-          filter: `drop-shadow(0 5.3px 7.3px color-mix(in srgb, ${mascotShadowColor} 20%, transparent))`
+          filter: `drop-shadow(0 5.3px 7.3px color-mix(in srgb, ${mascotPalette.shadow} 20%, transparent))`
         }}
       >
         {/* Pose layer: focus perk-up / error droop / sleep slump (feet planted). */}
@@ -542,11 +716,61 @@ export function ComposerShell({
   showMascot = false,
   mascotBounceSignal = 0,
   mascotInteraction,
+  mascotReasoningEffort = 'off',
+  mascotContextMax = false,
   mascotAvatar,
   mascotHandoff = false
 }: ComposerShellProps): JSX.Element {
   const [hovered, setHovered] = useState(false)
-  const mascotShadowColor = mascotAvatar ? paletteOf(mascotAvatar).shadow : '#0b3d62'
+  const [renderedMascotAvatar, setRenderedMascotAvatar] = useState(mascotAvatar)
+  const [mascotProfileTransition, setMascotProfileTransition] = useState<MascotProfileTransition | null>(null)
+  const [mascotProfileTransitionRevision, setMascotProfileTransitionRevision] = useState(0)
+  const renderedMascotAvatarRef = useRef(renderedMascotAvatar)
+  const targetMascotAvatarRef = useRef(mascotAvatar)
+  const profileTransitionRevisionRef = useRef(0)
+  renderedMascotAvatarRef.current = renderedMascotAvatar
+  targetMascotAvatarRef.current = mascotAvatar
+  const targetAvatarKey = mascotAvatarKey(mascotAvatar)
+  const renderedMascotPalette = mascotPaletteOf(renderedMascotAvatar)
+
+  useEffect(() => {
+    const currentAvatar = renderedMascotAvatarRef.current
+    if (targetAvatarKey === mascotAvatarKey(currentAvatar)) {
+      setMascotProfileTransition(null)
+      return undefined
+    }
+
+    const nextAvatar = targetMascotAvatarRef.current
+    if (prefersReducedMotion()) {
+      renderedMascotAvatarRef.current = nextAvatar
+      setRenderedMascotAvatar(nextAvatar)
+      setMascotProfileTransition(null)
+      return undefined
+    }
+
+    const revision = profileTransitionRevisionRef.current + 1
+    profileTransitionRevisionRef.current = revision
+    setMascotProfileTransitionRevision(revision)
+    setMascotProfileTransition({
+      revision,
+      fromAccent: mascotPaletteOf(currentAvatar).accent,
+      toAccent: mascotPaletteOf(nextAvatar).accent
+    })
+
+    const swapTimer = window.setTimeout(() => {
+      renderedMascotAvatarRef.current = nextAvatar
+      setRenderedMascotAvatar(nextAvatar)
+    }, MASCOT_PROFILE_TRANSITION_SWAP_MS)
+    const finishTimer = window.setTimeout(() => {
+      setMascotProfileTransition((current) => current?.revision === revision ? null : current)
+    }, MASCOT_PROFILE_TRANSITION_DURATION_MS)
+
+    return () => {
+      window.clearTimeout(swapTimer)
+      window.clearTimeout(finishTimer)
+    }
+  }, [targetAvatarKey])
+
   return (
     <div
       data-composer-root
@@ -568,7 +792,11 @@ export function ComposerShell({
           dragOver={dragOver}
           bounceSignal={mascotBounceSignal}
           interaction={mascotInteraction}
-          avatar={mascotAvatar}
+          reasoningEffort={mascotReasoningEffort}
+          contextMax={mascotContextMax}
+          avatar={renderedMascotAvatar}
+          profileTransition={mascotProfileTransition}
+          profileTransitionRevision={mascotProfileTransitionRevision}
           handoff={mascotHandoff}
         />
       )}
@@ -644,6 +872,7 @@ export function ComposerShell({
             // palette's shadow color, matching MascotRobot's internal shadow.
             <div
               aria-hidden
+              className="composer-mascot-contact-shadow"
               style={{
                 position: 'absolute',
                 right: '68px',
@@ -653,7 +882,7 @@ export function ComposerShell({
                 transform: 'translateX(50%)',
                 borderRadius: '50%',
                 background:
-                  `radial-gradient(50% 100% at 50% 0%, color-mix(in srgb, ${mascotShadowColor} 10%, transparent) 0%, transparent 72%)`,
+                  `radial-gradient(50% 100% at 50% 0%, color-mix(in srgb, ${renderedMascotPalette.shadow} 10%, transparent) 0%, transparent 72%)`,
                 filter: 'blur(2px)',
                 pointerEvents: 'none'
               }}

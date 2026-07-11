@@ -1588,6 +1588,8 @@ export function ConversationWelcome({
               focused={editorFocused}
               showMascot
               mascotBounceSignal={mascotBounce}
+              mascotReasoningEffort={reasoningConfig.enabled ? reasoningConfig.effort : 'off'}
+              mascotContextMax={welcomeContextMode === 'max'}
               mascotAvatar={resolvedProfileAvatar}
               attachmentStrip={
                 <AttachmentStrip

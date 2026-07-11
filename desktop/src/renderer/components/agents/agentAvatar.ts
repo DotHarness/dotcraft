@@ -29,6 +29,25 @@ export interface PaletteEntry {
   accent: string
 }
 
+/** Complete paint vocabulary used by the Composer mascot. */
+export interface MascotPaintPalette extends PaletteEntry {
+  /** Middle face-mark stop; profile palettes intentionally reuse `markL`. */
+  markM: string
+}
+
+/** Canonical DotCraft mascot paint when no Agent Profile is selected. */
+export const DEFAULT_MASCOT_PALETTE: MascotPaintPalette = {
+  key: 'default',
+  bodyD: '#2458f7',
+  bodyM: '#5f82f7',
+  bodyL: '#8fa5ff',
+  markD: '#2257f5',
+  markM: '#577df7',
+  markL: '#8ca2ff',
+  shadow: '#0b3d62',
+  accent: '#5f82f7'
+}
+
 /** 12 role palettes. The first five mirror the shipped Teams role avatars. */
 export const PALETTE: PaletteEntry[] = [
   { key: 'blue', bodyD: '#2563eb', bodyM: '#4f7cf6', bodyL: '#8198f5', markD: '#2563eb', markL: '#6f8df5', shadow: '#07307c', accent: '#4f7cf6' },
@@ -63,6 +82,13 @@ export const AGENT_BUILDER_AVATAR: AvatarSpec = { palette: 1, face: 1, accessory
 
 export function paletteOf(spec: AvatarSpec): PaletteEntry {
   return PALETTE[spec.palette % PALETTE.length]
+}
+
+/** Profile-aware Composer mascot paint, including the canonical default. */
+export function mascotPaletteOf(spec?: AvatarSpec): MascotPaintPalette {
+  if (!spec) return DEFAULT_MASCOT_PALETTE
+  const palette = paletteOf(spec)
+  return { ...palette, markM: palette.markL }
 }
 
 export function encodeAvatar(spec: AvatarSpec): number {

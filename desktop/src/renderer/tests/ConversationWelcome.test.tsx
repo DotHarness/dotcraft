@@ -418,6 +418,7 @@ describe('ConversationWelcome composer', () => {
     fireEvent.input(textbox)
     fireEvent.click(screen.getByRole('button', { name: 'Select model' }))
     fireEvent.click(within(screen.getByRole('menu', { name: 'Select model' })).getByRole('switch', { name: 'MAX Mode' }))
+    expect(document.querySelector('[data-mascot-context]')).toHaveAttribute('data-mascot-context', 'max')
     fireEvent.keyDown(window, { key: 'Escape' })
     fireEvent.click(screen.getByRole('button', { name: 'Send message' }))
 

@@ -1,5 +1,5 @@
-import { useEffect, useId, useState, type CSSProperties, type JSX } from 'react'
-import { paletteOf, type AvatarSpec } from '../agents/agentAvatar'
+import { useId, type CSSProperties, type JSX } from 'react'
+import { mascotPaletteOf, type AvatarSpec } from '../agents/agentAvatar'
 
 /**
  * Inline DotCraft mascot robot with a swappable face.
@@ -70,8 +70,8 @@ interface MascotRobotProps {
   /**
    * Optional Agent Profile character. When set, the body / arm / face-mark gradients and the
    * drop-shadow color come from this profile's palette (the antenna stays brand-yellow so its
-   * error/success status semantics survive). Absent → the default DotCraft blue. Changing it plays
-   * a short opacity dip, swapping the palette at the trough (see crossfade below).
+   * error/success status semantics survive). Absent → the default DotCraft blue. ComposerShell
+   * owns the palette crossfade so every surrounding effect switches at the same trough.
    */
   avatar?: AvatarSpec
 }
@@ -155,42 +155,24 @@ export function MascotRobot({
     light === 'error' ? 'var(--error)' : light === 'success' ? 'var(--success)' : `url(#${yellow})`
   const glowFill = light === 'error' ? 'var(--error)' : light === 'success' ? 'var(--success)' : '#f6b500'
 
-  // Crossfade: render the palette of `rendered`, which only catches up to `avatar` at the dip trough,
-  // so the color swap lands while the robot is faded out (a brief "terminal refresh" between agents).
-  const targetKey = avatar ? paletteOf(avatar).key : 'default'
-  const [rendered, setRendered] = useState<AvatarSpec | undefined>(avatar)
-  const [dipping, setDipping] = useState(false)
-  const renderedKey = rendered ? paletteOf(rendered).key : 'default'
-  useEffect(() => {
-    if (targetKey === renderedKey) return undefined
-    setDipping(true)
-    const timer = window.setTimeout(() => {
-      setRendered(avatar)
-      setDipping(false)
-    }, 90)
-    return () => window.clearTimeout(timer)
-  }, [targetKey, renderedKey, avatar])
-
-  const palette = rendered ? paletteOf(rendered) : null
-  const body0 = palette ? palette.bodyD : '#2458f7'
-  const body1 = palette ? palette.bodyM : '#5f82f7'
-  const body2 = palette ? palette.bodyL : '#8fa5ff'
-  const mark0 = palette ? palette.markD : '#2257f5'
-  const mark1 = palette ? palette.markL : '#577df7'
-  const mark2 = palette ? palette.markL : '#8ca2ff'
-  const softShadowColor = palette ? palette.shadow : '#0b3d62'
-  const innerLiftColor = palette ? palette.shadow : '#163a88'
-  const raisedArmLeft = palette ? mixHex(palette.bodyD, palette.bodyM, 0.22) : '#3161f7'
-  const raisedArmRight = palette ? mixHex(palette.bodyM, palette.bodyL, 0.56) : '#7a96fb'
-  const propMark = palette ? palette.markD : '#3161f7'
-  const laptopLine = palette ? palette.markL : '#8ca2ff'
+  const palette = mascotPaletteOf(avatar)
+  const body0 = palette.bodyD
+  const body1 = palette.bodyM
+  const body2 = palette.bodyL
+  const mark0 = palette.markD
+  const mark1 = palette.markM
+  const mark2 = palette.markL
+  const softShadowColor = palette.shadow
+  const innerLiftColor = avatar ? palette.shadow : '#163a88'
+  const raisedArmLeft = avatar ? mixHex(palette.bodyD, palette.bodyM, 0.22) : '#3161f7'
+  const raisedArmRight = avatar ? mixHex(palette.bodyM, palette.bodyL, 0.56) : '#7a96fb'
+  const propMark = avatar ? palette.markD : '#3161f7'
+  const laptopLine = palette.markL
   const svgStyle = {
     '--mascot-raised-arm-left': raisedArmLeft,
     '--mascot-raised-arm-right': raisedArmRight,
     '--mascot-shadow-color': softShadowColor,
     overflow: 'visible',
-    opacity: dipping ? 0.25 : 1,
-    transition: 'opacity 90ms ease',
     ...style
   } as CSSProperties
 

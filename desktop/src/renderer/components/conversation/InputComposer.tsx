@@ -1439,6 +1439,8 @@ export function InputComposer({
         showMascot
         mascotBounceSignal={mascotBounce}
         mascotInteraction={mascotInteraction}
+        mascotReasoningEffort={reasoningValue === 'default' ? 'off' : reasoningValue}
+        mascotContextMax={contextMode === 'max' || contextDegraded === true}
         mascotAvatar={effectiveMascotAvatar}
         mascotHandoff
         attachmentStrip={
