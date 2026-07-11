@@ -76,8 +76,10 @@ export function ThreadList({
   const foregroundWorkspacePath = useWorkspaceProjectsStore((s) => s.foregroundWorkspacePath)
   const foregroundProjectId = useWorkspaceProjectsStore((s) => s.foregroundProjectId)
   const projectsSectionCollapsed = useUIStore((s) => s.projectsSectionCollapsed)
+  const pinnedSectionCollapsed = useUIStore((s) => s.pinnedSectionCollapsed)
   const chatsSectionCollapsed = useUIStore((s) => s.chatsSectionCollapsed)
   const setProjectsSectionCollapsed = useUIStore((s) => s.setProjectsSectionCollapsed)
+  const setPinnedSectionCollapsed = useUIStore((s) => s.setPinnedSectionCollapsed)
   const setChatsSectionCollapsed = useUIStore((s) => s.setChatsSectionCollapsed)
   const [collapsedProjects, setCollapsedProjects] = useState<Set<string>>(() => new Set())
   // useShallow prevents infinite re-renders: selectFilteredThreads returns a new
@@ -293,6 +295,8 @@ export function ThreadList({
             rows={pinnedThreadRows}
             projects={pinnedProjects}
             renderProject={renderProjectBlock}
+            collapsed={pinnedSectionCollapsed}
+            onToggle={() => setPinnedSectionCollapsed(!pinnedSectionCollapsed)}
           />
         )}
         {showProjects && (
@@ -342,11 +346,18 @@ export function ThreadList({
         <DragHint title={dragHintTitle} />
       )}
       {pinnedThreads.length > 0 && (
-        <FlatSectionTitle label={t('threadGroup.pinned')} />
+        <>
+          <PinnedSectionHeader
+            collapsed={pinnedSectionCollapsed}
+            onToggle={() => setPinnedSectionCollapsed(!pinnedSectionCollapsed)}
+          />
+          <CollapsibleThreads collapsed={pinnedSectionCollapsed} marginTop={0}>
+            {pinnedThreads.map((thread) => (
+              <ThreadEntryWrapper key={thread.id} thread={thread} />
+            ))}
+          </CollapsibleThreads>
+        </>
       )}
-      {pinnedThreads.map((thread) => (
-        <ThreadEntryWrapper key={thread.id} thread={thread} />
-      ))}
       {unpinnedThreads.map((thread) => (
         <ThreadEntryWrapper key={thread.id} thread={thread} />
       ))}
@@ -954,45 +965,85 @@ function ChatsSectionHeader({
 function PinnedProjectSection({
   rows,
   projects,
-  renderProject
+  renderProject,
+  collapsed,
+  onToggle
 }: {
   rows: PinnedProjectRow[]
   projects: WorkspaceProjectSummary[]
   renderProject: (project: WorkspaceProjectSummary) => JSX.Element
+  collapsed: boolean
+  onToggle: () => void
 }): JSX.Element {
-  const t = useT()
   return (
     <div style={{ marginBottom: '8px' }}>
-      <FlatSectionTitle label={t('threadGroup.pinned')} />
-      {rows.map(({ project, thread, interactiveForeground }) => (
-        interactiveForeground ? (
-          <ThreadEntry key={`${projectIdentity(project)}:${thread.id}`} thread={thread} />
-        ) : (
-          <ReadonlyThreadRow
-            key={`${projectIdentity(project)}:${thread.id}`}
-            thread={thread}
-            project={project}
-            pinned
-            variant="pinned"
-          />
-        )
-      ))}
-      {projects.map(renderProject)}
+      <PinnedSectionHeader collapsed={collapsed} onToggle={onToggle} />
+      <CollapsibleThreads collapsed={collapsed} marginTop={0}>
+        {rows.map(({ project, thread, interactiveForeground }) => (
+          interactiveForeground ? (
+            <ThreadEntry key={`${projectIdentity(project)}:${thread.id}`} thread={thread} />
+          ) : (
+            <ReadonlyThreadRow
+              key={`${projectIdentity(project)}:${thread.id}`}
+              thread={thread}
+              project={project}
+              pinned
+              variant="pinned"
+            />
+          )
+        ))}
+        {projects.map(renderProject)}
+      </CollapsibleThreads>
     </div>
   )
 }
 
-function FlatSectionTitle({ label }: { label: string }): JSX.Element {
+function PinnedSectionHeader({
+  collapsed,
+  onToggle
+}: {
+  collapsed: boolean
+  onToggle: () => void
+}): JSX.Element {
+  const t = useT()
+  const [hovered, setHovered] = useState(false)
+  const [focused, setFocused] = useState(false)
   return (
     <div
+      role="button"
+      tabIndex={0}
+      aria-expanded={!collapsed}
+      aria-label={t('projectsRail.toggleSection', { section: t('threadGroup.pinned') })}
+      onClick={onToggle}
+      onKeyDown={(event) => {
+        if (event.key !== 'Enter' && event.key !== ' ') return
+        event.preventDefault()
+        onToggle()
+      }}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      onFocus={() => setFocused(true)}
+      onBlur={() => setFocused(false)}
       style={{
-        padding: '8px 8px 4px',
-        color: 'var(--text-dimmed)',
-        fontSize: 'var(--type-secondary-size)',
-        lineHeight: 'var(--type-secondary-line-height)'
+        display: 'flex',
+        alignItems: 'center',
+        gap: '4px',
+        minHeight: '28px',
+        padding: '8px 8px 2px',
+        cursor: 'pointer',
+        userSelect: 'none'
       }}
     >
-      {label}
+      <span
+        style={{
+          color: 'var(--text-dimmed)',
+          fontSize: 'var(--type-secondary-size)',
+          lineHeight: 'var(--type-secondary-line-height)'
+        }}
+      >
+        {t('threadGroup.pinned')}
+      </span>
+      <CollapseChevron collapsed={collapsed} visible={hovered || focused} />
     </div>
   )
 }

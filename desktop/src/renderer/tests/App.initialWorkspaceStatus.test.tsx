@@ -499,6 +499,7 @@ describe('App initial workspace status bootstrap', () => {
       pendingProjectThreadOpen: null,
       whatsNewOpenRequestSeq: 0,
       projectsSectionCollapsed: false,
+      pinnedSectionCollapsed: false,
       chatsSectionCollapsed: false
     })
 
@@ -556,6 +557,7 @@ describe('App initial workspace status bootstrap', () => {
       settingsGet: vi.fn().mockResolvedValue({
         lastSeenWhatsNewVersion: '0.1.6',
         projectsSectionCollapsed: true,
+        pinnedSectionCollapsed: true,
         chatsSectionCollapsed: true
       })
     })
@@ -564,6 +566,7 @@ describe('App initial workspace status bootstrap', () => {
 
     await waitFor(() => {
       expect(useUIStore.getState().projectsSectionCollapsed).toBe(true)
+      expect(useUIStore.getState().pinnedSectionCollapsed).toBe(true)
       expect(useUIStore.getState().chatsSectionCollapsed).toBe(true)
     })
   })

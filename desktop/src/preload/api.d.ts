@@ -734,6 +734,7 @@ declare global {
           locale?: AppLocale
           showThinkingContent?: boolean
           projectsSectionCollapsed?: boolean
+          pinnedSectionCollapsed?: boolean
           chatsSectionCollapsed?: boolean
           showInMenuBar?: boolean
           visibleChannels?: string[]
@@ -776,6 +777,7 @@ declare global {
             locale?: AppLocale
             showThinkingContent?: boolean
             projectsSectionCollapsed?: boolean
+            pinnedSectionCollapsed?: boolean
             chatsSectionCollapsed?: boolean
             showInMenuBar?: boolean
             visibleChannels?: string[]

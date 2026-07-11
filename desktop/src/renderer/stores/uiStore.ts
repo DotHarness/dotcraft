@@ -213,6 +213,8 @@ export interface UIState {
   showThinkingContent: boolean
   /** Sidebar preference: whether the Projects section is collapsed. */
   projectsSectionCollapsed: boolean
+  /** Sidebar preference: whether the Pinned section is collapsed. */
+  pinnedSectionCollapsed: boolean
   /** Sidebar preference: whether the Chats section is collapsed. */
   chatsSectionCollapsed: boolean
   /** Appearance preference for how code diffs are rendered. */
@@ -336,6 +338,8 @@ interface UIStore extends UIState {
   setShowThinkingContent(visible: boolean): void
   /** Toggle+persist whether the Projects sidebar section is collapsed. */
   setProjectsSectionCollapsed(collapsed: boolean): void
+  /** Toggle+persist whether the Pinned sidebar section is collapsed. */
+  setPinnedSectionCollapsed(collapsed: boolean): void
   /** Toggle+persist whether the Chats sidebar section is collapsed. */
   setChatsSectionCollapsed(collapsed: boolean): void
   resetPlanApprovalDismissed(): void
@@ -424,6 +428,7 @@ export const useUIStore = create<UIStore & InternalState>((set, get) => ({
   planApprovalDismissed: {},
   showThinkingContent: false,
   projectsSectionCollapsed: false,
+  pinnedSectionCollapsed: false,
   chatsSectionCollapsed: false,
   diffMarkers: 'color',
 
@@ -952,6 +957,13 @@ export const useUIStore = create<UIStore & InternalState>((set, get) => ({
     void window.api?.settings
       ?.set({ projectsSectionCollapsed: collapsed })
       .catch((err: unknown) => console.error('settings:set projectsSectionCollapsed failed:', err))
+  },
+
+  setPinnedSectionCollapsed(collapsed) {
+    set({ pinnedSectionCollapsed: collapsed })
+    void window.api?.settings
+      ?.set({ pinnedSectionCollapsed: collapsed })
+      .catch((err: unknown) => console.error('settings:set pinnedSectionCollapsed failed:', err))
   },
 
   setChatsSectionCollapsed(collapsed) {

@@ -44,12 +44,14 @@ describe('desktop sidebar section settings', () => {
     const root = await useTempUserData()
     await writeFile(join(root, 'settings.json'), JSON.stringify({
       projectsSectionCollapsed: true,
+      pinnedSectionCollapsed: true,
       chatsSectionCollapsed: true
     }), 'utf8')
 
     const settings = loadSettings()
 
     expect(settings.projectsSectionCollapsed).toBe(true)
+    expect(settings.pinnedSectionCollapsed).toBe(true)
     expect(settings.chatsSectionCollapsed).toBe(true)
   })
 
@@ -57,12 +59,14 @@ describe('desktop sidebar section settings', () => {
     const root = await useTempUserData()
     await writeFile(join(root, 'settings.json'), JSON.stringify({
       projectsSectionCollapsed: false,
+      pinnedSectionCollapsed: 'false',
       chatsSectionCollapsed: 'true'
     }), 'utf8')
 
     const settings = loadSettings()
 
     expect(settings.projectsSectionCollapsed).toBeUndefined()
+    expect(settings.pinnedSectionCollapsed).toBeUndefined()
     expect(settings.chatsSectionCollapsed).toBeUndefined()
   })
 
@@ -71,11 +75,13 @@ describe('desktop sidebar section settings', () => {
 
     saveSettings({
       projectsSectionCollapsed: true,
+      pinnedSectionCollapsed: true,
       chatsSectionCollapsed: true
     })
 
     const saved = await readSavedSettings()
     expect(saved.projectsSectionCollapsed).toBe(true)
+    expect(saved.pinnedSectionCollapsed).toBe(true)
     expect(saved.chatsSectionCollapsed).toBe(true)
   })
 
@@ -84,11 +90,13 @@ describe('desktop sidebar section settings', () => {
 
     saveSettings({
       projectsSectionCollapsed: false,
+      pinnedSectionCollapsed: false,
       chatsSectionCollapsed: 'yes' as unknown as boolean
     } satisfies AppSettings)
 
     const saved = await readSavedSettings()
     expect(saved).not.toHaveProperty('projectsSectionCollapsed')
+    expect(saved).not.toHaveProperty('pinnedSectionCollapsed')
     expect(saved).not.toHaveProperty('chatsSectionCollapsed')
   })
 })

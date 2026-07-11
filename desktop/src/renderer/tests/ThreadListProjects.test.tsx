@@ -55,6 +55,7 @@ function resetStores(): void {
     welcomeDraftsByWorkspace: {},
     welcomeDraftWorkspacePath: null,
     projectsSectionCollapsed: false,
+    pinnedSectionCollapsed: false,
     chatsSectionCollapsed: false
   })
 }
@@ -1369,6 +1370,60 @@ describe('ThreadList project-first layout', () => {
 
     expect(screen.queryByRole('button', { name: 'alpha' })).not.toBeInTheDocument()
     expect(screen.queryByText('Alpha thread')).not.toBeInTheDocument()
+  })
+
+  it('collapses the complete mixed Pinned section and persists the preference', async () => {
+    vi.useFakeTimers()
+    const pinnedThread = makeThread('pinned-a', 'Pinned thread', 2)
+    const projectThread = makeThread('project-a-thread', 'Pinned project thread', 4)
+    useThreadStore.getState().setThreadList([pinnedThread], '/workspace/a')
+    useThreadStore.getState().hydratePinnedThreadIds('/workspace/a', ['pinned-a'])
+    useWorkspaceProjectsStore.getState().setPayload({
+      foregroundWorkspacePath: '/workspace/a',
+      foregroundProjectId: '/workspace/a',
+      secondaryLimit: 8,
+      projects: [{
+        path: '/workspace/a',
+        name: 'alpha',
+        state: 'foreground',
+        running: true,
+        loaded: true,
+        pinned: false,
+        threadCount: 1,
+        threads: [],
+        pinnedThreadIds: ['pinned-a']
+      }, {
+        path: '/workspace/b',
+        name: 'pinned-project',
+        state: 'secondary',
+        running: true,
+        loaded: true,
+        pinned: true,
+        threadCount: 1,
+        threads: [projectThread],
+        pinnedThreadIds: []
+      }]
+    })
+
+    renderList()
+
+    const header = screen.getByRole('button', { name: 'Toggle Pinned section' })
+    expect(header).toHaveAttribute('aria-expanded', 'true')
+    expect(screen.getByText('Pinned thread')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'pinned-project' })).toBeInTheDocument()
+
+    fireEvent.keyDown(header, { key: ' ' })
+
+    expect(header).toHaveAttribute('aria-expanded', 'false')
+    expect(useUIStore.getState().pinnedSectionCollapsed).toBe(true)
+    expect(settingsSet).toHaveBeenCalledWith({ pinnedSectionCollapsed: true })
+
+    await act(async () => {
+      vi.advanceTimersByTime(360)
+    })
+
+    expect(screen.queryByText('Pinned thread')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'pinned-project' })).not.toBeInTheDocument()
   })
 
   it('collapses the Chats section and persists the preference when its header is clicked', async () => {

@@ -44,8 +44,9 @@ describe('uiStore defaults', () => {
     expect(useUIStore.getState().showThinkingContent).toBe(false)
   })
 
-  it('starts with sidebar project and chat sections expanded', () => {
+  it('starts with sidebar project, pinned, and chat sections expanded', () => {
     expect(useUIStore.getState().projectsSectionCollapsed).toBe(false)
+    expect(useUIStore.getState().pinnedSectionCollapsed).toBe(false)
     expect(useUIStore.getState().chatsSectionCollapsed).toBe(false)
   })
 })
@@ -68,6 +69,7 @@ describe('uiStore sidebar section preferences', () => {
     })
     useUIStore.setState({
       projectsSectionCollapsed: false,
+      pinnedSectionCollapsed: false,
       chatsSectionCollapsed: false
     })
   })
@@ -86,6 +88,18 @@ describe('uiStore sidebar section preferences', () => {
 
     expect(useUIStore.getState().projectsSectionCollapsed).toBe(false)
     expect(settingsSet).toHaveBeenLastCalledWith({ projectsSectionCollapsed: false })
+  })
+
+  it('updates and persists the Pinned section collapse preference', () => {
+    useUIStore.getState().setPinnedSectionCollapsed(true)
+
+    expect(useUIStore.getState().pinnedSectionCollapsed).toBe(true)
+    expect(settingsSet).toHaveBeenLastCalledWith({ pinnedSectionCollapsed: true })
+
+    useUIStore.getState().setPinnedSectionCollapsed(false)
+
+    expect(useUIStore.getState().pinnedSectionCollapsed).toBe(false)
+    expect(settingsSet).toHaveBeenLastCalledWith({ pinnedSectionCollapsed: false })
   })
 
   it('updates and persists the Chats section collapse preference', () => {

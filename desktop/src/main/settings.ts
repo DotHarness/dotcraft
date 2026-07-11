@@ -114,6 +114,8 @@ export interface AppSettings {
   showThinkingContent?: boolean
   /** Sidebar preference: whether the Projects section is collapsed. Omitted defaults to expanded. */
   projectsSectionCollapsed?: boolean
+  /** Sidebar preference: whether the Pinned section is collapsed. Omitted defaults to expanded. */
+  pinnedSectionCollapsed?: boolean
   /** Sidebar preference: whether the Chats section is collapsed. Omitted defaults to expanded. */
   chatsSectionCollapsed?: boolean
   /** macOS-only preference controlling whether DotCraft appears in the menu bar. */
@@ -337,6 +339,11 @@ function normalizeActiveRemoteStack(settings: AppSettings): ActiveRemoteStackSet
   return hostId && stackId ? { hostId, stackId } : undefined
 }
 
+function normalizePinnedSectionCollapsed(settings: AppSettings): boolean | undefined {
+  // Sections default to expanded, so only persist an explicit collapse (true).
+  return settings.pinnedSectionCollapsed === true ? true : undefined
+}
+
 function normalizeLastForegroundEntry(settings: AppSettings): LastForegroundEntry | undefined {
   const value = settings.lastForegroundEntry
   return value === 'workspace' || value === 'chats' || value === 'welcome'
@@ -411,6 +418,7 @@ export function loadSettings(): AppSettings {
       raw.activeModuleVariants = normalizeActiveModuleVariants(raw)
       raw.showThinkingContent = normalizeShowThinkingContent(raw)
       raw.projectsSectionCollapsed = normalizeProjectsSectionCollapsed(raw)
+      raw.pinnedSectionCollapsed = normalizePinnedSectionCollapsed(raw)
       raw.chatsSectionCollapsed = normalizeChatsSectionCollapsed(raw)
       raw.showInMenuBar = normalizeShowInMenuBar(raw)
       raw.theme = normalizeUiTheme(raw)
@@ -459,6 +467,7 @@ export function saveSettings(settings: AppSettings): void {
     settings.activeModuleVariants = normalizeActiveModuleVariants(settings)
     settings.showThinkingContent = normalizeShowThinkingContent(settings)
     settings.projectsSectionCollapsed = normalizeProjectsSectionCollapsed(settings)
+    settings.pinnedSectionCollapsed = normalizePinnedSectionCollapsed(settings)
     settings.chatsSectionCollapsed = normalizeChatsSectionCollapsed(settings)
     settings.showInMenuBar = normalizeShowInMenuBar(settings)
     settings.theme = normalizeUiTheme(settings)

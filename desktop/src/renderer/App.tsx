@@ -1272,6 +1272,7 @@ export function App(): JSX.Element {
         useUIStore.getState().setShowThinkingContent(s.showThinkingContent === true)
         useUIStore.setState({
           projectsSectionCollapsed: s.projectsSectionCollapsed === true,
+          pinnedSectionCollapsed: s.pinnedSectionCollapsed === true,
           chatsSectionCollapsed: s.chatsSectionCollapsed === true
         })
       })

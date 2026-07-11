@@ -1395,6 +1395,7 @@ const api = {
       locale?: AppLocale
       showThinkingContent?: boolean
       projectsSectionCollapsed?: boolean
+      pinnedSectionCollapsed?: boolean
       chatsSectionCollapsed?: boolean
       showInMenuBar?: boolean
       visibleChannels?: string[]
@@ -1449,6 +1450,7 @@ const api = {
       locale?: AppLocale
       showThinkingContent?: boolean
       projectsSectionCollapsed?: boolean
+      pinnedSectionCollapsed?: boolean
       chatsSectionCollapsed?: boolean
       showInMenuBar?: boolean
       visibleChannels?: string[]
