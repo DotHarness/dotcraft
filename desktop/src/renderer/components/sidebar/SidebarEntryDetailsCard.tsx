@@ -19,7 +19,25 @@ import { createPortal } from 'react-dom'
 const OPEN_DELAY_MS = 320
 const CLOSE_DELAY_MS = 120
 const VIEWPORT_PADDING = 8
-const CARD_GAP = 8
+const CARD_OVERLAP = 8
+
+export type SidebarEntryDetailsSide = 'left' | 'right'
+export type SidebarEntryDetailsOverlapEdge = 'left' | 'right' | null
+
+interface SidebarEntryDetailsRect {
+  left: number
+  right: number
+  top: number
+  width: number
+  height: number
+}
+
+export interface SidebarEntryDetailsPlacement {
+  left: number
+  top: number
+  side: SidebarEntryDetailsSide
+  overlapEdge: SidebarEntryDetailsOverlapEdge
+}
 
 interface SidebarEntryDetailsCardProps {
   label: string
@@ -49,7 +67,12 @@ export function SidebarEntryDetailsCard({
   const closeTimerRef = useRef<number | null>(null)
   const suppressNextFocusOpenRef = useRef(false)
   const [visible, setVisible] = useState(false)
-  const [position, setPosition] = useState({ left: 0, top: 0 })
+  const [position, setPosition] = useState<SidebarEntryDetailsPlacement>({
+    left: 0,
+    top: 0,
+    side: 'right',
+    overlapEdge: null
+  })
 
   const clearOpenTimer = (): void => {
     if (openTimerRef.current == null) return
@@ -105,15 +128,16 @@ export function SidebarEntryDetailsCard({
     const card = cardRef.current
     if (!anchor || !card) return
     const anchorRect = anchor.getBoundingClientRect()
-    const cardRect = card.getBoundingClientRect()
-    const fitsRight = anchorRect.right + CARD_GAP + cardRect.width <= window.innerWidth - VIEWPORT_PADDING
-    const left = fitsRight
-      ? anchorRect.right + CARD_GAP
-      : anchorRect.left - CARD_GAP - cardRect.width
-    setPosition({
-      left: clamp(left, VIEWPORT_PADDING, window.innerWidth - cardRect.width - VIEWPORT_PADDING),
-      top: clamp(anchorRect.top - 2, VIEWPORT_PADDING, window.innerHeight - cardRect.height - VIEWPORT_PADDING)
-    })
+    setPosition(placeSidebarEntryDetailsCard(
+      anchorRect,
+      {
+        // offset dimensions stay stable while the entry animation applies a transform.
+        width: card.offsetWidth || width,
+        height: card.offsetHeight
+      },
+      window.innerWidth,
+      window.innerHeight
+    ))
   }, [content, visible, width])
 
   function handleAnchorBlur(event: FocusEvent<HTMLDivElement>): void {
@@ -164,6 +188,8 @@ export function SidebarEntryDetailsCard({
           aria-label={interactive ? label : undefined}
           className="sidebar-entry-details-card"
           data-interactive={interactive ? 'true' : 'false'}
+          data-side={position.side}
+          data-overlap-edge={position.overlapEdge ?? undefined}
           style={{ position: 'fixed', left: position.left, top: position.top, width }}
           onMouseEnter={interactive ? () => { clearCloseTimer() } : undefined}
           onMouseLeave={interactive ? scheduleHide : undefined}
@@ -190,6 +216,37 @@ export function SidebarEntryDetailsCard({
       )}
     </>
   )
+}
+
+export function placeSidebarEntryDetailsCard(
+  anchorRect: SidebarEntryDetailsRect,
+  cardRect: Pick<SidebarEntryDetailsRect, 'width' | 'height'>,
+  viewportWidth: number,
+  viewportHeight: number
+): SidebarEntryDetailsPlacement {
+  const rightLeft = anchorRect.right - CARD_OVERLAP
+  const leftLeft = anchorRect.left + CARD_OVERLAP - cardRect.width
+  const fitsRight = rightLeft + cardRect.width <= viewportWidth - VIEWPORT_PADDING
+  const side: SidebarEntryDetailsSide = fitsRight ? 'right' : 'left'
+  const desiredLeft = side === 'right' ? rightLeft : leftLeft
+  const left = clamp(
+    desiredLeft,
+    VIEWPORT_PADDING,
+    viewportWidth - cardRect.width - VIEWPORT_PADDING
+  )
+  const top = clamp(
+    anchorRect.top,
+    VIEWPORT_PADDING,
+    viewportHeight - cardRect.height - VIEWPORT_PADDING
+  )
+  const attached = Math.abs(left - desiredLeft) < 0.5
+
+  return {
+    left,
+    top,
+    side,
+    overlapEdge: attached ? (side === 'right' ? 'left' : 'right') : null
+  }
 }
 
 function clamp(value: number, min: number, max: number): number {

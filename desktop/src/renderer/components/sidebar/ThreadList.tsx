@@ -1351,7 +1351,6 @@ function ProjectHeader({
       <div style={{ minWidth: 0, display: 'flex', alignItems: 'center', gap: '4px' }}>
         <span
             style={{
-              flex: 1,
               minWidth: 0,
               color: active ? 'var(--text-primary)' : 'var(--text-secondary)',
               fontSize: 'var(--type-ui-size)',
