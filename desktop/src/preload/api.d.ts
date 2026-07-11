@@ -26,6 +26,7 @@ import type { DesktopProviderProtocol } from '../shared/providerProtocols'
 import type { ConnectionSettingsDraft } from '../shared/remoteConnection'
 import type { AppLocale } from '../shared/locales'
 import type { WorkspaceProjectsPayload } from '../shared/workspaceProjects'
+import type { GitHeadInspection } from '../shared/gitHead'
 
 export type UnsubscribeFn = () => void
 export type ConnectionMode = 'local' | 'remote'
@@ -500,6 +501,7 @@ declare global {
       git: {
         commit(workspacePath: string, files: string[], message: string): Promise<string>
         getBranch(workspacePath: string): Promise<string | null>
+        inspectHead(workspacePath: string): Promise<GitHeadInspection>
         listBranches(workspacePath: string): Promise<{
           current: string | null
           detachedHead: string | null
@@ -749,6 +751,7 @@ declare global {
             githubUsername?: string
           }
           pinnedThreadIdsByWorkspace?: Record<string, string[]>
+          pinnedProjectIds?: string[]
         }>
         set(
           partial: {
@@ -790,6 +793,7 @@ declare global {
               githubUsername?: string
             }
             pinnedThreadIdsByWorkspace?: Record<string, string[]>
+            pinnedProjectIds?: string[]
           }
         ): Promise<void>
         onPinnedThreadIdsChanged(callback: (payload: PinnedThreadIdsChangedPayload) => void): UnsubscribeFn

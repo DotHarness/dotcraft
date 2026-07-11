@@ -42,6 +42,7 @@ import type { WhatsNewMediaState, WhatsNewRelease } from '../shared/whatsNew'
 import type { AppUpdateState } from '../shared/appUpdate'
 import type { ConnectionSettingsDraft } from '../shared/remoteConnection'
 import type { WorkspaceProjectsPayload } from '../shared/workspaceProjects'
+import type { GitHeadInspection } from '../shared/gitHead'
 import { TokenMulticastDispatcher } from './notificationDispatcher'
 
 export type UnsubscribeFn = () => void
@@ -882,6 +883,10 @@ const api = {
     getBranch(workspacePath: string): Promise<string | null> {
       return ipcRenderer.invoke('git:branch', workspacePath)
     },
+    /** Returns a read-only Git HEAD summary for an open or recent local project. */
+    inspectHead(workspacePath: string): Promise<GitHeadInspection> {
+      return ipcRenderer.invoke('git:inspectHead', workspacePath)
+    },
     listBranches(workspacePath: string): Promise<{
       current: string | null
       detachedHead: string | null
@@ -1407,6 +1412,7 @@ const api = {
         githubUsername?: string
       }
       pinnedThreadIdsByWorkspace?: Record<string, string[]>
+      pinnedProjectIds?: string[]
     }> {
       return ipcRenderer.invoke('settings:get')
     },
@@ -1460,6 +1466,7 @@ const api = {
         githubUsername?: string
       }
       pinnedThreadIdsByWorkspace?: Record<string, string[]>
+      pinnedProjectIds?: string[]
     }): Promise<void> {
       return ipcRenderer.invoke('settings:set', partial)
     },

@@ -10,6 +10,8 @@ import type {
   BinarySource
 } from './settings'
 import { resolveTaskCompletionNotificationMode } from './settings'
+import type { GitHeadInspection } from '../shared/gitHead'
+import { sameWorkspaceProjectKey } from '../shared/workspaceProjectKey'
 import { resolveBinaryLocation } from './AppServerManager'
 import { RemoteServersManager } from './remoteServers/remoteServersManager'
 import {
@@ -324,6 +326,31 @@ function assertGitWorkspacePath(
     return resolved
   }
 
+  throw new Error(translate(locale, 'ipc.workspacePathMismatch'))
+}
+
+function assertGitInspectionPath(
+  requestedPath: string,
+  workspacePath: string,
+  recentWorkspaces: RecentWorkspace[],
+  locale: AppLocale
+): string {
+  try {
+    return assertGitWorkspacePath(requestedPath, workspacePath, locale)
+  } catch {
+    // Read-only inspection may target a known recent local project without
+    // granting that path to commit, checkout, or branch-management handlers.
+  }
+
+  if (typeof requestedPath !== 'string' || requestedPath.trim() === '') {
+    throw new Error(translate(locale, 'ipc.workspacePathMismatch'))
+  }
+  const resolved = path.resolve(requestedPath)
+  for (const recent of recentWorkspaces) {
+    if (sameWorkspaceProjectKey(recent.path, requestedPath)) return path.resolve(recent.path)
+    const worktreesRoot = path.resolve(recent.path, '.craft', 'worktrees')
+    if (isSameOrInsidePath(resolved, worktreesRoot) && resolved !== worktreesRoot) return resolved
+  }
   throw new Error(translate(locale, 'ipc.workspacePathMismatch'))
 }
 
@@ -1521,6 +1548,24 @@ export function registerIpcHandlers(
       return null
     }
   })
+  handleSafe('git:inspectHead', async (_event, wsPath: string): Promise<GitHeadInspection> => {
+    const locale = mainLocale(callbacks)
+    const gitWorkspacePath = assertGitInspectionPath(
+      wsPath,
+      workspacePath,
+      callbacks.getRecentWorkspaces(),
+      locale
+    )
+    try {
+      await runGitCommand(gitWorkspacePath, ['rev-parse', '--is-inside-work-tree'])
+      const branch = (await runGitCommand(gitWorkspacePath, ['branch', '--show-current'])).stdout.trim()
+      if (branch) return { kind: 'branch', label: branch }
+      const head = (await runGitCommand(gitWorkspacePath, ['rev-parse', '--short', 'HEAD'])).stdout.trim()
+      return head ? { kind: 'detached', label: head } : { kind: 'none' }
+    } catch {
+      return { kind: 'none' }
+    }
+  })
   handleSafe('git:listBranches', async (_event, wsPath: string): Promise<GitBranchListResult> => {
     const locale = mainLocale(callbacks)
     const gitWorkspacePath = assertGitWorkspacePath(wsPath, workspacePath, locale)
@@ -2589,6 +2634,7 @@ export function unregisterIpcHandlers(): void {
   ipcMain.removeHandler('file:exists')
   ipcMain.removeHandler('git:commit')
   ipcMain.removeHandler('git:branch')
+  ipcMain.removeHandler('git:inspectHead')
   ipcMain.removeHandler('git:listBranches')
   ipcMain.removeHandler('git:checkoutBranch')
   ipcMain.removeHandler('git:createAndCheckoutBranch')

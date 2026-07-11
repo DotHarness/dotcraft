@@ -5,11 +5,14 @@ import { LocaleProvider } from '../contexts/LocaleContext'
 import { ConfirmDialogHost } from '../components/ui/ConfirmDialog'
 import { useThreadStore } from '../stores/threadStore'
 import { useConnectionStore } from '../stores/connectionStore'
+import { useWorkspaceProjectsStore } from '../stores/workspaceProjectsStore'
+import { useGitHeadStore } from '../stores/gitHeadStore'
 import type { ThreadSummary } from '../types/thread'
 
 const settingsGet = vi.fn()
 const settingsSet = vi.fn()
 const appServerSendRequest = vi.fn()
+const gitInspectHead = vi.fn()
 
 function makeThread(overrides: Partial<ThreadSummary> = {}): ThreadSummary {
   const now = Date.now()
@@ -40,9 +43,12 @@ describe('ThreadEntry', () => {
     settingsGet.mockResolvedValue({ locale: 'en' })
     settingsSet.mockResolvedValue({})
     appServerSendRequest.mockResolvedValue({})
+    gitInspectHead.mockResolvedValue({ kind: 'branch', label: 'main' })
 
     useThreadStore.getState().reset()
     useConnectionStore.getState().reset()
+    useWorkspaceProjectsStore.getState().reset()
+    useGitHeadStore.getState().reset()
     useThreadStore.setState({
       threadList: [],
       activeThreadId: null,
@@ -59,16 +65,60 @@ describe('ThreadEntry', () => {
       unreadCompletedThreadIds: new Set<string>(),
       goalSnapshots: new Map(),
       pinnedThreadIds: [],
-      pinnedThreadWorkspacePath: 'E:\\Git\\dotcraft'
+      pinnedThreadWorkspacePath: 'C:\\fixtures\\sample-project'
     })
 
     Object.defineProperty(window, 'api', {
       configurable: true,
       value: {
         settings: { get: settingsGet, set: settingsSet },
-        appServer: { sendRequest: appServerSendRequest }
+        appServer: { sendRequest: appServerSendRequest },
+        git: { inspectHead: gitInspectHead }
       }
     })
+  })
+
+  it('shows project and Git branch in the focused thread details card', async () => {
+    useWorkspaceProjectsStore.getState().setPayload({
+      foregroundWorkspacePath: 'C:\\fixtures\\sample-project',
+      secondaryLimit: 8,
+      projects: [{
+        path: 'C:\\fixtures\\sample-project',
+        name: 'sample-project',
+        state: 'foreground',
+        running: true,
+        loaded: true,
+        threadCount: 1,
+        threads: [],
+        pinnedThreadIds: []
+      }]
+    })
+    renderThreadEntry(makeThread({ workspacePath: 'C:\\fixtures\\sample-project' }))
+
+    fireEvent.focus(screen.getByTestId('thread-entry-thread-1').parentElement!)
+
+    expect(await screen.findByRole('tooltip')).toHaveTextContent('Optimize workspace cleanup')
+    expect(screen.getByRole('tooltip')).toHaveTextContent('sample-project')
+    await waitFor(() => {
+      expect(screen.getByRole('tooltip')).toHaveTextContent('main')
+    })
+    expect(gitInspectHead).toHaveBeenCalledWith('C:\\fixtures\\sample-project')
+  })
+
+  it('uses a worktree branch without probing Git again', async () => {
+    renderThreadEntry(makeThread({
+      workspacePath: 'C:\\fixtures\\sample-project',
+      worktree: {
+        path: 'C:\\fixtures\\sample-project\\.craft\\worktrees\\details',
+        sourceWorkspacePath: 'C:\\fixtures\\sample-project',
+        branchName: 'feature/details-card'
+      }
+    }))
+
+    fireEvent.focus(screen.getByTestId('thread-entry-thread-1').parentElement!)
+
+    expect(await screen.findByRole('tooltip')).toHaveTextContent('feature/details-card')
+    expect(gitInspectHead).not.toHaveBeenCalled()
   })
 
   it('shows relative time by default and swaps to compact archive slot on hover', async () => {
@@ -151,7 +201,7 @@ describe('ThreadEntry', () => {
   it('keeps the pin action visible for pinned threads', () => {
     const thread = makeThread()
     useThreadStore.getState().setThreadList([thread])
-    useThreadStore.getState().hydratePinnedThreadIds('E:\\Git\\dotcraft', ['thread-1'])
+    useThreadStore.getState().hydratePinnedThreadIds('C:\\fixtures\\sample-project', ['thread-1'])
 
     renderThreadEntry(thread)
 
@@ -173,7 +223,7 @@ describe('ThreadEntry', () => {
       expect(useThreadStore.getState().pinnedThreadIds).toEqual(['thread-1'])
       expect(settingsSet).toHaveBeenCalledWith({
         pinnedThreadIdsByWorkspace: {
-          'e:/git/dotcraft': ['thread-1']
+          'c:/fixtures/sample-project': ['thread-1']
         }
       })
     })
@@ -184,7 +234,7 @@ describe('ThreadEntry', () => {
       expect(useThreadStore.getState().pinnedThreadIds).toEqual([])
       expect(settingsSet).toHaveBeenLastCalledWith({
         pinnedThreadIdsByWorkspace: {
-          'e:/git/dotcraft': []
+          'c:/fixtures/sample-project': []
         }
       })
     })

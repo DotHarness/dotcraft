@@ -790,6 +790,79 @@ describe('registerIpcHandlers', () => {
     expect(fs.readFile).not.toHaveBeenCalled()
   })
 
+  it('git:inspectHead reads the branch of a known recent project', async () => {
+    mockGitCommands((args) => {
+      if (args[0] === 'rev-parse' && args[1] === '--is-inside-work-tree') return { stdout: 'true\n' }
+      if (args[0] === 'branch' && args[1] === '--show-current') return { stdout: 'feature/details-card\n' }
+      throw new Error(`Unexpected git command: ${args.join(' ')}`)
+    })
+    const handlers = registerHandlersForTest(
+      '/workspace',
+      () => null,
+      createIpcCallbacks({
+        getRecentWorkspaces: vi.fn(() => [{
+          path: '/recent/project',
+          name: 'project',
+          lastOpenedAt: new Date().toISOString()
+        }])
+      })
+    )
+    const inspectHead = handlers.get('git:inspectHead')!
+
+    await expect(inspectHead({}, '/recent/project')).resolves.toEqual({
+      kind: 'branch',
+      label: 'feature/details-card'
+    })
+    expect(execFileMock).toHaveBeenCalledWith(
+      'git',
+      ['rev-parse', '--is-inside-work-tree'],
+      expect.objectContaining({ cwd: path.resolve('/recent/project') }),
+      expect.any(Function)
+    )
+  })
+
+  it('git:inspectHead allows managed worktrees of a recent project only', async () => {
+    mockGitCommands((args) => {
+      if (args[0] === 'rev-parse' && args[1] === '--is-inside-work-tree') return { stdout: 'true\n' }
+      if (args[0] === 'branch' && args[1] === '--show-current') return { stdout: 'feature/recent-worktree\n' }
+      throw new Error(`Unexpected git command: ${args.join(' ')}`)
+    })
+    const handlers = registerHandlersForTest(
+      '/workspace',
+      () => null,
+      createIpcCallbacks({
+        getRecentWorkspaces: vi.fn(() => [{
+          path: '/recent/project',
+          name: 'project',
+          lastOpenedAt: new Date().toISOString()
+        }])
+      })
+    )
+    const inspectHead = handlers.get('git:inspectHead')!
+
+    await expect(
+      inspectHead({}, '/recent/project/.craft/worktrees/details')
+    ).resolves.toEqual({ kind: 'branch', label: 'feature/recent-worktree' })
+    await expect(inspectHead({}, '/recent/project/private')).rejects.toThrow('Workspace path mismatch')
+  })
+
+  it('git:inspectHead reports detached HEAD without granting arbitrary paths', async () => {
+    mockGitCommands((args) => {
+      if (args[0] === 'rev-parse' && args[1] === '--is-inside-work-tree') return { stdout: 'true\n' }
+      if (args[0] === 'branch' && args[1] === '--show-current') return { stdout: '\n' }
+      if (args[0] === 'rev-parse' && args[1] === '--short') return { stdout: 'abc1234\n' }
+      throw new Error(`Unexpected git command: ${args.join(' ')}`)
+    })
+    const handlers = registerHandlersForTest()
+    const inspectHead = handlers.get('git:inspectHead')!
+
+    await expect(inspectHead({}, '/workspace')).resolves.toEqual({
+      kind: 'detached',
+      label: 'abc1234'
+    })
+    await expect(inspectHead({}, '/outside/project')).rejects.toThrow('Workspace path mismatch')
+  })
+
   it('git:listBranches returns current branch and local branch list', async () => {
     mockGitCommands((args) => {
       if (args[0] === 'rev-parse' && args[1] === '--is-inside-work-tree') return { stdout: 'true\n' }

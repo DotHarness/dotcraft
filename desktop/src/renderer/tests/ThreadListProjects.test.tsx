@@ -1020,6 +1020,167 @@ describe('ThreadList project-first layout', () => {
     expect(screen.getByText('No chats')).toBeInTheDocument()
   })
 
+  it('shows mutually exclusive waiting and running counts in project details', async () => {
+    const waitingAndBusy = {
+      ...makeThread('waiting', 'Waiting thread'),
+      runtime: { running: true, waitingOnApproval: true }
+    }
+    const running = {
+      ...makeThread('running', 'Running thread'),
+      runtime: { running: true }
+    }
+    useWorkspaceProjectsStore.getState().setPayload({
+      foregroundWorkspacePath: '/workspace/a',
+      secondaryLimit: 8,
+      projects: [{
+        path: '/workspace/b',
+        name: 'project-b',
+        state: 'secondary',
+        running: true,
+        loaded: true,
+        threadCount: 2,
+        threads: [waitingAndBusy, running],
+        pinnedThreadIds: []
+      }]
+    })
+
+    renderList()
+    fireEvent.focus(screen.getByRole('button', { name: 'project-b' }))
+
+    const details = await screen.findByRole('dialog', { name: 'project-b' })
+    expect(details).toHaveTextContent('2 threads · 1 waiting · 1 running')
+    expect(details).toHaveTextContent('/workspace/b')
+    const pinButton = screen.getByRole('button', { name: 'Pin project' })
+    expect(pinButton).toHaveAttribute('aria-pressed', 'false')
+
+    fireEvent.focus(pinButton)
+    fireEvent.keyDown(pinButton, { key: 'Escape' })
+    await waitFor(() => {
+      expect(screen.queryByRole('dialog', { name: 'project-b' })).not.toBeInTheDocument()
+    })
+    expect(screen.getByRole('button', { name: 'project-b' })).toHaveFocus()
+  })
+
+  it('reports a cold project as not loaded instead of zero threads', async () => {
+    useWorkspaceProjectsStore.getState().setPayload({
+      foregroundWorkspacePath: '/workspace/a',
+      secondaryLimit: 8,
+      projects: [{
+        path: '/workspace/cold',
+        name: 'cold-project',
+        state: 'cold',
+        running: false,
+        loaded: false,
+        threadCount: 0,
+        threads: [],
+        pinnedThreadIds: []
+      }]
+    })
+
+    renderList()
+    fireEvent.focus(screen.getByRole('button', { name: 'cold-project' }))
+
+    expect(await screen.findByRole('dialog', { name: 'cold-project' })).toHaveTextContent('Not loaded')
+    expect(screen.getByRole('dialog', { name: 'cold-project' })).not.toHaveTextContent('0 threads')
+  })
+
+  it('places pinned project subtrees after flat pinned threads without duplicates', () => {
+    const pinned = makeThread('pinned-a', 'Pinned A', 3)
+    const normal = makeThread('normal-a', 'Normal A', 8)
+    useThreadStore.getState().setThreadList([pinned, normal], '/workspace/a')
+    useThreadStore.getState().hydratePinnedThreadIds('/workspace/a', ['pinned-a'])
+    useWorkspaceProjectsStore.getState().setPayload({
+      foregroundWorkspacePath: '/workspace/a',
+      secondaryLimit: 8,
+      projects: [{
+        path: '/workspace/a',
+        name: 'project-a',
+        state: 'foreground',
+        running: true,
+        loaded: true,
+        pinned: true,
+        threadCount: 2,
+        threads: [],
+        pinnedThreadIds: ['pinned-a']
+      }, {
+        path: '/workspace/b',
+        name: 'project-b',
+        state: 'cold',
+        running: false,
+        loaded: false,
+        threadCount: 0,
+        threads: [],
+        pinnedThreadIds: []
+      }]
+    })
+
+    renderList({ workspacePath: '/workspace/a' })
+
+    const pinnedThread = screen.getByText('Pinned A')
+    const pinnedProject = screen.getByRole('button', { name: 'project-a' })
+    const projectsHeading = screen.getByText('Projects')
+    expect(pinnedThread.compareDocumentPosition(pinnedProject) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(pinnedProject.compareDocumentPosition(projectsHeading) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(screen.getAllByText('Pinned A')).toHaveLength(1)
+    expect(screen.getAllByText('Normal A')).toHaveLength(1)
+  })
+
+  it('persists project pin changes from the details card', async () => {
+    settingsGet.mockResolvedValue({ locale: 'en', pinnedProjectIds: ['/workspace/other'] })
+    useWorkspaceProjectsStore.getState().setPayload({
+      foregroundWorkspacePath: '/workspace/a',
+      secondaryLimit: 8,
+      projects: [{
+        path: '/workspace/a',
+        name: 'project-a',
+        state: 'foreground',
+        running: true,
+        loaded: true,
+        threadCount: 0,
+        threads: [],
+        pinnedThreadIds: []
+      }]
+    })
+
+    renderList({ workspacePath: '/workspace/a' })
+    fireEvent.focus(screen.getByRole('button', { name: 'project-a' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Pin project' }))
+
+    await waitFor(() => {
+      expect(settingsSet).toHaveBeenCalledWith({
+        pinnedProjectIds: ['/workspace/other', '/workspace/a']
+      })
+    })
+  })
+
+  it('also exposes project pinning in the existing project actions menu', async () => {
+    settingsGet.mockResolvedValue({ locale: 'en', pinnedProjectIds: [] })
+    useWorkspaceProjectsStore.getState().setPayload({
+      foregroundWorkspacePath: '/workspace/a',
+      secondaryLimit: 8,
+      projects: [{
+        path: '/workspace/a',
+        name: 'project-a',
+        state: 'foreground',
+        running: true,
+        loaded: true,
+        threadCount: 0,
+        threads: [],
+        pinnedThreadIds: []
+      }]
+    })
+
+    renderList({ workspacePath: '/workspace/a' })
+    const projectRow = screen.getByRole('button', { name: 'project-a' })
+    fireEvent.mouseEnter(projectRow)
+    fireEvent.click(screen.getByRole('button', { name: 'Project actions' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Pin project' }))
+
+    await waitFor(() => {
+      expect(settingsSet).toHaveBeenCalledWith({ pinnedProjectIds: ['/workspace/a'] })
+    })
+  })
+
   it('keeps the Projects header available when Chats is foreground with no projects', async () => {
     useWorkspaceProjectsStore.getState().setPayload({
       foregroundWorkspacePath: '/chats',

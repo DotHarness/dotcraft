@@ -14,6 +14,7 @@ import {
   FolderPlus,
   LogOut,
   MoreHorizontal,
+  Pin,
   RotateCw,
   Server,
   Square,
@@ -45,6 +46,8 @@ import {
   normalizeWorkspaceProjectKey,
   sameWorkspaceProjectKey
 } from '../../../shared/workspaceProjectKey'
+import { SidebarEntryDetailsCard } from './SidebarEntryDetailsCard'
+import { useThreadEntryDetails } from './ThreadEntryDetails'
 
 /**
  * Scrollable container for the grouped thread list.
@@ -191,11 +194,12 @@ export function ThreadList({
             loaded: true,
             threadCount: foregroundStoreThreads.length,
             threads: foregroundStoreThreads,
-            pinnedThreadIds: foregroundStorePinnedThreadIds
+            pinnedThreadIds: foregroundStorePinnedThreadIds,
+            pinned: false
           } satisfies WorkspaceProjectSummary,
           ...projects
         ].filter((project) => project.path.trim().length > 0)
-    const pinnedProjectRows = collectPinnedProjectRows(
+    const pinnedThreadRows = collectPinnedProjectRows(
       projectsForRender,
       effectiveForegroundProjectId,
       effectiveForegroundWorkspacePath,
@@ -204,6 +208,73 @@ export function ThreadList({
       pinnedThreadIds,
       searchQuery
     )
+    const pinnedProjects = projectsForRender.filter((project) => project.pinned === true)
+    const ordinaryProjects = projectsForRender.filter((project) => project.pinned !== true)
+
+    const renderProjectBlock = (project: WorkspaceProjectSummary): JSX.Element => {
+      const projectKey = projectIdentity(project)
+      const isForeground = isProjectForeground(project, effectiveForegroundProjectId, effectiveForegroundWorkspacePath)
+      const cachedProjectThreads = orderSubAgentsAfterParents(filterProjectThreads(project, searchQuery))
+      const foregroundListMatchesProject =
+        isForeground && isForegroundThreadListForProject(threadListProjectKey, projectKey)
+      const openingProject = isForeground && (
+        foregroundOpening ||
+        project.state === 'connecting' ||
+        (loading && !foregroundListMatchesProject)
+      )
+      const cold = isColdProject(project) && !openingProject
+      const collapsed = cold || (!openingProject && collapsedProjects.has(projectKey))
+      const rawProjectThreads = foregroundListMatchesProject ? orderedThreads : cachedProjectThreads
+      const detailThreads = foregroundListMatchesProject
+        ? orderSubAgentsAfterParents(visibleProjectThreads(threadList))
+        : orderSubAgentsAfterParents(filterProjectThreads(project, ''))
+      const projectPinnedIds = foregroundListMatchesProject ? pinnedThreadIds : (project.pinnedThreadIds ?? [])
+      const projectThreads = excludePinnedThreadTrees(rawProjectThreads, projectPinnedIds)
+      const activity = getProjectActivity(detailThreads)
+      const showProjectThreadSkeleton =
+        openingProject &&
+        (foregroundOpening || project.state === 'connecting' || projectThreads.length === 0)
+      return (
+        <div key={projectKey} style={{ marginBottom: '6px' }}>
+          <ProjectHeader
+            project={project}
+            projectKey={projectKey}
+            active={isForeground}
+            collapsed={collapsed}
+            activity={activity}
+            cold={cold}
+            detailThreads={detailThreads}
+            onToggle={() => {
+              if (cold) return
+              setCollapsedProjects((current) => {
+                const next = new Set(current)
+                if (next.has(projectKey)) next.delete(projectKey)
+                else next.add(projectKey)
+                return next
+              })
+            }}
+          />
+          <CollapsibleThreads collapsed={collapsed}>
+            {showProjectThreadSkeleton ? (
+              <ProjectThreadSkeletonList />
+            ) : (
+              <>
+                {projectThreads.length === 0 && project.loaded && searchQuery && (
+                  <ProjectHint label={t('threadList.noSearchResults')} />
+                )}
+                {projectThreads.map((thread) => (
+                  isForeground ? (
+                    <ThreadEntryWrapper key={thread.id} thread={thread} />
+                  ) : (
+                    <ReadonlyThreadRow key={thread.id} thread={thread} project={project} />
+                  )
+                ))}
+              </>
+            )}
+          </CollapsibleThreads>
+        </div>
+      )
+    }
     return (
       <div
         style={{
@@ -217,8 +288,12 @@ export function ThreadList({
         }}
       >
         {dragHintTitle !== null && <DragHint title={dragHintTitle} />}
-        {pinnedProjectRows.length > 0 && (
-          <PinnedProjectSection rows={pinnedProjectRows} />
+        {(pinnedThreadRows.length > 0 || pinnedProjects.length > 0) && (
+          <PinnedProjectSection
+            rows={pinnedThreadRows}
+            projects={pinnedProjects}
+            renderProject={renderProjectBlock}
+          />
         )}
         {showProjects && (
           <ProjectsSectionHeader
@@ -231,66 +306,7 @@ export function ThreadList({
         )}
         {showProjects && (
           <CollapsibleThreads collapsed={projectsSectionCollapsed} marginTop={0}>
-            {projectsForRender.map((project) => {
-          const projectKey = projectIdentity(project)
-          const isForeground = isProjectForeground(project, effectiveForegroundProjectId, effectiveForegroundWorkspacePath)
-          const cachedProjectThreads = orderSubAgentsAfterParents(filterProjectThreads(project, searchQuery))
-          const foregroundListMatchesProject =
-            isForeground && isForegroundThreadListForProject(threadListProjectKey, projectKey)
-          const openingProject = isForeground && (
-            foregroundOpening ||
-            project.state === 'connecting' ||
-            (loading && !foregroundListMatchesProject)
-          )
-          const cold = isColdProject(project) && !openingProject
-          const collapsed = cold || (!openingProject && collapsedProjects.has(projectKey))
-          const rawProjectThreads = foregroundListMatchesProject ? orderedThreads : cachedProjectThreads
-          const projectPinnedIds = foregroundListMatchesProject ? pinnedThreadIds : (project.pinnedThreadIds ?? [])
-          const projectThreads = excludePinnedThreadTrees(rawProjectThreads, projectPinnedIds)
-          const activity = getProjectActivity(rawProjectThreads)
-          const showProjectThreadSkeleton =
-            openingProject &&
-            (foregroundOpening || project.state === 'connecting' || projectThreads.length === 0)
-          return (
-            <div key={projectKey} style={{ marginBottom: '6px' }}>
-              <ProjectHeader
-                project={project}
-                projectKey={projectKey}
-                active={isForeground}
-                collapsed={collapsed}
-                activity={activity}
-                cold={cold}
-                onToggle={() => {
-                  if (cold) return
-                  setCollapsedProjects((current) => {
-                    const next = new Set(current)
-                    if (next.has(projectKey)) next.delete(projectKey)
-                    else next.add(projectKey)
-                    return next
-                  })
-                }}
-              />
-              <CollapsibleThreads collapsed={collapsed}>
-                {showProjectThreadSkeleton ? (
-                  <ProjectThreadSkeletonList />
-                ) : (
-                  <>
-                    {projectThreads.length === 0 && project.loaded && searchQuery && (
-                      <ProjectHint label={t('threadList.noSearchResults')} />
-                    )}
-                    {projectThreads.map((thread) => (
-                      isForeground ? (
-                        <ThreadEntryWrapper key={thread.id} thread={thread} />
-                      ) : (
-                        <ReadonlyThreadRow key={thread.id} thread={thread} project={project} />
-                      )
-                    ))}
-                  </>
-                )}
-              </CollapsibleThreads>
-            </div>
-          )
-            })}
+            {ordinaryProjects.map(renderProjectBlock)}
           </CollapsibleThreads>
         )}
         {showChats && chat && (
@@ -429,14 +445,18 @@ function isThreadSummary(value: unknown): value is ThreadSummary {
 
 function filterProjectThreads(project: WorkspaceProjectSummary, searchQuery: string): ThreadSummary[] {
   const query = searchQuery.trim().toLowerCase()
-  return sortThreadsByRecentActivity(project.threads
-    .filter(isThreadSummary)
-    .filter((thread) => !isInternalThread(thread))
-    .filter((thread) => thread.status?.toLowerCase() !== 'archived')
+  return sortThreadsByRecentActivity(visibleProjectThreads(project.threads)
     .filter((thread) => {
       if (!query) return true
       return (thread.displayName ?? '').toLowerCase().includes(query)
     }))
+}
+
+function visibleProjectThreads(threads: unknown[]): ThreadSummary[] {
+  return threads
+    .filter(isThreadSummary)
+    .filter((thread) => !isInternalThread(thread))
+    .filter((thread) => thread.status?.toLowerCase() !== 'archived')
 }
 
 function sortThreadsByRecentActivity(threads: ThreadSummary[]): ThreadSummary[] {
@@ -931,7 +951,15 @@ function ChatsSectionHeader({
   )
 }
 
-function PinnedProjectSection({ rows }: { rows: PinnedProjectRow[] }): JSX.Element {
+function PinnedProjectSection({
+  rows,
+  projects,
+  renderProject
+}: {
+  rows: PinnedProjectRow[]
+  projects: WorkspaceProjectSummary[]
+  renderProject: (project: WorkspaceProjectSummary) => JSX.Element
+}): JSX.Element {
   const t = useT()
   return (
     <div style={{ marginBottom: '8px' }}>
@@ -949,6 +977,7 @@ function PinnedProjectSection({ rows }: { rows: PinnedProjectRow[] }): JSX.Eleme
           />
         )
       ))}
+      {projects.map(renderProject)}
     </div>
   )
 }
@@ -1030,6 +1059,7 @@ function ProjectHeader({
   collapsed,
   activity,
   cold,
+  detailThreads,
   onToggle
 }: {
   project: WorkspaceProjectSummary
@@ -1039,6 +1069,7 @@ function ProjectHeader({
   collapsed: boolean
   activity: ProjectActivity
   cold: boolean
+  detailThreads: ThreadSummary[]
   onToggle: () => void
 }): JSX.Element {
   const t = useT()
@@ -1051,10 +1082,67 @@ function ProjectHeader({
   const label = project.name || project.path
   const showActions = hovered || menuOpen
   const detailLabel = project.remote?.displayPath || project.remote?.endpoint || project.identityWorkspacePath || project.path
-  const iconLabel = cold ? t('projectsRail.notRunning') : detailLabel
   const errorLabel = project.errorMessage || t('projectsRail.error')
   const showErrorIndicator = project.state === 'error'
   const actionColumnWidth = showErrorIndicator ? '86px' : '60px'
+  const waitingCount = detailThreads.filter(isThreadWaiting).length
+  const runningCount = detailThreads.filter((thread) => !isThreadWaiting(thread) && isThreadRunning(thread)).length
+  const threadCount = detailThreads.length
+  const detailsLoaded = project.loaded || project.state === 'foreground' || project.state === 'secondary'
+
+  async function toggleProjectPinned(): Promise<void> {
+    const projectId = projectIdentity(project)
+    if (!projectId) return
+    const settings = await window.api.settings.get()
+    const current = Array.isArray(settings.pinnedProjectIds)
+      ? settings.pinnedProjectIds.filter((value): value is string => typeof value === 'string')
+      : []
+    const normalized = current.filter((value) => normalizeWorkspaceProjectKey(value) !== projectId)
+    const next = project.pinned ? normalized : [...normalized, projectId]
+    await window.api.settings.set({ pinnedProjectIds: next })
+  }
+
+  const projectDetailsContent = (
+    <>
+      <div className="sidebar-entry-details-header">
+        <span className="sidebar-entry-details-title" title={label}>{label}</span>
+        <button
+          type="button"
+          className="sidebar-entry-details-pin"
+          aria-label={project.pinned ? t('projectsRail.unpinProject') : t('projectsRail.pinProject')}
+          aria-pressed={project.pinned === true}
+          onClick={() => { void toggleProjectPinned() }}
+        >
+          <Pin size={14} fill={project.pinned ? 'currentColor' : 'none'} aria-hidden />
+        </button>
+      </div>
+      {project.state === 'connecting' ? (
+        <div className="sidebar-entry-details-row" aria-busy="true" aria-label={t('projectsRail.loadingDetails')}>
+          <CircleDashed size={14} strokeWidth={1.8} aria-hidden />
+          <Skeleton width={124} height={10} />
+        </div>
+      ) : detailsLoaded ? (
+        <div className="sidebar-entry-details-row">
+          <CircleDashed size={14} strokeWidth={1.8} aria-hidden />
+          <span>
+            {t(threadCount === 1 ? 'projectsRail.threadCountOne' : 'projectsRail.threadCountMany', { count: threadCount })}
+            {waitingCount > 0 ? ` · ${t('projectsRail.waitingCount', { count: waitingCount })}` : ''}
+            {runningCount > 0 ? ` · ${t('projectsRail.runningCount', { count: runningCount })}` : ''}
+          </span>
+        </div>
+      ) : (
+        <div className="sidebar-entry-details-row">
+          <CircleDashed size={14} strokeWidth={1.8} aria-hidden />
+          <span>{t('projectsRail.detailsNotLoaded')}</span>
+        </div>
+      )}
+      <div className="sidebar-entry-details-divider" />
+      <div className="sidebar-entry-details-row">
+        <Folder size={14} strokeWidth={1.8} aria-hidden />
+        <span title={detailLabel}>{detailLabel}</span>
+      </div>
+    </>
+  )
 
   function updateProjectMenuPosition(): void {
     const rect = rowRef.current?.getBoundingClientRect()
@@ -1167,6 +1255,14 @@ function ProjectHeader({
   }
 
   return (
+    <SidebarEntryDetailsCard
+      label={label}
+      width={320}
+      interactive
+      disabled={menuOpen}
+      content={projectDetailsContent}
+      wrapperStyle={{ width: '100%' }}
+    >
     <div
       ref={rowRef}
       className="dotcraft-sidebar-control-radius"
@@ -1200,16 +1296,11 @@ function ProjectHeader({
         userSelect: 'none'
       }}
     >
-      <ActionTooltip label={iconLabel} placement="right">
-        <ProjectGlyph project={project} collapsed={collapsed} cold={cold} active={active} />
-      </ActionTooltip>
+      <ProjectGlyph project={project} collapsed={collapsed} cold={cold} active={active} />
       <div style={{ minWidth: 0, display: 'flex', alignItems: 'center', gap: '4px' }}>
-        <ActionTooltip
-          label={detailLabel}
-          wrapperStyle={{ display: 'block', flex: 1, minWidth: 0, overflow: 'hidden' }}
-        >
-          <span
+        <span
             style={{
+              flex: 1,
               minWidth: 0,
               color: active ? 'var(--text-primary)' : 'var(--text-secondary)',
               fontSize: 'var(--type-ui-size)',
@@ -1223,7 +1314,6 @@ function ProjectHeader({
           >
             {label}
           </span>
-        </ActionTooltip>
         {!cold && <CollapseChevron collapsed={collapsed} visible={hovered} size={13} />}
       </div>
       <div
@@ -1291,6 +1381,11 @@ function ProjectHeader({
           {!isRemoteProject(project) && (
             <ProjectMenuItem icon={<ExternalLink size={14} aria-hidden />} label={t('projectsRail.openProject')} onClick={() => { setMenuOpen(false); void openProject() }} />
           )}
+          <ProjectMenuItem
+            icon={<Pin size={14} fill={project.pinned ? 'currentColor' : 'none'} aria-hidden />}
+            label={project.pinned ? t('projectsRail.unpinProject') : t('projectsRail.pinProject')}
+            onClick={() => { setMenuOpen(false); void toggleProjectPinned() }}
+          />
           {!isRemoteProject(project) && (
             <ProjectMenuItem icon={<FolderOpen size={14} aria-hidden />} label={t('workspaceHeader.openInExplorer')} onClick={() => { setMenuOpen(false); void window.api.shell.openPath(project.path) }} />
           )}
@@ -1321,6 +1416,7 @@ function ProjectHeader({
         document.body
       )}
     </div>
+    </SidebarEntryDetailsCard>
   )
 }
 
@@ -1569,6 +1665,12 @@ function ReadonlyThreadRow({
   const waiting = isThreadWaiting(thread)
   const displayName = thread.displayName ?? t('sidebar.newConversation')
   const relativeTime = formatRelativeTime(thread.lastActiveAt, new Date(), locale)
+  const threadDetails = useThreadEntryDetails({
+    thread: { ...thread, displayName },
+    project,
+    projectName: project.name || project.path,
+    relativeTime
+  })
   const rowProjectKey = projectIdentity(project)
   const subAgent = isSubAgentThread(thread)
   const subAgentDepth = getSubAgentDepth(thread)
@@ -1651,7 +1753,13 @@ function ReadonlyThreadRow({
   )
 
   return (
-    <ActionTooltip label={displayName} wrapperStyle={{ display: 'block', width: '100%' }}>
+    <SidebarEntryDetailsCard
+      label={displayName}
+      width={240}
+      content={threadDetails.content}
+      onOpen={threadDetails.onOpen}
+      wrapperStyle={{ width: '100%' }}
+    >
       <ThreadRowLayout
         isSubAgent={subAgent}
         subAgentDepth={subAgentDepth}
@@ -1790,7 +1898,7 @@ function ReadonlyThreadRow({
           }
         }}
       />
-    </ActionTooltip>
+    </SidebarEntryDetailsCard>
   )
 }
 

@@ -3911,6 +3911,105 @@ input.dc-plain-number {
   white-space: normal;
 }
 
+.sidebar-entry-details-card {
+  z-index: var(--z-tooltip);
+  overflow: hidden;
+  border-radius: 10px;
+  background: var(--glass-surface-strong);
+  color: var(--text-primary);
+  box-shadow: var(--tooltip-shadow);
+  pointer-events: none;
+  animation: sidebar-entry-details-in 120ms ease-out both;
+}
+
+.sidebar-entry-details-card[data-interactive='true'] {
+  pointer-events: auto;
+}
+
+.sidebar-entry-details-header,
+.sidebar-entry-details-row {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+
+.sidebar-entry-details-header {
+  min-height: 38px;
+  gap: 10px;
+  padding: 9px 11px 7px;
+}
+
+.sidebar-entry-details-title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text-primary);
+  font-size: var(--type-ui-size);
+  font-weight: var(--type-ui-emphasis-weight);
+  line-height: var(--type-ui-line-height);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sidebar-entry-details-meta {
+  flex-shrink: 0;
+  color: var(--text-dimmed);
+  font-size: var(--type-secondary-size);
+  line-height: var(--type-secondary-line-height);
+}
+
+.sidebar-entry-details-row {
+  min-height: 28px;
+  gap: 8px;
+  padding: 5px 11px;
+  color: var(--text-secondary);
+  font-size: var(--type-ui-size);
+  line-height: var(--type-ui-line-height);
+}
+
+.sidebar-entry-details-row > svg {
+  flex-shrink: 0;
+  color: var(--text-dimmed);
+}
+
+.sidebar-entry-details-row > span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sidebar-entry-details-divider {
+  height: 1px;
+  margin: 3px 11px;
+  background: var(--border-default);
+}
+
+.sidebar-entry-details-pin {
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: none;
+  border-radius: var(--sidebar-icon-control-radius);
+  background: transparent;
+  color: var(--text-dimmed);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.sidebar-entry-details-pin:hover,
+.sidebar-entry-details-pin:focus-visible {
+  background: var(--sidebar-control-hover);
+  color: var(--text-primary);
+}
+
+@keyframes sidebar-entry-details-in {
+  from { opacity: 0; transform: translateX(-2px) scale(0.985); }
+  to { opacity: 1; transform: translateX(0) scale(1); }
+}
+
 .dc-shortcut-key {
   display: inline-flex;
   align-items: center;

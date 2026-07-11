@@ -364,6 +364,13 @@ function getPinnedThreadIdsForWorkspace(workspacePath: string): string[] {
   return getPinnedThreadIdsForProject(workspacePath)
 }
 
+function isProjectPinned(keyOrPath: string): boolean {
+  const key = pinnedSettingsKey(keyOrPath)
+  return Boolean(key && sharedSettings.pinnedProjectIds?.some((candidate) =>
+    normalizeWorkspaceProjectKey(candidate) === key
+  ))
+}
+
 function findWorkspaceConnectionByClient(client: WireProtocolClient): WorkspaceConnectionEntry | undefined {
   return [...workspaceConnections.values()].find((entry) => entry.client === client)
 }
@@ -457,6 +464,7 @@ function buildDefaultChatSummary(): WorkspaceProjectSummary | undefined {
     threadCount: entry?.threads.length ?? 0,
     threads: entry?.threads ?? [],
     pinnedThreadIds: getPinnedThreadIdsForWorkspace(chatPath),
+    pinned: false,
     ...(entry?.errorMessage ? { errorMessage: entry.errorMessage } : {})
   }
 }
@@ -488,6 +496,7 @@ function getWorkspaceProjectsPayload(): WorkspaceProjectsPayload {
       threadCount: entry?.threads.length ?? 0,
       threads: entry?.threads ?? [],
       pinnedThreadIds: getPinnedThreadIdsForWorkspace(recent.path),
+      pinned: isProjectPinned(projectId),
       ...(entry?.errorMessage ? { errorMessage: entry.errorMessage } : {})
     }
   })
@@ -510,6 +519,7 @@ function getWorkspaceProjectsPayload(): WorkspaceProjectsPayload {
       threadCount: entry?.threads.length ?? 0,
       threads: entry?.threads ?? [],
       pinnedThreadIds: getPinnedThreadIdsForProject(activeRemoteProject.projectId),
+      pinned: isProjectPinned(activeRemoteProject.projectId),
       remote: activeRemoteProject.remote,
       ...(entry?.errorMessage ? { errorMessage: entry.errorMessage } : {})
     })
@@ -771,7 +781,7 @@ async function updateSharedSettings(partial: Partial<AppSettings>): Promise<void
   // Pin is a Desktop-local, per-workspace setting. Re-push the projects payload so
   // secondary / Chats rows reflect a pin toggle (moving between the pinned section
   // and their project group) without waiting for another workspace event.
-  if (partial.pinnedThreadIdsByWorkspace !== undefined) {
+  if (partial.pinnedThreadIdsByWorkspace !== undefined || partial.pinnedProjectIds !== undefined) {
     emitWorkspaceProjects()
   }
 }

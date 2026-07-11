@@ -29,6 +29,8 @@ export interface WorkspaceProjectSummary {
   threadCount: number
   threads: unknown[]
   pinnedThreadIds?: string[]
+  /** Desktop-local project pin state. */
+  pinned: boolean
   remote?: WorkspaceRemoteProjectMetadata
   errorMessage?: string
 }

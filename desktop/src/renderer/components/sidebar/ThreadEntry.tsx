@@ -19,6 +19,10 @@ import { addToast } from '../../stores/toastStore'
 import { ActionTooltip } from '../ui/ActionTooltip'
 import { getSubAgentDepth, isSubAgentThread } from '../../utils/subAgentThreads'
 import { canForkThread, canForkWorktree, runThreadFork } from '../../utils/threadFork'
+import { useWorkspaceProjectsStore } from '../../stores/workspaceProjectsStore'
+import { sameWorkspaceProjectKey } from '../../../shared/workspaceProjectKey'
+import { SidebarEntryDetailsCard } from './SidebarEntryDetailsCard'
+import { useThreadEntryDetails, workspacePathName } from './ThreadEntryDetails'
 
 interface ThreadEntryProps {
   thread: ThreadSummary
@@ -46,6 +50,9 @@ export function ThreadEntry({ thread }: ThreadEntryProps): JSX.Element {
     unreadCompletedThreadIds
   } = useThreadStore()
   const setActiveMainView = useUIStore((s) => s.setActiveMainView)
+  const projects = useWorkspaceProjectsStore((s) => s.projects)
+  const chat = useWorkspaceProjectsStore((s) => s.chat)
+  const foregroundProjectId = useWorkspaceProjectsStore((s) => s.foregroundProjectId)
   const isActive = activeThreadId === thread.id
   const isSubAgent = isSubAgentThread(thread)
   const subAgentDepth = getSubAgentDepth(thread)
@@ -88,6 +95,24 @@ export function ThreadEntry({ thread }: ThreadEntryProps): JSX.Element {
 
   const displayName = thread.displayName ?? t('sidebar.newConversation')
   const relativeTime = formatRelativeTime(thread.lastActiveAt, new Date(), locale)
+  const identityPath = thread.worktree?.sourceWorkspacePath || thread.workspacePath || ''
+  const ownsIdentity = (candidate: { projectId?: string; path: string; identityWorkspacePath?: string }): boolean =>
+    [candidate.projectId, candidate.path, candidate.identityWorkspacePath]
+      .some((value) => sameWorkspaceProjectKey(value, identityPath))
+  const chatProject = chat && ownsIdentity(chat) ? chat : null
+  const project = chatProject
+    ?? projects.find(ownsIdentity)
+    ?? projects.find((candidate) => sameWorkspaceProjectKey(candidate.projectId, foregroundProjectId))
+    ?? null
+  const projectName = chatProject
+    ? t('chatsRail.title')
+    : project?.name?.trim() || workspacePathName(identityPath)
+  const threadDetails = useThreadEntryDetails({
+    thread: { ...thread, displayName },
+    project,
+    projectName,
+    relativeTime
+  })
   const showOriginBadge =
     !isSubAgent &&
     thread.originChannel.length > 0 &&
@@ -260,13 +285,16 @@ export function ThreadEntry({ thread }: ThreadEntryProps): JSX.Element {
     }
   }
 
-  const rowTooltipLabel = dimmedTarget
-    ? t('auto.dnd.archivedCannotBind')
-    : thread.displayName ?? displayName
-
   return (
     <>
-      <ActionTooltip label={rowTooltipLabel} wrapperStyle={{ display: 'block', width: '100%' }}>
+      <SidebarEntryDetailsCard
+        label={displayName}
+        width={240}
+        content={threadDetails.content}
+        onOpen={threadDetails.onOpen}
+        disabled={renaming || Boolean(dragKind)}
+        wrapperStyle={{ width: '100%' }}
+      >
       <ThreadRowLayout
         isSubAgent={isSubAgent}
         subAgentDepth={subAgentDepth}
@@ -640,7 +668,7 @@ export function ThreadEntry({ thread }: ThreadEntryProps): JSX.Element {
           ) : undefined
         }
       />
-      </ActionTooltip>
+      </SidebarEntryDetailsCard>
 
       {contextMenu && (
         <ThreadEntryContextMenu

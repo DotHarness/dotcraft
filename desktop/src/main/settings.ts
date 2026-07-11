@@ -4,7 +4,11 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs'
 import { normalizeLocale, type AppLocale } from '../shared/locales'
 import { isValidAppVersion } from '../shared/whatsNew'
 import { normalizeRemoteHosts, type RemoteHost } from '../shared/remoteServers'
-import { normalizeWorkspaceProjectKey, sameWorkspaceProjectKey } from '../shared/workspaceProjectKey'
+import {
+  isRemoteProjectKey,
+  normalizeWorkspaceProjectKey,
+  sameWorkspaceProjectKey
+} from '../shared/workspaceProjectKey'
 import {
   DEFAULT_INTERFACE_ZOOM,
   normalizeAccentHex,
@@ -126,6 +130,8 @@ export interface AppSettings {
   profile?: ProfileSettings
   /** Desktop-local pinned thread ids, keyed by normalized workspace path. */
   pinnedThreadIdsByWorkspace?: Record<string, string[]>
+  /** Desktop-local pinned project identities (normalized local paths or remote ids). */
+  pinnedProjectIds?: string[]
   /** Desktop-local saved remote servers (SSH targets + DotCraft stacks). */
   remoteHosts?: RemoteHost[]
 }
@@ -369,6 +375,22 @@ export function normalizePinnedThreadIdsByWorkspace(settings: AppSettings): Reco
   return Object.keys(normalized).length > 0 ? normalized : undefined
 }
 
+export function normalizePinnedProjectIds(settings: AppSettings): string[] | undefined {
+  const raw = settings.pinnedProjectIds
+  if (!Array.isArray(raw)) return undefined
+
+  const seen = new Set<string>()
+  const normalized: string[] = []
+  for (const value of raw) {
+    if (typeof value !== 'string') continue
+    const id = normalizeWorkspaceProjectKey(value)
+    if (!id || seen.has(id)) continue
+    seen.add(id)
+    normalized.push(id)
+  }
+  return normalized.length > 0 ? normalized : undefined
+}
+
 function getSettingsPath(): string {
   return join(app.getPath('userData'), 'settings.json')
 }
@@ -402,6 +424,7 @@ export function loadSettings(): AppSettings {
       raw.lastSeenWhatsNewVersion = normalizeLastSeenWhatsNewVersion(raw)
       raw.profile = normalizeProfileSettings(raw)
       raw.pinnedThreadIdsByWorkspace = normalizePinnedThreadIdsByWorkspace(raw)
+      raw.pinnedProjectIds = normalizePinnedProjectIds(raw)
       raw.remoteHosts = normalizeRemoteHostsSetting(raw)
       raw.activeRemoteStack = normalizeActiveRemoteStack(raw)
       if (raw.locale !== undefined) {
@@ -449,6 +472,7 @@ export function saveSettings(settings: AppSettings): void {
     settings.lastSeenWhatsNewVersion = normalizeLastSeenWhatsNewVersion(settings)
     settings.profile = normalizeProfileSettings(settings)
     settings.pinnedThreadIdsByWorkspace = normalizePinnedThreadIdsByWorkspace(settings)
+    settings.pinnedProjectIds = normalizePinnedProjectIds(settings)
     settings.remoteHosts = normalizeRemoteHostsSetting(settings)
     settings.activeRemoteStack = normalizeActiveRemoteStack(settings)
     writeFileSync(filePath, JSON.stringify(settings, null, 2), 'utf8')
@@ -494,6 +518,9 @@ export function removeRecentWorkspace(settings: AppSettings, workspacePath: stri
   settings.recentWorkspaces = (settings.recentWorkspaces ?? []).filter((recent) =>
     !sameWorkspaceProjectKey(recent.path, workspacePath)
   )
+  settings.pinnedProjectIds = settings.pinnedProjectIds?.filter((projectId) =>
+    !sameWorkspaceProjectKey(projectId, workspacePath)
+  )
   return settings
 }
 
@@ -503,5 +530,8 @@ export function removeRecentWorkspace(settings: AppSettings, workspacePath: stri
  */
 export function clearRecentWorkspaces(settings: AppSettings): AppSettings {
   settings.recentWorkspaces = []
+  // Remote identities are not members of the local recent-project list and
+  // remain pinned so reconnecting restores their rail position.
+  settings.pinnedProjectIds = settings.pinnedProjectIds?.filter(isRemoteProjectKey)
   return settings
 }
