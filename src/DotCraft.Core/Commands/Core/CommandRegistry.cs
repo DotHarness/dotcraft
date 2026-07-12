@@ -190,6 +190,11 @@ public sealed class CommandRegistry
             Name = "/help",
             DescriptionKey = "cmd.help"
         });
+        registry.RegisterHandler(new InitCommandHandler(), new CommandRegistration
+        {
+            Name = "/init",
+            DescriptionKey = "cmd.init"
+        });
         registry.RegisterHandler(new HeartbeatCommandHandler(), new CommandRegistration
         {
             Name = "/heartbeat",

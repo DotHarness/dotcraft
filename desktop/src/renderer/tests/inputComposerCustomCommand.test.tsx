@@ -18,6 +18,18 @@ const pickFiles = vi.fn()
 const saveImageToTemp = vi.fn()
 const getPathForFile = vi.fn((file: File) => file.name === 'notes.txt' ? 'C:\\temp\\notes.txt' : '')
 
+class ResizeObserverMock {
+  observe(): void {}
+  unobserve(): void {}
+  disconnect(): void {}
+}
+
+Object.defineProperty(globalThis, 'ResizeObserver', {
+  configurable: true,
+  writable: true,
+  value: ResizeObserverMock
+})
+
 function renderWithLocale(node: JSX.Element): void {
   render(<LocaleProvider>{node}</LocaleProvider>)
 }
@@ -86,6 +98,9 @@ describe('InputComposer custom command expansion', () => {
       }
       if (method === 'turn/start') {
         return { turn: { id: 'turn-1' } }
+      }
+      if (method === 'command/execute') {
+        return { handled: true, expandedPrompt: 'Generate .craft/AGENTS.md' }
       }
       return {}
     })
@@ -211,6 +226,27 @@ describe('InputComposer custom command expansion', () => {
     await waitFor(() => {
       const turnStartCalls = appServerSendRequest.mock.calls.filter((call) => call[0] === 'turn/start')
       expect(turnStartCalls).toHaveLength(1)
+    })
+  })
+
+  it('executes /init through the server before starting the agent turn', async () => {
+    renderWithLocale(<InputComposer threadId="thread-1" workspacePath="/workspace/project" />)
+
+    const textbox = screen.getByRole('textbox')
+    textbox.textContent = '/init'
+    fireEvent.input(textbox)
+    fireEvent.keyDown(textbox, { key: 'Enter' })
+
+    await waitFor(() => {
+      expect(appServerSendRequest).toHaveBeenCalledWith('command/execute', {
+        threadId: 'thread-1',
+        command: '/init',
+        arguments: []
+      })
+      expect(appServerSendRequest).toHaveBeenCalledWith('turn/start', expect.objectContaining({
+        threadId: 'thread-1',
+        input: [{ type: 'text', text: 'Generate .craft/AGENTS.md' }]
+      }))
     })
   })
 

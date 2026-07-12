@@ -59,6 +59,8 @@ Start from a real project folder instead of an empty directory so the agent can 
 
 When Desktop finds an existing project-level `AGENTS.md` or `CLAUDE.md` during first-time setup, it offers to copy one of those files into `.craft/AGENTS.md`. This is a one-time snapshot import: the original file stays where it is, and future DotCraft behavior comes from `.craft/AGENTS.md`.
 
+If the project has no `.craft/AGENTS.md`, enter `/init` in Desktop, CLI, or another command-enabled client. DotCraft inspects the repository and creates concise English project instructions from its real structure, commands, and conventions. `/init` never replaces an existing `.craft/AGENTS.md`.
+
 ![Setup](https://github.com/DotHarness/resources/raw/master/dotcraft/setup.gif)
 
 ### 3. Configure a Model

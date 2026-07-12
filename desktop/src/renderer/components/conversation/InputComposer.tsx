@@ -1,5 +1,5 @@
 import { useRef, useState, useCallback, useEffect, useMemo, type CSSProperties } from 'react'
-import { Archive, Bot, ChevronsDown, ListChecks, Target } from 'lucide-react'
+import { Archive, Bot, ChevronsDown, FileText, ListChecks, Target } from 'lucide-react'
 import { useLocale, useT } from '../../contexts/LocaleContext'
 import { useConversationStore } from '../../stores/conversationStore'
 import { addToast } from '../../stores/toastStore'
@@ -22,6 +22,7 @@ import type {
   QueuedTurnInput
 } from '../../types/conversation'
 import { startTurnWithOptimisticUI } from '../../utils/startTurn'
+import { expandInitCommand } from '../../utils/initCommand'
 import { useComposerMascot } from './useComposerMascot'
 import { buildComposerInputParts } from '../../utils/composeInputParts'
 import { isAcceptPlanSentinel } from '../../utils/planAcceptSentinel'
@@ -298,7 +299,7 @@ export function InputComposer({
   const isAgentBuilderModeSlashQuery = isAgentBuilder
     && (normalizedSlashQuery === 'plan' || normalizedSlashQuery === 'agent')
   const isExactSystemSlashQuery = !isAgentBuilder
-    && (normalizedSlashQuery === 'plan' || normalizedSlashQuery === 'agent' || normalizedSlashQuery === 'compact' || normalizedSlashQuery === 'consolidate')
+    && (normalizedSlashQuery === 'plan' || normalizedSlashQuery === 'agent' || normalizedSlashQuery === 'init' || normalizedSlashQuery === 'compact' || normalizedSlashQuery === 'consolidate')
   const showSlashPopover = slashQuery !== null && !slashDismissed && canUseSlashPicker && !isExactSystemSlashQuery && !isAgentBuilderModeSlashQuery
   const showSkillPopover = skillQuery !== null && !skillDismissed && canUseSkillPicker
   const { commands: customCommands, status: customCommandStatus } = useCustomCommandCatalog({
@@ -334,6 +335,15 @@ export function InputComposer({
     () => {
       const actions: SlashSystemActionInfo[] = []
       if (!canUseSystemActions) return actions
+      if (canUseCommandPicker) {
+        actions.push({
+          id: 'init',
+          label: t('cmd.init'),
+          description: t('composer.system.init.description'),
+          keywords: ['init', 'agents'],
+          icon: <FileText size={15} strokeWidth={2} aria-hidden />
+        })
+      }
       // A profile-backed thread runs its agent's fixed capability scope, so it has no Plan/Agent mode.
       if (!hasProfile) {
         actions.push({
@@ -384,7 +394,7 @@ export function InputComposer({
       }
       return actions
     },
-    [canCompactCurrentThread, canConsolidateCurrentThread, canUseAgentProfiles, canUseSystemActions, canUseThreadGoals, hasProfile, t, threadMode]
+    [canCompactCurrentThread, canConsolidateCurrentThread, canUseAgentProfiles, canUseCommandPicker, canUseSystemActions, canUseThreadGoals, hasProfile, t, threadMode]
   )
 
   useEffect(() => {
@@ -938,6 +948,28 @@ export function InputComposer({
       return
     }
 
+    if (!isAgentBuilder && trimmed.toLowerCase() === '/init') {
+      if (sendInFlightRef.current) return
+      sendInFlightRef.current = true
+      try {
+        const expandedPrompt = await expandInitCommand(threadId)
+        resetComposerInput()
+        await startTurnWithOptimisticUI({
+          threadId,
+          workspacePath: effectiveFileWorkspacePath,
+          identityWorkspacePath: workspacePath,
+          text: expandedPrompt,
+          fallbackThreadName: t('cmd.init'),
+          throwOnStartError: true
+        })
+      } catch (err) {
+        addToast(err instanceof Error ? err.message : String(err), 'error')
+      } finally {
+        sendInFlightRef.current = false
+      }
+      return
+    }
+
     const systemCommand = isAgentBuilder ? null : parseSystemSlashCommand(trimmed)
     if (systemCommand) {
       let clearInput = false
@@ -1386,6 +1418,11 @@ export function InputComposer({
       void toggleMode()
       return
     }
+    if (actionId === 'init') {
+      richRef.current?.setContent({ text: '/init', segments: [] })
+      void sendMessage()
+      return
+    }
     if (actionId === 'profile') {
       setProfilePickerOpen(true)
       return
@@ -1405,7 +1442,7 @@ export function InputComposer({
     } else {
       enterGoalComposeMode()
     }
-  }, [clearSlashSystemInput, currentGoal, enterGoalComposeMode, ensureCurrentGoal, compactThreadContext, consolidateThreadMemory, toggleMode])
+  }, [clearSlashSystemInput, currentGoal, enterGoalComposeMode, ensureCurrentGoal, compactThreadContext, consolidateThreadMemory, sendMessage, toggleMode])
 
   const onSelectSkill = useCallback((skillName: string): void => {
     richRef.current?.insertSkillTag(skillName)
