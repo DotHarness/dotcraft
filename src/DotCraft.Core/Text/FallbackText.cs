@@ -99,6 +99,7 @@ public static class FallbackText
     private const string EnglishJson = """
 {
   "cmd.help": "Show help information",
+  "cmd.init": "Create an AGENTS.md file with instructions for DotCraft",
   "cmd.new": "Create a new session",
   "cmd.debug": "Toggle debug mode",
   "cmd.heartbeat": "Trigger heartbeat check immediately",

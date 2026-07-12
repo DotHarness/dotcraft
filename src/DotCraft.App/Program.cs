@@ -125,6 +125,15 @@ if (cliArgs.Mode == CommandLineArgs.RunMode.Auth)
     return;
 }
 
+if (cliArgs.Mode == CommandLineArgs.RunMode.ModelCatalog)
+{
+    using var ctsCatalog = new CancellationTokenSource();
+    Console.CancelKeyPress += (_, e) => { e.Cancel = true; ctsCatalog.Cancel(); };
+    var catalogResult = await ModelCatalogCliRunner.RunAsync(cliArgs, ctsCatalog.Token);
+    Environment.Exit(catalogResult);
+    return;
+}
+
 // -------------------------------------------------------------------------
 // 4. Workspace discovery & initialization
 // -------------------------------------------------------------------------

@@ -10,6 +10,7 @@ internal sealed class CommandRequestHandler(
     AppServerConnection connection,
     HeartbeatService? heartbeatService,
     CronService? cronService,
+    string? workspaceCraftPath,
     Func<SessionThread, CancellationToken, Task<SessionWireThread>> enrichThreadAsync) : IAppServerDomainHandler
 {
     public void RegisterMethods(AppServerMethodTable table)
@@ -24,6 +25,7 @@ internal sealed class CommandRequestHandler(
         var p = AppServerParams.Get<CommandListParams>(msg);
 
         var commands = commandRegistry.ListCommands()
+            .Where(c => !IsUnavailableWorkspaceCommand(c.Name))
             .Where(c => p.IncludeBuiltins != false ||
                 !string.Equals(c.Category, "builtin", StringComparison.OrdinalIgnoreCase))
             .Where(c =>
@@ -45,6 +47,11 @@ internal sealed class CommandRequestHandler(
 
         return Task.FromResult<object?>(new CommandListResult { Commands = commands });
     }
+
+    private bool IsUnavailableWorkspaceCommand(string commandName) =>
+        string.Equals(commandName, "/init", StringComparison.OrdinalIgnoreCase)
+        && !string.IsNullOrWhiteSpace(workspaceCraftPath)
+        && File.Exists(Path.Combine(workspaceCraftPath, "AGENTS.md"));
 
     private async Task<object?> HandleCommandExecuteAsync(AppServerIncomingMessage msg, CancellationToken ct)
     {

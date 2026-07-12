@@ -22,6 +22,7 @@ import {
 } from '../../utils/composerAttachments'
 import { buildComposerInputParts } from '../../utils/composeInputParts'
 import { buildGoalObjective, extractGoal, parseGoalSlashCommand, type GoalSlashCommand } from '../../utils/threadGoal'
+import { expandInitCommand } from '../../utils/initCommand'
 import { CommandSearchPopover } from './CommandSearchPopover'
 import { GoalComposePill } from './GoalComposePill'
 import { FileSearchPopover } from './FileSearchPopover'
@@ -263,10 +264,10 @@ export function ConversationWelcome({
   const canUseSlashPicker = canUseCommandPicker || canUseSkillPicker || canUseThreadGoals || canUseSystemActions
   const remoteLocalFilesUnavailable = remoteWorkspace ? t('input.remoteLocalFilesUnavailable') : undefined
   const normalizedSlashQuery = slashQuery?.toLowerCase() ?? null
-  const isExactSystemSlashQuery = normalizedSlashQuery === 'plan' || normalizedSlashQuery === 'agent'
+  const isExactSystemSlashQuery = normalizedSlashQuery === 'plan' || normalizedSlashQuery === 'agent' || normalizedSlashQuery === 'init'
   const showSlashPopover = slashQuery !== null && !slashDismissed && canUseSlashPicker && !isExactSystemSlashQuery
   const showSkillPopover = skillQuery !== null && !skillDismissed && canUseSkillPicker
-  const { commands: customCommands, status: customCommandStatus } = useCustomCommandCatalog({
+  const { commands: customCommands, initAvailable, status: customCommandStatus } = useCustomCommandCatalog({
     enabled: canUseCommandPicker,
     locale
   })
@@ -298,6 +299,15 @@ export function ConversationWelcome({
   const systemActions = useMemo(
     () => {
       const actions = []
+      if (canUseCommandPicker && initAvailable) {
+        actions.push({
+          id: 'init',
+          label: t('cmd.init'),
+          description: t('composer.system.init.description'),
+          keywords: ['init', 'agents'],
+          icon: <FileText size={15} strokeWidth={2} aria-hidden />
+        })
+      }
       // A profile-backed thread runs its agent's fixed capability scope, so it has no Plan/Agent mode.
       if (!selectedProfileId) {
         actions.push({
@@ -330,7 +340,7 @@ export function ConversationWelcome({
       }
       return actions
     },
-    [canUseAgentProfiles, canUseThreadGoals, selectedProfileId, t, welcomeMode]
+    [canUseAgentProfiles, canUseCommandPicker, canUseThreadGoals, initAvailable, selectedProfileId, t, welcomeMode]
   )
   const modelApiAvailable =
     isConnected &&
@@ -772,21 +782,6 @@ export function ConversationWelcome({
     setGoalComposeMode(true)
     window.setTimeout(() => richRef.current?.focus(), 0)
   }, [])
-
-  const onSelectSystemAction = useCallback((actionId: string): void => {
-    setSlashDismissed(true)
-    clearSlashSystemInput()
-    if (actionId === 'planMode') {
-      toggleWelcomeMode()
-      return
-    }
-    if (actionId === 'profile') {
-      setProfilePickerOpen(true)
-      return
-    }
-    if (actionId !== 'goal') return
-    enterGoalComposeMode()
-  }, [clearSlashSystemInput, enterGoalComposeMode, toggleWelcomeMode])
 
   const onSelectSkill = useCallback((skillName: string): void => {
     richRef.current?.insertSkillTag(skillName)
@@ -1266,6 +1261,7 @@ export function ConversationWelcome({
     const text = richRef.current?.getText() ?? ''
     const segments = richRef.current?.getSegments() ?? []
     const trimmed = text.trim()
+    const isInitCommand = trimmed.toLowerCase() === '/init'
     if (
       (!trimmed && images.length === 0 && files.length === 0) ||
       sendInFlightRef.current ||
@@ -1328,6 +1324,7 @@ export function ConversationWelcome({
       createdThreadId = thread.id
       await applyWelcomeProfile(thread.id, capturedProfileId)
       await startWelcomeAppBindings(thread.id)
+      const turnText = isInitCommand ? await expandInitCommand(thread.id) : trimmed
 
       skipDraftPersistRef.current = true
       latestDraftTextRef.current = ''
@@ -1335,14 +1332,14 @@ export function ConversationWelcome({
       latestDraftSelectionRef.current = null
       clearWelcomeDraft(draftProjectKey)
       const { inputParts } = buildComposerInputParts({
-        text: trimmed,
-        segments,
+        text: turnText,
+        segments: isInitCommand ? [] : segments,
         files: capturedFiles,
         images: capturedImages
       })
       useUIStore.getState().setPendingWelcomeTurn({
         threadId: thread.id,
-        text: trimmed,
+        text: turnText,
         inputParts,
         images: capturedImages.length > 0 ? capturedImages : undefined,
         files: capturedFiles.length > 0 ? capturedFiles : undefined,
@@ -1390,6 +1387,26 @@ export function ConversationWelcome({
     remoteWorkspace,
     t
   ])
+
+  const onSelectSystemAction = useCallback((actionId: string): void => {
+    setSlashDismissed(true)
+    clearSlashSystemInput()
+    if (actionId === 'init') {
+      richRef.current?.setContent({ text: '/init', segments: [] })
+      void sendFromWelcome()
+      return
+    }
+    if (actionId === 'planMode') {
+      toggleWelcomeMode()
+      return
+    }
+    if (actionId === 'profile') {
+      setProfilePickerOpen(true)
+      return
+    }
+    if (actionId !== 'goal') return
+    enterGoalComposeMode()
+  }, [clearSlashSystemInput, enterGoalComposeMode, sendFromWelcome, toggleWelcomeMode])
 
   const onPasteImage = useCallback(
     (file: File): void => {

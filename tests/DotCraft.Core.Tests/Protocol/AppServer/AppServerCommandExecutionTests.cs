@@ -35,6 +35,7 @@ public sealed class AppServerCommandExecutionTests : IDisposable
             .ToList();
 
         Assert.Contains("/new", commands);
+        Assert.Contains("/init", commands);
         Assert.DoesNotContain("/clear", commands);
 
         var newCommand = response.RootElement
@@ -45,6 +46,25 @@ public sealed class AppServerCommandExecutionTests : IDisposable
         Assert.Equal("cmd.new", newCommand.GetProperty("descriptionKey").GetString());
         Assert.Equal("Create a new session", newCommand.GetProperty("fallbackDescription").GetString());
         Assert.Equal("Create a new session", newCommand.GetProperty("description").GetString());
+    }
+
+    [Fact]
+    public async Task CommandExecute_Init_ReturnsPromptExpansion()
+    {
+        var thread = await _h.Service.CreateThreadAsync(_h.Identity);
+        var msg = _h.BuildRequest(AppServerMethods.CommandExecute, new
+        {
+            threadId = thread.Id,
+            command = "/init"
+        });
+        await _h.ExecuteRequestAsync(msg);
+
+        var response = await _h.Transport.ReadNextSentAsync();
+        AppServerTestHarness.AssertIsSuccessResponse(response);
+
+        var result = response.RootElement.GetProperty("result");
+        Assert.True(result.GetProperty("handled").GetBoolean());
+        Assert.False(string.IsNullOrWhiteSpace(result.GetProperty("expandedPrompt").GetString()));
     }
 
     [Fact]
@@ -104,6 +124,32 @@ public sealed class AppServerCommandExecutionTests : IDisposable
             {
                 // Best-effort cleanup.
             }
+        }
+    }
+
+    [Fact]
+    public async Task CommandList_HidesInitWhenWorkspaceAgentsFileExists()
+    {
+        var tempRoot = Path.Combine(Path.GetTempPath(), $"command_list_init_{Guid.NewGuid():N}");
+        var workspaceCraftPath = Path.Combine(tempRoot, ".craft");
+        try
+        {
+            Directory.CreateDirectory(workspaceCraftPath);
+            await File.WriteAllTextAsync(Path.Combine(workspaceCraftPath, "AGENTS.md"), string.Empty);
+            using var harness = new AppServerTestHarness(workspaceCraftPath: workspaceCraftPath);
+            await harness.InitializeAsync();
+
+            await harness.ExecuteRequestAsync(harness.BuildRequest(AppServerMethods.CommandList, new { }));
+            var response = await harness.Transport.ReadNextSentAsync();
+            AppServerTestHarness.AssertIsSuccessResponse(response);
+            var names = response.RootElement.GetProperty("result").GetProperty("commands")
+                .EnumerateArray().Select(item => item.GetProperty("name").GetString()).ToList();
+
+            Assert.DoesNotContain("/init", names);
+        }
+        finally
+        {
+            if (Directory.Exists(tempRoot)) Directory.Delete(tempRoot, recursive: true);
         }
     }
 

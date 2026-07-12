@@ -35,7 +35,7 @@ public static class AuthCliRunner
 
         return action switch
         {
-            "login" => await HandleLoginAsync(authService, providerId, globalConfigPath, cliArgs.AuthNoBrowser, cancellationToken),
+            "login" => await HandleLoginAsync(authService, providerId, globalConfigPath, cliArgs.AuthNoBrowser, cliArgs.AuthNoBind, cancellationToken),
             "logout" => await HandleLogoutAsync(authService, providerId, globalConfigPath, cancellationToken),
             "status" => await HandleStatusAsync(authService, cliArgs.AuthNoUsage, cancellationToken),
             _ => UsageError()
@@ -53,6 +53,7 @@ public static class AuthCliRunner
         string providerId,
         string globalConfigPath,
         bool noBrowser,
+        bool noBind,
         CancellationToken cancellationToken)
     {
         AnsiConsole.MarkupLine($"[green]{FallbackText.AuthOpenAiLoginStarting}[/]");
@@ -85,8 +86,11 @@ public static class AuthCliRunner
 
         AnsiConsole.MarkupLine($"[green]✓ {FallbackText.AuthOpenAiLoginSuccess(accountDisplay, planDisplay).EscapeMarkup()}[/]");
 
-        OpenAIAuthBindingPersistence.BindProviderToOAuth(providerId, status, globalConfigPath);
-        AnsiConsole.MarkupLine($"[grey]{FallbackText.AuthOpenAiLoginBound(providerId).EscapeMarkup()}[/]");
+        if (!noBind)
+        {
+            OpenAIAuthBindingPersistence.BindProviderToOAuth(providerId, status, globalConfigPath);
+            AnsiConsole.MarkupLine($"[grey]{FallbackText.AuthOpenAiLoginBound(providerId).EscapeMarkup()}[/]");
+        }
         return 0;
     }
 

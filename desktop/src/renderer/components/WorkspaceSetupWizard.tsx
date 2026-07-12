@@ -174,8 +174,10 @@ export function WorkspaceSetupWizard({
   const [submitting, setSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState<string | null>(null)
   const [submitWarning, setSubmitWarning] = useState<string | null>(null)
-  const [modelLoadState, setModelLoadState] = useState<'idle' | 'loading' | 'ready' | 'unsupported' | 'missing-key' | 'error'>('idle')
+  const [modelLoadState, setModelLoadState] = useState<'idle' | 'loading' | 'ready' | 'auth-required' | 'unsupported' | 'missing-key' | 'error'>('idle')
   const [modelOptions, setModelOptions] = useState<string[]>([])
+  const [chatGptLoginPending, setChatGptLoginPending] = useState(false)
+  const [modelReloadSeq, setModelReloadSeq] = useState(0)
   const [switchingDisplayLocale, setSwitchingDisplayLocale] = useState(false)
   const [profileLogoTransition, setProfileLogoTransition] = useState<ProfileLogoTransitionState | null>(null)
   const logoNodeRef = useRef<HTMLDivElement | null>(null)
@@ -359,11 +361,31 @@ export function WorkspaceSetupWizard({
         setModelOptions([])
         setModelLoadState(result.kind)
       })
+      .catch(() => {
+        if (controller.signal.aborted) return
+        setModelOptions([])
+        setModelLoadState('error')
+      })
 
     return () => {
       controller.abort()
     }
-  }, [activeDraft, activeExistingProvider, configStepIndex, modelDirty, providerChoice, step])
+  }, [activeDraft, activeExistingProvider, configStepIndex, modelDirty, modelReloadSeq, providerChoice, step])
+
+  const loginChatGptForSetup = useCallback(async (): Promise<void> => {
+    const providerId = providerChoice === 'existing' ? activeExistingProvider?.id : activeDraft?.id
+    if (!providerId || chatGptLoginPending) return
+    setChatGptLoginPending(true)
+    try {
+      const result = await window.api.workspace.loginSetupChatGpt(providerId)
+      if (result.kind === 'success') setModelReloadSeq((value) => value + 1)
+      else setModelLoadState('error')
+    } catch {
+      setModelLoadState('error')
+    } finally {
+      setChatGptLoginPending(false)
+    }
+  }, [activeDraft?.id, activeExistingProvider?.id, chatGptLoginPending, providerChoice])
 
   async function handleSubmit(): Promise<void> {
     const request = buildSetupRequest()
@@ -740,6 +762,9 @@ export function WorkspaceSetupWizard({
                 modelListLoading={modelListLoading}
                 modelSelectAvailable={modelSelectAvailable}
                 modelLoadState={modelLoadState}
+                chatGptLoginPending={chatGptLoginPending}
+                onLoginChatGpt={() => { void loginChatGptForSetup() }}
+                onRetry={() => setModelReloadSeq((value) => value + 1)}
                 onChange={(nextModel) => {
                   setModelDirty(true)
                   setModel(nextModel)
@@ -1419,13 +1444,19 @@ function ModelField({
   modelListLoading,
   modelSelectAvailable,
   modelLoadState,
+  chatGptLoginPending,
+  onLoginChatGpt,
+  onRetry,
   onChange
 }: {
   model: string
   modelOptions: string[]
   modelListLoading: boolean
   modelSelectAvailable: boolean
-  modelLoadState: 'idle' | 'loading' | 'ready' | 'unsupported' | 'missing-key' | 'error'
+  modelLoadState: 'idle' | 'loading' | 'ready' | 'auth-required' | 'unsupported' | 'missing-key' | 'error'
+  chatGptLoginPending: boolean
+  onLoginChatGpt(): void
+  onRetry(): void
   onChange(model: string): void
 }): JSX.Element {
   const t = useT()
@@ -1459,10 +1490,20 @@ function ModelField({
           style={fieldStyle()}
         />
       )}
+      {modelLoadState === 'auth-required' && (
+        <button type="button" onClick={onLoginChatGpt} disabled={chatGptLoginPending} style={{ marginTop: '8px' }}>
+          {chatGptLoginPending ? t('settings.llm.authMethod.signInPending') : t('setupWizard.authMethod.chatgpt')}
+        </button>
+      )}
       {(modelLoadState === 'unsupported' || modelLoadState === 'missing-key' || modelLoadState === 'error') && (
         <div style={{ marginTop: '6px', fontSize: '12px', color: 'var(--text-dimmed)' }}>
           {t('setupWizard.modelListUnavailable')}
         </div>
+      )}
+      {modelLoadState === 'error' && (
+        <button type="button" onClick={onRetry} style={{ marginTop: '8px' }}>
+          {t('common.retry')}
+        </button>
       )}
     </div>
   )

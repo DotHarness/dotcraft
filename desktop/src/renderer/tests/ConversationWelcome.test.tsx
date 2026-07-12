@@ -304,6 +304,9 @@ describe('ConversationWelcome composer', () => {
           }
         }
       }
+      if (method === 'command/execute') {
+        return { handled: true, expandedPrompt: 'Generate .craft/AGENTS.md' }
+      }
       return {}
     })
 
@@ -356,6 +359,28 @@ describe('ConversationWelcome composer', () => {
     expect(screen.queryByRole('combobox', { name: 'Bind an app before first turn' })).toBeNull()
     fireEvent.click(screen.getByRole('button', { name: 'Add attachment' }))
     expect(screen.getByRole('menuitemcheckbox', { name: 'Plan mode' })).toHaveAttribute('aria-checked', 'false')
+  })
+
+  it('creates a thread and expands /init before queuing the first turn', async () => {
+    renderWelcome()
+
+    const textbox = await screen.findByRole('textbox')
+    textbox.textContent = '/init'
+    fireEvent.input(textbox)
+    fireEvent.keyDown(textbox, { key: 'Enter' })
+
+    await waitFor(() => {
+      expect(appServerSendRequest).toHaveBeenCalledWith('command/execute', {
+        threadId: 'thread-welcome',
+        command: '/init',
+        arguments: []
+      })
+      expect(useUIStore.getState().pendingWelcomeTurn).toMatchObject({
+        threadId: 'thread-welcome',
+        text: 'Generate .craft/AGENTS.md',
+        inputParts: [{ type: 'text', text: 'Generate .craft/AGENTS.md' }]
+      })
+    })
   })
 
   it('shows the Context MAX section in the welcome model picker', async () => {

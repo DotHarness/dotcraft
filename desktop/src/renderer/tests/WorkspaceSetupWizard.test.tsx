@@ -9,6 +9,7 @@ const settingsGet = vi.fn()
 const settingsSet = vi.fn()
 const runSetup = vi.fn()
 const listSetupModels = vi.fn()
+const loginSetupChatGpt = vi.fn()
 
 function renderWizard(workspaceStatus: WorkspaceStatusPayload, onChooseDifferentWorkspace = vi.fn()) {
   return render(
@@ -59,6 +60,7 @@ describe('WorkspaceSetupWizard', () => {
     settingsSet.mockResolvedValue(undefined)
     runSetup.mockResolvedValue(undefined)
     listSetupModels.mockResolvedValue({ kind: 'unsupported' })
+    loginSetupChatGpt.mockResolvedValue({ kind: 'success' })
 
     Object.defineProperty(window, 'api', {
       configurable: true,
@@ -69,6 +71,7 @@ describe('WorkspaceSetupWizard', () => {
         },
         workspace: {
           listSetupModels,
+          loginSetupChatGpt,
           runSetup
         }
       }
@@ -355,6 +358,38 @@ describe('WorkspaceSetupWizard', () => {
     }))
   })
 
+  it('logs in for ChatGPT setup and reloads the backend model catalog', async () => {
+    let loggedIn = false
+    listSetupModels.mockImplementation(async (request) => {
+      if (request.provider?.authMethod !== 'chatgptOAuth') return { kind: 'unsupported' }
+      return loggedIn
+        ? { kind: 'success', models: ['gpt-5.6', 'gpt-5.5'] }
+        : { kind: 'auth-required' }
+    })
+    loginSetupChatGpt.mockImplementation(async () => {
+      loggedIn = true
+      return { kind: 'success' }
+    })
+    const status: WorkspaceStatusPayload = {
+      status: 'needs-setup',
+      workspacePath: '/workspace/demo',
+      hasUserConfig: false,
+      providers: []
+    }
+
+    renderWizard(status)
+    await openConfigStep()
+    fireEvent.click(screen.getByRole('button', { name: /Custom/ }))
+    fireEvent.click(await screen.findByRole('button', { name: /Sign in with ChatGPT/i }))
+
+    await screen.findAllByRole('button', { name: /Sign in with ChatGPT/i })
+    const signInButtons = await screen.findAllByRole('button', { name: /Sign in with ChatGPT/i })
+    fireEvent.click(signInButtons.at(-1)!)
+
+    await waitFor(() => expect(loginSetupChatGpt).toHaveBeenCalledWith('provider'))
+    await waitFor(() => expect(screen.getByLabelText('Model')).toHaveValue('gpt-5.6'))
+  })
+
   it('falls back to a suffixed Anthropic id when anthropic already exists', async () => {
     const status: WorkspaceStatusPayload = {
       status: 'needs-setup',
@@ -476,5 +511,64 @@ describe('WorkspaceSetupWizard', () => {
     })
     expect(modelControl).toHaveValue('')
     expect(screen.getByText('Model list unavailable. Enter a model manually.')).toBeInTheDocument()
+  })
+
+  it('ends loading after a model catalog rejection and retries successfully', async () => {
+    listSetupModels
+      .mockRejectedValueOnce(new Error('backend failed'))
+      .mockResolvedValueOnce({ kind: 'success', models: ['gpt-5.6', 'gpt-5.5'] })
+    const status: WorkspaceStatusPayload = {
+      status: 'needs-setup',
+      workspacePath: '/workspace/demo',
+      hasUserConfig: false,
+      providers: []
+    }
+
+    renderWizard(status)
+    await openConfigStep()
+
+    expect(screen.getByLabelText('Model')).toBeInTheDocument()
+    expect(screen.queryByText('Loading available models...')).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
+
+    await waitFor(() => expect(listSetupModels).toHaveBeenCalledTimes(2))
+    await waitFor(() => expect(screen.getByLabelText('Model')).toHaveValue('gpt-5.6'))
+  })
+
+  it('ignores a rejected model request after switching providers', async () => {
+    let rejectExisting!: (error: Error) => void
+    listSetupModels.mockImplementation((request) => {
+      if ('providerId' in request) {
+        return new Promise((_resolve, reject) => {
+          rejectExisting = reject
+        })
+      }
+      return Promise.resolve({ kind: 'success', models: ['claude-sonnet-4-5'] })
+    })
+    const status: WorkspaceStatusPayload = {
+      status: 'needs-setup',
+      workspacePath: '/workspace/demo',
+      hasUserConfig: true,
+      providers: [{
+        id: 'existing-provider',
+        displayName: 'Existing Provider',
+        protocol: 'openai-responses',
+        hasApiKey: true,
+        endPoint: 'https://example.invalid/v1',
+        networkTimeoutSeconds: null
+      }]
+    }
+
+    renderWizard(status)
+    fireEvent.click(await screen.findByRole('button', { name: 'Next' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Next' }))
+    await waitFor(() => expect(listSetupModels).toHaveBeenCalledWith({ providerId: 'existing-provider' }))
+
+    fireEvent.click(screen.getByRole('button', { name: /Anthropic/ }))
+    await waitFor(() => expect(screen.getByLabelText('Model')).toHaveValue('claude-sonnet-4-5'))
+    rejectExisting(new Error('stale request failed'))
+
+    await waitFor(() => expect(screen.getByLabelText('Model')).toHaveValue('claude-sonnet-4-5'))
+    expect(screen.queryByRole('button', { name: 'Retry' })).not.toBeInTheDocument()
   })
 })

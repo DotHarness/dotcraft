@@ -59,6 +59,8 @@ dotcraft
 
 如果 Desktop 在首次初始化时发现项目级 `AGENTS.md` 或 `CLAUDE.md`，会提供一次性导入选项，把其中一个文件复制到 `.craft/AGENTS.md`。原文件不会被修改，之后 DotCraft 只以 `.craft/AGENTS.md` 作为项目指令来源。
 
+如果项目还没有 `.craft/AGENTS.md`，可以在 Desktop、CLI 或其他支持命令的客户端中输入 `/init`。DotCraft 会调研仓库的真实结构、命令和约定，然后生成一份简洁的英文项目指令。`/init` 不会替换已有的 `.craft/AGENTS.md`。
+
 ![Setup](https://github.com/DotHarness/resources/raw/master/dotcraft/setup.gif)
 
 ### 3. 配置模型

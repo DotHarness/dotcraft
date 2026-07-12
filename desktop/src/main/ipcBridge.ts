@@ -945,6 +945,7 @@ export interface IpcHandlerCallbacks {
   onListSetupModels: (
     request: WorkspaceSetupModelListRequest
   ) => Promise<WorkspaceSetupModelListResult>
+  onLoginSetupChatGpt?: (providerId: string) => Promise<{ kind: 'success' | 'error' }>
   /** Called when the renderer requests a new window. */
   onOpenNewWindow: () => void
   /** Restarts the Desktop-managed AppServer subprocess for the current workspace. */
@@ -1104,6 +1105,7 @@ export async function autoStartModuleProcessesByChannelName(
     discoveredModules,
     getSettingsSnapshotForModules?.().activeModuleVariants
   )
+
   const enabledNames = new Set(
     enabledChannelNames.map((name) => normalizeChannelName(name)).filter(Boolean)
   )
@@ -1731,6 +1733,11 @@ export function registerIpcHandlers(
       return callbacks.onListSetupModels(request)
     }
   )
+
+  handleSafe('workspace:login-setup-chatgpt', async (_event, providerId: string) => {
+    if (!callbacks?.onLoginSetupChatGpt) return { kind: 'error' }
+    return callbacks.onLoginSetupChatGpt(providerId)
+  })
 
   // Renderer -> Main: open a new independent window
   handleSafe('workspace:open-new-window', () => {
@@ -2654,6 +2661,7 @@ export function unregisterIpcHandlers(): void {
   ipcMain.removeHandler('workspace:get-status')
   ipcMain.removeHandler('workspace:run-setup')
   ipcMain.removeHandler('workspace:list-setup-models')
+  ipcMain.removeHandler('workspace:login-setup-chatgpt')
   ipcMain.removeHandler('workspace:open-new-window')
   ipcMain.removeHandler('workspace:check-lock')
   ipcMain.removeHandler('workspace:save-image-to-temp')

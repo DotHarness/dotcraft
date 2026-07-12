@@ -269,9 +269,10 @@ export type WorkspaceSetupModelListRequest =
 
 export type WorkspaceSetupModelListResult =
   | { kind: 'success'; models: string[] }
+  | { kind: 'auth-required' }
   | { kind: 'unsupported' }
   | { kind: 'missing-key' }
-  | { kind: 'error' }
+  | { kind: 'error'; retryable?: boolean }
 
 export interface ConfigDescriptorWire {
   key: string
@@ -1032,6 +1033,9 @@ const api = {
 
     listSetupModels(request: WorkspaceSetupModelListRequest): Promise<WorkspaceSetupModelListResult> {
       return ipcRenderer.invoke('workspace:list-setup-models', request)
+    },
+    loginSetupChatGpt(providerId: string): Promise<{ kind: 'success' | 'error' }> {
+      return ipcRenderer.invoke('workspace:login-setup-chatgpt', providerId)
     },
 
     runSetup(request: WorkspaceSetupRequest): Promise<WorkspaceSetupRunResult> {
