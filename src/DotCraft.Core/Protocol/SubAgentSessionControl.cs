@@ -1847,6 +1847,7 @@ $$"""
             ProviderId = source.ProviderId,
             Model = source.Model,
             Reasoning = CloneReasoningConfig(source.Reasoning),
+            Speed = source.Speed,
             ContextWindow = CloneContextWindowConfig(source.ContextWindow),
             WorkspaceOverride = source.WorkspaceOverride,
             ToolProfile = source.ToolProfile,

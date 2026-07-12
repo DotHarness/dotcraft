@@ -315,6 +315,9 @@ public sealed class ModelCatalogItem
     public ModelReasoningCapability? Reasoning { get; set; }
 
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public ModelSpeedCapability? Speed { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public ModelContextWindowCapabilityWire? ContextWindow { get; set; }
 }
 
@@ -329,6 +332,13 @@ public sealed class ModelReasoningCapability
     public List<ReasoningOutput> SupportedOutputs { get; set; } = [];
 
     public ReasoningOutput DefaultOutput { get; set; } = ReasoningOutput.Full;
+}
+
+public sealed class ModelSpeedCapability
+{
+    public List<InferenceSpeed> SupportedModes { get; set; } = [InferenceSpeed.Standard, InferenceSpeed.Fast];
+
+    public InferenceSpeed DefaultMode { get; set; } = InferenceSpeed.Standard;
 }
 
 public sealed class ModelReasoningEffortOption

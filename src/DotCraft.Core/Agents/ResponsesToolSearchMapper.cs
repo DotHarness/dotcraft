@@ -188,6 +188,9 @@ internal static class ResponsesToolSearchMapper
     internal static void PatchResponsePromptCacheKey(CreateResponseOptions options, string promptCacheKey) =>
         PatchValue(options, "$.prompt_cache_key", promptCacheKey);
 
+    internal static void PatchResponseServiceTier(CreateResponseOptions options, string serviceTier) =>
+        PatchValue(options, "$.service_tier", serviceTier);
+
     public static async IAsyncEnumerable<StreamingResponseUpdate> NormalizeToolSearchCalls(
         IAsyncEnumerable<StreamingResponseUpdate> updates,
         [EnumeratorCancellation] CancellationToken cancellationToken = default)

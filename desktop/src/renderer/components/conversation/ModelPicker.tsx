@@ -9,10 +9,10 @@ import {
   type JSX,
   type MouseEvent as ReactMouseEvent
 } from 'react'
-import { Check, ChevronDown, ChevronRight } from 'lucide-react'
+import { Check, ChevronDown, ChevronRight, Zap } from 'lucide-react'
 import { useT } from '../../contexts/LocaleContext'
 import { useMenuAim } from '../../hooks/useMenuAim'
-import type { ModelCatalogItem, ReasoningEffortWire } from '../../stores/modelCatalogStore'
+import type { InferenceSpeedWire, ModelCatalogItem, ReasoningEffortWire } from '../../stores/modelCatalogStore'
 import type { ContextWindowMode } from '../../types/thread'
 import { ActionTooltip } from '../ui/ActionTooltip'
 import { PillSwitch } from '../ui/PillSwitch'
@@ -31,6 +31,7 @@ interface ModelPickerProps {
   modelOptions: string[]
   modelCatalog?: ModelCatalogItem[]
   reasoningValue?: ReasoningQuickValue
+  speedValue?: InferenceSpeedWire
   disabled?: boolean
   loading?: boolean
   unsupported?: boolean
@@ -38,6 +39,7 @@ interface ModelPickerProps {
   modelListReady?: boolean
   onChange?: (model: string) => void
   onReasoningChange?: (value: ReasoningQuickValue) => void
+  onSpeedChange?: (value: InferenceSpeedWire) => void
   onRetry?: () => void
   shortcut?: ShortcutSpec
   triggerStyle: CSSProperties
@@ -54,11 +56,12 @@ interface ModelPickerProps {
 }
 
 type EffectiveReasoningValue = Exclude<ReasoningQuickValue, 'default'>
-type SecondaryMenu = 'model' | 'effort'
+type SecondaryMenu = 'model' | 'effort' | 'speed'
 
 const MAIN_MENU_WIDTH = 282
 const MODEL_MENU_WIDTH = 310
 const EFFORT_MENU_WIDTH = 248
+const SPEED_MENU_WIDTH = 248
 const MAX_SUBMENU_HEIGHT = 320
 const VIEWPORT_PADDING = 8
 
@@ -67,6 +70,7 @@ export function ModelPicker({
   modelOptions,
   modelCatalog = [],
   reasoningValue = 'off',
+  speedValue = 'standard',
   disabled = false,
   loading = false,
   unsupported = false,
@@ -74,6 +78,7 @@ export function ModelPicker({
   modelListReady = false,
   onChange,
   onReasoningChange,
+  onSpeedChange,
   onRetry,
   shortcut,
   triggerStyle,
@@ -112,6 +117,8 @@ export function ModelPicker({
 
   const activeModel = modelCatalog.find((model) => model.id === modelName)
   const capability = activeModel?.reasoning ?? null
+  const speedCapability = activeModel?.speed ?? null
+  const speedVisible = speedCapability?.supportedModes.includes('fast') === true
   const effectiveReasoning: EffectiveReasoningValue = reasoningValue === 'default'
     ? capability?.defaultEffort ?? 'medium'
     : reasoningValue
@@ -327,7 +334,7 @@ export function ModelPicker({
 
   const openSecondary = (kind: SecondaryMenu, row: HTMLButtonElement): void => {
     const popupRect = popupRef.current?.getBoundingClientRect()
-    const secondaryWidth = kind === 'model' ? MODEL_MENU_WIDTH : EFFORT_MENU_WIDTH
+    const secondaryWidth = kind === 'model' ? MODEL_MENU_WIDTH : kind === 'effort' ? EFFORT_MENU_WIDTH : SPEED_MENU_WIDTH
     let shouldOpenLeft = false
     let nextShiftX = 0
     if (popupRect) {
@@ -383,7 +390,7 @@ export function ModelPicker({
   const handleMaxPointer = (event: ReactMouseEvent<HTMLDivElement>): void => {
     if (secondary) {
       guardMenuAim(event, () => {
-        setMainHighlight(2)
+        setMainHighlight(speedVisible ? 3 : 2)
         setSecondary(null)
         setPopupShiftX(0)
       })
@@ -391,7 +398,7 @@ export function ModelPicker({
     }
 
     cancelMenuAim()
-    setMainHighlight(2)
+    setMainHighlight(speedVisible ? 3 : 2)
     setSecondary(null)
     setPopupShiftX(0)
   }
@@ -468,6 +475,18 @@ export function ModelPicker({
             <span style={ellipsisStyle}>{t('composer.modelListLoading')}</span>
           ) : (
             <span style={{ display: 'inline-flex', alignItems: 'center', gap: '7px', minWidth: 0, overflow: 'hidden', whiteSpace: 'nowrap' }}>
+              {speedVisible && speedValue === 'fast' && (
+                <Zap
+                  aria-hidden
+                  size={12}
+                  strokeWidth={2.4}
+                  fill="currentColor"
+                  style={{
+                    flexShrink: 0,
+                    color: disabled ? 'var(--composer-footer-muted)' : 'var(--composer-footer-highlight)'
+                  }}
+                />
+              )}
               <span
                 style={{
                   ...ellipsisStyle,
@@ -611,10 +630,24 @@ export function ModelPicker({
               openSecondary('effort', event.currentTarget)
             }}
           />
+          {speedVisible && (
+            <MainMenuRow
+              label={t('composer.speed.heading')}
+              value={speedValue === 'fast' ? t('composer.speed.fast') : t('composer.speed.standard')}
+              highlighted={mainHighlight === 2 || secondary === 'speed'}
+              submenu="speed"
+              onHover={(event) => handleSecondaryPointer('speed', 2, event)}
+              onClick={(event) => {
+                cancelMenuAim()
+                setMainHighlight(2)
+                openSecondary('speed', event.currentTarget)
+              }}
+            />
+          )}
           {contextEnabled && (
             <>
               <div
-                style={mainMenuRowStyle(mainHighlight === 2, contextDisabled, true)}
+                style={mainMenuRowStyle(mainHighlight === (speedVisible ? 3 : 2), contextDisabled, true)}
                 onMouseEnter={handleMaxPointer}
                 onMouseMove={handleMaxPointer}
               >
@@ -648,7 +681,11 @@ export function ModelPicker({
             <div
               ref={submenuRef}
               role="listbox"
-              aria-label={secondary === 'model' ? t('composer.modelHeading') : t('composer.reasoning.heading')}
+              aria-label={secondary === 'model'
+                ? t('composer.modelHeading')
+                : secondary === 'effort'
+                  ? t('composer.reasoning.heading')
+                  : t('composer.speed.heading')}
               style={submenuStyle(secondary, secondaryTop + submenuShiftY, secondaryOpensLeft, submenuMaxHeight)}
               onMouseEnter={cancelMenuAim}
               onMouseMove={cancelMenuAim}
@@ -664,7 +701,7 @@ export function ModelPicker({
                       onSelect={() => selectModel(model)}
                     />
                   ))
-                : (
+                : secondary === 'effort' ? (
                     <>
                       {effortChoices.map((value, index) => (
                         <OptionRow
@@ -690,7 +727,22 @@ export function ModelPicker({
                         />
                       )}
                     </>
-                  )}
+                  ) : (['standard', 'fast'] as InferenceSpeedWire[]).map((value, index) => (
+                    <OptionRow
+                      key={value}
+                      selected={value === speedValue}
+                      highlighted={submenuHighlight === index}
+                      label={value === 'fast' ? t('composer.speed.fast') : t('composer.speed.standard')}
+                      description={value === 'fast'
+                        ? t('composer.speed.fast.description')
+                        : t('composer.speed.standard.description')}
+                      onHover={() => setSubmenuHighlight(index)}
+                      onSelect={() => {
+                        onSpeedChange?.(value)
+                        closePicker()
+                      }}
+                    />
+                  ))}
             </div>
           )}
         </div>

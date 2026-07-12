@@ -78,6 +78,12 @@ internal static class ProviderWireMapper
             MaxWindow = capability.MaxWindow
         };
 
+    public static ModelSpeedCapability? MapSpeedCapability(
+        AppConfig config,
+        string? protocol,
+        string? model) =>
+        ModelCatalog.SupportsFast(config, protocol, model) ? new ModelSpeedCapability() : null;
+
     public static string? FormatModelListErrorMessage(string? message, string? endpoint)
     {
         if (string.IsNullOrWhiteSpace(endpoint))

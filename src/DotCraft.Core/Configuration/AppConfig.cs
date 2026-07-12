@@ -28,6 +28,10 @@ public sealed class AppConfig
     [ConfigField(Reload = ReloadBehavior.ProcessRestart, HasReload = true)]
     public string Model { get; set; } = "gpt-4o-mini";
 
+    /// <summary>Workspace inference-speed preset captured by newly created threads.</summary>
+    [ConfigField(Ignore = true)]
+    public InferenceSpeed Speed { get; set; } = InferenceSpeed.Standard;
+
     /// <summary>
     /// Network timeout applied to each model provider client request.
     /// </summary>
@@ -272,7 +276,7 @@ public sealed class AppConfig
         if (!File.Exists(path))
         {
             var defaultConfig = new AppConfig();
-            ModelContextWindowCatalog.ApplyToConfig(defaultConfig, new JsonObject(), globalConfigPath: null, workspaceConfigPath: path);
+            ModelCatalog.ApplyToConfig(defaultConfig, new JsonObject(), globalConfigPath: null, workspaceConfigPath: path);
             return defaultConfig;
         }
 
@@ -280,7 +284,7 @@ public sealed class AppConfig
         RemoveLegacyLanguage(node);
         ExpandEnvironmentVariables(node);
         var config = node.Deserialize<AppConfig>(SerializerOptions) ?? new AppConfig();
-        ModelContextWindowCatalog.ApplyToConfig(config, node, globalConfigPath: null, workspaceConfigPath: path);
+        ModelCatalog.ApplyToConfig(config, node, globalConfigPath: null, workspaceConfigPath: path);
         return config;
     }
 
@@ -320,7 +324,7 @@ public sealed class AppConfig
         ExpandEnvironmentVariables(mergedNode);
 
         var config = mergedNode.Deserialize<AppConfig>(SerializerOptions) ?? new AppConfig();
-        ModelContextWindowCatalog.ApplyToConfig(config, mergedNode, globalConfigPath, workspacePath);
+        ModelCatalog.ApplyToConfig(config, mergedNode, globalConfigPath, workspacePath);
         return config;
     }
 

@@ -73,7 +73,7 @@ internal static class AppServerRuntimeRequestValidator
             return;
         }
 
-        var capability = ModelContextWindowCatalog.ResolveContextWindowCapability(config, runtime.Model);
+        var capability = ModelCatalog.ResolveContextWindowCapability(config, runtime.Model);
         if (!capability.SupportsMax)
         {
             throw AppServerErrors.InvalidParams(

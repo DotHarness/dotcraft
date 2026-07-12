@@ -98,7 +98,7 @@ internal sealed class WorkspaceRequestHandler(
             "At least one of 'providerId', 'model', 'welcomeSuggestionsEnabled', " +
             "'skillsSelfLearningEnabled', 'memoryAutoConsolidateEnabled', 'dreamsEnabled', 'dreamsInterval', " +
             "'dreamsThreadLookbackCount', 'dreamsAutoApply', 'defaultApprovalPolicy', 'toolsLspEnabled', " +
-            "'reasoning', or 'contextWindow' is required.";
+            "'reasoning', 'speed', or 'contextWindow' is required.";
 
         if (string.IsNullOrWhiteSpace(workspaceCraftPath))
             throw AppServerErrors.MethodNotFound(AppServerMethods.WorkspaceConfigUpdate);
@@ -152,6 +152,10 @@ internal sealed class WorkspaceRequestHandler(
             msg.Params.Value,
             "reasoning",
             out var reasoningEl);
+        var hasSpeed = TryGetCaseInsensitiveProperty(
+            msg.Params.Value,
+            "speed",
+            out var speedEl);
         var hasContextWindow = TryGetCaseInsensitiveProperty(
             msg.Params.Value,
             "contextWindow",
@@ -168,6 +172,7 @@ internal sealed class WorkspaceRequestHandler(
             && !hasDefaultApprovalPolicy
             && !hasToolsLspEnabled
             && !hasReasoning
+            && !hasSpeed
             && !hasContextWindow)
         {
             throw AppServerErrors.InvalidParams(requiredFieldMessage);
@@ -206,6 +211,9 @@ internal sealed class WorkspaceRequestHandler(
         var reasoning = hasReasoning
             ? ParseNullableReasoningConfig(reasoningEl, "reasoning", currentConfig.Reasoning)
             : null;
+        var speed = hasSpeed
+            ? ParseInferenceSpeed(speedEl, "speed")
+            : currentConfig.Speed;
         var contextWindow = hasContextWindow
             ? ParseNullableWorkspaceContextWindowConfig(contextWindowEl, "contextWindow")
             : null;
@@ -255,6 +263,7 @@ internal sealed class WorkspaceRequestHandler(
             hasToolsLspEnabled,
             hasReasoning,
             hasContextWindow);
+        var speedChanged = hasSpeed && SaveWorkspaceSpeed(workspaceCraftPath!, speed);
 
         var changedRegions = new List<string>();
         if (saveResult.ProviderIdChanged)
@@ -308,6 +317,12 @@ internal sealed class WorkspaceRequestHandler(
             runtimeConfig.RefreshCurrentReasoningConfig();
             runtimeConfig.InvalidateThreadAgents();
         }
+        if (speedChanged)
+        {
+            changedRegions.Add(ConfigChangeRegions.WorkspaceSpeed);
+            runtimeConfig.RefreshCurrentSpeedConfig();
+            runtimeConfig.InvalidateThreadAgents();
+        }
         if (saveResult.ContextWindowChanged)
         {
             changedRegions.Add(ConfigChangeRegions.WorkspaceContextWindow);
@@ -334,8 +349,36 @@ internal sealed class WorkspaceRequestHandler(
             DefaultApprovalPolicy = saveResult.DefaultApprovalPolicy,
             ToolsLspEnabled = saveResult.ToolsLspEnabled,
             Reasoning = CloneNullableReasoningConfig(saveResult.Reasoning),
+            Speed = hasSpeed ? speed : currentConfig.Speed,
             ContextWindow = CloneNullableContextWindowConfig(saveResult.ContextWindow)
         };
+    }
+
+    private static InferenceSpeed ParseInferenceSpeed(JsonElement element, string fieldName)
+    {
+        if (element.ValueKind != JsonValueKind.String)
+            throw AppServerErrors.InvalidParams($"'{fieldName}' must be 'standard' or 'fast'.");
+        return element.GetString()?.Trim().ToLowerInvariant() switch
+        {
+            "standard" => InferenceSpeed.Standard,
+            "fast" => InferenceSpeed.Fast,
+            _ => throw AppServerErrors.InvalidParams($"'{fieldName}' must be 'standard' or 'fast'.")
+        };
+    }
+
+    private static bool SaveWorkspaceSpeed(string workspaceCraftPath, InferenceSpeed speed)
+    {
+        var configPath = Path.Combine(workspaceCraftPath, "config.json");
+        Directory.CreateDirectory(workspaceCraftPath);
+        var root = LoadWorkspaceConfigObject(configPath);
+        var key = FindCaseInsensitiveKey(root, "Speed");
+        var existing = ReadConfigStringValue(root, key);
+        var canonical = speed == InferenceSpeed.Fast ? "Fast" : "Standard";
+        if (string.Equals(existing, canonical, StringComparison.OrdinalIgnoreCase))
+            return false;
+        UpsertOrRemoveConfigValue(root, key, "Speed", canonical);
+        WriteConfigObject(configPath, root);
+        return true;
     }
 
     private Task<object?> HandleMemoryResetAsync(AppServerIncomingMessage msg, CancellationToken ct)

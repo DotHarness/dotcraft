@@ -2220,6 +2220,11 @@ export const MESSAGES_EN = {
   'composer.reasoning.high.description': 'Deeper reasoning.',
   'composer.reasoning.extraHigh.description': 'Maximum depth for supported models.',
   'composer.reasoning.offUnavailable': 'This model cannot disable thinking.',
+  'composer.speed.heading': 'Speed',
+  'composer.speed.standard': 'Standard',
+  'composer.speed.standard.description': 'Default speed',
+  'composer.speed.fast': 'Fast',
+  'composer.speed.fast.description': 'Faster responses, more usage',
 
   // Detail / git (Phase 2)
   'commit.title': 'Commit Changes',

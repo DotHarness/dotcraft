@@ -73,6 +73,10 @@ public sealed class ThreadConfiguration
     /// </summary>
     public string? Model { get; set; }
 
+    /// <summary>Inference-speed snapshot used by future turns in this thread.</summary>
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public InferenceSpeed? Speed { get; set; }
+
     /// <summary>
     /// Per-thread reasoning configuration. Null means use the current effective
     /// workspace/global <see cref="AppConfig.Reasoning"/> value.

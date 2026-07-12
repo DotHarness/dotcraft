@@ -1,6 +1,7 @@
 export type WorkspaceDefaultApprovalPolicy = 'default' | 'autoApprove'
 export type ConcreteApprovalPolicy = 'prompt' | 'autoApprove'
 export type WorkspaceContextWindowMode = 'default' | 'max'
+export type WorkspaceInferenceSpeed = 'standard' | 'fast'
 
 export interface WorkspaceCoreConfigLike {
   workspace?: {
@@ -8,12 +9,14 @@ export interface WorkspaceCoreConfigLike {
     welcomeSuggestionsEnabled?: boolean | null
     defaultApprovalPolicy?: WorkspaceDefaultApprovalPolicy | null
     contextWindowMode?: WorkspaceContextWindowMode | null
+    speed?: WorkspaceInferenceSpeed | null
   } | null
   userDefaults?: {
     model?: string | null
     welcomeSuggestionsEnabled?: boolean | null
     defaultApprovalPolicy?: WorkspaceDefaultApprovalPolicy | null
     contextWindowMode?: WorkspaceContextWindowMode | null
+    speed?: WorkspaceInferenceSpeed | null
   } | null
 }
 
@@ -58,6 +61,9 @@ export function configObjectFromWorkspaceCore(core: WorkspaceCoreConfigLike): Re
   if (model) {
     config.Model = model
   }
+
+  const speed = core.workspace?.speed ?? core.userDefaults?.speed
+  if (speed === 'standard' || speed === 'fast') config.Speed = speed
 
   const welcomeSuggestionsEnabled =
     core.workspace?.welcomeSuggestionsEnabled ?? core.userDefaults?.welcomeSuggestionsEnabled

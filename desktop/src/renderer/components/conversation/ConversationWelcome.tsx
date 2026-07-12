@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ComponentType, 
 import { BookText, Bot, Bug, ExternalLink, FileText, Link2, ListChecks, RefreshCw, Sparkles, Target } from 'lucide-react'
 import { useLocale, useT } from '../../contexts/LocaleContext'
 import { useConnectionStore } from '../../stores/connectionStore'
-import { useModelCatalogStore, type ReasoningEffortWire, type ReasoningOutputWire } from '../../stores/modelCatalogStore'
+import { useModelCatalogStore, type InferenceSpeedWire, type ReasoningEffortWire, type ReasoningOutputWire } from '../../stores/modelCatalogStore'
 import { useProvidersStore, useChatGptOAuthSummary } from '../../stores/providersStore'
 import { useThreadStore } from '../../stores/threadStore'
 import { usePerforceChangelistStore } from '../../stores/perforceChangelistStore'
@@ -187,6 +187,7 @@ export function ConversationWelcome({
   const [welcomeApprovalPolicyDirty, setWelcomeApprovalPolicyDirty] = useState(false)
   const [modelName, setModelName] = useState<string>('Default')
   const [reasoningConfig, setReasoningConfig] = useState<ResolvedReasoningConfig>(DEFAULT_REASONING_CONFIG)
+  const [speedValue, setSpeedValue] = useState<InferenceSpeedWire>('standard')
   const [welcomeContextMode, setWelcomeContextMode] = useState<ContextWindowMode>('default')
   const [welcomeContextExplicit, setWelcomeContextExplicit] = useState(false)
   const [modelApplying, setModelApplying] = useState(false)
@@ -862,6 +863,7 @@ export function ConversationWelcome({
         : (welcomeDraft.model || 'Default')
     )
     setReasoningConfig(readReasoningObject(welcomeDraft.reasoning) ?? DEFAULT_REASONING_CONFIG)
+    if (welcomeDraft.speed != null) setSpeedValue(welcomeDraft.speed === 'fast' ? 'fast' : 'standard')
     setContentRevision((n) => n + 1)
     draftHydratedRef.current = true
   }, [canUseCommandPicker, customCommandStatus, skillCatalogReady])
@@ -877,10 +879,14 @@ export function ConversationWelcome({
       const workspaceReasoningChanged =
         workspaceConfigChangeSeq > 0 &&
         workspaceConfigChange?.regions.includes('workspace.reasoning') === true
+      const workspaceSpeedChanged =
+        workspaceConfigChangeSeq > 0 &&
+        workspaceConfigChange?.regions.includes('workspace.speed') === true
       const workspaceContextChanged =
         workspaceConfigChangeSeq > 0 &&
         workspaceConfigChange?.regions.includes('workspace.contextWindow') === true
       const hasInitialDraft = initialWelcomeDraftRef.current != null
+      const hasInitialDraftSpeed = initialWelcomeDraftRef.current?.speed != null
       const hasInitialDraftContext =
         normalizeContextWindowConfig(initialWelcomeDraftRef.current?.contextWindow) != null
       if (
@@ -888,6 +894,7 @@ export function ConversationWelcome({
         hasInitialDraftContext &&
         !workspaceModelChanged &&
         !workspaceReasoningChanged &&
+        !workspaceSpeedChanged &&
         !workspaceContextChanged
       ) {
         return
@@ -900,6 +907,9 @@ export function ConversationWelcome({
         }
         if (!hasInitialDraft || workspaceReasoningChanged) {
           setReasoningConfig(DEFAULT_REASONING_CONFIG)
+        }
+        if (!hasInitialDraftSpeed || workspaceSpeedChanged) {
+          setSpeedValue('standard')
         }
         if (!hasInitialDraftContext || workspaceContextChanged) {
           setWelcomeContextMode('default')
@@ -920,6 +930,9 @@ export function ConversationWelcome({
         if (!hasInitialDraft || workspaceReasoningChanged) {
           setReasoningConfig(resolveReasoningFromConfig(cfg))
         }
+        if (!hasInitialDraftSpeed || workspaceSpeedChanged) {
+          setSpeedValue(readInferenceSpeed(cfg.Speed ?? cfg.speed))
+        }
         if (!hasInitialDraftContext || workspaceContextChanged) {
           setWelcomeContextMode(resolveContextModeFromConfig(cfg))
           setWelcomeContextExplicit(false)
@@ -933,6 +946,9 @@ export function ConversationWelcome({
           }
           if (!hasInitialDraft || workspaceReasoningChanged) {
             setReasoningConfig(DEFAULT_REASONING_CONFIG)
+          }
+          if (!hasInitialDraftSpeed || workspaceSpeedChanged) {
+            setSpeedValue('standard')
           }
           if (!hasInitialDraftContext || workspaceContextChanged) {
             setWelcomeContextMode('default')
@@ -994,10 +1010,11 @@ export function ConversationWelcome({
       mode: welcomeMode,
       model,
       reasoning: reasoningConfig,
+      speed: speedValue,
       contextWindow: buildWelcomeContextWindowConfig(),
       approvalPolicy: welcomeApprovalPolicy
     }, draftProjectKey)
-  }, [buildWelcomeContextWindowConfig, clearWelcomeDraft, draftProjectKey, files, images, modelName, reasoningConfig, setWelcomeDraft, welcomeApprovalPolicy, welcomeApprovalPolicyDirty, welcomeContextExplicit, welcomeMode])
+  }, [buildWelcomeContextWindowConfig, clearWelcomeDraft, draftProjectKey, files, images, modelName, reasoningConfig, setWelcomeDraft, speedValue, welcomeApprovalPolicy, welcomeApprovalPolicyDirty, welcomeContextExplicit, welcomeMode])
 
   useEffect(() => {
     if (!draftHydratedRef.current) return
@@ -1007,7 +1024,7 @@ export function ConversationWelcome({
     return () => {
       clearTimeout(timer)
     }
-  }, [contentRevision, files, flushWelcomeDraft, images, modelName, reasoningConfig, welcomeApprovalPolicy, welcomeApprovalPolicyDirty, welcomeContextExplicit, welcomeContextMode, welcomeMode])
+  }, [contentRevision, files, flushWelcomeDraft, images, modelName, reasoningConfig, speedValue, welcomeApprovalPolicy, welcomeApprovalPolicyDirty, welcomeContextExplicit, welcomeContextMode, welcomeMode])
 
   useEffect(() => {
     return () => {
@@ -1065,6 +1082,21 @@ export function ConversationWelcome({
     },
     [reasoningConfig, workspaceConfigPath]
   )
+
+  const handleSpeedChange = useCallback(async (nextSpeed: InferenceSpeedWire): Promise<void> => {
+    if (!workspaceConfigPath || nextSpeed === speedValue) return
+    const previousSpeed = speedValue
+    setModelApplying(true)
+    setSpeedValue(nextSpeed)
+    try {
+      await window.api.appServer.sendRequest('workspace/config/update', { speed: nextSpeed })
+    } catch (err) {
+      setSpeedValue(previousSpeed)
+      addToast(`Failed to save speed: ${err instanceof Error ? err.message : String(err)}`, 'error')
+    } finally {
+      setModelApplying(false)
+    }
+  }, [speedValue, workspaceConfigPath])
 
   const handleContextModeChange = useCallback((nextMode: ContextWindowMode): void => {
     setWelcomeContextExplicit(true)
@@ -1510,6 +1542,12 @@ export function ConversationWelcome({
     return (textLen > 0 || images.length > 0 || files.length > 0) && isConnected && !starting && !modelLoading
   }, [contentRevision, files.length, images.length, isConnected, starting, modelLoading])
 
+  const mascotSpeed = speedValue === 'fast' && modelCatalog.some(
+    (model) => model.id === modelName && model.speed?.supportedModes.includes('fast') === true
+  )
+    ? 'fast'
+    : 'standard'
+
   return (
     <div
       style={{
@@ -1606,6 +1644,7 @@ export function ConversationWelcome({
               showMascot
               mascotBounceSignal={mascotBounce}
               mascotReasoningEffort={reasoningConfig.enabled ? reasoningConfig.effort : 'off'}
+              mascotSpeed={mascotSpeed}
               mascotContextMax={welcomeContextMode === 'max'}
               mascotAvatar={resolvedProfileAvatar}
               attachmentStrip={
@@ -1781,6 +1820,7 @@ export function ConversationWelcome({
                     modelOptions={modelApiAvailable ? modelOptions : []}
                     modelCatalog={modelCatalog}
                     reasoningValue={reasoningConfig.enabled ? reasoningConfig.effort : 'off'}
+                    speedValue={speedValue}
                     loading={modelLoading}
                     unsupported={modelListUnsupportedEndpoint}
                     modelListReady={modelApiAvailable && modelCatalogStatus === 'ready' && modelOptions.length > 0}
@@ -1799,6 +1839,9 @@ export function ConversationWelcome({
                     }}
                     onReasoningChange={(nextReasoning) => {
                       void handleReasoningChange(nextReasoning)
+                    }}
+                    onSpeedChange={(nextSpeed) => {
+                      void handleSpeedChange(nextSpeed)
                     }}
                     contextMode={welcomeContextMode}
                     contextSupportsMax={contextSupportsMax}
@@ -2299,4 +2342,8 @@ function normalizeReasoningOutput(value: unknown): ReasoningOutputWire | null {
   if (normalized === 'summary') return 'summary'
   if (normalized === 'full') return 'full'
   return null
+}
+
+function readInferenceSpeed(value: unknown): InferenceSpeedWire {
+  return typeof value === 'string' && value.toLowerCase() === 'fast' ? 'fast' : 'standard'
 }

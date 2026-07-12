@@ -3,6 +3,7 @@ import { useConnectionStore } from '../../stores/connectionStore'
 import {
   useModelCatalogStore,
   type ModelCatalogItem,
+  type InferenceSpeedWire,
   type ReasoningEffortWire,
   type ReasoningOutputWire
 } from '../../stores/modelCatalogStore'
@@ -26,6 +27,7 @@ export interface ComposerModelControls {
   modelOptions: string[]
   modelCatalog: ModelCatalogItem[]
   reasoningValue: ReasoningQuickValue
+  speedValue: InferenceSpeedWire
   modelLoading: boolean
   modelDisabled: boolean
   modelListUnsupportedEndpoint: boolean
@@ -41,6 +43,7 @@ export interface ComposerModelControls {
   contextConfiguredWindow: number
   onModelChange: (model: string) => void
   onReasoningChange: (value: ReasoningQuickValue) => void
+  onSpeedChange: (value: InferenceSpeedWire) => void
   onContextModeChange: (mode: ContextWindowMode) => void
   onModelCatalogRetry: () => void
   threadStartConfig: ThreadConfigurationWire
@@ -83,11 +86,13 @@ export function useComposerModelControls({
   const loadModels = useModelCatalogStore((s) => s.loadIfNeeded)
   const [modelName, setModelName] = useState<string>('Default')
   const [reasoningConfig, setReasoningConfig] = useState<ResolvedReasoningConfig>(DEFAULT_REASONING_CONFIG)
+  const [speedValue, setSpeedValue] = useState<InferenceSpeedWire>('standard')
   const [contextMode, setContextMode] = useState<ContextWindowMode>('default')
   const [modelApplying, setModelApplying] = useState(false)
   const [detachedModelTouched, setDetachedModelTouched] = useState(false)
   const [detachedReasoningTouched, setDetachedReasoningTouched] = useState(false)
   const [detachedReasoningOverride, setDetachedReasoningOverride] = useState<ResolvedReasoningConfig | null>(null)
+  const [detachedSpeedTouched, setDetachedSpeedTouched] = useState(false)
   const [detachedContextTouched, setDetachedContextTouched] = useState(false)
 
   const modelApiAvailable =
@@ -161,6 +166,17 @@ export function useComposerModelControls({
     []
   )
 
+  const resolveEffectiveSpeed = useCallback(
+    (thread: Thread | null, workspaceCfg: Record<string, unknown>): InferenceSpeedWire => {
+      const raw = thread?.configuration?.speed
+        ?? thread?.configuration?.Speed
+        ?? workspaceCfg.Speed
+        ?? workspaceCfg.speed
+      return typeof raw === 'string' && raw.toLowerCase() === 'fast' ? 'fast' : 'standard'
+    },
+    []
+  )
+
   // Context-window mode is read from the thread's captured configuration only. New
   // threads already capture the workspace default at creation (see spec §4), so the
   // composer does not need to read the workspace default separately.
@@ -188,6 +204,9 @@ export function useComposerModelControls({
         if (!detached || !detachedReasoningTouched) {
           setReasoningConfig(resolveEffectiveReasoning(activeThread, workspaceCfg))
         }
+        if (!detached || !detachedSpeedTouched) {
+          setSpeedValue(resolveEffectiveSpeed(activeThread, workspaceCfg))
+        }
         if (!detached || !detachedContextTouched) {
           setContextMode(resolveEffectiveContextMode(activeThread))
         }
@@ -203,6 +222,9 @@ export function useComposerModelControls({
             readReasoningObject(activeThread?.configuration?.reasoning ?? activeThread?.configuration?.Reasoning)
               ?? DEFAULT_REASONING_CONFIG
           )
+        }
+        if (!detached || !detachedSpeedTouched) {
+          setSpeedValue(resolveEffectiveSpeed(activeThread, {}))
         }
         if (!detached || !detachedContextTouched) {
           setContextMode(resolveEffectiveContextMode(activeThread))
@@ -220,15 +242,19 @@ export function useComposerModelControls({
     activeThread?.configuration?.model,
     activeThread?.configuration?.Reasoning,
     activeThread?.configuration?.reasoning,
+    activeThread?.configuration?.speed,
+    activeThread?.configuration?.Speed,
     activeThread?.configuration?.contextWindow,
     activeThread?.configuration?.ContextWindow,
     detached,
     detachedModelTouched,
     detachedReasoningTouched,
+    detachedSpeedTouched,
     detachedContextTouched,
     readWorkspaceConfig,
     resolveEffectiveModel,
     resolveEffectiveReasoning,
+    resolveEffectiveSpeed,
     resolveEffectiveContextMode,
     workspaceConfigChange,
     workspaceConfigChangeSeq
@@ -377,6 +403,51 @@ export function useComposerModelControls({
     ]
   )
 
+  const handleSpeedChange = useCallback(
+    async (nextSpeed: InferenceSpeedWire): Promise<void> => {
+      if (nextSpeed === speedValue) return
+      if (detached) {
+        setDetachedSpeedTouched(true)
+        setSpeedValue(nextSpeed)
+        return
+      }
+      if (!activeThread) return
+
+      setModelApplying(true)
+      const previousSpeed = speedValue
+      setSpeedValue(nextSpeed)
+      try {
+        await window.api.appServer.sendRequest('workspace/config/update', { speed: nextSpeed })
+        const readRes = await window.api.appServer.sendRequest('thread/read', {
+          threadId: activeThread.id,
+          includeTurns: false
+        }) as { thread?: { configuration?: ThreadConfigurationWire | null } }
+        const existingConfig = readRes.thread?.configuration && typeof readRes.thread.configuration === 'object'
+          ? { ...(readRes.thread.configuration as Record<string, unknown>) }
+          : {}
+        setCaseInsensitiveField(existingConfig, 'speed', nextSpeed)
+        await window.api.appServer.sendRequest('thread/config/update', {
+          threadId: activeThread.id,
+          config: existingConfig
+        })
+        const active = useThreadStore.getState().activeThread
+        if (active?.id === activeThread.id) {
+          useThreadStore.getState().setActiveThread({
+            ...active,
+            configuration: { ...(active.configuration ?? {}), speed: nextSpeed }
+          })
+        }
+        addToast(nextSpeed === 'fast' ? 'Fast speed enabled' : 'Standard speed enabled', 'success')
+      } catch (err) {
+        setSpeedValue(previousSpeed)
+        addToast(`Failed to update speed: ${err instanceof Error ? err.message : String(err)}`, 'error')
+      } finally {
+        setModelApplying(false)
+      }
+    },
+    [activeThread, detached, setCaseInsensitiveField, speedValue]
+  )
+
   // MAX context is a per-thread override only. Unlike model/reasoning, it does NOT
   // dual-write the workspace default (Settings owns that), so toggling MAX here never
   // changes other or new threads. The server validates `max` and may reject it.
@@ -480,6 +551,7 @@ export function useComposerModelControls({
     if (detachedReasoningTouched && detachedReasoningOverride != null) {
       config.reasoning = detachedReasoningOverride
     }
+    if (detachedSpeedTouched) config.speed = speedValue
     if (detachedContextTouched && contextMode === 'max') {
       config.contextWindow = { mode: 'max' }
     }
@@ -491,7 +563,9 @@ export function useComposerModelControls({
     detachedModelTouched,
     detachedReasoningOverride,
     detachedReasoningTouched,
-    modelName
+    detachedSpeedTouched,
+    modelName,
+    speedValue
   ])
 
   return {
@@ -499,6 +573,7 @@ export function useComposerModelControls({
     modelOptions,
     modelCatalog,
     reasoningValue,
+    speedValue,
     modelLoading,
     modelDisabled: modelApplying || !modelApiAvailable,
     modelListUnsupportedEndpoint,
@@ -516,6 +591,9 @@ export function useComposerModelControls({
     },
     onReasoningChange: (reasoning) => {
       void handleReasoningChange(reasoning)
+    },
+    onSpeedChange: (speed) => {
+      void handleSpeedChange(speed)
     },
     onContextModeChange: (nextMode) => {
       void handleContextModeChange(nextMode)

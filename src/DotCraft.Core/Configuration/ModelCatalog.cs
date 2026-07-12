@@ -5,13 +5,13 @@ using DotCraft.Context.Compaction;
 
 namespace DotCraft.Configuration;
 
-internal static class ModelContextWindowCatalog
+internal static class ModelCatalog
 {
     public const int DefaultContextWindow = 256_000;
-    public const string FileName = "model-context-windows.json";
+    public const string FileName = "models.json";
 
     private const int MinContextWindow = 1_000;
-    private const string EmbeddedResourceName = "DotCraft.Resources.model-context-windows.json";
+    private const string EmbeddedResourceName = "DotCraft.Resources.models.json";
 
     public static void ApplyToConfig(
         AppConfig config,
@@ -79,7 +79,7 @@ internal static class ModelContextWindowCatalog
                 MatchedPattern: null,
                 MatchKind: null)
             : new ModelContextWindowResolution(
-                match.ContextWindow,
+                match.Value,
                 HasExplicitMatch: true,
                 match.Pattern,
                 match.MatchKind);
@@ -106,6 +106,31 @@ internal static class ModelContextWindowCatalog
             MatchKind: resolution.MatchKind);
     }
 
+    public static bool SupportsFast(AppConfig config, string? protocol, string? model)
+    {
+        ArgumentNullException.ThrowIfNull(config);
+
+        return SupportsFast(
+            protocol,
+            model,
+            CatalogPathForConfig(config.GlobalConfigPath),
+            CatalogPathForConfig(config.WorkspaceConfigPath));
+    }
+
+    internal static bool SupportsFast(
+        string? protocol,
+        string? model,
+        string? globalCatalogPath = null,
+        string? workspaceCatalogPath = null)
+    {
+        var catalog = LoadBuiltInCatalog();
+        MergeFile(catalog, globalCatalogPath);
+        MergeFile(catalog, workspaceCatalogPath);
+
+        var match = ResolveModelCapability(model, catalog.Models, static entry => entry.HasFastDeclaration);
+        return match?.Value.Fast?.Matches(protocol) == true;
+    }
+
     internal static CatalogData LoadJson(string json)
     {
         var catalog = new CatalogData();
@@ -128,8 +153,31 @@ internal static class ModelContextWindowCatalog
                 if (string.IsNullOrWhiteSpace(model.Name))
                     continue;
 
-                if (TryReadContextWindow(model.Value, out var contextWindow))
-                    catalog.Models[model.Name.Trim()] = contextWindow;
+                if (model.Value.ValueKind != JsonValueKind.Object)
+                    continue;
+
+                var entry = new ModelData();
+                if (TryGetProperty(model.Value, "contextWindow", out var contextWindowElement)
+                    && TryReadContextWindow(contextWindowElement, out var contextWindow))
+                {
+                    entry.ContextWindow = contextWindow;
+                }
+
+                if (TryGetProperty(model.Value, "fast", out var fastElement))
+                {
+                    if (fastElement.ValueKind == JsonValueKind.Null)
+                    {
+                        entry.HasFastDeclaration = true;
+                    }
+                    else if (TryReadFastCapability(fastElement, out var fast))
+                    {
+                        entry.HasFastDeclaration = true;
+                        entry.Fast = fast;
+                    }
+                }
+
+                if (entry.ContextWindow is not null || entry.HasFastDeclaration)
+                    catalog.Models[model.Name.Trim()] = entry;
             }
         }
 
@@ -205,28 +253,51 @@ internal static class ModelContextWindowCatalog
         return compaction;
     }
 
-    private static CatalogMatch? ResolveModelWindow(string? model, IReadOnlyDictionary<string, int> models)
+    private static CatalogMatch<int>? ResolveModelWindow(
+        string? model,
+        IReadOnlyDictionary<string, ModelData> models)
+    {
+        var match = ResolveModelCapability(model, models, static entry => entry.ContextWindow is not null);
+        return match is null
+            ? null
+            : new CatalogMatch<int>(match.Pattern, match.Value.ContextWindow!.Value, match.MatchKind);
+    }
+
+    private static CatalogMatch<ModelData>? ResolveModelCapability(
+        string? model,
+        IReadOnlyDictionary<string, ModelData> models,
+        Func<ModelData, bool> predicate)
     {
         var normalizedModel = model?.Trim();
         if (string.IsNullOrWhiteSpace(normalizedModel))
             return null;
 
-        return ResolveByLongestPrefix(normalizedModel, models)
-            ?? ResolveNamespacedSuffixes(normalizedModel, models);
+        var prefixMatch = ResolveByLongestPrefix(normalizedModel, models, predicate);
+        var suffixMatch = ResolveNamespacedSuffixes(normalizedModel, models, predicate);
+        if (prefixMatch is null)
+            return suffixMatch;
+        if (suffixMatch is null || prefixMatch.Pattern.Length >= suffixMatch.Pattern.Length)
+            return prefixMatch;
+        return suffixMatch;
     }
 
-    private static CatalogMatch? ResolveNamespacedSuffixes(string model, IReadOnlyDictionary<string, int> models)
+    private static CatalogMatch<ModelData>? ResolveNamespacedSuffixes(
+        string model,
+        IReadOnlyDictionary<string, ModelData> models,
+        Func<ModelData, bool> predicate)
     {
         var bestLength = -1;
-        CatalogMatch? bestMatch = null;
+        CatalogMatch<ModelData>? bestMatch = null;
         for (var i = 0; i < model.Length; i++)
         {
             if (model[i] != '/' || i == model.Length - 1)
                 continue;
 
             var suffix = model[(i + 1)..];
-            foreach (var (pattern, contextWindow) in models)
+            foreach (var (pattern, entry) in models)
             {
+                if (!predicate(entry))
+                    continue;
                 if (!suffix.StartsWith(pattern, StringComparison.OrdinalIgnoreCase))
                     continue;
 
@@ -234,19 +305,24 @@ internal static class ModelContextWindowCatalog
                     continue;
 
                 bestLength = pattern.Length;
-                bestMatch = new CatalogMatch(pattern, contextWindow, "namespacedSuffix");
+                bestMatch = new CatalogMatch<ModelData>(pattern, entry, "namespacedSuffix");
             }
         }
 
         return bestMatch;
     }
 
-    private static CatalogMatch? ResolveByLongestPrefix(string model, IReadOnlyDictionary<string, int> models)
+    private static CatalogMatch<ModelData>? ResolveByLongestPrefix(
+        string model,
+        IReadOnlyDictionary<string, ModelData> models,
+        Func<ModelData, bool> predicate)
     {
         var bestLength = -1;
-        CatalogMatch? bestMatch = null;
-        foreach (var (pattern, contextWindow) in models)
+        CatalogMatch<ModelData>? bestMatch = null;
+        foreach (var (pattern, entry) in models)
         {
+            if (!predicate(entry))
+                continue;
             if (!model.StartsWith(pattern, StringComparison.OrdinalIgnoreCase))
                 continue;
 
@@ -254,7 +330,7 @@ internal static class ModelContextWindowCatalog
                 continue;
 
             bestLength = pattern.Length;
-            bestMatch = new CatalogMatch(pattern, contextWindow, "prefix");
+            bestMatch = new CatalogMatch<ModelData>(pattern, entry, "prefix");
         }
 
         return bestMatch;
@@ -290,6 +366,28 @@ internal static class ModelContextWindowCatalog
 
         value = parsed;
         return true;
+    }
+
+    private static bool TryReadFastCapability(JsonElement element, out FastCapabilityData capability)
+    {
+        capability = new FastCapabilityData();
+        if (element.ValueKind != JsonValueKind.Object)
+            return false;
+
+        ReadStringArray(element, "protocols", capability.Protocols);
+        return capability.Protocols.Count > 0;
+    }
+
+    private static void ReadStringArray(JsonElement root, string propertyName, ISet<string> target)
+    {
+        if (!TryGetProperty(root, propertyName, out var element) || element.ValueKind != JsonValueKind.Array)
+            return;
+
+        foreach (var item in element.EnumerateArray())
+        {
+            if (item.ValueKind == JsonValueKind.String && !string.IsNullOrWhiteSpace(item.GetString()))
+                target.Add(item.GetString()!.Trim());
+        }
     }
 
     private static bool TryGetProperty(JsonElement element, string name, out JsonElement value)
@@ -332,21 +430,70 @@ internal static class ModelContextWindowCatalog
     {
         public int? DefaultContextWindow { get; set; }
 
-        public Dictionary<string, int> Models { get; } = new(StringComparer.OrdinalIgnoreCase);
+        public Dictionary<string, ModelData> Models { get; } = new(StringComparer.OrdinalIgnoreCase);
 
-        public static CatalogData WithDefault() => new() { DefaultContextWindow = ModelContextWindowCatalog.DefaultContextWindow };
+        public static CatalogData WithDefault() => new() { DefaultContextWindow = ModelCatalog.DefaultContextWindow };
 
         public void MergeFrom(CatalogData other)
         {
             if (other.DefaultContextWindow is not null)
                 DefaultContextWindow = other.DefaultContextWindow;
 
-            foreach (var (model, contextWindow) in other.Models)
-                Models[model] = contextWindow;
+            foreach (var (model, source) in other.Models)
+            {
+                if (!Models.TryGetValue(model, out var target))
+                {
+                    Models[model] = source.Clone();
+                    continue;
+                }
+
+                if (source.ContextWindow is not null)
+                    target.ContextWindow = source.ContextWindow;
+                if (source.HasFastDeclaration)
+                {
+                    target.HasFastDeclaration = true;
+                    target.Fast = source.Fast?.Clone();
+                }
+            }
         }
     }
 
-    private sealed record CatalogMatch(string Pattern, int ContextWindow, string MatchKind);
+    internal sealed class ModelData
+    {
+        public int? ContextWindow { get; set; }
+
+        public bool HasFastDeclaration { get; set; }
+
+        public FastCapabilityData? Fast { get; set; }
+
+        public ModelData Clone() => new()
+        {
+            ContextWindow = ContextWindow,
+            HasFastDeclaration = HasFastDeclaration,
+            Fast = Fast?.Clone()
+        };
+    }
+
+    internal sealed class FastCapabilityData
+    {
+        public HashSet<string> Protocols { get; } = new(StringComparer.OrdinalIgnoreCase);
+
+        public bool Matches(string? protocol)
+        {
+            var normalizedProtocol = ModelProviderProtocols.Normalize(protocol);
+            return Protocols.Contains(normalizedProtocol);
+        }
+
+        public FastCapabilityData Clone()
+        {
+            var clone = new FastCapabilityData();
+            foreach (var protocol in Protocols)
+                clone.Protocols.Add(protocol);
+            return clone;
+        }
+    }
+
+    private sealed record CatalogMatch<T>(string Pattern, T Value, string MatchKind);
 }
 
 internal sealed record ModelContextWindowResolution(

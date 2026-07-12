@@ -31,6 +31,7 @@ internal static class ProviderChatClientAdapters
         AppConfig config,
         EffectiveModelRuntime runtime,
         AppConfig.ReasoningConfig? reasoningConfig,
+        InferenceSpeed speed,
         AppConfig.PromptCachingConfig promptCaching,
         TraceCollector? traceCollector,
         bool includePromptCaching = true,
@@ -44,6 +45,7 @@ internal static class ProviderChatClientAdapters
             runtime.EndPoint,
             runtime.MaxOutputTokens,
             reasoningConfig,
+            speed,
             promptCaching,
             traceCollector,
             includePromptCaching,
@@ -59,6 +61,7 @@ internal static class ProviderChatClientAdapters
         string? endpoint,
         int? maxOutputTokens,
         AppConfig.ReasoningConfig? reasoningConfig,
+        InferenceSpeed speed,
         AppConfig.PromptCachingConfig promptCaching,
         TraceCollector? traceCollector,
         bool includePromptCaching = true,
@@ -78,6 +81,16 @@ internal static class ProviderChatClientAdapters
             maxOutputTokens,
             reasoningConfig,
             useDefaultReasoning);
+
+        if (normalizedProtocol != null && ModelCatalog.SupportsFast(config, normalizedProtocol, model))
+        {
+            builder.Use(innerClient => new FastModeChatClient(
+                innerClient,
+                config,
+                normalizedProtocol,
+                model,
+                speed));
+        }
 
         UsePromptCacheRequestShapeTracing(
             builder,

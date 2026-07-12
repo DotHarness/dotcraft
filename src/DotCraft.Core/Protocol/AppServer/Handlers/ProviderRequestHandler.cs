@@ -256,8 +256,9 @@ internal sealed class ProviderRequestHandler(
                     result.Protocol,
                     result.EndPoint,
                     m.Id)),
+                Speed = ProviderWireMapper.MapSpeedCapability(config, result.Protocol, m.Id),
                 ContextWindow = ProviderWireMapper.MapContextWindowCapability(
-                    ModelContextWindowCatalog.ResolveContextWindowCapability(config, m.Id))
+                    ModelCatalog.ResolveContextWindowCapability(config, m.Id))
             })],
             ErrorCode = result.Success ? null : result.ErrorCode.ToString(),
             ErrorMessage = result.Success ? null : ProviderWireMapper.FormatModelListErrorMessage(result.ErrorMessage, result.EndPoint)
@@ -326,8 +327,12 @@ internal sealed class ProviderRequestHandler(
                     result.Protocol ?? NormalizeProviderProtocol(p.Protocol),
                     result.EndPoint,
                     m.Id)),
+                Speed = ProviderWireMapper.MapSpeedCapability(
+                    config,
+                    result.Protocol ?? NormalizeProviderProtocol(p.Protocol),
+                    m.Id),
                 ContextWindow = ProviderWireMapper.MapContextWindowCapability(
-                    ModelContextWindowCatalog.ResolveContextWindowCapability(config, m.Id))
+                    ModelCatalog.ResolveContextWindowCapability(config, m.Id))
             })],
             ErrorCode = result.Success ? null : result.ErrorCode.ToString(),
             ErrorMessage = result.Success ? null : ProviderWireMapper.FormatModelListErrorMessage(result.ErrorMessage, result.EndPoint)

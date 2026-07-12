@@ -396,6 +396,28 @@ public sealed class WorkspaceConfigChangedTests : IDisposable
     }
 
     [Fact]
+    public async Task WorkspaceConfigUpdate_Speed_WritesConfigUpdatesMonitorAndEmitsSpeedRegion()
+    {
+        var configPath = Path.Combine(_workspaceCraftPath, "config.json");
+        using var harness = new AppServerTestHarness(workspaceCraftPath: _workspaceCraftPath);
+        using var bridge = AttachConfigChangedBridge(harness);
+        await harness.InitializeAsync(configChange: true);
+
+        await harness.ExecuteRequestAsync(harness.BuildRequest(
+            AppServerMethods.WorkspaceConfigUpdate,
+            new { speed = "fast" }));
+
+        var sent = await harness.Transport.WaitAndDrainAsync(2, TimeSpan.FromSeconds(5));
+        AssertSingleConfigChanged(sent, AppServerMethods.WorkspaceConfigUpdate, ConfigChangeRegions.WorkspaceSpeed);
+        var response = sent.Single(message => message.RootElement.TryGetProperty("id", out _));
+        Assert.Equal("fast", response.RootElement.GetProperty("result").GetProperty("speed").GetString());
+        Assert.Equal(InferenceSpeed.Fast, harness.Monitor.Current.Speed);
+
+        using var doc = JsonDocument.Parse(await File.ReadAllTextAsync(configPath));
+        Assert.Equal("Fast", doc.RootElement.GetProperty("Speed").GetString());
+    }
+
+    [Fact]
     public async Task WorkspaceConfigUpdate_ContextWindowMax_WritesConfigUpdatesMonitorAndEmitsRegion()
     {
         var configPath = Path.Combine(_workspaceCraftPath, "config.json");

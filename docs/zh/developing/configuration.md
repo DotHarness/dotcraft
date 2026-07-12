@@ -118,22 +118,38 @@ Skill 自学习示例：
 | `Compaction.MicrocompactGapMinutes` | 距离上次助理消息超过该分钟数也触发微压缩；`0` 表示禁用 | `20` |
 | `Compaction.MaxConsecutiveFailures` | 连续失败次数达到该值时熔断 | `3` |
 
-### 模型上下文窗口映射
+### 模型能力目录
 
-DotCraft 内置一份常见模型上下文窗口映射表，并会在 `Compaction.ContextWindow` 未显式配置时自动选择。可以用以下文件补充或覆盖：
+DotCraft 内置一份模型能力目录，用于配置上下文窗口和 Fast Mode 支持。使用以下文件补充或覆盖：
 
-- 全局：`~/.craft/model-context-windows.json`
-- 工作区：`.craft/model-context-windows.json`
+- 全局：`~/.craft/models.json`
+- 工作区：`.craft/models.json`
 
 ```json
 {
   "defaultContextWindow": 256000,
   "models": {
-    "my-256k-model": 256000,
-    "custom-long-context-": 1048576
+    "my-256k-model": {
+      "contextWindow": 256000
+    },
+    "custom-fast-model": {
+      "contextWindow": 1048576,
+      "fast": {
+        "protocols": ["openai-responses"]
+      }
+    },
+    "custom-anthropic-model": {
+      "fast": {
+        "protocols": ["anthropic"]
+      }
+    }
   }
 }
 ```
+
+workspace 条目覆盖全局条目，全局条目覆盖内置目录。同一模型规则的字段会独立合并。将
+`fast` 设为 `null` 可禁用继承的 Fast 能力。模型规则使用不区分大小写的最长前缀匹配，
+也会匹配 `provider/custom-fast-model` 这样的命名空间后缀。
 
 ## Reasoning 与 PromptCaching
 

@@ -141,6 +141,9 @@ public sealed class WorkspaceConfigUpdateParams
     [JsonIgnore(Condition = JsonIgnoreCondition.Never)]
     public AppConfig.ReasoningConfig? Reasoning { get; set; }
 
+    /// <summary>Workspace inference-speed preset.</summary>
+    public InferenceSpeed? Speed { get; set; }
+
     /// <summary>
     /// Workspace default context-window mode for newly created threads. Null removes the workspace override.
     /// </summary>
@@ -235,6 +238,9 @@ public sealed class WorkspaceConfigUpdateResult
     /// </summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.Never)]
     public AppConfig.ReasoningConfig? Reasoning { get; set; }
+
+    /// <summary>Persisted workspace inference-speed preset.</summary>
+    public InferenceSpeed Speed { get; set; } = InferenceSpeed.Standard;
 
     /// <summary>
     /// Persisted workspace context-window mode after normalization.

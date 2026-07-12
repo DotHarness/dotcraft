@@ -450,7 +450,7 @@ Create a new thread. The server generates a Thread ID and persists initial state
 | `displayName` | string | no | Explicit thread display name. |
 | `spawnedFromThreadId` | string | no | Id of the thread that started this thread on the user's behalf (e.g. the Desktop `CreateThread` tool invoked from another thread). The server records it as a non-subagent origin on the new thread's `ThreadSource` (`kind` stays `"user"`) and mirrors it into thread metadata as `spawnedFromThreadId`, so the new thread stays an ordinary sibling thread (it does not become a subagent and does not enter the SubAgent dock) while its first user message can link back to the source thread. Self-references are ignored. |
 
-When `config.agentProfileId` is set, AppServer resolves the Agent Profile for the normalized workspace, compiles the Markdown profile into a `ThreadConfiguration`, applies only the supported runtime overlays (`providerId`, `model`, `reasoning`, `contextWindow`), captures normal defaults for omitted fields, and persists the resolved snapshot on the new thread. Capability-expanding overlay fields such as tools, MCP, plugins, skills, approval bypass, `agentInstructions`, `overrideBasePrompt`, and workspace overrides are rejected with `AgentProfileValidationFailed`.
+When `config.agentProfileId` is set, AppServer resolves the Agent Profile for the normalized workspace, compiles the Markdown profile into a `ThreadConfiguration`, applies only the supported runtime overlays (`providerId`, `model`, `reasoning`, `speed`, `contextWindow`), captures normal defaults for omitted fields, and persists the resolved snapshot on the new thread. Capability-expanding overlay fields such as tools, MCP, plugins, skills, approval bypass, `agentInstructions`, `overrideBasePrompt`, and workspace overrides are rejected with `AgentProfileValidationFailed`.
 
 #### 4.1.0 Runtime Dynamic Tools
 
@@ -639,6 +639,7 @@ Thread-management tools are dynamic client callbacks, while thread lifecycle, st
     "effort": "high",
     "output": "full"
   },
+  "speed": "fast",
   "contextWindow": {
     "mode": "max"
   },
@@ -675,6 +676,7 @@ Fields:
 | `approvalPolicy` | string | Thread-scoped approval mode: `default`, `prompt`, `autoApprove`, or `interrupt`. `default` means the thread consults the workspace default approval policy; `prompt` always uses the interactive approval flow regardless of the workspace default. |
 | `automationTaskDirectory` | string | Optional local automation task directory. |
 | `reasoning` | object | Optional per-thread reasoning configuration. When absent, old threads fall back to current workspace defaults. Uses camelCase wire enum values such as `low`, `medium`, `high`, `extraHigh` and output values such as `none`, `summary`, or `full`. |
+| `speed` | `"standard"` \| `"fast"` | Optional per-thread inference-speed snapshot. New threads capture the effective workspace value; old threads without it use `standard`. Changes affect future and queued turns, not a running request. |
 | `contextWindow` | object | Optional per-thread context-window mode. Shape: `{ "mode": "default" | "max" }`. Omitted or null means `default`. Servers reject explicit `max` when the effective model lacks an explicit catalog window larger than the configured default window. |
 | `requireApprovalOutsideWorkspace` | boolean | Optional override for the workspace file/shell outside-boundary behavior. |
 
@@ -4963,6 +4965,10 @@ Provider mutations emit `workspace/configChanged` with region `providers`.
     "supportedOutputs": ["none", "summary", "full"],
     "defaultOutput": "full"
   },
+  "speed": {
+    "supportedModes": ["standard", "fast"],
+    "defaultMode": "standard"
+  },
   "contextWindow": {
     "catalogWindow": 1000000,
     "configuredWindow": 256000,
@@ -4978,7 +4984,15 @@ Provider mutations emit `workspace/configChanged` with region `providers`.
 | `ownedBy` | string | Provider-reported owner string when available; may be empty. |
 | `createdAt` | string (ISO 8601 UTC) | Provider-reported creation time. |
 | `reasoning` | object | Optional server-authored reasoning UI capability metadata. Clients must not hardcode model compatibility rules; use this metadata when present. |
+| `speed` | object | Optional server-authored inference-speed capability. Missing means clients must not offer Fast for this model. |
 | `contextWindow` | object | Server-authored context-window metadata for the model. Clients use this to decide whether to offer MAX. |
+
+`speed` fields:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `supportedModes` | string[] | Ordered modes supported by the model. Fast-capable entries contain `standard` and `fast`. |
+| `defaultMode` | string | Default mode, currently `standard`. |
 
 `reasoning` fields:
 
@@ -6136,6 +6150,7 @@ Update workspace-level config values.
 | `defaultApprovalPolicy` | string \| null | no | Workspace default approval policy for threads whose `ThreadConfiguration.approvalPolicy` is `default` or unset. Supported values are `default` and `autoApprove`; `null` removes the explicit workspace override so server defaults apply. |
 | `toolsLspEnabled` | boolean \| null | no | Workspace-level override for `Tools.Lsp.Enabled`. `true` enables the built-in LSP tool, `false` disables it, and `null` removes the explicit override so server defaults apply. |
 | `reasoning` | object \| null | no | Workspace default reasoning override. Omitted means no change; `null` removes the workspace `Reasoning` section; an object may set `enabled`, `effort`, and/or `output` using camelCase wire enum values. |
+| `speed` | `"standard"` \| `"fast"` | no | Workspace inference-speed preset for new threads. Omitted means no change. |
 | `contextWindow` | object \| null | no | Workspace default context-window mode for newly created threads. Shape: `{ "mode": "default" | "max" }`. Omitted means no change; `null` or `{ "mode": "default" }` removes the explicit workspace default; `{ "mode": "max" }` persists `Compaction.ContextWindowMode = Max`. |
 
 **Result**:
@@ -6158,6 +6173,7 @@ Update workspace-level config values.
     "effort": "high",
     "output": "full"
   },
+  "speed": "fast",
   "contextWindow": {
     "mode": "max"
   }
@@ -6177,7 +6193,7 @@ If `model` is removed, the result returns:
 - This method updates **workspace default** only, not any active thread state.
 - Clients that need immediate effect in a running thread should additionally call `thread/config/update`.
 - Server preserves unrelated configuration state.
-- At least one of `providerId`, `model`, `welcomeSuggestionsEnabled`, `skillsSelfLearningEnabled`, `memoryAutoConsolidateEnabled`, `dreamsEnabled`, `dreamsInterval`, `dreamsThreadLookbackCount`, `dreamsAutoApply`, `defaultApprovalPolicy`, `toolsLspEnabled`, `reasoning`, or `contextWindow` must be provided.
+- At least one of `providerId`, `model`, `welcomeSuggestionsEnabled`, `skillsSelfLearningEnabled`, `memoryAutoConsolidateEnabled`, `dreamsEnabled`, `dreamsInterval`, `dreamsThreadLookbackCount`, `dreamsAutoApply`, `defaultApprovalPolicy`, `toolsLspEnabled`, `reasoning`, `speed`, or `contextWindow` must be provided.
 - Key matching is case-insensitive and normalized in-place (`ProviderId`, `Model`, and nested sections).
 - Provider-aware saves persist only `ProviderId` and `Model` to workspace config. Credentials and endpoints are changed through `provider/create` and `provider/update`.
 - Requests containing legacy root-level `apiKey` or `endPoint` parameters are rejected.
@@ -6187,8 +6203,9 @@ If `model` is removed, the result returns:
 - When `defaultApprovalPolicy` is provided, the server writes the value to `Permissions.DefaultApprovalPolicy`. Setting it to `null` removes the leaf, and the server prunes the empty `Permissions` object when no other keys remain.
 - When `toolsLspEnabled` is provided, the server writes the boolean to `Tools.Lsp.Enabled`. Setting it to `null` removes the leaf, and the server prunes empty `Tools.Lsp` / `Tools` objects when no other keys remain.
 - When `reasoning` is provided, `null` removes the workspace `Reasoning` section. `enabled: false` writes an explicit Off override; `enabled: true` or a payload that only sets `effort` writes an enabled override. Missing `effort` and `output` are filled from existing workspace values, merged config values, then `medium` / `full`.
+- When `speed` is provided, the server writes the canonical `Speed` string. Existing configurations without it resolve to `standard`.
 - When `contextWindow` is provided, `null` or `{ "mode": "default" }` removes `Compaction.ContextWindowMode`; `{ "mode": "max" }` writes `Compaction.ContextWindowMode = Max`. Explicit `max` is validated against the current or updated workspace provider/model before saving.
-- On success, the server emits `workspace/configChanged` (see [Section 25.5](#255-workspaceconfigchanged)) with `source: "workspace/config/update"` and one or more regions from `workspace.provider`, `workspace.model`, `workspace.reasoning`, `workspace.contextWindow`, `providers`, `welcomeSuggestions`, `skills`, `memory`, `workspace.defaultApprovalPolicy`, or `lsp`.
+- On success, the server emits `workspace/configChanged` (see [Section 25.5](#255-workspaceconfigchanged)) with `source: "workspace/config/update"` and one or more regions from `workspace.provider`, `workspace.model`, `workspace.reasoning`, `workspace.speed`, `workspace.contextWindow`, `providers`, `welcomeSuggestions`, `skills`, `memory`, `workspace.defaultApprovalPolicy`, or `lsp`.
 
 ### 25.4 Capability Advertisement
 
@@ -6226,6 +6243,7 @@ Current `regions` taxonomy:
 | `workspace.provider` | `workspace/config/update` |
 | `workspace.model` | `workspace/config/update` |
 | `workspace.reasoning` | `workspace/config/update` |
+| `workspace.speed` | `workspace/config/update` |
 | `workspace.contextWindow` | `workspace/config/update` |
 | `welcomeSuggestions` | `workspace/config/update` |
 | `skills` | `skills/setEnabled`, `skills/uninstall`, `plugin/install`, `plugin/remove`, `plugin/setEnabled`, `workspace/config/update` |

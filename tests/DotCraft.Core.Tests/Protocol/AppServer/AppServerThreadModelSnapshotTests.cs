@@ -45,11 +45,13 @@ public sealed class AppServerThreadModelSnapshotTests : IDisposable
                   "EndPoint": "https://127.0.0.1:9/v1"
                 }
               },
-              "Model": "model-a"
+              "Model": "model-a",
+              "Speed": "Fast"
             }
             """);
 
         var config = AppConfigTestFactory.CreateOpenAI(model: "model-a");
+        config.Speed = InferenceSpeed.Fast;
         config.GlobalConfigPath = Path.Combine(_tempDir, "global", "config.json");
         var monitor = new AppConfigMonitor(config);
         await using var agentFactory = CreateAgentFactory(config);
@@ -78,7 +80,12 @@ public sealed class AppServerThreadModelSnapshotTests : IDisposable
 
         await InitializeAsync(handler, transport);
 
-        var firstThreadId = await StartThreadAndAssertModelAsync(handler, transport, requestId: 10, "model-a");
+        var firstThreadId = await StartThreadAndAssertModelAsync(
+            handler,
+            transport,
+            requestId: 10,
+            "model-a",
+            expectedSpeed: "fast");
 
         var update = InMemoryTransport.BuildRequest(
             AppServerMethods.WorkspaceConfigUpdate,
@@ -230,7 +237,8 @@ public sealed class AppServerThreadModelSnapshotTests : IDisposable
         int requestId,
         string expectedModel,
         string? expectedProviderId = null,
-        object? config = null)
+        object? config = null,
+        string? expectedSpeed = null)
     {
         var start = InMemoryTransport.BuildRequest(
             AppServerMethods.ThreadStart,
@@ -253,12 +261,16 @@ public sealed class AppServerThreadModelSnapshotTests : IDisposable
         Assert.Equal(expectedModel, GetThreadModel(thread));
         if (expectedProviderId != null)
             Assert.Equal(expectedProviderId, GetThreadProviderId(thread));
+        if (expectedSpeed != null)
+            Assert.Equal(expectedSpeed, thread.GetProperty("configuration").GetProperty("speed").GetString());
 
         var notification = await ReadNotificationAsync(transport, AppServerMethods.ThreadStarted);
         var notificationThread = notification.RootElement.GetProperty("params").GetProperty("thread");
         Assert.Equal(expectedModel, GetThreadModel(notificationThread));
         if (expectedProviderId != null)
             Assert.Equal(expectedProviderId, GetThreadProviderId(notificationThread));
+        if (expectedSpeed != null)
+            Assert.Equal(expectedSpeed, notificationThread.GetProperty("configuration").GetProperty("speed").GetString());
 
         return thread.GetProperty("id").GetString()!;
     }

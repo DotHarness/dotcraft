@@ -118,22 +118,39 @@ Self-learning example:
 | `Compaction.MicrocompactGapMinutes` | Also triggers after this many minutes since last assistant message; `0` disables it | `20` |
 | `Compaction.MaxConsecutiveFailures` | Consecutive failures before circuit breaking compaction | `3` |
 
-### Model Context-Window Catalog
+### Model capability catalog
 
-DotCraft ships a built-in context-window catalog for common models and uses it when `Compaction.ContextWindow` is not explicitly configured. You can extend or override the catalog with:
+DotCraft ships a built-in catalog for model context windows and Fast Mode support. Extend or override it with:
 
-- Global: `~/.craft/model-context-windows.json`
-- Workspace: `.craft/model-context-windows.json`
+- Global: `~/.craft/models.json`
+- Workspace: `.craft/models.json`
 
 ```json
 {
   "defaultContextWindow": 256000,
   "models": {
-    "my-256k-model": 256000,
-    "custom-long-context-": 1048576
+    "my-256k-model": {
+      "contextWindow": 256000
+    },
+    "custom-fast-model": {
+      "contextWindow": 1048576,
+      "fast": {
+        "protocols": ["openai-responses"]
+      }
+    },
+    "custom-anthropic-model": {
+      "fast": {
+        "protocols": ["anthropic"]
+      }
+    }
   }
 }
 ```
+
+Workspace entries override global entries, which override the built-in catalog. Fields merge
+independently for each model pattern. Set `fast` to `null` to disable an inherited Fast capability.
+Model patterns use case-insensitive longest-prefix matching and also match namespaced suffixes such
+as `provider/custom-fast-model`.
 
 ## Reasoning and Prompt Caching
 

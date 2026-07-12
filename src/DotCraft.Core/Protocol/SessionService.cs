@@ -794,9 +794,10 @@ public sealed partial class SessionService(
         }
 
         captured.Reasoning ??= CloneReasoningConfig(currentConfig.Reasoning);
+        captured.Speed ??= currentConfig.Speed;
         if (captured.ContextWindow == null && currentConfig.Compaction.ContextWindowMode == ContextWindowMode.Max)
         {
-            var capability = ModelContextWindowCatalog.ResolveContextWindowCapability(currentConfig, captured.Model);
+            var capability = ModelCatalog.ResolveContextWindowCapability(currentConfig, captured.Model);
             if (capability.SupportsMax)
             {
                 captured.ContextWindow = new ThreadContextWindowConfig
@@ -823,6 +824,7 @@ public sealed partial class SessionService(
         ProviderId = source.ProviderId,
         Model = source.Model,
         Reasoning = CloneNullableReasoningConfig(source.Reasoning),
+        Speed = source.Speed,
         ContextWindow = CloneNullableContextWindowConfig(source.ContextWindow),
         WorkspaceOverride = source.WorkspaceOverride,
         ExecutionWorkspaceOverride = source.ExecutionWorkspaceOverride,
@@ -4730,6 +4732,7 @@ public sealed partial class SessionService(
                 EffectiveProviderProtocol = runtime.Protocol,
                 EffectiveMainModel = effectiveMainModel,
                 EffectiveReasoning = CloneReasoningConfig(config.Reasoning ?? currentConfig.Reasoning),
+                EffectiveSpeed = config.Speed ?? InferenceSpeed.Standard,
                 WorkspacePath = config.WorkspaceOverride,
                 BotPath = craftPath,
                 MemoryStore = scopedMemory,
@@ -4938,6 +4941,7 @@ public sealed partial class SessionService(
             EffectiveProviderProtocol = effectiveProviderProtocol,
             EffectiveMainModel = effectiveMainModel,
             EffectiveReasoning = CloneReasoningConfig(thread?.Configuration?.Reasoning ?? config.Reasoning),
+            EffectiveSpeed = thread?.Configuration?.Speed ?? InferenceSpeed.Standard,
             WorkspacePath = source.WorkspacePath,
             BotPath = source.BotPath,
             MemoryStore = source.MemoryStore,
@@ -4991,6 +4995,7 @@ public sealed partial class SessionService(
             EffectiveProviderProtocol = source.EffectiveProviderProtocol,
             EffectiveMainModel = source.EffectiveMainModel,
             EffectiveReasoning = CloneReasoningConfig(source.EffectiveReasoning),
+            EffectiveSpeed = source.EffectiveSpeed,
             WorkspacePath = executionWorkspacePath,
             BotPath = source.BotPath,
             MemoryStore = source.MemoryStore,
@@ -5041,6 +5046,7 @@ public sealed partial class SessionService(
             EffectiveProviderProtocol = source.EffectiveProviderProtocol,
             EffectiveMainModel = source.EffectiveMainModel,
             EffectiveReasoning = CloneReasoningConfig(source.EffectiveReasoning),
+            EffectiveSpeed = source.EffectiveSpeed,
             WorkspacePath = source.WorkspacePath,
             BotPath = source.BotPath,
             MemoryStore = source.MemoryStore,

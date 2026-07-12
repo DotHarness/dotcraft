@@ -12,7 +12,7 @@
     <EmbeddedResource Include="Resources\DashBoard.html" />
     <EmbeddedResource Include="Resources\DashBoardLogin.html" />
     <EmbeddedResource Include="Resources\chatgpt-codex-models.json" />
-    <EmbeddedResource Include="Resources\model-context-windows.json" />
+    <EmbeddedResource Include="Resources\models.json" />
     <EmbeddedResource Include="Resources\model-thinking-adapters.json" />
     <EmbeddedResource Include="Skills\BuiltIn\**\*" />
     <EmbeddedResource Include="Commands\Custom\BuiltIn\**\*" />
