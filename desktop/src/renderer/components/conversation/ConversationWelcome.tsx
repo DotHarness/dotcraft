@@ -267,7 +267,7 @@ export function ConversationWelcome({
   const isExactSystemSlashQuery = normalizedSlashQuery === 'plan' || normalizedSlashQuery === 'agent' || normalizedSlashQuery === 'init'
   const showSlashPopover = slashQuery !== null && !slashDismissed && canUseSlashPicker && !isExactSystemSlashQuery
   const showSkillPopover = skillQuery !== null && !skillDismissed && canUseSkillPicker
-  const { commands: customCommands, status: customCommandStatus } = useCustomCommandCatalog({
+  const { commands: customCommands, initAvailable, status: customCommandStatus } = useCustomCommandCatalog({
     enabled: canUseCommandPicker,
     locale
   })
@@ -299,7 +299,7 @@ export function ConversationWelcome({
   const systemActions = useMemo(
     () => {
       const actions = []
-      if (canUseCommandPicker) {
+      if (canUseCommandPicker && initAvailable) {
         actions.push({
           id: 'init',
           label: t('cmd.init'),
@@ -340,7 +340,7 @@ export function ConversationWelcome({
       }
       return actions
     },
-    [canUseAgentProfiles, canUseCommandPicker, canUseThreadGoals, selectedProfileId, t, welcomeMode]
+    [canUseAgentProfiles, canUseCommandPicker, canUseThreadGoals, initAvailable, selectedProfileId, t, welcomeMode]
   )
   const modelApiAvailable =
     isConnected &&

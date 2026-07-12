@@ -382,11 +382,10 @@ describe('createUniqueSetupProviderId', () => {
 })
 
 describe('listSetupModels', () => {
-  it('lists models for an OpenAI Responses draft provider', async () => {
-    const fetchImpl = vi.fn().mockResolvedValue({
-      ok: true,
-      status: 200,
-      json: async () => ({ data: [{ id: 'gpt-4.1' }, { id: 'deepseek-chat' }] })
+  it('passes a draft provider to the backend over stdin', async () => {
+    const runBackend = vi.fn().mockResolvedValue({
+      kind: 'success',
+      models: ['gpt-5.6', 'gpt-5.5']
     })
 
     const result = await listSetupModels(
@@ -396,88 +395,28 @@ describe('listSetupModels', () => {
           displayName: 'OpenAI-Responses',
           protocol: 'openai-responses',
           endPoint: 'https://example.com/v1',
-          apiKey: 'sk-explicit'
+          apiKey: 'test-api-key'
         }
       },
-      { fetchImpl: fetchImpl as unknown as typeof fetch }
+      { runBackend }
     )
 
-    expect(result).toEqual({ kind: 'success', models: ['deepseek-chat', 'gpt-4.1'] })
-    expect(fetchImpl).toHaveBeenCalledWith(
-      'https://example.com/v1/models',
-      expect.objectContaining({
-        method: 'GET',
-        headers: expect.objectContaining({
-          Authorization: 'Bearer sk-explicit'
-        })
-      })
+    expect(result).toEqual({ kind: 'success', models: ['gpt-5.6', 'gpt-5.5'] })
+    expect(runBackend).toHaveBeenCalledWith(
+      ['model-catalog', '--stdin'],
+      expect.stringContaining('test-api-key'),
+      30_000
     )
-  })
-
-  it('uses the official OpenAI endpoint when a draft endpoint is blank', async () => {
-    const fetchImpl = vi.fn().mockResolvedValue({
-      ok: true,
-      status: 200,
-      json: async () => ({ data: [{ id: 'gpt-4.1' }] })
+    expect(runBackend.mock.calls[0][0].join(' ')).not.toContain('test-api-key')
+    expect(JSON.parse(runBackend.mock.calls[0][1])).toMatchObject({
+      id: 'openai-main',
+      protocol: 'openai-responses',
+      apiKey: 'test-api-key'
     })
-
-    const result = await listSetupModels(
-      {
-        provider: {
-          id: 'openai-api',
-          displayName: 'OpenAI-Legacy',
-          protocol: 'openai-chat-completions',
-          endPoint: '',
-          apiKey: 'sk-explicit'
-        }
-      },
-      { fetchImpl: fetchImpl as unknown as typeof fetch }
-    )
-
-    expect(result).toEqual({ kind: 'success', models: ['gpt-4.1'] })
-    expect(fetchImpl).toHaveBeenCalledWith(
-      'https://api.openai.com/v1/models',
-      expect.objectContaining({
-        method: 'GET'
-      })
-    )
   })
 
-  it('lists models for an Anthropic draft provider', async () => {
-    const fetchImpl = vi.fn().mockResolvedValue({
-      ok: true,
-      status: 200,
-      json: async () => ({ data: [{ id: 'claude-sonnet-4-5' }] })
-    })
-
-    const result = await listSetupModels(
-      {
-        provider: {
-          id: 'anthropic',
-          displayName: 'Anthropic',
-          protocol: 'anthropic',
-          endPoint: 'https://api.anthropic.com',
-          apiKey: 'sk-ant'
-        }
-      },
-      { fetchImpl: fetchImpl as unknown as typeof fetch }
-    )
-
-    expect(result).toEqual({ kind: 'success', models: ['claude-sonnet-4-5'] })
-    expect(fetchImpl).toHaveBeenCalledWith(
-      'https://api.anthropic.com/v1/models?limit=1000',
-      expect.objectContaining({
-        method: 'GET',
-        headers: expect.objectContaining({
-          'x-api-key': 'sk-ant',
-          'anthropic-version': '2023-06-01'
-        })
-      })
-    )
-  })
-
-  it('uses bundled ChatGPT fallback models for ChatGPT OAuth setup', async () => {
-    const fetchImpl = vi.fn()
+  it('returns the backend auth-required state for ChatGPT setup', async () => {
+    const runBackend = vi.fn().mockResolvedValue({ kind: 'auth-required' })
 
     const result = await listSetupModels(
       {
@@ -490,17 +429,14 @@ describe('listSetupModels', () => {
           authMethod: 'chatgptOAuth'
         }
       },
-      { fetchImpl: fetchImpl as unknown as typeof fetch }
+      { runBackend }
     )
 
-    expect(result).toEqual({
-      kind: 'success',
-      models: ['gpt-5.5', 'gpt-5.4', 'gpt-5.4-mini', 'gpt-5.3-codex', 'gpt-5.2']
-    })
-    expect(fetchImpl).not.toHaveBeenCalled()
+    expect(result).toEqual({ kind: 'auth-required' })
+    expect(runBackend).toHaveBeenCalledWith(['model-catalog', '--stdin'], expect.any(String), 30_000)
   })
 
-  it('uses stored provider credentials for existing providers', async () => {
+  it('references existing providers by id without copying credentials', async () => {
     const userHome = createTempWorkspace()
     const userConfigPath = join(userHome, '.craft', 'config.json')
     mkdirSync(join(userHome, '.craft'), { recursive: true })
@@ -518,29 +454,23 @@ describe('listSetupModels', () => {
       }),
       'utf8'
     )
-    const fetchImpl = vi.fn().mockResolvedValue({
-      ok: true,
-      status: 200,
-      json: async () => ({ data: [{ id: 'claude-opus-4-5' }] })
-    })
+    const runBackend = vi.fn().mockResolvedValue({ kind: 'success', models: ['claude-opus-4-5'] })
 
     const result = await listSetupModels(
       { providerId: 'anthropic' },
-      { userConfigPath, fetchImpl: fetchImpl as unknown as typeof fetch }
+      { userConfigPath, runBackend }
     )
 
     expect(result).toEqual({ kind: 'success', models: ['claude-opus-4-5'] })
-    expect(fetchImpl).toHaveBeenCalledWith(
-      'https://api.anthropic.com/v1/models?limit=1000',
-      expect.objectContaining({
-        headers: expect.objectContaining({
-          'x-api-key': 'sk-inherited'
-        })
-      })
+    expect(runBackend).toHaveBeenCalledWith(
+      ['model-catalog', '--provider-id', 'anthropic'],
+      undefined,
+      30_000
     )
   })
 
-  it('returns missing-key when provider has no key', async () => {
+  it('preserves backend model error classification', async () => {
+    const runBackend = vi.fn().mockResolvedValue({ kind: 'missing-key' })
     const result = await listSetupModels(
       {
         provider: {
@@ -551,7 +481,7 @@ describe('listSetupModels', () => {
           apiKey: ''
         }
       },
-      { fetchImpl: vi.fn() as unknown as typeof fetch }
+      { runBackend }
     )
 
     expect(result).toEqual({ kind: 'missing-key' })

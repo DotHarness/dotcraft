@@ -139,6 +139,30 @@ public sealed class CommandLineArgsTests
     }
 
     [Fact]
+    public void Parse_ModelCatalogSubcommand_ParsesProviderAndStdinFlags()
+    {
+        var providerArgs = CommandLineArgs.Parse(["model-catalog", "--provider-id", "anthropic"]);
+        var stdinArgs = CommandLineArgs.Parse(["model-catalog", "--stdin"]);
+
+        Assert.Equal(CommandLineArgs.RunMode.ModelCatalog, providerArgs.Mode);
+        Assert.Equal("anthropic", providerArgs.SetupProviderId);
+        Assert.False(providerArgs.ModelCatalogReadStdin);
+        Assert.True(providerArgs.ReservesStdout);
+        Assert.Equal(CommandLineArgs.RunMode.ModelCatalog, stdinArgs.Mode);
+        Assert.True(stdinArgs.ModelCatalogReadStdin);
+    }
+
+    [Fact]
+    public void Parse_AuthLoginSubcommand_ParsesNoBindFlag()
+    {
+        var args = CommandLineArgs.Parse(["auth", "openai", "login", "--provider-id", "setup", "--no-bind"]);
+
+        Assert.Equal(CommandLineArgs.RunMode.Auth, args.Mode);
+        Assert.Equal("setup", args.SetupProviderId);
+        Assert.True(args.AuthNoBind);
+    }
+
+    [Fact]
     public void Parse_SkillSubcommand_ParsesSkillFlags()
     {
         var args = CommandLineArgs.Parse([

@@ -1839,7 +1839,7 @@ Adapters may still provide platform-specific UX (for example native command menu
 `/clear` is intentionally excluded from Session Core semantics and should be treated as a client-local UI command (clear screen) rather than a thread lifecycle command.
 Client-local commands are outside `command/list` and `command/execute`.
 
-`/init` is a server-managed built-in command. It returns an expanded prompt that asks the agent to inspect the active workspace and create `.craft/AGENTS.md` with concise English project instructions grounded in the repository. The agent must check the target in the workspace that owns the thread and must not overwrite or modify an existing file. Clients execute the expanded prompt through the ordinary turn pipeline, so normal workspace tools, approvals, and remote-workspace routing continue to apply.
+`/init` is a workspace-conditional server-managed built-in command. Command discovery omits it when `.craft/AGENTS.md` is already a regular file, while direct execution remains accepted for compatibility and stale-client safety. It returns an expanded prompt that asks the agent to inspect the active workspace and create `.craft/AGENTS.md` with concise English project instructions grounded in the repository. The agent must check the target in the workspace that owns the thread and must not overwrite or modify an existing file. Clients execute the expanded prompt through the ordinary turn pipeline, so normal workspace tools, approvals, and remote-workspace routing continue to apply.
 
 ### 17.4 Active Run Cancellation
 

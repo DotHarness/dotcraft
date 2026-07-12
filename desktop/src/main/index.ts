@@ -98,6 +98,7 @@ import {
   shouldRouteWorkspaceThroughSetupBeforeAppServerStart,
   runWorkspaceSetup,
   listSetupModels,
+  loginSetupChatGpt,
   type WorkspaceStatusPayload,
   type WorkspaceSetupRequest,
   type WorkspaceSetupModelListRequest
@@ -2419,8 +2420,9 @@ function buildCallbacks(): IpcHandlerCallbacks {
       return result
     },
     onListSetupModels: async (request: WorkspaceSetupModelListRequest) => {
-      return listSetupModels(request)
+      return listSetupModels(request, { settings: sharedSettings })
     },
+    onLoginSetupChatGpt: async (providerId: string) => loginSetupChatGpt(providerId, sharedSettings),
     onOpenNewWindow: () => {
       openNewProcess()
     },

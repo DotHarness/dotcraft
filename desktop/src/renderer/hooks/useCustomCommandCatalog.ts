@@ -66,21 +66,34 @@ function parseCustomCommands(payload: unknown, locale: AppLocale): CustomCommand
   return mapped.sort((a, b) => a.name.localeCompare(b.name))
 }
 
+function includesInitCommand(payload: unknown): boolean {
+  const typed = payload as { commands?: unknown[] }
+  return Array.isArray(typed.commands) && typed.commands.some((entry) => {
+    const name = typeof (entry as { name?: unknown }).name === 'string'
+      ? (entry as { name: string }).name.trim()
+      : ''
+    return name.toLowerCase() === '/init'
+  })
+}
+
 export function useCustomCommandCatalog({
   enabled,
   locale
 }: UseCustomCommandCatalogArgs): {
   commands: CustomCommandInfo[]
+  initAvailable: boolean
   status: LoadStatus
   reload: () => Promise<void>
 } {
   const [commands, setCommands] = useState<CustomCommandInfo[]>([])
+  const [initAvailable, setInitAvailable] = useState(false)
   const [status, setStatus] = useState<LoadStatus>('idle')
   const reqRef = useRef(0)
 
   const fetchCommands = useCallback(async () => {
     if (!enabled) {
       setCommands([])
+      setInitAvailable(false)
       setStatus('idle')
       return
     }
@@ -90,10 +103,12 @@ export function useCustomCommandCatalog({
       const payload = await window.api.appServer.sendRequest('command/list', {})
       if (reqId !== reqRef.current) return
       setCommands(parseCustomCommands(payload, locale))
+      setInitAvailable(includesInitCommand(payload))
       setStatus('ready')
     } catch {
       if (reqId !== reqRef.current) return
       setCommands([])
+      setInitAvailable(false)
       setStatus('error')
     }
   }, [enabled, locale])
@@ -105,9 +120,10 @@ export function useCustomCommandCatalog({
   return useMemo(
     () => ({
       commands,
+      initAvailable,
       status,
       reload: fetchCommands
     }),
-    [commands, fetchCommands, status]
+    [commands, fetchCommands, initAvailable, status]
   )
 }

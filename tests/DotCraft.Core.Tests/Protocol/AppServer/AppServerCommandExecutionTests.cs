@@ -128,6 +128,32 @@ public sealed class AppServerCommandExecutionTests : IDisposable
     }
 
     [Fact]
+    public async Task CommandList_HidesInitWhenWorkspaceAgentsFileExists()
+    {
+        var tempRoot = Path.Combine(Path.GetTempPath(), $"command_list_init_{Guid.NewGuid():N}");
+        var workspaceCraftPath = Path.Combine(tempRoot, ".craft");
+        try
+        {
+            Directory.CreateDirectory(workspaceCraftPath);
+            await File.WriteAllTextAsync(Path.Combine(workspaceCraftPath, "AGENTS.md"), string.Empty);
+            using var harness = new AppServerTestHarness(workspaceCraftPath: workspaceCraftPath);
+            await harness.InitializeAsync();
+
+            await harness.ExecuteRequestAsync(harness.BuildRequest(AppServerMethods.CommandList, new { }));
+            var response = await harness.Transport.ReadNextSentAsync();
+            AppServerTestHarness.AssertIsSuccessResponse(response);
+            var names = response.RootElement.GetProperty("result").GetProperty("commands")
+                .EnumerateArray().Select(item => item.GetProperty("name").GetString()).ToList();
+
+            Assert.DoesNotContain("/init", names);
+        }
+        finally
+        {
+            if (Directory.Exists(tempRoot)) Directory.Delete(tempRoot, recursive: true);
+        }
+    }
+
+    [Fact]
     public async Task CommandExecute_New_ReturnsSessionResetPayloadAndFreshThread()
     {
         var existing = await _h.Service.CreateThreadAsync(_h.Identity);

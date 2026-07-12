@@ -1,4 +1,4 @@
-import { execFile } from 'child_process'
+import { execFile, spawn } from 'child_process'
 import { copyFileSync, existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'fs'
 import { homedir } from 'os'
 import { dirname, join, relative, resolve } from 'path'
@@ -6,10 +6,7 @@ import { resolveBinaryLocation } from './AppServerManager'
 import { parseJsonConfig } from '../shared/jsonConfig'
 import type { AppSettings } from './settings'
 import {
-  ANTHROPIC_PROTOCOL,
-  defaultProviderEndpoint,
   normalizeProviderProtocol,
-  OPENAI_RESPONSES_PROTOCOL,
   type DesktopProviderProtocol
 } from '../shared/providerProtocols'
 
@@ -99,17 +96,11 @@ export type WorkspaceSetupModelListRequest =
 
 export type WorkspaceSetupModelListResult =
   | { kind: 'success'; models: string[] }
+  | { kind: 'auth-required' }
   | { kind: 'unsupported' }
   | { kind: 'missing-key' }
-  | { kind: 'error' }
+  | { kind: 'error'; retryable?: boolean }
 
-const CHATGPT_CODEX_FALLBACK_MODELS = [
-  'gpt-5.5',
-  'gpt-5.4',
-  'gpt-5.4-mini',
-  'gpt-5.3-codex',
-  'gpt-5.2'
-]
 const DEFAULT_WORKSPACE_MODEL = 'gpt-4o-mini'
 
 function buildBinaryResolutionError(settings: AppSettings): Error {
@@ -304,18 +295,6 @@ function hasConfiguredProvider(
   return providers.some((provider) => provider.id.toLowerCase() === providerId.toLowerCase())
 }
 
-function parseModelIds(payload: unknown): string[] {
-  const typed = payload as { data?: Array<{ id?: string; Id?: string }> }
-  if (!Array.isArray(typed.data)) return []
-  return Array.from(
-    new Set(
-      typed.data
-        .map((item) => String(item.id ?? item.Id ?? '').trim())
-        .filter(Boolean)
-    )
-  ).sort((a, b) => a.localeCompare(b))
-}
-
 function normalizeProviderForModelList(
   request: WorkspaceSetupModelListRequest,
   options?: { userConfigPath?: string }
@@ -363,82 +342,12 @@ function normalizeProviderForModelList(
   }
 }
 
-async function fetchOpenAiModels(
-  provider: WorkspaceSetupProviderDraft,
-  fetchImpl: typeof fetch
-): Promise<WorkspaceSetupModelListResult> {
-  const endpoint = provider.endPoint.trim() || defaultProviderEndpoint(OPENAI_RESPONSES_PROTOCOL)
-
-  let modelsUrl: string
-  try {
-    const normalizedEndpoint = endpoint.endsWith('/') ? endpoint : `${endpoint}/`
-    modelsUrl = new URL('models', normalizedEndpoint).toString()
-  } catch {
-    return { kind: 'error' }
-  }
-
-  const response = await fetchImpl(modelsUrl, {
-    method: 'GET',
-    headers: {
-      Accept: 'application/json',
-      Authorization: `Bearer ${provider.apiKey.trim()}`
-    }
-  })
-  if (!response.ok) {
-    if (response.status === 404 || response.status === 405 || response.status === 501) {
-      return { kind: 'unsupported' }
-    }
-    if (response.status === 401 || response.status === 403) {
-      return { kind: 'missing-key' }
-    }
-    return { kind: 'error' }
-  }
-
-  const payload = (await response.json()) as unknown
-  const models = parseModelIds(payload)
-  return models.length > 0 ? { kind: 'success', models } : { kind: 'error' }
-}
-
-async function fetchAnthropicModels(
-  provider: WorkspaceSetupProviderDraft,
-  fetchImpl: typeof fetch
-): Promise<WorkspaceSetupModelListResult> {
-  const endpoint = provider.endPoint.trim() || defaultProviderEndpoint(ANTHROPIC_PROTOCOL)
-  let modelsUrl: string
-  try {
-    modelsUrl = new URL('v1/models?limit=1000', endpoint.endsWith('/') ? endpoint : `${endpoint}/`).toString()
-  } catch {
-    return { kind: 'error' }
-  }
-
-  const response = await fetchImpl(modelsUrl, {
-    method: 'GET',
-    headers: {
-      Accept: 'application/json',
-      'anthropic-version': '2023-06-01',
-      'x-api-key': provider.apiKey.trim()
-    }
-  })
-  if (!response.ok) {
-    if (response.status === 404 || response.status === 405 || response.status === 501) {
-      return { kind: 'unsupported' }
-    }
-    if (response.status === 401 || response.status === 403) {
-      return { kind: 'missing-key' }
-    }
-    return { kind: 'error' }
-  }
-
-  const payload = (await response.json()) as unknown
-  const models = parseModelIds(payload)
-  return models.length > 0 ? { kind: 'success', models } : { kind: 'error' }
-}
-
 export async function listSetupModels(
   request: WorkspaceSetupModelListRequest,
   options?: {
     userConfigPath?: string
-    fetchImpl?: typeof fetch
+    settings?: AppSettings
+    runBackend?: (args: string[], stdin?: string, timeoutMs?: number) => Promise<WorkspaceSetupModelListResult>
   }
 ): Promise<WorkspaceSetupModelListResult> {
   const provider = normalizeProviderForModelList(request, options)
@@ -446,24 +355,67 @@ export async function listSetupModels(
     return { kind: 'error' }
   }
 
-  // Before sign-in, setup cannot call the account-scoped ChatGPT catalog. Use the bundled
-  // ChatGPT fallback; AppServer refreshes it from /backend-api/codex/models after login.
-  if (provider.authMethod === 'chatgptOAuth') {
-    return { kind: 'success', models: CHATGPT_CODEX_FALLBACK_MODELS }
-  }
+  const args = ['model-catalog']
+  const stdin = 'provider' in request ? JSON.stringify(provider) : undefined
+  if (stdin) args.push('--stdin')
+  else args.push('--provider-id', request.providerId)
+  if (options?.runBackend) return options.runBackend(args, stdin, 30_000)
+  return runSetupBackend(resolveDesktopBinary(options?.settings ?? ({} as AppSettings)), args, stdin, 30_000)
+}
 
-  if (!provider.apiKey.trim()) {
-    return { kind: 'missing-key' }
-  }
-
-  const fetchImpl = options?.fetchImpl ?? fetch
+export async function loginSetupChatGpt(
+  providerId: string,
+  settings: AppSettings,
+  runBackend?: (args: string[], stdin?: string, timeoutMs?: number) => Promise<WorkspaceSetupModelListResult>
+): Promise<{ kind: 'success' | 'error' }> {
+  const args = ['auth', 'openai', 'login', '--provider-id', providerId, '--no-bind']
   try {
-    return provider.protocol === ANTHROPIC_PROTOCOL
-      ? await fetchAnthropicModels(provider, fetchImpl)
-      : await fetchOpenAiModels(provider, fetchImpl)
+    if (runBackend) await runBackend(args, undefined, 15 * 60_000)
+    else await runSetupBackend(resolveDesktopBinary(settings), args, undefined, 15 * 60_000, false)
+    return { kind: 'success' }
   } catch {
     return { kind: 'error' }
   }
+}
+
+function runSetupBackend(
+  binaryPath: string,
+  args: string[],
+  stdin: string | undefined,
+  timeoutMs: number,
+  parseJson = true
+): Promise<WorkspaceSetupModelListResult> {
+  return new Promise((resolve, reject) => {
+    const child = spawn(binaryPath, args, { windowsHide: true, stdio: ['pipe', 'pipe', 'pipe'] })
+    let stdout = ''
+    let stderr = ''
+    const timer = setTimeout(() => child.kill(), timeoutMs)
+    child.stdout.setEncoding('utf8')
+    child.stderr.setEncoding('utf8')
+    child.stdout.on('data', (chunk: string) => { stdout += chunk })
+    child.stderr.on('data', (chunk: string) => { stderr += chunk })
+    child.on('error', (error) => {
+      clearTimeout(timer)
+      reject(error)
+    })
+    child.on('close', (code) => {
+      clearTimeout(timer)
+      if (code !== 0) {
+        reject(new Error(stderr.trim() || `DotCraft backend exited with code ${code ?? 'unknown'}.`))
+        return
+      }
+      if (!parseJson) {
+        resolve({ kind: 'success', models: [] })
+        return
+      }
+      try {
+        resolve(JSON.parse(stdout.trim()) as WorkspaceSetupModelListResult)
+      } catch {
+        reject(new Error(stderr.trim() || 'DotCraft backend returned invalid JSON.'))
+      }
+    })
+    child.stdin.end(stdin)
+  })
 }
 
 export function createUniqueSetupProviderId(

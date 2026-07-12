@@ -63,6 +63,9 @@ public sealed record CommandLineArgs
         /// <summary>Interactive authentication commands (e.g. Sign in with ChatGPT).</summary>
         Auth,
 
+        /// <summary>Internal workspace-independent model catalog query for Desktop setup.</summary>
+        ModelCatalog,
+
         /// <summary>Read-only context export and search commands.</summary>
         Context
     }
@@ -162,6 +165,10 @@ public sealed record CommandLineArgs
     /// <summary>When true, skip the usage / rate-limit lookup in <c>auth openai status</c> (CI-friendly).</summary>
     public bool AuthNoUsage { get; init; }
 
+    public bool AuthNoBind { get; init; }
+
+    public bool ModelCatalogReadStdin { get; init; }
+
     /// <summary>Context subcommand: "export" or "search".</summary>
     public string? ContextCommand { get; init; }
 
@@ -245,6 +252,8 @@ public sealed record CommandLineArgs
         string? authProviderId = null;
         var authNoBrowser = false;
         var authNoUsage = false;
+        var authNoBind = false;
+        var modelCatalogReadStdin = false;
         string? contextCommand = null;
         string? contextThreadId = null;
         string? contextQuery = null;
@@ -316,6 +325,12 @@ public sealed record CommandLineArgs
                 continue;
             }
 
+            if (arg.Equals("model-catalog", StringComparison.OrdinalIgnoreCase))
+            {
+                mode = RunMode.ModelCatalog;
+                continue;
+            }
+
             if (arg.Equals("context", StringComparison.OrdinalIgnoreCase))
             {
                 mode = RunMode.Context;
@@ -333,6 +348,18 @@ public sealed record CommandLineArgs
             if (arg.Equals("--no-usage", StringComparison.OrdinalIgnoreCase))
             {
                 authNoUsage = true;
+                continue;
+            }
+
+            if (arg.Equals("--no-bind", StringComparison.OrdinalIgnoreCase))
+            {
+                authNoBind = true;
+                continue;
+            }
+
+            if (arg.Equals("--stdin", StringComparison.OrdinalIgnoreCase))
+            {
+                modelCatalogReadStdin = true;
                 continue;
             }
 
@@ -747,6 +774,7 @@ public sealed record CommandLineArgs
             RunMode.Acp => true,
             RunMode.AppServer => !IsPureWebSocketListen(listenUrl),
             RunMode.Exec => true,
+            RunMode.ModelCatalog => true,
             _ => false
         };
 
@@ -787,6 +815,8 @@ public sealed record CommandLineArgs
             AuthProviderId = mode == RunMode.Auth ? setupProviderId : authProviderId,
             AuthNoBrowser = authNoBrowser,
             AuthNoUsage = authNoUsage,
+            AuthNoBind = authNoBind,
+            ModelCatalogReadStdin = modelCatalogReadStdin,
             ContextCommand = contextCommand,
             ContextThreadId = contextThreadId,
             ContextQuery = contextQuery,

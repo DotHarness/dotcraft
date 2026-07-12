@@ -302,7 +302,7 @@ export function InputComposer({
     && (normalizedSlashQuery === 'plan' || normalizedSlashQuery === 'agent' || normalizedSlashQuery === 'init' || normalizedSlashQuery === 'compact' || normalizedSlashQuery === 'consolidate')
   const showSlashPopover = slashQuery !== null && !slashDismissed && canUseSlashPicker && !isExactSystemSlashQuery && !isAgentBuilderModeSlashQuery
   const showSkillPopover = skillQuery !== null && !skillDismissed && canUseSkillPicker
-  const { commands: customCommands, status: customCommandStatus } = useCustomCommandCatalog({
+  const { commands: customCommands, initAvailable, status: customCommandStatus, reload: reloadCommands } = useCustomCommandCatalog({
     enabled: canUseCommandPicker,
     locale
   })
@@ -335,7 +335,7 @@ export function InputComposer({
     () => {
       const actions: SlashSystemActionInfo[] = []
       if (!canUseSystemActions) return actions
-      if (canUseCommandPicker) {
+      if (canUseCommandPicker && initAvailable) {
         actions.push({
           id: 'init',
           label: t('cmd.init'),
@@ -394,7 +394,7 @@ export function InputComposer({
       }
       return actions
     },
-    [canCompactCurrentThread, canConsolidateCurrentThread, canUseAgentProfiles, canUseCommandPicker, canUseSystemActions, canUseThreadGoals, hasProfile, t, threadMode]
+    [canCompactCurrentThread, canConsolidateCurrentThread, canUseAgentProfiles, canUseCommandPicker, canUseSystemActions, canUseThreadGoals, hasProfile, initAvailable, t, threadMode]
   )
 
   useEffect(() => {
@@ -613,6 +613,15 @@ export function InputComposer({
     }
     prevTurnStatusRef.current = turnStatus
   }, [turnStatus])
+
+  const previousCommandRefreshStatusRef = useRef(turnStatus)
+  useEffect(() => {
+    const previous = previousCommandRefreshStatusRef.current
+    previousCommandRefreshStatusRef.current = turnStatus
+    if (previous !== 'idle' && turnStatus === 'idle' && canUseCommandPicker) {
+      void reloadCommands()
+    }
+  }, [canUseCommandPicker, reloadCommands, turnStatus])
 
   const ensureCurrentGoal = useCallback(async (): Promise<ThreadGoal | null> => {
     if (currentGoal) return currentGoal

@@ -9,6 +9,7 @@ const settingsGet = vi.fn()
 const settingsSet = vi.fn()
 const runSetup = vi.fn()
 const listSetupModels = vi.fn()
+const loginSetupChatGpt = vi.fn()
 
 function renderWizard(workspaceStatus: WorkspaceStatusPayload, onChooseDifferentWorkspace = vi.fn()) {
   return render(
@@ -59,6 +60,7 @@ describe('WorkspaceSetupWizard', () => {
     settingsSet.mockResolvedValue(undefined)
     runSetup.mockResolvedValue(undefined)
     listSetupModels.mockResolvedValue({ kind: 'unsupported' })
+    loginSetupChatGpt.mockResolvedValue({ kind: 'success' })
 
     Object.defineProperty(window, 'api', {
       configurable: true,
@@ -69,6 +71,7 @@ describe('WorkspaceSetupWizard', () => {
         },
         workspace: {
           listSetupModels,
+          loginSetupChatGpt,
           runSetup
         }
       }
@@ -353,6 +356,38 @@ describe('WorkspaceSetupWizard', () => {
         authMethod: 'apiKey'
       })
     }))
+  })
+
+  it('logs in for ChatGPT setup and reloads the backend model catalog', async () => {
+    let loggedIn = false
+    listSetupModels.mockImplementation(async (request) => {
+      if (request.provider?.authMethod !== 'chatgptOAuth') return { kind: 'unsupported' }
+      return loggedIn
+        ? { kind: 'success', models: ['gpt-5.6', 'gpt-5.5'] }
+        : { kind: 'auth-required' }
+    })
+    loginSetupChatGpt.mockImplementation(async () => {
+      loggedIn = true
+      return { kind: 'success' }
+    })
+    const status: WorkspaceStatusPayload = {
+      status: 'needs-setup',
+      workspacePath: '/workspace/demo',
+      hasUserConfig: false,
+      providers: []
+    }
+
+    renderWizard(status)
+    await openConfigStep()
+    fireEvent.click(screen.getByRole('button', { name: /Custom/ }))
+    fireEvent.click(await screen.findByRole('button', { name: /Sign in with ChatGPT/i }))
+
+    await screen.findAllByRole('button', { name: /Sign in with ChatGPT/i })
+    const signInButtons = await screen.findAllByRole('button', { name: /Sign in with ChatGPT/i })
+    fireEvent.click(signInButtons.at(-1)!)
+
+    await waitFor(() => expect(loginSetupChatGpt).toHaveBeenCalledWith('provider'))
+    await waitFor(() => expect(screen.getByLabelText('Model')).toHaveValue('gpt-5.6'))
   })
 
   it('falls back to a suffixed Anthropic id when anthropic already exists', async () => {

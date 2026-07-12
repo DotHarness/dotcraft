@@ -126,6 +126,8 @@ The client exposes four user-visible connection states:
   - optional capability-gated surfaces such as skills, automations, or model catalog
 - If no thread exists, the client presents an empty ready state that clearly allows starting a new conversation.
 
+During first-time workspace setup, provider model discovery uses the DotCraft backend model catalog rather than Desktop-owned model constants or direct provider-specific HTTP parsing. Existing providers are resolved by id; unsaved provider drafts are passed to the backend over stdin so credentials do not enter process arguments or logs. ChatGPT subscription setup completes OAuth in the wizard before requesting the account-scoped catalog. The wizard preserves a user's explicit model selection across refreshes, requires reselection when it disappears, and treats backend cache or bundled results as the only fallback source.
+
 ### 3.4 Reconnection
 
 - On unexpected disconnect, the client transitions to `disconnected` and attempts reconnection automatically.
@@ -500,7 +502,7 @@ At the Desktop UX level:
 
 The slash reference surface includes Desktop-owned system actions above custom Commands and Skills:
 
-- Init is shown with the hint "Create an AGENTS.md file with instructions for DotCraft" when command management is available. Selecting it, or directly submitting `/init`, calls the server-managed `command/execute` method and starts a normal agent turn with the returned `expandedPrompt`. Desktop must not encode `/init` as a `commandRef` or inspect `.craft/AGENTS.md` on the client; the workspace-owning agent checks the file and refuses to overwrite it. The welcome screen uses the same first-message thread creation path before executing the command.
+- Init is shown with the hint "Create an AGENTS.md file with instructions for DotCraft" only when command management is available and the workspace-scoped `command/list` result contains `/init`. AppServer omits `/init` when `.craft/AGENTS.md` is already a regular file; Desktop must not inspect the file locally. Selecting Init, or directly submitting `/init`, calls the server-managed `command/execute` method and starts a normal agent turn with the returned `expandedPrompt`. Direct execution remains safe when discovery is stale because the agent refuses to overwrite the file. Desktop reloads command availability after a turn reaches a terminal state.
 - Plan mode is always shown with the label "Plan mode". Its hint reflects the current mode: "Enable Plan mode" in Agent mode and "Disable Plan mode" in Plan mode. Selecting it uses the same local mode toggle path as `Shift+Tab` and calls `thread/mode/set`.
 - Manual compaction is shown as "Compact" with the hint "Compact this session's context" only when `capabilities.manualCompaction = true`, the active thread has at least one turn, and no turn is running or waiting for approval. Selecting it calls `thread/compact/start` with the active `threadId` and a long client wait timeout of 300 seconds. That timeout is only the renderer's wait limit for the request/response pair; it does not prove that server-side compaction has failed.
 - Manual memory consolidation is shown as "Consolidate" / "整理" with the hint "Consolidate long-term memory" only when `capabilities.manualMemoryConsolidation = true`, the active thread has at least one turn, and no turn is running or waiting for approval. Selecting it calls `thread/memory/consolidate/start` with the active `threadId` and a long maintenance timeout of 300 seconds.

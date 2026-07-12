@@ -292,9 +292,10 @@ export type WorkspaceSetupModelListRequest =
 
 export type WorkspaceSetupModelListResult =
   | { kind: 'success'; models: string[] }
+  | { kind: 'auth-required' }
   | { kind: 'unsupported' }
   | { kind: 'missing-key' }
-  | { kind: 'error' }
+  | { kind: 'error'; retryable?: boolean }
 
 export interface ConfigDescriptorWire {
   key: string
@@ -548,6 +549,7 @@ declare global {
         listSetupModels(
           request: WorkspaceSetupModelListRequest
         ): Promise<WorkspaceSetupModelListResult>
+        loginSetupChatGpt(providerId: string): Promise<{ kind: 'success' | 'error' }>
         runSetup(request: WorkspaceSetupRequest): Promise<WorkspaceSetupRunResult>
         openNewWindow(): Promise<void>
         checkLock(wsPath: string): Promise<{ locked: boolean; pid?: number }>

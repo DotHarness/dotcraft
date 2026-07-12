@@ -229,6 +229,48 @@ describe('InputComposer custom command expansion', () => {
     })
   })
 
+  it('shows Init only when command/list advertises it', async () => {
+    appServerSendRequest.mockImplementation(async (method: string) => {
+      if (method === 'command/list') {
+        return {
+          commands: [{
+            name: '/init',
+            aliases: [],
+            description: 'Create an AGENTS.md file with instructions for DotCraft',
+            category: 'builtin',
+            requiresAdmin: false
+          }]
+        }
+      }
+      if (method === 'skills/list') return { skills: [] }
+      return {}
+    })
+
+    renderWithLocale(<InputComposer threadId="thread-1" workspacePath="/workspace/demo" />)
+    await waitFor(() => expect(appServerSendRequest).toHaveBeenCalledWith('command/list', {}))
+
+    const textbox = screen.getByRole('textbox')
+    fireEvent.focus(textbox)
+    textbox.textContent = '/'
+    setCaretToEnd(textbox)
+    fireEvent.input(textbox)
+
+    expect(await screen.findByText('Create an AGENTS.md file with instructions for DotCraft')).toBeInTheDocument()
+  })
+
+  it('hides Init when command/list omits it', async () => {
+    renderWithLocale(<InputComposer threadId="thread-1" workspacePath="/workspace/demo" />)
+    await waitFor(() => expect(appServerSendRequest).toHaveBeenCalledWith('command/list', {}))
+
+    const textbox = screen.getByRole('textbox')
+    fireEvent.focus(textbox)
+    textbox.textContent = '/'
+    setCaretToEnd(textbox)
+    fireEvent.input(textbox)
+
+    expect(screen.queryByText('Create an AGENTS.md file with instructions for DotCraft')).not.toBeInTheDocument()
+  })
+
   it('executes /init through the server before starting the agent turn', async () => {
     renderWithLocale(<InputComposer threadId="thread-1" workspacePath="/workspace/project" />)
 
