@@ -213,6 +213,8 @@ function ComposerMascot({
   avatar,
   profileTransition,
   profileTransitionRevision,
+  anchorOffset = 0,
+  anchorPushSignal = 0,
   handoff = false
 }: {
   focused: boolean
@@ -224,6 +226,10 @@ function ComposerMascot({
   avatar?: AvatarSpec
   profileTransition: MascotProfileTransition | null
   profileTransitionRevision: number
+  /** Height of the active top accessory; the mascot stands on its upper edge. */
+  anchorOffset?: number
+  /** Monotonic signal fired when an expanding accessory finishes pushing upward. */
+  anchorPushSignal?: number
   handoff?: boolean
 }): JSX.Element {
   const [menuPos, setMenuPos] = useState<ContextMenuPosition | null>(null)
@@ -237,6 +243,7 @@ function ComposerMascot({
   const [shaking, setShaking] = useState(false)
   const [nodding, setNodding] = useState(false)
   const [landing, setLanding] = useState(false)
+  const [pushLift, setPushLift] = useState(false)
   const [activeIdle, setActiveIdle] = useState<MascotActiveIdleState | null>(null)
   const [activityRevision, setActivityRevision] = useState(0)
   const rootRef = useRef<HTMLDivElement | null>(null)
@@ -379,6 +386,66 @@ function ComposerMascot({
     }
   }, [handoff])
 
+  // Same-shell anchor ride: activity docks stay mounted inside one ComposerShell,
+  // so their height changes do not pass through the cross-composer handoff slot.
+  // FLIP from the previous visual position to the new accessory rim instead.
+  const previousAnchorOffsetRef = useRef(anchorOffset)
+  useLayoutEffect(() => {
+    const el = rootRef.current
+    const previousOffset = previousAnchorOffsetRef.current
+    previousAnchorOffsetRef.current = anchorOffset
+    if (!el || previousOffset === anchorOffset || prefersReducedMotion()) return undefined
+
+    if (anchorOffset > previousOffset) {
+      // An expanding dock physically owns the rim. ResizeObserver advances the
+      // anchor with every growth frame, so the mascot must stay attached instead
+      // of running an independent, slower transition through the dock surface.
+      el.style.transition = ''
+      el.style.transform = ''
+      setLanding(false)
+      return undefined
+    }
+
+    const currentVisualTop = el.getBoundingClientRect().top
+    const offsetDelta = anchorOffset - previousOffset
+    el.style.transition = 'none'
+    el.style.transform = ''
+    const targetTop = el.getBoundingClientRect().top
+    const dy = currentVisualTop + offsetDelta - targetTop
+    if (Math.abs(dy) < 1) return undefined
+
+    const rising = dy > 0
+    let timer = 0
+    el.style.transform = `translateY(${dy}px)`
+    void el.offsetHeight
+    el.style.transition = rising
+      ? 'transform 420ms cubic-bezier(0.34, 1.56, 0.64, 1)'
+      : 'transform 300ms cubic-bezier(0.55, 0, 0.8, 0.9)'
+    el.style.transform = 'translateY(0)'
+    if (rising) {
+      setStartled(true)
+    } else {
+      // A quick collapse can interrupt the rise before its startle animation
+      // ends. Landing owns the downward transition and must remain visible.
+      setStartled(false)
+      setPushLift(false)
+    }
+    timer = window.setTimeout(() => {
+      el.style.transition = ''
+      el.style.transform = ''
+      if (!rising) setLanding(true)
+    }, rising ? 430 : 310)
+
+    return () => window.clearTimeout(timer)
+  }, [anchorOffset])
+
+  const previousAnchorPushSignalRef = useRef(anchorPushSignal)
+  useEffect(() => {
+    if (anchorPushSignal === previousAnchorPushSignalRef.current) return
+    previousAnchorPushSignalRef.current = anchorPushSignal
+    if (!prefersReducedMotion()) setPushLift(true)
+  }, [anchorPushSignal])
+
   // Replay the send launch via state (not a remount) so other one-shots can
   // share the same transform layer without re-triggering it.
   const prevBounceRef = useRef(bounceSignal)
@@ -514,6 +581,9 @@ function ComposerMascot({
       case 'composer-mascot-land':
         setLanding(false)
         break
+      case 'composer-mascot-push-lift':
+        setPushLift(false)
+        break
     }
   }
 
@@ -531,6 +601,8 @@ function ComposerMascot({
     ? 'composer-mascot-cheer'
     : shaking
       ? 'composer-mascot-shake'
+      : pushLift
+        ? 'composer-mascot-push-lift'
       : startled
         ? 'composer-mascot-startle'
         : landing
@@ -574,6 +646,7 @@ function ComposerMascot({
       data-mascot-profile-transition={profileTransition ? 'active' : 'idle'}
       data-mascot-active-idle={activeIdle?.motion}
       data-mascot-idle-phase={activeIdle?.phase}
+      data-mascot-anchor-offset={anchorOffset}
       onAnimationEnd={onAnimationEnd}
       style={{
         '--mascot-body-dark': mascotPalette.bodyD,
@@ -586,7 +659,7 @@ function ComposerMascot({
         '--mascot-profile-to-accent': profileTransition?.toAccent ?? mascotPalette.accent,
         position: 'absolute',
         right: '40px',
-        top: `${-(MASCOT_SIZE * (1 - MASCOT_HIDDEN_RATIO)) - MASCOT_RAISE}px`,
+        top: `${-(MASCOT_SIZE * (1 - MASCOT_HIDDEN_RATIO)) - MASCOT_RAISE - anchorOffset}px`,
         zIndex: 0,
         pointerEvents: 'none'
       } as CSSProperties}
@@ -722,6 +795,8 @@ export function ComposerShell({
   mascotHandoff = false
 }: ComposerShellProps): JSX.Element {
   const [hovered, setHovered] = useState(false)
+  const [topAccessoryHeight, setTopAccessoryHeight] = useState(0)
+  const [topAccessoryPushSignal, setTopAccessoryPushSignal] = useState(0)
   const [renderedMascotAvatar, setRenderedMascotAvatar] = useState(mascotAvatar)
   const [mascotProfileTransition, setMascotProfileTransition] = useState<MascotProfileTransition | null>(null)
   const [mascotProfileTransitionRevision, setMascotProfileTransitionRevision] = useState(0)
@@ -732,6 +807,52 @@ export function ComposerShell({
   targetMascotAvatarRef.current = mascotAvatar
   const targetAvatarKey = mascotAvatarKey(mascotAvatar)
   const renderedMascotPalette = mascotPaletteOf(renderedMascotAvatar)
+  const topAccessoryRef = useRef<HTMLDivElement | null>(null)
+  const topAccessoryHeightRef = useRef(0)
+
+  useLayoutEffect(() => {
+    if (!topAccessoryVisible) {
+      topAccessoryHeightRef.current = 0
+      setTopAccessoryHeight(0)
+      return undefined
+    }
+    const element = topAccessoryRef.current
+    if (!element) return undefined
+
+    let settleTimer = 0
+    let grewSinceSettle = false
+    const readHeight = (): number => Math.max(0, Math.round(element.getBoundingClientRect().height))
+    const commitHeight = (height: number): void => {
+      topAccessoryHeightRef.current = height
+      setTopAccessoryHeight((current) => current === height ? current : height)
+    }
+    commitHeight(readHeight())
+    if (typeof ResizeObserver === 'undefined') return undefined
+
+    const observer = new ResizeObserver(() => {
+      const height = readHeight()
+      if (height > topAccessoryHeightRef.current) {
+        // Follow expansion immediately. The dock itself is the moving floor,
+        // so this keeps the mascot on its top edge for every observed frame.
+        grewSinceSettle = true
+        commitHeight(height)
+      }
+      window.clearTimeout(settleTimer)
+      settleTimer = window.setTimeout(() => {
+        const settledHeight = readHeight()
+        if (settledHeight !== topAccessoryHeightRef.current) commitHeight(settledHeight)
+        if (grewSinceSettle) {
+          grewSinceSettle = false
+          setTopAccessoryPushSignal((current) => current + 1)
+        }
+      }, 48)
+    })
+    observer.observe(element)
+    return () => {
+      window.clearTimeout(settleTimer)
+      observer.disconnect()
+    }
+  }, [topAccessoryVisible])
 
   useEffect(() => {
     const currentAvatar = renderedMascotAvatarRef.current
@@ -786,7 +907,7 @@ export function ComposerShell({
         isolation: 'isolate'
       }}
     >
-      {showMascot && !topAccessoryVisible && (
+      {showMascot && (
         <ComposerMascot
           focused={focused}
           dragOver={dragOver}
@@ -797,11 +918,14 @@ export function ComposerShell({
           avatar={renderedMascotAvatar}
           profileTransition={mascotProfileTransition}
           profileTransitionRevision={mascotProfileTransitionRevision}
+          anchorOffset={topAccessoryHeight}
+          anchorPushSignal={topAccessoryPushSignal}
           handoff={mascotHandoff}
         />
       )}
       {topAccessoryVisible && (
         <div
+          ref={topAccessoryRef}
           data-testid="composer-top-accessory-overlay"
           style={{
             position: 'absolute',

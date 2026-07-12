@@ -3,6 +3,18 @@ import { act, fireEvent, render } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ComposerShell } from '../components/conversation/ComposerShell'
 
+let resizeObserverCallback: ResizeObserverCallback | null = null
+
+class ResizeObserverMock {
+  constructor(callback: ResizeObserverCallback) {
+    resizeObserverCallback = callback
+  }
+
+  observe(): void {}
+  unobserve(): void {}
+  disconnect(): void {}
+}
+
 function composer(
   props: Partial<React.ComponentProps<typeof ComposerShell>> = {}
 ): React.ReactElement {
@@ -44,6 +56,11 @@ describe('ComposerShell mascot energy and active idle', () => {
       configurable: true,
       value: vi.fn().mockReturnValue({ matches: false })
     })
+    Object.defineProperty(globalThis, 'ResizeObserver', {
+      configurable: true,
+      value: ResizeObserverMock
+    })
+    resizeObserverCallback = null
   })
 
   afterEach(() => {
@@ -51,6 +68,7 @@ describe('ComposerShell mascot energy and active idle', () => {
     vi.restoreAllMocks()
     document.documentElement.removeAttribute('data-reduce-motion')
     delete (document as Document & { hidden?: boolean }).hidden
+    delete (globalThis as { ResizeObserver?: typeof ResizeObserver }).ResizeObserver
   })
 
   it('exposes reasoning intensity and MAX context to the mascot treatment', () => {
@@ -61,6 +79,95 @@ describe('ComposerShell mascot energy and active idle', () => {
 
     expect(mascot(container)).toHaveAttribute('data-mascot-effort', 'extraHigh')
     expect(mascot(container)).toHaveAttribute('data-mascot-context', 'max')
+  })
+
+  it('keeps the mascot visible and anchors it to a measured top accessory', () => {
+    const view = renderComposer({
+      topAccessoryVisible: true,
+      topAccessory: <div>Background activity</div>
+    })
+    const overlay = view.getByTestId('composer-top-accessory-overlay')
+    vi.spyOn(overlay, 'getBoundingClientRect').mockReturnValue({
+      x: 0,
+      y: 0,
+      top: 0,
+      right: 600,
+      bottom: 80,
+      left: 0,
+      width: 600,
+      height: 80,
+      toJSON: () => ({})
+    })
+
+    expect(mascot(view.container)).toHaveAttribute('data-mascot-anchor-offset', '0')
+    act(() => {
+      resizeObserverCallback?.([], {} as ResizeObserver)
+    })
+
+    expect(mascot(view.container)).toHaveAttribute('data-mascot-anchor-offset', '80')
+    expect(view.container.querySelector('.composer-mascot-push-lift')).toBeNull()
+    act(() => vi.advanceTimersByTime(48))
+    expect(view.container.querySelector('.composer-mascot-push-lift')).not.toBeNull()
+  })
+
+  it('lands on the composer when its top accessory disappears', () => {
+    const props = {
+      topAccessoryVisible: true,
+      topAccessory: <div>Background activity</div>
+    }
+    const view = renderComposer(props)
+    const overlay = view.getByTestId('composer-top-accessory-overlay')
+    vi.spyOn(overlay, 'getBoundingClientRect').mockReturnValue({
+      x: 0,
+      y: 0,
+      top: 0,
+      right: 600,
+      bottom: 80,
+      left: 0,
+      width: 600,
+      height: 80,
+      toJSON: () => ({})
+    })
+    act(() => {
+      resizeObserverCallback?.([], {} as ResizeObserver)
+      vi.advanceTimersByTime(48)
+      vi.advanceTimersByTime(430)
+    })
+
+    view.rerender(composer({ ...props, topAccessoryVisible: false }))
+    expect(mascot(view.container)).toHaveAttribute('data-mascot-anchor-offset', '0')
+    act(() => vi.advanceTimersByTime(310))
+    expect(view.container.querySelector('.composer-mascot-land')).not.toBeNull()
+  })
+
+  it('moves to a top accessory without transition when reduced motion is on', () => {
+    document.documentElement.dataset.reduceMotion = 'on'
+    const view = renderComposer({
+      topAccessoryVisible: true,
+      topAccessory: <div>Background activity</div>
+    })
+    const overlay = view.getByTestId('composer-top-accessory-overlay')
+    vi.spyOn(overlay, 'getBoundingClientRect').mockReturnValue({
+      x: 0,
+      y: 0,
+      top: 0,
+      right: 600,
+      bottom: 80,
+      left: 0,
+      width: 600,
+      height: 80,
+      toJSON: () => ({})
+    })
+
+    act(() => {
+      resizeObserverCallback?.([], {} as ResizeObserver)
+      vi.advanceTimersByTime(48)
+    })
+
+    const element = mascot(view.container)
+    expect(element).toHaveAttribute('data-mascot-anchor-offset', '80')
+    expect(element.style.transition).toBe('')
+    expect(element.style.transform).toBe('')
   })
 
   it('hands an Agent Profile avatar over at the hidden midpoint', () => {

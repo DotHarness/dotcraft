@@ -2359,6 +2359,21 @@ kbd {
   transform-origin: bottom center;
 }
 
+/* The dock owns the upward movement; this is only the small inertial release
+   after its expanding rim stops pushing the mascot. */
+@keyframes composer-mascot-push-lift {
+  0% { transform: translateY(0) scale(1); }
+  38% { transform: translateY(-7px) scale(0.98, 1.035); }
+  72% { transform: translateY(1px) scale(1.025, 0.975); }
+  88% { transform: translateY(-1px) scale(0.995, 1.01); }
+  100% { transform: translateY(0) scale(1); }
+}
+
+.composer-mascot-push-lift {
+  animation: composer-mascot-push-lift 360ms cubic-bezier(0.22, 0.72, 0.24, 1);
+  transform-origin: bottom center;
+}
+
 /* ─── Composer mascot: click greeting — penguin-style flipper wave ───
    Three phases: (1) 0→16% the arm extends — root slides into the torso's
    mid-side and scaleY shrinks it to a short flipper, so it grows out instead
