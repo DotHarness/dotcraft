@@ -419,6 +419,7 @@ declare global {
             dreamsAutoApply: boolean | null
             defaultApprovalPolicy: 'default' | 'autoApprove' | null
             contextWindowMode: 'default' | 'max' | null
+            speed: 'standard' | 'fast' | null
           }
       userDefaults: {
         providerId: string | null
@@ -432,6 +433,7 @@ declare global {
             dreamsAutoApply: boolean | null
             defaultApprovalPolicy: 'default' | 'autoApprove' | null
             contextWindowMode: 'default' | 'max' | null
+            speed: 'standard' | 'fast' | null
           }
         }>
       }

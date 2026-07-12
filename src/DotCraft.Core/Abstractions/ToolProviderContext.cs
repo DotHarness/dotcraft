@@ -82,6 +82,13 @@ public sealed class ToolProviderContext
         init;
     }
 
+    /// <summary>Effective inference speed for this context.</summary>
+    public InferenceSpeed EffectiveSpeed
+    {
+        get => field;
+        init;
+    }
+
     /// <summary>
     /// True when this context uses an OpenAI-compatible provider protocol.
     /// </summary>

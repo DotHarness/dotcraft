@@ -83,7 +83,7 @@ public sealed class AgentFactory : IAsyncDisposable
 
         var mainRuntime = _chatClientRegistry.ResolveMainRuntime(config);
         var mainModel = mainRuntime.Model;
-        var mainCompactionConfig = ModelContextWindowCatalog.ResolveCompactionConfig(config, mainModel);
+        var mainCompactionConfig = ModelCatalog.ResolveCompactionConfig(config, mainModel);
         _chatClient = _chatClientRegistry.GetChatClient(mainRuntime);
         var consolidationRuntime = _chatClientRegistry.ResolveConsolidationRuntime(
             config,
@@ -188,7 +188,7 @@ public sealed class AgentFactory : IAsyncDisposable
         var effectiveConfig = configOverride ?? _config;
         var runtime = _chatClientRegistry.ResolveMainRuntime(effectiveConfig, providerIdOverride, modelOverride);
         var effectiveMainModel = runtime.Model;
-        var compactionConfig = ModelContextWindowCatalog.ResolveCompactionConfig(
+        var compactionConfig = ModelCatalog.ResolveCompactionConfig(
             effectiveConfig,
             effectiveMainModel,
             contextWindowModeOverride ?? effectiveConfig.Compaction.ContextWindowMode);
@@ -260,7 +260,7 @@ public sealed class AgentFactory : IAsyncDisposable
             _memoryStore,
             mainRuntime.Model,
             consolidationRuntime.Model,
-            ModelContextWindowCatalog.ResolveCompactionConfig(
+            ModelCatalog.ResolveCompactionConfig(
                 config,
                 mainRuntime.Model,
                 contextWindowModeOverride ?? config.Compaction.ContextWindowMode).BlockingLimit(),
@@ -506,6 +506,7 @@ public sealed class AgentFactory : IAsyncDisposable
             ctx.Config,
             runtime,
             ctx.EffectiveReasoning,
+            ctx.EffectiveSpeed,
             ctx.Config.PromptCaching,
             _traceCollector);
         var configuredChatClient = chatClientBuilder.Build();
@@ -654,6 +655,7 @@ public sealed class AgentFactory : IAsyncDisposable
             _config,
             runtime,
             _toolProviderContext.EffectiveReasoning,
+            _toolProviderContext.EffectiveSpeed,
             _config.PromptCaching,
             _traceCollector);
         return chatClientBuilder.Build();

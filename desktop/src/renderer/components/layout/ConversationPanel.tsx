@@ -248,6 +248,7 @@ export function ConversationPanel({
           modelOptions={modelControls.modelOptions}
           modelCatalog={modelControls.modelCatalog}
           reasoningValue={modelControls.reasoningValue}
+          speedValue={modelControls.speedValue}
           modelLoading={modelControls.modelLoading}
           modelDisabled={modelControls.modelDisabled}
           modelListUnsupportedEndpoint={modelControls.modelListUnsupportedEndpoint}
@@ -255,6 +256,7 @@ export function ConversationPanel({
           modelCatalogErrorMessage={modelControls.modelCatalogErrorMessage}
           onModelChange={modelControls.onModelChange}
           onReasoningChange={modelControls.onReasoningChange}
+          onSpeedChange={modelControls.onSpeedChange}
           onModelCatalogRetry={modelControls.onModelCatalogRetry}
           contextMode={modelControls.contextMode}
           contextSupportsMax={modelControls.contextSupportsMax}

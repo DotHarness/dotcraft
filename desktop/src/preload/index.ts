@@ -617,6 +617,7 @@ const api = {
         dreamsAutoApply: boolean | null
         defaultApprovalPolicy: 'default' | 'autoApprove' | null
         contextWindowMode: 'default' | 'max' | null
+        speed: 'standard' | 'fast' | null
       }
       userDefaults: {
         providerId: string | null
@@ -630,6 +631,7 @@ const api = {
         dreamsAutoApply: boolean | null
         defaultApprovalPolicy: 'default' | 'autoApprove' | null
         contextWindowMode: 'default' | 'max' | null
+        speed: 'standard' | 'fast' | null
       }
     }> {
       return ipcRenderer.invoke('workspace-config:get-core')

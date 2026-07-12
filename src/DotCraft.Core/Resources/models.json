@@ -1,0 +1,559 @@
+{
+  "defaultContextWindow": 256000,
+  "models": {
+    "gpt-5.6-sol": {
+      "contextWindow": 372000,
+      "fast": {
+        "protocols": [
+          "openai-responses"
+        ]
+      }
+    },
+    "gpt-5.6-terra": {
+      "contextWindow": 372000,
+      "fast": {
+        "protocols": [
+          "openai-responses"
+        ]
+      }
+    },
+    "gpt-5.6-luna": {
+      "contextWindow": 372000,
+      "fast": {
+        "protocols": [
+          "openai-responses"
+        ]
+      }
+    },
+    "gpt-5.5": {
+      "contextWindow": 1050000,
+      "fast": {
+        "protocols": [
+          "openai-responses"
+        ]
+      }
+    },
+    "gpt-5.4": {
+      "contextWindow": 1050000,
+      "fast": {
+        "protocols": [
+          "openai-responses"
+        ]
+      }
+    },
+    "gpt-5.4-mini": {
+      "fast": null
+    },
+    "gpt-5.3-codex": {
+      "contextWindow": 400000
+    },
+    "gpt-5.2-codex": {
+      "contextWindow": 400000
+    },
+    "gpt-5.2": {
+      "contextWindow": 400000
+    },
+    "gpt-5.1": {
+      "contextWindow": 400000
+    },
+    "gpt-5": {
+      "contextWindow": 400000
+    },
+    "gpt-4.1": {
+      "contextWindow": 1047576
+    },
+    "gpt-4o": {
+      "contextWindow": 128000
+    },
+    "chatgpt-4o": {
+      "contextWindow": 128000
+    },
+    "o4-mini": {
+      "contextWindow": 200000
+    },
+    "o3": {
+      "contextWindow": 200000
+    },
+    "claude-opus-4-6": {
+      "contextWindow": 1000000
+    },
+    "claude-opus-4-7": {
+      "contextWindow": 1000000,
+      "fast": {
+        "protocols": [
+          "anthropic"
+        ]
+      }
+    },
+    "claude-opus-4-8": {
+      "contextWindow": 1000000,
+      "fast": {
+        "protocols": [
+          "anthropic"
+        ]
+      }
+    },
+    "claude-sonnet-5": {
+      "contextWindow": 1000000
+    },
+    "claude-sonnet-4-6": {
+      "contextWindow": 1000000
+    },
+    "claude-sonnet-4-5": {
+      "contextWindow": 1000000
+    },
+    "claude-sonnet-4-0": {
+      "contextWindow": 1000000
+    },
+    "claude-haiku-4-5": {
+      "contextWindow": 200000
+    },
+    "claude-": {
+      "contextWindow": 200000
+    },
+    "anthropic.claude-": {
+      "contextWindow": 200000
+    },
+    "gemini-3.1-pro-preview": {
+      "contextWindow": 1048576
+    },
+    "gemini-3.1-flash-lite-preview": {
+      "contextWindow": 1048576
+    },
+    "gemini-3-flash-preview": {
+      "contextWindow": 1048576
+    },
+    "gemini-2.5-flash-image": {
+      "contextWindow": 65536
+    },
+    "gemini-2.5-pro": {
+      "contextWindow": 1048576
+    },
+    "gemini-2.5-flash-lite": {
+      "contextWindow": 1048576
+    },
+    "gemini-2.5-flash": {
+      "contextWindow": 1048576
+    },
+    "gemini-2.0-flash": {
+      "contextWindow": 1048576
+    },
+    "deepseek-v4-flash": {
+      "contextWindow": 1000000
+    },
+    "deepseek-v4-pro": {
+      "contextWindow": 1000000
+    },
+    "deepseek-chat": {
+      "contextWindow": 1000000
+    },
+    "deepseek-reasoner": {
+      "contextWindow": 1000000
+    },
+    "deepseek-v3.2": {
+      "contextWindow": 128000
+    },
+    "deepseek-v3.1": {
+      "contextWindow": 128000
+    },
+    "deepseek-r1": {
+      "contextWindow": 128000
+    },
+    "glm-5.1": {
+      "contextWindow": 200000
+    },
+    "glm-5": {
+      "contextWindow": 200000
+    },
+    "glm-4.7": {
+      "contextWindow": 200000
+    },
+    "glm-4.6": {
+      "contextWindow": 200000
+    },
+    "glm-4.5": {
+      "contextWindow": 128000
+    },
+    "glm-4-32b-0414-128k": {
+      "contextWindow": 128000
+    },
+    "z-ai/glm-5": {
+      "contextWindow": 200000
+    },
+    "z-ai/glm-4.7": {
+      "contextWindow": 200000
+    },
+    "z-ai/glm-4.6": {
+      "contextWindow": 200000
+    },
+    "kimi-k2.6": {
+      "contextWindow": 256000
+    },
+    "kimi-k2.5": {
+      "contextWindow": 256000
+    },
+    "kimi-k2-0711": {
+      "contextWindow": 128000
+    },
+    "kimi-k2-0905": {
+      "contextWindow": 256000
+    },
+    "kimi-k2-turbo": {
+      "contextWindow": 256000
+    },
+    "kimi-k2-thinking": {
+      "contextWindow": 256000
+    },
+    "kimi-k2-": {
+      "contextWindow": 256000
+    },
+    "kimi-latest-128k": {
+      "contextWindow": 131072
+    },
+    "kimi-latest-32k": {
+      "contextWindow": 32768
+    },
+    "kimi-latest-8k": {
+      "contextWindow": 8192
+    },
+    "kimi-latest": {
+      "contextWindow": 131072
+    },
+    "moonshot-v1-8k": {
+      "contextWindow": 8192
+    },
+    "moonshot-v1-32k": {
+      "contextWindow": 32768
+    },
+    "moonshot-v1-128k": {
+      "contextWindow": 131072
+    },
+    "minimax-m2.7-highspeed": {
+      "contextWindow": 204800
+    },
+    "minimax-m2.7": {
+      "contextWindow": 204800
+    },
+    "minimax-m2.5-highspeed": {
+      "contextWindow": 204800
+    },
+    "minimax-m2.5": {
+      "contextWindow": 204800
+    },
+    "minimax-m2.1-highspeed": {
+      "contextWindow": 204800
+    },
+    "minimax-m2.1": {
+      "contextWindow": 204800
+    },
+    "minimax-m2": {
+      "contextWindow": 196608
+    },
+    "minimax-m1": {
+      "contextWindow": 1000000
+    },
+    "minimax-01": {
+      "contextWindow": 1000000
+    },
+    "minimax-text-01": {
+      "contextWindow": 1000000
+    },
+    "minimax.minimax-m2.5": {
+      "contextWindow": 1000000
+    },
+    "minimax.minimax-m2.1": {
+      "contextWindow": 196000
+    },
+    "minimax.minimax-m2": {
+      "contextWindow": 128000
+    },
+    "mimo-v2.5-pro": {
+      "contextWindow": 1048576
+    },
+    "mimo-v2.5": {
+      "contextWindow": 1048576
+    },
+    "mimo-v2-pro": {
+      "contextWindow": 1000000
+    },
+    "mimo-v2-omni": {
+      "contextWindow": 256000
+    },
+    "mimo-v2-flash": {
+      "contextWindow": 256000
+    },
+    "mimo-7b-rl-0530": {
+      "contextWindow": 48000
+    },
+    "mimo-7b": {
+      "contextWindow": 32768
+    },
+    "hunyuan-t1": {
+      "contextWindow": 131072
+    },
+    "hunyuan-turbos": {
+      "contextWindow": 131072
+    },
+    "hunyuan-2.0": {
+      "contextWindow": 131072
+    },
+    "hunyuan-a13b": {
+      "contextWindow": 131072
+    },
+    "hunyuan-mt-7b": {
+      "contextWindow": 32768
+    },
+    "tencent/hunyuan-a13b": {
+      "contextWindow": 131072
+    },
+    "tencent/hunyuan-mt-7b": {
+      "contextWindow": 32768
+    },
+    "ernie-5.0-thinking": {
+      "contextWindow": 128000
+    },
+    "ernie-x1.1": {
+      "contextWindow": 64000
+    },
+    "ernie-x1-32k": {
+      "contextWindow": 32768
+    },
+    "ernie-x1-turbo-32k": {
+      "contextWindow": 32768
+    },
+    "ernie-4.5-turbo-128k": {
+      "contextWindow": 128000
+    },
+    "ernie-4.5-300b": {
+      "contextWindow": 131072
+    },
+    "ernie-4.5-21b": {
+      "contextWindow": 120000
+    },
+    "ernie-4.5-vl-424b": {
+      "contextWindow": 123000
+    },
+    "ernie-4.5-vl-28b": {
+      "contextWindow": 32768
+    },
+    "baichuan-m2-32b": {
+      "contextWindow": 131072
+    },
+    "baichuan4-turbo": {
+      "contextWindow": 128000
+    },
+    "baichuan4-air": {
+      "contextWindow": 32768
+    },
+    "yi-medium-200k": {
+      "contextWindow": 200000
+    },
+    "yi-large": {
+      "contextWindow": 32768
+    },
+    "yi-lightning": {
+      "contextWindow": 12000
+    },
+    "doubao-seed-2-0-code": {
+      "contextWindow": 256000
+    },
+    "doubao-seed-2-0-pro": {
+      "contextWindow": 256000
+    },
+    "doubao-seed-2-0-lite": {
+      "contextWindow": 256000
+    },
+    "doubao-seed-2-0-mini": {
+      "contextWindow": 256000
+    },
+    "doubao-seed-2-0": {
+      "contextWindow": 256000
+    },
+    "doubao-seed-1-8": {
+      "contextWindow": 224000
+    },
+    "doubao-seed-1-6": {
+      "contextWindow": 256000
+    },
+    "doubao-1.5-pro-256k": {
+      "contextWindow": 256000
+    },
+    "doubao-1.5-pro-32k": {
+      "contextWindow": 32768
+    },
+    "doubao-1.5-thinking": {
+      "contextWindow": 128000
+    },
+    "qwen3.5-plus": {
+      "contextWindow": 1000000
+    },
+    "qwen3.5-flash": {
+      "contextWindow": 1000000
+    },
+    "qwen3.5-": {
+      "contextWindow": 262144
+    },
+    "qwen3-coder-plus": {
+      "contextWindow": 997952
+    },
+    "qwen3-coder-flash": {
+      "contextWindow": 997952
+    },
+    "qwen3-coder": {
+      "contextWindow": 262144
+    },
+    "qwen3-max": {
+      "contextWindow": 258048
+    },
+    "qwen3-next": {
+      "contextWindow": 262144
+    },
+    "qwen3-vl": {
+      "contextWindow": 131072
+    },
+    "qwen3-235b": {
+      "contextWindow": 262144
+    },
+    "qwen3-32b": {
+      "contextWindow": 131072
+    },
+    "qwen-coder": {
+      "contextWindow": 1000000
+    },
+    "qwen-flash": {
+      "contextWindow": 997952
+    },
+    "qwen-plus-latest": {
+      "contextWindow": 997952
+    },
+    "qwen-plus": {
+      "contextWindow": 129024
+    },
+    "qwen-turbo-latest": {
+      "contextWindow": 1000000
+    },
+    "qwen-turbo": {
+      "contextWindow": 129024
+    },
+    "qwen-max": {
+      "contextWindow": 30720
+    },
+    "qwen.qwen3-coder-next": {
+      "contextWindow": 262144
+    },
+    "qwen.qwen3-235b": {
+      "contextWindow": 262144
+    },
+    "qwen.qwen3-32b": {
+      "contextWindow": 131072
+    },
+    "mistral-large-latest": {
+      "contextWindow": 262144
+    },
+    "mistral-large-3": {
+      "contextWindow": 262144
+    },
+    "mistral-large-2512": {
+      "contextWindow": 262144
+    },
+    "mistral-large-": {
+      "contextWindow": 128000
+    },
+    "mistral-medium-latest": {
+      "contextWindow": 131072
+    },
+    "mistral-medium-": {
+      "contextWindow": 131072
+    },
+    "mistral-small-latest": {
+      "contextWindow": 131072
+    },
+    "mistral-small-": {
+      "contextWindow": 131072
+    },
+    "devstral-latest": {
+      "contextWindow": 256000
+    },
+    "devstral-2512": {
+      "contextWindow": 256000
+    },
+    "devstral-small-latest": {
+      "contextWindow": 256000
+    },
+    "devstral-": {
+      "contextWindow": 128000
+    },
+    "ministral-3-14b": {
+      "contextWindow": 262144
+    },
+    "ministral-3-8b": {
+      "contextWindow": 262144
+    },
+    "ministral-3-3b": {
+      "contextWindow": 131072
+    },
+    "codestral-mamba-latest": {
+      "contextWindow": 256000
+    },
+    "codestral-2508": {
+      "contextWindow": 256000
+    },
+    "codestral-latest": {
+      "contextWindow": 32000
+    },
+    "codestral-": {
+      "contextWindow": 32000
+    },
+    "grok-4-1-fast": {
+      "contextWindow": 2000000
+    },
+    "grok-4": {
+      "contextWindow": 256000
+    },
+    "grok-3": {
+      "contextWindow": 131072
+    },
+    "grok-2": {
+      "contextWindow": 131072
+    },
+    "grok-code-fast-1": {
+      "contextWindow": 131072
+    },
+    "llama-4-scout": {
+      "contextWindow": 131072
+    },
+    "llama-4-maverick": {
+      "contextWindow": 131072
+    },
+    "llama-3.3": {
+      "contextWindow": 131072
+    },
+    "llama-3.2": {
+      "contextWindow": 131072
+    },
+    "llama-3.1": {
+      "contextWindow": 131072
+    },
+    "meta-llama/llama-4-scout": {
+      "contextWindow": 131072
+    },
+    "meta-llama/llama-4-maverick": {
+      "contextWindow": 131072
+    },
+    "meta-llama/llama-3.3": {
+      "contextWindow": 131072
+    },
+    "meta-llama/llama-3.2": {
+      "contextWindow": 131072
+    },
+    "meta-llama/llama-3.1": {
+      "contextWindow": 131072
+    },
+    "gpt-oss-120b": {
+      "contextWindow": 131072
+    },
+    "gpt-oss-20b": {
+      "contextWindow": 131072
+    }
+  }
+}

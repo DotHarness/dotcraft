@@ -327,6 +327,7 @@ public sealed class SubAgentManager
             _endpoint,
             _maxOutputTokens,
             _reasoningConfig,
+            _config.Speed,
             _promptCachingConfig,
             _traceCollector);
         var configuredChatClient = chatClientBuilder.Build();

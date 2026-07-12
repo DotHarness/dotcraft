@@ -568,6 +568,8 @@ public sealed partial class AgentProfileStore
             resolved.Model = NormalizeNullableString(requested.Model);
         if (HasConfigProperty(configElement, "reasoning"))
             resolved.Reasoning = CloneReasoning(requested.Reasoning);
+        if (HasConfigProperty(configElement, "speed"))
+            resolved.Speed = requested.Speed;
         if (HasConfigProperty(configElement, "contextWindow"))
             resolved.ContextWindow = CloneContextWindow(requested.ContextWindow);
 
@@ -596,6 +598,7 @@ public sealed partial class AgentProfileStore
         || string.Equals(name, "providerId", StringComparison.OrdinalIgnoreCase)
         || string.Equals(name, "model", StringComparison.OrdinalIgnoreCase)
         || string.Equals(name, "reasoning", StringComparison.OrdinalIgnoreCase)
+        || string.Equals(name, "speed", StringComparison.OrdinalIgnoreCase)
         || string.Equals(name, "contextWindow", StringComparison.OrdinalIgnoreCase);
 
     private static bool IsBenignSerializedDefaultOverlay(JsonProperty property)
@@ -1682,6 +1685,7 @@ public sealed partial class AgentProfileStore
         ProviderId = source.ProviderId,
         Model = source.Model,
         Reasoning = CloneReasoning(source.Reasoning),
+        Speed = source.Speed,
         ContextWindow = CloneContextWindow(source.ContextWindow),
         WorkspaceOverride = source.WorkspaceOverride,
         ExecutionWorkspaceOverride = source.ExecutionWorkspaceOverride,

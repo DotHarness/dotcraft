@@ -689,6 +689,7 @@ interface WorkspaceCoreConfigSnapshot {
   dreamsAutoApply: boolean | null
   defaultApprovalPolicy: 'default' | 'autoApprove' | null
   contextWindowMode: 'default' | 'max' | null
+  speed: 'standard' | 'fast' | null
 }
 
 function getCaseInsensitiveRecordValue(
@@ -772,6 +773,13 @@ function readContextWindowMode(record: Record<string, unknown>): 'default' | 'ma
   return null
 }
 
+function readInferenceSpeed(record: Record<string, unknown>): 'standard' | 'fast' | null {
+  const raw = getCaseInsensitiveRecordValue(record, 'Speed')
+  if (typeof raw !== 'string') return null
+  const normalized = raw.trim().toLowerCase()
+  return normalized === 'standard' || normalized === 'fast' ? normalized : null
+}
+
 function createEmptyCoreConfigSnapshot(): WorkspaceCoreConfigSnapshot {
   return {
     providerId: null,
@@ -784,7 +792,8 @@ function createEmptyCoreConfigSnapshot(): WorkspaceCoreConfigSnapshot {
     dreamsThreadLookbackCount: null,
     dreamsAutoApply: null,
     defaultApprovalPolicy: null,
-    contextWindowMode: null
+    contextWindowMode: null,
+    speed: null
   }
 }
 
@@ -802,7 +811,8 @@ function readCoreConfigSnapshotFromText(raw: string): WorkspaceCoreConfigSnapsho
     dreamsThreadLookbackCount: readNestedInteger(parsed, 'Dreams', 'ThreadLookbackCount'),
     dreamsAutoApply: readNestedBoolean(parsed, 'Dreams', 'AutoApply'),
     defaultApprovalPolicy: readDefaultApprovalPolicy(parsed),
-    contextWindowMode: readContextWindowMode(parsed)
+    contextWindowMode: readContextWindowMode(parsed),
+    speed: readInferenceSpeed(parsed)
   }
 }
 

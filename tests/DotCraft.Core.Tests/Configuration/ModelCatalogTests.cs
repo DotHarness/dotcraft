@@ -2,11 +2,11 @@ using DotCraft.Configuration;
 
 namespace DotCraft.Tests.Configuration;
 
-public sealed class ModelContextWindowCatalogTests : IDisposable
+public sealed class ModelCatalogTests : IDisposable
 {
-    private readonly string _root = Path.Combine(Path.GetTempPath(), $"model_context_windows_{Guid.NewGuid():N}");
+    private readonly string _root = Path.Combine(Path.GetTempPath(), $"model_catalog_{Guid.NewGuid():N}");
 
-    public ModelContextWindowCatalogTests()
+    public ModelCatalogTests()
     {
         Directory.CreateDirectory(_root);
     }
@@ -28,7 +28,7 @@ public sealed class ModelContextWindowCatalogTests : IDisposable
     [Fact]
     public void Resolve_UsesDefaultForUnknownModel()
     {
-        var contextWindow = ModelContextWindowCatalog.Resolve("unknown-model");
+        var contextWindow = ModelCatalog.Resolve("unknown-model");
 
         Assert.Equal(256_000, contextWindow);
     }
@@ -36,7 +36,7 @@ public sealed class ModelContextWindowCatalogTests : IDisposable
     [Fact]
     public void ResolveDetailed_MarksUnknownModelAsFallback()
     {
-        var resolution = ModelContextWindowCatalog.ResolveDetailed("unknown-model");
+        var resolution = ModelCatalog.ResolveDetailed("unknown-model");
 
         Assert.Equal(256_000, resolution.ContextWindow);
         Assert.False(resolution.HasExplicitMatch);
@@ -50,13 +50,13 @@ public sealed class ModelContextWindowCatalogTests : IDisposable
         var catalogPath = WriteCatalog("global", """
             {
               "models": {
-                "test-": 100000,
-                "test-long": 200000
+                "test-": { "contextWindow": 100000 },
+                "test-long": { "contextWindow": 200000 }
               }
             }
             """);
 
-        var contextWindow = ModelContextWindowCatalog.Resolve("test-long-v1", globalCatalogPath: catalogPath);
+        var contextWindow = ModelCatalog.Resolve("test-long-v1", globalCatalogPath: catalogPath);
 
         Assert.Equal(200_000, contextWindow);
     }
@@ -67,13 +67,13 @@ public sealed class ModelContextWindowCatalogTests : IDisposable
         var catalogPath = WriteCatalog("global", """
             {
               "models": {
-                "test-": 100000,
-                "test-long": 200000
+                "test-": { "contextWindow": 100000 },
+                "test-long": { "contextWindow": 200000 }
               }
             }
             """);
 
-        var resolution = ModelContextWindowCatalog.ResolveDetailed("test-long-v1", globalCatalogPath: catalogPath);
+        var resolution = ModelCatalog.ResolveDetailed("test-long-v1", globalCatalogPath: catalogPath);
 
         Assert.Equal(200_000, resolution.ContextWindow);
         Assert.True(resolution.HasExplicitMatch);
@@ -87,12 +87,12 @@ public sealed class ModelContextWindowCatalogTests : IDisposable
         var catalogPath = WriteCatalog("global", """
             {
               "models": {
-                "gpt-special": 321000
+                "gpt-special": { "contextWindow": 321000 }
               }
             }
             """);
 
-        var contextWindow = ModelContextWindowCatalog.Resolve("azure/gpt-special-deployment", globalCatalogPath: catalogPath);
+        var contextWindow = ModelCatalog.Resolve("azure/gpt-special-deployment", globalCatalogPath: catalogPath);
 
         Assert.Equal(321_000, contextWindow);
     }
@@ -103,12 +103,12 @@ public sealed class ModelContextWindowCatalogTests : IDisposable
         var catalogPath = WriteCatalog("global", """
             {
               "models": {
-                "qwen3-coder-plus": 997952
+                "qwen3-coder-plus": { "contextWindow": 997952 }
               }
             }
             """);
 
-        var contextWindow = ModelContextWindowCatalog.Resolve(
+        var contextWindow = ModelCatalog.Resolve(
             "openrouter/qwen/qwen3-coder-plus",
             globalCatalogPath: catalogPath);
 
@@ -118,7 +118,7 @@ public sealed class ModelContextWindowCatalogTests : IDisposable
     [Fact]
     public void Resolve_UsesFinalModelSegmentWhenProviderPrefixDoesNotMatch()
     {
-        var contextWindow = ModelContextWindowCatalog.Resolve("provider/glm-5.1");
+        var contextWindow = ModelCatalog.Resolve("provider/glm-5.1");
 
         Assert.Equal(200_000, contextWindow);
     }
@@ -126,19 +126,34 @@ public sealed class ModelContextWindowCatalogTests : IDisposable
     [Fact]
     public void Resolve_UsesBuiltInClaudeOpusCatalogThroughProviderPrefixes()
     {
-        Assert.Equal(1_000_000, ModelContextWindowCatalog.Resolve("provider/claude-opus-4-8"));
+        Assert.Equal(1_000_000, ModelCatalog.Resolve("provider/claude-opus-4-8"));
     }
+
+    [Theory]
+    [InlineData(ModelProviderProtocols.OpenAIResponses, "gpt-5.4")]
+    [InlineData(ModelProviderProtocols.OpenAIResponses, "openai/gpt-5.5")]
+    [InlineData(ModelProviderProtocols.Anthropic, "claude-opus-4-8")]
+    [InlineData(ModelProviderProtocols.Anthropic, "anthropic/claude-opus-4-7")]
+    public void SupportsFast_UsesBuiltInProtocolAndModelRules(string protocol, string model) =>
+        Assert.True(ModelCatalog.SupportsFast(new AppConfig(), protocol, model));
+
+    [Theory]
+    [InlineData(ModelProviderProtocols.OpenAIChatCompletions, "gpt-5.4")]
+    [InlineData(ModelProviderProtocols.OpenAIResponses, "gpt-5.4-mini")]
+    [InlineData(ModelProviderProtocols.Anthropic, "claude-sonnet-4-6")]
+    public void SupportsFast_RejectsUnsupportedProtocolAndModelRules(string protocol, string model) =>
+        Assert.False(ModelCatalog.SupportsFast(new AppConfig(), protocol, model));
 
     [Fact]
     public void ResolveCompactionConfig_CapsGpt55InferredWindowByDefault()
     {
-        Assert.Equal(1_050_000, ModelContextWindowCatalog.Resolve("gpt-5.5"));
+        Assert.Equal(1_050_000, ModelCatalog.Resolve("gpt-5.5"));
 
         var config = new AppConfig
         {
             Model = "gpt-5.5"
         };
-        ModelContextWindowCatalog.ApplyToConfig(
+        ModelCatalog.ApplyToConfig(
             config,
             System.Text.Json.Nodes.JsonNode.Parse("""{ "Model": "gpt-5.5" }""")!,
             globalConfigPath: null,
@@ -155,17 +170,17 @@ public sealed class ModelContextWindowCatalogTests : IDisposable
         {
             Model = "gpt-5.5"
         };
-        ModelContextWindowCatalog.ApplyToConfig(
+        ModelCatalog.ApplyToConfig(
             config,
             System.Text.Json.Nodes.JsonNode.Parse("""{ "Model": "gpt-5.5" }""")!,
             globalConfigPath: null,
             workspaceConfigPath: null);
 
-        var defaultCompaction = ModelContextWindowCatalog.ResolveCompactionConfig(
+        var defaultCompaction = ModelCatalog.ResolveCompactionConfig(
             config,
             "gpt-5.5",
             ContextWindowMode.Default);
-        var maxCompaction = ModelContextWindowCatalog.ResolveCompactionConfig(
+        var maxCompaction = ModelCatalog.ResolveCompactionConfig(
             config,
             "gpt-5.5",
             ContextWindowMode.Max);
@@ -182,14 +197,14 @@ public sealed class ModelContextWindowCatalogTests : IDisposable
         {
             Model = "unknown-model"
         };
-        ModelContextWindowCatalog.ApplyToConfig(
+        ModelCatalog.ApplyToConfig(
             config,
             System.Text.Json.Nodes.JsonNode.Parse("""{ "Model": "unknown-model" }""")!,
             globalConfigPath: null,
             workspaceConfigPath: null);
 
-        var capability = ModelContextWindowCatalog.ResolveContextWindowCapability(config, "unknown-model");
-        var maxCompaction = ModelContextWindowCatalog.ResolveCompactionConfig(
+        var capability = ModelCatalog.ResolveContextWindowCapability(config, "unknown-model");
+        var maxCompaction = ModelCatalog.ResolveCompactionConfig(
             config,
             "unknown-model",
             ContextWindowMode.Max);
@@ -209,13 +224,13 @@ public sealed class ModelContextWindowCatalogTests : IDisposable
         {
             Model = "mimo-v2.5-pro"
         };
-        ModelContextWindowCatalog.ApplyToConfig(
+        ModelCatalog.ApplyToConfig(
             config,
             System.Text.Json.Nodes.JsonNode.Parse("""{ "Model": "mimo-v2.5-pro" }""")!,
             globalConfigPath: null,
             workspaceConfigPath: null);
 
-        var compaction = ModelContextWindowCatalog.ResolveCompactionConfig(config, "provider/glm-5.1");
+        var compaction = ModelCatalog.ResolveCompactionConfig(config, "provider/glm-5.1");
 
         Assert.Equal(200_000, compaction.ContextWindow);
         Assert.Equal(180_000, compaction.EffectiveContextWindow());
@@ -232,13 +247,13 @@ public sealed class ModelContextWindowCatalogTests : IDisposable
                 MaxContextWindow = 300_000
             }
         };
-        ModelContextWindowCatalog.ApplyToConfig(
+        ModelCatalog.ApplyToConfig(
             config,
             System.Text.Json.Nodes.JsonNode.Parse("""{ "Model": "mimo-v2.5-pro" }""")!,
             globalConfigPath: null,
             workspaceConfigPath: null);
 
-        var compaction = ModelContextWindowCatalog.ResolveCompactionConfig(config, "gateway/xiaomi/mimo-v2.5-pro");
+        var compaction = ModelCatalog.ResolveCompactionConfig(config, "gateway/xiaomi/mimo-v2.5-pro");
 
         Assert.Equal(300_000, config.Compaction.ContextWindow);
         Assert.Equal(300_000, compaction.ContextWindow);
@@ -256,7 +271,7 @@ public sealed class ModelContextWindowCatalogTests : IDisposable
                 MaxContextWindow = 100_000
             }
         };
-        ModelContextWindowCatalog.ApplyToConfig(
+        ModelCatalog.ApplyToConfig(
             config,
             System.Text.Json.Nodes.JsonNode.Parse("""
                 {
@@ -269,7 +284,7 @@ public sealed class ModelContextWindowCatalogTests : IDisposable
             globalConfigPath: null,
             workspaceConfigPath: null);
 
-        var compaction = ModelContextWindowCatalog.ResolveCompactionConfig(config, "provider/glm-5.1");
+        var compaction = ModelCatalog.ResolveCompactionConfig(config, "provider/glm-5.1");
 
         Assert.Equal(123_000, compaction.ContextWindow);
     }
@@ -277,9 +292,9 @@ public sealed class ModelContextWindowCatalogTests : IDisposable
     [Fact]
     public void Resolve_UsesBuiltInChineseModelCatalogThroughProviderPrefixes()
     {
-        Assert.Equal(204_800, ModelContextWindowCatalog.Resolve("openrouter/minimax/minimax-m2.7"));
-        Assert.Equal(1_048_576, ModelContextWindowCatalog.Resolve("gateway/xiaomi/mimo-v2.5-pro"));
-        Assert.Equal(131_072, ModelContextWindowCatalog.Resolve("siliconflow/tencent/Hunyuan-A13B-Instruct"));
+        Assert.Equal(204_800, ModelCatalog.Resolve("openrouter/minimax/minimax-m2.7"));
+        Assert.Equal(1_048_576, ModelCatalog.Resolve("gateway/xiaomi/mimo-v2.5-pro"));
+        Assert.Equal(131_072, ModelCatalog.Resolve("siliconflow/tencent/Hunyuan-A13B-Instruct"));
     }
 
     [Fact]
@@ -288,19 +303,19 @@ public sealed class ModelContextWindowCatalogTests : IDisposable
         var globalPath = WriteCatalog("global", """
             {
               "models": {
-                "my-model": 111000
+                "my-model": { "contextWindow": 111000 }
               }
             }
             """);
         var workspacePath = WriteCatalog("workspace", """
             {
               "models": {
-                "my-model": 222000
+                "my-model": { "contextWindow": 222000 }
               }
             }
             """);
 
-        var contextWindow = ModelContextWindowCatalog.Resolve(
+        var contextWindow = ModelCatalog.Resolve(
             "my-model",
             globalCatalogPath: globalPath,
             workspaceCatalogPath: workspacePath);
@@ -319,7 +334,7 @@ public sealed class ModelContextWindowCatalogTests : IDisposable
             }
             """)!;
 
-        Assert.True(ModelContextWindowCatalog.HasExplicitCompactionContextWindow(configNode));
+        Assert.True(ModelCatalog.HasExplicitCompactionContextWindow(configNode));
     }
 
     [Fact]
@@ -336,7 +351,7 @@ public sealed class ModelContextWindowCatalogTests : IDisposable
         WriteCatalog("workspace", """
             {
               "models": {
-                "my-model": 333000
+                "my-model": { "contextWindow": 333000 }
               }
             }
             """);
@@ -370,7 +385,7 @@ public sealed class ModelContextWindowCatalogTests : IDisposable
         WriteCatalog("workspace", """
             {
               "models": {
-                "my-model": 333000
+                "my-model": { "contextWindow": 333000 }
               }
             }
             """);
@@ -383,19 +398,92 @@ public sealed class ModelContextWindowCatalogTests : IDisposable
     [Fact]
     public void LoadJson_IgnoresInvalidModelWindows()
     {
-        var catalog = ModelContextWindowCatalog.LoadJson("""
+        var catalog = ModelCatalog.LoadJson("""
             {
               "defaultContextWindow": 999,
               "models": {
-                "too-small": 999,
-                "valid": 64000
+                "too-small": { "contextWindow": 999 },
+                "valid": { "contextWindow": 64000 }
               }
             }
             """);
 
         Assert.Null(catalog.DefaultContextWindow);
         Assert.False(catalog.Models.ContainsKey("too-small"));
-        Assert.Equal(64_000, catalog.Models["valid"]);
+        Assert.Equal(64_000, catalog.Models["valid"].ContextWindow);
+    }
+
+    [Fact]
+    public void CapabilityResolution_UsesIndependentMostSpecificRules()
+    {
+        var catalogPath = WriteCatalog("global", """
+            {
+              "models": {
+                "vendor/": {
+                  "contextWindow": 64000
+                },
+                "custom-": {
+                  "fast": { "protocols": ["openai-responses"] }
+                },
+                "custom-large": {
+                  "contextWindow": 512000
+                }
+              }
+            }
+            """);
+
+        Assert.Equal(512_000, ModelCatalog.Resolve("vendor/custom-large-v2", globalCatalogPath: catalogPath));
+        Assert.True(ModelCatalog.SupportsFast(
+            ModelProviderProtocols.OpenAIResponses,
+            "vendor/custom-large-v2",
+            globalCatalogPath: catalogPath));
+    }
+
+    [Fact]
+    public void WorkspaceCatalog_MergesModelFieldsWithoutDroppingGlobalFast()
+    {
+        var globalPath = WriteCatalog("global", """
+            {
+              "models": {
+                "custom-model": {
+                  "contextWindow": 128000,
+                  "fast": { "protocols": ["openai-responses"] }
+                }
+              }
+            }
+            """);
+        var workspacePath = WriteCatalog("workspace", """
+            {
+              "models": {
+                "custom-model": { "contextWindow": 640000 }
+              }
+            }
+            """);
+
+        Assert.Equal(640_000, ModelCatalog.Resolve("custom-model", globalPath, workspacePath));
+        Assert.True(ModelCatalog.SupportsFast(
+            ModelProviderProtocols.OpenAIResponses,
+            "custom-model",
+            globalPath,
+            workspacePath));
+    }
+
+    [Fact]
+    public void WorkspaceCatalog_FastNullDisablesBuiltInWithoutDroppingContextWindow()
+    {
+        var workspacePath = WriteCatalog("workspace", """
+            {
+              "models": {
+                "gpt-5.4": { "fast": null }
+              }
+            }
+            """);
+
+        Assert.Equal(1_050_000, ModelCatalog.Resolve("gpt-5.4", workspaceCatalogPath: workspacePath));
+        Assert.False(ModelCatalog.SupportsFast(
+            ModelProviderProtocols.OpenAIResponses,
+            "gpt-5.4",
+            workspaceCatalogPath: workspacePath));
     }
 
     private string WriteConfig(string directoryName, string json)
@@ -411,7 +499,7 @@ public sealed class ModelContextWindowCatalogTests : IDisposable
     {
         var directory = Path.Combine(_root, directoryName);
         Directory.CreateDirectory(directory);
-        var path = Path.Combine(directory, ModelContextWindowCatalog.FileName);
+        var path = Path.Combine(directory, ModelCatalog.FileName);
         File.WriteAllText(path, json);
         return path;
     }

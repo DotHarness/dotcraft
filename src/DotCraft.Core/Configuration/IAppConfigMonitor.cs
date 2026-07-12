@@ -43,6 +43,7 @@ public static class ConfigChangeRegions
     public const string WorkspaceModel = "workspace.model";
     public const string WorkspaceProvider = "workspace.provider";
     public const string WorkspaceReasoning = "workspace.reasoning";
+    public const string WorkspaceSpeed = "workspace.speed";
     public const string WorkspaceContextWindow = "workspace.contextWindow";
     public const string ProviderRegistry = "providers";
     public const string WelcomeSuggestions = "welcomeSuggestions";

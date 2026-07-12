@@ -75,6 +75,45 @@ describe('ModelPicker', () => {
     expect(within(listbox).getByRole('option', { name: /Off/ })).toBeDisabled()
   })
 
+  it('shows speed only for a fast-capable model and applies the selection', () => {
+    const onSpeedChange = vi.fn()
+    render(
+      <LocaleProvider>
+        <ModelPicker
+          modelName="gpt-5.5"
+          modelOptions={['gpt-5.5']}
+          modelCatalog={[catalogModel('gpt-5.5', true, ['medium'], 'medium', true)]}
+          reasoningValue="medium"
+          speedValue="standard"
+          onSpeedChange={onSpeedChange}
+          triggerStyle={{}}
+        />
+      </LocaleProvider>
+    )
+
+    const menu = openPicker()
+    fireEvent.click(within(menu).getByRole('menuitem', { name: /Speed/ }))
+    const listbox = screen.getByRole('listbox', { name: 'Speed' })
+    fireEvent.click(within(listbox).getByRole('option', { name: /Fast/ }))
+    expect(onSpeedChange).toHaveBeenCalledWith('fast')
+  })
+
+  it('hides speed when capability metadata is absent', () => {
+    render(
+      <LocaleProvider>
+        <ModelPicker
+          modelName="gpt-5.4-mini"
+          modelOptions={['gpt-5.4-mini']}
+          modelCatalog={[catalogModel('gpt-5.4-mini', true, ['medium'], 'medium')]}
+          reasoningValue="medium"
+          triggerStyle={{}}
+        />
+      </LocaleProvider>
+    )
+
+    expect(within(openPicker()).queryByRole('menuitem', { name: /Speed/ })).not.toBeInTheDocument()
+  })
+
   it('applies an intelligence selection without changing the model', () => {
     const onReasoningChange = vi.fn()
     const onChange = vi.fn()
@@ -429,17 +468,21 @@ function catalogModel(
   id: string,
   supportsDisable: boolean,
   efforts: Array<'low' | 'medium' | 'high' | 'extraHigh'>,
-  defaultEffort: 'low' | 'medium' | 'high' | 'extraHigh'
+  defaultEffort: 'low' | 'medium' | 'high' | 'extraHigh',
+  supportsFast = false
 ) {
   return {
     id,
     reasoning: {
       supportsDisable,
-      supportedEfforts: efforts.map((effort) => ({ effort, label: effort })),
+      supportedEfforts: efforts.map((effort) => ({ effort, label: effort, description: '' })),
       defaultEffort,
       supportedOutputs: ['full' as const],
       defaultOutput: 'full' as const
-    }
+    },
+    speed: supportsFast
+      ? { supportedModes: ['standard' as const, 'fast' as const], defaultMode: 'standard' as const }
+      : null
   }
 }
 

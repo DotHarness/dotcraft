@@ -184,4 +184,21 @@ describe('modelCatalogStore', () => {
       })
     ])
   })
+
+  it('keeps Fast capability from model/list', async () => {
+    appServerSendRequest.mockResolvedValueOnce({
+      success: true,
+      models: [{
+        id: 'gpt-5.5',
+        speed: { supportedModes: ['standard', 'fast'], defaultMode: 'standard' }
+      }]
+    })
+
+    await useModelCatalogStore.getState().loadIfNeeded()
+
+    expect(useModelCatalogStore.getState().models[0]).toMatchObject({
+      id: 'gpt-5.5',
+      speed: { supportedModes: ['standard', 'fast'], defaultMode: 'standard' }
+    })
+  })
 })

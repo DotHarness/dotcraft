@@ -3,6 +3,12 @@ import { create } from 'zustand'
 export type ModelCatalogStatus = 'idle' | 'loading' | 'ready' | 'error'
 export type ReasoningEffortWire = 'low' | 'medium' | 'high' | 'extraHigh'
 export type ReasoningOutputWire = 'none' | 'summary' | 'full'
+export type InferenceSpeedWire = 'standard' | 'fast'
+
+export interface ModelSpeedCapability {
+  supportedModes: InferenceSpeedWire[]
+  defaultMode: InferenceSpeedWire
+}
 
 export interface ModelReasoningEffortOption {
   effort: ReasoningEffortWire
@@ -20,7 +26,7 @@ export interface ModelReasoningCapability {
 
 /**
  * Server-authored context-window metadata for a model (see
- * specs/features/context-window-mode.md §5). Clients use `supportsMax` to decide
+ * specs/features/model-options.md §5). Clients use `supportsMax` to decide
  * whether to offer the MAX context switch; they must not hardcode model rules.
  */
 export interface ModelContextWindowMeta {
@@ -39,6 +45,7 @@ export interface ModelCatalogItem {
   ownedBy?: string
   createdAt?: string
   reasoning?: ModelReasoningCapability | null
+  speed?: ModelSpeedCapability | null
   contextWindow?: ModelContextWindowMeta | null
 }
 
@@ -84,6 +91,25 @@ const initialState: ModelCatalogState = {
 
 const effortValues = new Set<ReasoningEffortWire>(['low', 'medium', 'high', 'extraHigh'])
 const outputValues = new Set<ReasoningOutputWire>(['none', 'summary', 'full'])
+const speedValues = new Set<InferenceSpeedWire>(['standard', 'fast'])
+
+function parseSpeedCapability(value: unknown): ModelSpeedCapability | null {
+  if (!value || typeof value !== 'object') return null
+  const typed = value as Record<string, unknown>
+  const rawModes = typed.supportedModes ?? typed.SupportedModes
+  if (!Array.isArray(rawModes)) return null
+  const supportedModes = rawModes.filter(
+    (item): item is InferenceSpeedWire => typeof item === 'string' && speedValues.has(item as InferenceSpeedWire)
+  )
+  if (!supportedModes.includes('fast')) return null
+  const rawDefault = typed.defaultMode ?? typed.DefaultMode
+  return {
+    supportedModes,
+    defaultMode: typeof rawDefault === 'string' && speedValues.has(rawDefault as InferenceSpeedWire)
+      ? rawDefault as InferenceSpeedWire
+      : 'standard'
+  }
+}
 
 function parseReasoningCapability(value: unknown): ModelReasoningCapability | null {
   if (!value || typeof value !== 'object') return null
@@ -148,7 +174,7 @@ function parseContextWindowMeta(value: unknown): ModelContextWindowMeta | null {
 function parseModelCatalogItems(payload: unknown): ModelCatalogItem[] {
   const typed = payload as {
     success?: boolean
-    models?: Array<{ id?: string; Id?: string; ownedBy?: string; OwnedBy?: string; createdAt?: string; CreatedAt?: string; reasoning?: unknown; Reasoning?: unknown; contextWindow?: unknown; ContextWindow?: unknown }>
+    models?: Array<{ id?: string; Id?: string; ownedBy?: string; OwnedBy?: string; createdAt?: string; CreatedAt?: string; reasoning?: unknown; Reasoning?: unknown; speed?: unknown; Speed?: unknown; contextWindow?: unknown; ContextWindow?: unknown }>
   }
   if (!typed.success || !Array.isArray(typed.models)) return []
   const byId = new Map<string, ModelCatalogItem>()
@@ -160,6 +186,7 @@ function parseModelCatalogItems(payload: unknown): ModelCatalogItem[] {
       ownedBy: typeof (model.ownedBy ?? model.OwnedBy) === 'string' ? String(model.ownedBy ?? model.OwnedBy) : undefined,
       createdAt: typeof (model.createdAt ?? model.CreatedAt) === 'string' ? String(model.createdAt ?? model.CreatedAt) : undefined,
       reasoning: parseReasoningCapability(model.reasoning ?? model.Reasoning),
+      speed: parseSpeedCapability(model.speed ?? model.Speed),
       contextWindow: parseContextWindowMeta(model.contextWindow ?? model.ContextWindow)
     })
   }

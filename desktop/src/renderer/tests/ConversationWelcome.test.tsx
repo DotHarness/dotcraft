@@ -414,6 +414,30 @@ describe('ConversationWelcome composer', () => {
     expect(within(menu).getByRole('switch', { name: 'MAX Mode' })).not.toBeDisabled()
   })
 
+  it('saves Fast as a welcome preset without creating a thread', async () => {
+    useModelCatalogStore.setState({
+      status: 'ready',
+      modelOptions: ['gpt-5.5'],
+      models: [{
+        id: 'gpt-5.5',
+        speed: { supportedModes: ['standard', 'fast'], defaultMode: 'standard' }
+      }],
+      modelListUnsupportedEndpoint: false
+    })
+    fileReadFile.mockResolvedValue(JSON.stringify({ Model: 'gpt-5.5', Speed: 'Standard' }))
+
+    renderWelcome()
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Select model' })).toHaveTextContent('gpt-5.5'))
+    fireEvent.click(screen.getByRole('button', { name: 'Select model' }))
+    fireEvent.click(within(screen.getByRole('menu', { name: 'Select model' })).getByRole('menuitem', { name: /Speed/ }))
+    fireEvent.click(within(screen.getByRole('listbox', { name: 'Speed' })).getByRole('option', { name: /Fast/ }))
+
+    await waitFor(() => {
+      expect(appServerSendRequest).toHaveBeenCalledWith('workspace/config/update', { speed: 'fast' })
+    })
+    expect(appServerSendRequest).not.toHaveBeenCalledWith('thread/start', expect.anything())
+  })
+
   it('stores explicit welcome MAX context on the first pending turn', async () => {
     useModelCatalogStore.setState({
       status: 'ready',

@@ -41,7 +41,7 @@ import { CommandSearchPopover, type SlashSystemActionInfo } from './CommandSearc
 import { GoalControlPopover } from './GoalControlPopover'
 import { GoalComposePill } from './GoalComposePill'
 import { ModelPicker, type ReasoningQuickValue } from './ModelPicker'
-import type { ModelCatalogItem } from '../../stores/modelCatalogStore'
+import type { InferenceSpeedWire, ModelCatalogItem } from '../../stores/modelCatalogStore'
 import { useModelCatalogStore } from '../../stores/modelCatalogStore'
 import { useProvidersStore, useChatGptOAuthSummary } from '../../stores/providersStore'
 import { ChatGptUsageBadge } from './ChatGptUsageBadge'
@@ -126,6 +126,7 @@ interface InputComposerProps {
   modelOptions?: string[]
   modelCatalog?: ModelCatalogItem[]
   reasoningValue?: ReasoningQuickValue
+  speedValue?: InferenceSpeedWire
   modelLoading?: boolean
   modelDisabled?: boolean
   remoteWorkspace?: boolean
@@ -135,6 +136,7 @@ interface InputComposerProps {
   modelCatalogErrorMessage?: string | null
   onModelChange?: (model: string) => void
   onReasoningChange?: (value: ReasoningQuickValue) => void
+  onSpeedChange?: (value: InferenceSpeedWire) => void
   onModelCatalogRetry?: () => void
   contextMode?: ContextWindowMode
   contextSupportsMax?: boolean
@@ -182,6 +184,7 @@ export function InputComposer({
   modelOptions = [],
   modelCatalog = [],
   reasoningValue = 'off',
+  speedValue = 'standard',
   modelLoading = false,
   modelDisabled = false,
   remoteWorkspace = false,
@@ -190,6 +193,7 @@ export function InputComposer({
   modelCatalogErrorMessage = null,
   onModelChange,
   onReasoningChange,
+  onSpeedChange,
   onModelCatalogRetry,
   contextMode,
   contextSupportsMax,
@@ -1460,6 +1464,11 @@ export function InputComposer({
     dockPadding === composerDockStyle.padding
       ? composerDockStyle
       : { ...composerDockStyle, padding: dockPadding }
+  const mascotSpeed = speedValue === 'fast' && modelCatalog.some(
+    (model) => model.id === modelName && model.speed?.supportedModes.includes('fast') === true
+  )
+    ? 'fast'
+    : 'standard'
 
   return (
     <div style={effectiveComposerDockStyle}>
@@ -1486,6 +1495,7 @@ export function InputComposer({
         mascotBounceSignal={mascotBounce}
         mascotInteraction={mascotInteraction}
         mascotReasoningEffort={reasoningValue === 'default' ? 'off' : reasoningValue}
+        mascotSpeed={mascotSpeed}
         mascotContextMax={contextMode === 'max' || contextDegraded === true}
         mascotAvatar={effectiveMascotAvatar}
         mascotHandoff
@@ -1694,6 +1704,7 @@ export function InputComposer({
               modelOptions={modelOptions}
               modelCatalog={modelCatalog}
               reasoningValue={reasoningValue}
+              speedValue={speedValue}
               loading={modelLoading}
               unsupported={modelListUnsupportedEndpoint}
               modelListReady={!modelLoading && !modelListUnsupportedEndpoint && !modelCatalogError && modelOptions.length > 0}
@@ -1701,6 +1712,7 @@ export function InputComposer({
               disabled={modelDisabled}
               onChange={onModelChange}
               onReasoningChange={onReasoningChange}
+              onSpeedChange={onSpeedChange}
               onRetry={onModelCatalogRetry}
               contextMode={contextMode}
               contextSupportsMax={contextSupportsMax}

@@ -71,14 +71,17 @@ describe('ComposerShell mascot energy and active idle', () => {
     delete (globalThis as { ResizeObserver?: typeof ResizeObserver }).ResizeObserver
   })
 
-  it('exposes reasoning intensity and MAX context to the mascot treatment', () => {
+  it('exposes reasoning intensity, Fast speed, and MAX context to independent mascot treatments', () => {
     const { container } = renderComposer({
       mascotReasoningEffort: 'extraHigh',
+      mascotSpeed: 'fast',
       mascotContextMax: true
     })
 
     expect(mascot(container)).toHaveAttribute('data-mascot-effort', 'extraHigh')
+    expect(mascot(container)).toHaveAttribute('data-mascot-speed', 'fast')
     expect(mascot(container)).toHaveAttribute('data-mascot-context', 'max')
+    expect(container.querySelector('.composer-mascot-fast-echo')).not.toBeNull()
   })
 
   it('keeps the mascot visible and anchors it to a measured top accessory', () => {

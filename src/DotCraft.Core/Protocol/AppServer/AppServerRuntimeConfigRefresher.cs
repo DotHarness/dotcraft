@@ -107,6 +107,16 @@ internal sealed class AppServerRuntimeConfigRefresher(
         appConfigMonitor.Current.Reasoning = new AppConfig.ReasoningConfig();
     }
 
+    public void RefreshCurrentSpeedConfig()
+    {
+        if (appConfigMonitor == null)
+            return;
+
+        appConfigMonitor.Current.Speed = !string.IsNullOrWhiteSpace(workspaceCraftPath)
+            ? LoadMergedWorkspaceConfig(useGlobalFallback: true).Speed
+            : InferenceSpeed.Standard;
+    }
+
     public void RefreshCurrentContextWindowConfig()
     {
         if (appConfigMonitor == null)

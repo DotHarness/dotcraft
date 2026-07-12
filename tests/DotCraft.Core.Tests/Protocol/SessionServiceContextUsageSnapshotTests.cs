@@ -96,7 +96,7 @@ public sealed class SessionServiceContextUsageSnapshotTests : IDisposable
     {
         const string threadId = "thread-model-override";
         var config = AppConfigTestFactory.CreateOpenAI(model: "mimo-v2.5-pro");
-        ModelContextWindowCatalog.ApplyToConfig(
+        ModelCatalog.ApplyToConfig(
             config,
             System.Text.Json.Nodes.JsonNode.Parse("""{ "Model": "mimo-v2.5-pro" }""")!,
             globalConfigPath: null,
@@ -126,7 +126,7 @@ public sealed class SessionServiceContextUsageSnapshotTests : IDisposable
     public async Task TryGetContextUsageSnapshot_MaxContextWindowModeUsesCatalogWindow()
     {
         var config = AppConfigTestFactory.CreateOpenAI(model: "gpt-5.5");
-        ModelContextWindowCatalog.ApplyToConfig(
+        ModelCatalog.ApplyToConfig(
             config,
             System.Text.Json.Nodes.JsonNode.Parse("""{ "Model": "gpt-5.5" }""")!,
             globalConfigPath: null,

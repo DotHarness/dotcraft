@@ -686,6 +686,44 @@ kbd {
   z-index: 2;
 }
 
+/* Fast inference speed is a separate visual channel from reasoning effort and
+   MAX. A dedicated wrapper around the SVG owns the filter so the afterimage
+   cannot replace pose, activity, Effort, or MAX animations on adjacent layers. */
+.composer-mascot-fast-echo {
+  display: grid;
+  line-height: 0;
+  transform-origin: bottom center;
+}
+
+[data-mascot-speed='fast'] .composer-mascot-motion {
+  --mascot-fast-shift-base: oklch(from var(--mascot-energy-accent)
+    clamp(0.5, calc(l + 0.22), 0.96) clamp(0.06, calc(c * 0.88), 0.27) calc(h + 92));
+  --mascot-fast-echo-left: color-mix(in oklab, var(--mascot-energy-accent) 68%, var(--text-primary));
+  --mascot-fast-echo-right: color-mix(in oklab, var(--mascot-fast-shift-base) 78%, var(--text-primary));
+}
+
+[data-mascot-speed='fast'] .composer-mascot-fast-echo {
+  animation: composer-mascot-fast-soft-echo 5.8s cubic-bezier(0.45, 0, 0.55, 1) infinite;
+  will-change: filter;
+}
+
+@keyframes composer-mascot-fast-soft-echo {
+  0%, 100% {
+    filter:
+      drop-shadow(-2.1px 0 0.18px rgb(from var(--mascot-fast-echo-left) r g b / 0.58))
+      drop-shadow(-4px 0 0.25px rgb(from var(--mascot-fast-echo-left) r g b / 0.22))
+      drop-shadow(1.3px 0 0.2px rgb(from var(--mascot-fast-echo-right) r g b / 0.28))
+      drop-shadow(2.7px 0 0.25px rgb(from var(--mascot-fast-echo-right) r g b / 0.1));
+  }
+  50% {
+    filter:
+      drop-shadow(-1.3px 0 0.2px rgb(from var(--mascot-fast-echo-left) r g b / 0.28))
+      drop-shadow(-2.7px 0 0.25px rgb(from var(--mascot-fast-echo-left) r g b / 0.1))
+      drop-shadow(2.1px 0 0.18px rgb(from var(--mascot-fast-echo-right) r g b / 0.58))
+      drop-shadow(4px 0 0.25px rgb(from var(--mascot-fast-echo-right) r g b / 0.22));
+  }
+}
+
 [data-mascot-effort] .mascot-robot [id^='mascot-blue-'] stop {
   transition: stop-color 360ms ease;
 }
@@ -2630,6 +2668,12 @@ kbd {
     opacity: 0.12;
     transform: translate(-50%, -50%);
   }
+
+  [data-mascot-speed='fast'] .composer-mascot-fast-echo {
+    filter:
+      drop-shadow(-1px 0 0.25px rgb(from var(--mascot-fast-echo-left) r g b / 0.2))
+      drop-shadow(1px 0 0.25px rgb(from var(--mascot-fast-echo-right) r g b / 0.14));
+  }
 }
 
 /* ─── Inline reference chips (file / command / skill) ───
@@ -4086,6 +4130,13 @@ html[data-reduce-motion="on"] *::after {
   animation-iteration-count: 1 !important;
   transition-duration: 0.001ms !important;
   scroll-behavior: auto !important;
+}
+
+html[data-reduce-motion="on"] [data-mascot-speed='fast'] .composer-mascot-fast-echo {
+  animation: none !important;
+  filter:
+    drop-shadow(-1px 0 0.25px rgb(from var(--mascot-fast-echo-left) r g b / 0.2))
+    drop-shadow(1px 0 0.25px rgb(from var(--mascot-fast-echo-right) r g b / 0.14));
 }
 
 @media (prefers-reduced-motion: reduce) {

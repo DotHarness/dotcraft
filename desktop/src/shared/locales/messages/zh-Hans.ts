@@ -2159,6 +2159,11 @@ export const MESSAGES_ZH_HANS = {
   'composer.reasoning.high.description': '更深入的推理。',
   'composer.reasoning.extraHigh.description': '支持模型的最高深度。',
   'composer.reasoning.offUnavailable': '此模型不支持关闭思考。',
+  'composer.speed.heading': '速度',
+  'composer.speed.standard': '标准',
+  'composer.speed.standard.description': '默认速度',
+  'composer.speed.fast': '快速',
+  'composer.speed.fast.description': '响应更快，用量更多',
 
   'commit.title': '提交更改',
   'commit.filesHeader': '待提交文件（{{written}} / {{all}}{{reverted}}）：',

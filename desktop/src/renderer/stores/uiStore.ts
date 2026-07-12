@@ -2,7 +2,7 @@ import { create } from 'zustand'
 import type { ComposerFileAttachment, ImageAttachment, InputPart, ThreadMode } from '../types/conversation'
 import type { ComposerDraftSegment } from '../types/composerDraft'
 import type { ApprovalPolicyWire, ContextWindowConfigurationWire } from '../types/thread'
-import type { ReasoningEffortWire, ReasoningOutputWire } from './modelCatalogStore'
+import type { InferenceSpeedWire, ReasoningEffortWire, ReasoningOutputWire } from './modelCatalogStore'
 import type { SettingsTab } from '../types/settings'
 import type { DiffMarkerMode } from '../../shared/appearance'
 import { useThreadStore } from './threadStore'
@@ -84,6 +84,7 @@ export interface WelcomeDraft {
     effort: ReasoningEffortWire
     output: ReasoningOutputWire
   }
+  speed?: InferenceSpeedWire
   contextWindow?: ContextWindowConfigurationWire
   approvalPolicy?: Extract<ApprovalPolicyWire, 'default' | 'prompt' | 'autoApprove'>
   updatedAt: number

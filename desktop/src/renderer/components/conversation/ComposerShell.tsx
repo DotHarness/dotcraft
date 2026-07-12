@@ -49,6 +49,7 @@ export interface ComposerMascotInteraction {
 }
 
 export type ComposerMascotReasoningEffort = 'off' | 'low' | 'medium' | 'high' | 'extraHigh'
+export type ComposerMascotSpeed = 'standard' | 'fast'
 
 /**
  * Shared mascot pose for the bottom-dock decision composers (tool approval,
@@ -94,6 +95,8 @@ interface ComposerShellProps {
   mascotInteraction?: ComposerMascotInteraction
   /** Effective reasoning intensity used by the mascot's body-energy treatment. */
   mascotReasoningEffort?: ComposerMascotReasoningEffort
+  /** Effective inference speed used by the mascot's independent afterimage treatment. */
+  mascotSpeed?: ComposerMascotSpeed
   /** Whether the composer currently uses the MAX context window. */
   mascotContextMax?: boolean
   /** Optional Agent Profile character: recolors the mascot to the profile's palette. */
@@ -209,6 +212,7 @@ function ComposerMascot({
   bounceSignal,
   interaction,
   reasoningEffort,
+  speed,
   contextMax,
   avatar,
   profileTransition,
@@ -222,6 +226,7 @@ function ComposerMascot({
   bounceSignal: number
   interaction?: ComposerMascotInteraction
   reasoningEffort: ComposerMascotReasoningEffort
+  speed: ComposerMascotSpeed
   contextMax: boolean
   avatar?: AvatarSpec
   profileTransition: MascotProfileTransition | null
@@ -642,6 +647,7 @@ function ComposerMascot({
       ref={rootRef}
       className={rootClassName}
       data-mascot-effort={reasoningEffort}
+      data-mascot-speed={speed}
       data-mascot-context={contextMax ? 'max' : 'default'}
       data-mascot-profile-transition={profileTransition ? 'active' : 'idle'}
       data-mascot-active-idle={activeIdle?.motion}
@@ -730,7 +736,9 @@ function ComposerMascot({
                     : undefined
                 }
               >
-                <MascotRobot expression={expression} light={light} size={MASCOT_SIZE} avatar={avatar} />
+                <div className="composer-mascot-fast-echo">
+                  <MascotRobot expression={expression} light={light} size={MASCOT_SIZE} avatar={avatar} />
+                </div>
               </div>
             </div>
           </div>
@@ -790,6 +798,7 @@ export function ComposerShell({
   mascotBounceSignal = 0,
   mascotInteraction,
   mascotReasoningEffort = 'off',
+  mascotSpeed = 'standard',
   mascotContextMax = false,
   mascotAvatar,
   mascotHandoff = false
@@ -914,6 +923,7 @@ export function ComposerShell({
           bounceSignal={mascotBounceSignal}
           interaction={mascotInteraction}
           reasoningEffort={mascotReasoningEffort}
+          speed={mascotSpeed}
           contextMax={mascotContextMax}
           avatar={renderedMascotAvatar}
           profileTransition={mascotProfileTransition}
