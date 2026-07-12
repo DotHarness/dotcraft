@@ -512,4 +512,63 @@ describe('WorkspaceSetupWizard', () => {
     expect(modelControl).toHaveValue('')
     expect(screen.getByText('Model list unavailable. Enter a model manually.')).toBeInTheDocument()
   })
+
+  it('ends loading after a model catalog rejection and retries successfully', async () => {
+    listSetupModels
+      .mockRejectedValueOnce(new Error('backend failed'))
+      .mockResolvedValueOnce({ kind: 'success', models: ['gpt-5.6', 'gpt-5.5'] })
+    const status: WorkspaceStatusPayload = {
+      status: 'needs-setup',
+      workspacePath: '/workspace/demo',
+      hasUserConfig: false,
+      providers: []
+    }
+
+    renderWizard(status)
+    await openConfigStep()
+
+    expect(screen.getByLabelText('Model')).toBeInTheDocument()
+    expect(screen.queryByText('Loading available models...')).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
+
+    await waitFor(() => expect(listSetupModels).toHaveBeenCalledTimes(2))
+    await waitFor(() => expect(screen.getByLabelText('Model')).toHaveValue('gpt-5.6'))
+  })
+
+  it('ignores a rejected model request after switching providers', async () => {
+    let rejectExisting!: (error: Error) => void
+    listSetupModels.mockImplementation((request) => {
+      if ('providerId' in request) {
+        return new Promise((_resolve, reject) => {
+          rejectExisting = reject
+        })
+      }
+      return Promise.resolve({ kind: 'success', models: ['claude-sonnet-4-5'] })
+    })
+    const status: WorkspaceStatusPayload = {
+      status: 'needs-setup',
+      workspacePath: '/workspace/demo',
+      hasUserConfig: true,
+      providers: [{
+        id: 'existing-provider',
+        displayName: 'Existing Provider',
+        protocol: 'openai-responses',
+        hasApiKey: true,
+        endPoint: 'https://example.invalid/v1',
+        networkTimeoutSeconds: null
+      }]
+    }
+
+    renderWizard(status)
+    fireEvent.click(await screen.findByRole('button', { name: 'Next' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Next' }))
+    await waitFor(() => expect(listSetupModels).toHaveBeenCalledWith({ providerId: 'existing-provider' }))
+
+    fireEvent.click(screen.getByRole('button', { name: /Anthropic/ }))
+    await waitFor(() => expect(screen.getByLabelText('Model')).toHaveValue('claude-sonnet-4-5'))
+    rejectExisting(new Error('stale request failed'))
+
+    await waitFor(() => expect(screen.getByLabelText('Model')).toHaveValue('claude-sonnet-4-5'))
+    expect(screen.queryByRole('button', { name: 'Retry' })).not.toBeInTheDocument()
+  })
 })

@@ -361,6 +361,11 @@ export function WorkspaceSetupWizard({
         setModelOptions([])
         setModelLoadState(result.kind)
       })
+      .catch(() => {
+        if (controller.signal.aborted) return
+        setModelOptions([])
+        setModelLoadState('error')
+      })
 
     return () => {
       controller.abort()
@@ -759,6 +764,7 @@ export function WorkspaceSetupWizard({
                 modelLoadState={modelLoadState}
                 chatGptLoginPending={chatGptLoginPending}
                 onLoginChatGpt={() => { void loginChatGptForSetup() }}
+                onRetry={() => setModelReloadSeq((value) => value + 1)}
                 onChange={(nextModel) => {
                   setModelDirty(true)
                   setModel(nextModel)
@@ -1440,6 +1446,7 @@ function ModelField({
   modelLoadState,
   chatGptLoginPending,
   onLoginChatGpt,
+  onRetry,
   onChange
 }: {
   model: string
@@ -1449,6 +1456,7 @@ function ModelField({
   modelLoadState: 'idle' | 'loading' | 'ready' | 'auth-required' | 'unsupported' | 'missing-key' | 'error'
   chatGptLoginPending: boolean
   onLoginChatGpt(): void
+  onRetry(): void
   onChange(model: string): void
 }): JSX.Element {
   const t = useT()
@@ -1491,6 +1499,11 @@ function ModelField({
         <div style={{ marginTop: '6px', fontSize: '12px', color: 'var(--text-dimmed)' }}>
           {t('setupWizard.modelListUnavailable')}
         </div>
+      )}
+      {modelLoadState === 'error' && (
+        <button type="button" onClick={onRetry} style={{ marginTop: '8px' }}>
+          {t('common.retry')}
+        </button>
       )}
     </div>
   )

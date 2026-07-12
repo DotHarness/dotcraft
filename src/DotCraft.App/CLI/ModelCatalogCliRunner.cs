@@ -1,3 +1,4 @@
+using System.Text;
 using System.Text.Json;
 using DotCraft.Agents;
 using DotCraft.Auth.OpenAI;
@@ -91,6 +92,11 @@ public static class ModelCatalogCliRunner
         }
     }
 
-    private static Task WriteAsync(object value) =>
-        Console.Out.WriteLineAsync(JsonSerializer.Serialize(value));
+    private static async Task WriteAsync(object value)
+    {
+        var payload = Encoding.UTF8.GetBytes(JsonSerializer.Serialize(value) + "\n");
+        await using var output = Console.OpenStandardOutput();
+        await output.WriteAsync(payload);
+        await output.FlushAsync();
+    }
 }
