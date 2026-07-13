@@ -45,6 +45,25 @@ describe('PlanApprovalComposer', () => {
     })
   })
 
+  it('keeps decision pose while inheriting composer mascot effects', () => {
+    const { container } = render(
+      <LocaleProvider>
+        <PlanApprovalComposer
+          threadId="thread-1"
+          workspacePath="<workspace>"
+          turnId="turn-effects"
+          mascotEffectState={{ reasoningEffort: 'high', speed: 'fast', contextMax: true }}
+        />
+      </LocaleProvider>
+    )
+
+    const mascot = container.querySelector('[data-mascot-effort]')
+    expect(mascot).toHaveAttribute('data-mascot-effort', 'high')
+    expect(mascot).toHaveAttribute('data-mascot-speed', 'fast')
+    expect(mascot).toHaveAttribute('data-mascot-context', 'max')
+    expect(mascot).toHaveClass('composer-mascot-hold-sign')
+  })
+
   it('accept path switches to agent and sends hidden sentinel', async () => {
     renderWithLocale(
       <PlanApprovalComposer threadId="thread-1" workspacePath="F:\\dotcraft" turnId="turn-1" />

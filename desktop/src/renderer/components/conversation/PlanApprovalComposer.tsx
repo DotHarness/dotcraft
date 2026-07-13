@@ -30,17 +30,23 @@ import {
 } from './DecisionComposerChrome'
 import { RichInputArea, type RichInputAreaHandle } from './RichInputArea'
 import { ACTION_SHORTCUTS } from '../ui/shortcutKeys'
+import {
+  DEFAULT_COMPOSER_MASCOT_EFFECT_STATE,
+  type ComposerMascotEffectState
+} from './composerMascotEffectState'
 
 interface PlanApprovalComposerProps {
   threadId: string
   workspacePath: string
   turnId: string
+  mascotEffectState?: ComposerMascotEffectState
 }
 
 export function PlanApprovalComposer({
   threadId,
   workspacePath,
-  turnId
+  turnId,
+  mascotEffectState = DEFAULT_COMPOSER_MASCOT_EFFECT_STATE
 }: PlanApprovalComposerProps): JSX.Element {
   const t = useT()
   const locale = useLocale()
@@ -163,6 +169,9 @@ export function PlanApprovalComposer({
           focused={editorFocused}
           showMascot
           mascotInteraction={DECISION_MASCOT}
+          mascotReasoningEffort={mascotEffectState.reasoningEffort}
+          mascotSpeed={mascotEffectState.speed}
+          mascotContextMax={mascotEffectState.contextMax}
           mascotHandoff
           editor={(
             <div style={decisionComposerBodyStyle}>

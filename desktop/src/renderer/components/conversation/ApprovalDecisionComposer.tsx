@@ -7,10 +7,15 @@ import type { ApprovalDecision, ApprovalType } from '../../types/conversation'
 import { ComposerShell, DECISION_MASCOT } from './ComposerShell'
 import { ConversationColumn } from './ConversationColumn'
 import { ComposerChoiceRow } from './ComposerChoiceRow'
+import {
+  DEFAULT_COMPOSER_MASCOT_EFFECT_STATE,
+  type ComposerMascotEffectState
+} from './composerMascotEffectState'
 
 interface ApprovalDecisionComposerProps {
   request: PendingApproval
   onResponseAccepted?: () => void
+  mascotEffectState?: ComposerMascotEffectState
 }
 
 /** Default tool-approval detail rows (when the request carries no custom `detailRows`). */
@@ -47,7 +52,11 @@ function approvalRequestTarget(request: PendingApproval): {
   }
 }
 
-export function ApprovalDecisionComposer({ request, onResponseAccepted }: ApprovalDecisionComposerProps): JSX.Element {
+export function ApprovalDecisionComposer({
+  request,
+  onResponseAccepted,
+  mascotEffectState = DEFAULT_COMPOSER_MASCOT_EFFECT_STATE
+}: ApprovalDecisionComposerProps): JSX.Element {
   const t = useT()
   const requestKey = useMemo(() => approvalRequestKey(request), [request])
   const requestTarget = useMemo(() => approvalRequestTarget(request), [request])
@@ -206,6 +215,9 @@ export function ApprovalDecisionComposer({ request, onResponseAccepted }: Approv
           focused
           showMascot
           mascotInteraction={DECISION_MASCOT}
+          mascotReasoningEffort={mascotEffectState.reasoningEffort}
+          mascotSpeed={mascotEffectState.speed}
+          mascotContextMax={mascotEffectState.contextMax}
           mascotHandoff
           editor={(
             <div style={{ display: 'grid', gap: '8px' }}>

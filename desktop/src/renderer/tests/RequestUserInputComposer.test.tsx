@@ -105,6 +105,23 @@ describe('RequestUserInputComposer', () => {
     })
   })
 
+  it('keeps decision pose while inheriting composer mascot effects', () => {
+    const { container } = render(
+      <LocaleProvider>
+        <RequestUserInputComposer
+          request={request()}
+          mascotEffectState={{ reasoningEffort: 'high', speed: 'fast', contextMax: true }}
+        />
+      </LocaleProvider>
+    )
+
+    const mascot = container.querySelector('[data-mascot-effort]')
+    expect(mascot).toHaveAttribute('data-mascot-effort', 'high')
+    expect(mascot).toHaveAttribute('data-mascot-speed', 'fast')
+    expect(mascot).toHaveAttribute('data-mascot-context', 'max')
+    expect(mascot).toHaveClass('composer-mascot-hold-sign')
+  })
+
   it('renders in ConversationPanel instead of the normal composer', async () => {
     const pending = request()
     useConnectionStore.setState({

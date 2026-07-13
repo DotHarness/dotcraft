@@ -1607,8 +1607,9 @@ describe('App initial workspace status bootstrap', () => {
     })
   })
 
-  it('keeps interactive server requests live while active conversation deltas are deferred', async () => {
+  it('keeps pending user input live and restores history when the window returns', async () => {
     const threadId = 'thread-input-hidden'
+    let includeHistory = false
     let serverRequestHandler: ((payload: {
       bridgeId: string
       method: string
@@ -1625,11 +1626,26 @@ describe('App initial workspace status bootstrap', () => {
     })
     const appServerSendRequest = vi.fn(async (
       method: string,
-      params?: { threadId?: string }
+      params?: { threadId?: string; includeTurns?: boolean }
     ) => {
       if (method === 'thread/read') {
+        const thread = makeThread(params?.threadId ?? threadId, readyWorkspaceStatus.workspacePath, 'Hidden input')
+        if (includeHistory && params?.includeTurns === true) {
+          thread.turns = [{
+            id: 'turn-restored',
+            threadId,
+            status: 'completed',
+            createdAt: '2026-06-07T00:00:00.000Z',
+            items: [{
+              id: 'item-restored',
+              type: 'userMessage',
+              status: 'completed',
+              text: 'Restored history'
+            }]
+          }]
+        }
         return {
-          thread: makeThread(params?.threadId ?? threadId, readyWorkspaceStatus.workspacePath, 'Hidden input')
+          thread
         }
       }
       if (method === 'thread/list') return { data: [makeThreadSummary(threadId, readyWorkspaceStatus.workspacePath)] }
@@ -1655,6 +1671,8 @@ describe('App initial workspace status bootstrap', () => {
       })
     })
     await flushPromises()
+    appServerSendRequest.mockClear()
+    includeHistory = true
 
     await act(async () => {
       visibilityHandler?.({ minimized: true, visible: false, focused: false })
@@ -1678,5 +1696,317 @@ describe('App initial workspace status bootstrap', () => {
 
     expect(useConversationStore.getState().pendingUserInput?.bridgeId).toBe('bridge-input-hidden')
     expect(useConversationStore.getState().pendingUserInput?.requestId).toBe('request-input-hidden')
+    expect(appServerSendRequest.mock.calls.filter((call) => call[0] === 'thread/read')).toHaveLength(0)
+
+    await act(async () => {
+      visibilityHandler?.({ minimized: false, visible: true, focused: true })
+    })
+
+    await waitFor(() => {
+      expect(appServerSendRequest).toHaveBeenCalledWith('thread/read', {
+        threadId,
+        includeTurns: true
+      })
+      expect(useConversationStore.getState().turns[0]?.items[0]?.text).toBe('Restored history')
+    })
+    expect(useConversationStore.getState().pendingUserInput?.bridgeId).toBe('bridge-input-hidden')
+  })
+
+  it('reconciles a pending approval after the window returns', async () => {
+    const threadId = 'thread-approval-hidden'
+    let serverRequestHandler: ((payload: {
+      bridgeId: string
+      method: string
+      params?: unknown
+    }) => void) | undefined
+    let visibilityHandler: ((state: { minimized: boolean; visible: boolean; focused: boolean }) => void) | undefined
+    const onServerRequest = vi.fn((handler: typeof serverRequestHandler) => {
+      serverRequestHandler = handler
+      return vi.fn()
+    })
+    const onWindowVisibilityChanged = vi.fn((handler: typeof visibilityHandler) => {
+      visibilityHandler = handler
+      return vi.fn()
+    })
+    const appServerSendRequest = vi.fn(async (
+      method: string,
+      params?: { threadId?: string }
+    ) => {
+      if (method === 'thread/read') {
+        return { thread: makeThread(params?.threadId ?? threadId, readyWorkspaceStatus.workspacePath) }
+      }
+      if (method === 'thread/list') return { data: [makeThreadSummary(threadId, readyWorkspaceStatus.workspacePath)] }
+      return {}
+    })
+    installApi(readyWorkspaceStatus, {
+      appServerSendRequest,
+      onServerRequest,
+      onWindowVisibilityChanged,
+      settingsGet: vi.fn().mockResolvedValue({}),
+      modulesList: vi.fn().mockResolvedValue([]),
+      modulesRunning: vi.fn().mockResolvedValue({})
+    })
+    useConnectionStore.getState().setStatus({ status: 'connected' })
+    useThreadStore.getState().setActiveThreadId(threadId)
+
+    renderApp()
+    await waitFor(() => {
+      expect(appServerSendRequest).toHaveBeenCalledWith('thread/read', {
+        threadId,
+        includeTurns: true
+      })
+    })
+    await flushPromises()
+    appServerSendRequest.mockClear()
+
+    await act(async () => {
+      visibilityHandler?.({ minimized: true, visible: false, focused: false })
+      serverRequestHandler?.({
+        bridgeId: 'bridge-approval-hidden',
+        method: 'item/approval/request',
+        params: {
+          threadId,
+          turnId: 'turn-approval',
+          requestId: 'request-approval',
+          itemId: 'item-approval',
+          approvalType: 'shell',
+          operation: 'npm test',
+          target: readyWorkspaceStatus.workspacePath,
+          reason: 'Run tests'
+        }
+      })
+    })
+
+    expect(useConversationStore.getState().pendingApproval?.bridgeId).toBe('bridge-approval-hidden')
+    expect(appServerSendRequest.mock.calls.filter((call) => call[0] === 'thread/read')).toHaveLength(0)
+
+    await act(async () => {
+      visibilityHandler?.({ minimized: false, visible: true, focused: true })
+    })
+
+    await waitFor(() => {
+      expect(appServerSendRequest).toHaveBeenCalledWith('thread/read', {
+        threadId,
+        includeTurns: true
+      })
+    })
+    expect(useConversationStore.getState().pendingApproval?.bridgeId).toBe('bridge-approval-hidden')
+  })
+
+  it('reconciles an interactive request replayed while the window is foregrounded', async () => {
+    const threadId = 'thread-input-replay'
+    let serverRequestHandler: ((payload: {
+      bridgeId: string
+      method: string
+      params?: unknown
+    }) => void) | undefined
+    const onServerRequest = vi.fn((handler: typeof serverRequestHandler) => {
+      serverRequestHandler = handler
+      return vi.fn()
+    })
+    const appServerSendRequest = vi.fn(async (
+      method: string,
+      params?: { threadId?: string }
+    ) => {
+      if (method === 'thread/read') {
+        return { thread: makeThread(params?.threadId ?? threadId, readyWorkspaceStatus.workspacePath) }
+      }
+      if (method === 'thread/list') return { data: [makeThreadSummary(threadId, readyWorkspaceStatus.workspacePath)] }
+      return {}
+    })
+    installApi(readyWorkspaceStatus, {
+      appServerSendRequest,
+      onServerRequest,
+      settingsGet: vi.fn().mockResolvedValue({}),
+      modulesList: vi.fn().mockResolvedValue([]),
+      modulesRunning: vi.fn().mockResolvedValue({})
+    })
+    useConnectionStore.getState().setStatus({ status: 'connected' })
+    useThreadStore.getState().setActiveThreadId(threadId)
+
+    renderApp()
+    await waitFor(() => {
+      expect(appServerSendRequest).toHaveBeenCalledWith('thread/read', {
+        threadId,
+        includeTurns: true
+      })
+    })
+    await flushPromises()
+    appServerSendRequest.mockClear()
+
+    await act(async () => {
+      serverRequestHandler?.({
+        bridgeId: 'bridge-input-replay',
+        method: 'item/tool/requestUserInput',
+        params: {
+          threadId,
+          turnId: 'turn-replay',
+          requestId: 'request-replay',
+          questions: [{
+            id: 'confirm',
+            question: 'Continue?',
+            options: [{ label: 'Yes' }]
+          }]
+        }
+      })
+    })
+
+    await waitFor(() => {
+      const fullReads = appServerSendRequest.mock.calls.filter((call) => {
+        const params = call[1] as { includeTurns?: boolean } | undefined
+        return call[0] === 'thread/read' && params?.includeTurns === true
+      })
+      expect(fullReads).toHaveLength(1)
+    })
+    expect(useConversationStore.getState().pendingUserInput?.bridgeId).toBe('bridge-input-replay')
+  })
+
+  it('does not apply a pending-interaction reconcile after switching threads', async () => {
+    const firstThreadId = 'thread-reconcile-old'
+    const secondThreadId = 'thread-reconcile-new'
+    let holdFirstThreadReconcile = false
+    let resolveFirstThreadReconcile: ((value: { thread: Thread }) => void) | undefined
+    let serverRequestHandler: ((payload: {
+      bridgeId: string
+      method: string
+      params?: unknown
+    }) => void) | undefined
+    const onServerRequest = vi.fn((handler: typeof serverRequestHandler) => {
+      serverRequestHandler = handler
+      return vi.fn()
+    })
+    const appServerSendRequest = vi.fn((
+      method: string,
+      params?: { threadId?: string }
+    ): Promise<unknown> => {
+      if (method === 'thread/read') {
+        if (params?.threadId === firstThreadId && holdFirstThreadReconcile) {
+          return new Promise((resolve) => {
+            resolveFirstThreadReconcile = resolve
+          })
+        }
+        return Promise.resolve({
+          thread: makeThread(
+            params?.threadId ?? firstThreadId,
+            readyWorkspaceStatus.workspacePath,
+            params?.threadId ?? firstThreadId
+          )
+        })
+      }
+      if (method === 'thread/list') {
+        return Promise.resolve({
+          data: [
+            makeThreadSummary(firstThreadId, readyWorkspaceStatus.workspacePath),
+            makeThreadSummary(secondThreadId, readyWorkspaceStatus.workspacePath)
+          ]
+        })
+      }
+      return Promise.resolve({})
+    })
+    installApi(readyWorkspaceStatus, {
+      appServerSendRequest,
+      onServerRequest,
+      settingsGet: vi.fn().mockResolvedValue({}),
+      modulesList: vi.fn().mockResolvedValue([]),
+      modulesRunning: vi.fn().mockResolvedValue({})
+    })
+    useConnectionStore.getState().setStatus({ status: 'connected' })
+    useThreadStore.getState().setActiveThreadId(firstThreadId)
+
+    renderApp()
+    await waitFor(() => {
+      expect(useThreadStore.getState().activeThread?.id).toBe(firstThreadId)
+    })
+    await flushPromises()
+    holdFirstThreadReconcile = true
+
+    await act(async () => {
+      serverRequestHandler?.({
+        bridgeId: 'bridge-reconcile-old',
+        method: 'item/tool/requestUserInput',
+        params: {
+          threadId: firstThreadId,
+          turnId: 'turn-old',
+          requestId: 'request-old',
+          questions: [{
+            id: 'confirm',
+            question: 'Continue?',
+            options: [{ label: 'Yes' }]
+          }]
+        }
+      })
+    })
+    await waitFor(() => {
+      expect(resolveFirstThreadReconcile).toBeDefined()
+    })
+
+    await act(async () => {
+      useThreadStore.getState().setActiveThreadId(secondThreadId)
+    })
+    await waitFor(() => {
+      expect(useThreadStore.getState().activeThread?.id).toBe(secondThreadId)
+    })
+
+    const staleThread = makeThread(firstThreadId, readyWorkspaceStatus.workspacePath, 'Stale thread')
+    staleThread.turns = [{
+      id: 'turn-stale',
+      threadId: firstThreadId,
+      status: 'completed',
+      createdAt: '2026-06-07T00:00:00.000Z',
+      items: [{ id: 'item-stale', type: 'userMessage', status: 'completed', text: 'Stale history' }]
+    }]
+    await act(async () => {
+      resolveFirstThreadReconcile?.({ thread: staleThread })
+      await Promise.resolve()
+    })
+
+    expect(useThreadStore.getState().activeThread?.id).toBe(secondThreadId)
+    expect(useConversationStore.getState().turns).toHaveLength(0)
+  })
+
+  it('does not reconcile an ordinary focus transition without deferred conversation state', async () => {
+    const threadId = 'thread-focus-only'
+    let visibilityHandler: ((state: { minimized: boolean; visible: boolean; focused: boolean }) => void) | undefined
+    const onWindowVisibilityChanged = vi.fn((handler: typeof visibilityHandler) => {
+      visibilityHandler = handler
+      return vi.fn()
+    })
+    const appServerSendRequest = vi.fn(async (
+      method: string,
+      params?: { threadId?: string }
+    ) => {
+      if (method === 'thread/read') {
+        return { thread: makeThread(params?.threadId ?? threadId, readyWorkspaceStatus.workspacePath) }
+      }
+      if (method === 'thread/list') return { data: [makeThreadSummary(threadId, readyWorkspaceStatus.workspacePath)] }
+      return {}
+    })
+    installApi(readyWorkspaceStatus, {
+      appServerSendRequest,
+      onWindowVisibilityChanged,
+      settingsGet: vi.fn().mockResolvedValue({}),
+      modulesList: vi.fn().mockResolvedValue([]),
+      modulesRunning: vi.fn().mockResolvedValue({})
+    })
+    useConnectionStore.getState().setStatus({ status: 'connected' })
+    useThreadStore.getState().setActiveThreadId(threadId)
+
+    renderApp()
+    await waitFor(() => {
+      expect(appServerSendRequest).toHaveBeenCalledWith('thread/read', {
+        threadId,
+        includeTurns: true
+      })
+    })
+    await flushPromises()
+    appServerSendRequest.mockClear()
+
+    await act(async () => {
+      visibilityHandler?.({ minimized: true, visible: false, focused: false })
+      visibilityHandler?.({ minimized: false, visible: true, focused: true })
+      await Promise.resolve()
+    })
+
+    expect(appServerSendRequest.mock.calls.filter((call) => call[0] === 'thread/read')).toHaveLength(0)
   })
 })

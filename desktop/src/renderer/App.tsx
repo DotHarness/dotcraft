@@ -805,6 +805,18 @@ export function App(): JSX.Element {
     reconcileActiveThreadSnapshotRef.current?.(reason)
   }, [hasDeferredActiveConversation])
 
+  const requestActiveConversationReconcile = useCallback((
+    threadId: string | null,
+    reason: string
+  ): void => {
+    if (!threadId || useThreadStore.getState().activeThreadId !== threadId) return
+    if (isConversationRenderPaused()) {
+      markActiveConversationDeferred(threadId)
+      return
+    }
+    reconcileActiveThreadSnapshotRef.current?.(reason)
+  }, [isConversationRenderPaused, markActiveConversationDeferred])
+
   const shouldDeferActiveConversationUpdate = useCallback((
     threadId: string | null | undefined
   ): boolean => {
@@ -2319,6 +2331,7 @@ export function App(): JSX.Element {
           return
         }
         useConversationStore.getState().onApprovalRequest(bridgeId, p)
+        requestActiveConversationReconcile(threadId, 'approval-request')
         return
       }
       if (method === 'item/tool/requestUserInput') {
@@ -2334,6 +2347,7 @@ export function App(): JSX.Element {
           return
         }
         useConversationStore.getState().onUserInputRequest(bridgeId, p)
+        requestActiveConversationReconcile(threadId, 'user-input-request')
         return
       }
       if (method === 'ui/tool/approval/request') {

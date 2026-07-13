@@ -69,6 +69,7 @@ import { ACTION_SHORTCUTS } from '../ui/shortcutKeys'
 import { useConfirmDialog } from '../ui/ConfirmDialog'
 import { ConversationColumn } from './ConversationColumn'
 import { stringifyComposerDraftSegments } from './richInputSerialization'
+import { resolveComposerMascotEffectState } from './composerMascotEffectState'
 
 const MAX_TEXT_LENGTH = 100_000
 const MAX_IMAGES = 5
@@ -1464,11 +1465,14 @@ export function InputComposer({
     dockPadding === composerDockStyle.padding
       ? composerDockStyle
       : { ...composerDockStyle, padding: dockPadding }
-  const mascotSpeed = speedValue === 'fast' && modelCatalog.some(
-    (model) => model.id === modelName && model.speed?.supportedModes.includes('fast') === true
-  )
-    ? 'fast'
-    : 'standard'
+  const mascotEffectState = resolveComposerMascotEffectState({
+    modelName,
+    modelCatalog,
+    reasoningValue,
+    speedValue,
+    contextMode,
+    contextDegraded
+  })
 
   return (
     <div style={effectiveComposerDockStyle}>
@@ -1494,9 +1498,9 @@ export function InputComposer({
         showMascot
         mascotBounceSignal={mascotBounce}
         mascotInteraction={mascotInteraction}
-        mascotReasoningEffort={reasoningValue === 'default' ? 'off' : reasoningValue}
-        mascotSpeed={mascotSpeed}
-        mascotContextMax={contextMode === 'max' || contextDegraded === true}
+        mascotReasoningEffort={mascotEffectState.reasoningEffort}
+        mascotSpeed={mascotEffectState.speed}
+        mascotContextMax={mascotEffectState.contextMax}
         mascotAvatar={effectiveMascotAvatar}
         mascotHandoff
         attachmentStrip={

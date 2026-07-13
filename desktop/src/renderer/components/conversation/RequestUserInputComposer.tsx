@@ -29,6 +29,10 @@ import {
   composerChoiceNumberStyle,
   composerChoiceRowStyle
 } from './ComposerChoiceRow'
+import {
+  DEFAULT_COMPOSER_MASCOT_EFFECT_STATE,
+  type ComposerMascotEffectState
+} from './composerMascotEffectState'
 
 interface RequestUserInputResponse {
   answers: Record<string, { answers: string[] }>
@@ -37,11 +41,13 @@ interface RequestUserInputResponse {
 interface RequestUserInputComposerProps {
   request: PendingUserInputRequest
   onResponseAccepted?: () => void
+  mascotEffectState?: ComposerMascotEffectState
 }
 
 export function RequestUserInputComposer({
   request,
-  onResponseAccepted
+  onResponseAccepted,
+  mascotEffectState = DEFAULT_COMPOSER_MASCOT_EFFECT_STATE
 }: RequestUserInputComposerProps): JSX.Element | null {
   const t = useT()
   const [currentQuestion, setCurrentQuestion] = useState(0)
@@ -219,6 +225,9 @@ export function RequestUserInputComposer({
         focused
         showMascot
         mascotInteraction={DECISION_MASCOT}
+        mascotReasoningEffort={mascotEffectState.reasoningEffort}
+        mascotSpeed={mascotEffectState.speed}
+        mascotContextMax={mascotEffectState.contextMax}
         mascotHandoff
         editor={(
           <div style={decisionComposerBodyStyle}>

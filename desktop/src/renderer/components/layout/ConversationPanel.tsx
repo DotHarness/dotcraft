@@ -15,6 +15,7 @@ import { ConversationWelcome } from '../conversation/ConversationWelcome'
 import type { WorkspaceConfigChangedPayload } from '../../utils/workspaceConfigChanged'
 import { useComposerModelControls } from '../conversation/useComposerModelControls'
 import { AgentBuilderChatEmptyState } from '../agents/AgentBuilderChatEmptyState'
+import { resolveComposerMascotEffectState } from '../conversation/composerMascotEffectState'
 
 interface ConversationPanelProps {
   workspacePath?: string
@@ -85,6 +86,14 @@ export function ConversationPanel({
     activeThreadId,
     workspaceConfigChange,
     workspaceConfigChangeSeq
+  })
+  const mascotEffectState = resolveComposerMascotEffectState({
+    modelName: modelControls.modelName,
+    modelCatalog: modelControls.modelCatalog,
+    reasoningValue: modelControls.reasoningValue,
+    speedValue: modelControls.speedValue,
+    contextMode: modelControls.contextMode,
+    contextDegraded: modelControls.contextDegraded
   })
 
   const showReconnectionBanner = connectionStatus === 'disconnected'
@@ -221,17 +230,20 @@ export function ConversationPanel({
           key={approvalComposerKey(composerApproval)}
           request={composerApproval}
           onResponseAccepted={onInteractionResponseAccepted}
+          mascotEffectState={mascotEffectState}
         />
       ) : pendingUserInput ? (
         <RequestUserInputComposer
           request={pendingUserInput}
           onResponseAccepted={onInteractionResponseAccepted}
+          mascotEffectState={mascotEffectState}
         />
       ) : showPlanApproval && latestCreatePlanTurnId ? (
         <PlanApprovalComposer
           threadId={activeThread.id}
           workspacePath={protocolWorkspacePath}
           turnId={latestCreatePlanTurnId}
+          mascotEffectState={mascotEffectState}
         />
       ) : (
         <InputComposer
