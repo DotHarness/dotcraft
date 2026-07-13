@@ -8,11 +8,14 @@ import {
 import { useT } from '../../contexts/LocaleContext'
 import {
   useChatGptUsage,
-  type ChatGptUsageSnapshot,
-  type ChatGptUsageWindow,
   type ProviderSummary
 } from '../../stores/providersStore'
 import { formatPlanLabel } from '../../utils/chatgptPlan'
+import {
+  shapeChatGptUsageWindows,
+  type ChatGptUsageDisplayWindow,
+  type ChatGptUsageWindowKind
+} from '../../utils/chatgptUsageWindows'
 import { ActionTooltip } from '../ui/ActionTooltip'
 import { ProviderMark } from '../ui/ProviderMark'
 import { ChatGptUsagePopover } from './ChatGptUsagePopover'
@@ -60,16 +63,16 @@ export function ChatGptUsageBadge({ provider }: ChatGptUsageBadgeProps): JSX.Ele
   if (!provider) return null
 
   const planLabel = formatPlanLabel(provider.chatGptPlanType ?? usage?.planType ?? null, t)
-  const pressuredWindow = selectPressuredWindow(usage)
-  const remaining = remainingPercent(pressuredWindow)
-  const primaryRemaining = remainingPercent(usage?.primary ?? null)
-  const secondaryRemaining = remainingPercent(usage?.secondary ?? null)
+  const displayWindows = shapeChatGptUsageWindows(usage)
+  const pressuredWindow = selectPressuredWindow(displayWindows)
+  const remaining = remainingPercent(pressuredWindow?.window ?? null)
   const accentColor = colorForRemaining(remaining)
-  const tooltipLabel = formatUsageTooltipLabel(primaryRemaining, secondaryRemaining, t)
+  const tooltipLabel = formatUsageTooltipLabel(displayWindows, t)
 
   const ariaParts = [t('composer.chatgptBadge.label'), planLabel]
-  if (primaryRemaining != null) ariaParts.push(t('composer.chatgptBadge.aria.sessionLeft', { percent: primaryRemaining }))
-  if (secondaryRemaining != null) ariaParts.push(t('composer.chatgptBadge.aria.weeklyLeft', { percent: secondaryRemaining }))
+  for (const display of displayWindows) {
+    ariaParts.push(formatUsageAriaLabel(display.kind, remainingPercent(display.window) ?? 0, t))
+  }
   const active = hovered || focused
   const badgeButton = (
     <button
@@ -112,32 +115,53 @@ export function ChatGptUsageBadge({ provider }: ChatGptUsageBadgeProps): JSX.Ele
   )
 }
 
-function selectPressuredWindow(usage: ChatGptUsageSnapshot | null): ChatGptUsageWindow | null {
-  if (!usage?.available) return null
-  const candidates = [usage.primary, usage.secondary].filter((w): w is ChatGptUsageWindow => w != null)
-  if (candidates.length === 0) return null
-  return candidates.reduce((best, current) =>
-    current.usedPercent > best.usedPercent ? current : best, candidates[0])
+function selectPressuredWindow(windows: ChatGptUsageDisplayWindow[]): ChatGptUsageDisplayWindow | null {
+  if (windows.length === 0) return null
+  return windows.reduce((best, current) =>
+    current.window.usedPercent > best.window.usedPercent ? current : best, windows[0])
 }
 
-function remainingPercent(window: ChatGptUsageWindow | null): number | null {
+function remainingPercent(window: ChatGptUsageDisplayWindow['window'] | null): number | null {
   if (!window) return null
   return Math.max(0, Math.min(100, 100 - window.usedPercent))
 }
 
 function formatUsageTooltipLabel(
-  primaryRemaining: number | null,
-  secondaryRemaining: number | null,
+  windows: ChatGptUsageDisplayWindow[],
   t: (key: string, vars?: Record<string, string | number>) => string
 ): string {
-  const parts: string[] = []
-  if (primaryRemaining != null) {
-    parts.push(t('composer.chatgptBadge.sessionRemaining', { percent: Math.round(primaryRemaining) }))
-  }
-  if (secondaryRemaining != null) {
-    parts.push(t('composer.chatgptBadge.weeklyRemaining', { percent: Math.round(secondaryRemaining) }))
-  }
+  const parts = windows.map((display) => formatUsageTooltipPart(
+    display.kind,
+    Math.round(remainingPercent(display.window) ?? 0),
+    t
+  ))
   return parts.length > 0 ? parts.join(', ') : t('composer.chatgptBadge.usageUnavailable')
+}
+
+function formatUsageTooltipPart(
+  kind: ChatGptUsageWindowKind,
+  percent: number,
+  t: (key: string, vars?: Record<string, string | number>) => string
+): string {
+  switch (kind) {
+    case 'fiveHour': return t('composer.chatgptBadge.sessionRemaining', { percent })
+    case 'weekly': return t('composer.chatgptBadge.weeklyRemaining', { percent })
+    case 'primary': return t('composer.chatgptBadge.primaryRemaining', { percent })
+    case 'secondary': return t('composer.chatgptBadge.secondaryRemaining', { percent })
+  }
+}
+
+function formatUsageAriaLabel(
+  kind: ChatGptUsageWindowKind,
+  percent: number,
+  t: (key: string, vars?: Record<string, string | number>) => string
+): string {
+  switch (kind) {
+    case 'fiveHour': return t('composer.chatgptBadge.aria.sessionLeft', { percent })
+    case 'weekly': return t('composer.chatgptBadge.aria.weeklyLeft', { percent })
+    case 'primary': return t('composer.chatgptBadge.aria.primaryLeft', { percent })
+    case 'secondary': return t('composer.chatgptBadge.aria.secondaryLeft', { percent })
+  }
 }
 
 function colorForRemaining(remaining: number | null): string {

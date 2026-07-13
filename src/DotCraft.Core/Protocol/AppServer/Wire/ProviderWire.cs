@@ -216,7 +216,10 @@ public sealed class AuthOpenAiAuthorizeUrlNotification
     public int CallbackPort { get; set; }
 }
 
-/// <summary>One rate-limit window snapshot (5h primary or weekly secondary).</summary>
+/// <summary>
+/// One rate-limit window snapshot. Primary/secondary are upstream slots; clients derive the
+/// user-facing window kind from <see cref="WindowSeconds"/>.
+/// </summary>
 public sealed class AuthOpenAiUsageWindow
 {
     /// <summary>0-100 percent of the window's quota consumed.</summary>

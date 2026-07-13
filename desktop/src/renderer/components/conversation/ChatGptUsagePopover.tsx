@@ -1,6 +1,10 @@
 import { useEffect, useState, type CSSProperties, type JSX } from 'react'
 import { useT } from '../../contexts/LocaleContext'
 import type { ChatGptUsageSnapshot, ChatGptUsageWindow } from '../../stores/providersStore'
+import {
+  shapeChatGptUsageWindows,
+  type ChatGptUsageWindowKind
+} from '../../utils/chatgptUsageWindows'
 
 interface ChatGptUsagePopoverProps {
   usage: ChatGptUsageSnapshot | null
@@ -28,6 +32,8 @@ export function ChatGptUsagePopover({ usage, onClose: _onClose }: ChatGptUsagePo
   }
 
   const planLabel = formatPlanLabel(usage.planType, t)
+  const displayWindows = shapeChatGptUsageWindows(usage)
+  const hasSupplementalUsage = usage.credits?.hasCredits === true || usage.limitReachedKind != null
   return (
     <div style={containerStyle()} role="dialog" aria-label={t('composer.chatgptUsage.title')}>
       <div style={headerRowStyle()}>
@@ -43,18 +49,19 @@ export function ChatGptUsagePopover({ usage, onClose: _onClose }: ChatGptUsagePo
       </div>
       <div style={dividerStyle()} />
 
-      <UsageWindowRow
-        label={t('composer.chatgptUsage.windowFiveHour')}
-        window={usage.primary}
-        now={now}
-        t={t}
-      />
-      <UsageWindowRow
-        label={t('composer.chatgptUsage.windowWeekly')}
-        window={usage.secondary}
-        now={now}
-        t={t}
-      />
+      {displayWindows.map((display, index) => (
+        <UsageWindowRow
+          key={`${display.kind}-${index}`}
+          label={formatWindowLabel(display.kind, t)}
+          window={display.window}
+          now={now}
+          t={t}
+        />
+      ))}
+
+      {displayWindows.length === 0 && !hasSupplementalUsage && (
+        <div style={emptyStateStyle()}>{t('composer.chatgptUsage.unavailable')}</div>
+      )}
 
       {usage.credits?.hasCredits && (
         <div style={creditsRowStyle()}>
@@ -78,20 +85,12 @@ export function ChatGptUsagePopover({ usage, onClose: _onClose }: ChatGptUsagePo
 
 interface UsageWindowRowProps {
   label: string
-  window: ChatGptUsageWindow | null
+  window: ChatGptUsageWindow
   now: number
   t: (key: string, vars?: Record<string, unknown>) => string
 }
 
 function UsageWindowRow({ label, window, now, t }: UsageWindowRowProps): JSX.Element {
-  if (!window) {
-    return (
-      <div style={windowRowStyle()}>
-        <div style={windowLabelStyle()}>{label}</div>
-        <div style={windowEmptyStyle()}>—</div>
-      </div>
-    )
-  }
   const used = Math.max(0, Math.min(100, window.usedPercent))
   const remaining = 100 - used
   const color = colorForRemaining(remaining)
@@ -114,6 +113,18 @@ function UsageWindowRow({ label, window, now, t }: UsageWindowRowProps): JSX.Ele
       </div>
     </div>
   )
+}
+
+function formatWindowLabel(
+  kind: ChatGptUsageWindowKind,
+  t: (key: string) => string
+): string {
+  switch (kind) {
+    case 'fiveHour': return t('composer.chatgptUsage.windowFiveHour')
+    case 'weekly': return t('composer.chatgptUsage.windowWeekly')
+    case 'primary': return t('composer.chatgptUsage.windowPrimary')
+    case 'secondary': return t('composer.chatgptUsage.windowSecondary')
+  }
 }
 
 function colorForRemaining(remaining: number): string {
@@ -235,10 +246,6 @@ function windowFooterStyle(): CSSProperties {
     justifyContent: 'space-between',
     gap: 8
   }
-}
-
-function windowEmptyStyle(): CSSProperties {
-  return { color: 'var(--text-dimmed, var(--text-secondary))', fontSize: 11 }
 }
 
 function creditsRowStyle(): CSSProperties {

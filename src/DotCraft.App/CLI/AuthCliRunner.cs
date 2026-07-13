@@ -151,8 +151,8 @@ public static class AuthCliRunner
 
         AnsiConsole.WriteLine();
         AnsiConsole.MarkupLine($"[white]{FallbackText.AuthOpenAiUsageHeader}[/]");
-        PrintWindow(FallbackText.AuthOpenAiUsageWindowFiveHour, snapshot.Primary);
-        PrintWindow(FallbackText.AuthOpenAiUsageWindowWeekly, snapshot.Secondary);
+        foreach (var displayWindow in OpenAIUsageWindowPresentation.Shape(snapshot))
+            PrintWindow(WindowLabel(displayWindow.Kind), displayWindow.Window);
 
         if (snapshot.Credits is { } credits && credits.HasCredits)
         {
@@ -168,14 +168,17 @@ public static class AuthCliRunner
         }
     }
 
-    private static void PrintWindow(string label, RateLimitWindow? window)
+    private static string WindowLabel(OpenAIUsageWindowKind kind) => kind switch
     {
-        if (window is null)
-        {
-            AnsiConsole.MarkupLine($"  [white]{label.EscapeMarkup()}[/]  [grey](no data)[/]");
-            return;
-        }
+        OpenAIUsageWindowKind.FiveHour => FallbackText.AuthOpenAiUsageWindowFiveHour,
+        OpenAIUsageWindowKind.Weekly => FallbackText.AuthOpenAiUsageWindowWeekly,
+        OpenAIUsageWindowKind.Primary => FallbackText.AuthOpenAiUsageWindowPrimary,
+        OpenAIUsageWindowKind.Secondary => FallbackText.AuthOpenAiUsageWindowSecondary,
+        _ => throw new ArgumentOutOfRangeException(nameof(kind), kind, null)
+    };
 
+    private static void PrintWindow(string label, RateLimitWindow window)
+    {
         var bar = BuildBar(window.UsedPercent);
         var color = ColorForUsage(window.UsedPercent);
         var resetIn = FormatTimespan(window.ResetAt - DateTimeOffset.UtcNow);

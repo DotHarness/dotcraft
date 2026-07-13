@@ -218,6 +218,14 @@ can show plan-tier usage:
 The poller starts automatically when an account is signed in and shuts down on logout. Failures
 back off exponentially (10m → 20m → 40m → 60m cap) without affecting other DotCraft features.
 
+`primary_window` and `secondary_window` are upstream slot names, not stable display semantics.
+Clients determine whether a window is the 5-hour or weekly limit from `limit_window_seconds`
+(18,000 seconds and 604,800 seconds respectively, with a ±5% tolerance). Either slot may be absent,
+and a weekly-only promotion may return the weekly window in `primary_window`. Presentation surfaces
+must omit absent windows rather than rendering an empty 5-hour or weekly placeholder. Unknown
+durations remain visible under generic primary/secondary usage labels instead of being mislabeled as
+5-hour or weekly limits.
+
 ## CLI commands
 
 ```
@@ -276,8 +284,10 @@ Composer footer:
 - The control shows the OpenAI mark plus one mini progress rail for the most pressured remaining
   headroom window. It does not show inline numbers in the composer; green / yellow / red breakpoints
   remain 40% / 20% remaining.
-- Clicking the pill opens a popover with both windows (session/5 h + weekly) as remaining-headroom
-  progress bars + reset countdown + optional credits row + limit-reached warning.
+- Clicking the pill opens a popover with each available usage window as a remaining-headroom
+  progress bar + reset countdown + optional credits row + limit-reached warning. Known 5-hour and
+  weekly windows are ordered by duration semantics rather than their upstream slot; absent windows
+  are omitted.
 
 ## Failure handling
 

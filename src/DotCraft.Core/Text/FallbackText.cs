@@ -91,6 +91,8 @@ public static class FallbackText
     public static string AuthOpenAiUsageHeader => Format("auth.openai.usage.header");
     public static string AuthOpenAiUsageWindowFiveHour => Format("auth.openai.usage.window.fiveHour");
     public static string AuthOpenAiUsageWindowWeekly => Format("auth.openai.usage.window.weekly");
+    public static string AuthOpenAiUsageWindowPrimary => Format("auth.openai.usage.window.primary");
+    public static string AuthOpenAiUsageWindowSecondary => Format("auth.openai.usage.window.secondary");
     public static string AuthOpenAiUsageUnavailable(string reason) => Format("auth.openai.usage.unavailable", reason);
     public static string AuthOpenAiUsageCreditsBalance(string balance) => Format("auth.openai.usage.credits.balance", balance);
     public static string AuthOpenAiUsageCreditsUnlimited => Format("auth.openai.usage.credits.unlimited");
@@ -187,6 +189,8 @@ public static class FallbackText
   "auth.openai.usage.header": "Usage:",
   "auth.openai.usage.window.fiveHour": "5h window ",
   "auth.openai.usage.window.weekly": "Weekly    ",
+  "auth.openai.usage.window.primary": "Usage     ",
+  "auth.openai.usage.window.secondary": "Secondary ",
   "auth.openai.usage.unavailable": "Couldn't fetch usage: {0}",
   "auth.openai.usage.credits.balance": "{0}",
   "auth.openai.usage.credits.unlimited": "unlimited",

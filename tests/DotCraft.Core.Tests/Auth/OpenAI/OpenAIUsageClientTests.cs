@@ -121,6 +121,39 @@ public sealed class OpenAIUsageClientTests : IDisposable
         Assert.Null(snapshot.Credits);
     }
 
+    [Theory]
+    [InlineData("primary_window", true)]
+    [InlineData("secondary_window", false)]
+    public async Task FetchAsyncPreservesWeeklyOnlyWindowInUpstreamSlot(string slotName, bool expectPrimary)
+    {
+        var resetAt = DateTimeOffset.UtcNow.AddDays(6).ToUnixTimeSeconds();
+        var json = $$"""
+        {
+          "plan_type": "pro",
+          "rate_limit": {
+            "{{slotName}}": {
+              "used_percent": 2,
+              "limit_window_seconds": 604800,
+              "reset_after_seconds": 518400,
+              "reset_at": {{resetAt}}
+            }
+          }
+        }
+        """;
+        var (authService, _) = CreateSignedInAuthService();
+        var client = new OpenAIUsageClient(
+            authService,
+            new HttpClient(new RecordingHandler(_ => OkJson(json))));
+
+        var snapshot = await client.FetchAsync(CancellationToken.None);
+        var weekly = expectPrimary ? snapshot.Primary : snapshot.Secondary;
+
+        Assert.NotNull(weekly);
+        Assert.Equal(TimeSpan.FromDays(7), weekly!.WindowDuration);
+        Assert.Equal(expectPrimary, snapshot.Primary is not null);
+        Assert.Equal(!expectPrimary, snapshot.Secondary is not null);
+    }
+
     [Fact]
     public async Task FetchAsyncWrapsHttpErrorAsAuthException()
     {
