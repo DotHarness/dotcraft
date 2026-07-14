@@ -4943,7 +4943,8 @@ public sealed partial class SessionService(
             config.Mode,
             config.ToolProfile,
             providerCapabilities,
-            threadRuntimeState.NextToolSnapshotRevision());
+            threadRuntimeState.NextToolSnapshotRevision(),
+            ToolPlanningThreadClassifier.Classify(thread));
         var toolSnapshot = await agentFactory.BuildToolSnapshotAsync(
             snapshotSources,
             planningContext,

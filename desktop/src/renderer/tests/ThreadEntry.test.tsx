@@ -675,6 +675,44 @@ describe('ThreadEntry', () => {
     expect(img?.getAttribute('src')).toBe(icon)
   })
 
+  it('prefers source-neutral origin presentation over originApp', async () => {
+    const presentationIcon = 'data:image/svg+xml;base64,PHN2ZyBpZD0icHJlc2VudGF0aW9uIi8+'
+    renderThreadEntry(
+      makeThread({
+        originChannel: 'teams',
+        originPresentation: {
+          sourceId: 'agent-teams',
+          displayName: 'Builder',
+          icon: presentationIcon,
+          subjectId: 'builder',
+          subjectKind: 'member'
+        },
+        originApp: {
+          appId: 'com.example.secondary',
+          displayName: 'Secondary origin',
+          icon: null
+        }
+      })
+    )
+
+    const badge = await screen.findByLabelText('Origin: Builder')
+    expect(badge.querySelector('img')?.getAttribute('src')).toBe(presentationIcon)
+    expect(screen.queryByLabelText('Origin app: Secondary origin')).not.toBeInTheDocument()
+  })
+
+  it('renders origin presentation even for the desktop origin channel', async () => {
+    renderThreadEntry(
+      makeThread({
+        originPresentation: {
+          sourceId: 'native-source',
+          displayName: 'Native source'
+        }
+      })
+    )
+
+    expect(await screen.findByLabelText('Origin: Native source')).toBeInTheDocument()
+  })
+
   it('falls back to the channel badge when originApp is absent', () => {
     renderThreadEntry(makeThread({ originChannel: 'workflow' }))
 
@@ -693,16 +731,16 @@ describe('ThreadEntry', () => {
     expect(await screen.findByLabelText('Origin app: Workflow App')).toBeInTheDocument()
   })
 
-  it('uses the per-member tooltip when originApp carries a memberId', async () => {
+  it('uses the per-member tooltip when app origin metadata carries a member id', async () => {
     const icon = 'data:image/svg+xml;base64,PHN2Zz48L3N2Zz4='
     renderThreadEntry(
       makeThread({
-        originChannel: 'teams',
-        originApp: { appId: 'com.dotharness.dotcraft-teams', displayName: 'Explorer', icon, memberId: 'explorer' }
+        originChannel: 'workflow',
+        originApp: { appId: 'com.example.workflow', displayName: 'Worker', icon, memberId: 'worker' }
       })
     )
 
-    expect(await screen.findByLabelText('Origin: Explorer')).toBeInTheDocument()
-    expect(screen.queryByLabelText('Origin app: Explorer')).not.toBeInTheDocument()
+    expect(await screen.findByLabelText('Origin: Worker')).toBeInTheDocument()
+    expect(screen.queryByLabelText('Origin app: Worker')).not.toBeInTheDocument()
   })
 })

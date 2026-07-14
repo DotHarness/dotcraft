@@ -84,6 +84,7 @@ public sealed record AppServerConnectionServices
     public DreamStore? DreamStore { get; init; }
     public DreamsService? DreamsService { get; init; }
     public AppBindingService? AppBindingService { get; init; }
+    public IReadOnlyList<IThreadOriginPresentationProvider>? ThreadOriginPresentationProviders { get; init; }
     public PlanStore? PlanStore { get; init; }
     public TraceStore? TraceStore { get; init; }
     public IReadOnlyList<string>? BuiltInPluginSourceRoots { get; init; }

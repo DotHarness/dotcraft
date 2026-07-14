@@ -375,17 +375,17 @@ public sealed class AppBindingProtocolTests : IDisposable
     }
 
     [Fact]
-    public async Task ThreadInputEnqueue_PersistsTeamTriggerMetadataAndAudit()
+    public async Task ThreadInputEnqueue_PersistsAppTriggerMetadataAndAudit()
     {
-        const string teamsAppId = "com.dotharness.dotcraft-teams";
-        WriteWorkflowPlugin(appId: teamsAppId, toolNamespace: "teams", rootName: "teams-app");
+        const string appId = "com.example.workflow";
+        WriteWorkflowPlugin(appId: appId, toolNamespace: "workflow", rootName: "workflow-app");
         var service = new AppBindingService();
         using var harness = CreateHarness(service);
         await harness.InitializeAsync();
-        await ConnectAppAsync(harness, appId: teamsAppId, accountLabel: "teams-runtime");
+        await ConnectAppAsync(harness, appId: appId, accountLabel: "workflow-runtime");
         var thread = await harness.Service.CreateThreadAsync(CreateIdentity());
-        var request = await CreateBindingRequestAsync(harness, thread.Id, appId: teamsAppId);
-        var bindingId = await AcceptBindingAsync(harness, request.BindingRequestId, request.Token, approvedBy: "teams-runtime");
+        var request = await CreateBindingRequestAsync(harness, thread.Id, appId: appId);
+        var bindingId = await AcceptBindingAsync(harness, request.BindingRequestId, request.Token, approvedBy: "workflow-runtime");
 
         using var wrongGrantResponse = await ExecuteAndReadResponseAsync(
             harness,
@@ -393,7 +393,7 @@ public sealed class AppBindingProtocolTests : IDisposable
             new
             {
                 bindingId,
-                appId = teamsAppId,
+                appId,
                 grantId = "wrong-grant",
                 input = new[] { new { type = "text", text = "dispatch this" } }
             });
@@ -405,7 +405,7 @@ public sealed class AppBindingProtocolTests : IDisposable
             new
             {
                 bindingId,
-                appId = teamsAppId,
+                appId,
                 grantId = "grant-1",
                 input = new[] { new { type = "text", text = "dispatch this" } },
                 displayText = "Dispatch task",
@@ -418,13 +418,13 @@ public sealed class AppBindingProtocolTests : IDisposable
         var queued = response.RootElement.GetProperty("result").GetProperty("queuedInput");
         Assert.Equal(thread.Id, queued.GetProperty("threadId").GetString());
         Assert.Equal("Dispatch task", queued.GetProperty("displayText").GetString());
-        Assert.Equal("team", queued.GetProperty("triggerKind").GetString());
+        Assert.Equal("app", queued.GetProperty("triggerKind").GetString());
         Assert.Equal("Task: Explore", queued.GetProperty("triggerLabel").GetString());
         Assert.Equal("task_123", queued.GetProperty("triggerRefId").GetString());
 
         var stored = await harness.Service.GetThreadAsync(thread.Id);
         var storedQueued = Assert.Single(stored.QueuedInputs);
-        Assert.Equal("team", storedQueued.TriggerKind);
+        Assert.Equal("app", storedQueued.TriggerKind);
         Assert.Equal("Task: Explore", storedQueued.TriggerLabel);
         Assert.Equal("task_123", storedQueued.TriggerRefId);
         Assert.Empty(stored.Turns);
@@ -2871,32 +2871,6 @@ public sealed class AppBindingProtocolTests : IDisposable
         Assert.StartsWith("data:image/svg+xml;base64,", origin.Icon!);
     }
 
-    // Reproduces the live Teams setup: managed TeamsService runtime + agent-teams plugin assets,
-    // mission member threads stamped channelContext="{missionId}:{memberId}".
-    [Theory]
-    [InlineData("leader", "Team Leader")]
-    [InlineData("explorer", "Explorer")]
-    [InlineData("builder", "Builder")]
-    [InlineData("reviewer", "Reviewer")]
-    [InlineData("operator", "Operator")]
-    public void ResolveOriginApp_ManagedTeamsRuntime_BrandsEveryMemberRole(string memberId, string expectedDisplayName)
-    {
-        WriteAgentTeamsPlugin();
-        var service = new AppBindingService(new IManagedAppBindingRuntime[] { new DotCraft.Teams.TeamsService() });
-        var catalog = service.DiscoverCatalog(new AppConfig(), _tempRoot, _workspaceCraftPath);
-
-        var origin = service.ResolveOriginApp(
-            catalog,
-            "teams",
-            $"mission_76e5319b02454d37a6cd5c9cf8435133:{memberId}");
-
-        Assert.NotNull(origin);
-        Assert.Equal(memberId, origin!.MemberId);
-        Assert.Equal(expectedDisplayName, origin.DisplayName);
-        Assert.NotNull(origin.Icon);
-        Assert.StartsWith("data:image/svg+xml;base64,", origin.Icon!);
-    }
-
     [Fact]
     public async Task PluginLifecycle_ForAppPluginEmitsAppListUpdated()
     {
@@ -4509,39 +4483,6 @@ public sealed class AppBindingProtocolTests : IDisposable
                     Path.Combine(pluginRoot, $"{name}.svg"),
                     $"""<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" fill="{fill}"/></svg>""");
             }
-        }
-    }
-
-    private void WriteAgentTeamsPlugin()
-    {
-        var pluginRoot = Path.Combine(_workspaceCraftPath, "plugins", "agent-teams");
-        Directory.CreateDirectory(Path.Combine(pluginRoot, ".craft-plugin"));
-        Directory.CreateDirectory(Path.Combine(pluginRoot, "assets"));
-        File.WriteAllText(
-            Path.Combine(pluginRoot, ".craft-plugin", "plugin.json"),
-            """
-{
-  "schemaVersion": 1,
-  "id": "agent-teams",
-  "version": "0.1.0",
-  "displayName": "Agent Teams",
-  "description": "Unlock the DotCraft Team card board with robot teammates.",
-  "capabilities": ["metadata", "team"],
-  "interface": {
-    "displayName": "Agent Teams",
-    "shortDescription": "Run missions with a small robot team",
-    "developerName": "Example Labs",
-    "category": "Productivity",
-    "composerIcon": "./assets/agent-teams.svg",
-    "logo": "./assets/agent-teams.svg"
-  }
-}
-""");
-        foreach (var role in new[] { "leader", "explorer", "builder", "reviewer", "operator", "agent-teams" })
-        {
-            File.WriteAllText(
-                Path.Combine(pluginRoot, "assets", $"team-{role}.svg".Replace("team-agent-teams", "agent-teams")),
-                """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" fill="#4F7CF6"/></svg>""");
         }
     }
 

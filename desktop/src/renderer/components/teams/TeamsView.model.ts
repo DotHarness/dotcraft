@@ -55,7 +55,11 @@ export function intentForActor(
 }
 
 export const EMPTY_TEAM: TeamView = {
-  team: { enabled: false },
+  team: {
+    teamId: '',
+    createdAt: '',
+    updatedAt: ''
+  },
   stats: {
     runningMembers: 0,
     queuedInputs: 0,
@@ -79,7 +83,7 @@ export const EMPTY_TEAM: TeamView = {
 export function normalizeTeamView(raw: unknown): TeamView {
   const value = (raw ?? {}) as Partial<TeamView>
   return {
-    team: value.team ?? { enabled: false },
+    team: value.team ?? EMPTY_TEAM.team,
     stats: {
       ...EMPTY_TEAM.stats,
       ...(value.stats ?? {})
@@ -101,7 +105,6 @@ export function buildBoardModel({
   missions,
   tasks,
   missionThreads,
-  teamEnabled,
   actorStates,
   cardOverrides,
   boardVisibleLogicalHeight
@@ -111,7 +114,6 @@ export function buildBoardModel({
   missions: Mission[]
   tasks: TeamTask[]
   missionThreads: MissionThread[]
-  teamEnabled: boolean
   actorStates: Record<string, ActorState>
   cardOverrides: Record<string, CardOverride>
   boardVisibleLogicalHeight: number
@@ -135,7 +137,7 @@ export function buildBoardModel({
       key: 'draft',
       kind: 'draft',
       title: translate(locale, 'teams.newMission'),
-      status: teamEnabled ? translate(locale, 'teams.status.draft') : translate(locale, 'teams.status.idle'),
+      status: translate(locale, 'teams.status.draft'),
       body: translate(locale, 'teams.draftPromptPreview'),
       x: 83,
       y: 28,
@@ -328,7 +330,7 @@ export function buildBoardModel({
       missionId: atTarget ? target?.missionId : undefined,
       title: member.displayName || member.memberId,
       status: actorStatus,
-      body: member.description || translate(locale, 'teams.emptyTeam'),
+      body: member.description || translate(locale, 'teams.member'),
       x: actor.x,
       y: actor.y,
       rotation: actor.rotation,
@@ -445,7 +447,7 @@ export function resolveSelectedDetail(
   return {
     kindLabel: translate(locale, 'teams.missionDraft'),
     title: translate(locale, 'teams.newMission'),
-    status: teamView.team.enabled ? translate(locale, 'teams.status.draft') : translate(locale, 'teams.status.idle'),
+    status: translate(locale, 'teams.status.draft'),
     accent: '#4f7cf6'
   }
 }
@@ -800,13 +802,8 @@ export function workflowStatusLabel(locale: AppLocale, status: string): string {
     case 'awaitingleaderreview':
       return translate(locale, 'teams.status.awaitingLeaderReview')
     case 'done':
-    case 'completed':
-    case 'complete':
-    case 'succeeded':
-    case 'success':
       return translate(locale, 'teams.status.done')
     case 'cancelled':
-    case 'canceled':
       return translate(locale, 'teams.status.cancelled')
     default:
       return status || translate(locale, 'teams.status.idle')
@@ -840,11 +837,11 @@ export function isActiveMissionStatus(status: string): boolean {
 }
 
 export function isDoneStatus(status: string): boolean {
-  return ['done', 'completed', 'complete', 'succeeded', 'success'].includes(status.toLowerCase())
+  return status.toLowerCase() === 'done'
 }
 
 export function isCancelledStatus(status: string): boolean {
-  return ['cancelled', 'canceled'].includes(status.toLowerCase())
+  return status.toLowerCase() === 'cancelled'
 }
 
 export function isTerminalMissionStatus(status: string): boolean {

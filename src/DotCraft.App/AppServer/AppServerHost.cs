@@ -264,6 +264,7 @@ public sealed class AppServerHost(
                 DreamStore = _services.GetService<DreamStore>(),
                 DreamsService = runtime.DreamsService,
                 AppBindingService = _services.GetService<AppBindingService>(),
+                ThreadOriginPresentationProviders = _services.GetServices<IThreadOriginPresentationProvider>().ToArray(),
                 PlanStore = runtime.PlanStore,
                 TraceStore = _services.GetService<TraceStore>(),
                 WireRuntimeAdditionalContextProvider = _services.GetService<WireRuntimeAdditionalContextProvider>(),

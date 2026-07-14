@@ -54,6 +54,16 @@ public static class SessionServiceFactory
             toolDispatchPolicyRegistry: sp.GetService<ThreadToolDispatchPolicyRegistry>(),
             mcpAppTransientContextStore: sp.GetService<McpAppTransientContextStore>());
         sp.GetService<ToolInvocationRecorderRouter>()?.Bind(sessionService);
+        BindSessionServiceConsumers(sp, sessionService);
         return sessionService;
+    }
+
+    internal static void BindSessionServiceConsumers(IServiceProvider services, ISessionService sessionService)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+        ArgumentNullException.ThrowIfNull(sessionService);
+
+        foreach (var consumer in services.GetServices<ISessionServiceConsumer>())
+            consumer.SetSessionService(sessionService);
     }
 }

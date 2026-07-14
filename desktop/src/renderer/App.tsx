@@ -86,7 +86,6 @@ import {
 } from './utils/threadSubscriptionCoordinator'
 import {
   findDesktopMainViewExtension,
-  getDesktopMainViewExtensions,
   isExtensionMainView
 } from './utils/desktopExtensionRegistry'
 import {
@@ -1643,24 +1642,6 @@ export function App(): JSX.Element {
       void reloadThreadList()
     }
   }, [agentTeamsAvailable, reloadThreadList, status])
-
-  useEffect(() => {
-    if (activeMainView !== 'teams') return
-    const teamsView = getDesktopMainViewExtensions(plugins).find((entry) =>
-      entry.plugin.id === 'agent-teams' && entry.viewId === 'teams'
-    )
-    if (teamsView) {
-      useUIStore.getState().setActiveMainView(teamsView.viewKey)
-      return
-    }
-    const ui = useUIStore.getState()
-    if (capabilities?.pluginManagement === true) {
-      ui.setPluginCatalogSurface('plugins')
-      ui.setActiveMainView('skills')
-      return
-    }
-    ui.setActiveMainView('conversation')
-  }, [activeMainView, capabilities?.pluginManagement, plugins])
 
   useEffect(() => {
     if (!isExtensionMainView(activeMainView) || activeDesktopExtensionView) return
@@ -3694,8 +3675,6 @@ export function App(): JSX.Element {
                 <AutomationsView />
               ) : activeDesktopExtensionView ? (
                 <DesktopExtensionMainView entry={activeDesktopExtensionView} />
-              ) : activeMainView === 'teams' && capabilities?.pluginManagement === true ? (
-                <PluginsView />
               ) : (
                 <ConversationPanel
                   workspacePath={workspacePath}

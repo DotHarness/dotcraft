@@ -52,7 +52,6 @@ public sealed class AppBindingProtocolExtension(
 
     private const string AppConnectionChanged = "app/connection/changed";
     private const string ThreadAppBindingsChanged = "thread/appBindings/changed";
-    private const string DotCraftTeamsAppId = "com.dotharness.dotcraft-teams";
 
     public IReadOnlyCollection<string> Methods { get; } =
     [
@@ -412,12 +411,9 @@ public sealed class AppBindingProtocolExtension(
 
                 await context.SessionService.EnsureThreadLoadedAsync(threadId, ct);
 
-                var triggerKind = string.Equals(p.AppId, DotCraftTeamsAppId, StringComparison.Ordinal)
-                    ? "team"
-                    : "app";
                 using (TurnTriggerScope.Set(new TurnTriggerInfo
                        {
-                           Kind = triggerKind,
+                           Kind = "app",
                            Label = string.IsNullOrWhiteSpace(p.TriggerLabel) ? null : p.TriggerLabel.Trim(),
                            RefId = string.IsNullOrWhiteSpace(p.TriggerRefId) ? null : p.TriggerRefId.Trim()
                        }))
@@ -438,7 +434,7 @@ public sealed class AppBindingProtocolExtension(
                         workspaceCraftPath,
                         p.BindingId,
                         queued.Id,
-                        triggerKind,
+                        "app",
                         p.TriggerLabel,
                         p.TriggerRefId);
                     if (!string.IsNullOrWhiteSpace(deliveryBindingId))

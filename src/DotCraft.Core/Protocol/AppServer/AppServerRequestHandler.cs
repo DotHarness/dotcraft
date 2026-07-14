@@ -91,6 +91,7 @@ public sealed class AppServerRequestHandler(
             services.SkillsLoader,
             services.PlanStore,
             services.AppBindingService,
+            services.ThreadOriginPresentationProviders,
             services.BuiltInPluginSourceRoots);
 
     private AppServerMethodTable? _domainMethods;

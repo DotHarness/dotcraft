@@ -91,6 +91,18 @@ export interface ThreadOriginApp {
   memberId?: string | null
 }
 
+export interface ThreadOriginPresentation {
+  /** Stable identity of the provider that supplied this presentation. */
+  sourceId: string
+  displayName: string
+  /** Data URL or safe URL for the origin icon; optional — clients fall back to the channel badge. */
+  icon?: string | null
+  /** Optional provider-owned subject identity, such as a Teams member id. */
+  subjectId?: string | null
+  /** Optional provider-owned subject category, such as `member`. */
+  subjectKind?: string | null
+}
+
 export interface ThreadWorktreeInfoWire {
   id: string
   sourceThreadId: string
@@ -133,6 +145,8 @@ export interface ThreadSummary {
   appBindings?: ThreadAppBindingSummaryWire[]
   /** Server-resolved origin-app branding when originChannel matches an installed app's declared origin channel. */
   originApp?: ThreadOriginApp | null
+  /** Source-neutral server-resolved origin branding. */
+  originPresentation?: ThreadOriginPresentation | null
 }
 
 /**

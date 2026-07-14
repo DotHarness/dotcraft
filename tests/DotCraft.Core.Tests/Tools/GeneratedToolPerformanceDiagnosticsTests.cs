@@ -1,10 +1,9 @@
 using System.Diagnostics;
-using System.Reflection;
 using System.Text.Json.Nodes;
-using DotCraft.AppBinding;
 using DotCraft.GeneratedTools.Core;
-using DotCraft.Protocol.AppServer;
+using DotCraft.Protocol;
 using DotCraft.Teams;
+using DotCraft.Tests.Sessions.Protocol.AppServer;
 using DotCraft.Tools;
 using Microsoft.Extensions.AI;
 using Xunit.Abstractions;
@@ -14,7 +13,7 @@ namespace DotCraft.Tests.Tools;
 public sealed class GeneratedToolPerformanceDiagnosticsTests(ITestOutputHelper output)
 {
     [Fact]
-    public async Task GeneratedToolDiagnostics_MeasureConstructionAndDynamicInvocation()
+    public async Task GeneratedToolDiagnostics_MeasureConstructionAndNativeInvocation()
     {
         var tempRoot = Path.Combine(Path.GetTempPath(), $"generated_tool_perf_{Guid.NewGuid():N}");
         Directory.CreateDirectory(tempRoot);
@@ -28,14 +27,38 @@ public sealed class GeneratedToolPerformanceDiagnosticsTests(ITestOutputHelper o
             Assert.True(generatedConstruction.Elapsed > TimeSpan.Zero);
             Assert.True(factoryConstruction.Elapsed > TimeSpan.Zero);
 
-            var generatedRegistry = ReadGeneratedTeamsRegistry();
-            var fallbackRegistry = new ManagedDynamicToolRegistry<TeamsService>(TeamsConstants.ToolNamespace);
-            var generatedInvocation = await MeasureAsync(200, () => InvokeExpectedInvalidParamsAsync(generatedRegistry));
-            var fallbackInvocation = await MeasureAsync(200, () => InvokeExpectedInvalidParamsAsync(fallbackRegistry));
+            var sessions = new TestableSessionService(new ThreadStore(tempRoot));
+            var teamsService = new TeamsService();
+            teamsService.SetSessionService(sessions);
+            var thread = await sessions.CreateThreadAsync(
+                new SessionIdentity
+                {
+                    WorkspacePath = tempRoot,
+                    ChannelName = "desktop",
+                    ChannelContext = "performance",
+                    UserId = "user"
+                },
+                new ThreadConfiguration { Mode = "agent" });
+            var planning = new ToolPlanningContext(
+                thread.Id,
+                null,
+                tempRoot,
+                "agent",
+                null,
+                [],
+                1,
+                ToolPlanningThreadKind.UserTopLevel);
+            var snapshot = await new EffectiveToolSnapshotBuilder().BuildAsync(
+                [new TeamsToolSource(teamsService)],
+                planning);
+            var providerName = snapshot.ProviderCallNames[new ToolName(TeamsConstants.ToolNamespace, "CreateTeam")];
+            var dispatcher = new ToolDispatcher();
+            var nativeInvocation = await MeasureAsync(
+                200,
+                () => InvokeExpectedInvalidParamsAsync(dispatcher, snapshot, providerName, thread.Id));
 
-            output.WriteLine($"Teams ReadMemberStatus invalid-args generated={generatedInvocation.Elapsed.TotalMilliseconds:F2}ms fallback={fallbackInvocation.Elapsed.TotalMilliseconds:F2}ms checksum={generatedInvocation.Checksum + fallbackInvocation.Checksum}");
-            Assert.Equal(200, generatedInvocation.Checksum);
-            Assert.Equal(200, fallbackInvocation.Checksum);
+            output.WriteLine($"Teams CreateTeam invalid-args native-dispatch={nativeInvocation.Elapsed.TotalMilliseconds:F2}ms checksum={nativeInvocation.Checksum}");
+            Assert.Equal(200, nativeInvocation.Checksum);
         }
         finally
         {
@@ -74,35 +97,24 @@ public sealed class GeneratedToolPerformanceDiagnosticsTests(ITestOutputHelper o
         return new Measurement(stopwatch.Elapsed, checksum);
     }
 
-    private static async Task InvokeExpectedInvalidParamsAsync(IManagedDynamicToolRegistry<TeamsService> registry)
+    private static async Task InvokeExpectedInvalidParamsAsync(
+        ToolDispatcher dispatcher,
+        EffectiveToolSnapshot snapshot,
+        string providerName,
+        string threadId)
     {
-        var ex = await Assert.ThrowsAsync<AppServerException>(async () =>
-            await registry.InvokeAsync(
-                new TeamsService(),
-                Context("ReadMemberStatus"),
-                new JsonObject(),
-                CancellationToken.None));
-        Assert.Equal(AppServerErrors.InvalidParamsCode, ex.Code);
+        var result = await dispatcher.DispatchProviderCallAsync(
+            snapshot,
+            providerName,
+            new JsonObject(),
+            new ToolInvocationRequest(
+                threadId,
+                null,
+                "call",
+                ToolInvocationAudience.Model));
+        Assert.False(result.Success);
+        Assert.Equal(ToolErrorCodes.InputInvalid, result.Error?.Code);
     }
-
-    private static IManagedDynamicToolRegistry<TeamsService> ReadGeneratedTeamsRegistry()
-    {
-        var field = typeof(TeamsService).GetField("DynamicTools", BindingFlags.NonPublic | BindingFlags.Static);
-        Assert.NotNull(field);
-        return Assert.IsAssignableFrom<IManagedDynamicToolRegistry<TeamsService>>(field.GetValue(null));
-    }
-
-    private static ManagedAppBindingToolCallContext Context(string toolName) =>
-        new(
-            WorkspaceCraftPath: "craft",
-            WorkspacePath: "workspace",
-            BindingId: "binding",
-            ThreadId: "thread",
-            TurnId: "turn",
-            CallId: "call",
-            AppId: "app",
-            GrantId: "grant",
-            ToolName: toolName);
 
     private readonly record struct Measurement(TimeSpan Elapsed, int Checksum);
 }

@@ -58,7 +58,8 @@ public sealed class ExternalChannelManager
         SessionStreamDebugLogger? streamDebugLogger = null,
         IAppConfigMonitor? appConfigMonitor = null,
         IEnumerable<IAppServerProtocolExtension>? protocolExtensions = null,
-        AppBindingService? appBindingService = null)
+        AppBindingService? appBindingService = null,
+        IEnumerable<IThreadOriginPresentationProvider>? originPresentationProviders = null)
     {
         _registry = registry ?? new ExternalChannelRegistry();
 
@@ -121,7 +122,8 @@ public sealed class ExternalChannelManager
                 streamDebugLogger: streamDebugLogger,
                 appConfigMonitor: appConfigMonitor,
                 protocolExtensions: protocolExtensions,
-                appBindingService: appBindingService);
+                appBindingService: appBindingService,
+                originPresentationProviders: originPresentationProviders);
             _hosts.Add(host);
 
             // Register all hosts for unified channel runtime tool discovery and WebSocket routing.

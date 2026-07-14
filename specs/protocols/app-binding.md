@@ -1017,7 +1017,7 @@ Rules:
 
 ### 10.8 `app/threadInput/enqueue`
 
-Adds app-provided input to the queue of the thread derived from an active binding. This method is the App Binding-safe path for app-owned runtimes such as DotCraft Teams to dispatch work to bound agent threads.
+Adds app-provided input to the queue of the thread derived from an active binding. This method is the App Binding-safe path for external applications and bound social adapters to dispatch work to a bound thread. Agent Teams is a native runtime and uses `ISessionService` directly.
 
 **Direction**: app -> server
 
@@ -1061,7 +1061,7 @@ Rules:
 - `startPolicy = "runWhenIdle"` starts the next queued input only when the target thread has no running, waiting-approval, waiting-input, or maintenance work.
 - Queued input preserves `triggerKind`, `triggerLabel`, and `triggerRefId` through dequeue into the future `UserMessagePayload`.
 - Queued social input preserves `sender` and the binding id that produced the default output delivery target.
-- First-party Teams uses `triggerKind = "team"`; other App Binding apps use `triggerKind = "app"`.
+- App Binding callers use `triggerKind = "app"` or the source-specific social trigger defined by the channel adapter contract. The `team` trigger is owned by the native Agent Teams scheduler and is not produced through this method.
 - Enqueue records App Binding audit and emits the normal thread queue notification.
 
 ### 10.9 `app/socialBinding/resolve`

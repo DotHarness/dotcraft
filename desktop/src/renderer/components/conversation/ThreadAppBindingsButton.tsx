@@ -19,7 +19,6 @@ interface ThreadAppBindingsButtonProps {
 
 const EMPTY_THREAD_APP_BINDINGS: ThreadAppBinding[] = []
 const EMPTY_THREAD_APPS: AppInfo[] = []
-const DOTCRAFT_TEAMS_APP_ID = 'com.dotharness.dotcraft-teams'
 type ThreadBindingLike = ThreadAppBinding | ThreadAppBindingSummary
 
 interface ThreadAppRowModel {
@@ -130,7 +129,6 @@ export function ThreadAppBindingsButton({ threadId }: ThreadAppBindingsButtonPro
         ? bindingsById.get(app.bindingSummary.bindingId) ?? app.bindingSummary
         : threadBindings.find((candidate) => candidate.appId === app.appId)
       if (binding) unmatchedBindings.delete(binding.bindingId)
-      if (isHiddenTeamsMissionBinding(app.appId, binding)) continue
       const pendingHandoff = resolvePendingSocialHandoff(pendingSocialHandoffs, binding)
       if (isUnavailableSocialAppRow(app, binding, pendingHandoff)) continue
       nextRows.push({
@@ -142,7 +140,6 @@ export function ThreadAppBindingsButton({ threadId }: ThreadAppBindingsButtonPro
     }
 
     for (const binding of unmatchedBindings.values()) {
-      if (isHiddenTeamsMissionBinding(binding.appId, binding)) continue
       nextRows.push({
         key: `binding:${binding.bindingId}`,
         binding,
@@ -601,12 +598,6 @@ function formatSocialTarget(target: NonNullable<ThreadBindingLike['socialTarget'
   const name = target.displayName?.trim()
   if (name) return name
   return `${target.channelName}:${target.conversationKind}:${target.conversationId}`
-}
-
-function isHiddenTeamsMissionBinding(appId: string, binding?: ThreadBindingLike): boolean {
-  return appId === DOTCRAFT_TEAMS_APP_ID
-    && binding?.managed === true
-    && attachedToolCount(binding) > 1
 }
 
 function isUnavailableSocialAppRow(

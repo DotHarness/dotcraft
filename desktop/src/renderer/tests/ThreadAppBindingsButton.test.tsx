@@ -278,84 +278,6 @@ describe('ThreadAppBindingsButton', () => {
     expect(sendRequest).not.toHaveBeenCalledWith('app/binding/request/create', expect.anything())
   })
 
-  it('binds managed Teams without external connection or waiting confirmation copy', async () => {
-    let bound = false
-    sendRequest.mockImplementation(async (method: string) => {
-      if (method === 'thread/appBindings/refresh') return { bindings: bound ? [{ bindingId: 'binding-teams', state: 'active', attachedToolCount: 1 }] : [] }
-      if (method === 'thread/appBindings/list') {
-        return {
-          bindings: bound
-            ? [{
-                ...threadBinding('active'),
-                bindingId: 'binding-teams',
-                appId: 'com.dotharness.dotcraft-teams',
-                displayName: 'Agent Teams',
-                managed: true,
-                requiresExternalConnection: false,
-                attachedToolCount: 1
-              }]
-            : []
-        }
-      }
-      if (method === 'app/list') {
-        return {
-          apps: [
-            appInfo({
-              appId: 'com.dotharness.dotcraft-teams',
-              toolNamespace: 'teams',
-              displayName: 'Agent Teams',
-              pluginId: 'agent-teams',
-              managed: true,
-              requiresExternalConnection: false,
-              connectionState: 'connected',
-              nativeApp: { displayName: 'Agent Teams', protocol: '', status: 'installed' },
-              scopes: [{ id: 'teams.mission', displayName: 'Create missions', description: 'Create missions', risk: 'mutate' }],
-              toolCatalog: [{ name: 'CreateTeam', scope: 'teams.mission', risk: 'mutate', defaultExposure: 'direct' }]
-            })
-          ]
-        }
-      }
-      if (method === 'app/binding/request/create') {
-        bound = true
-        return {
-          bindingRequestId: 'binding-teams',
-          threadId: 'thread-1',
-          appId: 'com.dotharness.dotcraft-teams',
-          requestedScopes: ['teams.mission'],
-          state: 'active',
-          tokenExpiresAt: '2026-05-18T00:00:00Z',
-          handoff: { mode: 'managed' },
-          confirmation: { required: false, risk: 'mutate', message: '' }
-        }
-      }
-      return {}
-    })
-
-    render(
-      <LocaleProvider>
-        <ThreadAppBindingsButton threadId="thread-1" />
-      </LocaleProvider>
-    )
-
-    fireEvent.click(await screen.findByRole('button', { name: 'Apps' }))
-    fireEvent.click(await screen.findByRole('button', { name: 'Bind thread' }))
-
-    await waitFor(() => {
-      expect(sendRequest).toHaveBeenCalledWith('app/binding/request/create', expect.objectContaining({
-        appId: 'com.dotharness.dotcraft-teams',
-        requestedTools: ['CreateTeam'],
-        source: 'threadMenu'
-      }))
-    })
-    await waitFor(() => {
-      expect(screen.getByText('Bound')).toBeInTheDocument()
-    })
-    expect(screen.queryByRole('button', { name: 'Bind thread' })).toBeNull()
-    expect(sendRequest).not.toHaveBeenCalledWith('app/connection/start', expect.anything())
-    expect(shellOpenAppHandoff).not.toHaveBeenCalled()
-    expect(screen.queryByText('Waiting for confirmation in the app')).toBeNull()
-  })
-
   it('shows offline thread bindings as open-app-to-use without connected copy', async () => {
     sendRequest.mockImplementation(async (method: string) => {
       if (method === 'thread/appBindings/refresh') return { bindings: [{ bindingId: 'binding-1', state: 'offline', attachedToolCount: 0 }] }
@@ -423,7 +345,7 @@ describe('ThreadAppBindingsButton', () => {
     })
   })
 
-  it('does not render external open action for managed Teams bindings', async () => {
+  it('does not render an external open action for managed bindings', async () => {
     sendRequest.mockImplementation(async (method: string) => {
       if (method === 'thread/appBindings/refresh') return { bindings: [{ bindingId: 'binding-1', state: 'offline', attachedToolCount: 1 }] }
       if (method === 'thread/appBindings/list') {
@@ -431,8 +353,8 @@ describe('ThreadAppBindingsButton', () => {
           bindings: [
             {
               ...threadBinding('offline'),
-              appId: 'com.dotharness.dotcraft-teams',
-              displayName: 'Agent Teams',
+              appId: 'com.example.managed',
+              displayName: 'Managed Workflow',
               managed: true,
               requiresExternalConnection: false,
               attachedToolCount: 1
@@ -451,68 +373,8 @@ describe('ThreadAppBindingsButton', () => {
 
     fireEvent.click(await screen.findByRole('button', { name: 'Apps' }))
 
-    expect(await screen.findByText('Agent Teams')).toBeInTheDocument()
+    expect(await screen.findByText('Managed Workflow')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Open app' })).toBeNull()
-  })
-
-  it('hides managed Teams mission-thread role bindings from the ordinary app switcher', async () => {
-    sendRequest.mockImplementation(async (method: string) => {
-      if (method === 'thread/appBindings/refresh') return { bindings: [{ bindingId: 'binding-1', state: 'active', attachedToolCount: 7 }] }
-      if (method === 'thread/appBindings/list') {
-        return {
-          bindings: [
-            {
-              ...threadBinding('active'),
-              appId: 'com.dotharness.dotcraft-teams',
-              displayName: 'Agent Teams',
-              managed: true,
-              requiresExternalConnection: false,
-              attachedToolCount: 7
-            }
-          ]
-        }
-      }
-      if (method === 'app/list') {
-        return {
-          apps: [
-            appInfo({
-              appId: 'com.dotharness.dotcraft-teams',
-              toolNamespace: 'teams',
-              displayName: 'Agent Teams',
-              pluginId: 'agent-teams',
-              managed: true,
-              requiresExternalConnection: false,
-              connectionState: 'connected',
-              bindingSummary: {
-                threadId: 'thread-1',
-                bindingId: 'binding-1',
-                appId: 'com.dotharness.dotcraft-teams',
-                displayName: 'Agent Teams',
-                state: 'active',
-                connectionState: 'connected',
-                managed: true,
-                requiresExternalConnection: false,
-                grantedScopes: ['teams.role']
-              }
-            })
-          ]
-        }
-      }
-      return {}
-    })
-
-    render(
-      <LocaleProvider>
-        <ThreadAppBindingsButton threadId="thread-1" />
-      </LocaleProvider>
-    )
-
-    fireEvent.click(await screen.findByRole('button', { name: 'Apps' }))
-
-    await waitFor(() => {
-      expect(screen.getByText('No apps bound')).toBeInTheDocument()
-      expect(screen.queryByText('Agent Teams')).toBeNull()
-    })
   })
 
   it('starts a social binding request and keeps bind instructions visible while pending', async () => {

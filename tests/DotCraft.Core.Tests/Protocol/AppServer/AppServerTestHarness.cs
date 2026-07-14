@@ -67,7 +67,8 @@ internal sealed class AppServerTestHarness : IDisposable
         IReadOnlyList<string>? builtInPluginSourceRoots = null,
         WireRuntimeAdditionalContextProvider? wireRuntimeAdditionalContextProvider = null,
         Func<SessionThread, SubAgentCoordinator?>? subAgentCoordinatorFactory = null,
-        HookRunner? hookRunner = null)
+        HookRunner? hookRunner = null,
+        IReadOnlyList<IThreadOriginPresentationProvider>? threadOriginPresentationProviders = null)
     {
         _tempDir = Path.Combine(
             Path.GetTempPath(),
@@ -108,6 +109,7 @@ internal sealed class AppServerTestHarness : IDisposable
                 DreamStore = dreamStore,
                 DreamsService = dreamsService,
                 AppBindingService = appBindingService,
+                ThreadOriginPresentationProviders = threadOriginPresentationProviders,
                 PlanStore = planStore,
                 ContextPageManager = contextPageManager,
                 OpenAIClientProvider = openAIClientProvider,

@@ -1,111 +1,39 @@
 using System.Collections.Concurrent;
 using System.ComponentModel;
-using System.Security.Cryptography;
-using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Text.RegularExpressions;
 using DotCraft.Abstractions;
 using DotCraft.Agents;
-using DotCraft.AppBinding;
 using DotCraft.Configuration;
 using DotCraft.Plugins;
 using DotCraft.Protocol;
 using DotCraft.Protocol.AppServer;
+using DotCraft.Tools;
 using Microsoft.Extensions.AI;
 
 namespace DotCraft.Teams;
 
 /// <summary>
-/// Managed App Binding runtime and state owner for the DotCraft Team.
+/// Native tool runtime and state owner for the DotCraft Team.
 /// </summary>
-public sealed partial class TeamsService(IAppConfigMonitor? appConfigMonitor = null) : IManagedAppBindingRuntime, IThreadRuntimeSignalObserver
+public sealed partial class TeamsService(IAppConfigMonitor? appConfigMonitor = null) : ISessionServiceConsumer, IThreadRuntimeSignalObserver
 {
-    private const string CreateTeamToolName = "CreateTeam";
     private const string TeamProfileLeader = "team-leader";
     private const string TeamProfileExplorer = "team-explorer";
     private const string TeamProfileBuilder = "team-builder";
     private const string TeamProfileReviewer = "team-reviewer";
     private const string TeamProfileOperator = "team-operator";
 
-    private static readonly IReadOnlyList<string> TeamScopes =
-    [
-        "team.read",
-        "mission.manage",
-        "task.dispatch",
-        "message.send",
-        "artifact.publish"
-    ];
-
-    private static readonly HashSet<string> LeaderToolNames = new(StringComparer.Ordinal)
-    {
-        "CreateMissionPlan",
-        "AssignTask",
-        "ListTeamMembers",
-        "ReadMissionState",
-        "ReadMemberStatus",
-        "SendMessage",
-        "MarkMissionDone"
-    };
-
-    private static readonly HashSet<string> TeammateToolNames = new(StringComparer.Ordinal)
-    {
-        "ListTeamMembers",
-        "ReadMissionState",
-        "ReadMemberStatus",
-        "SendMessage",
-        "ReportProgress",
-        "PublishArtifact",
-        "MarkTaskDone"
-    };
-
-    private static readonly HashSet<string> ExternalThreadToolNames = new(StringComparer.Ordinal)
-    {
-        CreateTeamToolName
-    };
-
-    private static readonly IReadOnlySet<string> CatalogSurfaceSet = new HashSet<string>(StringComparer.Ordinal)
-    {
-        AppBindingCatalogSurfaces.Welcome,
-        AppBindingCatalogSurfaces.ThreadBinding
-    };
-
     private const string LeaderAvatarAccent = "#4f7cf6";
-    private const string LegacyLeaderAvatarAccent = "#ef4444";
 
     private readonly ConcurrentDictionary<string, TeamsStateStore> _stores = new(StringComparer.OrdinalIgnoreCase);
     private readonly ConcurrentDictionary<string, SemaphoreSlim> _schedulerLocks = new(StringComparer.OrdinalIgnoreCase);
-    private static readonly IManagedDynamicToolRegistry<TeamsService> DynamicTools =
-        CreateGeneratedDynamicToolRegistry(TeamsConstants.ToolNamespace);
     private static readonly Regex ArtifactReferencePattern = new(@"\bartifact_[A-Za-z0-9_-]+\b", RegexOptions.Compiled | RegexOptions.CultureInvariant);
     private static readonly Regex TaskAliasPattern = new(@"^t[1-9][0-9]*$", RegexOptions.Compiled | RegexOptions.CultureInvariant);
     private static readonly Regex ArtifactAliasPattern = new(@"^a[1-9][0-9]*$", RegexOptions.Compiled | RegexOptions.CultureInvariant);
     private static readonly Regex ArtifactAliasReferencePattern = new(@"(?<![A-Za-z0-9_])a[1-9][0-9]*(?![A-Za-z0-9_])", RegexOptions.Compiled | RegexOptions.CultureInvariant);
-    private AppBindingService? _appBindingService;
     private ISessionService? _sessionService;
-
-    public AppDescriptor Descriptor { get; } = BuildDescriptor();
-
-    public string? OwningPluginId => PluginIds.AgentTeams;
-
-    public IReadOnlySet<string> CatalogSurfaces => CatalogSurfaceSet;
-
-    public bool RequiresExternalConnection => false;
-
-    public IReadOnlyList<AppBoundToolSpec> ToolSpecs =>
-        DynamicTools.ToolSpecs
-            .Where(tool => !ExternalThreadToolNames.Contains(tool.Name))
-            .ToList();
-
-    public bool AllowDirectMutatingToolExposure => true;
-
-    public AppDescriptor GetCatalogDescriptor(string surface) =>
-        IsExternalThreadCatalogSurface(surface) ? BuildThreadBindingDescriptor() : Descriptor;
-
-    public IReadOnlyList<AppBoundToolSpec> GetToolSpecsForSurface(string surface) =>
-        string.Equals(AppBindingCatalogSurfaces.Normalize(surface), ManagedAppBindingToolSurfaces.ThreadBinding, StringComparison.Ordinal)
-            ? DynamicTools.ToolSpecs.Where(tool => ExternalThreadToolNames.Contains(tool.Name)).ToList()
-            : ToolSpecs;
 
     /// <summary>
     /// Returns whether the workspace has installed and enabled the product plugin
@@ -123,10 +51,70 @@ public sealed partial class TeamsService(IAppConfigMonitor? appConfigMonitor = n
             PluginIds.AgentTeams);
     }
 
-    public void SetRuntimeServices(AppBindingService appBindingService, ISessionService sessionService)
+    public void SetSessionService(ISessionService service) =>
+        _sessionService = service ?? throw new ArgumentNullException(nameof(service));
+
+    internal async ValueTask<TeamsToolPlanningScope?> ResolveToolPlanningScopeAsync(
+        ToolPlanningContext context,
+        CancellationToken ct)
     {
-        _appBindingService = appBindingService;
-        _sessionService = sessionService;
+        var sessionService = _sessionService;
+        if (sessionService == null)
+            return null;
+
+        SessionThread thread;
+        try
+        {
+            thread = await sessionService.GetThreadAsync(context.ThreadId, ct).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch
+        {
+            return null;
+        }
+
+        var workspacePath = thread.WorkspacePath;
+        if (string.IsNullOrWhiteSpace(workspacePath))
+            return null;
+        var workspaceCraftPath = Path.Combine(workspacePath, ".craft");
+        if (!IsAgentTeamsPluginEnabled(workspacePath, workspaceCraftPath))
+            return null;
+
+        var callContext = new TeamsToolCallContext(thread.Id, workspacePath, workspaceCraftPath);
+        var state = GetStore(workspaceCraftPath).Snapshot();
+        var missionThread = state.MissionThreads.FirstOrDefault(item =>
+            string.Equals(item.ThreadId, thread.Id, StringComparison.Ordinal));
+        if (missionThread != null)
+        {
+            var mission = state.Missions.FirstOrDefault(item =>
+                string.Equals(item.MissionId, missionThread.MissionId, StringComparison.Ordinal));
+            var member = state.Members.FirstOrDefault(item =>
+                string.Equals(item.MemberId, missionThread.MemberId, StringComparison.OrdinalIgnoreCase));
+            if (missionThread.ArchivedAt != null
+                || missionThread.Status is "cancelled" or "archived"
+                || mission == null
+                || mission.ArchivedAt != null
+                || mission.Status is not (TeamMissionStatuses.Planning
+                    or TeamMissionStatuses.Active
+                    or TeamMissionStatuses.AwaitingLeaderReview)
+                || member == null)
+            {
+                return null;
+            }
+
+            return new TeamsToolPlanningScope(
+                callContext,
+                string.Equals(missionThread.MemberId, "leader", StringComparison.OrdinalIgnoreCase)
+                    ? TeamsToolRole.Leader
+                    : TeamsToolRole.Teammate);
+        }
+
+        return context.ThreadKind == ToolPlanningThreadKind.UserTopLevel
+            ? new TeamsToolPlanningScope(callContext, TeamsToolRole.Ordinary)
+            : null;
     }
 
     public async Task<TeamsTeamViewResult> ViewTeamAsync(
@@ -136,41 +124,27 @@ public sealed partial class TeamsService(IAppConfigMonitor? appConfigMonitor = n
     {
         var state = GetStore(workspaceCraftPath).Update(write =>
         {
-            NormalizeLegacyState(write);
+            EnsureTeamStateInitialized(write);
             EnsureMissionScratchpads(write, workspaceCraftPath);
             return write;
         });
         return await BuildViewAsync(sessionService, state, workspaceCraftPath, ct);
     }
 
-    public async Task<TeamsTeamViewResult> EnableTeamAsync(
-        AppBindingService appBindingService,
-        ISessionService sessionService,
-        string workspacePath,
-        string workspaceCraftPath,
-        CancellationToken ct)
-    {
-        SetRuntimeServices(appBindingService, sessionService);
-        var state = await EnsureTeamAsync(appBindingService, sessionService, workspacePath, workspaceCraftPath, ct);
-        return await BuildViewAsync(sessionService, state, workspaceCraftPath, ct);
-    }
-
     public async Task<TeamsMissionCreateResult> CreateMissionAsync(
-        AppBindingService appBindingService,
         ISessionService sessionService,
         string workspacePath,
         string workspaceCraftPath,
         TeamsMissionCreateParams p,
         CancellationToken ct,
-        TeamsMissionOrigin? origin = null)
+        string? originThreadId = null)
     {
         if (string.IsNullOrWhiteSpace(p.Title))
             throw AppServerErrors.InvalidParams("'title' is required.");
         if (string.IsNullOrWhiteSpace(p.Prompt))
             throw AppServerErrors.InvalidParams("'prompt' is required.");
 
-        SetRuntimeServices(appBindingService, sessionService);
-        var state = await EnsureTeamAsync(appBindingService, sessionService, workspacePath, workspaceCraftPath, ct);
+        var state = await EnsureTeamAsync(sessionService, workspaceCraftPath, ct);
         var leader = RequireMember(state, "leader");
         var now = DateTimeOffset.UtcNow;
         var mission = new MissionRecord
@@ -181,21 +155,18 @@ public sealed partial class TeamsService(IAppConfigMonitor? appConfigMonitor = n
             Status = TeamMissionStatuses.Planning,
             CreatedAt = now,
             UpdatedAt = now,
-            OriginThreadId = origin?.ThreadId,
-            OriginBindingId = origin?.BindingId
+            OriginThreadId = originThreadId
         };
         EnsureMissionScratchpad(mission, workspaceCraftPath);
 
         var saved = GetStore(workspaceCraftPath).Update(write =>
         {
             write.Missions.Add(mission);
-            write.Team.Enabled = true;
             write.Team.UpdatedAt = now;
             return write;
         });
 
         var leaderMissionThread = await EnsureMissionMemberThreadAsync(
-            appBindingService,
             sessionService,
             workspacePath,
             workspaceCraftPath,
@@ -213,7 +184,6 @@ public sealed partial class TeamsService(IAppConfigMonitor? appConfigMonitor = n
 
         var input = BuildLeaderMissionInput(mission);
         var queued = await EnqueueForMissionThreadAsync(
-            appBindingService,
             sessionService,
             workspaceCraftPath,
             leaderMissionThread,
@@ -267,7 +237,6 @@ public sealed partial class TeamsService(IAppConfigMonitor? appConfigMonitor = n
             return write;
         });
         await StopMissionThreadsAsync(sessionService, state.MissionThreads.Where(t => string.Equals(t.MissionId, p.MissionId, StringComparison.Ordinal)), ct);
-        RefreshContexts(workspaceCraftPath, state);
         return await BuildViewAsync(sessionService, state, workspaceCraftPath, ct);
     }
 
@@ -306,7 +275,6 @@ public sealed partial class TeamsService(IAppConfigMonitor? appConfigMonitor = n
                 await sessionService.ArchiveThreadAsync(missionThread.ThreadId, ct);
         }
 
-        RefreshContexts(workspaceCraftPath, state);
         return await BuildViewAsync(sessionService, state, workspaceCraftPath, ct);
     }
 
@@ -358,28 +326,24 @@ public sealed partial class TeamsService(IAppConfigMonitor? appConfigMonitor = n
         if (signal == SessionThreadRuntimeSignal.TurnStarted)
         {
             UpdateMissionThreadRuntimeState(workspaceCraftPath, threadId, "running");
-            RefreshContexts(workspaceCraftPath, GetStore(workspaceCraftPath).Snapshot());
             return;
         }
 
         if (signal == SessionThreadRuntimeSignal.ApprovalRequested)
         {
             UpdateMissionThreadRuntimeState(workspaceCraftPath, threadId, "approval");
-            RefreshContexts(workspaceCraftPath, GetStore(workspaceCraftPath).Snapshot());
             return;
         }
 
         if (signal == SessionThreadRuntimeSignal.UserInputRequested)
         {
             UpdateMissionThreadRuntimeState(workspaceCraftPath, threadId, "input");
-            RefreshContexts(workspaceCraftPath, GetStore(workspaceCraftPath).Snapshot());
             return;
         }
 
         if (signal is SessionThreadRuntimeSignal.ApprovalResolved or SessionThreadRuntimeSignal.UserInputResolved)
         {
             UpdateMissionThreadRuntimeState(workspaceCraftPath, threadId, "running");
-            RefreshContexts(workspaceCraftPath, GetStore(workspaceCraftPath).Snapshot());
             return;
         }
 
@@ -393,39 +357,11 @@ public sealed partial class TeamsService(IAppConfigMonitor? appConfigMonitor = n
 
         await MarkMissionThreadIdleOrQueuedAsync(sessionService, workspaceCraftPath, threadId, signal, ct);
         await TryStartNextForMemberAsync(sessionService, workspaceCraftPath, memberId, ct);
-        var appBindingService = _appBindingService;
-        if (appBindingService != null)
-            await RunMissionSchedulerAsync(appBindingService, sessionService, ResolveWorkspacePath(workspaceCraftPath), workspaceCraftPath, missionThread.MissionId, ct);
-    }
-
-    public async ValueTask<AppBoundToolCallResult> InvokeToolAsync(
-        ManagedAppBindingToolCallContext context,
-        JsonObject arguments,
-        CancellationToken cancellationToken)
-    {
-        if (!IsAgentTeamsPluginEnabled(context.WorkspacePath, context.WorkspaceCraftPath))
-            return Fail("AgentTeamsPluginDisabled", "The Agent Teams plugin is not installed or enabled for this workspace.");
-
-        try
-        {
-            if (!DynamicTools.ContainsTool(context.ToolName))
-                return Fail("UnknownTool", $"Teams tool '{context.ToolName}' is not supported.");
-            return await DynamicTools.InvokeAsync(this, context, arguments, cancellationToken);
-        }
-        catch (AppServerException ex)
-        {
-            return Fail("InvalidArguments", FormatAppServerException(ex));
-        }
-        catch (Exception ex) when (ex is not OperationCanceledException)
-        {
-            return Fail("TeamsRuntimeError", ex.Message);
-        }
+        await RunMissionSchedulerAsync(sessionService, ResolveWorkspacePath(workspaceCraftPath), workspaceCraftPath, missionThread.MissionId, ct);
     }
 
     private async Task<TeamsStateDocument> EnsureTeamAsync(
-        AppBindingService appBindingService,
         ISessionService sessionService,
-        string workspacePath,
         string workspaceCraftPath,
         CancellationToken ct)
     {
@@ -433,17 +369,12 @@ public sealed partial class TeamsService(IAppConfigMonitor? appConfigMonitor = n
         var store = GetStore(workspaceCraftPath);
         var state = store.Update(write =>
         {
-            if (write.Team.CreatedAt == default)
-                write.Team.CreatedAt = now;
-            write.Team.Enabled = true;
+            EnsureTeamStateInitialized(write);
             write.Team.UpdatedAt = now;
-            EnsureDefaultMembers(write);
-            NormalizeLegacyState(write);
             EnsureMissionScratchpads(write, workspaceCraftPath);
             return write;
         });
         return await RepairExistingMissionThreadsAsync(
-            appBindingService,
             sessionService,
             workspaceCraftPath,
             state,
@@ -451,7 +382,6 @@ public sealed partial class TeamsService(IAppConfigMonitor? appConfigMonitor = n
     }
 
     private async Task<MissionThreadRecord> EnsureMissionMemberThreadAsync(
-        AppBindingService appBindingService,
         ISessionService sessionService,
         string workspacePath,
         string workspaceCraftPath,
@@ -473,39 +403,27 @@ public sealed partial class TeamsService(IAppConfigMonitor? appConfigMonitor = n
                     existingThread = await sessionService.GetThreadAsync(existingThread.Id, ct);
                 }
 
-                existing.GrantId = string.IsNullOrWhiteSpace(existing.GrantId)
-                    ? $"teams-grant-{missionId}-{member.MemberId}"
-                    : existing.GrantId;
-                var binding = appBindingService.EnsureManagedBinding(
-                    workspaceCraftPath,
-                    existingThread.Id,
-                    TeamsConstants.AppId,
-                    TeamsConstants.UserId,
-                    existing.GrantId,
-                    TeamScopes,
-                    BuildToolSpecsForMember(member));
-                existing.BindingId = binding.BindingId;
                 var repaired = GetStore(workspaceCraftPath).Update(write =>
                 {
                     var current = RequireMissionThread(write, missionId, member.MemberId);
                     current.ThreadId = existingThread.Id;
-                    current.BindingId = existing.BindingId;
-                    current.GrantId = existing.GrantId;
                     current.UpdatedAt = DateTimeOffset.UtcNow;
                     write.Team.UpdatedAt = current.UpdatedAt;
                     return write;
                 });
                 var repairedThread = RequireMissionThread(repaired, missionId, member.MemberId);
-                UpsertMissionThreadContextBlocks(appBindingService, workspaceCraftPath, repaired, repairedThread, member);
                 var configUpdated = await EnsureMissionThreadRoleInstructionsAsync(sessionService, existingThread.Id, member, ct);
                 if (!configUpdated)
                     await RefreshMissionThreadAgentAsync(sessionService, repairedThread.ThreadId, ct);
                 return repairedThread;
             }
+            catch (OperationCanceledException) when (ct.IsCancellationRequested)
+            {
+                throw;
+            }
             catch
             {
                 existing.ThreadId = string.Empty;
-                existing.BindingId = string.Empty;
             }
         }
 
@@ -530,21 +448,8 @@ public sealed partial class TeamsService(IAppConfigMonitor? appConfigMonitor = n
             CreatedAt = now
         };
         missionThread.ThreadId = thread.Id;
-        missionThread.GrantId = string.IsNullOrWhiteSpace(missionThread.GrantId)
-            ? $"teams-grant-{missionId}-{member.MemberId}"
-            : missionThread.GrantId;
         missionThread.Status = string.IsNullOrWhiteSpace(missionThread.Status) ? "idle" : missionThread.Status;
         missionThread.UpdatedAt = now;
-
-        var managedBinding = appBindingService.EnsureManagedBinding(
-            workspaceCraftPath,
-            missionThread.ThreadId,
-            TeamsConstants.AppId,
-            TeamsConstants.UserId,
-            missionThread.GrantId,
-            TeamScopes,
-            BuildToolSpecsForMember(member));
-        missionThread.BindingId = managedBinding.BindingId;
 
         var saved = GetStore(workspaceCraftPath).Update(write =>
         {
@@ -556,8 +461,6 @@ public sealed partial class TeamsService(IAppConfigMonitor? appConfigMonitor = n
             else
             {
                 current.ThreadId = missionThread.ThreadId;
-                current.BindingId = missionThread.BindingId;
-                current.GrantId = missionThread.GrantId;
                 current.Status = missionThread.Status;
                 current.UpdatedAt = missionThread.UpdatedAt;
             }
@@ -569,13 +472,11 @@ public sealed partial class TeamsService(IAppConfigMonitor? appConfigMonitor = n
             return write;
         });
         var savedThread = FindMissionThread(saved, missionId, member.MemberId) ?? missionThread;
-        UpsertMissionThreadContextBlocks(appBindingService, workspaceCraftPath, saved, savedThread, member);
         await RefreshMissionThreadAgentAsync(sessionService, savedThread.ThreadId, ct);
         return savedThread;
     }
 
     private async Task<TeamsStateDocument> RepairExistingMissionThreadsAsync(
-        AppBindingService appBindingService,
         ISessionService sessionService,
         string workspaceCraftPath,
         TeamsStateDocument state,
@@ -602,22 +503,14 @@ public sealed partial class TeamsService(IAppConfigMonitor? appConfigMonitor = n
                     thread = await sessionService.GetThreadAsync(thread.Id, ct);
                 }
             }
+            catch (OperationCanceledException) when (ct.IsCancellationRequested)
+            {
+                throw;
+            }
             catch
             {
                 continue;
             }
-
-            var grantId = string.IsNullOrWhiteSpace(missionThread.GrantId)
-                ? $"teams-grant-{missionThread.MissionId}-{missionThread.MemberId}"
-                : missionThread.GrantId;
-            var binding = appBindingService.EnsureManagedBinding(
-                workspaceCraftPath,
-                thread.Id,
-                TeamsConstants.AppId,
-                TeamsConstants.UserId,
-                grantId,
-                TeamScopes,
-                BuildToolSpecsForMember(member));
 
             var now = DateTimeOffset.UtcNow;
             repaired = GetStore(workspaceCraftPath).Update(write =>
@@ -627,8 +520,6 @@ public sealed partial class TeamsService(IAppConfigMonitor? appConfigMonitor = n
                     return write;
 
                 current.ThreadId = thread.Id;
-                current.BindingId = binding.BindingId;
-                current.GrantId = grantId;
                 current.UpdatedAt = now;
                 write.Team.UpdatedAt = now;
                 return write;
@@ -637,7 +528,6 @@ public sealed partial class TeamsService(IAppConfigMonitor? appConfigMonitor = n
             if (repairedThread == null)
                 continue;
 
-            UpsertMissionThreadContextBlocks(appBindingService, workspaceCraftPath, repaired, repairedThread, member);
             var configUpdated = await EnsureMissionThreadRoleInstructionsAsync(sessionService, thread.Id, member, ct);
             if (!configUpdated)
                 await RefreshMissionThreadAgentAsync(sessionService, thread.Id, ct);
@@ -692,59 +582,7 @@ public sealed partial class TeamsService(IAppConfigMonitor? appConfigMonitor = n
             await refreshService.RefreshThreadAgentAsync(threadId, ct);
     }
 
-    private void UpsertMissionThreadContextBlocks(
-        AppBindingService appBindingService,
-        string workspaceCraftPath,
-        TeamsStateDocument state,
-        MissionThreadRecord missionThread,
-        TeamMemberRecord member)
-    {
-        if (string.IsNullOrWhiteSpace(missionThread.BindingId) || string.IsNullOrWhiteSpace(missionThread.GrantId))
-            return;
-
-        var roleContent = BuildRoleContext(member);
-        var missionContent = BuildMissionContext(state, missionThread, member);
-        var policyContent = "Coordinate through explicit Teams tools. App Context contains fixed role and mission context only; use ListTeamMembers, ReadMissionState, and ReadMemberStatus for live state. Do not treat digests or Teams messages as user-authored conversation history.";
-        appBindingService.UpsertManagedContextBlock(workspaceCraftPath, new AppBindingContextUpsertParams
-        {
-            BindingId = missionThread.BindingId,
-            AppId = TeamsConstants.AppId,
-            GrantId = missionThread.GrantId,
-            BlockId = "role",
-            Kind = AppContextBlockKinds.Role,
-            Title = $"{member.DisplayName} Role",
-            Content = roleContent,
-            Order = 10,
-            Version = ComputeContextBlockVersion(roleContent)
-        });
-        appBindingService.UpsertManagedContextBlock(workspaceCraftPath, new AppBindingContextUpsertParams
-        {
-            BindingId = missionThread.BindingId,
-            AppId = TeamsConstants.AppId,
-            GrantId = missionThread.GrantId,
-            BlockId = "mission",
-            Kind = AppContextBlockKinds.Mission,
-            Title = "Current Mission",
-            Content = missionContent,
-            Order = 20,
-            Version = ComputeContextBlockVersion(missionContent)
-        });
-        appBindingService.UpsertManagedContextBlock(workspaceCraftPath, new AppBindingContextUpsertParams
-        {
-            BindingId = missionThread.BindingId,
-            AppId = TeamsConstants.AppId,
-            GrantId = missionThread.GrantId,
-            BlockId = "policy",
-            Kind = AppContextBlockKinds.Policy,
-            Title = "Teams Runtime Policy",
-            Content = policyContent,
-            Order = 30,
-            Version = ComputeContextBlockVersion(policyContent)
-        });
-    }
-
     private async Task<QueuedTurnInput> EnqueueForMissionThreadAsync(
-        AppBindingService appBindingService,
         ISessionService sessionService,
         string workspaceCraftPath,
         MissionThreadRecord missionThread,
@@ -773,14 +611,7 @@ public sealed partial class TeamsService(IAppConfigMonitor? appConfigMonitor = n
                     MaterializedInputParts = [modelPart],
                     DisplayText = input.DisplayText
                 });
-            appBindingService.RecordThreadInputEnqueued(
-                workspaceCraftPath,
-                missionThread.BindingId,
-                queued.Id,
-                "team",
-                triggerLabel,
-                triggerRefId);
-            var state = GetStore(workspaceCraftPath).Update(write =>
+            GetStore(workspaceCraftPath).Update(write =>
             {
                 var current = RequireMissionThread(write, missionThread.MissionId, missionThread.MemberId);
                 current.QueuedInputId = queued.Id;
@@ -790,23 +621,18 @@ public sealed partial class TeamsService(IAppConfigMonitor? appConfigMonitor = n
                 write.Team.UpdatedAt = current.UpdatedAt;
                 return write;
             });
-            RefreshContexts(workspaceCraftPath, state);
             await TryStartNextForMemberAsync(sessionService, workspaceCraftPath, missionThread.MemberId, ct);
             return queued;
         }
     }
 
-    [DynamicTool(CreateTeamToolName, Order = 0)]
-    [Description("Start an asynchronous DotCraft Team mission from the current thread.")]
-    private async Task<AppBoundToolCallResult> CreateTeamToolAsync(
-        ManagedAppBindingToolCallContext context,
+    internal async Task<TeamsToolResponse> CreateTeamToolAsync(
+        TeamsToolCallContext context,
         CancellationToken ct,
         [Description("Short title for the Team mission.")] string title,
         [Description("Mission prompt for the Team to execute.")] string prompt)
     {
-        var appBindingService = context.AppBindingService ?? _appBindingService
-            ?? throw AppServerErrors.InvalidParams("Teams runtime services are not available.");
-        var sessionService = context.SessionService ?? _sessionService
+        var sessionService = _sessionService
             ?? throw AppServerErrors.InvalidParams("Teams session service is not available.");
 
         var existingMissionThread = GetStore(context.WorkspaceCraftPath).Snapshot().MissionThreads
@@ -814,15 +640,13 @@ public sealed partial class TeamsService(IAppConfigMonitor? appConfigMonitor = n
         if (existingMissionThread)
             throw AppServerErrors.InvalidParams("Team Mission threads cannot create nested Team missions.");
 
-        SetRuntimeServices(appBindingService, sessionService);
         var result = await CreateMissionAsync(
-            appBindingService,
             sessionService,
             context.WorkspacePath,
             context.WorkspaceCraftPath,
             new TeamsMissionCreateParams { Title = title, Prompt = prompt },
             ct,
-            new TeamsMissionOrigin(context.ThreadId, context.BindingId));
+            context.ThreadId);
         var queuedInput = result.QueuedInput
             ?? throw new InvalidOperationException("Team mission did not enqueue Leader input.");
 
@@ -836,10 +660,8 @@ public sealed partial class TeamsService(IAppConfigMonitor? appConfigMonitor = n
         });
     }
 
-    [DynamicTool("CreateMissionPlan", Order = 10)]
-    [Description("Record a mission plan before assigning work.")]
-    private async Task<AppBoundToolCallResult> CreateMissionPlanToolAsync(
-        ManagedAppBindingToolCallContext context,
+    internal async Task<TeamsToolResponse> CreateMissionPlanToolAsync(
+        TeamsToolCallContext context,
         CancellationToken ct,
         [Description("Concise plan for the current mission.")] string plan)
     {
@@ -851,7 +673,7 @@ public sealed partial class TeamsService(IAppConfigMonitor? appConfigMonitor = n
             var mission = RequireMission(write, missionId);
             EnsureMissionCanReceiveWork(mission);
             if (!string.Equals(callerThread.MemberId, "leader", StringComparison.OrdinalIgnoreCase))
-                throw AppServerErrors.InvalidParams($"Mission '{missionId}' can only be planned by its Leader thread.");
+                throw new TeamsToolUnauthorizedException($"Mission '{missionId}' can only be planned by its Leader thread.");
             mission.Plan = plan;
             if (mission.Status == TeamMissionStatuses.Planning)
                 mission.Status = TeamMissionStatuses.Active;
@@ -859,9 +681,7 @@ public sealed partial class TeamsService(IAppConfigMonitor? appConfigMonitor = n
             write.Team.UpdatedAt = mission.UpdatedAt;
             return write;
         });
-        RefreshContexts(context.WorkspaceCraftPath, state);
         await RunMissionSchedulerAsync(
-            _appBindingService ?? throw new InvalidOperationException("Teams App Binding service is not available."),
             _sessionService ?? throw new InvalidOperationException("Teams Session service is not available."),
             context.WorkspacePath,
             context.WorkspaceCraftPath,
@@ -870,10 +690,8 @@ public sealed partial class TeamsService(IAppConfigMonitor? appConfigMonitor = n
         return Ok("Mission plan recorded.", state.Missions.First(m => string.Equals(m.MissionId, missionId, StringComparison.Ordinal)));
     }
 
-    [DynamicTool("AssignTask", Order = 20)]
-    [Description("Create a Teams task and let the scheduler dispatch it when ready.")]
-    private async Task<AppBoundToolCallResult> AssignTaskToolAsync(
-        ManagedAppBindingToolCallContext context,
+    internal async Task<TeamsToolResponse> AssignTaskToolAsync(
+        TeamsToolCallContext context,
         CancellationToken ct,
         [Description("Assignee member id, role, or display name.")] string assignee,
         [Description("Task title.")] string title,
@@ -882,7 +700,6 @@ public sealed partial class TeamsService(IAppConfigMonitor? appConfigMonitor = n
         [Description("Task kind, such as work or review.")] string? kind = null,
         [Description("Whether dependencies release this task to Leader synthesis before teammate dispatch.")] bool? requiresLeaderSynthesis = null)
     {
-        var appBindingService = _appBindingService ?? throw new InvalidOperationException("Teams App Binding service is not available.");
         var sessionService = _sessionService ?? throw new InvalidOperationException("Teams Session service is not available.");
         var needsLeaderSynthesis = requiresLeaderSynthesis ?? false;
         dependsOnTaskIds ??= [];
@@ -897,7 +714,7 @@ public sealed partial class TeamsService(IAppConfigMonitor? appConfigMonitor = n
             var mission = RequireMission(write, missionId);
             EnsureMissionCanReceiveWork(mission);
             if (!string.Equals(callerThread.MemberId, "leader", StringComparison.OrdinalIgnoreCase))
-                throw AppServerErrors.InvalidParams($"Mission '{missionId}' can only dispatch tasks from its Leader thread.");
+                throw new TeamsToolUnauthorizedException($"Mission '{missionId}' can only dispatch tasks from its Leader thread.");
             member = ResolveAssignee(write, assignee);
             var taskKind = kind ?? (string.Equals(member.Role, "reviewer", StringComparison.OrdinalIgnoreCase)
                 || string.Equals(member.MemberId, "reviewer", StringComparison.OrdinalIgnoreCase)
@@ -939,9 +756,7 @@ public sealed partial class TeamsService(IAppConfigMonitor? appConfigMonitor = n
             return write;
         });
 
-        RefreshContexts(context.WorkspaceCraftPath, state);
         await RunMissionSchedulerAsync(
-            appBindingService,
             sessionService,
             context.WorkspacePath,
             context.WorkspaceCraftPath,
@@ -951,10 +766,8 @@ public sealed partial class TeamsService(IAppConfigMonitor? appConfigMonitor = n
         return Ok($"Task assigned to {member.DisplayName}.", RequireTask(latest, task.TaskId));
     }
 
-    [DynamicTool("ListTeamMembers", Order = 30)]
-    [Description("Read Team roster and teammate availability summaries.")]
-    private AppBoundToolCallResult ListTeamMembersTool(
-        ManagedAppBindingToolCallContext context)
+    internal TeamsToolResponse ListTeamMembersTool(
+        TeamsToolCallContext context)
     {
         var state = GetStore(context.WorkspaceCraftPath).Snapshot();
         var callerThread = RequireMissionCaller(state, context);
@@ -968,10 +781,8 @@ public sealed partial class TeamsService(IAppConfigMonitor? appConfigMonitor = n
         return Ok("Team members loaded.", new { missionId, members });
     }
 
-    [DynamicTool("ReadMissionState", Order = 40)]
-    [Description("Read Mission-scoped task, thread, digest, artifact, and message summaries.")]
-    private AppBoundToolCallResult ReadMissionStateTool(
-        ManagedAppBindingToolCallContext context)
+    internal TeamsToolResponse ReadMissionStateTool(
+        TeamsToolCallContext context)
     {
         var state = GetStore(context.WorkspaceCraftPath).Snapshot();
         var callerThread = RequireMissionCaller(state, context);
@@ -979,10 +790,8 @@ public sealed partial class TeamsService(IAppConfigMonitor? appConfigMonitor = n
         return Ok("Mission state loaded.", BuildMissionStateSummary(state, mission));
     }
 
-    [DynamicTool("ReadMemberStatus", Order = 50)]
-    [Description("Read one teammate's current status and recent progress.")]
-    private AppBoundToolCallResult ReadMemberStatusTool(
-        ManagedAppBindingToolCallContext context,
+    internal TeamsToolResponse ReadMemberStatusTool(
+        TeamsToolCallContext context,
         [Description("Member id, role, or display name.")] string memberId)
     {
         var state = GetStore(context.WorkspaceCraftPath).Snapshot();
@@ -992,16 +801,13 @@ public sealed partial class TeamsService(IAppConfigMonitor? appConfigMonitor = n
         return Ok("Member status loaded.", BuildMemberStatusSummary(state, member, missionId, includeHistory: true));
     }
 
-    [DynamicTool("SendMessage", Order = 60)]
-    [Description("Send a lightweight Mission-scoped message to the Leader or a participating teammate.")]
-    private async Task<AppBoundToolCallResult> SendMessageToolAsync(
-        ManagedAppBindingToolCallContext context,
+    internal async Task<TeamsToolResponse> SendMessageToolAsync(
+        TeamsToolCallContext context,
         CancellationToken ct,
         [Description("Target member id, role, display name, or 'leader'.")] string to,
         [Description("Message for the teammate.")] string message,
         [Description("Optional related task alias or canonical task id.")] string? taskId = null)
     {
-        var appBindingService = _appBindingService ?? throw new InvalidOperationException("Teams App Binding service is not available.");
         var sessionService = _sessionService ?? throw new InvalidOperationException("Teams Session service is not available.");
         var missionId = string.Empty;
         TeamMessageRecord messageRecord = new();
@@ -1064,9 +870,7 @@ public sealed partial class TeamsService(IAppConfigMonitor? appConfigMonitor = n
             return write;
         });
 
-        RefreshContexts(context.WorkspaceCraftPath, state);
         await RunMissionSchedulerAsync(
-            appBindingService,
             sessionService,
             context.WorkspacePath,
             context.WorkspaceCraftPath,
@@ -1075,16 +879,13 @@ public sealed partial class TeamsService(IAppConfigMonitor? appConfigMonitor = n
         return Ok("Team message recorded.", messageRecord);
     }
 
-    [DynamicTool("ReportProgress", Order = 80)]
-    [Description("Record progress for a Teams task.")]
-    private async Task<AppBoundToolCallResult> ReportProgressToolAsync(
-        ManagedAppBindingToolCallContext context,
+    internal async Task<TeamsToolResponse> ReportProgressToolAsync(
+        TeamsToolCallContext context,
         CancellationToken ct,
         [Description("Progress summary.")] string summary,
         [Description("Progress status: running or blocked.")] string? status = null,
         [Description("Task aliases or canonical task ids this task is blocked on.")] List<string>? blockedOnTaskIds = null)
     {
-        var appBindingService = _appBindingService ?? throw new InvalidOperationException("Teams App Binding service is not available.");
         var sessionService = _sessionService ?? throw new InvalidOperationException("Teams Session service is not available.");
         var progressStatus = NormalizeProgressStatus(status ?? TeamTaskStatuses.Running);
         var effectiveBlockedReason = progressStatus == TeamTaskStatuses.Blocked ? summary : null;
@@ -1129,22 +930,18 @@ public sealed partial class TeamsService(IAppConfigMonitor? appConfigMonitor = n
             write.Team.UpdatedAt = task.UpdatedAt;
             return write;
         });
-        RefreshContexts(context.WorkspaceCraftPath, state);
-        await RunMissionSchedulerAsync(appBindingService, sessionService, context.WorkspacePath, context.WorkspaceCraftPath, missionId, ct);
+        await RunMissionSchedulerAsync(sessionService, context.WorkspacePath, context.WorkspaceCraftPath, missionId, ct);
         return Ok("Progress recorded.", RequireTask(GetStore(context.WorkspaceCraftPath).Snapshot(), taskId));
     }
 
-    [DynamicTool("PublishArtifact", Order = 90)]
-    [Description("Publish an artifact reference for a Teams task.")]
-    private async Task<AppBoundToolCallResult> PublishArtifactToolAsync(
-        ManagedAppBindingToolCallContext context,
+    internal async Task<TeamsToolResponse> PublishArtifactToolAsync(
+        TeamsToolCallContext context,
         CancellationToken ct,
         [Description("Artifact title.")] string title,
         [Description("Artifact path or URI.")] string pathOrUri,
         [Description("Short reusable artifact summary.")] string? summary = null,
         [Description("Optional related task alias or canonical task id when publishing for a specific assigned task.")] string? taskId = null)
     {
-        var appBindingService = _appBindingService ?? throw new InvalidOperationException("Teams App Binding service is not available.");
         var sessionService = _sessionService ?? throw new InvalidOperationException("Teams Session service is not available.");
         ArtifactRefRecord artifact = new();
         var missionId = string.Empty;
@@ -1169,26 +966,21 @@ public sealed partial class TeamsService(IAppConfigMonitor? appConfigMonitor = n
                 Kind = classification.Kind,
                 Format = classification.Format,
                 Summary = summary,
-                Description = summary ?? string.Empty,
                 CreatedAt = DateTimeOffset.UtcNow
             };
             write.Artifacts.Add(artifact);
             write.Team.UpdatedAt = artifact.CreatedAt;
             return write;
         });
-        RefreshContexts(context.WorkspaceCraftPath, state);
-        await RunMissionSchedulerAsync(appBindingService, sessionService, context.WorkspacePath, context.WorkspaceCraftPath, missionId, ct);
+        await RunMissionSchedulerAsync(sessionService, context.WorkspacePath, context.WorkspaceCraftPath, missionId, ct);
         return Ok("Artifact published.", artifact);
     }
 
-    [DynamicTool("MarkTaskDone", Order = 100)]
-    [Description("Mark a Teams task complete.")]
-    private async Task<AppBoundToolCallResult> MarkTaskDoneToolAsync(
-        ManagedAppBindingToolCallContext context,
+    internal async Task<TeamsToolResponse> MarkTaskDoneToolAsync(
+        TeamsToolCallContext context,
         CancellationToken ct,
         [Description("Completion summary for the current task.")] string summary)
     {
-        var appBindingService = _appBindingService ?? throw new InvalidOperationException("Teams App Binding service is not available.");
         var sessionService = _sessionService ?? throw new InvalidOperationException("Teams Session service is not available.");
         var completionSummary = summary;
         var missionId = string.Empty;
@@ -1223,15 +1015,12 @@ public sealed partial class TeamsService(IAppConfigMonitor? appConfigMonitor = n
             write.Team.UpdatedAt = DateTimeOffset.UtcNow;
             return write;
         });
-        RefreshContexts(context.WorkspaceCraftPath, state);
-        await RunMissionSchedulerAsync(appBindingService, sessionService, context.WorkspacePath, context.WorkspaceCraftPath, missionId, ct);
+        await RunMissionSchedulerAsync(sessionService, context.WorkspacePath, context.WorkspaceCraftPath, missionId, ct);
         return Ok("Task marked done.", RequireTask(GetStore(context.WorkspaceCraftPath).Snapshot(), taskId));
     }
 
-    [DynamicTool("MarkMissionDone", Order = 110)]
-    [Description("Finalize a Teams mission with the user-facing final response.")]
-    private async Task<AppBoundToolCallResult> MarkMissionDoneToolAsync(
-        ManagedAppBindingToolCallContext context,
+    internal async Task<TeamsToolResponse> MarkMissionDoneToolAsync(
+        TeamsToolCallContext context,
         CancellationToken ct,
         [Description("User-facing final response.")] string finalResponse)
     {
@@ -1246,7 +1035,7 @@ public sealed partial class TeamsService(IAppConfigMonitor? appConfigMonitor = n
             var mission = RequireMission(write, missionId);
             EnsureMissionCanReceiveWork(mission);
             if (!string.Equals(callerThread.MemberId, "leader", StringComparison.OrdinalIgnoreCase))
-                throw AppServerErrors.InvalidParams($"Mission '{missionId}' can only be marked done by its Leader thread.");
+                throw new TeamsToolUnauthorizedException($"Mission '{missionId}' can only be marked done by its Leader thread.");
             var missionTasks = write.Tasks.Where(t => string.Equals(t.MissionId, missionId, StringComparison.Ordinal)).ToList();
             var unfinishedTasks = missionTasks.Where(t => IsMissionFinalizationTask(t) && t.Status is not TeamTaskStatuses.Done).ToList();
             if (unfinishedTasks.Count > 0)
@@ -1260,27 +1049,24 @@ public sealed partial class TeamsService(IAppConfigMonitor? appConfigMonitor = n
             write.Team.UpdatedAt = now;
             return write;
         });
-        RefreshContexts(context.WorkspaceCraftPath, state);
         await TryEnqueueMissionCompletionToOriginAsync(context, missionId, ct);
         var latest = GetStore(context.WorkspaceCraftPath).Snapshot();
         return Ok("Mission marked done.", RequireMission(latest, missionId));
     }
 
     private async Task TryEnqueueMissionCompletionToOriginAsync(
-        ManagedAppBindingToolCallContext context,
+        TeamsToolCallContext context,
         string missionId,
         CancellationToken ct)
     {
-        var appBindingService = context.AppBindingService ?? _appBindingService;
-        var sessionService = context.SessionService ?? _sessionService;
-        if (appBindingService == null || sessionService == null)
+        var sessionService = _sessionService;
+        if (sessionService == null)
             return;
 
         var state = GetStore(context.WorkspaceCraftPath).Snapshot();
         var mission = state.Missions.FirstOrDefault(item => string.Equals(item.MissionId, missionId, StringComparison.Ordinal));
         if (mission == null
             || string.IsNullOrWhiteSpace(mission.OriginThreadId)
-            || string.IsNullOrWhiteSpace(mission.OriginBindingId)
             || !string.IsNullOrWhiteSpace(mission.CompletionQueuedInputId))
         {
             return;
@@ -1311,14 +1097,6 @@ public sealed partial class TeamsService(IAppConfigMonitor? appConfigMonitor = n
                         DisplayText = input.DisplayText
                     });
 
-                appBindingService.RecordThreadInputEnqueued(
-                    context.WorkspaceCraftPath,
-                    mission.OriginBindingId,
-                    queued.Id,
-                    "team",
-                    triggerLabel,
-                    mission.MissionId);
-
                 var now = DateTimeOffset.UtcNow;
                 GetStore(context.WorkspaceCraftPath).Update(write =>
                 {
@@ -1334,20 +1112,7 @@ public sealed partial class TeamsService(IAppConfigMonitor? appConfigMonitor = n
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            // Mission completion is authoritative even if the origin thread can no longer be notified.
-        }
-    }
-
-    private void RefreshContexts(string workspaceCraftPath, TeamsStateDocument state)
-    {
-        var appBindingService = _appBindingService;
-        if (appBindingService == null)
-            return;
-        foreach (var missionThread in state.MissionThreads.Where(thread => thread.ArchivedAt == null))
-        {
-            var member = state.Members.FirstOrDefault(item => string.Equals(item.MemberId, missionThread.MemberId, StringComparison.Ordinal));
-            if (member != null)
-                UpsertMissionThreadContextBlocks(appBindingService, workspaceCraftPath, state, missionThread, member);
+            // Mission completion remains authoritative when the origin thread is unavailable.
         }
     }
 
@@ -1383,7 +1148,6 @@ public sealed partial class TeamsService(IAppConfigMonitor? appConfigMonitor = n
             .Where(message => visibleMissionIds.Contains(message.MissionId))
             .OrderByDescending(message => message.CreatedAt)
             .ToList();
-        var visibleLeaderWaits = new List<TeamLeaderWaitRecord>();
         var visibleMissionThreads = state.MissionThreads
             .Where(thread => thread.ArchivedAt == null && visibleMissionIds.Contains(thread.MissionId))
             .OrderByDescending(thread => thread.CreatedAt)
@@ -1433,6 +1197,10 @@ public sealed partial class TeamsService(IAppConfigMonitor? appConfigMonitor = n
                                     ? "queued"
                                     : missionThread.Status;
                 }
+                catch (OperationCanceledException) when (ct.IsCancellationRequested)
+                {
+                    throw;
+                }
                 catch
                 {
                     view.Status = "missing";
@@ -1468,7 +1236,7 @@ public sealed partial class TeamsService(IAppConfigMonitor? appConfigMonitor = n
                             ? "running"
                         : view.QueuedInputCount > 0 || memberThreadViews.Any(thread => string.Equals(thread.Status, "queued", StringComparison.Ordinal))
                             ? "queued"
-                            : member.Status;
+                            : "idle";
 
             members.Add(view);
         }
@@ -1483,7 +1251,6 @@ public sealed partial class TeamsService(IAppConfigMonitor? appConfigMonitor = n
             MissionThreads = missionThreadViews,
             Tasks = visibleTasks,
             Messages = visibleMessages,
-            LeaderWaits = visibleLeaderWaits,
             MailboxDigests = state.MailboxDigests.OrderByDescending(d => d.UpdatedAt).ToList(),
             Artifacts = visibleArtifacts
         };
@@ -1522,16 +1289,6 @@ public sealed partial class TeamsService(IAppConfigMonitor? appConfigMonitor = n
     {
         foreach (var mission in state.Missions)
             EnsureMissionScratchpad(mission, workspaceCraftPath);
-    }
-
-    private IReadOnlyList<AppBoundToolSpec> BuildToolSpecsForMember(TeamMemberRecord member)
-    {
-        var allowed = string.Equals(member.MemberId, "leader", StringComparison.OrdinalIgnoreCase)
-            ? LeaderToolNames
-            : TeammateToolNames;
-        return ToolSpecs
-            .Where(tool => allowed.Contains(tool.Name))
-            .ToList();
     }
 
     private static ThreadConfiguration BuildMissionThreadConfiguration(
@@ -1904,7 +1661,7 @@ public sealed partial class TeamsService(IAppConfigMonitor? appConfigMonitor = n
 
             You are coordinating a Team workflow, not acting as the user's direct chat assistant. The user-facing Mission request is already captured in Teams state and the Mission input; Tasks are the Mission-scoped shared task board. Teams tools infer the current mission from this thread. Break the Mission into a concise plan, dispatch concrete work with AssignTask(assignee, title, prompt), then end the turn while Teams waits for runtime events. Do not run status polling loops. Use short task/artifact aliases such as t1 and a1 in tool parameters instead of copying long canonical ids. Use dependsOnTaskIds for task ordering, kind "review" for review-gate tasks, and requiresLeaderSynthesis true when a downstream teammate should wait for you to synthesize upstream results. Use SendMessage only for mission-scoped follow-up to the Leader or a participating teammate.
 
-            Do not rely on App Context for live teammate status. App Context contains fixed role and Mission binding only. Use Team tools for current state. Do not call MarkMissionDone for Missions that still have unfinished Tasks. Do not repeatedly call ReadMemberStatus as a wait loop. When Teams wakes you for task results, decide whether to assign follow-up work, send a handoff with SendMessage, or end the turn and wait for the next event. When Teams wakes you for synthesis, send an actionable task-scoped SendMessage to the assignee. When Teams wakes you for finalization, call MarkMissionDone(finalResponse) for the user-facing result.
+            Do not rely on Teams mission context for live teammate status. It contains fixed role and Mission binding only. Use Team tools for current state. Do not call MarkMissionDone for Missions that still have unfinished Tasks. Do not repeatedly call ReadMemberStatus as a wait loop. When Teams wakes you for task results, decide whether to assign follow-up work, send a handoff with SendMessage, or end the turn and wait for the next event. When Teams wakes you for synthesis, send an actionable task-scoped SendMessage to the assignee. When Teams wakes you for finalization, call MarkMissionDone(finalResponse) for the user-facing result.
             """;
         }
 
@@ -1917,33 +1674,38 @@ public sealed partial class TeamsService(IAppConfigMonitor? appConfigMonitor = n
         """;
     }
 
-    private static string BuildRoleContext(TeamMemberRecord member) =>
-        $"""
-        You are {member.DisplayName}, a DotCraft Teams member.
+    internal string? GetMissionSystemPromptSection(string threadId, string workspacePath)
+    {
+        if (string.IsNullOrWhiteSpace(threadId) || string.IsNullOrWhiteSpace(workspacePath))
+            return null;
+        var state = GetStore(Path.Combine(workspacePath, ".craft")).Snapshot();
+        var missionThread = state.MissionThreads.FirstOrDefault(item =>
+            string.Equals(item.ThreadId, threadId, StringComparison.Ordinal));
+        if (missionThread == null || missionThread.ArchivedAt != null)
+            return null;
+        var member = state.Members.FirstOrDefault(item =>
+            string.Equals(item.MemberId, missionThread.MemberId, StringComparison.OrdinalIgnoreCase));
+        var mission = state.Missions.FirstOrDefault(item =>
+            string.Equals(item.MissionId, missionThread.MissionId, StringComparison.Ordinal));
+        if (member == null || mission == null || mission.ArchivedAt != null)
+            return null;
 
+        return $"""
+        ## Teams mission context
+
+        You are {member.DisplayName}, a DotCraft Teams member.
+        Member ID: {member.MemberId}
         Role: {member.Role}
         Profile: {member.Description}
 
-        Coordinate through explicit Teams tools. Treat Missions and Tasks as app-owned workflow state.
-        """;
-
-    private static string ComputeContextBlockVersion(string content) =>
-        "sha256:" + Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(content))).ToLowerInvariant();
-
-    private static string BuildMissionContext(
-        TeamsStateDocument state,
-        MissionThreadRecord missionThread,
-        TeamMemberRecord member)
-    {
-        var mission = state.Missions.FirstOrDefault(m => string.Equals(m.MissionId, missionThread.MissionId, StringComparison.Ordinal));
-        return $"""
         Mission ID: {missionThread.MissionId}
-        Mission title: {mission?.Title ?? missionThread.MissionId}
-        Mission scratchpad: {mission?.ScratchpadPath ?? "(unavailable)"}
-        Your teammate role for this mission: {member.DisplayName}
+        Mission title: {mission.Title}
+        Mission scratchpad: {mission.ScratchpadPath ?? "(unavailable)"}
 
         Mission prompt:
-        {mission?.Prompt ?? string.Empty}
+        {mission.Prompt}
+
+        Coordinate through explicit Teams tools. This context is fixed identity and mission context only; use ListTeamMembers, ReadMissionState, and ReadMemberStatus for live state. Do not treat Teams inputs or messages as user-authored conversation history.
         """;
     }
 
@@ -1991,7 +1753,7 @@ public sealed partial class TeamsService(IAppConfigMonitor? appConfigMonitor = n
     {
         var kind = string.IsNullOrWhiteSpace(artifact.Kind) ? "reference" : artifact.Kind;
         var format = string.IsNullOrWhiteSpace(artifact.Format) ? string.Empty : $" format={artifact.Format}";
-        var summary = artifact.Summary ?? artifact.Description;
+        var summary = artifact.Summary;
         var details = string.IsNullOrWhiteSpace(summary) ? string.Empty : $" - {summary}";
         var alias = ArtifactAliasOrId(artifact);
         var idPart = string.Equals(alias, artifact.ArtifactId, StringComparison.Ordinal)
@@ -2239,8 +2001,7 @@ public sealed partial class TeamsService(IAppConfigMonitor? appConfigMonitor = n
                 .Where(message => string.Equals(message.MissionId, mission.MissionId, StringComparison.Ordinal))
                 .OrderByDescending(message => message.CreatedAt)
                 .Take(20)
-                .ToList(),
-            leaderWaits = Array.Empty<TeamLeaderWaitRecord>()
+                .ToList()
         };
     }
 
@@ -2269,9 +2030,8 @@ public sealed partial class TeamsService(IAppConfigMonitor? appConfigMonitor = n
             member.DisplayName,
             member.Description,
             member.AvatarAccent,
-            status = DeriveMemberStatus(member, threads),
-            currentTaskId = threads.FirstOrDefault(thread => !string.IsNullOrWhiteSpace(thread.CurrentTaskId))?.CurrentTaskId
-                            ?? member.CurrentTaskId,
+            status = DeriveMemberStatus(threads),
+            currentTaskId = threads.FirstOrDefault(thread => !string.IsNullOrWhiteSpace(thread.CurrentTaskId))?.CurrentTaskId,
             running = threads.Any(thread => string.Equals(thread.Status, "running", StringComparison.Ordinal)),
             queued = threads.Count(thread => string.Equals(thread.Status, "queued", StringComparison.Ordinal)),
             waitingOnApproval = threads.Any(thread => string.Equals(thread.Status, "approval", StringComparison.Ordinal)),
@@ -2350,7 +2110,6 @@ public sealed partial class TeamsService(IAppConfigMonitor? appConfigMonitor = n
     };
 
     private async Task RunMissionSchedulerAsync(
-        AppBindingService appBindingService,
         ISessionService sessionService,
         string workspacePath,
         string workspaceCraftPath,
@@ -2363,25 +2122,23 @@ public sealed partial class TeamsService(IAppConfigMonitor? appConfigMonitor = n
         {
             var store = GetStore(workspaceCraftPath);
             var plan = new SchedulerPlan();
-            var state = store.Update(write =>
+            store.Update(write =>
             {
                 EnsureMissionScratchpads(write, workspaceCraftPath);
                 plan = ReconcileSchedulerState(write, missionId);
                 return write;
             });
-            RefreshContexts(workspaceCraftPath, state);
-
             foreach (var dispatch in plan.CompletionRecoveryDispatches)
-                await DispatchCompletionRecoveryAsync(appBindingService, sessionService, workspacePath, workspaceCraftPath, dispatch, ct);
+                await DispatchCompletionRecoveryAsync(sessionService, workspacePath, workspaceCraftPath, dispatch, ct);
 
             foreach (var dispatch in plan.TaskDispatches)
-                await DispatchReadyTaskAsync(appBindingService, sessionService, workspacePath, workspaceCraftPath, dispatch, ct);
+                await DispatchReadyTaskAsync(sessionService, workspacePath, workspaceCraftPath, dispatch, ct);
 
             foreach (var dispatch in plan.MessageDispatches)
-                await DispatchMailboxMessagesAsync(appBindingService, sessionService, workspacePath, workspaceCraftPath, dispatch, ct);
+                await DispatchMailboxMessagesAsync(sessionService, workspacePath, workspaceCraftPath, dispatch, ct);
 
             foreach (var dispatch in plan.LeaderDispatches)
-                await DispatchLeaderFinalizationAsync(appBindingService, sessionService, workspaceCraftPath, dispatch, ct);
+                await DispatchLeaderFinalizationAsync(sessionService, workspaceCraftPath, dispatch, ct);
         }
         finally
         {
@@ -2391,7 +2148,6 @@ public sealed partial class TeamsService(IAppConfigMonitor? appConfigMonitor = n
 
     private SchedulerPlan ReconcileSchedulerState(TeamsStateDocument state, string? missionId)
     {
-        NormalizeLegacyState(state);
         var plan = new SchedulerPlan();
         var missions = state.Missions
             .Where(mission => mission.ArchivedAt == null
@@ -2453,7 +2209,7 @@ public sealed partial class TeamsService(IAppConfigMonitor? appConfigMonitor = n
                 .Where(message => string.Equals(message.MissionId, mission.MissionId, StringComparison.Ordinal)
                                   && message.RequiresAction
                                   && string.IsNullOrWhiteSpace(message.DeliveredQueuedInputId)
-                                  && message.Status is TeamMessageStatuses.Recorded or TeamMessageStatuses.Summarized)
+                                  && message.Status == TeamMessageStatuses.Recorded)
                 .GroupBy(message => message.ToMemberId, StringComparer.OrdinalIgnoreCase);
             foreach (var group in actionableMessages)
             {
@@ -2494,69 +2250,6 @@ public sealed partial class TeamsService(IAppConfigMonitor? appConfigMonitor = n
 
         plan.LeaderDispatches.Add(new LeaderDispatch(mission.MissionId, reason));
         return true;
-    }
-
-    private static void NormalizeLegacyState(TeamsStateDocument state)
-    {
-        foreach (var member in state.Members)
-        {
-            if (string.IsNullOrWhiteSpace(member.AgentProfileId))
-                member.AgentProfileId = DefaultAgentProfileIdForMember(member);
-
-            if (string.Equals(member.MemberId, "leader", StringComparison.OrdinalIgnoreCase)
-                && string.Equals(member.AvatarAccent, LegacyLeaderAvatarAccent, StringComparison.OrdinalIgnoreCase))
-            {
-                member.AvatarAccent = LeaderAvatarAccent;
-            }
-        }
-
-        foreach (var mission in state.Missions)
-        {
-            if (string.Equals(mission.Status, "new", StringComparison.OrdinalIgnoreCase))
-                mission.Status = TeamMissionStatuses.Planning;
-        }
-
-        foreach (var task in state.Tasks)
-        {
-            if (string.IsNullOrWhiteSpace(task.Kind))
-                task.Kind = "work";
-            if (string.IsNullOrWhiteSpace(task.LatestUpdate) && !string.IsNullOrWhiteSpace(task.Digest))
-                task.LatestUpdate = task.Digest;
-            if (IsLegacyDoneTaskStatus(task.Status))
-                task.Status = TeamTaskStatuses.Done;
-            else if (string.Equals(task.Status, "queued", StringComparison.OrdinalIgnoreCase))
-                task.Status = string.IsNullOrWhiteSpace(task.QueuedInputId) ? TeamTaskStatuses.Pending : TeamTaskStatuses.Running;
-            else if (string.IsNullOrWhiteSpace(task.Status))
-                task.Status = TeamTaskStatuses.Pending;
-        }
-
-        foreach (var message in state.Messages)
-        {
-            if (string.IsNullOrWhiteSpace(message.Kind))
-                message.Kind = TeamMessageKinds.Info;
-            if (string.IsNullOrWhiteSpace(message.Status))
-                message.Status = TeamMessageStatuses.Recorded;
-        }
-
-        foreach (var artifact in state.Artifacts)
-        {
-            if (string.IsNullOrWhiteSpace(artifact.Kind))
-                artifact.Kind = "reference";
-            if (string.IsNullOrWhiteSpace(artifact.SourceTaskId))
-                artifact.SourceTaskId = artifact.TaskId;
-        }
-
-        foreach (var wait in state.LeaderWaits)
-        {
-            if (string.IsNullOrWhiteSpace(wait.Condition))
-                wait.Condition = TeamLeaderWaitConditions.MissionReady;
-            if (string.IsNullOrWhiteSpace(wait.Status))
-                wait.Status = TeamLeaderWaitStatuses.Cancelled;
-            else if (wait.Status is TeamLeaderWaitStatuses.Active or TeamLeaderWaitStatuses.Satisfied)
-                wait.Status = TeamLeaderWaitStatuses.Cancelled;
-        }
-
-        EnsureMissionScopedAliases(state);
     }
 
     private static void EnsureMissionScopedAliases(TeamsStateDocument state)
@@ -2706,12 +2399,11 @@ public sealed partial class TeamsService(IAppConfigMonitor? appConfigMonitor = n
                               && string.Equals(message.ToMemberId, task.AssigneeMemberId, StringComparison.OrdinalIgnoreCase)
                               && message.RequiresAction
                               && string.IsNullOrWhiteSpace(message.DeliveredQueuedInputId)
-                              && message.Status is TeamMessageStatuses.Recorded or TeamMessageStatuses.Summarized)
+                              && message.Status == TeamMessageStatuses.Recorded)
             .OrderBy(message => message.CreatedAt)
             .ToList();
 
     private async Task DispatchReadyTaskAsync(
-        AppBindingService appBindingService,
         ISessionService sessionService,
         string workspacePath,
         string workspaceCraftPath,
@@ -2730,7 +2422,6 @@ public sealed partial class TeamsService(IAppConfigMonitor? appConfigMonitor = n
 
         var member = RequireMember(snapshot, task.AssigneeMemberId);
         var missionThread = await EnsureMissionMemberThreadAsync(
-            appBindingService,
             sessionService,
             workspacePath,
             workspaceCraftPath,
@@ -2749,7 +2440,6 @@ public sealed partial class TeamsService(IAppConfigMonitor? appConfigMonitor = n
         }
 
         var queued = await EnqueueForMissionThreadAsync(
-            appBindingService,
             sessionService,
             workspaceCraftPath,
             missionThread,
@@ -2758,7 +2448,7 @@ public sealed partial class TeamsService(IAppConfigMonitor? appConfigMonitor = n
             triggerRefId: task.TaskId,
             ct);
 
-        var state = GetStore(workspaceCraftPath).Update(write =>
+        GetStore(workspaceCraftPath).Update(write =>
         {
             var current = RequireTask(write, task.TaskId);
             current.QueuedInputId = queued.Id;
@@ -2777,11 +2467,19 @@ public sealed partial class TeamsService(IAppConfigMonitor? appConfigMonitor = n
             write.Team.UpdatedAt = current.UpdatedAt;
             return write;
         });
-        RefreshContexts(workspaceCraftPath, state);
+    }
+
+    private static void EnsureTeamStateInitialized(TeamsStateDocument state)
+    {
+        var now = DateTimeOffset.UtcNow;
+        if (state.Team.CreatedAt == default)
+            state.Team.CreatedAt = now;
+        if (state.Team.UpdatedAt == default)
+            state.Team.UpdatedAt = now;
+        EnsureDefaultMembers(state);
     }
 
     private async Task DispatchCompletionRecoveryAsync(
-        AppBindingService appBindingService,
         ISessionService sessionService,
         string workspacePath,
         string workspaceCraftPath,
@@ -2802,7 +2500,6 @@ public sealed partial class TeamsService(IAppConfigMonitor? appConfigMonitor = n
 
         var member = RequireMember(snapshot, task.AssigneeMemberId);
         var missionThread = await EnsureMissionMemberThreadAsync(
-            appBindingService,
             sessionService,
             workspacePath,
             workspaceCraftPath,
@@ -2823,7 +2520,6 @@ public sealed partial class TeamsService(IAppConfigMonitor? appConfigMonitor = n
         }
 
         var queued = await EnqueueForMissionThreadAsync(
-            appBindingService,
             sessionService,
             workspaceCraftPath,
             missionThread,
@@ -2832,7 +2528,7 @@ public sealed partial class TeamsService(IAppConfigMonitor? appConfigMonitor = n
             triggerRefId: task.TaskId,
             ct);
 
-        var state = GetStore(workspaceCraftPath).Update(write =>
+        GetStore(workspaceCraftPath).Update(write =>
         {
             var current = RequireTask(write, task.TaskId);
             if (!current.CompletionRecoveryPending || !string.IsNullOrWhiteSpace(current.CompletionRecoveryQueuedInputId))
@@ -2845,11 +2541,9 @@ public sealed partial class TeamsService(IAppConfigMonitor? appConfigMonitor = n
             write.Team.UpdatedAt = current.UpdatedAt;
             return write;
         });
-        RefreshContexts(workspaceCraftPath, state);
     }
 
     private async Task DispatchMailboxMessagesAsync(
-        AppBindingService appBindingService,
         ISessionService sessionService,
         string workspacePath,
         string workspaceCraftPath,
@@ -2876,7 +2570,6 @@ public sealed partial class TeamsService(IAppConfigMonitor? appConfigMonitor = n
             if (member == null)
                 return;
             missionThread = await EnsureMissionMemberThreadAsync(
-                appBindingService,
                 sessionService,
                 workspacePath,
                 workspaceCraftPath,
@@ -2890,7 +2583,6 @@ public sealed partial class TeamsService(IAppConfigMonitor? appConfigMonitor = n
         }
 
         var queued = await EnqueueForMissionThreadAsync(
-            appBindingService,
             sessionService,
             workspaceCraftPath,
             missionThread,
@@ -2899,7 +2591,7 @@ public sealed partial class TeamsService(IAppConfigMonitor? appConfigMonitor = n
             triggerRefId: messages[0].MessageId,
             ct);
 
-        var state = GetStore(workspaceCraftPath).Update(write =>
+        GetStore(workspaceCraftPath).Update(write =>
         {
             var now = DateTimeOffset.UtcNow;
             foreach (var messageId in dispatch.MessageIds)
@@ -2915,11 +2607,9 @@ public sealed partial class TeamsService(IAppConfigMonitor? appConfigMonitor = n
             write.Team.UpdatedAt = now;
             return write;
         });
-        RefreshContexts(workspaceCraftPath, state);
     }
 
     private async Task DispatchLeaderFinalizationAsync(
-        AppBindingService appBindingService,
         ISessionService sessionService,
         string workspaceCraftPath,
         LeaderDispatch dispatch,
@@ -2960,7 +2650,6 @@ public sealed partial class TeamsService(IAppConfigMonitor? appConfigMonitor = n
             return;
 
         var queued = await EnqueueForMissionThreadAsync(
-            appBindingService,
             sessionService,
             workspaceCraftPath,
             leaderThread,
@@ -2975,7 +2664,7 @@ public sealed partial class TeamsService(IAppConfigMonitor? appConfigMonitor = n
             triggerRefId: mission.MissionId,
             ct);
 
-        var state = GetStore(workspaceCraftPath).Update(write =>
+        GetStore(workspaceCraftPath).Update(write =>
         {
             var current = RequireMission(write, mission.MissionId);
             var now = DateTimeOffset.UtcNow;
@@ -2999,7 +2688,6 @@ public sealed partial class TeamsService(IAppConfigMonitor? appConfigMonitor = n
 
             return write;
         });
-        RefreshContexts(workspaceCraftPath, state);
     }
 
     private static bool IsMemberAvailableForDispatch(TeamsStateDocument state, string memberId) =>
@@ -3075,6 +2763,10 @@ public sealed partial class TeamsService(IAppConfigMonitor? appConfigMonitor = n
             if (queued == null)
                 return;
         }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            throw;
+        }
         catch
         {
             return;
@@ -3109,7 +2801,6 @@ public sealed partial class TeamsService(IAppConfigMonitor? appConfigMonitor = n
             write.Team.UpdatedAt = current.UpdatedAt;
             return write;
         });
-        RefreshContexts(workspaceCraftPath, state);
         await sessionService.TryStartNextQueuedTurnAsync(next.ThreadId, ct);
     }
 
@@ -3130,11 +2821,15 @@ public sealed partial class TeamsService(IAppConfigMonitor? appConfigMonitor = n
                 .OrderBy(input => input.CreatedAt)
                 .FirstOrDefault();
         }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            throw;
+        }
         catch
         {
         }
 
-        var state = store.Update(write =>
+        store.Update(write =>
         {
             var missionThread = write.MissionThreads.FirstOrDefault(t => string.Equals(t.ThreadId, threadId, StringComparison.Ordinal));
             if (missionThread == null || missionThread.ArchivedAt != null || missionThread.Status is "cancelled" or "archived")
@@ -3205,7 +2900,6 @@ public sealed partial class TeamsService(IAppConfigMonitor? appConfigMonitor = n
             write.Team.UpdatedAt = missionThread.UpdatedAt;
             return write;
         });
-        RefreshContexts(workspaceCraftPath, state);
     }
 
     private async Task StopMissionThreadsAsync(
@@ -3222,6 +2916,10 @@ public sealed partial class TeamsService(IAppConfigMonitor? appConfigMonitor = n
             try
             {
                 thread = await sessionService.GetThreadAsync(missionThread.ThreadId, ct);
+            }
+            catch (OperationCanceledException) when (ct.IsCancellationRequested)
+            {
+                throw;
             }
             catch
             {
@@ -3274,34 +2972,20 @@ public sealed partial class TeamsService(IAppConfigMonitor? appConfigMonitor = n
         task.CompletionRecoveryAttempts = 0;
     }
 
-    private static MissionThreadRecord RequireTaskAssigneeCaller(
-        TeamsStateDocument state,
-        TeamTaskRecord task,
-        ManagedAppBindingToolCallContext context)
-    {
-        var caller = state.MissionThreads.FirstOrDefault(thread =>
-            string.Equals(thread.ThreadId, context.ThreadId, StringComparison.Ordinal)
-            && thread.ArchivedAt == null);
-        if (caller == null)
-            throw AppServerErrors.InvalidParams($"Task '{task.TaskId}' can only be updated from its assignee Mission thread.");
-        if (!string.Equals(caller.MissionId, task.MissionId, StringComparison.Ordinal)
-            || !string.Equals(caller.MemberId, task.AssigneeMemberId, StringComparison.OrdinalIgnoreCase))
-        {
-            throw AppServerErrors.InvalidParams($"Task '{task.TaskId}' is assigned to '{task.AssigneeMemberId}' in mission '{task.MissionId}' and cannot be updated by member '{caller.MemberId}' in mission '{caller.MissionId}'.");
-        }
-
-        return caller;
-    }
-
     private static MissionThreadRecord RequireMissionCaller(
         TeamsStateDocument state,
-        ManagedAppBindingToolCallContext context)
+        TeamsToolCallContext context)
     {
         var caller = state.MissionThreads.FirstOrDefault(thread =>
             string.Equals(thread.ThreadId, context.ThreadId, StringComparison.Ordinal)
-            && thread.ArchivedAt == null);
-        return caller
-               ?? throw AppServerErrors.InvalidParams("Teams tools can only be used from a participating Mission thread.");
+            && thread.ArchivedAt == null
+            && thread.Status is not ("cancelled" or "archived"));
+        if (caller == null)
+            throw new TeamsToolUnauthorizedException("Teams tools can only be used from an active participating Mission thread.");
+
+        _ = RequireMember(state, caller.MemberId);
+        _ = RequireMission(state, caller.MissionId);
+        return caller;
     }
 
     private static TeamTaskRecord RequireCallerTask(
@@ -3336,7 +3020,7 @@ public sealed partial class TeamsService(IAppConfigMonitor? appConfigMonitor = n
         if (!string.Equals(task.MissionId, caller.MissionId, StringComparison.Ordinal)
             || !string.Equals(task.AssigneeMemberId, caller.MemberId, StringComparison.OrdinalIgnoreCase))
         {
-            throw AppServerErrors.InvalidParams($"Task '{task.TaskId}' is assigned to '{task.AssigneeMemberId}' in mission '{task.MissionId}' and cannot be updated by member '{caller.MemberId}' in mission '{caller.MissionId}'.");
+            throw new TeamsToolUnauthorizedException($"Task '{task.TaskId}' is assigned to '{task.AssigneeMemberId}' in mission '{task.MissionId}' and cannot be updated by member '{caller.MemberId}' in mission '{caller.MissionId}'.");
         }
 
         return task;
@@ -3425,7 +3109,7 @@ public sealed partial class TeamsService(IAppConfigMonitor? appConfigMonitor = n
         return result;
     }
 
-    private static string DeriveMemberStatus(TeamMemberRecord member, IReadOnlyList<MissionThreadRecord> threads)
+    private static string DeriveMemberStatus(IReadOnlyList<MissionThreadRecord> threads)
     {
         if (threads.Any(thread => string.Equals(thread.Status, "running", StringComparison.Ordinal)))
             return "running";
@@ -3435,7 +3119,7 @@ public sealed partial class TeamsService(IAppConfigMonitor? appConfigMonitor = n
             return "input";
         if (threads.Any(thread => string.Equals(thread.Status, "queued", StringComparison.Ordinal)))
             return "queued";
-        return member.Status;
+        return "idle";
     }
 
     private static string DescribeTasks(IEnumerable<TeamTaskRecord> tasks)
@@ -3457,29 +3141,6 @@ public sealed partial class TeamsService(IAppConfigMonitor? appConfigMonitor = n
     {
         var normalized = value.Trim();
         return string.IsNullOrWhiteSpace(normalized) ? "work" : normalized;
-    }
-
-    private static string NormalizeMessageKind(string value)
-    {
-        var normalized = value.Trim().ToLowerInvariant();
-        return normalized switch
-        {
-            "" => TeamMessageKinds.Info,
-            TeamMessageKinds.Info => TeamMessageKinds.Info,
-            TeamMessageKinds.Request => TeamMessageKinds.Request,
-            TeamMessageKinds.Handoff => TeamMessageKinds.Handoff,
-            TeamMessageKinds.Revision => TeamMessageKinds.Revision,
-            TeamMessageKinds.Decision => TeamMessageKinds.Decision,
-            TeamMessageKinds.Blocker => TeamMessageKinds.Blocker,
-            TeamMessageKinds.Synthesis => TeamMessageKinds.Synthesis,
-            _ => throw AppServerErrors.InvalidParams($"Message kind must be '{TeamMessageKinds.Info}', '{TeamMessageKinds.Request}', '{TeamMessageKinds.Handoff}', '{TeamMessageKinds.Revision}', '{TeamMessageKinds.Decision}', '{TeamMessageKinds.Blocker}', or '{TeamMessageKinds.Synthesis}'.")
-        };
-    }
-
-    private static string NormalizeArtifactKind(string value)
-    {
-        var normalized = value.Trim().ToLowerInvariant();
-        return string.IsNullOrWhiteSpace(normalized) ? "reference" : normalized;
     }
 
     private static (string Kind, string? Format) InferArtifactClassification(string pathOrUri)
@@ -3607,13 +3268,6 @@ public sealed partial class TeamsService(IAppConfigMonitor? appConfigMonitor = n
     private static bool IsMissionFinalizationTask(TeamTaskRecord task) =>
         task.RequiredForMission || string.Equals(task.Kind, "review", StringComparison.OrdinalIgnoreCase);
 
-    private static bool IsLegacyDoneTaskStatus(string status) =>
-        status is TeamTaskStatuses.Done
-            or "completed"
-            or "complete"
-            or "succeeded"
-            or "success";
-
     private static bool IsTerminalMissionStatus(string status) =>
         status is TeamMissionStatuses.Done or TeamMissionStatuses.Cancelled;
 
@@ -3665,12 +3319,7 @@ public sealed partial class TeamsService(IAppConfigMonitor? appConfigMonitor = n
             DisplayName = member.DisplayName,
             Description = member.Description,
             AgentProfileId = member.AgentProfileId,
-            ThreadId = member.ThreadId,
-            BindingId = member.BindingId,
-            GrantId = member.GrantId,
             AvatarAccent = member.AvatarAccent,
-            Status = member.Status,
-            CurrentTaskId = member.CurrentTaskId,
             DeskX = member.DeskX,
             DeskY = member.DeskY
         };
@@ -3681,8 +3330,6 @@ public sealed partial class TeamsService(IAppConfigMonitor? appConfigMonitor = n
             MissionId = missionThread.MissionId,
             MemberId = missionThread.MemberId,
             ThreadId = missionThread.ThreadId,
-            BindingId = missionThread.BindingId,
-            GrantId = missionThread.GrantId,
             Status = missionThread.Status,
             CurrentTaskId = missionThread.CurrentTaskId,
             QueuedInputId = missionThread.QueuedInputId,
@@ -3691,29 +3338,10 @@ public sealed partial class TeamsService(IAppConfigMonitor? appConfigMonitor = n
             ArchivedAt = missionThread.ArchivedAt
         };
 
-    private static JsonObject? MergeMetadata(JsonObject? existing, JsonObject? update)
-    {
-        if (update == null)
-            return existing;
+    private static TeamsToolResponse Ok(string text, object structured) =>
+        new(text, JsonSerializer.SerializeToElement(structured, SessionWireJsonOptions.Default));
 
-        var merged = existing == null
-            ? new JsonObject()
-            : (JsonObject)existing.DeepClone();
-        foreach (var item in update)
-            merged[item.Key] = item.Value?.DeepClone();
-
-        return merged;
-    }
-
-    private static AppBoundToolCallResult Ok(string text, object structured) =>
-        new()
-        {
-            Success = true,
-            ContentItems = [new ExtChannelToolContentItem { Type = "text", Text = text }],
-            StructuredResult = JsonSerializer.SerializeToNode(structured, SessionWireJsonOptions.Default)
-        };
-
-    private static string FormatAppServerException(AppServerException ex)
+    internal static string FormatToolException(AppServerException ex)
     {
         if (ex.ErrorData == null)
             return ex.Message;
@@ -3735,137 +3363,5 @@ public sealed partial class TeamsService(IAppConfigMonitor? appConfigMonitor = n
 
         return ex.Message;
     }
-
-    private static AppBoundToolCallResult Fail(string code, string message) =>
-        new()
-        {
-            Success = false,
-            ErrorCode = code,
-            ErrorMessage = message,
-            ContentItems = [new ExtChannelToolContentItem { Type = "text", Text = $"{code}: {message}" }]
-        };
-
-    private static bool IsExternalThreadCatalogSurface(string surface)
-    {
-        var normalized = AppBindingCatalogSurfaces.Normalize(surface);
-        return string.Equals(normalized, AppBindingCatalogSurfaces.Welcome, StringComparison.Ordinal)
-               || string.Equals(normalized, AppBindingCatalogSurfaces.ThreadBinding, StringComparison.Ordinal);
-    }
-
-    private static AppDescriptor BuildThreadBindingDescriptor() =>
-        new()
-        {
-            AppId = TeamsConstants.AppId,
-            ToolNamespace = TeamsConstants.ToolNamespace,
-            DisplayName = "Agent Teams",
-            DeveloperName = "DotHarness",
-            Description = "Ask Agent Teams to execute an asynchronous mission from this thread.",
-            Category = "Productivity",
-            Connection = new AppConnectionDescriptor
-            {
-                HandoffModes = []
-            },
-            NativeApplication = new AppNativeApplicationDescriptor
-            {
-                DisplayName = "DotCraft",
-                Protocol = string.Empty
-            },
-            Scopes =
-            [
-                Scope("mission.manage", "Create Team missions", "Start an Agent Teams mission from this thread and receive its completion notification.", AppBindingRisks.Mutate)
-            ],
-            ToolCatalog =
-            [
-                Tool(CreateTeamToolName, "mission.manage", AppBindingRisks.Mutate)
-            ],
-            DynamicToolCatalog = new AppDynamicToolCatalogDescriptor
-            {
-                Enabled = false
-            }
-        };
-
-    private static AppDescriptor BuildDescriptor() =>
-        new()
-        {
-            AppId = TeamsConstants.AppId,
-            ToolNamespace = TeamsConstants.ToolNamespace,
-            DisplayName = "DotCraft Teams",
-            DeveloperName = "DotHarness",
-            Description = "Run a DotCraft Team with robot teammates, missions, task dispatch, progress digests, and artifacts.",
-            Category = "Productivity",
-            // Per-role origin branding: each mission member thread stamps ChannelName="teams" and
-            // ChannelContext="{missionId}:{memberId}", so the host shows each role's avatar in the
-            // thread-list origin badge. Avatars live in the agent-teams plugin assets.
-            OriginChannel = TeamsConstants.ChannelName,
-            OriginMembers =
-            [
-                new AppOriginMemberDescriptor { Match = "leader", DisplayName = "Team Leader", Icon = "./assets/team-leader.svg" },
-                new AppOriginMemberDescriptor { Match = "explorer", DisplayName = "Explorer", Icon = "./assets/team-explorer.svg" },
-                new AppOriginMemberDescriptor { Match = "builder", DisplayName = "Builder", Icon = "./assets/team-builder.svg" },
-                new AppOriginMemberDescriptor { Match = "reviewer", DisplayName = "Reviewer", Icon = "./assets/team-reviewer.svg" },
-                new AppOriginMemberDescriptor { Match = "operator", DisplayName = "Operator", Icon = "./assets/team-operator.svg" }
-            ],
-            Connection = new AppConnectionDescriptor
-            {
-                HandoffModes =
-                [
-                    new AppHandoffModeDescriptor
-                    {
-                        Mode = "managed",
-                        UriTemplate = "dotcraft://managed/teams/{operation}?app={appId}"
-                    }
-                ]
-            },
-            NativeApplication = new AppNativeApplicationDescriptor
-            {
-                DisplayName = "DotCraft",
-                Protocol = "dotcraft"
-            },
-            Scopes =
-            [
-                Scope("team.read", "Read Team state", "Read Teams team, member, mission, task, digest, and artifact summaries.", AppBindingRisks.Read),
-                Scope("mission.manage", "Manage missions", "Create mission plans and update mission state.", AppBindingRisks.Mutate),
-                Scope("task.dispatch", "Dispatch tasks", "Create task graph entries for scheduler dispatch.", AppBindingRisks.Mutate),
-                Scope("message.send", "Send team messages", "Record lightweight mission-scoped mailbox events for participating Team members.", AppBindingRisks.Mutate),
-                Scope("artifact.publish", "Publish artifacts", "Record app-owned artifact references.", AppBindingRisks.Mutate)
-            ],
-            ToolCatalog =
-            [
-                Tool("CreateMissionPlan", "mission.manage", AppBindingRisks.Mutate),
-                Tool("AssignTask", "task.dispatch", AppBindingRisks.Mutate),
-                Tool("ListTeamMembers", "team.read", AppBindingRisks.Read),
-                Tool("ReadMissionState", "team.read", AppBindingRisks.Read),
-                Tool("ReadMemberStatus", "team.read", AppBindingRisks.Read),
-                Tool("SendMessage", "message.send", AppBindingRisks.Mutate),
-                Tool("ReportProgress", "mission.manage", AppBindingRisks.Mutate),
-                Tool("PublishArtifact", "artifact.publish", AppBindingRisks.Mutate),
-                Tool("MarkTaskDone", "mission.manage", AppBindingRisks.Mutate),
-                Tool("MarkMissionDone", "mission.manage", AppBindingRisks.Mutate)
-            ],
-            DynamicToolCatalog = new AppDynamicToolCatalogDescriptor
-            {
-                Enabled = false
-            }
-        };
-
-    private static AppScopeDescriptor Scope(string id, string displayName, string description, string risk) =>
-        new()
-        {
-            Id = id,
-            DisplayName = displayName,
-            Description = description,
-            Risk = risk,
-            DefaultSelected = true
-        };
-
-    private static AppToolCatalogEntry Tool(string name, string scope, string risk) =>
-        new()
-        {
-            Name = name,
-            Scope = scope,
-            Risk = risk,
-            DefaultExposure = risk == AppBindingRisks.Read ? AppBindingExposures.Direct : AppBindingExposures.Deferred,
-            Description = name
-        };
 
 }

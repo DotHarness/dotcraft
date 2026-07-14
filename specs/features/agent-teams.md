@@ -2,13 +2,13 @@
 
 | Field | Value |
 |-------|-------|
-| **Related Specs** | [Prompt Composition](../agents/prompt-composition.md), [Agent Profiles](agent-profiles.md), [App Binding](../protocols/app-binding.md), [Session Core](../architecture/session-core.md), [AppServer Protocol](../protocols/appserver-protocol.md), [Desktop Client](../clients/desktop-client.md), [SDK](../sdk/sdk.md) |
+| **Related Specs** | [Prompt Composition](../agents/prompt-composition.md), [Agent Profiles](agent-profiles.md), [Tool Architecture](../architecture/tools-architecture.md), [Session Core](../architecture/session-core.md), [AppServer Protocol](../protocols/appserver-protocol.md), [Desktop Client](../clients/desktop-client.md) |
 
-Purpose: define Agent Teams as an App Binding validation scenario and first-party managed app runtime without making teams a DotCraft Core entity.
+Purpose: define Agent Teams as a first-party plugin-native tool runtime without making Teams a DotCraft Core entity.
 
 Agent Teams ships a DotCraft Team experience behind the installable built-in `agent-teams` plugin. Once the plugin is installed and enabled for a workspace, Desktop exposes one persistent team containing DotCraft robot teammates. Users create Missions; the Team Leader agent breaks work into a Teams-owned task board, teammates collaborate through structured Teams events, and a mission scheduler dispatches ordinary queued inputs to mission-scoped teammate threads only when work is ready to run.
 
-Teams keeps the state model rich enough for scheduling and Desktop diagnosis, but makes the model-visible tools intentionally small. Mission id, current task id, sender identity, default artifact metadata, and passive/actionable routing are derived from the mission thread context and Teams state wherever possible. Model-visible task and artifact references use Mission-scoped aliases such as `t1` and `a1` first, while canonical ids remain stored for compatibility.
+Teams keeps the state model rich enough for scheduling and Desktop diagnosis, but makes the model-visible tools intentionally small. Mission id, current task id, sender identity, default artifact metadata, and passive/actionable routing are derived from the mission thread context and Teams state wherever possible. Model-visible task and artifact references use Mission-scoped aliases such as `t1` and `a1` first, while canonical ids remain the durable identifiers.
 
 ---
 
@@ -16,11 +16,11 @@ Teams keeps the state model rich enough for scheduling and Desktop diagnosis, bu
 
 This specification defines:
 
-- A first-party `DotCraft.Teams` module that behaves like an App Binding app while running in-process.
+- A first-party `DotCraft.Teams` module that contributes a plugin-native tool source and executes in process.
 - The built-in `agent-teams` plugin as the user-visible product gate and Desktop extension for the Team panel.
 - The Desktop Team panel as the primary user entry point after the plugin is installed and enabled.
 - A workspace-scoped `TeamRecord` with default members, missions, tasks, lightweight team messages, mailbox digests, and artifact references.
-- Mission teammate threads as ordinary top-level DotCraft threads with independent App Bindings, scopes, tools, audit, and mission-bound context blocks.
+- Mission teammate threads as module-managed DotCraft threads with role-specific native tool snapshots and Teams-owned mission context.
 - Teams-owned task graph, dependency, mailbox, review-gate, scheduler, and final-response state.
 - A Mission-shell + Task-board model: `Mission` is the user-facing delivery and archival unit, while `TeamTask` records form a mission-scoped shared task board with owner/status/dependency/metadata semantics.
 - A rich-state / lean-tool contract: Teams records keep scheduler-facing metadata, but agents operate through small context-inferred tool calls.
@@ -28,26 +28,25 @@ This specification defines:
 - Structured Teams notification envelopes used by the scheduler when turning state changes into queued inputs.
 - Split queued-input rendering: structured `materializedInputParts` for the model and clean `nativeInputParts` / `displayText` for Desktop.
 - Mission-scoped short aliases for task and artifact references.
-- The `app/threadInput/enqueue` App Binding RPC so a bound app can enqueue input for its own bound thread.
-- `runWhenIdle` queued-input start policy: the app may request automatic start only when the target thread is idle.
-- Binding-scoped App Context Blocks for fixed role, mission, and app policy context.
+- Direct `ISessionService` queued input with `runWhenIdle` behavior owned by the Teams scheduler.
+- A stable `teams/mission` system-prompt context page for fixed role, mission, and policy context.
 - Teams-owned role instructions for Mission teammate identity and collaboration boundaries.
 
 Out of scope:
 
 - Core `TeamRun`, `TeamSession`, `Member`, `Task`, `Mailbox`, or `Artifact` entities.
-- Binding inheritance or delegation to SubAgents.
+- Teams role inheritance or delegation to SubAgents.
 - Model-visible dynamic Team or member creation. DotCraft Teams uses a fixed roster; per-role customization belongs on Agent Profiles as skills, MCP servers, plugins, prompts, permission policy, and tool-surface settings.
 - Generic `TaskCreate`, `TaskUpdate`, `TaskList`, or `TaskGet` tool aliases. Teams uses the dedicated tool names below to keep the model-visible tool surface small.
 - Global scheduler ownership in Core.
 - Raw mailbox events as thread history.
-- App authority to edit full base instructions or the generated base prompt.
+- Teams authority to edit full base instructions or the generated base prompt.
 
 ---
 
 ## 2. Architecture Boundary
 
-Agent Teams is a managed App Binding runtime, not a Core special case.
+Agent Teams is a plugin-native runtime, not an App Binding app or a Core special case.
 
 The runtime is registered by the first-party `DotCraft.Teams` module, but product visibility and user enablement are plugin-owned:
 
@@ -55,15 +54,16 @@ The runtime is registered by the first-party `DotCraft.Teams` module, but produc
 - Team RPCs reject direct calls when the `agent-teams` plugin is absent or disabled.
 - The plugin contributes interface metadata and a Desktop extension descriptor; it does not contribute skills, MCP, LSP, or external App Binding descriptors.
 - Desktop derives the Team sidebar entry and plugin-detail included content from the plugin's Desktop extension descriptor. Teams must not rely on Desktop hardcoding the `agent-teams` plugin id to create these surfaces.
-- Installing or enabling the plugin does not delete or migrate existing Team state. Disabling it hides the entry point and blocks new Team operations.
+- Enabling the plugin initializes schema-v1 Team state on first use. Any state document with another schema version is reinitialized.
+- Disabling the plugin hides the entry point and blocks new Team operations.
 
 DotCraft Core owns:
 
 - Thread, Turn, Item, queued input, approvals, persistence, and event streams.
-- App Binding connection, binding, scope, grant, context-block, and audit records.
-- Validation that app-triggered queued input targets only a thread bound to the calling app.
-- Runtime Dynamic Tool exposure for app-bound tools.
-- Prompt inclusion and lifecycle filtering for App Context Blocks.
+- Unified tool snapshots, dispatch, approval, lifecycle, and normalized results.
+- Trusted planning-thread classification and binding-lease checks.
+- Session-backed queued input, thread runtime state, persistence, and notifications.
+- Stable system-prompt context-page composition.
 
 `DotCraft.Teams` owns:
 
@@ -73,8 +73,8 @@ DotCraft Core owns:
 - Member roster and role profiles.
 - Mission planning, task-board assignment, dependency resolution, progress reporting, review gates, final responses, task metadata, task output summaries, and artifact references.
 - Message/digest policy.
-- The mission scheduler that reconciles Teams state changes and decides when to enqueue app-triggered input.
-- First-party app descriptor, tool specs, and tool handlers.
+- The mission scheduler that reconciles Teams state changes and decides when to enqueue Session input.
+- The `TeamsToolSource`, generated tool schemas, native runtime adapter, and business validation.
 
 Teams state is persisted under:
 
@@ -92,14 +92,16 @@ Scratchpad files are durable handoff material, not authoritative scheduler state
 
 Tasks and artifacts have two identifiers:
 
-- Canonical ids such as `task_...` and `artifact_...` remain persisted, globally safe, and backward-compatible.
+- Canonical ids such as `task_...` and `artifact_...` are persisted and globally safe.
 - Mission-scoped aliases such as `t1`, `t2`, `a1`, and `a2` are the preferred model-visible references in prompts, tool results, and state summaries.
 
-Agents should use short aliases in ordinary tool parameters and prose handoffs. Teams resolves aliases inside the current Mission and stores canonical ids internally. Canonical ids may still appear for compatibility and debugging, but prompts should be alias-first to reduce token cost and copy errors.
+Agents should use short aliases in ordinary tool parameters and prose handoffs. Teams resolves aliases inside the current Mission and stores canonical ids internally. Results may include canonical ids for diagnostics, but prompts should be alias-first to reduce token cost and copy errors.
 
 The state root uses `team` for workspace-level metadata and `teamId` for the default team identity.
 
-Core persists only App Binding and Session Core state. It must not interpret Teams task or mailbox data as native Core state.
+Core persists only Session/tool state for Teams calls. It must not interpret Teams task or mailbox data as native Core state.
+
+The Teams state root has `schemaVersion = 1`. A file without exactly that version is reinitialized with the default roster. The native schema does not contain `TeamRecord.Enabled`, member or mission-thread `BindingId`/`GrantId`, or `MissionRecord.OriginBindingId`. `OriginThreadId` is the sole mission-completion origin.
 
 ---
 
@@ -136,21 +138,20 @@ Each active Mission uses ordinary top-level DotCraft threads for the teammates t
 The required collaboration loop is:
 
 1. The user installs and enables the `agent-teams` plugin for a workspace.
-2. Teams creates or repairs the default member roster without creating long-lived member work threads; repair also refreshes non-archived Mission teammate thread role instructions.
+2. Teams initializes or repairs the schema-v1 default member roster without creating long-lived member work threads.
 3. The user creates a Mission.
 4. Teams creates one Leader Mission thread for that Mission.
-5. Teams creates one managed App Binding for the Leader Mission thread.
-6. Teams applies Teams-owned role instructions and upserts fixed role, mission, and policy context blocks for that Mission thread.
-7. Teams enqueues a Leader Mission input with `triggerKind = "team"` and `startPolicy = "runWhenIdle"`.
-8. The Leader agent runs as a normal DotCraft turn and calls Teams tools.
-9. `AssignTask` creates Teams-owned task/digest state, records task dependencies, and lazily creates the target teammate's Mission thread when needed.
-10. The Teams mission scheduler reconciles the task graph; it enqueues input only for ready tasks whose assignee can safely run.
-11. Member agents run ordinary turns and report progress, artifacts, task completion, blockers, and mailbox messages through Teams tools.
-12. Every Teams state change and relevant thread runtime signal triggers scheduler reconciliation.
-13. The scheduler converts relevant Teams state changes into structured internal notification envelopes, then unblocks dependent tasks, starts ready tasks, coalesces actionable mailbox messages, dispatches review-gate tasks, or wakes the Leader for synthesis and finalization.
-14. When a dependency-gated task is marked as requiring Leader synthesis, the scheduler wakes the Leader after upstream dependencies complete and holds teammate dispatch until that synthesis is supplied.
-15. The Leader inspects teammate progress through explicit Team tools, decides the user-facing outcome, records `finalResponse`, and completes the Mission.
-16. Teams updates digests, Mission thread state, and Desktop notifications as state changes.
+5. Teams applies Teams-owned role instructions; the stable `teams/mission` provider supplies fixed role, mission, and policy context.
+6. Teams enqueues a Leader Mission input through `ISessionService` with `triggerKind = "team"` and run-when-idle behavior.
+7. The Leader agent runs as a normal DotCraft turn and calls native Teams tools.
+8. `AssignTask` creates Teams-owned task/digest state, records task dependencies, and lazily creates the target teammate's Mission thread when needed.
+9. The Teams mission scheduler reconciles the task graph; it enqueues input only for ready tasks whose assignee can safely run.
+10. Member agents run ordinary turns and report progress, artifacts, task completion, blockers, and mailbox messages through Teams tools.
+11. Every Teams state change and relevant thread runtime signal triggers scheduler reconciliation.
+12. The scheduler converts relevant Teams state changes into structured internal notification envelopes, then unblocks dependent tasks, starts ready tasks, coalesces actionable mailbox messages, dispatches review-gate tasks, or wakes the Leader for synthesis and finalization.
+13. When a dependency-gated task is marked as requiring Leader synthesis, the scheduler wakes the Leader after upstream dependencies complete and holds teammate dispatch until that synthesis is supplied.
+14. The Leader inspects teammate progress through explicit Team tools, decides the user-facing outcome, records `finalResponse`, and completes the Mission.
+15. Teams updates digests, Mission thread state, and Desktop notifications as state changes.
 
 If the same teammate already has a running, waiting-approval, or waiting-input Mission thread, Teams leaves the new Mission thread input queued. It must not interrupt or preempt the active turn.
 
@@ -172,7 +173,7 @@ The default Team roster is fixed. The Leader assigns work to configured roles ra
 
 ### 4.2 Collaboration Loop
 
-Team collaboration is event-driven. Teammate messages, progress updates, artifacts, task completion, thread-idle signals, and review decisions are Teams events. They are not themselves DotCraft Turns. Only the mission scheduler may convert Teams events into app-triggered queued input.
+Team collaboration is event-driven. Teammate messages, progress updates, artifacts, task completion, thread-idle signals, and review decisions are Teams events. They are not themselves DotCraft Turns. Only the mission scheduler may convert Teams events into Session queued input.
 
 ```mermaid
 flowchart TD
@@ -181,7 +182,7 @@ flowchart TD
     State --> Scheduler["Mission scheduler reconciles state"]
     Scheduler --> Notify["Structured Teams notification envelope"]
     Notify --> Ready["Ready task or actionable message"]
-    Ready --> Turn["App-triggered queued input starts one teammate Turn"]
+    Ready --> Turn["Teams queued input starts one teammate Turn"]
     Turn --> Events["Progress, artifact, message, blocker, or task done"]
     Events --> State
     Scheduler --> Synthesis["Upstream results need Leader synthesis"]
@@ -230,7 +231,7 @@ Completion rules:
 - `MarkTaskDone` completes only the owning Task. It never completes the Mission directly.
 - When every required Task is `done` and every required review gate is accepted, scheduler reconciliation moves the Mission to `awaitingLeaderReview` and wakes the Leader.
 - `MarkMissionDone` lets the Leader mark a Mission `done` only when `finalResponse` is supplied and either no Tasks were dispatched or the Mission is already ready for Leader finalization.
-- Leader waiting is not a model-visible tool. After dispatching work or sending a message, the Leader ends the turn; scheduler reconciliation later wakes the Leader through normal app-triggered queued input when task results, blockers, teammate messages, synthesis needs, or final review require Leader attention.
+- Leader waiting is not a model-visible tool. After dispatching work or sending a message, the Leader ends the turn; scheduler reconciliation later wakes the Leader through normal Session queued input when task results, blockers, teammate messages, synthesis needs, or final review require Leader attention.
 - Attempts to mark a Mission `done` while required Tasks, blockers, or review gates remain unresolved must return an actionable error naming the unfinished work.
 - Only terminal Missions (`done` or `cancelled`) can be archived.
 - Cancelling a Mission cancels running turns and removes queued inputs on that Mission's teammate threads, but keeps those threads available for inspection.
@@ -291,7 +292,7 @@ Review is a task or gate property, not a hardcoded `Reviewer` member rule. The d
 
 Artifacts are explicit Teams records, not inferred from ordinary assistant text and not automatically created when a Task is marked done. `PublishArtifact` records durable handoff material that Desktop and Team tools can display without reading raw teammate transcripts.
 
-Artifact records must keep the legacy `title`, `uri`/`path`, and `description` shape while also supporting:
+Artifact records contain `title` and `uri`/`path`, together with:
 
 - `kind` for the artifact category, such as `reference`, `document`, `patch`, `dataset`, `report`, or `note`.
 - `format` for MIME type, extension, or app-specific format.
@@ -299,7 +300,7 @@ Artifact records must keep the legacy `title`, `uri`/`path`, and `description` s
 - `sourceTaskId` and optional `sourceMessageId` for tracing the artifact back to the task/message that produced or referenced it.
 - `metadata` for JSON-friendly, artifact-specific extension data.
 
-Artifact publication never completes a task. A teammate that produces an artifact must still call `MarkTaskDone` or `ReportProgress(status: "blocked")` before ending the turn. The model-visible `PublishArtifact` tool accepts only the artifact title, one path-or-URI value, an optional summary, and an optional task override when the caller is allowed to publish for that task. Artifact kind, format, source task, and legacy description fields are derived by Teams.
+Artifact publication never completes a task. A teammate that produces an artifact must still call `MarkTaskDone` or `ReportProgress(status: "blocked")` before ending the turn. The model-visible `PublishArtifact` tool accepts only the artifact title, one path-or-URI value, an optional summary, and an optional task override when the caller is allowed to publish for that task. Artifact kind, format, and source task are derived by Teams.
 
 ### 4.6 Mailbox Semantics
 
@@ -312,7 +313,7 @@ Mailbox events must capture:
 - Message kind such as `info`, `request`, `handoff`, `revision`, `decision`, `blocker`, or `synthesis`.
 - Short summary, optional structured detail, and artifact references.
 - Internal `requiresAction` state so the scheduler can distinguish passive system events from work that may wake the recipient. The model-visible `SendMessage` tool always creates an actionable event.
-- Bookkeeping status such as `recorded`, `summarized`, `deliveredToTurn`, or `superseded`; this is scheduler/digest state, not a user-facing read receipt.
+- Bookkeeping status is `recorded` before scheduler delivery and `deliveredToTurn` afterward; this is scheduler state, not a user-facing read receipt.
 
 Messages should usually point at task or artifact state instead of carrying long-form content. When several messages target the same member while it is idle or busy, the scheduler should prefer one coalesced queued input with a mailbox summary over several small turns.
 
@@ -333,14 +334,14 @@ Agent Teams uses several prompt surfaces. Each surface has a narrow purpose so r
 | Surface | Lifecycle | Injection point | Contract |
 |---------|-----------|-----------------|----------|
 | Role instructions | Mission thread lifecycle | Role-instruction layer | Stable role identity, collaboration boundary, and hard workflow rules. |
-| App context blocks | Mission thread lifecycle; repaired on Teams state repair | App Binding context | Stable mission id/title/prompt/status, member role, policy notes, and scratchpad path. |
+| Teams mission context | Mission thread lifecycle | Stable `teams/mission` context page | Stable mission id/title/prompt, member role/profile, policy notes, and scratchpad path. |
 | Queued input | One turn | Scheduler-generated input | Current event, task assignment, mailbox summary, recovery check, blocker handling, or finalization request. |
 | Tool descriptions/schema | Tool catalog lifecycle | Model-visible tool list | Tool selection hints and parameter semantics only. |
 
 Prompt rules:
 
 - Role instructions define the member's team role and the turn-exit contract, but they must not contain live task lists, mailbox digests, or teammate status.
-- App context blocks contain fixed role, mission, policy, and scratchpad context. They are not a communication channel and must not be used for live progress updates.
+- Teams mission context contains fixed role, mission, policy, and scratchpad context. It is not a communication channel and must not be used for live progress updates.
 - Queued inputs carry dynamic event data. They should be concise, structured, and specific to the action currently required.
 - Tool descriptions should remain stable where possible for prompt cache health. Dynamic mission state belongs in queued input or read tools, not in tool descriptions.
 - Teammate task and mailbox inputs must remind the assignee that ordinary chat output is not task completion. Before ending a turn that works on an assigned task, the teammate must call `MarkTaskDone` or `ReportProgress(status: "blocked")`; `PublishArtifact` is used when there is a reusable result.
@@ -363,115 +364,44 @@ Leader synthesis rules:
 
 ---
 
-## 5. App Context Blocks
+## 5. Teams Mission Context
 
-App Context Blocks are binding-scoped, persisted in App Binding state, and rendered by DotCraft's context framework into a fixed `App Context` system prompt section. Model-visible block content is wrapped in the shared `<app-context>` tag.
+Mission teammate threads receive a Teams-owned system-prompt context page with stable key `teams/mission`. The provider resolves the current thread through Teams state and renders only immutable mission-thread data:
 
-Required fields:
+- Mission id, title, prompt, and scratchpad/artifact workspace path.
+- Member id, display name, product role, and resolved Agent Profile identity.
+- Fixed Teams coordination policy.
 
-| Field | Type | Required |
-|-------|------|----------|
-| `blockId` | string | yes |
-| `threadId` | string | derived |
-| `bindingId` | string | yes |
-| `appId` | string | yes |
-| `kind` | `role \| mission \| policy` | yes |
-| `title` | string | yes |
-| `content` | string | yes |
-| `order` | number | yes |
-| `version` | string | yes |
-| `updatedAt` | timestamp | derived |
-| `expiresAt` | timestamp | no |
-| `visibility` | `model \| hiddenFromModel` | no |
+The context must not contain live task state, mailbox digests, teammate progress, messages, artifacts, review state, tool schemas, credentials, or App Binding identifiers. Those values are read through Teams tools or delivered through scheduler queued input. Because the rendered fields do not change during a Mission thread's lifetime, ordinary Teams state changes do not invalidate or rewrite the page.
 
-Rules:
-
-- Apps may upsert or remove blocks only for their own active binding.
-- The target `threadId` is derived from `bindingId`; callers cannot choose an arbitrary thread.
-- Mission teammate threads must include a Mission context block containing the current Mission id, title, prompt, and Teams-owned scratchpad/artifact workspace path.
-- Context block changes do not create Turns, Items, or thread rollout records.
-- Removed, expired, revoked, offline, or hidden blocks are excluded from prompts.
-- Updating blocks must invalidate the target thread's app-context prompt page.
-- Context block content is app-provided context, not higher-priority system instruction.
-- Teams App Context is not a member communication channel. Teams must not inject live teammate progress, mailbox digests, or directed messages into context blocks; agents must use Team tools to inspect dynamic collaboration state.
-- App Context Block prompt rendering must not embed mutable metadata fields such as `version`, `updatedAt`, or `expiresAt`; those fields remain available through `thread/appContextBlocks/list` and App Binding audit only.
-- Scratchpad paths in App Context identify durable handoff storage only. They do not grant authority to treat scratchpad files as completed Tasks, accepted reviews, or final Mission state.
-
-Mission teammate threads may additionally set role instructions. These role instructions are deterministic Teams-owned system guidance appended after the base prompt. They define the member's Team role, clarify that teammate threads collaborate inside the Mission rather than directly chatting with the end user, and direct live coordination through Team tools. Teams must not use full-prompt replacement.
+Mission teammate threads additionally use deterministic Teams-owned role instructions. They define the member's Team role, clarify that teammate threads collaborate inside the Mission rather than directly chatting with the end user, and direct live coordination through Team tools. The instructions identify this page as “Teams mission context” and preserve the generated base prompt.
 
 ---
 
-## 6. App-Triggered Queued Input
+## 6. Teams Queued Input
 
-App-triggered queued input uses `app/threadInput/enqueue`.
+The scheduler uses `ISessionService` directly to enqueue work for mission threads and to start the next input when the target is idle. Teams does not call `app/threadInput/enqueue`, create a binding, or record App Binding audit.
 
-**Direction**: app -> server
+Individual tools such as `AssignTask`, `SendMessage`, `ReportProgress`, `PublishArtifact`, and `MarkTaskDone` update Teams state and trigger scheduler reconciliation; they must not each independently decide to enqueue thread input.
 
-Params:
+Teams queued inputs preserve:
 
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| `bindingId` | string | yes | App Binding that owns the target thread. |
-| `appId` | string | yes | Calling app id. |
-| `grantId` | string | yes | Grant id accepted for the binding. |
-| `input` | `InputPart[]` | yes | Input to enqueue. Teams currently sends text input. |
-| `displayText` | string | no | UI preview text. |
-| `triggerLabel` | string | no | Human-readable source label. |
-| `triggerRefId` | string | no | App-owned source id, such as a mission or task id. |
-| `startPolicy` | `queueOnly \| runWhenIdle` | no | Default is `queueOnly`. |
+- `triggerKind = "team"`, `triggerLabel`, and `triggerRefId` through dequeue into `UserMessagePayload`;
+- `materializedInputParts` with the structured Teams event payload for the model;
+- `nativeInputParts` and `displayText` with clean summaries for Desktop;
+- existing queue ordering, idle checks, cancellation, retry, completion-recovery, and idempotency semantics.
 
-Result:
-
-```json
-{
-  "queuedInput": { "id": "queue_...", "triggerKind": "team" },
-  "queuedInputs": []
-}
-```
-
-Validation:
-
-- `bindingId` must exist.
-- `appId` and `grantId` must match the binding.
-- The binding must be active, unexpired, and connected or managed.
-- The binding must not be revoked, cancelled, pending, offline, or expired.
-- The target thread is derived from the binding and must exist.
-- Cross-app and cross-thread enqueue attempts are rejected.
-- Enqueued input must preserve `triggerKind`, `triggerLabel`, and `triggerRefId`.
-- The future `UserMessagePayload` created after dequeue must preserve the trigger metadata.
-- The operation records App Binding audit.
-
-For the first-party Teams app, `triggerKind` is `team`. Other App Binding apps use `app`.
-
-Teams should call `app/threadInput/enqueue` as the scheduler's dispatch mechanism. Individual Teams tools such as `AssignTask`, `SendMessage`, `ReportProgress`, `PublishArtifact`, and `MarkTaskDone` update Teams state and trigger scheduler reconciliation; they must not each independently decide to enqueue thread input.
-
-Teams queued inputs must preserve a split between model and display surfaces:
-
-- `materializedInputParts`: structured Teams event payload for the model.
-- `nativeInputParts`: clean display payload for Desktop rendering.
-- `displayText`: the same clean summary used by UI previews.
-
-This lets the model keep a parseable runtime envelope while preventing UI cards from rendering implementation tags such as `<team-notification>`.
+The scheduler derives the target thread from `MissionThreadRecord`. A model or tool argument cannot select another thread. Failure to resolve a live `ISessionService` must stop before a partial Teams mutation is committed.
 
 ---
 
-## 7. Managed App Binding Runtime
+## 7. Native Tool Runtime
 
-First-party modules may register managed App Binding runtimes.
+`TeamsToolSource` is a `PluginNative` source with source id `agent-teams` and canonical namespace `teams`. It contributes generated schemas plus in-process handlers; it does not contribute an `AppDescriptor`, App Binding catalog/scopes, managed bindings, or Runtime Dynamic Tool declarations.
 
-A managed runtime contributes:
+The source captures one trusted planning thread and contributes only that thread's role surface. The native runtime rejects a call whose invocation thread differs from the captured thread or whose plugin has been disabled. `TeamsService` then validates current Mission membership, Leader/teammate identity, task assignee, cross-Mission references, and terminal/archived state inside the Teams-store transaction.
 
-- An `AppDescriptor`.
-- App-bound `DynamicToolSpec` entries.
-- In-process tool handlers.
-
-Managed runtimes use the same App Binding records, scopes, tools, context blocks, prompt rendering, and audit as external apps. They do not use external stdio/WebSocket tool transport, and they are not marked offline merely because no external attachment exists.
-
-This is a substrate convenience for first-party apps. The external contracts must keep the external app shape so Teams can later become a separate native app without changing the thread model.
-
-Managed runtime descriptors are not product App catalog entries on their own. `DotCraft.Teams` is owned by the `agent-teams` Desktop Extension plugin and may appear only on `welcome` and `threadBinding` App Binding surfaces after that plugin is installed and enabled. It must never appear on `pluginDetail`, and DotCraft must not expose it by creating a synthetic installed plugin.
-
-Ordinary threads get only an explicit Team entrypoint, and completed Mission output is delivered back to the origin thread as a structured runtime notification. DotCraft keeps the Mission shell, Leader/teammate Mission threads, and role-specific managed bindings as first-party product boundaries.
+Teams uses service-owned live validation instead of a separate authority role, revision, state object, or `IToolAuthorityEvaluator`. `MemberId == "leader"` selects the Leader tool surface; all other product roles use the teammate surface.
 
 ---
 
@@ -480,7 +410,8 @@ Ordinary threads get only an explicit Team entrypoint, and completed Mission out
 `DotCraft.Teams` registers:
 
 ```text
-appId: com.dotharness.dotcraft-teams
+sourceKind: PluginNative
+sourceId: agent-teams
 toolNamespace: teams
 ```
 
@@ -489,7 +420,6 @@ Required RPCs:
 | Method | Description |
 |--------|-------------|
 | `teams/team/view` | Returns the current team, members, active missions, archived mission summaries, task graph, mailbox digests, review status, final responses, artifacts, and thread runtime hints. |
-| `teams/team/enable` | Internal Desktop repair/ensure RPC. Creates or repairs the workspace team roster after the `agent-teams` plugin is installed and enabled. It is not a user-visible enablement flow. |
 | `teams/mission/create` | Creates a mission and enqueues the Leader input. |
 | `teams/mission/cancel` | Cancels a Teams-owned mission. |
 | `teams/mission/archive` | Archives a terminal Teams-owned mission without deleting its state. |
@@ -516,7 +446,7 @@ Required tools:
 | `MarkTaskDone` | Any member marks its assigned Teams task complete, records final output summary, and triggers scheduler reconciliation. |
 | `MarkMissionDone` | Leader finalizes a Teams mission with `finalResponse`. |
 
-Ordinary user threads receive a separate managed tool surface only when the user explicitly enables Agent Teams for that thread. V1 exposes one tool:
+Eligible ordinary user threads receive one native entrypoint whenever the workspace plugin is enabled:
 
 | Tool | Surface | Description |
 |------|---------|-------------|
@@ -524,9 +454,9 @@ Ordinary user threads receive a separate managed tool surface only when the user
 
 `CreateTeam` is asynchronous from the origin thread's point of view. It returns `missionId`, `title`, `leaderThreadId`, `queuedInputId`, and `status`; it must not wait for the Mission's final answer. It must not expose internal collaboration tools such as `AssignTask`, `MarkTaskDone`, or `MarkMissionDone` to the ordinary thread.
 
-When the Leader later calls `MarkMissionDone(finalResponse)`, Teams records the final response on the Mission. If the Mission was created through `CreateTeam`, Teams then enqueues exactly one `team`-triggered structured notification back to the origin thread. The notification includes Mission id, status, `finalResponse`, and task/artifact summaries. If the origin thread no longer exists or cannot accept queued input, Mission completion still succeeds and the final response remains available in Teams state/Desktop.
+When the Leader later calls `MarkMissionDone(finalResponse)`, Teams records the final response on the Mission. If the Mission was created through `CreateTeam`, Teams then enqueues exactly one `team`-triggered structured notification back to the origin thread. The notification includes Mission id, status, `finalResponse`, and task/artifact summaries. If the origin thread is unavailable or cannot accept queued input, Mission completion still succeeds and the final response remains available in Teams state/Desktop.
 
-Teams tool exposure is role-specific. First-party managed Teams workflow tools are high-frequency state-control tools and should be directly visible to the model for the roles that can use them. This exception applies only to the managed `DotCraft.Teams` runtime; it must not weaken the default App Binding policy that external mutable app tools may be deferred.
+Teams tool exposure is role-specific. Every Teams tool is directly visible to the model for the surface that can use it.
 
 | Role surface | Direct Teams tools |
 |--------------|--------------------|
@@ -540,6 +470,13 @@ Tools outside the caller's role surface should not be advertised for that Missio
 - Teammates cannot call `CreateMissionPlan`, `AssignTask`, or `MarkMissionDone`.
 - `ReportProgress`, `PublishArtifact`, and `MarkTaskDone` remain assignee-thread scoped.
 - `MarkMissionDone` remains Leader-thread scoped.
+
+Source selection is fail closed:
+
+- `CreateTeam` is contributed only when the trusted `ToolPlanningThreadKind` is `UserTopLevel` and no `MissionThreadRecord` exists.
+- `ModuleManaged`, `SubAgentChild`, `Unattended`, `Internal`, and `Unknown` planning contexts do not receive `CreateTeam`.
+- A thread with an invalid, terminal, or archived `MissionThreadRecord` receives no Teams tools and never falls back to the ordinary surface.
+- The plugin being disabled produces no Teams registrations and invalidates live leases.
 
 Tool calls update Teams state and must not write raw mailbox or message events into DotCraft thread history. `SendMessage` records a lightweight `TeamMessage`, updates mailbox digests, and triggers scheduler reconciliation; it does not directly enqueue the target Mission teammate thread, create a full inbox/read-ack protocol, or create a canonical conversation turn. `ReportProgress`, `PublishArtifact`, and `MarkTaskDone` must reject calls unless the calling thread is the assignee's Mission thread for the target Task.
 
@@ -573,7 +510,7 @@ There is no model-visible wait tool. Waiting is represented by ending the curren
 
 `ReportProgress` may record `running` progress or a `blocked` state with an actionable summary. It is not a completion signal; a model response such as `completed` must not mark a Task done. Tasks are completed only by `MarkTaskDone` or by Mission cancellation.
 
-`PublishArtifact` records explicit artifacts only. It accepts one `pathOrUri` argument. Teams infers artifact kind and format from the URI/path and writes legacy `description` from `summary` when useful. It must not automatically complete a Task or convert ordinary assistant prose into an artifact.
+`PublishArtifact` records explicit artifacts only. It accepts one `pathOrUri` argument. Teams infers artifact kind and format from the URI/path and stores the optional `summary`. It must not automatically complete a Task or convert ordinary assistant prose into an artifact.
 
 `MarkTaskDone` records the completion summary as the Task digest, latest update, and output summary, but it must not automatically create artifacts. Reusable files, links, or structured deliverables must be published with `PublishArtifact`.
 
@@ -585,18 +522,19 @@ There is no model-visible wait tool. Waiting is represented by ending the curren
 
 Security requirements:
 
-- Teams must not bypass App Binding grant checks by calling generic `turn/start` as an app credential.
-- App-triggered input is always queued first.
+- Teams tools execute only through the unified native dispatcher and standard tool lifecycle.
+- Scheduler input is always queued first through `ISessionService`.
 - `runWhenIdle` starts only when the target thread has no running, waiting-approval, waiting-input, or maintenance work and the teammate has no other running or waiting Mission thread.
 - Teams scheduler dispatch must be idempotent: repeated reconciliation of the same state must not duplicate queued inputs for the same mission/task/message wakeup.
-- Teams scheduler may wake a Leader or teammate only through `app/threadInput/enqueue`; mailbox events and task state changes alone are not thread execution.
+- Teams scheduler may wake a Leader or teammate only through Session queued input; mailbox events and task state changes alone are not thread execution.
 - Leader continuation wakeups must be idempotent: a task result, blocker, synthesis need, teammate message, or finalization event may produce at most one active Leader queued input for the same Mission event.
 - Completion-recovery wakeups must be one-shot per task attempt. A repeated runtime completion signal for the same unresolved task must not enqueue unbounded recovery turns.
-- Stale queued-input ids used for Leader continuation, task dispatch, mailbox delivery, or recovery must be cleared when the referenced queued input is consumed, cancelled, superseded, or no longer matches current Teams state.
+- Stale queued-input ids used for Leader continuation, task dispatch, mailbox delivery, or recovery must be cleared when the referenced queued input is consumed, cancelled, superseded, or does not match current Teams state.
 - Scheduler delivery must prefer Leader coordination messages over peer-to-peer messages when a teammate has both pending, actionable mailbox events.
-- Context and input operations must record App Binding audit.
-- Revoked or expired bindings stop prompt inclusion, tool use, and app-triggered enqueue.
-- Thread export/import may preserve lightweight summaries but must not reactivate bindings, grants, tools, or model-visible context blocks.
+- Plugin disablement stops new tool exposure and rejects stale runtime leases.
+- The invocation thread must match the thread captured by the tool snapshot.
+- Teams service validation derives the caller from the trusted invocation thread; model arguments cannot override mission/member/thread identity.
+- Thread export/import may preserve lightweight summaries but must not reactivate archived Missions or synthesize tool authority.
 
 Desktop requirements:
 
@@ -606,7 +544,7 @@ Desktop requirements:
 - The Team panel shows `finalResponse` for done Missions.
 - The Team panel must not present raw mailbox events as thread turns.
 - The Team panel must not be reachable from the sidebar before the `agent-teams` plugin is installed and enabled.
-- After the plugin is enabled, the Team panel may automatically call `teams/team/enable` to create or repair default members before creating the first Mission.
+- After the plugin is enabled, `teams/team/view` and Mission creation may idempotently initialize or repair the schema-v1 default roster.
 - While the `agent-teams` plugin is installed and enabled, Desktop includes the `teams` origin in `thread/list.crossChannelOrigins` so active Teams Mission threads appear in the ordinary conversation list. This does not imply that other `system` origins such as `cron` or `heartbeat` should be listed by default.
 - Desktop must refresh ordinary thread discovery when it receives `teams/team/changed`, because Team operations such as Mission archive may archive mission-scoped teammate threads as a side effect.
 - The Team panel may observe `teams/team/changed`, `thread/queue/updated`, `thread/runtimeChanged`, and `turn/*` notifications for refresh, but must not replace, clear, or otherwise disrupt Desktop's global AppServer notification handling, active thread subscription, approval/user-input routing, or conversation streaming.

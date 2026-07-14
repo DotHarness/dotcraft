@@ -22,87 +22,126 @@ public static class PluginFunctionSchemaValidator
             return false;
         }
 
-        var type = schema["type"]?.GetValue<string>();
-        if (string.IsNullOrWhiteSpace(type))
-        {
-            message = $"{path}.type is required.";
+        if (!TryGetSchemaTypes(schema, path, requireType: true, out var types, out message))
             return false;
-        }
 
-        switch (type)
+        foreach (var type in types)
         {
-            case "object":
-                if (schema["properties"] is JsonNode propertiesNode
-                    && propertiesNode is not JsonObject)
-                {
-                    message = $"{path}.properties must be an object.";
-                    return false;
-                }
-
-                if (schema["required"] is JsonNode requiredNode
-                    && requiredNode is not JsonArray)
-                {
-                    message = $"{path}.required must be an array.";
-                    return false;
-                }
-
-                if (schema["required"] is JsonArray required)
-                {
-                    var props = schema["properties"] as JsonObject;
-                    foreach (var item in required)
+            switch (type)
+            {
+                case "object":
+                    if (schema["properties"] is JsonNode propertiesNode
+                        && propertiesNode is not JsonObject)
                     {
-                        var name = item?.GetValue<string>();
-                        if (string.IsNullOrWhiteSpace(name))
-                        {
-                            message = $"{path}.required entries must be strings.";
-                            return false;
-                        }
+                        message = $"{path}.properties must be an object.";
+                        return false;
+                    }
 
-                        if (props != null && !props.ContainsKey(name))
+                    if (schema["required"] is JsonNode requiredNode
+                        && requiredNode is not JsonArray)
+                    {
+                        message = $"{path}.required must be an array.";
+                        return false;
+                    }
+
+                    if (schema["required"] is JsonArray required)
+                    {
+                        var props = schema["properties"] as JsonObject;
+                        foreach (var item in required)
                         {
-                            message = $"{path}.required references unknown property '{name}'.";
-                            return false;
+                            var name = item?.GetValue<string>();
+                            if (string.IsNullOrWhiteSpace(name))
+                            {
+                                message = $"{path}.required entries must be strings.";
+                                return false;
+                            }
+
+                            if (props != null && !props.ContainsKey(name))
+                            {
+                                message = $"{path}.required references unknown property '{name}'.";
+                                return false;
+                            }
                         }
                     }
-                }
 
-                if (schema["properties"] is JsonObject nestedProperties)
-                {
-                    foreach (var (propertyName, propertySchema) in nestedProperties)
+                    if (schema["properties"] is JsonObject nestedProperties)
                     {
-                        if (!TryValidateSchemaNode(propertySchema, $"{path}.properties.{propertyName}", out message))
-                            return false;
+                        foreach (var (propertyName, propertySchema) in nestedProperties)
+                        {
+                            if (!TryValidateSchemaNode(propertySchema, $"{path}.properties.{propertyName}", out message))
+                                return false;
+                        }
                     }
-                }
 
-                message = string.Empty;
-                return true;
+                    break;
 
-            case "array":
-                if (schema["items"] is not JsonNode itemsNode)
-                {
-                    message = $"{path}.items is required for array schemas.";
+                case "array":
+                    if (schema["items"] is not JsonNode itemsNode)
+                    {
+                        message = $"{path}.items is required for array schemas.";
+                        return false;
+                    }
+
+                    if (!TryValidateSchemaNode(itemsNode, $"{path}.items", out message))
+                        return false;
+                    break;
+
+                case "string":
+                case "number":
+                case "integer":
+                case "boolean":
+                case "null":
+                    break;
+
+                default:
+                    message = $"{path}.type '{type}' is not supported.";
                     return false;
-                }
-
-                return TryValidateSchemaNode(itemsNode, $"{path}.items", out message);
-
-            case "string":
-            case "number":
-            case "integer":
-            case "boolean":
-                message = string.Empty;
-                return true;
-
-            default:
-                message = $"{path}.type '{type}' is not supported.";
-                return false;
+            }
         }
+
+        message = string.Empty;
+        return true;
     }
 
     private static bool TryValidateValue(JsonObject schema, JsonNode? value, string path, out string message)
     {
-        var type = schema["type"]?.GetValue<string>() ?? "object";
+        if (!TryGetSchemaTypes(schema, path, requireType: false, out var types, out message))
+            return false;
+
+        if (value is null && types.Contains("null", StringComparer.Ordinal))
+        {
+            message = string.Empty;
+            return true;
+        }
+
+        string? firstFailure = null;
+        foreach (var type in types)
+        {
+            if (type == "null")
+                continue;
+
+            if (TryValidateValueAsType(schema, value, path, type, out var typeMessage))
+            {
+                message = string.Empty;
+                return true;
+            }
+
+            firstFailure ??= typeMessage;
+        }
+
+        message = types.Count == 1
+            ? firstFailure ?? $"{path} does not match schema type '{types[0]}'."
+            : $"{path} must match one of the schema types: {string.Join(", ", types)}.";
+        return false;
+    }
+
+    private static bool TryValidateValueAsType(
+        JsonObject schema,
+        JsonNode? value,
+        string path,
+        string type,
+        out string message)
+    {
         switch (type)
         {
             case "object":
@@ -216,6 +255,65 @@ public static class PluginFunctionSchemaValidator
                 message = $"{path} uses unsupported schema type '{type}'.";
                 return false;
         }
+    }
+
+    private static bool TryGetSchemaTypes(
+        JsonObject schema,
+        string path,
+        bool requireType,
+        out IReadOnlyList<string> types,
+        out string message)
+    {
+        var typeNode = schema["type"];
+        if (typeNode is null)
+        {
+            if (requireType)
+            {
+                types = [];
+                message = $"{path}.type is required.";
+                return false;
+            }
+
+            types = ["object"];
+            message = string.Empty;
+            return true;
+        }
+
+        if (typeNode is JsonValue value
+            && value.TryGetValue<string>(out var singleType)
+            && !string.IsNullOrWhiteSpace(singleType))
+        {
+            types = [singleType];
+            message = string.Empty;
+            return true;
+        }
+
+        if (typeNode is not JsonArray array || array.Count == 0)
+        {
+            types = [];
+            message = $"{path}.type must be a string or a non-empty array of strings.";
+            return false;
+        }
+
+        var parsedTypes = new List<string>(array.Count);
+        foreach (var item in array)
+        {
+            if (item is not JsonValue itemValue
+                || !itemValue.TryGetValue<string>(out var itemType)
+                || string.IsNullOrWhiteSpace(itemType))
+            {
+                types = [];
+                message = $"{path}.type entries must be non-empty strings.";
+                return false;
+            }
+
+            if (!parsedTypes.Contains(itemType, StringComparer.Ordinal))
+                parsedTypes.Add(itemType);
+        }
+
+        types = parsedTypes;
+        message = string.Empty;
+        return true;
     }
 
     private static bool IsJsonInteger(JsonNode? value)

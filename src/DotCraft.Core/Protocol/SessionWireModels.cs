@@ -266,6 +266,12 @@ public sealed record SessionWireThread
     public ThreadOriginAppWire? OriginApp { get; init; }
 
     /// <summary>
+    /// Source-neutral origin presentation resolved by an in-process provider.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public ThreadOriginPresentationWire? OriginPresentation { get; init; }
+
+    /// <summary>
     /// Turn summaries. Populated only when the caller requests turn history (e.g. thread/read with includeTurns = true).
     /// </summary>
     public List<SessionWireTurn>? Turns { get; init; }

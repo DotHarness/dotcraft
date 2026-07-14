@@ -47,10 +47,11 @@ Ordinary generated agents build base instructions from stable sections in this o
 | 15 | Custom command summary | Omitted for light prompt profiles. |
 | 16 | Global prompt context | Process-wide prompt extension points. |
 | 17 | Runtime additional context | AppServer client-bound ephemeral context. |
-| 18 | App Binding context blocks | Thread-bound app context. |
-| 19 | Deferred capability discovery | Included only when deferred loading is active and not using a light prompt profile. |
-| 20 | SubAgent light context | Included only for light prompt profiles. |
-| 21 | Role instructions | Final role-level specialization for the thread. |
+| 18 | Teams mission context | Stable `teams/mission` page for Mission threads only. |
+| 19 | App Binding context blocks | Thread-bound external app context. |
+| 20 | Deferred capability discovery | Included only when deferred loading is active and not using a light prompt profile. |
+| 21 | SubAgent light context | Included only for light prompt profiles. |
+| 22 | Role instructions | Final role-level specialization for the thread. |
 
 The light prompt profile keeps essential identity, workspace guidance, skill visibility, thread-scoped app/runtime context, compact SubAgent context, and role instructions. It omits heavier or parent-oriented sections.
 
@@ -131,9 +132,9 @@ Agent Teams composes three prompt/context mechanisms for mission threads:
 |-----------|-----------|---------|
 | Member Agent Profile | Role instructions, first segment | Member personality, capability policy, model/mode defaults. |
 | Teams mission role instructions | Role instructions, appended segment | Mission identity, workflow rules, and tool-use contract. |
-| Teams App Context Blocks | App context section before role instructions | Fixed role, mission, and policy context owned by Teams. |
+| Teams mission context | Stable `teams/mission` context page before role instructions | Fixed member, mission, scratchpad, and policy context owned by Teams. |
 
-Teams role instructions are authoritative for Teams workflow boundaries, but Teams state remains authoritative for scheduling. Live task state, mailbox digests, teammate progress, artifacts, and review status must be read through Teams state/tools, not inferred from prompt text.
+Teams role instructions are authoritative for Teams workflow boundaries, but Teams state remains authoritative for scheduling and business authorization. The `teams/mission` page contains only immutable Mission-thread context and therefore is not refreshed for ordinary Teams state changes. Live task state, mailbox digests, teammate progress, messages, artifacts, and review status must be read through Teams state/tools or delivered as queued input, not inferred from prompt text. Teams does not create App Binding context blocks.
 
 ---
 

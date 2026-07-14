@@ -13,6 +13,7 @@ internal sealed class AppServerThreadWireProjector(
     SkillsLoader? skillsLoader,
     PlanStore? planStore,
     AppBindingService? appBindingService,
+    IReadOnlyList<IThreadOriginPresentationProvider>? originPresentationProviders,
     IReadOnlyList<string>? builtInPluginSourceRoots)
 {
     public async Task<SessionWireThread> ProjectAsync(
@@ -34,10 +35,12 @@ internal sealed class AppServerThreadWireProjector(
         SessionWireThread wire,
         SessionThread thread,
         CancellationToken ct) =>
-        await HydrateThreadGoalAsync(WithAppBindingAttribution(wire, thread.Id, thread.WorkspacePath), ct);
+        await HydrateThreadGoalAsync(
+            WithOriginPresentation(WithAppBindingAttribution(wire, thread.Id, thread.WorkspacePath)),
+            ct);
 
     public SessionWireThread EnrichForNotification(SessionWireThread wire) =>
-        WithAppBindingAttribution(wire, wire.Id, wire.WorkspacePath);
+        WithOriginPresentation(WithAppBindingAttribution(wire, wire.Id, wire.WorkspacePath));
 
     public async Task<ThreadGoalWire?> TryGetGoalSnapshotAsync(string threadId, CancellationToken ct)
     {
@@ -61,6 +64,11 @@ internal sealed class AppServerThreadWireProjector(
         CancellationToken ct)
     {
         summary.Goal = await TryGetGoalSnapshotAsync(summary.Id, ct);
+        summary.OriginPresentation = ResolveOriginPresentation(
+            summary.Id,
+            summary.WorkspacePath,
+            summary.OriginChannel,
+            summary.ChannelContext);
         if (appBindingService == null)
             return;
 
@@ -123,6 +131,16 @@ internal sealed class AppServerThreadWireProjector(
     public SessionWireThread WithWidgetState(SessionWireThread wire, string threadId)
         => wire;
 
+    public SessionWireThread WithOriginPresentation(SessionWireThread wire)
+    {
+        var presentation = ResolveOriginPresentation(
+            wire.Id,
+            wire.WorkspacePath,
+            wire.OriginChannel,
+            wire.ChannelContext);
+        return presentation is null ? wire : wire with { OriginPresentation = presentation };
+    }
+
     public SessionWireThread WithAppBindingAttribution(
         SessionWireThread wire,
         string threadId,
@@ -158,6 +176,30 @@ internal sealed class AppServerThreadWireProjector(
             craftPath,
             skillsLoader,
             builtInPluginSourceRoots);
+    }
+
+    private ThreadOriginPresentationWire? ResolveOriginPresentation(
+        string threadId,
+        string workspacePath,
+        string originChannel,
+        string? channelContext)
+    {
+        if (originPresentationProviders is null || originPresentationProviders.Count == 0)
+            return null;
+
+        var context = new ThreadOriginPresentationContext(
+            threadId,
+            workspacePath,
+            originChannel,
+            channelContext);
+        foreach (var provider in originPresentationProviders)
+        {
+            var presentation = provider.Resolve(context);
+            if (presentation is not null)
+                return presentation;
+        }
+
+        return null;
     }
 
     public void RevokeAppBindingsForDeletedThread(SessionThread thread)

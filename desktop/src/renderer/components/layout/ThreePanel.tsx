@@ -34,7 +34,6 @@ function isDetailPanelEffectivelyVisible(
     activeMainView === 'channels' ||
     activeMainView === 'skills' ||
     activeMainView === 'automations' ||
-    activeMainView === 'teams' ||
     isWelcomeState
   ) && detailPanelVisible
 }

@@ -55,6 +55,23 @@ public enum ToolBindingAvailability
     Unavailable,
 }
 
+/// <summary>Classifies the trusted thread shape supplied to tool sources during planning.</summary>
+public enum ToolPlanningThreadKind
+{
+    /// <summary>The thread could not be safely classified.</summary>
+    Unknown,
+    /// <summary>A user-facing top-level conversation, including ordinary forks and siblings.</summary>
+    UserTopLevel,
+    /// <summary>A thread owned by a product module, such as an Agent Teams mission thread.</summary>
+    ModuleManaged,
+    /// <summary>A child session created by the SubAgent runtime.</summary>
+    SubAgentChild,
+    /// <summary>Unattended automation, cron, heartbeat, or equivalent background work.</summary>
+    Unattended,
+    /// <summary>An internal or ephemeral DotCraft helper thread.</summary>
+    Internal,
+}
+
 /// <summary>A case-sensitive canonical tool name with an optional namespace.</summary>
 public readonly record struct ToolName
 {
@@ -278,7 +295,8 @@ public sealed class ToolPlanningContext
         string mode,
         string? profile,
         IEnumerable<string>? providerCapabilities,
-        long revision)
+        long revision,
+        ToolPlanningThreadKind threadKind = ToolPlanningThreadKind.Unknown)
     {
         if (string.IsNullOrWhiteSpace(threadId))
             throw new ArgumentException("A thread identifier is required.", nameof(threadId));
@@ -294,6 +312,7 @@ public sealed class ToolPlanningContext
         ProviderCapabilities = (providerCapabilities ?? [])
             .ToFrozenSet(StringComparer.Ordinal);
         Revision = revision;
+        ThreadKind = threadKind;
     }
 
     /// <summary>Gets the thread identifier.</summary>
@@ -310,6 +329,8 @@ public sealed class ToolPlanningContext
     public IReadOnlySet<string> ProviderCapabilities { get; }
     /// <summary>Gets the snapshot revision to create.</summary>
     public long Revision { get; }
+    /// <summary>Gets the trusted thread classification frozen for this planning operation.</summary>
+    public ToolPlanningThreadKind ThreadKind { get; }
 }
 
 /// <summary>Identifies the trusted host surface that initiated a direct tool invocation.</summary>

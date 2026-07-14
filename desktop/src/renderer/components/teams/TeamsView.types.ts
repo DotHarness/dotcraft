@@ -3,8 +3,6 @@ export type TeamMember = {
   role: string
   displayName: string
   description: string
-  threadId?: string | null
-  bindingId: string
   avatarAccent: string
   status: string
   currentTaskId?: string | null
@@ -77,7 +75,7 @@ export type ArtifactRef = {
   memberId: string
   title: string
   uri: string
-  description?: string
+  summary?: string | null
 }
 
 export type MailboxDigest = {
@@ -91,8 +89,6 @@ export type MissionThread = {
   missionId: string
   memberId: string
   threadId: string
-  bindingId: string
-  grantId: string
   status: string
   currentTaskId?: string | null
   queuedInputId?: string | null
@@ -107,8 +103,9 @@ export type MissionThread = {
 
 export type TeamView = {
   team: {
-    enabled: boolean
-    updatedAt?: string
+    teamId: string
+    createdAt: string
+    updatedAt: string
   }
   stats: {
     runningMembers: number

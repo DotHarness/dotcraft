@@ -2,6 +2,7 @@ import { act, fireEvent, render, screen, waitFor, within } from '@testing-librar
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { LocaleProvider } from '../contexts/LocaleContext'
 import { TeamsView } from '../components/teams/TeamsView'
+import type { TeamView } from '../components/teams/TeamsView.types'
 import { useThreadStore } from '../stores/threadStore'
 import { useUIStore } from '../stores/uiStore'
 
@@ -33,8 +34,12 @@ function numericStyle(value: string | undefined, fallback: number): number {
   return Number.isFinite(parsed) ? parsed : fallback
 }
 
-const teamView = {
-  team: { enabled: true, updatedAt: '2026-05-23T00:00:00Z' },
+const teamView: TeamView = {
+  team: {
+    teamId: 'default',
+    createdAt: '2026-05-23T00:00:00Z',
+    updatedAt: '2026-05-23T00:00:00Z'
+  },
   stats: {
     runningMembers: 1,
     queuedInputs: 0,
@@ -107,8 +112,6 @@ const teamView = {
       missionId: 'mission-1',
       memberId: 'leader',
       threadId: 'thread-leader',
-      bindingId: 'binding-leader',
-      grantId: 'grant-leader',
       status: 'running',
       createdAt: '2026-05-23T00:00:00Z',
       updatedAt: '2026-05-23T00:00:00Z',
@@ -119,8 +122,6 @@ const teamView = {
       missionId: 'mission-1',
       memberId: 'builder',
       threadId: 'thread-builder',
-      bindingId: 'binding-builder',
-      grantId: 'grant-builder',
       status: 'queued',
       currentTaskId: 'task-1',
       createdAt: '2026-05-23T00:00:00Z',
@@ -326,7 +327,7 @@ describe('TeamsView mission-thread model', () => {
     notificationHandler = undefined
     currentTeamView = teamView
     useThreadStore.getState().reset()
-    useUIStore.setState({ activeMainView: 'teams' })
+    useUIStore.setState({ activeMainView: 'extension:agent-teams:team-card-board:teams' })
     Object.defineProperty(window, 'ResizeObserver', {
       configurable: true,
       value: class {

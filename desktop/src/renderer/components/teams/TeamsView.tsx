@@ -246,17 +246,12 @@ export function TeamsView(): JSX.Element {
     })
   }
 
-  async function refresh(options?: { repair?: boolean }): Promise<void> {
+  async function refresh(): Promise<void> {
     setLoading(true)
     setError(null)
     try {
       const result = await window.api.appServer.sendRequest('teams/team/view', {})
-      let next = normalizeTeamView(result)
-      if (options?.repair && (!next.team.enabled || next.members.length === 0)) {
-        const repaired = await window.api.appServer.sendRequest('teams/team/enable', {})
-        next = normalizeTeamView(repaired)
-      }
-      setTeamView(next)
+      setTeamView(normalizeTeamView(result))
       setTeamViewLoaded(true)
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err))
@@ -391,7 +386,7 @@ export function TeamsView(): JSX.Element {
   }
 
   useEffect(() => {
-    void refresh({ repair: true })
+    void refresh()
     const unsubscribe = window.api.appServer.onNotification((payload: { method: string }) => {
       if (
         payload.method === 'teams/team/changed' ||
@@ -510,12 +505,11 @@ export function TeamsView(): JSX.Element {
       missions: visibleMissions,
       tasks: visibleTasks,
       missionThreads: teamView.missionThreads,
-      teamEnabled: teamView.team.enabled,
       actorStates,
       cardOverrides,
       boardVisibleLogicalHeight
     }),
-    [actorStates, boardVisibleLogicalHeight, cardOverrides, locale, teamView.members, teamView.missionThreads, teamView.team.enabled, visibleMissions, visibleTasks]
+    [actorStates, boardVisibleLogicalHeight, cardOverrides, locale, teamView.members, teamView.missionThreads, visibleMissions, visibleTasks]
   )
 
   const boardCards = boardModel.cards
@@ -691,7 +685,7 @@ export function TeamsView(): JSX.Element {
       activeVisibleMissionIdSet.has(task.missionId) &&
       memberIds.has(task.assigneeMemberId) &&
       task.assigneeMemberId !== 'leader' &&
-      !['done', 'completed', 'complete', 'succeeded', 'success', 'cancelled', 'canceled'].includes(task.status.toLowerCase()))
+      !['done', 'cancelled'].includes(task.status.toLowerCase()))
 
     if (!taskDispatchBaselineReadyRef.current) {
       for (const task of taskDispatches) {
@@ -1063,11 +1057,8 @@ export function TeamsView(): JSX.Element {
   }, [boardScale])
 
   const selectedKey = selectedCardToKey(selectedCard)
-  const teamReady = teamView.team.enabled && teamView.members.length > 0
-  const draftActionLabel = teamReady
-    ? translate(locale, 'teams.createMission')
-    : translate(locale, 'teams.preparingTeam')
-  const draftActionDisabled = creating || loading || !teamReady || !title.trim()
+  const draftActionLabel = translate(locale, 'teams.createMission')
+  const draftActionDisabled = creating || loading || !title.trim()
   const actionOpenThread = selectedDetail.actionOpenThread
   const actionMission = selectedDetail.actionMission
   const selectedMissionForDiscard = selectedCard.kind === 'mission'
@@ -1858,7 +1849,7 @@ export function TeamsView(): JSX.Element {
                 {translate(locale, 'common.cancel')}
               </button>
               <button type="submit" disabled={draftActionDisabled}>
-                {creating || loading || !teamReady ? <Loader2 className="teams-card-loading" size={15} strokeWidth={2} aria-hidden /> : <Plus size={15} strokeWidth={2} aria-hidden />}
+                {creating || loading ? <Loader2 className="teams-card-loading" size={15} strokeWidth={2} aria-hidden /> : <Plus size={15} strokeWidth={2} aria-hidden />}
                 <span>{draftActionLabel}</span>
               </button>
             </div>

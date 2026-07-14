@@ -296,6 +296,50 @@ public sealed class AppServerThreadLifecycleTests : IDisposable
     }
 
     [Fact]
+    public async Task ThreadStart_OriginPresentationProvider_EnrichesResponseAndNotification()
+    {
+        using var harness = new AppServerTestHarness(
+            threadOriginPresentationProviders: [new TestOriginPresentationProvider()]);
+        await harness.InitializeAsync();
+
+        var msg = harness.BuildRequest(AppServerMethods.ThreadStart, new
+        {
+            identity = new
+            {
+                channelName = "teams",
+                userId = "dotcraft-teams",
+                channelContext = "mission_1:builder",
+                workspacePath = harness.Identity.WorkspacePath
+            }
+        });
+        await harness.ExecuteRequestAsync(msg);
+
+        using var response = await harness.Transport.ReadNextSentAsync();
+        using var notification = await harness.Transport.ReadNextSentAsync();
+        AppServerTestHarness.AssertIsSuccessResponse(response);
+        AppServerTestHarness.AssertIsNotification(notification, AppServerMethods.ThreadStarted);
+
+        AssertOriginPresentation(response.RootElement.GetProperty("result").GetProperty("thread"));
+        AssertOriginPresentation(notification.RootElement.GetProperty("params").GetProperty("thread"));
+
+        await harness.ExecuteRequestAsync(harness.BuildRequest(AppServerMethods.ThreadList, new
+        {
+            identity = new
+            {
+                channelName = "teams",
+                userId = "dotcraft-teams",
+                channelContext = "mission_1:builder",
+                workspacePath = harness.Identity.WorkspacePath
+            }
+        }));
+        using var listResponse = await harness.Transport.ReadNextSentAsync();
+        AppServerTestHarness.AssertIsSuccessResponse(listResponse);
+        var listedThread = Assert.Single(
+            listResponse.RootElement.GetProperty("result").GetProperty("data").EnumerateArray());
+        AssertOriginPresentation(listedThread);
+    }
+
+    [Fact]
     public async Task ThreadStart_WithAgentBuilderTarget_ProjectsInternalMetadataAndListExcludesIt()
     {
         var msg = _h.BuildRequest(AppServerMethods.ThreadStart, new
@@ -1892,6 +1936,37 @@ public sealed class AppServerThreadLifecycleTests : IDisposable
         turn.Input = userItem;
         turn.Items.Add(userItem);
         thread.Turns.Add(turn);
+    }
+
+    private static void AssertOriginPresentation(JsonElement thread)
+    {
+        var presentation = thread.GetProperty("originPresentation");
+        Assert.Equal("agent-teams", presentation.GetProperty("sourceId").GetString());
+        Assert.Equal("Builder", presentation.GetProperty("displayName").GetString());
+        Assert.Equal("data:image/svg+xml;base64,dGVzdA==", presentation.GetProperty("icon").GetString());
+        Assert.Equal("builder", presentation.GetProperty("subjectId").GetString());
+        Assert.Equal("member", presentation.GetProperty("subjectKind").GetString());
+    }
+
+    private sealed class TestOriginPresentationProvider : IThreadOriginPresentationProvider
+    {
+        public ThreadOriginPresentationWire? Resolve(ThreadOriginPresentationContext context)
+        {
+            if (!string.Equals(context.OriginChannel, "teams", StringComparison.OrdinalIgnoreCase)
+                || !string.Equals(context.ChannelContext, "mission_1:builder", StringComparison.Ordinal))
+            {
+                return null;
+            }
+
+            return new ThreadOriginPresentationWire
+            {
+                SourceId = "agent-teams",
+                DisplayName = "Builder",
+                Icon = "data:image/svg+xml;base64,dGVzdA==",
+                SubjectId = "builder",
+                SubjectKind = "member"
+            };
+        }
     }
 
     private async Task<(SessionThread Parent, SessionThread Child)> CreatePathSubAgentAsync(

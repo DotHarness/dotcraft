@@ -62,10 +62,10 @@ public sealed class AppServerEventDispatcherDisconnectTests
                 {
                     OriginApp = new ThreadOriginAppWire
                     {
-                        AppId = "com.dotharness.dotcraft-teams",
-                        DisplayName = "Explorer",
-                        Icon = "data:image/svg+xml;base64,SENTINEL_EXPLORER",
-                        MemberId = "explorer"
+                        AppId = "com.example.workflow",
+                        DisplayName = "Worker",
+                        Icon = "data:image/svg+xml;base64,SENTINEL_WORKER",
+                        MemberId = "worker"
                     }
                 };
             });
@@ -76,8 +76,8 @@ public sealed class AppServerEventDispatcherDisconnectTests
         Assert.Equal(thread.Id, enricherInput!.Id);
         var sent = Assert.Single(transport.Sent);
         var json = JsonSerializer.Serialize(sent, sent.GetType());
-        Assert.Contains("SENTINEL_EXPLORER", json);
-        Assert.Contains("explorer", json);
+        Assert.Contains("SENTINEL_WORKER", json);
+        Assert.Contains("worker", json);
     }
 
     [Fact]
