@@ -1209,7 +1209,7 @@ Legend:
 | MCP | `mcp/get` | `mcpManagement` | Raw | `RequestAsync` |
 | MCP | `mcp/upsert` | `mcpManagement` | Raw | `RequestAsync` |
 | MCP | `mcp/remove` | `mcpManagement` | Raw | `RequestAsync` |
-| MCP | `mcp/status/list` | `mcpStatus` | Raw | `RequestAsync` |
+| MCP runtime | `mcpServerStatus/list` | `mcpRuntime` | Typed | `McpRuntime.StatusListAsync` |
 | MCP | `mcp/test` | `mcpManagement` | Raw | `RequestAsync` |
 | External channels | `externalChannel/list` | `externalChannelManagement` | Raw | `RequestAsync` |
 | External channels | `externalChannel/get` | `externalChannelManagement` | Raw | `RequestAsync` |

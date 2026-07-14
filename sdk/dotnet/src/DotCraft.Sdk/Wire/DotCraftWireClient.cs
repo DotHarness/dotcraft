@@ -114,13 +114,15 @@ public sealed class DotCraftWireClient : IAsyncDisposable
 
         try
         {
-            await _transport.WriteAsync(new
+            var request = new Dictionary<string, object?>
             {
-                jsonrpc = "2.0",
-                id,
-                method,
-                @params = parameters ?? new { }
-            }, cancellationToken);
+                ["jsonrpc"] = "2.0",
+                ["id"] = id,
+                ["method"] = method
+            };
+            if (parameters is not null)
+                request["params"] = parameters;
+            await _transport.WriteAsync(request, cancellationToken);
 
             using var cts = CancellationTokenSource.CreateLinkedTokenSource(_disposeCts.Token, cancellationToken);
             cts.CancelAfter(timeout ?? TimeSpan.FromSeconds(30));

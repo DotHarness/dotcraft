@@ -18,6 +18,8 @@ using DotCraft.Protocol.AppServer;
 using DotCraft.Security;
 using DotCraft.Skills;
 using DotCraft.Tools;
+using DotCraft.Tools.BackgroundTerminals;
+using DotCraft.Tools.Sandbox;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Spectre.Console;
@@ -71,7 +73,7 @@ public sealed class GatewayHost : IDotCraftHost
     public async Task RunAsync(CancellationToken cancellationToken = default)
     {
         // Scan for tool icons at startup
-        ToolProviderCollector.ScanToolIcons(_moduleRegistry, _config);
+        ToolSourceCollector.ScanToolIcons(_moduleRegistry, _config);
 
         await using var channelRunner = ChannelRunner.CreateForGateway(
             _sp, _config, _paths, _moduleRegistry, _externalChannelRegistry, _router, _channels);
@@ -196,9 +198,9 @@ public sealed class GatewayHost : IDotCraftHost
         // override via SessionService. Without this wrapper the override has no effect and all
         // approvals fall through to ConsoleApprovalService.
         var approvalService = new SessionScopedApprovalService(channelRouting);
+        _sp.GetRequiredService<CommonToolApprovalEvaluator>().Bind(approvalService);
 
         // Collect tool providers from modules
-        var toolProviders = ToolProviderCollector.Collect(_moduleRegistry, _config);
 
         var planStore = new PlanStore(_paths.CraftPath);
         var chatClientRegistry = _sp.GetRequiredService<ChatClientRegistry>();
@@ -206,12 +208,35 @@ public sealed class GatewayHost : IDotCraftHost
         var mainModel = mainRuntime.Model;
         var contextPageManager = new ContextPageManager();
         var threadSystemPromptContextProviders = _sp.GetServices<IThreadSystemPromptContextProvider>().ToArray();
+        var toolSources = new ToolSourceCollector(_moduleRegistry, _sp, _config).Collect().ToList();
+        toolSources.Add(new CoreToolSource(
+            _config,
+            chatClientRegistry,
+            _skillsLoader,
+            approvalService,
+            pathBlacklist,
+            lspServerManager,
+            _sp.GetService<IBackgroundTerminalService>(),
+            traceCollector,
+            _sp.GetService<ISkillMutationApplier>(),
+            contextPageManager));
+        if (_config.Tools.Sandbox.Enabled)
+        {
+            toolSources.Add(new SandboxToolSource(
+                _config,
+                chatClientRegistry,
+                _skillsLoader,
+                approvalService,
+                pathBlacklist,
+                traceCollector,
+                _sp.GetService<ISkillMutationApplier>(),
+                contextPageManager));
+        }
 
         _sharedAgentFactory = new AgentFactory(
             _paths.CraftPath, _paths.WorkspacePath, _config,
             memoryStore, _skillsLoader, approvalService, pathBlacklist,
-            toolProviders: toolProviders,
-            toolProviderContext: new ToolProviderContext
+            runtimeContext: new AgentRuntimeContext
             {
                 Config = _config,
                 ChatClient = chatClientRegistry.GetChatClient(mainRuntime),
@@ -237,13 +262,9 @@ public sealed class GatewayHost : IDotCraftHost
             onConsolidatorStatus: AnsiConsole.MarkupLine,
             planStore: planStore,
             hookRunner: hookRunner,
-            chatClientRegistry: chatClientRegistry);
-
-        if (_sp.GetService<IChannelRuntimeToolProvider>() is IReservedRuntimeToolNameConfigurator reservedToolNameConfigurator)
-        {
-            reservedToolNameConfigurator.ConfigureReservedToolNames(
-                _sharedAgentFactory.CreateToolsForMode(AgentMode.Agent).Select(tool => tool.Name));
-        }
+            chatClientRegistry: chatClientRegistry,
+            toolDispatcher: _sp.GetRequiredService<IToolDispatcher>(),
+            toolSources: toolSources);
 
         var agent = _sharedAgentFactory.CreateAgentForMode(AgentMode.Agent);
         _sharedSessionService = SessionServiceFactory.Create(_sharedAgentFactory, agent, _sp);

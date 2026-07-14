@@ -1,5 +1,3 @@
-using DotCraft.Abstractions;
-
 namespace DotCraft.Tools;
 
 /// <summary>
@@ -19,22 +17,4 @@ public static class AgentControlToolPolicy
         nameof(AgentTools.ListAgents),
         nameof(AgentTools.CloseAgent)
     ];
-
-    /// <summary>
-    /// Returns true when at least one agent-control tool may be exposed.
-    /// </summary>
-    public static bool AllowsAny(ToolProviderContext context) =>
-        AllToolNames.Any(toolName => Allows(context, toolName));
-
-    /// <summary>
-    /// Returns true when the named agent-control tool may be exposed.
-    /// </summary>
-    public static bool Allows(ToolProviderContext context, string toolName) =>
-        context.AgentControlToolAccess switch
-        {
-            AgentControlToolAccess.Full => true,
-            AgentControlToolAccess.Disabled => false,
-            AgentControlToolAccess.AllowList => context.AllowedAgentControlTools?.Contains(toolName) == true,
-            _ => false
-        };
 }

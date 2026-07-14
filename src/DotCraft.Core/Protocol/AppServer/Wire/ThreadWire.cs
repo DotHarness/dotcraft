@@ -14,7 +14,7 @@ public sealed class ThreadStartParams
     public ThreadConfiguration? Config { get; set; }
 
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public List<DynamicToolSpec>? DynamicTools { get; set; }
+    public List<RuntimeDynamicToolDeclaration>? DynamicTools { get; set; }
 
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public Dictionary<string, RuntimeAdditionalContextEntry>? AdditionalContext { get; set; }
@@ -53,7 +53,7 @@ public sealed class ThreadForkParams
     public ThreadConfiguration? Config { get; set; }
 
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public List<DynamicToolSpec>? DynamicTools { get; set; }
+    public List<RuntimeDynamicToolDeclaration>? DynamicTools { get; set; }
 
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public Dictionary<string, RuntimeAdditionalContextEntry>? AdditionalContext { get; set; }
@@ -73,7 +73,7 @@ public sealed class ThreadResumeParams
     public string ThreadId { get; set; } = string.Empty;
 
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public List<DynamicToolSpec>? DynamicTools { get; set; }
+    public List<RuntimeDynamicToolDeclaration>? DynamicTools { get; set; }
 
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public Dictionary<string, RuntimeAdditionalContextEntry>? AdditionalContext { get; set; }

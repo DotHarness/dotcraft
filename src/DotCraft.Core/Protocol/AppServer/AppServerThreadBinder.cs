@@ -16,11 +16,13 @@ internal sealed class AppServerThreadBinder(
     IContextPageManager? contextPageManager)
 {
     public void ValidateRuntimeInputs(
-        IReadOnlyList<DynamicToolSpec>? dynamicTools,
+        IReadOnlyList<RuntimeDynamicToolDeclaration>? dynamicTools,
         IReadOnlyDictionary<string, RuntimeAdditionalContextEntry>? additionalContext)
     {
         if (!WireDynamicToolProxy.TryValidateSpecs(dynamicTools, out var dynamicToolError))
             throw AppServerErrors.InvalidParams(dynamicToolError);
+        if (dynamicTools != null && wireDynamicToolProxy == null)
+            throw AppServerErrors.InvalidParams("dynamicTools is not supported by this AppServer host.");
         if (!WireRuntimeAdditionalContextProvider.TryValidateAdditionalContext(additionalContext, out var additionalContextError))
             throw AppServerErrors.InvalidParams(additionalContextError);
         if (additionalContext != null && wireRuntimeAdditionalContextProvider == null)
@@ -29,7 +31,7 @@ internal sealed class AppServerThreadBinder(
 
     public async Task BindThreadRuntimeAsync(
         SessionThread thread,
-        IReadOnlyList<DynamicToolSpec>? dynamicTools,
+        IReadOnlyList<RuntimeDynamicToolDeclaration>? dynamicTools,
         IReadOnlyDictionary<string, RuntimeAdditionalContextEntry>? additionalContext,
         CancellationToken ct)
     {
@@ -43,7 +45,7 @@ internal sealed class AppServerThreadBinder(
             shouldRefreshAgent = true;
         }
 
-        if (dynamicTools is { Count: > 0 } && wireDynamicToolProxy != null)
+        if (dynamicTools != null && wireDynamicToolProxy != null)
         {
             wireDynamicToolProxy.BindThread(thread.Id, transport, connection, dynamicTools);
             shouldRefreshAgent = true;

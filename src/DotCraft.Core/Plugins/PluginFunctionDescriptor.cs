@@ -1,5 +1,6 @@
 using System.Text.Json.Nodes;
 using DotCraft.Protocol;
+using DotCraft.Tools;
 using Microsoft.Extensions.AI;
 
 namespace DotCraft.Plugins;
@@ -13,6 +14,12 @@ public sealed record PluginFunctionDescriptor
     /// Stable plugin identifier. Built-in plugins use ids such as <c>browser</c>.
     /// </summary>
     public required string PluginId { get; init; }
+
+    /// <summary>
+    /// Stable function identifier within the plugin. When omitted, <see cref="Name"/>
+    /// is used for compatibility with existing plugin manifests.
+    /// </summary>
+    public string? FunctionId { get; init; }
 
     /// <summary>
     /// Optional internal namespace. The MEAI-facing function name remains flat.
@@ -87,57 +94,6 @@ public sealed record PluginFunctionApprovalDescriptor
 }
 
 /// <summary>
-/// A plugin function descriptor paired with its invoker.
-/// </summary>
-public sealed record PluginFunctionRegistration(
-    PluginFunctionDescriptor Descriptor,
-    IPluginFunctionInvoker Invoker);
-
-/// <summary>
-/// Marker for AIFunction wrappers that represent a plugin function.
-/// </summary>
-public interface IPluginFunctionTool
-{
-    PluginFunctionDescriptor? PluginFunctionDescriptor { get; }
-}
-
-/// <summary>
-/// Produces thread-scoped plugin functions.
-/// </summary>
-public interface IThreadPluginFunctionProvider
-{
-    int Priority => 100;
-
-    IReadOnlyList<PluginFunctionRegistration> CreateFunctionsForThread(
-        SessionThread thread,
-        IReadOnlySet<string> reservedToolNames);
-}
-
-/// <summary>
-/// Executes a plugin function invocation.
-/// </summary>
-public interface IPluginFunctionInvoker
-{
-    ValueTask<PluginFunctionInvocationResult> InvokeAsync(
-        PluginFunctionInvocationContext context,
-        CancellationToken cancellationToken);
-}
-
-/// <summary>
-/// Runtime information passed to plugin function invokers.
-/// </summary>
-public sealed record PluginFunctionInvocationContext
-{
-    public required PluginFunctionDescriptor Descriptor { get; init; }
-
-    public required PluginFunctionExecutionContext Execution { get; init; }
-
-    public required string CallId { get; init; }
-
-    public required JsonObject Arguments { get; init; }
-}
-
-/// <summary>
 /// Result returned by a plugin function invoker.
 /// </summary>
 public sealed record PluginFunctionInvocationResult
@@ -173,5 +129,60 @@ public sealed record PluginFunctionContentItem
 
     public string? DataBase64 { get; init; }
 
+    /// <summary>Optional non-data URL for image content.</summary>
+    public string? Url { get; init; }
+
     public string? MediaType { get; init; }
+}
+
+/// <summary>
+/// A plugin function descriptor paired with its source-specific runtime invoker.
+/// It does not depend on an ambient Session execution scope.
+/// </summary>
+public sealed record PluginToolRegistration(
+    PluginFunctionDescriptor Descriptor,
+    IPluginToolInvoker Invoker);
+
+/// <summary>Executes one plugin-owned operation after common dispatch checks have completed.</summary>
+public interface IPluginToolInvoker
+{
+    /// <summary>Invokes the plugin operation using the original provider call identifier.</summary>
+    ValueTask<PluginFunctionInvocationResult> InvokeAsync(
+        PluginToolInvocationContext context,
+        CancellationToken cancellationToken);
+}
+
+/// <summary>Source-specific context supplied to a plugin runtime.</summary>
+public sealed record PluginToolInvocationContext
+{
+    /// <summary>Gets the declared plugin function.</summary>
+    public required PluginFunctionDescriptor Descriptor { get; init; }
+
+    /// <summary>Gets the common immutable invocation context.</summary>
+    public required ToolInvocationContext Invocation { get; init; }
+
+    /// <summary>Gets a cloned arguments object.</summary>
+    public required JsonObject Arguments { get; init; }
+
+    /// <summary>Gets the originating channel when this is a channel plugin.</summary>
+    public string? OriginChannel { get; init; }
+
+    /// <summary>Gets the opaque originating channel conversation context.</summary>
+    public string? ChannelContext { get; init; }
+
+    /// <summary>Gets the channel sender identifier when available.</summary>
+    public string? SenderId { get; init; }
+
+    /// <summary>Gets the channel group identifier when available.</summary>
+    public string? GroupId { get; init; }
+}
+
+/// <summary>Creates source-neutral tool sources that are scoped to one Session thread.</summary>
+public interface IThreadPluginToolSourceProvider
+{
+    /// <summary>Gets deterministic provider ordering priority.</summary>
+    int Priority => 100;
+
+    /// <summary>Creates the plugin sources currently authorized for a thread.</summary>
+    IReadOnlyList<IToolSource> CreateToolSourcesForThread(SessionThread thread);
 }

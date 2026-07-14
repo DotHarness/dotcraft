@@ -281,11 +281,11 @@ public sealed class DotCraftAppBindingClient(DotCraftClient client)
     /// <summary>
     /// Creates a failed dynamic tool result using a standard App Binding error code.
     /// </summary>
-    public static DynamicToolResult ToolError(string code, string message, object? structuredResult = null) =>
+    public static DynamicToolResult ToolError(string code, string message, object? structuredContent = null) =>
         new(
             false,
             [new ToolContentItem("text", $"{code}: {message}")],
-            structuredResult,
+            structuredContent,
             code,
             message);
 

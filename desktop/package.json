@@ -34,6 +34,7 @@
     "@iconify-json/vscode-icons": "^1.2.53",
     "@iconify/react": "^6.0.2",
     "@lydell/node-pty": "^1.2.0-beta.3",
+    "@modelcontextprotocol/ext-apps": "1.7.4",
     "@monaco-editor/react": "^4.7.0",
     "@vscode/ripgrep": "^1.18.0",
     "@xterm/addon-fit": "^0.11.0",

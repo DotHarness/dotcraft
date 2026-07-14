@@ -2048,6 +2048,65 @@ public sealed class AppBindingProtocolTests : IDisposable
         var payload = Assert.IsType<DynamicToolCallPayload>(Assert.Single(turn.Items).Payload);
         Assert.True(payload.Success);
         Assert.Equal("native tool ok", Assert.Single(payload.ContentItems!).Text);
+
+        var source = new LegacyAppBindingToolSource(service);
+        var registrations = await source.GetRegistrationsAsync(new ToolPlanningContext(
+            thread.Id,
+            "turn_unified",
+            thread.WorkspacePath,
+            "agent",
+            profile: null,
+            providerCapabilities: null,
+            revision: 7));
+        var registration = Assert.Single(
+            registrations,
+            candidate => candidate.Definition.Name.Name == "QQSendImageToCurrentChat");
+        Assert.Equal(ToolSourceKind.LegacyAppBinding, registration.Definition.Id.Kind);
+        Assert.Equal("legacyAppBinding", registration.Definition.Provenance.Origin);
+        Assert.IsNotType<AIFunctionToolRuntime>(registration.Binding.Runtime);
+
+        var unifiedTurn = AppServerTestHarness.MakeTurn(thread.Id);
+        using var unifiedScope = PluginFunctionExecutionScope.Set(new PluginFunctionExecutionContext
+        {
+            ThreadId = thread.Id,
+            TurnId = unifiedTurn.Id,
+            OriginChannel = "desktop",
+            WorkspacePath = thread.WorkspacePath,
+            RequireApprovalOutsideWorkspace = false,
+            ApprovalService = new AutoApproveApprovalService(),
+            Turn = unifiedTurn,
+            SessionService = harness.Service,
+            NextItemSequence = () => 1,
+            EmitItemStarted = _ => { },
+            EmitItemCompleted = _ => { }
+        });
+        var lease = await registration.Binding.Lease.CheckAsync(new ToolInvocationContext(
+            thread.Id,
+            unifiedTurn.Id,
+            "provider-call-legacy",
+            ToolInvocationAudience.Model,
+            registration.Definition.Name,
+            registration.Definition.Id,
+            registration.Binding.Id,
+            7,
+            DateTimeOffset.UtcNow));
+        Assert.True(lease.IsAvailable);
+        var unifiedResult = await registration.Binding.Runtime.InvokeAsync(
+            new ToolInvocationContext(
+                thread.Id,
+                unifiedTurn.Id,
+                "provider-call-legacy",
+                ToolInvocationAudience.Model,
+                registration.Definition.Name,
+                registration.Definition.Id,
+                registration.Binding.Id,
+                7,
+                DateTimeOffset.UtcNow),
+            new JsonObject { ["fileName"] = "unified.png" });
+
+        Assert.True(unifiedResult.Success);
+        Assert.Equal("provider-call-legacy", runtime.LastToolCall?.CallId);
+        Assert.Empty(unifiedTurn.Items);
     }
 
     [Fact]
@@ -2930,7 +2989,7 @@ public sealed class AppBindingProtocolTests : IDisposable
         harness.Transport.ApprovalHandler = (method, @params) =>
             InMemoryTransport.BuildClientResponse(
                 1,
-                new DynamicToolCallResult
+                new AppBoundToolCallResult
                 {
                     Success = true,
                     ContentItems = [new ExtChannelToolContentItem { Type = "text", Text = "created card" }],
@@ -2968,7 +3027,7 @@ public sealed class AppBindingProtocolTests : IDisposable
         var payload = Assert.IsType<DynamicToolCallPayload>(Assert.Single(turn.Items).Payload);
         Assert.True(payload.Success);
         Assert.Equal("created card", Assert.Single(payload.ContentItems!).Text);
-        Assert.Equal("card-1", payload.StructuredResult?["cardId"]?.GetValue<string>());
+        Assert.Equal("card-1", payload.StructuredContent?["cardId"]?.GetValue<string>());
     }
 
     [Fact]
@@ -3218,7 +3277,7 @@ public sealed class AppBindingProtocolTests : IDisposable
                 grantId = "grant-1",
                 tools = new[]
                 {
-                    new DynamicToolSpec
+                    new AppBoundToolSpec
                     {
                         Namespace = "other",
                         Name = "CreateCard",
@@ -3313,7 +3372,7 @@ public sealed class AppBindingProtocolTests : IDisposable
                 grantId = "grant-1",
                 tools = new[]
                 {
-                    new DynamicToolSpec
+                    new AppBoundToolSpec
                     {
                         Namespace = "dynamictools_test",
                         Name = "dynamic_move_object",
@@ -3343,9 +3402,10 @@ public sealed class AppBindingProtocolTests : IDisposable
             result.GetProperty("warnings").EnumerateArray(),
             warning => warning.GetString()!.Contains("deferred exposure was enforced", StringComparison.Ordinal));
 
-        var runtimeTool = Assert.IsAssignableFrom<IDynamicToolRuntimeTool>(
+        var runtimeTool = Assert.IsAssignableFrom<AIFunction>(
             Assert.Single(service.CreateRuntimeToolsForThread(thread, new HashSet<string>(StringComparer.Ordinal))));
-        Assert.True(runtimeTool.Spec.DeferLoading);
+        Assert.True(DeferredToolMetadataResolver.TryGet(runtimeTool, out var metadata));
+        Assert.True(metadata.DeferLoading);
     }
 
     [Fact]
@@ -3382,7 +3442,7 @@ public sealed class AppBindingProtocolTests : IDisposable
                 grantId = "grant-1",
                 tools = new[]
                 {
-                    new DynamicToolSpec
+                    new AppBoundToolSpec
                     {
                         Namespace = "dynamictools_test",
                         Name = "dynamic_scene_query",
@@ -3433,7 +3493,7 @@ public sealed class AppBindingProtocolTests : IDisposable
                 grantId = "grant-1",
                 tools = new[]
                 {
-                    new DynamicToolSpec
+                    new AppBoundToolSpec
                     {
                         Namespace = "dynamictools_test",
                         Name = "dynamic_move_object",
@@ -3704,7 +3764,7 @@ public sealed class AppBindingProtocolTests : IDisposable
         harness.Transport.ApprovalHandler = (method, _) =>
         {
             Assert.Equal(AppServerMethods.ItemToolCall, method);
-            return InMemoryTransport.BuildClientResponse(1, new DynamicToolCallResult
+            return InMemoryTransport.BuildClientResponse(1, new AppBoundToolCallResult
             {
                 Success = true,
                 StructuredResult = JsonNode.Parse("""{"cardId":"card-9"}"""),
@@ -3829,7 +3889,7 @@ public sealed class AppBindingProtocolTests : IDisposable
         harness.Transport.ApprovalHandler = (method, _) =>
         {
             Assert.Equal(AppServerMethods.ItemToolCall, method);
-            return InMemoryTransport.BuildClientResponse(1, new DynamicToolCallResult
+            return InMemoryTransport.BuildClientResponse(1, new AppBoundToolCallResult
             {
                 Success = true,
                 StructuredResult = JsonNode.Parse("""{"queued":true}""")
@@ -3991,7 +4051,7 @@ public sealed class AppBindingProtocolTests : IDisposable
                 grantId = "grant-1",
                 tools = new[]
                 {
-                    new DynamicToolSpec
+                    new AppBoundToolSpec
                     {
                         Namespace = "workflow",
                         Name = "CreateCard",
@@ -4007,9 +4067,9 @@ public sealed class AppBindingProtocolTests : IDisposable
                                 Operation = "create"
                             }
                             : null,
-                        Meta = new DynamicToolMeta
+                        Meta = new LegacyAppBindingToolMeta
                         {
-                            Ui = new UiToolMeta
+                            Ui = new LegacyAppBindingUiToolMeta
                             {
                                 ResourceUri = "ui://workflow/board",
                                 Visibility = ["model", "app"]
@@ -4142,7 +4202,7 @@ public sealed class AppBindingProtocolTests : IDisposable
                 grantId = "grant-1",
                 tools = new[]
                 {
-                    new DynamicToolSpec
+                    new AppBoundToolSpec
                     {
                         Namespace = "workflow",
                         Name = "CreateCard",
@@ -4189,7 +4249,7 @@ public sealed class AppBindingProtocolTests : IDisposable
                 GrantId = "grant-1",
                 Tools =
                 [
-                    new DynamicToolSpec
+                    new AppBoundToolSpec
                     {
                         Namespace = "workflow",
                         Name = "CreateCard",

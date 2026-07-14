@@ -22,8 +22,8 @@ public sealed class DeferredToolLoadingPlannerTests
         DeferredToolLoadingPlanner.Apply(tools, context);
 
         Assert.Contains(tools, tool => tool.Name == nameof(ToolSearchTool.SearchTools));
-        Assert.NotNull(context.DeferredToolRegistry);
-        Assert.Equal("Simulated", context.DeferredToolRegistry!.Mode.ToString());
+        Assert.NotNull(context.DeferredToolActivationIndex);
+        Assert.Equal("Simulated", context.DeferredToolActivationIndex!.Mode.ToString());
     }
 
     [Fact]
@@ -41,8 +41,8 @@ public sealed class DeferredToolLoadingPlannerTests
         Assert.DoesNotContain(tools, tool => tool.Name == "DeferredRuntimeTool");
         Assert.Contains(tools, tool => tool.Name == "ImmediateRuntimeTool");
         Assert.Contains(tools, tool => tool.Name == nameof(ToolSearchTool.SearchTools));
-        Assert.NotNull(context.DeferredToolRegistry);
-        Assert.Contains("DeferredRuntimeTool", context.DeferredToolRegistry!.DeferredTools.Keys);
+        Assert.NotNull(context.DeferredToolActivationIndex);
+        Assert.Contains("DeferredRuntimeTool", context.DeferredToolActivationIndex!.DeferredTools.Keys);
     }
 
     [Fact]
@@ -57,7 +57,7 @@ public sealed class DeferredToolLoadingPlannerTests
 
         var marker = Assert.Single(tools);
         Assert.Equal(NativeToolSearchTool.ToolName, marker.Name);
-        Assert.Equal("Native", context.DeferredToolRegistry!.Mode.ToString());
+        Assert.Equal("Native", context.DeferredToolActivationIndex!.Mode.ToString());
     }
 
     [Fact]
@@ -72,7 +72,7 @@ public sealed class DeferredToolLoadingPlannerTests
 
         var marker = Assert.IsType<AnthropicToolSearchTool>(Assert.Single(tools));
         Assert.Equal(AnthropicToolSearchTool.ToolName, marker.Name);
-        Assert.Equal("Native", context.DeferredToolRegistry!.Mode.ToString());
+        Assert.Equal("Native", context.DeferredToolActivationIndex!.Mode.ToString());
     }
 
     [Fact]
@@ -87,7 +87,7 @@ public sealed class DeferredToolLoadingPlannerTests
 
         Assert.Contains(tools, tool => tool.Name == nameof(ToolSearchTool.SearchTools));
         Assert.DoesNotContain(tools, tool => tool is AnthropicToolSearchTool);
-        Assert.Equal("Simulated", context.DeferredToolRegistry!.Mode.ToString());
+        Assert.Equal("Simulated", context.DeferredToolActivationIndex!.Mode.ToString());
     }
 
     [Fact]
@@ -111,13 +111,13 @@ public sealed class DeferredToolLoadingPlannerTests
         Assert.Equal("TicketLookup", Assert.Single(results).Name);
     }
 
-    private static ToolProviderContext CreateContext(AppConfig config, string protocol)
+    private static AgentRuntimeContext CreateContext(AppConfig config, string protocol)
     {
         var root = Path.Combine(Path.GetTempPath(), "dotcraft-deferred-tools-test-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(root);
         var botPath = Path.Combine(root, ".craft");
         Directory.CreateDirectory(botPath);
-        return new ToolProviderContext
+        return new AgentRuntimeContext
         {
             Config = config,
             ChatClient = null!,

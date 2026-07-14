@@ -7,7 +7,7 @@ using Microsoft.Extensions.AI;
 namespace DotCraft.Tools;
 
 internal sealed class AnthropicToolSearchTool(
-    DeferredToolRegistry registry,
+    DeferredToolActivationIndex registry,
     int maxSearchResults = 5,
     DeferredToolLoadingTraceContext? traceContext = null) : AIFunction
 {
@@ -46,7 +46,7 @@ internal sealed class AnthropicToolSearchTool(
 
     public override JsonSerializerOptions JsonSerializerOptions => JsonSerializerOptions.Default;
 
-    internal DeferredToolRegistry Registry => registry;
+    internal DeferredToolActivationIndex Registry => registry;
 
     protected override ValueTask<object?> InvokeCoreAsync(
         AIFunctionArguments arguments,

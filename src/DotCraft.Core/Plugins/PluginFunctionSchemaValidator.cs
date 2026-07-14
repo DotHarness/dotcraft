@@ -193,9 +193,7 @@ public static class PluginFunctionSchemaValidator
                 return true;
 
             case "integer":
-                if (value is not JsonValue jsonValue
-                    || value.GetValueKind() != JsonValueKind.Number
-                    || !jsonValue.TryGetValue<long>(out _))
+                if (!IsJsonInteger(value))
                 {
                     message = $"{path} must be an integer.";
                     return false;
@@ -218,5 +216,22 @@ public static class PluginFunctionSchemaValidator
                 message = $"{path} uses unsupported schema type '{type}'.";
                 return false;
         }
+    }
+
+    private static bool IsJsonInteger(JsonNode? value)
+    {
+        if (value is null || value.GetValueKind() != JsonValueKind.Number)
+            return false;
+
+        // JsonValue may retain the CLR numeric type supplied by an in-process host
+        // (for example Int32) or a JsonElement supplied by a wire parser. Reparse its
+        // JSON token so validation follows JSON Schema numeric semantics instead of
+        // depending on that incidental backing type.
+        using var document = JsonDocument.Parse(value.ToJsonString());
+        var number = document.RootElement;
+        return number.TryGetInt64(out _)
+               || number.TryGetUInt64(out _)
+               || (number.TryGetDecimal(out var decimalValue)
+                   && decimalValue == decimal.Truncate(decimalValue));
     }
 }

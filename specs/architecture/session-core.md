@@ -2,9 +2,9 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.2.0 |
+| **Version** | 0.3.0 |
 | **Status** | Living |
-| **Date** | 2026-03-18 |
+| **Date** | 2026-07-14 |
 
 Purpose: Define the current **server-managed** session model (Thread / Turn / Item) used by `DotCraft.Core`, including lifecycle, persistence, event semantics, approval semantics, and adapter boundaries.
 
@@ -369,10 +369,11 @@ Fields:
   - `CommandExecution` — Server-observed shell execution projection for `Exec`-style tools. Payload includes command metadata and aggregated output for persistence, history summaries, and non-terminal-capable fallback rendering.
   - `ToolExecution` — Server-observed runtime lifecycle for a normal tool invocation. Payload includes call id, tool name, status, duration, and optional preview/error text.
   - `ImageGeneration` — Hosted image generation lifecycle. Payload includes provider call id, in-progress/completed/failed status, revised prompt, generated image bytes when available, saved path, and error text.
-  - `ToolCall` — Agent invokes a tool. Payload includes tool name and arguments.
-  - `PluginFunctionCall` — Agent invokes a Plugin Function. Payload includes plugin identity, function name, arguments, content items, structured result, and success/failure metadata. Plugin-backed tools do not create companion `ToolResult` items.
-  - `DynamicToolCall` — Agent invokes a runtime dynamic tool declared by an AppServer client. Payload includes optional namespace, tool name, arguments, content items, structured result, and success/failure metadata. Runtime dynamic tools do not create companion `ToolCall` / `ToolResult` items.
-  - `ToolResult` — Result of a tool invocation. Payload includes result text, optional rich result content, and success/failure.
+  - `ToolCall` — Agent invokes a native, plugin, or legacy App Binding adapter tool. Payload includes canonical namespace/name, arguments, call id, definition identity, and safe provenance.
+  - `PluginFunctionCall` — Legacy read-only item retained only for persisted pre-M1 history. New invocations MUST NOT create this item.
+  - `McpToolCall` — MCP invocation lifecycle item preserving raw MCP result fields under audience rules plus separately normalized model content.
+  - `DynamicToolCall` — Runtime Dynamic callback lifecycle item with canonical namespace/name, separate call/item ids, status, duration, normalized content, structured content, and stable failure data.
+  - `ToolResult` — Result paired with a standard `ToolCall`, including model fallback content and audience-separated client/host data.
   - `ApprovalRequest` — Agent requests user approval for a sensitive operation.
   - `ApprovalResponse` — User's approval decision (approved/rejected).
   - `UserInputRequest` — Plan Mode agent asks the client to collect structured user input.
@@ -436,7 +437,7 @@ Each Item type has a specific payload structure:
       "fileName": string   // Optional original filename
     }
   ],
-  "triggerKind": string,   // Optional trigger marker: "heartbeat" | "cron" | "automation" | "goal" | "app" | "team" | "subagentFollowupTask" | "subagentMailbox" | "subagentInput"
+  "triggerKind": string,   // Optional trigger marker: "heartbeat" | "cron" | "automation" | "goal" | "app" | "mcpApp" | "team" | "subagentFollowupTask" | "subagentMailbox" | "subagentInput"
   "triggerLabel": string,  // Optional human-readable source label (e.g. cron job name, task title, agent label)
   "triggerRefId": string   // Optional routing/audit id for click-through when supported (e.g. cron job id, task id, agent path)
 }
@@ -474,9 +475,20 @@ Delta payload (during streaming):
 
 ```
 {
-  "toolName": string,     // Name of the tool being called
-  "arguments": object,    // Tool arguments as key-value pairs
-  "callId": string        // Correlation ID linking ToolCall to ToolResult
+  "namespace": string,       // Optional canonical namespace; absent/null for top-level tools
+  "toolName": string,        // Canonical local tool name
+  "definitionId": string,    // Source-qualified ToolDefinitionId
+  "runtimeBindingId": string,// Live RuntimeBindingId at invocation time
+  "bindingRevision": string, // Runtime binding revision at invocation time
+  "snapshotRevision": string,// EffectiveToolSnapshot revision at invocation time
+  "sourceKind": string,      // Safe source kind
+  "sourceToolId": string,    // Optional safe raw source identity
+  "sourceProvenance": object,// Optional sanitized source provenance
+  "presentation": object,    // Optional trusted PresentationId + bounded options
+  "pluginId": string,        // Optional plugin provenance
+  "functionId": string,      // Optional plugin function provenance
+  "arguments": object,       // Tool arguments as key-value pairs
+  "callId": string           // Provider/model correlation id linking ToolCall to ToolResult
 }
 ```
 
@@ -510,9 +522,9 @@ Delta payload (during streaming):
 }
 ```
 
-`ImageGeneration` represents hosted image generation as a first-class Session item. Session Core creates the item from the SDK-hosted image generation call content and completes the same item when the result content arrives. If the result arrives before the call, Session Core creates and immediately completes a single `ImageGeneration` item. Completed inline image bytes are persisted under `.craft/generated_images/{threadId}/{callId}.png`; the payload also carries base64 bytes for wire clients. Historical `image_generation` `ToolCall` / `ToolResult` items remain readable for compatibility, but new turns SHOULD use `ImageGeneration`.
+`ImageGeneration` represents hosted image generation as a first-class Session item. It is a provider-hosted capability, not a local tool and not an `IToolRuntime` invocation. Snapshot planning records it in a separate provider-capability plan; the provider adapter creates and completes this item from provider call/result content. If the result arrives before the call, Session Core creates and immediately completes a single `ImageGeneration` item. Completed inline image bytes are persisted under `.craft/generated_images/{threadId}/{callId}.png`; the payload also carries base64 bytes for wire clients. Historical `image_generation` `ToolCall` / `ToolResult` items remain readable for compatibility, but new turns SHOULD use `ImageGeneration`.
 
-#### PluginFunctionCall
+#### PluginFunctionCall (legacy read compatibility)
 
 ```
 {
@@ -536,16 +548,52 @@ Delta payload (during streaming):
 }
 ```
 
-Plugin Function invocations are represented by this single item. Session Core does not emit a paired `ToolResult` item for the same call.
+This payload is retained only so pre-M1 persisted items can be read and projected into provider history. New plugin invocations use `ToolCall` + `ToolResult`, with plugin provenance on those standard payloads. No production execution path may create a new `PluginFunctionCall`.
+
+#### McpToolCall
+
+```
+{
+  "namespace": string,          // Canonical MCP server namespace
+  "toolName": string,           // Canonical local name
+  "server": string,             // Runtime MCP server name
+  "origin": string,             // "workspace" | "plugin" | "thread" | "binding"
+  "sourceToolId": string,       // Original MCP tool name
+  "definitionId": string,       // Source-qualified ToolDefinitionId
+  "runtimeBindingId": string,   // Live MCP binding identity
+  "bindingRevision": string,    // Binding/session generation revision
+  "snapshotRevision": string,   // EffectiveToolSnapshot revision
+  "sourceProvenance": object,   // Sanitized origin provenance
+  "presentation": object,       // Optional trusted local presentation descriptor
+  "callId": string,             // Provider/model call id; differs from Item.id
+  "arguments": object,
+  "status": string,             // "inProgress" | "completed" | "failed"
+  "durationMs": number,
+  "contentItems": array,        // Normalized model/history content
+  "structuredContent": any,     // Client/view-only structured result
+  "_meta": object,              // Sanitized host/view-only MCP metadata
+  "rawContent": array,          // Raw MCP content retained for clients, not model history
+  "isError": boolean,
+  "success": boolean,           // Absent/null while in progress
+  "errorCode": string,
+  "errorMessage": string
+}
+```
+
+`McpToolCall` is one lifecycle item and has no companion `ToolResult`. History reconstruction uses only `contentItems`; it MUST NOT insert `structuredContent`, `_meta`, or `rawContent` into model context.
+
+MCP Apps live-view eligibility, `viewHandle`, UI resource HTML/blob, CSP, and live authority state are wire/runtime data and MUST NOT be persisted in this payload. A persisted or replayed `McpToolCall` is always a generic historical result.
 
 #### DynamicToolCall
 
 ```
 {
-  "namespace": string,      // Optional client-declared namespace
+  "namespace": string,      // Optional canonical namespace; absent/null for a top-level Function
   "toolName": string,       // Runtime dynamic tool name
-  "callId": string,         // Correlation ID for the runtime dynamic tool call
+  "callId": string,         // Provider/model call id; differs from Item.id
   "arguments": object,      // Tool arguments as key-value pairs
+  "status": string,         // "inProgress" | "completed" | "failed"
+  "durationMs": number,     // Present on terminal payloads
   "contentItems": [         // Optional rich result content
     {
       "type": string,       // "text" | "image"
@@ -554,10 +602,10 @@ Plugin Function invocations are represented by this single item. Session Core do
       "dataBase64": string  // Base64 image data when type is "image"
     }
   ],
-  "structuredResult": any,  // Optional structured JSON result
-  "success": boolean,      // Whether the dynamic tool call succeeded
-  "errorCode": string,     // Optional machine-readable failure code
-  "errorMessage": string   // Optional human-readable failure message
+  "structuredContent": any, // Client-only structured JSON result
+  "success": boolean,       // Absent/null while in progress
+  "errorCode": string,      // Optional stable failure code
+  "errorMessage": string    // Optional English fallback failure message
 }
 ```
 
@@ -567,9 +615,15 @@ Runtime Dynamic Tool invocations are represented by this single item. Session Co
 
 ```
 {
-  "callId": string,       // Matches the ToolCall.callId
-  "result": string,       // Textual result
-  "contentItems": [       // Optional rich result content for clients
+  "callId": string,          // Matches the ToolCall.callId
+  "definitionId": string,    // Source-qualified ToolDefinitionId
+  "runtimeBindingId": string,// RuntimeBindingId used for the call
+  "bindingRevision": string, // Binding revision used for the call
+  "snapshotRevision": string,// EffectiveToolSnapshot revision used for the call
+  "sourceProvenance": object,// Optional sanitized source provenance
+  "presentation": object,    // Optional trusted PresentationId + bounded options
+  "result": string,          // Model/history-safe textual fallback
+  "contentItems": [          // Optional model-safe rich content
     {
       "type": string,     // "text" | "image"
       "text": string,     // Text content when type is "text"
@@ -577,14 +631,19 @@ Runtime Dynamic Tool invocations are represented by this single item. Session Co
       "dataBase64": string// Base64 image data when type is "image"
     }
   ],
-  "success": boolean      // Whether the tool execution succeeded
+  "structuredContent": any, // Optional client-only structured result
+  "_meta": object,           // Optional sanitized host-only metadata
+  "success": boolean,        // Whether the tool execution succeeded
+  "errorCode": string,       // Optional stable failure code
+  "errorMessage": string     // Optional English fallback failure message
 }
 ```
 
 For ordinary tools that return non-text `AIContent`, `result` remains the
 model/history-safe text fallback. Clients may use `contentItems` for richer
 presentation, such as showing image output from a file read, but history
-reconstruction continues to use `result`.
+reconstruction continues to use only the normalized model-safe content. It never serializes
+`structuredContent` or `_meta` into provider history.
 
 #### CommandExecution
 
@@ -849,8 +908,8 @@ WaitingApproval/WaitingInput ──────────► Cancelled
     - Items like `ToolResult`, `ApprovalRequest`, `ApprovalResponse`, `UserInputRequest`, `UserInputResponse`, `Error` are created with their full payload and immediately completed.
     - `ToolCall` is usually completed directly, but hosts may expose an intermediate streaming preview of argument construction before the final completed payload is persisted.
     - `ImageGeneration` starts when hosted image generation begins and completes with inline image data or a visible failure/unsupported-result payload.
-    - `PluginFunctionCall` starts when the plugin wrapper begins execution and completes with the plugin result payload.
-    - `DynamicToolCall` starts when the runtime dynamic tool wrapper begins execution and completes with the AppServer client callback result payload.
+    - `McpToolCall` and `DynamicToolCall` start with `status = "inProgress"` and nullable/absent `success`, then complete once with a terminal completed/failed payload.
+    - Legacy `PluginFunctionCall` items are read-only history and are never started by new execution.
 
 **Invariants**:
 
@@ -870,7 +929,7 @@ A typical Turn produces Items in this order:
 ```
 1. UserMessage (input)
 2. [ReasoningContent] (if model exposes thinking)
-3. [ToolCall → ToolResult | ImageGeneration | PluginFunctionCall | DynamicToolCall]* (zero or more tool/hosted invocations)
+3. [ToolCall → ToolResult | ImageGeneration | McpToolCall | DynamicToolCall]* (zero or more tool/hosted invocations)
    3a. [ApprovalRequest → ApprovalResponse] (within a tool call, if approval needed)
    3b. [UserInputRequest → UserInputResponse] (Plan Mode only, if the agent needs a user decision before continuing)
 4. AgentMessage (final response, streamed)
@@ -878,6 +937,18 @@ A typical Turn produces Items in this order:
 ```
 
 The sequence may recurse: the agent may call tools, receive results, reason again, call more tools, and then respond. Session Core emits Items in the order they occur. The adapter renders them according to its channel's capabilities.
+
+### 5.4.1 MCP App direct actions and transient context
+
+An MCP App view action does not belong to the completed Turn that produced its source result.
+
+- A view `tools/call` uses the common dispatcher with null Turn id. It creates no Turn, `ToolCall`, `ToolResult`, or `McpToolCall`, and never enters provider history. Safe tracing records `ToolInvocationOrigin(kind: "mcpApp", sourceItemId)` independently from Session items.
+- An accepted `ui/message` is the only view action that creates conversational input. It starts a Turn immediately when the thread is idle or uses `QueuedTurnInput` while another Turn is active. The resulting user input is marked with `triggerKind = "mcpApp"` and safe server/tool/source-item provenance; the opaque view handle and UI resource data are not persisted.
+- Each live view owns one last-write-wins pending context. A View message atomically consumes only its originating value. An ordinary user Turn atomically consumes all live pending values for the thread. Consumption happens at the central Turn-start boundary, including the queued-input path, and each value is injected at most once.
+- Pending context is bounded, explicitly marked untrusted, and transient. It is not an Item, rollout record, thread configuration, or provider-history message by itself. It cannot change system policy or tool authority. Teardown, revoke, disconnect, archive/delete, or MCP generation replacement discards unconsumed values.
+- If an accepted View message is persisted in the ordinary input queue and the process restarts, the queued message may survive but its transient pending context does not.
+
+Unknown context content shapes reject the entire update. Text and image content are materialized through the normal safe input path; structured content may be injected only as bounded JSON.
 
 ### 5.5 Cross-Channel Resume Semantics
 
@@ -893,6 +964,8 @@ When a channel adapter resumes a Thread that was created by a different channel:
 The resumed agent has full context of previous Turns regardless of which channel originated them.
 
 When reconstructing model history, provider reasoning metadata MUST be preserved on assistant messages that contain tool calls. If one sampling segment produced `ReasoningContent`, visible assistant text, and one or more `ToolCall` Items before their matching `ToolResult` Items, the reconstructed history represents them as one assistant `ChatMessage` containing reasoning content, visible text, and all function calls. This preserves OpenAI protocol providers such as DeepSeek whose thinking mode requires `reasoning_content` to be round-tripped on assistant tool-call messages.
+
+Tool history reconstruction is source-neutral. It expands a valid standard `ToolCall`/`ToolResult` pair or a terminal `McpToolCall`/`DynamicToolCall` into the provider's function-call/function-result sequence while preserving the original provider `callId`. A legacy `PluginFunctionCall` may be expanded for read compatibility only. Orphaned, duplicated, or incomplete call ids are diagnosed and skipped or repaired at the request boundary; Session Core MUST NOT guess pairings. Only normalized model content participates in provider history. `structuredContent`, `_meta`, and raw MCP result fields never do.
 
 ## 6. Event Model
 
@@ -1449,7 +1522,7 @@ Cross-channel resume works for channels that share the same identity shape:
 |---------|---------|----------|
 | **Agent Exception** | `RunStreamingAsync` throws | Create Error Item. Set Turn status = Failed. Emit `turn/failed`. Save partial state. |
 | **Recoverable Provider Stream Disconnect** | The provider stream disconnects, becomes idle past `StreamIdleTimeoutMs`, or ends before the sampling request completes before visible output is emitted | Emit `system/event` with `kind = "streamError"` and retry the same sampling request up to the provider's `StreamMaxRetries`. Exhaustion falls through to Agent Exception behavior. Cleanup of the failed provider stream is best-effort and must not indefinitely block retry or failure delivery. |
-| **Tool Execution Error** | A tool throws during `FunctionInvokingChatClient` processing | The error is captured by `FunctionInvokingChatClient` as a `FunctionResultContent` with error. A `ToolResult` Item is created with `success = false`. The agent decides whether to retry or fail. |
+| **Tool Execution Error** | Unified dispatch returns or classifies a tool failure | Native/plugin/legacy App Binding calls complete `ToolResult` with stable failure fields; MCP and Runtime Dynamic calls complete their specialized lifecycle item as failed. The normalized textual failure is returned to the model, which decides whether to retry or stop. |
 | **Incomplete Historical Tool Pair** | Persisted or in-memory model history contains a `tool_use`/function call without an immediately following `tool_result`/function result | Repair or filter the model request before provider submission so strict providers can accept the history. The repair is request-local and does not silently mutate rollout evidence. |
 | **Approval Timeout** | Adapter does not resolve approval within timeout | Reject the approval. Create Error Item noting timeout. Tool receives rejection. Agent may continue or fail. |
 | **Turn Timeout** | Turn exceeds configurable time limit | Cancel the `CancellationToken`. Create Error Item. Set Turn status = Failed. |
@@ -1600,6 +1673,14 @@ For each migrated channel:
 - `/new` command archives current Thread and creates new one
 - Slash commands not exposed as Items (adapter-local operations)
 
+### 13.7 MCP Apps Session Conformance Tests
+
+- App direct tool dispatch uses null Turn id and creates no Session invocation item or provider-history entry.
+- `ui/message` starts immediately or uses the normal queued-input path and persists only safe MCP App trigger provenance.
+- Per-view pending context is last-write-wins, consumed exactly once at the central Turn-start boundary, and discarded on view/thread teardown.
+- Ordinary user Turns consume all pending thread contexts while View messages consume only their originating context.
+- Persisted and replayed `McpToolCall` items contain invocation provenance and audience-separated results but never live eligibility, handles, HTML, CSP, or pending context.
+
 ## 14. Validation Priorities
 
 This specification no longer tracks implementation phases or completed checklists. The remaining validation work is:
@@ -1609,6 +1690,7 @@ This specification no longer tracks implementation phases or completed checklist
 - Add **Cross-Channel Conformance** coverage for the CLI ↔ ACP shared thread pool.
 - Add **Per-Session Configuration** coverage for ACP-specific mode and MCP behavior.
 - Add **Social Channel Conformance** coverage for sender context, approval routing, and slash commands.
+- Add **MCP Apps Session Conformance** coverage for direct calls, queued View messages, one-shot context, and persisted audience isolation.
 
 The purpose of this section is to define ongoing verification targets, not to duplicate project-management to-do lists.
 

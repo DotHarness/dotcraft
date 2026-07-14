@@ -66,6 +66,7 @@ public sealed record AppServerConnectionServices
     public CommandRegistry? CommandRegistry { get; init; }
     public IChannelStatusProvider? ChannelStatusProvider { get; init; }
     public McpClientManager? McpClientManager { get; init; }
+    public McpAppTransientContextStore? McpAppTransientContextStore { get; init; }
     public LspServerManager? LspServerManager { get; init; }
     public IEnumerable<IAppServerProtocolExtension>? ProtocolExtensions { get; init; }
     public Func<ExternalChannelEntry, CancellationToken, Task>? OnExternalChannelUpserted { get; init; }

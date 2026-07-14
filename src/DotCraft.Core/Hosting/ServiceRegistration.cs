@@ -71,6 +71,15 @@ public static class ServiceRegistration
         services.AddSingleton(config);
         services.AddSingleton(PluginDiagnosticsStore.Shared);
         services.AddSingleton<IAppConfigMonitor, AppConfigMonitor>();
+        services.AddSingleton<ToolInvocationRecorderRouter>();
+        services.AddSingleton<CommonToolApprovalEvaluator>();
+        services.AddSingleton<McpAppTransientContextStore>();
+        services.AddSingleton<ThreadToolDispatchPolicyRegistry>();
+        services.AddSingleton<IToolDispatcher>(sp => new ToolDispatcher(
+            policyEvaluator: sp.GetRequiredService<ThreadToolDispatchPolicyRegistry>(),
+            hookRunner: new HookRunnerToolDispatchAdapter(sp.GetRequiredService<HookRunner>()),
+            approvalEvaluator: sp.GetRequiredService<CommonToolApprovalEvaluator>(),
+            recorder: sp.GetRequiredService<ToolInvocationRecorderRouter>()));
         services.AddSingleton<OpenAITokenStore>(_ => new OpenAITokenStore());
         services.AddSingleton<OpenAIInstallationIdProvider>(_ => new OpenAIInstallationIdProvider());
         services.AddSingleton<IOpenAIAuthService, OpenAIAuthManager>();
@@ -119,6 +128,8 @@ public static class ServiceRegistration
             return new CronService(cronStorePath, cronLogger);
         });
         services.AddSingleton<CronTools>(sp => new CronTools(sp.GetRequiredService<CronService>()));
+        services.AddSingleton<IToolSource>(sp => new CronToolSource(sp.GetRequiredService<CronTools>()));
+        services.AddSingleton<IToolSource>(sp => new GoalToolSource(sp.GetRequiredService<AppConfig>()));
 
         // Hooks
         var hooksLoader = new HooksLoader(botPath);
@@ -144,15 +155,21 @@ public static class ServiceRegistration
             var reg = new ToolProfileRegistry();
             reg.Register(
                 DreamsConstants.ToolProfileName,
-                new[] { new DreamsToolProvider(sp.GetRequiredService<DreamsRunRegistry>()) });
+                new IToolSource[]
+                {
+                    new DreamsToolSource(
+                        sp.GetRequiredService<DreamsRunRegistry>(),
+                        sp.GetRequiredService<AppConfig>(),
+                        sp.GetService<PathBlacklist>())
+                });
             reg.Register(
                 CommitMessageSuggestConstants.ToolProfileName,
-                new[] { new CommitSuggestToolProvider() });
+                new IToolSource[] { new CommitSuggestToolSource() });
             reg.Register(
                 WelcomeSuggestionConstants.ToolProfileName,
                 new[]
                 {
-                    new WelcomeSuggestionToolProvider(sp.GetRequiredService<MemoryStore>())
+                    new WelcomeSuggestionToolSource(sp.GetRequiredService<MemoryStore>())
                 });
             return reg;
         });

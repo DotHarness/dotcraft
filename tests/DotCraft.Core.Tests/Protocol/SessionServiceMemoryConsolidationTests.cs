@@ -563,7 +563,8 @@ public sealed class SessionServiceMemoryConsolidationTests : IDisposable
             skillsLoader: skills,
             approvalService: new AutoApproveApprovalService(),
             blacklist: null,
-            toolProviders: Array.Empty<IAgentToolProvider>(),
+            chatClient: chatClient,
+            toolSources: Array.Empty<IToolSource>(),
             memoryConsolidator: consolidator);
     }
 

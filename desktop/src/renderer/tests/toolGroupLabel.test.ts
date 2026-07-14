@@ -2,13 +2,14 @@ import { describe, expect, it } from 'vitest'
 import type { ConversationItem } from '../types/conversation'
 import type { FileDiff } from '../types/toolCall'
 import { formatToolGroupLabel } from '../utils/toolGroupLabel'
+import { withTestCorePresentation } from './testToolPresentation'
 
 function makeItem(
   toolName: string,
   id: string,
   path?: string
 ): ConversationItem {
-  return {
+  return withTestCorePresentation({
     id,
     type: 'toolCall',
     status: 'completed',
@@ -16,7 +17,7 @@ function makeItem(
     toolCallId: id,
     arguments: path ? { path } : undefined,
     createdAt: new Date().toISOString()
-  }
+  })
 }
 
 function makeDiff(path: string, isNewFile: boolean): FileDiff {

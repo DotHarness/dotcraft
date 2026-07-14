@@ -5,11 +5,18 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
-from typing import Any, AsyncIterator, Callable, Coroutine
+from typing import Any, AsyncIterator, Callable, Coroutine, Literal
 
 from .models import (
+    DynamicToolDeclaration,
+    DynamicToolResult,
     InitializeResult,
     JsonRpcMessage,
+    McpServerOAuthLoginResult,
+    McpServerReloadResult,
+    McpServerResourceReadResult,
+    McpServerStatusListResult,
+    McpServerToolCallResult,
     ModelInfo,
     Thread,
     Turn,
@@ -21,6 +28,10 @@ logger = logging.getLogger(__name__)
 # Type aliases
 Handler = Callable[[dict], Coroutine]
 RequestHandler = Callable[[str | int, dict], Coroutine[Any, Any, Any]]
+
+
+def _omit_none(values: dict) -> dict:
+    return {key: value for key, value in values.items() if value is not None}
 
 
 class DotCraftError(Exception):
@@ -162,7 +173,7 @@ class DotCraftClient:
         channel_context: str = "",
         display_name: str | None = None,
         history_mode: str = "server",
-        dynamic_tools: list[dict] | None = None,
+        dynamic_tools: list[DynamicToolDeclaration | dict] | None = None,
     ) -> Thread:
         """Create a new thread."""
         identity: dict = {
@@ -180,17 +191,27 @@ class DotCraftClient:
         }
         if display_name is not None:
             params["displayName"] = display_name
-        if dynamic_tools:
-            params["dynamicTools"] = dynamic_tools
+        if dynamic_tools is not None:
+            params["dynamicTools"] = [
+                tool.to_wire() if hasattr(tool, "to_wire") else tool
+                for tool in dynamic_tools
+            ]
 
         result = await self._request("thread/start", params)
         return Thread.from_wire(result["thread"])
 
-    async def thread_resume(self, thread_id: str, dynamic_tools: list[dict] | None = None) -> Thread:
+    async def thread_resume(
+        self,
+        thread_id: str,
+        dynamic_tools: list[DynamicToolDeclaration | dict] | None = None,
+    ) -> Thread:
         """Resume a paused thread."""
         params: dict = {"threadId": thread_id}
-        if dynamic_tools:
-            params["dynamicTools"] = dynamic_tools
+        if dynamic_tools is not None:
+            params["dynamicTools"] = [
+                tool.to_wire() if hasattr(tool, "to_wire") else tool
+                for tool in dynamic_tools
+            ]
         result = await self._request("thread/resume", params)
         return Thread.from_wire(result["thread"])
 
@@ -355,6 +376,76 @@ class DotCraftClient:
         return await self._request("command/execute", params)
 
     # ------------------------------------------------------------------
+    # MCP runtime/control
+    # ------------------------------------------------------------------
+
+    async def mcp_server_status_list(
+        self,
+        thread_id: str | None = None,
+        cursor: str | None = None,
+        limit: int | None = None,
+        detail: Literal["full", "toolsAndAuthOnly"] | None = None,
+    ) -> McpServerStatusListResult:
+        params = _omit_none({
+            "threadId": thread_id,
+            "cursor": cursor,
+            "limit": limit,
+            "detail": detail,
+        })
+        return McpServerStatusListResult.from_wire(
+            await self._request("mcpServerStatus/list", params)
+        )
+
+    async def mcp_server_resource_read(
+        self,
+        server: str,
+        uri: str,
+        thread_id: str | None = None,
+    ) -> McpServerResourceReadResult:
+        result = await self._request("mcpServer/resource/read", _omit_none({
+            "threadId": thread_id,
+            "server": server,
+            "uri": uri,
+        }))
+        return McpServerResourceReadResult(result.get("contents"))
+
+    async def mcp_server_tool_call(
+        self,
+        thread_id: str,
+        server: str,
+        tool: str,
+        arguments: dict | None = None,
+        meta: Any = None,
+    ) -> McpServerToolCallResult:
+        result = await self._request("mcpServer/tool/call", _omit_none({
+            "threadId": thread_id,
+            "server": server,
+            "tool": tool,
+            "arguments": arguments,
+            "_meta": meta,
+        }))
+        return McpServerToolCallResult.from_wire(result)
+
+    async def mcp_server_oauth_login(
+        self,
+        name: str,
+        thread_id: str | None = None,
+        scopes: list[str] | None = None,
+        timeout_secs: float | None = None,
+    ) -> McpServerOAuthLoginResult:
+        result = await self._request("mcpServer/oauth/login", _omit_none({
+            "name": name,
+            "threadId": thread_id,
+            "scopes": scopes,
+            "timeoutSecs": timeout_secs,
+        }))
+        return McpServerOAuthLoginResult(result.get("authorizationUrl", ""))
+
+    async def mcp_server_reload(self) -> McpServerReloadResult:
+        await self._request("config/mcpServer/reload")
+        return McpServerReloadResult()
+
+    # ------------------------------------------------------------------
     # Event streaming
     # ------------------------------------------------------------------
 
@@ -517,8 +608,8 @@ class DotCraftClient:
         """Register a runtime dynamic tool handler.
 
         With no thread_id/tool, registers a catch-all fallback. Returns an unregister callable.
-        The handler receives a call dict and returns a result dict
-        (``{"success": True, "contentItems": [...], "structuredResult": {...}}``
+        The handler receives a call dict and returns a result dict or ``DynamicToolResult``
+        (``{"success": True, "contentItems": [...], "structuredContent": {...}}``
         or ``{"success": False, "errorCode": "...", "errorMessage": "..."}``).
         """
         if thread_id is None and tool is None:
@@ -558,7 +649,7 @@ class DotCraftClient:
         future: asyncio.Future = asyncio.get_event_loop().create_future()
         self._pending[rid] = future
 
-        msg = JsonRpcMessage(method=method, id=rid, params=params or {})
+        msg = JsonRpcMessage(method=method, id=rid, params=params)
         await self._transport.write_message(msg.to_dict())
 
         try:
@@ -736,7 +827,7 @@ class DotCraftClient:
             result = handler(params)
             if asyncio.iscoroutine(result):
                 result = await result
-            return result
+            return result.to_wire() if isinstance(result, DynamicToolResult) else result
         except Exception as e:
             return {
                 "success": False,

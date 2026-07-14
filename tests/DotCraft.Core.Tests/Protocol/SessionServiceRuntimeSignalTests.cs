@@ -926,8 +926,8 @@ public sealed class SessionServiceRuntimeSignalTests : IDisposable
             config: new ThreadConfiguration(),
             threadId: "top-policy");
 
-        var seen = Assert.Single(recorder.Contexts, context => context.CurrentThreadId == thread.Id);
-        Assert.Equal(AgentControlToolAccess.Full, seen.AgentControlToolAccess);
+        var seen = Assert.Single(recorder.Contexts, context => context.ThreadId == thread.Id);
+        Assert.DoesNotContain("subagent-child", seen.ProviderCapabilities);
     }
 
     [Fact]
@@ -955,8 +955,8 @@ public sealed class SessionServiceRuntimeSignalTests : IDisposable
                 Depth = 1
             }));
 
-        var seen = Assert.Single(recorder.Contexts, context => context.CurrentThreadId == child.Id);
-        Assert.Equal(AgentControlToolAccess.Disabled, seen.AgentControlToolAccess);
+        var seen = Assert.Single(recorder.Contexts, context => context.ThreadId == child.Id);
+        Assert.Contains("subagent-child", seen.ProviderCapabilities);
     }
 
     [Fact]
@@ -1792,7 +1792,7 @@ public sealed class SessionServiceRuntimeSignalTests : IDisposable
 
     private AgentFactory CreateAgentFactory(
         IChatClient chatClientFactory,
-        IReadOnlyList<IAgentToolProvider>? toolProviders = null,
+        IReadOnlyList<IToolSource>? toolProviders = null,
         Action<AppConfig>? configureConfig = null,
         IMemoryConsolidator? memoryConsolidator = null,
         IChatClient? compactionChatClient = null,
@@ -1810,7 +1810,8 @@ public sealed class SessionServiceRuntimeSignalTests : IDisposable
             skillsLoader: skills,
             approvalService: approvalService ?? new SessionScopedApprovalService(new AutoApproveApprovalService()),
             blacklist: null,
-            toolProviders: toolProviders ?? Array.Empty<IAgentToolProvider>(),
+            chatClient: chatClientFactory,
+            toolSources: toolProviders ?? Array.Empty<IToolSource>(),
             memoryConsolidator: memoryConsolidator,
             compactionChatClient: compactionChatClient);
     }
@@ -2197,16 +2198,19 @@ public sealed class SessionServiceRuntimeSignalTests : IDisposable
         }
     }
 
-    private sealed class RecordingToolProvider : IAgentToolProvider
+    private sealed class RecordingToolProvider : IToolSource
     {
+        public string SourceId => "recording";
         public int Priority => 10;
 
-        public List<ToolProviderContext> Contexts { get; } = [];
+        public List<ToolPlanningContext> Contexts { get; } = [];
 
-        public IEnumerable<AITool> CreateTools(ToolProviderContext context)
+        public ValueTask<IReadOnlyList<ToolRegistration>> GetRegistrationsAsync(
+            ToolPlanningContext context,
+            CancellationToken cancellationToken = default)
         {
             Contexts.Add(context);
-            return [];
+            return ValueTask.FromResult<IReadOnlyList<ToolRegistration>>([]);
         }
     }
 

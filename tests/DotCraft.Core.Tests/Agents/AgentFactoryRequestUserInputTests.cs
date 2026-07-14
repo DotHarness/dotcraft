@@ -28,7 +28,7 @@ public sealed class AgentFactoryRequestUserInputTests : IDisposable
             skillsLoader: new SkillsLoader(_tempDir),
             approvalService: new AutoApproveApprovalService(),
             blacklist: null,
-            toolProviders: []);
+            toolSources: []);
 
         var agentTools = agentFactory.CreateToolsForMode(AgentMode.Agent).Select(tool => tool.Name).ToArray();
         var planTools = agentFactory.CreateToolsForMode(AgentMode.Plan).Select(tool => tool.Name).ToArray();

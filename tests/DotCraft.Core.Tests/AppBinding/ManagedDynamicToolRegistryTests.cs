@@ -191,10 +191,10 @@ public sealed class ManagedDynamicToolRegistryTests
             GrantId: "grant",
             ToolName: toolName);
 
-    private static JsonObject Property(DynamicToolSpec spec, string name) =>
+    private static JsonObject Property(AppBoundToolSpec spec, string name) =>
         (JsonObject)((JsonObject)spec.InputSchema!["properties"]!)[name]!;
 
-    private static IReadOnlyList<string> Required(DynamicToolSpec spec) =>
+    private static IReadOnlyList<string> Required(AppBoundToolSpec spec) =>
         spec.InputSchema!["required"] is JsonArray required
             ? required.Select(item => item!.GetValue<string>()).ToList()
             : [];
@@ -206,7 +206,7 @@ public sealed class ManagedDynamicToolRegistryTests
     {
         [DynamicTool("Echo", Order = 20)]
         [Description("Echo a required text value.")]
-        private DynamicToolCallResult Echo(
+        private AppBoundToolCallResult Echo(
             ManagedAppBindingToolCallContext context,
             [Description("Required text.")] string text,
             [Description("Optional flag.")] bool? flag = null,
@@ -225,15 +225,15 @@ public sealed class ManagedDynamicToolRegistryTests
 
         [DynamicTool("Count", Order = 10, DeferLoading = true)]
         [Description("Return a count.")]
-        private ValueTask<DynamicToolCallResult> Count([Description("Amount to return.")] int amount) =>
+        private ValueTask<AppBoundToolCallResult> Count([Description("Amount to return.")] int amount) =>
             ValueTask.FromResult(Result(new JsonObject { ["amount"] = amount }));
 
         [DynamicTool("AsyncEcho", Order = 30)]
         [Description("Return text asynchronously.")]
-        private Task<DynamicToolCallResult> AsyncEcho([Description("Text to return.")] string text) =>
+        private Task<AppBoundToolCallResult> AsyncEcho([Description("Text to return.")] string text) =>
             Task.FromResult(Result(new JsonObject { ["text"] = text }));
 
-        private static DynamicToolCallResult Result(JsonObject result) =>
+        private static AppBoundToolCallResult Result(JsonObject result) =>
             new()
             {
                 Success = true,
@@ -245,7 +245,7 @@ public sealed class ManagedDynamicToolRegistryTests
     {
         [DynamicTool("Unsupported", Order = 10)]
         [Description("Unsupported tool.")]
-        private DynamicToolCallResult Unsupported([Description("Unsupported value.")] DateTime value) =>
+        private AppBoundToolCallResult Unsupported([Description("Unsupported value.")] DateTime value) =>
             new() { Success = true };
     }
 
@@ -253,7 +253,7 @@ public sealed class ManagedDynamicToolRegistryTests
     {
         [DynamicTool("Context", Order = 10)]
         [Description("Returns context and cancellation data.")]
-        private DynamicToolCallResult Context(
+        private AppBoundToolCallResult Context(
             ManagedAppBindingToolCallContext context,
             CancellationToken cancellationToken,
             [Description("Optional text.")] string text = "default") =>

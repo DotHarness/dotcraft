@@ -5,7 +5,7 @@ using Microsoft.Extensions.AI;
 namespace DotCraft.Tools;
 
 /// <summary>
-/// Search result returned by <see cref="DeferredToolRegistry.SearchAndActivate"/>.
+/// Search result returned by <see cref="DeferredToolActivationIndex.SearchAndActivate"/>.
 /// </summary>
 public sealed record ToolSearchResult(string Name, string Description);
 
@@ -18,7 +18,7 @@ public sealed record DeferredToolEntry(AITool Tool, string Source = "", string? 
 /// with <c>FunctionInvokingChatClient.AdditionalTools</c>, allowing the tool
 /// invocation loop to find and execute them without rebuilding the agent.
 /// </summary>
-public sealed class DeferredToolRegistry
+public sealed class DeferredToolActivationIndex
 {
     private readonly Dictionary<string, AITool> _deferredTools;
     private readonly Dictionary<string, DeferredToolEntry> _entries;
@@ -32,7 +32,7 @@ public sealed class DeferredToolRegistry
     /// <summary>
     /// Initialises the registry with the given deferred tool definitions.
     /// </summary>
-    public DeferredToolRegistry(IEnumerable<AITool> deferredTools)
+    public DeferredToolActivationIndex(IEnumerable<AITool> deferredTools)
         : this(deferredTools.Select(static tool => new DeferredToolEntry(tool)), DeferredToolLoadingMode.Simulated)
     {
     }
@@ -40,7 +40,7 @@ public sealed class DeferredToolRegistry
     /// <summary>
     /// Initialises the registry with the given deferred tool definitions and search metadata.
     /// </summary>
-    internal DeferredToolRegistry(
+    internal DeferredToolActivationIndex(
         IEnumerable<DeferredToolEntry> deferredTools,
         DeferredToolLoadingMode mode = DeferredToolLoadingMode.Simulated)
     {

@@ -19,7 +19,7 @@ public sealed class WorktreeCreateAndForkParams
     public ThreadConfiguration? Config { get; set; }
 
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public List<DynamicToolSpec>? DynamicTools { get; set; }
+    public List<RuntimeDynamicToolDeclaration>? DynamicTools { get; set; }
 
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public Dictionary<string, RuntimeAdditionalContextEntry>? AdditionalContext { get; set; }
@@ -56,7 +56,7 @@ public sealed class WorktreeCreateAndStartParams
     public ThreadConfiguration? Config { get; set; }
 
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public List<DynamicToolSpec>? DynamicTools { get; set; }
+    public List<RuntimeDynamicToolDeclaration>? DynamicTools { get; set; }
 
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public Dictionary<string, RuntimeAdditionalContextEntry>? AdditionalContext { get; set; }

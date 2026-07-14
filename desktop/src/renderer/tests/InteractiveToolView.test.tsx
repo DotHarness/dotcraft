@@ -24,6 +24,7 @@ function makeItem(): ConversationItem {
     structuredResult: { cardId: 'c1' },
     meta: { highlight: true },
     success: true,
+    source: { kind: 'LegacyAppBinding', sourceId: 'workflow' },
     toolUi: { resourceUri: 'ui://workflow/board' }
   } as ConversationItem
 }

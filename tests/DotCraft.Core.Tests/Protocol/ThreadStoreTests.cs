@@ -3,6 +3,7 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using DotCraft.Agents;
 using DotCraft.Context.Compaction;
+using DotCraft.Plugins;
 using DotCraft.Protocol;
 using Microsoft.Agents.AI;
 using Microsoft.Data.Sqlite;
@@ -1049,6 +1050,114 @@ public sealed class ThreadStoreTests : IDisposable
         var session = await _store.LoadOrCreateSessionAsync(agent, thread.Id);
 
         Assert.Equal(["user:hello", "assistant:before"], FormatHistoryWithContents(session));
+    }
+
+    [Fact]
+    public async Task LoadOrCreateSessionAsync_RebuildsMcpLifecycleItemWithoutLeakingClientData()
+    {
+        var thread = CreateThread();
+        AddTurnWithMessages(thread, "hello", "calling MCP");
+        var turn = thread.Turns[0];
+        turn.Items.Add(new SessionItem
+        {
+            Id = SessionIdGenerator.NewItemId(3),
+            TurnId = turn.Id,
+            Type = ItemType.McpToolCall,
+            Status = ItemStatus.Completed,
+            CreatedAt = DateTimeOffset.UtcNow,
+            CompletedAt = DateTimeOffset.UtcNow,
+            Payload = new McpToolCallPayload
+            {
+                Namespace = "mcp__review",
+                ToolName = "lookup",
+                ProviderCallName = "mcp__review__lookup",
+                ToolDefinitionId = "Mcp:review:lookup_raw",
+                RuntimeBindingId = "mcp:review:lookup_raw:7",
+                BindingRevision = 7,
+                SnapshotRevision = 11,
+                McpGeneration = 7,
+                Source = new ToolSourceProvenancePayload
+                {
+                    Kind = "Mcp",
+                    SourceId = "review",
+                    SourceToolId = "lookup_raw",
+                    Origin = "workspace"
+                },
+                Presentation = new ToolPresentationPayload
+                {
+                    PresentationId = "core.review",
+                    Options = new JsonObject { ["variant"] = "compact" }
+                },
+                Server = "review",
+                SourceToolId = "lookup_raw",
+                CallId = "mcp-call-1",
+                Status = "completed",
+                Success = true,
+                Arguments = new JsonObject { ["id"] = 7 },
+                ModelContentItems = [new PluginFunctionContentItem { Type = "text", Text = "safe result" }],
+                StructuredContent = new JsonObject { ["secret"] = "client-only" },
+                Meta = new JsonObject { ["token"] = "host-only" }
+            }
+        });
+        await _store.SaveThreadAsync(thread);
+
+        var persisted = await _store.LoadThreadAsync(thread.Id);
+        var persistedPayload = Assert.IsType<McpToolCallPayload>(
+            Assert.Single(
+                Assert.Single(persisted!.Turns).Items,
+                item => item.Type == ItemType.McpToolCall).Payload);
+        Assert.Equal("Mcp:review:lookup_raw", persistedPayload.ToolDefinitionId);
+        Assert.Equal("mcp:review:lookup_raw:7", persistedPayload.RuntimeBindingId);
+        Assert.Equal(7, persistedPayload.BindingRevision);
+        Assert.Equal(11, persistedPayload.SnapshotRevision);
+        Assert.Equal(7, persistedPayload.McpGeneration);
+        Assert.Equal("workspace", persistedPayload.Source!.Origin);
+        Assert.Equal("core.review", persistedPayload.Presentation!.PresentationId);
+
+        var session = await new ThreadStore(_root).LoadOrCreateSessionAsync(CreateAgent(), thread.Id);
+        var formatted = FormatHistoryWithContents(session);
+
+        Assert.Contains("assistant:calling MCPfunction_call:mcp__review__lookup:mcp-call-1", formatted);
+        Assert.Contains("tool:function_result:mcp-call-1:safe result", formatted);
+        Assert.DoesNotContain(formatted, value => value.Contains("client-only", StringComparison.Ordinal));
+        Assert.DoesNotContain(formatted, value => value.Contains("host-only", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task LoadOrCreateSessionAsync_RebuildsLegacyPluginItemForReadCompatibility()
+    {
+        var thread = CreateThread();
+        AddTurnWithMessages(thread, "hello", "calling plugin");
+        var turn = thread.Turns[0];
+        turn.Items.Add(new SessionItem
+        {
+            Id = SessionIdGenerator.NewItemId(3),
+            TurnId = turn.Id,
+            Type = ItemType.PluginFunctionCall,
+            Status = ItemStatus.Completed,
+            CreatedAt = DateTimeOffset.UtcNow,
+            CompletedAt = DateTimeOffset.UtcNow,
+            Payload = new PluginFunctionCallPayload
+            {
+                PluginId = "legacy",
+                FunctionName = "legacy_tool",
+                CallId = "legacy-call-1",
+                Success = true,
+                ContentItems = [new PluginFunctionContentItem { Type = "text", Text = "legacy result" }],
+                StructuredResult = new JsonObject { ["hidden"] = true }
+            }
+        });
+        await _store.SaveThreadAsync(thread);
+
+        var session = await new ThreadStore(_root).LoadOrCreateSessionAsync(CreateAgent(), thread.Id);
+
+        Assert.Equal(
+            [
+                "user:hello",
+                "assistant:calling pluginfunction_call:legacy_tool:legacy-call-1",
+                "tool:function_result:legacy-call-1:legacy result"
+            ],
+            FormatHistoryWithContents(session));
     }
 
     // -------------------------------------------------------------------------

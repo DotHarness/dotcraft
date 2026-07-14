@@ -156,7 +156,7 @@ public sealed record AttachToolsRequest(
     string ThreadId,
     string AppId,
     string GrantId,
-    IReadOnlyList<DynamicToolSpec> Tools,
+    IReadOnlyList<AppBoundToolSpec> Tools,
     IReadOnlyList<AppToolCatalogEntry>? ToolCatalog = null,
     IReadOnlyList<string>? DirectToolNames = null,
     IReadOnlyList<string>? DeferredToolNames = null,

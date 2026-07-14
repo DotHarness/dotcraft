@@ -50,8 +50,10 @@ public sealed class DreamsSessionRunnerTests : IDisposable
                     || !string.Equals(threadConfig.ToolProfile, DreamsConstants.ToolProfileName, StringComparison.Ordinal))
                     return Task.CompletedTask;
 
-                var tools = new DreamsToolProvider(runRegistry).CreateTools(CreateToolContext(thread.Id)).ToList();
-                if (threadConfig.UseToolProfileOnly && tools.Count == 0)
+                var source = new DreamsToolSource(runRegistry, new AppConfig(), new PathBlacklist([]));
+                var registrations = source.GetRegistrationsAsync(
+                    new ToolPlanningContext(thread.Id, null, _workspace, "agent", "dreams", [], 1)).AsTask().GetAwaiter().GetResult();
+                if (threadConfig.UseToolProfileOnly && registrations.Count == 0)
                     throw new InvalidOperationException("UseToolProfileOnly requires a registered ToolProfile with at least one tool.");
 
                 return Task.CompletedTask;
@@ -131,21 +133,6 @@ public sealed class DreamsSessionRunnerTests : IDisposable
         Assert.Contains("PRUNING_NOTES.md", prompt, StringComparison.Ordinal);
         Assert.Equal(2, submitCalls);
     }
-
-    private ToolProviderContext CreateToolContext(string currentThreadId) =>
-        new()
-        {
-            Config = new AppConfig(),
-            ChatClient = null!,
-            WorkspacePath = _workspace,
-            BotPath = _craft,
-            MemoryStore = new MemoryStore(_craft),
-            DreamStore = new DreamStore(_craft),
-            SkillsLoader = new SkillsLoader(_craft),
-            ApprovalService = new AutoApproveApprovalService(),
-            PathBlacklist = new PathBlacklist([]),
-            CurrentThreadId = currentThreadId
-        };
 
     private static SessionEvent[] CreateDreamTurnEvents(string threadId, string turnId)
     {

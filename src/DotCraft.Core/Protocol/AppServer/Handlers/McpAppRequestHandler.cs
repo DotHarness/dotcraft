@@ -1,0 +1,493 @@
+using System.Text;
+using System.Text.Json;
+using System.Text.Json.Nodes;
+using DotCraft.Mcp;
+using DotCraft.Tools;
+using Microsoft.Extensions.AI;
+using ModelContextProtocol.Protocol;
+
+namespace DotCraft.Protocol.AppServer;
+
+/// <summary>Implements connection-owned MCP App View capabilities without sharing legacy UI authority.</summary>
+internal sealed class McpAppRequestHandler : IAppServerDomainHandler, IDisposable
+{
+    private const int MaxMessageBytes = 16 * 1024;
+    private const int MaxBridgeResultBytes = 2 * 1024 * 1024;
+
+    private readonly ISessionService _sessions;
+    private readonly AppServerConnection _connection;
+    private readonly IAppServerTransport _transport;
+    private readonly IThreadToolDispatchService? _dispatcher;
+    private readonly IThreadToolSnapshotService? _snapshots;
+    private readonly IThreadMcpRuntimeService? _mcpRuntime;
+    private readonly McpAppTransientContextStore? _contextStore;
+    private readonly McpAppViewRegistry _views = new();
+    private readonly HashSet<McpClientManager> _watchedManagers = new(ReferenceEqualityComparer.Instance);
+    private readonly object _watchedManagersLock = new();
+
+    public McpAppRequestHandler(
+        ISessionService sessions,
+        AppServerConnection connection,
+        IAppServerTransport transport,
+        IThreadToolDispatchService? dispatcher,
+        IThreadToolSnapshotService? snapshots,
+        IThreadMcpRuntimeService? mcpRuntime,
+        McpAppTransientContextStore? contextStore)
+    {
+        _sessions = sessions;
+        _connection = connection;
+        _transport = transport;
+        _dispatcher = dispatcher;
+        _snapshots = snapshots;
+        _mcpRuntime = mcpRuntime;
+        _contextStore = contextStore;
+        _ = DisposeWhenConnectionClosesAsync();
+    }
+
+    public void RegisterMethods(AppServerMethodTable table)
+    {
+        table.Map(AppServerMethods.McpAppViewOpen, OpenAsync);
+        table.Map(AppServerMethods.McpAppViewResourceRead, ReadResourceAsync);
+        table.Map(AppServerMethods.McpAppViewToolsList, ListToolsAsync);
+        table.Map(AppServerMethods.McpAppViewToolCall, CallToolAsync);
+        table.Map(AppServerMethods.McpAppViewMessage, MessageAsync);
+        table.Map(AppServerMethods.McpAppViewModelContextUpdate, UpdateModelContextAsync);
+        table.Map(AppServerMethods.McpAppViewOpenLink, OpenLinkAsync);
+        table.Map(AppServerMethods.McpAppViewClose, CloseAsync);
+    }
+
+    private async Task<object?> OpenAsync(AppServerIncomingMessage message, CancellationToken cancellationToken)
+    {
+        EnsureAvailable();
+        var parameters = AppServerParams.Get<McpAppViewOpenParams>(message);
+        if (string.IsNullOrWhiteSpace(parameters.ThreadId) || string.IsNullOrWhiteSpace(parameters.ItemId))
+            throw AppServerErrors.InvalidParams("'threadId' and 'itemId' are required.");
+        if (!_connection.IsMcpAppItemEligible(parameters.ThreadId, parameters.ItemId))
+            throw McpAppViewErrors.Create("stale", "Only a live MCP tool result can open an MCP App View.");
+
+        var thread = await _sessions.GetThreadAsync(parameters.ThreadId, cancellationToken).ConfigureAwait(false);
+        var item = thread.Turns.SelectMany(static turn => turn.Items)
+            .FirstOrDefault(candidate => string.Equals(candidate.Id, parameters.ItemId, StringComparison.Ordinal));
+        if (item?.AsMcpToolCall is not { } payload
+            || item.Status != ItemStatus.Completed
+            || payload.Status is not ("completed" or "failed")
+            || payload.McpGeneration is not { } generation)
+            throw McpAppViewErrors.Create("stale", "The MCP tool result is not eligible for a live View.");
+
+        var snapshot = await _snapshots!.GetEffectiveToolSnapshotAsync(parameters.ThreadId, cancellationToken).ConfigureAwait(false);
+        var canonicalName = new ToolName(payload.Namespace, payload.ToolName);
+        if (!snapshot.Registrations.TryGetValue(canonicalName, out var registration)
+            || snapshot.Revision != payload.SnapshotRevision
+            || registration.Definition.Id.ToString() != payload.ToolDefinitionId
+            || registration.Binding.Id.Value != payload.RuntimeBindingId
+            || registration.Binding.Revision != payload.BindingRevision
+            || registration.Definition.Id.Kind != ToolSourceKind.Mcp
+            || !registration.InvocationAudiences.HasFlag(ToolInvocationAudience.App)
+            || !McpAppMetadataParser.TryGetToolMetadata(registration.Definition, out var appMetadata)
+            || !appMetadata.Visibility.HasFlag(McpAppVisibility.App)
+            || appMetadata.ResourceUri is null)
+            throw McpAppViewErrors.Create("revoked", "The MCP App tool authority is no longer valid.");
+
+        var manager = await _mcpRuntime!.GetEffectiveMcpRuntimeAsync(parameters.ThreadId, cancellationToken).ConfigureAwait(false)
+            ?? throw McpAppViewErrors.Create("offline", "The MCP server is offline.");
+        var currentGeneration = await manager.GetGenerationAsync(payload.Server, cancellationToken).ConfigureAwait(false);
+        if (currentGeneration != generation)
+            throw McpAppViewErrors.Create("stale", "The MCP server generation changed.");
+        WatchManager(manager);
+
+        ReadResourceResult rawResource;
+        try
+        {
+            rawResource = await manager.ReadResourceAsync(
+                payload.Server,
+                appMetadata.ResourceUri.AbsoluteUri,
+                generation,
+                cancellationToken).ConfigureAwait(false);
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            throw McpAppViewErrors.Create("protocol_error", "The MCP App resource could not be read.", exception.Message);
+        }
+
+        if (!McpAppMetadataParser.TryParseResourceContent(rawResource, appMetadata.ResourceUri, out var resource, out var resourceError))
+            throw McpAppViewErrors.Create("protocol_error", "The MCP App resource is invalid.", resourceError);
+
+        var handle = $"view_{Guid.NewGuid():N}";
+        var state = _views.Add(new McpAppViewState
+        {
+            Handle = handle,
+            ThreadId = parameters.ThreadId,
+            SourceItemId = parameters.ItemId,
+            ServerName = payload.Server,
+            Origin = payload.Origin,
+            Generation = generation,
+            ToolName = canonicalName,
+            DefinitionId = registration.Definition.Id,
+            RuntimeBindingId = registration.Binding.Id,
+            SnapshotRevision = snapshot.Revision,
+            BindingRevision = registration.Binding.Revision,
+            RawSourceToolId = payload.SourceToolId,
+            ResourceUri = appMetadata.ResourceUri,
+            Manager = manager
+        });
+
+        return new McpAppViewOpenResult
+        {
+            ViewHandle = state.Handle,
+            Resource = ToResourceWire(resource!),
+            ToolInput = payload.Arguments?.DeepClone().AsObject() ?? [],
+            ToolResult = new McpAppToolResultWire
+            {
+                Content = payload.Content?.DeepClone().AsArray() ?? [],
+                StructuredContent = payload.StructuredContent?.DeepClone(),
+                Meta = payload.Meta?.DeepClone(),
+                IsError = payload.IsError == true,
+                ErrorCode = payload.ErrorCode,
+                ErrorMessage = payload.ErrorMessage
+            }
+        };
+    }
+
+    private async Task<object?> ReadResourceAsync(AppServerIncomingMessage message, CancellationToken cancellationToken)
+    {
+        var parameters = AppServerParams.Get<McpAppViewResourceReadParams>(message);
+        var state = await ValidateAsync(parameters.ViewHandle, cancellationToken).ConfigureAwait(false);
+        if (!Uri.TryCreate(parameters.Uri, UriKind.Absolute, out _))
+            throw McpAppViewErrors.Create("invalid_input", "A valid absolute resource URI is required.");
+        var result = await state.Manager.ReadResourceAsync(
+            state.ServerName,
+            parameters.Uri,
+            state.Generation,
+            cancellationToken).ConfigureAwait(false);
+        var contents = SerializeArray(result.Contents);
+        if (Encoding.UTF8.GetByteCount(contents.ToJsonString()) > MaxBridgeResultBytes)
+            throw McpAppViewErrors.Create("result_too_large", "The MCP App resource exceeds the maximum size.");
+        return new McpAppViewResourceReadResult
+        {
+            Contents = contents
+        };
+    }
+
+    private async Task<object?> ListToolsAsync(AppServerIncomingMessage message, CancellationToken cancellationToken)
+    {
+        var parameters = AppServerParams.Get<McpAppViewToolsListParams>(message);
+        var state = await ValidateAsync(parameters.ViewHandle, cancellationToken).ConfigureAwait(false);
+        var snapshot = await _snapshots!.GetEffectiveToolSnapshotAsync(state.ThreadId, cancellationToken).ConfigureAwait(false);
+        var tools = snapshot.Registrations.Values
+            .Where(registration => registration.Definition.Id.Kind == ToolSourceKind.Mcp
+                                   && string.Equals(registration.Definition.Id.SourceId, state.ServerName, StringComparison.Ordinal)
+                                   && registration.InvocationAudiences.HasFlag(ToolInvocationAudience.App)
+                                   && McpAppMetadataParser.TryGetToolMetadata(registration.Definition, out var metadata)
+                                   && metadata.Visibility.HasFlag(McpAppVisibility.App))
+            .OrderBy(registration => registration.Definition.Id.SourceToolId.Value, StringComparer.Ordinal)
+            .Select(registration => new McpAppToolWire
+            {
+                Name = registration.Definition.Id.SourceToolId.Value,
+                Description = registration.Definition.Description,
+                InputSchema = JsonNode.Parse(registration.Definition.InputSchema.GetRawText())?.AsObject() ?? []
+            })
+            .ToList();
+        return new McpAppViewToolsListResult { Tools = tools };
+    }
+
+    private async Task<object?> CallToolAsync(AppServerIncomingMessage message, CancellationToken cancellationToken)
+    {
+        var parameters = AppServerParams.Get<McpAppViewToolCallParams>(message);
+        if (string.IsNullOrWhiteSpace(parameters.Tool))
+            throw McpAppViewErrors.Create("invalid_input", "A raw MCP tool name is required.");
+        var state = await ValidateAsync(parameters.ViewHandle, cancellationToken).ConfigureAwait(false);
+        state.CheckToolRate();
+        await state.ToolCallSlots.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            var snapshot = await _snapshots!.GetEffectiveToolSnapshotAsync(state.ThreadId, cancellationToken).ConfigureAwait(false);
+            var canonicalName = McpToolNaming.CanonicalToolName(state.ServerName, parameters.Tool);
+            if (!snapshot.Registrations.TryGetValue(canonicalName, out var registration)
+                || registration.Definition.Id.Kind != ToolSourceKind.Mcp
+                || !string.Equals(registration.Definition.Id.SourceId, state.ServerName, StringComparison.Ordinal)
+                || !string.Equals(registration.Definition.Id.SourceToolId.Value, parameters.Tool, StringComparison.Ordinal)
+                || !registration.InvocationAudiences.HasFlag(ToolInvocationAudience.App)
+                || !McpAppMetadataParser.TryGetToolMetadata(registration.Definition, out var metadata)
+                || !metadata.Visibility.HasFlag(McpAppVisibility.App))
+                throw McpAppViewErrors.Create("unauthorized", "The MCP App is not authorized to call this tool.");
+
+            var result = await _dispatcher!.DispatchThreadToolAsync(
+                state.ThreadId,
+                canonicalName,
+                parameters.Arguments,
+                $"app_{Guid.NewGuid():N}",
+                ToolInvocationAudience.App,
+                cancellationToken,
+                new ToolInvocationOrigin("mcpApp", state.SourceItemId)).ConfigureAwait(false);
+            var wire = ToToolResultWire(result);
+            if (Encoding.UTF8.GetByteCount(JsonSerializer.Serialize(wire, SessionWireJsonOptions.Default)) > MaxBridgeResultBytes)
+                throw McpAppViewErrors.Create("result_too_large", "The MCP App tool result exceeds the maximum size.");
+            return wire;
+        }
+        finally
+        {
+            state.ToolCallSlots.Release();
+        }
+    }
+
+    private async Task<object?> MessageAsync(AppServerIncomingMessage message, CancellationToken cancellationToken)
+    {
+        var parameters = AppServerParams.Get<McpAppViewMessageParams>(message);
+        var state = await ValidateAsync(parameters.ViewHandle, cancellationToken).ConfigureAwait(false);
+        state.CheckMessageRate();
+        if (!string.Equals(parameters.Role, "user", StringComparison.Ordinal)
+            || !string.Equals(parameters.Content.Type, "text", StringComparison.Ordinal)
+            || string.IsNullOrWhiteSpace(parameters.Content.Text)
+            || Encoding.UTF8.GetByteCount(parameters.Content.Text) > MaxMessageBytes)
+            throw McpAppViewErrors.Create("invalid_input", "MCP App messages must contain one bounded user text block.");
+
+        using var trigger = TurnTriggerScope.Set(new TurnTriggerInfo
+        {
+            Kind = "mcpApp",
+            Label = state.ServerName,
+            RefId = state.SourceItemId
+        });
+        var content = new AIContent[] { new TextContent(parameters.Content.Text) };
+        var queued = await _sessions.EnqueueTurnInputAsync(state.ThreadId, content, ct: cancellationToken).ConfigureAwait(false);
+        _contextStore!.CaptureForQueuedInput(state.Handle, state.ThreadId, queued.Id);
+        await _sessions.TryStartNextQueuedTurnAsync(state.ThreadId, cancellationToken).ConfigureAwait(false);
+        return new McpAppViewMessageResult { QueuedInputId = queued.Id };
+    }
+
+    private async Task<object?> UpdateModelContextAsync(AppServerIncomingMessage message, CancellationToken cancellationToken)
+    {
+        var parameters = AppServerParams.Get<McpAppViewModelContextUpdateParams>(message);
+        var state = await ValidateAsync(parameters.ViewHandle, cancellationToken).ConfigureAwait(false);
+        state.CheckMessageRate();
+        if ((parameters.Content is null || parameters.Content.Count == 0) && parameters.StructuredContent is null)
+        {
+            _contextStore!.ClearView(state.Handle);
+            return new McpAppViewModelContextUpdateResult { Cleared = true };
+        }
+
+        var context = ParseTransientContext(parameters.Content, parameters.StructuredContent);
+        _contextStore!.Set(state.Handle, state.ThreadId, context);
+        return new McpAppViewModelContextUpdateResult { Cleared = false };
+    }
+
+    private async Task<object?> OpenLinkAsync(AppServerIncomingMessage message, CancellationToken cancellationToken)
+    {
+        var parameters = AppServerParams.Get<McpAppViewOpenLinkParams>(message);
+        _ = await ValidateAsync(parameters.ViewHandle, cancellationToken).ConfigureAwait(false);
+        if (!Uri.TryCreate(parameters.Url, UriKind.Absolute, out var uri)
+            || !(string.Equals(uri.Scheme, Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase)
+                 || string.Equals(uri.Scheme, Uri.UriSchemeMailto, StringComparison.OrdinalIgnoreCase)
+                 || (string.Equals(uri.Scheme, Uri.UriSchemeHttp, StringComparison.OrdinalIgnoreCase) && uri.IsLoopback)))
+            throw McpAppViewErrors.Create("unauthorized", "The MCP App link scheme is not allowed.");
+        return new McpAppViewOpenLinkResult { Url = uri.AbsoluteUri };
+    }
+
+    private Task<object?> CloseAsync(AppServerIncomingMessage message, CancellationToken cancellationToken)
+    {
+        _ = cancellationToken;
+        var parameters = AppServerParams.Get<McpAppViewCloseParams>(message);
+        var closed = _views.Close(parameters.ViewHandle, out var state);
+        if (state is not null)
+        {
+            _contextStore?.ClearView(state.Handle);
+            state.Dispose();
+        }
+        return Task.FromResult<object?>(new McpAppViewCloseResult { Closed = closed });
+    }
+
+    private async Task<McpAppViewState> ValidateAsync(string handle, CancellationToken cancellationToken)
+    {
+        EnsureAvailable();
+        var state = _views.Get(handle);
+        var generation = await state.Manager.GetGenerationAsync(state.ServerName, cancellationToken).ConfigureAwait(false);
+        if (generation != state.Generation)
+        {
+            _views.Close(handle, out _);
+            _contextStore?.ClearView(handle);
+            state.Dispose();
+            throw McpAppViewErrors.Create("stale", "The MCP server generation changed.");
+        }
+
+        var snapshot = await _snapshots!.GetEffectiveToolSnapshotAsync(state.ThreadId, cancellationToken).ConfigureAwait(false);
+        if (snapshot.Revision != state.SnapshotRevision
+            || !snapshot.Registrations.TryGetValue(state.ToolName, out var registration)
+            || registration.Definition.Id != state.DefinitionId
+            || registration.Binding.Id != state.RuntimeBindingId
+            || registration.Binding.Revision != state.BindingRevision
+            || !registration.InvocationAudiences.HasFlag(ToolInvocationAudience.App))
+            throw McpAppViewErrors.Create("revoked", "The MCP App View authority was revoked.");
+        return state;
+    }
+
+    private void EnsureAvailable()
+    {
+        if (!_connection.SupportsMcpApps || _dispatcher is null || _snapshots is null || _mcpRuntime is null || _contextStore is null)
+            throw AppServerErrors.MethodNotFound(AppServerMethods.McpAppViewOpen);
+    }
+
+    private static McpAppResourceWire ToResourceWire(McpAppResourceContent resource) => new()
+    {
+        Uri = resource.Uri.AbsoluteUri,
+        MimeType = resource.MimeType,
+        Html = resource.Text ?? Encoding.UTF8.GetString(resource.Blob.Span),
+        Ui = new McpAppResourceMetadataWire
+        {
+            PrefersBorder = resource.Metadata.PrefersBorder ?? false,
+            RequestedDomain = resource.Metadata.Domain,
+            Csp = new McpAppResourceCspWire
+            {
+                ConnectDomains = resource.Metadata.Csp?.ConnectDomains.ToList() ?? [],
+                ResourceDomains = resource.Metadata.Csp?.ResourceDomains.ToList() ?? [],
+                FrameDomains = resource.Metadata.Csp?.FrameDomains.ToList() ?? [],
+                BaseUriDomains = resource.Metadata.Csp?.BaseUriDomains.ToList() ?? []
+            }
+        }
+    };
+
+    private static McpAppToolResultWire ToToolResultWire(ToolExecutionResult result)
+    {
+        if (result.RawSourceResult is { } raw)
+        {
+            var source = JsonNode.Parse(raw.GetRawText())?.AsObject();
+            return new McpAppToolResultWire
+            {
+                Content = source?["content"]?.DeepClone().AsArray() ?? [],
+                StructuredContent = source?["structuredContent"]?.DeepClone(),
+                Meta = source?["_meta"]?.DeepClone(),
+                IsError = source?["isError"]?.GetValue<bool>() ?? !result.Success,
+                ErrorCode = result.Error?.Code,
+                ErrorMessage = result.Error?.Message
+            };
+        }
+
+        var content = new JsonArray();
+        if (!string.IsNullOrEmpty(result.Content))
+            content.Add(new JsonObject { ["type"] = "text", ["text"] = result.Content });
+        return new McpAppToolResultWire
+        {
+            Content = content,
+            StructuredContent = result.StructuredContent is { } structured ? JsonNode.Parse(structured.GetRawText()) : null,
+            Meta = result.Meta is { } meta ? JsonNode.Parse(meta.GetRawText()) : null,
+            IsError = !result.Success,
+            ErrorCode = result.Error?.Code,
+            ErrorMessage = result.Error?.Message
+        };
+    }
+
+    private static JsonArray SerializeArray<T>(IEnumerable<T> values)
+    {
+        var node = JsonSerializer.SerializeToNode(values, SessionWireJsonOptions.Default);
+        return node as JsonArray ?? [];
+    }
+
+    private static IReadOnlyList<AIContent> ParseTransientContext(JsonArray? content, JsonObject? structuredContent)
+    {
+        var result = new List<AIContent>();
+        var byteCount = structuredContent is null ? 0 : Encoding.UTF8.GetByteCount(structuredContent.ToJsonString());
+        foreach (var node in content ?? [])
+        {
+            if (node is not JsonObject block || block["type"] is not JsonValue typeValue || !typeValue.TryGetValue<string>(out var type))
+                throw McpAppViewErrors.Create("invalid_input", "The MCP App context contains an unknown content block.");
+            if (type == "text" && block["text"] is JsonValue textValue && textValue.TryGetValue<string>(out var text))
+            {
+                byteCount += Encoding.UTF8.GetByteCount(text);
+                result.Add(new TextContent(text));
+                continue;
+            }
+            if (type == "image"
+                && block["data"] is JsonValue dataValue && dataValue.TryGetValue<string>(out var data)
+                && block["mimeType"] is JsonValue mimeValue && mimeValue.TryGetValue<string>(out var mimeType)
+                && mimeType.StartsWith("image/", StringComparison.OrdinalIgnoreCase))
+            {
+                try
+                {
+                    var bytes = Convert.FromBase64String(data);
+                    byteCount += bytes.Length;
+                    result.Add(new DataContent(bytes, mimeType));
+                    continue;
+                }
+                catch (FormatException)
+                {
+                    // Rejected below as one invalid request.
+                }
+            }
+            throw McpAppViewErrors.Create("invalid_input", "The MCP App context contains an unsupported content block.");
+        }
+        if (structuredContent is not null)
+            result.Add(new TextContent($"[Untrusted MCP App structured context]\n{structuredContent.ToJsonString()}"));
+        if (byteCount > MaxMessageBytes)
+            throw McpAppViewErrors.Create("invalid_input", "The MCP App context exceeds the maximum size.");
+        return result;
+    }
+
+    private async Task DisposeWhenConnectionClosesAsync()
+    {
+        await _connection.Closed.ConfigureAwait(false);
+        Dispose();
+    }
+
+    private void WatchManager(McpClientManager manager)
+    {
+        lock (_watchedManagersLock)
+        {
+            if (_watchedManagers.Add(manager))
+                manager.StatusChanged += OnMcpStatusChanged;
+        }
+    }
+
+    private void OnMcpStatusChanged(object? sender, McpServerStatusChangedEventArgs args)
+    {
+        if (sender is McpClientManager manager)
+            _ = RevokeStaleViewsAsync(manager, args.Status);
+    }
+
+    private async Task RevokeStaleViewsAsync(McpClientManager manager, McpServerStatusSnapshot status)
+    {
+        try
+        {
+            var generation = await manager.GetGenerationAsync(status.Name).ConfigureAwait(false);
+            var candidates = _views.Snapshot().Where(view => ReferenceEquals(view.Manager, manager)
+                                                              && string.Equals(view.ServerName, status.Name, StringComparison.OrdinalIgnoreCase))
+                .ToArray();
+            foreach (var view in candidates)
+            {
+                var ready = status.Enabled && string.Equals(status.StartupState, "ready", StringComparison.OrdinalIgnoreCase);
+                if (ready && generation == view.Generation)
+                    continue;
+                if (!_views.Close(view.Handle, out _))
+                    continue;
+                _contextStore?.ClearView(view.Handle);
+                view.Dispose();
+                await _transport.WriteMessageAsync(new
+                {
+                    jsonrpc = "2.0",
+                    method = AppServerMethods.McpAppViewStatusUpdated,
+                    @params = new McpAppViewStatusUpdatedParams
+                    {
+                        ViewHandle = view.Handle,
+                        Status = ready ? "revoked" : "offline",
+                        Code = ready ? "generation_changed" : "server_offline",
+                        FallbackText = ready
+                            ? "The MCP server generation changed."
+                            : "The MCP server is offline."
+                    }
+                }).ConfigureAwait(false);
+            }
+        }
+        catch
+        {
+            // Connection teardown or a concurrent runtime disposal already revoked the View.
+        }
+    }
+
+    public void Dispose()
+    {
+        lock (_watchedManagersLock)
+        {
+            foreach (var manager in _watchedManagers)
+                manager.StatusChanged -= OnMcpStatusChanged;
+            _watchedManagers.Clear();
+        }
+        _views.Dispose();
+    }
+}

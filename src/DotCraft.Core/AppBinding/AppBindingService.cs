@@ -7,6 +7,7 @@ using DotCraft.Plugins;
 using DotCraft.Protocol;
 using DotCraft.Protocol.AppServer;
 using DotCraft.Skills;
+using DotCraft.Tools;
 using Microsoft.Extensions.AI;
 using static DotCraft.AppBinding.AppBindingStoreAccessor;
 
@@ -284,7 +285,7 @@ public sealed class AppBindingService
         string userId,
         string grantId,
         IReadOnlyList<string> grantedScopes,
-        IReadOnlyList<DynamicToolSpec>? tools = null,
+        IReadOnlyList<AppBoundToolSpec>? tools = null,
         AppDescriptor? descriptorOverride = null) =>
         _lifecycle.EnsureManagedBinding(
             workspaceCraftPath,
@@ -467,15 +468,22 @@ public sealed class AppBindingService
         ThreadAppBindingRefreshParams p) =>
         _lifecycle.RefreshBindings(catalog, workspaceCraftPath, p);
 
-    public IReadOnlyList<AITool> CreateRuntimeToolsForThread(
-        SessionThread thread,
-        IReadOnlySet<string> reservedToolNames) =>
-        _tools.CreateRuntimeToolsForThread(thread, reservedToolNames);
+    internal IReadOnlyList<LegacyAppBindingAttachedTool> GetAttachedToolsForThread(
+        string threadId,
+        string workspacePath) =>
+        _tools.GetAttachedToolsForThread(threadId, workspacePath);
 
-    internal async ValueTask<DynamicToolCallResult> InvokeAttachedToolAsync(
+    internal ToolBindingLeaseResult CheckAttachedToolLease(
         string workspaceCraftPath,
         string bindingId,
-        DynamicToolSpec spec,
+        string? toolNamespace,
+        string toolName) =>
+        _tools.CheckAttachedToolLease(workspaceCraftPath, bindingId, toolNamespace, toolName);
+
+    internal async ValueTask<AppBoundToolCallResult> InvokeAttachedToolAsync(
+        string workspaceCraftPath,
+        string bindingId,
+        AppBoundToolSpec spec,
         string executionThreadId,
         string executionTurnId,
         ISessionService? executionSessionService,
@@ -494,13 +502,13 @@ public sealed class AppBindingService
             cancellationToken);
 
     /// <summary>
-    /// Invokes an app-bound tool on behalf of its Interactive Tool UI (MCP Apps <c>callTool</c>).
+    /// Invokes an app-bound tool on behalf of the private Legacy App Binding iframe bridge.
     /// The call is decoupled from the agent conversation: it produces no turn or item, is gated by
     /// App Binding scope + UI visibility, is recorded on the audit trail, and returns its result to
     /// the host (which relays it to the UI). The model only learns of UI state via
     /// <c>ui/update-model-context</c> or <c>ui/message</c>. See appserver-protocol.md §11.3.2.
     /// </summary>
-    internal async ValueTask<DynamicToolCallResult> InvokeUiToolAsync(
+    internal async ValueTask<AppBoundToolCallResult> InvokeUiToolAsync(
         string workspaceCraftPath,
         string threadId,
         string? @namespace,
@@ -626,7 +634,7 @@ public sealed class AppBindingService
         }
     }
 
-    internal static List<DynamicToolSpec> ValidateAttachedTools(
+    internal static List<AppBoundToolSpec> ValidateAttachedTools(
         AppDescriptor descriptor,
         AppBindingRecord binding,
         AppBindingAttachToolsParams p,
@@ -636,7 +644,7 @@ public sealed class AppBindingService
         var catalogByName = descriptor.ToolCatalog.ToDictionary(tool => tool.Name, StringComparer.Ordinal);
         AddDynamicAttachedToolCatalog(descriptor, p.ToolCatalog, catalogByName);
         var grantedScopes = binding.GrantedScopes.ToHashSet(StringComparer.Ordinal);
-        var accepted = new List<DynamicToolSpec>();
+        var accepted = new List<AppBoundToolSpec>();
         var direct = p.DirectToolNames?.ToHashSet(StringComparer.Ordinal) ?? [];
         var deferred = p.DeferredToolNames?.ToHashSet(StringComparer.Ordinal) ?? [];
 
@@ -824,7 +832,7 @@ public sealed class AppBindingService
             .FirstOrDefault() ?? AppBindingRisks.Read;
     }
 
-    private static DynamicToolSpec CloneSpec(DynamicToolSpec spec) =>
+    private static AppBoundToolSpec CloneSpec(AppBoundToolSpec spec) =>
         new()
         {
             Namespace = spec.Namespace,
@@ -914,14 +922,211 @@ public sealed class AppBindingThreadSystemPromptContextProvider(AppBindingServic
 }
 
 /// <summary>
-/// Exposes App Binding grants as thread-scoped runtime tools.
+/// Temporary M1 source that projects App Binding v1 grants into the unified tool registry.
+/// This is the only legacy tool-system adapter permitted to survive M1.
 /// </summary>
-public sealed class AppBindingRuntimeToolProvider(AppBindingService service) : IThreadRuntimeToolProvider
+public sealed class LegacyAppBindingToolSource(AppBindingService service) : IToolSource
 {
+    /// <inheritdoc />
+    public string SourceId => "legacy-app-binding";
+
+    /// <inheritdoc />
     public int Priority => 91;
 
-    public IReadOnlyList<AITool> CreateToolsForThread(
-        SessionThread thread,
-        IReadOnlySet<string> reservedToolNames) =>
-        service.CreateRuntimeToolsForThread(thread, reservedToolNames);
+    /// <inheritdoc />
+    public ValueTask<IReadOnlyList<ToolRegistration>> GetRegistrationsAsync(
+        ToolPlanningContext context,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(context);
+        cancellationToken.ThrowIfCancellationRequested();
+
+        var registrations = service.GetAttachedToolsForThread(context.ThreadId, context.WorkspacePath)
+            .OrderBy(attached => attached.Spec.Namespace, StringComparer.Ordinal)
+            .ThenBy(attached => attached.Spec.Name, StringComparer.Ordinal)
+            .ThenBy(attached => attached.BindingId, StringComparer.Ordinal)
+            .Select(attached => CreateRegistration(attached, context.Revision))
+            .ToArray();
+        return ValueTask.FromResult<IReadOnlyList<ToolRegistration>>(registrations);
+    }
+
+    private ToolRegistration CreateRegistration(LegacyAppBindingAttachedTool attached, long revision)
+    {
+        var spec = attached.Spec;
+        var toolNamespace = spec.Namespace;
+        var sourceToolId = new SourceToolId(
+            toolNamespace is null ? spec.Name : $"{toolNamespace}/{spec.Name}");
+        var definitionSourceId = $"legacy-app-binding:{attached.BindingId}";
+        var definitionId = new ToolDefinitionId(
+            ToolSourceKind.LegacyAppBinding,
+            definitionSourceId,
+            sourceToolId);
+        var definition = new ToolDefinition(
+            definitionId,
+            new ToolName(toolNamespace, spec.Name),
+            string.IsNullOrWhiteSpace(spec.Description) ? spec.Name : spec.Description,
+            ToJsonElement(spec.InputSchema ?? new JsonObject { ["type"] = "object" }),
+            annotations: CreateAnnotations(spec),
+            policyHints: new ToolPolicyHints(RequiresApproval: spec.Approval is not null),
+            presentation: CreatePresentation(attached),
+            provenance: new ToolProvenance(
+                ToolSourceKind.LegacyAppBinding,
+                attached.AppId,
+                "legacyAppBinding"));
+        var binding = new ToolRuntimeBinding(
+            new RuntimeBindingId(
+                $"legacy-app-binding:{attached.BindingId}:{toolNamespace}:{spec.Name}:{revision}"),
+            definitionId,
+            new LegacyAppBindingToolRuntime(service, attached),
+            new LegacyAppBindingToolLease(service, attached),
+            $"legacy-app-binding:{attached.BindingId}",
+            revision);
+        var modelVisible = LegacyAppBindingUiToolVisibility.IsModelVisible(spec.Meta?.Ui);
+        var appVisible = LegacyAppBindingUiToolVisibility.IsAppVisible(spec.Meta?.Ui);
+        var deferred = modelVisible && spec.DeferLoading == true && toolNamespace is not null;
+        var exposure = !modelVisible
+            ? ToolExposure.Hidden
+            : deferred
+                ? ToolExposure.Deferred
+                : ToolExposure.Direct;
+        var audiences = ToolInvocationAudience.Host;
+        if (modelVisible)
+            audiences |= ToolInvocationAudience.Model;
+        if (appVisible)
+            audiences |= ToolInvocationAudience.App;
+        return new ToolRegistration(
+            definition,
+            binding,
+            exposure,
+            audiences,
+            deferred
+                ? new DeferredToolDescriptor(toolNamespace!, definition.Description)
+                : null);
+    }
+
+    private static JsonElement ToJsonElement(JsonNode node) =>
+        JsonSerializer.Deserialize<JsonElement>(
+            node.ToJsonString(SessionWireJsonOptions.Default),
+            SessionWireJsonOptions.Default);
+
+    private static IReadOnlyDictionary<string, JsonElement>? CreateAnnotations(AppBoundToolSpec spec)
+    {
+        var annotations = new Dictionary<string, JsonElement>(StringComparer.Ordinal);
+        if (spec.Approval is not null)
+        {
+            annotations["dotcraft/legacyAppBindingApproval"] =
+                JsonSerializer.SerializeToElement(spec.Approval, SessionWireJsonOptions.Default);
+        }
+        if (spec.Meta?.Ui is not null)
+        {
+            annotations["dotcraft/legacyAppBindingUi"] =
+                JsonSerializer.SerializeToElement(spec.Meta.Ui, SessionWireJsonOptions.Default);
+        }
+        return annotations.Count == 0 ? null : annotations;
+    }
+
+    private static ToolPresentationDescriptor? CreatePresentation(LegacyAppBindingAttachedTool attached)
+    {
+        var ui = attached.Spec.Meta?.Ui;
+        if (ui is null || string.IsNullOrWhiteSpace(ui.ResourceUri))
+            return null;
+
+        var options = new Dictionary<string, JsonElement>(StringComparer.Ordinal)
+        {
+            ["resourceUri"] = JsonSerializer.SerializeToElement(ui.ResourceUri)
+        };
+        if (!string.IsNullOrWhiteSpace(ui.Domain))
+            options["domain"] = JsonSerializer.SerializeToElement(ui.Domain);
+        if (ui.PrefersBorder.HasValue)
+            options["prefersBorder"] = JsonSerializer.SerializeToElement(ui.PrefersBorder.Value);
+        return new ToolPresentationDescriptor(
+            new PresentationId($"legacy-app-binding:{attached.BindingId}:{attached.Spec.Name}"),
+            options);
+    }
+
+    private sealed class LegacyAppBindingToolLease(
+        AppBindingService service,
+        LegacyAppBindingAttachedTool attached) : IToolBindingLease
+    {
+        public ValueTask<ToolBindingLeaseResult> CheckAsync(
+            ToolInvocationContext context,
+            CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            return ValueTask.FromResult(service.CheckAttachedToolLease(
+                attached.WorkspaceCraftPath,
+                attached.BindingId,
+                attached.Spec.Namespace,
+                attached.Spec.Name));
+        }
+    }
+
+    private sealed class LegacyAppBindingToolRuntime(
+        AppBindingService service,
+        LegacyAppBindingAttachedTool attached) : IToolRuntime
+    {
+        public async ValueTask<ToolExecutionResult> InvokeAsync(
+            ToolInvocationContext context,
+            JsonObject arguments,
+            CancellationToken cancellationToken = default)
+        {
+            var executionScope = PluginFunctionExecutionScope.Current;
+            var result = await service.InvokeAttachedToolAsync(
+                attached.WorkspaceCraftPath,
+                attached.BindingId,
+                attached.Spec,
+                context.ThreadId,
+                context.TurnId ?? string.Empty,
+                executionScope?.SessionService,
+                context.CallId,
+                arguments,
+                cancellationToken).ConfigureAwait(false);
+
+            var text = string.Join(
+                Environment.NewLine,
+                (result.ContentItems ?? [])
+                    .Where(item => string.Equals(item.Type, "text", StringComparison.OrdinalIgnoreCase))
+                    .Select(item => item.Text)
+                    .Where(item => !string.IsNullOrWhiteSpace(item)));
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                text = result.Success
+                    ? $"App-bound tool '{attached.Spec.Name}' completed successfully."
+                    : result.ErrorMessage ?? "App-bound tool execution failed.";
+            }
+
+            var structuredContent = result.StructuredResult is null
+                ? (JsonElement?)null
+                : ToJsonElement(result.StructuredResult);
+            var meta = result.Meta is null
+                ? (JsonElement?)null
+                : ToJsonElement(result.Meta);
+            var rawResult = JsonSerializer.SerializeToElement(result, SessionWireJsonOptions.Default);
+            if (result.Success)
+            {
+                return ToolExecutionResult.Succeeded(
+                    text,
+                    structuredContent,
+                    meta,
+                    rawResult);
+            }
+
+            return new ToolExecutionResult(
+                false,
+                text,
+                structuredContent,
+                meta,
+                rawResult,
+                new ToolError(MapErrorCode(result.ErrorCode), result.ErrorMessage ?? text));
+        }
+
+        private static string MapErrorCode(string? sourceCode) => sourceCode switch
+        {
+            AppBindingErrorCodes.Revoked or AppBindingErrorCodes.Expired => ToolErrorCodes.Unauthorized,
+            AppBindingErrorCodes.Offline or AppBindingErrorCodes.ToolUnavailable => ToolErrorCodes.Unavailable,
+            AppBindingErrorCodes.ApprovalDeclined => ToolErrorCodes.ApprovalRejected,
+            AppBindingErrorCodes.ProtocolViolation => ToolErrorCodes.ResultInvalid,
+            _ => ToolErrorCodes.ExecutionFailed
+        };
+    }
 }

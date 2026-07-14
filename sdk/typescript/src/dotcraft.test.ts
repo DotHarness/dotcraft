@@ -143,26 +143,38 @@ test("DotCraft thread start strips dynamic tool handlers and binds callbacks", a
   const sdk = createSdk(wire);
   const toolResult: DynamicToolCallResult = {
     success: true,
-    structuredResult: { echoed: "hi" },
+    contentItems: [{ type: "text", text: "Echoed hi" }],
+    structuredContent: { echoed: "hi" },
   };
 
   const thread = await sdk.threads.start({
     userId: "u",
     dynamicTools: [
       {
-        namespace: "local",
-        name: "Echo",
-        description: "Echo input",
-        inputSchema: { type: "object" },
-        handler: async () => toolResult,
+        type: "namespace",
+        name: "local",
+        description: "Local tools",
+        tools: [
+          {
+            type: "function",
+            name: "Echo",
+            description: "Echo input",
+            inputSchema: { type: "object" },
+            handler: async () => toolResult,
+          },
+        ],
       },
     ],
   });
 
   const sentTools = wire.startParams?.dynamicTools as Array<Record<string, unknown>>;
   assert.equal(sentTools.length, 1);
-  assert.equal(sentTools[0].name, "Echo");
-  assert.equal("handler" in sentTools[0], false);
+  assert.equal(sentTools[0].type, "namespace");
+  assert.equal(sentTools[0].name, "local");
+  const sentFunctions = sentTools[0].tools as Array<Record<string, unknown>>;
+  assert.equal(sentFunctions[0].type, "function");
+  assert.equal(sentFunctions[0].name, "Echo");
+  assert.equal("handler" in sentFunctions[0], false);
 
   const handler = wire.requestHandlers.get("item/tool/call");
   assert.ok(handler);
@@ -192,6 +204,34 @@ test("DotCraft thread start strips dynamic tool handlers and binds callbacks", a
       errorMessage: "No handler registered for this dynamic tool.",
     },
   );
+});
+
+test("MCP runtime manager uses the specified methods and wire fields", async () => {
+  const wire = new FakeWire();
+  const sdk = createSdk(wire);
+
+  await sdk.mcpRuntime.listStatus({ threadId: "thread-1", cursor: "2", limit: 25, detail: "full" });
+  await sdk.mcpRuntime.readResource({ threadId: "thread-1", server: "docs", uri: "docs://intro" });
+  await sdk.mcpRuntime.callTool({
+    threadId: "thread-1",
+    server: "docs",
+    tool: "search",
+    arguments: { query: "MCP" },
+    _meta: { trace: "t1" },
+  });
+  await sdk.mcpRuntime.loginOAuth({ name: "docs", threadId: "thread-1", scopes: ["read"], timeoutSecs: 60 });
+  await sdk.mcpRuntime.reload();
+
+  assert.deepEqual(wire.requests.slice(-5), [
+    { method: "mcpServerStatus/list", params: { threadId: "thread-1", cursor: "2", limit: 25, detail: "full" } },
+    { method: "mcpServer/resource/read", params: { threadId: "thread-1", server: "docs", uri: "docs://intro" } },
+    {
+      method: "mcpServer/tool/call",
+      params: { threadId: "thread-1", server: "docs", tool: "search", arguments: { query: "MCP" }, _meta: { trace: "t1" } },
+    },
+    { method: "mcpServer/oauth/login", params: { name: "docs", threadId: "thread-1", scopes: ["read"], timeoutSecs: 60 } },
+    { method: "config/mcpServer/reload", params: undefined },
+  ]);
 });
 
 test("DotCraft default callbacks are non-blocking fallbacks", async () => {

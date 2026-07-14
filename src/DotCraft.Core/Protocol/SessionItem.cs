@@ -68,6 +68,14 @@ public sealed class SessionItem
         Payload as PluginFunctionCallPayload;
 
     [JsonIgnore]
+    public McpToolCallPayload? AsMcpToolCall =>
+        Payload as McpToolCallPayload;
+
+    [JsonIgnore]
+    public DynamicToolCallPayload? AsDynamicToolCall =>
+        Payload as DynamicToolCallPayload;
+
+    [JsonIgnore]
     public ToolResultPayload? AsToolResult =>
         Payload as ToolResultPayload;
 

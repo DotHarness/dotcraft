@@ -103,6 +103,15 @@ public sealed class AppServerClientCapabilities
     public bool? InteractiveToolUi { get; set; }
 
     /// <summary>
+    /// Whether the client hosts the stable MCP Apps extension. This is independent from the
+    /// legacy App Binding interactive UI capability.
+    /// </summary>
+    public bool? McpApps { get; set; }
+
+    /// <summary>Whether the client can answer MCP form and URL elicitation requests.</summary>
+    public bool? McpElicitation { get; set; }
+
+    /// <summary>
     /// Channel adapter capability (external-channel-adapter.md §5.1).
     /// Null for regular clients (CLI, VS Code, etc.).
     /// When present, identifies this connection as an external channel adapter.
@@ -391,6 +400,18 @@ public sealed class AppServerServerCapabilities
     /// </summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public bool McpManagement { get; set; }
+
+    /// <summary>Server supports MCP runtime status, resource, tool-call, OAuth, and reload methods.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool McpRuntime { get; set; }
+
+    /// <summary>Server supports the connection-scoped opaque MCP Apps View API.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool McpApps { get; set; }
+
+    /// <summary>Server can forward standards-based MCP form and URL elicitation to a capable client.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool McpElicitation { get; set; }
 
     /// <summary>
     /// Server annotates MCP config/status DTOs with workspace/plugin origin metadata.

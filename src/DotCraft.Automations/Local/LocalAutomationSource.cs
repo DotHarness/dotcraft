@@ -3,6 +3,7 @@ using System.Text.RegularExpressions;
 using DotCraft.Abstractions;
 using DotCraft.Agents;
 using DotCraft.Automations.Abstractions;
+using DotCraft.Tools;
 using Microsoft.Extensions.Logging;
 
 namespace DotCraft.Automations.Local;
@@ -38,12 +39,12 @@ public sealed class LocalAutomationSource(
 
     public void RegisterToolProfile(IToolProfileRegistry registry)
     {
-        var completionLogger = loggerFactory.CreateLogger<LocalTaskCompletionToolProvider>();
-        IReadOnlyList<IAgentToolProvider> providers =
+        var completionLogger = loggerFactory.CreateLogger<LocalTaskCompletionToolSource>();
+        IReadOnlyList<IToolSource> sources =
         [
-            new LocalTaskCompletionToolProvider(fileStore, completionLogger)
+            new LocalTaskCompletionToolSource(fileStore, completionLogger)
         ];
-        registry.Register(ToolProfileName, providers);
+        registry.Register(ToolProfileName, sources);
     }
 
     public async Task<IReadOnlyList<AutomationTask>> GetPendingTasksAsync(CancellationToken ct)
@@ -218,7 +219,7 @@ public sealed class LocalAutomationSource(
         // Check for common injection patterns
         var dangerousPatterns = new[]
         {
-            // Command chaining with && || ; 
+            // Command chaining with && || ;
             // Note: We allow basic chaining for legitimate use cases, but log for audit
             // Network exfiltration attempts
             @"curl\s+.*\|",

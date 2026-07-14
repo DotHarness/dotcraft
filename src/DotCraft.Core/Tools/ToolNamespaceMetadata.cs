@@ -1,5 +1,3 @@
-using DotCraft.Plugins;
-using DotCraft.Protocol.AppServer;
 using Microsoft.Extensions.AI;
 
 namespace DotCraft.Tools;
@@ -26,14 +24,6 @@ internal static class ToolNamespaceMetadataResolver
 
             case IDeferredToolMetadata deferred
                 when TryNormalize(deferred.DeferredToolNamespace, out toolNamespace):
-                return true;
-
-            case IDynamicToolRuntimeTool dynamicTool
-                when TryNormalize(dynamicTool.Spec.Namespace, out toolNamespace):
-                return true;
-
-            case IPluginFunctionTool { PluginFunctionDescriptor: { } descriptor }
-                when TryNormalize(descriptor.Namespace, out toolNamespace):
                 return true;
 
             default:

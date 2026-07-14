@@ -1,20 +1,19 @@
 using DotCraft.Abstractions;
 using DotCraft.Agents;
-using DotCraft.Plugins;
 using DotCraft.Protocol.AppServer;
 using DotCraft.Tools;
 using Microsoft.Extensions.AI;
+using System.Text.Json.Nodes;
 
 namespace DotCraft.Protocol;
 
 /// <summary>
 /// Evaluates profile-shaped thread capability policy for tool discovery and invocation.
 /// </summary>
-internal sealed class ThreadCapabilityPolicyEvaluator(ThreadConfiguration config, ToolProviderContext context)
+internal sealed class ThreadCapabilityPolicyEvaluator(ThreadConfiguration config, AgentRuntimeContext context)
 {
     private const string PolicyDeniedCode = "PROFILE_TOOL_POLICY_DENIED";
     private const string TeamsChannelName = "teams";
-    private const string TeamsToolNamespace = "teams";
     private const string SkillViewToolName = "SkillView";
     private const string SkillManageToolName = "SkillManage";
 
@@ -67,6 +66,73 @@ internal sealed class ThreadCapabilityPolicyEvaluator(ThreadConfiguration config
             return Deny(invocation.Function.Name, reason);
 
         return ModeToolPolicyDecision.Allow;
+    }
+
+    /// <summary>Evaluates the source-qualified registration at the common dispatcher boundary.</summary>
+    public ToolDispatchDecision EvaluateRegistration(ToolRegistration registration, JsonObject arguments)
+    {
+        var name = registration.Definition.Name.Name;
+        if (string.Equals(config.Mode, "plan", StringComparison.OrdinalIgnoreCase))
+        {
+            if (ModeToolPolicy.PlanDeniedToolNames.Contains(name))
+                return ToolDispatchDecision.Deny(ToolErrorCodes.Unauthorized, $"Plan mode does not allow {name}.");
+            if (string.Equals(name, "Exec", StringComparison.OrdinalIgnoreCase)
+                && !PlanModeShellClassifier.IsReadOnly(
+                    arguments["command"]?.GetValue<string>(),
+                    arguments["shell"]?.GetValue<string>(),
+                    out var shellReason))
+            {
+                return ToolDispatchDecision.Deny(ToolErrorCodes.Unauthorized, shellReason);
+            }
+        }
+        else if (string.Equals(config.Mode, "agent", StringComparison.OrdinalIgnoreCase)
+                 && string.Equals(name, "CreatePlan", StringComparison.OrdinalIgnoreCase))
+        {
+            return ToolDispatchDecision.Deny(ToolErrorCodes.Unauthorized, "Agent mode does not allow CreatePlan.");
+        }
+
+        var reserved = IsTeamsReservedToolName(name) || IsRuntimeReservedToolName(name);
+        if (!AllowsToolName(name, reserved, out var reason))
+            return ToolDispatchDecision.Deny(ToolErrorCodes.Unauthorized, reason);
+
+        if (registration.Definition.Id.Kind == ToolSourceKind.Mcp && config.McpPolicy is { } mcp)
+        {
+            var server = registration.Definition.Id.SourceId;
+            if (mcp.Servers != null && !MatchesAny(server, mcp.Servers, allowWildcards: false))
+                return ToolDispatchDecision.Deny(ToolErrorCodes.Unauthorized, "The thread MCP policy does not allow this MCP server.");
+            var candidates = new[]
+            {
+                name,
+                registration.Definition.Name.ToString(),
+                $"mcp__{server}__{name}"
+            };
+            if (candidates.Any(candidate => MatchesAny(candidate, mcp.Tools?.Deny, allowWildcards: true)))
+                return ToolDispatchDecision.Deny(ToolErrorCodes.Unauthorized, "The thread MCP policy denies this MCP tool.");
+            if (mcp.Tools?.Allow != null
+                && !candidates.Any(candidate => MatchesAny(candidate, mcp.Tools.Allow, allowWildcards: true)))
+                return ToolDispatchDecision.Deny(ToolErrorCodes.Unauthorized, "The thread MCP policy does not allow this MCP tool.");
+        }
+
+        if (registration.Definition.Id.Kind is ToolSourceKind.PluginNative or ToolSourceKind.LegacyAppBinding
+            && config.PluginPolicy is { } plugin)
+        {
+            var source = registration.Definition.Provenance.SourceId;
+            if (MatchesAny(source, plugin.Deny, allowWildcards: false)
+                || MatchesAny(name, plugin.Deny, allowWildcards: true)
+                || MatchesAny(registration.Definition.Name.ToString(), plugin.Deny, allowWildcards: true))
+                return ToolDispatchDecision.Deny(ToolErrorCodes.Unauthorized, "The thread plugin policy denies this plugin, app, or tool.");
+            if (plugin.Allow != null && !MatchesAny(source, plugin.Allow, allowWildcards: false))
+                return ToolDispatchDecision.Deny(ToolErrorCodes.Unauthorized, "The thread plugin policy does not allow this plugin or app.");
+        }
+
+        var invocationArguments = new AIFunctionArguments(arguments.ToDictionary(
+            static pair => pair.Key,
+            static pair => (object?)pair.Value,
+            StringComparer.Ordinal));
+        if (!AllowsSkillInvocation(name, invocationArguments, out reason))
+            return ToolDispatchDecision.Deny(ToolErrorCodes.Unauthorized, reason);
+
+        return ToolDispatchDecision.Allow;
     }
 
     private bool AllowsTool(AITool tool, out string reason)
@@ -296,8 +362,7 @@ internal sealed class ThreadCapabilityPolicyEvaluator(ThreadConfiguration config
     private bool IsTeamsReservedTool(AITool tool) =>
         string.Equals(config.TeamsPolicy?.ReservedTools, "keep", StringComparison.OrdinalIgnoreCase)
         && string.Equals(context.CurrentOriginChannel, TeamsChannelName, StringComparison.OrdinalIgnoreCase)
-        && tool is IDynamicToolRuntimeTool dynamicTool
-        && string.Equals(dynamicTool.Spec.Namespace, TeamsToolNamespace, StringComparison.OrdinalIgnoreCase);
+        && TeamsReservedToolNames.Contains(tool.Name);
 
     private bool IsTeamsReservedToolName(string toolName) =>
         string.Equals(config.TeamsPolicy?.ReservedTools, "keep", StringComparison.OrdinalIgnoreCase)
@@ -313,23 +378,7 @@ internal sealed class ThreadCapabilityPolicyEvaluator(ThreadConfiguration config
     }
 
     private static string? ResolvePluginOrAppSourceId(AITool tool)
-    {
-        if (tool is IPluginFunctionTool { PluginFunctionDescriptor: { } descriptor }
-            && !string.IsNullOrWhiteSpace(descriptor.PluginId))
-        {
-            return descriptor.PluginId;
-        }
-
-        if (tool is IDynamicToolRuntimeTool { Spec: { } spec })
-        {
-            if (!string.IsNullOrWhiteSpace(spec.Meta?.Ui?.Domain))
-                return spec.Meta.Ui.Domain;
-            if (!string.IsNullOrWhiteSpace(spec.Namespace))
-                return spec.Namespace;
-        }
-
-        return null;
-    }
+        => null;
 
     private static bool IsRuntimeReservedToolName(string toolName) =>
         string.Equals(toolName, nameof(ToolSearchTool.SearchTools), StringComparison.Ordinal)

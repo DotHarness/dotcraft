@@ -7,6 +7,7 @@ using DotCraft.Configuration;
 using DotCraft.Memory;
 using DotCraft.Protocol;
 using DotCraft.Protocol.AppServer;
+using DotCraft.Tools;
 using Microsoft.Extensions.AI;
 
 namespace DotCraft.Tests.Sessions.Protocol.AppServer;
@@ -51,7 +52,7 @@ public sealed class AppServerThreadLifecycleTests : IDisposable
     }
 
     [Fact]
-    public async Task ItemWidgetState_PersistsClearsAndSurfacesOnThreadRead()
+    public async Task ItemWidgetState_DoesNotSurfaceOnRuntimeDynamicItems()
     {
         var thread = await _h.Service.CreateThreadAsync(_h.Identity);
         var turn = new SessionTurn
@@ -98,7 +99,7 @@ public sealed class AppServerThreadLifecycleTests : IDisposable
             AppServerTestHarness.AssertIsSuccessResponse(readResp);
             var item = readResp.RootElement.GetProperty("result").GetProperty("thread")
                 .GetProperty("turns")[0].GetProperty("items")[0];
-            Assert.Equal(2, item.GetProperty("payload").GetProperty("widgetState").GetProperty("tab").GetInt32());
+            Assert.False(item.GetProperty("payload").TryGetProperty("widgetState", out _));
         }
 
         await _h.ExecuteRequestAsync(_h.BuildRequest(AppServerMethods.ItemWidgetStateSet, new
@@ -1075,7 +1076,7 @@ public sealed class AppServerThreadLifecycleTests : IDisposable
         var msg = harness.BuildRequest(AppServerMethods.ThreadResume, new
         {
             threadId = thread.Id,
-            dynamicTools = new[] { CreateReviewToolSpec() }
+            dynamicTools = new RuntimeDynamicToolDeclaration[] { CreateReviewToolSpec() }
         });
         await harness.ExecuteRequestAsync(msg);
 
@@ -1085,8 +1086,16 @@ public sealed class AppServerThreadLifecycleTests : IDisposable
         AppServerTestHarness.AssertIsSuccessResponse(response);
         AppServerTestHarness.AssertIsNotification(notification, AppServerMethods.ThreadResumed);
         Assert.Contains(thread.Id, harness.Service.RefreshedThreadAgents);
-        var tool = Assert.Single(dynamicToolProxy.CreateToolsForThread(thread, EmptyReservedNames()));
-        Assert.Equal("SubmitReviewDraft", tool.Name);
+        var registration = Assert.Single(await dynamicToolProxy.GetRegistrationsAsync(
+            new ToolPlanningContext(
+                thread.Id,
+                null,
+                thread.WorkspacePath,
+                "default",
+                null,
+                [],
+                1)));
+        Assert.Equal("SubmitReviewDraft", registration.Definition.Name.Name);
     }
 
     [Fact]
@@ -1164,7 +1173,7 @@ public sealed class AppServerThreadLifecycleTests : IDisposable
         var msg = harness.BuildRequest(AppServerMethods.ThreadResume, new
         {
             threadId = thread.Id,
-            dynamicTools = new[] { invalidSpec }
+            dynamicTools = new RuntimeDynamicToolDeclaration[] { invalidSpec }
         });
         await harness.ExecuteRequestAsync(msg);
 
@@ -1172,7 +1181,15 @@ public sealed class AppServerThreadLifecycleTests : IDisposable
 
         AppServerTestHarness.AssertIsErrorResponse(response, AppServerErrors.InvalidParamsCode);
         Assert.Empty(harness.Service.RefreshedThreadAgents);
-        Assert.Empty(dynamicToolProxy.CreateToolsForThread(thread, EmptyReservedNames()));
+        Assert.Empty(await dynamicToolProxy.GetRegistrationsAsync(
+            new ToolPlanningContext(
+                thread.Id,
+                null,
+                thread.WorkspacePath,
+                "default",
+                null,
+                [],
+                1)));
     }
 
     // -------------------------------------------------------------------------
@@ -2022,21 +2039,28 @@ public sealed class AppServerThreadLifecycleTests : IDisposable
             throw new InvalidOperationException($"git {string.Join(" ", args)} failed: {stderr}");
     }
 
-    private static DynamicToolSpec CreateReviewToolSpec()
+    private static RuntimeDynamicToolNamespace CreateReviewToolSpec()
         => new()
         {
-            Namespace = "workflow",
-            Name = "SubmitReviewDraft",
-            Description = "Submit a structured code review draft",
-            InputSchema = new JsonObject
-            {
-                ["type"] = "object",
-                ["properties"] = new JsonObject
+            Name = "workflow",
+            Description = "Workflow tools.",
+            Tools =
+            [
+                new RuntimeDynamicToolFunction
                 {
-                    ["body"] = new JsonObject { ["type"] = "string" }
-                },
-                ["required"] = new JsonArray("body")
-            }
+                    Name = "SubmitReviewDraft",
+                    Description = "Submit a structured code review draft",
+                    InputSchema = new JsonObject
+                    {
+                        ["type"] = "object",
+                        ["properties"] = new JsonObject
+                        {
+                            ["body"] = new JsonObject { ["type"] = "string" }
+                        },
+                        ["required"] = new JsonArray("body")
+                    }
+                }
+            ]
         };
 
     private static IReadOnlySet<string> EmptyReservedNames()

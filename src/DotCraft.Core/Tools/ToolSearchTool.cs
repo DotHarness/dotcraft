@@ -8,7 +8,7 @@ namespace DotCraft.Tools;
 /// deferred tools on demand. Matching tools are immediately activated so that
 /// they appear in subsequent LLM calls and can be invoked directly.
 /// </summary>
-public sealed class ToolSearchTool(DeferredToolRegistry registry, int maxSearchResults = 5)
+public sealed class ToolSearchTool(DeferredToolActivationIndex registry, int maxSearchResults = 5)
 {
     /// <summary>
     /// Search for deferred tools by keyword. Call this when you need a

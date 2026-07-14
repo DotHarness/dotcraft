@@ -452,11 +452,11 @@ public sealed class ToolFunctionGenerator : IIncrementalGenerator
             sb.AppendLine("            ToolSpecs =");
             sb.AppendLine("            [");
             foreach (var tool in ordered)
-                AppendDynamicToolSpec(sb, tool);
+                AppendAppBoundToolSpec(sb, tool);
             sb.AppendLine("            ];");
             sb.AppendLine("        }");
             sb.AppendLine();
-            sb.AppendLine("        public global::System.Collections.Generic.IReadOnlyList<global::DotCraft.Protocol.AppServer.DynamicToolSpec> ToolSpecs { get; }");
+            sb.AppendLine("        public global::System.Collections.Generic.IReadOnlyList<global::DotCraft.AppBinding.AppBoundToolSpec> ToolSpecs { get; }");
             sb.AppendLine();
             sb.AppendLine("        public bool ContainsTool(string toolName) => toolName switch");
             sb.AppendLine("        {");
@@ -465,7 +465,7 @@ public sealed class ToolFunctionGenerator : IIncrementalGenerator
             sb.AppendLine("            _ => false");
             sb.AppendLine("        };");
             sb.AppendLine();
-            sb.AppendLine("        public async global::System.Threading.Tasks.ValueTask<global::DotCraft.Protocol.AppServer.DynamicToolCallResult> InvokeAsync(");
+            sb.AppendLine("        public async global::System.Threading.Tasks.ValueTask<global::DotCraft.AppBinding.AppBoundToolCallResult> InvokeAsync(");
             sb.AppendLine($"            {first.ContainingTypeFullName} target,");
             sb.AppendLine("            global::DotCraft.AppBinding.ManagedAppBindingToolCallContext context,");
             sb.AppendLine("            global::System.Text.Json.Nodes.JsonObject arguments,");
@@ -495,10 +495,10 @@ public sealed class ToolFunctionGenerator : IIncrementalGenerator
         }
     }
 
-    private static void AppendDynamicToolSpec(StringBuilder sb, DynamicToolInfo tool)
+    private static void AppendAppBoundToolSpec(StringBuilder sb, DynamicToolInfo tool)
     {
         var schema = BuildDynamicSchema(tool);
-        sb.AppendLine("                new global::DotCraft.Protocol.AppServer.DynamicToolSpec");
+        sb.AppendLine("                new global::DotCraft.AppBinding.AppBoundToolSpec");
         sb.AppendLine("                {");
         sb.AppendLine("                    Namespace = toolNamespace,");
         sb.AppendLine($"                    Name = {Quote(tool.ToolName)},");
@@ -511,7 +511,7 @@ public sealed class ToolFunctionGenerator : IIncrementalGenerator
     private static void AppendDynamicInvokeMethod(StringBuilder sb, DynamicToolInfo tool)
     {
         var methodName = $"Invoke_{SanitizeIdentifier(tool.ToolName)}";
-        sb.AppendLine($"        private static async global::System.Threading.Tasks.ValueTask<global::DotCraft.Protocol.AppServer.DynamicToolCallResult> {methodName}(");
+        sb.AppendLine($"        private static async global::System.Threading.Tasks.ValueTask<global::DotCraft.AppBinding.AppBoundToolCallResult> {methodName}(");
         sb.AppendLine($"            {tool.ContainingTypeFullName} target,");
         sb.AppendLine("            global::DotCraft.AppBinding.ManagedAppBindingToolCallContext context,");
         sb.AppendLine("            global::System.Text.Json.Nodes.JsonObject arguments,");
@@ -724,9 +724,9 @@ public sealed class ToolFunctionGenerator : IIncrementalGenerator
     }
 
     private static bool IsSupportedDynamicReturnType(string typeName) =>
-        typeName == "global::DotCraft.Protocol.AppServer.DynamicToolCallResult"
-        || typeName == "global::System.Threading.Tasks.Task<global::DotCraft.Protocol.AppServer.DynamicToolCallResult>"
-        || typeName == "global::System.Threading.Tasks.ValueTask<global::DotCraft.Protocol.AppServer.DynamicToolCallResult>";
+        typeName == "global::DotCraft.AppBinding.AppBoundToolCallResult"
+        || typeName == "global::System.Threading.Tasks.Task<global::DotCraft.AppBinding.AppBoundToolCallResult>"
+        || typeName == "global::System.Threading.Tasks.ValueTask<global::DotCraft.AppBinding.AppBoundToolCallResult>";
 
     private static bool IsPrimitiveLike(ITypeSymbol type)
     {

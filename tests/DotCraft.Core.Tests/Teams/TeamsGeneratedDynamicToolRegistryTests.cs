@@ -52,7 +52,7 @@ public sealed class TeamsGeneratedDynamicToolRegistryTests
         return Assert.IsAssignableFrom<IManagedDynamicToolRegistry<TeamsService>>(field.GetValue(null));
     }
 
-    private static void AssertSpecEqual(DynamicToolSpec expected, DynamicToolSpec actual)
+    private static void AssertSpecEqual(AppBoundToolSpec expected, AppBoundToolSpec actual)
     {
         Assert.Equal(expected.Namespace, actual.Namespace);
         Assert.Equal(expected.Name, actual.Name);

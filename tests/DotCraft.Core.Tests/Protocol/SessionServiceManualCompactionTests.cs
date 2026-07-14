@@ -7,6 +7,7 @@ using DotCraft.Context.Compaction;
 using DotCraft.Hooks;
 using DotCraft.Memory;
 using DotCraft.Protocol;
+using DotCraft.Tools;
 using DotCraft.Security;
 using DotCraft.Sessions;
 using DotCraft.Skills;
@@ -553,7 +554,7 @@ public sealed class SessionServiceManualCompactionTests : IDisposable
         IChatClient compactionChatClient,
         Action<CompactionConfig>? configureCompaction = null,
         IContextPageManager? contextPageManager = null,
-        IReadOnlyList<IAgentToolProvider>? toolProviders = null,
+        IReadOnlyList<IToolSource>? toolProviders = null,
         TraceCollector? traceCollector = null)
     {
         var compaction = new CompactionConfig
@@ -579,7 +580,7 @@ public sealed class SessionServiceManualCompactionTests : IDisposable
             skillsLoader: new SkillsLoader(_tempDir),
             approvalService: new AutoApproveApprovalService(),
             blacklist: null,
-            toolProviders: toolProviders ?? Array.Empty<IAgentToolProvider>(),
+            toolSources: toolProviders ?? Array.Empty<IToolSource>(),
             traceCollector: traceCollector,
             compactionChatClient: compactionChatClient,
             contextPageManager: contextPageManager);
@@ -808,9 +809,11 @@ public sealed class SessionServiceManualCompactionTests : IDisposable
         public void Dispose() { }
     }
 
-    private sealed class TestToolProvider : IAgentToolProvider
+    private sealed class TestToolProvider : AIFunctionToolSource
     {
-        public IEnumerable<AITool> CreateTools(ToolProviderContext context)
+        public override string SourceId => "test-status";
+
+        protected override IEnumerable<AIFunction> CreateFunctions(ToolPlanningContext context)
         {
             yield return AIFunctionFactory.Create(() => "tool ok", name: "GetStatus", description: "Get status.");
         }

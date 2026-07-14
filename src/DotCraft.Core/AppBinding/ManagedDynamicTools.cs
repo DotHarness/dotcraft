@@ -33,14 +33,14 @@ public sealed class DynamicToolAttribute(string name) : Attribute
 }
 
 /// <summary>
-/// Builds <see cref="DynamicToolSpec"/> instances from attributed managed methods.
+/// Builds <see cref="AppBoundToolSpec"/> instances from attributed managed methods.
 /// </summary>
-public static class DynamicToolSpecFactory
+public static class AppBoundToolSpecFactory
 {
     /// <summary>
     /// Creates a dynamic tool spec for one attributed managed method.
     /// </summary>
-    public static DynamicToolSpec Create(MethodInfo method, string? toolNamespace = null)
+    public static AppBoundToolSpec Create(MethodInfo method, string? toolNamespace = null)
     {
         ArgumentNullException.ThrowIfNull(method);
 
@@ -54,7 +54,7 @@ public static class DynamicToolSpecFactory
         if (!PluginFunctionSchemaValidator.TryValidateSchema(schema, out var schemaMessage))
             throw new InvalidOperationException($"Dynamic tool '{attribute.Name}' generated an invalid input schema: {schemaMessage}");
 
-        return new DynamicToolSpec
+        return new AppBoundToolSpec
         {
             Namespace = toolNamespace,
             Name = attribute.Name,
@@ -67,7 +67,7 @@ public static class DynamicToolSpecFactory
     /// <summary>
     /// Creates ordered dynamic tool specs for attributed managed methods on the target type.
     /// </summary>
-    public static IReadOnlyList<DynamicToolSpec> CreateFor<TTarget>(string? toolNamespace = null)
+    public static IReadOnlyList<AppBoundToolSpec> CreateFor<TTarget>(string? toolNamespace = null)
         where TTarget : class =>
         DiscoverMethods(typeof(TTarget))
             .Select(method => Create(method, toolNamespace))
@@ -187,11 +187,11 @@ public static class DynamicToolSpecFactory
 public interface IManagedDynamicToolRegistry<TTarget>
     where TTarget : class
 {
-    IReadOnlyList<DynamicToolSpec> ToolSpecs { get; }
+    IReadOnlyList<AppBoundToolSpec> ToolSpecs { get; }
 
     bool ContainsTool(string toolName);
 
-    ValueTask<DynamicToolCallResult> InvokeAsync(
+    ValueTask<AppBoundToolCallResult> InvokeAsync(
         TTarget target,
         ManagedAppBindingToolCallContext context,
         JsonObject arguments,
@@ -212,7 +212,7 @@ public sealed class ManagedDynamicToolRegistry<TTarget>
     /// </summary>
     public ManagedDynamicToolRegistry(string? toolNamespace = null)
     {
-        var methods = DynamicToolSpecFactory.DiscoverMethods(typeof(TTarget));
+        var methods = AppBoundToolSpecFactory.DiscoverMethods(typeof(TTarget));
         var dynamicToolMethods = methods
             .Select(method => new DynamicToolMethod(
                 method,
@@ -222,7 +222,7 @@ public sealed class ManagedDynamicToolRegistry<TTarget>
             .ToArray();
 
         ToolSpecs = dynamicToolMethods
-            .Select(method => DynamicToolSpecFactory.Create(method.Method, toolNamespace))
+            .Select(method => AppBoundToolSpecFactory.Create(method.Method, toolNamespace))
             .ToList();
         _methodsByName = dynamicToolMethods.ToDictionary(
             method => method.ToolName,
@@ -234,7 +234,7 @@ public sealed class ManagedDynamicToolRegistry<TTarget>
     /// <summary>
     /// Ordered dynamic tool specs generated from the target type.
     /// </summary>
-    public IReadOnlyList<DynamicToolSpec> ToolSpecs { get; }
+    public IReadOnlyList<AppBoundToolSpec> ToolSpecs { get; }
 
     /// <summary>
     /// Returns whether this registry contains the given model-visible tool name.
@@ -244,7 +244,7 @@ public sealed class ManagedDynamicToolRegistry<TTarget>
     /// <summary>
     /// Invokes a registered dynamic tool against the target instance.
     /// </summary>
-    public async ValueTask<DynamicToolCallResult> InvokeAsync(
+    public async ValueTask<AppBoundToolCallResult> InvokeAsync(
         TTarget target,
         ManagedAppBindingToolCallContext context,
         JsonObject arguments,
@@ -274,9 +274,9 @@ public sealed class ManagedDynamicToolRegistry<TTarget>
 
         return result switch
         {
-            DynamicToolCallResult direct => direct,
-            Task<DynamicToolCallResult> task => await task.ConfigureAwait(false),
-            ValueTask<DynamicToolCallResult> valueTask => await valueTask.ConfigureAwait(false),
+            AppBoundToolCallResult direct => direct,
+            Task<AppBoundToolCallResult> task => await task.ConfigureAwait(false),
+            ValueTask<AppBoundToolCallResult> valueTask => await valueTask.ConfigureAwait(false),
             _ => throw new InvalidOperationException(
                 $"Dynamic tool '{context.ToolName}' returned unsupported type '{method.ReturnType}'.")
         };
@@ -345,7 +345,7 @@ public sealed class ManagedDynamicToolRegistry<TTarget>
             return obj.DeepClone();
         }
 
-        if (DynamicToolSpecFactory.IsStringListType(targetType))
+        if (AppBoundToolSpecFactory.IsStringListType(targetType))
             return ConvertStringList(name, node, targetType);
 
         throw new InvalidOperationException(
@@ -407,9 +407,9 @@ public sealed class ManagedDynamicToolRegistry<TTarget>
 
     private static void ValidateReturnType(DynamicToolMethod method)
     {
-        if (method.ReturnType == typeof(DynamicToolCallResult)
-            || method.ReturnType == typeof(Task<DynamicToolCallResult>)
-            || method.ReturnType == typeof(ValueTask<DynamicToolCallResult>))
+        if (method.ReturnType == typeof(AppBoundToolCallResult)
+            || method.ReturnType == typeof(Task<AppBoundToolCallResult>)
+            || method.ReturnType == typeof(ValueTask<AppBoundToolCallResult>))
         {
             return;
         }

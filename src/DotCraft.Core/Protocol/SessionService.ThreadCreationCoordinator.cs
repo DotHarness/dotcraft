@@ -16,7 +16,6 @@ public sealed partial class SessionService
             CancellationToken ct,
             ThreadSource? source)
         {
-            var buildThreadAgentOnCreate = config != null || owner.ChannelRuntimeToolProvider != null;
             var capturedConfig = owner.CaptureThreadConfigurationForNewThread(config);
             var thread = new SessionThread
             {
@@ -48,12 +47,13 @@ public sealed partial class SessionService
             owner._runtimeRegistry.ClearPendingPermanentDeletion(thread.Id);
             var broker = owner.GetOrCreateBroker(thread.Id);
 
-            // Create a per-thread agent when custom configuration is provided or when
-            // runtime external channel tools may need thread-scoped injection.
-            if (buildThreadAgentOnCreate)
+            // Every thread gets an immutable initial snapshot. Cache the rebuilt agent only
+            // when its runtime/tool surface differs from the workspace default.
+            using (await owner.AcquireThreadAgentLockAsync(thread.Id, ct))
             {
-                using (await owner.AcquireThreadAgentLockAsync(thread.Id, ct))
-                    owner.SetThreadAgent(thread.Id, await owner.BuildAgentForThreadAsync(thread, ct));
+                var threadAgent = await owner.BuildAgentForThreadAsync(thread, ct);
+                if (owner._forcePerThreadAgents || owner.RequiresPerThreadAgent(thread))
+                    owner.SetThreadAgent(thread.Id, threadAgent);
             }
 
             await owner.PersistThreadWithMaterializationAsync(thread, ct);
@@ -138,13 +138,11 @@ public sealed partial class SessionService
             owner._runtimeRegistry.ClearPendingPermanentDeletion(forked.Id);
             var broker = owner.GetOrCreateBroker(forked.Id);
 
-            var buildThreadAgentOnCreate = options.Config != null
-                || HasAgentShapingConfiguration(config)
-                || owner.ChannelRuntimeToolProvider != null;
-            if (buildThreadAgentOnCreate)
+            using (await owner.AcquireThreadAgentLockAsync(forked.Id, ct))
             {
-                using (await owner.AcquireThreadAgentLockAsync(forked.Id, ct))
-                    owner.SetThreadAgent(forked.Id, await owner.BuildAgentForThreadAsync(forked, ct));
+                var threadAgent = await owner.BuildAgentForThreadAsync(forked, ct);
+                if (owner._forcePerThreadAgents || owner.RequiresPerThreadAgent(forked))
+                    owner.SetThreadAgent(forked.Id, threadAgent);
             }
 
             if (!forked.Ephemeral)

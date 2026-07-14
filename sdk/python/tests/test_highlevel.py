@@ -88,6 +88,50 @@ async def _expect(transport, method, result):
     return request
 
 
+async def test_mcp_runtime_uses_codex_exact_methods_and_typed_results():
+    dotcraft, transport = await _connect()
+    client = dotcraft.client
+
+    status_task = asyncio.create_task(client.mcp_server_status_list("thread-1", "2", 25, "full"))
+    request = await _expect(transport, "mcpServerStatus/list", {
+        "data": [{
+            "name": "docs", "serverInfo": {"name": "Docs", "version": "1"},
+            "tools": {"search": {"name": "search"}}, "resources": [],
+            "resourceTemplates": [], "authStatus": "oAuth",
+            "declaredName": "docs", "runtimeName": "docs",
+        }],
+        "nextCursor": None,
+    })
+    assert request["params"] == {"threadId": "thread-1", "cursor": "2", "limit": 25, "detail": "full"}
+    status = await status_task
+    assert status.data[0].runtime_name == "docs"
+
+    resource_task = asyncio.create_task(client.mcp_server_resource_read("docs", "docs://intro", "thread-1"))
+    request = await _expect(transport, "mcpServer/resource/read", {"contents": [{"uri": "docs://intro"}]})
+    assert request["params"] == {"threadId": "thread-1", "server": "docs", "uri": "docs://intro"}
+    assert (await resource_task).contents[0]["uri"] == "docs://intro"
+
+    tool_task = asyncio.create_task(client.mcp_server_tool_call(
+        "thread-1", "docs", "search", {"query": "MCP"}, {"trace": "t1"}
+    ))
+    request = await _expect(transport, "mcpServer/tool/call", {
+        "content": [{"type": "text", "text": "found"}],
+        "structuredContent": {"count": 1}, "isError": False, "_meta": {"source": "docs"},
+    })
+    assert request["params"]["_meta"] == {"trace": "t1"}
+    assert (await tool_task).structured_content == {"count": 1}
+
+    login_task = asyncio.create_task(client.mcp_server_oauth_login("docs", "thread-1", ["read"], 60))
+    request = await _expect(transport, "mcpServer/oauth/login", {"authorizationUrl": "https://auth.example/"})
+    assert request["params"]["timeoutSecs"] == 60
+    assert (await login_task).authorization_url == "https://auth.example/"
+
+    reload_task = asyncio.create_task(client.mcp_server_reload())
+    request = await _expect(transport, "config/mcpServer/reload", {})
+    assert "params" not in request
+    assert await reload_task is not None
+
+
 # ---------------------------------------------------------------------------
 # Run profile
 # ---------------------------------------------------------------------------

@@ -245,6 +245,7 @@ public sealed class AppServerHost(
                 WireDynamicToolProxy = runtime.WireDynamicToolProxy,
                 ChannelStatusProvider = runtime.ChannelStatusProvider,
                 McpClientManager = runtime.McpClientManager,
+                McpAppTransientContextStore = _services.GetService<McpAppTransientContextStore>(),
                 LspServerManager = runtime.LspServerManager,
                 BroadcastMcpStatusChanged = BroadcastMcpStatusChanged,
                 ProtocolExtensions = ProtocolExtensions,
@@ -841,16 +842,35 @@ public sealed class AppServerHost(
 
     private void BroadcastMcpStatusChanged(McpStatusInfoWire server)
     {
+        var status = server.StartupState switch
+        {
+            "ready" => "ready",
+            "starting" => "starting",
+            "disabled" => "cancelled",
+            _ => "failed"
+        };
+        var failureReason = server.LastError?.Contains("authentication", StringComparison.OrdinalIgnoreCase) == true
+                            || server.LastError?.Contains("unauthorized", StringComparison.OrdinalIgnoreCase) == true
+                            || server.LastError?.Contains("401", StringComparison.OrdinalIgnoreCase) == true
+            ? "reauthenticationRequired"
+            : null;
         var notification = new
         {
             jsonrpc = "2.0",
-            method = AppServerMethods.McpStatusUpdated,
-            @params = new { server }
+            method = AppServerMethods.McpServerStartupStatusUpdated,
+            @params = new
+            {
+                threadId = (string?)null,
+                name = server.Name,
+                status,
+                error = server.LastError,
+                failureReason
+            }
         };
 
         foreach (var (transport, connection) in _activeTransports)
         {
-            if (!connection.ShouldSendNotification(AppServerMethods.McpStatusUpdated))
+            if (!connection.ShouldSendNotification(AppServerMethods.McpServerStartupStatusUpdated))
                 continue;
 
             _ = Task.Run(async () =>

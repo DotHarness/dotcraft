@@ -37,9 +37,9 @@ internal static class DeferredToolLoadingPlanner
         };
     }
 
-    public static void Apply(List<AITool> tools, ToolProviderContext context)
+    public static void Apply(List<AITool> tools, AgentRuntimeContext context)
     {
-        context.DeferredToolRegistry = null;
+        context.DeferredToolActivationIndex = null;
         var cfg = context.Config.Tools.DeferredLoading;
         var normalizedProtocol = ModelProviderProtocols.Normalize(context.EffectiveProviderProtocol);
         var mode = ResolveMode(cfg, context.EffectiveProviderProtocol);
@@ -77,8 +77,8 @@ internal static class DeferredToolLoadingPlanner
         var sanitizedEntries = ToolSchemaSanitizer.SanitizeTools(entries.Select(static entry => entry.Tool))
             .Zip(entries, static (tool, entry) => entry with { Tool = tool })
             .ToArray();
-        var registry = new DeferredToolRegistry(sanitizedEntries, mode);
-        context.DeferredToolRegistry = registry;
+        var registry = new DeferredToolActivationIndex(sanitizedEntries, mode);
+        context.DeferredToolActivationIndex = registry;
 
         tools.RemoveAll(tool => deferredNames.Contains(tool.Name));
         if (mode == DeferredToolLoadingMode.Native)

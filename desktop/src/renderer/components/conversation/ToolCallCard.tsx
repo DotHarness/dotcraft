@@ -4,7 +4,6 @@ import type { ConversationItem } from '../../types/conversation'
 import { useLocale } from '../../contexts/LocaleContext'
 import { useConversationStore } from '../../stores/conversationStore'
 import {
-  CRON_TOOL_NAME,
   formatCronRunningLabel,
   formatCronResultLines,
   hasCronCreatedDisplayData
@@ -16,15 +15,12 @@ import {
   getWebToolIcon,
   getWebToolSectionLabel,
   invocationNeedsCallingPrefix,
-  isWebToolName,
   parseWebSearchResultDisplay,
   type WebSearchResultRow
 } from '../../utils/webToolDisplay'
 import { InlineDiffView } from './InlineDiffView'
 import { ActionTooltip } from '../ui/ActionTooltip'
-import { isShellToolName } from '../../utils/shellTools'
 import {
-  FILE_WRITE_TOOLS,
   formatCollapsedToolLabel,
   formatExpandedInvocation,
   getStreamingToolDisplay
@@ -34,7 +30,11 @@ import { CreatePlanCard, hasCreatePlanDisplayData } from './CreatePlanCard'
 import { CronCreatedCard } from './CronCreatedCard'
 import { SkillManageCard } from './SkillManageCard'
 import { SkillViewCard } from './SkillViewCard'
-import { InteractiveToolView, hasInteractiveToolUi } from './InteractiveToolView'
+import {
+  LegacyAppBindingInteractiveView,
+  hasLegacyAppBindingInteractiveUi
+} from './InteractiveToolView'
+import { McpAppView, hasLiveMcpApp } from './McpAppView'
 import { ToolCollapseChevron } from './ToolCollapseChevron'
 import { CollapsibleContent } from './CollapsibleContent'
 import { AnsiPre } from './AnsiPre'
@@ -44,7 +44,6 @@ import { openConversationLink } from '../../utils/conversationDeepLink'
 import type { FileDiff } from '../../types/toolCall'
 import type { Thread, ThreadSummary } from '../../types/thread'
 import {
-  SKILL_MANAGE_TOOL_NAME,
   buildSkillManageDiff,
   formatSkillManageLabel,
   formatSkillManageRunningLabel,
@@ -52,7 +51,6 @@ import {
   shouldRenderSkillManageCard
 } from '../../utils/skillManageToolDisplay'
 import {
-  SKILL_VIEW_TOOL_NAME,
   formatSkillViewLabel,
   formatSkillViewRunningLabel,
   getSkillViewDisplay
@@ -66,6 +64,7 @@ import {
   formatRequestUserInputResultLines,
   type RequestUserInputResultLine
 } from '../../utils/requestUserInputToolDisplay'
+import { resolveCoreToolRenderPlan, type ToolRendererFamily } from '../../utils/toolRendererRegistry'
 
 interface ToolCallCardProps {
   item: ConversationItem
@@ -74,25 +73,26 @@ interface ToolCallCardProps {
 }
 
 function formatRunningToolLabel(
+  rendererFamily: ToolRendererFamily | undefined,
   toolName: string,
   args: Record<string, unknown> | undefined,
   locale: AppLocale,
   streamingLabel: string,
   planTodos?: Array<{ id: string; content: string }>
 ): string {
-  if (isShellToolName(toolName) && args) {
+  if (rendererFamily === 'shell' && args) {
     return formatCollapsedToolLabel(toolName, args, locale, { planTodos })
   }
-  if (toolName === CRON_TOOL_NAME && args) {
+  if (rendererFamily === 'cron' && args) {
     return formatCronRunningLabel(args, locale)
   }
-  if (toolName === SKILL_MANAGE_TOOL_NAME && args) {
+  if (rendererFamily === 'skillManage' && args) {
     return formatSkillManageRunningLabel(args, locale)
   }
-  if (toolName === SKILL_VIEW_TOOL_NAME && args) {
+  if (rendererFamily === 'skillView' && args) {
     return formatSkillViewRunningLabel(args, locale)
   }
-  if (isWebToolName(toolName) && args && !invocationNeedsCallingPrefix(toolName, args)) {
+  if (rendererFamily === 'web' && args && !invocationNeedsCallingPrefix(toolName, args)) {
     return formatInvocationDisplay(toolName, args, locale) ?? streamingLabel
   }
   return streamingLabel
@@ -117,14 +117,14 @@ function formatDiffStats(diff: FileDiff | undefined): string {
 }
 
 function formatFileToolLabel(
-  toolName: string,
+  operation: unknown,
   diff: FileDiff | undefined,
   fallbackLabel: string,
   locale: AppLocale
 ): string {
   if (!diff) return fallbackLabel
   const filename = getFilename(diff.filePath)
-  const action = toolName !== 'EditFile' && diff.isNewFile
+  const action = operation === 'write' && diff.isNewFile
     ? translate(locale, 'toolCall.created', { filename })
     : translate(locale, 'toolCall.edited', { filename })
   const stats = formatDiffStats(diff)
@@ -171,24 +171,25 @@ export const ToolCallCard = memo(function ToolCallCard({
   const autoExpandTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const toolName = item.toolName ?? 'tool'
+  const rendererPlan = resolveCoreToolRenderPlan(item)
+  const rendererFamily = rendererPlan?.family
+  const rendererOperation = rendererPlan?.options.operation
   const args = item.arguments
-  const isWebFetchTool = toolName === 'WebFetch'
-  const isSkillManageTool = toolName === SKILL_MANAGE_TOOL_NAME
-  const isSkillViewTool = toolName === SKILL_VIEW_TOOL_NAME
-  const isTodoTool = toolName === 'TodoWrite' || toolName === 'UpdateTodos'
-  const isShellTool = isShellToolName(toolName)
-  const isStreamingFileTool = FILE_WRITE_TOOLS.has(toolName)
-  const streamingDisplay = getStreamingToolDisplay(
-    toolName,
-    item.argumentsPreview ?? null,
-    locale
-  )
+  const isWebFetchTool = rendererFamily === 'web' && rendererPlan.options.operation === 'fetch'
+  const isSkillManageTool = rendererFamily === 'skillManage'
+  const isSkillViewTool = rendererFamily === 'skillView'
+  const isTodoTool = rendererFamily === 'todo'
+  const isShellTool = rendererFamily === 'shell'
+  const isStreamingFileTool = rendererFamily === 'fileWrite'
+  const streamingDisplay = rendererPlan
+    ? getStreamingToolDisplay(toolName, item.argumentsPreview ?? null, locale)
+    : { label: translate(locale, 'toolCall.streaming.genericExternal', { toolName }) }
   const isRunning = isToolItemLive(item, { turnRunning })
   const toolResult = item.result ?? item.errorMessage ?? item.resultPreview
   const shellOutput = item.aggregatedOutput ?? toolResult ?? ''
   const skillManageDisplay = isSkillManageTool ? getSkillManageDisplay(args, item.result) : null
   const skillViewDisplay = isSkillViewTool ? getSkillViewDisplay(args, item.result) : null
-  const success = (isShellTool || item.success !== false)
+  const success = (rendererPlan?.successOverride === true || item.success !== false)
     && (!isSkillManageTool || skillManageDisplay?.result?.success !== false)
     && (!isSkillViewTool || skillViewDisplay?.loaded !== false)
 
@@ -225,8 +226,8 @@ export const ToolCallCard = memo(function ToolCallCard({
     activeThread
   }
   const planTodos = plan?.todos
-  const fileDiff = FILE_WRITE_TOOLS.has(toolName) ? itemDiffs.get(item.id) : undefined
-  const streamingFileDiff = FILE_WRITE_TOOLS.has(toolName) ? streamingItemDiffs.get(item.id) : undefined
+  const fileDiff = isStreamingFileTool ? itemDiffs.get(item.id) : undefined
+  const streamingFileDiff = isStreamingFileTool ? streamingItemDiffs.get(item.id) : undefined
   const skillManageDiff = isSkillManageTool ? buildSkillManageDiff(args, item.result, turnId) : null
   const renderableFileDiff = hasRenderableDiff(fileDiff) ? fileDiff : undefined
   const renderableStreamingFileDiff = hasRenderableDiff(streamingFileDiff) ? streamingFileDiff : undefined
@@ -237,7 +238,7 @@ export const ToolCallCard = memo(function ToolCallCard({
       : false
   const hasCompletedExpandableContent = isShellTool
     ? hasVisibleText(shellOutput)
-    : FILE_WRITE_TOOLS.has(toolName)
+    : isStreamingFileTool
       ? !!renderableFileDiff || hasVisibleText(toolResult)
       : hasVisibleText(toolResult)
   const canExpandWhileRunning =
@@ -256,18 +257,19 @@ export const ToolCallCard = memo(function ToolCallCard({
     && (isRunning ? hasRunningExpandableContent : hasCompletedExpandableContent)
   const hasFinalArgs = args != null && Object.keys(args).length > 0
   const subAgentRunningLabel = hasFinalArgs
-    ? formatSubAgentRunningLabel(toolName, args, locale, subAgentLookup)
+    ? formatSubAgentRunningLabel(rendererOperation, args, locale, subAgentLookup)
     : null
   const runningBaseLabel = subAgentRunningLabel
     ?? formatRunningToolLabel(
+      rendererFamily,
       toolName,
       args,
       locale,
       streamingDisplay.label,
       planTodos
     )
-  const runningLabel = FILE_WRITE_TOOLS.has(toolName)
-    ? formatFileToolLabel(toolName, renderableStreamingFileDiff, runningBaseLabel, locale)
+  const runningLabel = isStreamingFileTool
+    ? formatFileToolLabel(rendererOperation, renderableStreamingFileDiff, runningBaseLabel, locale)
     : runningBaseLabel
 
   function toggleExpand(): void {
@@ -346,12 +348,12 @@ export const ToolCallCard = memo(function ToolCallCard({
     }
   }, [])
 
-  if (toolName === 'CreatePlan' && hasCreatePlanDisplayData(item)) {
+  if (rendererFamily === 'createPlan' && hasCreatePlanDisplayData(item)) {
     return <CreatePlanCard item={item} locale={locale} />
   }
 
   if (
-    toolName === CRON_TOOL_NAME
+    rendererFamily === 'cron'
     && !isRunning
     && success
     && hasCronCreatedDisplayData(item.result, locale)
@@ -378,15 +380,19 @@ export const ToolCallCard = memo(function ToolCallCard({
   }
 
   const subAgentDisplay = !isRunning
-    ? getSubAgentToolDisplay(toolName, args, item.result, success, locale, subAgentLookup)
+    ? getSubAgentToolDisplay(rendererOperation, args, item.result, success, locale, subAgentLookup)
     : null
   if (subAgentDisplay) {
     return <SubAgentToolResultCard display={subAgentDisplay} locale={locale} />
   }
 
-  // App Binding tools that declare an Interactive Tool UI render in a sandboxed iframe (Desktop only).
-  if (!isRunning && hasInteractiveToolUi(item)) {
-    return <InteractiveToolView item={item} threadId={threadId} locale={locale} />
+  if (!isRunning && hasLiveMcpApp(item)) {
+    return <McpAppView item={item} threadId={threadId} />
+  }
+
+  // Legacy App Binding tools that declare an Interactive Tool UI retain their isolated iframe path.
+  if (!isRunning && hasLegacyAppBindingInteractiveUi(item)) {
+    return <LegacyAppBindingInteractiveView item={item} threadId={threadId} locale={locale} />
   }
 
   if (isRunning) {
@@ -466,6 +472,8 @@ export const ToolCallCard = memo(function ToolCallCard({
             {isShellTool ? (
               <ExpandedContent
                 itemId={item.id}
+                rendererFamily={rendererFamily}
+                rendererOptions={rendererPlan?.options}
                 toolName={toolName}
                 args={args}
                 result={shellOutput}
@@ -490,7 +498,7 @@ export const ToolCallCard = memo(function ToolCallCard({
     )
   }
 
-  const completedToolSearchLabel = success
+  const completedToolSearchLabel = success && rendererFamily === 'deferredSearch'
     ? formatToolSearchCompletedLabel(toolName, item.result, locale)
     : null
   const fallbackLabel = completedToolSearchLabel
@@ -498,9 +506,11 @@ export const ToolCallCard = memo(function ToolCallCard({
       ? formatSkillManageLabel(args, item.result, locale)
       : isSkillViewTool
         ? formatSkillViewLabel(args, locale)
-        : formatCollapsedToolLabel(toolName, args, locale, { planTodos }))
-  const label = FILE_WRITE_TOOLS.has(toolName)
-    ? formatFileToolLabel(toolName, fileDiff, fallbackLabel, locale)
+        : rendererPlan
+          ? formatCollapsedToolLabel(toolName, args, locale, { planTodos })
+          : translate(locale, 'toolCall.called', { toolName }))
+  const label = isStreamingFileTool
+    ? formatFileToolLabel(rendererOperation, fileDiff, fallbackLabel, locale)
     : fallbackLabel
   const failureText = item.errorMessage ?? item.resultPreview ?? item.result ?? shellOutput
   const failurePreviewSource = isSkillManageTool
@@ -513,9 +523,10 @@ export const ToolCallCard = memo(function ToolCallCard({
     ? stripAnsi(failurePreviewSource.slice(0, 512)).trim()
     : ''
   const hasFlushWebSearchTable =
-    toolName === 'WebSearch'
+    rendererFamily === 'web'
+    && rendererPlan.options.operation === 'search'
     && parseWebSearchResultDisplay(item.result)?.kind === 'results'
-  const hasInlineFileDiff = FILE_WRITE_TOOLS.has(toolName) && !!renderableFileDiff
+  const hasInlineFileDiff = isStreamingFileTool && !!renderableFileDiff
   const completedExpanded = canExpandCompleted && expanded
   const completedRowColor = hovered || completedExpanded ? 'var(--text-secondary)' : 'var(--text-dimmed)'
 
@@ -590,6 +601,8 @@ export const ToolCallCard = memo(function ToolCallCard({
           >
             <ExpandedContent
               itemId={item.id}
+              rendererFamily={rendererFamily}
+              rendererOptions={rendererPlan?.options}
               toolName={toolName}
               args={args}
               result={isShellTool ? shellOutput : toolResult}
@@ -607,6 +620,8 @@ export const ToolCallCard = memo(function ToolCallCard({
 
 interface ExpandedContentProps {
   itemId: string
+  rendererFamily?: ToolRendererFamily
+  rendererOptions?: Readonly<Record<string, unknown>>
   toolName: string
   args: Record<string, unknown> | undefined
   result: string | undefined
@@ -618,6 +633,8 @@ interface ExpandedContentProps {
 
 function ExpandedContent({
   itemId,
+  rendererFamily,
+  rendererOptions,
   toolName,
   args,
   result,
@@ -626,7 +643,7 @@ function ExpandedContent({
   locale,
   planTodos
 }: ExpandedContentProps): JSX.Element {
-  if (toolName === 'CreatePlan') {
+  if (rendererFamily === 'createPlan') {
     const parsedPlan = parseCompletedCreatePlanArgs(args)
     return (
       <PlanToolOutput
@@ -640,7 +657,7 @@ function ExpandedContent({
     )
   }
 
-  if (FILE_WRITE_TOOLS.has(toolName) && fileDiff) {
+  if (rendererFamily === 'fileWrite' && fileDiff) {
     return (
       <InlineDiffView
         diff={fileDiff.diff}
@@ -650,7 +667,7 @@ function ExpandedContent({
     )
   }
 
-  if (toolName === CRON_TOOL_NAME) {
+  if (rendererFamily === 'cron') {
     const lines = formatCronResultLines(result, locale)
     if (lines && lines.length > 0) {
       const errSample = translate(locale, 'cron.result.errorPrefix', { error: 'x' })
@@ -672,15 +689,15 @@ function ExpandedContent({
     }
   }
 
-  if (toolName === 'RequestUserInput') {
+  if (rendererFamily === 'requestUserInput') {
     const lines = formatRequestUserInputResultLines(args, result, locale)
     if (lines && lines.length > 0) {
       return <RequestUserInputResultList lines={lines} />
     }
   }
 
-  if (isWebToolName(toolName)) {
-    if (toolName === 'WebSearch') {
+  if (rendererFamily === 'web') {
+    if (rendererOptions?.operation === 'search') {
       const parsedSearch = parseWebSearchResultDisplay(result)
       if (parsedSearch?.kind === 'results') {
         return <WebSearchResultsTable rows={parsedSearch.rows} locale={locale} />
@@ -715,7 +732,7 @@ function ExpandedContent({
     }
   }
 
-  if (isShellToolName(toolName)) {
+  if (rendererFamily === 'shell') {
     const command = (args?.command as string | undefined) ?? toolName
     const output = result ?? ''
 
@@ -738,7 +755,9 @@ function ExpandedContent({
   }
 
   const resultText = formatDefaultToolResultForDisplay(result)
-  const invocation = formatExpandedInvocation(toolName, args, locale, { planTodos })
+  const invocation = rendererFamily
+    ? formatExpandedInvocation(toolName, args, locale, { planTodos })
+    : null
 
   return (
     <div className="selectable" style={{ fontFamily: 'var(--font-mono)', fontSize: '12px', lineHeight: '1.5' }}>
@@ -1104,15 +1123,15 @@ export function renderSubAgentTitle(
 }
 
 function getSubAgentToolDisplay(
-  toolName: string,
+  operation: unknown,
   args: Record<string, unknown> | undefined,
   result: string | undefined,
   success: boolean,
   locale: AppLocale,
   lookup: SubAgentLookupSources
 ): SubAgentToolDisplay | null {
-  if (!isSubAgentToolName(toolName)) return null
-  if (toolName === 'WaitAgent' && result === undefined) return null
+  if (!isSubAgentOperation(operation)) return null
+  if (operation === 'wait' && result === undefined) return null
   const parsed = parseJsonObject(result)
   const profile = getString(parsed, 'profileName') ?? getString(args, 'profile')
   const runtimeType = getString(parsed, 'runtimeType')
@@ -1125,17 +1144,17 @@ function getSubAgentToolDisplay(
     ?? getString(args, 'childThreadId')
     ?? agentPath
   const childThreadId = explicitChildThreadId
-    ?? (toolName === 'WaitAgent' ? resolveImplicitWaitAgentChildThreadId(lookup) : null)
+    ?? (operation === 'wait' ? resolveImplicitWaitAgentChildThreadId(lookup) : null)
   const status = getString(parsed, 'status')?.toLowerCase()
   const error = getString(parsed, 'error') ?? getString(parsed, 'message')
-  const message = toolName === 'WaitAgent'
+  const message = operation === 'wait'
     ? getString(parsed, 'message') ?? getString(parsed, 'result')
     : null
   const label = resolveSubAgentDisplayName(parsed, args, childThreadId, locale, lookup)
-  const prompt = toolName === 'SpawnAgent'
+  const prompt = operation === 'spawn'
     ? getString(args, 'message') ?? getString(args, 'agentPrompt')
     : null
-  const isTimeout = toolName === 'WaitAgent'
+  const isTimeout = operation === 'wait'
     && (status === 'timeout' || isTimeoutMessage(error) || isTimeoutMessage(message))
   const tone: SubAgentToolDisplay['tone'] = isTimeout
     ? 'warning'
@@ -1146,7 +1165,7 @@ function getSubAgentToolDisplay(
     ? 'toolCall.subAgent.timeout'
     : !success || status === 'failed'
       ? 'toolCall.subAgent.failed'
-      : getSubAgentCompletedTitleKey(toolName)
+      : getSubAgentCompletedTitleKey(operation)
   return {
     titleKey,
     name: label,
@@ -1173,41 +1192,41 @@ function truncateSubAgentPrompt(value: string, maxChars: number): string {
 }
 
 function formatSubAgentRunningLabel(
-  toolName: string,
+  operation: unknown,
   args: Record<string, unknown> | undefined,
   locale: AppLocale,
   lookup: SubAgentLookupSources
 ): string | null {
-  if (!isSubAgentToolName(toolName)) return null
+  if (!isSubAgentOperation(operation)) return null
   const explicitChildThreadId = getString(args, 'childThreadId') ?? getString(args, 'agentId') ?? getString(args, 'target')
   const childThreadId = explicitChildThreadId
-    ?? (toolName === 'WaitAgent' ? resolveImplicitWaitAgentChildThreadId(lookup) : null)
+    ?? (operation === 'wait' ? resolveImplicitWaitAgentChildThreadId(lookup) : null)
   const label = resolveSubAgentDisplayName(undefined, args, childThreadId, locale, lookup)
-  const key = toolName === 'SpawnAgent'
+  const key = operation === 'spawn'
     ? 'toolCall.subAgent.starting'
-    : toolName === 'WaitAgent'
+    : operation === 'wait'
       ? 'toolCall.subAgent.waiting'
-      : getSubAgentRunningTitleKey(toolName)
+      : getSubAgentRunningTitleKey(operation)
   return translate(locale, key, { name: label })
 }
 
-function getSubAgentCompletedTitleKey(toolName: string): string {
-  if (toolName === 'SpawnAgent') return 'toolCall.subAgent.spawned'
-  if (toolName === 'WaitAgent') return 'toolCall.subAgent.waited'
-  if (toolName === 'SendMessage') return 'toolCall.subAgent.sentMessage'
-  if (toolName === 'FollowupTask') return 'toolCall.subAgent.followedUp'
-  if (toolName === 'ListAgents') return 'toolCall.subAgent.listed'
-  if (toolName === 'SendInput') return 'toolCall.subAgent.sentInput'
-  if (toolName === 'ResumeAgent') return 'toolCall.subAgent.resumed'
+function getSubAgentCompletedTitleKey(operation: SubAgentOperation): string {
+  if (operation === 'spawn') return 'toolCall.subAgent.spawned'
+  if (operation === 'wait') return 'toolCall.subAgent.waited'
+  if (operation === 'sendMessage') return 'toolCall.subAgent.sentMessage'
+  if (operation === 'followupTask') return 'toolCall.subAgent.followedUp'
+  if (operation === 'list') return 'toolCall.subAgent.listed'
+  if (operation === 'sendInput') return 'toolCall.subAgent.sentInput'
+  if (operation === 'resume') return 'toolCall.subAgent.resumed'
   return 'toolCall.subAgent.closed'
 }
 
-function getSubAgentRunningTitleKey(toolName: string): string {
-  if (toolName === 'SendMessage') return 'toolCall.subAgent.sendingMessage'
-  if (toolName === 'FollowupTask') return 'toolCall.subAgent.followingUp'
-  if (toolName === 'ListAgents') return 'toolCall.subAgent.listing'
-  if (toolName === 'SendInput') return 'toolCall.subAgent.sendingInput'
-  if (toolName === 'ResumeAgent') return 'toolCall.subAgent.resuming'
+function getSubAgentRunningTitleKey(operation: SubAgentOperation): string {
+  if (operation === 'sendMessage') return 'toolCall.subAgent.sendingMessage'
+  if (operation === 'followupTask') return 'toolCall.subAgent.followingUp'
+  if (operation === 'list') return 'toolCall.subAgent.listing'
+  if (operation === 'sendInput') return 'toolCall.subAgent.sendingInput'
+  if (operation === 'resume') return 'toolCall.subAgent.resuming'
   return 'toolCall.subAgent.closing'
 }
 
@@ -1283,15 +1302,17 @@ function isTimeoutMessage(value: string | null): boolean {
   return normalized.includes('timed out') || normalized.includes('timeout')
 }
 
-function isSubAgentToolName(toolName: string): boolean {
-  return toolName === 'SpawnAgent'
-    || toolName === 'WaitAgent'
-    || toolName === 'SendInput'
-    || toolName === 'SendMessage'
-    || toolName === 'FollowupTask'
-    || toolName === 'ResumeAgent'
-    || toolName === 'ListAgents'
-    || toolName === 'CloseAgent'
+type SubAgentOperation = 'spawn' | 'wait' | 'sendInput' | 'sendMessage' | 'followupTask' | 'resume' | 'list' | 'close'
+
+function isSubAgentOperation(operation: unknown): operation is SubAgentOperation {
+  return operation === 'spawn'
+    || operation === 'wait'
+    || operation === 'sendInput'
+    || operation === 'sendMessage'
+    || operation === 'followupTask'
+    || operation === 'resume'
+    || operation === 'list'
+    || operation === 'close'
 }
 
 function parseJsonObject(value: string | undefined): Record<string, unknown> | undefined {

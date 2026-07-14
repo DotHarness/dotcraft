@@ -45,7 +45,7 @@ public sealed class AgentFactoryOAuthTests : IDisposable
             skillsLoader: new SkillsLoader(_tempDir),
             approvalService: new AutoApproveApprovalService(),
             blacklist: null,
-            toolProviders: [],
+            toolSources: [],
             chatClientRegistry: registry);
 
         var pipeline = agentFactory.GetCompactionPipeline(

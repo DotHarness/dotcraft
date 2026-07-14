@@ -9,7 +9,7 @@ using Microsoft.Extensions.AI;
 
 namespace DotCraft.Tests.Tools;
 
-public sealed class ImageGenerationToolProviderTests : IDisposable
+public sealed class ProviderHostedCapabilityPlannerTests : IDisposable
 {
     private readonly List<string> _tempRoots = [];
 
@@ -23,55 +23,55 @@ public sealed class ImageGenerationToolProviderTests : IDisposable
     }
 
     [Fact]
-    public void CreateTools_DoesNotExposeClientImagegenTool()
+    public void Build_ModelsImageGenerationOutsideLocalToolRegistry()
     {
-        Assert.Empty(new ImageGenerationToolProvider().CreateTools(CreateContext(CreateOpenAIConfig())));
-        Assert.Empty(new ImageGenerationToolProvider().CreateTools(CreateContext(CreateChatGptOAuthConfig())));
+        Assert.True(ProviderHostedCapabilityPlanner.Build(CreateContext(CreateOpenAIConfig())).ImageGenerationEnabled);
+        Assert.True(ProviderHostedCapabilityPlanner.Build(CreateContext(CreateChatGptOAuthConfig())).ImageGenerationEnabled);
     }
 
     [Fact]
     public void ShouldEnableHostedImageGeneration_GatesByProviderAndConfig()
     {
-        Assert.True(ImageGenerationToolProvider.ShouldEnableHostedImageGeneration(CreateContext(CreateOpenAIConfig())));
-        Assert.True(ImageGenerationToolProvider.ShouldEnableHostedImageGeneration(CreateContext(CreateChatGptOAuthConfig())));
+        Assert.True(ProviderHostedCapabilityPlanner.ShouldEnableHostedImageGeneration(CreateContext(CreateOpenAIConfig())));
+        Assert.True(ProviderHostedCapabilityPlanner.ShouldEnableHostedImageGeneration(CreateContext(CreateChatGptOAuthConfig())));
 
         var customEndpoint = CreateOpenAIConfig(endpoint: "https://openai-compatible.example/v1");
-        Assert.False(ImageGenerationToolProvider.ShouldEnableHostedImageGeneration(CreateContext(customEndpoint)));
+        Assert.False(ProviderHostedCapabilityPlanner.ShouldEnableHostedImageGeneration(CreateContext(customEndpoint)));
 
         var optedInCustomEndpoint = CreateOpenAIConfig(
             endpoint: "https://openai-compatible.example/v1",
             supportsHostedImageGeneration: true);
-        Assert.True(ImageGenerationToolProvider.ShouldEnableHostedImageGeneration(CreateContext(optedInCustomEndpoint)));
+        Assert.True(ProviderHostedCapabilityPlanner.ShouldEnableHostedImageGeneration(CreateContext(optedInCustomEndpoint)));
 
         var disabledOfficial = CreateOpenAIConfig(supportsHostedImageGeneration: false);
-        Assert.False(ImageGenerationToolProvider.ShouldEnableHostedImageGeneration(CreateContext(disabledOfficial)));
+        Assert.False(ProviderHostedCapabilityPlanner.ShouldEnableHostedImageGeneration(CreateContext(disabledOfficial)));
 
         var disabledOAuth = CreateChatGptOAuthConfig(supportsHostedImageGeneration: false);
-        Assert.False(ImageGenerationToolProvider.ShouldEnableHostedImageGeneration(CreateContext(disabledOAuth)));
+        Assert.False(ProviderHostedCapabilityPlanner.ShouldEnableHostedImageGeneration(CreateContext(disabledOAuth)));
 
         var missingApiKey = CreateOpenAIConfig(apiKey: string.Empty);
-        Assert.False(ImageGenerationToolProvider.ShouldEnableHostedImageGeneration(CreateContext(missingApiKey)));
+        Assert.False(ProviderHostedCapabilityPlanner.ShouldEnableHostedImageGeneration(CreateContext(missingApiKey)));
 
         var optedInMissingApiKey = CreateOpenAIConfig(apiKey: string.Empty, supportsHostedImageGeneration: true);
-        Assert.False(ImageGenerationToolProvider.ShouldEnableHostedImageGeneration(CreateContext(optedInMissingApiKey)));
+        Assert.False(ProviderHostedCapabilityPlanner.ShouldEnableHostedImageGeneration(CreateContext(optedInMissingApiKey)));
 
         var unsupportedAuth = CreateOpenAIConfig(authMethod: "customOAuth", supportsHostedImageGeneration: true);
-        Assert.False(ImageGenerationToolProvider.ShouldEnableHostedImageGeneration(CreateContext(unsupportedAuth)));
+        Assert.False(ProviderHostedCapabilityPlanner.ShouldEnableHostedImageGeneration(CreateContext(unsupportedAuth)));
 
         var chatCompletions = CreateOpenAIConfig(protocol: ModelProviderProtocols.OpenAIChatCompletions);
-        Assert.False(ImageGenerationToolProvider.ShouldEnableHostedImageGeneration(CreateContext(chatCompletions)));
+        Assert.False(ProviderHostedCapabilityPlanner.ShouldEnableHostedImageGeneration(CreateContext(chatCompletions)));
 
         var disabled = CreateOpenAIConfig();
         disabled.Tools.ImageGeneration.Enabled = false;
-        Assert.False(ImageGenerationToolProvider.ShouldEnableHostedImageGeneration(CreateContext(disabled)));
+        Assert.False(ProviderHostedCapabilityPlanner.ShouldEnableHostedImageGeneration(CreateContext(disabled)));
     }
 
-    private ToolProviderContext CreateContext(AppConfig config)
+    private AgentRuntimeContext CreateContext(AppConfig config)
     {
         var root = CreateTempRoot();
         var botPath = Path.Combine(root, ".craft");
         Directory.CreateDirectory(botPath);
-        return new ToolProviderContext
+        return new AgentRuntimeContext
         {
             Config = config,
             ChatClient = new NoOpChatClient(),

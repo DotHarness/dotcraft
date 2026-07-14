@@ -183,7 +183,7 @@ string TokenFromHandoff(AppHandoffMode handoff)
     return AppBindingHandoff.Parse(uri).RequestToken;
 }
 
-DynamicToolSpec[] BuildTools()
+AppBoundToolSpec[] BuildTools()
 {
     var inputSchema = JsonSerializer.SerializeToElement(new
     {
@@ -192,12 +192,12 @@ DynamicToolSpec[] BuildTools()
     });
     return
     [
-        new DynamicToolSpec(
+        new AppBoundToolSpec(
             Namespace: ToolNamespace,
             Name: ToolName,
             Description: "Show a sample interactive card for a note.",
             InputSchema: inputSchema,
-            Meta: new DynamicToolMeta(new DynamicToolUiMeta(
+            Meta: new AppBoundToolMeta(new AppBoundToolUiMeta(
                 ResourceUri: ResourceUri,
                 Visibility: ["model", "app"],
                 PrefersBorder: true)))
@@ -215,8 +215,8 @@ void RegisterHandlers(DotCraftClient client, string threadId)
             : "(no note provided)";
         return Task.FromResult(new DynamicToolResult(
             Success: true,
-            StructuredResult: new { title = "Sample Card", value = note, ts = DateTimeOffset.UtcNow.ToString("u") },
-            Meta: new { accent = "sample" }));
+            ContentItems: [new ToolContentItem("text", $"Sample card: {note}")],
+            StructuredContent: new { title = "Sample Card", value = note, ts = DateTimeOffset.UtcNow.ToString("u") }));
     });
 
     client.RegisterResourceHandler(ResourceUri, (_, _) =>

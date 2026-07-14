@@ -1,13 +1,25 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { LocaleProvider } from '../contexts/LocaleContext'
-import { AgentResponseBlock } from '../components/conversation/AgentResponseBlock'
+import { AgentResponseBlock as ProductionAgentResponseBlock } from '../components/conversation/AgentResponseBlock'
 import { useUIStore } from '../stores/uiStore'
 import { useConversationStore } from '../stores/conversationStore'
 import { useConnectionStore } from '../stores/connectionStore'
 import { useThreadStore } from '../stores/threadStore'
 import type { ConversationItem, ConversationTurn } from '../types/conversation'
 import type { FileDiff } from '../types/toolCall'
+import { withTestCorePresentation } from './testToolPresentation'
+
+function AgentResponseBlock(
+  props: React.ComponentProps<typeof ProductionAgentResponseBlock>
+): JSX.Element {
+  return (
+    <ProductionAgentResponseBlock
+      {...props}
+      turn={{ ...props.turn, items: props.turn.items.map(withTestCorePresentation) }}
+    />
+  )
+}
 
 const TEST_IMAGE_BASE64 = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=='
 
@@ -2485,6 +2497,7 @@ describe('AgentResponseBlock interactive card pinning', () => {
       arguments: {},
       success: true,
       createdAt,
+      source: { kind: 'LegacyAppBinding', sourceId: 'workflow' },
       toolUi: { resourceUri, prefersBorder: true, domain: toolName }
     }
   }

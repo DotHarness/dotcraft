@@ -3242,7 +3242,26 @@ export const MESSAGES_EN = {
   'settings.subAgents.validation.sanitizationRulesObject':
     'Sanitization rules must be a JSON object.',
   'settings.subAgents.validation.sanitizationRulesJson':
-    'Sanitization rules must be valid JSON.'
+    'Sanitization rules must be valid JSON.',
+  'mcp.elicitation.title': 'MCP server request',
+  'mcp.elicitation.message': '{{server}} needs additional information.',
+  'mcp.elicitation.unsupported': 'This request uses an unsupported or unsafe schema.',
+  'mcp.elicitation.openUrl': 'Open secure request in browser',
+  'mcp.elicitation.cancel': 'Cancel',
+  'mcp.elicitation.decline': 'Decline',
+  'mcp.elicitation.accept': 'Continue',
+  'mcp.oauth.completed': 'MCP authentication completed.',
+  'mcp.oauth.failed': 'MCP authentication failed.',
+  'settings.mcp.authenticate': 'Authenticate',
+  'settings.mcp.authenticating': 'Starting…',
+  'settings.mcp.oauthOpened': 'Complete authentication in your browser.',
+  'settings.mcp.oauthFailed': 'Could not start MCP authentication: {{error}}',
+  'mcpApp.title': 'MCP App',
+  'mcpApp.loading': 'Opening secure app…',
+  'mcpApp.failed': 'This MCP App could not be opened.',
+  'mcpApp.historyUnavailable': 'Interactive view is unavailable for history.',
+  'mcpApp.fullscreen': 'Open fullscreen',
+  'mcpApp.exitFullscreen': 'Exit fullscreen'
 } as const
 
 export type MessageId = keyof typeof MESSAGES_EN

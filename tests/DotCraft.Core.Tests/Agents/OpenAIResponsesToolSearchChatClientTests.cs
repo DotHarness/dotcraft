@@ -401,18 +401,13 @@ public sealed class OpenAIResponsesToolSearchChatClientTests
                 Tools = [dynamicTool]
             }));
 
-        var namespaceTool = Assert.Single(document.RootElement.GetProperty("tools").EnumerateArray());
-        Assert.Equal("namespace", namespaceTool.GetProperty("type").GetString());
-        Assert.Equal("image_gen", namespaceTool.GetProperty("name").GetString());
-        Assert.Equal("Tools in the image_gen namespace.", namespaceTool.GetProperty("description").GetString());
-
-        var child = Assert.Single(namespaceTool.GetProperty("tools").EnumerateArray());
-        Assert.Equal("function", child.GetProperty("type").GetString());
-        Assert.Equal("imagegen", child.GetProperty("name").GetString());
-        Assert.Equal("Generate an image.", child.GetProperty("description").GetString());
-        Assert.Equal("object", child.GetProperty("parameters").GetProperty("type").GetString());
-        Assert.False(child.TryGetProperty("namespace", out _));
-        Assert.False(child.TryGetProperty("defer_loading", out _));
+        var function = Assert.Single(document.RootElement.GetProperty("tools").EnumerateArray());
+        Assert.Equal("function", function.GetProperty("type").GetString());
+        Assert.Equal("image_gen__imagegen", function.GetProperty("name").GetString());
+        Assert.Equal("Generate an image.", function.GetProperty("description").GetString());
+        Assert.Equal("object", function.GetProperty("parameters").GetProperty("type").GetString());
+        Assert.False(function.TryGetProperty("namespace", out _));
+        Assert.False(function.TryGetProperty("defer_loading", out _));
     }
 
     [Fact]
@@ -430,18 +425,16 @@ public sealed class OpenAIResponsesToolSearchChatClientTests
             [new ChatMessage(ChatRole.User, "make an image")],
             options));
 
-        var hostedTool = Assert.Single(document.RootElement.GetProperty("tools").EnumerateArray());
+        var tools = document.RootElement.GetProperty("tools").EnumerateArray().ToArray();
+        Assert.Equal(2, tools.Length);
+        var hostedTool = Assert.Single(tools, tool => tool.GetProperty("type").GetString() == "image_generation");
         Assert.Equal("image_generation", hostedTool.GetProperty("type").GetString());
         Assert.Equal("png", hostedTool.GetProperty("output_format").GetString());
         Assert.False(hostedTool.TryGetProperty("name", out _));
-        Assert.DoesNotContain(
-            document.RootElement.GetProperty("tools").EnumerateArray(),
-            tool => tool.TryGetProperty("name", out var name) && name.GetString() == "image_gen");
-        Assert.DoesNotContain(
-            document.RootElement.GetProperty("tools").EnumerateArray(),
-            tool => tool.TryGetProperty("tools", out var children)
-                    && children.EnumerateArray().Any(child =>
-                        child.TryGetProperty("name", out var childName) && childName.GetString() == "imagegen"));
+        Assert.Contains(
+            tools,
+            tool => tool.TryGetProperty("name", out var name)
+                    && name.GetString() == "image_gen__imagegen");
     }
 
     [Fact]
@@ -1611,23 +1604,48 @@ public sealed class OpenAIResponsesToolSearchChatClientTests
             Configuration = new ThreadConfiguration()
         };
 
+        RuntimeDynamicToolDeclaration declaration = toolNamespace is null
+            ? new RuntimeDynamicToolFunction
+            {
+                Name = name,
+                Description = "Generate an image.",
+                InputSchema = new JsonObject { ["type"] = "object" }
+            }
+            : new RuntimeDynamicToolNamespace
+            {
+                Name = toolNamespace,
+                Description = $"{toolNamespace} tools.",
+                Tools =
+                [
+                    new RuntimeDynamicToolFunction
+                    {
+                        Name = name,
+                        Description = "Generate an image.",
+                        InputSchema = new JsonObject { ["type"] = "object" }
+                    }
+                ]
+            };
+
         proxy.BindThread(
             thread.Id,
             new NoopAppServerTransport(),
             new AppServerConnection(),
-            [
-                new DynamicToolSpec
-                {
-                    Namespace = toolNamespace,
-                    Name = name,
-                    Description = "Generate an image.",
-                    InputSchema = new JsonObject { ["type"] = "object" }
-                }
-            ]);
+            [declaration]);
 
-        return Assert.Single(proxy.CreateToolsForThread(
-            thread,
-            new HashSet<string>(StringComparer.Ordinal)));
+        var planning = new ToolPlanningContext(
+            thread.Id,
+            null,
+            thread.WorkspacePath,
+            "default",
+            null,
+            [],
+            1);
+        var snapshot = new EffectiveToolSnapshotBuilder()
+            .BuildAsync([proxy], planning)
+            .AsTask()
+            .GetAwaiter()
+            .GetResult();
+        return Assert.Single(AgentFactory.ProjectSnapshotTools(snapshot));
     }
 
     private static byte[] CreateImageBytes(string mediaType)

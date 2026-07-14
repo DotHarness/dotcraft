@@ -129,8 +129,20 @@ public static class AppServerMethods
     public const string SubAgentSendMessage = "subagent/sendMessage";
     public const string SubAgentFollowupTask = "subagent/followupTask";
     public const string SubAgentClose = "subagent/close";
-    public const string McpStatusList = "mcp/status/list";
     public const string McpTest = "mcp/test";
+    public const string McpServerStatusList = "mcpServerStatus/list";
+    public const string McpServerResourceRead = "mcpServer/resource/read";
+    public const string McpServerToolCall = "mcpServer/tool/call";
+    public const string McpServerOAuthLogin = "mcpServer/oauth/login";
+    public const string ConfigMcpServerReload = "config/mcpServer/reload";
+    public const string McpAppViewOpen = "mcpApp/view/open";
+    public const string McpAppViewResourceRead = "mcpApp/view/resource/read";
+    public const string McpAppViewToolsList = "mcpApp/view/tools/list";
+    public const string McpAppViewToolCall = "mcpApp/view/tool/call";
+    public const string McpAppViewMessage = "mcpApp/view/message";
+    public const string McpAppViewModelContextUpdate = "mcpApp/view/modelContext/update";
+    public const string McpAppViewOpenLink = "mcpApp/view/openLink";
+    public const string McpAppViewClose = "mcpApp/view/close";
     public const string HooksList = "hooks/list";
     public const string HooksSetState = "hooks/setState";
     public const string HooksTrustPlugin = "hooks/trustPlugin";
@@ -198,7 +210,12 @@ public static class AppServerMethods
 
     // Server → Client notification (cron job list sync, spec Section 16.7)
     public const string CronStateChanged = "cron/stateChanged";
-    public const string McpStatusUpdated = "mcp/status/updated";
+    public const string McpServerStartupStatusUpdated = "mcpServer/startupStatus/updated";
+    public const string McpServerOAuthLoginCompleted = "mcpServer/oauthLogin/completed";
+    public const string McpAppViewStatusUpdated = "mcpApp/view/status/updated";
+
+    // Server → Client request (MCP elicitation control plane)
+    public const string McpServerElicitationRequest = "mcpServer/elicitation/request";
 
     /// <summary>
     /// Server → Client notification fired during <c>auth/openai/login</c> with the authorization URL.

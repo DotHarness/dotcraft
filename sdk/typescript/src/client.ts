@@ -123,7 +123,7 @@ export class DotCraftWireClient {
     displayName?: string | null;
     historyMode?: string;
     config?: Record<string, unknown> | null;
-    dynamicTools?: Record<string, unknown>[] | null;
+    dynamicTools?: unknown[] | null;
     additionalContext?: Record<string, RuntimeAdditionalContextEntry> | null;
   }): Promise<Thread> {
     const identity: Record<string, unknown> = {
@@ -140,7 +140,8 @@ export class DotCraftWireClient {
     if (params.displayName !== undefined && params.displayName !== null)
       p.displayName = params.displayName;
     if (params.config) p.config = params.config;
-    if (params.dynamicTools?.length) p.dynamicTools = params.dynamicTools;
+    if (params.dynamicTools !== undefined && params.dynamicTools !== null)
+      p.dynamicTools = params.dynamicTools;
     if (params.additionalContext) p.additionalContext = params.additionalContext;
 
     const result = (await this.request("thread/start", p)) as Record<string, unknown>;
@@ -150,12 +151,13 @@ export class DotCraftWireClient {
   async threadResume(
     threadId: string,
     params?: {
-      dynamicTools?: Record<string, unknown>[] | null;
+      dynamicTools?: unknown[] | null;
       additionalContext?: Record<string, RuntimeAdditionalContextEntry> | null;
     },
   ): Promise<Thread> {
     const payload: Record<string, unknown> = { threadId };
-    if (params?.dynamicTools?.length) payload.dynamicTools = params.dynamicTools;
+    if (params?.dynamicTools !== undefined && params.dynamicTools !== null)
+      payload.dynamicTools = params.dynamicTools;
     if (params?.additionalContext !== undefined && params.additionalContext !== null)
       payload.additionalContext = params.additionalContext;
     const result = (await this.request("thread/resume", payload)) as Record<string, unknown>;
@@ -411,7 +413,7 @@ export class DotCraftWireClient {
       const msg = new JsonRpcMessage({
         method,
         id,
-        params: (params as Record<string, unknown> | undefined) ?? {},
+        params: params as Record<string, unknown> | undefined,
       });
       void this.transport.writeMessage(msg.toDict()).catch((error) => {
         this.pending.delete(id);

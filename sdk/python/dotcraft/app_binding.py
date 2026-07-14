@@ -288,7 +288,7 @@ class AppBindingAttachToolsResult:
         )
 
 
-def app_binding_tool_error(code: str, message: str, structured_result: Any = None) -> dict:
+def app_binding_tool_error(code: str, message: str, structured_content: Any = None) -> dict:
     """Build a standard failed dynamic-tool result for an App Binding error."""
     result: dict = {
         "success": False,
@@ -296,8 +296,8 @@ def app_binding_tool_error(code: str, message: str, structured_result: Any = Non
         "errorMessage": message,
         "contentItems": [{"type": "text", "text": message}],
     }
-    if structured_result is not None:
-        result["structuredResult"] = structured_result
+    if structured_content is not None:
+        result["structuredContent"] = structured_content
     return result
 
 

@@ -54,7 +54,8 @@ export function shouldBridgeWorkspaceServerRequest<TClient, TWindow extends Dest
 
 export const RENDERER_INTERACTIVE_SERVER_REQUEST_METHODS = new Set([
   'item/approval/request',
-  'item/tool/requestUserInput'
+  'item/tool/requestUserInput',
+  'mcpServer/elicitation/request'
 ])
 
 export function isRendererInteractiveServerRequest(method: string): boolean {

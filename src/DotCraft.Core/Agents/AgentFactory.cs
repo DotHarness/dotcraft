@@ -1,5 +1,7 @@
 using System.Collections.Concurrent;
 using System.Reflection;
+using System.Text.Json;
+using System.Text.Json.Nodes;
 using DotCraft.Abstractions;
 using DotCraft.Commands.Custom;
 using DotCraft.Configuration;
@@ -10,7 +12,7 @@ using DotCraft.GeneratedTools.Core;
 using DotCraft.Hooks;
 using DotCraft.Memory;
 using DotCraft.Dreams;
-using DotCraft.Plugins;
+using DotCraft.Protocol;
 using DotCraft.Security;
 using DotCraft.Skills;
 using DotCraft.Tools;
@@ -20,8 +22,8 @@ using Microsoft.Extensions.AI;
 namespace DotCraft.Agents;
 
 /// <summary>
-/// Factory for creating AI agents with tool aggregation from providers.
-/// Tools are aggregated from registered <see cref="IAgentToolProvider"/> instances.
+/// Factory for creating AI agents with tool aggregation from sources.
+/// Tool declarations are projected from immutable effective snapshots.
 /// </summary>
 public sealed class AgentFactory : IAsyncDisposable
 {
@@ -31,8 +33,8 @@ public sealed class AgentFactory : IAsyncDisposable
     private readonly ConcurrentDictionary<CompactionPipelineKey, CompactionPipeline> _compactionPipelines = new();
     private readonly TraceCollector? _traceCollector;
     private readonly HashSet<string> _globalEnabledToolNames;
-    private readonly ToolProviderContext _toolProviderContext;
-    private readonly IReadOnlyList<IAgentToolProvider> _toolProviders;
+    private readonly AgentRuntimeContext _runtimeContext;
+    private readonly IReadOnlyList<IToolSource> _toolSources;
     private readonly ChatClientRegistry _chatClientRegistry;
     private readonly IChatClient? _compactionChatClientOverride;
     private static readonly ConcurrentDictionary<MethodInfo, bool> StreamArgumentsOptOutCache = new();
@@ -43,9 +45,10 @@ public sealed class AgentFactory : IAsyncDisposable
     private readonly MemoryStore _memoryStore;
     private readonly Action<string>? _onConsolidatorStatus;
     private readonly IMemoryConsolidator? _memoryConsolidatorOverride;
+    private readonly IToolDispatcher _toolDispatcher;
 
     /// <summary>
-    /// Creates a new AgentFactory with tool providers.
+    /// Creates a new AgentFactory with tool sources.
     /// </summary>
     public AgentFactory(
         string dotcraftPath,
@@ -55,8 +58,7 @@ public sealed class AgentFactory : IAsyncDisposable
         SkillsLoader skillsLoader,
         IApprovalService approvalService,
         PathBlacklist? blacklist,
-        IEnumerable<IAgentToolProvider> toolProviders,
-        ToolProviderContext? toolProviderContext = null,
+        AgentRuntimeContext? runtimeContext = null,
         TraceCollector? traceCollector = null,
         CustomCommandLoader? customCommandLoader = null,
         PlanStore? planStore = null,
@@ -64,9 +66,12 @@ public sealed class AgentFactory : IAsyncDisposable
         Action<string>? onConsolidatorStatus = null,
         HookRunner? hookRunner = null,
         ChatClientRegistry? chatClientRegistry = null,
+        IChatClient? chatClient = null,
         IMemoryConsolidator? memoryConsolidator = null,
         IChatClient? compactionChatClient = null,
-        IContextPageManager? contextPageManager = null)
+        IContextPageManager? contextPageManager = null,
+        IToolDispatcher? toolDispatcher = null,
+        IEnumerable<IToolSource>? toolSources = null)
     {
         _config = config;
         _traceCollector = traceCollector;
@@ -78,13 +83,14 @@ public sealed class AgentFactory : IAsyncDisposable
         _onConsolidatorStatus = onConsolidatorStatus;
         _memoryConsolidatorOverride = memoryConsolidator;
         _compactionChatClientOverride = compactionChatClient;
+        _toolDispatcher = toolDispatcher ?? new ToolDispatcher();
         _globalEnabledToolNames = ResolveGlobalEnabledToolNames(_config);
-        _chatClientRegistry = chatClientRegistry ?? toolProviderContext?.ChatClientRegistry ?? new ChatClientRegistry();
+        _chatClientRegistry = chatClientRegistry ?? runtimeContext?.ChatClientRegistry ?? new ChatClientRegistry();
 
         var mainRuntime = _chatClientRegistry.ResolveMainRuntime(config);
         var mainModel = mainRuntime.Model;
         var mainCompactionConfig = ModelCatalog.ResolveCompactionConfig(config, mainModel);
-        _chatClient = _chatClientRegistry.GetChatClient(mainRuntime);
+        _chatClient = chatClient ?? _chatClientRegistry.GetChatClient(mainRuntime);
         var consolidationRuntime = _chatClientRegistry.ResolveConsolidationRuntime(
             config,
             mainRuntime.ProviderId,
@@ -130,8 +136,8 @@ public sealed class AgentFactory : IAsyncDisposable
                 _config.PromptCaching,
                 mainModel));
 
-        // Build tool provider context
-        _toolProviderContext = toolProviderContext ?? new ToolProviderContext
+        // Build the source-neutral runtime context.
+        _runtimeContext = runtimeContext ?? new AgentRuntimeContext
         {
             Config = config,
             ChatClient = _chatClient,
@@ -150,15 +156,28 @@ public sealed class AgentFactory : IAsyncDisposable
             TraceCollector = traceCollector
         };
 
-        _toolProviders = toolProviders.ToList();
+        _toolSources = (toolSources ?? [])
+            .Append(new ModeSupplementalToolSource(_planStore, _onPlanUpdated))
+            .ToArray();
     }
 
     /// <summary>
-    /// Process-level tool provider context (workspace root, memory, skills).
-    /// Per-thread overrides are passed to <see cref="CreateToolsForMode(AgentMode, ToolProviderContext)"/>
-    /// and the overload of <see cref="CreateAgentWithTools(List{AITool}, AgentModeManager?, ToolProviderContext)"/>.
+    /// Process-level agent runtime context (workspace root, memory, skills).
+    /// Per-thread overrides are passed to the snapshot and agent construction methods.
     /// </summary>
-    public ToolProviderContext ToolProviderContext => _toolProviderContext;
+    public AgentRuntimeContext RuntimeContext => _runtimeContext;
+
+    /// <summary>Gets the constructor-injected default tool sources.</summary>
+    public IReadOnlyList<IToolSource> ToolSources => _toolSources;
+
+    /// <summary>Releases resources owned by thread-scoped sources.</summary>
+    public async ValueTask ReleaseThreadToolResourcesAsync(
+        string threadId,
+        CancellationToken cancellationToken = default)
+    {
+        foreach (var source in _toolSources.OfType<IThreadScopedToolSource>())
+            await source.ReleaseThreadAsync(threadId, cancellationToken).ConfigureAwait(false);
+    }
 
     /// <summary>
     /// Gets the last created tools for inspection.
@@ -264,7 +283,7 @@ public sealed class AgentFactory : IAsyncDisposable
                 config,
                 mainRuntime.Model,
                 contextWindowModeOverride ?? config.Compaction.ContextWindowMode).BlockingLimit(),
-            _toolProviderContext.WorkspacePath);
+            _runtimeContext.WorkspacePath);
     }
 
     /// <summary>
@@ -306,98 +325,78 @@ public sealed class AgentFactory : IAsyncDisposable
     }
 
     /// <summary>
-    /// Creates default tools by aggregating all registered tool providers.
-    /// Tools are ordered by provider priority (lower priority value = earlier in list).
+    /// Creates default declarations from an immutable host snapshot.
     /// </summary>
-    public List<AITool> CreateDefaultTools() => CreateDefaultTools(_toolProviderContext);
+    public List<AITool> CreateDefaultTools() => CreateDefaultTools(_runtimeContext);
 
     /// <summary>
     /// Creates default tools using the given tool context (e.g. per-thread workspace override).
     /// </summary>
-    public List<AITool> CreateDefaultTools(ToolProviderContext toolContext)
+    public List<AITool> CreateDefaultTools(AgentRuntimeContext toolContext)
     {
-        var tools = _toolProviders
-            .OrderBy(p => p.Priority)
-            .ThenBy(p => p.GetType().FullName, StringComparer.Ordinal)
-            .SelectMany(p => SortTools(p.CreateTools(toolContext)))
-            .ToList();
-
-        // Apply global tool filtering if configured
-        if (_globalEnabledToolNames.Count > 0)
-        {
-            tools = tools
-                .Where(t => _globalEnabledToolNames.Contains(t.Name))
-                .ToList();
-        }
-
-        tools = DropConflictingPluginFunctions(tools);
-
-        // Wrap tools with hook interceptors
-        tools = ApplyHooks(tools);
-
-        tools = ApplyResultLimits(tools, toolContext.WorkspacePath);
-        tools = SortTools(ToolSchemaSanitizer.SanitizeTools(tools));
-
-        return tools;
+        var planning = CreateHostPlanningContext(toolContext, AgentMode.Agent);
+        var snapshot = BuildToolSnapshotAsync(_toolSources, planning, toolContext)
+            .AsTask().GetAwaiter().GetResult();
+        return ProjectSnapshotTools(snapshot);
     }
 
-    /// <summary>
-    /// Creates tools from an explicit provider list (e.g. registered tool profile).
-    /// </summary>
-    public List<AITool> CreateToolsFromProviders(
-        IReadOnlyList<IAgentToolProvider> providers,
-        ToolProviderContext toolContext)
+    /// <summary>Builds an immutable effective snapshot from source registrations.</summary>
+    public ValueTask<EffectiveToolSnapshot> BuildToolSnapshotAsync(
+        IEnumerable<IToolSource> sources,
+        ToolPlanningContext planningContext,
+        CancellationToken cancellationToken = default) =>
+        new EffectiveToolSnapshotBuilder().BuildAsync(sources, planningContext, cancellationToken);
+
+    /// <summary>Builds a snapshot including capabilities hosted by the selected provider.</summary>
+    public ValueTask<EffectiveToolSnapshot> BuildToolSnapshotAsync(
+        IEnumerable<IToolSource> sources,
+        ToolPlanningContext planningContext,
+        AgentRuntimeContext runtimeContext,
+        CancellationToken cancellationToken = default) =>
+        new EffectiveToolSnapshotBuilder().BuildAsync(
+            sources,
+            planningContext,
+            ProviderHostedCapabilityPlanner.Build(runtimeContext),
+            cancellationToken);
+
+    /// <summary>Dispatches a host or app call through an already frozen snapshot.</summary>
+    public ValueTask<ToolExecutionResult> DispatchToolAsync(
+        EffectiveToolSnapshot snapshot,
+        ToolName toolName,
+        JsonObject arguments,
+        ToolInvocationRequest request,
+        CancellationToken cancellationToken = default) =>
+        _toolDispatcher.DispatchAsync(snapshot, toolName, arguments, request, cancellationToken);
+
+    /// <summary>Projects model-visible declarations from a frozen effective snapshot.</summary>
+    public static List<AITool> ProjectSnapshotTools(EffectiveToolSnapshot snapshot)
     {
-        var tools = providers
-            .OrderBy(p => p.Priority)
-            .ThenBy(p => p.GetType().FullName, StringComparer.Ordinal)
-            .SelectMany(p => SortTools(p.CreateTools(toolContext)))
+        ArgumentNullException.ThrowIfNull(snapshot);
+        return snapshot.ModelVisibleDefinitions
+            .Select(definition => (AITool)new SnapshotToolDeclarationFunction(
+                snapshot.ProviderCallNames[definition.Name],
+                definition))
+            .OrderBy(tool => tool.Name, StringComparer.Ordinal)
             .ToList();
-
-        if (_globalEnabledToolNames.Count > 0)
-        {
-            tools = tools
-                .Where(t => _globalEnabledToolNames.Contains(t.Name))
-                .ToList();
-        }
-
-        tools = DropConflictingPluginFunctions(tools);
-
-        tools = ApplyHooks(tools);
-
-        tools = ApplyResultLimits(tools, toolContext.WorkspacePath);
-        tools = SortTools(ToolSchemaSanitizer.SanitizeTools(tools));
-
-        return tools;
     }
+
+    internal static AIFunction ProjectSnapshotDefinition(
+        EffectiveToolSnapshot snapshot,
+        ToolDefinition definition) =>
+        new SnapshotToolDeclarationFunction(snapshot.ProviderCallNames[definition.Name], definition);
 
     /// <summary>
     /// Creates a schema-stable tool list for the given <see cref="AgentMode"/>.
     /// Mode restrictions are enforced at invocation time.
     /// </summary>
-    public List<AITool> CreateToolsForMode(AgentMode mode) => CreateToolsForMode(mode, _toolProviderContext);
+    public List<AITool> CreateToolsForMode(AgentMode mode) => CreateToolsForMode(mode, _runtimeContext);
 
     /// <summary>
     /// Creates tools for the given mode using the specified tool context (e.g. per-thread workspace override).
     /// </summary>
-    public List<AITool> CreateToolsForMode(AgentMode mode, ToolProviderContext toolContext)
+    public List<AITool> CreateToolsForMode(AgentMode mode, AgentRuntimeContext toolContext)
     {
         var tools = CreateDefaultTools(toolContext);
-
-        if (_planStore != null)
-        {
-            // Use GetActiveSessionKey for reliable session key retrieval across async boundaries
-            var planTools = new PlanTools(_planStore, TracingChatClient.GetActiveSessionKey, _onPlanUpdated);
-            tools.Add(GeneratedToolFunctions.PlanTools_CreatePlan(planTools));
-            tools.Add(GeneratedToolFunctions.PlanTools_UpdateTodos(planTools));
-            tools.Add(GeneratedToolFunctions.PlanTools_TodoWrite(planTools));
-        }
-
-        if (toolContext.CurrentThreadSource?.SubAgent == null)
-        {
-            var userInputTools = new RequestUserInputTools();
-            tools.Add(GeneratedToolFunctions.RequestUserInputTools_RequestUserInput(userInputTools));
-        }
 
         tools = ApplyResultLimits(tools, toolContext.WorkspacePath);
         tools = SortTools(ToolSchemaSanitizer.SanitizeTools(tools));
@@ -409,29 +408,132 @@ public sealed class AgentFactory : IAsyncDisposable
     /// Creates the default AI agent with all registered tools.
     /// </summary>
     public AIAgent CreateDefaultAgent()
-    {
-        return CreateAgentWithTools(CreateDefaultTools());
-    }
+        => CreateAgentForMode(AgentMode.Agent);
 
     /// <summary>
     /// Creates an AI agent configured for the specified mode.
     /// </summary>
     public AIAgent CreateAgentForMode(AgentMode mode, AgentModeManager? modeManager = null)
     {
-        return CreateAgentWithTools(CreateToolsForMode(mode), modeManager);
+        var planning = CreateHostPlanningContext(_runtimeContext, mode);
+        var snapshot = BuildToolSnapshotAsync(_toolSources, planning, _runtimeContext)
+            .AsTask().GetAwaiter().GetResult();
+        var tools = ProjectSnapshotTools(snapshot);
+        return CreateAgentWithToolsAndSnapshot(
+            tools,
+            snapshot,
+            planning,
+            modeManager,
+            _runtimeContext);
     }
+
+    private static ToolPlanningContext CreateHostPlanningContext(
+        AgentRuntimeContext context,
+        AgentMode mode) =>
+        new(
+            context.CurrentThreadId ?? "host",
+            turnId: null,
+            context.WorkspacePath,
+            mode.ToString().ToLowerInvariant(),
+            profile: null,
+            providerCapabilities: context.CurrentThreadSource?.SubAgent is null ? [] : ["subagent-child"],
+            revision: 1);
 
     /// <summary>
     /// Creates an AI agent with the specified tools.
     /// </summary>
     public AIAgent CreateAgentWithTools(List<AITool> tools, AgentModeManager? modeManager = null) =>
-        BuildAgent(tools, modeManager, _toolProviderContext, instructions: null);
+        BuildAgent(tools, modeManager, _runtimeContext, instructions: null);
 
     /// <summary>
     /// Creates an AI agent with the specified tools and tool context (e.g. per-thread workspace override).
     /// </summary>
-    public AIAgent CreateAgentWithTools(List<AITool> tools, AgentModeManager? modeManager, ToolProviderContext toolContext) =>
+    public AIAgent CreateAgentWithTools(List<AITool> tools, AgentModeManager? modeManager, AgentRuntimeContext toolContext) =>
         BuildAgent(tools, modeManager, toolContext, instructions: null);
+
+    /// <summary>Creates an agent whose source-backed declarations execute through the common dispatcher.</summary>
+    public AIAgent CreateAgentWithSnapshot(
+        EffectiveToolSnapshot snapshot,
+        ToolPlanningContext planningContext,
+        AgentModeManager? modeManager,
+        AgentRuntimeContext toolContext,
+        string? instructions = null)
+    {
+        ArgumentNullException.ThrowIfNull(snapshot);
+        ArgumentNullException.ThrowIfNull(planningContext);
+        return CreateAgentWithToolsAndSnapshot(
+            ProjectSnapshotTools(snapshot),
+            snapshot,
+            planningContext,
+            modeManager,
+            toolContext,
+            instructions);
+    }
+
+    /// <summary>
+    /// Creates an agent with a transitional mixed surface. Source-backed declarations use the
+    /// dispatcher while unrelated provider-hosted or not-yet-migrated functions keep their
+    /// existing invocation path.
+    /// </summary>
+    public AIAgent CreateAgentWithToolsAndSnapshot(
+        List<AITool> tools,
+        EffectiveToolSnapshot snapshot,
+        ToolPlanningContext planningContext,
+        AgentModeManager? modeManager,
+        AgentRuntimeContext toolContext,
+        string? instructions = null)
+    {
+        PrepareSnapshotDeferredTools(snapshot, toolContext, tools);
+        return BuildAgent(
+            tools,
+            modeManager,
+            toolContext,
+            instructions,
+            (invocation, cancellationToken) => DispatchSnapshotInvocationAsync(
+                snapshot,
+                planningContext,
+                invocation,
+                cancellationToken));
+    }
+
+    private void PrepareSnapshotDeferredTools(
+        EffectiveToolSnapshot snapshot,
+        AgentRuntimeContext context,
+        List<AITool> directTools)
+    {
+        context.DeferredToolActivationIndex = null;
+        var deferred = snapshot.DeferredDefinitions
+            .OrderBy(static pair => pair.Key, StringComparer.Ordinal)
+            .SelectMany(pair => pair.Value.Select(definition => new DeferredToolEntry(
+                new SnapshotToolDeclarationFunction(snapshot.ProviderCallNames[definition.Name], definition),
+                definition.Provenance.SourceId,
+                pair.Key)))
+            .ToArray();
+        if (deferred.Length == 0)
+            return;
+
+        var mode = DeferredToolLoadingPlanner.ResolveMode(
+            context.Config.Tools.DeferredLoading,
+            context.EffectiveProviderProtocol);
+        if (mode == DeferredToolLoadingMode.Off)
+            return;
+
+        var registry = new DeferredToolActivationIndex(deferred, mode);
+        context.DeferredToolActivationIndex = registry;
+        var maxResults = context.Config.Tools.DeferredLoading.MaxSearchResults;
+        var protocol = ModelProviderProtocols.Normalize(context.EffectiveProviderProtocol);
+        if (mode == DeferredToolLoadingMode.Native)
+        {
+            directTools.Add(protocol == ModelProviderProtocols.Anthropic
+                ? new AnthropicToolSearchTool(registry, maxResults)
+                : new NativeToolSearchTool(registry, maxResults));
+        }
+        else
+        {
+            directTools.Add(GeneratedToolFunctions.ToolSearchTool_SearchTools(
+                new ToolSearchTool(registry, maxResults)));
+        }
+    }
 
     /// <summary>
     /// Creates an AI agent with explicit system instructions (e.g. ephemeral commit-message assistant).
@@ -439,20 +541,25 @@ public sealed class AgentFactory : IAsyncDisposable
     public AIAgent CreateAgentWithTools(
         List<AITool> tools,
         AgentModeManager? modeManager,
-        ToolProviderContext toolContext,
+        AgentRuntimeContext toolContext,
         string? instructions) =>
         BuildAgent(tools, modeManager, toolContext, instructions);
 
     private AIAgent BuildAgent(
         List<AITool> tools,
         AgentModeManager? modeManager,
-        ToolProviderContext ctx,
-        string? instructions = null)
+        AgentRuntimeContext ctx,
+        string? instructions = null,
+        Func<FunctionInvocationContext, CancellationToken, ValueTask<object?>>? functionInvoker = null)
     {
+        // Snapshot-backed declarations execute through ToolDispatcher, which owns the
+        // common policy and hook pipeline. Keep the legacy client-side evaluators only
+        // for host-created agents that do not have a dispatcher invocation delegate.
+        var usesSnapshotDispatcher = functionInvoker != null;
         tools = SortTools(ToolSchemaSanitizer.SanitizeTools(tools));
         LastCreatedTools = tools;
 
-        var deferredRegistry = ctx.DeferredToolRegistry;
+        var deferredRegistry = ctx.DeferredToolActivationIndex;
 
         // ChatClientBuilder applies earlier Use calls outside later ones:
         // TracingChatClient => StreamingFunctionInvokingChatClient => [DynamicToolInjectionChatClient]
@@ -472,10 +579,13 @@ public sealed class AgentFactory : IAsyncDisposable
             {
                 AllowConcurrentInvocation = true,
                 EnableToolCallArgumentPreviews = true,
-                ModeToolPolicy = BuildInvocationPolicy(modeManager, ctx.ToolInvocationPolicy),
-                ToolCallPolicy = ctx.ToolCallPolicy,
+                ModeToolPolicy = usesSnapshotDispatcher
+                    ? null
+                    : BuildInvocationPolicy(modeManager, ctx.ToolInvocationPolicy),
+                ToolCallPolicy = usesSnapshotDispatcher ? null : ctx.ToolCallPolicy,
                 IsStreamableTool = name => !streamOptOutTools.Contains(name)
             };
+            fic.FunctionInvoker = functionInvoker;
             if (deferredRegistry != null)
                 fic.AdditionalTools = deferredRegistry.ActivatedToolsList;
             return fic;
@@ -484,7 +594,7 @@ public sealed class AgentFactory : IAsyncDisposable
         {
             var registry = deferredRegistry;
             var tc = _traceCollector;
-            var hr = _hookRunner;
+            var hr = usesSnapshotDispatcher ? null : _hookRunner;
             chatClientBuilder.Use(innerClient => new DynamicToolInjectionChatClient(innerClient, registry, tc, hr));
         }
         chatClientBuilder.Use(innerClient => new ImageContentSanitizingChatClient(innerClient));
@@ -511,7 +621,7 @@ public sealed class AgentFactory : IAsyncDisposable
             _traceCollector);
         var configuredChatClient = chatClientBuilder.Build();
         var chatOptions = CreateChatOptions(tools, ctx.EffectiveReasoning, instructions);
-        if (ImageGenerationToolProvider.ShouldEnableHostedImageGeneration(ctx))
+        if (ProviderHostedCapabilityPlanner.Build(ctx).ImageGenerationEnabled)
             ResponsesToolSearchMapper.EnableHostedImageGeneration(chatOptions);
 
         var options = new ChatClientAgentOptions
@@ -587,13 +697,63 @@ public sealed class AgentFactory : IAsyncDisposable
         return configuredChatClient.AsAIAgent(options);
     }
 
+    private async ValueTask<object?> DispatchSnapshotInvocationAsync(
+        EffectiveToolSnapshot snapshot,
+        ToolPlanningContext planningContext,
+        FunctionInvocationContext invocation,
+        CancellationToken cancellationToken)
+    {
+        if (!snapshot.TryResolveProviderCallName(invocation.CallContent.Name, out _))
+            return await invocation.Function.InvokeAsync(invocation.Arguments, cancellationToken).ConfigureAwait(false);
+
+        var arguments = new JsonObject();
+        foreach (var (key, value) in invocation.Arguments)
+            arguments[key] = value is JsonNode node
+                ? node.DeepClone()
+                : JsonSerializer.SerializeToNode(value, SessionWireJsonOptions.Default);
+
+        var result = await _toolDispatcher.DispatchProviderCallAsync(
+            snapshot,
+            invocation.CallContent.Name,
+            arguments,
+            new ToolInvocationRequest(
+                planningContext.ThreadId,
+                planningContext.TurnId,
+                invocation.CallContent.CallId,
+                ToolInvocationAudience.Model),
+            cancellationToken).ConfigureAwait(false);
+        if (result.Success)
+            return result.Content;
+
+        return result.Error is null
+            ? "Tool execution failed."
+            : $"{result.Error.Code}: {result.Error.Message}";
+    }
+
+    private sealed class SnapshotToolDeclarationFunction(string providerCallName, ToolDefinition definition)
+        : AIFunction
+    {
+        public override string Name => providerCallName;
+        public override string Description => definition.Description;
+        public override JsonElement JsonSchema => definition.InputSchema;
+        public override JsonElement? ReturnJsonSchema => definition.OutputSchema;
+        public override MethodInfo? UnderlyingMethod => null;
+        public override JsonSerializerOptions JsonSerializerOptions => SessionWireJsonOptions.Default;
+
+        protected override ValueTask<object?> InvokeCoreAsync(
+            AIFunctionArguments arguments,
+            CancellationToken cancellationToken) =>
+            ValueTask.FromException<object?>(new InvalidOperationException(
+                "Snapshot tool declarations must be invoked through the common dispatcher."));
+    }
+
     /// <summary>
     /// Creates provider-specific reasoning options based on the current configuration.
     /// Returns <see langword="null"/> when reasoning is disabled.
     /// </summary>
     public ReasoningOptions? CreateReasoningOptions(AppConfig.ReasoningConfig? reasoningConfig = null)
     {
-        return (reasoningConfig ?? _toolProviderContext.EffectiveReasoning).ToOptions();
+        return (reasoningConfig ?? _runtimeContext.EffectiveReasoning).ToOptions();
     }
 
     /// <summary>
@@ -601,7 +761,7 @@ public sealed class AgentFactory : IAsyncDisposable
     /// </summary>
     public IChatClient CreateToolCallFilteringChatClient()
     {
-        var deferredRegistry = _toolProviderContext.DeferredToolRegistry;
+        var deferredRegistry = _runtimeContext.DeferredToolActivationIndex;
 
         // ChatClientBuilder applies earlier Use calls outside later ones:
         // ToolCallFilteringChatClient => TracingChatClient => StreamingFunctionInvokingChatClient
@@ -639,8 +799,8 @@ public sealed class AgentFactory : IAsyncDisposable
         chatClientBuilder.Use(innerClient => new ImageContentSanitizingChatClient(innerClient));
         var runtime = _chatClientRegistry.ResolveMainRuntime(
             _config,
-            _toolProviderContext.EffectiveProviderId,
-            _toolProviderContext.EffectiveMainModel);
+            _runtimeContext.EffectiveProviderId,
+            _runtimeContext.EffectiveMainModel);
         if (deferredRegistry?.Mode == DeferredToolLoadingMode.Native
             && string.Equals(runtime.Protocol, ModelProviderProtocols.Anthropic, StringComparison.Ordinal))
         {
@@ -654,8 +814,8 @@ public sealed class AgentFactory : IAsyncDisposable
             chatClientBuilder,
             _config,
             runtime,
-            _toolProviderContext.EffectiveReasoning,
-            _toolProviderContext.EffectiveSpeed,
+            _runtimeContext.EffectiveReasoning,
+            _runtimeContext.EffectiveSpeed,
             _config.PromptCaching,
             _traceCollector);
         return chatClientBuilder.Build();
@@ -737,37 +897,6 @@ public sealed class AgentFactory : IAsyncDisposable
             .OrderBy(t => t.Name, StringComparer.OrdinalIgnoreCase)
             .ThenBy(t => t.GetType().FullName, StringComparer.Ordinal)
             .ToList();
-
-    private static List<AITool> DropConflictingPluginFunctions(List<AITool> tools)
-    {
-        var seen = new HashSet<string>(StringComparer.Ordinal);
-        var result = new List<AITool>(tools.Count);
-        foreach (var tool in tools)
-        {
-            if (string.IsNullOrWhiteSpace(tool.Name))
-            {
-                result.Add(tool);
-                continue;
-            }
-
-            if (seen.Add(tool.Name))
-            {
-                result.Add(tool);
-                continue;
-            }
-
-            if (tool is IPluginFunctionTool { PluginFunctionDescriptor: { } descriptor })
-            {
-                Console.Error.WriteLine(
-                    $"[PluginFunction] Skipped duplicate function '{descriptor.Name}' from plugin '{descriptor.PluginId}'.");
-                continue;
-            }
-
-            result.Add(tool);
-        }
-
-        return result;
-    }
 
     /// <summary>
     /// Builds the set of tool names that should opt out of streaming argument deltas.
@@ -939,10 +1068,12 @@ public sealed class AgentFactory : IAsyncDisposable
     /// </summary>
     public async ValueTask DisposeAsync()
     {
-        foreach (var disposable in _toolProviderContext.DisposableResources)
+        foreach (var source in _toolSources.OfType<IAsyncDisposable>())
+            await source.DisposeAsync();
+        foreach (var disposable in _runtimeContext.DisposableResources)
         {
             await disposable.DisposeAsync();
         }
-        _toolProviderContext.DisposableResources.Clear();
+        _runtimeContext.DisposableResources.Clear();
     }
 }

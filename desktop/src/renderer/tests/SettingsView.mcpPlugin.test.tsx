@@ -74,9 +74,9 @@ describe('SettingsView plugin MCP servers', () => {
           ]
         }
       }
-      if (method === 'mcp/status/list') {
+      if (method === 'mcpServerStatus/list') {
         return {
-          servers: [
+          data: [
             { name: 'workspace-docs', enabled: true, startupState: 'disabled', transport: 'stdio' },
             { name: 'review-tools:review', enabled: true, startupState: 'ready', toolCount: 2, transport: 'stdio' }
           ]

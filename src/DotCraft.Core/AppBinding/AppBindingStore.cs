@@ -197,7 +197,7 @@ internal sealed class AppBindingRecord
 
     public long ExposureRevision { get; set; }
 
-    public List<DynamicToolSpec> AttachedTools { get; set; } = [];
+    public List<AppBoundToolSpec> AttachedTools { get; set; } = [];
 
     public List<string> DirectToolNames { get; set; } = [];
 

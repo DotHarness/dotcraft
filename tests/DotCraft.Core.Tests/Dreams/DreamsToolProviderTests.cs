@@ -1,13 +1,10 @@
-using DotCraft.Abstractions;
 using DotCraft.Configuration;
 using DotCraft.Dreams;
 using DotCraft.Memory;
 using DotCraft.Protocol;
 using DotCraft.Security;
-using DotCraft.Skills;
 using DotCraft.Tools;
-using Microsoft.Extensions.AI;
-using System.Text.Json;
+using System.Text.Json.Nodes;
 
 namespace DotCraft.Tests.Dreams;
 
@@ -69,16 +66,16 @@ public sealed class DreamsToolProviderTests : IDisposable
         var workspace = await _registry.PrepareRunWorkspaceAsync("dream_run", input, outputStore, _workspace);
         _registry.Register("thread_dream", workspace, input);
 
-        var tools = new DreamsToolProvider(_registry).CreateTools(CreateContext("thread_dream")).ToList();
+        var snapshot = await CreateSnapshotAsync("thread_dream");
 
-        var manifest = await InvokeToolAsync(tools, "ReadFile", new()
+        var manifest = await InvokeToolAsync(snapshot, "ReadFile", new()
         {
             ["path"] = workspace.ManifestPath
         });
         Assert.Contains("sessions/thread_source.md", manifest, StringComparison.Ordinal);
         Assert.Contains("active-dream-store/memory/*.md", manifest, StringComparison.Ordinal);
 
-        var search = await InvokeToolAsync(tools, "GrepFiles", new()
+        var search = await InvokeToolAsync(snapshot, "GrepFiles", new()
         {
             ["pattern"] = "typed clients",
             ["path"] = workspace.InputPath
@@ -86,7 +83,7 @@ public sealed class DreamsToolProviderTests : IDisposable
         Assert.Contains("thread_source.md", search, StringComparison.Ordinal);
         Assert.Contains("protocol.md", search, StringComparison.Ordinal);
 
-        var read = await InvokeToolAsync(tools, "ReadFile", new()
+        var read = await InvokeToolAsync(snapshot, "ReadFile", new()
         {
             ["path"] = Path.Combine(workspace.InputPath, "sessions", "thread_source.md"),
             ["offset"] = 1,
@@ -94,7 +91,7 @@ public sealed class DreamsToolProviderTests : IDisposable
         });
         Assert.Contains("Use typed clients for protocol work.", read, StringComparison.Ordinal);
 
-        var write = await InvokeToolAsync(tools, "WriteFile", new()
+        var write = await InvokeToolAsync(snapshot, "WriteFile", new()
         {
             ["path"] = "INDEX.md",
             ["content"] = "# Dream Memory\n\n- pending candidate"
@@ -111,9 +108,9 @@ public sealed class DreamsToolProviderTests : IDisposable
         var workspace = await _registry.PrepareRunWorkspaceAsync("dream_run", input, outputStore, _workspace);
         _registry.Register("thread_dream", workspace, input);
 
-        var tools = new DreamsToolProvider(_registry).CreateTools(CreateContext("thread_dream")).ToList();
+        var snapshot = await CreateSnapshotAsync("thread_dream");
 
-        var result = await InvokeToolAsync(tools, "WriteFile", new()
+        var result = await InvokeToolAsync(snapshot, "WriteFile", new()
         {
             ["path"] = Path.Combine(_workspace, "should-not-write.md"),
             ["content"] = "bad"
@@ -172,34 +169,25 @@ public sealed class DreamsToolProviderTests : IDisposable
         });
     }
 
-    private ToolProviderContext CreateContext(string currentThreadId) =>
-        new()
-        {
-            Config = new AppConfig(),
-            ChatClient = null!,
-            WorkspacePath = _workspace,
-            BotPath = _craft,
-            MemoryStore = _memoryStore,
-            DreamStore = _dreamStore,
-            SkillsLoader = new SkillsLoader(_craft),
-            ApprovalService = new AutoApproveApprovalService(),
-            PathBlacklist = new PathBlacklist([]),
-            CurrentThreadId = currentThreadId
-        };
+    private ValueTask<EffectiveToolSnapshot> CreateSnapshotAsync(string threadId) =>
+        new EffectiveToolSnapshotBuilder().BuildAsync(
+            [new DreamsToolSource(_registry, new AppConfig(), new PathBlacklist([]))],
+            new ToolPlanningContext(threadId, null, _workspace, "agent", "dreams", [], 1));
 
     private static async Task<string> InvokeToolAsync(
-        IReadOnlyList<AITool> tools,
+        EffectiveToolSnapshot snapshot,
         string name,
         Dictionary<string, object?>? args = null)
     {
-        var tool = Assert.IsAssignableFrom<AIFunction>(tools.Single(t => t.Name == name));
-        var result = await tool.InvokeAsync(new AIFunctionArguments(args ?? []));
-        if (result is string text)
-            return text;
-        if (result is IList<AIContent> contents)
-            return string.Join("\n", contents.OfType<TextContent>().Select(content => content.Text));
-
-        var json = Assert.IsType<JsonElement>(result);
-        return json.ValueKind == JsonValueKind.String ? json.GetString()! : json.GetRawText();
+        var json = new JsonObject();
+        foreach (var (key, value) in args ?? [])
+            json[key] = JsonValue.Create(value);
+        var result = await new ToolDispatcher().DispatchAsync(
+            snapshot,
+            new ToolName(null, name),
+            json,
+            new ToolInvocationRequest("thread_dream", null, $"call_{name}", ToolInvocationAudience.Model));
+        Assert.True(result.Success, result.Error?.Message);
+        return result.Content ?? string.Empty;
     }
 }

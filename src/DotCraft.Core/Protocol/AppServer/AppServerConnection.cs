@@ -22,6 +22,7 @@ public sealed class AppServerConnection
 
     // Logical interactive requests already delivered on this connection.
     private readonly ConcurrentDictionary<InteractiveRequestKey, byte> _interactiveRequests = new();
+    private readonly ConcurrentDictionary<McpAppItemKey, byte> _mcpAppItems = new();
 
     // -------------------------------------------------------------------------
     // Initialization state
@@ -58,6 +59,9 @@ public sealed class AppServerConnection
 
     /// <summary>True when the client declared Interactive Tool UI support during <c>initialize</c>.</summary>
     public bool SupportsInteractiveToolUi => _clientCapabilities?.InteractiveToolUi == true;
+
+    /// <summary>True when the client declared stable MCP Apps host support.</summary>
+    public bool SupportsMcpApps => _clientCapabilities?.McpApps == true;
 
     // -------------------------------------------------------------------------
     // Channel adapter state (external-channel-adapter.md §5.1)
@@ -237,8 +241,21 @@ public sealed class AppServerConnection
     public void MarkClosed()
     {
         _isClosed = true;
+        _mcpAppItems.Clear();
         _closedTcs.TrySetResult();
     }
+
+    /// <summary>Marks a terminal MCP item as delivered live on this connection.</summary>
+    public bool TryRegisterMcpAppItem(string threadId, string itemId) =>
+        SupportsMcpApps
+        && !_isClosed
+        && _mcpAppItems.TryAdd(new McpAppItemKey(threadId, itemId), 0);
+
+    /// <summary>Returns whether an item may open a View on this exact connection.</summary>
+    public bool IsMcpAppItemEligible(string threadId, string itemId) =>
+        SupportsMcpApps
+        && !_isClosed
+        && _mcpAppItems.ContainsKey(new McpAppItemKey(threadId, itemId));
 
     // -------------------------------------------------------------------------
     // Notification opt-out
@@ -363,6 +380,8 @@ public sealed class AppServerConnection
         string ThreadId,
         string TurnId,
         string RequestId);
+
+    private readonly record struct McpAppItemKey(string ThreadId, string ItemId);
 }
 
 public sealed class ChannelToolRegistrationDiagnostic

@@ -76,6 +76,20 @@ test("DotCraftWireClient correlates responses and maps common JSON-RPC errors", 
   await client.stop();
 });
 
+test("DotCraftWireClient omits params when a request has no parameters", async () => {
+  const transport = new QueueTransport();
+  const client = new DotCraftWireClient(transport);
+  await client.start();
+
+  const pending = client.request("config/mcpServer/reload");
+  const written = await transport.nextWrite();
+  assert.equal("params" in written, false);
+  transport.push({ jsonrpc: "2.0", id: written.id, result: {} });
+  assert.deepEqual(await pending, {});
+
+  await client.stop();
+});
+
 test("DotCraftWireClient dispatches server requests without blocking the reader", async () => {
   const transport = new QueueTransport();
   const client = new DotCraftWireClient(transport);
@@ -88,7 +102,11 @@ test("DotCraftWireClient dispatches server requests without blocking the reader"
   });
   client.registerServerRequestHandler("item/tool/call", async (_id, params) => {
     calls.push(String(params.tool));
-    return { success: true, structuredResult: params.arguments };
+    return {
+      success: true,
+      contentItems: [{ type: "text", text: "Tool completed" }],
+      structuredContent: params.arguments,
+    };
   });
 
   transport.push({ jsonrpc: "2.0", id: "approval-1", method: "item/approval/request", params: {} });
@@ -107,7 +125,11 @@ test("DotCraftWireClient dispatches server requests without blocking the reader"
   assert.deepEqual(await transport.nextWrite(), {
     jsonrpc: "2.0",
     id: "tool-1",
-    result: { success: true, structuredResult: { text: "hi" } },
+    result: {
+      success: true,
+      contentItems: [{ type: "text", text: "Tool completed" }],
+      structuredContent: { text: "hi" },
+    },
   });
   assert.deepEqual(calls, ["approval", "Echo"]);
 

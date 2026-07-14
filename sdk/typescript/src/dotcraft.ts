@@ -79,14 +79,23 @@ export interface ThreadIdentityOptions {
   channelContext?: string;
 }
 
-export interface DynamicToolSpec {
-  namespace?: string | null;
+export interface DynamicToolFunctionSpec {
+  type: "function";
   name: string;
   description: string;
   inputSchema: Record<string, unknown>;
   deferLoading?: boolean;
   approval?: Record<string, unknown>;
 }
+
+export interface DynamicToolNamespaceSpec {
+  type: "namespace";
+  name: string;
+  description: string;
+  tools: DynamicToolFunctionSpec[];
+}
+
+export type DynamicToolSpec = DynamicToolFunctionSpec | DynamicToolNamespaceSpec;
 
 export interface DynamicToolCallRequest {
   threadId: string;
@@ -99,16 +108,142 @@ export interface DynamicToolCallRequest {
 
 export interface DynamicToolCallResult {
   success: boolean;
-  contentItems?: Record<string, unknown>[];
-  structuredResult?: unknown;
+  contentItems?: DynamicToolContentItem[];
+  structuredContent?: unknown;
   errorCode?: string;
   errorMessage?: string;
 }
 
+export type DynamicToolContentItem =
+  | { type: "text"; text: string }
+  | { type: "image"; mediaType: string; url: string; dataBase64?: never }
+  | { type: "image"; mediaType: string; dataBase64: string; url?: never };
+
 export type DynamicToolHandler =
   (request: DynamicToolCallRequest) => Promise<DynamicToolCallResult> | DynamicToolCallResult;
 
-export interface DynamicToolBinding extends DynamicToolSpec {
+export type DynamicToolFunctionBinding = DynamicToolFunctionSpec & { handler: DynamicToolHandler };
+export type DynamicToolNamespaceBinding = Omit<DynamicToolNamespaceSpec, "tools"> & {
+  tools: DynamicToolFunctionBinding[];
+};
+export type DynamicToolBinding = DynamicToolFunctionBinding | DynamicToolNamespaceBinding;
+
+export type McpServerOriginKind = "workspace" | "plugin" | "thread" | "binding" | (string & {});
+
+export interface McpServerOrigin {
+  kind: McpServerOriginKind;
+  pluginId?: string | null;
+  pluginDisplayName?: string | null;
+  declaredName?: string | null;
+  threadId?: string | null;
+  bindingId?: string | null;
+}
+
+export interface McpServerRuntimeStatus {
+  name: string;
+  serverInfo?: unknown;
+  tools: Record<string, unknown>;
+  resources: unknown[];
+  resourceTemplates: unknown[];
+  authStatus: "unsupported" | "notLoggedIn" | "bearerToken" | "oAuth" | string;
+  declaredName?: string | null;
+  runtimeName?: string | null;
+  origin?: McpServerOrigin | null;
+}
+
+export interface McpServerStatusListParams {
+  threadId?: string | null;
+  cursor?: string | null;
+  limit?: number | null;
+  detail?: "full" | "toolsAndAuthOnly" | null;
+}
+
+export interface McpServerStatusListResult {
+  data: McpServerRuntimeStatus[];
+  nextCursor?: string | null;
+}
+
+export interface McpServerResourceReadParams {
+  threadId?: string | null;
+  server: string;
+  uri: string;
+}
+
+export interface McpServerResourceReadResult { contents: unknown; }
+
+export interface McpServerToolCallParams {
+  threadId: string;
+  server: string;
+  tool: string;
+  arguments?: Record<string, unknown> | null;
+  _meta?: unknown;
+}
+
+export interface McpServerToolCallResult {
+  content?: unknown;
+  structuredContent?: unknown;
+  isError?: boolean;
+  _meta?: unknown;
+}
+
+export interface McpServerOAuthLoginParams {
+  name: string;
+  threadId?: string | null;
+  scopes?: string[] | null;
+  timeoutSecs?: number | null;
+}
+
+export interface McpServerOAuthLoginResult { authorizationUrl: string; }
+export type McpServerReloadResult = Record<string, never>;
+
+export interface McpServerStartupStatusUpdatedNotification {
+  threadId?: string | null;
+  name: string;
+  status: "starting" | "ready" | "failed" | "cancelled";
+  error?: string | null;
+  failureReason?: "reauthenticationRequired" | string | null;
+}
+
+export interface McpServerOAuthLoginCompletedNotification {
+  name: string;
+  threadId?: string | null;
+  success: boolean;
+  error?: string | null;
+}
+
+export interface McpServerElicitationRequest {
+  threadId?: string | null;
+  turnId?: string | null;
+  serverName: string;
+  mode: "form" | "url";
+  elicitationId?: string | null;
+  message?: string | null;
+  url?: string | null;
+  requestedSchema?: Record<string, unknown> | null;
+  _meta?: unknown;
+}
+
+export interface McpServerElicitationResponse {
+  action: "accept" | "decline" | "cancel";
+  content?: Record<string, unknown> | null;
+  _meta?: unknown;
+}
+
+export interface McpRuntimeManager {
+  listStatus(params?: McpServerStatusListParams): Promise<McpServerStatusListResult>;
+  readResource(params: McpServerResourceReadParams): Promise<McpServerResourceReadResult>;
+  callTool(params: McpServerToolCallParams): Promise<McpServerToolCallResult>;
+  loginOAuth(params: McpServerOAuthLoginParams): Promise<McpServerOAuthLoginResult>;
+  reload(): Promise<McpServerReloadResult>;
+}
+
+export interface AppBoundToolBinding {
+  namespace?: string | null;
+  name: string;
+  description: string;
+  inputSchema: Record<string, unknown>;
+  deferLoading?: boolean;
+  approval?: Record<string, unknown>;
   handler: DynamicToolHandler;
 }
 
@@ -388,7 +523,7 @@ export interface AppBindingManager {
     threadId: string;
     appId: string;
     grantId: string;
-    tools: DynamicToolBinding[];
+    tools: AppBoundToolBinding[];
     directToolNames?: string[];
     deferredToolNames?: string[];
     grantProof?: Record<string, unknown>;
@@ -413,13 +548,13 @@ export type AppBindingErrorCode =
 export function appBindingToolError(
   errorCode: AppBindingErrorCode,
   errorMessage: string,
-  structuredResult?: unknown,
+  structuredContent?: unknown,
 ): DynamicToolCallResult {
   return {
     success: false,
     errorCode,
     errorMessage,
-    structuredResult,
+    structuredContent,
     contentItems: [{ type: "text", text: `${errorCode}: ${errorMessage}` }],
   };
 }
@@ -636,8 +771,21 @@ function normalizeRunInput(input: RunInput, sender?: SenderContext): { input: In
   return { input: input.input, sender: input.sender ?? sender };
 }
 
-function stripDynamicToolHandlers(tools: DynamicToolBinding[] | undefined): Record<string, unknown>[] | null {
-  if (!tools?.length) return null;
+function stripRuntimeDynamicToolHandlers(tools: DynamicToolBinding[] | undefined): DynamicToolSpec[] | undefined {
+  if (tools === undefined) return undefined;
+  return tools.map((declaration) => {
+    if (declaration.type === "namespace") {
+      return {
+        ...declaration,
+        tools: declaration.tools.map(({ handler: _handler, ...tool }) => tool),
+      };
+    }
+    const { handler: _handler, ...tool } = declaration;
+    return tool;
+  });
+}
+
+function stripAppBoundToolHandlers(tools: AppBoundToolBinding[]): Record<string, unknown>[] {
   return tools.map(({ handler: _handler, ...tool }) => tool as Record<string, unknown>);
 }
 
@@ -791,7 +939,7 @@ class ThreadManagerImpl implements ThreadManager {
       displayName: options.displayName,
       historyMode: options.historyMode,
       config: options.config,
-      dynamicTools: stripDynamicToolHandlers(options.dynamicTools),
+      dynamicTools: stripRuntimeDynamicToolHandlers(options.dynamicTools),
       additionalContext: options.additionalContext,
     });
     const thread = new DotCraftThread(this.sdk, snapshot, identity);
@@ -801,7 +949,7 @@ class ThreadManagerImpl implements ThreadManager {
 
   async resume(threadId: string, options: ResumeThreadOptions = {}): Promise<DotCraftThread> {
     const snapshot = await this.sdk.wire.threadResume(threadId, {
-      dynamicTools: stripDynamicToolHandlers(options.dynamicTools),
+      dynamicTools: stripRuntimeDynamicToolHandlers(options.dynamicTools),
       additionalContext: options.additionalContext,
     });
     const thread = new DotCraftThread(this.sdk, snapshot, {
@@ -1035,14 +1183,14 @@ class AppBindingManagerImpl implements AppBindingManager {
     threadId: string;
     appId: string;
     grantId: string;
-    tools: DynamicToolBinding[];
+    tools: AppBoundToolBinding[];
     directToolNames?: string[];
     deferredToolNames?: string[];
     grantProof?: Record<string, unknown>;
   }): Promise<AppBindingAttachToolsResult> {
     const result = await this.sdk.request<AppBindingAttachToolsResult>("app/binding/attachTools", {
       ...params,
-      tools: stripDynamicToolHandlers(params.tools) ?? [],
+      tools: stripAppBoundToolHandlers(params.tools),
     });
     for (const tool of params.tools) {
       this.sdk.registerDynamicToolHandler(params.threadId, tool.namespace ?? null, tool.name, tool.handler);
@@ -1102,10 +1250,35 @@ class ModelManagerImpl implements ModelManager {
   }
 }
 
+class McpRuntimeManagerImpl implements McpRuntimeManager {
+  constructor(private readonly sdk: DotCraft) {}
+
+  listStatus(params: McpServerStatusListParams = {}): Promise<McpServerStatusListResult> {
+    return this.sdk.request("mcpServerStatus/list", params);
+  }
+
+  readResource(params: McpServerResourceReadParams): Promise<McpServerResourceReadResult> {
+    return this.sdk.request("mcpServer/resource/read", params);
+  }
+
+  callTool(params: McpServerToolCallParams): Promise<McpServerToolCallResult> {
+    return this.sdk.request("mcpServer/tool/call", params);
+  }
+
+  loginOAuth(params: McpServerOAuthLoginParams): Promise<McpServerOAuthLoginResult> {
+    return this.sdk.request("mcpServer/oauth/login", params);
+  }
+
+  reload(): Promise<McpServerReloadResult> {
+    return this.sdk.request("config/mcpServer/reload");
+  }
+}
+
 export class DotCraft {
   readonly threads: ThreadManager;
   readonly appBindings: AppBindingManager;
   readonly models: ModelManager;
+  readonly mcpRuntime: McpRuntimeManager;
 
   private constructor(
     readonly wire: DotCraftWireClient,
@@ -1117,6 +1290,7 @@ export class DotCraft {
     this.threads = new ThreadManagerImpl(this);
     this.appBindings = new AppBindingManagerImpl(this);
     this.models = new ModelManagerImpl(this);
+    this.mcpRuntime = new McpRuntimeManagerImpl(this);
     this.installServerRequestHandlers();
   }
 
@@ -1426,10 +1600,16 @@ export class DotCraftThread {
   }
 
   bindDynamicTools(tools: DynamicToolBinding[] | undefined): void {
-    if (!tools?.length) return;
     for (const unsubscribe of this.dynamicToolUnsubscribes.splice(0)) unsubscribe();
-    for (const tool of tools) {
-      this.dynamicToolUnsubscribes.push(this.onToolCall(tool.namespace ?? null, tool.name, tool.handler));
+    if (!tools) return;
+    for (const declaration of tools) {
+      if (declaration.type === "namespace") {
+        for (const tool of declaration.tools) {
+          this.dynamicToolUnsubscribes.push(this.onToolCall(declaration.name, tool.name, tool.handler));
+        }
+      } else {
+        this.dynamicToolUnsubscribes.push(this.onToolCall(null, declaration.name, declaration.handler));
+      }
     }
   }
 }

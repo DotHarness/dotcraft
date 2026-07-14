@@ -1,13 +1,14 @@
 import { describe, it, expect } from 'vitest'
 import { aggregateToolCalls, isToolItemLive, planToolRunRender } from '../utils/toolCallAggregation'
 import type { ConversationItem } from '../types/conversation'
+import { withTestCorePresentation } from './testToolPresentation'
 
 function makeItem(
   toolName: string,
   id: string,
   overrides: Partial<ConversationItem> = {}
 ): ConversationItem {
-  return {
+  return withTestCorePresentation({
     id,
     type: 'toolCall',
     status: 'completed',
@@ -15,7 +16,7 @@ function makeItem(
     toolCallId: id,
     createdAt: new Date().toISOString(),
     ...overrides
-  }
+  })
 }
 
 describe('aggregateToolCalls', () => {

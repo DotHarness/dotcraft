@@ -17,7 +17,7 @@ internal sealed class AppUiInteractionService(
     private const int MaxContextBlockMetadataLength = 128;
     private const int MaxContextBlockContentBytes = 16 * 1024;
 
-    public async ValueTask<DynamicToolCallResult> InvokeUiToolAsync(
+    public async ValueTask<AppBoundToolCallResult> InvokeUiToolAsync(
         string workspaceCraftPath,
         string threadId,
         string? @namespace,
@@ -32,7 +32,7 @@ internal sealed class AppUiInteractionService(
         if (string.IsNullOrWhiteSpace(tool))
             throw AppServerErrors.InvalidParams("'tool' is required.");
 
-        bool Matches(DynamicToolSpec candidate) =>
+        bool Matches(AppBoundToolSpec candidate) =>
             string.Equals(candidate.Name, tool, StringComparison.Ordinal)
             && (string.IsNullOrEmpty(@namespace)
                 || string.Equals(candidate.Namespace, @namespace, StringComparison.Ordinal));
@@ -48,7 +48,7 @@ internal sealed class AppUiInteractionService(
         var spec = binding.AttachedTools.First(Matches);
 
         // The app author decides which tools its UI may call via _meta.ui.visibility containing "app".
-        if (!UiToolVisibility.IsAppVisible(spec.Meta?.Ui))
+        if (!LegacyAppBindingUiToolVisibility.IsAppVisible(spec.Meta?.Ui))
             return AppToolAttachmentService.Failed(
                 AppBindingErrorCodes.ToolUnavailable,
                 $"Tool '{tool}' is not exposed to its UI (requires _meta.ui.visibility to include \"app\").");
@@ -286,7 +286,7 @@ internal sealed class AppUiInteractionService(
             contextBlocksChanged(threadId);
     }
 
-    private static UiToolApprovalInfo BuildUiToolApprovalInfo(DynamicToolSpec spec, JsonObject arguments)
+    private static UiToolApprovalInfo BuildUiToolApprovalInfo(AppBoundToolSpec spec, JsonObject arguments)
     {
         var approval = spec.Approval!;
         string operation;

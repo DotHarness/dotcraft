@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Literal, TypeAlias
 
 
 # ---------------------------------------------------------------------------
@@ -237,6 +237,246 @@ class InitializeResult:
             server_info=ServerInfo.from_wire(data.get("serverInfo", {})),
             capabilities=ServerCapabilities.from_wire(data.get("capabilities", {})),
         )
+
+
+# ---------------------------------------------------------------------------
+# MCP runtime/control
+# ---------------------------------------------------------------------------
+
+
+@dataclass
+class McpServerOrigin:
+    kind: str
+    plugin_id: str | None = None
+    plugin_display_name: str | None = None
+    declared_name: str | None = None
+    thread_id: str | None = None
+    binding_id: str | None = None
+
+    @classmethod
+    def from_wire(cls, data: dict) -> McpServerOrigin:
+        return cls(
+            kind=data.get("kind", ""),
+            plugin_id=data.get("pluginId"),
+            plugin_display_name=data.get("pluginDisplayName"),
+            declared_name=data.get("declaredName"),
+            thread_id=data.get("threadId"),
+            binding_id=data.get("bindingId"),
+        )
+
+
+@dataclass
+class McpServerRuntimeStatus:
+    name: str
+    server_info: Any = None
+    tools: dict = field(default_factory=dict)
+    resources: list = field(default_factory=list)
+    resource_templates: list = field(default_factory=list)
+    auth_status: str = "unsupported"
+    declared_name: str | None = None
+    runtime_name: str | None = None
+    origin: McpServerOrigin | None = None
+
+    @classmethod
+    def from_wire(cls, data: dict) -> McpServerRuntimeStatus:
+        origin = data.get("origin")
+        return cls(
+            name=data.get("name", ""),
+            server_info=data.get("serverInfo"),
+            tools=data.get("tools", {}),
+            resources=data.get("resources", []),
+            resource_templates=data.get("resourceTemplates", []),
+            auth_status=data.get("authStatus", "unsupported"),
+            declared_name=data.get("declaredName"),
+            runtime_name=data.get("runtimeName"),
+            origin=McpServerOrigin.from_wire(origin) if isinstance(origin, dict) else None,
+        )
+
+
+@dataclass
+class McpServerStatusListResult:
+    data: list[McpServerRuntimeStatus] = field(default_factory=list)
+    next_cursor: str | None = None
+
+    @classmethod
+    def from_wire(cls, data: dict) -> McpServerStatusListResult:
+        return cls(
+            data=[McpServerRuntimeStatus.from_wire(item) for item in data.get("data", [])],
+            next_cursor=data.get("nextCursor"),
+        )
+
+
+@dataclass
+class McpServerResourceReadResult:
+    contents: Any
+
+
+@dataclass
+class McpServerToolCallResult:
+    content: Any
+    structured_content: Any = None
+    is_error: bool = False
+    meta: Any = None
+
+    @classmethod
+    def from_wire(cls, data: dict) -> McpServerToolCallResult:
+        return cls(
+            content=data.get("content"),
+            structured_content=data.get("structuredContent"),
+            is_error=bool(data.get("isError", False)),
+            meta=data.get("_meta"),
+        )
+
+
+@dataclass
+class McpServerOAuthLoginResult:
+    authorization_url: str
+
+
+@dataclass
+class McpServerReloadResult:
+    pass
+
+
+@dataclass
+class McpServerStartupStatusUpdatedNotification:
+    name: str
+    status: Literal["starting", "ready", "failed", "cancelled"]
+    thread_id: str | None = None
+    error: str | None = None
+    failure_reason: str | None = None
+
+
+@dataclass
+class McpServerOAuthLoginCompletedNotification:
+    name: str
+    success: bool
+    thread_id: str | None = None
+    error: str | None = None
+
+
+@dataclass
+class McpServerElicitationRequest:
+    server_name: str
+    mode: Literal["form", "url"]
+    thread_id: str | None = None
+    turn_id: str | None = None
+    elicitation_id: str | None = None
+    message: str | None = None
+    url: str | None = None
+    requested_schema: dict | None = None
+    meta: Any = None
+
+
+@dataclass
+class McpServerElicitationResponse:
+    action: Literal["accept", "decline", "cancel"]
+    content: dict | None = None
+    meta: Any = None
+
+    def to_wire(self) -> dict:
+        result: dict = {"action": self.action}
+        if self.content is not None:
+            result["content"] = self.content
+        if self.meta is not None:
+            result["_meta"] = self.meta
+        return result
+
+
+# ---------------------------------------------------------------------------
+# Runtime Dynamic Tools
+# ---------------------------------------------------------------------------
+
+
+@dataclass
+class DynamicToolFunction:
+    """A Runtime Dynamic Function declaration."""
+
+    name: str
+    description: str
+    input_schema: dict
+    defer_loading: bool = False
+    approval: dict | None = None
+    type: Literal["function"] = field(default="function", init=False)
+
+    def to_wire(self) -> dict:
+        result: dict = {
+            "type": self.type,
+            "name": self.name,
+            "description": self.description,
+            "inputSchema": self.input_schema,
+        }
+        if self.defer_loading:
+            result["deferLoading"] = True
+        if self.approval is not None:
+            result["approval"] = self.approval
+        return result
+
+
+@dataclass
+class DynamicToolNamespace:
+    """A named Runtime Dynamic namespace containing Function declarations."""
+
+    name: str
+    description: str
+    tools: list[DynamicToolFunction]
+    type: Literal["namespace"] = field(default="namespace", init=False)
+
+    def to_wire(self) -> dict:
+        return {
+            "type": self.type,
+            "name": self.name,
+            "description": self.description,
+            "tools": [tool.to_wire() for tool in self.tools],
+        }
+
+
+DynamicToolDeclaration: TypeAlias = DynamicToolFunction | DynamicToolNamespace
+
+
+@dataclass
+class DynamicToolResult:
+    """Result returned to AppServer for a Runtime Dynamic Tool invocation."""
+
+    success: bool
+    content_items: list[dict] | None = None
+    structured_content: Any = None
+    error_code: str | None = None
+    error_message: str | None = None
+
+    def to_wire(self) -> dict:
+        result: dict = {"success": self.success}
+        if self.content_items is not None:
+            result["contentItems"] = self.content_items
+        if self.structured_content is not None:
+            result["structuredContent"] = self.structured_content
+        if self.error_code is not None:
+            result["errorCode"] = self.error_code
+        if self.error_message is not None:
+            result["errorMessage"] = self.error_message
+        return result
+
+
+def dynamic_tool_text(text: str) -> dict:
+    """Create a Runtime Dynamic text content item."""
+    return {"type": "text", "text": text}
+
+
+def dynamic_tool_image(
+    media_type: str,
+    *,
+    url: str | None = None,
+    data_base64: str | None = None,
+) -> dict:
+    """Create a Runtime Dynamic image with exactly one URL or base64 source."""
+    if (url is None) == (data_base64 is None):
+        raise ValueError("Exactly one of url or data_base64 must be provided.")
+    result = {"type": "image", "mediaType": media_type}
+    if url is not None:
+        result["url"] = url
+    else:
+        result["dataBase64"] = data_base64
+    return result
 
 
 # ---------------------------------------------------------------------------

@@ -1,5 +1,4 @@
 using DotCraft.Tracing;
-using DotCraft.Plugins;
 using Microsoft.Extensions.AI;
 
 namespace DotCraft.Tools;
@@ -9,7 +8,6 @@ namespace DotCraft.Tools;
 /// (spill-to-disk with preview when exceeded). Intended as the outermost wrapper so hooks see full results.
 /// </summary>
 internal sealed class ResultSizeLimitingFunction : DelegatingAIFunction,
-    IPluginFunctionTool,
     IDeferredToolMetadata,
     IGeneratedToolMetadata,
     IToolNamespaceMetadata,
@@ -30,11 +28,6 @@ internal sealed class ResultSizeLimitingFunction : DelegatingAIFunction,
         _workspacePath = workspacePath;
         _previewLines = previewLines;
     }
-
-    public PluginFunctionDescriptor? PluginFunctionDescriptor =>
-        InnerFunction is IPluginFunctionTool pluginFunction
-            ? pluginFunction.PluginFunctionDescriptor
-            : null;
 
     public bool DeferLoading =>
         DeferredToolMetadataResolver.TryGet(InnerFunction, out var metadata) && metadata.DeferLoading;

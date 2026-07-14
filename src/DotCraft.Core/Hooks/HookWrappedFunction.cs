@@ -1,5 +1,4 @@
 using DotCraft.Agents;
-using DotCraft.Plugins;
 using DotCraft.Tools;
 using DotCraft.Tracing;
 using Microsoft.Extensions.AI;
@@ -19,7 +18,6 @@ namespace DotCraft.Hooks;
 /// </para>
 /// </summary>
 internal sealed class HookWrappedFunction : DelegatingAIFunction,
-    IPluginFunctionTool,
     IDeferredToolMetadata,
     IGeneratedToolMetadata,
     IToolNamespaceMetadata,
@@ -32,11 +30,6 @@ internal sealed class HookWrappedFunction : DelegatingAIFunction,
     {
         _hookRunner = hookRunner;
     }
-
-    public PluginFunctionDescriptor? PluginFunctionDescriptor =>
-        InnerFunction is IPluginFunctionTool pluginFunction
-            ? pluginFunction.PluginFunctionDescriptor
-            : null;
 
     public bool DeferLoading =>
         DeferredToolMetadataResolver.TryGet(InnerFunction, out var metadata) && metadata.DeferLoading;

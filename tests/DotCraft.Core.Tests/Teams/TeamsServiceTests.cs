@@ -2174,7 +2174,7 @@ public sealed class TeamsServiceTests : IDisposable
         return ((JsonObject)spec.InputSchema!["properties"]!).ContainsKey(propertyName);
     }
 
-    private ValueTask<DynamicToolCallResult> InvokeTeamToolAsync(
+    private ValueTask<AppBoundToolCallResult> InvokeTeamToolAsync(
         MissionThreadRecord missionThread,
         string toolName,
         JsonObject arguments) =>

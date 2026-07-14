@@ -370,6 +370,43 @@ public sealed class AppServerPluginManagementTests : IDisposable
     }
 
     [Fact]
+    public async Task McpServerStatusList_ReturnsCodexNamedPaginatedRuntimeShape()
+    {
+        await using var manager = new McpClientManager();
+        await manager.ConnectAsync([
+            new McpServerConfig
+            {
+                Name = "binding:board",
+                Enabled = false,
+                Transport = "stdio",
+                Command = "node",
+                Origin = McpServerOrigin.Binding("board-binding", "board")
+            },
+            new McpServerConfig
+            {
+                Name = "workspace-tools",
+                Enabled = false,
+                Transport = "stdio",
+                Command = "node"
+            }
+        ]);
+        using var harness = CreateHarness(mcpClientManager: manager);
+        await harness.InitializeAsync();
+
+        var msg = harness.BuildRequest(AppServerMethods.McpServerStatusList, new { limit = 1 });
+        await harness.ExecuteRequestAsync(msg);
+
+        using var response = await harness.Transport.ReadNextSentAsync();
+        AppServerTestHarness.AssertIsSuccessResponse(response);
+        var result = response.RootElement.GetProperty("result");
+        var status = Assert.Single(result.GetProperty("data").EnumerateArray());
+        Assert.Equal("binding:board", status.GetProperty("runtimeName").GetString());
+        Assert.Equal("board", status.GetProperty("declaredName").GetString());
+        Assert.Equal("binding", status.GetProperty("origin").GetProperty("kind").GetString());
+        Assert.Equal("1", result.GetProperty("nextCursor").GetString());
+    }
+
+    [Fact]
     public async Task McpRemove_WhenPluginOrigin_ReturnsReadOnlyError()
     {
         var manager = new McpClientManager();

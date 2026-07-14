@@ -267,7 +267,7 @@ public sealed class SessionServiceForkTests : IDisposable
             skillsLoader: new SkillsLoader(_tempDir),
             approvalService: new AutoApproveApprovalService(),
             blacklist: null,
-            toolProviders: Array.Empty<IAgentToolProvider>());
+            toolSources: Array.Empty<IToolSource>());
     }
 
     private SessionIdentity MakeIdentity() =>

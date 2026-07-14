@@ -1,6 +1,5 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
-using DotCraft.Plugins;
 using Microsoft.Extensions.AI;
 
 namespace DotCraft.Tools;
@@ -90,7 +89,6 @@ internal static class ToolSchemaSanitizer
 /// </summary>
 internal sealed class ToolSchemaSanitizingFunction(AIFunction innerFunction)
     : DelegatingAIFunction(innerFunction),
-        IPluginFunctionTool,
         IDeferredToolMetadata,
         IGeneratedToolMetadata,
         IToolNamespaceMetadata,
@@ -99,11 +97,6 @@ internal sealed class ToolSchemaSanitizingFunction(AIFunction innerFunction)
     private readonly JsonElement _jsonSchema = ToolSchemaSanitizer.SanitizeJsonSchema(innerFunction.JsonSchema);
 
     public override JsonElement JsonSchema => _jsonSchema;
-
-    public PluginFunctionDescriptor? PluginFunctionDescriptor =>
-        InnerFunction is IPluginFunctionTool pluginFunction
-            ? pluginFunction.PluginFunctionDescriptor
-            : null;
 
     public bool DeferLoading =>
         DeferredToolMetadataResolver.TryGet(InnerFunction, out var metadata) && metadata.DeferLoading;

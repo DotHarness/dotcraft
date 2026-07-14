@@ -92,7 +92,7 @@ public sealed partial class TeamsService(IAppConfigMonitor? appConfigMonitor = n
 
     public bool RequiresExternalConnection => false;
 
-    public IReadOnlyList<DynamicToolSpec> ToolSpecs =>
+    public IReadOnlyList<AppBoundToolSpec> ToolSpecs =>
         DynamicTools.ToolSpecs
             .Where(tool => !ExternalThreadToolNames.Contains(tool.Name))
             .ToList();
@@ -102,7 +102,7 @@ public sealed partial class TeamsService(IAppConfigMonitor? appConfigMonitor = n
     public AppDescriptor GetCatalogDescriptor(string surface) =>
         IsExternalThreadCatalogSurface(surface) ? BuildThreadBindingDescriptor() : Descriptor;
 
-    public IReadOnlyList<DynamicToolSpec> GetToolSpecsForSurface(string surface) =>
+    public IReadOnlyList<AppBoundToolSpec> GetToolSpecsForSurface(string surface) =>
         string.Equals(AppBindingCatalogSurfaces.Normalize(surface), ManagedAppBindingToolSurfaces.ThreadBinding, StringComparison.Ordinal)
             ? DynamicTools.ToolSpecs.Where(tool => ExternalThreadToolNames.Contains(tool.Name)).ToList()
             : ToolSpecs;
@@ -398,7 +398,7 @@ public sealed partial class TeamsService(IAppConfigMonitor? appConfigMonitor = n
             await RunMissionSchedulerAsync(appBindingService, sessionService, ResolveWorkspacePath(workspaceCraftPath), workspaceCraftPath, missionThread.MissionId, ct);
     }
 
-    public async ValueTask<DynamicToolCallResult> InvokeToolAsync(
+    public async ValueTask<AppBoundToolCallResult> InvokeToolAsync(
         ManagedAppBindingToolCallContext context,
         JsonObject arguments,
         CancellationToken cancellationToken)
@@ -798,7 +798,7 @@ public sealed partial class TeamsService(IAppConfigMonitor? appConfigMonitor = n
 
     [DynamicTool(CreateTeamToolName, Order = 0)]
     [Description("Start an asynchronous DotCraft Team mission from the current thread.")]
-    private async Task<DynamicToolCallResult> CreateTeamToolAsync(
+    private async Task<AppBoundToolCallResult> CreateTeamToolAsync(
         ManagedAppBindingToolCallContext context,
         CancellationToken ct,
         [Description("Short title for the Team mission.")] string title,
@@ -838,7 +838,7 @@ public sealed partial class TeamsService(IAppConfigMonitor? appConfigMonitor = n
 
     [DynamicTool("CreateMissionPlan", Order = 10)]
     [Description("Record a mission plan before assigning work.")]
-    private async Task<DynamicToolCallResult> CreateMissionPlanToolAsync(
+    private async Task<AppBoundToolCallResult> CreateMissionPlanToolAsync(
         ManagedAppBindingToolCallContext context,
         CancellationToken ct,
         [Description("Concise plan for the current mission.")] string plan)
@@ -872,7 +872,7 @@ public sealed partial class TeamsService(IAppConfigMonitor? appConfigMonitor = n
 
     [DynamicTool("AssignTask", Order = 20)]
     [Description("Create a Teams task and let the scheduler dispatch it when ready.")]
-    private async Task<DynamicToolCallResult> AssignTaskToolAsync(
+    private async Task<AppBoundToolCallResult> AssignTaskToolAsync(
         ManagedAppBindingToolCallContext context,
         CancellationToken ct,
         [Description("Assignee member id, role, or display name.")] string assignee,
@@ -953,7 +953,7 @@ public sealed partial class TeamsService(IAppConfigMonitor? appConfigMonitor = n
 
     [DynamicTool("ListTeamMembers", Order = 30)]
     [Description("Read Team roster and teammate availability summaries.")]
-    private DynamicToolCallResult ListTeamMembersTool(
+    private AppBoundToolCallResult ListTeamMembersTool(
         ManagedAppBindingToolCallContext context)
     {
         var state = GetStore(context.WorkspaceCraftPath).Snapshot();
@@ -970,7 +970,7 @@ public sealed partial class TeamsService(IAppConfigMonitor? appConfigMonitor = n
 
     [DynamicTool("ReadMissionState", Order = 40)]
     [Description("Read Mission-scoped task, thread, digest, artifact, and message summaries.")]
-    private DynamicToolCallResult ReadMissionStateTool(
+    private AppBoundToolCallResult ReadMissionStateTool(
         ManagedAppBindingToolCallContext context)
     {
         var state = GetStore(context.WorkspaceCraftPath).Snapshot();
@@ -981,7 +981,7 @@ public sealed partial class TeamsService(IAppConfigMonitor? appConfigMonitor = n
 
     [DynamicTool("ReadMemberStatus", Order = 50)]
     [Description("Read one teammate's current status and recent progress.")]
-    private DynamicToolCallResult ReadMemberStatusTool(
+    private AppBoundToolCallResult ReadMemberStatusTool(
         ManagedAppBindingToolCallContext context,
         [Description("Member id, role, or display name.")] string memberId)
     {
@@ -994,7 +994,7 @@ public sealed partial class TeamsService(IAppConfigMonitor? appConfigMonitor = n
 
     [DynamicTool("SendMessage", Order = 60)]
     [Description("Send a lightweight Mission-scoped message to the Leader or a participating teammate.")]
-    private async Task<DynamicToolCallResult> SendMessageToolAsync(
+    private async Task<AppBoundToolCallResult> SendMessageToolAsync(
         ManagedAppBindingToolCallContext context,
         CancellationToken ct,
         [Description("Target member id, role, display name, or 'leader'.")] string to,
@@ -1077,7 +1077,7 @@ public sealed partial class TeamsService(IAppConfigMonitor? appConfigMonitor = n
 
     [DynamicTool("ReportProgress", Order = 80)]
     [Description("Record progress for a Teams task.")]
-    private async Task<DynamicToolCallResult> ReportProgressToolAsync(
+    private async Task<AppBoundToolCallResult> ReportProgressToolAsync(
         ManagedAppBindingToolCallContext context,
         CancellationToken ct,
         [Description("Progress summary.")] string summary,
@@ -1136,7 +1136,7 @@ public sealed partial class TeamsService(IAppConfigMonitor? appConfigMonitor = n
 
     [DynamicTool("PublishArtifact", Order = 90)]
     [Description("Publish an artifact reference for a Teams task.")]
-    private async Task<DynamicToolCallResult> PublishArtifactToolAsync(
+    private async Task<AppBoundToolCallResult> PublishArtifactToolAsync(
         ManagedAppBindingToolCallContext context,
         CancellationToken ct,
         [Description("Artifact title.")] string title,
@@ -1183,7 +1183,7 @@ public sealed partial class TeamsService(IAppConfigMonitor? appConfigMonitor = n
 
     [DynamicTool("MarkTaskDone", Order = 100)]
     [Description("Mark a Teams task complete.")]
-    private async Task<DynamicToolCallResult> MarkTaskDoneToolAsync(
+    private async Task<AppBoundToolCallResult> MarkTaskDoneToolAsync(
         ManagedAppBindingToolCallContext context,
         CancellationToken ct,
         [Description("Completion summary for the current task.")] string summary)
@@ -1230,7 +1230,7 @@ public sealed partial class TeamsService(IAppConfigMonitor? appConfigMonitor = n
 
     [DynamicTool("MarkMissionDone", Order = 110)]
     [Description("Finalize a Teams mission with the user-facing final response.")]
-    private async Task<DynamicToolCallResult> MarkMissionDoneToolAsync(
+    private async Task<AppBoundToolCallResult> MarkMissionDoneToolAsync(
         ManagedAppBindingToolCallContext context,
         CancellationToken ct,
         [Description("User-facing final response.")] string finalResponse)
@@ -1524,7 +1524,7 @@ public sealed partial class TeamsService(IAppConfigMonitor? appConfigMonitor = n
             EnsureMissionScratchpad(mission, workspaceCraftPath);
     }
 
-    private IReadOnlyList<DynamicToolSpec> BuildToolSpecsForMember(TeamMemberRecord member)
+    private IReadOnlyList<AppBoundToolSpec> BuildToolSpecsForMember(TeamMemberRecord member)
     {
         var allowed = string.Equals(member.MemberId, "leader", StringComparison.OrdinalIgnoreCase)
             ? LeaderToolNames
@@ -3705,7 +3705,7 @@ public sealed partial class TeamsService(IAppConfigMonitor? appConfigMonitor = n
         return merged;
     }
 
-    private static DynamicToolCallResult Ok(string text, object structured) =>
+    private static AppBoundToolCallResult Ok(string text, object structured) =>
         new()
         {
             Success = true,
@@ -3736,7 +3736,7 @@ public sealed partial class TeamsService(IAppConfigMonitor? appConfigMonitor = n
         return ex.Message;
     }
 
-    private static DynamicToolCallResult Fail(string code, string message) =>
+    private static AppBoundToolCallResult Fail(string code, string message) =>
         new()
         {
             Success = false,

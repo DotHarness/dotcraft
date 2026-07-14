@@ -16,6 +16,7 @@ using DotCraft.Memory;
 using DotCraft.Protocol;
 using DotCraft.Protocol.AppServer;
 using DotCraft.Security;
+using DotCraft.Tools;
 using DotCraft.Sessions;
 using DotCraft.Skills;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -647,7 +648,7 @@ public sealed class LocalAutomationProtocolTests
             skillsLoader: new SkillsLoader(root),
             approvalService: new AutoApproveApprovalService(),
             blacklist: null,
-            toolProviders: Array.Empty<IAgentToolProvider>());
+            toolSources: Array.Empty<IToolSource>());
     }
 
     private static SessionService CreateSessionService(string root, AgentFactory agentFactory)

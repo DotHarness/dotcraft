@@ -31,7 +31,7 @@ public sealed class ToolFunctionGeneratorDynamicToolTests
             {
                 [DynamicTool("AllTypes", Order = 10, DeferLoading = true)]
                 [Description("Accept every supported dynamic tool parameter type.")]
-                private ValueTask<DynamicToolCallResult> AllTypes(
+                private ValueTask<AppBoundToolCallResult> AllTypes(
                     ManagedAppBindingToolCallContext context,
                     CancellationToken cancellationToken,
                     [Description("Required text.")] string text,
@@ -103,7 +103,7 @@ public sealed class ToolFunctionGeneratorDynamicToolTests
                     _ = optionalList;
                     _ = optionalReadOnly;
                     _ = optionalEnumerable;
-                    return ValueTask.FromResult(new DynamicToolCallResult { Success = true });
+                    return ValueTask.FromResult(new AppBoundToolCallResult { Success = true });
                 }
             }
             """);
@@ -130,15 +130,15 @@ public sealed class ToolFunctionGeneratorDynamicToolTests
             {
                 [DynamicTool("Same", Order = 1)]
                 [Description("First duplicate.")]
-                private DynamicToolCallResult First() => new() { Success = true };
+                private AppBoundToolCallResult First() => new() { Success = true };
 
                 [DynamicTool("Same", Order = 2)]
                 [Description("Second duplicate.")]
-                private DynamicToolCallResult Second() => new() { Success = true };
+                private AppBoundToolCallResult Second() => new() { Success = true };
 
                 [DynamicTool("Other", Order = 2)]
                 [Description("Duplicate order.")]
-                private DynamicToolCallResult Third() => new() { Success = true };
+                private AppBoundToolCallResult Third() => new() { Success = true };
             }
             """);
 
@@ -181,7 +181,7 @@ public sealed class ToolFunctionGeneratorDynamicToolTests
                 typeof(JsonObject).Assembly.Location,
                 typeof(Task).Assembly.Location,
                 typeof(DynamicToolAttribute).Assembly.Location,
-                typeof(DynamicToolCallResult).Assembly.Location
+                typeof(AppBoundToolCallResult).Assembly.Location
             ])
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .Select(path => MetadataReference.CreateFromFile(path))

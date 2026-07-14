@@ -10,7 +10,7 @@ postMessage bridge (`ui/initialize` → `ui/notifications/tool-result`). See
 ## App-author rules (M-v)
 
 - **Always return a text result.** Every UI-bearing tool MUST return model- and human-usable text via
-  `contentItems` (and/or `structuredResult`) — the interactive UI is an enhancement, never required for
+  `contentItems` (and optional `structuredContent`) — the interactive UI is an enhancement, never required for
   correctness. Clients without `interactiveToolUi`, including chat channels, render that text; UI-only fields (`_meta`,
   `widgetState`, `ui`) are filtered out and never shown to the model or non-Desktop clients.
 - **Serve a folder of `ui://` resources with one call.** For an app with several tool UIs, use the SDK

@@ -98,7 +98,10 @@ public sealed class WireClientTests
 
         await using var client = await connectTask;
         client.RegisterDynamicToolHandler("thread_1", "oratorio", "Echo", (call, _) =>
-            Task.FromResult(new DynamicToolResult(true, StructuredResult: new { call.Tool })));
+            Task.FromResult(new DynamicToolResult(
+                true,
+                [new ToolContentItem("text", "Echo completed")],
+                StructuredContent: new { call.Tool })));
 
         await transport.PushInboundAsync(new
         {
@@ -116,7 +119,7 @@ public sealed class WireClientTests
 
         using var response = await transport.ReadOutboundAsync();
         Assert.True(response.RootElement.GetProperty("result").GetProperty("success").GetBoolean());
-        Assert.Equal("Echo", response.RootElement.GetProperty("result").GetProperty("structuredResult").GetProperty("tool").GetString());
+        Assert.Equal("Echo", response.RootElement.GetProperty("result").GetProperty("structuredContent").GetProperty("tool").GetString());
     }
 
     [Fact]

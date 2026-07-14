@@ -885,11 +885,11 @@ internal static class ResponsesToolSearchMapper
 
     private static bool IsReservedImageGenerationFunction(AITool tool)
     {
-        if (!string.Equals(tool.Name, ImageGenerationToolProvider.ToolName, StringComparison.Ordinal))
+        if (!string.Equals(tool.Name, ProviderHostedCapabilityPlanner.ToolName, StringComparison.Ordinal))
             return false;
 
         return ToolNamespaceMetadataResolver.TryGet(tool, out var toolNamespace) &&
-               string.Equals(toolNamespace, ImageGenerationToolProvider.ToolNamespace, StringComparison.Ordinal);
+               string.Equals(toolNamespace, ProviderHostedCapabilityPlanner.ToolNamespace, StringComparison.Ordinal);
     }
 
     private static string SerializeArguments(object? arguments)

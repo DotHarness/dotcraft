@@ -21,7 +21,7 @@ namespace DotCraft.Abstractions;
 /// <summary>
 /// Provides context information for tool provider to create tools.
 /// </summary>
-public sealed class ToolProviderContext
+public sealed class AgentRuntimeContext
 {
     /// <summary>
     /// The application configuration.
@@ -182,12 +182,12 @@ public sealed class ToolProviderContext
     public LspServerManager? LspServerManager { get; init; }
 
     /// <summary>
-    /// Registry for deferred MCP tools. Populated by <see cref="DeferredToolProvider"/>
+    /// Turn-local activation index projected from the effective tool snapshot.
     /// when deferred loading is active. Read by <see cref="DotCraft.Agents.AgentFactory"/>
     /// to wire <c>FunctionInvokingChatClient.AdditionalTools</c> and insert
     /// <c>DynamicToolInjectionChatClient</c> into the pipeline.
     /// </summary>
-    public DeferredToolRegistry? DeferredToolRegistry { get; set; }
+    public DeferredToolActivationIndex? DeferredToolActivationIndex { get; set; }
 
     /// <summary>
     /// Optional trace collector for debugging and monitoring.

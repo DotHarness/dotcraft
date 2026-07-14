@@ -21,21 +21,9 @@ public interface IChannelToolRegistrationSource
 /// Validates and caches channel-native tool descriptors for both legacy origin-channel tools and
 /// app-bound social channel tools.
 /// </summary>
-public sealed class ChannelToolRegistrationService : IReservedRuntimeToolNameConfigurator
+public sealed class ChannelToolRegistrationService
 {
     private readonly Lock _registrationLock = new();
-    private HashSet<string> _reservedRuntimeToolNames = new(StringComparer.Ordinal);
-
-    /// <inheritdoc />
-    public void ConfigureReservedToolNames(IEnumerable<string> toolNames)
-    {
-        lock (_registrationLock)
-        {
-            _reservedRuntimeToolNames = new HashSet<string>(
-                toolNames.Where(name => !string.IsNullOrWhiteSpace(name)),
-                StringComparer.Ordinal);
-        }
-    }
 
     /// <summary>
     /// Returns the registered channel tools for a runtime, validating adapter-declared descriptors
@@ -58,13 +46,7 @@ public sealed class ChannelToolRegistrationService : IReservedRuntimeToolNameCon
             return connection.RegisteredChannelTools;
         }
 
-        IReadOnlySet<string> reserved;
-        lock (_registrationLock)
-        {
-            reserved = _reservedRuntimeToolNames.ToHashSet(StringComparer.Ordinal);
-        }
-
-        return ValidateDeclaredTools(runtime.GetChannelTools(), reserved, out diagnostics);
+        return ValidateDeclaredTools(runtime.GetChannelTools(), out diagnostics);
     }
 
     private void EnsureConnectionRegistration(AppServerConnection connection)
@@ -79,7 +61,6 @@ public sealed class ChannelToolRegistrationService : IReservedRuntimeToolNameCon
 
             var registered = ValidateDeclaredTools(
                 connection.DeclaredChannelTools,
-                _reservedRuntimeToolNames,
                 out var diagnostics);
             connection.SetChannelToolRegistration(registered, diagnostics);
         }
@@ -87,7 +68,6 @@ public sealed class ChannelToolRegistrationService : IReservedRuntimeToolNameCon
 
     private static IReadOnlyList<ChannelToolDescriptor> ValidateDeclaredTools(
         IReadOnlyList<ChannelToolDescriptor> declaredTools,
-        IReadOnlySet<string> reservedToolNames,
         out IReadOnlyList<ChannelToolRegistrationDiagnostic> diagnostics)
     {
         var registered = new List<ChannelToolDescriptor>();
@@ -96,17 +76,6 @@ public sealed class ChannelToolRegistrationService : IReservedRuntimeToolNameCon
 
         foreach (var descriptor in declaredTools)
         {
-            if (reservedToolNames.Contains(descriptor.Name))
-            {
-                warnings.Add(new ChannelToolRegistrationDiagnostic
-                {
-                    ToolName = descriptor.Name,
-                    Code = "ChannelToolNameConflict",
-                    Message = $"Tool '{descriptor.Name}' conflicts with an existing runtime tool."
-                });
-                continue;
-            }
-
             if (!TryValidateDescriptor(descriptor, out var message))
             {
                 warnings.Add(new ChannelToolRegistrationDiagnostic

@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { LocaleProvider } from '../contexts/LocaleContext'
-import { ToolCallCard } from '../components/conversation/ToolCallCard'
+import { ToolCallCard as ProductionToolCallCard } from '../components/conversation/ToolCallCard'
 import { useConversationStore } from '../stores/conversationStore'
 import { usePluginStore } from '../stores/pluginStore'
 import { useSkillsStore } from '../stores/skillsStore'
@@ -12,6 +12,11 @@ import { useThreadStore } from '../stores/threadStore'
 import type { ConversationItem } from '../types/conversation'
 import type { FileDiff } from '../types/toolCall'
 import * as ansiUtils from '../utils/ansi'
+import { withTestCorePresentation } from './testToolPresentation'
+
+function ToolCallCard(props: React.ComponentProps<typeof ProductionToolCallCard>): JSX.Element {
+  return <ProductionToolCallCard {...props} item={withTestCorePresentation(props.item)} />
+}
 
 function renderWithLocale(node: JSX.Element): ReturnType<typeof render> {
   return render(<LocaleProvider>{node}</LocaleProvider>)

@@ -9,7 +9,7 @@ using Microsoft.Extensions.AI;
 namespace DotCraft.Tools;
 
 internal sealed class NativeToolSearchTool(
-    DeferredToolRegistry registry,
+    DeferredToolActivationIndex registry,
     int maxSearchResults = 5,
     DeferredToolLoadingTraceContext? traceContext = null) : AIFunction
 {

@@ -7,6 +7,7 @@ using DotCraft.Hosting;
 using DotCraft.Modules;
 using DotCraft.Plugins;
 using DotCraft.Protocol.AppServer;
+using DotCraft.Tools;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 
@@ -32,7 +33,7 @@ public sealed partial class AppServerModule : ModuleBase
         services.TryAddSingleton(sp => new MessageRouter(sp.GetRequiredService<IChannelRuntimeRegistry>()));
         services.TryAddSingleton<ExternalChannelRegistry>();
         services.TryAddSingleton<ChannelToolRegistrationService>();
-        services.TryAddEnumerable(ServiceDescriptor.Singleton<IThreadPluginFunctionProvider, ExternalChannelToolProvider>());
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IThreadPluginToolSourceProvider, ExternalChannelToolProvider>());
         services.AddSingleton<IManagedAppBindingRuntime>(sp => new SocialChannelAppBindingRuntime(
             "qq",
             "QQ",
@@ -65,14 +66,14 @@ public sealed partial class AppServerModule : ModuleBase
             sp.GetRequiredService<ChannelToolRegistrationService>()));
         services.TryAddSingleton<AppBindingService>();
         services.TryAddSingleton<WireRuntimeAdditionalContextProvider>();
-        services.TryAddEnumerable(ServiceDescriptor.Singleton<IThreadRuntimeToolProvider, WireDynamicToolProxy>());
-        services.TryAddEnumerable(ServiceDescriptor.Singleton<IThreadRuntimeToolProvider, AppBindingRuntimeToolProvider>());
+        services.TryAddSingleton<WireDynamicToolProxy>();
+        services.AddSingleton<IToolSource>(
+            provider => provider.GetRequiredService<WireDynamicToolProxy>());
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IToolSource, LegacyAppBindingToolSource>());
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IThreadSystemPromptContextProvider, WireRuntimeAdditionalContextSystemPromptProvider>());
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IThreadSystemPromptContextProvider, AppBindingThreadSystemPromptContextProvider>());
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IThreadSystemPromptContextProvider, DotCraft.Agents.ProfileBuilderSystemPromptProvider>());
-        services.TryAddEnumerable(ServiceDescriptor.Singleton<IThreadRuntimeToolProvider, ThreadPluginFunctionToolProvider>());
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IAppServerProtocolExtension, AppBindingProtocolExtension>());
-        services.TryAddSingleton<IChannelRuntimeToolProvider, CompositeChannelRuntimeToolProvider>();
         services.TryAddSingleton<IAppServerChannelRunnerFactory, DefaultAppServerChannelRunnerFactory>();
         services.TryAddSingleton<IAppServerAutomationRuntimeFactory, DefaultAppServerAutomationRuntimeFactory>();
         services.TryAddSingleton<IWorkspaceRuntimeAppServerFeatureFactory, AppServerWorkspaceRuntimeFeatureFactory>();

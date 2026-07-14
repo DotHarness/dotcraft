@@ -1,5 +1,8 @@
 using DotCraft.Agents;
+using DotCraft.Mcp;
+using DotCraft.Tools;
 using Microsoft.Extensions.AI;
+using System.Text.Json.Nodes;
 
 namespace DotCraft.Protocol;
 
@@ -515,6 +518,46 @@ public interface IThreadAgentRefreshService
     /// Invalidates cached thread agents so they are rebuilt before their next turn.
     /// </summary>
     void InvalidateThreadAgents();
+}
+
+/// <summary>
+/// Session Core extension for trusted hosts that invoke a thread tool through the same
+/// frozen snapshot and dispatcher used by model-generated calls.
+/// </summary>
+public interface IThreadToolDispatchService
+{
+    /// <summary>Dispatches one canonical tool call in the authority context of a thread.</summary>
+    Task<ToolExecutionResult> DispatchThreadToolAsync(
+        string threadId,
+        ToolName toolName,
+        JsonObject arguments,
+        string callId,
+        ToolInvocationAudience audience = ToolInvocationAudience.Host,
+        CancellationToken cancellationToken = default,
+        ToolInvocationOrigin? origin = null);
+}
+
+/// <summary>
+/// Session Core extension for resolving the frozen effective tool snapshot used by trusted hosts.
+/// </summary>
+public interface IThreadToolSnapshotService
+{
+    /// <summary>
+    /// Returns the active Turn snapshot when one exists, otherwise the latest thread snapshot,
+    /// building it on demand when required.
+    /// </summary>
+    Task<EffectiveToolSnapshot> GetEffectiveToolSnapshotAsync(
+        string threadId,
+        CancellationToken cancellationToken = default);
+}
+
+/// <summary>Session Core extension for resolving the effective MCP runtime of a thread.</summary>
+public interface IThreadMcpRuntimeService
+{
+    /// <summary>Returns the thread replacement runtime or the inherited workspace runtime.</summary>
+    Task<McpClientManager?> GetEffectiveMcpRuntimeAsync(
+        string threadId,
+        CancellationToken cancellationToken = default);
 }
 
 /// <summary>

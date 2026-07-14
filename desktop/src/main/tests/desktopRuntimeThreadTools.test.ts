@@ -54,12 +54,12 @@ describe('desktop runtime thread tools', () => {
       }),
       dynamicTools: expect.arrayContaining([
         expect.objectContaining({
-          namespace: DESKTOP_THREAD_TOOL_NAMESPACE,
-          name: 'CreateThread'
-        }),
-        expect.objectContaining({
-          namespace: DESKTOP_THREAD_TOOL_NAMESPACE,
-          name: 'ListThreads'
+          type: 'namespace',
+          name: DESKTOP_THREAD_TOOL_NAMESPACE,
+          tools: expect.arrayContaining([
+            expect.objectContaining({ type: 'function', name: 'CreateThread' }),
+            expect.objectContaining({ type: 'function', name: 'ListThreads' })
+          ])
         })
       ])
     }))
@@ -72,9 +72,14 @@ describe('desktop runtime thread tools', () => {
   it('declares all Desktop thread tools as deferred', () => {
     const tools = buildDesktopThreadDynamicTools()
 
-    expect(tools).toHaveLength(7)
-    expect(tools.every((tool) => tool.deferLoading === true)).toBe(true)
-    expect(tools.map((tool) => tool.name)).toContain('SetThreadPinned')
+    expect(tools).toHaveLength(1)
+    const namespace = tools[0]
+    expect(namespace.type).toBe('namespace')
+    if (namespace.type !== 'namespace') throw new Error('Expected a namespace declaration')
+    expect(namespace.name).toBe(DESKTOP_THREAD_TOOL_NAMESPACE)
+    expect(namespace.tools).toHaveLength(7)
+    expect(namespace.tools.every((tool) => tool.deferLoading === true)).toBe(true)
+    expect(namespace.tools.map((tool) => tool.name)).toContain('SetThreadPinned')
   })
 
   it('declares Desktop thread coordination as runtime additional context', () => {
@@ -113,7 +118,13 @@ describe('desktop runtime thread tools', () => {
         })
       }),
       dynamicTools: expect.arrayContaining([
-        expect.objectContaining({ name: 'SendMessageToThread' })
+        expect.objectContaining({
+          type: 'namespace',
+          name: DESKTOP_THREAD_TOOL_NAMESPACE,
+          tools: expect.arrayContaining([
+            expect.objectContaining({ name: 'SendMessageToThread' })
+          ])
+        })
       ])
     }))
     expect(calls[1][0]).toBe('turn/start')
@@ -179,7 +190,7 @@ describe('desktop runtime thread tools', () => {
     }, 'F:\\examples\\workspace')
 
     expect(result?.success).toBe(true)
-    expect(result?.structuredResult).toEqual(expect.objectContaining({
+    expect(result?.structuredContent).toEqual(expect.objectContaining({
       count: 1,
       threads: [expect.objectContaining({ id: 'thread-1', displayName: 'Fix login' })],
       nextCursor: 'cursor-2',
@@ -297,7 +308,7 @@ describe('desktop runtime thread tools', () => {
     expect(text).not.toContain('SECRET_OUTPUT_SHOULD_NOT_APPEAR')
     expect(text).not.toContain('SECRET_RESULT_SHOULD_NOT_APPEAR')
 
-    const structured = result?.structuredResult as {
+    const structured = result?.structuredContent as {
       thread: {
         turnCount: number
         queuedInputCount: number
@@ -372,7 +383,7 @@ describe('desktop runtime thread tools', () => {
                     contentItems: [
                       { type: 'text', text: 'dynamic tool returned a long preview' }
                     ],
-                    structuredResult: { value: 'structured result preview' }
+                    structuredContent: { value: 'structured result preview' }
                   }
                 }
               ]
@@ -392,7 +403,7 @@ describe('desktop runtime thread tools', () => {
       }
     }, 'F:\\examples\\workspace')
 
-    const structured = result?.structuredResult as {
+    const structured = result?.structuredContent as {
       thread: {
         turns: Array<{ items: Array<Record<string, unknown>> }>
       }
@@ -405,7 +416,7 @@ describe('desktop runtime thread tools', () => {
     }))
     expect(structured.thread.turns[0].items[2]).toEqual(expect.objectContaining({
       contentPreview: 'dynamic t...',
-      structuredResultPreview: '{"value":...'
+      structuredContentPreview: '{"value":...'
     }))
   })
 
@@ -490,7 +501,7 @@ describe('desktop runtime thread tools', () => {
     })
 
     expect(result?.success).toBe(true)
-    expect(result?.structuredResult).toEqual(expect.objectContaining({
+    expect(result?.structuredContent).toEqual(expect.objectContaining({
       threadId: 'thread-1',
       queued: true,
       queuedInput: { id: 'queued-1' }

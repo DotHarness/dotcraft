@@ -774,7 +774,7 @@ public sealed class AppBindingAttachToolsParams
 
     public string GrantId { get; set; } = string.Empty;
 
-    public List<DynamicToolSpec> Tools { get; set; } = [];
+    public List<AppBoundToolSpec> Tools { get; set; } = [];
 
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public List<AppToolCatalogEntry>? ToolCatalog { get; set; }

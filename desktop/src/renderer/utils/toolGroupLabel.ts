@@ -2,6 +2,7 @@ import { translate, type AppLocale } from '../../shared/locales'
 import type { ConversationItem } from '../types/conversation'
 import type { FileDiff } from '../types/toolCall'
 import type { ToolGroupCategory } from './toolCallAggregation'
+import { resolveCoreToolRenderPlan } from './toolRendererRegistry'
 
 function getPathArgument(item: ConversationItem): string {
   const args = item.arguments
@@ -39,12 +40,13 @@ function getWriteCounts(items: ConversationItem[], changedFiles: Map<string, Fil
   }
 
   for (const item of items) {
-    if (item.toolName === 'EditFile') {
+    const operation = resolveCoreToolRenderPlan(item)?.options.operation
+    if (operation === 'edit') {
       modifiedPaths.add(getPathKey(item))
       continue
     }
 
-    if (item.toolName === 'WriteFile') {
+    if (operation === 'write') {
       const path = getPathArgument(item)
       const diff = path ? lookupChangedFile(path, changedFiles) : undefined
       const key = getPathKey(item)
@@ -86,8 +88,8 @@ export function formatToolGroupLabel(
   }
 
   if (category === 'web') {
-    const allSearch = items.every((item) => item.toolName === 'WebSearch')
-    const allFetch = items.every((item) => item.toolName === 'WebFetch')
+    const allSearch = items.every((item) => resolveCoreToolRenderPlan(item)?.options.operation === 'search')
+    const allFetch = items.every((item) => resolveCoreToolRenderPlan(item)?.options.operation === 'fetch')
     if (allSearch) {
       return translate(locale, 'toolCall.group.webSearched', { count })
     }

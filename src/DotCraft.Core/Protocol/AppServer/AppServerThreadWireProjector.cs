@@ -121,40 +121,7 @@ internal sealed class AppServerThreadWireProjector(
     }
 
     public SessionWireThread WithWidgetState(SessionWireThread wire, string threadId)
-    {
-        if (wire.Turns is not { Count: > 0 } turns)
-            return wire;
-        var states = sessionService.GetItemWidgetStates(threadId);
-        if (states.Count == 0)
-            return wire;
-
-        foreach (var turn in turns)
-        {
-            if (turn.Items is not { Count: > 0 } items)
-                continue;
-            for (var i = 0; i < items.Count; i++)
-            {
-                if (items[i].Payload is not DynamicToolCallPayload payload
-                    || string.IsNullOrEmpty(payload.CallId)
-                    || !states.TryGetValue(payload.CallId, out var json))
-                {
-                    continue;
-                }
-
-                try
-                {
-                    if (System.Text.Json.Nodes.JsonNode.Parse(json) is { } node)
-                        items[i] = items[i] with { Payload = payload with { WidgetState = node } };
-                }
-                catch (System.Text.Json.JsonException)
-                {
-                    // Skip a corrupt stored state rather than failing the whole read.
-                }
-            }
-        }
-
-        return wire;
-    }
+        => wire;
 
     public SessionWireThread WithAppBindingAttribution(
         SessionWireThread wire,

@@ -3,6 +3,7 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using DotCraft.Agents;
 using DotCraft.Context.Compaction;
+using DotCraft.Plugins;
 using DotCraft.State;
 using Microsoft.Agents.AI;
 using Microsoft.Extensions.AI;
@@ -676,6 +677,15 @@ public sealed class ThreadStore
                 FlushAssistantSegment(history, assistantBuilder);
                 history.Add(toolResultMessage);
             }
+            else if (TryBuildSpecializedToolHistory(
+                         item,
+                         out var specializedCall,
+                         out var specializedResult))
+            {
+                assistantBuilder.AddToolCall(specializedCall);
+                FlushAssistantSegment(history, assistantBuilder);
+                history.Add(specializedResult);
+            }
             else if (item.Type == ItemType.ImageGeneration &&
                      TryBuildImageGenerationMessage(item, out var imageGenerationMessage))
             {
@@ -796,7 +806,7 @@ public sealed class ThreadStore
                 continue;
             }
 
-            paired.TryAdd(payload.CallId, payload.ToolName);
+            paired.TryAdd(payload.CallId, ResolveProviderCallName(payload.ProviderCallName, payload.ToolName));
         }
 
         return paired;
@@ -828,7 +838,7 @@ public sealed class ThreadStore
 
         content = new FunctionCallContent(
             payload.CallId,
-            payload.ToolName,
+            ResolveProviderCallName(payload.ProviderCallName, payload.ToolName),
             BuildToolArguments(payload.Arguments));
         return true;
     }
@@ -849,11 +859,128 @@ public sealed class ThreadStore
         if (string.Equals(toolName, HostedImageGenerationContent.ToolName, StringComparison.Ordinal))
             return TryBuildHostedImageGenerationMessage(payload, out message);
 
+        var result = BuildModelToolResult(
+            payload.ContentItems,
+            payload.Result,
+            payload.ErrorCode,
+            payload.ErrorMessage);
         message = new ChatMessage(
             ChatRole.Tool,
-            (IList<AIContent>)[new FunctionResultContent(payload.CallId, payload.Result)]);
+            (IList<AIContent>)[new FunctionResultContent(payload.CallId, result)]);
         return true;
     }
+
+    private static bool TryBuildSpecializedToolHistory(
+        SessionItem item,
+        out FunctionCallContent call,
+        out ChatMessage resultMessage)
+    {
+        call = new FunctionCallContent(string.Empty, string.Empty);
+        resultMessage = new ChatMessage(ChatRole.Tool, string.Empty);
+
+        string callId;
+        string toolName;
+        JsonObject? arguments;
+        IReadOnlyList<PluginFunctionContentItem>? contentItems;
+        string? errorCode;
+        string? errorMessage;
+
+        switch (item.Payload)
+        {
+            case McpToolCallPayload mcp
+                when !string.IsNullOrWhiteSpace(mcp.CallId)
+                     && !string.IsNullOrWhiteSpace(mcp.ToolName)
+                     && !string.Equals(mcp.Status, "inProgress", StringComparison.OrdinalIgnoreCase):
+                callId = mcp.CallId;
+                toolName = ResolveProviderCallName(mcp.ProviderCallName, mcp.ToolName);
+                arguments = mcp.Arguments;
+                contentItems = mcp.ModelContentItems;
+                errorCode = mcp.ErrorCode;
+                errorMessage = mcp.ErrorMessage;
+                break;
+
+            case DynamicToolCallPayload dynamic
+                when !string.IsNullOrWhiteSpace(dynamic.CallId)
+                     && !string.IsNullOrWhiteSpace(dynamic.ToolName):
+                callId = dynamic.CallId;
+                toolName = ResolveProviderCallName(dynamic.ProviderCallName, dynamic.ToolName);
+                arguments = dynamic.Arguments;
+                contentItems = dynamic.ContentItems;
+                errorCode = dynamic.ErrorCode;
+                errorMessage = dynamic.ErrorMessage;
+                break;
+
+            // Read compatibility for sessions persisted before plugin functions moved to the
+            // standard ToolCall + ToolResult projection.
+            case PluginFunctionCallPayload plugin
+                when !string.IsNullOrWhiteSpace(plugin.CallId)
+                     && !string.IsNullOrWhiteSpace(plugin.FunctionName):
+                callId = plugin.CallId;
+                toolName = plugin.FunctionName;
+                arguments = plugin.Arguments;
+                contentItems = plugin.ContentItems;
+                errorCode = plugin.ErrorCode;
+                errorMessage = plugin.ErrorMessage;
+                break;
+
+            default:
+                return false;
+        }
+
+        call = new FunctionCallContent(callId, toolName, BuildToolArguments(arguments));
+        var result = BuildModelToolResult(contentItems, null, errorCode, errorMessage);
+        resultMessage = new ChatMessage(
+            ChatRole.Tool,
+            (IList<AIContent>)[new FunctionResultContent(callId, result)]);
+        return true;
+    }
+
+    private static object BuildModelToolResult(
+        IReadOnlyList<PluginFunctionContentItem>? contentItems,
+        string? fallback,
+        string? errorCode,
+        string? errorMessage)
+    {
+        var contents = new List<AIContent>();
+        if (contentItems != null)
+        {
+            foreach (var item in contentItems)
+            {
+                if (string.Equals(item.Type, "text", StringComparison.OrdinalIgnoreCase)
+                    && !string.IsNullOrWhiteSpace(item.Text))
+                {
+                    contents.Add(new TextContent(item.Text));
+                }
+                else if (string.Equals(item.Type, "image", StringComparison.OrdinalIgnoreCase)
+                         && !string.IsNullOrWhiteSpace(item.DataBase64)
+                         && !string.IsNullOrWhiteSpace(item.MediaType))
+                {
+                    try
+                    {
+                        contents.Add(new DataContent(Convert.FromBase64String(item.DataBase64), item.MediaType));
+                    }
+                    catch (FormatException)
+                    {
+                        // Invalid persisted image data is omitted; textual fallback remains usable.
+                    }
+                }
+            }
+        }
+
+        if (contents.Count == 1 && contents[0] is TextContent text)
+            return text.Text;
+        if (contents.Count > 0)
+            return contents;
+        if (!string.IsNullOrWhiteSpace(fallback))
+            return fallback;
+        if (!string.IsNullOrWhiteSpace(errorMessage))
+            return string.IsNullOrWhiteSpace(errorCode) ? errorMessage : $"{errorCode}: {errorMessage}";
+
+        return "Tool completed without model-visible content.";
+    }
+
+    private static string ResolveProviderCallName(string? providerCallName, string canonicalName) =>
+        string.IsNullOrWhiteSpace(providerCallName) ? canonicalName : providerCallName;
 
     private static bool TryBuildHostedImageGenerationMessage(
         ToolResultPayload payload,

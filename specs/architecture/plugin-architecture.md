@@ -64,7 +64,7 @@ Effective MCP merge rules:
 - Enabled, installed plugin MCP servers are then added as read-only runtime entries with origin metadata (`kind=plugin`, `pluginId`, display name, and declared server name).
 - If a plugin runtime name conflicts with a workspace server or a higher-priority plugin server, the plugin declaration is marked shadowed in plugin metadata and is not connected.
 - `mcp/list` returns the effective runtime view. Workspace config writes (`mcp/upsert`, `mcp/remove`, and config persistence) never write plugin-origin servers into `.craft/config.json`.
-- Plugin-bundled MCP startup is non-fatal. A missing command, bad endpoint, timeout, or protocol error is reported through MCP runtime status (`mcp/status/list` / `mcp/status/updated`) and diagnostics where applicable; it must not prevent plugin discovery, AppServer readiness, or Desktop connection. Agent tool materialization waits for the current effective MCP startup attempt to settle, so ready plugin MCP tools are available to new turns without making AppServer startup synchronous.
+- Plugin-bundled MCP startup is non-fatal. A missing command, bad endpoint, timeout, or protocol error is reported through MCP runtime status (`mcpServerStatus/list` / `mcpServer/startupStatus/updated`) and diagnostics where applicable; it must not prevent plugin discovery, AppServer readiness, or Desktop connection. Agent tool materialization waits for the current effective MCP startup attempt to settle, so ready plugin MCP tools are available to new turns without making AppServer startup synchronous.
 
 `hooks` declares plugin-contained lifecycle hook files. It accepts any of these shapes:
 

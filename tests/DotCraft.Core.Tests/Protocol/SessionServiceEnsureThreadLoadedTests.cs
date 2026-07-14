@@ -98,7 +98,7 @@ public sealed class SessionServiceEnsureThreadLoadedTests : IDisposable
             skillsLoader: skills,
             approvalService: new AutoApproveApprovalService(),
             blacklist: null,
-            toolProviders: Array.Empty<IAgentToolProvider>());
+            toolSources: Array.Empty<IToolSource>());
     }
 
     private static bool ThreadAgentsContains(SessionService svc, string threadId)

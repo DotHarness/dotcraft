@@ -365,10 +365,12 @@ public sealed class ContextExportService
                 AppendMetadata(sb, "Namespace", dynamicCall.Namespace ?? "(none)");
                 AppendMetadata(sb, "Tool", dynamicCall.ToolName);
                 AppendMetadata(sb, "Call Id", dynamicCall.CallId);
-                AppendMetadata(sb, "Success", dynamicCall.Success.ToString());
+                AppendMetadata(sb, "Status", dynamicCall.Status);
+                if (dynamicCall.Success.HasValue)
+                    AppendMetadata(sb, "Success", dynamicCall.Success.Value.ToString());
                 if (dynamicCall.Arguments != null)
                     AppendCodeBlock(sb, "json", dynamicCall.Arguments.ToJsonString(new JsonSerializerOptions(JsonSerializerOptions.Web) { WriteIndented = true }));
-                AppendStructuredResult(sb, dynamicCall.StructuredResult, dynamicCall.ErrorCode, dynamicCall.ErrorMessage, options);
+                AppendStructuredResult(sb, dynamicCall.StructuredContent, dynamicCall.ErrorCode, dynamicCall.ErrorMessage, options);
                 break;
 
             case ItemType.ToolResult when item.AsToolResult is { } toolResult:

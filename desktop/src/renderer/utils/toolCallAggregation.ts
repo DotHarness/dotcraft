@@ -1,17 +1,5 @@
 import type { ConversationItem } from '../types/conversation'
-
-const EXPLORE_TOOLS = new Set(['ReadFile', 'GrepFiles', 'FindFiles'])
-const WRITE_TOOLS = new Set(['WriteFile', 'EditFile'])
-const SHELL_TOOLS = new Set(['Exec', 'RunCommand', 'BashCommand'])
-const WEB_TOOLS = new Set(['WebSearch', 'WebFetch'])
-const SUB_AGENT_TOOLS = new Set([
-  'SpawnAgent',
-  'SendMessage',
-  'FollowupTask',
-  'WaitAgent',
-  'ListAgents',
-  'CloseAgent'
-])
+import { resolveCoreToolRenderPlan } from './toolRendererRegistry'
 
 export type ToolGroupCategory = 'explore' | 'write' | 'shell' | 'web' | 'subagent'
 
@@ -23,13 +11,8 @@ interface ToolItemLiveContext {
   turnRunning?: boolean
 }
 
-function getGroupCategory(toolName: string): ToolGroupCategory | null {
-  if (EXPLORE_TOOLS.has(toolName)) return 'explore'
-  if (WRITE_TOOLS.has(toolName)) return 'write'
-  if (SHELL_TOOLS.has(toolName)) return 'shell'
-  if (WEB_TOOLS.has(toolName)) return 'web'
-  if (SUB_AGENT_TOOLS.has(toolName)) return 'subagent'
-  return null
+function getGroupCategory(item: ConversationItem): ToolGroupCategory | null {
+  return resolveCoreToolRenderPlan(item)?.groupCategory ?? null
 }
 
 function isToolCallAwaitingResult(item: ConversationItem): boolean {
@@ -43,8 +26,8 @@ export function isToolItemLive(
   item: ConversationItem,
   context: ToolItemLiveContext = {}
 ): boolean {
-  const toolName = item.toolName ?? ''
-  if (!SHELL_TOOLS.has(toolName)) {
+  const plan = resolveCoreToolRenderPlan(item)
+  if (plan?.family !== 'shell') {
     return item.status !== 'completed'
       || (context.turnRunning === true && isToolCallAwaitingResult(item))
   }
@@ -75,8 +58,7 @@ export function aggregateToolCalls(
 
   while (i < items.length) {
     const item = items[i]
-    const toolName = item.toolName ?? ''
-    const category = getGroupCategory(toolName)
+    const category = getGroupCategory(item)
 
     if (category == null) {
       result.push({ kind: 'single', item })
@@ -89,7 +71,7 @@ export function aggregateToolCalls(
     const run: ConversationItem[] = [item]
     while (i + 1 < items.length) {
       const next = items[i + 1]
-      const nextCategory = getGroupCategory(next.toolName ?? '')
+      const nextCategory = getGroupCategory(next)
       if (nextCategory !== category) break
       run.push(next)
       i++

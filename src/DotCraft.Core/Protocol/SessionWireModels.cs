@@ -360,6 +360,17 @@ public sealed record SessionWireItem
     public string? PayloadKind { get; init; }
 
     public object? Payload { get; init; }
+
+    /// <summary>Connection-scoped live MCP Apps hint; absent from persisted thread reads.</summary>
+    [System.Text.Json.Serialization.JsonIgnore(
+        Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public McpAppViewHintWire? McpApp { get; init; }
+}
+
+/// <summary>Indicates that a live terminal MCP item can open an MCP App View.</summary>
+public sealed record McpAppViewHintWire
+{
+    public bool Available { get; init; }
 }
 
 /// <summary>
@@ -749,6 +760,7 @@ public static class SessionWireMapper
             ErrorPayload => "error",
             ToolCallPayload => "toolCall",
             PluginFunctionCallPayload => "pluginFunctionCall",
+            McpToolCallPayload => "mcpToolCall",
             DynamicToolCallPayload => "dynamicToolCall",
             ToolResultPayload => "toolResult",
             UserMessagePayload => "userMessage",

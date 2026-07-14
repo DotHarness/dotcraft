@@ -8,11 +8,18 @@ import { useThreadStore } from '../stores/threadStore'
 import { ACCEPT_PLAN_SENTINEL_EN } from '../utils/planAcceptSentinel'
 import type { ThreadGoal } from '../types/thread'
 import type { FileDiff } from '../types/toolCall'
+import { withTestCorePresentation } from './testToolPresentation'
 
 const appServerSendRequest = vi.fn()
 
-function renderWithLocale(node: JSX.Element): void {
-  render(<LocaleProvider>{node}</LocaleProvider>)
+function renderWithLocale(node: JSX.Element): ReturnType<typeof render> {
+  useConversationStore.setState((state) => ({
+    turns: state.turns.map((turn) => ({
+      ...turn,
+      items: turn.items.map(withTestCorePresentation)
+    }))
+  }))
+  return render(<LocaleProvider>{node}</LocaleProvider>)
 }
 
 function makeRunningTurn(): ReturnType<typeof useConversationStore.getState>['turns'][number] {
@@ -460,11 +467,7 @@ describe('MessageStream plan-accept sentinel filtering', () => {
         turnStartedAt: Date.now()
       })
 
-      const { unmount } = render(
-        <LocaleProvider>
-          <MessageStream />
-        </LocaleProvider>
-      )
+      const { unmount } = renderWithLocale(<MessageStream />)
 
       expect(screen.getByText(`Read active-${status}.ts`)).toBeInTheDocument()
       unmount()
@@ -538,7 +541,20 @@ describe('MessageStream plan-accept sentinel filtering', () => {
   it('keeps running tool auto-scroll stable under StrictMode streaming updates', () => {
     const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {})
     useConversationStore.setState({
-      turns: [makeRunningTurn()],
+      turns: [{
+        ...makeRunningTurn(),
+        items: [
+          ...makeRunningTurn().items,
+          withTestCorePresentation({
+            id: 'tool-1',
+            type: 'toolCall',
+            status: 'streaming',
+            toolName: 'WebFetch',
+            toolCallId: 'webfetch-1',
+            createdAt: new Date().toISOString()
+          })
+        ]
+      }],
       turnStatus: 'running',
       activeTurnId: 'turn-1',
       turnStartedAt: Date.now()

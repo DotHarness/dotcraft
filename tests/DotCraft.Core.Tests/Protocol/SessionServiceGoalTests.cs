@@ -35,7 +35,7 @@ public sealed class SessionServiceGoalTests : IDisposable
             skillsLoader: new SkillsLoader(_tempDir),
             approvalService: new AutoApproveApprovalService(),
             blacklist: null,
-            toolProviders: Array.Empty<IAgentToolProvider>());
+            toolSources: Array.Empty<IToolSource>());
         var defaultAgent = agentFactory.CreateAgentForMode(AgentMode.Agent);
         _service = new SessionService(agentFactory, defaultAgent, persistence, new SessionGate());
     }
@@ -281,17 +281,10 @@ public sealed class SessionServiceGoalTests : IDisposable
             ]);
         await using var agentFactory = CreateAgentFactory(chatClient, config =>
             config.Goals = new AppConfig.GoalsConfig { AutoContinueEnabled = false });
-        var goalTools = new GoalToolProvider().CreateTools(new ToolProviderContext
-        {
-            Config = agentFactory.ToolProviderContext.Config,
-            ChatClient = null!,
-            WorkspacePath = _tempDir,
-            BotPath = _tempDir,
-            MemoryStore = new MemoryStore(_tempDir),
-            SkillsLoader = new SkillsLoader(_tempDir),
-            ApprovalService = new AutoApproveApprovalService()
-        }).ToList();
-        var service = CreateStreamingService(agentFactory, chatClient, goalTools);
+        var goalTools = agentFactory.CreateToolsForMode(AgentMode.Agent)
+            .Where(tool => tool.Name is GoalToolNames.GetGoal or GoalToolNames.CreateGoal or GoalToolNames.UpdateGoal)
+            .ToList();
+        var service = CreateStreamingService(agentFactory, chatClient, goalTools, useFactoryAgent: true);
         var thread = await service.CreateThreadAsync(new SessionIdentity
         {
             ChannelName = "test",
@@ -426,15 +419,16 @@ public sealed class SessionServiceGoalTests : IDisposable
     {
         var memory = new MemoryStore(_tempDir);
         var skills = new SkillsLoader(_tempDir);
+        var config = AppConfigTestFactory.CreateOpenAI();
         await using var agentFactory = new AgentFactory(
             dotcraftPath: _tempDir,
             workspacePath: _tempDir,
-            config: AppConfigTestFactory.CreateOpenAI(),
+            config: config,
             memoryStore: memory,
             skillsLoader: skills,
             approvalService: new AutoApproveApprovalService(),
             blacklist: null,
-            toolProviders: [new GoalToolProvider()]);
+            toolSources: [new GoalToolSource(config)]);
 
         var agentTools = agentFactory.CreateToolsForMode(AgentMode.Agent).Select(tool => tool.Name).ToArray();
         var planTools = agentFactory.CreateToolsForMode(AgentMode.Plan).Select(tool => tool.Name).ToArray();
@@ -454,27 +448,9 @@ public sealed class SessionServiceGoalTests : IDisposable
         var chatClient = new CompleteGoalChatClient();
         await using var agentFactory = CreateAgentFactory(chatClient, config =>
             config.Goals = new AppConfig.GoalsConfig { AutoContinueEnabled = true });
-        var goalTools = new GoalToolProvider().CreateTools(new ToolProviderContext
-        {
-            Config = agentFactory.ToolProviderContext.Config,
-            ChatClient = null!,
-            WorkspacePath = _tempDir,
-            BotPath = _tempDir,
-            MemoryStore = new MemoryStore(_tempDir),
-            SkillsLoader = new SkillsLoader(_tempDir),
-            ApprovalService = new AutoApproveApprovalService()
-        }).ToList();
-        var invokingClient = new StreamingFunctionInvokingChatClient(chatClient)
-        {
-            AllowConcurrentInvocation = true
-        };
         var service = new SessionService(
             agentFactory,
-            invokingClient.AsAIAgent(new ChatClientAgentOptions
-            {
-                UseProvidedChatClientAsIs = true,
-                ChatOptions = new ChatOptions { Tools = goalTools }
-            }),
+            agentFactory.CreateDefaultAgent(),
             new SessionPersistenceService(new ThreadStore(_tempDir)),
             new SessionGate());
 
@@ -505,27 +481,9 @@ public sealed class SessionServiceGoalTests : IDisposable
         var chatClient = new CompleteGoalChatClient(completeOnCall: 2);
         await using var agentFactory = CreateAgentFactory(chatClient, config =>
             config.Goals = new AppConfig.GoalsConfig { AutoContinueEnabled = true });
-        var goalTools = new GoalToolProvider().CreateTools(new ToolProviderContext
-        {
-            Config = agentFactory.ToolProviderContext.Config,
-            ChatClient = null!,
-            WorkspacePath = _tempDir,
-            BotPath = _tempDir,
-            MemoryStore = new MemoryStore(_tempDir),
-            SkillsLoader = new SkillsLoader(_tempDir),
-            ApprovalService = new AutoApproveApprovalService()
-        }).ToList();
-        var invokingClient = new StreamingFunctionInvokingChatClient(chatClient)
-        {
-            AllowConcurrentInvocation = true
-        };
         var service = new SessionService(
             agentFactory,
-            invokingClient.AsAIAgent(new ChatClientAgentOptions
-            {
-                UseProvidedChatClientAsIs = true,
-                ChatOptions = new ChatOptions { Tools = goalTools }
-            }),
+            agentFactory.CreateDefaultAgent(),
             new SessionPersistenceService(new ThreadStore(_tempDir)),
             new SessionGate());
         var completedGoal = new TaskCompletionSource<(ThreadGoal Goal, string? TurnId)>(
@@ -700,17 +658,20 @@ public sealed class SessionServiceGoalTests : IDisposable
         AgentFactory agentFactory,
         IChatClient chatClient,
         IReadOnlyList<AITool> tools,
-        bool allowConcurrentInvocation = false)
+        bool allowConcurrentInvocation = false,
+        bool useFactoryAgent = false)
     {
         var invokingClient = new StreamingFunctionInvokingChatClient(chatClient)
         {
             AllowConcurrentInvocation = allowConcurrentInvocation
         };
-        var defaultAgent = invokingClient.AsAIAgent(new ChatClientAgentOptions
-        {
-            UseProvidedChatClientAsIs = true,
-            ChatOptions = new ChatOptions { Tools = tools.ToList() }
-        });
+        var defaultAgent = useFactoryAgent
+            ? agentFactory.CreateDefaultAgent()
+            : invokingClient.AsAIAgent(new ChatClientAgentOptions
+            {
+                UseProvidedChatClientAsIs = true,
+                ChatOptions = new ChatOptions { Tools = tools.ToList() }
+            });
         return new SessionService(
             agentFactory,
             defaultAgent,
@@ -730,7 +691,8 @@ public sealed class SessionServiceGoalTests : IDisposable
             skillsLoader: new SkillsLoader(_tempDir),
             approvalService: new AutoApproveApprovalService(),
             blacklist: null,
-            toolProviders: [new GoalToolProvider()]);
+            chatClient: chatClient,
+            toolSources: [new GoalToolSource(config)]);
     }
 
     private static ChatResponseUpdate UsageUpdate(long input, long output) =>

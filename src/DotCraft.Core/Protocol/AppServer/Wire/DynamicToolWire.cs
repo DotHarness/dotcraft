@@ -3,46 +3,63 @@ using System.Text.Json.Nodes;
 
 namespace DotCraft.Protocol.AppServer;
 
-
-public sealed class DynamicToolSpec
+/// <summary>
+/// A Runtime Dynamic Tool declaration supplied by an AppServer client.
+/// </summary>
+[JsonPolymorphic(TypeDiscriminatorPropertyName = "type")]
+[JsonDerivedType(typeof(RuntimeDynamicToolFunction), "function")]
+[JsonDerivedType(typeof(RuntimeDynamicToolNamespace), "namespace")]
+public abstract class RuntimeDynamicToolDeclaration
 {
-    public string? Namespace { get; set; }
-
+    /// <summary>Model-visible function name or namespace name.</summary>
     public string Name { get; set; } = string.Empty;
 
+    /// <summary>Human-readable description used for model planning.</summary>
     public string Description { get; set; } = string.Empty;
+}
 
+/// <summary>
+/// A single Runtime Dynamic Function. Top-level functions have no namespace.
+/// </summary>
+[JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
+public sealed class RuntimeDynamicToolFunction : RuntimeDynamicToolDeclaration
+{
+    /// <summary>JSON Schema for the function arguments.</summary>
     public JsonObject? InputSchema { get; set; }
 
+    /// <summary>Whether this function is discovered through its containing namespace.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public bool? DeferLoading { get; set; }
 
+    /// <summary>Optional DotCraft approval hint evaluated by the server.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public ChannelToolApprovalDescriptor? Approval { get; set; }
-
-    /// <summary>
-    /// Extensible <c>_meta</c> envelope (MCP Apps). Carries Interactive Tool UI metadata; UI/host-only.
-    /// </summary>
-    [JsonPropertyName("_meta")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public DynamicToolMeta? Meta { get; set; }
 }
 
 /// <summary>
-/// Extensible <c>_meta</c> envelope on a dynamic tool spec (MCP Apps).
+/// A named namespace containing Runtime Dynamic Functions.
 /// </summary>
-public sealed class DynamicToolMeta
+[JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
+public sealed class RuntimeDynamicToolNamespace : RuntimeDynamicToolDeclaration
 {
-    /// <summary>Interactive Tool UI descriptor (<c>_meta.ui</c>).</summary>
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public UiToolMeta? Ui { get; set; }
+    /// <summary>Functions contributed under <see cref="RuntimeDynamicToolDeclaration.Name"/>.</summary>
+    public List<RuntimeDynamicToolDeclaration> Tools { get; set; } = [];
 }
 
 /// <summary>
-/// Interactive Tool UI descriptor (<c>_meta.ui</c>), aligned to MCP Apps / SEP-1865.
-/// See <c>specs/protocols/tool-result-presentation.md</c> §4.
+/// Legacy App Binding presentation metadata. Runtime Dynamic Tools v2 cannot carry this type.
 /// </summary>
-public sealed class UiToolMeta
+public sealed class LegacyAppBindingToolMeta
+{
+    /// <summary>Legacy iframe descriptor (<c>_meta.ui</c>).</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public LegacyAppBindingUiToolMeta? Ui { get; set; }
+}
+
+/// <summary>
+/// Private Legacy App Binding iframe descriptor. It is not stable MCP Apps metadata or authority.
+/// </summary>
+public sealed class LegacyAppBindingUiToolMeta
 {
     /// <summary>The <c>ui://</c> resource URI whose HTML renders this tool's result.</summary>
     public string ResourceUri { get; set; } = string.Empty;
@@ -57,7 +74,7 @@ public sealed class UiToolMeta
 
     /// <summary>Content-Security-Policy allowances for the rendered iframe.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public UiToolCsp? Csp { get; set; }
+    public LegacyAppBindingUiToolCsp? Csp { get; set; }
 
     /// <summary>Optional host permissions the UI requests.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -73,9 +90,9 @@ public sealed class UiToolMeta
 }
 
 /// <summary>
-/// Content-Security-Policy allowances for an Interactive Tool UI iframe.
+/// Content-Security-Policy allowances for a Legacy App Binding iframe.
 /// </summary>
-public sealed class UiToolCsp
+public sealed class LegacyAppBindingUiToolCsp
 {
     /// <summary>Origins the UI may <c>connect-src</c> to (fetch / XHR / WebSocket).</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -91,9 +108,9 @@ public sealed class UiToolCsp
 }
 
 /// <summary>
-/// Audience constants and helpers for <see cref="UiToolMeta.Visibility"/> (MCP Apps).
+/// Private audience helpers for <see cref="LegacyAppBindingUiToolMeta.Visibility"/>.
 /// </summary>
-public static class UiToolVisibility
+public static class LegacyAppBindingUiToolVisibility
 {
     public const string Model = "model";
     public const string App = "app";
@@ -102,7 +119,7 @@ public static class UiToolVisibility
     /// True when the tool should be exposed to the model. A tool with no UI metadata or no
     /// explicit visibility list is model-visible; an explicit list must contain <c>"model"</c>.
     /// </summary>
-    public static bool IsModelVisible(UiToolMeta? ui)
+    public static bool IsModelVisible(LegacyAppBindingUiToolMeta? ui)
         => ui?.Visibility is not { Count: > 0 } visibility
            || visibility.Contains(Model, StringComparer.Ordinal);
 
@@ -111,7 +128,7 @@ public static class UiToolVisibility
     /// metadata is not app-invocable; an explicit list must contain <c>"app"</c>, and a tool that
     /// declares a UI resource without a visibility list is app-invocable by default.
     /// </summary>
-    public static bool IsAppVisible(UiToolMeta? ui)
+    public static bool IsAppVisible(LegacyAppBindingUiToolMeta? ui)
         => ui is not null
            && (ui.Visibility is not { Count: > 0 } visibility
                || visibility.Contains(App, StringComparer.Ordinal));
@@ -133,25 +150,42 @@ public sealed class DynamicToolCallParams
     public JsonObject Arguments { get; set; } = new();
 }
 
-public sealed class DynamicToolCallResult
+/// <summary>
+/// Result returned by an AppServer client for a Runtime Dynamic Tool invocation.
+/// </summary>
+[JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
+public sealed class RuntimeDynamicToolCallResult
 {
     public bool Success { get; set; }
 
-    public List<ExtChannelToolContentItem>? ContentItems { get; set; }
+    public List<RuntimeDynamicToolContentItem>? ContentItems { get; set; }
 
-    public JsonNode? StructuredResult { get; set; }
+    public JsonNode? StructuredContent { get; set; }
 
     public string? ErrorCode { get; set; }
 
     public string? ErrorMessage { get; set; }
+}
 
-    /// <summary>
-    /// UI-only metadata (MCP Apps <c>_meta</c>). Forwarded to the host/UI for rendering;
-    /// never included in the model-visible result.
-    /// </summary>
-    [JsonPropertyName("_meta")]
+/// <summary>
+/// A validated text or image content item returned by a Runtime Dynamic Tool.
+/// </summary>
+[JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
+public sealed class RuntimeDynamicToolContentItem
+{
+    public string Type { get; set; } = string.Empty;
+
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public JsonNode? Meta { get; set; }
+    public string? Text { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? MediaType { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Url { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? DataBase64 { get; set; }
 }
 
 /// <summary>
@@ -183,7 +217,7 @@ public sealed class UiResourceReadResult
     /// set this; the host fills it from the attached tool's descriptor before returning to the renderer.
     /// </summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public UiToolCsp? Csp { get; set; }
+    public LegacyAppBindingUiToolCsp? Csp { get; set; }
 }
 
 /// <summary>
@@ -202,7 +236,7 @@ public sealed class UiResourceContent
 
 /// <summary>
 /// Params for <c>ui/tool/call</c> (host → server): a UI-initiated app-tool invocation
-/// (MCP Apps <c>callTool</c>). Decoupled from the conversation — gated, brokered, audited, with
+/// (private legacy <c>callTool</c>). Decoupled from the conversation — gated, brokered, audited, with
 /// the result returned to the host/UI. See appserver-protocol.md §11.3.2.
 /// </summary>
 public sealed class UiToolCallParams

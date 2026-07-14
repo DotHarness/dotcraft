@@ -159,6 +159,23 @@ public sealed class AppServerEventDispatcher
     private SessionWireThread? EnrichThreadWire(SessionWireThread? wire) =>
         wire is null || _enrichThreadWire is null ? wire : _enrichThreadWire(wire);
 
+    private SessionWireItem? ToLiveItemWire(SessionEvent evt)
+    {
+        var item = evt.ItemPayload;
+        var wire = item?.ToWire();
+        if (item is null
+            || wire is null
+            || item.Type != ItemType.McpToolCall
+            || item.Status != ItemStatus.Completed
+            || !_connection.SupportsMcpApps
+            || !_connection.TryRegisterMcpAppItem(evt.ThreadId, item.Id))
+        {
+            return wire;
+        }
+
+        return wire with { McpApp = new McpAppViewHintWire { Available = true } };
+    }
+
     private object? BuildParams(SessionEvent evt) => evt.EventType switch
     {
         // Thread notifications (spec Section 6.1)
@@ -249,7 +266,7 @@ public sealed class AppServerEventDispatcher
         {
             threadId = evt.ThreadId,
             turnId = evt.TurnId,
-            item = evt.ItemPayload?.ToWire()
+            item = ToLiveItemWire(evt)
         },
 
         // Approval resolved notification (spec Section 6.4)

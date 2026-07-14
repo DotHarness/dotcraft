@@ -36,7 +36,7 @@ public sealed class SocialChannelAppBindingRuntime(
 
     public bool RequiresExternalConnection => false;
 
-    public IReadOnlyList<DynamicToolSpec> ToolSpecs => BuildToolSpecs(_channelName, GetChannelToolDescriptors());
+    public IReadOnlyList<AppBoundToolSpec> ToolSpecs => BuildToolSpecs(_channelName, GetChannelToolDescriptors());
 
     public bool AllowDirectMutatingToolExposure => true;
 
@@ -65,15 +65,15 @@ public sealed class SocialChannelAppBindingRuntime(
         return diagnostics;
     }
 
-    public IReadOnlyList<DynamicToolSpec> GetToolSpecsForSurface(string surface) => ToolSpecs;
+    public IReadOnlyList<AppBoundToolSpec> GetToolSpecsForSurface(string surface) => ToolSpecs;
 
-    public async ValueTask<DynamicToolCallResult> InvokeToolAsync(
+    public async ValueTask<AppBoundToolCallResult> InvokeToolAsync(
         ManagedAppBindingToolCallContext context,
         JsonObject arguments,
         CancellationToken cancellationToken)
         => await InvokeNativeChannelToolAsync(context, arguments, cancellationToken);
 
-    private async ValueTask<DynamicToolCallResult> InvokeNativeChannelToolAsync(
+    private async ValueTask<AppBoundToolCallResult> InvokeNativeChannelToolAsync(
         ManagedAppBindingToolCallContext context,
         JsonObject arguments,
         CancellationToken cancellationToken)
@@ -110,7 +110,7 @@ public sealed class SocialChannelAppBindingRuntime(
             },
             cancellationToken);
 
-        return new DynamicToolCallResult
+        return new AppBoundToolCallResult
         {
             Success = result.Success,
             ContentItems = result.ContentItems,
@@ -163,11 +163,11 @@ public sealed class SocialChannelAppBindingRuntime(
             DynamicToolCatalog = new AppDynamicToolCatalogDescriptor { Enabled = false }
         };
 
-    private static IReadOnlyList<DynamicToolSpec> BuildToolSpecs(
+    private static IReadOnlyList<AppBoundToolSpec> BuildToolSpecs(
         string channelName,
         IReadOnlyList<ChannelToolDescriptor> channelTools) =>
     [
-        ..channelTools.Select(tool => new DynamicToolSpec
+        ..channelTools.Select(tool => new AppBoundToolSpec
         {
             Namespace = channelName,
             Name = tool.Name,
@@ -256,7 +256,7 @@ public sealed class SocialChannelAppBindingRuntime(
             DefaultSelected = true
         };
 
-    private static DynamicToolCallResult Ok(string text, object structured) =>
+    private static AppBoundToolCallResult Ok(string text, object structured) =>
         new()
         {
             Success = true,
@@ -264,7 +264,7 @@ public sealed class SocialChannelAppBindingRuntime(
             StructuredResult = System.Text.Json.JsonSerializer.SerializeToNode(structured, SessionWireJsonOptions.Default)
         };
 
-    private static DynamicToolCallResult Fail(string code, string message) =>
+    private static AppBoundToolCallResult Fail(string code, string message) =>
         new()
         {
             Success = false,

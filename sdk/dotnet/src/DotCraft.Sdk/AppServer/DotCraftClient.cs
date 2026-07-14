@@ -28,6 +28,7 @@ public sealed class DotCraftClient : IAsyncDisposable
         Threads = new DotCraftThreadClient(this);
         Turns = new DotCraftTurnClient(this);
         Models = new DotCraftModelClient(this);
+        McpRuntime = new DotCraftMcpRuntimeClient(this);
         AppBindings = new DotCraftAppBindingClient(this);
         Wire.RegisterServerRequestHandler("item/tool/call", HandleDynamicToolCallAsync);
         Wire.RegisterServerRequestHandler("item/resource/read", HandleResourceReadAsync);
@@ -64,6 +65,9 @@ public sealed class DotCraftClient : IAsyncDisposable
     /// Model catalog operations.
     /// </summary>
     public DotCraftModelClient Models { get; }
+
+    /// <summary>Source-aware MCP runtime and control operations.</summary>
+    public DotCraftMcpRuntimeClient McpRuntime { get; }
 
     /// <summary>
     /// App Binding operations.

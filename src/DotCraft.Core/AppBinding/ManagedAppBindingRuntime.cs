@@ -56,7 +56,7 @@ public interface IManagedAppBindingRuntime
     /// <summary>
     /// Runtime Dynamic Tool specs exposed to threads bound to this app.
     /// </summary>
-    IReadOnlyList<DynamicToolSpec> ToolSpecs { get; }
+    IReadOnlyList<AppBoundToolSpec> ToolSpecs { get; }
 
     /// <summary>
     /// Descriptor projected to a specific catalog surface.
@@ -82,7 +82,7 @@ public interface IManagedAppBindingRuntime
     /// <summary>
     /// Tool specs attached to a managed binding for a specific surface.
     /// </summary>
-    IReadOnlyList<DynamicToolSpec> GetToolSpecsForSurface(string surface) => ToolSpecs;
+    IReadOnlyList<AppBoundToolSpec> GetToolSpecsForSurface(string surface) => ToolSpecs;
 
     /// <summary>
     /// Allows this first-party managed runtime to expose mutating tools directly
@@ -94,7 +94,7 @@ public interface IManagedAppBindingRuntime
     /// <summary>
     /// Invokes one app-bound tool for an active managed binding.
     /// </summary>
-    ValueTask<DynamicToolCallResult> InvokeToolAsync(
+    ValueTask<AppBoundToolCallResult> InvokeToolAsync(
         ManagedAppBindingToolCallContext context,
         JsonObject arguments,
         CancellationToken cancellationToken);

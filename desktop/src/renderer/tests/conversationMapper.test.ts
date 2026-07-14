@@ -6,6 +6,61 @@ import { wireItemToConversationItem, wireTurnToConversationTurn } from '../types
 // ---------------------------------------------------------------------------
 
 describe('wireItemToConversationItem — flat (top-level) format', () => {
+  it('maps live MCP App eligibility without deriving it from persisted metadata', () => {
+    const live = wireItemToConversationItem({
+      id: 'mcp-1',
+      type: 'mcpToolCall',
+      mcpApp: { available: true },
+      payload: {
+        toolName: 'chart',
+        callId: 'call-1',
+        status: 'completed',
+        content: [{ type: 'text', text: 'fallback' }],
+        structuredContent: { points: 3 }
+      },
+      createdAt: '2025-01-01T00:00:00Z'
+    })
+    const historical = wireItemToConversationItem({
+      id: 'mcp-1',
+      type: 'mcpToolCall',
+      payload: { toolName: 'chart', status: 'completed' },
+      createdAt: '2025-01-01T00:00:00Z'
+    })
+
+    expect(live.type).toBe('mcpToolCall')
+    expect(live.mcpAppAvailable).toBe(true)
+    expect(live.result).toBe('fallback')
+    expect(live.structuredResult).toEqual({ points: 3 })
+    expect(historical.mcpAppAvailable).toBe(false)
+  })
+
+  it('restores a known Core presentation from complete durable provenance only', () => {
+    const core = wireItemToConversationItem({
+      id: 'tool-1',
+      type: 'toolCall',
+      payload: {
+        toolName: 'WriteFile',
+        source: { kind: 'CoreNative', sourceId: 'core-native', sourceToolId: 'WriteFile' }
+      },
+      createdAt: '2025-01-01T00:00:00Z'
+    })
+    const untrusted = wireItemToConversationItem({
+      id: 'tool-2',
+      type: 'toolCall',
+      payload: {
+        toolName: 'WriteFile',
+        source: { kind: 'PluginNative', sourceId: 'plugin', sourceToolId: 'WriteFile' }
+      },
+      createdAt: '2025-01-01T00:00:00Z'
+    })
+
+    expect(core.presentation).toEqual({
+      presentationId: 'core.file-write',
+      options: { operation: 'write' }
+    })
+    expect(untrusted.presentation).toBeUndefined()
+  })
+
   it('extracts text from raw.text for agentMessage', () => {
     const item = wireItemToConversationItem({
       id: 'i1',

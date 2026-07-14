@@ -345,7 +345,7 @@ public sealed class SessionServiceSetThreadModeTests : IDisposable
             skillsLoader: skills,
             approvalService: new AutoApproveApprovalService(),
             blacklist: null,
-            toolProviders: Array.Empty<IAgentToolProvider>());
+            toolSources: Array.Empty<IToolSource>());
     }
 
     private static AIAgent GetCachedThreadAgent(SessionService svc, string threadId)

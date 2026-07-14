@@ -18,7 +18,7 @@ namespace DotCraft.Agents;
 /// </summary>
 internal sealed class DynamicToolInjectionChatClient(
     IChatClient innerClient,
-    DeferredToolRegistry registry,
+    DeferredToolActivationIndex registry,
     TraceCollector? traceCollector = null,
     HookRunner? hookRunner = null)
     : DelegatingChatClient(innerClient)

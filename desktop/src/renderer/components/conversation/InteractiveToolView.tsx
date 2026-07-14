@@ -12,7 +12,7 @@ import { AnsiPre } from './AnsiPre'
 import { THEME_CHANGED_EVENT } from '../../../shared/theme'
 
 /**
- * Renders an App Binding tool's **Interactive Tool UI** (MCP Apps) in a sandboxed iframe.
+ * Renders the private Legacy App Binding interactive UI in a sandboxed iframe.
  *
  * The HTML is served by the main-process `dotcraft-app://` handler (which brokers
  * `ui/resource/read` and applies a per-resource CSP — see `dotcraftAppProtocol.ts`),
@@ -347,7 +347,7 @@ function InteractiveToolViewImpl({ item, threadId, locale, expanded = false }: I
     }
 
     // ui/message safeguard: the host cannot verify a real click inside a sandboxed iframe, so it
-    // is added as a visible turn, audited, and rate-limited (per MCP Apps; see M-iii §9).
+    // is added as a visible turn, audited, and rate-limited by the legacy host contract.
     const allowMessage = (): boolean => {
       const now = Date.now()
       const times = messageTimesRef.current.filter((t) => now - t < 60_000)
@@ -846,7 +846,9 @@ const degradedFallbackLabelStyle: CSSProperties = {
   marginBottom: '6px'
 }
 
-export const InteractiveToolView = memo(InteractiveToolViewImpl)
+export const LegacyAppBindingInteractiveView = memo(InteractiveToolViewImpl)
+/** @deprecated Use the explicitly scoped Legacy App Binding component. */
+export const InteractiveToolView = LegacyAppBindingInteractiveView
 
 /**
  * Host surface for a card the iframe has expanded via `ui/request-display-mode`:
@@ -978,6 +980,11 @@ const pipPanelStyle: CSSProperties = {
 }
 
 /** True when an item declares a renderable Interactive Tool UI. */
-export function hasInteractiveToolUi(item: ConversationItem): boolean {
-  return typeof item.toolUi?.resourceUri === 'string' && item.toolUi.resourceUri.startsWith('ui://')
+export function hasLegacyAppBindingInteractiveUi(item: ConversationItem): boolean {
+  return item.source?.kind === 'LegacyAppBinding'
+    && typeof item.toolUi?.resourceUri === 'string'
+    && item.toolUi.resourceUri.startsWith('ui://')
 }
+
+/** @deprecated Use the explicitly scoped Legacy App Binding predicate. */
+export const hasInteractiveToolUi = hasLegacyAppBindingInteractiveUi

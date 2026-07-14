@@ -1329,16 +1329,20 @@ function mergeExistingCommandExecutionIntoToolCall(
 
 function buildToolLikeItem(
   item: Record<string, unknown>,
-  type: 'toolCall' | 'pluginFunctionCall' | 'dynamicToolCall',
+  type: 'toolCall' | 'pluginFunctionCall' | 'dynamicToolCall' | 'mcpToolCall',
   status: ConversationItem['status']
 ): ConversationItem {
   const payload = (item.payload ?? {}) as Record<string, unknown>
   const hasStructuredInvocationResult = type !== 'toolCall'
   const contentItems = hasStructuredInvocationResult
-    ? normalizePluginFunctionContentItems(item.contentItems ?? payload.contentItems)
+    ? normalizePluginFunctionContentItems(
+      item.contentItems ?? payload.contentItems ?? payload.modelContentItems ?? payload.content
+    )
     : undefined
   const structuredResult = hasStructuredInvocationResult
-    ? ((item.structuredResult as unknown) ?? (payload.structuredResult as unknown))
+    ? ((item.structuredResult as unknown)
+      ?? (payload.structuredResult as unknown)
+      ?? (payload.structuredContent as unknown))
     : undefined
   const errorMessage = hasStructuredInvocationResult
     ? ((item.errorMessage as string | undefined) ?? (payload.errorMessage as string | undefined))
@@ -1353,6 +1357,8 @@ function buildToolLikeItem(
   const toolUi = hasStructuredInvocationResult
     ? normalizeToolUiDescriptor((item.ui as unknown) ?? (payload.ui as unknown))
     : undefined
+  const source = normalizeToolSourceProvenance(item.source ?? payload.source)
+  const presentation = normalizeToolPresentation(item.presentation ?? payload.presentation)
 
   return {
     id: (item.id as string) ?? '',
@@ -1365,6 +1371,8 @@ function buildToolLikeItem(
       ?? (payload.functionName as string | undefined)
       ?? (item.name as string | undefined)
       ?? 'tool',
+    source,
+    presentation,
     toolCallId:
       (item.toolCallId as string | undefined)
       ?? (payload.callId as string | undefined)
@@ -1382,6 +1390,9 @@ function buildToolLikeItem(
       ?? (payload.functionName as string | undefined),
     contentItems,
     structuredResult,
+    mcpAppAvailable:
+      type === 'mcpToolCall'
+      && (item.mcpApp as { available?: unknown } | undefined)?.available === true,
     meta,
     toolUi,
     errorCode: (item.errorCode as string | undefined)
@@ -1394,6 +1405,38 @@ function buildToolLikeItem(
       ?? (payload.success as boolean | undefined),
     createdAt: (item.createdAt as string) ?? new Date().toISOString(),
     completedAt: (item.completedAt as string | undefined)
+  }
+}
+
+function normalizeToolSourceProvenance(value: unknown): ConversationItem['source'] {
+  if (typeof value !== 'object' || value == null || Array.isArray(value)) return undefined
+  const source = value as Record<string, unknown>
+  if (typeof source.kind !== 'string' || source.kind.length === 0) return undefined
+  const optionalString = (name: string): string | undefined => (
+    typeof source[name] === 'string' ? source[name] as string : undefined
+  )
+  return {
+    kind: source.kind,
+    sourceId: optionalString('sourceId'),
+    origin: optionalString('origin'),
+    sourceToolId: optionalString('sourceToolId'),
+    pluginId: optionalString('pluginId'),
+    functionId: optionalString('functionId')
+  }
+}
+
+function normalizeToolPresentation(value: unknown): ConversationItem['presentation'] {
+  if (typeof value !== 'object' || value == null || Array.isArray(value)) return undefined
+  const presentation = value as Record<string, unknown>
+  if (typeof presentation.presentationId !== 'string' || presentation.presentationId.length === 0) {
+    return undefined
+  }
+  const options = presentation.options
+  return {
+    presentationId: presentation.presentationId,
+    options: typeof options === 'object' && options != null && !Array.isArray(options)
+      ? options as Record<string, unknown>
+      : undefined
   }
 }
 
@@ -2760,7 +2803,7 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
         }
         return { turns, pendingToolCompletionsByCallKey: pending }
       })
-    } else if (type === 'pluginFunctionCall' || type === 'dynamicToolCall') {
+    } else if (type === 'pluginFunctionCall' || type === 'dynamicToolCall' || type === 'mcpToolCall') {
       const completedItem = buildToolLikeItem(
         item,
         type,
@@ -2792,6 +2835,7 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
                       functionName: completedItem.functionName ?? i.functionName,
                       contentItems: completedItem.contentItems ?? i.contentItems,
                       structuredResult: completedItem.structuredResult ?? i.structuredResult,
+                      mcpAppAvailable: completedItem.mcpAppAvailable ?? i.mcpAppAvailable,
                       meta: completedItem.meta ?? i.meta,
                       toolUi: completedItem.toolUi ?? i.toolUi,
                       errorCode: completedItem.errorCode ?? i.errorCode,

@@ -1,4 +1,5 @@
 using DotCraft.Configuration;
+using DotCraft.Tools;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace DotCraft.Abstractions;
@@ -41,7 +42,7 @@ public abstract class ModuleBase : IDotCraftModule
     public virtual IChannelService? CreateChannelService(IServiceProvider sp) => null;
 
     /// <inheritdoc />
-    public virtual IEnumerable<IAgentToolProvider> GetToolProviders() => [];
+    public virtual IEnumerable<IToolSource> GetToolSources(IServiceProvider services) => [];
 
     /// <inheritdoc />
     public virtual IReadOnlyList<SessionChannelListEntry> GetSessionChannelListEntries() => [];

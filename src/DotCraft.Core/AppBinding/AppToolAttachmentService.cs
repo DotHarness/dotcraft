@@ -5,10 +5,18 @@ using DotCraft.Plugins;
 using DotCraft.Protocol;
 using DotCraft.Protocol.AppServer;
 using DotCraft.Security;
+using DotCraft.Tools;
 using Microsoft.Extensions.AI;
 using static DotCraft.AppBinding.AppBindingStoreAccessor;
 
 namespace DotCraft.AppBinding;
+
+internal sealed record LegacyAppBindingAttachedTool(
+    string WorkspaceCraftPath,
+    string BindingId,
+    string AppId,
+    string BindingState,
+    AppBoundToolSpec Spec);
 
 internal sealed class AppToolAttachmentService(
     AppBindingService facade,
@@ -33,7 +41,7 @@ internal sealed class AppToolAttachmentService(
             throw AppServerErrors.InvalidParams("'grantId' is required.");
         if (p.Tools.Count == 0)
             throw AppServerErrors.InvalidParams("'tools' must not be empty.");
-        if (!WireDynamicToolProxy.TryValidateSpecs(p.Tools, out var dynamicToolError))
+        if (!WireDynamicToolProxy.TryValidateAppBoundSpecs(p.Tools, out var dynamicToolError))
             throw AppServerErrors.InvalidParams(dynamicToolError);
 
         var entry = FindEnabledApp(catalog, p.AppId);
@@ -86,55 +94,74 @@ internal sealed class AppToolAttachmentService(
         });
     }
 
-    public IReadOnlyList<AITool> CreateRuntimeToolsForThread(
-        SessionThread thread,
-        IReadOnlySet<string> reservedToolNames)
+    internal IReadOnlyList<LegacyAppBindingAttachedTool> GetAttachedToolsForThread(
+        string threadId,
+        string workspacePath)
     {
-        var workspaceCraftPath = Path.Combine(thread.WorkspacePath, ".craft");
+        var workspaceCraftPath = Path.Combine(workspacePath, ".craft");
         if (!Directory.Exists(workspaceCraftPath))
             return [];
 
         var state = stores.GetStore(workspaceCraftPath).Snapshot();
-        var tools = new List<AITool>();
+        var tools = new List<LegacyAppBindingAttachedTool>();
         foreach (var binding in state.Bindings.Where(binding =>
-                     string.Equals(binding.ThreadId, thread.Id, StringComparison.Ordinal)
+                     string.Equals(binding.ThreadId, threadId, StringComparison.Ordinal)
                      && binding.AttachedTools.Count > 0
                      && binding.State is AppBindingStates.Active or AppBindingStates.Offline or AppBindingStates.Expired))
         {
-            foreach (var spec in binding.AttachedTools)
+            var effectiveState = GetRuntimeBindingState(binding);
+            if (managedRuntimesByAppId.ContainsKey(binding.AppId)
+                && effectiveState != AppBindingStates.Active
+                && !string.Equals(binding.BindingKind, AppBindingKinds.SocialChannel, StringComparison.Ordinal))
             {
-                if (reservedToolNames.Contains(spec.Name))
-                    continue;
-
-                // App-only interactive UI tools (visibility excludes "model") are invoked via
-                // ui/tool/call from their UI, never exposed to the model.
-                if (!UiToolVisibility.IsModelVisible(spec.Meta?.Ui))
-                    continue;
-
-                var effectiveState = GetRuntimeBindingState(binding);
-                if (managedRuntimesByAppId.ContainsKey(binding.AppId)
-                    && effectiveState != AppBindingStates.Active
-                    && !string.Equals(binding.BindingKind, AppBindingKinds.SocialChannel, StringComparison.Ordinal))
-                {
-                    continue;
-                }
-
-                tools.Add(new AppBindingRuntimeFunction(
-                    this,
-                    workspaceCraftPath,
-                    binding.BindingId,
-                    effectiveState,
-                    CloneSpec(spec)));
+                continue;
             }
+
+            tools.AddRange(binding.AttachedTools.Select(spec => new LegacyAppBindingAttachedTool(
+                workspaceCraftPath,
+                binding.BindingId,
+                binding.AppId,
+                effectiveState,
+                CloneSpec(spec))));
         }
 
         return tools;
     }
 
-    internal async ValueTask<DynamicToolCallResult> InvokeAttachedToolAsync(
+    internal ToolBindingLeaseResult CheckAttachedToolLease(
         string workspaceCraftPath,
         string bindingId,
-        DynamicToolSpec spec,
+        string? toolNamespace,
+        string toolName)
+    {
+        var state = stores.GetStore(workspaceCraftPath).Snapshot();
+        var binding = FindBinding(state, bindingId);
+        if (binding is null
+            || !binding.AttachedTools.Any(spec =>
+                string.Equals(spec.Namespace, toolNamespace, StringComparison.Ordinal)
+                && string.Equals(spec.Name, toolName, StringComparison.Ordinal)))
+        {
+            return ToolBindingLeaseResult.Unavailable("The App Binding tool grant no longer exists.");
+        }
+
+        var effectiveState = GetRuntimeBindingState(binding);
+        return effectiveState switch
+        {
+            AppBindingStates.Active => ToolBindingLeaseResult.Available,
+            AppBindingStates.Revoked => new ToolBindingLeaseResult(
+                false,
+                new ToolError(ToolErrorCodes.Unauthorized, "The App Binding tool grant was revoked.")),
+            AppBindingStates.Expired => new ToolBindingLeaseResult(
+                false,
+                new ToolError(ToolErrorCodes.Unauthorized, "The App Binding tool grant expired.")),
+            _ => ToolBindingLeaseResult.Unavailable("The App Binding tool owner is offline.")
+        };
+    }
+
+    internal async ValueTask<AppBoundToolCallResult> InvokeAttachedToolAsync(
+        string workspaceCraftPath,
+        string bindingId,
+        AppBoundToolSpec spec,
         string executionThreadId,
         string executionTurnId,
         ISessionService? executionSessionService,
@@ -212,7 +239,7 @@ internal sealed class AppToolAttachmentService(
             if (!response.Result.HasValue)
                 return Failed(AppBindingErrorCodes.ProtocolViolation, $"App-bound tool '{spec.Name}' returned no result.");
 
-            return response.Result.Value.Deserialize<DynamicToolCallResult>(SessionWireJsonOptions.Default)
+            return response.Result.Value.Deserialize<AppBoundToolCallResult>(SessionWireJsonOptions.Default)
                    ?? Failed(AppBindingErrorCodes.ProtocolViolation, $"App-bound tool '{spec.Name}' returned an invalid result.");
         }
         catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
@@ -373,7 +400,7 @@ internal sealed class AppToolAttachmentService(
         };
     }
 
-    private static List<DynamicToolSpec> ValidateAttachedTools(
+    private static List<AppBoundToolSpec> ValidateAttachedTools(
         AppDescriptor descriptor,
         AppBindingRecord binding,
         AppBindingAttachToolsParams p,
@@ -383,7 +410,7 @@ internal sealed class AppToolAttachmentService(
         var catalogByName = descriptor.ToolCatalog.ToDictionary(tool => tool.Name, StringComparer.Ordinal);
         AddDynamicAttachedToolCatalog(descriptor, p.ToolCatalog, catalogByName);
         var grantedScopes = binding.GrantedScopes.ToHashSet(StringComparer.Ordinal);
-        var accepted = new List<DynamicToolSpec>();
+        var accepted = new List<AppBoundToolSpec>();
         var direct = p.DirectToolNames?.ToHashSet(StringComparer.Ordinal) ?? [];
         var deferred = p.DeferredToolNames?.ToHashSet(StringComparer.Ordinal) ?? [];
 
@@ -458,7 +485,7 @@ internal sealed class AppToolAttachmentService(
         }
     }
 
-    private static DynamicToolSpec CloneSpec(DynamicToolSpec spec) =>
+    private static AppBoundToolSpec CloneSpec(AppBoundToolSpec spec) =>
         new()
         {
             Namespace = spec.Namespace,
@@ -532,7 +559,7 @@ internal sealed class AppToolAttachmentService(
         }
     }
 
-    internal static DynamicToolCallResult Failed(string code, string message) =>
+    internal static AppBoundToolCallResult Failed(string code, string message) =>
         new()
         {
             Success = false,
@@ -541,355 +568,4 @@ internal sealed class AppToolAttachmentService(
             ContentItems = [new ExtChannelToolContentItem { Type = "text", Text = $"{code}: {message}" }]
         };
 
-    private sealed class AppBindingRuntimeFunction(
-        AppToolAttachmentService service,
-        string workspaceCraftPath,
-        string bindingId,
-        string bindingState,
-        DynamicToolSpec spec) : AIFunction, IDynamicToolRuntimeTool
-    {
-        private readonly JsonElement _jsonSchema = ToJsonElement(spec.InputSchema ?? new JsonObject { ["type"] = "object" });
-
-        public DynamicToolSpec Spec => spec;
-
-        public override string Name => spec.Name;
-
-        public override string Description => spec.Description;
-
-        public override JsonElement JsonSchema => _jsonSchema;
-
-        public override JsonElement? ReturnJsonSchema => null;
-
-        public override MethodInfo? UnderlyingMethod => null;
-
-        public override JsonSerializerOptions JsonSerializerOptions => SessionWireJsonOptions.Default;
-
-        protected override async ValueTask<object?> InvokeCoreAsync(
-            AIFunctionArguments arguments,
-            CancellationToken cancellationToken)
-        {
-            var scope = PluginFunctionExecutionScope.Current
-                        ?? throw new InvalidOperationException("App-bound dynamic tools require an active turn scope.");
-
-            var callId = $"appdyntool_{Guid.NewGuid():N}";
-            var argsObject = ToJsonObject(arguments);
-            var item = new SessionItem
-            {
-                Id = SessionIdGenerator.NewItemId(scope.NextItemSequence()),
-                TurnId = scope.TurnId,
-                Type = ItemType.DynamicToolCall,
-                Status = ItemStatus.Started,
-                CreatedAt = DateTimeOffset.UtcNow,
-                Payload = CreatePayload(callId, argsObject)
-            };
-            scope.Turn.Items.Add(item);
-            scope.EmitItemStarted(item);
-
-            var inputSchema = spec.InputSchema ?? new JsonObject { ["type"] = "object" };
-            if (!PluginFunctionSchemaValidator.TryValidateArguments(inputSchema, argsObject, out var validationError))
-                return FinalizeFailure(item, scope, callId, argsObject, "InvalidArguments", validationError);
-
-            var unavailable = bindingState switch
-            {
-                AppBindingStates.Offline => (AppBindingErrorCodes.Offline, "The app binding is offline. Reconnect the app or refresh the binding."),
-                AppBindingStates.Expired => (AppBindingErrorCodes.Expired, "The app binding has expired."),
-                AppBindingStates.Revoked => (AppBindingErrorCodes.Revoked, "The app binding was revoked."),
-                _ => ((string, string)?)null
-            };
-            if (unavailable != null)
-                return FinalizeFailure(item, scope, callId, argsObject, unavailable.Value.Item1, unavailable.Value.Item2);
-
-            var approvalFailure = await ApplyServerApprovalAsync(scope, argsObject, cancellationToken);
-            if (approvalFailure != null)
-                return FinalizeFailure(item, scope, callId, argsObject, approvalFailure.Value.ErrorCode, approvalFailure.Value.ErrorMessage);
-
-            var result = await service.InvokeAttachedToolAsync(
-                workspaceCraftPath,
-                bindingId,
-                spec,
-                scope.ThreadId,
-                scope.TurnId,
-                scope.SessionService,
-                callId,
-                argsObject,
-                cancellationToken);
-            item.Status = ItemStatus.Completed;
-            item.CompletedAt = DateTimeOffset.UtcNow;
-            item.Payload = CreatePayload(callId, argsObject, result);
-            scope.EmitItemCompleted(item);
-
-            return MapToolResultToModelValue(result);
-        }
-
-        private DynamicToolCallPayload CreatePayload(
-            string callId,
-            JsonObject argsObject,
-            DynamicToolCallResult? result = null)
-            => new()
-            {
-                Namespace = spec.Namespace,
-                ToolName = spec.Name,
-                CallId = callId,
-                Arguments = argsObject.DeepClone() as JsonObject,
-                ContentItems = result?.ContentItems?.Select(MapContentItem).ToArray(),
-                StructuredResult = result?.StructuredResult?.DeepClone(),
-                Success = result?.Success ?? false,
-                ErrorCode = result?.ErrorCode,
-                ErrorMessage = result?.ErrorMessage,
-                Meta = result?.Meta?.DeepClone(),
-                Ui = spec.Meta?.Ui is { } ui
-                    ? JsonSerializer.SerializeToNode(ui, SessionWireJsonOptions.Default)
-                    : null
-            };
-
-        private async Task<(string ErrorCode, string ErrorMessage)?> ApplyServerApprovalAsync(
-            PluginFunctionExecutionContext scope,
-            JsonObject argsObject,
-            CancellationToken cancellationToken)
-        {
-            var approval = spec.Approval;
-            if (approval == null)
-                return null;
-
-            var targetState = ApprovalArgumentResolver.ResolveTargetArgument(
-                argsObject,
-                spec.InputSchema,
-                approval.TargetArgument,
-                out var approvalTarget);
-            if (targetState == ApprovalTargetArgumentState.MissingOptional)
-                return null;
-            if (targetState == ApprovalTargetArgumentState.MissingRequired)
-            {
-                return (
-                    "InvalidArguments",
-                    $"App-bound tool '{spec.Name}' requires string argument '{approval.TargetArgument}' for approval routing.");
-            }
-
-            if (!TryResolveApprovalOperation(argsObject, approval, out var approvalOperation, out var operationError))
-                return ("InvalidArguments", operationError);
-
-            return approval.Kind.ToLowerInvariant() switch
-            {
-                "file" => await GuardFileAccessAsync(scope, approvalTarget, approvalOperation, cancellationToken),
-                "shell" => await GuardShellAccessAsync(scope, approvalTarget, approvalOperation),
-                "remoteresource" => await GuardRemoteResourceAccessAsync(scope, approvalTarget, approvalOperation),
-                _ => (
-                    AppBindingErrorCodes.ProtocolViolation,
-                    $"App-bound tool '{spec.Name}' uses unsupported approval kind '{approval.Kind}'.")
-            };
-        }
-
-        private bool TryResolveApprovalOperation(
-            JsonObject argsObject,
-            ChannelToolApprovalDescriptor approval,
-            out string operation,
-            out string error)
-        {
-            if (!string.IsNullOrWhiteSpace(approval.Operation))
-            {
-                operation = approval.Operation!;
-                error = string.Empty;
-                return true;
-            }
-
-            if (!string.IsNullOrWhiteSpace(approval.OperationArgument)
-                && ApprovalArgumentResolver.TryReadStringArgument(argsObject, approval.OperationArgument!, out var operationArgument))
-            {
-                operation = operationArgument;
-                error = string.Empty;
-                return true;
-            }
-
-            operation = string.Empty;
-            error = $"App-bound tool '{spec.Name}' could not resolve approval operation metadata.";
-            return false;
-        }
-
-        private object FinalizeFailure(
-            SessionItem item,
-            PluginFunctionExecutionContext scope,
-            string callId,
-            JsonObject argsObject,
-            string errorCode,
-            string errorMessage)
-        {
-            var result = Failed(errorCode, errorMessage);
-            item.Status = ItemStatus.Completed;
-            item.CompletedAt = DateTimeOffset.UtcNow;
-            item.Payload = CreatePayload(callId, argsObject, result);
-            scope.EmitItemCompleted(item);
-            return MapToolResultToModelValue(result);
-        }
-
-        private static async Task<(string ErrorCode, string ErrorMessage)?> GuardFileAccessAsync(
-            PluginFunctionExecutionContext scope,
-            string path,
-            string operation,
-            CancellationToken cancellationToken)
-        {
-            var userDotCraftPath = Path.GetFullPath(Path.Combine(
-                Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".craft"));
-            var guard = new FileAccessGuard(
-                scope.WorkspacePath,
-                requireApprovalOutsideWorkspace: scope.RequireApprovalOutsideWorkspace,
-                approvalService: scope.ApprovalService,
-                blacklist: scope.PathBlacklist,
-                trustedReadPaths: [userDotCraftPath]);
-            var resolvedPath = guard.ResolvePath(path);
-            var error = await guard.ValidatePathAsync(resolvedPath, operation, path, cancellationToken);
-            return error == null ? null : ("AccessDenied", error);
-        }
-
-        private static async Task<(string ErrorCode, string ErrorMessage)?> GuardShellAccessAsync(
-            PluginFunctionExecutionContext scope,
-            string workingDirectory,
-            string command)
-        {
-            var normalizedCommand = command.Trim();
-            if (string.IsNullOrWhiteSpace(normalizedCommand))
-                return ("InvalidArguments", "Shell approval routing requires a non-empty command string.");
-
-            if (scope.PathBlacklist != null && scope.PathBlacklist.CommandReferencesBlacklistedPath(normalizedCommand))
-                return ("AccessDenied", "Error: Command references a blacklisted path and cannot be executed.");
-
-            var resolvedWorkingDirectory = string.IsNullOrWhiteSpace(workingDirectory)
-                ? scope.WorkspacePath
-                : ResolveAgainstWorkspace(scope.WorkspacePath, workingDirectory);
-            var hasPathTraversal = normalizedCommand.Contains("..\\", StringComparison.Ordinal)
-                || normalizedCommand.Contains("../", StringComparison.Ordinal);
-            var isOutsideWorkspace = !IsWithinBoundary(resolvedWorkingDirectory, scope.WorkspacePath);
-
-            if (!hasPathTraversal && !isOutsideWorkspace)
-                return null;
-
-            if (!scope.RequireApprovalOutsideWorkspace)
-            {
-                if (hasPathTraversal)
-                    return ("AccessDenied", "Error: Command blocked by safety guard (path traversal detected).");
-                return ("AccessDenied", "Error: Working directory is outside workspace boundary.");
-            }
-
-            var approved = await scope.ApprovalService.RequestShellApprovalAsync(
-                normalizedCommand,
-                resolvedWorkingDirectory,
-                ApprovalContextScope.Current);
-            return approved ? null : ("AccessDenied", "Error: Command execution was rejected by user.");
-        }
-
-        private static async Task<(string ErrorCode, string ErrorMessage)?> GuardRemoteResourceAccessAsync(
-            PluginFunctionExecutionContext scope,
-            string target,
-            string operation)
-        {
-            var normalizedTarget = target.Trim();
-            if (string.IsNullOrWhiteSpace(normalizedTarget))
-                return ("InvalidArguments", "Remote resource approval routing requires a non-empty target string.");
-
-            var normalizedOperation = operation.Trim();
-            if (string.IsNullOrWhiteSpace(normalizedOperation))
-                return ("InvalidArguments", "Remote resource approval routing requires a non-empty operation string.");
-
-            var approved = await scope.ApprovalService.RequestResourceApprovalAsync(
-                "remoteResource",
-                normalizedOperation,
-                normalizedTarget,
-                ApprovalContextScope.Current);
-            return approved ? null : ("AccessDenied", "Error: Remote resource operation was rejected by user.");
-        }
-
-        private static object MapToolResultToModelValue(DynamicToolCallResult result)
-        {
-            if (result.ContentItems is { Count: > 0 } contentItems)
-            {
-                var aiContents = new List<AIContent>();
-                foreach (var item in contentItems)
-                {
-                    if (string.Equals(item.Type, "text", StringComparison.OrdinalIgnoreCase)
-                        && !string.IsNullOrWhiteSpace(item.Text))
-                    {
-                        aiContents.Add(new TextContent(item.Text));
-                    }
-                    else if (string.Equals(item.Type, "image", StringComparison.OrdinalIgnoreCase)
-                             && !string.IsNullOrWhiteSpace(item.DataBase64)
-                             && !string.IsNullOrWhiteSpace(item.MediaType))
-                    {
-                        try
-                        {
-                            aiContents.Add(new DataContent(Convert.FromBase64String(item.DataBase64), item.MediaType));
-                        }
-                        catch (FormatException)
-                        {
-                            aiContents.Add(new TextContent("[Invalid app-bound dynamic tool image payload]"));
-                        }
-                    }
-                }
-
-                if (aiContents.Count > 0)
-                {
-                    if (result.StructuredResult != null)
-                        aiContents.Add(new TextContent(result.StructuredResult.ToJsonString(SessionWireJsonOptions.Default)));
-
-                    return aiContents;
-                }
-            }
-
-            if (result.StructuredResult != null)
-            {
-                return new
-                {
-                    result.Success,
-                    result.ContentItems,
-                    result.StructuredResult,
-                    result.ErrorCode,
-                    result.ErrorMessage
-                };
-            }
-
-            if (!result.Success)
-            {
-                var error = result.ErrorMessage ?? "App-bound dynamic tool call failed.";
-                return string.IsNullOrWhiteSpace(result.ErrorCode) ? error : $"{result.ErrorCode}: {error}";
-            }
-
-            return "App-bound dynamic tool completed.";
-        }
-
-        private static PluginFunctionContentItem MapContentItem(ExtChannelToolContentItem item)
-            => new()
-            {
-                Type = item.Type,
-                Text = item.Text,
-                DataBase64 = item.DataBase64,
-                MediaType = item.MediaType
-            };
-
-        private static JsonObject ToJsonObject(AIFunctionArguments arguments)
-        {
-            var root = new JsonObject();
-            foreach (var (key, value) in arguments)
-                root[key] = value is JsonNode node ? node.DeepClone() : JsonSerializer.SerializeToNode(value, SessionWireJsonOptions.Default);
-            return root;
-        }
-
-        private static JsonElement ToJsonElement(JsonNode node)
-            => JsonSerializer.Deserialize<JsonElement>(node.ToJsonString(SessionWireJsonOptions.Default), SessionWireJsonOptions.Default);
-
-        private static string ResolveAgainstWorkspace(string workspacePath, string path)
-            => Path.IsPathRooted(path)
-                ? Path.GetFullPath(path)
-                : Path.GetFullPath(Path.Combine(workspacePath, path));
-
-        private static bool IsWithinBoundary(string fullPath, string boundaryRoot)
-        {
-            var resolvedPath = Path.GetFullPath(fullPath);
-            var resolvedBoundary = Path.GetFullPath(boundaryRoot)
-                .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
-
-            if (resolvedPath.Equals(resolvedBoundary, StringComparison.OrdinalIgnoreCase))
-                return true;
-
-            return resolvedPath.StartsWith(resolvedBoundary + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase)
-                   || resolvedPath.StartsWith(resolvedBoundary + Path.AltDirectorySeparatorChar, StringComparison.OrdinalIgnoreCase);
-        }
-    }
 }

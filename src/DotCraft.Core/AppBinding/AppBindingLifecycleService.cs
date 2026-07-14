@@ -544,7 +544,7 @@ internal sealed class AppBindingLifecycleService(
         string userId,
         string grantId,
         IReadOnlyList<string> grantedScopes,
-        IReadOnlyList<DynamicToolSpec>? toolSpecs = null,
+        IReadOnlyList<AppBoundToolSpec>? toolSpecs = null,
         AppDescriptor? descriptorOverride = null)
     {
         if (string.IsNullOrWhiteSpace(threadId))
@@ -565,7 +565,7 @@ internal sealed class AppBindingLifecycleService(
         var specs = (toolSpecs ?? runtime.ToolSpecs).ToList();
         if (specs.Count == 0)
             throw AppServerErrors.InvalidParams("'tools' must not be empty.");
-        if (!WireDynamicToolProxy.TryValidateSpecs(specs, out var dynamicToolError))
+        if (!WireDynamicToolProxy.TryValidateAppBoundSpecs(specs, out var dynamicToolError))
             throw AppServerErrors.InvalidParams(dynamicToolError);
 
         var warnings = new List<string>();
@@ -1321,7 +1321,7 @@ internal sealed class AppBindingLifecycleService(
             warnings,
             managedRuntime.AllowDirectMutatingToolExposure);
 
-        if (DynamicToolSpecsEqual(binding.AttachedTools, accepted))
+        if (AppBoundToolSpecsEqual(binding.AttachedTools, accepted))
             return;
 
         binding.AttachedTools = accepted;
@@ -1347,15 +1347,15 @@ internal sealed class AppBindingLifecycleService(
             null);
     }
 
-    private static bool DynamicToolSpecsEqual(
-        IReadOnlyList<DynamicToolSpec> left,
-        IReadOnlyList<DynamicToolSpec> right) =>
+    private static bool AppBoundToolSpecsEqual(
+        IReadOnlyList<AppBoundToolSpec> left,
+        IReadOnlyList<AppBoundToolSpec> right) =>
         JsonSerializer.Serialize(left, SessionWireJsonOptions.Default)
         == JsonSerializer.Serialize(right, SessionWireJsonOptions.Default);
 
     private static ManagedToolExposureNames ClassifyManagedToolExposure(
         AppDescriptor descriptor,
-        IReadOnlyList<DynamicToolSpec> tools)
+        IReadOnlyList<AppBoundToolSpec> tools)
     {
         var catalogByName = descriptor.ToolCatalog.ToDictionary(tool => tool.Name, StringComparer.Ordinal);
         var direct = new List<string>();
