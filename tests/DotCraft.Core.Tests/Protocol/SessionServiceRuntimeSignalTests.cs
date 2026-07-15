@@ -827,6 +827,14 @@ public sealed class SessionServiceRuntimeSignalTests : IDisposable
         Assert.Equal("SpawnAgent", deltaEvent.ToolCallArgumentsDeltaPayload!.ToolName);
         Assert.Equal("call-spawn", deltaEvent.ToolCallArgumentsDeltaPayload.CallId);
 
+        var startedToolCall = Assert.Single(
+            events,
+            e => e.EventType == SessionEventType.ItemStarted
+                && e.ItemId == deltaEvent.ItemId
+                && e.ItemPayload?.Payload is ToolCallPayload { ToolName: "SpawnAgent" });
+        var startedPayload = Assert.IsType<ToolCallPayload>(startedToolCall.ItemPayload!.Payload);
+        Assert.Null(startedPayload.Arguments);
+
         var completedToolCall = Assert.Single(
             events,
             e => e.EventType == SessionEventType.ItemCompleted

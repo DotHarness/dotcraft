@@ -1327,6 +1327,25 @@ function mergeExistingCommandExecutionIntoToolCall(
   return commandExecution ? mergeCommandExecutionIntoToolCall(item, commandExecution) : item
 }
 
+function mergeToolLikeProjection(
+  existing: ConversationItem,
+  projected: ConversationItem,
+  preserveStreamingStatus: boolean
+): ConversationItem {
+  const definedProjection = Object.fromEntries(
+    Object.entries(projected).filter(([, value]) => value !== undefined)
+  ) as Partial<ConversationItem>
+  return {
+    ...existing,
+    ...definedProjection,
+    status: preserveStreamingStatus && existing.status === 'streaming'
+      ? 'streaming'
+      : projected.status,
+    argumentsPreview: existing.argumentsPreview,
+    streamingFileContent: existing.streamingFileContent
+  }
+}
+
 function buildToolLikeItem(
   item: Record<string, unknown>,
   type: 'toolCall' | 'pluginFunctionCall' | 'dynamicToolCall' | 'mcpToolCall',
@@ -2174,13 +2193,20 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
         let nextPending = state.pendingTerminalByCallId
         let nextPendingToolCompletions = state.pendingToolCompletionsByCallKey
         const turns = state.turns.map((t) => {
-          if (t.id !== turnId || t.items.some((existing) => existing.id === baseItem.id)) return t
-          const nextItem = type === 'toolCall'
-            ? mergeExistingCommandExecutionIntoToolCall(baseItem, t.items)
+          if (t.id !== turnId) return t
+          const existing = t.items.find((candidate) => candidate.id === baseItem.id)
+          if (existing?.status === 'completed') return t
+          const projectedItem = existing
+            ? mergeToolLikeProjection(existing, baseItem, true)
             : baseItem
+          const nextItem = type === 'toolCall'
+            ? mergeExistingCommandExecutionIntoToolCall(projectedItem, t.items)
+            : projectedItem
           const nextTurn = {
             ...t,
-            items: sortItemsByCreatedAt([...t.items, nextItem])
+            items: sortItemsByCreatedAt(existing
+              ? t.items.map((candidate) => candidate.id === nextItem.id ? nextItem : candidate)
+              : [...t.items, nextItem])
           }
           if (type !== 'toolCall') return nextTurn
           const applied = applyPendingTerminalsToTurn(nextTurn, state.pendingTerminalByCallId)
@@ -2668,15 +2694,9 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
       }))
     } else if (type === 'toolCall') {
       // Mark the tool call item itself as completed and merge finalized payload fields.
-      const itemPayload = (item?.payload ?? {}) as Record<string, unknown>
       const itemId = (item?.id as string) ?? ''
       if (itemId) subAgentStreamingArgumentBuffers.delete(`${turnId}:${itemId}`)
-      const completedArgs = (item?.arguments as Record<string, unknown> | undefined)
-        ?? (itemPayload.arguments as Record<string, unknown> | undefined)
-      const completedToolName = (item?.toolName as string | undefined)
-        ?? (itemPayload.toolName as string | undefined)
-      const completedCallId = (item?.toolCallId as string | undefined)
-        ?? (itemPayload.callId as string | undefined)
+      const completedProjection = buildToolLikeItem(item, 'toolCall', 'completed')
       set((s) => {
         let nextPending = s.pendingTerminalByCallId
         let nextPendingToolCompletions = s.pendingToolCompletionsByCallKey
@@ -2687,14 +2707,10 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
             items: sortItemsByCreatedAt(
               t.items.map((i) =>
                 i.id === itemId
-                  ? mergeExistingCommandExecutionIntoToolCall({
-                      ...i,
-                      status: 'completed' as const,
-                      completedAt: (item?.completedAt as string),
-                      arguments: completedArgs ?? i.arguments,
-                      toolName: completedToolName ?? i.toolName,
-                      toolCallId: completedCallId ?? i.toolCallId
-                    }, t.items)
+                  ? mergeExistingCommandExecutionIntoToolCall(
+                      mergeToolLikeProjection(i, completedProjection, false),
+                      t.items
+                    )
                   : i
               )
             )

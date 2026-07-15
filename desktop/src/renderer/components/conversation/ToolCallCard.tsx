@@ -259,7 +259,7 @@ export const ToolCallCard = memo(function ToolCallCard({
     ?? formatRunningToolLabel(
       rendererFamily,
       toolName,
-      args,
+      hasFinalArgs ? args : undefined,
       locale,
       streamingDisplay.label,
       planTodos

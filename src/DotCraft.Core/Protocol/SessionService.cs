@@ -2357,7 +2357,7 @@ public sealed partial class SessionService(
                                                 streamingSnapshot!.ProviderFlatNames[streamingCanonicalName],
                                                 streamingSnapshot.Revision,
                                                 toolArgsDelta.CallId ?? string.Empty,
-                                                []);
+                                                null);
                                         }
                                         streamingToolCallItem.Status = ItemStatus.Streaming;
                                         streamingToolCallItemsByIndex[toolCallIndex] = streamingToolCallItem;

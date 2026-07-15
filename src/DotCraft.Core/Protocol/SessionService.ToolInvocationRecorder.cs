@@ -156,7 +156,7 @@ public sealed partial class SessionService
         string providerFlatName,
         long snapshotRevision,
         string callId,
-        JsonObject arguments)
+        JsonObject? arguments)
     {
         item.Status = ItemStatus.Started;
         item.CompletedAt = null;
@@ -181,7 +181,7 @@ public sealed partial class SessionService
                     Origin = registration.Definition.Provenance.Origin ?? "workspace",
                     SourceToolId = registration.Definition.Id.SourceToolId.Value,
                     CallId = callId,
-                    Arguments = arguments.DeepClone().AsObject(),
+                    Arguments = arguments?.DeepClone().AsObject(),
                     Status = "inProgress"
                 };
                 break;
@@ -199,7 +199,7 @@ public sealed partial class SessionService
                     Source = ToSessionProvenance(registration.Definition),
                     Presentation = ToSessionPresentation(registration.Definition.Presentation),
                     CallId = callId,
-                    Arguments = arguments.DeepClone().AsObject(),
+                    Arguments = arguments?.DeepClone().AsObject(),
                     Status = "inProgress"
                 };
                 break;
@@ -216,7 +216,7 @@ public sealed partial class SessionService
                     SnapshotRevision = snapshotRevision,
                     Source = ToSessionProvenance(registration.Definition),
                     Presentation = ToSessionPresentation(registration.Definition.Presentation),
-                    Arguments = arguments.DeepClone().AsObject(),
+                    Arguments = arguments?.DeepClone().AsObject(),
                     CallId = callId
                 };
                 break;

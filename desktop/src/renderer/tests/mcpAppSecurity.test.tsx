@@ -2,7 +2,9 @@ import { describe, expect, it, vi } from 'vitest'
 import {
   buildMcpAppDocument,
   isBridgeMessageWithinLimit,
+  isSandboxResourceBootstrapWithinLimit,
   MCP_APP_MAX_BRIDGE_MESSAGE_BYTES,
+  MCP_APP_MAX_RESOURCE_BYTES,
   SizeLimitedPostMessageTransport
 } from '../components/conversation/mcpAppSecurity'
 
@@ -31,6 +33,43 @@ describe('MCP App bridge security', () => {
   it('measures serialized UTF-8 bytes rather than JavaScript character count', () => {
     expect(isBridgeMessageWithinLimit({ value: 'x'.repeat(100) })).toBe(true)
     expect(isBridgeMessageWithinLimit({ value: '界'.repeat(MCP_APP_MAX_BRIDGE_MESSAGE_BYTES / 2) })).toBe(false)
+  })
+
+  it('allows a large trusted resource bootstrap without relaxing ordinary bridge messages', async () => {
+    const html = '<main>' + 'x'.repeat(840_997) + '</main>'
+    const bootstrap = {
+      jsonrpc: '2.0' as const,
+      method: 'ui/notifications/sandbox-resource-ready',
+      params: { html, sandbox: 'allow-scripts', csp: {}, permissions: {} }
+    }
+
+    expect(isBridgeMessageWithinLimit(bootstrap)).toBe(false)
+    expect(isSandboxResourceBootstrapWithinLimit(bootstrap)).toBe(true)
+    expect(isSandboxResourceBootstrapWithinLimit({
+      ...bootstrap,
+      method: 'tools/call'
+    })).toBe(false)
+
+    const iframe = document.createElement('iframe')
+    document.body.appendChild(iframe)
+    const source = iframe.contentWindow!
+    const onLimitExceeded = vi.fn()
+    const transport = new SizeLimitedPostMessageTransport(source, source, onLimitExceeded)
+    await transport.start()
+    const debug = vi.spyOn(console, 'debug').mockImplementation(() => {})
+    await expect(transport.send(bootstrap)).resolves.toBeUndefined()
+    debug.mockRestore()
+    expect(onLimitExceeded).not.toHaveBeenCalled()
+    await transport.close()
+    iframe.remove()
+  })
+
+  it('rejects a resource bootstrap whose HTML exceeds the 2 MiB resource limit', () => {
+    expect(isSandboxResourceBootstrapWithinLimit({
+      jsonrpc: '2.0',
+      method: 'ui/notifications/sandbox-resource-ready',
+      params: { html: 'x'.repeat(MCP_APP_MAX_RESOURCE_BYTES + 1) }
+    })).toBe(false)
   })
 
   it('rebuilds malformed hostile HTML with the host CSP before every script', () => {

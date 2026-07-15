@@ -12,6 +12,8 @@ export type ToolRendererFamily =
   | 'web'
   | 'requestUserInput'
   | 'readFile'
+  | 'lsp'
+  | 'commitSuggest'
   | 'todo'
   | 'deferredSearch'
 
@@ -121,6 +123,8 @@ export const CORE_TOOL_PRESENTATION_IDS = {
   web: 'core.web',
   requestUserInput: 'core.request-user-input',
   readFile: 'core.read-file',
+  lsp: 'core.lsp',
+  commitSuggest: 'core.commit-suggest',
   todo: 'core.todo',
   deferredSearch: 'core.deferred-search'
 } as const
@@ -149,6 +153,12 @@ export const coreToolRendererRegistry = new ToolRendererRegistry([
   }),
   registration(CORE_TOOL_PRESENTATION_IDS.readFile, 'readFile', {
     mode: 'collapsible', groupCategory: 'explore'
+  }),
+  registration(CORE_TOOL_PRESENTATION_IDS.lsp, 'lsp', {
+    mode: 'collapsible', groupCategory: 'explore'
+  }),
+  registration(CORE_TOOL_PRESENTATION_IDS.commitSuggest, 'commitSuggest', {
+    mode: 'collapsible'
   }),
   registration(CORE_TOOL_PRESENTATION_IDS.todo, 'todo', { mode: 'collapsible' }),
   registration(CORE_TOOL_PRESENTATION_IDS.deferredSearch, 'deferredSearch', {

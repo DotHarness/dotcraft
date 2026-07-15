@@ -1260,6 +1260,44 @@ describe('turn lifecycle', () => {
     expect(item?.argumentsPreview).not.toContain(largePrompt)
   })
 
+  it('enriches a delta-first tool placeholder without discarding its streaming preview', () => {
+    s().onTurnStarted(makeTurn())
+    s().onToolCallArgumentsDelta({
+      turnId: 'turn-1',
+      itemId: 'exec-stream',
+      toolName: 'Exec',
+      callId: 'call-exec',
+      delta: '{"command":"dotnet test'
+    })
+
+    s().onItemStarted({
+      turnId: 'turn-1',
+      item: {
+        id: 'exec-stream',
+        type: 'toolCall',
+        createdAt: '2026-07-15T00:00:00Z',
+        payload: {
+          toolName: 'Exec',
+          callId: 'call-exec',
+          arguments: {},
+          source: { kind: 'CoreNative', sourceId: 'core-native', sourceToolId: 'Exec' },
+          presentation: { presentationId: 'core.shell', options: {} }
+        }
+      }
+    })
+
+    const item = s().turns[0].items.find((candidate) => candidate.id === 'exec-stream')
+    expect(item).toMatchObject({
+      status: 'streaming',
+      toolName: 'Exec',
+      toolCallId: 'call-exec',
+      arguments: {},
+      source: { kind: 'CoreNative', sourceId: 'core-native', sourceToolId: 'Exec' },
+      presentation: { presentationId: 'core.shell', options: {} }
+    })
+    expect(item?.argumentsPreview).toBe('{"command":"dotnet test')
+  })
+
   it('merges an existing command execution into Exec when toolCall starts later', () => {
     s().onTurnStarted(makeTurn())
     s().onItemStarted({

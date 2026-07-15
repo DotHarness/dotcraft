@@ -1982,7 +1982,7 @@ Streamed arguments delta for a `toolCall` item. Concatenate `delta` values in or
 
 `toolCall` items with streamed arguments follow this sequence:
 
-1. `item/started` with `item.type = "toolCall"` (payload may contain partial metadata; `arguments` may be omitted or incomplete).
+1. `item/started` with `item.type = "toolCall"` (payload may contain partial metadata; while argument construction is in progress, `arguments` is omitted/null rather than an empty object).
 2. zero or more `item/toolCall/argumentsDelta`.
 3. `item/completed` with the final `toolCall` payload, including complete `payload.arguments`.
 
@@ -2000,6 +2000,8 @@ Client handling rules:
 - `toolName` and `callId` are typically present on the first chunk and may be omitted on subsequent chunks.
 - Clients should merge chunks by `itemId` (or `callId` when useful) and append `delta` in arrival order for preview rendering.
 - The authoritative executable/persisted arguments are the final `item/completed.item.payload.arguments`.
+- An empty `arguments` object means the final argument set is known to be empty; clients must not use
+  it to replace an active streamed preview before completion.
 - Argument-delta notifications are presentation-only and may omit the namespace. The server MUST NOT dispatch or choose among equal local names from a delta; executable identity comes from the final provider callback resolved through the frozen snapshot.
 - Empty deltas are suppressed by the server and are not delivered.
 
@@ -5350,7 +5352,9 @@ Disconnect, thread archive/delete, MCP generation replacement, binding revoke, p
 - message/model-context content: 16 KiB;
 - resource or raw tool result: 2 MiB;
 - active views: eight per thread, 32 per connection;
-- bridge JSON message: 256 KiB (enforced by Desktop before forwarding);
+- ordinary bridge JSON message: 256 KiB (enforced by Desktop before forwarding). The trusted
+  host-to-sandbox `ui/notifications/sandbox-resource-ready` bootstrap carries HTML under the
+  2 MiB resource limit while its remaining envelope stays within 256 KiB;
 - log entry: 8 KiB and 60 entries per view per minute (handled locally by Desktop).
 
 Stable View error categories are `McpAppViewNotFound`, `McpAppViewStale`, `McpAppViewOffline`, `McpAppViewRevoked`, `McpAppUnauthorized`, `McpAppApprovalRejected`, `McpAppInputInvalid`, `McpAppTimeout`, `McpAppProtocolError`, and `McpAppResultTooLarge`.

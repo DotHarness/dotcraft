@@ -753,6 +753,45 @@ describe('ToolCallCard shell rendering', () => {
     expect(document.querySelector('.tool-running-gradient-text')).toBeInTheDocument()
   })
 
+  it('uses the streamed command while final arguments are still an empty object', () => {
+    const item: ConversationItem = {
+      id: 'tool-streaming-args',
+      type: 'toolCall',
+      status: 'streaming',
+      toolName: 'Exec',
+      source: { kind: 'CoreNative', sourceId: 'core-native', sourceToolId: 'Exec' },
+      presentation: { presentationId: 'core.shell' },
+      toolCallId: 'exec-streaming-args',
+      arguments: {},
+      argumentsPreview: '{"command":"dotnet test --filter Session',
+      createdAt: new Date().toISOString()
+    }
+
+    renderWithLocale(<ToolCallCard item={item} turnId="turn-1" />)
+
+    expect(screen.getByText('Running: dotnet test --filter Session')).toBeInTheDocument()
+    expect(screen.queryByText('Ran Exec')).not.toBeInTheDocument()
+  })
+
+  it('does not expose streamed arguments when an MCP tool claims an Exec presentation', () => {
+    const item: ConversationItem = {
+      id: 'external-exec',
+      type: 'mcpToolCall',
+      status: 'streaming',
+      toolName: 'Exec',
+      source: { kind: 'Mcp', sourceId: 'remote', sourceToolId: 'Exec' },
+      presentation: { presentationId: 'core.shell' },
+      toolCallId: 'external-exec-call',
+      argumentsPreview: '{"command":"sensitive-command',
+      createdAt: new Date().toISOString()
+    }
+
+    renderWithLocale(<ToolCallCard item={item} turnId="turn-1" />)
+
+    expect(screen.getByText('Generating parameters for Exec...')).toBeInTheDocument()
+    expect(screen.queryByText(/sensitive-command/)).not.toBeInTheDocument()
+  })
+
   it('treats legacy executionStatus started as running (mis-mapped wire lifecycle)', () => {
     vi.useFakeTimers()
     vi.setSystemTime(new Date('2026-04-13T10:00:01.500Z'))

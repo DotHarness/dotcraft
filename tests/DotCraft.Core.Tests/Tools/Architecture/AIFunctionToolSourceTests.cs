@@ -74,6 +74,17 @@ public sealed class AIFunctionToolSourceTests
         Assert.Equal("core.read-file", presentation.Id.Value);
     }
 
+    [Theory]
+    [InlineData("LSP", "core.lsp")]
+    [InlineData("CommitSuggest", "core.commit-suggest")]
+    public void CoreUtilityTools_UseTrustedPresentation(string toolName, string presentationId)
+    {
+        var presentation = CoreToolPresentationCatalog.Resolve(toolName);
+
+        Assert.NotNull(presentation);
+        Assert.Equal(presentationId, presentation.Id.Value);
+    }
+
     private static ToolPlanningContext CreatePlanningContext() => new(
         "thread_test",
         "turn_test",

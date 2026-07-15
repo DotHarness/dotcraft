@@ -102,7 +102,9 @@ Normative limits:
 - four concurrent tool calls and 60 calls per view per minute;
 - 16 KiB per `ui/message` or model-context update;
 - 2 MiB per resource or raw result;
-- 256 KiB per bridge JSON message;
+- 256 KiB per ordinary bridge JSON message. The trusted host-to-sandbox
+  `ui/notifications/sandbox-resource-ready` bootstrap carries the already-validated HTML resource
+  under the 2 MiB resource limit; its remaining envelope stays within the bridge-message limit;
 - eight active views per thread and 32 per connection;
 - 8 KiB per log entry and 60 logs per view per minute.
 

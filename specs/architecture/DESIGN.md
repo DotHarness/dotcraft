@@ -394,7 +394,9 @@ The app owns the inner UI; Desktop owns only the host frame around it.
 
 - The host frame is a single neutral surface (`--bg-secondary`, `--border-default`,
   8–10px radius) with a quiet header (tool title / app attribution) and the iframe
-  below. Do not add decorative chrome around the iframe.
+  below. When an MCP App explicitly sets `prefersBorder: false`, keep the quiet
+  header and controls but remove the host border and background. Do not add
+  decorative chrome around the iframe.
 - The iframe content is the app's own HTML/CSS; Desktop does not restyle it. Hand the
   theme (light/dark) and accent to the UI via host context (`ui/initialize` /
   host-config) so apps can match the desktop; apps choose whether to honor it.

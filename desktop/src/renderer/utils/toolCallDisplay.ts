@@ -41,6 +41,7 @@ export const BUILTIN_TOOLS = new Set<string>([
   'GrepFiles',
   'FindFiles',
   'Exec',
+  'WriteStdin',
   'WebSearch',
   'WebFetch',
   'SpawnAgent',
@@ -49,6 +50,8 @@ export const BUILTIN_TOOLS = new Set<string>([
   'FollowupTask',
   'ListAgents',
   'CloseAgent',
+  'SendInput',
+  'ResumeAgent',
   'LSP',
   'SearchTools',
   'tool_search',
@@ -525,6 +528,9 @@ export function getStreamingToolDisplay(
       }
       return { label: translate(locale, 'toolCall.streaming.runningGeneric') }
     }
+    case 'WriteStdin': {
+      return { label: translate(locale, 'toolCall.streaming.genericBuiltin', { toolName }) }
+    }
     case 'WebSearch': {
       const query = extractPartialJsonStringValue(rawArgs, 'query')
       if (query) {
@@ -604,6 +610,20 @@ export function getStreamingToolDisplay(
     case 'CloseAgent': {
       return {
         label: translate(locale, 'toolCall.subAgent.closing', {
+          name: translate(locale, 'toolCall.subAgent.agent')
+        })
+      }
+    }
+    case 'SendInput': {
+      return {
+        label: translate(locale, 'toolCall.subAgent.sendingMessage', {
+          name: translate(locale, 'toolCall.subAgent.agent')
+        })
+      }
+    }
+    case 'ResumeAgent': {
+      return {
+        label: translate(locale, 'toolCall.subAgent.resuming', {
           name: translate(locale, 'toolCall.subAgent.agent')
         })
       }

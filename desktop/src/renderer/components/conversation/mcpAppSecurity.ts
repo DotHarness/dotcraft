@@ -1,8 +1,13 @@
 import { PostMessageTransport } from '@modelcontextprotocol/ext-apps/app-bridge'
 import type { Transport, TransportSendOptions } from '@modelcontextprotocol/sdk/shared/transport.js'
 import type { JSONRPCMessage, MessageExtraInfo } from '@modelcontextprotocol/sdk/types.js'
+import {
+  MCP_APP_MAX_BRIDGE_MESSAGE_BYTES,
+  MCP_APP_MAX_RESOURCE_BYTES,
+  MCP_APP_SANDBOX_RESOURCE_READY_METHOD
+} from '../../../shared/mcpAppSandbox'
 
-export const MCP_APP_MAX_BRIDGE_MESSAGE_BYTES = 256 * 1024
+export { MCP_APP_MAX_BRIDGE_MESSAGE_BYTES, MCP_APP_MAX_RESOURCE_BYTES }
 
 export class McpAppBridgeMessageTooLargeError extends Error {
   constructor() {
@@ -22,6 +27,29 @@ export function bridgeMessageByteLength(message: unknown): number {
 
 export function isBridgeMessageWithinLimit(message: unknown): boolean {
   return bridgeMessageByteLength(message) <= MCP_APP_MAX_BRIDGE_MESSAGE_BYTES
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === 'object' && !Array.isArray(value)
+}
+
+/**
+ * The resource bootstrap is the only bridge notification allowed to carry the validated HTML
+ * resource. The HTML keeps the Core resource limit while all other fields keep the ordinary
+ * bridge-envelope limit.
+ */
+export function isSandboxResourceBootstrapWithinLimit(message: unknown): boolean {
+  if (!isRecord(message) || message.method !== MCP_APP_SANDBOX_RESOURCE_READY_METHOD || !isRecord(message.params)) {
+    return false
+  }
+  const html = message.params.html
+  if (typeof html !== 'string' || new TextEncoder().encode(html).byteLength > MCP_APP_MAX_RESOURCE_BYTES) {
+    return false
+  }
+  return isBridgeMessageWithinLimit({
+    ...message,
+    params: { ...message.params, html: '' }
+  })
 }
 
 /**
@@ -59,7 +87,7 @@ export class SizeLimitedPostMessageTransport implements Transport {
   }
 
   async send(message: JSONRPCMessage, options?: TransportSendOptions): Promise<void> {
-    if (!isBridgeMessageWithinLimit(message)) {
+    if (!isBridgeMessageWithinLimit(message) && !isSandboxResourceBootstrapWithinLimit(message)) {
       this.reportViolation()
       throw new McpAppBridgeMessageTooLargeError()
     }

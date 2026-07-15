@@ -119,4 +119,14 @@ describe('ToolRendererRegistry', () => {
       family: 'deferredSearch'
     })
   })
+
+  it.each([
+    [CORE_TOOL_PRESENTATION_IDS.lsp, 'lsp', 'explore'],
+    [CORE_TOOL_PRESENTATION_IDS.commitSuggest, 'commitSuggest', undefined]
+  ])('resolves the trusted %s utility presentation', (presentationId, family, groupCategory) => {
+    expect(coreToolRendererRegistry.resolve(item(presentationId))).toMatchObject({
+      family,
+      ...(groupCategory ? { groupCategory } : {})
+    })
+  })
 })

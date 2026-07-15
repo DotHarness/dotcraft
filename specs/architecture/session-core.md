@@ -497,6 +497,10 @@ The tool snapshot and the live invocation have distinct lifetimes. Snapshot plan
 
 For a registered call, streamed arguments and dispatcher lifecycle events are coordinated by `(threadId, turnId, callId, projectionShape)`. They MUST atomically upsert the same `ToolCall`; neither arrival order may create a generic duplicate. Canonical identity, source provenance, and presentation come from the matched frozen registration and MUST NOT be inferred from `toolName`, arguments, or result content.
 
+While arguments are still being streamed, the started projection omits `arguments` (or represents it
+as null); an empty object means the final argument set is known to be empty. The completed projection
+always carries the authoritative argument object.
+
 #### ToolExecution
 
 ```

@@ -1,14 +1,16 @@
 import { AppBridge } from '@modelcontextprotocol/ext-apps/app-bridge'
 import { Maximize2, Minimize2, Puzzle, TriangleAlert } from 'lucide-react'
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { createPortal } from 'react-dom'
+import { memo, useCallback, useEffect, useRef, useState } from 'react'
 import { useLocale } from '../../contexts/LocaleContext'
 import type { ConversationItem } from '../../types/conversation'
 import { translate } from '../../../shared/locales'
 import { THEME_CHANGED_EVENT } from '../../../shared/theme'
 import {
+  MCP_APP_SANDBOX_BRIDGE_VIOLATION_METHOD,
+  MCP_APP_SANDBOX_PROXY_URL
+} from '../../../shared/mcpAppSandbox'
+import {
   buildMcpAppDocument,
-  MCP_APP_MAX_BRIDGE_MESSAGE_BYTES,
   SizeLimitedPostMessageTransport
 } from './mcpAppSecurity'
 
@@ -18,7 +20,10 @@ const SANDBOX_READY_TIMEOUT_MS = 10_000
 const INITIALIZE_TIMEOUT_MS = 15_000
 const DATA_DELIVERY_TIMEOUT_MS = 15_000
 const DEFAULT_HEIGHT = 420
+const MIN_HEIGHT = 120
 const MAX_HEIGHT = 720
+const MIN_WIDTH = 240
+const SIZE_UPDATE_INTERVAL_MS = 100
 
 interface McpAppViewProps {
   item: ConversationItem
@@ -54,56 +59,30 @@ interface McpAppOpenResult {
   }
 }
 
-const SANDBOX_PROXY_HTML = `<!doctype html><html><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; frame-src 'self' data: blob:"></head><body style="margin:0;background:transparent"><script>
-(() => {
-  let inner = null;
-  const maxBytes = ${MCP_APP_MAX_BRIDGE_MESSAGE_BYTES};
-  const withinLimit = (message) => {
-    try {
-      const json = JSON.stringify(message);
-      return json !== undefined && new TextEncoder().encode(json).byteLength <= maxBytes;
-    }
-    catch { return false; }
-  };
-  const violate = () => {
-    if (inner) inner.remove();
-    inner = null;
-    window.parent.postMessage({ jsonrpc: '2.0', method: 'ui/notifications/sandbox-bridge-violation', params: {} }, '*');
-  };
-  const forward = (message) => {
-    if (!withinLimit(message)) { violate(); return; }
-    if (inner && inner.contentWindow) inner.contentWindow.postMessage(message, '*');
-  };
-  window.addEventListener('message', (event) => {
-    if (event.source === window.parent) {
-      const message = event.data;
-      if (message && message.method === 'ui/notifications/sandbox-resource-ready') {
-        const params = message.params || {};
-        inner = document.createElement('iframe');
-        inner.setAttribute('sandbox', 'allow-scripts');
-        inner.setAttribute('referrerpolicy', 'no-referrer');
-        inner.style.cssText = 'display:block;width:100%;height:100vh;border:0;background:transparent';
-        inner.srcdoc = String(params.html || '');
-        document.body.replaceChildren(inner);
-        return;
-      }
-      forward(message);
-      return;
-    }
-    if (inner && event.source === inner.contentWindow) {
-      if (!withinLimit(event.data)) { violate(); return; }
-      window.parent.postMessage(event.data, '*');
-    }
-  });
-  window.parent.postMessage({ jsonrpc: '2.0', method: 'ui/notifications/sandbox-proxy-ready', params: {} }, '*');
-})();
-</script></body></html>`
+type McpAppFailureCode =
+  | 'sandbox_ready_timeout'
+  | 'initialize_timeout'
+  | 'data_delivery_timeout'
+  | 'bridge_message_too_large'
+  | 'sandbox_bridge_violation'
+  | 'resource_bootstrap_failed'
+  | 'data_delivery_failed'
+  | 'request_teardown'
+  | 'bridge_connect_failed'
 
 function theme(): 'light' | 'dark' {
   return document.documentElement.getAttribute('data-theme') === 'light' ? 'light' : 'dark'
 }
 
-function hostContext(locale: string, fullscreen: boolean, height: number) {
+function positiveDimension(measured: number | undefined, fallback: number): number {
+  return measured !== undefined && measured > 0 ? measured : fallback
+}
+
+type HostContainerDimensions =
+  | { maxWidth: number; maxHeight: number }
+  | { width: number; height: number }
+
+function hostContext(locale: string, fullscreen: boolean, containerDimensions: HostContainerDimensions) {
   return {
     theme: theme(),
     locale,
@@ -111,7 +90,7 @@ function hostContext(locale: string, fullscreen: boolean, height: number) {
     platform: 'desktop' as const,
     displayMode: fullscreen ? 'fullscreen' as const : 'inline' as const,
     availableDisplayModes: ['inline', 'fullscreen'] as const,
-    containerDimensions: { maxWidth: window.innerWidth, height },
+    containerDimensions,
     userAgent: 'DotCraft Desktop',
     deviceCapabilities: {
       touch: navigator.maxTouchPoints > 0,
@@ -131,6 +110,8 @@ function asToolResult(result: McpAppOpenResult['toolResult']): Record<string, un
 
 function McpAppViewImpl({ item, threadId, turnId }: McpAppViewProps): JSX.Element {
   const locale = useLocale()
+  const surfaceRef = useRef<HTMLDivElement | null>(null)
+  const viewContainerRef = useRef<HTMLDivElement | null>(null)
   const iframeRef = useRef<HTMLIFrameElement | null>(null)
   const bridgeRef = useRef<AppBridge | null>(null)
   const handleRef = useRef<string | null>(null)
@@ -138,16 +119,30 @@ function McpAppViewImpl({ item, threadId, turnId }: McpAppViewProps): JSX.Elemen
   const [status, setStatus] = useState<'opening' | 'ready' | 'failed' | 'stale'>('opening')
   const [error, setError] = useState('')
   const [height, setHeight] = useState(DEFAULT_HEIGHT)
+  const [width, setWidth] = useState<number | null>(null)
   const [fullscreen, setFullscreen] = useState(false)
+  const fullscreenRef = useRef(fullscreen)
   const logTimes = useRef<number[]>([])
   const sizeUpdateAt = useRef(0)
+  const pendingSizeRef = useRef<{ width?: number; height?: number }>({})
+  const sizeUpdateTimerRef = useRef<number | null>(null)
+  const hostContextUpdateAt = useRef(0)
+  const hostContextTimerRef = useRef<number | null>(null)
   const phaseTimeoutRef = useRef<number | null>(null)
+
+  fullscreenRef.current = fullscreen
 
   useEffect(() => {
     if (phaseTimeoutRef.current !== null) {
       window.clearTimeout(phaseTimeoutRef.current)
       phaseTimeoutRef.current = null
     }
+    if (sizeUpdateTimerRef.current !== null) {
+      window.clearTimeout(sizeUpdateTimerRef.current)
+      sizeUpdateTimerRef.current = null
+    }
+    pendingSizeRef.current = {}
+    sizeUpdateAt.current = 0
     const previousBridge = bridgeRef.current
     bridgeRef.current = null
     if (previousBridge) {
@@ -160,6 +155,9 @@ function McpAppViewImpl({ item, threadId, turnId }: McpAppViewProps): JSX.Elemen
     }
     setOpenResult(null)
     setError('')
+    setHeight(DEFAULT_HEIGHT)
+    setWidth(null)
+    setFullscreen(false)
     if (!threadId || !item.mcpAppAvailable) {
       setStatus('stale')
       return
@@ -202,7 +200,10 @@ function McpAppViewImpl({ item, threadId, turnId }: McpAppViewProps): JSX.Elemen
     phaseTimeoutRef.current = null
   }, [])
 
-  const failView = useCallback((reason: string) => {
+  const failView = useCallback((reason: string, code?: McpAppFailureCode) => {
+    if (code) {
+      console.warn('[MCP App] view failed', { code, viewHandle: handleRef.current })
+    }
     clearPhaseTimeout()
     setError(reason)
     setStatus('failed')
@@ -214,9 +215,9 @@ function McpAppViewImpl({ item, threadId, turnId }: McpAppViewProps): JSX.Elemen
     closeView()
   }, [clearPhaseTimeout, closeView])
 
-  const armPhaseTimeout = useCallback((timeoutMs: number) => {
+  const armPhaseTimeout = useCallback((timeoutMs: number, code: McpAppFailureCode) => {
     clearPhaseTimeout()
-    phaseTimeoutRef.current = window.setTimeout(() => failView(''), timeoutMs)
+    phaseTimeoutRef.current = window.setTimeout(() => failView('', code), timeoutMs)
   }, [clearPhaseTimeout, failView])
 
   const setIframeRef = useCallback((node: HTMLIFrameElement | null) => {
@@ -229,8 +230,67 @@ function McpAppViewImpl({ item, threadId, turnId }: McpAppViewProps): JSX.Elemen
     }
   }, [])
 
+  const currentContainerDimensions = useCallback((): HostContainerDimensions => {
+    if (fullscreenRef.current) {
+      const container = viewContainerRef.current
+      return {
+        width: Math.max(1, Math.round(positiveDimension(container?.clientWidth, window.innerWidth))),
+        height: Math.max(1, Math.round(positiveDimension(container?.clientHeight, window.innerHeight)))
+      }
+    }
+    return {
+      maxWidth: Math.max(1, Math.round(positiveDimension(surfaceRef.current?.clientWidth, window.innerWidth))),
+      maxHeight: MAX_HEIGHT
+    }
+  }, [])
+
+  const makeHostContext = useCallback(() => {
+    return hostContext(locale, fullscreenRef.current, currentContainerDimensions())
+  }, [currentContainerDimensions, locale])
+
+  const applyPendingSize = useCallback(() => {
+    sizeUpdateTimerRef.current = null
+    sizeUpdateAt.current = Date.now()
+    if (fullscreenRef.current) {
+      pendingSizeRef.current = {}
+      return
+    }
+    const requested = pendingSizeRef.current
+    pendingSizeRef.current = {}
+    if (requested.width !== undefined) {
+      const availableWidth = positiveDimension(surfaceRef.current?.clientWidth, window.innerWidth)
+      setWidth(Math.min(availableWidth, Math.max(MIN_WIDTH, Math.ceil(requested.width))))
+    }
+    if (requested.height !== undefined) {
+      setHeight(Math.max(MIN_HEIGHT, Math.min(MAX_HEIGHT, Math.ceil(requested.height))))
+    }
+  }, [])
+
+  const handleSizeChange = useCallback(({ width: requestedWidth, height: requestedHeight }: { width?: number; height?: number }) => {
+    if (fullscreenRef.current) return
+    if (typeof requestedWidth === 'number' && Number.isFinite(requestedWidth) && requestedWidth > 0) {
+      pendingSizeRef.current.width = requestedWidth
+    }
+    if (typeof requestedHeight === 'number' && Number.isFinite(requestedHeight) && requestedHeight > 0) {
+      pendingSizeRef.current.height = requestedHeight
+    }
+    if (pendingSizeRef.current.width === undefined && pendingSizeRef.current.height === undefined) return
+
+    const remaining = SIZE_UPDATE_INTERVAL_MS - (Date.now() - sizeUpdateAt.current)
+    if (remaining <= 0) {
+      if (sizeUpdateTimerRef.current !== null) window.clearTimeout(sizeUpdateTimerRef.current)
+      applyPendingSize()
+      return
+    }
+    if (sizeUpdateTimerRef.current === null) {
+      sizeUpdateTimerRef.current = window.setTimeout(applyPendingSize, remaining)
+    }
+  }, [applyPendingSize])
+
   useEffect(() => () => {
     clearPhaseTimeout()
+    if (sizeUpdateTimerRef.current !== null) window.clearTimeout(sizeUpdateTimerRef.current)
+    if (hostContextTimerRef.current !== null) window.clearTimeout(hostContextTimerRef.current)
     const bridge = bridgeRef.current
     bridgeRef.current = null
     if (bridge) {
@@ -263,7 +323,7 @@ function McpAppViewImpl({ item, threadId, turnId }: McpAppViewProps): JSX.Elemen
         message: { text: {} },
         sandbox: { permissions: {} }
       },
-      { hostContext: hostContext(locale, fullscreen, height) }
+      { hostContext: makeHostContext() }
     )
     bridgeRef.current = bridge
 
@@ -313,13 +373,8 @@ function McpAppViewImpl({ item, threadId, turnId }: McpAppViewProps): JSX.Elemen
       setFullscreen(granted === 'fullscreen')
       return { mode: granted }
     }
-    bridge.onrequestteardown = () => failView('')
-    bridge.onsizechange = ({ height: requestedHeight }) => {
-      const now = Date.now()
-      if (now - sizeUpdateAt.current < 100 || typeof requestedHeight !== 'number') return
-      sizeUpdateAt.current = now
-      setHeight(Math.max(120, Math.min(MAX_HEIGHT, Math.ceil(requestedHeight))))
-    }
+    bridge.onrequestteardown = () => failView('', 'request_teardown')
+    bridge.onsizechange = handleSizeChange
     bridge.onloggingmessage = ({ level, logger, data }) => {
       const now = Date.now()
       logTimes.current = logTimes.current.filter((sample) => now - sample < 60_000)
@@ -333,39 +388,39 @@ function McpAppViewImpl({ item, threadId, turnId }: McpAppViewProps): JSX.Elemen
       if (sandboxReady) return
       sandboxReady = true
       clearPhaseTimeout()
-      armPhaseTimeout(INITIALIZE_TIMEOUT_MS)
+      armPhaseTimeout(INITIALIZE_TIMEOUT_MS, 'initialize_timeout')
       void bridge.sendSandboxResourceReady({
         html: buildMcpAppDocument(opened.resource.html, opened.resource.ui.csp),
         sandbox: 'allow-scripts',
         csp: opened.resource.ui.csp,
         permissions: {}
-      }).catch((reason) => failView(reason instanceof Error ? reason.message : String(reason)))
+      }).catch((reason) => failView(reason instanceof Error ? reason.message : String(reason), 'resource_bootstrap_failed'))
     }
     bridge.oninitialized = () => {
       clearPhaseTimeout()
-      armPhaseTimeout(DATA_DELIVERY_TIMEOUT_MS)
+      armPhaseTimeout(DATA_DELIVERY_TIMEOUT_MS, 'data_delivery_timeout')
       void bridge.sendToolInput({ arguments: opened.toolInput })
         .then(() => bridge.sendToolResult(asToolResult(opened.toolResult) as never))
         .then(() => {
           clearPhaseTimeout()
           setStatus('ready')
         })
-        .catch((reason) => failView(reason instanceof Error ? reason.message : String(reason)))
+        .catch((reason) => failView(reason instanceof Error ? reason.message : String(reason), 'data_delivery_failed'))
     }
 
     try {
       const transport = new SizeLimitedPostMessageTransport(
         iframe.contentWindow,
         iframe.contentWindow,
-        () => failView('')
+        () => failView('', 'bridge_message_too_large')
       )
       await bridge.connect(transport)
-      armPhaseTimeout(SANDBOX_READY_TIMEOUT_MS)
-      iframe.srcdoc = SANDBOX_PROXY_HTML
+      armPhaseTimeout(SANDBOX_READY_TIMEOUT_MS, 'sandbox_ready_timeout')
+      iframe.src = MCP_APP_SANDBOX_PROXY_URL
     } catch (reason) {
-      failView(reason instanceof Error ? reason.message : String(reason))
+      failView(reason instanceof Error ? reason.message : String(reason), 'bridge_connect_failed')
     }
-  }, [armPhaseTimeout, clearPhaseTimeout, failView, fullscreen, height, locale, openResult])
+  }, [armPhaseTimeout, clearPhaseTimeout, failView, handleSizeChange, makeHostContext, openResult])
 
   useEffect(() => {
     if (status !== 'opening' || !openResult) return
@@ -373,17 +428,50 @@ function McpAppViewImpl({ item, threadId, turnId }: McpAppViewProps): JSX.Elemen
   }, [connectBridge, openResult, status])
 
   useEffect(() => {
+    if (status !== 'opening' && status !== 'ready') return
+    const onBridgeViolation = (event: MessageEvent): void => {
+      if (event.source !== iframeRef.current?.contentWindow) return
+      const message = event.data as { method?: unknown } | null
+      if (message?.method === MCP_APP_SANDBOX_BRIDGE_VIOLATION_METHOD) {
+        failView('', 'sandbox_bridge_violation')
+      }
+    }
+    window.addEventListener('message', onBridgeViolation, true)
+    return () => window.removeEventListener('message', onBridgeViolation, true)
+  }, [failView, status])
+
+  useEffect(() => {
     const update = (): void => {
-      bridgeRef.current?.setHostContext(hostContext(locale, fullscreen, height))
+      hostContextTimerRef.current = null
+      hostContextUpdateAt.current = Date.now()
+      bridgeRef.current?.setHostContext(makeHostContext())
     }
-    update()
-    window.addEventListener(THEME_CHANGED_EVENT, update)
-    window.addEventListener('resize', update)
+    const scheduleUpdate = (): void => {
+      const remaining = SIZE_UPDATE_INTERVAL_MS - (Date.now() - hostContextUpdateAt.current)
+      if (remaining <= 0) {
+        if (hostContextTimerRef.current !== null) window.clearTimeout(hostContextTimerRef.current)
+        update()
+        return
+      }
+      if (hostContextTimerRef.current === null) {
+        hostContextTimerRef.current = window.setTimeout(update, remaining)
+      }
+    }
+
+    scheduleUpdate()
+    const observer = new ResizeObserver(scheduleUpdate)
+    if (surfaceRef.current) observer.observe(surfaceRef.current)
+    if (viewContainerRef.current) observer.observe(viewContainerRef.current)
+    window.addEventListener(THEME_CHANGED_EVENT, scheduleUpdate)
     return () => {
-      window.removeEventListener(THEME_CHANGED_EVENT, update)
-      window.removeEventListener('resize', update)
+      observer.disconnect()
+      window.removeEventListener(THEME_CHANGED_EVENT, scheduleUpdate)
+      if (hostContextTimerRef.current !== null) {
+        window.clearTimeout(hostContextTimerRef.current)
+        hostContextTimerRef.current = null
+      }
     }
-  }, [fullscreen, height, locale])
+  }, [fullscreen, makeHostContext, openResult])
 
   useEffect(() => {
     if (!fullscreen) return
@@ -394,7 +482,7 @@ function McpAppViewImpl({ item, threadId, turnId }: McpAppViewProps): JSX.Elemen
     return () => window.removeEventListener('keydown', onKeyDown)
   }, [fullscreen])
 
-  const body = useMemo(() => {
+  const body = (() => {
     if (status === 'stale') {
       return <Fallback icon={<Puzzle size={18} />} title={translate(locale, 'mcpApp.unavailable')} detail={item.result} />
     }
@@ -403,13 +491,23 @@ function McpAppViewImpl({ item, threadId, turnId }: McpAppViewProps): JSX.Elemen
     }
     if (!openResult) {
       return (
-        <div style={{ position: 'relative', width: '100%', height, minHeight: 120, display: 'grid', placeItems: 'center', color: 'var(--text-dimmed)', fontSize: 12 }}>
+        <div style={{ position: 'relative', width: '100%', height: fullscreen ? '100%' : height, minHeight: MIN_HEIGHT, display: 'grid', placeItems: 'center', color: 'var(--text-dimmed)', fontSize: 12, flex: fullscreen ? 1 : undefined }}>
           {translate(locale, 'mcpApp.loading')}
         </div>
       )
     }
     return (
-      <div style={{ position: 'relative', width: '100%', height, minHeight: 120 }}>
+      <div
+        ref={viewContainerRef}
+        style={{
+          position: 'relative',
+          width: '100%',
+          height: fullscreen ? 'auto' : height,
+          minHeight: MIN_HEIGHT,
+          flex: fullscreen ? 1 : undefined,
+          minWidth: 0
+        }}
+      >
         {status !== 'ready' && (
           <div style={{ position: 'absolute', inset: 0, display: 'grid', placeItems: 'center', color: 'var(--text-dimmed)', fontSize: 12 }}>
             {translate(locale, 'mcpApp.loading')}
@@ -426,33 +524,57 @@ function McpAppViewImpl({ item, threadId, turnId }: McpAppViewProps): JSX.Elemen
         />
       </div>
     )
-  }, [error, height, item.result, locale, openResult, status])
+  })()
 
-  const card = (
-    <div style={{ border: openResult?.resource.ui.prefersBorder === false ? 'none' : '1px solid var(--border-default)', borderRadius: 8, overflow: 'hidden', background: 'var(--bg-secondary)' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 8px', color: 'var(--text-secondary)', fontSize: 12 }}>
-        <span>{translate(locale, 'mcpApp.title')}</span>
-        {status !== 'stale' && (
-          <button
-            type="button"
-            aria-label={fullscreen ? translate(locale, 'mcpApp.exitFullscreen') : translate(locale, 'mcpApp.fullscreen')}
-            onClick={() => setFullscreen((value) => !value)}
-            style={{ border: 0, background: 'transparent', color: 'inherit', cursor: 'pointer', padding: 4 }}
-          >
-            {fullscreen ? <Minimize2 size={15} /> : <Maximize2 size={15} />}
-          </button>
-        )}
+  const borderless = openResult?.resource.ui.prefersBorder === false
+
+  return (
+    <div
+      ref={surfaceRef}
+      data-mcp-app-display-mode={fullscreen ? 'fullscreen' : 'inline'}
+      style={fullscreen
+        ? {
+            position: 'fixed',
+            inset: 0,
+            zIndex: 10000,
+            padding: 24,
+            boxSizing: 'border-box',
+            background: 'color-mix(in srgb, var(--bg-primary) 92%, transparent)',
+            display: 'flex'
+          }
+        : { width: '100%' }}
+    >
+      <div
+        data-mcp-app-frame={borderless ? 'borderless' : 'bordered'}
+        style={{
+          border: borderless ? 'none' : '1px solid var(--border-default)',
+          borderRadius: borderless ? 0 : 8,
+          overflow: 'hidden',
+          background: borderless ? 'transparent' : 'var(--bg-secondary)',
+          display: 'flex',
+          flexDirection: 'column',
+          width: fullscreen ? '100%' : width === null ? '100%' : `${width}px`,
+          maxWidth: '100%',
+          height: fullscreen ? '100%' : undefined,
+          minWidth: 0
+        }}
+      >
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 8px', color: 'var(--text-secondary)', fontSize: 12, flexShrink: 0 }}>
+          <span>{translate(locale, 'mcpApp.title')}</span>
+          {status !== 'stale' && (
+            <button
+              type="button"
+              aria-label={fullscreen ? translate(locale, 'mcpApp.exitFullscreen') : translate(locale, 'mcpApp.fullscreen')}
+              onClick={() => setFullscreen((value) => !value)}
+              style={{ border: 0, background: 'transparent', color: 'inherit', cursor: 'pointer', padding: 4 }}
+            >
+              {fullscreen ? <Minimize2 size={15} /> : <Maximize2 size={15} />}
+            </button>
+          )}
+        </div>
+        {body}
       </div>
-      {body}
     </div>
-  )
-
-  if (!fullscreen) return card
-  return createPortal(
-    <div style={{ position: 'fixed', inset: 0, zIndex: 10000, padding: 24, background: 'color-mix(in srgb, var(--bg-primary) 92%, transparent)', display: 'grid', placeItems: 'stretch' }}>
-      {card}
-    </div>,
-    document.body
   )
 }
 
