@@ -36,24 +36,25 @@ SDD 在 2025–2026 年间逐渐流行，作为对 AI 辅助下随性"vibe codin
 | 6. 实现 | 只做一个里程碑；遇到与规范不符时以提问呈现，而不是悄悄偏离。 |
 | 7. 基于规范的验证 | 对照里程碑规范的验收清单检查结果。 |
 
-## 工具：dotcraft-dev 插件
+## 工具：产品插件与共享工作流插件
 
-官方 `dotcraft-dev` 插件把这套工作流打包为 Agent 技能，因此当你让 Agent 规划或构建时，它会遵循 SDD。从 Plugins catalog 启用它（参见 [插件与工具](../../features/agent-system/plugins-tools)），随后通过它的技能推进工作：
+两个官方插件分别承载产品专属知识与可复用的工程工作流。可从 Plugins catalog 启用它们（参见 [插件与工具](../../features/agent-system/plugins-tools)）：
 
-| 技能 | 作用 |
-|---|---|
-| `dev-guide` | 项目的 spec-first 规范、测试规则与双语文档指引。 |
-| `feature-workflow` | 为大型功能运行上述七阶段流程——里程碑规范、一次一个里程碑的实现、基于规范的验证。 |
-| `ui-prototype` | 在改动生产代码前先做独立的 Desktop UI 原型。 |
-| `svg-design` | 设计与校验仓库原生的 SVG 资源。 |
-| `release-draft` | 起草发布说明。 |
+| 插件 | 技能 | 作用 |
+|---|---|---|
+| `dotcraft-dev` | `$dotcraft-dev-guide` | DotCraft 的 spec-first 规范、测试规则与双语文档指引。 |
+| `dotcraft-dev` | `$dotcraft-docs-guide` | DotCraft 的产品术语与双语文档标准。 |
+| `dotcraft-dev` | `$release-draft` | 基于证据起草 DotCraft 发布说明。 |
+| `harness-workflow` | `$feature-workflow` | 为大型功能运行上述七阶段流程——里程碑规范、一次一个里程碑的实现与基于规范的验证。 |
+| `harness-workflow` | `$ui-prototype` | 在改动生产代码前先做隔离的 UI 原型。 |
+| `harness-workflow` | `$svg-design` | 设计与校验仓库原生的 SVG 资源。 |
 
-启用插件后，像"规划一个新功能"这样的请求会引导 Agent 进入 `feature-workflow` 技能：它会讨论范围、提出里程碑、把规范写入 `specs/`，然后才实现并对照规范验证。
+同时启用两个插件后，DotCraft 专属规则来自 `dotcraft-dev`；而"规划一个新功能"这样的请求会激活 `harness-workflow` 中的 `$feature-workflow`：Agent 会讨论范围、提出里程碑、按照当前仓库约定编写规范，然后才实现并对照规范验证。
 
 ## 参见
 
 - [架构总览](../architecture/overview)——规范所描述的运行时。
-- [插件与工具](../../features/agent-system/plugins-tools)——安装与启用像 `dotcraft-dev` 这样的插件。
+- [插件与工具](../../features/agent-system/plugins-tools)——安装与启用 `dotcraft-dev` 和 `harness-workflow`。
 - [外部 Agent 协作](./workspace-handoff)——为外部编码 Agent 导出上下文。
 
 延伸阅读：[What is Spec-Driven Development?（IBM）](https://www.ibm.com/think/topics/spec-driven-development) · [Understanding Spec-Driven Development（Martin Fowler）](https://martinfowler.com/articles/exploring-gen-ai/sdd-3-tools.html)

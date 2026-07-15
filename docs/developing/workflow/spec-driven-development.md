@@ -36,24 +36,25 @@ For a substantial feature, the rhythm is discussion-first, spec-before-code, one
 | 6. Implementation | Build one milestone; surface spec mismatches as questions instead of silently diverging. |
 | 7. Spec-based validation | Check the result against the milestone spec's acceptance checklist. |
 
-## Tooling: the dotcraft-dev plugin
+## Tooling: product and shared workflow plugins
 
-The official `dotcraft-dev` plugin packages this workflow as agent skills, so the agent follows SDD when you ask it to plan or build something. Enable it from the Plugins catalog (see [Plugins & Tools](../../features/agent-system/plugins-tools)), then drive work through its skills:
+Two official plugins divide product-specific knowledge from reusable engineering workflows. Enable them from the Plugins catalog (see [Plugins & Tools](../../features/agent-system/plugins-tools)):
 
-| Skill | Role |
-|---|---|
-| `dev-guide` | The project's spec-first norms, testing rules, and bilingual-docs guidance. |
-| `feature-workflow` | Runs the seven-phase flow above for large features — milestone specs, one-at-a-time implementation, spec validation. |
-| `ui-prototype` | Standalone Desktop UI prototypes before touching production code. |
-| `svg-design` | Designing and validating repo-native SVG assets. |
-| `release-draft` | Drafting release notes. |
+| Plugin | Skill | Role |
+|---|---|---|
+| `dotcraft-dev` | `$dotcraft-dev-guide` | DotCraft's spec-first norms, testing rules, and bilingual-docs guidance. |
+| `dotcraft-dev` | `$dotcraft-docs-guide` | DotCraft's product terminology and bilingual documentation standards. |
+| `dotcraft-dev` | `$release-draft` | Evidence-based DotCraft release drafting. |
+| `harness-workflow` | `$feature-workflow` | Runs the seven-phase flow above for large features — milestone specs, one-at-a-time implementation, and spec validation. |
+| `harness-workflow` | `$ui-prototype` | Isolated UI prototypes before touching production code. |
+| `harness-workflow` | `$svg-design` | Designing and validating repo-native SVG assets. |
 
-With the plugin enabled, a request like "plan a new feature" leads the agent into the `feature-workflow` skill: it discusses scope, proposes milestones, writes specs into `specs/`, and only then implements and validates against them.
+With both plugins enabled, DotCraft-specific rules come from `dotcraft-dev`, while a request like "plan a new feature" activates `$feature-workflow` from `harness-workflow`: the agent discusses scope, proposes milestones, writes specs using the current repository's conventions, and only then implements and validates against them.
 
 ## See also
 
 - [Architecture](../architecture/overview) — the runtime the specs describe.
-- [Plugins & Tools](../../features/agent-system/plugins-tools) — installing and enabling plugins like `dotcraft-dev`.
+- [Plugins & Tools](../../features/agent-system/plugins-tools) — installing and enabling `dotcraft-dev` and `harness-workflow`.
 - [Workspace Handoff](./workspace-handoff) — exporting context for outside coding agents.
 
 Further reading: [What is Spec-Driven Development? (IBM)](https://www.ibm.com/think/topics/spec-driven-development) · [Understanding Spec-Driven Development (Martin Fowler)](https://martinfowler.com/articles/exploring-gen-ai/sdd-3-tools.html)

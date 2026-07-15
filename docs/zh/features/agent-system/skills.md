@@ -91,6 +91,17 @@ Skills 页面右上角 **管理** 是批量启用/禁用入口：
 
 启用自学习后，DotCraft 会给 Agent 一份按需的 `skill-authoring` 参考：如何组织 skill 的 frontmatter、supporting file 该放在哪里、常见坑，以及如何验证结果。关闭自学习，这份参考也会随之消失。
 
+## 官方开发工作流插件
+
+官方开发技能按作用域拆分：
+
+| 插件 | 技能 | 作用域 |
+|---|---|---|
+| `dotcraft-dev` | `$dotcraft-dev-guide`、`$dotcraft-docs-guide`、`$release-draft` | DotCraft 专属开发规范、双语产品文档与发布说明起草。 |
+| `harness-workflow` | `$feature-workflow`、`$ui-prototype`、`$svg-design` | 遵循当前项目约定的共享功能规划、隔离 UI 原型与 SVG 资源工作流。 |
+
+根据当前工作从 Plugins catalog 启用相应插件。开发大型 DotCraft 功能时，通常会同时启用两者。
+
 ## 安全与信任
 
 - 系统 skill 与插件自带 skill 默认可信。
@@ -111,4 +122,4 @@ Skills 页面右上角 **管理** 是批量启用/禁用入口：
 
 - [Plugins 与工具](./plugins-tools) — 用插件分发 skills + tools 的能力包
 - [项目级工作区](../project-first) — `.craft/skills/` 在整体目录中的位置
-- [Spec-Driven Development](../../developing/workflow/spec-driven-development) — `dotcraft-dev` 打包的开发技能
+- [Spec-Driven Development](../../developing/workflow/spec-driven-development) — `dotcraft-dev` 与 `harness-workflow` 如何划分产品规则与共享工作流
