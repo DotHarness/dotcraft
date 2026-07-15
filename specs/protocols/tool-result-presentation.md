@@ -46,7 +46,7 @@ Every DotCraft MCP client initialization advertises:
 
 This MCP capability belongs to the MCP session and does not change when Desktop connects or disconnects.
 
-Tool linkage is read only from nested tool `_meta.ui`:
+Tool linkage is read from tool metadata. `_meta.ui.resourceUri` is canonical and `_meta["ui/resourceUri"]` is accepted as an input alias when the nested field is absent. An invalid present nested declaration fails closed and is not replaced by the alias:
 
 - `resourceUri` is an absolute `ui://` URI;
 - omitted `visibility` means `model` and `app`;
@@ -63,21 +63,25 @@ Only a terminal `McpToolCall` delivered live to the same AppServer connection th
 
 `thread/read`, replay, resume, navigation reload, Desktop restart, a new AppServer connection, and MCP generation replacement always use the generic frozen result. Neither eligibility nor `viewHandle` is persisted. A same-named reconnected server never inherits prior view authority.
 
-`mcpApp/view/open` accepts only `threadId` and `itemId`. Core validates the live delivery, terminal item, current snapshot, definition, runtime binding, authority, App visibility, and MCP generation before atomically reading the UI resource and issuing a random opaque handle.
+Thread rollback immediately clears connection-local eligibility for every removed live result in that thread. Existing handles must be closed or rejected by subsequent authority checks; rollback cannot make a prior result live again.
 
-Each handle is connection-owned and binds immutable thread/item, server/origin, generation, definition/runtime binding, snapshot/authority revision, raw source tool id, and resource URI. Desktop and the iframe cannot supply or override those values. Disconnect, archive/delete, generation replacement, revoke, plugin disable, configuration replacement, or view close invalidates the handle immediately.
+`Turn.error` is the canonical user-facing presentation of a Turn failure. Session Core may retain an Error Item as a diagnostic record, but a client MUST present an identical Error Item and `Turn.error` only once. Distinct errors remain independently visible.
+
+`mcpApp/view/open` accepts only `threadId`, `turnId`, and `itemId`. Core validates the exact live delivery, terminal item, current snapshot, definition, runtime binding, authority, App visibility, and MCP generation before atomically reading the UI resource and issuing a random opaque handle.
+
+Each handle is connection-owned and binds immutable thread/Turn/Item, server/origin, generation, definition/runtime binding, snapshot/authority revision, raw source tool id, and resource URI. Desktop and the iframe cannot supply or override those values. Disconnect, archive/delete, generation replacement, revoke, plugin disable, configuration replacement, or view close invalidates the handle immediately.
 
 ## 5. Host and AppBridge behavior
 
 The host implements the stable initialize/initialized lifecycle, ping, teardown, tool-input and tool-result notifications, host-context updates, same-server tools/resources, logging, safe links, `ui/message`, and `ui/update-model-context`.
 
-Supported display modes are inline and fullscreen. Fullscreen reuses the same view handle. Picture-in-picture, persisted widget state, historical reconstruction, dedicated domains, and iframe permissions are not supported.
+Supported display modes are inline and fullscreen. Fullscreen reuses the same view handle. Picture-in-picture, persisted widget state, dedicated domains, and iframe permissions are not supported.
 
 Theme, locale, time zone, dimensions, display mode, and standard CSS variables are supplied through host context. Size and host-context updates are coalesced to at most ten per second.
 
 The host renders through a trusted isolated-origin proxy and an inner sandboxed iframe. The inner document has no preload, Node, Electron, filesystem, shell, generic IPC, parent DOM, or undeclared network access. DotCraft applies a restrictive default CSP and only adds validated declared domains to their matching directives. Resource `domain` is attribution metadata and does not select a real origin.
 
-M2 validates permission declarations but grants none. Camera, microphone, geolocation, and clipboard-write remain denied. `ui/open-link` permits HTTPS, `mailto`, and explicit loopback HTTP only; `file`, `data`, `javascript`, and custom schemes are rejected.
+DotCraft validates permission declarations but grants none. Camera, microphone, geolocation, and clipboard-write remain denied. `ui/open-link` permits HTTPS, `mailto`, and explicit loopback HTTP only; `file`, `data`, `javascript`, and custom schemes are rejected.
 
 ## 6. View actions
 
@@ -93,7 +97,7 @@ Unknown input content blocks reject the entire message/context update. Supported
 
 ## 7. Limits and lifecycle
 
-Normative M2 limits:
+Normative limits:
 
 - four concurrent tool calls and 60 calls per view per minute;
 - 16 KiB per `ui/message` or model-context update;
@@ -106,19 +110,17 @@ The live state sequence is unavailable → loading → initializing → ready-in
 
 ## 8. Core-only local renderer registry
 
-The local renderer registry is independent of MCP Apps. In M2 only trusted Core/Desktop renderers may register. Plugin and third-party code loading is deferred to a separate trust specification.
+The local renderer registry is independent of MCP Apps. Only trusted Core/Desktop renderers may register. Plugin and third-party code loading is deferred to a separate trust specification.
 
-Selection uses an ordinal server-projected `PresentationId` plus matching safe Core provenance. Each renderer validates its bounded options. Duplicate ids fail registry construction. Unknown ids, invalid options, missing presentation, or provenance mismatch use the generic card. Remote MCP metadata, Dynamic declarations, plugin payloads, tool names, and results cannot select local code.
+Selection uses an ordinal server-projected `PresentationId` plus matching safe Core provenance. Both values originate from the frozen tool registration and are persisted on the source-declared Session projection. Each renderer validates its bounded options. Duplicate ids fail registry construction. Unknown ids, invalid options, missing presentation, or provenance mismatch use the generic card. Remote MCP metadata, Dynamic declarations, plugin payloads, tool names, arguments, and results cannot select local code.
 
-M2 migrates every existing special renderer family: CreatePlan, Cron, SkillManage, SkillView, all SubAgent operations, shell, WriteFile/EditFile and streaming diff, WebSearch/WebFetch, RequestUserInput, ReadFile, TodoWrite/UpdateTodos, deferred tool search, and generic fallback. Conversation cards, pinning, grouping, and labels consume registry render plans rather than branching on tool names.
+The registry contains the Core renderer families for CreatePlan, Cron, SkillManage, SkillView, all SubAgent operations, shell, WriteFile/EditFile and streaming diff, WebSearch/WebFetch, RequestUserInput, ReadFile, TodoWrite/UpdateTodos, deferred tool search, and generic fallback. Conversation cards, pinning, grouping, and labels consume registry render plans rather than branching on tool names.
 
-Trusted historical Core Native items that lack a presentation descriptor MAY use a read-only provenance projector keyed by safe Core source identity. Non-Core or incomplete history is never guessed.
+Items without a trusted presentation descriptor use the generic renderer. The Desktop MUST NOT derive a renderer from tool names, arguments, results, provenance labels, or provider metadata.
 
-## 9. Legacy App Binding isolation
+## 9. App Binding boundary
 
-The private App Binding iframe protocol is a Legacy-only path until its scheduled removal. Its `interactiveToolUi`, `ui/resource/read`, `ui/tool/call`, widget-state APIs, custom bridge token/version, picture-in-picture, and private metadata MUST NOT be used by MCP Apps.
-
-Only trusted Legacy App Binding provenance may activate that path. Runtime Dynamic tools and ordinary MCP `_meta` cannot trigger it. MCP Apps never accepts private widget fields, `_meta.ui` from Dynamic results, or Legacy resource authority.
+App Binding has no private presentation protocol. Binding-owned interactive results use the same MCP Apps resource, view-handle, authority, approval, and teardown contract as every other MCP origin. `interactiveToolUi`, `ui/resource/read`, `ui/tool/call`, widget-state APIs, custom bridge tokens, and Dynamic `_meta.ui` are invalid.
 
 ## 10. Acceptance
 
@@ -126,6 +128,6 @@ Only trusted Legacy App Binding provenance may activate that path. Runtime Dynam
 - only live terminal MCP items on the owning capable connection can open a view;
 - same-server authority, approval, audience separation, limits, and teardown are enforced;
 - inline/fullscreen, generic fallback, safe links, messages, and one-shot context work;
-- historical and reconnected items remain generic;
+- reconnected items remain generic;
 - all hard-coded Core renderer families resolve through the provenance-gated registry;
-- MCP Apps and Legacy App Binding cannot activate or authorize each other.
+- App Binding authorization cannot bypass or replace MCP Apps view authority.

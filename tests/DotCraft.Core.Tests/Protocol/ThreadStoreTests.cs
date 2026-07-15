@@ -428,6 +428,8 @@ public sealed class ThreadStoreTests : IDisposable
         var remaining = Assert.Single(loaded.Turns);
         Assert.Equal("first", remaining.Input?.AsUserMessage?.Text);
         Assert.Equal("one", remaining.Items[1].AsAgentMessage?.Text);
+        Assert.Equal(2, loaded.TurnSequenceHighWatermark);
+        Assert.Equal(3, SessionIdGenerator.ReserveNextTurnSequence(loaded));
     }
 
     [Fact]
@@ -550,6 +552,7 @@ public sealed class ThreadStoreTests : IDisposable
             Payload = new ToolCallPayload
             {
                 ToolName = "ReadFile",
+                ProviderFlatName = "ReadFile",
                 CallId = "call_guidance_order",
                 Arguments = new JsonObject()
             }
@@ -619,6 +622,7 @@ public sealed class ThreadStoreTests : IDisposable
             Payload = new ToolCallPayload
             {
                 ToolName = "ReadFile",
+                ProviderFlatName = "ReadFile",
                 CallId = "call-1",
                 Arguments = new JsonObject { ["path"] = "a.txt" }
             }
@@ -682,6 +686,7 @@ public sealed class ThreadStoreTests : IDisposable
             Payload = new ToolCallPayload
             {
                 ToolName = HostedImageGenerationContent.ToolName,
+                ProviderFlatName = HostedImageGenerationContent.ToolName,
                 CallId = "ig_123",
                 Arguments = new JsonObject()
             }
@@ -830,6 +835,7 @@ public sealed class ThreadStoreTests : IDisposable
             Payload = new ToolCallPayload
             {
                 ToolName = "GetStatus",
+                ProviderFlatName = "GetStatus",
                 CallId = "call-1",
                 Arguments = new JsonObject()
             }
@@ -893,6 +899,7 @@ public sealed class ThreadStoreTests : IDisposable
             Payload = new ToolCallPayload
             {
                 ToolName = "ReadFile",
+                ProviderFlatName = "ReadFile",
                 CallId = "call-1",
                 Arguments = new JsonObject { ["path"] = "a.txt" }
             }
@@ -944,6 +951,7 @@ public sealed class ThreadStoreTests : IDisposable
             Payload = new ToolCallPayload
             {
                 ToolName = "ReadFile",
+                ProviderFlatName = "ReadFile",
                 CallId = "call-1",
                 Arguments = new JsonObject { ["path"] = "a.txt" }
             }
@@ -959,6 +967,7 @@ public sealed class ThreadStoreTests : IDisposable
             Payload = new ToolCallPayload
             {
                 ToolName = "ListFiles",
+                ProviderFlatName = "ListFiles",
                 CallId = "call-2",
                 Arguments = new JsonObject()
             }
@@ -1024,6 +1033,7 @@ public sealed class ThreadStoreTests : IDisposable
             Payload = new ToolCallPayload
             {
                 ToolName = "ReadFile",
+                ProviderFlatName = "ReadFile",
                 CallId = "missing",
                 Arguments = new JsonObject()
             }
@@ -1070,7 +1080,7 @@ public sealed class ThreadStoreTests : IDisposable
             {
                 Namespace = "mcp__review",
                 ToolName = "lookup",
-                ProviderCallName = "mcp__review__lookup",
+                ProviderFlatName = "mcp__review__lookup",
                 ToolDefinitionId = "Mcp:review:lookup_raw",
                 RuntimeBindingId = "mcp:review:lookup_raw:7",
                 BindingRevision = 7,
@@ -1117,14 +1127,53 @@ public sealed class ThreadStoreTests : IDisposable
         var session = await new ThreadStore(_root).LoadOrCreateSessionAsync(CreateAgent(), thread.Id);
         var formatted = FormatHistoryWithContents(session);
 
-        Assert.Contains("assistant:calling MCPfunction_call:mcp__review__lookup:mcp-call-1", formatted);
+        Assert.Contains("assistant:calling MCPfunction_call:lookup:mcp-call-1", formatted);
         Assert.Contains("tool:function_result:mcp-call-1:safe result", formatted);
         Assert.DoesNotContain(formatted, value => value.Contains("client-only", StringComparison.Ordinal));
         Assert.DoesNotContain(formatted, value => value.Contains("host-only", StringComparison.Ordinal));
+
+        Assert.True(session.TryGetInMemoryChatHistory(
+            out var history,
+            jsonSerializerOptions: SessionPersistenceJsonOptions.Default));
+        var call = Assert.Single(history.SelectMany(message => message.Contents).OfType<FunctionCallContent>());
+        Assert.Equal("mcp__review", call.AdditionalProperties!["openai.responses.function_call.namespace"]);
+        Assert.Equal("mcp__review__lookup", call.AdditionalProperties["dotcraft.tool.provider_flat_name"]);
     }
 
     [Fact]
-    public async Task LoadOrCreateSessionAsync_RebuildsLegacyPluginItemForReadCompatibility()
+    public async Task LoadOrCreateSessionAsync_SkipsInProgressDynamicLifecycleItem()
+    {
+        var thread = CreateThread();
+        AddTurnWithMessages(thread, "hello", "calling dynamic tool");
+        var turn = thread.Turns[0];
+        turn.Items.Add(new SessionItem
+        {
+            Id = SessionIdGenerator.NewItemId(3),
+            TurnId = turn.Id,
+            Type = ItemType.DynamicToolCall,
+            Status = ItemStatus.Streaming,
+            CreatedAt = DateTimeOffset.UtcNow,
+            Payload = new DynamicToolCallPayload
+            {
+                Namespace = "board",
+                ToolName = "lookup",
+                ProviderFlatName = "board__lookup",
+                CallId = "dynamic-call-1",
+                Status = "inProgress",
+                Arguments = new JsonObject { ["id"] = 7 }
+            }
+        });
+        await _store.SaveThreadAsync(thread);
+
+        var session = await new ThreadStore(_root).LoadOrCreateSessionAsync(CreateAgent(), thread.Id);
+
+        Assert.Equal(
+            ["user:hello", "assistant:calling dynamic tool"],
+            FormatHistoryWithContents(session));
+    }
+
+    [Fact]
+    public async Task LoadOrCreateSessionAsync_DoesNotReplayRemovedLegacyPluginItem()
     {
         var thread = CreateThread();
         AddTurnWithMessages(thread, "hello", "calling plugin");
@@ -1154,8 +1203,7 @@ public sealed class ThreadStoreTests : IDisposable
         Assert.Equal(
             [
                 "user:hello",
-                "assistant:calling pluginfunction_call:legacy_tool:legacy-call-1",
-                "tool:function_result:legacy-call-1:legacy result"
+                "assistant:calling plugin"
             ],
             FormatHistoryWithContents(session));
     }

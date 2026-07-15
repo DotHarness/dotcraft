@@ -2,9 +2,9 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.3.0 |
+| **Version** | 0.3.2 |
 | **Status** | Living |
-| **Date** | 2026-07-14 |
+| **Date** | 2026-07-15 |
 | **Parent Spec** | [Session Core](../architecture/session-core.md) (Section 20) |
 | **Related Specs** | [Tool Architecture](../architecture/tools-architecture.md), [Tool Result Presentation](tool-result-presentation.md) |
 
@@ -75,7 +75,7 @@ This protocol is DotCraft's language-neutral JSON-RPC contract for projecting Se
 
 ### 1.4 V1 Contract Snapshot
 
-The current v1 contract is based on the refactored Session Core, not on the earlier draft assumptions. For implementation planning, features fall into three buckets. Method names listed in the historical snapshot table are superseded by explicit M1 hard-cut replacements immediately below the table and in their owning sections:
+The current contract is based on the Session Core. Features fall into three capability buckets:
 
 | Bucket | V1 Items |
 |-------|----------|
@@ -83,7 +83,7 @@ The current v1 contract is based on the refactored Session Core, not on the earl
 | **Guaranteed with narrowed semantics** | `thread/list` is deterministic and supports optional cursor pagination; archived threads are excluded by default and included only via an explicit filter. `thread/read` supports optional cursor pagination for turn history while preserving full-history reads for legacy clients. |
 | **Deferred from v1** | Structured extension capability registry beyond a flat namespace advertisement. Clients must treat extension namespaces as optional and discoverable, not required for core Session behavior. |
 
-M1 replaces the snapshot's MCP runtime names in place: configuration methods remain `mcp/list`, `mcp/get`, `mcp/upsert`, `mcp/remove`, and `mcp/test`, while runtime status/control uses the methods in Section 22. `mcp/status/list` and `mcp/status/updated` are removed.
+MCP configuration uses `mcp/list`, `mcp/get`, `mcp/upsert`, `mcp/remove`, and `mcp/test`; runtime status and control use the methods in Section 22.
 
 **Multi-client thread lists**: In deployments with multiple concurrent connections, server-broadcast notifications in [Section 6.1](#61-thread-notifications) include `thread/started`, `thread/deleted`, `thread/renamed`, and `thread/runtimeChanged` so clients can keep both thread lists and per-thread activity indicators (running, waiting-on-approval, waiting-on-plan-confirmation) synchronized without polling or subscribing to every thread's event stream.
 
@@ -236,7 +236,6 @@ Client                              Server
 | `capabilities.backgroundTerminals` | boolean | no | Whether the client can consume `terminal/*` terminal notifications for server-managed shell processes. Default `false`. |
 | `capabilities.configChange` | boolean | no | Whether the client wants `workspace/configChanged` notifications. Default `true`. |
 | `capabilities.mcpApps` | boolean | no | Whether this connection hosts stable MCP Apps views and accepts the opaque `mcpApp/view/*` contract. Default `false`. |
-| `capabilities.interactiveToolUi` | boolean | no | Legacy App Binding iframe capability only. It does not enable MCP Apps methods or eligibility. |
 | `capabilities.mcpElicitation` | boolean | no | Whether the client can answer `mcpServer/elicitation/request` form and URL requests. Default `false`; servers fail the MCP request with a client-unavailable result when no capable client owns the thread. |
 | `capabilities.optOutNotificationMethods` | string[] | no | Exact notification method names to suppress for this connection. See [Section 10](#10-notification-opt-out). |
 | `capabilities.channelAdapter` | object | no | External channel adapter metadata. When present, the connection is treated as the remote backend for one unified channel runtime. See [external-channel-adapter.md](external-channel-adapter.md). |
@@ -362,8 +361,7 @@ Built-in channels do not negotiate these capabilities over `initialize`; they pr
     "skillVariants": true,
     "runtimeAdditionalContext": true,
     "gitWorktrees": true,
-    "appBinding": true,
-    "appContextBlocks": true,
+    "appBindingVersion": 2,
     "commandManagement": true,
     "modelCatalogManagement": true,
     "workspaceConfigManagement": true,
@@ -395,8 +393,7 @@ Built-in channels do not negotiate these capabilities over `initialize`; they pr
 | `capabilities.dynamicToolRebind` | boolean | Server supports rebinding Runtime Dynamic Tools to the current client connection via `thread/resume.dynamicTools`. |
 | `capabilities.runtimeAdditionalContext` | boolean | Server supports thread-bound runtime context supplied by the AppServer client through `thread/start.additionalContext` and `thread/resume.additionalContext`. |
 | `capabilities.gitWorktrees` | boolean | Server supports DotCraft-managed Git worktree methods (`worktree/createAndFork`, `worktree/createAndStart`, `thread/worktree/handoff`, `worktree/list`, `worktree/status`). |
-| `capabilities.appBinding` | boolean | Server supports App Binding methods (`app/*` and `thread/appBindings/*`). |
-| `capabilities.appContextBlocks` | boolean | Server supports App Binding context block methods (`app/binding/context/upsert`, `app/binding/context/remove`, and `thread/appContextBlocks/list`). |
+| `capabilities.appBindingVersion` | number | App Binding control-plane version. Servers advertise `2`; clients requiring App Binding declare version `2` during initialize. |
 | `capabilities.appThreadInputEnqueue` | boolean | Server supports App Binding-safe app-triggered queued input via `app/threadInput/enqueue`. |
 | `capabilities.approvalFlow` | boolean | Server may send approval requests. |
 | `capabilities.requestUserInput` | boolean | Server may expose the root-thread `RequestUserInput` tool and send `item/tool/requestUserInput` requests to capable clients. |
@@ -499,12 +496,13 @@ Rules:
 
 - `name` and `description` are required.
 - `name` should follow DotCraft's model-visible tool naming convention: PascalCase operation names such as `CreatePlan`, `RequestUserInput`, and `ListThreads`.
+- Namespace and Function names MUST each match `^[A-Za-z0-9_]+$`; their flat form (`name`, or `namespace + "__" + name`) MUST fit within 64 ASCII bytes. Invalid client declarations are rejected rather than sanitized.
 - `inputSchema` is required and must be a valid JSON Schema object.
 - A top-level Function maps exactly to `ToolName(null, name)`; the server MUST NOT assign a source-default namespace.
 - A child Function maps to `ToolName(parentNamespace.name, function.name)`.
 - `deferLoading: true` is valid only for a Function inside a Namespace. A top-level Function must be direct.
 - Qualified `(namespace, name)` identities must be unique; equal local names in different namespaces are valid.
-- `outputSchema`, `display`, `_meta`, `_meta.ui`, and generic `exposure` are invalid Dynamic v2 declaration fields. Interactive result UI is an MCP Apps concern beginning in M2.
+- `outputSchema`, `display`, `_meta`, `_meta.ui`, and generic `exposure` are invalid Runtime Dynamic declaration fields. Interactive result UI uses MCP Apps.
 - `approval`, when present, uses the same descriptive approval metadata as channel tools: `file`, `shell`, or `remoteResource`. DotCraft evaluates approval before dispatching `item/tool/call`.
 - If the bound connection closes, dynamic tools bound to that thread become unavailable and calls fail with a structured failed `dynamicToolCall` item until a capable client resumes the thread with replacement `dynamicTools`.
 
@@ -615,14 +613,14 @@ Thread-management tools are dynamic client callbacks, while thread lifecycle, st
     "allowedAgentControlTools": ["WaitAgent"]
   },
   "mcpPolicy": {
-    "servers": ["github-readonly"],
+    "servers": ["catalog-readonly"],
     "tools": {
-      "allow": ["mcp__github-readonly__get_*"],
+      "allow": ["mcp__catalog_readonly/get_*"],
       "deny": ["*write*"]
     }
   },
   "pluginPolicy": {
-    "allow": ["github"],
+    "allow": ["review-tools"],
     "deny": []
   },
   "skillsPolicy": {
@@ -671,7 +669,7 @@ Fields:
 | `toolAllowList` | string[] | Legacy exact-name tool allow-list. Null or omitted means no legacy allow-list. |
 | `toolDenyList` | string[] | Legacy exact-name tool deny-list. Deny wins over allow. |
 | `toolPolicy` | object | Structured tool policy with `allow`, `deny`, `agentControl`, and `allowedAgentControlTools`. Null or omitted keeps existing runtime defaults. |
-| `mcpPolicy` | object | Structured MCP policy. `servers` filters by MCP server name where available; `tools.allow` and `tools.deny` filter MCP tool names and may use `*` wildcards. |
+| `mcpPolicy` | object | Structured MCP policy. `servers` filters by effective MCP server name where available. `tools.allow` and `tools.deny` match canonical tool selectors and may use `*` wildcards: `name` for a top-level tool or `namespace/name` for a namespaced tool. They do not match `providerFlatName`, raw `SourceToolId`, or connection `runtimeName`. |
 | `pluginPolicy` | object | Structured plugin/app policy with source-aware `allow` and `deny` lists where metadata exists, falling back to stable tool-name denial. |
 | `skillsPolicy` | object | Structured skills policy with `preload`, skill name `allow`/`deny`, and `allowManage`. |
 | `teamsPolicy` | object | Structured Agent Teams policy. `reservedTools = keep` preserves Teams-owned tools for Teams-managed threads. |
@@ -864,8 +862,8 @@ List threads matching a given identity.
         "waitingOnPlanConfirmation": false
       },
       "originApp": {
-        "appId": "com.dotharness.oratorio",
-        "displayName": "Oratorio",
+        "appId": "com.example.board",
+        "displayName": "Board Example",
         "icon": "data:image/svg+xml;base64,..."
       }
     }
@@ -1286,7 +1284,7 @@ Create a Git worktree, optionally copy dirty source changes, then start a new em
 |-------|------|----------|-------------|
 | `identity` | SessionIdentity | yes | New thread identity and state workspace. |
 | `config` | ThreadConfiguration | no | Thread configuration overrides. The server sets the execution workspace to the created worktree. |
-| `dynamicTools` | DynamicToolDeclaration[] | no | Same Runtime Dynamic v2 binding as `thread/start`. |
+| `dynamicTools` | DynamicToolDeclaration[] | no | Same Runtime Dynamic binding as `thread/start`. |
 | `additionalContext` | object | no | Same runtime additional context binding as `thread/start`. |
 | `historyMode` | string | no | `"server"` or `"client"`. Defaults to `"server"`. |
 | `displayName` | string | no | Explicit display name for the new thread. |
@@ -1900,6 +1898,7 @@ Emitted when a new item is created within a turn.
     "status": "started",
     "payload": {
       "toolName": "Exec",
+      "providerFlatName": "Exec",
       "arguments": { "command": "npm test" },
       "callId": "call_001"
     },
@@ -1915,22 +1914,21 @@ The canonical item payload schemas are defined in [Session Core, Section 4.2](..
 | `userMessage` | Payload shape matches Session Core; property names are camelCase and nullable fields are omitted when absent. `text` is a compatibility/display field derived from the native input parts, not the sole source of truth. When present, `nativeInputParts` is authoritative for history rendering and `materializedInputParts` captures the exact snapshot sent to the model. Optional `deliveryMode` (`"normal"` / `"queued"` / `"guidance"` / `"subagentMailbox"`) lets clients distinguish direct input, queued input that later became a Turn, active-Turn guidance, and internal SubAgent mailbox delivery. Optional `triggerKind` (`"heartbeat"` / `"cron"` / `"automation"` / `"goal"` / `"app"` / `"mcpApp"` / `"team"` / `"subagentFollowupTask"` / `"subagentMailbox"` / `"subagentInput"`), `triggerLabel`, and `triggerRefId` are emitted when the turn was synthesized by an automation, goal continuation, authorized app mechanism, MCP App view, team runner, or SubAgent coordination mechanism rather than typed by a human. Clients may render a source affordance and route click-through when the source has a client surface, but `subagentMailbox` items are internal/model-visible notifications and should not render as parent-thread user bubbles or child-agent reply bubbles. SubAgent `triggerRefId` values are agent paths and should not be treated as thread ids. |
 | `agentMessage` | Text deltas stream through `item/agentMessage/delta`; snapshots still use the canonical payload schema. |
 | `reasoningContent` | Reasoning deltas stream through `item/reasoning/delta`; snapshots still use the canonical payload schema. |
-| `toolCall` | Tool invocation payload uses camelCase fields such as `toolName`, `arguments`, and `callId`. When argument construction is streamed, clients receive `item/toolCall/argumentsDelta` between `item/started` and `item/completed`. |
+| `toolCall` | Native, plugin, and managed social calls use the standard payload. It includes optional canonical `namespace`, canonical local `toolName`, required `providerFlatName`, `arguments`, and `callId`; payloads may additionally carry `definitionId`, `sourceKind`, safe `sourceToolId`, and plugin `pluginId`/`functionId` provenance. When argument construction is streamed, clients receive `item/toolCall/argumentsDelta` between `item/started` and `item/completed`. |
 | `commandExecution` | Command execution payload uses camelCase fields such as `command`, `workingDirectory`, `source`, `status`, `aggregatedOutput`, `exitCode`, `durationMs`, and `callId`. |
 | `toolExecution` | Runtime lifecycle enhancement for a normal tool invocation. Payload uses `callId`, `toolName`, `status`, `success`, `durationMs`, `resultPreview`, and `errorMessage`. It is emitted only when the client advertises `capabilities.toolExecutionLifecycle = true`. |
 | `imageGeneration` | Hosted image generation lifecycle item. Payload uses `callId`, `status` (`"inProgress"` / `"completed"` / `"failed"`), optional `revisedPrompt`, optional base64 `result`, `mediaType`, optional `savedPath`, and optional `errorMessage`. Clients should render it independently from ordinary tool aggregation and must not treat `"inProgress"` provider status as failure. |
-| `toolCall` | Native, plugin, and legacy App Binding adapter calls use the standard payload. In addition to `namespace`, `toolName`, `arguments`, and `callId`, payloads may carry `definitionId`, `sourceKind`, safe `sourceToolId`, and plugin `pluginId`/`functionId` provenance. |
-| `pluginFunctionCall` | Legacy persisted-item read compatibility only. M1 servers MUST NOT create this item for a new invocation. |
-| `mcpToolCall` | One MCP lifecycle item with canonical namespace/name, runtime `server`, `origin`, raw `sourceToolId`, definition/runtime binding identities, binding/snapshot revisions, safe provenance, original `callId`, arguments, status, duration, normalized `contentItems`, raw MCP content, `structuredContent`, sanitized `_meta`, `isError`, success, and stable error fields. It has no companion `toolResult`. View handles, HTML, CSP, and live eligibility are never persisted in the item. |
-| `dynamicToolCall` | One Runtime Dynamic lifecycle item with optional canonical namespace, tool name, original `callId`, arguments, `inProgress`/`completed`/`failed` status, duration, `contentItems`, `structuredContent`, nullable terminal success, and stable error fields. It has no companion `toolCall`/`toolResult`. |
-| `toolResult` | Standard result paired by `callId`, with model-safe `result`/`contentItems`, client-only `structuredContent`, sanitized host-only `_meta`, success, and stable error fields. Provider history never includes `structuredContent` or `_meta`. |
+| `pluginFunctionCall` | Reserved persisted item type. Servers MUST NOT create this item for an invocation or expand it into model history because it lacks the canonical composite identity and `providerFlatName`. |
+| `mcpToolCall` | One MCP lifecycle item with canonical namespace/name, required `providerFlatName`, runtime `server`, `origin`, raw `sourceToolId`, definition/runtime binding identities, binding/snapshot revisions, safe provenance, original `callId`, arguments, status, duration, normalized `contentItems`, raw MCP content, `structuredContent`, sanitized `_meta`, `isError`, success, and stable error fields. It has no companion `toolResult`. View handles, HTML, CSP, and live eligibility are never persisted in the item. |
+| `dynamicToolCall` | One Runtime Dynamic lifecycle item with optional canonical namespace, canonical local tool name, required `providerFlatName`, original `callId`, arguments, `inProgress`/`completed`/`failed` status, duration, `contentItems`, `structuredContent`, nullable terminal success, and stable error fields. It has no companion `toolCall`/`toolResult`. |
+| `toolResult` | Standard result paired by `callId`, preserving canonical namespace/name and required `providerFlatName`, with model-safe `result`/`contentItems`, client-only `structuredContent`, sanitized host-only `_meta`, success, and stable error fields. Provider history never includes `structuredContent` or `_meta`. |
 | `approvalRequest` | Approval payload uses the canonical fields plus wire enum/string serialization rules from this spec. |
 | `approvalResponse` | Response payload uses the canonical fields; decision values are serialized as wire strings. |
 | `userInputRequest` | Plan Mode question request payload. The item is paired with a server-to-client `item/tool/requestUserInput` request and puts the turn in `waitingInput`. |
 | `userInputResponse` | User answer payload for a previously emitted `userInputRequest`. |
 | `error` | Error payload uses the canonical fields; transport-level JSON-RPC errors remain separate from item-level error items. |
 
-Clients that render conversation tool activity MUST treat `mcpToolCall` and `dynamicToolCall` as self-contained tool lifecycle items and render `inProgress` as non-terminal. For ordinary `toolCall`/`toolResult` pairs, clients MAY merge the completed result into the visible call row. `structuredContent` and `_meta` are client/host data and must never be shown as model-history text by default. Legacy `pluginFunctionCall` remains renderable for old history, but clients must not wait for new ones. M1 provides generic rendering only; MCP Apps result UI begins in M2.
+Clients that render conversation tool activity MUST treat `mcpToolCall` and `dynamicToolCall` as self-contained tool lifecycle items and render `inProgress` as non-terminal. For ordinary `toolCall`/`toolResult` pairs, clients MAY merge the completed result into the visible call row. `structuredContent` and `_meta` are client/host data and must never be shown as model-history text by default. MCP Apps provide interactive result UI.
 
 #### `item/agentMessage/delta`
 
@@ -2002,6 +2000,7 @@ Client handling rules:
 - `toolName` and `callId` are typically present on the first chunk and may be omitted on subsequent chunks.
 - Clients should merge chunks by `itemId` (or `callId` when useful) and append `delta` in arrival order for preview rendering.
 - The authoritative executable/persisted arguments are the final `item/completed.item.payload.arguments`.
+- Argument-delta notifications are presentation-only and may omit the namespace. The server MUST NOT dispatch or choose among equal local names from a delta; executable identity comes from the final provider callback resolved through the frozen snapshot.
 - Empty deltas are suppressed by the server and are not delivered.
 
 #### `item/completed`
@@ -2016,7 +2015,7 @@ For a terminal `mcpToolCall` delivered live to the same connection, the server M
 }
 ```
 
-This marker is connection-local capability evidence, not Session data. It is never returned by `thread/read`, replayed after resume, or recreated for a new connection. It contains no `viewHandle`; the client obtains a handle only through `mcpApp/view/open`.
+This marker is connection-local capability evidence, not Session data. It is never returned by `thread/read`, replayed after resume, or recreated for a new connection. Eligibility is keyed by `(threadId, turnId, itemId)`. It contains no `viewHandle`; the client obtains a handle only through `mcpApp/view/open`.
 
 #### `item/commandExecution/outputDelta`
 
@@ -3087,7 +3086,7 @@ Runtime dynamic tool invocation for client-declared `thread/start.dynamicTools`.
 
 If the tool fails, the client returns `{ "success": false, "errorCode": "...", "errorMessage": "..." }`. If the client disconnects, times out, is cancelled, or returns an invalid result, DotCraft completes the `dynamicToolCall` item as failed with distinct stable categories.
 
-The result may contain only `success`, `contentItems`, `structuredContent`, `errorCode`, and `errorMessage`. `contentItems` supports validated text and image items only; an image has `mediaType` and exactly one of a non-data `url` or `dataBase64`. A successful model-visible call requires at least one useful text item. `_meta`, `_meta.ui`, `structuredResult`, and UI resource fields are invalid. Runtime Dynamic private iframe UI is removed; MCP Apps result UI begins in M2.
+The result may contain only `success`, `contentItems`, `structuredContent`, `errorCode`, and `errorMessage`. `contentItems` supports validated text and image items only; an image has `mediaType` and exactly one of a non-data `url` or `dataBase64`. A successful model-visible call requires at least one useful text item. `_meta`, `_meta.ui`, `structuredResult`, and UI resource fields are invalid. Interactive results use MCP Apps.
 
 When `success` is `false`, `errorCode` should use a stable string when possible. Standard protocol-level values:
 
@@ -3112,7 +3111,7 @@ External channel adapter behavior rules for `ext/channel/toolCall`:
 
 #### 11.3.1 Interactive Tool UI boundary
 
-M1 defines no Runtime Dynamic private iframe resource or `ui/tool/call` method. Dynamic declarations cannot carry `_meta.ui`, and Dynamic results cannot carry `_meta`. MCP Apps resource rendering, AppBridge messages, and view-initiated tool calls are introduced by M2 and must use the MCP source/session authority model rather than this callback protocol.
+Runtime Dynamic declarations cannot carry `_meta.ui`, and Dynamic results cannot carry `_meta`. MCP Apps resource rendering, AppBridge messages, and view-initiated tool calls use the MCP source/session authority model rather than this callback protocol.
 
 ### 11.3 ACP Tool Proxy
 
@@ -3215,17 +3214,17 @@ If no matching in-flight evaluation exists, the client returns `{ "ok": false }`
 
 ### 12.1 Protocol Version
 
-`serverInfo.protocolVersion` remains the current development value. M1 does not increment it.
+`serverInfo.protocolVersion` is returned by `initialize`.
 
-### 12.2 M1 Hard Cut
+### 12.2 Compatibility rules
 
-M1 changes the current development contract in place. Core, Desktop, ACP, and the in-repository .NET, TypeScript, and Python SDK protocol layers switch together. The server MUST NOT accept the removed Dynamic v1 declaration/result shape, emit dual v1/v2 fields, or retain a compatibility parser. Unknown methods still return `-32601` and clients still ignore unrelated unknown optional fields, but those forward-compatibility rules do not make removed M1 fields valid.
+Core, Desktop, ACP, and the .NET, TypeScript, and Python SDK protocol layers use canonical Runtime Dynamic declarations and results. Unknown methods return `-32601`, and clients ignore unrelated unknown optional fields.
 
-M2 likewise adds the `mcpApps` capability and `mcpApp/view/*` contract in place without changing `serverInfo.protocolVersion`. MCP Apps and Legacy App Binding retain distinct capability flags and method families; neither is an alias or compatibility parser for the other.
+Session tool payloads use canonical `namespace`/`toolName` plus `providerFlatName`. MCP Apps use the `mcpApps` capability and `mcpApp/view/*` contract.
 
 ### 12.3 Negotiation
 
-There is no M1 Dynamic v1/v2 negotiation. `initialize` advertises capabilities only; it does not select a legacy tool wire. A mismatched client fails on the first removed or invalid contract rather than silently downgrading.
+`initialize` advertises capabilities; it does not select among alternate Runtime Dynamic wire shapes. An invalid request fails rather than silently changing shape.
 
 ---
 
@@ -4350,16 +4349,17 @@ Returns one plugin by id.
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `appId` | string | App Binding app id, for example `com.dotharness.oratorio`. |
-| `toolNamespace` | string | Namespace required for app-bound tools. |
+| `appId` | string | App Binding app id, for example `com.example.board`. |
 | `displayName` | string | User-visible app name. |
 | `developerName` | string | App developer or organization. |
 | `description` | string | User-visible app description. |
 | `category` | string | Optional UI category. |
 | `icon` | string | Optional icon as a data URL or safe URL. |
 | `nativeApplication` | object | Native app display name, protocol, and install URL metadata. |
-| `toolCatalog` | `PluginAppToolInfo[]` | Summary of app-bound tools declared by the descriptor. |
-| `dynamicToolCatalog` | object | Indicates whether this app may attach a runtime tool catalog during App Binding attachment. |
+
+App Binding app descriptors are product/connection metadata only. Execution fields such as
+`toolNamespace`, `scopes`, `toolCatalog`, and `dynamicToolCatalog` are invalid; binding capabilities
+come exclusively from the binding-scoped Streamable HTTP MCP session.
 
 `PluginMcpServerInfo` fields:
 
@@ -4371,6 +4371,8 @@ Returns one plugin by id.
 | `enabled` | boolean | Whether the bundled server declaration is enabled. |
 | `active` | boolean | True when the plugin is installed, enabled, the server is enabled, and it is not shadowed by workspace or higher-priority plugin MCP. |
 | `shadowedBy` | `"workspace" \| "plugin"` | Optional reason the bundled server is not active. |
+
+`runtimeName` is an MCP connection/routing identity. It is not a model-visible namespace and clients MUST NOT derive a provider tool name from it.
 
 `PluginHookInfo` fields:
 
@@ -5036,7 +5038,7 @@ This section separates two surfaces:
 - DotCraft configuration management: `mcp/list`, `mcp/get`, `mcp/upsert`, `mcp/remove`, and `mcp/test`, gated by `capabilities.mcpManagement`;
 - source-aware MCP runtime/control: the fixed method names in Section 22.8, gated by `capabilities.mcpRuntime`.
 
-The removed `mcp/status/list` and `mcp/status/updated` names are not aliases. M1 is an in-place hard cut, so clients must use `mcpServerStatus/list` and `mcpServer/startupStatus/updated`.
+Runtime status uses `mcpServerStatus/list` and `mcpServer/startupStatus/updated`.
 
 ### 22.2 `McpServerConfig` Wire DTO
 
@@ -5159,7 +5161,7 @@ On success, the server emits `workspace/configChanged` (see [Section 24.5](#245-
 
 ### 22.7 Runtime identity and origin
 
-Runtime operations resolve an effective server by optional `threadId`. Origins are `workspace`, `plugin`, `thread`, or `binding`. Status returns both `declaredName` and collision-safe `runtimeName` plus safe origin provenance. Binding servers are additive and cannot shadow another runtime name. Thread configuration follows the three-state contract: `null` inherits workspace/plugin servers, `[]` disables them, and a non-empty list replaces them; binding origin remains additive.
+Runtime operations resolve an effective server by optional `threadId`. Origins are `workspace`, `plugin`, `thread`, or `binding`. Status returns both `declaredName` and collision-safe `runtimeName` plus safe origin provenance. `runtimeName` selects the effective MCP connection; it may contain source delimiters and MUST NOT be exposed as, or parsed into, a model tool namespace. Model-visible MCP identity is the separately normalized composite `ToolName`, while MCP dispatch retains exact `runtimeName` plus raw `SourceToolId`. Binding servers are additive and cannot shadow another runtime name. Thread configuration follows the three-state contract: `null` inherits workspace/plugin servers, `[]` disables them, and a non-empty list replaces them; binding origin remains additive.
 
 ### 22.8 MCP runtime/control methods
 
@@ -5175,6 +5177,10 @@ Method names and base DTO shapes are fixed by this protocol. DotCraft may add op
 
 `threadId` is optional; omission reads the latest workspace/plugin runtime configuration. `detail` is `full` (default) or `toolsAndAuthOnly`. The result is `{ "data": McpServerStatus[], "nextCursor": string|null }`. Each status includes `name`, nullable `serverInfo`, tool map, resources, resource templates, `authStatus`, `origin`, `declaredName`, and `runtimeName`. MCP startup is asynchronous and never blocks AppServer readiness.
 
+`authStatus` is one of `unsupported`, `notLoggedIn`, `bearerToken`, or `oAuth`. Streamable HTTP alone does not imply OAuth support. `notLoggedIn` is reported only after the MCP OAuth challenge/discovery path establishes that login is required. Unknown discovery failures are represented as `unsupported` while the original startup error remains available. `failureReason` is `reauthenticationRequired` only when previously stored OAuth credentials can no longer be used. Clients show the primary Authenticate/Re-authenticate action only for `notLoggedIn`.
+
+`toolsAndAuthOnly` does not perform resource or resource-template enumeration and returns empty resource collections. `full` may enumerate both collections concurrently. Their failure or timeout does not change a successfully initialized server from ready to failed.
+
 #### 22.8.2 `mcpServer/resource/read`
 
 **Direction:** client → server. Params are `{ "threadId"?: string|null, "server": string, "uri": string }`; result is `{ "contents": ResourceContent[] }`. The server resolves thread/source authority before reading. Resource reads do not create a fake tool item.
@@ -5187,9 +5193,11 @@ The result preserves the raw MCP shape: `{ "content": any[], "structuredContent"
 
 #### 22.8.4 `mcpServer/oauth/login`
 
-**Direction:** client → server. Params are `{ "name": string, "threadId"?: string|null, "scopes"?: string[]|null, "timeoutSecs"?: number|null }`; result is `{ "authorizationUrl": string }`. The client opens only HTTPS or explicit loopback URLs. Completion is reported by `mcpServer/oauthLogin/completed` with `{ name, threadId, success, error? }`.
+**Direction:** client → server. Params are `{ "name": string, "threadId"?: string|null, "scopes"?: string[]|null, "timeoutSecs"?: number|null }`; result is `{ "authorizationUrl": string }`. The server resolves the effective runtime identified by `threadId` and rejects login unless its current `authStatus` is `notLoggedIn`. The client opens only HTTPS or explicit loopback URLs. Completion is reported by `mcpServer/oauthLogin/completed` with `{ name, threadId, success, error? }`.
 
 OAuth credentials are stored only in the user-scoped protected MCP auth store, partitioned by origin/runtime name/endpoint identity. They MUST NOT be persisted in workspace config, Session items, or logs. Expired credentials that cannot refresh are reported as `failureReason: "reauthenticationRequired"`; clients restart the same login method.
+
+`mcpServer/oauthLogin/completed` with `success: true` is emitted only after an authorization URL was returned and the browser authorization flow completed. A server that completes ordinary MCP startup without requesting OAuth causes the login request itself to fail and MUST NOT produce a contradictory success notification or clear unrelated credentials.
 
 #### 22.8.5 `config/mcpServer/reload`
 
@@ -5197,7 +5205,7 @@ OAuth credentials are stored only in the user-scoped protected MCP auth store, p
 
 #### 22.8.6 `mcpServer/startupStatus/updated`
 
-**Direction:** server → client notification. Payload is `{ "threadId": string|null, "name": string, "status": "starting"|"ready"|"failed"|"cancelled", "error": string|null, "failureReason": "reauthenticationRequired"|null }`.
+**Direction:** server → client notification. Payload is `{ "threadId": string|null, "name": string, "status": "starting"|"ready"|"failed"|"cancelled", "error": string|null, "failureReason": "reauthenticationRequired"|null, "transport"?: "stdio"|"streamableHttp", "authStatus"?: "unsupported"|"notLoggedIn"|"bearerToken"|"oAuth" }`. The optional transport and authentication fields let clients update an existing status row without replacing it with guessed defaults.
 
 #### 22.8.7 `mcpServer/oauthLogin/completed`
 
@@ -5237,13 +5245,15 @@ On failure, the method returns a successful JSON-RPC response with structured fi
 
 ### 22.10 MCP Apps opaque View methods
 
-These methods implement the stable MCP Apps `io.modelcontextprotocol/ui` `2026-01-26` host boundary. They require both server and client `mcpApps` capabilities. They do not reuse Legacy App Binding `ui/*` methods or the unrestricted MCP runtime methods from Section 22.8.
+These methods implement the stable MCP Apps `io.modelcontextprotocol/ui` `2026-01-26` host boundary. They require both server and client `mcpApps` capabilities and are separate from App Binding control-plane methods and the unrestricted MCP runtime methods in Section 22.8.
 
-Only a terminal `mcpToolCall` that was delivered live with `mcpApp.available = true` to the same connection is eligible. Every handle is random, connection-owned, and internally binds the thread/item, server/origin, MCP generation, definition/runtime binding identity, snapshot/authority revision, raw source tool identity, and resource URI. Those authority fields never appear as request parameters.
+Only a terminal `mcpToolCall` that was delivered live with `mcpApp.available = true` to the same connection is eligible. Every handle is random, connection-owned, and internally binds the thread/Turn/Item, server/origin, MCP generation, definition/runtime binding identity, snapshot/authority revision, raw source tool identity, and resource URI. Those authority fields never appear as request parameters.
+
+Successful `thread/rollback` clears that thread's connection-local MCP App item eligibility immediately. A removed Turn cannot open a new View, and an already issued handle must fail its next authority check or be closed.
 
 #### 22.10.1 `mcpApp/view/open`
 
-**Direction:** client → server. Params are `{ "threadId": string, "itemId": string }`.
+**Direction:** client → server. Params are `{ "threadId": string, "turnId": string, "itemId": string }`.
 
 The server validates the live delivery, terminal item, current snapshot/binding/authority, App visibility, and MCP generation; reads and validates the declared resource atomically; then returns:
 

@@ -81,7 +81,7 @@ public sealed partial class SessionService
             var text = string.Concat(content.OfType<TextContent>().Select(t => t.Text));
             var turn = new SessionTurn
             {
-                Id = SessionIdGenerator.NewTurnId(thread.Turns.Count + 1),
+                Id = SessionIdGenerator.NewTurnId(SessionIdGenerator.ReserveNextTurnSequence(thread)),
                 ThreadId = threadId,
                 Status = TurnStatus.Running,
                 StartedAt = DateTimeOffset.UtcNow,

@@ -1,4 +1,5 @@
 using System.Collections.Frozen;
+using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 
@@ -15,7 +16,7 @@ public enum ToolSourceKind
     Mcp,
     /// <summary>A thread-scoped callback exposed by an AppServer client.</summary>
     RuntimeDynamic,
-    /// <summary>A temporary adapter for the pre-v2 App Binding runtime.</summary>
+    /// <summary>A read-only App Binding projection source.</summary>
     LegacyAppBinding,
 }
 
@@ -84,6 +85,13 @@ public readonly record struct ToolName
             throw new ArgumentException("A tool namespace must be non-empty when supplied.", nameof(@namespace));
         if (string.IsNullOrWhiteSpace(name))
             throw new ArgumentException("A tool name is required.", nameof(name));
+        if (@namespace is not null && !IsSafeComponent(@namespace))
+            throw new ArgumentException("A tool namespace must contain only ASCII letters, digits, and underscores.", nameof(@namespace));
+        if (!IsSafeComponent(name))
+            throw new ArgumentException("A tool name must contain only ASCII letters, digits, and underscores.", nameof(name));
+        var flatLength = name.Length + (@namespace is null ? 0 : @namespace.Length + 2);
+        if (flatLength > ProviderToolProjector.MaximumNameBytes)
+            throw new ArgumentException("A flattened tool identity must not exceed 64 ASCII bytes.", nameof(name));
 
         Namespace = @namespace;
         Name = name;
@@ -97,6 +105,34 @@ public readonly record struct ToolName
 
     /// <inheritdoc />
     public override string ToString() => Namespace is null ? Name : $"{Namespace}.{Name}";
+
+    /// <summary>Safely validates untrusted provider identity components.</summary>
+    internal static bool TryCreate(string? @namespace, string? name, out ToolName toolName)
+    {
+        toolName = default;
+        if ((@namespace is not null && string.IsNullOrWhiteSpace(@namespace))
+            || string.IsNullOrWhiteSpace(name)
+            || (@namespace is not null && !IsSafeComponent(@namespace))
+            || !IsSafeComponent(name))
+        {
+            return false;
+        }
+
+        if (name.Length + (@namespace is null ? 0 : @namespace.Length + 2)
+            > ProviderToolProjector.MaximumNameBytes)
+        {
+            return false;
+        }
+
+        toolName = new ToolName(@namespace, name);
+        return true;
+    }
+
+    private static bool IsSafeComponent(string value) =>
+        value.All(static character => character is >= 'a' and <= 'z'
+            or >= 'A' and <= 'Z'
+            or >= '0' and <= '9'
+            or '_');
 }
 
 /// <summary>Identifies a tool in its source's native identity space.</summary>
@@ -230,6 +266,8 @@ public sealed class ToolPresentationDescriptor
 /// <summary>An immutable source-qualified semantic tool definition.</summary>
 public sealed class ToolDefinition
 {
+    internal const int MaximumNamespaceDescriptionLength = 4096;
+
     /// <summary>Creates a tool definition without embedding a live executor.</summary>
     public ToolDefinition(
         ToolDefinitionId id,
@@ -240,7 +278,8 @@ public sealed class ToolDefinition
         IReadOnlyDictionary<string, JsonElement>? annotations = null,
         ToolPolicyHints? policyHints = null,
         ToolPresentationDescriptor? presentation = null,
-        ToolProvenance? provenance = null)
+        ToolProvenance? provenance = null,
+        string? namespaceDescription = null)
     {
         if (string.IsNullOrWhiteSpace(id.SourceId) || string.IsNullOrWhiteSpace(id.SourceToolId.Value))
             throw new ArgumentException("A non-default definition identifier is required.", nameof(id));
@@ -262,6 +301,7 @@ public sealed class ToolDefinition
         PolicyHints = policyHints ?? new ToolPolicyHints();
         Presentation = presentation;
         Provenance = provenance ?? new ToolProvenance(id.Kind, id.SourceId);
+        NamespaceDescription = NormalizeNamespaceDescription(namespaceDescription);
     }
 
     /// <summary>Gets the durable definition identifier.</summary>
@@ -282,6 +322,22 @@ public sealed class ToolDefinition
     public ToolPresentationDescriptor? Presentation { get; }
     /// <summary>Gets safe source provenance.</summary>
     public ToolProvenance Provenance { get; }
+    /// <summary>
+    /// Gets the untrusted model-facing description of the containing namespace. This metadata
+    /// assists tool planning and deferred search; it is never promoted to a system instruction.
+    /// </summary>
+    public string? NamespaceDescription { get; }
+
+    private static string? NormalizeNamespaceDescription(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+            return null;
+
+        var normalized = value.Trim();
+        return normalized.Length <= MaximumNamespaceDescriptionLength
+            ? normalized
+            : normalized[..MaximumNamespaceDescriptionLength];
+    }
 }
 
 /// <summary>Immutable planning inputs for collecting source registrations.</summary>
@@ -442,7 +498,8 @@ public sealed class ToolExecutionResult
         JsonElement? structuredContent = null,
         JsonElement? meta = null,
         JsonElement? rawSourceResult = null,
-        ToolError? error = null)
+        ToolError? error = null,
+        object? providerResult = null)
     {
         Success = success;
         Content = content;
@@ -450,6 +507,7 @@ public sealed class ToolExecutionResult
         Meta = meta?.Clone();
         RawSourceResult = rawSourceResult?.Clone();
         Error = error;
+        ProviderResult = providerResult;
     }
 
     /// <summary>Gets whether execution succeeded.</summary>
@@ -464,14 +522,17 @@ public sealed class ToolExecutionResult
     public JsonElement? RawSourceResult { get; }
     /// <summary>Gets the stable error when execution failed.</summary>
     public ToolError? Error { get; }
+    /// <summary>Gets an optional transient provider-native result. It is never persisted or exposed to clients.</summary>
+    public object? ProviderResult { get; }
 
     /// <summary>Creates a successful result.</summary>
     public static ToolExecutionResult Succeeded(
         string? content,
         JsonElement? structuredContent = null,
         JsonElement? meta = null,
-        JsonElement? rawSourceResult = null) =>
-        new(true, content, structuredContent, meta, rawSourceResult);
+        JsonElement? rawSourceResult = null,
+        object? providerResult = null) =>
+        new(true, content, structuredContent, meta, rawSourceResult, providerResult: providerResult);
 
     /// <summary>Creates a failed result.</summary>
     public static ToolExecutionResult Failed(ToolError error, string? content = null) =>
@@ -582,7 +643,21 @@ public sealed class ToolRuntimeBinding
 /// <summary>Metadata used to make a deferred registration searchable.</summary>
 /// <param name="Namespace">The deferred search namespace.</param>
 /// <param name="SearchText">The source-provided searchable description.</param>
-public sealed record DeferredToolDescriptor(string Namespace, string SearchText);
+public sealed record DeferredToolDescriptor(
+    string Namespace,
+    string SearchText,
+    string? NamespaceDescription = null);
+
+/// <summary>Declares the Session lifecycle projection owned by a tool registration.</summary>
+public enum ToolProjectionShape
+{
+    /// <summary>A standard ToolCall followed by one terminal ToolResult.</summary>
+    StandardPair,
+    /// <summary>A single MCP lifecycle item updated from started to terminal.</summary>
+    McpLifecycle,
+    /// <summary>A single Runtime Dynamic lifecycle item updated from started to terminal.</summary>
+    DynamicLifecycle
+}
 
 /// <summary>The source-neutral planning join between a definition and runtime binding.</summary>
 public sealed class ToolRegistration
@@ -591,9 +666,11 @@ public sealed class ToolRegistration
     public ToolRegistration(
         ToolDefinition definition,
         ToolRuntimeBinding binding,
+        ToolProjectionShape projectionShape,
         ToolExposure exposure = ToolExposure.Direct,
         ToolInvocationAudience invocationAudiences = ToolInvocationAudience.Model | ToolInvocationAudience.Host,
-        DeferredToolDescriptor? deferred = null)
+        DeferredToolDescriptor? deferred = null,
+        string? providerFlatNameOverride = null)
     {
         Definition = definition ?? throw new ArgumentNullException(nameof(definition));
         Binding = binding ?? throw new ArgumentNullException(nameof(binding));
@@ -601,31 +678,58 @@ public sealed class ToolRegistration
             throw new ArgumentException("The runtime binding references a different definition.", nameof(binding));
         if (exposure == ToolExposure.Deferred && deferred is null)
             throw new ArgumentException("Deferred exposure requires search metadata.", nameof(deferred));
+        if (deferred is not null
+            && !string.Equals(deferred.Namespace, definition.Name.Namespace, StringComparison.Ordinal))
+        {
+            throw new ArgumentException(
+                "Deferred search metadata must use the definition's canonical namespace.",
+                nameof(deferred));
+        }
+        if (providerFlatNameOverride is not null && string.IsNullOrWhiteSpace(providerFlatNameOverride))
+            throw new ArgumentException("A provider flat name override cannot be empty.", nameof(providerFlatNameOverride));
+        if (providerFlatNameOverride is not null
+            && (Encoding.UTF8.GetByteCount(providerFlatNameOverride) > ProviderToolProjector.MaximumNameBytes
+                || providerFlatNameOverride.Any(static character => character is not (
+                    >= 'a' and <= 'z'
+                    or >= 'A' and <= 'Z'
+                    or >= '0' and <= '9'
+                    or '_'))))
+        {
+            throw new ArgumentException(
+                "A provider flat name override must use provider-safe characters and fit the provider name limit.",
+                nameof(providerFlatNameOverride));
+        }
 
         Exposure = exposure;
+        ProjectionShape = projectionShape;
         InvocationAudiences = invocationAudiences;
         Deferred = deferred;
+        ProviderFlatNameOverride = providerFlatNameOverride;
     }
 
     /// <summary>Gets the immutable definition.</summary>
     public ToolDefinition Definition { get; }
     /// <summary>Gets the live runtime binding.</summary>
     public ToolRuntimeBinding Binding { get; }
+    /// <summary>Gets the source-declared Session lifecycle projection.</summary>
+    public ToolProjectionShape ProjectionShape { get; }
     /// <summary>Gets the default model exposure.</summary>
     public ToolExposure Exposure { get; }
     /// <summary>Gets permitted invocation audiences.</summary>
     public ToolInvocationAudience InvocationAudiences { get; }
     /// <summary>Gets deferred search metadata.</summary>
     public DeferredToolDescriptor? Deferred { get; }
+    /// <summary>Gets an exact provider-visible name override for provider-native tool surfaces.</summary>
+    public string? ProviderFlatNameOverride { get; }
 }
 
 /// <summary>Dispatches provider or host calls through a frozen effective snapshot.</summary>
 public interface IToolDispatcher
 {
     /// <summary>Dispatches an exact provider-visible call name.</summary>
-    ValueTask<ToolExecutionResult> DispatchProviderCallAsync(
+    ValueTask<ToolExecutionResult> DispatchProviderFlatCallAsync(
         EffectiveToolSnapshot snapshot,
-        string providerCallName,
+        string providerFlatName,
         JsonObject arguments,
         ToolInvocationRequest request,
         CancellationToken cancellationToken = default);

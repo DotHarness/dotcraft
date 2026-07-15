@@ -32,6 +32,13 @@ internal sealed class McpOAuthTokenStore : ITokenCache
         var root = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
             ".craft");
+        return Create(server, root);
+    }
+
+    internal static McpOAuthTokenStore Create(McpServerConfig server, string craftRoot)
+    {
+        ArgumentNullException.ThrowIfNull(server);
+        ArgumentException.ThrowIfNullOrWhiteSpace(craftRoot);
         var endpointHash = Convert.ToHexString(
             SHA256.HashData(Encoding.UTF8.GetBytes(server.Url ?? string.Empty)))[..16].ToLowerInvariant();
         var key = string.Join(
@@ -39,7 +46,7 @@ internal sealed class McpOAuthTokenStore : ITokenCache
             string.IsNullOrWhiteSpace(server.Origin.Kind) ? "workspace" : server.Origin.Kind,
             server.Name,
             endpointHash);
-        return new McpOAuthTokenStore(Path.Combine(root, "mcp-auth.json"), key);
+        return new McpOAuthTokenStore(Path.Combine(craftRoot, "mcp-auth.json"), key);
     }
 
     /// <summary>Returns whether this partition currently contains tokens.</summary>
@@ -80,6 +87,32 @@ internal sealed class McpOAuthTokenStore : ITokenCache
         {
             var document = await ReadDocumentUnsafeAsync(cancellationToken);
             return document.TryGetValue(_key, out var tokens) ? tokens : null;
+        }
+        finally
+        {
+            Gate.Release();
+        }
+    }
+
+    /// <summary>Removes only this server partition while preserving other persisted credentials.</summary>
+    public async ValueTask ClearAsync(CancellationToken cancellationToken = default)
+    {
+        await Gate.WaitAsync(cancellationToken);
+        try
+        {
+            var document = await ReadDocumentUnsafeAsync(cancellationToken);
+            if (!document.Remove(_key) || !File.Exists(_path))
+                return;
+
+            var tempPath = _path + ".tmp";
+            await File.WriteAllTextAsync(
+                tempPath,
+                JsonSerializer.Serialize(document, SerializerOptions),
+                Encoding.UTF8,
+                cancellationToken);
+            RestrictFilePermissions(tempPath);
+            File.Move(tempPath, _path, overwrite: true);
+            RestrictFilePermissions(_path);
         }
         finally
         {

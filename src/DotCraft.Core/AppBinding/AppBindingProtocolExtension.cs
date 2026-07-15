@@ -1,93 +1,97 @@
 using System.Text.Json;
-using DotCraft.Abstractions;
 using DotCraft.Configuration;
-using DotCraft.Context;
 using DotCraft.Protocol;
 using DotCraft.Protocol.AppServer;
 using DotCraft.Skills;
-using Microsoft.Extensions.AI;
 
 namespace DotCraft.AppBinding;
 
-/// <summary>
-/// AppServer JSON-RPC extension for App Binding lifecycle and thread grant management.
-/// </summary>
-public sealed class AppBindingProtocolExtension(
-    AppBindingService service,
-    IAppConfigMonitor appConfigMonitor,
-    SkillsLoader? skillsLoader = null,
-    IReadOnlyList<string>? builtInPluginSourceRoots = null,
-    IChannelRuntimeRegistry? channelRuntimeRegistry = null) : IAppServerProtocolExtension
+/// <summary>AppServer extension for the App Binding control plane.</summary>
+public sealed class AppBindingProtocolExtension : IAppServerProtocolExtension
 {
-    private readonly SocialChannelDeliveryCoordinator? _socialDeliveryCoordinator = channelRuntimeRegistry == null
-        ? null
-        : new SocialChannelDeliveryCoordinator(service, channelRuntimeRegistry);
-
     private const string AppList = "app/list";
     private const string AppView = "app/view";
-    private const string AppConnectionStart = "app/connection/start";
-    private const string AppConnectionRequestGet = "app/connection/request/get";
-    private const string AppConnectionConnect = "app/connection/connect";
-    private const string AppConnectionStatus = "app/connection/status";
-    private const string AppConnectionRefreshMetadata = "app/connection/refreshMetadata";
-    private const string AppConnectionRevoke = "app/connection/revoke";
-    private const string AppBindingRequestCreate = "app/binding/request/create";
-    private const string AppBindingRequestGet = "app/binding/request/get";
-    private const string AppBindingRequestCancel = "app/binding/request/cancel";
-    private const string AppBindingAccept = "app/binding/accept";
-    private const string AppBindingAttachTools = "app/binding/attachTools";
-    private const string AppBindingContextUpsert = "app/binding/context/upsert";
-    private const string AppBindingContextRemove = "app/binding/context/remove";
-    private const string AppThreadInputEnqueue = "app/threadInput/enqueue";
-    private const string AppSocialBindingResolve = "app/socialBinding/resolve";
-    private const string ThreadAppBindingsList = "thread/appBindings/list";
-    private const string ThreadAppBindingsRevoke = "thread/appBindings/revoke";
-    private const string ThreadAppBindingsRefresh = "thread/appBindings/refresh";
-    private const string ThreadAppContextBlocksList = "thread/appContextBlocks/list";
-    private const string UiResourceRead = "ui/resource/read";
-    private const string UiToolCall = "ui/tool/call";
-    private const string UiOpenLink = "ui/open-link";
-    private const string UiUpdateModelContext = "ui/update-model-context";
-    private const string UiToolApprovalRequest = "ui/tool/approval/request";
+    private const string ConnectionStart = "app/connection/start";
+    private const string ConnectionRequestGet = "app/connection/request/get";
+    private const string ConnectionConnect = "app/connection/connect";
+    private const string ConnectionAuthenticate = "app/connection/authenticate";
+    private const string ConnectionRefresh = "app/connection/refresh";
+    private const string ConnectionStatus = "app/connection/status";
+    private const string ConnectionRevoke = "app/connection/revoke";
+    private const string BindingEnable = "thread/appBindings/enable";
+    private const string BindingRequestGet = "app/binding/request/get";
+    private const string BindingActivate = "app/binding/activate";
+    private const string BindingRebind = "app/binding/rebind";
+    private const string PrincipalBindingsList = "app/bindings/list";
+    private const string ThreadBindingsList = "thread/appBindings/list";
+    private const string BindingConfirm = "thread/appBindings/confirmCapabilities";
+    private const string BindingRevoke = "thread/appBindings/revoke";
+    private const string SocialRequestCreate = "thread/socialBindings/request/create";
+    private const string SocialRequestGet = "app/socialBinding/request/get";
+    private const string SocialAccept = "app/socialBinding/accept";
+    private const string SocialRebind = "app/socialBinding/rebind";
+    private const string SocialResolve = "app/socialBinding/resolve";
+    private const string ThreadInputEnqueue = "app/threadInput/enqueue";
 
-    private const string AppConnectionChanged = "app/connection/changed";
-    private const string ThreadAppBindingsChanged = "thread/appBindings/changed";
+    private static readonly HashSet<string> LegacyMethods = new(StringComparer.Ordinal)
+    {
+        "app/connection/refreshMetadata",
+        "app/binding/request/create",
+        "app/binding/request/cancel",
+        "app/binding/accept",
+        "app/binding/attachTools",
+        "app/binding/context/upsert",
+        "app/binding/context/remove",
+        "thread/appBindings/refresh",
+        "thread/appContextBlocks/list",
+        "ui/resource/read",
+        "ui/tool/call",
+        "ui/open-link",
+        "ui/update-model-context"
+    };
+
+    private readonly AppBindingService _controlPlane;
+    private readonly AppBindingCoordinator _coordinator;
+    private readonly IAppConfigMonitor _appConfigMonitor;
+    private readonly SkillsLoader? _skillsLoader;
+    private readonly IReadOnlyList<string>? _builtInPluginSourceRoots;
+    private readonly SocialChannelDeliveryCoordinator? _socialDeliveryCoordinator;
+
+    public AppBindingProtocolExtension(
+        AppBindingService controlPlane,
+        AppBindingCoordinator coordinator,
+        IAppConfigMonitor appConfigMonitor,
+        SkillsLoader? skillsLoader = null,
+        IReadOnlyList<string>? builtInPluginSourceRoots = null,
+        DotCraft.Abstractions.IChannelRuntimeRegistry? channelRuntimeRegistry = null)
+    {
+        _controlPlane = controlPlane;
+        _coordinator = coordinator;
+        _appConfigMonitor = appConfigMonitor;
+        _skillsLoader = skillsLoader;
+        _builtInPluginSourceRoots = builtInPluginSourceRoots;
+        _socialDeliveryCoordinator = channelRuntimeRegistry == null
+            ? null
+            : new SocialChannelDeliveryCoordinator(controlPlane, channelRuntimeRegistry);
+    }
 
     public IReadOnlyCollection<string> Methods { get; } =
     [
-        AppList,
-        AppView,
-        AppConnectionStart,
-        AppConnectionRequestGet,
-        AppConnectionConnect,
-        AppConnectionStatus,
-        AppConnectionRefreshMetadata,
-        AppConnectionRevoke,
-        AppBindingRequestCreate,
-        AppBindingRequestGet,
-        AppBindingRequestCancel,
-        AppBindingAccept,
-        AppBindingAttachTools,
-        AppBindingContextUpsert,
-        AppBindingContextRemove,
-        AppThreadInputEnqueue,
-        AppSocialBindingResolve,
-        ThreadAppBindingsList,
-        ThreadAppBindingsRevoke,
-        ThreadAppBindingsRefresh,
-        ThreadAppContextBlocksList,
-        UiResourceRead,
-        UiToolCall,
-        UiOpenLink,
-        UiUpdateModelContext
+        AppList, AppView,
+        ConnectionStart, ConnectionRequestGet, ConnectionConnect, ConnectionAuthenticate,
+        ConnectionRefresh, ConnectionStatus, ConnectionRevoke,
+        BindingEnable, BindingRequestGet, BindingActivate, BindingRebind,
+        PrincipalBindingsList, ThreadBindingsList, BindingConfirm, BindingRevoke,
+        SocialRequestCreate, SocialRequestGet, SocialAccept, SocialRebind, SocialResolve,
+        ThreadInputEnqueue,
+        ..LegacyMethods
     ];
 
     public void ContributeCapabilities(AppServerCapabilityBuilder builder)
     {
         if (!string.IsNullOrWhiteSpace(builder.WorkspaceCraftPath))
         {
-            builder.Capabilities.AppBinding = true;
-            builder.Capabilities.AppContextBlocks = true;
+            builder.Capabilities.AppBindingVersion = AppBindingContract.Version;
             builder.Capabilities.AppThreadInputEnqueue = true;
         }
     }
@@ -95,842 +99,398 @@ public sealed class AppBindingProtocolExtension(
     public async Task<object?> HandleAsync(AppServerIncomingMessage msg, AppServerExtensionContext context)
     {
         var method = msg.Method ?? string.Empty;
-        var workspaceCraftPath = RequireWorkspaceCraftPath(method, context);
-        var workspacePath = RequireHostWorkspacePath(method, context);
-        var catalog = service.DiscoverCatalog(
-            appConfigMonitor.Current,
-            workspacePath,
-            workspaceCraftPath,
-            skillsLoader,
-            builtInPluginSourceRoots);
-        var userId = CurrentUserId(context);
-        var ct = context.CancellationToken;
+        if (LegacyMethods.Contains(method))
+            throw AppServerErrors.AppBindingUpgradeRequired();
 
-        // Interactive Tool UI host methods are negotiated (tool-result-presentation.md §3): a client
-        // that did not declare interactiveToolUi support cannot serve or drive an app's ui:// surface,
-        // so these methods are not honored for it.
-        if (method is UiResourceRead or UiToolCall or UiOpenLink or UiUpdateModelContext
-            && !context.Connection.SupportsInteractiveToolUi)
-            throw AppServerErrors.MethodNotFound(method);
+        var craftPath = RequireWorkspace(context, method);
+        var userId = CurrentUser(context);
+
+        if (method is AppList or AppView)
+        {
+            EnsureTrustedClient(context.Connection);
+            if (method == AppList)
+            {
+                var parameters = GetParams<AppListParams>(msg);
+                if (!string.IsNullOrWhiteSpace(parameters.ThreadId))
+                    await context.SessionService.GetThreadAsync(parameters.ThreadId, context.CancellationToken);
+                var list = new AppListResult
+                {
+                    Apps = DiscoverCatalog(context)
+                        .Entries
+                        .Where(entry => parameters.IncludeCatalog != false || entry.Plugin.Installed)
+                        .Where(entry => parameters.IncludeDisabled != false || entry.Plugin.Enabled)
+                        .Select(MapCatalogApp)
+                        .OrderBy(app => app.DisplayName, StringComparer.OrdinalIgnoreCase)
+                        .ToList()
+                };
+                ApplyBindingState(craftPath, parameters.ThreadId, list.Apps);
+                return list;
+            }
+
+            var viewParameters = GetParams<AppViewParams>(msg);
+            if (!string.IsNullOrWhiteSpace(viewParameters.ThreadId))
+                await context.SessionService.GetThreadAsync(viewParameters.ThreadId, context.CancellationToken);
+            var view = new AppViewResult { App = MapCatalogApp(EnsureCatalogApp(context, viewParameters.AppId)) };
+            ApplyBindingState(craftPath, viewParameters.ThreadId, [view.App]);
+            return view;
+        }
 
         switch (method)
         {
-            case AppList:
+            case ConnectionStart:
             {
-                var p = GetParams<AppListParams>(msg);
-                if (!string.IsNullOrWhiteSpace(p.ThreadId))
-                    await EnsureThreadAsync(context, p.ThreadId!, ct);
-                return service.ListApps(catalog, workspaceCraftPath, userId, p);
+                EnsureTrustedClient(context.Connection);
+                var parameters = GetParams<AppConnectionStartParams>(msg);
+                EnsureCatalogApp(context, parameters.AppId);
+                var result = _controlPlane.StartConnection(craftPath, parameters.AppId, userId);
+                result.Handoff = BuildHandoff(context, parameters.AppId, result.ConnectionRequestId, result.RequestToken, "connect");
+                return await SendNotificationsAfterResponseAsync(msg, context, result,
+                    ("app/connection/changed", new { appId = parameters.AppId, state = "connecting" }));
             }
-
-            case AppView:
+            case ConnectionRequestGet:
             {
-                var p = GetParams<AppViewParams>(msg);
-                if (string.IsNullOrWhiteSpace(p.AppId))
-                    throw AppServerErrors.InvalidParams("'appId' is required.");
-                if (!string.IsNullOrWhiteSpace(p.ThreadId))
-                    await EnsureThreadAsync(context, p.ThreadId!, ct);
-                return service.ViewApp(catalog, workspaceCraftPath, userId, p.AppId, p.ThreadId);
-            }
-
-            case AppConnectionStart:
-            {
-                var p = GetParams<AppConnectionStartParams>(msg);
-                var result = service.StartConnection(catalog, workspaceCraftPath, userId, p);
-                return await SendNotificationAfterResponseAsync(
-                    msg,
-                    context,
-                    result,
-                    AppConnectionChanged,
-                    new
-                    {
-                        appId = result.AppId,
-                        state = result.State,
-                        previousState = AppConnectionStates.NotConnected,
-                        diagnostic = (string?)null
-                    });
-            }
-
-            case AppConnectionRequestGet:
-            {
-                var p = GetParams<AppConnectionRequestGetParams>(msg);
-                return service.GetConnectionRequest(catalog, workspaceCraftPath, p);
-            }
-
-            case AppConnectionConnect:
-            {
-                var p = GetParams<AppConnectionConnectParams>(msg);
-                var result = service.CompleteConnection(catalog, workspaceCraftPath, p);
-                return await SendNotificationAfterResponseAsync(
-                    msg,
-                    context,
-                    result,
-                    AppConnectionChanged,
-                    new
-                    {
-                        appId = result.AppId,
-                        state = result.State,
-                        previousState = AppConnectionStates.Connecting,
-                        diagnostic = result.Diagnostic
-                    });
-            }
-
-            case AppConnectionStatus:
-            {
-                var p = GetParams<AppConnectionStatusParams>(msg);
-                if (string.IsNullOrWhiteSpace(p.AppId))
-                    throw AppServerErrors.InvalidParams("'appId' is required.");
-                return service.GetConnectionStatus(catalog, workspaceCraftPath, userId, p.AppId);
-            }
-
-            case AppConnectionRefreshMetadata:
-            {
-                var p = GetParams<AppConnectionMetadataRefreshParams>(msg);
-                if (string.IsNullOrWhiteSpace(p.AppId))
-                    throw AppServerErrors.InvalidParams("'appId' is required.");
-                // Authorized by the app-owned connection proof (see RefreshConnectionMetadata),
-                // not the caller's user. Desktop surfaces observe the new endpoint on their next
-                // app/connection/status read, so no cross-client notification is emitted here.
-                return service.RefreshConnectionMetadata(catalog, workspaceCraftPath, p);
-            }
-
-            case AppConnectionRevoke:
-            {
-                var p = GetParams<AppConnectionRevokeParams>(msg);
-                if (string.IsNullOrWhiteSpace(p.AppId))
-                    throw AppServerErrors.InvalidParams("'appId' is required.");
-
-                var activeBindings = service
-                    .ListBindingsForAppUser(catalog, workspaceCraftPath, userId, p.AppId, includeRevoked: false)
-                    .Where(binding => binding.State == AppBindingStates.Active)
-                    .ToList();
-                var previous = service.GetConnectionStatus(catalog, workspaceCraftPath, userId, p.AppId).State;
-                var result = service.RevokeConnection(catalog, workspaceCraftPath, userId, p);
-                await context.Transport.WriteMessageAsync(
-                    AppServerRequestHandler.BuildResponse(msg.Id, result),
-                    context.CancellationToken);
-                await SendNotificationAsync(
-                    context,
-                    AppConnectionChanged,
-                    new
-                    {
-                        appId = result.AppId,
-                        state = result.State,
-                        previousState = previous,
-                        diagnostic = result.Diagnostic
-                    });
-                foreach (var binding in activeBindings)
+                var parameters = GetParams<AppConnectionRequestGetParams>(msg);
+                var request = _controlPlane.GetConnectionRequest(craftPath, parameters);
+                var app = EnsureCatalogApp(context, request.AppId);
+                return new
                 {
-                    ReleaseAppContextPage(context, binding.ThreadId);
-                    await SendNotificationAsync(
-                        context,
-                        ThreadAppBindingsChanged,
-                        new
-                        {
-                            threadId = binding.ThreadId,
-                            bindingId = binding.BindingId,
-                            appId = binding.AppId,
-                            state = AppBindingStates.Offline,
-                            previousState = binding.State,
-                            changeKind = "offline"
-                        });
-                }
-
-                return null;
+                    request.ConnectionRequestId,
+                    request.AppId,
+                    app.Descriptor.DisplayName,
+                    app.Descriptor.DeveloperName,
+                    request.UserId,
+                    request.ExpiresAt
+                };
             }
-
-            case AppBindingRequestCreate:
+            case ConnectionConnect:
             {
-                var p = GetParams<AppBindingRequestCreateParams>(msg);
-                await EnsureThreadAsync(context, p.ThreadId, ct);
-                var result = service.CreateBindingRequest(catalog, workspaceCraftPath, userId, p);
-                if (string.Equals(result.State, AppBindingStates.Active, StringComparison.Ordinal))
+                var result = _controlPlane.Connect(craftPath, GetParams<AppConnectionConnectParams>(msg));
+                return await SendNotificationsAfterResponseAsync(msg, context, result,
+                    ("app/connection/changed", new { result.Principal.AppId, state = "connected" }));
+            }
+            case ConnectionAuthenticate:
+            {
+                var parameters = GetParams<AppConnectionAuthenticateParams>(msg);
+                var principal = _controlPlane.Authenticate(craftPath, parameters.AppId, parameters.Credential);
+                context.Connection.BindAppPrincipal(principal.PrincipalId, principal.AppId);
+                return new { principal };
+            }
+            case ConnectionRefresh:
+                return _controlPlane.Refresh(craftPath, RequirePrincipal(context.Connection));
+            case ConnectionStatus:
+            {
+                var parameters = GetParams<AppConnectionStatusParams>(msg);
+                var principal = context.Connection.IsAppPrincipalAuthenticated
+                    ? _controlPlane.GetActivePrincipal(craftPath, context.Connection.AppPrincipalAppId!)
+                    : _controlPlane.GetActivePrincipal(craftPath, parameters.AppId);
+                return new
                 {
-                    var binding = service.ListThreadBindings(catalog, workspaceCraftPath, p.ThreadId, includeRevoked: false)
-                        .Bindings
-                        .FirstOrDefault(candidate => string.Equals(candidate.BindingId, result.BindingRequestId, StringComparison.Ordinal));
-                    if (binding != null)
-                    {
-                        return await SendThreadBindingChangedAfterResponseAsync(
-                            msg,
-                            context,
-                            result,
-                            binding,
-                            previousState: null,
-                            changeKind: "managedCreated",
-                            refreshAgent: true);
-                    }
-                }
-
-                return result;
+                    appId = context.Connection.AppPrincipalAppId ?? parameters.AppId,
+                    state = principal == null ? "notConnected" : "connected",
+                    principal
+                };
             }
-
-            case AppBindingRequestGet:
+            case ConnectionRevoke:
             {
-                var p = GetParams<AppBindingRequestGetParams>(msg);
-                var result = service.GetBindingRequest(
-                    catalog,
-                    workspaceCraftPath,
-                    p,
-                    channelAdapterName: context.Connection.IsChannelAdapter
-                        ? context.Connection.ChannelAdapterName
-                        : null,
-                    requireSocialAuthorization: true);
-                var thread = string.Equals(result.BindingKind, AppBindingKinds.SocialChannel, StringComparison.Ordinal)
-                    ? await EnsureThreadAvailableForSocialBindingRequestAsync(
-                        context,
-                        service,
-                        workspaceCraftPath,
-                        result.BindingRequestId,
-                        result.ThreadId,
-                        ct)
-                    : await EnsureThreadAsync(context, result.ThreadId, ct);
-                result.ThreadTitle = thread.DisplayName;
-                return result;
-            }
-
-            case AppBindingRequestCancel:
-            {
-                var p = GetParams<AppBindingRequestCancelParams>(msg);
-                var result = service.CancelBindingRequest(workspaceCraftPath, p);
-                return await SendNotificationAfterResponseAsync(
-                    msg,
-                    context,
-                    result,
-                    ThreadAppBindingsChanged,
-                    new
-                    {
-                        threadId = result.ThreadId,
-                        bindingRequestId = result.BindingRequestId,
-                        appId = result.AppId,
-                        state = result.State,
-                        previousState = AppBindingStates.Pending,
-                        changeKind = "cancelled"
-                    });
-            }
-
-            case AppBindingAccept:
-            {
-                var p = GetParams<AppBindingAcceptParams>(msg);
-                AuthorizeSocialBindingAccept(context.Connection, p);
-                if (p.SocialTarget != null)
+                var parameters = GetParams<AppConnectionRevokeParams>(msg);
+                if (context.Connection.IsAppPrincipalAuthenticated)
                 {
-                    var preflight = service.GetSocialBindingAcceptPreflight(
-                        catalog,
-                        workspaceCraftPath,
-                        p,
-                        channelAdapterName: context.Connection.IsChannelAdapter
-                            ? context.Connection.ChannelAdapterName
-                            : null,
-                        requireSocialAuthorization: true);
-                    await EnsureThreadAvailableForSocialBindingRequestAsync(
-                        context,
-                        service,
-                        workspaceCraftPath,
-                        preflight.Request.BindingRequestId,
-                        preflight.Request.ThreadId,
-                        ct);
-                    await RevokeUnavailableSocialBindingConflictsAsync(
-                        context,
-                        service,
-                        catalog,
-                        workspaceCraftPath,
-                        preflight.Request.AppId,
-                        preflight.SocialTarget,
-                        ct);
+                    var bindings = _controlPlane.ListPrincipalBindings(craftPath, context.Connection.AppPrincipalId!);
+                    _controlPlane.RevokePrincipal(craftPath, context.Connection.AppPrincipalId!, context.Connection.AppPrincipalId!);
+                    if (context.SessionService is IThreadMcpRuntimeService runtime)
+                        foreach (var binding in bindings)
+                            await _coordinator.RemoveAsync(binding.ThreadId, binding.BindingId, runtime, context.CancellationToken);
                 }
-                var result = service.AcceptBinding(catalog, workspaceCraftPath, p);
-                return await SendThreadBindingChangedAfterResponseAsync(
-                    msg,
-                    context,
-                    result,
-                    result.Binding,
-                    previousState: AppBindingStates.Pending,
-                    changeKind: "accepted",
-                    refreshAgent: result.Binding.AttachedToolCount > 0);
-            }
-
-            case AppBindingAttachTools:
-            {
-                var p = GetParams<AppBindingAttachToolsParams>(msg);
-                await EnsureThreadAsync(context, p.ThreadId, ct);
-                var before = service.ListThreadBindings(catalog, workspaceCraftPath, p.ThreadId, includeRevoked: true)
-                    .Bindings
-                    .FirstOrDefault(binding => string.Equals(binding.BindingId, p.BindingId, StringComparison.Ordinal));
-                var result = service.AttachTools(
-                    catalog,
-                    workspaceCraftPath,
-                    context.Transport,
-                    context.Connection,
-                    p);
-                return await SendThreadBindingChangedAfterResponseAsync(
-                    msg,
-                    context,
-                    result,
-                    result.Binding,
-                    previousState: before?.State ?? AppBindingStates.Active,
-                    changeKind: "toolsAttached",
-                    refreshAgent: true);
-            }
-
-            case AppBindingContextUpsert:
-            {
-                var p = GetParams<AppBindingContextUpsertParams>(msg);
-                var result = service.UpsertContextBlock(catalog, workspaceCraftPath, p);
-                ReleaseAppContextPage(context, result.Block.ThreadId);
-                return result;
-            }
-
-            case AppBindingContextRemove:
-            {
-                var p = GetParams<AppBindingContextRemoveParams>(msg);
-                var result = service.RemoveContextBlock(catalog, workspaceCraftPath, p);
-                ReleaseAppContextPage(context, result.ThreadId);
-                return result;
-            }
-
-            case AppThreadInputEnqueue:
-            {
-                var p = GetParams<AppThreadInputEnqueueParams>(msg);
-                var threadId = service.AuthorizeThreadInputEnqueue(catalog, workspaceCraftPath, p);
-                var prepared = PrepareAppThreadInput(p);
-                var deliveryBindingId = service.GetActiveSocialTarget(workspaceCraftPath, p.BindingId) == null
-                    ? null
-                    : p.BindingId.Trim();
-                if (!string.IsNullOrWhiteSpace(deliveryBindingId)
-                    && !await IsThreadAvailableForSocialBindingAsync(context, threadId, ct))
+                else
                 {
-                    service.RevokeStaleSocialBinding(
-                        catalog,
-                        workspaceCraftPath,
-                        deliveryBindingId,
-                        "The bound thread is unavailable.",
-                        "binding.revoked.threadUnavailable");
-                    throw AppServerErrors.InvalidParams("Social binding thread is unavailable.");
+                    EnsureTrustedClient(context.Connection);
+                    var bindings = _controlPlane.ListAppBindings(craftPath, parameters.AppId);
+                    _controlPlane.RevokeApp(craftPath, parameters.AppId, userId);
+                    if (context.SessionService is IThreadMcpRuntimeService runtime)
+                        foreach (var binding in bindings)
+                            await _coordinator.RemoveAsync(binding.ThreadId, binding.BindingId, runtime, context.CancellationToken);
                 }
-
-                await context.SessionService.EnsureThreadLoadedAsync(threadId, ct);
-
+                var result = new { state = AppBindingStates.Revoked };
+                return await SendNotificationsAfterResponseAsync(msg, context, result,
+                    ("app/connection/changed", new { appId = parameters.AppId ?? context.Connection.AppPrincipalAppId, state = "revoked" }));
+            }
+            case BindingEnable:
+            {
+                EnsureTrustedClient(context.Connection);
+                var parameters = GetParams<ThreadAppBindingEnableParams>(msg);
+                await context.SessionService.GetThreadAsync(parameters.ThreadId, context.CancellationToken);
+                EnsureCatalogApp(context, parameters.AppId);
+                var result = _controlPlane.Enable(craftPath, parameters.ThreadId, parameters.AppId, userId);
+                result.Handoff = BuildHandoff(context, parameters.AppId, result.BindingRequestId, result.RequestToken, "bind");
+                context.NotifyAppPrincipal?.Invoke(parameters.AppId, "app/binding/requested",
+                    new { result.BindingRequestId, result.BindingId, parameters.ThreadId, parameters.AppId });
+                return await SendNotificationsAfterResponseAsync(msg, context, result,
+                    ("thread/appBindings/changed", new { parameters.ThreadId, state = AppBindingStates.Connecting }));
+            }
+            case BindingRequestGet:
+                return _controlPlane.GetBindingRequest(
+                    craftPath,
+                    GetParams<AppBindingRequestGetParams>(msg),
+                    context.Connection.AppPrincipalId);
+            case PrincipalBindingsList:
+                return new { bindings = _controlPlane.ListPrincipalBindings(craftPath, RequirePrincipal(context.Connection)) };
+            case ThreadBindingsList:
+            {
+                EnsureTrustedClient(context.Connection);
+                var parameters = GetParams<ThreadAppBindingsListParams>(msg);
+                return new { bindings = _controlPlane.ListThreadBindings(craftPath, parameters.ThreadId) };
+            }
+            case BindingRevoke:
+            {
+                EnsureTrustedClient(context.Connection);
+                var parameters = GetParams<ThreadAppBindingRevokeParams>(msg);
+                var binding = _controlPlane.RevokeBinding(craftPath, parameters.ThreadId, parameters.BindingId, userId);
+                if (context.SessionService is IThreadMcpRuntimeService mcpRuntime)
+                    await _coordinator.RemoveAsync(parameters.ThreadId, parameters.BindingId, mcpRuntime, context.CancellationToken);
+                return await SendNotificationsAfterResponseAsync(msg, context, binding,
+                    ("thread/appBindings/changed", new { parameters.ThreadId, parameters.BindingId, state = AppBindingStates.Revoked }));
+            }
+            case BindingActivate:
+            {
+                var runtime = RequireMcpRuntime(context.SessionService);
+                var parameters = GetParams<AppBindingActivateParams>(msg);
+                var result = await _coordinator.ActivateAsync(craftPath, RequirePrincipal(context.Connection),
+                    parameters, runtime, context.CancellationToken);
+                return await SendNotificationsAfterResponseAsync(msg, context, result,
+                    ("thread/appBindings/changed", new { result.ThreadId, result.BindingId, result.State }));
+            }
+            case BindingRebind:
+            {
+                var runtime = RequireMcpRuntime(context.SessionService);
+                var parameters = GetParams<AppBindingRebindParams>(msg);
+                var result = await _coordinator.RebindAsync(craftPath, RequirePrincipal(context.Connection),
+                    parameters, runtime, context.CancellationToken);
+                return await SendNotificationsAfterResponseAsync(msg, context, result,
+                    ("thread/appBindings/changed", new { result.ThreadId, result.BindingId, result.State }));
+            }
+            case BindingConfirm:
+            {
+                EnsureTrustedClient(context.Connection);
+                var parameters = GetParams<ThreadAppBindingConfirmCapabilitiesParams>(msg);
+                var result = await _coordinator.ConfirmAsync(craftPath,
+                    parameters, userId,
+                    RequireMcpRuntime(context.SessionService), context.CancellationToken);
+                return await SendNotificationsAfterResponseAsync(msg, context, result,
+                    ("thread/appBindings/changed", new { parameters.ThreadId, parameters.BindingId, result.State }));
+            }
+            case SocialRequestCreate:
+            {
+                EnsureTrustedClient(context.Connection);
+                var parameters = GetParams<ThreadSocialBindingRequestCreateParams>(msg);
+                await context.SessionService.GetThreadAsync(parameters.ThreadId, context.CancellationToken);
+                var result = _controlPlane.CreateSocialRequest(craftPath, parameters.ThreadId, parameters.ChannelName, userId);
+                return await SendNotificationsAfterResponseAsync(msg, context, result,
+                    ("thread/appBindings/changed", new { parameters.ThreadId, state = AppBindingStates.Connecting }),
+                    ("app/binding/requested", result));
+            }
+            case SocialRequestGet:
+            {
+                var channel = RequireChannel(context.Connection);
+                return _controlPlane.GetSocialRequest(craftPath,
+                    GetParams<SocialBindingRequestGetParams>(msg).Code, channel);
+            }
+            case SocialAccept:
+            {
+                var result = _controlPlane.AcceptSocial(craftPath, RequireChannel(context.Connection),
+                    GetParams<SocialBindingAcceptParams>(msg));
+                return await SendNotificationsAfterResponseAsync(msg, context, result,
+                    ("thread/appBindings/changed", new { result.ThreadId, result.BindingId, result.State }));
+            }
+            case SocialRebind:
+            {
+                var result = _controlPlane.RebindSocial(craftPath, RequireChannel(context.Connection),
+                    GetParams<SocialBindingRebindParams>(msg));
+                return await SendNotificationsAfterResponseAsync(msg, context, result,
+                    ("thread/appBindings/changed", new { result.ThreadId, result.BindingId, result.State }));
+            }
+            case SocialResolve:
+            {
+                var channel = RequireChannel(context.Connection);
+                var parameters = GetParams<AppSocialBindingResolveParams>(msg);
+                if (!string.Equals(parameters.ChannelName, channel, StringComparison.OrdinalIgnoreCase))
+                    throw AppServerErrors.AppPrincipalUnauthorized("A channel adapter may resolve only its own bindings.");
+                return new { binding = _controlPlane.ResolveSocial(craftPath, channel, parameters.AccountId,
+                    parameters.ConversationKind, parameters.ConversationId) };
+            }
+            case ThreadInputEnqueue:
+            {
+                var parameters = GetParams<AppThreadInputEnqueueParams>(msg);
+                var principal = context.Connection.IsChannelAdapter
+                    ? $"channel:{context.Connection.ChannelAdapterName!.ToLowerInvariant()}"
+                    : RequirePrincipal(context.Connection);
+                var binding = _controlPlane.AuthorizeThreadInput(craftPath, parameters.BindingId, principal);
+                if (parameters.Input.Count == 0)
+                    throw AppServerErrors.InvalidParams("'input' must not be empty.");
+                await context.SessionService.EnsureThreadLoadedAsync(binding.ThreadId, context.CancellationToken);
+                var contents = parameters.Input.Select(part => part.ToAIContent()).ToList();
                 using (TurnTriggerScope.Set(new TurnTriggerInfo
                        {
                            Kind = "app",
-                           Label = string.IsNullOrWhiteSpace(p.TriggerLabel) ? null : p.TriggerLabel.Trim(),
-                           RefId = string.IsNullOrWhiteSpace(p.TriggerRefId) ? null : p.TriggerRefId.Trim()
+                           Label = string.IsNullOrWhiteSpace(parameters.TriggerLabel) ? null : parameters.TriggerLabel.Trim(),
+                           RefId = string.IsNullOrWhiteSpace(parameters.TriggerRefId) ? null : parameters.TriggerRefId.Trim()
                        }))
                 {
                     var queued = await context.SessionService.EnqueueTurnInputAsync(
-                        threadId,
-                        prepared.Content,
-                        sender: p.Sender,
-                        ct,
+                        binding.ThreadId, contents, parameters.Sender, context.CancellationToken,
                         new SessionInputSnapshot
                         {
-                            NativeInputParts = prepared.NativeInputParts,
-                            MaterializedInputParts = prepared.MaterializedInputParts,
-                            DisplayText = prepared.DisplayText,
-                            DeliveryBindingId = deliveryBindingId
+                            NativeInputParts = parameters.Input,
+                            MaterializedInputParts = parameters.Input,
+                            DisplayText = parameters.DisplayText ?? SessionWireMapper.BuildDisplayText(parameters.Input),
+                            DeliveryBindingId = binding.Kind == "social" ? binding.BindingId : null
                         });
-                    service.RecordThreadInputEnqueued(
-                        workspaceCraftPath,
-                        p.BindingId,
-                        queued.Id,
-                        "app",
-                        p.TriggerLabel,
-                        p.TriggerRefId);
-                    if (!string.IsNullOrWhiteSpace(deliveryBindingId))
-                    {
-                        _socialDeliveryCoordinator?.StartQueuedTurnDelivery(
-                            context.SessionService,
-                            workspaceCraftPath,
-                            threadId,
-                            deliveryBindingId,
-                            queued.Id,
-                            ct);
-                    }
-
-                    var startPolicy = NormalizeStartPolicy(p.StartPolicy);
-                    if (string.Equals(startPolicy, AppThreadInputStartPolicies.RunWhenIdle, StringComparison.Ordinal))
-                        await context.SessionService.TryStartNextQueuedTurnAsync(threadId, ct);
-
-                    var thread = await context.SessionService.GetThreadAsync(threadId, ct);
-                    return new AppThreadInputEnqueueResult
-                    {
-                        QueuedInput = queued,
-                        QueuedInputs = thread.QueuedInputs.ToList()
-                    };
+                    if (binding.Kind == "social")
+                        _socialDeliveryCoordinator?.StartQueuedTurnDelivery(context.SessionService, craftPath,
+                            binding.ThreadId, binding.BindingId, queued.Id, binding.AuthorityRevision,
+                            context.CancellationToken);
+                    if (string.Equals(parameters.StartPolicy, AppThreadInputStartPolicies.RunWhenIdle, StringComparison.Ordinal))
+                        await context.SessionService.TryStartNextQueuedTurnAsync(binding.ThreadId, context.CancellationToken);
+                    var thread = await context.SessionService.GetThreadAsync(binding.ThreadId, context.CancellationToken);
+                    return new AppThreadInputEnqueueResult { QueuedInput = queued, QueuedInputs = thread.QueuedInputs.ToList() };
                 }
             }
-
-            case AppSocialBindingResolve:
-            {
-                var p = GetParams<AppSocialBindingResolveParams>(msg);
-                AuthorizeSocialBindingResolve(context.Connection, p);
-                return await ResolveSocialBindingWithThreadValidationAsync(
-                    context,
-                    service,
-                    catalog,
-                    workspaceCraftPath,
-                    p,
-                    ct);
-            }
-
-            case ThreadAppBindingsList:
-            {
-                var p = GetParams<ThreadAppBindingsListParams>(msg);
-                await EnsureThreadAsync(context, p.ThreadId, ct);
-                return service.ListThreadBindings(catalog, workspaceCraftPath, p.ThreadId, p.IncludeRevoked == true);
-            }
-
-            case ThreadAppContextBlocksList:
-            {
-                var p = GetParams<ThreadAppContextBlocksListParams>(msg);
-                await EnsureThreadAsync(context, p.ThreadId, ct);
-                return service.ListThreadContextBlocks(workspaceCraftPath, p.ThreadId, p.IncludeInactive == true);
-            }
-
-            case UiResourceRead:
-            {
-                var p = GetParams<UiResourceReadParams>(msg);
-                await EnsureThreadAsync(context, p.ThreadId, ct);
-                return await service.ReadUiResourceAsync(workspaceCraftPath, p.ThreadId, p.Namespace, p.Uri, ct);
-            }
-
-            case UiToolCall:
-            {
-                var p = GetParams<UiToolCallParams>(msg);
-                await EnsureThreadAsync(context, p.ThreadId, ct);
-                return await service.InvokeUiToolAsync(
-                    workspaceCraftPath,
-                    p.ThreadId,
-                    p.Namespace,
-                    p.Tool,
-                    p.Arguments,
-                    p.SourceCallId,
-                    userId,
-                    context.SessionService,
-                    BuildUiToolApprovalGate(context, p.ThreadId, p.Namespace, p.Tool),
-                    ct);
-            }
-
-            case UiOpenLink:
-            {
-                var p = GetParams<UiOpenLinkParams>(msg);
-                await EnsureThreadAsync(context, p.ThreadId, ct);
-                return service.OpenLink(catalog, workspaceCraftPath, p.ThreadId, p.Namespace, p.Url, p.SourceCallId, userId);
-            }
-
-            case UiUpdateModelContext:
-            {
-                var p = GetParams<UiUpdateModelContextParams>(msg);
-                await EnsureThreadAsync(context, p.ThreadId, ct);
-                var result = service.UpdateModelContext(
-                    workspaceCraftPath,
-                    p.ThreadId,
-                    p.Namespace,
-                    p.SourceCallId,
-                    p.Title,
-                    p.Content,
-                    userId);
-                ReleaseAppContextPage(context, p.ThreadId);
-                return result;
-            }
-
-            case ThreadAppBindingsRevoke:
-            {
-                var p = GetParams<ThreadAppBindingRevokeParams>(msg);
-                var thread = await EnsureThreadAsync(context, p.ThreadId, ct);
-                var before = service.ListThreadBindings(catalog, workspaceCraftPath, p.ThreadId, includeRevoked: true)
-                    .Bindings
-                    .FirstOrDefault(binding => string.Equals(binding.BindingId, p.BindingId, StringComparison.Ordinal));
-                var result = service.RevokeBinding(workspaceCraftPath, p);
-                ReleaseAppContextPage(context, p.ThreadId);
-                await InterruptActiveTurnAsync(context, thread);
-                var after = before == null
-                    ? new ThreadAppBindingWire
-                    {
-                        BindingId = result.BindingId,
-                        ThreadId = p.ThreadId,
-                        State = result.State
-                    }
-                    : new ThreadAppBindingWire
-                    {
-                        BindingId = before.BindingId,
-                        ThreadId = before.ThreadId,
-                        AppId = before.AppId,
-                        GrantId = before.GrantId,
-                        DisplayName = before.DisplayName,
-                        Icon = before.Icon,
-                        ToolNamespace = before.ToolNamespace,
-                        State = result.State,
-                        ConnectionState = before.ConnectionState,
-                        GrantedScopes = before.GrantedScopes.ToList(),
-                        AttachedToolCount = before.AttachedToolCount,
-                        ExpiresAt = before.ExpiresAt,
-                        LastChangedAt = before.LastChangedAt,
-                        ApprovalMode = before.ApprovalMode,
-                        AuditRef = before.AuditRef,
-                        Diagnostic = before.Diagnostic,
-                        BindingKind = before.BindingKind,
-                        SocialTarget = before.SocialTarget,
-                        ExposureRevision = before.ExposureRevision
-                    };
-                return await SendThreadBindingChangedAfterResponseAsync(
-                    msg,
-                    context,
-                    result,
-                    after,
-                    previousState: before?.State,
-                    changeKind: "revoked",
-                    refreshAgent: true);
-            }
-
-            case ThreadAppBindingsRefresh:
-            {
-                var p = GetParams<ThreadAppBindingRefreshParams>(msg);
-                await EnsureThreadAsync(context, p.ThreadId, ct);
-                var before = service.ListThreadBindings(catalog, workspaceCraftPath, p.ThreadId, includeRevoked: true)
-                    .Bindings
-                    .ToDictionary(binding => binding.BindingId, StringComparer.Ordinal);
-                var result = service.RefreshBindings(catalog, workspaceCraftPath, p);
-                ReleaseAppContextPage(context, p.ThreadId);
-                await RefreshThreadAgentAsync(context, p.ThreadId);
-                await context.Transport.WriteMessageAsync(
-                    AppServerRequestHandler.BuildResponse(msg.Id, result),
-                    context.CancellationToken);
-                foreach (var refreshed in result.Bindings)
-                {
-                    before.TryGetValue(refreshed.BindingId, out var existing);
-                    await SendNotificationAsync(
-                        context,
-                        ThreadAppBindingsChanged,
-                        new
-                        {
-                            threadId = p.ThreadId,
-                            bindingId = refreshed.BindingId,
-                            appId = existing?.AppId,
-                            state = refreshed.State,
-                            previousState = existing?.State,
-                            changeKind = "refreshed"
-                        });
-                }
-
-                return null;
-            }
-
             default:
                 throw AppServerErrors.MethodNotFound(method);
         }
     }
 
-    private static async Task<SessionThread> EnsureThreadAsync(
-        AppServerExtensionContext context,
-        string threadId,
-        CancellationToken ct)
+    private static IThreadMcpRuntimeService RequireMcpRuntime(ISessionService sessionService) =>
+        sessionService as IThreadMcpRuntimeService
+        ?? throw AppServerErrors.InvalidRequest("This host does not provide binding-scoped MCP sessions.");
+
+    private static string RequireChannel(AppServerConnection connection) =>
+        connection.ChannelAdapterName
+        ?? throw AppServerErrors.AppPrincipalUnauthorized("This method requires an authenticated channel adapter.");
+
+    private AppCatalogEntry EnsureCatalogApp(AppServerExtensionContext context, string appId)
     {
-        if (string.IsNullOrWhiteSpace(threadId))
-            throw AppServerErrors.InvalidParams("'threadId' is required.");
-        return await context.SessionService.GetThreadAsync(threadId, ct);
+        if (string.IsNullOrWhiteSpace(appId))
+            throw AppServerErrors.InvalidParams("'appId' is required.");
+        var catalog = DiscoverCatalog(context);
+        return catalog.Entries.FirstOrDefault(entry =>
+                   string.Equals(entry.Descriptor.AppId, appId, StringComparison.Ordinal))
+               ?? throw AppServerErrors.InvalidParams($"App '{appId}' is not installed or enabled.");
     }
 
-    private static async Task<SessionThread> EnsureThreadAvailableForSocialBindingRequestAsync(
-        AppServerExtensionContext context,
-        AppBindingService service,
-        string workspaceCraftPath,
-        string bindingRequestId,
-        string threadId,
-        CancellationToken ct)
+    private AppCatalogSnapshot DiscoverCatalog(AppServerExtensionContext context) =>
+        AppBindingCatalog.Discover(
+            _appConfigMonitor.Current,
+            context.HostWorkspacePath!,
+            context.WorkspaceCraftPath!,
+            _skillsLoader,
+            _builtInPluginSourceRoots);
+
+    private static AppInfoWire MapCatalogApp(AppCatalogEntry entry) => new()
     {
-        var thread = await TryGetThreadForSocialBindingAsync(context, threadId, ct);
-        if (IsThreadUnavailableForSocialBinding(thread))
+        AppId = entry.Descriptor.AppId,
+        DisplayName = entry.Descriptor.DisplayName,
+        DeveloperName = entry.Descriptor.DeveloperName,
+        Description = entry.Descriptor.Description,
+        Category = entry.Descriptor.Category,
+        Icon = entry.Descriptor.Icon,
+        PluginId = entry.Plugin.Manifest.Id,
+        Installed = entry.Plugin.Installed,
+        Enabled = entry.Plugin.Enabled,
+        ReleasePage = entry.Descriptor.ReleasePage,
+        DownloadUrl = entry.Descriptor.DownloadUrl,
+        NativeApp = new AppNativeApplicationWire
         {
-            service.CancelPendingSocialBindingRequestForUnavailableThread(
-                workspaceCraftPath,
-                bindingRequestId,
-                "The binding request thread is unavailable.",
-                "binding.request.cancelled.threadUnavailable");
-            throw AppServerErrors.InvalidParams("Binding request is no longer pending.");
-        }
+            DisplayName = entry.Descriptor.NativeApplication.DisplayName,
+            Protocol = entry.Descriptor.NativeApplication.Protocol,
+            InstallUrl = entry.Descriptor.NativeApplication.InstallUrl
+        },
+        HandoffModes = entry.Descriptor.Connection.HandoffModes
+    };
 
-        return thread!;
-    }
-
-    private static async Task<AppSocialBindingResolveResult> ResolveSocialBindingWithThreadValidationAsync(
+    private AppHandoffWire BuildHandoff(
         AppServerExtensionContext context,
-        AppBindingService service,
-        AppCatalogSnapshot catalog,
-        string workspaceCraftPath,
-        AppSocialBindingResolveParams p,
-        CancellationToken ct)
-    {
-        for (var attempt = 0; attempt < 16; attempt++)
-        {
-            var result = service.ResolveSocialBinding(catalog, workspaceCraftPath, p);
-            if (result.Binding == null)
-                return result;
-
-            if (await IsThreadAvailableForSocialBindingAsync(context, result.Binding.ThreadId, ct))
-                return result;
-
-            service.RevokeStaleSocialBinding(
-                catalog,
-                workspaceCraftPath,
-                result.Binding.BindingId,
-                "The bound thread is unavailable.",
-                "binding.revoked.threadUnavailable");
-        }
-
-        return new AppSocialBindingResolveResult { Binding = null };
-    }
-
-    private static async Task RevokeUnavailableSocialBindingConflictsAsync(
-        AppServerExtensionContext context,
-        AppBindingService service,
-        AppCatalogSnapshot catalog,
-        string workspaceCraftPath,
         string appId,
-        SocialChannelTargetWire socialTarget,
-        CancellationToken ct)
+        string requestId,
+        string token,
+        string operation)
     {
-        for (var attempt = 0; attempt < 16; attempt++)
+        var app = EnsureCatalogApp(context, appId);
+        var mode = app.Descriptor.Connection.HandoffModes.First();
+        return new AppHandoffWire
         {
-            var conflict = service.FindActiveSocialBindingConflict(catalog, workspaceCraftPath, appId, socialTarget);
-            if (conflict == null)
-                return;
-            if (await IsThreadAvailableForSocialBindingAsync(context, conflict.ThreadId, ct))
-                return;
-
-            service.RevokeStaleSocialBinding(
-                catalog,
-                workspaceCraftPath,
-                conflict.BindingId,
-                "The bound thread is unavailable.",
-                "binding.revoked.threadUnavailable");
-        }
-    }
-
-    private static async Task<bool> IsThreadAvailableForSocialBindingAsync(
-        AppServerExtensionContext context,
-        string threadId,
-        CancellationToken ct)
-    {
-        var thread = await TryGetThreadForSocialBindingAsync(context, threadId, ct);
-        return !IsThreadUnavailableForSocialBinding(thread);
-    }
-
-    private static async Task<SessionThread?> TryGetThreadForSocialBindingAsync(
-        AppServerExtensionContext context,
-        string threadId,
-        CancellationToken ct)
-    {
-        if (string.IsNullOrWhiteSpace(threadId))
-            return null;
-
-        try
-        {
-            return await context.SessionService.GetThreadAsync(threadId, ct);
-        }
-        catch (KeyNotFoundException)
-        {
-            return null;
-        }
-    }
-
-    private static bool IsThreadUnavailableForSocialBinding(SessionThread? thread) =>
-        thread == null || thread.Status == ThreadStatus.Archived;
-
-    private static PreparedAppThreadInput PrepareAppThreadInput(AppThreadInputEnqueueParams p)
-    {
-        if (p.Input.Count == 0)
-            throw AppServerErrors.InvalidParams("'input' must contain at least one part.");
-
-        var nativeParts = InputMaterializationService.NormalizeInputParts(p.Input);
-        if (nativeParts.Count == 0)
-            throw AppServerErrors.InvalidParams("'input' must contain at least one valid part.");
-        foreach (var part in nativeParts)
-        {
-            if (part.Type is "commandRef" or "skillRef")
-            {
-                throw AppServerErrors.InvalidParams(
-                    "'app/threadInput/enqueue' does not accept commandRef or skillRef input parts.");
-            }
-        }
-
-        var displayText = string.IsNullOrWhiteSpace(p.DisplayText)
-            ? SessionWireMapper.BuildDisplayText(nativeParts)
-            : p.DisplayText.Trim();
-        return new PreparedAppThreadInput
-        {
-            NativeInputParts = nativeParts,
-            MaterializedInputParts = nativeParts,
-            DisplayText = displayText,
-            Content = nativeParts.Select(part => part.ToAIContent()).ToList()
+            Mode = mode.Mode,
+            Uri = string.IsNullOrWhiteSpace(mode.UriTemplate)
+                ? null
+                : mode.UriTemplate
+                    .Replace("{appId}", Uri.EscapeDataString(appId), StringComparison.Ordinal)
+                    .Replace("{requestId}", Uri.EscapeDataString(requestId), StringComparison.Ordinal)
+                    .Replace("{request}", Uri.EscapeDataString(requestId), StringComparison.Ordinal)
+                    .Replace("{requestToken}", Uri.EscapeDataString(token), StringComparison.Ordinal)
+                    .Replace("{operation}", Uri.EscapeDataString(operation), StringComparison.Ordinal)
         };
     }
 
-    private static string NormalizeStartPolicy(string? startPolicy)
+    private static void EnsureTrustedClient(AppServerConnection connection)
     {
-        if (string.IsNullOrWhiteSpace(startPolicy))
-            return AppThreadInputStartPolicies.QueueOnly;
-        var normalized = startPolicy.Trim();
-        if (!AppThreadInputStartPolicies.IsKnown(normalized))
-            throw AppServerErrors.InvalidParams($"Unknown app thread input startPolicy '{startPolicy}'.");
-        return normalized;
+        if (connection.IsAppPrincipalAuthenticated || connection.IsChannelAdapter)
+            throw AppServerErrors.AppPrincipalUnauthorized("This method requires a trusted DotCraft client connection.");
     }
 
-    private static void AuthorizeSocialBindingResolve(
-        AppServerConnection connection,
-        AppSocialBindingResolveParams p)
-    {
-        if (!connection.IsChannelAdapter || string.IsNullOrWhiteSpace(connection.ChannelAdapterName))
-            throw AppServerErrors.InvalidParams("'app/socialBinding/resolve' may only be called by channel adapters.");
-        if (string.IsNullOrWhiteSpace(p.ChannelName))
-            throw AppServerErrors.InvalidParams("'channelName' is required.");
-        if (!string.Equals(connection.ChannelAdapterName, p.ChannelName.Trim(), StringComparison.OrdinalIgnoreCase))
-            throw AppServerErrors.InvalidParams("Channel adapter cannot resolve bindings for another channel.");
-        if (!string.Equals(p.AppId, ChannelAppId(p.ChannelName), StringComparison.Ordinal))
-            throw AppServerErrors.InvalidParams("Social binding appId does not match channelName.");
-    }
+    private static string RequirePrincipal(AppServerConnection connection) =>
+        connection.AppPrincipalId
+        ?? throw AppServerErrors.AppPrincipalUnauthorized("This method requires an authenticated app-principal connection.");
 
-    private static void AuthorizeSocialBindingAccept(
-        AppServerConnection connection,
-        AppBindingAcceptParams p)
-    {
-        if (p.SocialTarget == null)
-            return;
-        if (!connection.IsChannelAdapter || string.IsNullOrWhiteSpace(connection.ChannelAdapterName))
-            throw AppServerErrors.InvalidParams("Social channel bindings may only be accepted by channel adapters.");
-        if (!string.Equals(connection.ChannelAdapterName, p.SocialTarget.ChannelName.Trim(), StringComparison.OrdinalIgnoreCase))
-            throw AppServerErrors.InvalidParams("Channel adapter cannot accept bindings for another channel.");
-    }
+    private static string RequireWorkspace(AppServerExtensionContext context, string method) =>
+        string.IsNullOrWhiteSpace(context.WorkspaceCraftPath)
+            ? throw AppServerErrors.MethodNotFound(method)
+            : context.WorkspaceCraftPath;
 
-    private static string ChannelAppId(string channelName) =>
-        $"com.dotharness.channel.{channelName.Trim().ToLowerInvariant()}";
-
-    private sealed class PreparedAppThreadInput
-    {
-        public IReadOnlyList<SessionWireInputPart> NativeInputParts { get; init; } = [];
-
-        public IReadOnlyList<SessionWireInputPart> MaterializedInputParts { get; init; } = [];
-
-        public string DisplayText { get; init; } = string.Empty;
-
-        public List<AIContent> Content { get; init; } = [];
-    }
-
-    private static async Task<object?> SendThreadBindingChangedAfterResponseAsync(
-        AppServerIncomingMessage msg,
-        AppServerExtensionContext context,
-        object result,
-        ThreadAppBindingWire binding,
-        string? previousState,
-        string changeKind,
-        bool refreshAgent)
-    {
-        ReleaseAppContextPage(context, binding.ThreadId);
-        if (refreshAgent)
-            await RefreshThreadAgentAsync(context, binding.ThreadId);
-        return await SendNotificationAfterResponseAsync(
-            msg,
-            context,
-            result,
-            ThreadAppBindingsChanged,
-            new
-            {
-                threadId = binding.ThreadId,
-                bindingId = binding.BindingId,
-                appId = binding.AppId,
-                state = binding.State,
-                previousState,
-                changeKind
-            });
-    }
-
-    private static async Task RefreshThreadAgentAsync(AppServerExtensionContext context, string threadId)
-    {
-        if (context.SessionService is IThreadAgentRefreshService refreshService)
-            await refreshService.RefreshThreadAgentAsync(threadId, context.CancellationToken);
-    }
-
-    private static void ReleaseAppContextPage(AppServerExtensionContext context, string? threadId)
-    {
-        if (!string.IsNullOrWhiteSpace(threadId))
-            context.ContextPageManager?.ReleaseStablePage(threadId, ContextPageKeys.AppContextBlocks());
-    }
-
-    private static async Task InterruptActiveTurnAsync(AppServerExtensionContext context, SessionThread thread)
-    {
-        var turn = thread.Turns.LastOrDefault(turn =>
-            turn.Status is TurnStatus.Running or TurnStatus.WaitingApproval or TurnStatus.WaitingInput);
-        if (turn == null)
-            return;
-
-        try
-        {
-            await context.SessionService.CancelTurnAsync(thread.Id, turn.Id, context.CancellationToken);
-        }
-        catch (AppServerException ex) when (ex.Code is AppServerErrors.TurnNotFoundCode or AppServerErrors.TurnNotRunningCode)
-        {
-            // The turn may have completed between the revoke read and cancellation request.
-        }
-    }
-
-    private static async Task<object?> SendNotificationAfterResponseAsync(
-        AppServerIncomingMessage msg,
-        AppServerExtensionContext context,
-        object result,
-        string notificationMethod,
-        object notificationParams)
-    {
-        await context.Transport.WriteMessageAsync(
-            AppServerRequestHandler.BuildResponse(msg.Id, result),
-            context.CancellationToken);
-        await SendNotificationAsync(context, notificationMethod, notificationParams);
-        return null;
-    }
-
-    private static Task SendNotificationAsync(
-        AppServerExtensionContext context,
-        string method,
-        object @params) =>
-        context.Transport.WriteMessageAsync(
-            new
-            {
-                jsonrpc = "2.0",
-                method,
-                @params
-            },
-            context.CancellationToken);
-
-    private static string RequireWorkspaceCraftPath(string method, AppServerExtensionContext context)
-    {
-        if (string.IsNullOrWhiteSpace(context.WorkspaceCraftPath))
-            throw AppServerErrors.MethodNotFound(method);
-        return context.WorkspaceCraftPath!;
-    }
-
-    private static string RequireHostWorkspacePath(string method, AppServerExtensionContext context)
-    {
-        if (string.IsNullOrWhiteSpace(context.HostWorkspacePath))
-            throw AppServerErrors.MethodNotFound(method);
-        return context.HostWorkspacePath!;
-    }
-
-    private static string CurrentUserId(AppServerExtensionContext context) =>
+    private static string CurrentUser(AppServerExtensionContext context) =>
         string.IsNullOrWhiteSpace(context.Connection.ClientInfo?.Name)
             ? "appserver"
-            : context.Connection.ClientInfo!.Name;
+            : context.Connection.ClientInfo.Name;
 
-    private static T GetParams<T>(AppServerIncomingMessage msg)
-        where T : new()
+    private void ApplyBindingState(string craftPath, string? threadId, IReadOnlyList<AppInfoWire> apps)
+    {
+        var bindings = string.IsNullOrWhiteSpace(threadId)
+            ? Array.Empty<AppBindingWire>()
+            : _controlPlane.ListThreadBindings(craftPath, threadId).ToArray();
+        foreach (var app in apps)
+        {
+            if (_controlPlane.GetActivePrincipal(craftPath, app.AppId) != null)
+                app.ConnectionState = AppConnectionStates.Connected;
+            var binding = bindings.FirstOrDefault(candidate =>
+                string.Equals(candidate.AppId, app.AppId, StringComparison.Ordinal));
+            app.BindingSummary = binding == null ? null : new ThreadAppBindingSummaryWire
+            {
+                ThreadId = binding.ThreadId,
+                BindingId = binding.BindingId,
+                AppId = binding.AppId,
+                DisplayName = app.DisplayName,
+                Icon = app.Icon,
+                State = binding.State,
+                ConnectionState = app.ConnectionState,
+                BindingKind = binding.SocialTarget == null ? "app" : "socialChannel",
+                SocialTarget = binding.SocialTarget,
+                AuthorityRevision = binding.AuthorityRevision,
+                ApprovedCapabilityRevision = binding.ApprovedCapabilityRevision,
+                CandidateCapabilityRevision = binding.CandidateCapabilityRevision,
+                ApprovedTools = binding.ApprovedTools,
+                PendingChanges = binding.PendingChanges,
+                FailureReason = binding.FailureReason
+            };
+        }
+    }
+
+    private static T GetParams<T>(AppServerIncomingMessage msg) where T : new()
     {
         if (!msg.Params.HasValue || msg.Params.Value.ValueKind == JsonValueKind.Null)
-            return new T();
-
+            return new();
         try
         {
             return JsonSerializer.Deserialize<T>(
-                msg.Params.Value.GetRawText(),
-                SessionWireJsonOptions.Default) ?? new T();
+                       msg.Params.Value.GetRawText(),
+                       DotCraft.Protocol.SessionWireJsonOptions.Default) ?? new();
         }
         catch (JsonException ex)
         {
@@ -938,71 +498,27 @@ public sealed class AppBindingProtocolExtension(
         }
     }
 
-    /// <summary>
-    /// Builds the decoupled mutate‑approval gate for a UI‑initiated <c>ui/tool/call</c> (M‑v): it
-    /// sends a <c>ui/tool/approval/request</c> to the Desktop host (which surfaces it in the shared
-    /// approval composer) and awaits the decision. Returns null when the client cannot prompt
-    /// (no approval capability), so the service rejects the mutating call instead.
-    /// </summary>
-    private static UiToolApprovalGate? BuildUiToolApprovalGate(
+    private static async Task<object?> SendNotificationsAfterResponseAsync(
+        AppServerIncomingMessage msg,
         AppServerExtensionContext context,
-        string threadId,
-        string? @namespace,
-        string tool)
+        object result,
+        params (string Method, object Params)[] notifications)
     {
-        var connection = context.Connection;
-        var transport = context.Transport;
-        if (!connection.SupportsApproval)
-            return null;
-
-        return async (info, gateCt) =>
+        await context.Transport.WriteMessageAsync(
+            AppServerRequestHandler.BuildResponse(msg.Id, result),
+            context.CancellationToken);
+        foreach (var notification in notifications)
         {
-            AppServerIncomingMessage response;
-            try
-            {
-                response = await transport.SendClientRequestAsync(
-                    UiToolApprovalRequest,
-                    new UiToolApprovalRequestParams
-                    {
-                        ThreadId = threadId,
-                        ApprovalId = $"uiapproval_{Guid.NewGuid():N}",
-                        Namespace = @namespace,
-                        Tool = tool,
-                        ApprovalType = info.ApprovalType,
-                        Operation = info.Operation,
-                        Target = info.Target
-                    },
-                    gateCt,
-                    TimeSpan.FromSeconds(120));
-            }
-            catch (OperationCanceledException) when (gateCt.IsCancellationRequested)
-            {
-                throw;
-            }
-            catch (Exception)
-            {
-                // Transport failure / timeout / client dropped → treat as not approved.
-                return false;
-            }
-
-            return IsApprovalAccepted(response);
-        };
-    }
-
-    private static bool IsApprovalAccepted(AppServerIncomingMessage response)
-    {
-        if (!response.Result.HasValue)
-            return false;
-        try
-        {
-            var result = JsonSerializer.Deserialize<AppServerApprovalResponseResult>(
-                response.Result.Value.GetRawText(),
-                SessionWireJsonOptions.Default);
-            return result?.Decision is "accept" or "acceptForSession" or "acceptAlways";
+            if (context.BroadcastTrustedNotification != null)
+                context.BroadcastTrustedNotification(notification.Method, notification.Params);
+            else
+                await context.Transport.WriteMessageAsync(new
+                {
+                    jsonrpc = "2.0",
+                    method = notification.Method,
+                    @params = notification.Params
+                }, context.CancellationToken);
         }
-        catch
-        {
-            return false;
-        }
+        return null;
     }
 }

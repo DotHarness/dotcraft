@@ -249,14 +249,34 @@ public class SerializationTests
     {
         var args = new JsonObject { ["path"] = "/tmp/file.txt" };
         var item = BuildItem(ItemType.ToolCall, ItemStatus.Completed,
-            new ToolCallPayload { ToolName = "read_file", Arguments = args, CallId = "call_abc" });
+            new ToolCallPayload
+            {
+                Namespace = "workspace",
+                ToolName = "read_file",
+                ProviderFlatName = "workspace__read_file",
+                Arguments = args,
+                CallId = "call_abc"
+            });
 
         var deserialized = RoundTrip(item);
         var payload = deserialized.AsToolCall;
         Assert.NotNull(payload);
+        Assert.Equal("workspace", payload.Namespace);
         Assert.Equal("read_file", payload.ToolName);
+        Assert.Equal("workspace__read_file", payload.ProviderFlatName);
         Assert.Equal("call_abc", payload.CallId);
         Assert.NotNull(payload.Arguments);
+    }
+
+    [Fact]
+    public void ToolCallPayload_MissingProviderFlatName_IsRejected()
+    {
+        const string json = """
+            {"toolName":"read_file","callId":"call_abc","arguments":{}}
+            """;
+
+        Assert.Throws<JsonException>(() =>
+            JsonSerializer.Deserialize<ToolCallPayload>(json, Opts));
     }
 
     [Fact]
@@ -314,12 +334,23 @@ public class SerializationTests
     public void SessionItem_ToolResult_RoundTrip()
     {
         var item = BuildItem(ItemType.ToolResult, ItemStatus.Completed,
-            new ToolResultPayload { CallId = "call_abc", Result = "file contents", Success = true });
+            new ToolResultPayload
+            {
+                CallId = "call_abc",
+                Namespace = "workspace",
+                ToolName = "read_file",
+                ProviderFlatName = "workspace__read_file",
+                Result = "file contents",
+                Success = true
+            });
 
         var deserialized = RoundTrip(item);
         var payload = deserialized.AsToolResult;
         Assert.NotNull(payload);
         Assert.Equal("call_abc", payload.CallId);
+        Assert.Equal("workspace", payload.Namespace);
+        Assert.Equal("read_file", payload.ToolName);
+        Assert.Equal("workspace__read_file", payload.ProviderFlatName);
         Assert.Equal("file contents", payload.Result);
         Assert.True(payload.Success);
     }
@@ -814,6 +845,40 @@ public class SerializationTests
     {
         var ids = Enumerable.Range(0, 100).Select(_ => SessionIdGenerator.NewThreadId()).ToHashSet();
         Assert.Equal(100, ids.Count);
+    }
+
+    [Fact]
+    public void SequenceHelpers_ContinueAfterMaximumValidHistoricalId()
+    {
+        var turns = new[]
+        {
+            new SessionTurn { Id = "turn_002", ThreadId = "thread_1" },
+            new SessionTurn { Id = "turn_invalid", ThreadId = "thread_1" },
+            new SessionTurn { Id = "turn_009", ThreadId = "thread_1" }
+        };
+        var items = new[]
+        {
+            new SessionItem { Id = "item_004", TurnId = "turn_009" },
+            new SessionItem { Id = "item_invalid", TurnId = "turn_009" },
+            new SessionItem { Id = "item_011", TurnId = "turn_009" }
+        };
+
+        Assert.Equal(10, SessionIdGenerator.NextTurnSequence(turns));
+        Assert.Equal(11, SessionIdGenerator.LastItemSequence(items));
+
+        var thread = new SessionThread
+        {
+            Id = "thread_1",
+            Turns = [turns[0]],
+            TurnSequenceHighWatermark = 9
+        };
+        Assert.Equal(10, SessionIdGenerator.ReserveNextTurnSequence(thread));
+        thread.Turns.Clear();
+        Assert.Equal(11, SessionIdGenerator.ReserveNextTurnSequence(thread));
+        Assert.DoesNotContain(
+            "turnSequenceHighWatermark",
+            JsonSerializer.Serialize(thread, SessionJsonOptions.Default),
+            StringComparison.OrdinalIgnoreCase);
     }
 
     // -------------------------------------------------------------------------

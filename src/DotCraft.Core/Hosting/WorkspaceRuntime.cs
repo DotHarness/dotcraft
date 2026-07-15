@@ -43,9 +43,7 @@ public sealed class WorkspaceRuntime : IAsyncDisposable
         IAppServerChannelListContributor channelListContributor,
         IReadOnlyList<ConfigSchemaSection> configSchema,
         IContextPageManager contextPageManager,
-        IWorkspaceRuntimeAppServerFeature? appServerFeature,
-        AppBindingService? appBindingService,
-        Action<string>? appContextBlocksChangedHandler)
+        IWorkspaceRuntimeAppServerFeature? appServerFeature)
     {
         public AgentFactory AgentFactory { get; } = agentFactory;
 
@@ -79,9 +77,6 @@ public sealed class WorkspaceRuntime : IAsyncDisposable
 
         public IWorkspaceRuntimeAppServerFeature? AppServerFeature { get; } = appServerFeature;
 
-        public AppBindingService? AppBindingService { get; } = appBindingService;
-
-        public Action<string>? AppContextBlocksChangedHandler { get; } = appContextBlocksChangedHandler;
     }
 
     private readonly IAppConfigMonitor _appConfigMonitor;
@@ -212,15 +207,6 @@ public sealed class WorkspaceRuntime : IAsyncDisposable
             var mainRuntime = chatClientRegistry.ResolveMainRuntime(Config);
             var mainModel = mainRuntime.Model;
             var contextPageManager = new ContextPageManager();
-            var appBindingService = Services.GetService<AppBindingService>();
-            Action<string>? appContextBlocksChangedHandler = null;
-            if (appBindingService != null)
-            {
-                appContextBlocksChangedHandler = threadId =>
-                    contextPageManager.ReleaseStablePage(threadId, ContextPageKeys.AppContextBlocks());
-                appBindingService.AppContextBlocksChanged += appContextBlocksChangedHandler;
-            }
-
             var threadSystemPromptContextProviders = Services.GetServices<IThreadSystemPromptContextProvider>().ToArray();
 
             ToolSourceCollector.ScanToolIcons(moduleRegistry, Config);
@@ -434,18 +420,13 @@ public sealed class WorkspaceRuntime : IAsyncDisposable
                     channelListContributor,
                     configSchema,
                     contextPageManager,
-                    appServerFeature,
-                    appBindingService,
-                    appContextBlocksChangedHandler);
+                    appServerFeature);
 
                 _appConfigMonitor.Changed += OnAppConfigChanged;
                 McpClientManager.StatusChanged += OnMcpStatusChanged;
             }
             catch
             {
-                if (appBindingService != null && appContextBlocksChangedHandler != null)
-                    appBindingService.AppContextBlocksChanged -= appContextBlocksChangedHandler;
-
                 if (appServerFeature != null)
                 {
                     appServerFeature.AutomationTaskUpdated -= OnAutomationTaskUpdated;
@@ -556,9 +537,6 @@ public sealed class WorkspaceRuntime : IAsyncDisposable
             McpClientManager.StatusChanged -= OnMcpStatusChanged;
 
             List<Exception>? errors = null;
-
-            if (started.AppBindingService != null && started.AppContextBlocksChangedHandler != null)
-                started.AppBindingService.AppContextBlocksChanged -= started.AppContextBlocksChangedHandler;
 
             if (started.AppServerFeature != null)
             {

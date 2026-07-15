@@ -37,7 +37,7 @@ interface PendingSocialHandoff {
 
 export function ThreadAppBindingsButton({ threadId }: ThreadAppBindingsButtonProps): JSX.Element | null {
   const t = useT()
-  const canUseAppBinding = useConnectionStore((s) => s.capabilities?.appBinding === true)
+  const canUseAppBinding = useConnectionStore((s) => s.capabilities?.appBindingVersion === 2)
   const bindings = useAppBindingStore((s) => s.bindingsByThread[threadId] ?? EMPTY_THREAD_APP_BINDINGS)
   const loading = useAppBindingStore((s) => s.bindingsLoadingByThread[threadId] === true)
   const error = useAppBindingStore((s) => s.bindingsErrorByThread[threadId] ?? null)
@@ -194,8 +194,6 @@ export function ThreadAppBindingsButton({ threadId }: ThreadAppBindingsButtonPro
     const result = await createBindingRequest({
       threadId,
       appId: app.appId,
-      requestedScopes: defaultRequestedScopes(app),
-      requestedTools: requestedToolsForBinding(app),
       source: 'threadMenu',
       ...(socialChannelName
         ? {
@@ -320,8 +318,8 @@ export function ThreadAppBindingsButton({ threadId }: ThreadAppBindingsButtonPro
                   if (!row.binding) return
                   void runAction(`revoke:${row.binding.bindingId}`, async () => {
                     const binding = row.binding!
-                    const isPending = binding.state === 'pending'
-                    if (binding.state === 'pending') {
+                    const isPending = binding.state === 'connecting'
+                    if (binding.state === 'connecting') {
                       const bindingRequestId = 'bindingRequestId' in binding
                         ? binding.bindingRequestId || binding.bindingId
                         : binding.bindingId
@@ -376,7 +374,7 @@ function ThreadAppRow({
   const pendingInstruction = pendingHandoff
     ? pendingHandoff.instructions?.trim() || `/bind ${pendingHandoff.bindCode}`
     : null
-  const pendingLabel = binding?.state === 'pending' && !pendingInstruction ? t('appBinding.handoffOpening') : null
+  const pendingLabel = binding?.state === 'connecting' && !pendingInstruction ? t('appBinding.handoffOpening') : null
   const socialChannelName = app
     ? getSocialChannelName(app)
     : binding?.appId
@@ -390,7 +388,7 @@ function ThreadAppRow({
   const activeSocialBindingDisconnected = binding?.state === 'active'
     && socialChannelName != null
     && connectionState !== 'connected'
-  const isPendingBinding = binding?.state === 'pending'
+  const isPendingBinding = binding?.state === 'connecting'
   const canBind = app != null
     && binding == null
     && pendingHandoff == null
@@ -407,7 +405,7 @@ function ThreadAppRow({
       ? t('appBinding.channel.notConnected')
       : bindingStateLabel(binding.state, t)
     : pendingHandoff
-      ? bindingStateLabel('pending', t)
+      ? bindingStateLabel('connecting', t)
       : socialChannelName && connectionState === 'notConnected'
         ? t('appBinding.channel.notConnected')
         : connectionStateLabel(connectionState, t)
@@ -461,7 +459,7 @@ function ThreadAppRow({
                 <RefreshCw size={13} aria-hidden />
               </button>
             )}
-            <button type="button" style={iconButton} disabled={busy} aria-label={binding.state === 'pending' ? t('common.cancel') : t('appBinding.revoke')} onClick={onRevoke}>
+            <button type="button" style={iconButton} disabled={busy} aria-label={binding.state === 'connecting' ? t('common.cancel') : t('appBinding.revoke')} onClick={onRevoke}>
               <Unlink size={13} aria-hidden />
             </button>
           </>
@@ -496,9 +494,11 @@ function AppIcon({
 function bindingStateLabel(state: string, t: ReturnType<typeof useT>): string {
   if (state === 'active') return t('appBinding.binding.active')
   if (state === 'offline') return t('appBinding.binding.offline')
-  if (state === 'expired') return t('appBinding.binding.expired')
+  if (state === 'syncing') return t('appBinding.binding.pending')
+  if (state === 'needsConfirmation') return t('appBinding.capabilityExpansion')
   if (state === 'revoked') return t('appBinding.binding.revoked')
-  if (state === 'error') return t('appBinding.binding.error')
+  if (state === 'failed') return t('appBinding.binding.error')
+  if (state === 'cancelled') return t('appBinding.binding.revoked')
   return t('appBinding.binding.pending')
 }
 
@@ -508,16 +508,6 @@ function connectionStateLabel(state: string, t: ReturnType<typeof useT>): string
   if (state === 'needsAuth') return t('appBinding.connection.needsAuth')
   if (state === 'error') return t('appBinding.connection.error')
   return t('appBinding.connection.notConnected')
-}
-
-function defaultRequestedScopes(app: AppInfo): string[] {
-  return app.scopes.map((scope) => scope.id)
-}
-
-function requestedToolsForBinding(app: AppInfo): string[] | undefined {
-  return app.dynamicToolCatalog?.enabled === true
-    ? undefined
-    : app.toolCatalog.map((tool) => tool.name)
 }
 
 function getSocialChannelName(app: AppInfo): string | null {
@@ -530,7 +520,7 @@ function resolvePendingSocialHandoff(
   pendingHandoffs: Record<string, PendingSocialHandoff>,
   binding?: ThreadBindingLike
 ): PendingSocialHandoff | undefined {
-  if (binding?.state !== 'pending') return undefined
+  if (binding?.state !== 'connecting') return undefined
   const bindingRequestId = 'bindingRequestId' in binding ? binding.bindingRequestId : undefined
   if (bindingRequestId && pendingHandoffs[bindingRequestId]) {
     return pendingHandoffs[bindingRequestId]
@@ -582,7 +572,7 @@ function collectPendingSocialBindingRequestIds(
 }
 
 function addPendingSocialBindingRequestId(ids: Set<string>, binding: ThreadBindingLike): void {
-  if (binding.state !== 'pending') return
+  if (binding.state !== 'connecting') return
   if (!getSocialChannelNameFromAppId(binding.appId)) return
   const bindingRequestId = 'bindingRequestId' in binding ? binding.bindingRequestId : undefined
   if (bindingRequestId) ids.add(bindingRequestId)
@@ -609,10 +599,6 @@ function isUnavailableSocialAppRow(
     && app.connectionState !== 'connected'
     && binding == null
     && pendingHandoff == null
-}
-
-function attachedToolCount(binding: ThreadBindingLike): number {
-  return 'attachedToolCount' in binding ? binding.attachedToolCount : 0
 }
 
 const root: CSSProperties = { position: 'relative', flexShrink: 0 }

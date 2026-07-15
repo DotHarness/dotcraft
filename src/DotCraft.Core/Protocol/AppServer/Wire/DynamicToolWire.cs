@@ -47,17 +47,17 @@ public sealed class RuntimeDynamicToolNamespace : RuntimeDynamicToolDeclaration
 }
 
 /// <summary>
-/// Legacy App Binding presentation metadata. Runtime Dynamic Tools v2 cannot carry this type.
+/// Read-only App Binding presentation metadata. Runtime Dynamic Tools cannot carry this type.
 /// </summary>
 public sealed class LegacyAppBindingToolMeta
 {
-    /// <summary>Legacy iframe descriptor (<c>_meta.ui</c>).</summary>
+    /// <summary>Read-only iframe descriptor (<c>_meta.ui</c>).</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public LegacyAppBindingUiToolMeta? Ui { get; set; }
 }
 
 /// <summary>
-/// Private Legacy App Binding iframe descriptor. It is not stable MCP Apps metadata or authority.
+/// Read-only private App Binding iframe descriptor. It is not MCP Apps metadata or authority.
 /// </summary>
 public sealed class LegacyAppBindingUiToolMeta
 {
@@ -90,7 +90,7 @@ public sealed class LegacyAppBindingUiToolMeta
 }
 
 /// <summary>
-/// Content-Security-Policy allowances for a Legacy App Binding iframe.
+/// Content-Security-Policy allowances for a read-only App Binding iframe.
 /// </summary>
 public sealed class LegacyAppBindingUiToolCsp
 {
@@ -236,7 +236,7 @@ public sealed class UiResourceContent
 
 /// <summary>
 /// Params for <c>ui/tool/call</c> (host → server): a UI-initiated app-tool invocation
-/// (private legacy <c>callTool</c>). Decoupled from the conversation — gated, brokered, audited, with
+/// (private <c>callTool</c>). Decoupled from the conversation — gated, brokered, audited, with
 /// the result returned to the host/UI. See appserver-protocol.md §11.3.2.
 /// </summary>
 public sealed class UiToolCallParams

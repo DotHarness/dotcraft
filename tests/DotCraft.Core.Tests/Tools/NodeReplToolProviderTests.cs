@@ -63,9 +63,9 @@ public sealed class NodeReplToolProviderTests
         var snapshot = await new EffectiveToolSnapshotBuilder().BuildAsync([fixture.Source], fixture.Planning);
         var definition = Assert.Single(snapshot.ModelVisibleDefinitions);
 
-        var result = await new ToolDispatcher().DispatchProviderCallAsync(
+        var result = await new ToolDispatcher().DispatchProviderFlatCallAsync(
             snapshot,
-            snapshot.ProviderCallNames[definition.Name],
+            snapshot.ProviderFlatNames[definition.Name],
             new System.Text.Json.Nodes.JsonObject { ["code"] = "await agent.hang()" },
             new ToolInvocationRequest(
                 "thread_test",

@@ -146,23 +146,17 @@ public sealed class ConformanceFixtureTests
     }
 
     [Fact]
-    public async Task AppBindingAccept_UsesSpecRpcMethod()
+    public async Task AppBindingActivate_UsesSpecRpcMethod()
     {
         await using var transport = new TestJsonRpcTransport();
         await using var client = await ConnectInitializedAsync(transport);
 
-        var acceptTask = client.AppBindings.AcceptBindingAsync<JsonElement>(new
-        {
-            bindingRequestId = "bind_req_1",
-            requestToken = "request-token",
-            grantId = "grant_1",
-            grantedScopes = new[] { "board:read" },
-            approvalMode = "appAccepted"
-        });
+        var activateTask = client.AppBindings.ActivateAsync(
+            "bind_req_1", "https://app.example/mcp", "one-time-bearer");
 
         using var outbound = await transport.ReadOutboundAsync();
         var root = outbound.RootElement;
-        Assert.Equal("app/binding/accept", root.GetProperty("method").GetString());
+        Assert.Equal("app/binding/activate", root.GetProperty("method").GetString());
         Assert.Equal("bind_req_1", root.GetProperty("params").GetProperty("bindingRequestId").GetString());
 
         await transport.PushInboundAsync(new
@@ -171,18 +165,15 @@ public sealed class ConformanceFixtureTests
             id = root.GetProperty("id").GetInt64(),
             result = new
             {
-                binding = new
-                {
-                    bindingId = "binding_1",
-                    threadId = "thread_1",
-                    appId = "com.dotharness.oratorio",
-                    state = "accepted"
-                }
+                bindingId = "binding_1",
+                threadId = "thread_1",
+                appId = "com.example.board",
+                state = "active"
             }
         });
 
-        var accepted = await acceptTask;
-        Assert.Equal("binding_1", accepted.GetProperty("binding").GetProperty("bindingId").GetString());
+        var activated = await activateTask;
+        Assert.Equal("binding_1", activated.GetProperty("bindingId").GetString());
     }
 
     [Fact]

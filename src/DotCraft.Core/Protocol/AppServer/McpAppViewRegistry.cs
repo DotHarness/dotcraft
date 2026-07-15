@@ -70,6 +70,7 @@ internal sealed class McpAppViewState : IDisposable
 
     public required string Handle { get; init; }
     public required string ThreadId { get; init; }
+    public required string TurnId { get; init; }
     public required string SourceItemId { get; init; }
     public required string ServerName { get; init; }
     public required string Origin { get; init; }

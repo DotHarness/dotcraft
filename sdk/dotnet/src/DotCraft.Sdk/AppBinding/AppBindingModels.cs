@@ -138,22 +138,6 @@ public sealed class DotCraftAppBindingClient(DotCraftClient client)
         CancellationToken cancellationToken = default) =>
         client.RequestAsync<T>("app/binding/request/get", request, cancellationToken);
 
-    /// <summary>
-    /// Accepts an app binding request.
-    /// </summary>
-    public Task<T> AcceptBindingAsync<T>(
-        object request,
-        CancellationToken cancellationToken = default) =>
-        client.RequestAsync<T>("app/binding/accept", request, cancellationToken);
-
-    /// <summary>
-    /// Attaches runtime dynamic tools to an accepted binding.
-    /// </summary>
-    public Task<T> AttachToolsAsync<T>(
-        object request,
-        CancellationToken cancellationToken = default) =>
-        client.RequestAsync<T>("app/binding/attachTools", request, cancellationToken);
-
     // ---- Typed App Binding surface (parallel to the TypeScript AppBindingManager) ----
 
     /// <summary>Lists installed/visible apps (app/list).</summary>
@@ -190,8 +174,8 @@ public sealed class DotCraftAppBindingClient(DotCraftClient client)
             cancellationToken);
 
     /// <summary>Completes an app connection handoff (app/connection/connect).</summary>
-    public Task<AppConnectionStatus> CompleteConnectionAsync(CompleteConnectionRequest request, CancellationToken cancellationToken = default) =>
-        client.RequestAsync<AppConnectionStatus>("app/connection/connect", request, cancellationToken);
+    public Task<AppConnectionConnectResult> CompleteConnectionAsync(CompleteConnectionRequest request, CancellationToken cancellationToken = default) =>
+        client.RequestAsync<AppConnectionConnectResult>("app/connection/connect", request, cancellationToken);
 
     /// <summary>Reads app connection status (app/connection/status).</summary>
     public Task<AppConnectionStatus> GetConnectionStatusAsync(string appId, CancellationToken cancellationToken = default) =>
@@ -201,18 +185,14 @@ public sealed class DotCraftAppBindingClient(DotCraftClient client)
     public Task<AppConnectionStatus> RevokeConnectionAsync(string appId, string? reason = null, CancellationToken cancellationToken = default) =>
         client.RequestAsync<AppConnectionStatus>("app/connection/revoke", new { appId, reason }, cancellationToken);
 
-    /// <summary>Creates a thread binding request (app/binding/request/create).</summary>
-    public Task<AppBindingRequestCreateResult> CreateBindingRequestAsync(
+    /// <summary>Enables the whole app for a thread (thread/appBindings/enable).</summary>
+    public Task<AppBindingRequestCreateResult> EnableBindingAsync(
         string threadId,
         string appId,
-        IReadOnlyList<string> requestedScopes,
-        string source = "sdk",
-        IReadOnlyList<string>? requestedTools = null,
-        string? reason = null,
         CancellationToken cancellationToken = default) =>
         client.RequestAsync<AppBindingRequestCreateResult>(
-            "app/binding/request/create",
-            new { threadId, appId, requestedScopes, requestedTools, reason, source },
+            "thread/appBindings/enable",
+            new { threadId, appId },
             cancellationToken);
 
     /// <summary>Inspects a pending binding request (app/binding/request/get).</summary>
@@ -223,20 +203,8 @@ public sealed class DotCraftAppBindingClient(DotCraftClient client)
         CancellationToken cancellationToken = default) =>
         client.RequestAsync<AppBindingRequestInfo>(
             "app/binding/request/get",
-            new { appId, bindingRequestId, requestToken },
+            new { bindingRequestId, requestToken },
             cancellationToken);
-
-    /// <summary>Cancels a pending binding request (app/binding/request/cancel).</summary>
-    public Task CancelBindingRequestAsync(string bindingRequestId, string? reason = null, CancellationToken cancellationToken = default) =>
-        client.RequestAsync("app/binding/request/cancel", new { bindingRequestId, reason }, cancellationToken);
-
-    /// <summary>Accepts a pending binding request (app/binding/accept).</summary>
-    public Task<AppBindingAcceptResult> AcceptBindingAsync(AcceptBindingRequest request, CancellationToken cancellationToken = default) =>
-        client.RequestAsync<AppBindingAcceptResult>("app/binding/accept", request, cancellationToken);
-
-    /// <summary>Attaches concrete runtime dynamic tools to an accepted binding (app/binding/attachTools).</summary>
-    public Task<AppBindingAttachToolsResult> AttachToolsAsync(AttachToolsRequest request, CancellationToken cancellationToken = default) =>
-        client.RequestAsync<AppBindingAttachToolsResult>("app/binding/attachTools", request, cancellationToken);
 
     /// <summary>Lists a thread's app bindings (thread/appBindings/list).</summary>
     public async Task<IReadOnlyList<ThreadAppBinding>> ListThreadBindingsAsync(string threadId, bool includeRevoked = false, CancellationToken cancellationToken = default)
@@ -252,9 +220,20 @@ public sealed class DotCraftAppBindingClient(DotCraftClient client)
     public Task RevokeThreadBindingAsync(string threadId, string bindingId, string? reason = null, CancellationToken cancellationToken = default) =>
         client.RequestAsync("thread/appBindings/revoke", new { threadId, bindingId, reason }, cancellationToken);
 
-    /// <summary>Refreshes a thread's app bindings (thread/appBindings/refresh).</summary>
-    public Task RefreshThreadBindingsAsync(string threadId, string? bindingId = null, CancellationToken cancellationToken = default) =>
-        client.RequestAsync("thread/appBindings/refresh", new { threadId, bindingId }, cancellationToken);
+    public Task<JsonElement> AuthenticateAsync(string appId, string credential, CancellationToken cancellationToken = default) =>
+        client.RequestAsync<JsonElement>("app/connection/authenticate", new { appId, credential }, cancellationToken);
+
+    public Task<JsonElement> RefreshCredentialAsync(CancellationToken cancellationToken = default) =>
+        client.RequestAsync<JsonElement>("app/connection/refresh", new { }, cancellationToken);
+
+    public Task<JsonElement> ActivateAsync(string bindingRequestId, string endpoint, string bearer, DateTimeOffset? bearerExpiresAt = null, CancellationToken cancellationToken = default) =>
+        client.RequestAsync<JsonElement>("app/binding/activate", new { bindingRequestId, endpoint, bearer, bearerExpiresAt }, cancellationToken);
+
+    public Task<JsonElement> RebindAsync(string bindingId, long authorityRevision, string endpoint, string bearer, DateTimeOffset? bearerExpiresAt = null, CancellationToken cancellationToken = default) =>
+        client.RequestAsync<JsonElement>("app/binding/rebind", new { bindingId, authorityRevision, endpoint, bearer, bearerExpiresAt }, cancellationToken);
+
+    public Task<JsonElement> ConfirmCapabilitiesAsync(string threadId, string bindingId, long candidateRevision, string decision, CancellationToken cancellationToken = default) =>
+        client.RequestAsync<JsonElement>("thread/appBindings/confirmCapabilities", new { threadId, bindingId, candidateRevision, decision }, cancellationToken);
 
     private sealed record AppListResult(IReadOnlyList<AppInfo>? Apps);
 

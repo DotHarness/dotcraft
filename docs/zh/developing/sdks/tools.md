@@ -19,7 +19,7 @@ const thread = await dotcraft.threads.start({
       inputSchema: { type: "object", properties: { id: { type: "string" } }, required: ["id"] },
       handler: async (call) => ({
         success: true,
-        structuredResult: await getIssue(call.arguments.id as string),
+        structuredContent: await getIssue(call.arguments.id as string),
       }),
     },
   ],
@@ -41,7 +41,7 @@ using var registration = thread.OnToolCall("myapp", "GetIssue", async (call, ct)
 {
     var id = call.Arguments.GetProperty("id").GetString();
     var issue = await GetIssueAsync(id!, ct);
-    return new DynamicToolResult(Success: true, StructuredResult: issue);
+    return new DynamicToolResult(Success: true, StructuredContent: issue);
 });
 ```
 
@@ -59,13 +59,13 @@ thread = await dotcraft.threads.start(user_id="me", dynamic_tools=tools)
 
 thread.on_tool_call("myapp", "GetIssue", lambda call: {
     "success": True,
-    "structuredResult": get_issue(call["arguments"]["id"]),
+    "structuredContent": get_issue(call["arguments"]["id"]),
 })
 ```
 
 :::
 
-处理器返回成功结果（`success: true`，带 `contentItems` / `structuredResult`）或失败（`success: false`，带 `errorCode` / `errorMessage`）。若未注册处理器，SDK 返回 `UnsupportedTool`；若处理器抛错，返回 `AdapterToolCallFailed`。工具处理器负责参数校验与应用级授权。
+处理器返回成功结果（`success: true`，带 `contentItems` / `structuredContent`）或失败（`success: false`，带 `errorCode` / `errorMessage`）。若未注册处理器，SDK 返回 `UnsupportedTool`；若处理器抛错，返回 `AdapterToolCallFailed`。工具处理器负责参数校验与应用级授权。
 
 > [!TIP]
 > 对于 App Binding 应用，请使用共享的 App Binding 错误形态（`appBindingToolError` / `DotCraftAppBindingClient.ToolError` / `app_binding_tool_error`），而非通用失败。参见 [构建应用](../integrations/build-an-app)。

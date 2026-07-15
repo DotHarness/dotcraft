@@ -551,13 +551,42 @@ public interface IThreadToolSnapshotService
         CancellationToken cancellationToken = default);
 }
 
+/// <summary>
+/// Optional Session Core extension that announces publication of a new effective tool snapshot.
+/// Consumers use this signal to revoke capabilities derived from an older snapshot without polling.
+/// </summary>
+public interface IThreadToolSnapshotChangeSource
+{
+    /// <summary>Raised after a new immutable snapshot becomes effective for a thread.</summary>
+    event EventHandler<EffectiveToolSnapshotChangedEventArgs>? EffectiveToolSnapshotChanged;
+}
+
+/// <summary>Identifies the thread and revision of a newly published effective tool snapshot.</summary>
+public sealed class EffectiveToolSnapshotChangedEventArgs(string threadId, long revision) : EventArgs
+{
+    public string ThreadId { get; } = threadId;
+
+    public long Revision { get; } = revision;
+}
+
 /// <summary>Session Core extension for resolving the effective MCP runtime of a thread.</summary>
 public interface IThreadMcpRuntimeService
 {
-    /// <summary>Returns the thread replacement runtime or the inherited workspace runtime.</summary>
+    /// <summary>Returns the runtime composed from thread-selected user configuration and additive binding sessions.</summary>
     Task<McpClientManager?> GetEffectiveMcpRuntimeAsync(
         string threadId,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Replaces the MCP servers contributed by one live binding. An empty list removes that
+    /// binding contribution without changing the thread's inherited/disabled/replacement choice.
+    /// </summary>
+    Task SetBindingMcpServersAsync(
+        string threadId,
+        string bindingId,
+        IReadOnlyList<McpServerConfig> servers,
+        CancellationToken cancellationToken = default) =>
+        throw new NotSupportedException("Binding MCP sessions are not supported by this session service.");
 }
 
 /// <summary>

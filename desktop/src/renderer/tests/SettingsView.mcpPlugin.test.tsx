@@ -70,6 +70,38 @@ describe('SettingsView plugin MCP servers', () => {
                 declaredName: 'review'
               },
               readOnly: true
+            },
+            {
+              name: 'public-http',
+              enabled: true,
+              transport: 'streamableHttp',
+              url: 'https://public.example.test/mcp',
+              origin: { kind: 'workspace' },
+              readOnly: false
+            },
+            {
+              name: 'oauth-login',
+              enabled: true,
+              transport: 'streamableHttp',
+              url: 'https://login.example.test/mcp',
+              origin: { kind: 'workspace' },
+              readOnly: false
+            },
+            {
+              name: 'oauth-renew',
+              enabled: true,
+              transport: 'streamableHttp',
+              url: 'https://renew.example.test/mcp',
+              origin: { kind: 'workspace' },
+              readOnly: false
+            },
+            {
+              name: 'oauth-connected',
+              enabled: true,
+              transport: 'streamableHttp',
+              url: 'https://connected.example.test/mcp',
+              origin: { kind: 'workspace' },
+              readOnly: false
             }
           ]
         }
@@ -78,7 +110,11 @@ describe('SettingsView plugin MCP servers', () => {
         return {
           data: [
             { name: 'workspace-docs', enabled: true, startupState: 'disabled', transport: 'stdio' },
-            { name: 'review-tools:review', enabled: true, startupState: 'ready', toolCount: 2, transport: 'stdio' }
+            { name: 'review-tools:review', enabled: true, startupState: 'ready', toolCount: 2, transport: 'stdio' },
+            { name: 'public-http', enabled: true, startupState: 'ready', transport: 'streamableHttp', authStatus: 'unsupported' },
+            { name: 'oauth-login', enabled: true, startupState: 'error', transport: 'streamableHttp', authStatus: 'notLoggedIn' },
+            { name: 'oauth-renew', enabled: true, startupState: 'error', transport: 'streamableHttp', authStatus: 'notLoggedIn', failureReason: 'reauthenticationRequired' },
+            { name: 'oauth-connected', enabled: true, startupState: 'ready', transport: 'streamableHttp', authStatus: 'oAuth' }
           ]
         }
       }
@@ -160,5 +196,15 @@ describe('SettingsView plugin MCP servers', () => {
       expect(appServerSendRequest).toHaveBeenCalledWith('plugin/view', { id: 'review-tools' })
     })
     expect(useUIStore.getState().activeMainView).toBe('skills')
+  })
+
+  it('shows authentication actions only for servers that require OAuth', async () => {
+    renderView()
+
+    fireEvent.click(await screen.findByRole('button', { name: 'MCP' }))
+
+    expect(await screen.findByText('public-http')).toBeInTheDocument()
+    expect(screen.getAllByRole('button', { name: 'Authenticate' })).toHaveLength(1)
+    expect(screen.getAllByRole('button', { name: 'Re-authenticate' })).toHaveLength(1)
   })
 })

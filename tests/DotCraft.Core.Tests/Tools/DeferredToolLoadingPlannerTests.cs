@@ -21,7 +21,7 @@ public sealed class DeferredToolLoadingPlannerTests
 
         DeferredToolLoadingPlanner.Apply(tools, context);
 
-        Assert.Contains(tools, tool => tool.Name == nameof(ToolSearchTool.SearchTools));
+        Assert.Contains(tools, tool => tool.Name == NativeToolSearchTool.ToolName);
         Assert.NotNull(context.DeferredToolActivationIndex);
         Assert.Equal("Simulated", context.DeferredToolActivationIndex!.Mode.ToString());
     }
@@ -40,9 +40,9 @@ public sealed class DeferredToolLoadingPlannerTests
 
         Assert.DoesNotContain(tools, tool => tool.Name == "DeferredRuntimeTool");
         Assert.Contains(tools, tool => tool.Name == "ImmediateRuntimeTool");
-        Assert.Contains(tools, tool => tool.Name == nameof(ToolSearchTool.SearchTools));
+        Assert.Contains(tools, tool => tool.Name == NativeToolSearchTool.ToolName);
         Assert.NotNull(context.DeferredToolActivationIndex);
-        Assert.Contains("DeferredRuntimeTool", context.DeferredToolActivationIndex!.DeferredTools.Keys);
+        Assert.Contains("tests__DeferredRuntimeTool", context.DeferredToolActivationIndex!.DeferredTools.Keys);
     }
 
     [Fact]
@@ -85,7 +85,7 @@ public sealed class DeferredToolLoadingPlannerTests
 
         DeferredToolLoadingPlanner.Apply(tools, context);
 
-        Assert.Contains(tools, tool => tool.Name == nameof(ToolSearchTool.SearchTools));
+        Assert.Contains(tools, tool => tool.Name == NativeToolSearchTool.ToolName);
         Assert.DoesNotContain(tools, tool => tool is AnthropicToolSearchTool);
         Assert.Equal("Simulated", context.DeferredToolActivationIndex!.Mode.ToString());
     }
@@ -109,6 +109,25 @@ public sealed class DeferredToolLoadingPlannerTests
         var results = registry.SearchAndActivate("jira");
 
         Assert.Equal("TicketLookup", Assert.Single(results).Name);
+    }
+
+    [Fact]
+    public void Registry_SameLocalNameInDifferentNamespaces_RemainsIndependentlyAddressable()
+    {
+        var alpha = new MetadataFunction("Lookup", deferLoading: true);
+        var beta = new MetadataFunction("Lookup", deferLoading: true);
+        var registry = new DeferredToolRegistry([
+            new DeferredToolEntry(alpha, "alpha-source", "alpha"),
+            new DeferredToolEntry(beta, "beta-source", "beta")
+        ]);
+
+        Assert.Equal(2, registry.DeferredTools.Count);
+        Assert.Contains("alpha__Lookup", registry.DeferredTools.Keys);
+        Assert.Contains("beta__Lookup", registry.DeferredTools.Keys);
+
+        var activated = registry.SearchAndActivate("Lookup", maxResults: 2);
+        Assert.Equal(["alpha__Lookup", "beta__Lookup"],
+            activated.Select(static result => result.Name).Order(StringComparer.Ordinal).ToArray());
     }
 
     private static AgentRuntimeContext CreateContext(AppConfig config, string protocol)

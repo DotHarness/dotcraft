@@ -9,7 +9,11 @@ namespace DotCraft.Tools;
 /// </summary>
 public sealed record ToolSearchResult(string Name, string Description);
 
-public sealed record DeferredToolEntry(AITool Tool, string Source = "", string? Namespace = null);
+public sealed record DeferredToolEntry(
+    AITool Tool,
+    string Source = "",
+    string? Namespace = null,
+    string? NamespaceDescription = null);
 
 /// <summary>
 /// Holds all deferred tool definitions and tracks which have been activated
@@ -46,15 +50,70 @@ public sealed class DeferredToolActivationIndex
     {
         Mode = mode;
         _entries = deferredTools
-            .GroupBy(t => t.Tool.Name, StringComparer.Ordinal)
+            .Select(NormalizeEntryIdentity)
+            .GroupBy(GetIdentityKey, StringComparer.Ordinal)
             .Select(g => g.Last())
-            .OrderBy(t => t.Tool.Name, StringComparer.OrdinalIgnoreCase)
-            .ToDictionary(t => t.Tool.Name, StringComparer.Ordinal);
+            .OrderBy(GetIdentityKey, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(GetIdentityKey, StringComparer.Ordinal);
         _deferredTools = _entries.ToDictionary(
             pair => pair.Key,
             pair => pair.Value.Tool,
             StringComparer.Ordinal);
         (_searchDocuments, _idf, _averageDocumentLength) = BuildSearchIndex(_entries.Values);
+    }
+
+    private static DeferredToolEntry NormalizeEntryIdentity(DeferredToolEntry entry)
+    {
+        var entryNamespace = string.IsNullOrWhiteSpace(entry.Namespace) ? null : entry.Namespace.Trim();
+        if (CanonicalToolIdentityMetadataResolver.TryGet(entry.Tool, out var existingName, out _))
+        {
+            if (!string.Equals(existingName.Namespace, entryNamespace, StringComparison.Ordinal))
+            {
+                throw new ArgumentException(
+                    $"Deferred entry namespace '{entryNamespace}' does not match canonical namespace '{existingName.Namespace}'.",
+                    nameof(entry));
+            }
+
+            return entry with { Namespace = entryNamespace };
+        }
+
+        if (entryNamespace == null)
+            return entry with { Namespace = null };
+
+        if (entry.Tool is not AIFunction function)
+            throw new ArgumentException("A namespaced deferred entry must contain a function tool.", nameof(entry));
+
+        var canonicalName = new ToolName(entryNamespace, function.Name);
+        var providerFlatName = ProviderToolProjector.Project([canonicalName])[canonicalName];
+        return entry with
+        {
+            Tool = new DeferredNamespacedFunction(
+                function,
+                canonicalName,
+                providerFlatName,
+                entry.NamespaceDescription)
+        };
+    }
+
+    internal static string GetIdentityKey(DeferredToolEntry entry) =>
+        CanonicalToolIdentityMetadataResolver.TryGet(entry.Tool, out _, out var providerFlatName)
+            ? providerFlatName
+            : entry.Tool.Name;
+
+    private sealed class DeferredNamespacedFunction(
+        AIFunction innerFunction,
+        ToolName canonicalName,
+        string providerFlatName,
+        string? namespaceDescription)
+        : DelegatingAIFunction(innerFunction), ICanonicalToolIdentityMetadata
+    {
+        public override string Name => providerFlatName;
+
+        public ToolName CanonicalToolName => canonicalName;
+
+        public string ProviderFlatName => providerFlatName;
+
+        public string? ToolNamespaceDescription => namespaceDescription;
     }
 
     /// <summary>
@@ -113,8 +172,8 @@ public sealed class DeferredToolActivationIndex
                 if (!_deferredTools.TryGetValue(name!, out var tool))
                     continue;
 
-                results.Add(new ToolSearchResult(tool.Name, tool.Description ?? string.Empty));
-                if (_activatedNames.Add(tool.Name))
+                results.Add(new ToolSearchResult(name!, tool.Description ?? string.Empty));
+                if (_activatedNames.Add(name!))
                     _activatedTools.Add(tool);
             }
         }
@@ -140,12 +199,12 @@ public sealed class DeferredToolActivationIndex
         if (terms.Length == 0)
             return [];
 
-        var scored = new List<(AITool Tool, double Score)>();
+        var scored = new List<(string Identity, AITool Tool, double Score)>();
         foreach (var document in _searchDocuments.Values)
         {
             var score = ScoreDocument(document, terms);
             if (score > 0)
-                scored.Add((document.Tool, score));
+                scored.Add((document.Identity, document.Tool, score));
         }
 
         scored.Sort(static (a, b) =>
@@ -153,18 +212,18 @@ public sealed class DeferredToolActivationIndex
             var score = b.Score.CompareTo(a.Score);
             return score != 0
                 ? score
-                : string.Compare(a.Tool.Name, b.Tool.Name, StringComparison.OrdinalIgnoreCase);
+                : string.Compare(a.Identity, b.Identity, StringComparison.OrdinalIgnoreCase);
         });
 
         var results = new List<ToolSearchResult>(Math.Min(scored.Count, maxResults));
 
         lock (_lock)
         {
-            foreach (var (tool, _) in scored.Take(maxResults))
+            foreach (var (identity, tool, _) in scored.Take(maxResults))
             {
-                results.Add(new ToolSearchResult(tool.Name, tool.Description ?? string.Empty));
+                results.Add(new ToolSearchResult(identity, tool.Description ?? string.Empty));
 
-                if (_activatedNames.Add(tool.Name))
+                if (_activatedNames.Add(identity))
                     _activatedTools.Add(tool);
             }
         }
@@ -236,7 +295,8 @@ public sealed class DeferredToolActivationIndex
 
             var length = Math.Max(1, tokens.Length);
             totalLength += length;
-            documents[entry.Tool.Name] = new SearchDocument(entry.Tool, frequencies, length);
+            var identity = GetIdentityKey(entry);
+            documents[identity] = new SearchDocument(identity, entry.Tool, frequencies, length);
         }
 
         var documentCount = Math.Max(1, documents.Count);
@@ -258,6 +318,8 @@ public sealed class DeferredToolActivationIndex
         sb.Append(entry.Source);
         sb.Append(' ');
         sb.Append(entry.Namespace);
+        sb.Append(' ');
+        sb.Append(entry.NamespaceDescription);
         sb.Append(' ');
         try
         {
@@ -304,6 +366,7 @@ public sealed class DeferredToolActivationIndex
     }
 
     private sealed record SearchDocument(
+        string Identity,
         AITool Tool,
         Dictionary<string, int> Frequencies,
         int Length);

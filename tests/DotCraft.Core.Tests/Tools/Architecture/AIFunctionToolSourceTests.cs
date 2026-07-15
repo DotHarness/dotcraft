@@ -17,9 +17,9 @@ public sealed class AIFunctionToolSourceTests
         var source = new CommitSuggestToolSource();
         var planning = CreatePlanningContext();
         var snapshot = await new EffectiveToolSnapshotBuilder().BuildAsync([source], planning);
-        var providerName = Assert.Single(snapshot.ProviderCallNameIndex.Keys);
+        var providerName = Assert.Single(snapshot.ProviderFlatNameIndex.Keys);
 
-        var result = await new ToolDispatcher().DispatchProviderCallAsync(
+        var result = await new ToolDispatcher().DispatchProviderFlatCallAsync(
             snapshot,
             providerName,
             new JsonObject { ["summary"] = "Unify tool runtime" },
@@ -31,7 +31,7 @@ public sealed class AIFunctionToolSourceTests
 
         Assert.True(result.Success);
         Assert.Equal("Recorded.", result.Content);
-        Assert.Equal(new ToolName(null, CommitSuggestMethods.ToolName), snapshot.ProviderCallNameIndex[providerName]);
+        Assert.Equal(new ToolName(null, CommitSuggestMethods.ToolName), snapshot.ProviderFlatNameIndex[providerName]);
     }
 
     [Fact]
@@ -60,6 +60,18 @@ public sealed class AIFunctionToolSourceTests
         var sources = new ToolSourceCollector(modules, services, new AppConfig()).Collect();
 
         Assert.Equal(["second", "first"], sources.Select(source => source.SourceId));
+    }
+
+    [Theory]
+    [InlineData("ReadFile")]
+    [InlineData("GrepFiles")]
+    [InlineData("FindFiles")]
+    public void CoreExploreTools_UseTrustedReadPresentation(string toolName)
+    {
+        var presentation = CoreToolPresentationCatalog.Resolve(toolName);
+
+        Assert.NotNull(presentation);
+        Assert.Equal("core.read-file", presentation.Id.Value);
     }
 
     private static ToolPlanningContext CreatePlanningContext() => new(

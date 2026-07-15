@@ -74,7 +74,7 @@ test("executeToolCall sends document and returns structured result", async () =>
   assert.equal(api.calls[0]?.method, "sendDocument");
   assert.equal(api.calls[0]?.other?.caption, "hello");
   assert.equal(
-    (result.structuredResult as Record<string, unknown>).mediaId,
+    (result.structuredContent as Record<string, unknown>).mediaId,
     "doc-file-id",
   );
 });

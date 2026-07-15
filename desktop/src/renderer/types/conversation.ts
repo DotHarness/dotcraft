@@ -154,9 +154,9 @@ export interface ConversationItem {
   structuredResult?: unknown
   /** True only on the connection that received this terminal MCP item live. */
   mcpAppAvailable?: boolean
-  /** Legacy App Binding host metadata; never interpreted as stable MCP Apps authority. */
+  /** Read-only App Binding host metadata; never interpreted as MCP Apps authority. */
   meta?: Record<string, unknown>
-  /** Private Legacy App Binding iframe descriptor. Provenance is required before use. */
+  /** Read-only private iframe descriptor. Provenance is required before use. */
   toolUi?: ToolUiDescriptor
   /** UI-only Interactive Tool UI widgetState (M-iv), surfaced on thread/read for iframe restore. */
   widgetState?: unknown
@@ -376,43 +376,6 @@ export function normalizeToolPresentation(value: unknown): ToolPresentationDescr
   }
 }
 
-/** Restores presentation only for durable Core provenance from pre-descriptor history. */
-function inferHistoricalCorePresentation(
-  source: ToolSourceProvenance | undefined
-): ToolPresentationDescriptor | undefined {
-  if (source?.kind !== 'CoreNative' || !source.sourceToolId) return undefined
-  const operation = (presentationId: string, value?: string): ToolPresentationDescriptor => ({
-    presentationId,
-    ...(value ? { options: { operation: value } } : {})
-  })
-  switch (source.sourceToolId) {
-    case 'CreatePlan': return operation('core.create-plan')
-    case 'Cron': return operation('core.cron')
-    case 'SkillManage': return operation('core.skill-manage')
-    case 'SkillView': return operation('core.skill-view')
-    case 'SpawnAgent': return operation('core.subagent', 'spawn')
-    case 'WaitAgent': return operation('core.subagent', 'wait')
-    case 'SendMessage': return operation('core.subagent', 'sendMessage')
-    case 'FollowupTask': return operation('core.subagent', 'followupTask')
-    case 'ListAgents': return operation('core.subagent', 'list')
-    case 'CloseAgent': return operation('core.subagent', 'close')
-    case 'SendInput': return operation('core.subagent', 'sendInput')
-    case 'ResumeAgent': return operation('core.subagent', 'resume')
-    case 'Exec':
-    case 'WriteStdin': return operation('core.shell')
-    case 'WriteFile': return operation('core.file-write', 'write')
-    case 'EditFile': return operation('core.file-write', 'edit')
-    case 'WebSearch': return operation('core.web', 'search')
-    case 'WebFetch': return operation('core.web', 'fetch')
-    case 'RequestUserInput': return operation('core.request-user-input')
-    case 'ReadFile': return operation('core.read-file')
-    case 'TodoWrite':
-    case 'UpdateTodos': return operation('core.todo')
-    case 'SearchTools': return operation('core.deferred-search')
-    default: return undefined
-  }
-}
-
 export function derivePluginFunctionResultText(
   contentItems: PluginFunctionContentItem[] | undefined,
   structuredResult: unknown,
@@ -542,7 +505,7 @@ function mapReasoningElapsedSeconds(
  * This function falls back to payload fields so that both the flat (legacy/streaming)
  * and nested (thread/read history) shapes are handled correctly.
  */
-/** Private Legacy App Binding iframe descriptor surfaced on legacy tool items. */
+/** Read-only private iframe descriptor surfaced on persisted tool items. */
 export interface ToolUiDescriptor {
   resourceUri: string
   visibility?: string[]
@@ -562,7 +525,7 @@ function toStringArray(value: unknown): string[] | undefined {
     : undefined
 }
 
-/** Parses a private legacy descriptor; the renderer separately requires LegacyAppBinding provenance. */
+/** Parses a read-only private descriptor; the renderer separately requires matching provenance. */
 export function normalizeToolUiDescriptor(value: unknown): ToolUiDescriptor | undefined {
   if (value == null || typeof value !== 'object') return undefined
   const obj = value as Record<string, unknown>
@@ -662,7 +625,6 @@ export function wireItemToConversationItem(raw: Record<string, unknown>): Conver
     ?? (payload.message as string | undefined)
   const source = normalizeToolSourceProvenance(raw.source ?? payload.source)
   const presentation = normalizeToolPresentation(raw.presentation ?? payload.presentation)
-    ?? inferHistoricalCorePresentation(source)
 
   return {
     id: (raw.id as string) ?? '',

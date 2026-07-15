@@ -19,7 +19,7 @@ const thread = await dotcraft.threads.start({
       inputSchema: { type: "object", properties: { id: { type: "string" } }, required: ["id"] },
       handler: async (call) => ({
         success: true,
-        structuredResult: await getIssue(call.arguments.id as string),
+        structuredContent: await getIssue(call.arguments.id as string),
       }),
     },
   ],
@@ -41,7 +41,7 @@ using var registration = thread.OnToolCall("myapp", "GetIssue", async (call, ct)
 {
     var id = call.Arguments.GetProperty("id").GetString();
     var issue = await GetIssueAsync(id!, ct);
-    return new DynamicToolResult(Success: true, StructuredResult: issue);
+    return new DynamicToolResult(Success: true, StructuredContent: issue);
 });
 ```
 
@@ -59,16 +59,16 @@ thread = await dotcraft.threads.start(user_id="me", dynamic_tools=tools)
 
 thread.on_tool_call("myapp", "GetIssue", lambda call: {
     "success": True,
-    "structuredResult": get_issue(call["arguments"]["id"]),
+    "structuredContent": get_issue(call["arguments"]["id"]),
 })
 ```
 
 :::
 
-A handler returns a success result (`success: true` with `contentItems` / `structuredResult`) or a failure (`success: false` with `errorCode` / `errorMessage`). If no handler is registered, the SDK returns `UnsupportedTool`; if a handler throws, it returns `AdapterToolCallFailed`. Tool handlers own argument validation and app-level authorization.
+A handler returns a success result (`success: true` with `contentItems` / `structuredContent`) or a failure (`success: false` with `errorCode` / `errorMessage`). If no handler is registered, the SDK returns `UnsupportedTool`; if a handler throws, it returns `AdapterToolCallFailed`. Tool handlers own argument validation and app-level authorization.
 
 > [!TIP]
-> For App Binding apps, use the shared App Binding error shapes (`appBindingToolError` / `DotCraftAppBindingClient.ToolError` / `app_binding_tool_error`) instead of generic failures. See [Build an App](../integrations/build-an-app).
+> Runtime Dynamic callbacks can use the shared error helpers. App Binding tools use standard MCP results from their binding-scoped server. See [Build an App](../integrations/build-an-app).
 
 ## Approvals
 

@@ -11,4 +11,6 @@ internal sealed record McpConnectionResult(
     bool RecoveredFromStaleSession = false,
     McpClient? ProtocolClient = null,
     IReadOnlyList<Resource>? Resources = null,
-    IReadOnlyList<ResourceTemplate>? ResourceTemplates = null);
+    IReadOnlyList<ResourceTemplate>? ResourceTemplates = null,
+    string AuthStatus = "unsupported",
+    string? FailureReason = null);

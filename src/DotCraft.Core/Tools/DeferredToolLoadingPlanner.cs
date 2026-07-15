@@ -102,8 +102,7 @@ internal static class DeferredToolLoadingPlanner
         }
         else
         {
-            var searchTool = new ToolSearchTool(registry, cfg.MaxSearchResults);
-            tools.Add(GeneratedToolFunctions.ToolSearchTool_SearchTools(searchTool));
+            tools.Add(ToolSearchTool.CreateCanonicalFunction(registry, cfg.MaxSearchResults));
         }
     }
 

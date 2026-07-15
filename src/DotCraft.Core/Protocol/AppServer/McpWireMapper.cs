@@ -34,6 +34,8 @@ internal static class McpWireMapper
         ResourceTemplateCount = status.ResourceTemplateCount,
         LastError = status.LastError,
         Transport = status.Transport,
+        AuthStatus = status.AuthStatus,
+        FailureReason = status.FailureReason,
         Origin = ToWire(status.Origin),
         ReadOnly = status.ReadOnly
     };

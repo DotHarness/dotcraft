@@ -143,7 +143,7 @@ export interface FeishuDocxToolCallResult {
   errorCode?: string;
   errorMessage?: string;
   contentItems?: Record<string, unknown>[];
-  structuredResult?: unknown;
+  structuredContent?: unknown;
   [key: string]: unknown;
 }
 
@@ -915,7 +915,7 @@ async function executeCreateDocxTool(params: {
   return {
     success: true,
     contentItems: [{ type: "text", text: `Created Feishu docx ${document.documentId}.` }],
-    structuredResult: {
+    structuredContent: {
       delivered: true,
       documentId: document.documentId,
       revisionId: appendResult?.revisionId ?? document.revisionId,
@@ -941,7 +941,7 @@ async function executeReadDocxTool(params: {
   return {
     success: true,
     contentItems: [{ type: "text", text: readableText }],
-    structuredResult: {
+    structuredContent: {
       documentId: result.documentId,
       content: result.content,
       isEmpty: result.content.length === 0,
@@ -968,7 +968,7 @@ async function executeAppendDocxTool(params: {
   return {
     success: true,
     contentItems: [{ type: "text", text: `Appended ${summary.length} block(s) to Feishu docx ${documentId}.` }],
-    structuredResult: {
+    structuredContent: {
       documentId,
       revisionId: result.revisionId,
       appendedBlocks: summary,
@@ -992,7 +992,7 @@ async function executeListDocxBlocksTool(params: {
   return {
     success: true,
     contentItems: [{ type: "text", text: `Listed ${page.items.length} block(s) from docx ${documentId}.` }],
-    structuredResult: {
+    structuredContent: {
       documentId,
       items: page.items,
       nextPageToken: page.nextPageToken,
@@ -1014,7 +1014,7 @@ async function executeGetDocxBlockTool(params: {
   return {
     success: true,
     contentItems: [{ type: "text", text: `Loaded docx block ${blockId}.` }],
-    structuredResult: {
+    structuredContent: {
       documentId,
       block,
     },
@@ -1040,7 +1040,7 @@ async function executeInsertDocxBlocksTool(params: {
   return {
     success: true,
     contentItems: [{ type: "text", text: `Inserted ${result.blocks.length} block(s) into docx ${documentId}.` }],
-    structuredResult: {
+    structuredContent: {
       documentId,
       parentBlockId,
       revisionId: result.revisionId,
@@ -1100,7 +1100,7 @@ async function executeUpdateDocxBlocksTool(params: {
   return {
     success: true,
     contentItems: [{ type: "text", text: `Updated ${requests.length} block request(s) in docx ${documentId}.` }],
-    structuredResult: result,
+    structuredContent: result,
   };
 }
 
@@ -1119,7 +1119,7 @@ async function executeDeleteDocxBlocksTool(params: {
   return {
     success: true,
     contentItems: [{ type: "text", text: `Deleted child blocks [${startIndex}, ${endIndex}) from ${parentBlockId}.` }],
-    structuredResult: result,
+    structuredContent: result,
   };
 }
 
@@ -1136,7 +1136,7 @@ async function executeUpdateDocxTitleTool(params: {
   return {
     success: true,
     contentItems: [{ type: "text", text: `Updated docx ${documentId} title.` }],
-    structuredResult: {
+    structuredContent: {
       documentId,
       title,
     },
@@ -1244,7 +1244,7 @@ async function executeUpdateDocxContentTool(params: {
   return {
     success: true,
     contentItems: [{ type: "text", text: `Updated Feishu docx ${documentId} using mode ${mode}.` }],
-    structuredResult: {
+    structuredContent: {
       documentId,
       mode,
       warnings,
@@ -1336,7 +1336,7 @@ async function executeEmbedDocxMediaTool(params: {
     return {
       success: true,
       contentItems: [{ type: "text", text: `Embedded ${mediaType} into docx ${documentId}.` }],
-      structuredResult: {
+      structuredContent: {
         documentId,
         mediaType,
         filePath,
@@ -1377,7 +1377,7 @@ async function executeListDocxCommentsTool(params: {
   return {
     success: true,
     contentItems: [{ type: "text", text: `Listed ${page.items.length} comment card(s) from docx ${documentId}.` }],
-    structuredResult: page,
+    structuredContent: page,
   };
 }
 
@@ -1397,7 +1397,7 @@ async function executeBatchQueryDocxCommentsTool(params: {
   return {
     success: true,
     contentItems: [{ type: "text", text: `Loaded ${result.items.length} comment card(s) by ID from docx ${documentId}.` }],
-    structuredResult: result,
+    structuredContent: result,
   };
 }
 
@@ -1419,7 +1419,7 @@ async function executeListDocxCommentRepliesTool(params: {
   return {
     success: true,
     contentItems: [{ type: "text", text: `Listed ${page.items.length} reply item(s) from comment ${commentId}.` }],
-    structuredResult: page,
+    structuredContent: page,
   };
 }
 
@@ -1468,7 +1468,7 @@ async function executeAddDocxCommentTool(params: {
           : `Created full comment ${result.commentId} in docx ${documentId}.`,
       },
     ],
-    structuredResult: {
+    structuredContent: {
       ...result,
       commentMode: anchorBlockId ? "local" : "full",
       ...(anchorBlockId ? { anchorBlockId } : {}),
@@ -1510,7 +1510,7 @@ async function executeAddDocxCommentReplyTool(params: {
   return {
     success: true,
     contentItems: [{ type: "text", text: `Added reply ${result.replyId} to comment ${commentId}.` }],
-    structuredResult: result,
+    structuredContent: result,
   };
 }
 
@@ -1535,7 +1535,7 @@ async function executeResolveDocxCommentTool(params: {
   return {
     success: true,
     contentItems: [{ type: "text", text: `${isSolved ? "Resolved" : "Reopened"} comment ${commentId}.` }],
-    structuredResult: {
+    structuredContent: {
       fileToken: documentId,
       commentId,
       isSolved,

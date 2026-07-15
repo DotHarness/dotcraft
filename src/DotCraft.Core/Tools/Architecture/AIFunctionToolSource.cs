@@ -75,7 +75,7 @@ public abstract class AIFunctionToolSource : IToolSource
             ToolBindingLeases.AlwaysAvailable,
             $"native:{SourceId}",
             revision);
-        return new ToolRegistration(definition, binding);
+        return new ToolRegistration(definition, binding, ToolProjectionShape.StandardPair);
     }
 }
 
@@ -102,7 +102,7 @@ internal static class CoreToolPresentationCatalog
         "WebSearch" => Descriptor("core.web", "search"),
         "WebFetch" => Descriptor("core.web", "fetch"),
         "RequestUserInput" => Descriptor("core.request-user-input"),
-        "ReadFile" => Descriptor("core.read-file"),
+        "ReadFile" or "GrepFiles" or "FindFiles" => Descriptor("core.read-file"),
         "TodoWrite" or "UpdateTodos" => Descriptor("core.todo"),
         "SearchTools" => Descriptor("core.deferred-search"),
         _ => null

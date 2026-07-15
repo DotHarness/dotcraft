@@ -2,6 +2,7 @@ using System.Runtime.CompilerServices;
 using System.Text.Json;
 using DotCraft.Protocol;
 using DotCraft.Protocol.AppServer;
+using DotCraft.Tools;
 
 namespace DotCraft.Tests.Sessions.Protocol.AppServer;
 
@@ -78,6 +79,62 @@ public sealed class AppServerEventDispatcherDisconnectTests
         var json = JsonSerializer.Serialize(sent, sent.GetType());
         Assert.Contains("SENTINEL_WORKER", json);
         Assert.Contains("worker", json);
+    }
+
+    [Fact]
+    public async Task RunAsync_OrdinaryMcpCompletionDoesNotAdvertiseAnAppView()
+    {
+        using var harness = new AppServerTestHarness();
+        var thread = await harness.Service.CreateThreadAsync(harness.Identity);
+        var item = new SessionItem
+        {
+            Id = "item_001",
+            TurnId = "turn_001",
+            Type = ItemType.McpToolCall,
+            Status = ItemStatus.Completed,
+            CreatedAt = DateTimeOffset.UtcNow,
+            CompletedAt = DateTimeOffset.UtcNow,
+            Payload = new McpToolCallPayload
+            {
+                Namespace = "mcp__knowledge_service",
+                ToolName = "answer_query",
+                ProviderFlatName = "mcp__knowledge_service__answer_query",
+                ToolDefinitionId = "Mcp:knowledge-service:answer_query",
+                RuntimeBindingId = "mcp:knowledge-service:answer_query:1",
+                BindingRevision = 1,
+                SnapshotRevision = 1,
+                McpGeneration = 1,
+                Server = "knowledge-service",
+                SourceToolId = "answer_query",
+                CallId = "call-1",
+                Status = "failed",
+                Success = false,
+                ErrorCode = ToolErrorCodes.InputInvalid,
+                ErrorMessage = "invalid"
+            }
+        };
+        var evt = new SessionEvent
+        {
+            EventId = "e_mcp",
+            EventType = SessionEventType.ItemCompleted,
+            ThreadId = thread.Id,
+            TurnId = item.TurnId,
+            ItemId = item.Id,
+            Timestamp = DateTimeOffset.UtcNow,
+            Payload = item
+        };
+        var transport = new CapturingTransport();
+        var dispatcher = new AppServerEventDispatcher(
+            TrackEvents([evt], []),
+            CreateReadyConnection(mcpApps: true),
+            transport,
+            harness.Service);
+
+        await dispatcher.RunAsync();
+
+        var sent = Assert.Single(transport.Sent);
+        var json = JsonSerializer.Serialize(sent, sent.GetType());
+        Assert.DoesNotContain("\"mcpApp\"", json);
     }
 
     [Fact]
@@ -361,7 +418,9 @@ public sealed class AppServerEventDispatcherDisconnectTests
         Assert.True(connection.IsClosed);
     }
 
-    private static AppServerConnection CreateReadyConnection(bool requestUserInputSupport = false)
+    private static AppServerConnection CreateReadyConnection(
+        bool requestUserInputSupport = false,
+        bool mcpApps = false)
     {
         var connection = new AppServerConnection();
         Assert.True(connection.TryMarkInitialized(
@@ -370,7 +429,8 @@ public sealed class AppServerEventDispatcherDisconnectTests
             {
                 ApprovalSupport = true,
                 StreamingSupport = true,
-                RequestUserInputSupport = requestUserInputSupport
+                RequestUserInputSupport = requestUserInputSupport,
+                McpApps = mcpApps
             }));
         connection.MarkClientReady();
         return connection;

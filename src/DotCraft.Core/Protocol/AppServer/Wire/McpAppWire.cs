@@ -8,6 +8,8 @@ public sealed class McpAppViewOpenParams
 {
     public string ThreadId { get; set; } = string.Empty;
 
+    public string TurnId { get; set; } = string.Empty;
+
     public string ItemId { get; set; } = string.Empty;
 }
 

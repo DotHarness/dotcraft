@@ -111,7 +111,7 @@ describe('ThreadAppBindingsButton', () => {
     useToastStore.setState({ toasts: [] })
     useConnectionStore.getState().setStatus({
       status: 'connected',
-      capabilities: { appBinding: true }
+      capabilities: { appBindingVersion: 2 }
     })
     sendRequest.mockImplementation(async (method: string) => {
       if (method === 'thread/appBindings/refresh') return { bindings: [{ bindingId: 'binding-1', state: 'active', attachedToolCount: 4 }] }
@@ -144,7 +144,7 @@ describe('ThreadAppBindingsButton', () => {
 
     const button = await screen.findByRole('button', { name: 'Apps' })
     await waitFor(() => {
-      expect(sendRequest).toHaveBeenCalledWith('thread/appBindings/refresh', { threadId: 'thread-1', bindingId: undefined })
+      expect(sendRequest).toHaveBeenCalledWith('thread/appBindings/list', { threadId: 'thread-1', includeRevoked: false })
     })
 
     fireEvent.click(button)
@@ -197,14 +197,14 @@ describe('ThreadAppBindingsButton', () => {
       if (method === 'thread/appBindings/refresh') return { bindings: bound ? [{ bindingId: 'binding-1', state: 'active', attachedToolCount: 1 }] : [] }
       if (method === 'thread/appBindings/list') return { bindings: bound ? [threadBinding('active')] : [] }
       if (method === 'app/list') return { apps: [appInfo()] }
-      if (method === 'app/binding/request/create') {
+      if (method === 'thread/appBindings/enable') {
         bound = true
         return {
           bindingRequestId: 'bind-req-1',
           threadId: 'thread-1',
           appId: 'com.example.workflow',
           requestedScopes: ['board.read', 'board.manage'],
-          state: 'pending',
+          state: 'connecting',
           tokenExpiresAt: '2026-05-18T00:00:00Z',
           handoff: { mode: 'customProtocol', uri: 'workflow://dotcraft/bind?request=bind-req-1' },
           confirmation: { required: true, risk: 'mutate', message: 'Grant Workflow App access to this thread?' }
@@ -223,12 +223,9 @@ describe('ThreadAppBindingsButton', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Bind thread' }))
 
     await waitFor(() => {
-      expect(sendRequest).toHaveBeenCalledWith('app/binding/request/create', {
+      expect(sendRequest).toHaveBeenCalledWith('thread/appBindings/enable', {
         threadId: 'thread-1',
-        appId: 'com.example.workflow',
-        requestedScopes: ['board.read', 'board.manage'],
-        requestedTools: ['CreateCard'],
-        source: 'threadMenu'
+        appId: 'com.example.workflow'
       })
       expect(shellOpenAppHandoff).toHaveBeenCalledWith('workflow://dotcraft/bind?request=bind-req-1')
     })
@@ -338,9 +335,9 @@ describe('ThreadAppBindingsButton', () => {
         appId: 'com.example.workflow',
         handoffMode: undefined
       })
-      expect(sendRequest).toHaveBeenCalledWith('thread/appBindings/refresh', {
+      expect(sendRequest).toHaveBeenCalledWith('thread/appBindings/list', {
         threadId: 'thread-1',
-        bindingId: 'binding-1'
+        includeRevoked: false
       })
     })
   })
@@ -383,14 +380,14 @@ describe('ThreadAppBindingsButton', () => {
       if (method === 'thread/appBindings/refresh') return { bindings: bindingState ? [socialBinding(bindingState)] : [] }
       if (method === 'thread/appBindings/list') return { bindings: bindingState ? [socialBinding(bindingState)] : [] }
       if (method === 'app/list') return { apps: [socialAppInfo()] }
-      if (method === 'app/binding/request/create') {
-        bindingState = 'pending'
+      if (method === 'thread/socialBindings/request/create') {
+        bindingState = 'connecting'
         return {
           bindingRequestId: 'bind-req-social-1',
           threadId: 'thread-1',
           appId: 'com.dotharness.channel.qq',
           requestedScopes: ['conversation.receive', 'message.send'],
-          state: 'pending',
+          state: 'connecting',
           tokenExpiresAt: '2026-05-18T00:00:00Z',
           handoff: {
             mode: 'bindCode',
@@ -399,7 +396,7 @@ describe('ThreadAppBindingsButton', () => {
           }
         }
       }
-      if (method === 'app/binding/request/cancel') {
+      if (method === 'thread/appBindings/revoke') {
         bindingState = null
         return {
           bindingRequestId: 'bind-req-social-1',
@@ -421,17 +418,10 @@ describe('ThreadAppBindingsButton', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Bind thread' }))
 
     await waitFor(() => {
-      expect(sendRequest).toHaveBeenCalledWith('app/binding/request/create', expect.objectContaining({
-        appId: 'com.dotharness.channel.qq',
-        bindingKind: 'socialChannel',
-        requestedScopes: ['conversation.receive', 'message.send'],
-        requestedTools: ['QQSendImageToCurrentChat'],
-        socialIntent: {
-          channelName: 'qq',
-          targetSelection: 'confirmInChannel',
-          displayHint: 'QQ'
-        }
-      }))
+      expect(sendRequest).toHaveBeenCalledWith('thread/socialBindings/request/create', {
+        threadId: 'thread-1',
+        channelName: 'qq'
+      })
     })
     expect(await screen.findByText('Pending')).toBeInTheDocument()
     expect(screen.getByText('Send /bind 482913 in the QQ conversation to bind it to this thread.')).toBeInTheDocument()
@@ -443,12 +433,12 @@ describe('ThreadAppBindingsButton', () => {
     })
     fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
     await waitFor(() => {
-      expect(sendRequest).toHaveBeenCalledWith('app/binding/request/cancel', {
-        bindingRequestId: 'bind-req-social-1',
+      expect(sendRequest).toHaveBeenCalledWith('thread/appBindings/revoke', {
+        threadId: 'thread-1',
+        bindingId: 'binding-social-1',
         reason: undefined
       })
     })
-    expect(sendRequest).not.toHaveBeenCalledWith('thread/appBindings/revoke', expect.anything())
     await waitFor(() => {
       expect(useToastStore.getState().toasts.some((toast) => toast.message === 'App binding request canceled')).toBe(true)
     })
@@ -462,14 +452,14 @@ describe('ThreadAppBindingsButton', () => {
       if (method === 'thread/appBindings/refresh') return { bindings: binding ? [binding] : [] }
       if (method === 'thread/appBindings/list') return { bindings: binding ? [binding] : [] }
       if (method === 'app/list') return { apps: [socialAppInfo()] }
-      if (method === 'app/binding/request/create') {
-        binding = socialBinding('pending')
+      if (method === 'thread/socialBindings/request/create') {
+        binding = socialBinding('connecting')
         return {
           bindingRequestId: 'bind-req-social-1',
           threadId: 'thread-1',
           appId: 'com.dotharness.channel.qq',
           requestedScopes: ['conversation.receive', 'message.send'],
-          state: 'pending',
+          state: 'connecting',
           tokenExpiresAt: '2026-05-18T00:00:00Z',
           handoff: {
             mode: 'bindCode',
@@ -506,9 +496,9 @@ describe('ThreadAppBindingsButton', () => {
       if (method === 'thread/appBindings/refresh') return { bindings: binding ? [binding] : [] }
       if (method === 'thread/appBindings/list') return { bindings: binding ? [binding] : [] }
       if (method === 'app/list') return { apps: [socialAppInfo()] }
-      if (method === 'app/binding/request/create') {
+      if (method === 'thread/socialBindings/request/create') {
         binding = {
-          ...socialBinding('pending'),
+          ...socialBinding('connecting'),
           bindingId: 'binding-social-2',
           bindingRequestId: 'bind-req-social-2'
         }
@@ -517,7 +507,7 @@ describe('ThreadAppBindingsButton', () => {
           threadId: 'thread-1',
           appId: 'com.dotharness.channel.qq',
           requestedScopes: ['conversation.receive', 'message.send'],
-          state: 'pending',
+          state: 'connecting',
           tokenExpiresAt: '2026-05-18T00:00:00Z',
           handoff: {
             mode: 'bindCode',
@@ -626,9 +616,9 @@ describe('ThreadAppBindingsButton', () => {
     const refreshButtons = screen.getAllByRole('button', { name: 'Refresh' })
     fireEvent.click(refreshButtons[refreshButtons.length - 1])
     await waitFor(() => {
-      expect(sendRequest).toHaveBeenCalledWith('thread/appBindings/refresh', {
+      expect(sendRequest).toHaveBeenCalledWith('thread/appBindings/list', {
         threadId: 'thread-1',
-        bindingId: 'binding-social-1'
+        includeRevoked: false
       })
     })
 

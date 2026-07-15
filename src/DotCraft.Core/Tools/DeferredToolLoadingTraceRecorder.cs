@@ -19,9 +19,12 @@ internal static class DeferredToolLoadingTraceRecorder
             return;
 
         var newTools = entries
-            .Where(entry => !activatedBefore.Contains(entry.Tool.Name))
+            .Where(entry => !activatedBefore.Contains(
+                DeferredToolActivationIndex.GetIdentityKey(entry)))
             .Select(static entry => new DeferredToolLoadingTraceTool(
-                entry.Tool.Name,
+                CanonicalToolIdentityMetadataResolver.TryGet(entry.Tool, out var canonicalName, out _)
+                    ? canonicalName.Name
+                    : entry.Tool.Name,
                 entry.Source,
                 entry.Namespace))
             .ToArray();

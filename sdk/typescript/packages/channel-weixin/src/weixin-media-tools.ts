@@ -191,7 +191,7 @@ export class WeixinMediaTools {
             : String(result.errorMessage ?? "Tool execution failed."),
         },
       ],
-      structuredResult: {
+      structuredContent: {
         delivered,
         errorCode: result.errorCode ?? null,
         mediaId: result.remoteMediaId ?? null,

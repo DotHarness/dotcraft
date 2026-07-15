@@ -562,8 +562,8 @@ function buildInitializeCapabilities(_profile: InitializeProfile): Record<string
           toolExecutionLifecycle: true,
           backgroundTerminals: true,
           configChange: true,
-          interactiveToolUi: true,
           mcpApps: true,
+          appBindingVersion: 2,
           mcpElicitation: true,
           optOutNotificationMethods: [],
           nodeRepl: {

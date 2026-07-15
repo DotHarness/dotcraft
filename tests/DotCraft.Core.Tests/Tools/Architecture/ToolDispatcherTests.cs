@@ -8,7 +8,7 @@ namespace DotCraft.Core.Tests.Tools.Architecture;
 public sealed class ToolDispatcherTests
 {
     [Fact]
-    public async Task DispatchProviderCallAsync_UsesExactReverseMapAndPreservesCanonicalContext()
+    public async Task DispatchProviderFlatCallAsync_UsesExactReverseMapAndPreservesCanonicalContext()
     {
         ToolInvocationContext? observed = null;
         var runtime = new DelegateRuntime((context, _) =>
@@ -18,9 +18,9 @@ public sealed class ToolDispatcherTests
         });
         var registration = Registration(new ToolName("workspace", "read"), runtime);
         var snapshot = new EffectiveToolSnapshotBuilder().Build([registration], revision: 42);
-        var providerName = snapshot.ProviderCallNames[registration.Definition.Name];
+        var providerName = snapshot.ProviderFlatNames[registration.Definition.Name];
 
-        var result = await new ToolDispatcher().DispatchProviderCallAsync(
+        var result = await new ToolDispatcher().DispatchProviderFlatCallAsync(
             snapshot,
             providerName,
             new JsonObject { ["path"] = "README.md" },
@@ -35,13 +35,13 @@ public sealed class ToolDispatcherTests
     }
 
     [Fact]
-    public async Task DispatchProviderCallAsync_IsOrdinalAndDoesNotGuessCanonicalName()
+    public async Task DispatchProviderFlatCallAsync_IsOrdinalAndDoesNotGuessCanonicalName()
     {
         var registration = Registration(new ToolName("workspace", "read"), new DelegateRuntime((_, _) =>
             ToolExecutionResult.Succeeded("unexpected")));
         var snapshot = new EffectiveToolSnapshotBuilder().Build([registration], revision: 1);
 
-        var result = await new ToolDispatcher().DispatchProviderCallAsync(
+        var result = await new ToolDispatcher().DispatchProviderFlatCallAsync(
             snapshot,
             "WORKSPACE__READ",
             [],
@@ -188,6 +188,84 @@ public sealed class ToolDispatcherTests
     }
 
     [Fact]
+    public async Task DispatchAsync_McpArgumentsAreValidatedByTheOwningServer()
+    {
+        JsonObject? observed = null;
+        var registration = Registration(
+            new ToolName("mcp__knowledge_service", "answer_query"),
+            new DelegateRuntime((_, arguments) =>
+            {
+                observed = arguments.DeepClone().AsObject();
+                return ToolExecutionResult.Succeeded("ok");
+            }),
+            inputSchema: Json("""
+                {
+                  "type": "object",
+                  "properties": {
+                    "target": {
+                      "anyOf": [
+                        { "type": "string" },
+                        { "type": "array", "items": { "type": "string" } }
+                      ]
+                    }
+                  },
+                  "required": ["target"]
+                }
+                """),
+            kind: ToolSourceKind.Mcp);
+        var snapshot = new EffectiveToolSnapshotBuilder().Build([registration], revision: 1);
+
+        var result = await new ToolDispatcher().DispatchAsync(
+            snapshot,
+            registration.Definition.Name,
+            new JsonObject { ["target"] = "sample/reference" },
+            Request());
+
+        Assert.True(result.Success);
+        Assert.Equal("sample/reference", observed?["target"]?.GetValue<string>());
+    }
+
+    [Fact]
+    public async Task DispatchAsync_OversizedSuccessfulResultRemainsSuccessfulWithBoundedPreview()
+    {
+        var registration = Registration(
+            new ToolName("mcp__knowledge_service", "read_contents"),
+            new DelegateRuntime((_, _) => ToolExecutionResult.Succeeded($"head-{new string('x', 200)}-tail")),
+            kind: ToolSourceKind.Mcp);
+        var snapshot = new EffectiveToolSnapshotBuilder().Build([registration], revision: 1);
+
+        var result = await new ToolDispatcher(
+                resultNormalizer: new DefaultToolResultNormalizer(maxModelContentCharacters: 80))
+            .DispatchAsync(snapshot, registration.Definition.Name, [], Request());
+
+        Assert.True(result.Success);
+        Assert.Null(result.Error);
+        Assert.Equal(80, result.Content?.Length);
+        Assert.Contains("Tool result truncated", result.Content);
+        Assert.StartsWith("head-", result.Content);
+        Assert.EndsWith("-tail", result.Content);
+    }
+
+    [Fact]
+    public async Task DispatchAsync_InvalidInputTerminalizesTheAcceptedProjection()
+    {
+        var events = new List<string>();
+        var probe = new PipelineProbe(events);
+        var registration = Registration(
+            new ToolName(null, "requires_name"),
+            new DelegateRuntime((_, _) => ToolExecutionResult.Succeeded("unexpected")),
+            inputSchema: Json("""{"type":"object","properties":{"name":{"type":"string"}},"required":["name"]}"""));
+        var snapshot = new EffectiveToolSnapshotBuilder().Build([registration], revision: 1);
+        var dispatcher = new ToolDispatcher(probe, probe, probe, probe, probe, probe);
+
+        var result = await dispatcher.DispatchAsync(snapshot, registration.Definition.Name, [], Request());
+
+        Assert.False(result.Success);
+        Assert.Equal(ToolErrorCodes.InputInvalid, result.Error?.Code);
+        Assert.Equal(["started", "authority", "terminal", "postHook"], events);
+    }
+
+    [Fact]
     public async Task DispatchAsync_RunsCommonPipelineInFixedOrder()
     {
         var events = new List<string>();
@@ -206,7 +284,7 @@ public sealed class ToolDispatcherTests
 
         Assert.True(result.Success);
         Assert.Equal([
-            "authority", "policy", "preHook", "approval", "started", "runtime",
+            "started", "authority", "policy", "preHook", "approval", "runtime",
             "normalize", "terminal", "postHook"
         ], events);
     }
@@ -341,10 +419,11 @@ public sealed class ToolDispatcherTests
         ToolInvocationAudience audiences = ToolInvocationAudience.Model | ToolInvocationAudience.Host,
         JsonElement? inputSchema = null,
         IReadOnlyDictionary<string, JsonElement>? annotations = null,
-        ToolPolicyHints? policyHints = null)
+        ToolPolicyHints? policyHints = null,
+        ToolSourceKind kind = ToolSourceKind.CoreNative)
     {
         var id = new ToolDefinitionId(
-            ToolSourceKind.CoreNative,
+            kind,
             $"source-{name}",
             new SourceToolId(name.Name));
         var definition = new ToolDefinition(
@@ -361,7 +440,12 @@ public sealed class ToolDispatcherTests
             lease ?? ToolBindingLeases.AlwaysAvailable,
             "authority:test",
             revision: 1);
-        return new ToolRegistration(definition, binding, exposure, audiences);
+        return new ToolRegistration(
+            definition,
+            binding,
+            ToolProjectionShape.StandardPair,
+            exposure,
+            audiences);
     }
 
     private static JsonElement Json(string json) => JsonDocument.Parse(json).RootElement.Clone();

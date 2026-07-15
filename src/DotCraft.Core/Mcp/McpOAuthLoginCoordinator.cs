@@ -23,6 +23,9 @@ internal static class McpOAuthLoginCoordinator
         if (!Uri.TryCreate(server.Url, UriKind.Absolute, out var endpoint))
             throw new InvalidOperationException("The MCP server endpoint is invalid.");
 
+        var tokenCache = McpOAuthTokenStore.Create(server);
+        await tokenCache.ClearAsync(cancellationToken);
+
         var port = ReserveLoopbackPort();
         var redirectUri = new Uri($"http://127.0.0.1:{port}/callback/");
         var authorizationUrl = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -34,11 +37,10 @@ internal static class McpOAuthLoginCoordinator
         if (timeoutSecs is > 0)
             timeoutCts.CancelAfter(TimeSpan.FromSeconds(Math.Min(timeoutSecs.Value, 3600)));
         var loginCancellationToken = timeoutCts.Token;
-
         var oauth = new ClientOAuthOptions
         {
             RedirectUri = redirectUri,
-            TokenCache = McpOAuthTokenStore.Create(server),
+            TokenCache = tokenCache,
             Scopes = scopes,
             AuthorizationRedirectDelegate = async (url, _, ct) =>
             {
@@ -51,6 +53,7 @@ internal static class McpOAuthLoginCoordinator
 
         _ = Task.Run(async () =>
         {
+            var terminalCompletionAttempted = false;
             try
             {
                 await using var client = await McpClientManager.CreateClientAsync(
@@ -59,14 +62,24 @@ internal static class McpOAuthLoginCoordinator
                     oauthOptions: oauth,
                     cancellationToken: loginCancellationToken);
                 _ = await client.ListToolsAsync(cancellationToken: loginCancellationToken);
-                authorizationUrl.TrySetException(
-                    new InvalidOperationException("The MCP server did not request OAuth authorization."));
+                if (!authorizationUrl.Task.IsCompletedSuccessfully)
+                {
+                    authorizationUrl.TrySetException(
+                        new InvalidOperationException("The MCP server did not request OAuth authorization."));
+                    return;
+                }
+                terminalCompletionAttempted = true;
                 await onCompleted(true, null);
             }
             catch (Exception ex)
             {
-                authorizationUrl.TrySetException(ex);
-                await onCompleted(false, ex.Message);
+                if (authorizationUrl.Task.IsCompletedSuccessfully && !terminalCompletionAttempted)
+                {
+                    terminalCompletionAttempted = true;
+                    await onCompleted(false, ex.Message);
+                }
+                else
+                    authorizationUrl.TrySetException(ex);
             }
             finally
             {

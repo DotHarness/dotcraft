@@ -18,6 +18,8 @@ public sealed class McpServerStatusSnapshot
     public int ResourceCount { get; set; }
     public int ResourceTemplateCount { get; set; }
     public string? LastError { get; set; }
+    public string AuthStatus { get; set; } = McpAuthenticationStatuses.Unsupported;
+    public string? FailureReason { get; set; }
     public string Transport { get; set; } = "stdio";
     public McpServerOrigin Origin { get; set; } = McpServerOrigin.Workspace();
     public bool ReadOnly { get; set; }
@@ -30,12 +32,14 @@ public sealed class McpServerStatusChangedEventArgs : EventArgs
 
 /// <summary>Raw MCP tool and resource inventory for one runtime generation.</summary>
 /// <param name="ServerInfo">The server implementation reported during initialization.</param>
+/// <param name="ServerInstructions">The untrusted server instructions reported during initialization.</param>
 /// <param name="Tools">The raw-generation MCP tool wrappers.</param>
 /// <param name="Resources">The raw resources returned for the generation.</param>
 /// <param name="ResourceTemplates">The raw resource templates returned for the generation.</param>
 /// <param name="Generation">The live manager generation from which the inventory was captured.</param>
 public sealed record McpServerInventorySnapshot(
     Implementation? ServerInfo,
+    string? ServerInstructions,
     IReadOnlyList<AIFunction> Tools,
     IReadOnlyList<Resource> Resources,
     IReadOnlyList<ResourceTemplate> ResourceTemplates,
@@ -43,7 +47,7 @@ public sealed record McpServerInventorySnapshot(
 
 public sealed class McpClientManager : IMcpToolInvocationCoordinator, IAsyncDisposable
 {
-    private const double DefaultStartupTimeoutSeconds = 5;
+    internal const double DefaultStartupTimeoutSeconds = 30;
 
     private sealed class ServerRuntimeState
     {
@@ -91,6 +95,7 @@ public sealed class McpClientManager : IMcpToolInvocationCoordinator, IAsyncDisp
                 return null;
             return new McpServerInventorySnapshot(
                 state.ProtocolClient?.ServerInfo,
+                state.ProtocolClient?.ServerInstructions,
                 state.CachedTools.ToArray(),
                 state.CachedResources.ToArray(),
                 state.CachedResourceTemplates.ToArray(),
@@ -102,6 +107,40 @@ public sealed class McpClientManager : IMcpToolInvocationCoordinator, IAsyncDisp
         }
     }
 
+    /// <summary>Refreshes optional resources for a ready server without changing startup readiness.</summary>
+    public async Task RefreshResourceInventoryAsync(
+        string serverName,
+        CancellationToken cancellationToken = default)
+    {
+        await using var session = await GetProtocolSessionAsync(serverName, expectedGeneration: null, cancellationToken);
+        var resourcesTask = TryListResourcesAsync(session.Client, serverName, cancellationToken);
+        var templatesTask = TryListResourceTemplatesAsync(session.Client, serverName, cancellationToken);
+        await Task.WhenAll(resourcesTask, templatesTask);
+
+        McpServerStatusSnapshot? snapshot = null;
+        await _mutex.WaitAsync(cancellationToken);
+        try
+        {
+            if (_servers.TryGetValue(serverName, out var state)
+                && state.Generation == session.Generation
+                && state.Status.StartupState == "ready")
+            {
+                state.CachedResources = await resourcesTask;
+                state.CachedResourceTemplates = await templatesTask;
+                state.Status.ResourceCount = state.CachedResources.Count;
+                state.Status.ResourceTemplateCount = state.CachedResourceTemplates.Count;
+                snapshot = CloneStatus(state.Status);
+            }
+        }
+        finally
+        {
+            _mutex.Release();
+        }
+
+        if (snapshot != null)
+            OnStatusChanged(snapshot);
+    }
+
     /// <summary>
     /// Configures the host elicitation broker used by subsequently created MCP sessions.
     /// Unknown or unavailable client interactions are rejected safely.
@@ -109,6 +148,14 @@ public sealed class McpClientManager : IMcpToolInvocationCoordinator, IAsyncDisp
     public void ConfigureElicitationHandler(
         Func<string, ElicitRequestParams?, CancellationToken, ValueTask<ElicitResult>>? handler) =>
         _elicitationHandler = handler;
+
+    internal ValueTask<ElicitResult> RequestElicitationAsync(
+        string serverName,
+        ElicitRequestParams? request,
+        CancellationToken cancellationToken = default) =>
+        _elicitationHandler == null
+            ? ValueTask.FromResult(new ElicitResult { Action = "decline" })
+            : _elicitationHandler(serverName, request, cancellationToken);
 
     /// <summary>
     /// Calls a raw MCP tool through the live protocol session. The caller remains responsible for
@@ -410,6 +457,8 @@ public sealed class McpClientManager : IMcpToolInvocationCoordinator, IAsyncDisp
             client = result.Client;
             status.StartupState = "ready";
             status.ToolCount = result.Tools.Count;
+            status.AuthStatus = result.AuthStatus;
+            status.FailureReason = result.FailureReason;
             return status;
         }
         catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
@@ -776,6 +825,8 @@ public sealed class McpClientManager : IMcpToolInvocationCoordinator, IAsyncDisp
 
             status = CreateStatus(config, "ready");
             status.ToolCount = tools.Count;
+            status.AuthStatus = result.AuthStatus;
+            status.FailureReason = result.FailureReason;
             _logger?.LogInformation(
                 "MCP connected to {ServerName} with {ToolCount} tools",
                 config.Name,
@@ -796,6 +847,13 @@ public sealed class McpClientManager : IMcpToolInvocationCoordinator, IAsyncDisp
         {
             status = CreateStatus(config, "error");
             status.LastError = ex.Message;
+            if (FindAuthenticationRequired(ex) is { } authenticationRequired)
+            {
+                status.AuthStatus = McpAuthenticationStatuses.NotLoggedIn;
+                status.FailureReason = authenticationRequired.ReauthenticationRequired
+                    ? "reauthenticationRequired"
+                    : null;
+            }
 
             _logger?.LogError(ex, "MCP connection to {ServerName} failed", config.Name);
             TryWriteMcpConsoleLine(
@@ -851,6 +909,10 @@ public sealed class McpClientManager : IMcpToolInvocationCoordinator, IAsyncDisp
             ResourceCount = 0,
             ResourceTemplateCount = 0,
             LastError = null,
+            AuthStatus = config.Enabled && HasConfiguredBearerToken(config)
+                ? McpAuthenticationStatuses.BearerToken
+                : McpAuthenticationStatuses.Unsupported,
+            FailureReason = null,
             Transport = config.NormalizedTransport,
             Origin = config.Origin.Clone(),
             ReadOnly = config.ReadOnly
@@ -866,6 +928,8 @@ public sealed class McpClientManager : IMcpToolInvocationCoordinator, IAsyncDisp
             ResourceCount = status.ResourceCount,
             ResourceTemplateCount = status.ResourceTemplateCount,
             LastError = status.LastError,
+            AuthStatus = status.AuthStatus,
+            FailureReason = status.FailureReason,
             Transport = status.Transport,
             Origin = status.Origin.Clone(),
             ReadOnly = status.ReadOnly
@@ -1222,27 +1286,31 @@ public sealed class McpClientManager : IMcpToolInvocationCoordinator, IAsyncDisp
         var recoveredFromStaleSession = false;
         for (var attempt = 0; ; attempt++)
         {
+            var tokenStore = McpOAuthTokenStore.Create(server);
+            var hadOAuthTokens = IsOAuthCandidate(server)
+                                 && await tokenStore.HasTokensAsync(cancellationToken);
             var client = await CreateClientAsync(
                 server,
                 _elicitationHandler == null
                     ? null
-                    : (request, ct) => _elicitationHandler(server.Name, request, ct),
+                    : (request, ct) => RequestElicitationAsync(server.Name, request, ct),
                 oauthOptions: null,
                 cancellationToken: cancellationToken);
             var hasSessionId = HasSessionId(client);
             try
             {
                 var tools = await client.ListToolsAsync(cancellationToken: cancellationToken);
-                var resources = await TryListResourcesAsync(client, cancellationToken);
-                var resourceTemplates = await TryListResourceTemplatesAsync(client, cancellationToken);
                 return new McpConnectionResult(
                     client,
                     [.. tools.Cast<AIFunction>()],
                     hasSessionId,
                     recoveredFromStaleSession,
                     client,
-                    resources,
-                    resourceTemplates);
+                    AuthStatus: HasConfiguredBearerToken(server)
+                        ? McpAuthenticationStatuses.BearerToken
+                        : hadOAuthTokens
+                            ? McpAuthenticationStatuses.OAuth
+                            : McpAuthenticationStatuses.Unsupported);
             }
             catch (Exception ex) when (attempt == 0 && ShouldRetryConnectAfterStaleSession(server, ex, hasSessionId))
             {
@@ -1265,8 +1333,9 @@ public sealed class McpClientManager : IMcpToolInvocationCoordinator, IAsyncDisp
         string.Equals(server.NormalizedTransport, "streamableHttp", StringComparison.OrdinalIgnoreCase) &&
         McpStaleSessionDetector.IsStaleSessionFailure(exception, hasSessionId);
 
-    private static async Task<IReadOnlyList<Resource>> TryListResourcesAsync(
+    private async Task<IReadOnlyList<Resource>> TryListResourcesAsync(
         McpClient client,
+        string serverName,
         CancellationToken cancellationToken)
     {
         try
@@ -1278,14 +1347,16 @@ public sealed class McpClientManager : IMcpToolInvocationCoordinator, IAsyncDisp
         {
             throw;
         }
-        catch
+        catch (Exception ex)
         {
+            _logger?.LogDebug(ex, "Optional MCP resource enumeration failed for {ServerName}", serverName);
             return [];
         }
     }
 
-    private static async Task<IReadOnlyList<ResourceTemplate>> TryListResourceTemplatesAsync(
+    private async Task<IReadOnlyList<ResourceTemplate>> TryListResourceTemplatesAsync(
         McpClient client,
+        string serverName,
         CancellationToken cancellationToken)
     {
         try
@@ -1297,8 +1368,12 @@ public sealed class McpClientManager : IMcpToolInvocationCoordinator, IAsyncDisp
         {
             throw;
         }
-        catch
+        catch (Exception ex)
         {
+            _logger?.LogDebug(
+                ex,
+                "Optional MCP resource-template enumeration failed for {ServerName}",
+                serverName);
             return [];
         }
     }
@@ -1337,15 +1412,15 @@ public sealed class McpClientManager : IMcpToolInvocationCoordinator, IAsyncDisp
             if (oauthOptions == null)
             {
                 var tokenStore = McpOAuthTokenStore.Create(server);
-                if (await tokenStore.HasTokensAsync(cancellationToken))
+                if (IsOAuthCandidate(server))
                 {
+                    var hadTokens = await tokenStore.HasTokensAsync(cancellationToken);
                     oauthOptions = new ClientOAuthOptions
                     {
                         RedirectUri = new Uri("http://127.0.0.1/callback"),
                         TokenCache = tokenStore,
-                        AuthorizationRedirectDelegate = static (_, _, _) =>
-                            throw new InvalidOperationException(
-                                "MCP authentication must be renewed with mcpServer/oauth/login.")
+                        AuthorizationRedirectDelegate = (_, _, _) =>
+                            throw new McpAuthenticationRequiredException(hadTokens)
                     };
                 }
             }
@@ -1372,7 +1447,17 @@ public sealed class McpClientManager : IMcpToolInvocationCoordinator, IAsyncDisp
             if (headers.Count > 0)
                 options.AdditionalHeaders = headers;
 
-            transport = new HttpClientTransport(options);
+            if (server.Origin.IsBinding)
+            {
+                // A binding endpoint is an authority boundary. Following a redirect could move the
+                // one-time bearer to a different origin without a fresh activation decision.
+                var handler = new HttpClientHandler { AllowAutoRedirect = false };
+                transport = new HttpClientTransport(options, new HttpClient(handler), loggerFactory: null, ownsHttpClient: true);
+            }
+            else
+            {
+                transport = new HttpClientTransport(options);
+            }
         }
         else
         {
@@ -1407,6 +1492,35 @@ public sealed class McpClientManager : IMcpToolInvocationCoordinator, IAsyncDisp
 
         var clientOptions = CreateClientOptions(elicitationHandler);
         return await McpClient.CreateAsync(transport, clientOptions, cancellationToken: cancellationToken);
+    }
+
+    private static bool HasConfiguredBearerToken(McpServerConfig server) =>
+        !string.IsNullOrWhiteSpace(server.BearerTokenEnvVar)
+        || server.Headers.Keys.Any(static name =>
+            string.Equals(name, "Authorization", StringComparison.OrdinalIgnoreCase))
+        || server.EnvHttpHeaders.Keys.Any(static name =>
+            string.Equals(name, "Authorization", StringComparison.OrdinalIgnoreCase));
+
+    private static bool IsOAuthCandidate(McpServerConfig server) =>
+        string.Equals(server.NormalizedTransport, "streamableHttp", StringComparison.Ordinal)
+        && !HasConfiguredBearerToken(server);
+
+    private static McpAuthenticationRequiredException? FindAuthenticationRequired(Exception exception)
+    {
+        for (Exception? current = exception; current != null; current = current.InnerException)
+        {
+            if (current is McpAuthenticationRequiredException authenticationRequired)
+                return authenticationRequired;
+            if (current is AggregateException aggregate)
+            {
+                foreach (var inner in aggregate.Flatten().InnerExceptions)
+                {
+                    if (FindAuthenticationRequired(inner) is { } nested)
+                        return nested;
+                }
+            }
+        }
+        return null;
     }
 
     internal static McpClientOptions CreateClientOptions(

@@ -16,6 +16,10 @@ public static class ToolSnapshotDiagnosticCodes
 {
     /// <summary>Two or more registrations declared the same canonical tool name.</summary>
     public const string DuplicateCanonicalName = "duplicate_canonical_tool_name";
+    /// <summary>Two or more registrations projected to the same provider flat name.</summary>
+    public const string DuplicateProviderFlatName = "duplicate_provider_flat_name";
+    /// <summary>One canonical namespace declared multiple distinct model-visible descriptions.</summary>
+    public const string ConflictingNamespaceDescription = "conflicting_namespace_description";
 }
 
 /// <summary>An immutable per-Turn registry and its model/deferred projections.</summary>
@@ -24,21 +28,25 @@ public sealed class EffectiveToolSnapshot
     internal EffectiveToolSnapshot(
         long revision,
         FrozenDictionary<ToolName, ToolRegistration> registrations,
-        FrozenDictionary<ToolName, string> providerCallNames,
-        FrozenDictionary<string, ToolName> providerCallNameIndex,
+        FrozenDictionary<ToolName, string> providerFlatNames,
+        FrozenDictionary<string, ToolName> providerFlatNameIndex,
         IReadOnlyList<ToolDefinition> modelVisibleDefinitions,
         FrozenDictionary<string, IReadOnlyList<ToolDefinition>> deferredDefinitions,
+        FrozenDictionary<string, string> namespaceDescriptions,
         IReadOnlyList<ToolSnapshotDiagnostic> diagnostics,
-        ProviderHostedCapabilityPlan? providerHostedCapabilities = null)
+        ProviderHostedCapabilityPlan? providerHostedCapabilities = null,
+        IReadOnlyList<ToolRegistration>? sourceRegistrations = null)
     {
         Revision = revision;
         Registrations = registrations;
-        ProviderCallNames = providerCallNames;
-        ProviderCallNameIndex = providerCallNameIndex;
+        ProviderFlatNames = providerFlatNames;
+        ProviderFlatNameIndex = providerFlatNameIndex;
         ModelVisibleDefinitions = modelVisibleDefinitions;
         DeferredDefinitions = deferredDefinitions;
+        NamespaceDescriptions = namespaceDescriptions;
         Diagnostics = diagnostics;
         ProviderHostedCapabilities = providerHostedCapabilities ?? new ProviderHostedCapabilityPlan();
+        SourceRegistrations = sourceRegistrations ?? registrations.Values.ToArray();
     }
 
     /// <summary>Gets the immutable snapshot revision.</summary>
@@ -48,10 +56,10 @@ public sealed class EffectiveToolSnapshot
     public IReadOnlyDictionary<ToolName, ToolRegistration> Registrations { get; }
 
     /// <summary>Gets the exact provider-visible name for each canonical name.</summary>
-    public IReadOnlyDictionary<ToolName, string> ProviderCallNames { get; }
+    public IReadOnlyDictionary<ToolName, string> ProviderFlatNames { get; }
 
     /// <summary>Gets the exact canonical name for each provider-visible call name.</summary>
-    public IReadOnlyDictionary<string, ToolName> ProviderCallNameIndex { get; }
+    public IReadOnlyDictionary<string, ToolName> ProviderFlatNameIndex { get; }
 
     /// <summary>Gets definitions published directly to the model.</summary>
     public IReadOnlyList<ToolDefinition> ModelVisibleDefinitions { get; }
@@ -59,15 +67,29 @@ public sealed class EffectiveToolSnapshot
     /// <summary>Gets deferred definitions grouped by their search namespace.</summary>
     public IReadOnlyDictionary<string, IReadOnlyList<ToolDefinition>> DeferredDefinitions { get; }
 
+    /// <summary>Gets the resolved model-visible description for each canonical namespace.</summary>
+    internal IReadOnlyDictionary<string, string> NamespaceDescriptions { get; }
+
     /// <summary>Gets safe diagnostics for quarantined registrations.</summary>
     public IReadOnlyList<ToolSnapshotDiagnostic> Diagnostics { get; }
 
     /// <summary>Gets capabilities executed directly by the selected model provider.</summary>
     public ProviderHostedCapabilityPlan ProviderHostedCapabilities { get; }
 
+    internal IReadOnlyList<ToolRegistration> SourceRegistrations { get; }
+
     /// <summary>Resolves a provider-visible name using ordinal, case-sensitive comparison.</summary>
-    public bool TryResolveProviderCallName(string providerCallName, out ToolName toolName) =>
-        ProviderCallNameIndex.TryGetValue(providerCallName, out toolName);
+    public bool TryResolveProviderFlatName(string providerFlatName, out ToolName toolName) =>
+        ProviderFlatNameIndex.TryGetValue(providerFlatName, out toolName);
+
+    /// <summary>Resolves untrusted namespace-capable provider callback identity without throwing.</summary>
+    internal bool TryResolveProviderNamespacedName(string? toolNamespace, string? localName, out ToolName toolName)
+    {
+        if (!ToolName.TryCreate(toolNamespace, localName, out toolName))
+            return false;
+
+        return Registrations.ContainsKey(toolName);
+    }
 
     /// <summary>
     /// Returns a snapshot with the same canonical dispatch registry and diagnostics but a
@@ -76,22 +98,12 @@ public sealed class EffectiveToolSnapshot
     public EffectiveToolSnapshot WithModelExposure(Func<ToolDefinition, bool> predicate)
     {
         ArgumentNullException.ThrowIfNull(predicate);
-        var direct = ModelVisibleDefinitions.Where(predicate).ToArray();
-        var deferred = DeferredDefinitions
-            .Select(pair => new KeyValuePair<string, IReadOnlyList<ToolDefinition>>(
-                pair.Key,
-                Array.AsReadOnly(pair.Value.Where(predicate).ToArray())))
-            .Where(pair => pair.Value.Count > 0)
-            .ToFrozenDictionary(pair => pair.Key, pair => pair.Value, StringComparer.Ordinal);
-        return new EffectiveToolSnapshot(
+        return new EffectiveToolSnapshotBuilder().BuildFiltered(
+            SourceRegistrations,
             Revision,
-            (FrozenDictionary<ToolName, ToolRegistration>)Registrations,
-            (FrozenDictionary<ToolName, string>)ProviderCallNames,
-            (FrozenDictionary<string, ToolName>)ProviderCallNameIndex,
-            Array.AsReadOnly(direct),
-            deferred,
-            Diagnostics,
-            ProviderHostedCapabilities);
+            ProviderHostedCapabilities,
+            predicate,
+            []);
     }
 }
 
@@ -129,8 +141,21 @@ public sealed class EffectiveToolSnapshotBuilder
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(providerHostedCapabilities);
-        var snapshot = await BuildAsync(sources, context, cancellationToken).ConfigureAwait(false);
-        return Build(snapshot.Registrations.Values, snapshot.Revision, providerHostedCapabilities);
+        ArgumentNullException.ThrowIfNull(sources);
+        ArgumentNullException.ThrowIfNull(context);
+
+        var registrations = new List<ToolRegistration>();
+        foreach (var source in sources
+                     .OrderBy(source => source.Priority)
+                     .ThenBy(source => source.SourceId, StringComparer.Ordinal))
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var contributed = await source.GetRegistrationsAsync(context, cancellationToken).ConfigureAwait(false);
+            if (contributed is not null)
+                registrations.AddRange(contributed);
+        }
+
+        return Build(registrations, context.Revision, providerHostedCapabilities);
     }
 
     /// <summary>
@@ -141,10 +166,26 @@ public sealed class EffectiveToolSnapshotBuilder
         IEnumerable<ToolRegistration> registrations,
         long revision,
         ProviderHostedCapabilityPlan? providerHostedCapabilities = null)
+        => BuildFiltered(
+            registrations,
+            revision,
+            providerHostedCapabilities,
+            static _ => true,
+            []);
+
+    internal EffectiveToolSnapshot BuildFiltered(
+        IEnumerable<ToolRegistration> registrations,
+        long revision,
+        ProviderHostedCapabilityPlan? providerHostedCapabilities,
+        Func<ToolDefinition, bool> modelExposurePredicate,
+        IReadOnlyList<ToolSnapshotDiagnostic> inheritedDiagnostics)
     {
         ArgumentNullException.ThrowIfNull(registrations);
+        ArgumentNullException.ThrowIfNull(modelExposurePredicate);
 
-        var materialized = registrations.ToArray();
+        var materialized = registrations
+            .Where(static registration => !DeferredToolSearchRuntime.IsRegistration(registration))
+            .ToArray();
         var groups = materialized
             .GroupBy(registration => registration.Definition.Name)
             .OrderBy(group => group.Key.Namespace, StringComparer.Ordinal)
@@ -152,7 +193,7 @@ public sealed class EffectiveToolSnapshotBuilder
             .ToArray();
 
         var accepted = new Dictionary<ToolName, ToolRegistration>();
-        var diagnostics = new List<ToolSnapshotDiagnostic>();
+        var diagnostics = new List<ToolSnapshotDiagnostic>(inheritedDiagnostics);
 
         foreach (var group in groups)
         {
@@ -176,28 +217,44 @@ public sealed class EffectiveToolSnapshotBuilder
                 $"Canonical tool name '{group.Key}' is declared by multiple sources; all conflicting registrations were quarantined."));
         }
 
-        var canonicalNames = accepted.Keys
-            .OrderBy(name => name.Namespace, StringComparer.Ordinal)
-            .ThenBy(name => name.Name, StringComparer.Ordinal)
+        var exposedByNamespace = accepted.Values
+            .Where(registration => registration.Definition.Name.Namespace != null
+                                   && registration.Binding.Availability == ToolBindingAvailability.Available
+                                   && registration.Exposure is ToolExposure.Direct
+                                       or ToolExposure.DirectModelOnly
+                                       or ToolExposure.Deferred
+                                   && modelExposurePredicate(registration.Definition))
+            .GroupBy(registration => registration.Definition.Name.Namespace!, StringComparer.Ordinal)
+            .OrderBy(group => group.Key, StringComparer.Ordinal)
             .ToArray();
-        var projectedNames = ProviderToolProjector.Project(canonicalNames);
-        var reverseNames = projectedNames.ToFrozenDictionary(
-            pair => pair.Value,
-            pair => pair.Key,
-            StringComparer.Ordinal);
+        var namespaceDescriptions = new Dictionary<string, string>(StringComparer.Ordinal);
+        foreach (var namespaceGroup in exposedByNamespace)
+        {
+            var description = ToolNamespaceDescriptionResolver.Resolve(
+                namespaceGroup.Key,
+                namespaceGroup.Select(registration => registration.Definition.NamespaceDescription),
+                out var hasConflict);
+            namespaceDescriptions[namespaceGroup.Key] = description;
+            if (!hasConflict)
+                continue;
 
-        var modelVisible = canonicalNames
-            .Select(name => accepted[name])
-            .Where(registration => registration.Binding.Availability == ToolBindingAvailability.Available
-                                   && (registration.Exposure is ToolExposure.Direct or ToolExposure.DirectModelOnly))
-            .Select(registration => registration.Definition)
-            .ToArray();
+            var registrationsInNamespace = namespaceGroup
+                .OrderBy(registration => registration.Definition.Name.Name, StringComparer.Ordinal)
+                .ToArray();
+            diagnostics.Add(new ToolSnapshotDiagnostic(
+                ToolSnapshotDiagnosticCodes.ConflictingNamespaceDescription,
+                registrationsInNamespace[0].Definition.Name,
+                Array.AsReadOnly(registrationsInNamespace
+                    .Select(registration => registration.Definition.Provenance)
+                    .ToArray()),
+                $"Canonical namespace '{namespaceGroup.Key}' declares conflicting descriptions; provider projection uses the generic namespace description."));
+        }
 
-        var deferred = canonicalNames
-            .Select(name => accepted[name])
+        var deferred = accepted.Values
             .Where(registration => registration.Binding.Availability == ToolBindingAvailability.Available
-                                   && registration.Exposure == ToolExposure.Deferred)
-            .GroupBy(registration => registration.Deferred!.Namespace, StringComparer.Ordinal)
+                                   && registration.Exposure == ToolExposure.Deferred
+                                   && modelExposurePredicate(registration.Definition))
+            .GroupBy(registration => registration.Definition.Name.Namespace!, StringComparer.Ordinal)
             .OrderBy(group => group.Key, StringComparer.Ordinal)
             .ToFrozenDictionary(
                 group => group.Key,
@@ -207,6 +264,77 @@ public sealed class EffectiveToolSnapshotBuilder
                         .ToArray()),
                 StringComparer.Ordinal);
 
+        if (deferred.Count > 0 && providerHostedCapabilities?.DeferredToolSearch is { } searchPlan)
+        {
+            var search = DeferredToolSearchRuntime.CreateRegistration(
+                deferred,
+                accepted,
+                namespaceDescriptions,
+                revision,
+                searchPlan);
+            if (accepted.TryGetValue(search.Definition.Name, out var conflict))
+            {
+                accepted.Remove(search.Definition.Name);
+                diagnostics.Add(new ToolSnapshotDiagnostic(
+                    ToolSnapshotDiagnosticCodes.DuplicateCanonicalName,
+                    search.Definition.Name,
+                    Array.AsReadOnly(new[] { conflict.Definition.Provenance, search.Definition.Provenance }),
+                    $"Canonical tool name '{search.Definition.Name}' is declared by multiple sources; all conflicting registrations were quarantined."));
+            }
+            else
+            {
+                accepted.Add(search.Definition.Name, search);
+            }
+        }
+
+        var canonicalNames = accepted.Keys
+            .OrderBy(name => name.Namespace, StringComparer.Ordinal)
+            .ThenBy(name => name.Name, StringComparer.Ordinal)
+            .ToArray();
+        var projectedNames = ProviderToolProjector.Project(canonicalNames).ToDictionary();
+        foreach (var name in canonicalNames)
+        {
+            if (accepted[name].ProviderFlatNameOverride is { } providerFlatName)
+                projectedNames[name] = providerFlatName;
+        }
+
+        var providerConflicts = projectedNames
+            .GroupBy(static pair => pair.Value, StringComparer.Ordinal)
+            .Where(static group => group.Count() > 1)
+            .ToArray();
+        foreach (var conflict in providerConflicts)
+        {
+            var names = conflict.Select(static pair => pair.Key).ToArray();
+            var provenances = names.Select(name => accepted[name].Definition.Provenance).ToArray();
+            foreach (var name in names)
+            {
+                accepted.Remove(name);
+                projectedNames.Remove(name);
+            }
+            diagnostics.Add(new ToolSnapshotDiagnostic(
+                ToolSnapshotDiagnosticCodes.DuplicateProviderFlatName,
+                names[0],
+                Array.AsReadOnly(provenances),
+                $"Provider call name '{conflict.Key}' is declared by multiple tools; all conflicting registrations were quarantined."));
+        }
+
+        var reverseNames = projectedNames.ToFrozenDictionary(
+            pair => pair.Value,
+            pair => pair.Key,
+            StringComparer.Ordinal);
+
+        var finalCanonicalNames = accepted.Keys
+            .OrderBy(name => name.Namespace, StringComparer.Ordinal)
+            .ThenBy(name => name.Name, StringComparer.Ordinal)
+            .ToArray();
+        var modelVisible = finalCanonicalNames
+            .Select(name => accepted[name])
+            .Where(registration => registration.Binding.Availability == ToolBindingAvailability.Available
+                                   && (registration.Exposure is ToolExposure.Direct or ToolExposure.DirectModelOnly)
+                                   && modelExposurePredicate(registration.Definition))
+            .Select(registration => registration.Definition)
+            .ToArray();
+
         return new EffectiveToolSnapshot(
             revision,
             accepted.ToFrozenDictionary(),
@@ -214,15 +342,17 @@ public sealed class EffectiveToolSnapshotBuilder
             reverseNames,
             Array.AsReadOnly(modelVisible),
             deferred,
+            namespaceDescriptions.ToFrozenDictionary(StringComparer.Ordinal),
             Array.AsReadOnly(diagnostics.ToArray()),
-            providerHostedCapabilities);
+            providerHostedCapabilities,
+            Array.AsReadOnly(materialized));
     }
 }
 
 /// <summary>Projects canonical identities to deterministic provider-safe flat call names.</summary>
 public static class ProviderToolProjector
 {
-    /// <summary>The maximum UTF-8 byte length of a projected provider call name.</summary>
+    /// <summary>The maximum UTF-8 byte length of a projected provider flat name.</summary>
     public const int MaximumNameBytes = 64;
 
     /// <summary>
@@ -265,8 +395,7 @@ public static class ProviderToolProjector
         value is >= 'a' and <= 'z'
             or >= 'A' and <= 'Z'
             or >= '0' and <= '9'
-            or '_'
-            or '-';
+            or '_';
 
     private static string AppendIdentityHash(string candidate, ToolName name)
     {

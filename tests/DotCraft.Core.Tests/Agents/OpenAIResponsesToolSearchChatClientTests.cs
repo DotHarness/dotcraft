@@ -401,13 +401,48 @@ public sealed class OpenAIResponsesToolSearchChatClientTests
                 Tools = [dynamicTool]
             }));
 
-        var function = Assert.Single(document.RootElement.GetProperty("tools").EnumerateArray());
+        var namespaceTool = Assert.Single(document.RootElement.GetProperty("tools").EnumerateArray());
+        Assert.Equal("namespace", namespaceTool.GetProperty("type").GetString());
+        Assert.Equal("image_gen", namespaceTool.GetProperty("name").GetString());
+        var function = Assert.Single(namespaceTool.GetProperty("tools").EnumerateArray());
         Assert.Equal("function", function.GetProperty("type").GetString());
-        Assert.Equal("image_gen__imagegen", function.GetProperty("name").GetString());
+        Assert.Equal("imagegen", function.GetProperty("name").GetString());
         Assert.Equal("Generate an image.", function.GetProperty("description").GetString());
         Assert.Equal("object", function.GetProperty("parameters").GetProperty("type").GetString());
-        Assert.False(function.TryGetProperty("namespace", out _));
         Assert.False(function.TryGetProperty("defer_loading", out _));
+    }
+
+    [Fact]
+    public void CreateResponseOptions_UsesOneResolvedNamespaceDescription()
+    {
+        var first = new TestFunction("first", "First tool.", "mcp__catalog", "Catalog tools.");
+        var second = new TestFunction("second", "Second tool.", "mcp__catalog", "Catalog tools.");
+
+        using var document = JsonDocument.Parse(CreateRequestJson(
+            "gpt-test",
+            [new ChatMessage(ChatRole.User, "use catalog")],
+            new ChatOptions { Tools = [first, second] }));
+
+        var namespaceTool = Assert.Single(document.RootElement.GetProperty("tools").EnumerateArray());
+        Assert.Equal("mcp__catalog", namespaceTool.GetProperty("name").GetString());
+        Assert.Equal("Catalog tools.", namespaceTool.GetProperty("description").GetString());
+        Assert.Equal(2, namespaceTool.GetProperty("tools").GetArrayLength());
+    }
+
+    [Fact]
+    public void CreateResponseOptions_ConflictingNamespaceDescriptionsUseGenericDescription()
+    {
+        var first = new TestFunction("first", "First tool.", "workflow", "First description.");
+        var second = new TestFunction("second", "Second tool.", "workflow", "Second description.");
+
+        using var document = JsonDocument.Parse(CreateRequestJson(
+            "gpt-test",
+            [new ChatMessage(ChatRole.User, "use workflow")],
+            new ChatOptions { Tools = [first, second] }));
+
+        var namespaceTool = Assert.Single(document.RootElement.GetProperty("tools").EnumerateArray());
+        Assert.Equal("Tools in the workflow namespace.", namespaceTool.GetProperty("description").GetString());
+        Assert.Equal(2, namespaceTool.GetProperty("tools").GetArrayLength());
     }
 
     [Fact]
@@ -433,8 +468,21 @@ public sealed class OpenAIResponsesToolSearchChatClientTests
         Assert.False(hostedTool.TryGetProperty("name", out _));
         Assert.Contains(
             tools,
-            tool => tool.TryGetProperty("name", out var name)
-                    && name.GetString() == "image_gen__imagegen");
+            tool => tool.GetProperty("type").GetString() == "namespace"
+                    && tool.GetProperty("name").GetString() == "image_gen");
+    }
+
+    [Fact]
+    public void CreateResponseOptions_RejectsInvalidProviderIdentityLocally()
+    {
+        var invalidTool = new TestFunction("read", "Read.", "code-host-apps:code-host-apps");
+
+        var error = Assert.Throws<InvalidOperationException>(() => CreateRequestJson(
+            "gpt-test",
+            [new ChatMessage(ChatRole.User, "read")],
+            new ChatOptions { Tools = [invalidTool] }));
+
+        Assert.StartsWith("invalid_provider_tool_identity:", error.Message, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -1759,7 +1807,8 @@ public sealed class OpenAIResponsesToolSearchChatClientTests
     private sealed class TestFunction(
         string name,
         string description,
-        string? toolNamespace = null) : AIFunction, IToolNamespaceMetadata
+        string? toolNamespace = null,
+        string? namespaceDescription = null) : AIFunction, IToolNamespaceMetadata
     {
         private static readonly JsonElement Schema = JsonSerializer.SerializeToElement(new
         {
@@ -1767,6 +1816,8 @@ public sealed class OpenAIResponsesToolSearchChatClientTests
         });
 
         public string? ToolNamespace => toolNamespace;
+
+        public string? ToolNamespaceDescription => namespaceDescription;
 
         public override string Name => name;
 

@@ -403,10 +403,11 @@ public sealed record ToolCallPayload
     public string ToolName { get; init; } = string.Empty;
 
     /// <summary>
-    /// Exact function name sent to the model provider. Histories written before canonical
-    /// namespaces omit this and use <see cref="ToolName"/>.
+    /// Stable flat alias used by providers that cannot represent a namespace and local name
+    /// separately.
     /// </summary>
-    public string? ProviderCallName { get; init; }
+    [JsonRequired]
+    public string ProviderFlatName { get; init; } = string.Empty;
 
     /// <summary>
     /// Stable source-qualified definition identity when known.
@@ -476,7 +477,8 @@ public sealed record DynamicToolCallPayload
 
     public string ToolName { get; init; } = string.Empty;
 
-    public string? ProviderCallName { get; init; }
+    [JsonRequired]
+    public string ProviderFlatName { get; init; } = string.Empty;
 
     /// <summary>Stable source-qualified definition identity when known.</summary>
     public string? ToolDefinitionId { get; init; }
@@ -526,7 +528,8 @@ public sealed record McpToolCallPayload
 
     public string ToolName { get; init; } = string.Empty;
 
-    public string? ProviderCallName { get; init; }
+    [JsonRequired]
+    public string ProviderFlatName { get; init; } = string.Empty;
 
     /// <summary>Stable source-qualified definition identity used for this invocation.</summary>
     public string? ToolDefinitionId { get; init; }
@@ -593,6 +596,27 @@ public sealed record ToolResultPayload
     /// Matches the ToolCall.CallId.
     /// </summary>
     public string CallId { get; init; } = string.Empty;
+
+    public string? Namespace { get; init; }
+
+    public string ToolName { get; init; } = string.Empty;
+
+    [JsonRequired]
+    public string ProviderFlatName { get; init; } = string.Empty;
+
+    public string? ToolDefinitionId { get; init; }
+
+    public string? RuntimeBindingId { get; init; }
+
+    public long? BindingRevision { get; init; }
+
+    public long? SnapshotRevision { get; init; }
+
+    public ToolSourceProvenancePayload? Source { get; init; }
+
+    public ToolPresentationPayload? Presentation { get; init; }
+
+    public long? DurationMs { get; init; }
 
     /// <summary>
     /// Text fallback for the tool result. Used for model history reconstruction.

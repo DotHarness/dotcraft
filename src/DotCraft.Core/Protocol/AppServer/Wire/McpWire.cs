@@ -129,6 +129,10 @@ public sealed class McpStatusInfoWire
     public string? LastError { get; set; }
 
     public string Transport { get; set; } = "stdio";
+    public string AuthStatus { get; set; } = "unsupported";
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? FailureReason { get; set; }
 
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public McpServerOriginWire? Origin { get; set; }
@@ -175,6 +179,7 @@ public sealed class McpServerRuntimeStatusWire
     public string RuntimeName { get; set; } = string.Empty;
     public bool Enabled { get; set; }
     public string StartupState { get; set; } = "idle";
+    public string? LastError { get; set; }
     public string AuthState { get; set; } = "notRequired";
     public object? ServerInfo { get; set; }
     public Dictionary<string, object> Tools { get; set; } = new(StringComparer.Ordinal);

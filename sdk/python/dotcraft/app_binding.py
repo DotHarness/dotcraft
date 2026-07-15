@@ -75,35 +75,8 @@ class AppBindingHandoff:
 
 
 @dataclass
-class AppScopeDescriptor:
-    id: str
-    display_name: str
-    description: str
-    risk: str
-    default_selected: bool | None = None
-
-    @classmethod
-    def from_wire(cls, d: dict) -> "AppScopeDescriptor":
-        return cls(d.get("id", ""), d.get("displayName", ""), d.get("description", ""), d.get("risk", ""), d.get("defaultSelected"))
-
-
-@dataclass
-class AppToolCatalogEntry:
-    name: str
-    scope: str
-    risk: str
-    default_exposure: str
-    description: str | None = None
-
-    @classmethod
-    def from_wire(cls, d: dict) -> "AppToolCatalogEntry":
-        return cls(d.get("name", ""), d.get("scope", ""), d.get("risk", ""), d.get("defaultExposure", ""), d.get("description"))
-
-
-@dataclass
 class AppInfo:
     app_id: str
-    tool_namespace: str
     display_name: str
     developer_name: str
     description: str
@@ -112,8 +85,6 @@ class AppInfo:
     enabled: bool
     catalog_visible: bool
     connection_state: str
-    scopes: list[AppScopeDescriptor] = field(default_factory=list)
-    tool_catalog: list[AppToolCatalogEntry] = field(default_factory=list)
     account_label: str | None = None
     raw: dict = field(default_factory=dict)
 
@@ -121,7 +92,6 @@ class AppInfo:
     def from_wire(cls, d: dict) -> "AppInfo":
         return cls(
             app_id=d.get("appId", ""),
-            tool_namespace=d.get("toolNamespace", ""),
             display_name=d.get("displayName", ""),
             developer_name=d.get("developerName", ""),
             description=d.get("description", ""),
@@ -130,8 +100,6 @@ class AppInfo:
             enabled=bool(d.get("enabled", False)),
             catalog_visible=bool(d.get("catalogVisible", False)),
             connection_state=d.get("connectionState", ""),
-            scopes=[AppScopeDescriptor.from_wire(s) for s in d.get("scopes", []) if isinstance(s, dict)],
-            tool_catalog=[AppToolCatalogEntry.from_wire(t) for t in d.get("toolCatalog", []) if isinstance(t, dict)],
             account_label=d.get("accountLabel"),
             raw=d,
         )
@@ -161,14 +129,23 @@ class AppConnectionStatus:
 @dataclass
 class AppConnectionStartResult:
     connection_request_id: str
-    app_id: str
-    state: str
+    request_token: str
     expires_at: str
     handoff: dict = field(default_factory=dict)
 
     @classmethod
     def from_wire(cls, d: dict) -> "AppConnectionStartResult":
-        return cls(d.get("connectionRequestId", ""), d.get("appId", ""), d.get("state", ""), d.get("expiresAt", ""), d.get("handoff", {}))
+        return cls(d.get("connectionRequestId", ""), d.get("requestToken", ""), d.get("expiresAt", ""), d.get("handoff", {}))
+
+
+@dataclass
+class AppConnectionConnectResult:
+    principal: dict
+    credential: str
+
+    @classmethod
+    def from_wire(cls, d: dict) -> "AppConnectionConnectResult":
+        return cls(dict(d.get("principal", {})), d.get("credential", ""))
 
 
 @dataclass
@@ -177,17 +154,13 @@ class ThreadAppBinding:
     thread_id: str
     app_id: str
     state: str
-    granted_scopes: list[str] = field(default_factory=list)
-    attached_tool_count: int = 0
-    binding_request_id: str | None = None
+    authority_revision: int = 0
+    approved_capability_revision: int = 0
+    candidate_capability_revision: int | None = None
     display_name: str | None = None
-    tool_namespace: str | None = None
-    connection_state: str | None = None
-    expires_at: str | None = None
-    last_changed_at: str | None = None
-    approval_mode: str | None = None
-    audit_ref: str | None = None
-    diagnostic: str | None = None
+    approved_tools: list[dict] = field(default_factory=list)
+    pending_changes: list[dict] = field(default_factory=list)
+    failure_reason: str | None = None
 
     @classmethod
     def from_wire(cls, d: dict) -> "ThreadAppBinding":
@@ -196,43 +169,33 @@ class ThreadAppBinding:
             thread_id=d.get("threadId", ""),
             app_id=d.get("appId", ""),
             state=d.get("state", ""),
-            granted_scopes=list(d.get("grantedScopes", [])),
-            attached_tool_count=int(d.get("attachedToolCount", 0)),
-            binding_request_id=d.get("bindingRequestId"),
+            authority_revision=int(d.get("authorityRevision", 0)),
+            approved_capability_revision=int(d.get("approvedCapabilityRevision", 0)),
+            candidate_capability_revision=d.get("candidateCapabilityRevision"),
             display_name=d.get("displayName"),
-            tool_namespace=d.get("toolNamespace"),
-            connection_state=d.get("connectionState"),
-            expires_at=d.get("expiresAt"),
-            last_changed_at=d.get("lastChangedAt"),
-            approval_mode=d.get("approvalMode"),
-            audit_ref=d.get("auditRef"),
-            diagnostic=d.get("diagnostic"),
+            approved_tools=list(d.get("approvedTools", [])),
+            pending_changes=list(d.get("pendingChanges", [])),
+            failure_reason=d.get("failureReason"),
         )
 
 
 @dataclass
 class AppBindingRequestInfo:
     binding_request_id: str
+    binding_id: str
     thread_id: str
     app_id: str
-    requested_scopes: list[AppScopeDescriptor] = field(default_factory=list)
-    requested_tools: list[AppToolCatalogEntry] = field(default_factory=list)
-    source: str = ""
-    thread_title: str | None = None
-    reason: str | None = None
+    state: str = ""
     expires_at: str | None = None
 
     @classmethod
     def from_wire(cls, d: dict) -> "AppBindingRequestInfo":
         return cls(
             binding_request_id=d.get("bindingRequestId", ""),
+            binding_id=d.get("bindingId", ""),
             thread_id=d.get("threadId", ""),
             app_id=d.get("appId", ""),
-            requested_scopes=[AppScopeDescriptor.from_wire(s) for s in d.get("requestedScopes", []) if isinstance(s, dict)],
-            requested_tools=[AppToolCatalogEntry.from_wire(t) for t in d.get("requestedTools", []) if isinstance(t, dict)],
-            source=d.get("source", ""),
-            thread_title=d.get("threadTitle"),
-            reason=d.get("reason"),
+            state=d.get("state", ""),
             expires_at=d.get("expiresAt"),
         )
 
@@ -240,51 +203,19 @@ class AppBindingRequestInfo:
 @dataclass
 class AppBindingRequestCreateResult:
     binding_request_id: str
-    thread_id: str
-    app_id: str
-    requested_scopes: list[str] = field(default_factory=list)
+    binding_id: str
     state: str = ""
-    token_expires_at: str = ""
+    expires_at: str = ""
     handoff: dict = field(default_factory=dict)
-    confirmation: dict | None = None
 
     @classmethod
     def from_wire(cls, d: dict) -> "AppBindingRequestCreateResult":
         return cls(
             binding_request_id=d.get("bindingRequestId", ""),
-            thread_id=d.get("threadId", ""),
-            app_id=d.get("appId", ""),
-            requested_scopes=list(d.get("requestedScopes", [])),
+            binding_id=d.get("bindingId", ""),
             state=d.get("state", ""),
-            token_expires_at=d.get("tokenExpiresAt", ""),
+            expires_at=d.get("expiresAt", ""),
             handoff=d.get("handoff", {}),
-            confirmation=d.get("confirmation"),
-        )
-
-
-@dataclass
-class AppBindingAcceptResult:
-    binding: ThreadAppBinding
-
-    @classmethod
-    def from_wire(cls, d: dict) -> "AppBindingAcceptResult":
-        return cls(ThreadAppBinding.from_wire(d.get("binding", {})))
-
-
-@dataclass
-class AppBindingAttachToolsResult:
-    binding: ThreadAppBinding
-    accepted_tool_count: int = 0
-    rejected_tools: list = field(default_factory=list)
-    warnings: list = field(default_factory=list)
-
-    @classmethod
-    def from_wire(cls, d: dict) -> "AppBindingAttachToolsResult":
-        return cls(
-            ThreadAppBinding.from_wire(d.get("binding", {})),
-            int(d.get("acceptedToolCount", 0)),
-            list(d.get("rejectedTools", [])),
-            list(d.get("warnings", [])),
         )
 
 
@@ -345,20 +276,14 @@ class AppBindingManager:
         self,
         connection_request_id: str,
         request_token: str,
-        app_id: str,
         account_label: str | None = None,
-        expires_at: str | None = None,
-        connection_proof: dict | None = None,
-    ) -> AppConnectionStatus:
+    ) -> AppConnectionConnectResult:
         result = await self._client.request("app/connection/connect", _compact({
             "connectionRequestId": connection_request_id,
             "requestToken": request_token,
-            "appId": app_id,
             "accountLabel": account_label,
-            "expiresAt": expires_at,
-            "connectionProof": connection_proof,
         }))
-        return AppConnectionStatus.from_wire(result)
+        return AppConnectionConnectResult.from_wire(result)
 
     async def connection_status(self, app_id: str) -> AppConnectionStatus:
         result = await self._client.request("app/connection/status", {"appId": app_id})
@@ -369,85 +294,34 @@ class AppBindingManager:
         return AppConnectionStatus.from_wire(result)
 
     # Binding
-    async def create_binding_request(
-        self,
-        thread_id: str,
-        app_id: str,
-        requested_scopes: list[str],
-        source: str = "sdk",
-        requested_tools: list[str] | None = None,
-        reason: str | None = None,
-    ) -> AppBindingRequestCreateResult:
-        result = await self._client.request("app/binding/request/create", _compact({
+    async def enable(self, thread_id: str, app_id: str) -> AppBindingRequestCreateResult:
+        result = await self._client.request("thread/appBindings/enable", {
             "threadId": thread_id,
             "appId": app_id,
-            "requestedScopes": requested_scopes,
-            "requestedTools": requested_tools,
-            "reason": reason,
-            "source": source,
-        }))
+        })
         return AppBindingRequestCreateResult.from_wire(result)
 
     async def get_binding_request(self, app_id: str, binding_request_id: str, request_token: str) -> AppBindingRequestInfo:
         result = await self._client.request("app/binding/request/get", {
-            "appId": app_id,
             "bindingRequestId": binding_request_id,
             "requestToken": request_token,
         })
         return AppBindingRequestInfo.from_wire(result)
 
-    async def cancel_binding_request(self, binding_request_id: str, reason: str | None = None) -> dict:
-        return await self._client.request("app/binding/request/cancel", _compact({"bindingRequestId": binding_request_id, "reason": reason}))
+    async def authenticate(self, app_id: str, credential: str) -> dict:
+        return await self._client.request("app/connection/authenticate", {"appId": app_id, "credential": credential})
 
-    async def accept_binding(
-        self,
-        binding_request_id: str,
-        request_token: str,
-        grant_id: str,
-        granted_scopes: list[str],
-        approval_mode: str,
-        approved_by: str | None = None,
-        expires_at: str | None = None,
-        grant_proof: dict | None = None,
-        audit_ref: str | None = None,
-    ) -> AppBindingAcceptResult:
-        result = await self._client.request("app/binding/accept", _compact({
-            "bindingRequestId": binding_request_id,
-            "requestToken": request_token,
-            "grantId": grant_id,
-            "grantedScopes": granted_scopes,
-            "approvalMode": approval_mode,
-            "approvedBy": approved_by,
-            "expiresAt": expires_at,
-            "grantProof": grant_proof,
-            "auditRef": audit_ref,
-        }))
-        return AppBindingAcceptResult.from_wire(result)
+    async def refresh_credential(self) -> dict:
+        return await self._client.request("app/connection/refresh", {})
 
-    async def attach_tools(
-        self,
-        binding_id: str,
-        thread_id: str,
-        app_id: str,
-        grant_id: str,
-        tools: list[dict],
-        tool_catalog: list[dict] | None = None,
-        direct_tool_names: list[str] | None = None,
-        deferred_tool_names: list[str] | None = None,
-        grant_proof: dict | None = None,
-    ) -> AppBindingAttachToolsResult:
-        result = await self._client.request("app/binding/attachTools", _compact({
-            "bindingId": binding_id,
-            "threadId": thread_id,
-            "appId": app_id,
-            "grantId": grant_id,
-            "tools": tools,
-            "toolCatalog": tool_catalog,
-            "directToolNames": direct_tool_names,
-            "deferredToolNames": deferred_tool_names,
-            "grantProof": grant_proof,
-        }))
-        return AppBindingAttachToolsResult.from_wire(result)
+    async def activate(self, binding_request_id: str, endpoint: str, bearer: str, bearer_expires_at: str | None = None) -> dict:
+        return await self._client.request("app/binding/activate", _compact({"bindingRequestId": binding_request_id, "endpoint": endpoint, "bearer": bearer, "bearerExpiresAt": bearer_expires_at}))
+
+    async def rebind(self, binding_id: str, authority_revision: int, endpoint: str, bearer: str, bearer_expires_at: str | None = None) -> dict:
+        return await self._client.request("app/binding/rebind", _compact({"bindingId": binding_id, "authorityRevision": authority_revision, "endpoint": endpoint, "bearer": bearer, "bearerExpiresAt": bearer_expires_at}))
+
+    async def confirm_capabilities(self, thread_id: str, binding_id: str, candidate_revision: int, decision: str) -> dict:
+        return await self._client.request("thread/appBindings/confirmCapabilities", {"threadId": thread_id, "bindingId": binding_id, "candidateRevision": candidate_revision, "decision": decision})
 
     # Thread bindings
     async def list_thread_bindings(self, thread_id: str, include_revoked: bool = False) -> list[ThreadAppBinding]:
@@ -459,4 +333,4 @@ class AppBindingManager:
         return await self._client.request("thread/appBindings/revoke", _compact({"threadId": thread_id, "bindingId": binding_id, "reason": reason}))
 
     async def refresh_thread_bindings(self, thread_id: str, binding_id: str | None = None) -> Any:
-        return await self._client.request("thread/appBindings/refresh", _compact({"threadId": thread_id, "bindingId": binding_id}))
+        return await self._client.request("thread/appBindings/list", {"threadId": thread_id})

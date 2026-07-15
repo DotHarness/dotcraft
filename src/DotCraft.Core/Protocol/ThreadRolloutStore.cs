@@ -641,6 +641,7 @@ internal sealed class ThreadRolloutStore
     {
         private readonly Dictionary<string, SessionTurn> _turns = new(StringComparer.Ordinal);
         private SessionThread? _thread;
+        private int _turnSequenceHighWatermark;
 
         public void Apply(string line)
         {
@@ -690,6 +691,9 @@ internal sealed class ThreadRolloutStore
 
                 case "turn_started" when _thread != null && record.TurnStarted != null:
                     var started = record.TurnStarted.Turn;
+                    _turnSequenceHighWatermark = Math.Max(
+                        _turnSequenceHighWatermark,
+                        SessionIdGenerator.LastTurnSequence([started.Id]));
                     started.Items = [];
                     started.Input = null;
                     _turns[started.Id] = started;
@@ -772,6 +776,9 @@ internal sealed class ThreadRolloutStore
                 return null;
 
             _thread.Turns = _turns.Values.OrderBy(t => t.StartedAt).ThenBy(t => t.Id, StringComparer.Ordinal).ToList();
+            _thread.TurnSequenceHighWatermark = Math.Max(
+                _turnSequenceHighWatermark,
+                SessionIdGenerator.LastTurnSequence(_thread.Turns));
             return _thread;
         }
     }

@@ -9,6 +9,7 @@ using DotCraft.Context;
 using DotCraft.Context.Compaction;
 using DotCraft.Hooks;
 using DotCraft.Protocol;
+using DotCraft.Tools;
 using DotCraft.Tracing;
 using Microsoft.Extensions.AI;
 using OpenAiStreamingUpdate = OpenAI.Chat.StreamingChatCompletionUpdate;
@@ -37,6 +38,7 @@ public sealed class StreamingFunctionInvokingChatClient(IChatClient innerClient,
     private static readonly Regex WhitespaceRegex = new(@"\s+", RegexOptions.Compiled | RegexOptions.CultureInvariant);
 
     private const string InvalidToolArgumentsMetadataKey = "dotcraft.toolResult.invalidArguments";
+    private const string ToolResultErrorCodeMetadataKey = "dotcraft.toolResult.errorCode";
     private const int ToolFailureMessageMaxChars = 1000;
 
     /// <summary>
@@ -644,7 +646,7 @@ public sealed class StreamingFunctionInvokingChatClient(IChatClient innerClient,
 
         foreach (var call in functionCalls)
         {
-            var tool = FindToolDeclaration(call.Name, options);
+            var tool = FindToolDeclaration(call, options);
             if (tool is not null)
             {
                 if (tool is not AIFunction)
@@ -773,7 +775,7 @@ public sealed class StreamingFunctionInvokingChatClient(IChatClient innerClient,
             return new FunctionInvocationOutcome(call, FunctionInvocationStatus.RanToCompletion, message, null, false, []);
         }
 
-        var tool = FindTool(call.Name, options);
+        var tool = FindTool(call, options);
         if (tool is not AIFunction function)
         {
             toolExecution?.CompleteFailure($"Requested function \"{call.Name}\" not found.");
@@ -917,9 +919,16 @@ public sealed class StreamingFunctionInvokingChatClient(IChatClient innerClient,
         if (result.Status == FunctionInvocationStatus.InvalidArguments)
             return CreateInvalidToolArgumentsResult(result.Call.CallId, result.Value?.ToString() ?? "Error: Invalid tool arguments.");
 
+        if (result.Status == FunctionInvocationStatus.NotFound)
+        {
+            return CreateToolFailureResult(
+                result.Call.CallId,
+                $"Error: Requested function \"{result.Call.Name}\" not found.",
+                ToolErrorCodes.NotFound);
+        }
+
         var message = result.Status switch
         {
-            FunctionInvocationStatus.NotFound => $"Error: Requested function \"{result.Call.Name}\" not found.",
             FunctionInvocationStatus.Exception => CreateFunctionFailureMessage(result.Exception),
             _ => "Error: Unknown error."
         };
@@ -968,32 +977,65 @@ public sealed class StreamingFunctionInvokingChatClient(IChatClient innerClient,
             && invalid;
     }
 
+    internal static string? GetToolResultErrorCode(FunctionResultContent content)
+    {
+        if (content.AdditionalProperties == null
+            || !content.AdditionalProperties.TryGetValue(ToolResultErrorCodeMetadataKey, out var value))
+        {
+            return null;
+        }
+
+        return value as string;
+    }
+
     private static FunctionResultContent CreateInvalidToolArgumentsResult(string callId, string message)
     {
         var content = new FunctionResultContent(callId, message)
         {
             AdditionalProperties = new AdditionalPropertiesDictionary
             {
-                [InvalidToolArgumentsMetadataKey] = true
+                [InvalidToolArgumentsMetadataKey] = true,
+                [ToolResultErrorCodeMetadataKey] = ToolErrorCodes.InputInvalid
             }
         };
         return content;
     }
 
-    private AITool? FindTool(string name, ChatOptions? options)
-    {
-        static AITool? FindIn(IEnumerable<AITool>? tools, string toolName) =>
-            tools?.FirstOrDefault(t => string.Equals(t.Name, toolName, StringComparison.Ordinal));
+    internal static FunctionResultContent CreateToolFailureResult(string callId, string message, string errorCode) =>
+        new(callId, message)
+        {
+            AdditionalProperties = new AdditionalPropertiesDictionary
+            {
+                [ToolResultErrorCodeMetadataKey] = errorCode
+            }
+        };
 
-        return FindIn(options?.Tools, name) ?? FindIn(AdditionalTools, name);
+    private AITool? FindTool(FunctionCallContent call, ChatOptions? options)
+    {
+        static AITool? FindIn(IEnumerable<AITool>? tools, FunctionCallContent functionCall) =>
+            tools?.FirstOrDefault(tool => IsMatchingTool(tool, functionCall));
+
+        return FindIn(options?.Tools, call) ?? FindIn(AdditionalTools, call);
     }
 
-    private AIFunctionDeclaration? FindToolDeclaration(string name, ChatOptions? options)
+    private AIFunctionDeclaration? FindToolDeclaration(FunctionCallContent call, ChatOptions? options)
     {
-        static AIFunctionDeclaration? FindIn(IEnumerable<AITool>? tools, string toolName) =>
-            tools?.OfType<AIFunctionDeclaration>().FirstOrDefault(t => string.Equals(t.Name, toolName, StringComparison.Ordinal));
+        static AIFunctionDeclaration? FindIn(IEnumerable<AITool>? tools, FunctionCallContent functionCall) =>
+            tools?.OfType<AIFunctionDeclaration>().FirstOrDefault(tool => IsMatchingTool(tool, functionCall));
 
-        return FindIn(options?.Tools, name) ?? FindIn(AdditionalTools, name);
+        return FindIn(options?.Tools, call) ?? FindIn(AdditionalTools, call);
+    }
+
+    private static bool IsMatchingTool(AITool tool, FunctionCallContent call)
+    {
+        if (ResponsesToolSearchMapper.TryGetFunctionCallNamespace(call, out var toolNamespace))
+        {
+            return CanonicalToolIdentityMetadataResolver.TryGet(tool, out var canonicalName, out _)
+                   && string.Equals(canonicalName.Namespace, toolNamespace, StringComparison.Ordinal)
+                   && string.Equals(canonicalName.Name, call.Name, StringComparison.Ordinal);
+        }
+
+        return string.Equals(tool.Name, call.Name, StringComparison.Ordinal);
     }
 
     private static bool HasAnyTools(params IList<AITool>?[] toolLists) =>

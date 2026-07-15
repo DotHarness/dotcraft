@@ -124,6 +124,7 @@ class DotCraftClient:
         capabilities: dict = {
             "approvalSupport": approval_support,
             "streamingSupport": streaming_support,
+            "appBindingVersion": 2,
         }
         if request_user_input_support:
             capabilities["requestUserInputSupport"] = True

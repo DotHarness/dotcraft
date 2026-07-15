@@ -16,6 +16,8 @@ public sealed class AppServerConnection
     private AppServerClientInfo? _clientInfo;
     private AppServerClientCapabilities? _clientCapabilities;
     private HashSet<string>? _optOutMethods;
+    private string? _appPrincipalId;
+    private string? _appPrincipalAppId;
 
     // Active passive thread subscriptions: threadId → CancellationTokenSource
     private readonly ConcurrentDictionary<string, CancellationTokenSource> _subscriptions = new();
@@ -23,6 +25,8 @@ public sealed class AppServerConnection
     // Logical interactive requests already delivered on this connection.
     private readonly ConcurrentDictionary<InteractiveRequestKey, byte> _interactiveRequests = new();
     private readonly ConcurrentDictionary<McpAppItemKey, byte> _mcpAppItems = new();
+
+    internal event Action<string>? McpAppThreadEligibilityRevoked;
 
     // -------------------------------------------------------------------------
     // Initialization state
@@ -77,6 +81,32 @@ public sealed class AppServerConnection
     /// True if this connection represents an external channel adapter.
     /// </summary>
     public bool IsChannelAdapter => ChannelAdapterName != null;
+
+    /// <summary>True after App Binding authenticates this connection as an app principal.</summary>
+    public bool IsAppPrincipalAuthenticated => !string.IsNullOrWhiteSpace(_appPrincipalId);
+
+    /// <summary>The authenticated App Binding principal identifier.</summary>
+    public string? AppPrincipalId => _appPrincipalId;
+
+    /// <summary>The app owned by the authenticated App Binding principal.</summary>
+    public string? AppPrincipalAppId => _appPrincipalAppId;
+
+    /// <summary>Binds this initialized connection to one authenticated app principal.</summary>
+    public void BindAppPrincipal(string principalId, string appId)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(principalId);
+        ArgumentException.ThrowIfNullOrWhiteSpace(appId);
+        if (IsChannelAdapter)
+            throw new InvalidOperationException("A channel-adapter connection cannot become an app-principal connection.");
+        if (IsAppPrincipalAuthenticated
+            && (!string.Equals(_appPrincipalId, principalId, StringComparison.Ordinal)
+                || !string.Equals(_appPrincipalAppId, appId, StringComparison.Ordinal)))
+        {
+            throw new InvalidOperationException("The AppServer connection is already bound to another app principal.");
+        }
+        _appPrincipalId = principalId;
+        _appPrincipalAppId = appId;
+    }
 
     /// <summary>
     /// Structured delivery descriptor declared by the adapter during initialize, if any.
@@ -241,21 +271,35 @@ public sealed class AppServerConnection
     public void MarkClosed()
     {
         _isClosed = true;
+        _appPrincipalId = null;
+        _appPrincipalAppId = null;
         _mcpAppItems.Clear();
         _closedTcs.TrySetResult();
     }
 
     /// <summary>Marks a terminal MCP item as delivered live on this connection.</summary>
-    public bool TryRegisterMcpAppItem(string threadId, string itemId) =>
+    public bool TryRegisterMcpAppItem(string threadId, string turnId, string itemId) =>
         SupportsMcpApps
         && !_isClosed
-        && _mcpAppItems.TryAdd(new McpAppItemKey(threadId, itemId), 0);
+        && _mcpAppItems.TryAdd(new McpAppItemKey(threadId, turnId, itemId), 0);
 
     /// <summary>Returns whether an item may open a View on this exact connection.</summary>
-    public bool IsMcpAppItemEligible(string threadId, string itemId) =>
+    public bool IsMcpAppItemEligible(string threadId, string turnId, string itemId) =>
         SupportsMcpApps
         && !_isClosed
-        && _mcpAppItems.ContainsKey(new McpAppItemKey(threadId, itemId));
+        && _mcpAppItems.ContainsKey(new McpAppItemKey(threadId, turnId, itemId));
+
+    /// <summary>Revokes all live MCP App item authority for a thread on this connection.</summary>
+    internal void RevokeMcpAppThreadEligibility(string threadId)
+    {
+        foreach (var key in _mcpAppItems.Keys.Where(key =>
+                     string.Equals(key.ThreadId, threadId, StringComparison.Ordinal)))
+        {
+            _mcpAppItems.TryRemove(key, out _);
+        }
+
+        McpAppThreadEligibilityRevoked?.Invoke(threadId);
+    }
 
     // -------------------------------------------------------------------------
     // Notification opt-out
@@ -381,7 +425,7 @@ public sealed class AppServerConnection
         string TurnId,
         string RequestId);
 
-    private readonly record struct McpAppItemKey(string ThreadId, string ItemId);
+    private readonly record struct McpAppItemKey(string ThreadId, string TurnId, string ItemId);
 }
 
 public sealed class ChannelToolRegistrationDiagnostic

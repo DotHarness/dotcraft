@@ -1,4 +1,4 @@
-import { fireEvent, render, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { LocaleProvider } from '../contexts/LocaleContext'
 import { McpAppView } from '../components/conversation/McpAppView'
@@ -6,6 +6,7 @@ import type { ConversationItem } from '../types/conversation'
 
 const { bridgeInstances, MockBridge } = vi.hoisted(() => {
   class HoistedMockBridge {
+    transport?: { start: () => Promise<void>; close: () => Promise<void> }
     oninitialized?: () => void
     oncalltool?: unknown
     onlisttools?: unknown
@@ -19,13 +20,18 @@ const { bridgeInstances, MockBridge } = vi.hoisted(() => {
     onrequestteardown?: unknown
     onsizechange?: unknown
     onloggingmessage?: unknown
-    connect = vi.fn(async () => {})
+    connect = vi.fn(async (transport: { start: () => Promise<void>; close: () => Promise<void> }) => {
+      this.transport = transport
+      await transport.start()
+    })
     sendSandboxResourceReady = vi.fn(async () => {})
     sendToolInput = vi.fn(async () => {})
     sendToolResult = vi.fn(async () => {})
     setHostContext = vi.fn()
     teardownResource = vi.fn(async () => ({}))
-    close = vi.fn(async () => {})
+    close = vi.fn(async () => {
+      await this.transport?.close()
+    })
 
     constructor() {
       instances.push(this)
@@ -37,7 +43,14 @@ const { bridgeInstances, MockBridge } = vi.hoisted(() => {
 
 vi.mock('@modelcontextprotocol/ext-apps/app-bridge', () => ({
   AppBridge: MockBridge,
-  PostMessageTransport: class {}
+  PostMessageTransport: class {
+    onclose?: () => void
+    onerror?: (error: Error) => void
+    onmessage?: (message: unknown) => void
+    start = vi.fn(async () => {})
+    send = vi.fn(async () => {})
+    close = vi.fn(async () => { this.onclose?.() })
+  }
 }))
 
 const sendRequest = vi.fn()
@@ -83,11 +96,11 @@ beforeEach(() => {
 
 describe('McpAppView', () => {
   it('opens only a live eligible item and uses the official bridge with a no-permission sandbox', async () => {
-    const { container } = render(<LocaleProvider><McpAppView item={item()} threadId="thread-1" /></LocaleProvider>)
+    const { container } = render(<LocaleProvider><McpAppView item={item()} threadId="thread-1" turnId="turn-1" /></LocaleProvider>)
 
     await waitFor(() => expect(sendRequest).toHaveBeenCalledWith(
       'mcpApp/view/open',
-      { threadId: 'thread-1', itemId: 'item-1' },
+      { threadId: 'thread-1', turnId: 'turn-1', itemId: 'item-1' },
       120_000
     ))
     const iframe = await waitFor(() => container.querySelector('iframe') as HTMLIFrameElement)
@@ -103,10 +116,43 @@ describe('McpAppView', () => {
   })
 
   it('does not request a View for history and shows the generic fallback state', () => {
-    const { container } = render(<LocaleProvider><McpAppView item={item(false)} threadId="thread-1" /></LocaleProvider>)
+    const { container } = render(<LocaleProvider><McpAppView item={item(false)} threadId="thread-1" turnId="turn-1" /></LocaleProvider>)
     expect(sendRequest).not.toHaveBeenCalledWith('mcpApp/view/open', expect.anything(), expect.anything())
     expect(container.querySelector('iframe')).toBeNull()
     expect(container.textContent).toContain('Interactive view is unavailable for history.')
     expect(container.textContent).toContain('fallback')
+  })
+
+  it('fails closed and tears down when the iframe sends an oversized bridge envelope', async () => {
+    const { container } = render(<LocaleProvider><McpAppView item={item()} threadId="thread-1" turnId="turn-1" /></LocaleProvider>)
+    const iframe = await waitFor(() => container.querySelector('iframe') as HTMLIFrameElement)
+    fireEvent.load(iframe)
+    await waitFor(() => expect(bridgeInstances).toHaveLength(1))
+
+    act(() => {
+      window.dispatchEvent(new MessageEvent('message', {
+        source: iframe.contentWindow,
+        data: { jsonrpc: '2.0', method: 'tools/call', params: { padding: 'x'.repeat(256 * 1024) } }
+      }))
+    })
+
+    await waitFor(() => expect(container.querySelector('iframe')).toBeNull())
+    expect(container.textContent).toContain('This MCP App could not be opened.')
+    expect(container.textContent).toContain('fallback')
+    expect(bridgeInstances[0].teardownResource).toHaveBeenCalledTimes(1)
+    await waitFor(() => expect(sendRequest).toHaveBeenCalledWith('mcpApp/view/close', { viewHandle: 'view-1' }))
+  })
+
+  it('tears down the resource and closes the View when unmounted', async () => {
+    const rendered = render(<LocaleProvider><McpAppView item={item()} threadId="thread-1" turnId="turn-1" /></LocaleProvider>)
+    const iframe = await waitFor(() => rendered.container.querySelector('iframe') as HTMLIFrameElement)
+    fireEvent.load(iframe)
+    await waitFor(() => expect(bridgeInstances).toHaveLength(1))
+
+    rendered.unmount()
+
+    expect(bridgeInstances[0].teardownResource).toHaveBeenCalledTimes(1)
+    await waitFor(() => expect(bridgeInstances[0].close).toHaveBeenCalledTimes(1))
+    expect(sendRequest).toHaveBeenCalledWith('mcpApp/view/close', { viewHandle: 'view-1' })
   })
 })

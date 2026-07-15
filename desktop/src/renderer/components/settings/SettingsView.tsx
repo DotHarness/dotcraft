@@ -5175,7 +5175,7 @@ export function SettingsView({
                               )}
                             </div>
                             <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
-                            {server.transport === 'streamableHttp' && (
+                            {status?.authStatus === 'notLoggedIn' && (
                               <button
                                 type="button"
                                 disabled={authenticatingMcpName === server.name}
@@ -5187,7 +5187,9 @@ export function SettingsView({
                               >
                                 {authenticatingMcpName === server.name
                                   ? t('settings.mcp.authenticating')
-                                  : t('settings.mcp.authenticate')}
+                                  : status.failureReason === 'reauthenticationRequired'
+                                    ? t('settings.mcp.reauthenticate')
+                                    : t('settings.mcp.authenticate')}
                               </button>
                             )}
                             {isPluginManaged ? (

@@ -37,22 +37,8 @@ export interface PluginAppNativeApplication {
   installUrl?: string | null
 }
 
-export interface PluginAppToolInfo {
-  name: string
-  scope: string
-  risk: string
-  defaultExposure: string
-  description?: string | null
-}
-
-export interface PluginAppDynamicToolCatalog {
-  enabled: boolean
-  description?: string | null
-}
-
 export interface PluginAppInfo {
   appId: string
-  toolNamespace: string
   displayName: string
   developerName: string
   description: string
@@ -60,8 +46,6 @@ export interface PluginAppInfo {
   icon?: string | null
   releasePage?: string | null
   nativeApplication?: PluginAppNativeApplication | null
-  toolCatalog: PluginAppToolInfo[]
-  dynamicToolCatalog?: PluginAppDynamicToolCatalog | null
 }
 
 export interface PluginDesktopExtensionSurface {
@@ -301,8 +285,7 @@ function normalizePlugin(plugin: PluginEntry): PluginEntry {
     skills: plugin.skills ?? [],
     apps: (plugin.apps ?? []).map((app) => ({
       ...app,
-      toolCatalog: app.toolCatalog ?? [],
-      dynamicToolCatalog: app.dynamicToolCatalog ?? { enabled: false }
+      nativeApplication: app.nativeApplication ?? null
     })),
     desktopExtensions: (plugin.desktopExtensions ?? []).map((extension) => ({
       ...extension,

@@ -4,7 +4,6 @@ import type { ConversationItem, ConversationTurn, PluginFunctionContentItem } fr
 import { isToolLikeItemType } from '../../types/conversation'
 import { ThinkingIndicator } from './ThinkingIndicator'
 import { renderSubAgentTitle, ToolCallCard } from './ToolCallCard'
-import { hasLegacyAppBindingInteractiveUi } from './InteractiveToolView'
 import { hasLiveMcpApp } from './McpAppView'
 import { AgentMessage } from './AgentMessage'
 import { ErrorBlock } from './ErrorBlock'
@@ -74,6 +73,10 @@ export type HistoricalToolContentMode = 'full' | 'trimmed'
 type ConversationNodeKind = 'assistant' | 'tool' | 'user' | 'other'
 
 const STREAMING_MESSAGE_STALL_MS = 2000
+
+function normalizedErrorMessage(message: string | undefined): string {
+  return (message ?? '').trim()
+}
 
 interface ConversationRenderNode {
   kind: ConversationNodeKind
@@ -441,12 +444,17 @@ export const AgentResponseBlock = memo(function AgentResponseBlock({
     })
   }
 
+  const hasMatchingErrorItem = turn.status === 'failed' && turn.error != null && turn.items.some(
+    (item) => item.type === 'error' &&
+      normalizedErrorMessage(item.text) === normalizedErrorMessage(turn.error)
+  )
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--conversation-tool-assistant-gap)' }}>
       <ConversationNodeFlow nodes={renderNodes} defaultGap="var(--conversation-tool-assistant-gap)" />
 
       {/* Turn-level failure */}
-      {turn.status === 'failed' && turn.error && (
+      {turn.status === 'failed' && turn.error && !hasMatchingErrorItem && (
         <ErrorBlock message={turn.error} />
       )}
 
@@ -1248,7 +1256,7 @@ function isInteractiveCardItem(item: ConversationItem): boolean {
   return isToolLikeItemType(item.type)
     && item.status === 'completed'
     && item.success !== false
-    && (hasLegacyAppBindingInteractiveUi(item) || hasLiveMcpApp(item))
+    && hasLiveMcpApp(item)
 }
 
 function findLastInteractiveCardIndexBefore(items: ConversationItem[], beforeIndex: number): number {

@@ -17,9 +17,9 @@ public sealed class WireDynamicToolProxyTests
         var snapshot = await BuildSnapshotAsync(proxy);
         var definition = Assert.Single(snapshot.ModelVisibleDefinitions);
 
-        var result = await new ToolDispatcher().DispatchProviderCallAsync(
+        var result = await new ToolDispatcher().DispatchProviderFlatCallAsync(
             snapshot,
-            snapshot.ProviderCallNames[definition.Name],
+            snapshot.ProviderFlatNames[definition.Name],
             new JsonObject { ["body"] = "Looks good." },
             new ToolInvocationRequest(
                 "thread_test",
@@ -187,7 +187,10 @@ public sealed class WireDynamicToolProxyTests
 
         Assert.Equal(2, snapshot.Registrations.Count);
         Assert.Equal(ToolExposure.Direct, snapshot.Registrations[new ToolName("desktop", "RefreshBoard")].Exposure);
-        Assert.Equal(ToolExposure.Deferred, snapshot.Registrations[new ToolName("sampleboard", "RefreshBoard")].Exposure);
+        var deferred = snapshot.Registrations[new ToolName("sampleboard", "RefreshBoard")];
+        Assert.Equal(ToolExposure.Deferred, deferred.Exposure);
+        Assert.Equal("sampleboard tools.", deferred.Definition.NamespaceDescription);
+        Assert.Equal("sampleboard tools.", deferred.Deferred?.NamespaceDescription);
     }
 
     [Fact]

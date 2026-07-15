@@ -17,84 +17,35 @@ public sealed partial class SessionService
         if (!TryResolveInvocationTurn(context, out var runtime, out var turnRuntime, out var turn))
             return;
 
-        var existing = turn.Items.LastOrDefault(item => HasCallId(item, context.CallId));
-        var item = existing ?? new SessionItem
+        SessionItem item;
+        bool emitStarted;
+        lock (turnRuntime.ToolProjectionLock)
         {
-            Id = SessionIdGenerator.NewItemId(turn.Items.Count + 1),
-            TurnId = turn.Id,
-            CreatedAt = DateTimeOffset.UtcNow
-        };
-        var providerCallName = turnRuntime.ToolSnapshot?.ProviderCallNames
-            .GetValueOrDefault(registration.Definition.Name);
-
-        item.Status = ItemStatus.Started;
-        item.CompletedAt = null;
-        switch (registration.Definition.Id.Kind)
-        {
-            case ToolSourceKind.Mcp:
-                item.Type = ItemType.McpToolCall;
-                item.Payload = new McpToolCallPayload
-                {
-                    Namespace = registration.Definition.Name.Namespace,
-                    ToolName = registration.Definition.Name.Name,
-                    ProviderCallName = providerCallName,
-                    ToolDefinitionId = registration.Definition.Id.ToString(),
-                    RuntimeBindingId = registration.Binding.Id.Value,
-                    BindingRevision = registration.Binding.Revision,
-                    SnapshotRevision = context.SnapshotRevision,
-                    McpGeneration = registration.Binding.Revision,
-                    Source = ToSessionProvenance(registration.Definition),
-                    Presentation = ToSessionPresentation(registration.Definition.Presentation),
-                    Server = registration.Definition.Id.SourceId,
-                    Origin = registration.Definition.Provenance.Origin ?? "workspace",
-                    SourceToolId = registration.Definition.Id.SourceToolId.Value,
-                    CallId = context.CallId,
-                    Arguments = arguments.DeepClone().AsObject(),
-                    Status = "inProgress"
-                };
-                break;
-            case ToolSourceKind.RuntimeDynamic:
-                item.Type = ItemType.DynamicToolCall;
-                item.Payload = new DynamicToolCallPayload
-                {
-                    Namespace = registration.Definition.Name.Namespace,
-                    ToolName = registration.Definition.Name.Name,
-                    ProviderCallName = providerCallName,
-                    ToolDefinitionId = registration.Definition.Id.ToString(),
-                    RuntimeBindingId = registration.Binding.Id.Value,
-                    BindingRevision = registration.Binding.Revision,
-                    SnapshotRevision = context.SnapshotRevision,
-                    Source = ToSessionProvenance(registration.Definition),
-                    Presentation = ToSessionPresentation(registration.Definition.Presentation),
-                    CallId = context.CallId,
-                    Arguments = arguments.DeepClone().AsObject(),
-                    Status = "inProgress"
-                };
-                break;
-            default:
-                item.Type = ItemType.ToolCall;
-                item.Payload = new ToolCallPayload
-                {
-                    Namespace = registration.Definition.Name.Namespace,
-                    ToolName = registration.Definition.Name.Name,
-                    ProviderCallName = providerCallName,
-                    ToolDefinitionId = registration.Definition.Id.ToString(),
-                    RuntimeBindingId = registration.Binding.Id.Value,
-                    BindingRevision = registration.Binding.Revision,
-                    SnapshotRevision = context.SnapshotRevision,
-                    Source = ToSessionProvenance(registration.Definition),
-                    Presentation = ToSessionPresentation(registration.Definition.Presentation),
-                    Arguments = arguments.DeepClone().AsObject(),
-                    CallId = context.CallId
-                };
-                break;
+            var existing = turn.Items.LastOrDefault(candidate => HasCallId(candidate, context.CallId));
+            emitStarted = existing is null || !HasTrustedProjection(existing);
+            item = existing ?? new SessionItem
+            {
+                Id = SessionIdGenerator.NewItemId(
+                    turnRuntime.NextToolItemSequence?.Invoke() ?? turn.Items.Count + 1),
+                TurnId = turn.Id,
+                CreatedAt = DateTimeOffset.UtcNow
+            };
+            ApplyStartedProjection(
+                item,
+                registration,
+                turnRuntime.ToolSnapshot?.ProviderFlatNames.GetValueOrDefault(registration.Definition.Name)
+                    ?? throw new InvalidOperationException(
+                        $"Missing flat provider alias for tool '{registration.Definition.Name}'."),
+                context.SnapshotRevision,
+                context.CallId,
+                arguments);
+            if (existing is null)
+                turn.Items.Add(item);
+            turnRuntime.ToolInvocationItems[context.CallId] = item;
         }
 
-        if (existing == null)
-            turn.Items.Add(item);
-        turnRuntime.ToolInvocationItems[context.CallId] = item;
-        var channel = runtime.Broker.CreateTurnChannel(turn.Id);
-        channel.EmitItemStarted(item);
+        if (emitStarted)
+            runtime.Broker.CreateTurnChannel(turn.Id).EmitItemStarted(item);
         await PersistThreadIfMaterializedAsync(runtime.Thread, cancellationToken).ConfigureAwait(false);
     }
 
@@ -107,15 +58,18 @@ public sealed partial class SessionService
         CancellationToken cancellationToken = default)
     {
         if (!TryResolveInvocationTurn(context, out var runtime, out var turnRuntime, out var turn)
-            || !turnRuntime.ToolInvocationItems.TryGetValue(context.CallId, out var startedItem))
+            || !turnRuntime.ToolInvocationItems.TryGetValue(context.CallId, out var startedItem)
+            || !turnRuntime.TerminalToolInvocations.TryAdd(context.CallId, 0))
             return;
 
         var completedAt = DateTimeOffset.UtcNow;
         var durationMs = Math.Max(0L, (long)duration.TotalMilliseconds);
         var channel = runtime.Broker.CreateTurnChannel(turn.Id);
-        switch (registration.Definition.Id.Kind)
+        lock (turnRuntime.ToolProjectionLock)
         {
-            case ToolSourceKind.Mcp:
+            switch (registration.ProjectionShape)
+            {
+            case ToolProjectionShape.McpLifecycle:
                 if (startedItem.Payload is not McpToolCallPayload mcpStarted)
                     return;
                 startedItem.Status = ItemStatus.Completed;
@@ -126,7 +80,7 @@ public sealed partial class SessionService
                     durationMs);
                 channel.EmitItemCompleted(startedItem);
                 break;
-            case ToolSourceKind.RuntimeDynamic:
+            case ToolProjectionShape.DynamicLifecycle:
                 if (startedItem.Payload is not DynamicToolCallPayload dynamicStarted)
                     return;
                 startedItem.Status = ItemStatus.Completed;
@@ -137,13 +91,14 @@ public sealed partial class SessionService
                     durationMs);
                 channel.EmitItemCompleted(startedItem);
                 break;
-            default:
+            case ToolProjectionShape.StandardPair:
                 startedItem.Status = ItemStatus.Completed;
                 startedItem.CompletedAt ??= completedAt;
                 channel.EmitItemCompleted(startedItem);
                 var resultItem = new SessionItem
                 {
-                    Id = SessionIdGenerator.NewItemId(turn.Items.Count + 1),
+                    Id = SessionIdGenerator.NewItemId(
+                        turnRuntime.NextToolItemSequence?.Invoke() ?? turn.Items.Count + 1),
                     TurnId = turn.Id,
                     Type = ItemType.ToolResult,
                     Status = ItemStatus.Completed,
@@ -152,10 +107,21 @@ public sealed partial class SessionService
                     Payload = new ToolResultPayload
                     {
                         CallId = context.CallId,
+                        Namespace = registration.Definition.Name.Namespace,
+                        ToolName = registration.Definition.Name.Name,
+                        ProviderFlatName = turnRuntime.ToolSnapshot?.ProviderFlatNames
+                            .GetValueOrDefault(registration.Definition.Name)
+                            ?? throw new InvalidOperationException(
+                                $"Missing flat provider alias for tool '{registration.Definition.Name}'."),
+                        ToolDefinitionId = registration.Definition.Id.ToString(),
+                        RuntimeBindingId = registration.Binding.Id.Value,
+                        BindingRevision = registration.Binding.Revision,
+                        SnapshotRevision = context.SnapshotRevision,
+                        Source = ToSessionProvenance(registration.Definition),
+                        Presentation = ToSessionPresentation(registration.Definition.Presentation),
+                        DurationMs = durationMs,
                         Result = result.Content ?? result.Error?.Message ?? string.Empty,
-                        ContentItems = registration.Definition.Id.Kind == ToolSourceKind.LegacyAppBinding
-                            ? ExtractDynamicContentItems(result.RawSourceResult) ?? ToModelContentItems(result.Content)
-                            : ToModelContentItems(result.Content),
+                        ContentItems = ToModelContentItems(result.Content),
                         StructuredContent = ToJsonNode(result.StructuredContent),
                         Meta = ToJsonNode(result.Meta),
                         ErrorCode = result.Error?.Code,
@@ -167,9 +133,94 @@ public sealed partial class SessionService
                 channel.EmitItemStarted(resultItem);
                 channel.EmitItemCompleted(resultItem);
                 break;
+            default:
+                throw new InvalidOperationException($"Unknown tool projection shape '{registration.ProjectionShape}'.");
+            }
         }
 
         await PersistThreadIfMaterializedAsync(runtime.Thread, cancellationToken).ConfigureAwait(false);
+    }
+
+    private static bool HasTrustedProjection(SessionItem item) => item.Payload switch
+    {
+        ToolCallPayload payload => !string.IsNullOrWhiteSpace(payload.ToolDefinitionId),
+        McpToolCallPayload payload => !string.IsNullOrWhiteSpace(payload.ToolDefinitionId),
+        DynamicToolCallPayload payload => !string.IsNullOrWhiteSpace(payload.ToolDefinitionId),
+        _ => false
+    };
+
+    private static void ApplyStartedProjection(
+        SessionItem item,
+        ToolRegistration registration,
+        string providerFlatName,
+        long snapshotRevision,
+        string callId,
+        JsonObject arguments)
+    {
+        item.Status = ItemStatus.Started;
+        item.CompletedAt = null;
+        switch (registration.ProjectionShape)
+        {
+            case ToolProjectionShape.McpLifecycle:
+                item.Type = ItemType.McpToolCall;
+                item.Payload = new McpToolCallPayload
+                {
+                    Namespace = registration.Definition.Name.Namespace,
+                    ToolName = registration.Definition.Name.Name,
+                    ProviderFlatName = providerFlatName,
+                    ToolDefinitionId = registration.Definition.Id.ToString(),
+                    RuntimeBindingId = registration.Binding.Id.Value,
+                    BindingRevision = registration.Binding.Revision,
+                    SnapshotRevision = snapshotRevision,
+                    McpGeneration = registration.Binding.Revision,
+                    Source = ToSessionProvenance(registration.Definition),
+                    Presentation = ToSessionPresentation(registration.Definition.Presentation),
+                    Server = registration.Definition.Id.SourceId,
+                    Origin = registration.Definition.Provenance.Origin ?? "workspace",
+                    SourceToolId = registration.Definition.Id.SourceToolId.Value,
+                    CallId = callId,
+                    Arguments = arguments.DeepClone().AsObject(),
+                    Status = "inProgress"
+                };
+                break;
+            case ToolProjectionShape.DynamicLifecycle:
+                item.Type = ItemType.DynamicToolCall;
+                item.Payload = new DynamicToolCallPayload
+                {
+                    Namespace = registration.Definition.Name.Namespace,
+                    ToolName = registration.Definition.Name.Name,
+                    ProviderFlatName = providerFlatName,
+                    ToolDefinitionId = registration.Definition.Id.ToString(),
+                    RuntimeBindingId = registration.Binding.Id.Value,
+                    BindingRevision = registration.Binding.Revision,
+                    SnapshotRevision = snapshotRevision,
+                    Source = ToSessionProvenance(registration.Definition),
+                    Presentation = ToSessionPresentation(registration.Definition.Presentation),
+                    CallId = callId,
+                    Arguments = arguments.DeepClone().AsObject(),
+                    Status = "inProgress"
+                };
+                break;
+            case ToolProjectionShape.StandardPair:
+                item.Type = ItemType.ToolCall;
+                item.Payload = new ToolCallPayload
+                {
+                    Namespace = registration.Definition.Name.Namespace,
+                    ToolName = registration.Definition.Name.Name,
+                    ProviderFlatName = providerFlatName,
+                    ToolDefinitionId = registration.Definition.Id.ToString(),
+                    RuntimeBindingId = registration.Binding.Id.Value,
+                    BindingRevision = registration.Binding.Revision,
+                    SnapshotRevision = snapshotRevision,
+                    Source = ToSessionProvenance(registration.Definition),
+                    Presentation = ToSessionPresentation(registration.Definition.Presentation),
+                    Arguments = arguments.DeepClone().AsObject(),
+                    CallId = callId
+                };
+                break;
+            default:
+                throw new InvalidOperationException($"Unknown tool projection shape '{registration.ProjectionShape}'.");
+        }
     }
 
     private bool TryResolveInvocationTurn(

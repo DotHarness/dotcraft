@@ -1,9 +1,7 @@
 import { create } from 'zustand'
 
 export type AppConnectionState = 'notConnected' | 'connecting' | 'connected' | 'needsAuth' | 'error'
-export type AppBindingState = 'pending' | 'active' | 'offline' | 'expired' | 'revoked' | 'error' | 'cancelled'
-export type AppBindingRisk = 'read' | 'mutate' | 'externalWrite'
-export type AppToolExposure = 'direct' | 'deferred'
+export type AppBindingState = 'connecting' | 'syncing' | 'active' | 'offline' | 'needsConfirmation' | 'revoked' | 'failed' | 'cancelled'
 export type AppNativeStatus = 'installed' | 'missing' | 'unknown'
 export type AppListSurface = 'pluginDetail' | 'welcome' | 'threadBinding' | 'sdk/default'
 export type AppBindingKind = 'app' | 'socialChannel' | 'managedApp' | string
@@ -35,44 +33,23 @@ export interface AppHandoffModeDescriptor {
   uriTemplate?: string | null
 }
 
-export interface AppScopeDescriptor {
-  id: string
-  displayName: string
-  description: string
-  risk: AppBindingRisk | string
-  defaultSelected?: boolean | null
-}
-
-export interface AppToolCatalogEntry {
-  name: string
-  scope: string
-  risk: AppBindingRisk | string
-  defaultExposure: AppToolExposure | string
-  description?: string | null
-}
-
-export interface AppDynamicToolCatalog {
-  enabled: boolean
-  description?: string | null
-}
-
 export interface ThreadAppBindingSummary {
   threadId: string
   bindingId: string
   appId: string
-  grantId?: string | null
   bindingKind?: AppBindingKind | null
   displayName?: string | null
   state: AppBindingState | string
   connectionState?: AppConnectionState | string
   managed?: boolean
   requiresExternalConnection?: boolean
-  grantedScopes: string[]
   icon?: string | null
-  toolNamespace?: string | null
-  expiresAt?: string | null
   socialTarget?: SocialChannelTarget | null
-  exposureRevision?: number
+  authorityRevision?: number
+  approvedCapabilityRevision?: number
+  candidateCapabilityRevision?: number | null
+  approvedTools?: Array<{ namespace?: string; name?: string; [key: string]: unknown }>
+  failureReason?: string | null
 }
 
 export interface AppNativeApplication {
@@ -84,7 +61,6 @@ export interface AppNativeApplication {
 
 export interface AppInfo {
   appId: string
-  toolNamespace: string
   displayName: string
   developerName: string
   description: string
@@ -102,9 +78,6 @@ export interface AppInfo {
   connectionState: AppConnectionState | string
   accountLabel?: string | null
   handoffModes: AppHandoffModeDescriptor[]
-  scopes: AppScopeDescriptor[]
-  toolCatalog: AppToolCatalogEntry[]
-  dynamicToolCatalog?: AppDynamicToolCatalog | null
   bindingSummary?: ThreadAppBindingSummary | null
   diagnostics?: Array<{ severity: string; code: string; message: string; pluginId?: string | null; path?: string | null }>
 }
@@ -118,25 +91,19 @@ export interface AppHandoff {
 
 export interface AppConnectionStartResult {
   connectionRequestId: string
-  appId: string
-  state: AppConnectionState | string
+  requestToken?: string
   expiresAt: string
   handoff: AppHandoff
 }
 
 export interface AppBindingRequestCreateResult {
   bindingRequestId: string
+  bindingId?: string
   threadId: string
   appId: string
-  requestedScopes: string[]
   state: AppBindingState | string
   tokenExpiresAt: string
   handoff: AppHandoff
-  confirmation?: {
-    required: boolean
-    risk: AppBindingRisk | string
-    message: string
-  }
 }
 
 export interface ThreadAppBinding {
@@ -144,24 +111,20 @@ export interface ThreadAppBinding {
   bindingId: string
   threadId: string
   appId: string
-  grantId?: string | null
   bindingKind?: AppBindingKind | null
   displayName?: string | null
   icon?: string | null
-  toolNamespace?: string | null
   state: AppBindingState | string
-  connectionState: AppConnectionState | string
+  connectionState?: AppConnectionState | string
   managed?: boolean
   requiresExternalConnection?: boolean
-  grantedScopes: string[]
-  attachedToolCount: number
-  expiresAt?: string | null
-  lastChangedAt: string
-  approvalMode?: string | null
-  auditRef?: string | null
-  diagnostic?: string | null
   socialTarget?: SocialChannelTarget | null
-  exposureRevision?: number
+  authorityRevision?: number
+  approvedCapabilityRevision?: number
+  candidateCapabilityRevision?: number | null
+  approvedTools?: Array<Record<string, unknown>>
+  pendingChanges?: Array<{ kind: string; tool: string; detail: string }>
+  failureReason?: string | null
 }
 
 interface AppBindingStore {
@@ -180,8 +143,6 @@ interface AppBindingStore {
   createBindingRequest(params: {
     threadId: string
     appId: string
-    requestedScopes: string[]
-    requestedTools?: string[]
     reason?: string
     source: 'pluginDetail' | 'threadMenu' | 'welcome' | 'agentSuggestion' | 'sdk'
     bindingKind?: AppBindingKind
@@ -191,6 +152,7 @@ interface AppBindingStore {
   refreshThreadBindings(threadId: string, bindingId?: string): Promise<void>
   cancelBindingRequest(threadId: string, bindingRequestId: string, reason?: string): Promise<void>
   revokeThreadBinding(threadId: string, bindingId: string, reason?: string): Promise<void>
+  confirmCapabilities(threadId: string, bindingId: string, candidateRevision: number, decision: 'accept' | 'reject'): Promise<void>
   waitForConnection(appId: string, options?: AppBindingWaitOptions): Promise<AppInfo>
   waitForThreadBinding(params: {
     threadId: string
@@ -259,9 +221,20 @@ export const useAppBindingStore = create<AppBindingStore>((set, get) => ({
   },
 
   async createBindingRequest(params) {
-    const request = { ...params }
-    if (request.requestedTools === undefined) delete request.requestedTools
-    return await window.api.appServer.sendRequest('app/binding/request/create', request) as AppBindingRequestCreateResult
+    const result = await window.api.appServer.sendRequest(
+      params.bindingKind === 'socialChannel' ? 'thread/socialBindings/request/create' : 'thread/appBindings/enable',
+      params.bindingKind === 'socialChannel'
+        ? { threadId: params.threadId, channelName: params.socialIntent?.channelName }
+        : { threadId: params.threadId, appId: params.appId }
+    ) as { bindingRequestId: string; bindingId: string; state?: string; expiresAt: string; code?: string; handoff?: AppHandoff }
+    return {
+      bindingRequestId: result.bindingRequestId,
+      threadId: params.threadId,
+      appId: params.appId,
+      state: result.state ?? 'connecting',
+      tokenExpiresAt: result.expiresAt,
+      handoff: result.handoff ?? { mode: 'bindCode', bindCode: result.code }
+    }
   },
 
   async fetchThreadBindings(threadId, includeRevoked = false) {
@@ -290,19 +263,14 @@ export const useAppBindingStore = create<AppBindingStore>((set, get) => ({
   },
 
   async refreshThreadBindings(threadId, bindingId) {
-    await window.api.appServer.sendRequest('thread/appBindings/refresh', {
-      threadId,
-      bindingId: bindingId || undefined
-    })
     await get().fetchThreadBindings(threadId)
     if (get().appsThreadId === threadId) await get().fetchApps(threadId, false, get().appsSurface)
   },
 
   async cancelBindingRequest(threadId, bindingRequestId, reason) {
-    await window.api.appServer.sendRequest('app/binding/request/cancel', {
-      bindingRequestId,
-      reason
-    })
+    await get().fetchThreadBindings(threadId)
+    const binding = (get().bindingsByThread[threadId] ?? []).find(item => item.bindingRequestId === bindingRequestId)
+    if (binding) await window.api.appServer.sendRequest('thread/appBindings/revoke', { threadId, bindingId: binding.bindingId, reason })
     await get().fetchThreadBindings(threadId)
     if (get().appsThreadId === threadId) await get().fetchApps(threadId, false, get().appsSurface)
   },
@@ -315,6 +283,13 @@ export const useAppBindingStore = create<AppBindingStore>((set, get) => ({
     })
     await get().fetchThreadBindings(threadId, true)
     if (get().appsThreadId === threadId) await get().fetchApps(threadId, false, get().appsSurface)
+  },
+
+  async confirmCapabilities(threadId, bindingId, candidateRevision, decision) {
+    await window.api.appServer.sendRequest('thread/appBindings/confirmCapabilities', {
+      threadId, bindingId, candidateRevision, decision
+    })
+    await get().fetchThreadBindings(threadId)
   },
 
   async waitForConnection(appId, options = {}) {
@@ -335,26 +310,25 @@ export const useAppBindingStore = create<AppBindingStore>((set, get) => ({
 
   async waitForThreadBinding(params, options = {}) {
     const { maxAttempts, intervalMs } = waitSettings(options)
-    let lastState = 'pending'
+    let lastState = 'connecting'
     for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
       await get().fetchThreadBindings(params.threadId)
       const bindings = get().bindingsByThread[params.threadId] ?? []
       const binding = findMatchingBinding(bindings, params.appId, params.bindingRequestId)
       if (binding != null) {
         lastState = binding.state
-        if (binding.state === 'active' && (binding.attachedToolCount > 0 || binding.bindingKind === 'socialChannel')) return binding
+        if (binding.state === 'active') return binding
         if (
           binding.state === 'cancelled'
           || binding.state === 'revoked'
-          || binding.state === 'expired'
-          || binding.state === 'error'
+          || binding.state === 'failed'
         ) {
           throw new Error(`App binding '${params.appId}' ended with state ${binding.state}.`)
         }
       }
       if (attempt < maxAttempts - 1) await delay(intervalMs)
     }
-    throw new Error(`Timed out waiting for app binding '${params.appId}' to attach tools. Last state: ${lastState}.`)
+    throw new Error(`Timed out waiting for app binding '${params.appId}' to become active. Last state: ${lastState}.`)
   },
 
   handleNotification(method, params) {
@@ -382,9 +356,6 @@ function normalizeAppInfo(app: AppInfo): AppInfo {
     managed: app.managed === true,
     requiresExternalConnection: app.requiresExternalConnection !== false,
     handoffModes: app.handoffModes ?? [],
-    scopes: app.scopes ?? [],
-    toolCatalog: app.toolCatalog ?? [],
-    dynamicToolCatalog: app.dynamicToolCatalog ?? { enabled: false },
     diagnostics: app.diagnostics ?? []
   }
 }
@@ -415,8 +386,8 @@ function normalizeThreadBinding(binding: ThreadAppBinding): ThreadAppBinding {
     ...binding,
     managed: binding.managed === true,
     requiresExternalConnection: binding.requiresExternalConnection !== false,
-    grantedScopes: binding.grantedScopes ?? [],
-    attachedToolCount: binding.attachedToolCount ?? 0
+    approvedTools: binding.approvedTools ?? [],
+    pendingChanges: binding.pendingChanges ?? []
   }
 }
 

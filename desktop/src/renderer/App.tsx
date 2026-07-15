@@ -2240,12 +2240,28 @@ export function App(): JSX.Element {
             const name = typeof p.name === 'string' ? p.name : null
             if (name) {
               const runtimeStatus = typeof p.status === 'string' ? p.status : 'failed'
-              useMcpStore.getState().upsertStatus({
+              const store = useMcpStore.getState()
+              const existing = store.statuses[name.trim().toLowerCase()]
+              const transport = p.transport === 'streamableHttp' || p.transport === 'stdio'
+                ? p.transport
+                : existing?.transport ?? 'stdio'
+              const authStatus = p.authStatus === 'unsupported'
+                || p.authStatus === 'notLoggedIn'
+                || p.authStatus === 'bearerToken'
+                || p.authStatus === 'oAuth'
+                ? p.authStatus
+                : existing?.authStatus ?? null
+              store.upsertStatus({
+                ...existing,
                 name,
                 enabled: runtimeStatus !== 'cancelled',
                 startupState: runtimeStatus === 'failed' ? 'error' : runtimeStatus,
                 lastError: typeof p.error === 'string' ? p.error : null,
-                transport: 'stdio'
+                transport,
+                authStatus,
+                failureReason: p.failureReason === 'reauthenticationRequired'
+                  ? 'reauthenticationRequired'
+                  : null
               } as McpServerStatusWire)
             }
             break

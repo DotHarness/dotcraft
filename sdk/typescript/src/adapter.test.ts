@@ -190,13 +190,9 @@ test("processMessage enqueues bound social input instead of streaming a turn", a
           bindingId: "bind-social-1",
           threadId: "thread-bound-1",
           appId: "com.dotharness.channel.test-channel",
-          grantId: "grant-social-1",
-          bindingKind: "socialChannel",
           state: "active",
-          connectionState: "connected",
-          grantedScopes: ["conversation.receive", "message.send"],
-          attachedToolCount: 0,
-          lastChangedAt: "2026-06-20T00:00:00Z",
+          authorityRevision: 1,
+          approvedCapabilityRevision: 1,
           socialTarget: {
             channelName: "test-channel",
             conversationKind: "group",
@@ -223,7 +219,6 @@ test("processMessage enqueues bound social input instead of streaming a turn", a
   });
 
   assert.deepEqual(resolveParams, {
-    appId: "com.dotharness.channel.test-channel",
     channelName: "test-channel",
     accountId: undefined,
     conversationKind: "group",
@@ -231,8 +226,6 @@ test("processMessage enqueues bound social input instead of streaming a turn", a
   });
   assert.deepEqual(enqueueParams, {
     bindingId: "bind-social-1",
-    appId: "com.dotharness.channel.test-channel",
-    grantId: "grant-social-1",
     input: [{ type: "text", text: "hello bound" }],
     displayText: "hello bound",
     triggerLabel: "test-channel message",
@@ -285,7 +278,6 @@ test("processMessage falls back to normal channel routing for unbound social inp
   });
 
   assert.deepEqual(resolveParams, {
-    appId: "com.dotharness.channel.test-channel",
     channelName: "test-channel",
     accountId: undefined,
     conversationKind: "group",
@@ -352,26 +344,19 @@ test("handleMessage caches accepted social binding thread", async () => {
 
   client.request = async (method: unknown) => {
     requests.push(String(method));
-    if (method === "app/binding/request/get") {
+    if (method === "app/socialBinding/request/get") {
       return {
         bindingRequestId: "req-social-1",
-        requestedScopes: ["conversation.receive", "message.send"],
       };
     }
-    if (method === "app/binding/accept") {
+    if (method === "app/socialBinding/accept") {
       return {
-        binding: {
-          bindingId: "bind-social-1",
-          threadId: "thread-bound-1",
-          appId: "com.dotharness.channel.test-channel",
-          grantId: "grant-social-1",
-          bindingKind: "socialChannel",
-          state: "active",
-          connectionState: "connected",
-          grantedScopes: ["conversation.receive", "message.send"],
-          attachedToolCount: 0,
-          lastChangedAt: "2026-06-20T00:00:00Z",
-        },
+        bindingId: "bind-social-1",
+        threadId: "thread-bound-1",
+        appId: "com.dotharness.channel.test-channel",
+        state: "active",
+        authorityRevision: 1,
+        approvedCapabilityRevision: 1,
       };
     }
     throw new Error(`unexpected request ${String(method)}`);
@@ -384,7 +369,7 @@ test("handleMessage caches accepted social binding thread", async () => {
     channelContext: "group-123",
   });
 
-  assert.deepEqual(requests, ["app/binding/request/get", "app/binding/accept"]);
+  assert.deepEqual(requests, ["app/socialBinding/request/get", "app/socialBinding/accept"]);
   assert.equal(
     (adapter as unknown as { threadResolver: { getCachedThreadId(identityKey: string): string | undefined } })
       .threadResolver.getCachedThreadId("u:group-123"),
@@ -413,13 +398,9 @@ test("handleMessage resolves social binding before running slash commands", asyn
           bindingId: "bind-social-1",
           threadId: "thread-bound-1",
           appId: "com.dotharness.channel.test-channel",
-          grantId: "grant-social-1",
-          bindingKind: "socialChannel",
           state: "active",
-          connectionState: "connected",
-          grantedScopes: ["conversation.receive", "message.send"],
-          attachedToolCount: 0,
-          lastChangedAt: "2026-06-20T00:00:00Z",
+          authorityRevision: 1,
+          approvedCapabilityRevision: 1,
         },
       };
     }
@@ -450,7 +431,6 @@ test("handleMessage resolves social binding before running slash commands", asyn
   }
 
   assert.deepEqual(resolveParams, {
-    appId: "com.dotharness.channel.test-channel",
     channelName: "test-channel",
     accountId: undefined,
     conversationKind: "group",

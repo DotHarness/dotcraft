@@ -2,9 +2,9 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 1.3.0 |
+| **Version** | 1.3.1 |
 | **Status** | Living |
-| **Date** | 2026-05-19 |
+| **Date** | 2026-07-15 |
 | **Related Specs** | [AppServer Protocol](../protocols/appserver-protocol.md), [Plugin Registry](plugin-registry.md), [Tool Result Presentation](../protocols/tool-result-presentation.md), [Session Core](session-core.md), [Lifecycle Hooks](../features/lifecycle-hooks.md), [External Channel Adapter](../protocols/external-channel-adapter.md), [Desktop Client](../clients/desktop-client.md) |
 
 Purpose: define the durable architecture for DotCraft plugins, including plugin-contained skills, local plugin manifests, plugin-bundled MCP servers, client-facing plugin metadata, and the TypeScript external channel module contract.
@@ -56,7 +56,7 @@ Manifest metadata includes:
 
 Plugins must declare at least one supported contribution: a plugin-contained `skills` path, plugin-bundled MCP servers, lifecycle hooks, App Binding descriptors, LSP server descriptors, Desktop extensions, or interface metadata. Skill-only, MCP-only, hooks-only, app-only, desktop-extension-only, and interface-only plugins are valid.
 
-`mcpServers` is an optional manifest-relative path to a plugin-contained MCP configuration file. If omitted, DotCraft looks for `./.mcp.json` in the plugin root. The MCP file may use either `{ "mcpServers": { ... } }` or a direct server map. Plugin MCP config should use canonical DotCraft fields such as `arguments`, `environmentVariables`, and `headers`; for compatibility with common MCP config files, DotCraft also accepts `args`, `env`, and `httpHeaders` as read aliases. Plugin-bundled MCP servers use the same runtime as workspace `McpServers`; relative MCP `cwd` values resolve under the plugin root. At runtime, contributed server names are prefixed as `{pluginId}:{serverName}` to avoid collisions with workspace MCP servers and other plugins.
+`mcpServers` is an optional manifest-relative path to a plugin-contained MCP configuration file. If omitted, DotCraft looks for `./.mcp.json` in the plugin root. The MCP file may use either `{ "mcpServers": { ... } }` or a direct server map. Plugin MCP config should use canonical DotCraft fields such as `arguments`, `environmentVariables`, and `headers`; for compatibility with common MCP config files, DotCraft also accepts `args`, `env`, and `httpHeaders` as read aliases. Plugin-bundled MCP servers use the same runtime as workspace `McpServers`; relative MCP `cwd` values resolve under the plugin root. At runtime, contributed server names are prefixed as `{pluginId}:{serverName}` to avoid collisions with workspace MCP servers and other plugins. This prefixed value is the connection-facing `runtimeName`, not a model-visible tool namespace. MCP tool projection derives its separately normalized canonical namespace from the declared server name and retains `runtimeName` plus the raw MCP tool name only for exact source routing; clients and provider adapters MUST NOT split or flatten `runtimeName` to construct model identity.
 
 Effective MCP merge rules:
 
@@ -272,6 +272,8 @@ Runtime Dynamic Tools are not plugin manifest tools.
 ### MCP Tools
 
 MCP tools are configured through workspace `McpServers`, per-thread `ThreadConfiguration.McpServers`, or plugin-bundled MCP declarations. They are discovered by the MCP runtime and injected through the MCP tool path.
+
+Plugin provenance and MCP model identity are independent. The plugin id remains available through origin provenance and the runtime connection name, while the model sees only the collision-safe composite tool identity defined by [Tool Architecture](tools-architecture.md). Equal declared server/tool names from different effective runtimes are disambiguated deterministically during batch normalization rather than by exposing the `{pluginId}:` routing prefix.
 
 ---
 

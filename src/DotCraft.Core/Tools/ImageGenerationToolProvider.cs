@@ -26,10 +26,25 @@ public static class ProviderHostedCapabilityPlanner
     internal static bool ShouldEnableHostedImageGeneration(AgentRuntimeContext context) =>
         TryResolveSupportedRuntime(context, out _);
 
-    internal static ProviderHostedCapabilityPlan Build(AgentRuntimeContext context) =>
-        new(
+    internal static ProviderHostedCapabilityPlan Build(AgentRuntimeContext context)
+    {
+        var deferredMode = DeferredToolLoadingPlanner.ResolveMode(
+            context.Config.Tools.DeferredLoading,
+            context.EffectiveProviderProtocol);
+        return new ProviderHostedCapabilityPlan(
             ShouldEnableHostedImageGeneration(context),
-            NormalizeMaxReferenceImages(context.Config.Tools.ImageGeneration.MaxReferenceImages));
+            NormalizeMaxReferenceImages(context.Config.Tools.ImageGeneration.MaxReferenceImages))
+        {
+            DeferredToolSearch = deferredMode == DeferredToolLoadingMode.Off
+                ? null
+                : new DeferredToolSearchPlan(
+                    deferredMode,
+                    context.Config.Tools.DeferredLoading.Strategy.ToString(),
+                    ModelProviderProtocols.Normalize(context.EffectiveProviderProtocol),
+                    context.Config.Tools.DeferredLoading.MaxSearchResults,
+                    context.TraceCollector)
+        };
+    }
 
     internal static bool TryResolveSupportedRuntime(
         AgentRuntimeContext context,

@@ -4,6 +4,8 @@ namespace DotCraft.Protocol;
 
 public sealed class ToolExecutionRuntimeContext
 {
+    public required string ThreadId { get; init; }
+
     public required string TurnId { get; init; }
 
     public required SessionTurn Turn { get; init; }
@@ -55,12 +57,22 @@ public static class ToolExecutionRuntimeScope
 
     public static IDisposable Set(ToolExecutionRuntimeContext context)
     {
+        ArgumentNullException.ThrowIfNull(context);
+        var previous = CurrentContext.Value;
         CurrentContext.Value = context;
-        return new ScopeHandle();
+        return new ScopeHandle(previous);
     }
 
-    private sealed class ScopeHandle : IDisposable
+    private sealed class ScopeHandle(ToolExecutionRuntimeContext? previous) : IDisposable
     {
-        public void Dispose() => CurrentContext.Value = null;
+        private bool _disposed;
+
+        public void Dispose()
+        {
+            if (_disposed)
+                return;
+            _disposed = true;
+            CurrentContext.Value = previous;
+        }
     }
 }

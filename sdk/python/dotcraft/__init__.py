@@ -18,17 +18,14 @@ wire/adapter surface from this package.
 from .adapter import ChannelAdapter
 from .app_binding import (
     APP_BINDING_ERROR_CODES,
-    AppBindingAcceptResult,
-    AppBindingAttachToolsResult,
     AppBindingHandoff,
     AppBindingManager,
     AppBindingRequestCreateResult,
     AppBindingRequestInfo,
     AppConnectionStartResult,
+    AppConnectionConnectResult,
     AppConnectionStatus,
     AppInfo,
-    AppScopeDescriptor,
-    AppToolCatalogEntry,
     ThreadAppBinding,
     app_binding_tool_error,
 )
@@ -147,15 +144,12 @@ __all__ = [
     "app_binding_tool_error",
     "APP_BINDING_ERROR_CODES",
     "AppInfo",
-    "AppScopeDescriptor",
-    "AppToolCatalogEntry",
     "AppConnectionStatus",
     "AppConnectionStartResult",
+    "AppConnectionConnectResult",
     "ThreadAppBinding",
     "AppBindingRequestInfo",
     "AppBindingRequestCreateResult",
-    "AppBindingAcceptResult",
-    "AppBindingAttachToolsResult",
     # Channel adapter
     "ChannelAdapter",
     # Models

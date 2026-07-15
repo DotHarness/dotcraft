@@ -624,7 +624,7 @@ public sealed class ExternalChannelDeliveryTests : IDisposable
         await task;
     }
 
-#if false // M1: legacy PluginFunctionRuntimeFunction coverage was replaced by source/dispatcher coverage below.
+#if false
     [Fact]
     public async Task ExternalChannelToolProvider_InjectsOnlyMatchingChannelTools()
     {
@@ -782,8 +782,8 @@ public sealed class ExternalChannelDeliveryTests : IDisposable
         Assert.Equal(new ToolName("external_channel", "TelegramSendDocumentToCurrentChat"), definition.Name);
         Assert.Equal("external-channel:telegram", definition.Id.SourceId);
 
-        var providerName = snapshot.ProviderCallNames[definition.Name];
-        var result = await new ToolDispatcher().DispatchProviderCallAsync(
+        var providerName = snapshot.ProviderFlatNames[definition.Name];
+        var result = await new ToolDispatcher().DispatchProviderFlatCallAsync(
             snapshot,
             providerName,
             new JsonObject { ["fileName"] = "report.pdf" },
@@ -801,64 +801,7 @@ public sealed class ExternalChannelDeliveryTests : IDisposable
         Assert.Equal("user_42", toolParams.Context.SenderId);
     }
 
-    [Fact]
-    public void SocialChannelAppBindingRuntime_ListsAdapterDeclaredToolsWithoutLegacyProvider()
-    {
-        var registry = new ExternalChannelRegistry();
-        var host = CreateHost("weixin");
-        var connection = CreateToolAdapterConnection(
-            "weixin",
-            [
-                new ChannelToolDescriptor
-                {
-                    Name = "WeixinSendImageToCurrentChat",
-                    Description = "Send an image to the current Weixin chat.",
-                    RequiresChatContext = true,
-                    InputSchema = new JsonObject
-                    {
-                        ["type"] = "object",
-                        ["properties"] = new JsonObject
-                        {
-                            ["fileName"] = new JsonObject { ["type"] = "string" }
-                        },
-                        ["required"] = new JsonArray("fileName")
-                    }
-                }
-            ]);
-        AttachFakeAdapter(host, new StubTransport(), connection);
-        registry.Register("weixin", host);
-
-        var service = new AppBindingService([
-            new SocialChannelAppBindingRuntime(
-                "weixin",
-                "Weixin",
-                "Continue this thread in Weixin.",
-                registry,
-                new ChannelToolRegistrationService())
-        ]);
-        var craftPath = Path.Combine(_tempDir, ".craft");
-        Directory.CreateDirectory(craftPath);
-        var catalog = service.DiscoverCatalog(new AppConfig(), _tempDir, craftPath);
-
-        var result = service.ListApps(
-            catalog,
-            craftPath,
-            "user_1",
-            new AppListParams
-            {
-                IncludeDisabled = true,
-                Surface = AppBindingCatalogSurfaces.ThreadBinding
-            });
-
-        var app = Assert.Single(result.Apps, item => item.AppId == "com.dotharness.channel.weixin");
-        Assert.Equal(AppConnectionStates.Connected, app.ConnectionState);
-        var tool = Assert.Single(app.ToolCatalog, tool => tool.Name == "WeixinSendImageToCurrentChat");
-        Assert.Equal(AppBindingExposures.Direct, tool.DefaultExposure);
-        Assert.True(connection.ChannelToolRegistrationFinalized);
-        Assert.Single(connection.RegisteredChannelTools);
-    }
-
-#if false // M1: approval/lifecycle behavior is covered by the common dispatcher tests.
+#if false // Approval/lifecycle behavior is covered by the common dispatcher tests.
     [Fact]
     public void ExternalChannelToolProvider_WhenPluginDisabled_ReturnsNoTools()
     {

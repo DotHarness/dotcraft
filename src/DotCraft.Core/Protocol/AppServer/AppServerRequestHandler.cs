@@ -303,6 +303,9 @@ public sealed class AppServerRequestHandler(
         if (method != AppServerMethods.Initialize && connection.IsInitialized && !connection.IsClientReady)
             throw AppServerErrors.InvalidRequest("Server is awaiting the 'initialized' notification before handling requests.");
 
+        if (connection.IsAppPrincipalAuthenticated && !IsAppPrincipalMethod(method))
+            throw AppServerErrors.AppPrincipalUnauthorized("App-principal connections may call only App Binding app-role methods.");
+
         try
         {
             // Extracted domain handlers register their methods in the table; protocol extensions
@@ -331,6 +334,17 @@ public sealed class AppServerRequestHandler(
         }
     }
 
+    private static bool IsAppPrincipalMethod(string method) => method is
+        "app/connection/authenticate"
+        or "app/connection/refresh"
+        or "app/connection/status"
+        or "app/connection/revoke"
+        or "app/binding/request/get"
+        or "app/binding/activate"
+        or "app/binding/rebind"
+        or "app/bindings/list"
+        or "app/threadInput/enqueue";
+
     /// <summary>
     /// Handles the <c>initialized</c> client notification (no response required).
     /// </summary>
@@ -353,6 +367,8 @@ public sealed class AppServerRequestHandler(
                 services.WorkspaceCraftPath,
                 services.HostWorkspacePath,
                 services.ContextPageManager,
+                services.NotifyAppPrincipal,
+                services.BroadcastTrustedNotification,
                 ct));
     }
 

@@ -150,21 +150,37 @@ public sealed class ThreadCapabilityPolicyEvaluatorTests : IDisposable
             Mode = "plan",
             McpPolicy = new ThreadMcpPolicy
             {
-                Servers = ["github"],
-                Tools = new ThreadNamePolicy { Deny = ["mcp__github__write_*"] }
+                Servers = ["catalog-service"],
+                Tools = new ThreadNamePolicy { Deny = ["mcp__catalog_service/write_*"] }
             }
         };
         var policy = new ThreadCapabilityPolicyEvaluator(config, CreateContext());
 
         Assert.False(policy.EvaluateRegistration(
-            Registration(new ToolName("mcp__github", "write_issue"), ToolSourceKind.Mcp, "github"),
+            Registration(new ToolName("mcp__catalog_service", "write_record"), ToolSourceKind.Mcp, "catalog-service"),
             []).Allowed);
         Assert.False(policy.EvaluateRegistration(
             Registration(new ToolName(null, "WriteFile"), ToolSourceKind.CoreNative, "core"),
             new JsonObject { ["path"] = "notes.txt" }).Allowed);
         Assert.True(policy.EvaluateRegistration(
-            Registration(new ToolName("mcp__github", "get_issue"), ToolSourceKind.Mcp, "github"),
+            Registration(new ToolName("mcp__catalog_service", "get_record"), ToolSourceKind.Mcp, "catalog-service"),
             []).Allowed);
+    }
+
+    [Fact]
+    public void AllowsRegistrationExposure_UsesRuntimeServerIdentityInsteadOfProviderAlias()
+    {
+        var config = new ThreadConfiguration
+        {
+            McpPolicy = new ThreadMcpPolicy { Servers = ["allowed-server"] }
+        };
+        var policy = new ThreadCapabilityPolicyEvaluator(config, CreateContext());
+        var registration = Registration(
+            new ToolName("mcp__code_host_apps", "get_me"),
+            ToolSourceKind.Mcp,
+            "plugin:code-host-apps");
+
+        Assert.False(policy.AllowsRegistrationExposure(registration));
     }
 
     public void Dispose()
@@ -219,7 +235,8 @@ public sealed class ThreadCapabilityPolicyEvaluatorTests : IDisposable
                 new NoopRuntime(),
                 ToolBindingLeases.AlwaysAvailable,
                 "test",
-                1));
+                1),
+            ToolProjectionShape.StandardPair);
     }
 
     private sealed class NoopRuntime : IToolRuntime

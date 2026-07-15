@@ -112,7 +112,7 @@ public sealed partial class SessionService(
     IEnumerable<IThreadPluginToolSourceProvider>? pluginToolSourceProviders = null,
     ThreadToolDispatchPolicyRegistry? toolDispatchPolicyRegistry = null,
     McpAppTransientContextStore? mcpAppTransientContextStore = null)
-    : ISessionService, IThreadAgentRefreshService, IThreadToolDispatchService, IThreadToolSnapshotService, IThreadMcpRuntimeService, IToolInvocationRecorder, ISubAgentSyntheticTurnService, ISubAgentThreadLifecycleService
+    : ISessionService, IThreadAgentRefreshService, IThreadToolDispatchService, IThreadToolSnapshotService, IThreadToolSnapshotChangeSource, IThreadMcpRuntimeService, IToolInvocationRecorder, ISubAgentSyntheticTurnService, ISubAgentThreadLifecycleService
 {
     private sealed record PreparedContextTokenEstimate(
         IReadOnlyList<ChatMessage> History,
@@ -120,6 +120,9 @@ public sealed partial class SessionService(
         ContextTokenUsageEstimate Estimate);
 
     private readonly TimeSpan _approvalTimeout = approvalTimeout ?? TimeSpan.FromMinutes(5);
+
+    /// <inheritdoc />
+    public event EventHandler<EffectiveToolSnapshotChangedEventArgs>? EffectiveToolSnapshotChanged;
 
     // In-memory state
     private readonly ThreadRuntimeRegistry _runtimeRegistry = new();
@@ -1218,7 +1221,7 @@ public sealed partial class SessionService(
         var lastActivityBeforeTurn = thread.LastActiveAt;
 
         // Step 2: Create Turn and UserMessage Item
-        var turnSeq = thread.Turns.Count + 1;
+        var turnSeq = SessionIdGenerator.ReserveNextTurnSequence(thread);
         var turn = new SessionTurn
         {
             Id = SessionIdGenerator.NewTurnId(turnSeq),
@@ -1237,7 +1240,7 @@ public sealed partial class SessionService(
             }
         };
 
-        var itemSeq = 0;
+        var itemSeq = SessionIdGenerator.LastItemSequence(turn.Items);
 
         // Extract plain text from content parts for display and persistence
         var text = inputSnapshot?.DisplayText
@@ -2125,6 +2128,7 @@ public sealed partial class SessionService(
                 using var toolExecutionScope = ToolExecutionRuntimeScope.Set(
                     new ToolExecutionRuntimeContext
                     {
+                        ThreadId = threadId,
                         TurnId = turn.Id,
                         Turn = turn,
                         NextItemSequence = NextItemSeq,
@@ -2132,6 +2136,8 @@ public sealed partial class SessionService(
                         EmitItemCompleted = eventChannel.EmitItemCompleted,
                         SupportsToolExecutionLifecycle = supportsToolExecutionLifecycle
                     });
+                if (turnRuntime != null)
+                    turnRuntime.NextToolItemSequence = NextItemSeq;
                 using var goalToolScope = GoalsEnabled
                     && turnMode != AgentMode.Plan
                     && thread.Source.SubAgent == null
@@ -2295,6 +2301,28 @@ public sealed partial class SessionService(
                                             : null;
                                     if (string.IsNullOrWhiteSpace(resolvedToolName))
                                         break;
+                                    var streamingSnapshot = turnRuntime?.ToolSnapshot;
+                                    var streamingCanonicalName = default(ToolName);
+                                    ToolRegistration? streamingRegistration = null;
+                                    var resolvedSnapshotRegistration = streamingSnapshot is not null
+                                        && streamingSnapshot.TryResolveProviderFlatName(
+                                            resolvedToolName,
+                                            out streamingCanonicalName)
+                                        && streamingSnapshot.Registrations.TryGetValue(
+                                            streamingCanonicalName,
+                                            out streamingRegistration);
+                                    if (!resolvedSnapshotRegistration
+                                        && streamingSnapshot?.Registrations.Keys.Any(
+                                            name => string.Equals(
+                                                name.Name,
+                                                resolvedToolName,
+                                                StringComparison.Ordinal)) == true)
+                                    {
+                                        // Namespace-capable providers may stream only the local child name.
+                                        // Argument deltas are presentation-only, so wait for the final composite
+                                        // callback instead of persisting an identity-incomplete tool item.
+                                        break;
+                                    }
                                     FinalizeStreamingReasoning();
                                     streamingToolCallItemsByIndex ??= [];
                                     if (!streamingToolCallItemsByIndex.TryGetValue(toolCallIndex, out var streamingToolCallItem))
@@ -2308,11 +2336,30 @@ public sealed partial class SessionService(
                                             CreatedAt = DateTimeOffset.UtcNow,
                                             Payload = new ToolCallPayload
                                             {
-                                                ToolName = resolvedToolName,
+                                                ToolName = resolvedSnapshotRegistration
+                                                    ? streamingCanonicalName.Name
+                                                    : resolvedToolName,
+                                                Namespace = resolvedSnapshotRegistration
+                                                    ? streamingCanonicalName.Namespace
+                                                    : null,
+                                                ProviderFlatName = resolvedSnapshotRegistration
+                                                    ? streamingSnapshot!.ProviderFlatNames[streamingCanonicalName]
+                                                    : resolvedToolName,
                                                 CallId = toolArgsDelta.CallId ?? string.Empty,
                                                 Arguments = null
                                             }
                                         };
+                                        if (resolvedSnapshotRegistration)
+                                        {
+                                            ApplyStartedProjection(
+                                                streamingToolCallItem,
+                                                streamingRegistration!,
+                                                streamingSnapshot!.ProviderFlatNames[streamingCanonicalName],
+                                                streamingSnapshot.Revision,
+                                                toolArgsDelta.CallId ?? string.Empty,
+                                                []);
+                                        }
+                                        streamingToolCallItem.Status = ItemStatus.Streaming;
                                         streamingToolCallItemsByIndex[toolCallIndex] = streamingToolCallItem;
                                         turn.Items.Add(streamingToolCallItem);
                                         eventChannel.EmitItemStarted(streamingToolCallItem);
@@ -2405,7 +2452,54 @@ public sealed partial class SessionService(
                                         supportsToolExecutionLifecycle);
 
                                     SessionItem? toolCallItem = null;
-                                    if (!string.IsNullOrWhiteSpace(fc.CallId)
+                                    if (turnRuntime?.ToolSnapshot is { } invocationSnapshot
+                                        && TryResolveProviderFunctionCall(
+                                            invocationSnapshot,
+                                            fc,
+                                            out var canonicalToolName)
+                                        && invocationSnapshot.Registrations.TryGetValue(canonicalToolName, out var projectedRegistration))
+                                    {
+                                        SessionItem? existingProjectedItem = null;
+                                        if (!string.IsNullOrWhiteSpace(fc.CallId)
+                                            && streamingToolCallItemsByCallId != null)
+                                        {
+                                            streamingToolCallItemsByCallId.TryGetValue(fc.CallId, out existingProjectedItem);
+                                        }
+
+                                        var emitProjection = existingProjectedItem is null
+                                                             || !HasTrustedProjection(existingProjectedItem);
+                                        toolCallItem = existingProjectedItem ?? new SessionItem
+                                        {
+                                            Id = SessionIdGenerator.NewItemId(NextItemSeq()),
+                                            TurnId = turn.Id,
+                                            CreatedAt = DateTimeOffset.UtcNow
+                                        };
+                                        var projectedArguments = fc.Arguments != null
+                                            ? JsonNode.Parse(System.Text.Json.JsonSerializer.Serialize(fc.Arguments)) as JsonObject
+                                            : null;
+                                        ApplyStartedProjection(
+                                            toolCallItem,
+                                            projectedRegistration,
+                                            invocationSnapshot.ProviderFlatNames.GetValueOrDefault(canonicalToolName)
+                                                ?? throw new InvalidOperationException(
+                                                    $"Missing flat provider alias for tool '{canonicalToolName}'."),
+                                            invocationSnapshot.Revision,
+                                            fc.CallId,
+                                            projectedArguments ?? []);
+                                        if (existingProjectedItem is null)
+                                            turn.Items.Add(toolCallItem);
+                                        if (emitProjection)
+                                            eventChannel.EmitItemStarted(toolCallItem);
+                                        if (!string.IsNullOrWhiteSpace(fc.CallId))
+                                        {
+                                            streamingToolCallItemsByCallId?.Remove(fc.CallId);
+                                            TryRemoveStreamingToolCallIndexByItemReference(
+                                                streamingToolCallItemsByIndex,
+                                                toolCallItem);
+                                        }
+                                    }
+
+                                    if (toolCallItem is null && !string.IsNullOrWhiteSpace(fc.CallId)
                                         && streamingToolCallItemsByCallId != null
                                         && streamingToolCallItemsByCallId.TryGetValue(fc.CallId, out var existingStreamingToolCallItem))
                                     {
@@ -2415,6 +2509,7 @@ public sealed partial class SessionService(
                                         toolCallItem.Payload = new ToolCallPayload
                                         {
                                             ToolName = fc.Name,
+                                            ProviderFlatName = fc.Name,
                                             Arguments = fc.Arguments != null
                                                 ? JsonNode.Parse(
                                                     System.Text.Json.JsonSerializer.Serialize(
@@ -2428,7 +2523,7 @@ public sealed partial class SessionService(
                                             streamingToolCallItemsByIndex,
                                             existingStreamingToolCallItem);
                                     }
-                                    else
+                                    else if (toolCallItem is null)
                                     {
                                         toolCallItem = new SessionItem
                                         {
@@ -2441,6 +2536,7 @@ public sealed partial class SessionService(
                                             Payload = new ToolCallPayload
                                             {
                                                 ToolName = fc.Name,
+                                                ProviderFlatName = fc.Name,
                                                 Arguments = fc.Arguments != null
                                                     ? JsonNode.Parse(
                                                         System.Text.Json.JsonSerializer.Serialize(
@@ -2494,7 +2590,14 @@ public sealed partial class SessionService(
                                         break;
                                     }
                                     var resultText = ImageContentSanitizingChatClient.DescribeResult(fr.Result);
+                                    var toolResultErrorCode = StreamingFunctionInvokingChatClient.GetToolResultErrorCode(fr);
                                     var contentItems = ExtractToolResultContentItems(fr.Result);
+                                    var persistedCall = turn.Items
+                                        .Select(static item => item.Payload as ToolCallPayload)
+                                        .LastOrDefault(payload => string.Equals(
+                                            payload?.CallId,
+                                            fr.CallId,
+                                            StringComparison.Ordinal));
                                     var toolResultItem = new SessionItem
                                     {
                                         Id = SessionIdGenerator.NewItemId(NextItemSeq()),
@@ -2506,10 +2609,16 @@ public sealed partial class SessionService(
                                         Payload = new ToolResultPayload
                                         {
                                             CallId = fr.CallId,
+                                            Namespace = persistedCall?.Namespace,
+                                            ToolName = persistedCall?.ToolName ?? string.Empty,
+                                            ProviderFlatName = persistedCall?.ProviderFlatName ?? string.Empty,
                                             Result = resultText,
                                             ContentItems = contentItems,
                                             Success = fr.Exception == null
-                                                && !StreamingFunctionInvokingChatClient.IsInvalidToolArgumentsResult(fr)
+                                                && toolResultErrorCode == null
+                                                && !StreamingFunctionInvokingChatClient.IsInvalidToolArgumentsResult(fr),
+                                            ErrorCode = toolResultErrorCode,
+                                            ErrorMessage = toolResultErrorCode == null ? null : resultText
                                         }
                                     };
                                     turn.Items.Add(toolResultItem);
@@ -3173,7 +3282,7 @@ public sealed partial class SessionService(
             throw new ArgumentException("A thread identifier is required.", nameof(threadId));
         var thread = await GetOrLoadThreadAsync(threadId, cancellationToken).ConfigureAwait(false);
         var runtime = _runtimeRegistry.SetThread(thread);
-        if (thread.Configuration?.McpServers is not null
+        if ((thread.Configuration?.McpServers is not null || runtime.GetBindingMcpServers().Count > 0)
             && (runtime.LatestToolSnapshot == null || runtime.ToolSnapshotDirty))
         {
             using (await AcquireThreadAgentLockAsync(threadId, cancellationToken).ConfigureAwait(false))
@@ -3184,6 +3293,32 @@ public sealed partial class SessionService(
         }
 
         return runtime.McpManager ?? agentFactory.RuntimeContext.McpClientManager;
+    }
+
+    /// <inheritdoc />
+    public async Task SetBindingMcpServersAsync(
+        string threadId,
+        string bindingId,
+        IReadOnlyList<McpServerConfig> servers,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(threadId);
+        ArgumentException.ThrowIfNullOrWhiteSpace(bindingId);
+        ArgumentNullException.ThrowIfNull(servers);
+
+        var normalized = servers.Select(server =>
+        {
+            var clone = server.Clone();
+            clone.Origin = McpServerOrigin.Binding(bindingId, server.Origin.DeclaredName ?? server.Name);
+            return clone;
+        }).ToArray();
+        var thread = await GetOrLoadThreadAsync(threadId, cancellationToken).ConfigureAwait(false);
+        var runtime = _runtimeRegistry.SetThread(thread);
+        using (await AcquireThreadAgentLockAsync(threadId, cancellationToken).ConfigureAwait(false))
+        {
+            runtime.SetBindingMcpServers(bindingId, normalized);
+            SetThreadAgent(threadId, await BuildAgentForThreadAsync(thread, cancellationToken).ConfigureAwait(false));
+        }
     }
 
     private async Task RebuildAgentAndPersistThreadAsync(SessionThread thread, CancellationToken ct)
@@ -3625,8 +3760,7 @@ public sealed partial class SessionService(
     private bool RequiresPerThreadAgent(SessionThread thread)
     {
         if (agentFactory.RuntimeContext.McpClientManager != null
-            || agentFactory.ToolSources.Any(source =>
-                source is IThreadScopedToolSource or LegacyAppBindingToolSource)
+            || agentFactory.ToolSources.Any(source => source is IThreadScopedToolSource)
             || pluginToolSourceProviders?.Any() == true)
         {
             return true;
@@ -4879,17 +5013,32 @@ public sealed partial class SessionService(
         if (!string.IsNullOrWhiteSpace(config.ExecutionWorkspaceOverride))
             toolContext = CloneContextWithExecutionWorkspace(toolContext, config.ExecutionWorkspaceOverride);
 
-        if (config.McpServers is not null)
+        var bindingMcpServers = threadRuntimeState.GetBindingMcpServers();
+        if (config.McpServers is not null || bindingMcpServers.Count > 0)
         {
+            var inheritedMcpServers = config.McpServers is null && toolContext.McpClientManager is not null
+                ? await toolContext.McpClientManager.ListConfigsAsync(ct)
+                : [];
+            var effectiveMcpServers = McpServerComposition.Compose(
+                thread.Id,
+                config.McpServers,
+                inheritedMcpServers,
+                bindingMcpServers);
             var threadMcpManager = threadRuntimeState.McpManager ?? new McpClientManager();
-            await threadMcpManager.ConnectAsync(config.McpServers, ct);
+            await threadMcpManager.ConnectAsync(effectiveMcpServers, ct);
             await threadMcpManager.WaitForStartupCompletionAsync(ct);
             threadRuntimeState.McpManager = threadMcpManager;
             toolContext = CloneContextWithMcpManager(toolContext, threadMcpManager);
         }
-        else if (toolContext.McpClientManager != null)
+        else
         {
-            await toolContext.McpClientManager.WaitForStartupCompletionAsync(ct);
+            if (threadRuntimeState.McpManager is { } obsoleteThreadManager)
+            {
+                threadRuntimeState.McpManager = null;
+                await obsoleteThreadManager.DisposeAsync();
+            }
+            if (toolContext.McpClientManager != null)
+                await toolContext.McpClientManager.WaitForStartupCompletionAsync(ct);
         }
 
         toolContext.SourceControlWriteCoordinator = CreateSourceControlWriteCoordinator(currentConfig, toolContext.WorkspacePath, thread);
@@ -4951,8 +5100,13 @@ public sealed partial class SessionService(
             toolContext,
             ct);
         toolSnapshot = toolSnapshot.WithModelExposure(definition =>
-            capabilityPolicy.AllowsTool(AgentFactory.ProjectSnapshotDefinition(toolSnapshot, definition)));
+            toolSnapshot.Registrations.TryGetValue(definition.Name, out var registration)
+            && capabilityPolicy.AllowsRegistrationExposure(registration)
+            && capabilityPolicy.AllowsTool(AgentFactory.ProjectSnapshotDefinition(toolSnapshot, definition)));
         threadRuntimeState.SetLatestToolSnapshot(toolSnapshot);
+        EffectiveToolSnapshotChanged?.Invoke(
+            this,
+            new EffectiveToolSnapshotChangedEventArgs(thread.Id, toolSnapshot.Revision));
         var snapshotTools = AgentFactory.ProjectSnapshotTools(toolSnapshot);
 
         if (config.UseToolProfileOnly)
@@ -4981,6 +5135,17 @@ public sealed partial class SessionService(
 
     private static void ApplyThreadToolFilters(List<AITool> tools, ThreadCapabilityPolicyEvaluator policy) =>
         tools.RemoveAll(tool => !policy.AllowsTool(tool));
+
+    private static bool TryResolveProviderFunctionCall(
+        EffectiveToolSnapshot snapshot,
+        FunctionCallContent call,
+        out ToolName toolName)
+    {
+        if (ResponsesToolSearchMapper.TryGetFunctionCallNamespace(call, out var toolNamespace))
+            return snapshot.TryResolveProviderNamespacedName(toolNamespace, call.Name, out toolName);
+
+        return snapshot.TryResolveProviderFlatName(call.Name, out toolName);
+    }
 
     private static IChatClient ResolveThreadChatClient(AgentRuntimeContext baseContext, EffectiveModelRuntime runtime)
     {

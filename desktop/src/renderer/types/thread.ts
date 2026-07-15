@@ -73,13 +73,13 @@ export interface ThreadAppBindingSummaryWire {
   appId: string
   displayName?: string | null
   icon?: string | null
-  toolNamespace?: string | null
   state: string
-  connectionState: string
   managed?: boolean
   requiresExternalConnection?: boolean
-  grantedScopes: string[]
-  expiresAt?: string | null
+  authorityRevision?: number
+  approvedCapabilityRevision?: number
+  candidateCapabilityRevision?: number | null
+  failureReason?: string | null
 }
 
 export interface ThreadOriginApp {

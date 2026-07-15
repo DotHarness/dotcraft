@@ -21,6 +21,7 @@ internal sealed class HookWrappedFunction : DelegatingAIFunction,
     IDeferredToolMetadata,
     IGeneratedToolMetadata,
     IToolNamespaceMetadata,
+    ICanonicalToolIdentityMetadata,
     IOpenAIResponsesFunctionToolMetadata
 {
     private readonly HookRunner _hookRunner;
@@ -42,6 +43,22 @@ internal sealed class HookWrappedFunction : DelegatingAIFunction,
 
     public string? ToolNamespace =>
         ToolNamespaceMetadataResolver.TryGet(InnerFunction, out var toolNamespace) ? toolNamespace : null;
+
+    public string? ToolNamespaceDescription => ToolNamespaceMetadataResolver.GetDescription(InnerFunction);
+
+    public ToolName CanonicalToolName =>
+        CanonicalToolIdentityMetadataResolver.TryGet(InnerFunction, out var toolName, out _)
+            ? toolName
+            : new ToolName(
+                ToolNamespaceMetadataResolver.TryGet(InnerFunction, out var toolNamespace)
+                    ? toolNamespace
+                    : null,
+                InnerFunction.Name);
+
+    public string ProviderFlatName =>
+        CanonicalToolIdentityMetadataResolver.TryGet(InnerFunction, out _, out var providerFlatName)
+            ? providerFlatName
+            : ProviderToolProjector.Project([CanonicalToolName])[CanonicalToolName];
 
     public bool? Strict =>
         InnerFunction is IOpenAIResponsesFunctionToolMetadata metadata ? metadata.Strict : null;

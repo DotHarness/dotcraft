@@ -97,7 +97,7 @@ public sealed class WireClientTests
         Assert.Equal("initialized", initialized.RootElement.GetProperty("method").GetString());
 
         await using var client = await connectTask;
-        client.RegisterDynamicToolHandler("thread_1", "oratorio", "Echo", (call, _) =>
+        client.RegisterDynamicToolHandler("thread_1", "sample", "Echo", (call, _) =>
             Task.FromResult(new DynamicToolResult(
                 true,
                 [new ToolContentItem("text", "Echo completed")],
@@ -111,7 +111,7 @@ public sealed class WireClientTests
             @params = new
             {
                 threadId = "thread_1",
-                @namespace = "oratorio",
+                @namespace = "sample",
                 tool = "Echo",
                 arguments = new { message = "hello" }
             }

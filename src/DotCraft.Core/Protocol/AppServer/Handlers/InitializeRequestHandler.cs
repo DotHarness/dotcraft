@@ -16,6 +16,11 @@ internal sealed class InitializeRequestHandler(
     {
         _ = ct;
         var p = AppServerParams.Get<AppServerInitializeParams>(msg);
+        if (p.Capabilities?.AppBindingVersion is { } requestedAppBindingVersion
+            && requestedAppBindingVersion != DotCraft.AppBinding.AppBindingContract.Version)
+        {
+            throw AppServerErrors.AppBindingUpgradeRequired();
+        }
         if (!connection.TryMarkInitialized(p.ClientInfo, p.Capabilities))
             throw AppServerErrors.AlreadyInitialized();
 

@@ -59,6 +59,10 @@ public sealed class AppServerClientInfo
 
 public sealed class AppServerClientCapabilities
 {
+    /// <summary>App Binding control-plane version required by the client.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public int? AppBindingVersion { get; set; }
+
     /// <summary>Whether the client can handle server-initiated approval requests. Default true.</summary>
     public bool? ApprovalSupport { get; set; }
 
@@ -104,7 +108,7 @@ public sealed class AppServerClientCapabilities
 
     /// <summary>
     /// Whether the client hosts the stable MCP Apps extension. This is independent from the
-    /// legacy App Binding interactive UI capability.
+    /// private App Binding interactive UI capability.
     /// </summary>
     public bool? McpApps { get; set; }
 
@@ -269,16 +273,10 @@ public sealed class AppServerServerCapabilities
     public bool RuntimeAdditionalContext { get; set; }
 
     /// <summary>
-    /// Server supports App Binding methods (<c>app/*</c> and <c>thread/appBindings/*</c>).
+    /// App Binding control-plane version supported by the server.
     /// </summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public bool AppBinding { get; set; }
-
-    /// <summary>
-    /// Server supports AppBinding-owned thread app context blocks.
-    /// </summary>
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public bool AppContextBlocks { get; set; }
+    public int AppBindingVersion { get; set; }
 
     /// <summary>
     /// Server supports AppBinding-safe app-triggered queued input via <c>app/threadInput/enqueue</c>.

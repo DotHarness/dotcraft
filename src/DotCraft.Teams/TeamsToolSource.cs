@@ -86,6 +86,7 @@ public sealed class TeamsToolSource(TeamsService service) : IToolSource
         return new ToolRegistration(
             definition,
             binding,
+            ToolProjectionShape.StandardPair,
             ToolExposure.Direct,
             ToolInvocationAudience.Model);
     }

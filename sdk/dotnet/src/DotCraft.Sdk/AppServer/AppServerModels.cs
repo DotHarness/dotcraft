@@ -111,7 +111,7 @@ public sealed record AppServerServerCapabilities(
     bool ThreadSubscriptions,
     bool DynamicToolRebind,
     bool RuntimeAdditionalContext,
-    bool AppBinding,
+    int AppBindingVersion,
     bool ModelCatalogManagement,
     JsonElement Raw);
 
@@ -315,43 +315,6 @@ public sealed record ToolApprovalDescriptor(
     string? OperationArgument = null);
 
 /// <summary>
-/// Legacy App Binding v1 tool descriptor retained for the temporary M1 adapter.
-/// </summary>
-public sealed record AppBoundToolSpec(
-    string? Namespace,
-    string Name,
-    string Description,
-    JsonElement InputSchema,
-    bool DeferLoading = false,
-    ToolApprovalDescriptor? Approval = null,
-    [property: JsonPropertyName("_meta")] AppBoundToolMeta? Meta = null);
-
-/// <summary>
-/// Extensible <c>_meta</c> envelope on an App Binding v1 tool descriptor.
-/// </summary>
-public sealed record AppBoundToolMeta(
-    [property: JsonPropertyName("ui")] AppBoundToolUiMeta? Ui = null);
-
-/// <summary>
-/// Interactive Tool UI descriptor (<c>_meta.ui</c>), aligned to MCP Apps / SEP-1865.
-/// </summary>
-public sealed record AppBoundToolUiMeta(
-    [property: JsonPropertyName("resourceUri")] string ResourceUri,
-    [property: JsonPropertyName("visibility")] IReadOnlyList<string>? Visibility = null,
-    [property: JsonPropertyName("csp")] AppBoundToolUiCsp? Csp = null,
-    [property: JsonPropertyName("permissions")] IReadOnlyList<string>? Permissions = null,
-    [property: JsonPropertyName("prefersBorder")] bool? PrefersBorder = null,
-    [property: JsonPropertyName("domain")] string? Domain = null);
-
-/// <summary>
-/// Content-Security-Policy allowances for an Interactive Tool UI iframe.
-/// </summary>
-public sealed record AppBoundToolUiCsp(
-    [property: JsonPropertyName("connectDomains")] IReadOnlyList<string>? ConnectDomains = null,
-    [property: JsonPropertyName("resourceDomains")] IReadOnlyList<string>? ResourceDomains = null,
-    [property: JsonPropertyName("frameDomains")] IReadOnlyList<string>? FrameDomains = null);
-
-/// <summary>
 /// Runtime dynamic tool call sent from AppServer to the SDK client.
 /// </summary>
 public sealed record DynamicToolCall(
@@ -381,25 +344,6 @@ public sealed record ToolContentItem(
     string? MediaType = null,
     string? Url = null,
     string? DataBase64 = null);
-
-/// <summary>
-/// Request to read a <c>ui://</c> Interactive Tool UI resource (MCP Apps), brokered from the host.
-/// </summary>
-public sealed record ResourceReadRequest(string ThreadId, string? Namespace, string Uri);
-
-/// <summary>
-/// A single <c>ui://</c> resource entry returned by the app.
-/// </summary>
-public sealed record ResourceContent(
-    [property: JsonPropertyName("uri")] string Uri,
-    [property: JsonPropertyName("mimeType")] string? MimeType = null,
-    [property: JsonPropertyName("text")] string? Text = null);
-
-/// <summary>
-/// Result of a <c>ui://</c> resource read; aligned to MCP <c>resources/read</c>.
-/// </summary>
-public sealed record ResourceReadResult(
-    [property: JsonPropertyName("contents")] IReadOnlyList<ResourceContent> Contents);
 
 internal static class JsonElementReaders
 {

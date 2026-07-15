@@ -65,4 +65,39 @@ public sealed class McpAppTransientContextStoreTests
         Assert.Empty(store.TakeForQueuedInput("queued-1"));
         Assert.Empty(store.TakeForThread("thread-1"));
     }
+
+    [Fact]
+    public async Task TakeForThread_RacingSet_HasOneAtomicCut()
+    {
+        for (var iteration = 0; iteration < 250; iteration++)
+        {
+            var store = new McpAppTransientContextStore();
+            store.Set("existing", "thread-1", [new TextContent("existing")]);
+            using var start = new ManualResetEventSlim();
+
+            var set = Task.Run(() =>
+            {
+                start.Wait();
+                store.Set("racing", "thread-1", [new TextContent("racing")]);
+            });
+            var take = Task.Run(() =>
+            {
+                start.Wait();
+                return store.TakeForThread("thread-1");
+            });
+
+            start.Set();
+            await Task.WhenAll(set, take);
+            var first = await take;
+            var second = store.TakeForThread("thread-1");
+            var observed = first.Concat(second)
+                .Cast<TextContent>()
+                .Select(static content => content.Text)
+                .Order(StringComparer.Ordinal)
+                .ToArray();
+
+            Assert.Equal(["existing", "racing"], observed);
+            Assert.Empty(store.TakeForThread("thread-1"));
+        }
+    }
 }

@@ -74,6 +74,41 @@ public sealed class ThreadEventBrokerTests
         Assert.Equal("provider unavailable", payload.Message);
     }
 
+    [Fact]
+    public async Task SubscribeAsync_ReplayedEventsAreMarkedWithoutMutatingLiveEvents()
+    {
+        var broker = new ThreadEventBroker("thread-1");
+        var item = new SessionItem
+        {
+            Id = "item_001",
+            TurnId = "turn_001",
+            Type = ItemType.McpToolCall,
+            Status = ItemStatus.Completed,
+            CreatedAt = DateTimeOffset.UtcNow,
+            CompletedAt = DateTimeOffset.UtcNow,
+            Payload = new McpToolCallPayload
+            {
+                ProviderFlatName = "mcp__server__tool",
+                ToolName = "tool",
+                Server = "server",
+                SourceToolId = "tool",
+                CallId = "call-1",
+                Status = "completed"
+            }
+        };
+        broker.PublishItemEvent(SessionEventType.ItemCompleted, item.TurnId, item);
+
+        await using var replay = broker.SubscribeAsync(replayRecent: true).GetAsyncEnumerator();
+        Assert.True(await replay.MoveNextAsync());
+        Assert.True(replay.Current.IsReplay);
+
+        using var cancellation = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+        await using var live = broker.SubscribeAsync(ct: cancellation.Token).GetAsyncEnumerator();
+        broker.PublishItemEvent(SessionEventType.ItemCompleted, item.TurnId, item);
+        Assert.True(await live.MoveNextAsync());
+        Assert.False(live.Current.IsReplay);
+    }
+
     private static async Task<List<SessionEvent>> CollectAsync(
         IAsyncEnumerable<SessionEvent> events,
         int expectedCount,

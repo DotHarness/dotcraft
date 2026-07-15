@@ -57,6 +57,8 @@ public sealed record AppServerConnectionServices
     public IAutomationsRequestHandler? AutomationsHandler { get; init; }
     public Action<CronJobWireInfo, bool>? BroadcastCronStateChanged { get; init; }
     public Action<McpStatusInfoWire>? BroadcastMcpStatusChanged { get; init; }
+    public Action<string, string, object?>? NotifyAppPrincipal { get; init; }
+    public Action<string, object?>? BroadcastTrustedNotification { get; init; }
     public ICommitMessageSuggestService? CommitMessageSuggest { get; init; }
     public IWelcomeSuggestionService? WelcomeSuggestionService { get; init; }
     public string? DashboardUrl { get; init; }

@@ -183,7 +183,7 @@ test("FeishuListWikiNodes supports wiki URL and auto-resolves space", async () =
     client,
   });
   assert.equal(result?.success, true);
-  assert.deepEqual(result?.structuredResult, {
+  assert.deepEqual(result?.structuredContent, {
     spaceId: WIKI_SPACE_ID,
     parentNodeToken: WIKI_NODE_TOKEN,
     items: [
@@ -222,7 +222,7 @@ test("FeishuGetWikiNodeInfo includes documentId when node objType is docx", asyn
     client,
   });
   assert.equal(result?.success, true);
-  assert.deepEqual(result?.structuredResult, {
+  assert.deepEqual(result?.structuredContent, {
     spaceId: WIKI_SPACE_ID,
     nodeToken: WIKI_NODE_TOKEN,
     objToken: DOC_ID,
@@ -271,7 +271,7 @@ test("FeishuMoveDocxToWiki returns ready=true when wiki_token is immediate", asy
     client,
   });
   assert.equal(result?.success, true);
-  const structured = result?.structuredResult as Record<string, unknown>;
+  const structured = result?.structuredContent as Record<string, unknown>;
   assert.equal(structured.ready, true);
   assert.equal(structured.wikiToken, WIKI_NODE_TOKEN);
 });
@@ -311,7 +311,7 @@ test("FeishuMoveDocxToWiki returns ready=true after polling completes", async ()
       client,
     });
     assert.equal(result?.success, true);
-    const structured = result?.structuredResult as Record<string, unknown>;
+    const structured = result?.structuredContent as Record<string, unknown>;
     assert.equal(structured.ready, true);
     assert.equal(structured.wikiToken, "ResolvedWikiPlaceholder0001");
     assert.equal(pollCalls, 2);
@@ -366,7 +366,7 @@ test("FeishuMoveDocxToWiki returns timedOut when polling exhausts attempts", asy
       client,
     });
     assert.equal(result?.success, true);
-    const structured = result?.structuredResult as Record<string, unknown>;
+    const structured = result?.structuredContent as Record<string, unknown>;
     assert.equal(structured.ready, false);
     assert.equal(structured.timedOut, true);
     assert.equal(structured.taskId, "task-timeout");
@@ -423,7 +423,7 @@ test("FeishuMoveDocxToWiki with waitForCompletion=false surfaces taskId and next
     client,
   });
   assert.equal(result?.success, true);
-  const structured = result?.structuredResult as Record<string, unknown>;
+  const structured = result?.structuredContent as Record<string, unknown>;
   assert.equal(structured.ready, false);
   assert.equal(structured.taskId, "task-async");
   assert.ok(typeof structured.nextAction === "string");
@@ -491,7 +491,7 @@ test("FeishuMoveWikiNode auto-resolves source space from node and target space f
   });
   assert.equal(result?.success, true);
   assert.equal(moveCalls, 1);
-  const structured = result?.structuredResult as Record<string, unknown>;
+  const structured = result?.structuredContent as Record<string, unknown>;
   assert.equal(structured.sourceSpaceId, WIKI_SPACE_ID);
   assert.equal(structured.targetSpaceId, TARGET_SPACE_ID);
   assert.equal(structured.parentNodeToken, TARGET_PARENT_TOKEN);
@@ -524,7 +524,7 @@ test("FeishuListWikiSpaces surfaces paginated space metadata", async () => {
     client,
   });
   assert.equal(result?.success, true);
-  const structured = result?.structuredResult as Record<string, unknown>;
+  const structured = result?.structuredContent as Record<string, unknown>;
   assert.equal(structured.nextPageToken, "next-page");
   assert.equal(structured.hasMore, true);
   const items = structured.items as Array<Record<string, unknown>>;
@@ -565,7 +565,7 @@ test("FeishuGetWikiSpace accepts wiki URL and returns space metadata", async () 
     client,
   });
   assert.equal(result?.success, true);
-  const structured = result?.structuredResult as Record<string, unknown>;
+  const structured = result?.structuredContent as Record<string, unknown>;
   assert.equal(structured.spaceId, WIKI_SPACE_ID);
   assert.equal(structured.name, "Team Wiki");
   assert.equal(structured.visibility, "public");
@@ -595,7 +595,7 @@ test("FeishuGetWikiNodeInfo reverse-looks-up via objType=docx", async () => {
     client,
   });
   assert.equal(result?.success, true);
-  const structured = result?.structuredResult as Record<string, unknown>;
+  const structured = result?.structuredContent as Record<string, unknown>;
   assert.equal(structured.nodeToken, WIKI_NODE_TOKEN);
   assert.equal(structured.objToken, DOC_ID);
   assert.equal(structured.objType, "docx");
@@ -638,7 +638,7 @@ test("FeishuCreateWikiNode creates docx node and updates title separately", asyn
   assert.equal(createCalls[0]!.title, undefined);
   assert.equal(titleCalls.length, 1);
   assert.equal(titleCalls[0]!.title, "New Release Notes");
-  const structured = result?.structuredResult as Record<string, unknown>;
+  const structured = result?.structuredContent as Record<string, unknown>;
   assert.equal(structured.nodeToken, WIKI_NODE_TOKEN);
   assert.equal(structured.title, "New Release Notes");
   assert.equal(structured.documentId, DOC_ID);

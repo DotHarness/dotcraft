@@ -201,6 +201,7 @@ class ServerInfo:
 
 @dataclass
 class ServerCapabilities:
+    app_binding_version: int = 0
     thread_management: bool = False
     thread_subscriptions: bool = False
     approval_flow: bool = False
@@ -214,6 +215,7 @@ class ServerCapabilities:
     @classmethod
     def from_wire(cls, data: dict) -> ServerCapabilities:
         return cls(
+            app_binding_version=data.get("appBindingVersion", 0),
             thread_management=data.get("threadManagement", False),
             thread_subscriptions=data.get("threadSubscriptions", False),
             approval_flow=data.get("approvalFlow", False),

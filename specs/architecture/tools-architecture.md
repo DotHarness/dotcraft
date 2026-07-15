@@ -2,15 +2,15 @@
 
 | Field | Value |
 |---|---|
-| Version | 0.1.0 |
-| Status | Proposed |
-| Date | 2026-07-14 |
+| Version | 0.2.2 |
+| Status | Normative |
+| Date | 2026-07-15 |
 | Scope | Agent tools, authority binding, execution, session projection, and interactive presentation |
 | Related | [Session Core](session-core.md), [AppServer Protocol](../protocols/appserver-protocol.md), [App Binding](../protocols/app-binding.md), [Tool Result Presentation](../protocols/tool-result-presentation.md), [Plugin Architecture](plugin-architecture.md) |
 
 ## 1. Purpose
 
-This specification defines the target architecture for every tool that can be made available to a DotCraft agent. It is the architectural source of truth for the tool refactor milestones. It separates concerns that are currently coupled across native tool providers, MCP, Runtime Dynamic Tools, App Binding, Plugin Functions, Teams, social channels, and Desktop rendering.
+This specification defines the architecture for every tool that can be made available to a DotCraft agent. It is the source of truth for shared behavior across native tool providers, MCP, Runtime Dynamic Tools, App Binding, Plugin Functions, Teams, social channels, and Desktop rendering.
 
 The architecture has four goals:
 
@@ -19,7 +19,7 @@ The architecture has four goals:
 3. consistent AppServer tool semantics across server and clients;
 4. standards-based interactive tool UI through MCP Apps, while retaining DotCraft-specific App Binding as a small authorization and connection control plane.
 
-This document describes the target state. Existing protocol documents continue to describe released behavior until their owning milestone updates them. When a milestone adopts a conflicting rule, this document is authoritative for the intended replacement and the affected protocol specification MUST be updated in the same implementation change.
+The affected protocol specification MUST be updated in the same implementation change whenever one of these shared rules changes.
 
 ### 1.1 Specification ownership
 
@@ -32,7 +32,7 @@ This document describes the target state. Existing protocol documents continue t
 | MCP and MCP Apps standards | MCP capability, tool/resource/result, Apps metadata, and bridge wire contracts |
 | plugin/SDK/client specifications | source authoring, language APIs, and UI mapping of the architecture/protocol contracts |
 
-Downstream specifications MUST reference these semantics rather than copy and locally redefine them. Wire field details shown here or in milestone plans are design requirements; the owning protocol specification becomes authoritative for their final serialization when that milestone is implemented.
+Downstream specifications MUST reference these semantics rather than copy and locally redefine them. The owning protocol specification is authoritative for serialization details.
 
 ## 2. Non-goals
 
@@ -43,7 +43,7 @@ This specification does not:
 - make every tool source use the same transport or session item type;
 - require interactive UI for a tool to be correct;
 - expose App Binding credentials or external app executables to the agent runtime;
-- preserve wire compatibility with the pre-refactor Dynamic Tool or App Binding tool-attachment protocols.
+- provide aliases for Runtime Dynamic Tool or App Binding execution protocols.
 
 ## 3. Normative language
 
@@ -57,6 +57,7 @@ The key words **MUST**, **MUST NOT**, **SHOULD**, **SHOULD NOT**, and **MAY** ar
 | **Tool Definition** | An immutable source-qualified semantic definition: identity, model-facing name, description, schemas, hints, and presentation link. |
 | **Tool Runtime Binding** | A live or stub binding from a definition to an executor, lifecycle lease, authority reference, availability, and revision. |
 | **Tool Registration** | The resolved source-neutral join of a definition, runtime-binding reference, exposure defaults, and safe provenance for snapshot planning. |
+| **Tool Projection Shape** | The source-declared Session lifecycle shape for an invocation: a standard call/result pair or one specialized lifecycle item. |
 | **Tool Runtime** | The executor implementation used by a live runtime binding. |
 | **Tool Authority** | The server-authoritative decision that a registration is permitted for a thread and invocation context. |
 | **Tool Exposure** | Whether and how a permitted tool is published to the model. |
@@ -67,7 +68,7 @@ The key words **MUST**, **MUST NOT**, **SHOULD**, **SHOULD NOT**, and **MAY** ar
 | **Runtime Dynamic Tool** | A thread-scoped callback implemented by the connected AppServer client. It is connection-owned and not a general external app integration mechanism. |
 | **Binding MCP** | An MCP server connection authorized for one App Binding and added independently to one thread. |
 
-The term **Dynamic Tool** without the **Runtime** qualifier SHOULD be avoided in new design and code because App Binding tools are no longer transported through that mechanism.
+**Runtime Dynamic Tool** is the canonical term for client-owned callbacks. App Binding tools use binding-scoped MCP sessions.
 
 ## 5. Architectural layers
 
@@ -96,9 +97,9 @@ A source contribution MUST separate durable semantic definition from live execut
 
 - `ToolDefinition` contains `ToolDefinitionId`, `ToolName`, `SourceToolId`, schemas, safe source provenance, approval/policy hints, and optional presentation link;
 - `ToolRuntimeBinding` contains `RuntimeBindingId`, definition reference, executor handle, lifecycle/connection lease, `AuthorityRef`, availability, and binding revision;
-- `ToolRegistration` is the resolved planning join and contains references/revisions rather than persisting a live executor inside the definition.
+- `ToolRegistration` is the resolved planning join and contains references/revisions plus the source-declared projection shape rather than persisting a live executor inside the definition.
 
-This split MUST represent a stable definition with a replaced MCP connection, a durable grant with an offline executor, and readable historical items with no current runtime. Source-specific opaque state and live executor handles are never model-visible and never stored in durable definition snapshots.
+This split MUST represent a stable definition with a replaced MCP connection, a durable grant with an offline executor, and persisted items with no current runtime. Source-specific opaque state and live executor handles are never model-visible and never stored in durable definition snapshots.
 
 The runtime registry MUST retain executable registrations that are hidden from the model. Model-visible definition generation is a projection of the runtime registry, not the registry itself. The source catalog, runtime registry, per-thread effective snapshot, local renderer registry, and MCP Apps resource broker are separate indexes with different owners; none may be used as an alias for another.
 
@@ -123,24 +124,28 @@ Exposure determines publication to the model after authority is established. The
 
 `ToolExposure` controls model and code-mode publication only. Host/app invocation eligibility is a separate invocation-audience/capability decision. App visibility MUST NOT introduce additional `ToolExposure` values. For MCP Apps, the stable visibility contract maps independently to model-visible and app-callable decisions.
 
+Deferred discovery MUST be finalized from the effective snapshot rather than from an independent provider-only surface. When the final snapshot contains searchable deferred registrations, planning MUST add a real Core Native search registration and runtime to the same registry with canonical identity `ToolName(null, "tool_search")`. Every provider projection uses that same identity; an adapter MUST NOT introduce a second semantic name such as `SearchTools`. When no searchable deferred registration remains, the search registration MUST be absent. Provider-native result content MAY be retained transiently by the normalized execution result, but the search invocation still uses the common dispatcher and Session projection pipeline.
+
 ### 5.5 Execution
 
-All sources MUST converge on this ordered source-neutral dispatch pipeline:
+All sources MUST converge on this ordered source-neutral dispatch pipeline. Planning context selects an immutable snapshot, but it is not invocation identity. At the model callback boundary, Session execution MUST create an immutable `ToolInvocationContext` containing the live thread, Turn, call, audience, cancellation, approval, and authority inputs. A planning Turn id MUST NOT be used as a substitute for the live Turn id. Dispatch and recording MUST use only that explicit invocation context after the boundary. A host invocation without a Turn MAY execute when its audience is authorized, but it MUST NOT create a Session Turn item.
 
-1. resolve the provider call name to exact canonical identity in the Turn snapshot;
-2. verify snapshot exposure and invocation audience;
-3. check binding lease, live authority, and policy;
-4. validate arguments against the input schema;
-5. apply mode/thread/native guards and MCP annotation policy;
-6. run `PreToolUse` hooks;
-7. resolve approval;
-8. project the source-appropriate started lifecycle;
+1. resolve the provider callback identity to the exact canonical `ToolName` in the Turn snapshot, using the composite namespace/name for namespace-capable protocols and the snapshot's flat alias index for flat-only protocols;
+2. atomically create or upsert the source-appropriate started projection from the resolved registration;
+3. verify snapshot exposure and invocation audience;
+4. check binding lease, live authority, and policy;
+5. validate arguments at the owning boundary: Host-owned sources validate against their declared schema, while MCP arguments remain JSON objects and are validated by the owning MCP server;
+6. apply mode/thread/native guards and MCP annotation policy;
+7. run `PreToolUse` hooks;
+8. resolve approval;
 9. execute through `IToolRuntime`, classifying timeout and caller cancellation separately;
 10. normalize result audiences, require model fallback where applicable, and enforce result limits;
 11. project the terminal Session lifecycle;
 12. run `PostToolUse` or `PostToolUseFailure` hooks.
 
-Source adapters MAY add transport-specific lifecycle behavior, but MUST NOT duplicate common approval, result audience, or error normalization rules.
+Every path after step 2 MUST terminalize the same projection, including validation, authority, policy, approval, cancellation, timeout, execution, and normalization failures. `ToolExecution` MAY separately indicate when the approved runtime actually begins. Source adapters MAY add transport-specific lifecycle behavior, but MUST NOT duplicate common approval, result audience, or error normalization rules.
+
+MCP input schemas are preserved as declared and follow the MCP JSON Schema contract. The Host MUST NOT apply the restricted Plugin/Runtime Dynamic schema validator to MCP arguments or reject valid composition and reference keywords before dispatch. Server-reported protocol and tool-execution input errors remain normal terminal MCP results. Oversized model-visible text is projected as a bounded preview without changing a successful source result into a failure. Raw MCP content, structured content, and metadata use an independent bounded persistence projection.
 
 Provider-hosted capabilities such as provider-native image generation are not local tools and MUST NOT be represented by `IToolRuntime` or dispatched through the local tool pipeline. Snapshot planning records them in a separate provider-capability plan, and the provider adapter projects their declarations and specialized Session items. Their result still obeys the audience and persistence rules applicable to their specialized item type.
 
@@ -155,7 +160,7 @@ Remote MCP metadata MUST NOT select an arbitrary local renderer.
 
 ## 6. Identity model
 
-Tool identity is intentionally split:
+Tool identity is intentionally split into semantic, source-routing, runtime, and provider-projection identities:
 
 | Identity | Purpose | Stability boundary |
 |---|---|---|
@@ -164,20 +169,43 @@ Tool identity is intentionally split:
 | `ToolName(namespace, name)` | Canonical model and router identifier | Effective snapshot and persisted invocation history |
 | `RuntimeBindingId` | Live executor/authority lease identity | One binding/session generation |
 | `PresentationId` | Trusted renderer selection | Core/Desktop presentation contract |
+| `ProviderFlatName` | Deterministic flat alias for providers that cannot represent namespaces | Effective snapshot and persisted invocation history |
 
-`ToolName` MUST be a true composite value with ordinal, case-sensitive equality. Two tools MAY have the same `name` in different namespaces. Deferred lookup MUST preserve the namespace.
+`ToolName` MUST be a true composite value with ordinal, case-sensitive equality. Its optional `namespace` and required `name` are model-visible components, not encoded source-routing data. Each present component MUST be non-empty and match `^[A-Za-z0-9_]+$`; its deterministic flat form (`name`, or `namespace + "__" + name`) MUST fit within 64 ASCII bytes. Two tools MAY have the same `name` in different namespaces. Deferred indexes, activated-tool sets, provider definitions, callbacks, and Session history MUST preserve the full composite identity.
 
-Source adapters SHOULD choose stable namespaces. MCP canonical identity is `ToolName("mcp__" + declaredServerName, rawToolName)`; the provider projection uses the normalized `mcp__server__tool` form after 64-byte normalization, legal-character cleanup, and deterministic SHA-1 12-character suffixing for truncation/collision cases. The declared server name and raw tool name remain available as source identity and provenance even when the provider projection is sanitized. The effective snapshot keeps the exact mapping `ToolName -> (ToolDefinitionId, RuntimeBindingId, SourceToolId)`. MCP `tools/call` always receives the original `SourceToolId`; neither Desktop nor an iframe may reconstruct it from a canonical name. The generic registry MUST quarantine every registration participating in a remaining duplicate canonical `ToolName`, retain non-conflicting registrations, and emit a diagnostic containing both safe provenances; it MUST NOT use source order or last-write-wins replacement.
+Source adapters SHOULD choose stable namespaces. Controlled non-MCP declarations that violate the component grammar MUST be rejected or quarantined at registration; they MUST NOT be silently rewritten into a different semantic identity.
 
-Provider/model call identifiers and Session item identifiers are different identities. They MUST be stored and projected separately and MUST survive resume, fork, compaction, and history reconstruction without being substituted for one another.
+MCP is normalized as one deterministic batch because an individual tool cannot detect sanitization collisions:
+
+1. The namespace seed is `mcp__` plus the origin's declared server name when present, otherwise its collision-safe runtime name. The child seed is the raw MCP tool name.
+2. Every Unicode scalar value outside ASCII letters, digits, and underscore is replaced with one `_`; hyphen is deliberately normalized even when a particular provider accepts it so one identity works across all supported providers. The source string is not Unicode-normalized before sanitization or hashing.
+3. A namespace is limited to 49 ASCII bytes. A longer namespace becomes its first 36 bytes, `_`, and the first 12 lowercase hexadecimal characters of SHA-1 over the UTF-8 bytes of the unsanitized seed.
+4. The child limit is `64 - namespaceLength - 2`, reserving `__` for a flat alias. A longer child is truncated using the same `prefix + "_" + 12-character SHA-1` form within that limit.
+5. If distinct runtime servers sanitize to the same namespace, each conflicting namespace receives a suffix derived from SHA-1 of the full runtime name. If distinct raw tools in one runtime sanitize to the same child, each conflicting child receives a suffix derived from SHA-1 of `runtimeName + NUL + rawToolName`. Truncation is reapplied after suffixing.
+6. Collision groups and suffixes are computed from ordinally sorted full seeds, so results do not depend on MCP enumeration or source discovery order. Any duplicate that remains after this algorithm is quarantined rather than resolved by last-write-wins.
+
+For MCP, `runtimeName` identifies the effective connection and may contain plugin/source delimiters; `SourceToolId` is the exact raw name sent to MCP `tools/call`; neither is a model namespace. The effective snapshot keeps the exact mapping `ToolName -> (ToolDefinitionId, RuntimeBindingId, runtimeName, SourceToolId)`. Desktop, an iframe, and provider adapters MUST NOT reconstruct the MCP route by parsing or prefixing `ToolName`.
+
+Direct publication, deferred indexes, native tool-search results, and provider callbacks MUST all use the same canonical `ToolName` namespace. In a namespace-capable tool-search result, the outer container name is the canonical namespace and every child name is the canonical local name; a `ProviderFlatName` MUST NOT be nested as a child name. A canonical namespace appears at most once in one provider projection or search result. Raw MCP server, runtime, and source identities are restricted to routing, authority, generation lookup, and provenance. A deferred descriptor is searchable metadata, not an identity authority, and its namespace MUST exactly equal its definition's canonical namespace. Provider callbacks containing an invalid or unknown namespace fail closed as an unresolved tool call; constructing a `ToolName` from untrusted callback data MUST NOT throw an exception that fails the Turn.
+
+The MCP initialize result's optional `instructions` value is the model-visible description of that server's canonical tool namespace. It is untrusted tool metadata, not a system prompt, role instruction, App Binding context block, or source of authority. The description follows the same normalization and size limits as other model-visible descriptions and MUST remain attached to the exact MCP server generation that returned it. Direct and deferred namespace-capable provider projections use the same normalized description. A namespace with no description uses the provider-neutral generic description. If model-visible registrations in one canonical namespace contain multiple distinct non-empty descriptions, projection uses the generic description, emits one safe `conflicting_namespace_description` snapshot diagnostic, and still emits exactly one namespace container. Reconnecting one server MUST NOT reuse another server's description. Binding MCP snapshots retain the approved description while offline and remove it on revocation. A description-only change follows the ordinary non-expanding capability-diff rule.
+
+Provider projection follows the provider's native identity shape:
+
+- a namespace-capable protocol serializes `ToolName(namespace, name)` as a namespace definition plus local child name and returns the same tuple on its function call;
+- a flat-only protocol uses the snapshot's `ProviderFlatName`, which is `name` for a top-level tool and `namespace + "__" + name` for a namespaced tool after the normalization above;
+- the snapshot owns both `ToolName -> ProviderFlatName` and `ProviderFlatName -> ToolName` indexes; if distinct canonical tuples produce the same flat alias, every conflicting alias is truncated as needed and suffixed from SHA-1 over the UTF-8 bytes of `namespace-or-empty + NUL + name`;
+- dispatch MUST NOT parse a flat alias to recover a namespace, and namespace-capable protocols MUST NOT flatten a composite identity before dispatch.
+
+Provider/model call identifiers, canonical `ToolName`, `ProviderFlatName`, source-routing identities, and Session item identifiers are different identities. They MUST be stored and projected separately and MUST survive resume, fork, compaction, and history reconstruction without being substituted for, parsed from, or regenerated from one another.
 
 ## 7. Core contracts
 
-Milestone 1 establishes the following conceptual contracts. Exact C# record members may evolve during implementation, but their responsibilities MUST remain separate.
+The following conceptual contracts have separate responsibilities:
 
 | Contract | Responsibility |
 |---|---|
-| `ToolName`, `SourceToolId`, `ToolDefinitionId`, `RuntimeBindingId` | Typed canonical, source, semantic-definition, and live-binding identities. |
+| `ToolName`, `ProviderFlatName`, `SourceToolId`, `ToolDefinitionId`, `RuntimeBindingId` | Typed canonical, flat-provider, source, semantic-definition, and live-binding identities. |
 | `IToolSource` | Contribute definitions and runtime bindings for a planning context. |
 | `ToolDefinition` | Immutable source-qualified semantic definition. |
 | `ToolRuntimeBinding` | Executor, lifecycle lease, authority, availability, and revision. |
@@ -186,11 +214,11 @@ Milestone 1 establishes the following conceptual contracts. Exact C# record memb
 | `IToolBindingLease` | Perform live availability/revocation/generation checks for a binding. |
 | `IToolAuthorityEvaluator` | Evaluate a source-declared live authority reference when the source has independently revocable authority. It is optional only when the source service or lease owns all live validation. |
 | `IToolDispatcher` | Apply the common invocation pipeline and dispatch to the selected runtime. |
-| `ToolPlanningContext` | Immutable inputs used to assemble the next Turn snapshot, including trusted `ToolPlanningThreadKind`. |
-| `ToolInvocationContext` | Thread, Turn, call, cancellation, approval, and authority inputs for dispatch. |
+| `ToolPlanningContext` | Immutable inputs used to assemble the next Turn snapshot, including trusted `ToolPlanningThreadKind`; its Turn identity is not an execution identity. |
+| `ToolInvocationContext` | Immutable live thread, Turn, call, audience, cancellation, approval, and authority inputs captured at the execution boundary. |
 | `ToolExecutionResult` | Normalized result and stable failure information. |
 | `ToolError` | Stable error code, English fallback, and optional structured parameters. |
-| `EffectiveToolSnapshot` | Immutable per-Turn registration/index/model-definition set. |
+| `EffectiveToolSnapshot` | Immutable per-Turn registration set plus canonical, composite-provider, and flat-alias indexes/model definitions. |
 | `ToolPresentationDescriptor` | Trusted local `PresentationId` plus bounded renderer options. It contains no free-form renderer selector. |
 | `ProviderHostedCapabilityPlan` | Provider-adapter declarations that are not local `IToolRuntime` tools. |
 
@@ -229,11 +257,11 @@ Failures MUST include a concise textual fallback plus stable `errorCode`; `error
 
 `structuredContent` MUST NOT be silently serialized into model content. A source that returns structured data without useful model content violates the contract. Adapters MAY generate an explicit, bounded model summary when they know the semantic shape; ACP is required to do so for structured-only successful results.
 
-On the Dynamic wire, `contentItems` remains the transport spelling for rich content and legacy `structuredResult` is replaced by `structuredContent`. MCP results preserve standard `content`, `structuredContent`, and `_meta` semantics. Native/plugin results use the same normalized internal audiences.
+On the Dynamic wire, `contentItems` is the transport spelling for rich content and structured client data uses `structuredContent`. MCP results preserve standard `content`, `structuredContent`, and `_meta` semantics. Native/plugin results use the same normalized internal audiences.
 
 ## 10. Session item projection
 
-The common runtime does not require a single Session item type. Projection communicates source and transport semantics:
+The common runtime does not require a single Session item type. Each registration MUST declare exactly one projection shape; the common recorder MUST NOT infer that shape from a provider call name or result payload. Projection communicates source and transport semantics:
 
 | Invocation source | Target projection |
 |---|---|
@@ -241,11 +269,15 @@ The common runtime does not require a single Session item type. Projection commu
 | MCP | `McpToolCall`, preserving raw MCP result and metadata under audience rules |
 | Runtime Dynamic | one `DynamicToolCall` lifecycle item; no companion `ToolResult` |
 
-The specialized `PluginFunctionCall` item is removed. Plugin provenance (`pluginId`, `functionId`, namespace) MUST remain available on the standard invocation/result projection.
+Plugin invocations use the standard `ToolCall` and `ToolResult` items. Plugin provenance (`pluginId`, `functionId`, namespace) MUST remain available on that projection.
 
-Items MUST record canonical `ToolName`, `SourceToolId` or source provenance where safe, call identifier, arguments, status, duration, success, stable failure data, and audience-safe result fields. Sensitive credentials and raw connection state MUST NOT be persisted.
+Items MUST record canonical `ToolName`, deterministic `ProviderFlatName`, definition identity, runtime-binding identity and revisions where applicable, snapshot revision, `SourceToolId` or source provenance where safe, trusted presentation, call identifier, arguments, status, duration, success, stable failure data, and audience-safe result fields. MCP items additionally record the exact runtime server name used for routing. Sensitive credentials and raw connection state MUST NOT be persisted.
 
-## 11. Runtime Dynamic Tools v2
+History reconstruction MUST use the persisted canonical tuple for namespace-capable protocols and the persisted flat alias for flat-only protocols. It MUST NOT consult the current tool inventory, parse a flat alias, or regenerate an alias from current normalization rules. This makes replay independent of reconnects, renamed plugin runtimes, source ordering, and later tool-set changes.
+
+Session projection MUST be atomic per Turn, call identifier, and projection shape. Streaming argument observation and dispatcher lifecycle recording MUST upsert the same call item rather than create competing items. A specialized lifecycle item transitions in place from started to exactly one terminal state. A standard projection creates or updates exactly one `ToolCall` and appends exactly one terminal `ToolResult`. Cancellation, timeout, rejection, and execution failure race through the same terminal guard; no path may publish a second terminal result or leave an accepted registered call permanently started.
+
+## 11. Runtime Dynamic Tools
 
 Runtime Dynamic Tools are restricted to callbacks owned by the active AppServer client for a thread.
 
@@ -256,7 +288,7 @@ The wire declaration is a tagged union:
 - `Function`: `{ type: "function", name, description, inputSchema, deferLoading?, approval? }`; a top-level function is normalized to `ToolName(null, name)` and therefore has no namespace;
 - `Namespace`: `{ type: "namespace", name, description, tools: Function[] }`; contained functions inherit that namespace.
 
-`approval` is the only DotCraft-specific declaration field in v2. Generic exposure and output schema are not Dynamic wire fields: `deferLoading` maps to Direct/Deferred and other policy/exposure decisions remain server-owned. Namespacing is semantic, not a string-prefix convention. Namespace functions may be direct or deferred, but any function with `deferLoading: true` MUST be contained by a namespace. The normalized runtime identity is the composite `ToolName(namespace, name)`; for a top-level Function, `namespace` is exactly `null` and MUST NOT be replaced with a source-owned default.
+`approval` is the only DotCraft-specific declaration field. Generic exposure and output schema are not Dynamic wire fields: `deferLoading` maps to Direct/Deferred and other policy/exposure decisions remain server-owned. Namespacing is semantic, not a string-prefix convention. Namespace functions may be direct or deferred, but any function with `deferLoading: true` MUST be contained by a namespace. The normalized runtime identity is the composite `ToolName(namespace, name)`; for a top-level Function, `namespace` is exactly `null` and MUST NOT be replaced with a source-owned default.
 
 ### 11.2 Lifetime
 
@@ -272,7 +304,7 @@ Live executors are never persisted. DotCraft MAY persist a non-sensitive last-kn
 
 ### 11.3 Dynamic content items
 
-The Dynamic v2 `contentItems` wire supports exactly:
+The Dynamic `contentItems` wire supports exactly:
 
 - `{ "type": "text", "text": string }`, where text is non-empty after validation;
 - `{ "type": "image", "mediaType": string, "url": string }`;
@@ -284,7 +316,7 @@ An image item MUST provide exactly one of `url` or `dataBase64`; data URLs are n
 
 `DynamicToolCall` uses `inProgress`, `completed`, or `failed`. At start, `success` is absent/null; completion includes `durationMs`, audience-separated result fields, and stable errors. `itemId` and provider/model `callId` MUST remain separate.
 
-Runtime Dynamic metadata for private iframe UI is removed. Interactive UI moves to MCP Apps.
+Runtime Dynamic metadata does not define iframe UI. Interactive UI uses MCP Apps.
 
 ## 12. MCP architecture
 
@@ -320,9 +352,13 @@ DotCraft uses the following fixed method names for the MCP runtime/control surfa
 - `mcpServer/oauthLogin/completed`;
 - `mcpServer/elicitation/request`.
 
-The existing `mcp/*` methods remain DotCraft's workspace configuration-management surface and MUST NOT be reused as aliases for these runtime methods. M1 includes OAuth plus standard form and URL elicitation forwarding as generic MCP control-plane capabilities. Desktop MUST provide a generic interaction for those flows. MCP Apps resource rendering, AppBridge, and tool-result iframes remain M2 work.
+The `mcp/*` methods remain DotCraft's workspace configuration-management surface and MUST NOT be reused as aliases for these runtime methods. OAuth plus standard form and URL elicitation forwarding are generic MCP control-plane capabilities. Desktop MUST provide a generic interaction for those flows. MCP Apps resource rendering, AppBridge, and tool-result iframes follow the presentation contract in Section 14.
 
 Thread archive/disposal MUST close thread and binding MCP sessions. Configuration changes invalidate the next snapshot. Status output MUST distinguish workspace, thread, plugin, and binding origins.
+
+Streamable HTTP is only an OAuth candidate transport; it MUST NOT by itself imply that authentication is supported or required. Runtime status, rather than transport shape or error-text matching, is the authority for OAuth UX. Desktop exposes an authentication action only when the effective server reports `authStatus: "notLoggedIn"`; `failureReason: "reauthenticationRequired"` changes that action to reauthentication. Unknown discovery results fail closed and do not expose an OAuth action. A connected server with usable OAuth credentials reports `authStatus: "oAuth"` but does not show a primary authentication action.
+
+MCP startup readiness depends on initialization and tool discovery. Optional resource and resource-template inventory MUST NOT cause an otherwise usable server to fail startup. Lightweight `toolsAndAuthOnly` status reads do not enumerate resources; full status reads may enumerate them independently and treat enumeration failure as an empty optional inventory.
 
 ### 12.3 Approval
 
@@ -366,21 +402,21 @@ App-initiated `tools/call` uses the common dispatcher with App audience and a se
 
 ### 13.3 Isolation
 
-Desktop MUST render untrusted resources through an isolated-origin sandbox proxy/inner iframe design. It MUST enforce resource size limits, CSP, navigation restrictions, teardown, and per-view capability scoping. A view MUST NOT gain Electron, filesystem, shell, arbitrary network, or cross-server tool access. M2 validates declared permissions but grants none; camera, microphone, geolocation, and clipboard-write are denied. Resource `domain` metadata does not choose a real iframe origin. Safe links are limited to HTTPS, `mailto`, and explicit loopback HTTP.
+Desktop MUST render untrusted resources through an isolated-origin sandbox proxy/inner iframe design. It MUST enforce resource size limits, CSP, navigation restrictions, teardown, and per-view capability scoping. A view MUST NOT gain Electron, filesystem, shell, arbitrary network, or cross-server tool access. Desktop validates declared permissions but grants none; camera, microphone, geolocation, and clipboard-write are denied. Resource `domain` metadata does not choose a real iframe origin. Safe links are limited to HTTPS, `mailto`, and explicit loopback HTTP.
 
 ## 14. Local presentation registry
 
-Desktop maintains a local `ToolRendererRegistry` independent of MCP Apps. In M2, only trusted Core/Desktop renderers may register; plugin and third-party registration is deferred to a separate trust and code-loading specification. Entry selection requires an ordinal `PresentationId` and matching safe Core provenance. Duplicate ids are rejected. Renderer-specific bounded options are validated by the selected renderer.
+Desktop maintains a local `ToolRendererRegistry` independent of MCP Apps. Only trusted Core/Desktop renderers may register; plugin and third-party registration is deferred to a separate trust and code-loading specification. Entry selection requires an ordinal `PresentationId` and matching safe Core provenance. Duplicate ids are rejected. Renderer-specific bounded options are validated by the selected renderer.
 
 Remote tool descriptions, MCP `_meta`, Dynamic declarations, plugin data, or result data MUST NOT name arbitrary local code. Unknown, unavailable, invalid, or provenance-mismatched renderers fall back to the generic tool card.
 
-M2 migrates all existing hard-coded renderer families into the registry: CreatePlan, Cron, SkillManage, SkillView, all SubAgent operations, shell, WriteFile/EditFile and streaming diff, WebSearch/WebFetch, RequestUserInput, ReadFile, TodoWrite/UpdateTodos, deferred tool search, and generic fallback. Conversation cards, pinning, grouping, and labels MUST consume registry render plans and MUST NOT select a special renderer by tool name.
+The registry contains the Core renderer families for CreatePlan, Cron, SkillManage, SkillView, all SubAgent operations, shell, WriteFile/EditFile and streaming diff, WebSearch/WebFetch, RequestUserInput, ReadFile, TodoWrite/UpdateTodos, deferred tool search, and generic fallback. Conversation cards, pinning, grouping, and labels MUST consume registry render plans and MUST NOT select a special renderer by tool name.
 
-## 15. App Binding v2 boundary
+## 15. App Binding boundary
 
-App Binding remains a DotCraft-specific control plane because DotCraft must bind an installed or connected application, account/conversation authority, and one thread. It is no longer a tool declaration, execution, or interactive UI protocol.
+App Binding is DotCraft's control plane for binding an installed or connected application, account/conversation authority, and one thread. Tool declaration, execution, and interactive UI use MCP and MCP Apps.
 
-App Binding v2 owns:
+App Binding owns:
 
 - app identity and installed/connection state;
 - one-click thread enablement;
@@ -389,7 +425,7 @@ App Binding v2 owns:
 - approved capability snapshot, revision, confirmation, revoke, rebind, and audit;
 - social conversation target and routing authority where applicable.
 
-App Binding v2 does not own:
+App Binding does not own:
 
 - Dynamic Tool attachment;
 - executable static tool catalogs or per-tool scope pickers;
@@ -403,7 +439,7 @@ Enabling an already connected app is one thread-level authorization action. If t
 
 The first MCP initialization snapshot is approved by the original enable action. Later capability expansion requires a thread-side confirmation. Expansion includes a new tool, widened schema/visibility/risk, or widened UI CSP domain/permission. Removal, title/description changes, endpoint or token rotation, and capability narrowing are auto-accepted.
 
-The grant is the whole app for one thread. App Binding v2 does not expose a per-scope tool picker.
+The grant is the whole app for one thread. App Binding does not expose a per-scope tool picker.
 
 ### 15.2 Transport and credentials
 
@@ -418,7 +454,9 @@ External binding MCP uses Streamable HTTP only:
 
 After a DotCraft restart, a binding is an offline stub until the app rebinds and rotates its token. Rebind does not require reauthorization if persisted authority remains valid. Revocation deletes the credential verifier and closes the session; a stale app connection cannot resurrect it.
 
-Offline bindings retain only a non-sensitive last-known approved capability snapshot for display and fast failure. Revocation removes dispatch authority immediately.
+Offline bindings retain a non-sensitive last-known approved capability snapshot and expose schema-stable model-visible stubs for prompt-cache stability. Stub invocation fails with `AppBindingOffline` before remote dispatch. Revocation removes the registrations and dispatch authority immediately.
+
+App Binding requests contain connection and authority data only. Executable catalogs, Dynamic attachments, context blocks, private UI methods, and managed social Dynamic execution are invalid.
 
 ## 16. Product-specific mappings
 
@@ -438,7 +476,7 @@ Social binding uses a dedicated channel-principal resolve/accept/rebind flow, no
 
 ### 16.3 External application integrations
 
-Long-lived application tools migrate to binding MCP and interactive UI migrates to MCP Apps. Run-specific submission callbacks remain Runtime Dynamic Tools v2 because they are ephemeral callbacks owned by the active run/client connection. Integrations that already host Streamable HTTP MCP add a binding-scoped authenticated endpoint or strictly separated authentication mode, independent per-binding session state, capability revision, and rebind. Binding authentication MUST NOT break existing shared MCP clients.
+Long-lived application tools use binding MCP and interactive UI uses MCP Apps. Run-specific submission callbacks use Runtime Dynamic Tools because they are ephemeral callbacks owned by the active run/client connection. Integrations that host Streamable HTTP MCP add a binding-scoped authenticated endpoint or strictly separated authentication mode, independent per-binding session state, capability revision, and rebind. Binding authentication MUST NOT break shared MCP clients.
 
 ## 17. Baseline and intentional extensions
 
@@ -461,15 +499,9 @@ The common AppServer and MCP contracts are the baseline. Product-specific behavi
 
 Any new divergence in tool identity, exposure, deferred discovery, or Dynamic declaration semantics MUST be justified in the owning specification rather than introduced incidentally in code.
 
-## 18. Compatibility and rollout
+## 18. Protocol consistency
 
-The refactor is a coordinated hard cut across DotCraft Core, Desktop, .NET/TypeScript/Python SDKs, and maintained external integrations. Released builds do not carry a long-lived legacy parser or dual protocol.
-
-The hard cut is applied in place on the current development AppServer contract. It does not increment the AppServer protocol version and does not add version negotiation. Core and every in-repository client/SDK MUST switch atomically; a client that sends the removed Dynamic v1 shape is rejected as invalid input.
-
-Implementation MAY use temporary internal adapters within a milestone. They MUST be removed before that milestone's completion criteria are met. Old App Binding v1 tool/grant state is not migrated. Users re-enable affected apps after the cutover.
-
-M1–M5 are implementation/review boundaries, not independently releasable compatibility stages. Because M1 hard-cuts Dynamic v2 and M2 removes the private UI target before external integrations move in M5, the complete series MUST pass one coordinated release gate. Intermediate work remains unreleased or behind an internal integration boundary so released server, Desktop, SDK, and integration builds never disagree about Dynamic v2, MCP Apps, or App Binding v2.
+Core, Desktop, and the .NET, TypeScript, and Python SDKs use the same canonical tool identity, Runtime Dynamic declaration, MCP Apps, and App Binding contracts. Unsupported fields and method names are rejected rather than interpreted as alternate protocol shapes.
 
 ## 19. Security invariants
 
@@ -487,6 +519,7 @@ M1–M5 are implementation/review boundaries, not independently releasable compa
 Diagnostics SHOULD identify:
 
 - canonical `ToolName` and safe source provenance;
+- provider projection shape and `ProviderFlatName` when a flat alias is used;
 - source kind and MCP origin;
 - snapshot revision;
 - exposure and authority decision reason;
@@ -499,28 +532,18 @@ Status and audit views MUST distinguish declaration availability, model exposure
 
 ## 21. Conformance requirements
 
-Each implementation milestone MUST add behavior-level tests for its observable contracts. At minimum, the completed architecture requires coverage for:
+The architecture requires behavior-level coverage for:
 
-- canonical identity collision and namespace behavior;
+- canonical identity normalization, truncation, collision, enumeration-order independence, and namespace behavior;
+- exact composite dispatch for namespace-capable providers and flat-alias dispatch for flat-only providers;
+- persisted composite/flat history replay without current-inventory lookup or alias parsing;
 - per-Turn snapshot consistency plus immediate revocation;
 - result audience isolation and non-empty model fallback;
 - resume/fork/compaction call identifier preservation;
-- Dynamic v2 declaration replacement and disconnect behavior;
+- Runtime Dynamic declaration replacement and disconnect behavior;
 - MCP three-state configuration and source-aware status;
 - MCP Apps visibility, approval, isolation, and one-shot model context;
 - Teams role-specific native snapshots plus live `TeamsService` business validation without App Binding;
 - App Binding enable/rebind/revoke/capability-expansion state transitions;
 - managed social target injection;
 - coordinated SDK and first-party wire conformance.
-
-## 22. Milestone map
-
-| Milestone | Outcome |
-|---|---|
-| M1 | Unified tool core, Dynamic v2, MCP backend, Session/AppServer projection |
-| M2 | MCP Apps host and trusted Desktop presentation registry |
-| M3 | Teams native runtime and removal of Teams App Binding dependency |
-| M4 | App Binding v2 control plane and managed social runtime |
-| M5 | External integrations, SDK, and Desktop coordinated cutover; legacy removal |
-
-No milestone may weaken the security or audience invariants to reduce migration work.

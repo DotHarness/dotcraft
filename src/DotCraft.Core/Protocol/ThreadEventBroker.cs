@@ -240,7 +240,7 @@ internal sealed class ThreadEventBroker(string threadId)
                 _subscribers[subscriberId] = channel;
                 foreach (var evt in _recentEvents)
                 {
-                    channel.Writer.TryWrite(evt);
+                    channel.Writer.TryWrite(CloneForReplay(evt));
                 }
             }
         }
@@ -254,6 +254,18 @@ internal sealed class ThreadEventBroker(string threadId)
 
     private string NextEventId() =>
         $"evt_{Interlocked.Increment(ref _eventSequence):D4}";
+
+    private static SessionEvent CloneForReplay(SessionEvent evt) => new()
+    {
+        EventId = evt.EventId,
+        EventType = evt.EventType,
+        ThreadId = evt.ThreadId,
+        TurnId = evt.TurnId,
+        ItemId = evt.ItemId,
+        Timestamp = evt.Timestamp,
+        Payload = evt.Payload,
+        IsReplay = true
+    };
 
     private void Publish(SessionEvent evt)
     {

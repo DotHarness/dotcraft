@@ -51,7 +51,7 @@ public sealed class GeneratedToolPerformanceDiagnosticsTests(ITestOutputHelper o
             var snapshot = await new EffectiveToolSnapshotBuilder().BuildAsync(
                 [new TeamsToolSource(teamsService)],
                 planning);
-            var providerName = snapshot.ProviderCallNames[new ToolName(TeamsConstants.ToolNamespace, "CreateTeam")];
+            var providerName = snapshot.ProviderFlatNames[new ToolName(TeamsConstants.ToolNamespace, "CreateTeam")];
             var dispatcher = new ToolDispatcher();
             var nativeInvocation = await MeasureAsync(
                 200,
@@ -103,7 +103,7 @@ public sealed class GeneratedToolPerformanceDiagnosticsTests(ITestOutputHelper o
         string providerName,
         string threadId)
     {
-        var result = await dispatcher.DispatchProviderCallAsync(
+        var result = await dispatcher.DispatchProviderFlatCallAsync(
             snapshot,
             providerName,
             new JsonObject(),

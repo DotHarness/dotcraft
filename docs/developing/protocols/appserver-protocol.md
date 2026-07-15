@@ -1,5 +1,7 @@
 # AppServer Protocol
 
+> App Binding clients negotiate `capabilities.appBindingVersion: 2`. App-principal connections are restricted to the `app/connection/*`, `app/binding/*`, and `app/bindings/list` control plane; tools are delivered by binding-scoped MCP sessions. Unsupported methods return `AppBindingUpgradeRequired`.
+
 AppServer Protocol is DotCraft's JSON-RPC wire protocol for external clients. Desktop, ACP bridges, external channel adapters, and custom IDE clients can use it to create or resume threads, submit user input, consume streaming events, and participate in command or file-change approvals.
 
 If you only need to find or start a local workspace AppServer, use [Hub Protocol](./hub-protocol) first. After Hub returns an AppServer WebSocket endpoint, session traffic uses this protocol.

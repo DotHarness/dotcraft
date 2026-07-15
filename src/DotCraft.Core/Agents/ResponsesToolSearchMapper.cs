@@ -389,6 +389,8 @@ internal static class ResponsesToolSearchMapper
     {
         var tools = new JsonArray();
         var namespaceToolArrays = new Dictionary<string, JsonArray>(StringComparer.Ordinal);
+        var namespaceToolObjects = new Dictionary<string, JsonObject>(StringComparer.Ordinal);
+        var namespaceDescriptions = new Dictionary<string, List<string?>>(StringComparer.Ordinal);
         var hostedImageGenerationEnabled = IsHostedImageGenerationEnabled(options);
         foreach (var tool in options?.Tools ?? [])
         {
@@ -410,18 +412,32 @@ internal static class ResponsesToolSearchMapper
             var functionTool = CreateFunctionTool(tool);
             if (ToolNamespaceMetadataResolver.TryGet(tool, out var toolNamespace))
             {
+                ValidateProviderToolIdentity(toolNamespace, ReadJsonString(functionTool, "name")!);
                 if (!namespaceToolArrays.TryGetValue(toolNamespace, out var namespaceTools))
                 {
                     namespaceTools = [];
                     namespaceToolArrays[toolNamespace] = namespaceTools;
-                    tools.Add(CreateNamespaceTool(toolNamespace, namespaceTools));
+                    namespaceDescriptions[toolNamespace] = [];
+                    var namespaceTool = CreateNamespaceTool(toolNamespace, namespaceTools);
+                    namespaceToolObjects[toolNamespace] = namespaceTool;
+                    tools.Add(namespaceTool);
                 }
 
                 namespaceTools.Add(functionTool);
+                namespaceDescriptions[toolNamespace].Add(ToolNamespaceMetadataResolver.GetDescription(tool));
                 continue;
             }
 
+            ValidateProviderToolIdentity(null, ReadJsonString(functionTool, "name")!);
             tools.Add(functionTool);
+        }
+
+        foreach (var (namespaceName, descriptions) in namespaceDescriptions)
+        {
+            namespaceToolObjects[namespaceName]["description"] = ToolNamespaceDescriptionResolver.Resolve(
+                namespaceName,
+                descriptions,
+                out _);
         }
 
         if (hostedImageGenerationEnabled)
@@ -438,10 +454,16 @@ internal static class ResponsesToolSearchMapper
 
     private static JsonObject CreateFunctionTool(AITool tool)
     {
+        var functionName = CanonicalToolIdentityMetadataResolver.TryGet(
+            tool,
+            out var canonicalName,
+            out _)
+            ? canonicalName.Name
+            : tool.Name;
         var functionTool = new JsonObject
         {
             ["type"] = "function",
-            ["name"] = tool.Name,
+            ["name"] = functionName,
             ["description"] = tool.Description,
             ["parameters"] = CloneJsonElement(GetJsonSchema(tool))
         };
@@ -450,6 +472,24 @@ internal static class ResponsesToolSearchMapper
             functionTool["strict"] = strict;
 
         return functionTool;
+    }
+
+    private static void ValidateProviderToolIdentity(string? toolNamespace, string localName)
+    {
+        static bool IsSafe(string value) => value.Length > 0 && value.All(static character =>
+            character is >= 'a' and <= 'z'
+                or >= 'A' and <= 'Z'
+                or >= '0' and <= '9'
+                or '_');
+
+        var flatLength = localName.Length + (toolNamespace is null ? 0 : toolNamespace.Length + 2);
+        if (!IsSafe(localName)
+            || toolNamespace is not null && !IsSafe(toolNamespace)
+            || flatLength > ProviderToolProjector.MaximumNameBytes)
+        {
+            throw new InvalidOperationException(
+                $"invalid_provider_tool_identity: '{(toolNamespace is null ? localName : $"{toolNamespace}/{localName}")}' is not provider-safe.");
+        }
     }
 
     private static JsonObject CreateNamespaceTool(string namespaceName, JsonArray tools) =>
@@ -683,7 +723,7 @@ internal static class ResponsesToolSearchMapper
             ["arguments"] = SerializeArguments(call.Arguments)
         };
 
-        if (TryReadFunctionCallNamespace(call, out var functionNamespace))
+        if (TryGetFunctionCallNamespace(call, out var functionNamespace))
             item["namespace"] = functionNamespace;
 
         return item;
@@ -1265,7 +1305,7 @@ internal static class ResponsesToolSearchMapper
                 : $"{code}: {message}";
     }
 
-    private static bool TryReadFunctionCallNamespace(
+    internal static bool TryGetFunctionCallNamespace(
         FunctionCallContent call,
         out string functionNamespace)
     {

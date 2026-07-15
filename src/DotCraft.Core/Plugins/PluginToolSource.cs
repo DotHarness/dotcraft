@@ -89,6 +89,7 @@ public sealed class PluginToolSource : IToolSource
         return new ToolRegistration(
             definition,
             binding,
+            ToolProjectionShape.StandardPair,
             isDeferred ? ToolExposure.Deferred : ToolExposure.Direct,
             ToolInvocationAudience.Model | ToolInvocationAudience.Host,
             isDeferred ? new DeferredToolDescriptor(descriptor.Namespace!, descriptor.Description) : null);

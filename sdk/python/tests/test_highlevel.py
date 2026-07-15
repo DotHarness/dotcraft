@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import asyncio
+import json
+from pathlib import Path
 
 import pytest
 
@@ -12,9 +14,22 @@ from dotcraft import (
     TurnFailedError,
     TurnInProgressError,
 )
+
 from dotcraft.client import DotCraftClient
 from dotcraft.events import merge_run_text, normalize
 from dotcraft.transport import Transport, TransportClosed
+
+APP_BINDING_V2_FIXTURE = json.loads(
+    (Path(__file__).resolve().parents[3] / "specs/protocols/fixtures/app-binding-v2.json").read_text(encoding="utf-8")
+)
+
+
+def test_app_binding_v2_canonical_fixture_is_stable() -> None:
+    assert APP_BINDING_V2_FIXTURE["version"] == 2
+    assert APP_BINDING_V2_FIXTURE["states"] == [
+        "connecting", "syncing", "active", "offline", "needsConfirmation", "revoked", "failed", "cancelled"
+    ]
+    assert APP_BINDING_V2_FIXTURE["errors"]["upgradeRequired"] == "AppBindingUpgradeRequired"
 
 
 class FakeTransport(Transport):
@@ -88,7 +103,7 @@ async def _expect(transport, method, result):
     return request
 
 
-async def test_mcp_runtime_uses_codex_exact_methods_and_typed_results():
+async def test_mcp_runtime_uses_canonical_methods_and_typed_results():
     dotcraft, transport = await _connect()
     client = dotcraft.client
 
@@ -281,14 +296,14 @@ async def test_dynamic_tool_call_routes_to_handler():
     thread = await _start_thread(dotcraft, transport)
 
     def echo(call):
-        return {"success": True, "structuredResult": {"tool": call["tool"]}}
+        return {"success": True, "structuredContent": {"tool": call["tool"]}}
 
-    thread.on_tool_call("oratorio", "Echo", echo)
-    await transport.push({"jsonrpc": "2.0", "id": 99, "method": "item/tool/call", "params": {"threadId": "thread_1", "namespace": "oratorio", "tool": "Echo", "arguments": {"message": "hi"}}})
+    thread.on_tool_call("sample", "Echo", echo)
+    await transport.push({"jsonrpc": "2.0", "id": 99, "method": "item/tool/call", "params": {"threadId": "thread_1", "namespace": "sample", "tool": "Echo", "arguments": {"message": "hi"}}})
 
     response = await transport.read_outbound()
     assert response["result"]["success"] is True
-    assert response["result"]["structuredResult"]["tool"] == "Echo"
+    assert response["result"]["structuredContent"]["tool"] == "Echo"
     await dotcraft.close()
 
 
@@ -308,28 +323,20 @@ async def test_models_list_returns_typed_info():
     await dotcraft.close()
 
 
-async def test_app_binding_accept_returns_typed_binding():
+async def test_app_binding_activate_uses_v2_method():
     dotcraft, transport = await _connect()
-    accept_task = asyncio.create_task(dotcraft.app_bindings.accept_binding(
+    activate_task = asyncio.create_task(dotcraft.app_bindings.activate(
         binding_request_id="bind_req_1",
-        request_token="tok",
-        grant_id="grant_1",
-        granted_scopes=["board.read"],
-        approval_mode="appAccepted",
-        approved_by="alice",
+        endpoint="https://example.test/mcp",
+        bearer="secret",
     ))
     request = await transport.read_outbound()
-    assert request["method"] == "app/binding/accept"
+    assert request["method"] == "app/binding/activate"
     assert request["params"]["bindingRequestId"] == "bind_req_1"
-    assert request["params"]["grantedScopes"] == ["board.read"]
-    await transport.push(_response(request, {"binding": {
-        "bindingId": "bind_1", "threadId": "thread_1", "appId": "app",
-        "state": "active", "grantedScopes": ["board.read"], "attachedToolCount": 0,
-    }}))
-    result = await asyncio.wait_for(accept_task, timeout=5)
-    assert result.binding.binding_id == "bind_1"
-    assert result.binding.state == "active"
-    assert result.binding.granted_scopes == ["board.read"]
+    assert request["params"]["endpoint"] == "https://example.test/mcp"
+    await transport.push(_response(request, {"bindingId": "bind_1", "state": "active"}))
+    result = await asyncio.wait_for(activate_task, timeout=5)
+    assert result["bindingId"] == "bind_1"
     await dotcraft.close()
 
 
@@ -340,12 +347,12 @@ async def test_app_binding_list_thread_bindings_typed():
     assert request["method"] == "thread/appBindings/list"
     await transport.push(_response(request, {"bindings": [
         {"bindingId": "bind_1", "threadId": "thread_1", "appId": "app",
-         "state": "active", "grantedScopes": ["board.read"], "attachedToolCount": 2},
+         "state": "active", "authorityRevision": 3, "approvedCapabilityRevision": 2},
     ]}))
     bindings = await asyncio.wait_for(list_task, timeout=5)
     assert len(bindings) == 1
     assert bindings[0].binding_id == "bind_1"
-    assert bindings[0].attached_tool_count == 2
+    assert bindings[0].authority_revision == 3
     await dotcraft.close()
 
 
@@ -355,10 +362,10 @@ async def test_app_binding_list_thread_bindings_typed():
 
 
 def test_app_binding_handoff_parse():
-    url = "oratorio://dotcraft/connect?app=com.dotharness.oratorio&request=req_1&token=tok_1&endpoint=ws://127.0.0.1:1234/x"
-    handoff = AppBindingHandoff.parse(url, expected_scheme="oratorio", expected_app_id="com.dotharness.oratorio")
+    url = "board-example://dotcraft/connect?app=com.example.board&request=req_1&token=tok_1&endpoint=ws://127.0.0.1:1234/x"
+    handoff = AppBindingHandoff.parse(url, expected_scheme="board-example", expected_app_id="com.example.board")
     assert handoff.operation == "connect"
-    assert handoff.app_id == "com.dotharness.oratorio"
+    assert handoff.app_id == "com.example.board"
     assert handoff.request_id == "req_1"
     assert handoff.request_token == "tok_1"
     assert handoff.app_server_url == "ws://127.0.0.1:1234/x"
@@ -367,7 +374,7 @@ def test_app_binding_handoff_parse():
 def test_app_binding_handoff_rejects_wrong_scheme():
     url = "evil://dotcraft/connect?app=x&request=r&token=t"
     with pytest.raises(ValueError):
-        AppBindingHandoff.parse(url, expected_scheme="oratorio")
+        AppBindingHandoff.parse(url, expected_scheme="board-example")
 
 
 def test_merge_run_text_prefers_turn_items():

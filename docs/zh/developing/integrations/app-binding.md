@@ -1,67 +1,25 @@
 # App Binding
 
-App Binding 把一个已安装的原生应用接入 DotCraft，并将它的工具授予**某一个指定线程**使用。这个应用可以是看板、IDE 插件、像 [Teams](../../features/agent-system/teams) 这样的托管运行时，或你自己写的工具——无论是哪种，账号、授权和高风险操作始终由应用自己掌控。DotCraft 只负责控制模型能看到哪些工具，并对每一次调用做审批与审计。
+App Binding 将一个已安装应用连接到一个 DotCraft 线程。Binding 管理连接和授权；工具与交互 UI 使用 binding-scoped MCP session。
 
-![DotCraft App Binding](https://github.com/DotHarness/resources/raw/master/dotcraft/whats-new/app.gif)
+## Binding 授予什么
 
-> [!NOTE]
-> 一次绑定只作用于单个线程。除非你另行授予，其他线程、其他应用都看不到它。子代理（SubAgent）和分叉线程不会继承绑定，导入的线程也不会自动重新激活绑定。
+选择**启用**后，DotCraft 会创建一个十分钟有效的 handoff。应用以自己的 app principal 完成认证，再用 Streamable HTTP MCP endpoint 和一次性 bearer 激活 binding。随后 DotCraft 读取 MCP 工具快照。
 
-## 访问如何被授予
+- 第一个有效快照由最初的“启用”点击直接批准。
+- 收窄的变化会自动接受。
+- schema、可见性、风险、UI、CSP、域名或权限扩大时必须再次确认。
+- 离线 binding 保留稳定工具 schema，但调用会返回 `AppBindingOffline`。
+- 撤销会立即移除该 binding 的 MCP session、调用、view 和模型可见工具。
 
-应用访问被刻意拆成几个独立步骤，避免任何意外授予：
+每个 binding 都使用独立 MCP session 和凭据。远程 endpoint 必须使用 HTTPS；HTTP 仅允许 loopback。DotCraft 重启后 binding 保持离线，直到同一 app principal 使用新 bearer 完成 rebind。
 
-| 步骤 | 它做什么 | 它**不**做什么 |
-|---|---|---|
-| **1. 安装插件** | 让应用及其工具目录在 DotCraft 中可见。 | 不给任何线程授权。 |
-| **2. 安装或打开原生应用** | 让应用可通过其注册的系统标识被拉起。 | 不连接你的账号。 |
-| **3. 连接，再绑定线程** | 连接应用账号，再把选定的 scope 授予所选线程。 | 只授予你选中的那个线程。 |
+## 社交渠道
 
-连接会通过应用注册的 deep link（例如 `oratorio://dotcraft/connect?…`）打开应用，由应用展示它自己的确认界面。DotCraft 不会要求你选择可执行文件、源码目录或命令行。
+会话绑定使用独立的 social binding 方法，但工具是原生插件工具，不是 MCP 工具。DotCraft 在服务端注入已绑定的投递目标。渠道工具不得声明或传入 `target`、`chatId`、`groupId`、`conversationId`、`deliveryTarget` 及其别名。
 
-## 你授予了什么
+## 安全边界
 
-绑定线程时，你批准的是一组 **scope**。每个 scope 带有风险级别，决定其工具如何暴露给模型：
+认证后的应用连接只能调用 App Binding app-role 方法，不能读取线程、启动 turn、检查 workspace 或控制其他应用。DotCraft 只持久化加盐凭据 verifier 和不含敏感信息的规范化能力快照；principal credential、binding bearer、live MCP client 与 UI resource body 都不会落盘。
 
-| 风险 | 含义 | 默认暴露方式 |
-|---|---|---|
-| **Read（读）** | 只读取应用状态，不做任何修改。 | 直接加载。 |
-| **Mutate（改）** | 修改应用自有状态或排队操作。 | 延迟加载——按需才出现。 |
-| **External write（外部写）** | 可发布、发送或写入外部系统。 | 延迟加载，且通常走应用内确认。 |
-
-高风险工具遵循"先提议、后确认"：Agent 排队一个操作，由你在应用内批准或发布。每次工具调用都会记入 DotCraft 的审计链路，应用还会在此之上保留自己的授权记录。
-
-## 在 Desktop 中
-
-App Binding 出现在三个位置：
-
-- **插件详情页**——安装插件、查看原生应用是否已安装、连接、绑定当前线程、重连或撤销。
-- **线程头部**——为当前线程绑定、刷新、查看、打开应用或撤销。
-- **Welcome 流程**——在发送第一条消息之前，就用一个或多个已绑定的应用新建线程。
-
-连接状态与绑定状态始终分开展示，因此"我的账号已连接"和"这个线程有访问权"是两回事，一眼就能区分。
-
-## 绑定状态一览
-
-| 状态 | 含义 |
-|---|---|
-| **Active（活跃）** | 授权有效，应用的工具对该线程可用。 |
-| **Offline（离线）** | 授权仍在，但应用已关闭或不可达。调用会快速失败；重新打开应用即可重连。 |
-| **Expired（过期）** | 授权已超时。工具会在下一个安全点被移除。 |
-| **Revoked（已撤销）** | 你或应用切断了访问。工具立即被禁用。 |
-
-关闭原生应用会把绑定置为 **offline**，而不是删除——重新打开即可重连并重新挂载工具。你可以随时在线程或插件面板中**刷新**或**撤销**绑定。
-
-## 示例应用
-
-App Binding 适用于任何注册了 OS 协议、并支持 AppServer 交接的应用。下面几个例子展示了它的覆盖范围：
-
-- **[Oratorio](https://github.com/DotHarness/oratorio)**——面向操作者的 Agent 工作看板。接入某个线程后，Agent 就能列出条目、查看卡片、创建任务、排队评审轮次。
-- **Teams**——DotCraft 的多 Agent 看板本身就是一个托管式 App Binding 运行时。参见 [Teams](../../features/agent-system/teams)。
-- **你自己的工具**——用 SDK 把任意服务封装成一个应用。集成指南见 [构建应用](./build-an-app)。
-
-## 参见
-
-- [构建应用](./build-an-app)——面向插件与原生应用构建者的开发指南。
-- [SDK](../sdks/)——客户端库（.NET、TypeScript、Python），均带 App Binding 辅助方法。
-- [插件与工具](../../features/agent-system/plugins-tools)——插件如何打包应用。
+实现方式见[构建应用](./build-an-app)和 [AppServer 协议](../protocols/appserver-protocol)。

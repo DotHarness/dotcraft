@@ -4,7 +4,6 @@ import { selectLatestCreatePlanTurnId, useConversationStore, type PendingApprova
 import { useConnectionStore } from '../../stores/connectionStore'
 import { useUIStore } from '../../stores/uiStore'
 import { ThreadHeader } from '../conversation/ThreadHeader'
-import { InteractiveToolOverlay } from '../conversation/InteractiveToolView'
 import { MessageStream } from '../conversation/MessageStream'
 import { InputComposer } from '../conversation/InputComposer'
 import type { AvatarSpec } from '../agents/agentAvatar'
@@ -152,7 +151,6 @@ export function ConversationPanel({
       }}
     >
       {/* Interactive Tool UI expanded surface (pip/fullscreen) — portals to body when a card is expanded. */}
-      <InteractiveToolOverlay />
 
       {!isAgentBuilder && (
         <ThreadHeader

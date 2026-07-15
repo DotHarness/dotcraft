@@ -1,6 +1,9 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using DotCraft.Agents;
+using DotCraft.Configuration;
 using DotCraft.Tools;
+using Microsoft.Extensions.AI;
 
 namespace DotCraft.Core.Tests.Tools.Architecture;
 
@@ -31,11 +34,11 @@ public sealed class EffectiveToolSnapshotTests
 
         Assert.Equal(2, snapshot.Registrations.Count);
         Assert.Empty(snapshot.Diagnostics);
-        Assert.Equal("alpha__read", snapshot.ProviderCallNames[alpha.Definition.Name]);
-        Assert.Equal("beta__read", snapshot.ProviderCallNames[beta.Definition.Name]);
-        Assert.True(snapshot.TryResolveProviderCallName("alpha__read", out var resolved));
+        Assert.Equal("alpha__read", snapshot.ProviderFlatNames[alpha.Definition.Name]);
+        Assert.Equal("beta__read", snapshot.ProviderFlatNames[beta.Definition.Name]);
+        Assert.True(snapshot.TryResolveProviderFlatName("alpha__read", out var resolved));
         Assert.Equal(alpha.Definition.Name, resolved);
-        Assert.False(snapshot.TryResolveProviderCallName("ALPHA__READ", out _));
+        Assert.False(snapshot.TryResolveProviderFlatName("ALPHA__READ", out _));
     }
 
     [Fact]
@@ -78,49 +81,249 @@ public sealed class EffectiveToolSnapshotTests
         Assert.Equal([direct.Definition.Name], filtered.ModelVisibleDefinitions.Select(value => value.Name));
         Assert.Empty(filtered.DeferredDefinitions);
         Assert.Equal(3, filtered.Registrations.Count);
-        Assert.Equal(snapshot.ProviderCallNameIndex, filtered.ProviderCallNameIndex);
+        Assert.Equal(snapshot.ProviderFlatNameIndex, filtered.ProviderFlatNameIndex);
         Assert.Equal(10, filtered.Revision);
     }
 
     [Fact]
-    public void Build_ProviderSanitizationCollision_GivesBothDeterministicHashedNames()
+    public async Task Build_OpenAINativeDeferredSearch_AddsDispatchableRegistrationWithProviderResult()
     {
-        var dotted = Registration(null, "a.b", "first", ToolSourceKind.CoreNative);
-        var spaced = Registration(null, "a b", "second", ToolSourceKind.CoreNative);
+        var deferred = Registration(
+            "mcp__catalog_service",
+            "search_records",
+            "catalog-service:catalog-service",
+            ToolSourceKind.Mcp,
+            ToolExposure.Deferred,
+            namespaceDescription: "Search and review catalog records.");
+        var capabilities = Capabilities(DeferredToolLoadingMode.Native, ModelProviderProtocols.OpenAIResponses);
 
-        var forward = new EffectiveToolSnapshotBuilder().Build([dotted, spaced], revision: 1);
-        var reverse = new EffectiveToolSnapshotBuilder().Build([spaced, dotted], revision: 1);
+        var snapshot = new EffectiveToolSnapshotBuilder().Build([deferred], 12, capabilities);
 
-        var dottedName = forward.ProviderCallNames[dotted.Definition.Name];
-        var spacedName = forward.ProviderCallNames[spaced.Definition.Name];
-        Assert.NotEqual(dottedName, spacedName);
-        Assert.Matches("^a_b_[0-9a-f]{12}$", dottedName);
-        Assert.Matches("^a_b_[0-9a-f]{12}$", spacedName);
-        Assert.Equal(dottedName, reverse.ProviderCallNames[dotted.Definition.Name]);
-        Assert.Equal(spacedName, reverse.ProviderCallNames[spaced.Definition.Name]);
+        var searchName = new ToolName(null, DeferredToolSearchRuntime.CanonicalName);
+        var registration = snapshot.Registrations[searchName];
+        Assert.Equal(ToolSourceKind.CoreNative, registration.Definition.Provenance.Kind);
+        Assert.Equal("core.deferred-search", registration.Definition.Presentation?.Id.Value);
+        Assert.Equal(NativeToolSearchTool.ToolName, snapshot.ProviderFlatNames[searchName]);
+        Assert.Contains(registration.Definition, snapshot.ModelVisibleDefinitions);
+
+        var result = await new ToolDispatcher().DispatchProviderFlatCallAsync(
+            snapshot,
+            NativeToolSearchTool.ToolName,
+            new JsonObject { ["query"] = "records" },
+            new ToolInvocationRequest("thread", "turn", "call", ToolInvocationAudience.Model));
+
+        Assert.True(result.Success);
+        var providerResult = Assert.IsType<NativeToolSearchOutput>(result.ProviderResult);
+        var namespaceTool = Assert.Single(providerResult.Tools);
+        Assert.Equal("mcp__catalog_service", namespaceTool.Name);
+        Assert.Equal("Search and review catalog records.", namespaceTool.Description);
+        var child = Assert.Single(namespaceTool.Tools!);
+        Assert.Equal("search_records", child.Name);
+        Assert.DoesNotContain("mcp__catalog_service__", child.Name, StringComparison.Ordinal);
+        Assert.True(snapshot.TryResolveProviderNamespacedName(namespaceTool.Name, child.Name, out var resolved));
+        Assert.Equal(deferred.Definition.Name, resolved);
+        var callResult = await new ToolDispatcher().DispatchAsync(
+            snapshot,
+            resolved,
+            new JsonObject(),
+            new ToolInvocationRequest("thread", "turn", "mcp-call", ToolInvocationAudience.Model));
+        Assert.True(callResult.Success);
+        var runtime = Assert.IsType<DeferredToolSearchRuntime>(registration.Binding.Runtime);
+        Assert.Contains(
+            "mcp__catalog_service__search_records",
+            runtime.ActivationIndex.GetActivatedToolNames());
     }
 
     [Fact]
-    public void Build_McpCanonicalNamespace_UsesCodexWirePrefixAndUtf8SafeHashFixture()
+    public async Task Build_NamespaceDescriptionConflict_UsesOneGenericContainerAndDiagnostic()
     {
-        var ordinary = Registration("mcp__github", "get_issue", "github", ToolSourceKind.Mcp);
-        var longTool = Registration(
-            "mcp__server.with punctuation",
-            new string('x', 80),
-            "long",
+        var repositories = Registration(
+            "mcp__catalog_service",
+            "search_records",
+            "catalog-service:catalog-service",
+            ToolSourceKind.Mcp,
+            ToolExposure.Deferred,
+            namespaceDescription: "Search records.");
+        var users = Registration(
+            "mcp__catalog_service",
+            "search_owners",
+            "catalog-service:catalog-service",
+            ToolSourceKind.Mcp,
+            ToolExposure.Direct,
+            namespaceDescription: "Search owners.");
+        var snapshot = new EffectiveToolSnapshotBuilder().Build(
+            [repositories, users],
+            16,
+            Capabilities(DeferredToolLoadingMode.Native, ModelProviderProtocols.OpenAIResponses));
+
+        var diagnostic = Assert.Single(
+            snapshot.Diagnostics,
+            value => value.Code == ToolSnapshotDiagnosticCodes.ConflictingNamespaceDescription);
+        Assert.Equal("mcp__catalog_service", diagnostic.ToolName.Namespace);
+        Assert.Equal(
+            "Tools in the mcp__catalog_service namespace.",
+            snapshot.NamespaceDescriptions["mcp__catalog_service"]);
+        var directTool = Assert.Single(AgentFactory.ProjectSnapshotTools(snapshot), tool => tool.Name.Contains("search_owners", StringComparison.Ordinal));
+        Assert.Equal(
+            "Tools in the mcp__catalog_service namespace.",
+            ToolNamespaceMetadataResolver.GetDescription(directTool));
+
+        var result = await new ToolDispatcher().DispatchProviderFlatCallAsync(
+            snapshot,
+            NativeToolSearchTool.ToolName,
+            new JsonObject { ["query"] = "search" },
+            new ToolInvocationRequest("thread", "turn", "call", ToolInvocationAudience.Model));
+
+        Assert.True(result.Success);
+        var providerResult = Assert.IsType<NativeToolSearchOutput>(result.ProviderResult);
+        var namespaceTool = Assert.Single(providerResult.Tools);
+        Assert.Equal("mcp__catalog_service", namespaceTool.Name);
+        Assert.Equal("Tools in the mcp__catalog_service namespace.", namespaceTool.Description);
+        Assert.Equal("search_records", Assert.Single(namespaceTool.Tools!).Name);
+    }
+
+    [Fact]
+    public async Task Build_DeferredSearch_MatchesNamespaceDescription()
+    {
+        var deferred = Registration(
+            "mcp__catalog",
+            "get_record",
+            "catalog",
+            ToolSourceKind.Mcp,
+            ToolExposure.Deferred,
+            namespaceDescription: "review catalog records");
+        var snapshot = new EffectiveToolSnapshotBuilder().Build(
+            [deferred],
+            15,
+            Capabilities(DeferredToolLoadingMode.Simulated, "test"));
+
+        var result = await new ToolDispatcher().DispatchProviderFlatCallAsync(
+            snapshot,
+            NativeToolSearchTool.ToolName,
+            new JsonObject { ["query"] = "catalog records" },
+            new ToolInvocationRequest("thread", "turn", "call", ToolInvocationAudience.Model));
+
+        Assert.True(result.Success);
+        Assert.Contains("mcp__catalog__get_record", result.Content, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Build_AnthropicNativeDeferredSearch_PreservesToolReferenceContent()
+    {
+        var deferred = Registration("mcp__catalog", "get_record", "catalog", ToolSourceKind.Mcp,
+            ToolExposure.Deferred);
+        var snapshot = new EffectiveToolSnapshotBuilder().Build(
+            [deferred],
+            13,
+            Capabilities(DeferredToolLoadingMode.Native, ModelProviderProtocols.Anthropic));
+
+        var result = await new ToolDispatcher().DispatchProviderFlatCallAsync(
+            snapshot,
+            NativeToolSearchTool.ToolName,
+            new JsonObject { ["query"] = "select:mcp__catalog__get_record" },
+            new ToolInvocationRequest("thread", "turn", "call", ToolInvocationAudience.Model));
+
+        Assert.True(result.Success);
+        var contents = Assert.IsAssignableFrom<IEnumerable<AIContent>>(result.ProviderResult).ToArray();
+        var reference = Assert.IsType<TextContent>(Assert.Single(contents));
+        Assert.NotNull(reference.RawRepresentation);
+    }
+
+    [Fact]
+    public async Task Build_SimulatedDeferredSearch_UsesCanonicalProviderNameAndTextResult()
+    {
+        var deferred = Registration(null, "later", "core", ToolSourceKind.CoreNative,
+            ToolExposure.Deferred);
+        var snapshot = new EffectiveToolSnapshotBuilder().Build(
+            [deferred],
+            14,
+            Capabilities(DeferredToolLoadingMode.Simulated, ModelProviderProtocols.OpenAIChatCompletions));
+
+        var result = await new ToolDispatcher().DispatchProviderFlatCallAsync(
+            snapshot,
+            DeferredToolSearchRuntime.CanonicalName,
+            new JsonObject { ["query"] = "later", ["maxResults"] = 2 },
+            new ToolInvocationRequest("thread", "turn", "call", ToolInvocationAudience.Model));
+
+        Assert.True(result.Success);
+        Assert.Null(result.ProviderResult);
+        Assert.Contains("later", result.Content);
+    }
+
+    [Fact]
+    public void WithModelExposure_RemovingEveryDeferredDefinition_RemovesSearchRegistration()
+    {
+        var deferred = Registration(null, "later", "core", ToolSourceKind.CoreNative,
+            ToolExposure.Deferred);
+        var snapshot = new EffectiveToolSnapshotBuilder().Build(
+            [deferred],
+            15,
+            Capabilities(DeferredToolLoadingMode.Native, ModelProviderProtocols.OpenAIResponses));
+
+        var filtered = snapshot.WithModelExposure(static _ => false);
+
+        Assert.Empty(filtered.DeferredDefinitions);
+        Assert.DoesNotContain(
+            filtered.Registrations.Values,
+            DeferredToolSearchRuntime.IsRegistration);
+        Assert.False(filtered.TryResolveProviderFlatName(NativeToolSearchTool.ToolName, out _));
+    }
+
+    [Fact]
+    public void ToolName_RejectsInvalidControlledIdentities()
+    {
+        Assert.Throws<ArgumentException>(() => new ToolName(null, "a.b"));
+        Assert.Throws<ArgumentException>(() => new ToolName("bad namespace", "read"));
+        Assert.Throws<ArgumentException>(() => new ToolName("valid", "read-item"));
+    }
+
+    [Theory]
+    [InlineData("catalog-service:catalog-service", "search_records")]
+    [InlineData("mcp__catalog_service", "search-records")]
+    [InlineData("mcp__catalog_service", "")]
+    public void TryResolveProviderNamespacedName_InvalidProviderIdentity_FailsClosed(
+        string toolNamespace,
+        string localName)
+    {
+        var registration = Registration(
+            "mcp__catalog_service",
+            "search_records",
+            "catalog-service:catalog-service",
+            ToolSourceKind.Mcp);
+        var snapshot = new EffectiveToolSnapshotBuilder().Build([registration], 1);
+
+        var exception = Record.Exception(() =>
+            snapshot.TryResolveProviderNamespacedName(toolNamespace, localName, out _));
+
+        Assert.Null(exception);
+        Assert.False(snapshot.TryResolveProviderNamespacedName(toolNamespace, localName, out _));
+    }
+
+    [Fact]
+    public void ToolRegistration_DeferredNamespaceMustMatchCanonicalDefinition()
+    {
+        var registration = Registration(
+            "mcp__catalog_service",
+            "search_records",
+            "catalog-service:catalog-service",
             ToolSourceKind.Mcp);
 
-        var first = new EffectiveToolSnapshotBuilder().Build([longTool, ordinary], 1);
-        var second = new EffectiveToolSnapshotBuilder().Build([ordinary, longTool], 1);
+        Assert.Throws<ArgumentException>(() => new ToolRegistration(
+            registration.Definition,
+            registration.Binding,
+            registration.ProjectionShape,
+            ToolExposure.Deferred,
+            deferred: new DeferredToolDescriptor("catalog-service:catalog-service", "Search records")));
+    }
 
-        Assert.Equal("mcp__github__get_issue", first.ProviderCallNames[ordinary.Definition.Name]);
-        var projected = first.ProviderCallNames[longTool.Definition.Name];
-        Assert.Equal("mcp__server_with_punctuation__xxxxxxxxxxxxxxxxxxxxx_5ca4c9b75c2d", projected);
-        Assert.True(System.Text.Encoding.UTF8.GetByteCount(projected) <= ProviderToolProjector.MaximumNameBytes);
-        Assert.Matches("_[0-9a-f]{12}$", projected);
-        Assert.Equal(projected, second.ProviderCallNames[longTool.Definition.Name]);
-        Assert.Equal(new ToolName("mcp__server.with punctuation", new string('x', 80)),
-            first.ProviderCallNameIndex[projected]);
+    [Fact]
+    public void Build_ProviderFlatAlias_PreservesSafeCompositeIdentity()
+    {
+        var ordinary = Registration("mcp__catalog", "get_record", "catalog", ToolSourceKind.Mcp);
+        var first = new EffectiveToolSnapshotBuilder().Build([ordinary], 1);
+
+        Assert.Equal("mcp__catalog__get_record", first.ProviderFlatNames[ordinary.Definition.Name]);
+        Assert.Equal(ordinary.Definition.Name, first.ProviderFlatNameIndex["mcp__catalog__get_record"]);
     }
 
     [Fact]
@@ -154,16 +357,21 @@ public sealed class EffectiveToolSnapshotTests
         string sourceId,
         ToolSourceKind kind,
         ToolExposure exposure = ToolExposure.Direct,
-        ToolInvocationAudience audiences = ToolInvocationAudience.Model | ToolInvocationAudience.Host)
+        ToolInvocationAudience audiences = ToolInvocationAudience.Model | ToolInvocationAudience.Host,
+        string? namespaceDescription = null)
     {
+        var canonicalNamespace = exposure == ToolExposure.Deferred
+            ? toolNamespace ?? "default"
+            : toolNamespace;
         var sourceToolId = new SourceToolId(name);
         var definitionId = new ToolDefinitionId(kind, sourceId, sourceToolId);
         var definition = new ToolDefinition(
             definitionId,
-            new ToolName(toolNamespace, name),
+            new ToolName(canonicalNamespace, name),
             $"Run {name}",
             Json("""{"type":"object"}"""),
-            provenance: new ToolProvenance(kind, sourceId));
+            provenance: new ToolProvenance(kind, sourceId),
+            namespaceDescription: namespaceDescription);
         var binding = new ToolRuntimeBinding(
             new RuntimeBindingId($"binding-{sourceId}-{name}"),
             definitionId,
@@ -172,12 +380,29 @@ public sealed class EffectiveToolSnapshotTests
             $"authority:{sourceId}",
             revision: 1);
         var deferred = exposure == ToolExposure.Deferred
-            ? new DeferredToolDescriptor(toolNamespace ?? "default", $"Search {name}")
+            ? new DeferredToolDescriptor(
+                canonicalNamespace!,
+                $"Search {name}",
+                namespaceDescription)
             : null;
-        return new ToolRegistration(definition, binding, exposure, audiences, deferred);
+        return new ToolRegistration(
+            definition,
+            binding,
+            ToolProjectionShape.StandardPair,
+            exposure,
+            audiences,
+            deferred);
     }
 
     private static JsonElement Json(string json) => JsonDocument.Parse(json).RootElement.Clone();
+
+    private static ProviderHostedCapabilityPlan Capabilities(
+        DeferredToolLoadingMode mode,
+        string protocol) =>
+        new()
+        {
+            DeferredToolSearch = new DeferredToolSearchPlan(mode, mode.ToString(), protocol, 5, null)
+        };
 
     private sealed class FakeRuntime : IToolRuntime
     {

@@ -1,24 +1,34 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { LocaleProvider } from '../contexts/LocaleContext'
-import { AgentResponseBlock as ProductionAgentResponseBlock } from '../components/conversation/AgentResponseBlock'
+import { AgentResponseBlock } from '../components/conversation/AgentResponseBlock'
 import { useUIStore } from '../stores/uiStore'
 import { useConversationStore } from '../stores/conversationStore'
 import { useConnectionStore } from '../stores/connectionStore'
 import { useThreadStore } from '../stores/threadStore'
 import type { ConversationItem, ConversationTurn } from '../types/conversation'
 import type { FileDiff } from '../types/toolCall'
+import { CORE_TOOL_PRESENTATION_IDS } from '../utils/toolRendererRegistry'
 import { withTestCorePresentation } from './testToolPresentation'
 
-function AgentResponseBlock(
-  props: React.ComponentProps<typeof ProductionAgentResponseBlock>
-): JSX.Element {
-  return (
-    <ProductionAgentResponseBlock
-      {...props}
-      turn={{ ...props.turn, items: props.turn.items.map(withTestCorePresentation) }}
-    />
-  )
+interface CoreFixturePresentation {
+  presentationId: string
+  options?: Record<string, unknown>
+}
+
+const EXPLORE: CoreFixturePresentation = { presentationId: CORE_TOOL_PRESENTATION_IDS.readFile }
+const SHELL: CoreFixturePresentation = { presentationId: CORE_TOOL_PRESENTATION_IDS.shell }
+const WEB_SEARCH: CoreFixturePresentation = {
+  presentationId: CORE_TOOL_PRESENTATION_IDS.web,
+  options: { operation: 'search' }
+}
+const WEB_FETCH: CoreFixturePresentation = {
+  presentationId: CORE_TOOL_PRESENTATION_IDS.web,
+  options: { operation: 'fetch' }
+}
+const SUBAGENT_SPAWN: CoreFixturePresentation = {
+  presentationId: CORE_TOOL_PRESENTATION_IDS.subagent,
+  options: { operation: 'spawn' }
 }
 
 const TEST_IMAGE_BASE64 = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=='
@@ -27,9 +37,10 @@ function makeToolCallItem(
   id: string,
   toolCallId: string,
   toolName: string,
-  createdAt: string
+  createdAt: string,
+  presentation?: CoreFixturePresentation
 ): ConversationItem {
-  return {
+  const item: ConversationItem = {
     id,
     type: 'toolCall',
     status: 'completed',
@@ -39,6 +50,9 @@ function makeToolCallItem(
     success: true,
     createdAt
   }
+  return presentation
+    ? withTestCorePresentation(item, presentation.presentationId, presentation.options)
+    : item
 }
 
 function makeCreatePlanItem(
@@ -46,7 +60,7 @@ function makeCreatePlanItem(
   title: string,
   createdAt: string
 ): ConversationItem {
-  return {
+  return withTestCorePresentation({
     id,
     type: 'toolCall',
     status: 'completed',
@@ -59,7 +73,7 @@ function makeCreatePlanItem(
     },
     success: true,
     createdAt
-  }
+  }, CORE_TOOL_PRESENTATION_IDS.createPlan)
 }
 
 function makeImageGenerationItem(
@@ -154,6 +168,57 @@ afterEach(() => {
   vi.useRealTimers()
 })
 
+describe('AgentResponseBlock error presentation', () => {
+  beforeEach(() => {
+    Object.defineProperty(window, 'api', {
+      configurable: true,
+      value: {
+        initialLocale: 'en',
+        settings: { get: async () => ({ locale: 'en' }) }
+      }
+    })
+  })
+
+  it('renders an Error item and identical Turn error once', () => {
+    const text = renderBlock({
+      id: 'turn-error',
+      threadId: 'thread-1',
+      status: 'failed',
+      error: 'Namespace resolution failed.',
+      startedAt: '2026-07-15T00:00:00.000Z',
+      items: [{
+        id: 'error-1',
+        type: 'error',
+        status: 'completed',
+        text: 'Namespace resolution failed.',
+        createdAt: '2026-07-15T00:00:01.000Z'
+      }]
+    })
+
+    expect(text.split('Namespace resolution failed.')).toHaveLength(2)
+  })
+
+  it('keeps distinct Item and Turn errors visible', () => {
+    const text = renderBlock({
+      id: 'turn-error',
+      threadId: 'thread-1',
+      status: 'failed',
+      error: 'Turn cleanup failed.',
+      startedAt: '2026-07-15T00:00:00.000Z',
+      items: [{
+        id: 'error-1',
+        type: 'error',
+        status: 'completed',
+        text: 'Namespace resolution failed.',
+        createdAt: '2026-07-15T00:00:01.000Z'
+      }]
+    })
+
+    expect(text).toContain('Namespace resolution failed.')
+    expect(text).toContain('Turn cleanup failed.')
+  })
+})
+
 describe('AgentResponseBlock fork footer', () => {
   beforeEach(() => {
     Object.defineProperty(window, 'api', {
@@ -242,7 +307,7 @@ describe('AgentResponseBlock subagent transcript rendering', () => {
       status: 'completed',
       startedAt: '2026-04-18T10:00:00.000Z',
       items: [
-        makeToolCallItem('tool-1', 'call-1', 'SpawnAgent', '2026-04-18T10:00:01.000Z'),
+        makeToolCallItem('tool-1', 'call-1', 'SpawnAgent', '2026-04-18T10:00:01.000Z', SUBAGENT_SPAWN),
         makeToolCallItem('tool-2', 'call-2', 'FollowupTool', '2026-04-18T10:00:02.000Z')
       ],
       subAgentEntries: [
@@ -274,7 +339,7 @@ describe('AgentResponseBlock subagent transcript rendering', () => {
       status: 'completed',
       startedAt: '2026-04-18T10:01:00.000Z',
       items: [
-        makeToolCallItem('tool-3', 'call-3', 'SpawnAgent', '2026-04-18T10:01:01.000Z')
+        makeToolCallItem('tool-3', 'call-3', 'SpawnAgent', '2026-04-18T10:01:01.000Z', SUBAGENT_SPAWN)
       ],
       subAgentEntries: [
         {
@@ -306,6 +371,8 @@ describe('AgentResponseBlock subagent transcript rendering', () => {
           status: 'completed',
           toolCallId: 'spawn-call-1',
           toolName: 'SpawnAgent',
+          source: { kind: 'CoreNative', sourceId: 'core-native', sourceToolId: 'SpawnAgent' },
+          presentation: { presentationId: 'core.subagent', options: { operation: 'spawn' } },
           arguments: {
             agentPrompt: 'Inspect Settings diagnostics output',
             agentNickname: 'Kepler',
@@ -326,6 +393,8 @@ describe('AgentResponseBlock subagent transcript rendering', () => {
           status: 'completed',
           toolCallId: 'spawn-call-2',
           toolName: 'SpawnAgent',
+          source: { kind: 'CoreNative', sourceId: 'core-native', sourceToolId: 'SpawnAgent' },
+          presentation: { presentationId: 'core.subagent', options: { operation: 'spawn' } },
           arguments: {
             agentPrompt: 'Review AppServer credential redaction',
             agentNickname: 'Lagrange',
@@ -371,6 +440,8 @@ describe('AgentResponseBlock subagent transcript rendering', () => {
           status: 'completed',
           toolCallId: 'call-wait',
           toolName: 'WaitAgent',
+          source: { kind: 'CoreNative', sourceId: 'core-native', sourceToolId: 'WaitAgent' },
+          presentation: { presentationId: 'core.subagent', options: { operation: 'wait' } },
           arguments: { childThreadId: 'thread_child', agentNickname: 'Reviewer' },
           createdAt: '2026-05-03T10:00:01.000Z'
         }
@@ -399,6 +470,8 @@ describe('AgentResponseBlock subagent transcript rendering', () => {
           status: 'completed',
           toolCallId: 'call-wait-history',
           toolName: 'WaitAgent',
+          source: { kind: 'CoreNative', sourceId: 'core-native', sourceToolId: 'WaitAgent' },
+          presentation: { presentationId: 'core.subagent', options: { operation: 'wait' } },
           arguments: { childThreadId: 'thread_child', agentNickname: 'Reviewer' },
           createdAt: '2026-05-03T10:00:01.000Z'
         }
@@ -596,7 +669,7 @@ describe('AgentResponseBlock subagent transcript rendering', () => {
       startedAt: '2026-04-18T10:06:10.000Z',
       items: [
         {
-          ...makeToolCallItem('read-image-tool-1', 'read-image-call-1', 'ReadFile', '2026-04-18T10:06:11.000Z'),
+          ...makeToolCallItem('read-image-tool-1', 'read-image-call-1', 'ReadFile', '2026-04-18T10:06:11.000Z', EXPLORE),
           arguments: { path: 'docs/diagram.png' }
         },
         {
@@ -794,12 +867,12 @@ describe('AgentResponseBlock subagent transcript rendering', () => {
       startedAt: '2026-04-18T10:07:00.000Z',
       items: [
         {
-          ...makeToolCallItem('read-tool-1', 'read-call-1', 'ReadFile', '2026-04-18T10:07:01.000Z'),
+          ...makeToolCallItem('read-tool-1', 'read-call-1', 'ReadFile', '2026-04-18T10:07:01.000Z', EXPLORE),
           contentItems: [
             { type: 'image', mediaType: 'image/png', dataBase64: 'grouped' }
           ]
         },
-        makeToolCallItem('read-tool-2', 'read-call-2', 'ReadFile', '2026-04-18T10:07:02.000Z')
+        makeToolCallItem('read-tool-2', 'read-call-2', 'ReadFile', '2026-04-18T10:07:02.000Z', EXPLORE)
       ]
     }
 
@@ -956,8 +1029,8 @@ describe('AgentResponseBlock tail tool aggregation timing', () => {
       status: 'running',
       startedAt: '2026-04-18T11:00:00.000Z',
       items: [
-        makeToolCallItem('tool-1', 'call-1', 'ReadFile', '2026-04-18T11:00:01.000Z'),
-        makeToolCallItem('tool-2', 'call-2', 'FindFiles', '2026-04-18T11:00:02.000Z')
+        makeToolCallItem('tool-1', 'call-1', 'ReadFile', '2026-04-18T11:00:01.000Z', EXPLORE),
+        makeToolCallItem('tool-2', 'call-2', 'FindFiles', '2026-04-18T11:00:02.000Z', EXPLORE)
       ]
     }
 
@@ -978,8 +1051,8 @@ describe('AgentResponseBlock tail tool aggregation timing', () => {
       status: 'running',
       startedAt: '2026-04-18T11:05:00.000Z',
       items: [
-        makeToolCallItem('tool-1', 'call-1', 'ReadFile', '2026-04-18T11:05:01.000Z'),
-        makeToolCallItem('tool-2', 'call-2', 'FindFiles', '2026-04-18T11:05:02.000Z'),
+        makeToolCallItem('tool-1', 'call-1', 'ReadFile', '2026-04-18T11:05:01.000Z', EXPLORE),
+        makeToolCallItem('tool-2', 'call-2', 'FindFiles', '2026-04-18T11:05:02.000Z', EXPLORE),
         {
           id: 'reasoning-1',
           type: 'reasoningContent',
@@ -1006,9 +1079,9 @@ describe('AgentResponseBlock tail tool aggregation timing', () => {
       status: 'running',
       startedAt: '2026-04-18T11:06:00.000Z',
       items: [
-        makeToolCallItem('tool-profile', 'call-profile', 'ReadFile', '2026-04-18T11:06:01.000Z'),
-        makeToolCallItem('tool-notes', 'call-notes', 'ReadFile', '2026-04-18T11:06:02.000Z'),
-        makeToolCallItem('tool-assets', 'call-assets', 'FindFiles', '2026-04-18T11:06:03.000Z'),
+        makeToolCallItem('tool-profile', 'call-profile', 'ReadFile', '2026-04-18T11:06:01.000Z', EXPLORE),
+        makeToolCallItem('tool-notes', 'call-notes', 'ReadFile', '2026-04-18T11:06:02.000Z', EXPLORE),
+        makeToolCallItem('tool-assets', 'call-assets', 'FindFiles', '2026-04-18T11:06:03.000Z', EXPLORE),
         {
           id: 'approval-profile',
           type: 'approvalCard',
@@ -1026,6 +1099,8 @@ describe('AgentResponseBlock tail tool aggregation timing', () => {
           status: 'completed',
           toolCallId: 'call-next-find',
           toolName: 'FindFiles',
+          source: { kind: 'CoreNative', sourceId: 'core-native', sourceToolId: 'FindFiles' },
+          presentation: { presentationId: 'core.read-file' },
           arguments: { path: 'docs' },
           createdAt: '2026-04-18T11:06:05.000Z'
         },
@@ -1060,8 +1135,8 @@ describe('AgentResponseBlock tail tool aggregation timing', () => {
       status: 'completed',
       startedAt: '2026-04-18T11:10:00.000Z',
       items: [
-        makeToolCallItem('tool-1', 'call-1', 'ReadFile', '2026-04-18T11:10:01.000Z'),
-        makeToolCallItem('tool-2', 'call-2', 'FindFiles', '2026-04-18T11:10:02.000Z')
+        makeToolCallItem('tool-1', 'call-1', 'ReadFile', '2026-04-18T11:10:01.000Z', EXPLORE),
+        makeToolCallItem('tool-2', 'call-2', 'FindFiles', '2026-04-18T11:10:02.000Z', EXPLORE)
       ]
     }
 
@@ -1081,10 +1156,10 @@ describe('AgentResponseBlock tail tool aggregation timing', () => {
       status: 'completed',
       startedAt: '2026-04-18T11:11:00.000Z',
       items: [
-        makeToolCallItem('shell-1', 'call-shell-1', 'RunCommand', '2026-04-18T11:11:01.000Z'),
-        makeToolCallItem('shell-2', 'call-shell-2', 'Exec', '2026-04-18T11:11:02.000Z'),
-        makeToolCallItem('file-1', 'call-file-1', 'ReadFile', '2026-04-18T11:11:03.000Z'),
-        makeToolCallItem('file-2', 'call-file-2', 'FindFiles', '2026-04-18T11:11:04.000Z')
+        makeToolCallItem('shell-1', 'call-shell-1', 'RunCommand', '2026-04-18T11:11:01.000Z', SHELL),
+        makeToolCallItem('shell-2', 'call-shell-2', 'Exec', '2026-04-18T11:11:02.000Z', SHELL),
+        makeToolCallItem('file-1', 'call-file-1', 'ReadFile', '2026-04-18T11:11:03.000Z', EXPLORE),
+        makeToolCallItem('file-2', 'call-file-2', 'FindFiles', '2026-04-18T11:11:04.000Z', EXPLORE)
       ]
     }
 
@@ -1108,8 +1183,8 @@ describe('AgentResponseBlock tail tool aggregation timing', () => {
       status: 'completed',
       startedAt: '2026-04-18T11:11:00.000Z',
       items: [
-        makeToolCallItem('shell-1', 'call-shell-1', 'Exec', '2026-04-18T11:11:01.000Z'),
-        { ...makeToolCallItem('shell-2', 'call-shell-2', 'Exec', '2026-04-18T11:11:02.000Z'), success: false, exitCode: 1 }
+        makeToolCallItem('shell-1', 'call-shell-1', 'Exec', '2026-04-18T11:11:01.000Z', SHELL),
+        { ...makeToolCallItem('shell-2', 'call-shell-2', 'Exec', '2026-04-18T11:11:02.000Z', SHELL), success: false, exitCode: 1 }
       ]
     }
 
@@ -1133,8 +1208,8 @@ describe('AgentResponseBlock tail tool aggregation timing', () => {
       status: 'completed',
       startedAt: '2026-04-18T11:11:00.000Z',
       items: [
-        makeToolCallItem('file-1', 'call-file-1', 'ReadFile', '2026-04-18T11:11:01.000Z'),
-        { ...makeToolCallItem('file-2', 'call-file-2', 'FindFiles', '2026-04-18T11:11:02.000Z'), success: false }
+        makeToolCallItem('file-1', 'call-file-1', 'ReadFile', '2026-04-18T11:11:01.000Z', EXPLORE),
+        { ...makeToolCallItem('file-2', 'call-file-2', 'FindFiles', '2026-04-18T11:11:02.000Z', EXPLORE), success: false }
       ]
     }
 
@@ -1158,8 +1233,8 @@ describe('AgentResponseBlock tail tool aggregation timing', () => {
       status: 'completed',
       startedAt: '2026-04-18T11:11:00.000Z',
       items: [
-        makeToolCallItem('shell-1', 'call-shell-1', 'RunCommand', '2026-04-18T11:11:01.000Z'),
-        makeToolCallItem('shell-2', 'call-shell-2', 'Exec', '2026-04-18T11:11:02.000Z'),
+        makeToolCallItem('shell-1', 'call-shell-1', 'RunCommand', '2026-04-18T11:11:01.000Z', SHELL),
+        makeToolCallItem('shell-2', 'call-shell-2', 'Exec', '2026-04-18T11:11:02.000Z', SHELL),
         {
           id: 'reasoning-hidden',
           type: 'reasoningContent',
@@ -1167,8 +1242,8 @@ describe('AgentResponseBlock tail tool aggregation timing', () => {
           reasoning: 'hidden reasoning',
           createdAt: '2026-04-18T11:11:03.000Z'
         },
-        makeToolCallItem('shell-3', 'call-shell-3', 'RunCommand', '2026-04-18T11:11:04.000Z'),
-        makeToolCallItem('shell-4', 'call-shell-4', 'Exec', '2026-04-18T11:11:05.000Z')
+        makeToolCallItem('shell-3', 'call-shell-3', 'RunCommand', '2026-04-18T11:11:04.000Z', SHELL),
+        makeToolCallItem('shell-4', 'call-shell-4', 'Exec', '2026-04-18T11:11:05.000Z', SHELL)
       ]
     }
 
@@ -1194,8 +1269,8 @@ describe('AgentResponseBlock tail tool aggregation timing', () => {
       status: 'failed',
       startedAt: '2026-04-18T11:11:00.000Z',
       items: [
-        makeToolCallItem('shell-1', 'call-shell-1', 'RunCommand', '2026-04-18T11:11:01.000Z'),
-        makeToolCallItem('shell-2', 'call-shell-2', 'Exec', '2026-04-18T11:11:02.000Z'),
+        makeToolCallItem('shell-1', 'call-shell-1', 'RunCommand', '2026-04-18T11:11:01.000Z', SHELL),
+        makeToolCallItem('shell-2', 'call-shell-2', 'Exec', '2026-04-18T11:11:02.000Z', SHELL),
         {
           id: 'empty-agent-message',
           type: 'agentMessage',
@@ -1203,8 +1278,8 @@ describe('AgentResponseBlock tail tool aggregation timing', () => {
           text: '   \n',
           createdAt: '2026-04-18T11:11:03.000Z'
         },
-        makeToolCallItem('shell-3', 'call-shell-3', 'RunCommand', '2026-04-18T11:11:04.000Z'),
-        makeToolCallItem('shell-4', 'call-shell-4', 'Exec', '2026-04-18T11:11:05.000Z')
+        makeToolCallItem('shell-3', 'call-shell-3', 'RunCommand', '2026-04-18T11:11:04.000Z', SHELL),
+        makeToolCallItem('shell-4', 'call-shell-4', 'Exec', '2026-04-18T11:11:05.000Z', SHELL)
       ]
     }
 
@@ -1239,8 +1314,8 @@ describe('AgentResponseBlock tail tool aggregation timing', () => {
           text: 'Let me search from a few angles.',
           createdAt: '2026-04-18T11:11:00.500Z'
         },
-        makeToolCallItem('web-1', 'call-web-1', 'WebSearch', '2026-04-18T11:11:01.000Z'),
-        makeToolCallItem('web-2', 'call-web-2', 'WebFetch', '2026-04-18T11:11:02.000Z'),
+        makeToolCallItem('web-1', 'call-web-1', 'WebSearch', '2026-04-18T11:11:01.000Z', WEB_SEARCH),
+        makeToolCallItem('web-2', 'call-web-2', 'WebFetch', '2026-04-18T11:11:02.000Z', WEB_FETCH),
         {
           id: 'thinking-after-tool',
           type: 'reasoningContent',
@@ -1527,6 +1602,8 @@ describe('AgentResponseBlock tail tool aggregation timing', () => {
       status: 'completed',
       toolCallId: id,
       toolName: 'WebSearch',
+          source: { kind: 'CoreNative', sourceId: 'core-native', sourceToolId: 'WebSearch' },
+          presentation: { presentationId: 'core.web', options: { operation: 'search' } },
       arguments: { query },
       result: JSON.stringify({
         query,
@@ -1603,6 +1680,8 @@ describe('AgentResponseBlock reasoning timeline rendering', () => {
           status: 'completed',
           toolCallId: 'call-between',
           toolName: 'ReadFile',
+          source: { kind: 'CoreNative', sourceId: 'core-native', sourceToolId: 'ReadFile' },
+          presentation: { presentationId: 'core.read-file' },
           arguments: { path: 'src/main.ts' },
           success: true,
           createdAt: '2026-04-18T11:18:02.000Z'
@@ -2037,6 +2116,8 @@ describe('AgentResponseBlock idle running fallback', () => {
           status: 'completed',
           toolCallId: 'call-read-settled',
           toolName: 'ReadFile',
+          source: { kind: 'CoreNative', sourceId: 'core-native', sourceToolId: 'ReadFile' },
+          presentation: { presentationId: 'core.read-file' },
           arguments: { path: 'docs/readme.md' },
           result: 'file contents',
           success: true,
@@ -2181,6 +2262,8 @@ describe('AgentResponseBlock completed turn folding', () => {
           status: 'completed',
           toolCallId: 'call-1',
           toolName: 'ReadFile',
+          source: { kind: 'CoreNative', sourceId: 'core-native', sourceToolId: 'ReadFile' },
+          presentation: { presentationId: 'core.read-file' },
           arguments: { path: 'src/main.ts' },
           success: true,
           createdAt: '2026-04-18T11:20:02.000Z'
@@ -2235,6 +2318,8 @@ describe('AgentResponseBlock completed turn folding', () => {
           status: 'completed',
           toolCallId: 'call-1',
           toolName: 'ReadFile',
+          source: { kind: 'CoreNative', sourceId: 'core-native', sourceToolId: 'ReadFile' },
+          presentation: { presentationId: 'core.read-file' },
           arguments: { path: 'src/main.ts' },
           success: true,
           createdAt: '2026-04-18T11:20:03.000Z'
@@ -2286,6 +2371,8 @@ describe('AgentResponseBlock completed turn folding', () => {
           status: 'completed',
           toolCallId: 'call-1',
           toolName: 'ReadFile',
+          source: { kind: 'CoreNative', sourceId: 'core-native', sourceToolId: 'ReadFile' },
+          presentation: { presentationId: 'core.read-file' },
           arguments: { path: 'src/main.ts' },
           success: true,
           createdAt: '2026-04-18T11:30:02.000Z'
@@ -2332,6 +2419,8 @@ describe('AgentResponseBlock completed turn folding', () => {
           status: 'completed',
           toolCallId: 'call-1',
           toolName: 'ReadFile',
+          source: { kind: 'CoreNative', sourceId: 'core-native', sourceToolId: 'ReadFile' },
+          presentation: { presentationId: 'core.read-file' },
           arguments: { path: 'src/main.ts' },
           success: true,
           createdAt: '2026-04-18T11:40:02.000Z'
@@ -2376,6 +2465,8 @@ describe('AgentResponseBlock completed turn folding', () => {
           status: 'completed',
           toolCallId: 'call-1',
           toolName: 'ReadFile',
+          source: { kind: 'CoreNative', sourceId: 'core-native', sourceToolId: 'ReadFile' },
+          presentation: { presentationId: 'core.read-file' },
           arguments: { path: 'src/main.ts' },
           success: true,
           createdAt: '2026-04-18T11:50:01.000Z'
@@ -2425,6 +2516,8 @@ describe('AgentResponseBlock completed turn folding', () => {
           status: 'completed',
           toolCallId: 'call-1',
           toolName: 'ReadFile',
+          source: { kind: 'CoreNative', sourceId: 'core-native', sourceToolId: 'ReadFile' },
+          presentation: { presentationId: 'core.read-file' },
           arguments: { path: 'src/main.ts' },
           success: true,
           createdAt: '2026-04-18T12:10:03.000Z'
@@ -2502,7 +2595,7 @@ describe('AgentResponseBlock interactive card pinning', () => {
     }
   }
 
-  it('pins an interactive card out of the collapsed turn summary', () => {
+  it('does not restore a private iframe without live authority', () => {
     const turn: ConversationTurn = {
       id: 'turn-pinned-card',
       threadId: 'thread-1',
@@ -2516,6 +2609,8 @@ describe('AgentResponseBlock interactive card pinning', () => {
           status: 'completed',
           toolCallId: 'call-read',
           toolName: 'ReadFile',
+          source: { kind: 'CoreNative', sourceId: 'core-native', sourceToolId: 'ReadFile' },
+          presentation: { presentationId: 'core.read-file' },
           arguments: { path: 'src/main.ts' },
           success: true,
           createdAt: '2026-06-10T11:30:01.000Z'
@@ -2537,8 +2632,7 @@ describe('AgentResponseBlock interactive card pinning', () => {
       </LocaleProvider>
     )
 
-    // The card's iframe renders standalone (pinned), not folded into the summary.
-    expect(container.querySelector('.interactive-tool-view__frame')).toBeTruthy()
+    expect(container.querySelector('.interactive-tool-view__frame')).toBeNull()
     expect(screen.getByText('here is the board')).toBeInTheDocument()
     // The non-UI tool call stays collapsed until the summary is expanded.
     expect(screen.getByText(/Processed in/)).toBeInTheDocument()
@@ -2548,7 +2642,7 @@ describe('AgentResponseBlock interactive card pinning', () => {
     expect(screen.getByText('Read main.ts')).toBeInTheDocument()
   })
 
-  it('pins only the latest interactive card before the final message', () => {
+  it('does not restore a private iframe from persisted items', () => {
     const turn: ConversationTurn = {
       id: 'turn-two-cards',
       threadId: 'thread-1',
@@ -2563,6 +2657,8 @@ describe('AgentResponseBlock interactive card pinning', () => {
           status: 'completed',
           toolCallId: 'call-read',
           toolName: 'ReadFile',
+          source: { kind: 'CoreNative', sourceId: 'core-native', sourceToolId: 'ReadFile' },
+          presentation: { presentationId: 'core.read-file' },
           arguments: { path: 'src/main.ts' },
           success: true,
           createdAt: '2026-06-10T11:40:02.000Z'
@@ -2584,15 +2680,14 @@ describe('AgentResponseBlock interactive card pinning', () => {
       </LocaleProvider>
     )
 
-    // Only the latest card is pinned; the earlier one stays in the collapsed summary.
-    expect(container.querySelector('iframe[title="GetBoardItem"]')).toBeTruthy()
+    expect(container.querySelector('iframe[title="GetBoardItem"]')).toBeNull()
     expect(container.querySelector('iframe[title="ListBoardItems"]')).toBeNull()
 
     fireEvent.click(screen.getByRole('button', { name: /Processed in/ }))
-    expect(container.querySelector('iframe[title="ListBoardItems"]')).toBeTruthy()
+    expect(container.querySelector('iframe[title="ListBoardItems"]')).toBeNull()
   })
 
-  it('pins both a CreatePlan and an interactive card', () => {
+  it('keeps a plan but not a private App Binding iframe', () => {
     const turn: ConversationTurn = {
       id: 'turn-plan-and-card',
       threadId: 'thread-1',
@@ -2607,6 +2702,8 @@ describe('AgentResponseBlock interactive card pinning', () => {
           status: 'completed',
           toolCallId: 'call-read',
           toolName: 'ReadFile',
+          source: { kind: 'CoreNative', sourceId: 'core-native', sourceToolId: 'ReadFile' },
+          presentation: { presentationId: 'core.read-file' },
           arguments: { path: 'src/main.ts' },
           success: true,
           createdAt: '2026-06-10T11:50:02.000Z'
@@ -2630,7 +2727,7 @@ describe('AgentResponseBlock interactive card pinning', () => {
 
     // Both pinned out of the summary; the plain ReadFile stays collapsed.
     expect(screen.getByText('My Plan')).toBeInTheDocument()
-    expect(container.querySelector('.interactive-tool-view__frame')).toBeTruthy()
+    expect(container.querySelector('.interactive-tool-view__frame')).toBeNull()
     expect(screen.queryByText('Read main.ts')).toBeNull()
   })
 })
@@ -2676,6 +2773,8 @@ describe('AgentResponseBlock historical tool trimming', () => {
           status: 'completed',
           toolCallId: 'read-call-1',
           toolName: 'ReadFile',
+          source: { kind: 'CoreNative', sourceId: 'core-native', sourceToolId: 'ReadFile' },
+          presentation: { presentationId: 'core.read-file' },
           arguments: { path: 'src/main.ts' },
           success: true,
           createdAt: '2026-04-18T12:00:02.000Z'
@@ -2686,6 +2785,8 @@ describe('AgentResponseBlock historical tool trimming', () => {
           status: 'completed',
           toolCallId: 'write-call-1',
           toolName: 'WriteFile',
+          source: { kind: 'CoreNative', sourceId: 'core-native', sourceToolId: 'WriteFile' },
+          presentation: { presentationId: 'core.file-write', options: { operation: 'write' } },
           arguments: { path: 'docs/old-artifact.md', content: 'new\n' },
           result: 'Wrote docs/old-artifact.md',
           success: true,
@@ -2697,6 +2798,8 @@ describe('AgentResponseBlock historical tool trimming', () => {
           status: 'completed',
           toolCallId: 'shell-call-1',
           toolName: 'Exec',
+          source: { kind: 'CoreNative', sourceId: 'core-native', sourceToolId: 'Exec' },
+          presentation: { presentationId: 'core.shell' },
           arguments: { command: 'npm test' },
           result: 'all green',
           success: true,

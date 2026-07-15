@@ -155,25 +155,22 @@ test("WeixinAdapter accepts social bind codes for user context", async () => {
   };
   adapter.client.request = async (method, params) => {
     requests.push({ method, params });
-    if (method === "app/binding/request/get") {
+    if (method === "app/socialBinding/request/get") {
       return {
         bindingRequestId: "request-1",
         appId: "com.dotharness.channel.weixin",
         threadId: "thread-1",
         bindingKind: "socialChannel",
-        requestedScopes: ["conversation.receive", "message.send"],
       };
     }
-    if (method === "app/binding/accept") {
+    if (method === "app/socialBinding/accept") {
       return {
-        binding: {
           bindingId: "binding-1",
           appId: "com.dotharness.channel.weixin",
           threadId: "thread-1",
           state: "active",
-          bindingKind: "socialChannel",
-          socialTarget: params.socialTarget,
-        },
+          authorityRevision: 1,
+          socialTarget: params.target,
       };
     }
     throw new Error(`unexpected request ${method}`);
@@ -192,15 +189,11 @@ test("WeixinAdapter accepts social bind codes for user context", async () => {
   });
 
   assert.deepEqual(requests[0], {
-    method: "app/binding/request/get",
-    params: {
-      appId: "com.dotharness.channel.weixin",
-      bindCode: "482913",
-      requestToken: "482913",
-    },
+    method: "app/socialBinding/request/get",
+    params: { code: "482913" },
   });
-  assert.equal(requests[1]?.method, "app/binding/accept");
-  assert.deepEqual(requests[1]?.params.socialTarget, {
+  assert.equal(requests[1]?.method, "app/socialBinding/accept");
+  assert.deepEqual(requests[1]?.params.target, {
     channelName: "weixin",
     conversationKind: "user",
     conversationId: "wx-user-1",
@@ -211,9 +204,6 @@ test("WeixinAdapter accepts social bind codes for user context", async () => {
       displayName: "Weixin User",
     },
   });
-  assert.equal(requests[1]?.params.grantId, "social:weixin::user:wx-user-1");
-  assert.equal(requests[1]?.params.approvedBy, "wx-user-1");
-  assert.equal(requests[1]?.params.auditRef, "channel:weixin:user:wx-user-1");
   assert.deepEqual(deliveries, [
     {
       target: "wx-user-1",
@@ -221,7 +211,7 @@ test("WeixinAdapter accepts social bind codes for user context", async () => {
       metadata: {
         appId: "com.dotharness.channel.weixin",
         bindingId: "binding-1",
-        bindingKind: "socialChannel",
+        authorityRevision: 1,
       },
     },
   ]);

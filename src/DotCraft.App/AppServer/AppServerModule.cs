@@ -34,46 +34,17 @@ public sealed partial class AppServerModule : ModuleBase
         services.TryAddSingleton<ExternalChannelRegistry>();
         services.TryAddSingleton<ChannelToolRegistrationService>();
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IThreadPluginToolSourceProvider, ExternalChannelToolProvider>());
-        services.AddSingleton<IManagedAppBindingRuntime>(sp => new SocialChannelAppBindingRuntime(
-            "qq",
-            "QQ",
-            "Continue this thread in a QQ group or private chat.",
-            sp.GetRequiredService<IChannelRuntimeRegistry>(),
-            sp.GetRequiredService<ChannelToolRegistrationService>()));
-        services.AddSingleton<IManagedAppBindingRuntime>(sp => new SocialChannelAppBindingRuntime(
-            "wecom",
-            "WeCom",
-            "Continue this thread in a WeCom conversation.",
-            sp.GetRequiredService<IChannelRuntimeRegistry>(),
-            sp.GetRequiredService<ChannelToolRegistrationService>()));
-        services.AddSingleton<IManagedAppBindingRuntime>(sp => new SocialChannelAppBindingRuntime(
-            "telegram",
-            "Telegram",
-            "Continue this thread in a Telegram chat.",
-            sp.GetRequiredService<IChannelRuntimeRegistry>(),
-            sp.GetRequiredService<ChannelToolRegistrationService>()));
-        services.AddSingleton<IManagedAppBindingRuntime>(sp => new SocialChannelAppBindingRuntime(
-            "feishu",
-            "Feishu",
-            "Continue this thread in a Feishu chat.",
-            sp.GetRequiredService<IChannelRuntimeRegistry>(),
-            sp.GetRequiredService<ChannelToolRegistrationService>()));
-        services.AddSingleton<IManagedAppBindingRuntime>(sp => new SocialChannelAppBindingRuntime(
-            "weixin",
-            "Weixin",
-            "Continue this thread in a Weixin conversation.",
-            sp.GetRequiredService<IChannelRuntimeRegistry>(),
-            sp.GetRequiredService<ChannelToolRegistrationService>()));
         services.TryAddSingleton<AppBindingService>();
+        services.TryAddSingleton<AppBindingCoordinator>();
         services.TryAddSingleton<WireRuntimeAdditionalContextProvider>();
         services.TryAddSingleton<WireDynamicToolProxy>();
         services.AddSingleton<IToolSource>(
             provider => provider.GetRequiredService<WireDynamicToolProxy>());
-        services.TryAddEnumerable(ServiceDescriptor.Singleton<IToolSource, LegacyAppBindingToolSource>());
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IThreadSystemPromptContextProvider, WireRuntimeAdditionalContextSystemPromptProvider>());
-        services.TryAddEnumerable(ServiceDescriptor.Singleton<IThreadSystemPromptContextProvider, AppBindingThreadSystemPromptContextProvider>());
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IThreadSystemPromptContextProvider, DotCraft.Agents.ProfileBuilderSystemPromptProvider>());
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IAppServerProtocolExtension, AppBindingProtocolExtension>());
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IToolSource, AppBindingOfflineToolSource>());
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IToolSource, ManagedSocialToolSource>());
         services.TryAddSingleton<IAppServerChannelRunnerFactory, DefaultAppServerChannelRunnerFactory>();
         services.TryAddSingleton<IAppServerAutomationRuntimeFactory, DefaultAppServerAutomationRuntimeFactory>();
         services.TryAddSingleton<IWorkspaceRuntimeAppServerFeatureFactory, AppServerWorkspaceRuntimeFeatureFactory>();

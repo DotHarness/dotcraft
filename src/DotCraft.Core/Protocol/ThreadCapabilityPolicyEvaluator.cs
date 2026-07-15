@@ -37,6 +37,14 @@ internal sealed class ThreadCapabilityPolicyEvaluator(ThreadConfiguration config
     public bool AllowsTool(AITool tool) =>
         AllowsTool(tool, out _);
 
+    /// <summary>Returns true when source-qualified policy permits model exposure.</summary>
+    public bool AllowsRegistrationExposure(ToolRegistration registration)
+    {
+        ArgumentNullException.ThrowIfNull(registration);
+        return registration.Definition.Id.Kind != ToolSourceKind.Mcp
+               || AllowsMcpRegistration(registration, out _);
+    }
+
     /// <summary>
     /// Evaluates a model tool call before the concrete function is resolved.
     /// This catches stale calls to tools that were hidden by policy.
@@ -95,25 +103,13 @@ internal sealed class ThreadCapabilityPolicyEvaluator(ThreadConfiguration config
         if (!AllowsToolName(name, reserved, out var reason))
             return ToolDispatchDecision.Deny(ToolErrorCodes.Unauthorized, reason);
 
-        if (registration.Definition.Id.Kind == ToolSourceKind.Mcp && config.McpPolicy is { } mcp)
+        if (registration.Definition.Id.Kind == ToolSourceKind.Mcp && config.McpPolicy is not null)
         {
-            var server = registration.Definition.Id.SourceId;
-            if (mcp.Servers != null && !MatchesAny(server, mcp.Servers, allowWildcards: false))
-                return ToolDispatchDecision.Deny(ToolErrorCodes.Unauthorized, "The thread MCP policy does not allow this MCP server.");
-            var candidates = new[]
-            {
-                name,
-                registration.Definition.Name.ToString(),
-                $"mcp__{server}__{name}"
-            };
-            if (candidates.Any(candidate => MatchesAny(candidate, mcp.Tools?.Deny, allowWildcards: true)))
-                return ToolDispatchDecision.Deny(ToolErrorCodes.Unauthorized, "The thread MCP policy denies this MCP tool.");
-            if (mcp.Tools?.Allow != null
-                && !candidates.Any(candidate => MatchesAny(candidate, mcp.Tools.Allow, allowWildcards: true)))
-                return ToolDispatchDecision.Deny(ToolErrorCodes.Unauthorized, "The thread MCP policy does not allow this MCP tool.");
+            if (!AllowsMcpRegistration(registration, out var mcpReason))
+                return ToolDispatchDecision.Deny(ToolErrorCodes.Unauthorized, mcpReason);
         }
 
-        if (registration.Definition.Id.Kind is ToolSourceKind.PluginNative or ToolSourceKind.LegacyAppBinding
+        if (registration.Definition.Id.Kind == ToolSourceKind.PluginNative
             && config.PluginPolicy is { } plugin)
         {
             var source = registration.Definition.Provenance.SourceId;
@@ -206,6 +202,9 @@ internal sealed class ThreadCapabilityPolicyEvaluator(ThreadConfiguration config
         }
 
         var toolName = tool.Name;
+        var selector = CanonicalToolIdentityMetadataResolver.TryGet(tool, out var canonicalName, out _)
+            ? ToCanonicalSelector(canonicalName)
+            : toolName;
         var serverName = ResolveMcpServerName(toolName);
         var isKnownMcpTool = !string.IsNullOrWhiteSpace(serverName)
                              || toolName.StartsWith("mcp__", StringComparison.Ordinal);
@@ -219,7 +218,7 @@ internal sealed class ThreadCapabilityPolicyEvaluator(ThreadConfiguration config
             }
         }
 
-        if (MatchesAny(toolName, policy.Tools?.Deny, allowWildcards: true))
+        if (MatchesAny(selector, policy.Tools?.Deny, allowWildcards: true))
         {
             reason = "The thread MCP policy denies this MCP tool.";
             return false;
@@ -227,7 +226,7 @@ internal sealed class ThreadCapabilityPolicyEvaluator(ThreadConfiguration config
 
         if (isKnownMcpTool
             && policy.Tools?.Allow != null
-            && !MatchesAny(toolName, policy.Tools.Allow, allowWildcards: true))
+            && !MatchesAny(selector, policy.Tools.Allow, allowWildcards: true))
         {
             reason = "The thread MCP policy does not allow this MCP tool.";
             return false;
@@ -381,8 +380,7 @@ internal sealed class ThreadCapabilityPolicyEvaluator(ThreadConfiguration config
         => null;
 
     private static bool IsRuntimeReservedToolName(string toolName) =>
-        string.Equals(toolName, nameof(ToolSearchTool.SearchTools), StringComparison.Ordinal)
-        || string.Equals(toolName, NativeToolSearchTool.ToolName, StringComparison.Ordinal);
+        string.Equals(toolName, NativeToolSearchTool.ToolName, StringComparison.Ordinal);
 
     private static bool HasLegacyAllowList(string[]? values) =>
         values?.Any(value => !string.IsNullOrWhiteSpace(value)) == true;
@@ -407,6 +405,43 @@ internal sealed class ThreadCapabilityPolicyEvaluator(ThreadConfiguration config
 
         return false;
     }
+
+    private bool AllowsMcpRegistration(ToolRegistration registration, out string reason)
+    {
+        var policy = config.McpPolicy;
+        if (policy == null)
+        {
+            reason = string.Empty;
+            return true;
+        }
+
+        var server = registration.Definition.Id.SourceId;
+        if (policy.Servers != null && !MatchesAny(server, policy.Servers, allowWildcards: false))
+        {
+            reason = "The thread MCP policy does not allow this MCP server.";
+            return false;
+        }
+
+        var selector = ToCanonicalSelector(registration.Definition.Name);
+        if (MatchesAny(selector, policy.Tools?.Deny, allowWildcards: true))
+        {
+            reason = "The thread MCP policy denies this MCP tool.";
+            return false;
+        }
+
+        if (policy.Tools?.Allow != null
+            && !MatchesAny(selector, policy.Tools.Allow, allowWildcards: true))
+        {
+            reason = "The thread MCP policy does not allow this MCP tool.";
+            return false;
+        }
+
+        reason = string.Empty;
+        return true;
+    }
+
+    private static string ToCanonicalSelector(ToolName toolName) =>
+        toolName.Namespace is null ? toolName.Name : $"{toolName.Namespace}/{toolName.Name}";
 
     private static bool MatchesWildcard(string value, string pattern)
     {

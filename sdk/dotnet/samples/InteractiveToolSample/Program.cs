@@ -1,339 +1,101 @@
+using System.Net;
+using System.Security.Cryptography;
+using System.Text;
 using System.Text.Json;
-using DotCraft.Sdk.AppBinding;
-using DotCraft.Sdk.AppServer;
 
-// DotCraft App Binding sample shipping an MCP-Apps "Interactive Tool UI".
-//
-// It declares a tool (`sample.ShowCard`) whose `_meta.ui.resourceUri` points at a `ui://`
-// resource, handles the tool call, and serves the resource HTML on `item/resource/read`.
-// DotCraft Desktop renders that HTML in a sandboxed `dotcraft-app://` iframe (M-ii).
-//
-//   AUTO (recommended for testing): one command does connect + bind + attach + serve.
-//     dotnet run -- <workspacePath> [threadId]
-//   HANDOFF (the real external-app pattern): run per Desktop-issued handoff URL.
-//     dotnet run -- --handoff "<handoff-url>"
+// Minimal binding-scoped Streamable HTTP MCP + MCP Apps server.
+// Start it with a one-time bearer, then submit the printed endpoint and bearer
+// through app/binding/activate (or app/binding/rebind) from an authenticated app principal.
 
-const string AppId = "com.dotcraft.sample-ui";
-const string ToolNamespace = "sample";
-const string ToolName = "ShowCard";
-const string ResourceUri = "ui://dotcraft-sample/card";
-const string ClientName = "dotcraft-sample-ui";
+var port = args.Length > 0 && int.TryParse(args[0], out var parsed) ? parsed : 5199;
+var bearer = args.Length > 1 ? args[1] : Convert.ToHexString(RandomNumberGenerator.GetBytes(24)).ToLowerInvariant();
+var endpoint = $"http://127.0.0.1:{port}/mcp/";
+const string resourceUri = "ui://dotcraft-sample/card";
 
-using var cts = new CancellationTokenSource();
-Console.CancelKeyPress += (_, e) => { e.Cancel = true; cts.Cancel(); };
-var ct = cts.Token;
+using var listener = new HttpListener();
+listener.Prefixes.Add(endpoint);
+listener.Start();
+Console.WriteLine($"Binding MCP endpoint: {endpoint}");
+Console.WriteLine($"One-time bearer: {bearer}");
+Console.WriteLine("Submit these values with app/binding/activate. Press Ctrl+C to stop.");
 
-if (args.Length >= 2 && args[0] == "--handoff")
+using var stop = new CancellationTokenSource();
+Console.CancelKeyPress += (_, eventArgs) => { eventArgs.Cancel = true; stop.Cancel(); listener.Stop(); };
+
+while (!stop.IsCancellationRequested)
 {
-    return await RunHandoffModeAsync(args[1]);
-}
-if (args.Length >= 1 && args[0].Contains("://"))
-{
-    return await RunHandoffModeAsync(args[0]);
-}
-if (args.Length >= 1)
-{
-    return await RunAutoModeAsync(args[0], args.Length >= 2 ? args[1] : null);
-}
+    HttpListenerContext context;
+    try { context = await listener.GetContextAsync(); }
+    catch (HttpListenerException) when (stop.IsCancellationRequested) { break; }
 
-Console.Error.WriteLine("Usage:");
-Console.Error.WriteLine("  InteractiveToolSample <workspacePath> [threadId]    (auto: connect + bind + serve)");
-Console.Error.WriteLine("  InteractiveToolSample --handoff \"<handoff-url>\"      (real app handoff pattern)");
-return 1;
-
-// ---------------------------------------------------------------------------
-// Auto mode: one process plays both the Desktop side (start connection, create
-// binding request, start thread) and the app side (complete connection, accept
-// binding, attach tools, serve) over a single AppServer connection. No manual
-// handoff URLs or Desktop clicks — just open the printed thread in Desktop.
-// ---------------------------------------------------------------------------
-async Task<int> RunAutoModeAsync(string workspacePath, string? existingThreadId)
-{
-    Console.WriteLine($"Auto mode — connecting to workspace AppServer ({workspacePath})…");
-    await using var client = await DotCraftClient.ConnectLocalAsync(
-        workspacePath,
-        new DotCraftLocalClientOptions { ClientName = ClientName, ClientVersion = "0.1.0" },
-        ct);
-
-    // 1) Establish the app connection (account).
-    var start = await client.AppBindings.StartConnectionAsync(AppId, cancellationToken: ct);
-    await client.AppBindings.CompleteConnectionAsync(new CompleteConnectionRequest(
-        ConnectionRequestId: start.ConnectionRequestId,
-        RequestToken: TokenFromHandoff(start.Handoff),
-        AppId: AppId,
-        AccountLabel: "local-sample"), ct);
-    Console.WriteLine("Connected app account.");
-
-    // 2) Use the given thread, or start a fresh one.
-    string threadId;
-    if (!string.IsNullOrWhiteSpace(existingThreadId))
+    _ = Task.Run(async () =>
     {
-        threadId = existingThreadId!;
-    }
-    else
-    {
-        var thread = await client.Threads.StartAsync(new DotCraftThreadStartRequest(
-            new SessionIdentity(ChannelName: ClientName, UserId: Environment.UserName, WorkspacePath: workspacePath),
-            DisplayName: "Interactive UI sample",
-            HistoryMode: "server",
-            Config: new { mode = "agent" }), ct);
-        threadId = thread.Id;
-    }
-
-    // 3) Binding request → accept → attach tools (with _meta.ui).
-    var requestCreated = await client.AppBindings.CreateBindingRequestAsync(threadId, AppId, ["card.read"], cancellationToken: ct);
-    var grantId = "grant_" + Guid.NewGuid().ToString("N");
-    var accepted = await client.AppBindings.AcceptBindingAsync(new AcceptBindingRequest(
-        BindingRequestId: requestCreated.BindingRequestId,
-        RequestToken: TokenFromHandoff(requestCreated.Handoff),
-        GrantId: grantId,
-        GrantedScopes: ["card.read"],
-        ApprovalMode: "appAccepted",
-        ApprovedBy: Environment.UserName), ct);
-    await client.AppBindings.AttachToolsAsync(new AttachToolsRequest(
-        BindingId: accepted.Binding.BindingId,
-        ThreadId: threadId,
-        AppId: AppId,
-        GrantId: grantId,
-        Tools: BuildTools()), ct);
-    Console.WriteLine($"Bound + attached '{ToolNamespace}.{ToolName}' (binding {accepted.Binding.BindingId}).");
-
-    RegisterHandlers(client, threadId);
-
-    Console.WriteLine();
-    Console.WriteLine("Ready. In DotCraft Desktop (same workspace), open this thread:");
-    Console.WriteLine($"    {threadId}");
-    Console.WriteLine("then ask the agent to use ShowCard (e.g. \"use the ShowCard tool with note hello\").");
-    Console.WriteLine("Keep this process running. Press Ctrl+C to exit.");
-
-    await KeepAliveAsync(client);
-    return 0;
-}
-
-// ---------------------------------------------------------------------------
-// Handoff mode: the production pattern — an external app launched per a Desktop
-// handoff URL ("connect" then "bind").
-// ---------------------------------------------------------------------------
-async Task<int> RunHandoffModeAsync(string handoffUrl)
-{
-    var handoff = AppBindingHandoff.Parse(handoffUrl, expectedAppId: AppId);
-    if (string.IsNullOrWhiteSpace(handoff.AppServerUrl))
-    {
-        Console.Error.WriteLine("Handoff URL is missing the AppServer endpoint.");
-        return 1;
-    }
-
-    await using var client = await DotCraftClient.ConnectRemoteAsync(
-        handoff.AppServerUrl,
-        options: new DotCraftClientOptions { ClientName = ClientName, ClientVersion = "0.1.0" },
-        cancellationToken: ct);
-    Console.WriteLine($"Connected to AppServer (operation: {handoff.Operation}).");
-
-    if (string.Equals(handoff.Operation, "connect", StringComparison.OrdinalIgnoreCase))
-    {
-        await client.AppBindings.CompleteConnectionAsync(new CompleteConnectionRequest(
-            ConnectionRequestId: handoff.RequestId,
-            RequestToken: handoff.RequestToken,
-            AppId: AppId,
-            AccountLabel: "local-sample"), ct);
-        Console.WriteLine("Connection established. Now bind the app to a thread in Desktop and");
-        Console.WriteLine("run again with the resulting 'bind' handoff URL.");
-        return 0;
-    }
-
-    if (!string.Equals(handoff.Operation, "bind", StringComparison.OrdinalIgnoreCase))
-    {
-        Console.Error.WriteLine($"Unsupported handoff operation: {handoff.Operation} (expected 'connect' or 'bind').");
-        return 1;
-    }
-
-    var request = await client.AppBindings.GetBindingRequestAsync<JsonElement>(new
-    {
-        appId = AppId,
-        bindingRequestId = handoff.RequestId,
-        requestToken = handoff.RequestToken
-    }, ct);
-    var threadId = request.GetProperty("threadId").GetString()
-        ?? throw new InvalidOperationException("Binding request did not include a threadId.");
-    var grantId = "grant_" + Guid.NewGuid().ToString("N");
-    var accepted = await client.AppBindings.AcceptBindingAsync(new AcceptBindingRequest(
-        BindingRequestId: handoff.RequestId,
-        RequestToken: handoff.RequestToken,
-        GrantId: grantId,
-        GrantedScopes: ["card.read"],
-        ApprovalMode: "appAccepted",
-        ApprovedBy: Environment.UserName), ct);
-    await client.AppBindings.AttachToolsAsync(new AttachToolsRequest(
-        BindingId: accepted.Binding.BindingId,
-        ThreadId: threadId,
-        AppId: AppId,
-        GrantId: grantId,
-        Tools: BuildTools()), ct);
-    Console.WriteLine($"Bound + attached '{ToolNamespace}.{ToolName}' to thread {threadId}.");
-
-    RegisterHandlers(client, threadId);
-    Console.WriteLine("Ready. Trigger ShowCard in Desktop. Press Ctrl+C to exit.");
-    await KeepAliveAsync(client);
-    return 0;
-}
-
-string TokenFromHandoff(AppHandoffMode handoff)
-{
-    var uri = handoff.Uri ?? throw new InvalidOperationException("Handoff did not include a URI to extract the request token.");
-    return AppBindingHandoff.Parse(uri).RequestToken;
-}
-
-AppBoundToolSpec[] BuildTools()
-{
-    var inputSchema = JsonSerializer.SerializeToElement(new
-    {
-        type = "object",
-        properties = new { note = new { type = "string", description = "A note to render on the card." } }
-    });
-    return
-    [
-        new AppBoundToolSpec(
-            Namespace: ToolNamespace,
-            Name: ToolName,
-            Description: "Show a sample interactive card for a note.",
-            InputSchema: inputSchema,
-            Meta: new AppBoundToolMeta(new AppBoundToolUiMeta(
-                ResourceUri: ResourceUri,
-                Visibility: ["model", "app"],
-                PrefersBorder: true)))
-    ];
-}
-
-void RegisterHandlers(DotCraftClient client, string threadId)
-{
-    client.RegisterDynamicToolHandler(threadId, ToolNamespace, ToolName, (call, _) =>
-    {
-        var note = call.Arguments.ValueKind == JsonValueKind.Object
-                   && call.Arguments.TryGetProperty("note", out var n)
-                   && n.ValueKind == JsonValueKind.String
-            ? n.GetString()
-            : "(no note provided)";
-        return Task.FromResult(new DynamicToolResult(
-            Success: true,
-            ContentItems: [new ToolContentItem("text", $"Sample card: {note}")],
-            StructuredContent: new { title = "Sample Card", value = note, ts = DateTimeOffset.UtcNow.ToString("u") }));
-    });
-
-    client.RegisterResourceHandler(ResourceUri, (_, _) =>
-        Task.FromResult(new ResourceReadResult(new[]
+        if (!string.Equals(context.Request.Headers["Authorization"], $"Bearer {bearer}", StringComparison.Ordinal))
         {
-            new ResourceContent(ResourceUri, "text/html;profile=mcp-app", CardResource.Html)
-        })));
-}
+            context.Response.StatusCode = (int)HttpStatusCode.Unauthorized;
+            context.Response.Close();
+            return;
+        }
 
-async Task KeepAliveAsync(DotCraftClient client)
-{
-    try
-    {
-        await client.AppBindings.KeepAliveAsync(
-            onNotification: (notification, _) =>
+        using var request = await JsonDocument.ParseAsync(context.Request.InputStream);
+        var root = request.RootElement;
+        if (!root.TryGetProperty("id", out var id))
+        {
+            context.Response.StatusCode = (int)HttpStatusCode.Accepted;
+            context.Response.Close();
+            return;
+        }
+
+        var method = root.GetProperty("method").GetString();
+        object result = method switch
+        {
+            "initialize" => new
             {
-                Console.WriteLine($"  · {notification.Method}");
-                return Task.CompletedTask;
+                protocolVersion = "2025-06-18",
+                capabilities = new { tools = new { }, resources = new { } },
+                serverInfo = new { name = "dotcraft-binding-sample", version = "2.0.0" }
             },
-            cancellationToken: ct);
-    }
-    catch (OperationCanceledException)
-    {
-        // Ctrl+C — graceful shutdown.
-    }
-}
+            "tools/list" => new
+            {
+                tools = new[]
+                {
+                    new
+                    {
+                        name = "show_card",
+                        title = "Show sample card",
+                        description = "Returns a small MCP App card.",
+                        inputSchema = new { type = "object", properties = new { message = new { type = "string" } }, additionalProperties = false },
+                        _meta = new Dictionary<string, object> { ["ui/resourceUri"] = resourceUri }
+                    }
+                }
+            },
+            "resources/list" => new { resources = new[] { new { uri = resourceUri, name = "Sample card", mimeType = "text/html;profile=mcp-app" } } },
+            "resources/templates/list" => new { resourceTemplates = Array.Empty<object>() },
+            "resources/read" => new
+            {
+                contents = new[]
+                {
+                    new
+                    {
+                        uri = resourceUri,
+                        mimeType = "text/html;profile=mcp-app",
+                        text = "<!doctype html><meta charset=utf-8><style>body{font:14px system-ui;padding:16px}article{border:1px solid #ddd;border-radius:12px;padding:16px}</style><article><strong>Binding MCP App</strong><p>This view came from a binding-scoped MCP resource.</p></article>"
+                    }
+                }
+            },
+            "tools/call" => new
+            {
+                content = new[] { new { type = "text", text = "Displayed the binding MCP App card." } },
+                structuredContent = new { displayed = true },
+                _meta = new Dictionary<string, object> { ["ui/resourceUri"] = resourceUri }
+            },
+            _ => new { }
+        };
 
-/// <summary>The self-contained Interactive Tool UI document served on <c>item/resource/read</c>.</summary>
-static class CardResource
-{
-    public const string Html = """
-<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8" />
-<style>
-  :root { color-scheme: dark; --bg:#1e1e22; --fg:#e8e8ea; --muted:#9a9aa2; --accent:#6ea8fe; --border:rgba(255,255,255,.12); }
-  html[data-theme="light"] { color-scheme: light; --bg:#ffffff; --fg:#1a1a1e; --muted:#6a6a72; --accent:#2f6fed; --border:rgba(0,0,0,.12); }
-  * { box-sizing: border-box; }
-  body { margin:0; font:14px/1.5 system-ui, -apple-system, sans-serif; color:var(--fg); background:var(--bg); }
-  .card { padding:16px; }
-  .eyebrow { font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--muted); }
-  h1 { font-size:18px; margin:4px 0 12px; }
-  .value { padding:12px; border:1px solid var(--border); border-radius:8px; background:rgba(127,127,127,.06); white-space:pre-wrap; }
-  .meta { margin-top:10px; font-size:12px; color:var(--muted); }
-  button { margin-top:14px; font:inherit; padding:8px 14px; border-radius:8px; border:1px solid var(--border); background:var(--accent); color:#fff; cursor:pointer; }
-</style>
-</head>
-<body>
-  <div class="card">
-    <div class="eyebrow">Interactive Tool UI</div>
-    <h1 id="title">Loading…</h1>
-    <div class="value" id="value">Waiting for tool result…</div>
-    <div class="meta" id="meta"></div>
-    <button id="open">Open in Sample</button>
-    <button id="tell">Tell the model</button>
-    <button id="expand">Expand</button>
-    <input id="note" placeholder="A note that persists across reloads (widgetState)" />
-  </div>
-<script>
-  const pending = {};
-  let nextId = 1;
-  let bridgeToken = null;
-  function notify(method, params) { parent.postMessage({ jsonrpc: "2.0", method, params }, "*"); }
-  function request(method, params) {
-    return new Promise((resolve) => {
-      const id = nextId++;
-      pending[id] = resolve;
-      const message = { jsonrpc: "2.0", id, method, params };
-      if (bridgeToken && method !== "ui/initialize") message.bridgeToken = bridgeToken;
-      parent.postMessage(message, "*");
-    });
-  }
-  function applyContext(ctx) { if (ctx && ctx.theme) document.documentElement.dataset.theme = ctx.theme; }
-  let lastValue = "";
-  function renderResult(p) {
-    const sc = (p && p.structuredContent) || {};
-    lastValue = sc.value != null ? String(sc.value) : "";
-    document.getElementById("title").textContent = sc.title || "Sample Card";
-    document.getElementById("value").textContent = lastValue;
-    document.getElementById("meta").textContent = sc.ts ? ("Updated " + sc.ts) : "";
-  }
-  window.addEventListener("message", (event) => {
-    const m = event.data;
-    if (!m || typeof m !== "object") return;
-    if (m.id !== undefined && pending[m.id]) { const r = pending[m.id]; delete pending[m.id]; r(m.result); return; }
-    if (m.method === "ui/notifications/tool-result") renderResult(m.params);
-    // M-iv: live host-context push — re-theme without reload when Desktop theme changes.
-    if (m.method === "ui/notifications/host-context-changed") applyContext(m.params);
-  });
-  // M-iii: ui/open-link is a request the host gates by scheme policy (https/mailto only).
-  document.getElementById("open").addEventListener("click", () => {
-    request("ui/open-link", { url: "https://github.com/DotHarness/dotcraft" });
-  });
-  // M-iii: push the card's UI state to the model's next turn (no visible conversation item).
-  document.getElementById("tell").addEventListener("click", () => {
-    request("ui/update-model-context", { title: "Sample card", content: "The sample card currently shows: " + lastValue });
-  });
-  // M-iv: persist UI-only widgetState (the note) — survives reload / thread switch / app restart.
-  document.getElementById("note").addEventListener("change", (e) => {
-    request("ui/set-widget-state", { widgetState: { note: e.target.value } });
-  });
-  // M-iv: request a larger display mode; the host arbitrates and returns the granted mode.
-  document.getElementById("expand").addEventListener("click", async () => {
-    const r = await request("ui/request-display-mode", { mode: "fullscreen" });
-    if (r && r.mode) document.getElementById("expand").textContent = "Mode: " + r.mode;
-  });
-  (async () => {
-    const result = await request("ui/initialize", { app: { name: "dotcraft-sample-ui", version: "0.1.0" } });
-    bridgeToken = result && typeof result.bridgeToken === "string" ? result.bridgeToken : null;
-    applyContext(result && result.hostContext);
-    // M-iv: restore persisted widgetState delivered in the ui/initialize result.
-    if (result && result.widgetState && typeof result.widgetState.note === "string")
-      document.getElementById("note").value = result.widgetState.note;
-  })();
-</script>
-</body>
-</html>
-""";
+        var response = JsonSerializer.SerializeToUtf8Bytes(new { jsonrpc = "2.0", id = id.Clone(), result });
+        context.Response.ContentType = "application/json";
+        context.Response.ContentLength64 = response.Length;
+        await context.Response.OutputStream.WriteAsync(response);
+        context.Response.Close();
+    }, stop.Token);
 }

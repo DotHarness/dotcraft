@@ -374,7 +374,7 @@ Runtime tool invocation for adapter-declared channel tools.
   "contentItems": [
     { "type": "text", "text": "Sent report.pdf to the current chat." }
   ],
-  "structuredResult": {
+  "structuredContent": {
     "delivered": true,
     "fileName": "report.pdf"
   }

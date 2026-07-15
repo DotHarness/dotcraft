@@ -1,0 +1,42 @@
+{
+  "version": 2,
+  "states": [
+    "connecting",
+    "syncing",
+    "active",
+    "offline",
+    "needsConfirmation",
+    "revoked",
+    "failed",
+    "cancelled"
+  ],
+  "appMethods": [
+    "app/connection/start",
+    "app/connection/request/get",
+    "app/connection/connect",
+    "app/connection/authenticate",
+    "app/connection/refresh",
+    "app/connection/status",
+    "app/connection/revoke",
+    "thread/appBindings/enable",
+    "app/binding/request/get",
+    "app/binding/activate",
+    "app/binding/rebind",
+    "app/bindings/list",
+    "thread/appBindings/confirmCapabilities",
+    "thread/appBindings/list",
+    "thread/appBindings/revoke"
+  ],
+  "socialMethods": [
+    "thread/socialBindings/request/create",
+    "app/socialBinding/request/get",
+    "app/socialBinding/accept",
+    "app/socialBinding/rebind",
+    "app/socialBinding/resolve",
+    "app/threadInput/enqueue"
+  ],
+  "errors": {
+    "upgradeRequired": "AppBindingUpgradeRequired",
+    "offline": "AppBindingOffline"
+  }
+}

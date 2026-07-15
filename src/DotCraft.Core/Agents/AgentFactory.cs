@@ -374,8 +374,11 @@ public sealed class AgentFactory : IAsyncDisposable
         ArgumentNullException.ThrowIfNull(snapshot);
         return snapshot.ModelVisibleDefinitions
             .Select(definition => (AITool)new SnapshotToolDeclarationFunction(
-                snapshot.ProviderCallNames[definition.Name],
-                definition))
+                snapshot.ProviderFlatNames[definition.Name],
+                definition,
+                definition.Name.Namespace == null
+                    ? null
+                    : snapshot.NamespaceDescriptions.GetValueOrDefault(definition.Name.Namespace)))
             .OrderBy(tool => tool.Name, StringComparer.Ordinal)
             .ToList();
     }
@@ -383,7 +386,12 @@ public sealed class AgentFactory : IAsyncDisposable
     internal static AIFunction ProjectSnapshotDefinition(
         EffectiveToolSnapshot snapshot,
         ToolDefinition definition) =>
-        new SnapshotToolDeclarationFunction(snapshot.ProviderCallNames[definition.Name], definition);
+        new SnapshotToolDeclarationFunction(
+            snapshot.ProviderFlatNames[definition.Name],
+            definition,
+            definition.Name.Namespace == null
+                ? null
+                : snapshot.NamespaceDescriptions.GetValueOrDefault(definition.Name.Namespace));
 
     /// <summary>
     /// Creates a schema-stable tool list for the given <see cref="AgentMode"/>.
@@ -472,7 +480,7 @@ public sealed class AgentFactory : IAsyncDisposable
 
     /// <summary>
     /// Creates an agent with a transitional mixed surface. Source-backed declarations use the
-    /// dispatcher while unrelated provider-hosted or not-yet-migrated functions keep their
+    /// dispatcher while unrelated provider-hosted functions keep their
     /// existing invocation path.
     /// </summary>
     public AIAgent CreateAgentWithToolsAndSnapshot(
@@ -502,36 +510,28 @@ public sealed class AgentFactory : IAsyncDisposable
         List<AITool> directTools)
     {
         context.DeferredToolActivationIndex = null;
-        var deferred = snapshot.DeferredDefinitions
-            .OrderBy(static pair => pair.Key, StringComparer.Ordinal)
-            .SelectMany(pair => pair.Value.Select(definition => new DeferredToolEntry(
-                new SnapshotToolDeclarationFunction(snapshot.ProviderCallNames[definition.Name], definition),
-                definition.Provenance.SourceId,
-                pair.Key)))
-            .ToArray();
-        if (deferred.Length == 0)
+        var registration = snapshot.Registrations.Values
+            .FirstOrDefault(DeferredToolSearchRuntime.IsRegistration);
+        if (registration?.Binding.Runtime is not DeferredToolSearchRuntime runtime)
             return;
 
-        var mode = DeferredToolLoadingPlanner.ResolveMode(
-            context.Config.Tools.DeferredLoading,
-            context.EffectiveProviderProtocol);
-        if (mode == DeferredToolLoadingMode.Off)
-            return;
-
-        var registry = new DeferredToolActivationIndex(deferred, mode);
-        context.DeferredToolActivationIndex = registry;
-        var maxResults = context.Config.Tools.DeferredLoading.MaxSearchResults;
-        var protocol = ModelProviderProtocols.Normalize(context.EffectiveProviderProtocol);
-        if (mode == DeferredToolLoadingMode.Native)
+        var providerFlatName = snapshot.ProviderFlatNames[registration.Definition.Name];
+        directTools.RemoveAll(tool => string.Equals(tool.Name, providerFlatName, StringComparison.Ordinal));
+        context.DeferredToolActivationIndex = runtime.ActivationIndex;
+        if (runtime.Plan.Mode == DeferredToolLoadingMode.Native)
         {
-            directTools.Add(protocol == ModelProviderProtocols.Anthropic
-                ? new AnthropicToolSearchTool(registry, maxResults)
-                : new NativeToolSearchTool(registry, maxResults));
+            directTools.Add(string.Equals(
+                    runtime.Plan.ProviderProtocol,
+                    ModelProviderProtocols.Anthropic,
+                    StringComparison.Ordinal)
+                ? new AnthropicToolSearchTool(runtime.ActivationIndex, runtime.Plan.MaxSearchResults)
+                : new NativeToolSearchTool(runtime.ActivationIndex, runtime.Plan.MaxSearchResults));
         }
         else
         {
-            directTools.Add(GeneratedToolFunctions.ToolSearchTool_SearchTools(
-                new ToolSearchTool(registry, maxResults)));
+            directTools.Add(ToolSearchTool.CreateCanonicalFunction(
+                runtime.ActivationIndex,
+                runtime.Plan.MaxSearchResults));
         }
     }
 
@@ -553,7 +553,7 @@ public sealed class AgentFactory : IAsyncDisposable
         Func<FunctionInvocationContext, CancellationToken, ValueTask<object?>>? functionInvoker = null)
     {
         // Snapshot-backed declarations execute through ToolDispatcher, which owns the
-        // common policy and hook pipeline. Keep the legacy client-side evaluators only
+        // common policy and hook pipeline. Keep client-side evaluators only
         // for host-created agents that do not have a dispatcher invocation delegate.
         var usesSnapshotDispatcher = functionInvoker != null;
         tools = SortTools(ToolSchemaSanitizer.SanitizeTools(tools));
@@ -703,8 +703,19 @@ public sealed class AgentFactory : IAsyncDisposable
         FunctionInvocationContext invocation,
         CancellationToken cancellationToken)
     {
-        if (!snapshot.TryResolveProviderCallName(invocation.CallContent.Name, out _))
+        var canonicalName = ResolveInvocationToolName(snapshot, invocation.CallContent);
+        if (canonicalName is null)
+        {
+            if (ResponsesToolSearchMapper.TryGetFunctionCallNamespace(
+                    invocation.CallContent,
+                    out var unresolvedNamespace))
+            {
+                return $"{ToolErrorCodes.NotFound}: Tool " +
+                       $"'{unresolvedNamespace}.{invocation.CallContent.Name}' is not available in this Turn.";
+            }
+
             return await invocation.Function.InvokeAsync(invocation.Arguments, cancellationToken).ConfigureAwait(false);
+        }
 
         var arguments = new JsonObject();
         foreach (var (key, value) in invocation.Arguments)
@@ -712,28 +723,59 @@ public sealed class AgentFactory : IAsyncDisposable
                 ? node.DeepClone()
                 : JsonSerializer.SerializeToNode(value, SessionWireJsonOptions.Default);
 
-        var result = await _toolDispatcher.DispatchProviderCallAsync(
+        var executionContext = ToolExecutionRuntimeScope.Current;
+        if (executionContext is not null
+            && !string.Equals(planningContext.ThreadId, "host", StringComparison.Ordinal)
+            && !string.Equals(executionContext.ThreadId, planningContext.ThreadId, StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException("The active tool execution scope does not match the planned thread.");
+        }
+
+        var invocationThreadId = executionContext?.ThreadId ?? planningContext.ThreadId;
+        var invocationTurnId = executionContext?.TurnId ?? planningContext.TurnId;
+        var result = await _toolDispatcher.DispatchAsync(
             snapshot,
-            invocation.CallContent.Name,
+            canonicalName.Value,
             arguments,
             new ToolInvocationRequest(
-                planningContext.ThreadId,
-                planningContext.TurnId,
+                invocationThreadId,
+                invocationTurnId,
                 invocation.CallContent.CallId,
                 ToolInvocationAudience.Model),
             cancellationToken).ConfigureAwait(false);
         if (result.Success)
-            return result.Content;
+            return result.ProviderResult ?? result.Content;
 
-        return result.Error is null
+        var message = result.Error is null
             ? "Tool execution failed."
             : $"{result.Error.Code}: {result.Error.Message}";
+        throw new InvalidOperationException(message);
     }
 
-    private sealed class SnapshotToolDeclarationFunction(string providerCallName, ToolDefinition definition)
-        : AIFunction
+    private static ToolName? ResolveInvocationToolName(
+        EffectiveToolSnapshot snapshot,
+        FunctionCallContent call)
     {
-        public override string Name => providerCallName;
+        if (ResponsesToolSearchMapper.TryGetFunctionCallNamespace(call, out var toolNamespace))
+            return snapshot.TryResolveProviderNamespacedName(toolNamespace, call.Name, out var composite)
+                ? composite
+                : null;
+
+        return snapshot.TryResolveProviderFlatName(call.Name, out var flatName)
+            ? flatName
+            : null;
+    }
+
+    private sealed class SnapshotToolDeclarationFunction(
+        string providerFlatName,
+        ToolDefinition definition,
+        string? namespaceDescription)
+        : AIFunction, ICanonicalToolIdentityMetadata
+    {
+        public override string Name => providerFlatName;
+        public ToolName CanonicalToolName => definition.Name;
+        public string ProviderFlatName => providerFlatName;
+        public string? ToolNamespaceDescription => namespaceDescription;
         public override string Description => definition.Description;
         public override JsonElement JsonSchema => definition.InputSchema;
         public override JsonElement? ReturnJsonSchema => definition.OutputSchema;

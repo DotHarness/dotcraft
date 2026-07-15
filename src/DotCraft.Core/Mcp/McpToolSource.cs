@@ -1,3 +1,4 @@
+using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using DotCraft.Configuration;
@@ -26,6 +27,7 @@ public sealed class McpToolSource(McpClientManager manager, AppConfig config) : 
         var statuses = await manager.ListStatusesAsync(cancellationToken);
         var deferredConfig = config.Tools.DeferredLoading;
         var registrations = new List<ToolRegistration>();
+        var readyServers = new List<ReadyMcpServer>();
 
         foreach (var status in statuses
                      .Where(static status => string.Equals(status.StartupState, "ready", StringComparison.Ordinal))
@@ -45,8 +47,29 @@ public sealed class McpToolSource(McpClientManager manager, AppConfig config) : 
                 .OfType<AIFunction>()
                 .OrderBy(static function => function.Name, StringComparer.Ordinal)
                 .ToArray();
+            readyServers.Add(new ReadyMcpServer(status, inventory, serverConfig, protocolTools, functions));
+        }
+
+        var normalizedIdentities = McpToolNaming.NormalizeBatch(
+                readyServers.SelectMany(server => server.Functions.Select(function =>
+                    new McpToolIdentityInput(
+                        server.Status.Name,
+                        server.Config?.Origin.DeclaredName,
+                        function.Name))))
+            .ToDictionary(
+                static identity => (identity.RuntimeName, identity.RawToolName),
+                static identity => identity);
+
+        foreach (var server in readyServers)
+        {
+            var status = server.Status;
+            var inventory = server.Inventory;
+            var serverConfig = server.Config;
+            var protocolTools = server.ProtocolTools;
+            var functions = server.Functions;
+            var generation = inventory.Generation;
             var useDeferred = deferredConfig.Strategy != AppConfig.DeferredLoadingStrategy.Off
-                              && functions.Length >= deferredConfig.DeferThreshold;
+                              && functions.Count >= deferredConfig.DeferThreshold;
             var alwaysLoaded = deferredConfig.AlwaysLoadedTools.ToHashSet(StringComparer.OrdinalIgnoreCase);
 
             foreach (var function in functions)
@@ -73,7 +96,7 @@ public sealed class McpToolSource(McpClientManager manager, AppConfig config) : 
                 }
                 var definition = new ToolDefinition(
                     definitionId,
-                    McpToolNaming.CanonicalToolName(status.Name, function.Name),
+                    normalizedIdentities[(status.Name, function.Name)].ToolName,
                     string.IsNullOrWhiteSpace(function.Description) ? function.Name : function.Description,
                     function.JsonSchema,
                     function.ReturnJsonSchema,
@@ -87,7 +110,8 @@ public sealed class McpToolSource(McpClientManager manager, AppConfig config) : 
                     provenance: new ToolProvenance(
                         ToolSourceKind.Mcp,
                         status.Name,
-                        serverConfig?.Origin.Kind ?? "workspace"));
+                        serverConfig?.Origin.Kind ?? "workspace"),
+                    namespaceDescription: inventory.ServerInstructions);
                 var binding = new ToolRuntimeBinding(
                     new RuntimeBindingId($"mcp:{status.Name}:{function.Name}:{generation}"),
                     definitionId,
@@ -104,16 +128,27 @@ public sealed class McpToolSource(McpClientManager manager, AppConfig config) : 
                 registrations.Add(new ToolRegistration(
                     definition,
                     binding,
+                    ToolProjectionShape.McpLifecycle,
                     exposure,
                     audiences,
                     deferred: isDeferred
-                        ? new DeferredToolDescriptor(status.Name, $"{function.Name} {function.Description}")
+                        ? new DeferredToolDescriptor(
+                            definition.Name.Namespace!,
+                            $"{function.Name} {function.Description}",
+                            inventory.ServerInstructions)
                         : null));
             }
         }
 
         return registrations;
     }
+
+    private sealed record ReadyMcpServer(
+        McpServerStatusSnapshot Status,
+        McpServerInventorySnapshot Inventory,
+        McpServerConfig? Config,
+        IReadOnlyDictionary<string, ModelContextProtocol.Protocol.Tool> ProtocolTools,
+        IReadOnlyList<AIFunction> Functions);
 
     internal static (ToolExposure Exposure, ToolInvocationAudience Audiences) ResolvePublication(
         McpAppToolMetadata metadata,
@@ -157,6 +192,8 @@ internal sealed class McpToolRuntime(
     string rawToolName,
     long generation) : IToolRuntime
 {
+    private const int MaxPersistedResultBytes = 2 * 1024 * 1024;
+
     public async ValueTask<ToolExecutionResult> InvokeAsync(
         ToolInvocationContext context,
         JsonObject arguments,
@@ -181,6 +218,7 @@ internal sealed class McpToolRuntime(
             var meta = result.Meta == null
                 ? (JsonElement?)null
                 : JsonSerializer.SerializeToElement(result.Meta, SessionWireJsonOptions.Default);
+            (raw, structured, meta) = BoundPersistedResult(raw, structured, meta, result.IsError == true);
             var normalized = NormalizeModelContent(result);
             if (result.IsError == true)
             {
@@ -208,6 +246,46 @@ internal sealed class McpToolRuntime(
         {
             return ToolExecutionResult.Failed(new ToolError(ToolErrorCodes.McpProtocolError, ex.Message));
         }
+    }
+
+    internal static (JsonElement Raw, JsonElement? Structured, JsonElement? Meta) BoundPersistedResult(
+        JsonElement raw,
+        JsonElement? structured,
+        JsonElement? meta,
+        bool isError)
+    {
+        var serialized = raw.GetRawText();
+        if (Encoding.UTF8.GetByteCount(serialized) <= MaxPersistedResultBytes)
+            return (raw, structured, meta);
+
+        var preview = TruncateUtf8(serialized, MaxPersistedResultBytes / 8);
+        var bounded = new JsonObject
+        {
+            ["content"] = new JsonArray
+            {
+                new JsonObject
+                {
+                    ["type"] = "text",
+                    ["text"] = $"{preview}\n\n[MCP result truncated before persistence.]"
+                }
+            },
+            ["isError"] = isError
+        };
+        return (
+            JsonSerializer.SerializeToElement(bounded, SessionWireJsonOptions.Default),
+            null,
+            null);
+    }
+
+    private static string TruncateUtf8(string value, int maximumBytes)
+    {
+        if (Encoding.UTF8.GetByteCount(value) <= maximumBytes)
+            return value;
+
+        var length = Math.Min(value.Length, maximumBytes / 4);
+        if (length > 0 && char.IsHighSurrogate(value[length - 1]))
+            length--;
+        return value[..length];
     }
 
     private static string? NormalizeModelContent(CallToolResult result)

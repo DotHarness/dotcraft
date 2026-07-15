@@ -87,4 +87,36 @@ describe('ToolRendererRegistry', () => {
     namedLikeCore.toolName = 'CreatePlan'
     expect(coreToolRendererRegistry.resolve(namedLikeCore)).toBeNull()
   })
+
+  it.each(['ReadFile', 'GrepFiles', 'FindFiles'])(
+    'resolves %s through the production read presentation',
+    (toolName) => {
+      const projected = item(CORE_TOOL_PRESENTATION_IDS.readFile)
+      projected.toolName = toolName
+      projected.source = {
+        kind: 'CoreNative',
+        sourceId: 'core-native',
+        sourceToolId: toolName
+      }
+
+      expect(coreToolRendererRegistry.resolve(projected)).toMatchObject({
+        family: 'readFile',
+        groupCategory: 'explore'
+      })
+    }
+  )
+
+  it('resolves a provider-visible tool_search call from its canonical Core projection', () => {
+    const projected = item(CORE_TOOL_PRESENTATION_IDS.deferredSearch)
+    projected.toolName = 'tool_search'
+    projected.source = {
+      kind: 'CoreNative',
+      sourceId: 'core-native',
+      sourceToolId: 'SearchTools'
+    }
+
+    expect(coreToolRendererRegistry.resolve(projected)).toMatchObject({
+      family: 'deferredSearch'
+    })
+  })
 })

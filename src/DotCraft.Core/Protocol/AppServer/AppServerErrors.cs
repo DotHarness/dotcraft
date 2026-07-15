@@ -88,6 +88,10 @@ public static class AppServerErrors
     public const int McpServerTestFailedCode = -32073;
     public const int McpServerNameConflictCode = -32074;
     public const int McpServerReadOnlyCode = -32075;
+    public const int AppBindingUpgradeRequiredCode = -32076;
+    public const int AppPrincipalUnauthorizedCode = -32077;
+    public const int AppBindingConflictCode = -32078;
+    public const int AppBindingPolicyDeniedCode = -32079;
     public const int ExternalChannelNotFoundCode = -32080;
     public const int ExternalChannelValidationFailedCode = -32081;
     public const int ExternalChannelNameConflictCode = -32082;
@@ -206,6 +210,38 @@ public static class AppServerErrors
 
     public static AppServerException McpServerReadOnly(string name) =>
         Create(McpServerReadOnlyCode, "McpServerReadOnly", "errors.mcpServerReadOnly", $"MCP server is read-only: {name}", new { name });
+
+    public static AppServerException AppBindingUpgradeRequired() =>
+        Create(
+            AppBindingUpgradeRequiredCode,
+            "AppBindingUpgradeRequired",
+            "errors.appBindingUpgradeRequired",
+            "App Binding version 2 is required",
+            new { requiredVersion = 2 });
+
+    public static AppServerException AppPrincipalUnauthorized(string detail) =>
+        Create(
+            AppPrincipalUnauthorizedCode,
+            "AppPrincipalUnauthorized",
+            "errors.appPrincipalUnauthorized",
+            "App principal authentication failed",
+            detail: detail);
+
+    public static AppServerException AppBindingConflict(string detail) =>
+        Create(
+            AppBindingConflictCode,
+            "AppBindingConflict",
+            "errors.appBindingConflict",
+            "App Binding state conflict",
+            detail: detail);
+
+    public static AppServerException AppBindingPolicyDenied(string detail) =>
+        Create(
+            AppBindingPolicyDeniedCode,
+            "AppBindingPolicyDenied",
+            "errors.appBindingPolicyDenied",
+            "App Binding policy denied the request",
+            detail: detail);
 
     public static AppServerException ExternalChannelNotFound(string name) =>
         Create(ExternalChannelNotFoundCode, "ExternalChannelNotFound", "errors.externalChannelNotFound", $"External channel not found: {name}", new { name });

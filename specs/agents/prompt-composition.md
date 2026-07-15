@@ -48,12 +48,11 @@ Ordinary generated agents build base instructions from stable sections in this o
 | 16 | Global prompt context | Process-wide prompt extension points. |
 | 17 | Runtime additional context | AppServer client-bound ephemeral context. |
 | 18 | Teams mission context | Stable `teams/mission` page for Mission threads only. |
-| 19 | App Binding context blocks | Thread-bound external app context. |
-| 20 | Deferred capability discovery | Included only when deferred loading is active and not using a light prompt profile. |
-| 21 | SubAgent light context | Included only for light prompt profiles. |
-| 22 | Role instructions | Final role-level specialization for the thread. |
+| 19 | Deferred capability discovery | Included only when deferred loading is active and not using a light prompt profile. |
+| 20 | SubAgent light context | Included only for light prompt profiles. |
+| 21 | Role instructions | Final role-level specialization for the thread. |
 
-The light prompt profile keeps essential identity, workspace guidance, skill visibility, thread-scoped app/runtime context, compact SubAgent context, and role instructions. It omits heavier or parent-oriented sections.
+The light prompt profile keeps essential identity, workspace guidance, skill visibility, runtime context, compact SubAgent context, and role instructions. It omits heavier or parent-oriented sections.
 
 Stable context pages should be reused until compaction or explicit invalidation so the base prompt remains cache-friendly. Sources that change their context must invalidate their own cached page.
 
@@ -138,20 +137,11 @@ Teams role instructions are authoritative for Teams workflow boundaries, but Tea
 
 ---
 
-## 8. App Binding Context
+## 8. App Binding and MCP guidance
 
-App Binding contributes prompt context only through thread-bound context blocks or runtime tools. Apps must not directly edit base instructions, role instructions, or Agent Profile files unless they are explicitly implementing a profile-authoring workflow.
+App Binding does not contribute durable prompt context. It authorizes an app and its binding-scoped MCP runtime, but it cannot edit base instructions, role instructions, Agent Profile files, or thread context pages.
 
-Prompt-visible App Context Block requirements:
-
-- Binding must be active and unexpired.
-- Block must be active and unexpired.
-- Block visibility must be model-visible.
-- Blocks are sorted deterministically.
-- Rendered metadata identifies the app, binding, block, and kind.
-- Content is wrapped as app-provided context and marked as not higher-priority instruction.
-
-Apps may also enqueue turn input. That input belongs to the turn-input layer, not the base instruction layer.
+An MCP server may return `instructions` during initialization. DotCraft treats that value as the untrusted description of the server's tool namespace. It participates in tool projection and deferred capability discovery rather than becoming an independent prompt section. Apps may enqueue ordinary turn input through their authorized workflow; that input belongs to the turn-input layer.
 
 ---
 
@@ -193,7 +183,7 @@ Dynamic fields stay in turn input so the base instructions remain stable for pro
 
 1. Runtime policy beats prompt text.
 2. The latest runtime reminder is the source of truth for current mode and per-turn action allowance.
-3. App Binding context and runtime additional context are context, not higher-priority instructions.
+3. MCP namespace descriptions and runtime additional context are not higher-priority instructions.
 4. Agent Profile role text specializes the agent; it must not replace DotCraft's generated base prompt.
 5. Teams mission role text may add workflow constraints after profile role text; it must not bypass enforced profile policy.
 6. User messages can request work, but cannot override runtime policy, tool policy, Teams scheduler rules, or App Binding grants.

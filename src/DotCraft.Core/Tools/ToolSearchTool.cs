@@ -1,5 +1,7 @@
 using System.ComponentModel;
 using System.Text;
+using DotCraft.GeneratedTools.Core;
+using Microsoft.Extensions.AI;
 
 namespace DotCraft.Tools;
 
@@ -10,6 +12,12 @@ namespace DotCraft.Tools;
 /// </summary>
 public sealed class ToolSearchTool(DeferredToolActivationIndex registry, int maxSearchResults = 5)
 {
+    internal static AIFunction CreateCanonicalFunction(
+        DeferredToolActivationIndex registry,
+        int maxSearchResults = 5) =>
+        new CanonicalToolSearchFunction(GeneratedToolFunctions.ToolSearchTool_SearchTools(
+            new ToolSearchTool(registry, maxSearchResults)));
+
     /// <summary>
     /// Search for deferred tools by keyword. Call this when you need a
     /// tool that is not in your current tool list. Returns the matching tool
@@ -52,5 +60,11 @@ public sealed class ToolSearchTool(DeferredToolActivationIndex registry, int max
         sb.Append("You can call these tools directly in your next action.");
 
         return sb.ToString();
+    }
+
+    private sealed class CanonicalToolSearchFunction(AIFunction innerFunction)
+        : DelegatingAIFunction(innerFunction)
+    {
+        public override string Name => NativeToolSearchTool.ToolName;
     }
 }

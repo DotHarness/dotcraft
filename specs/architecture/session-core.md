@@ -2,9 +2,9 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.3.0 |
+| **Version** | 0.3.1 |
 | **Status** | Living |
-| **Date** | 2026-07-14 |
+| **Date** | 2026-07-15 |
 
 Purpose: Define the current **server-managed** session model (Thread / Turn / Item) used by `DotCraft.Core`, including lifecycle, persistence, event semantics, approval semantics, and adapter boundaries.
 
@@ -215,7 +215,7 @@ Fields:
 - `Configuration` (ThreadConfiguration, nullable)
   - Per-thread agent configuration (MCP servers, mode, extensions). See Section 16. Null means workspace defaults apply.
 - `Turns` (ordered list of Turn)
-  - Append-only. Turns are never removed from a Thread.
+  - Canonical visible Turn history. Normal execution appends Turns; rollback removes a visible tail while the rollout retains the rollback and prior Turn records for audit and identity recovery.
 - `QueuedInputs` (ordered list of QueuedTurnInput)
   - FIFO inputs submitted while a Turn or blocking thread maintenance operation is active. The queue is part of canonical thread state and is persisted in the rollout file.
   - Clients may explicitly reorder the full queue. Reordering preserves queued input payloads and statuses, but updates the execution order for future queued turns.
@@ -369,8 +369,8 @@ Fields:
   - `CommandExecution` — Server-observed shell execution projection for `Exec`-style tools. Payload includes command metadata and aggregated output for persistence, history summaries, and non-terminal-capable fallback rendering.
   - `ToolExecution` — Server-observed runtime lifecycle for a normal tool invocation. Payload includes call id, tool name, status, duration, and optional preview/error text.
   - `ImageGeneration` — Hosted image generation lifecycle. Payload includes provider call id, in-progress/completed/failed status, revised prompt, generated image bytes when available, saved path, and error text.
-  - `ToolCall` — Agent invokes a native, plugin, or legacy App Binding adapter tool. Payload includes canonical namespace/name, arguments, call id, definition identity, and safe provenance.
-  - `PluginFunctionCall` — Legacy read-only item retained only for persisted pre-M1 history. New invocations MUST NOT create this item.
+  - `ToolCall` — Agent invokes a native or plugin tool, including managed social tools. Payload includes canonical namespace/name, arguments, call id, definition identity, and safe provenance.
+  - `PluginFunctionCall` — Reserved persisted item type. New invocations MUST NOT create this item.
   - `McpToolCall` — MCP invocation lifecycle item preserving raw MCP result fields under audience rules plus separately normalized model content.
   - `DynamicToolCall` — Runtime Dynamic callback lifecycle item with canonical namespace/name, separate call/item ids, status, duration, normalized content, structured content, and stable failure data.
   - `ToolResult` — Result paired with a standard `ToolCall`, including model fallback content and audience-separated client/host data.
@@ -477,6 +477,7 @@ Delta payload (during streaming):
 {
   "namespace": string,       // Optional canonical namespace; absent/null for top-level tools
   "toolName": string,        // Canonical local tool name
+  "providerFlatName": string,// Deterministic flat-provider alias persisted from the snapshot
   "definitionId": string,    // Source-qualified ToolDefinitionId
   "runtimeBindingId": string,// Live RuntimeBindingId at invocation time
   "bindingRevision": string, // Runtime binding revision at invocation time
@@ -491,6 +492,10 @@ Delta payload (during streaming):
   "callId": string           // Provider/model correlation id linking ToolCall to ToolResult
 }
 ```
+
+The tool snapshot and the live invocation have distinct lifetimes. Snapshot planning does not provide the execution Turn identity. At the model callback boundary, Session Core captures the active thread and Turn in an immutable invocation context and uses that context for dispatch and projection. An invocation with no Turn may execute for an authorized host audience but MUST NOT create or update a Turn item.
+
+For a registered call, streamed arguments and dispatcher lifecycle events are coordinated by `(threadId, turnId, callId, projectionShape)`. They MUST atomically upsert the same `ToolCall`; neither arrival order may create a generic duplicate. Canonical identity, source provenance, and presentation come from the matched frozen registration and MUST NOT be inferred from `toolName`, arguments, or result content.
 
 #### ToolExecution
 
@@ -522,9 +527,9 @@ Delta payload (during streaming):
 }
 ```
 
-`ImageGeneration` represents hosted image generation as a first-class Session item. It is a provider-hosted capability, not a local tool and not an `IToolRuntime` invocation. Snapshot planning records it in a separate provider-capability plan; the provider adapter creates and completes this item from provider call/result content. If the result arrives before the call, Session Core creates and immediately completes a single `ImageGeneration` item. Completed inline image bytes are persisted under `.craft/generated_images/{threadId}/{callId}.png`; the payload also carries base64 bytes for wire clients. Historical `image_generation` `ToolCall` / `ToolResult` items remain readable for compatibility, but new turns SHOULD use `ImageGeneration`.
+`ImageGeneration` represents hosted image generation as a first-class Session item. It is a provider-hosted capability, not a local tool and not an `IToolRuntime` invocation. Snapshot planning records it in a separate provider-capability plan; the provider adapter creates and completes this item from provider call/result content. If the result arrives before the call, Session Core creates and immediately completes a single `ImageGeneration` item. Completed inline image bytes are persisted under `.craft/generated_images/{threadId}/{callId}.png`; the payload also carries base64 bytes for wire clients.
 
-#### PluginFunctionCall (legacy read compatibility)
+#### PluginFunctionCall
 
 ```
 {
@@ -548,7 +553,7 @@ Delta payload (during streaming):
 }
 ```
 
-This payload is retained only so pre-M1 persisted items can be read and projected into provider history. New plugin invocations use `ToolCall` + `ToolResult`, with plugin provenance on those standard payloads. No production execution path may create a new `PluginFunctionCall`.
+`PluginFunctionCall` is a reserved persisted payload that clients may project as generic content. Plugin invocations use `ToolCall` + `ToolResult`, with plugin provenance on those standard payloads. No production execution path may create a `PluginFunctionCall`, and it is not expanded into provider model history because it lacks the canonical composite identity plus `providerFlatName`.
 
 #### McpToolCall
 
@@ -556,6 +561,7 @@ This payload is retained only so pre-M1 persisted items can be read and projecte
 {
   "namespace": string,          // Canonical MCP server namespace
   "toolName": string,           // Canonical local name
+  "providerFlatName": string,   // Deterministic flat-provider alias persisted from the snapshot
   "server": string,             // Runtime MCP server name
   "origin": string,             // "workspace" | "plugin" | "thread" | "binding"
   "sourceToolId": string,       // Original MCP tool name
@@ -582,7 +588,7 @@ This payload is retained only so pre-M1 persisted items can be read and projecte
 
 `McpToolCall` is one lifecycle item and has no companion `ToolResult`. History reconstruction uses only `contentItems`; it MUST NOT insert `structuredContent`, `_meta`, or `rawContent` into model context.
 
-MCP Apps live-view eligibility, `viewHandle`, UI resource HTML/blob, CSP, and live authority state are wire/runtime data and MUST NOT be persisted in this payload. A persisted or replayed `McpToolCall` is always a generic historical result.
+MCP Apps live-view eligibility, `viewHandle`, UI resource HTML/blob, CSP, and live authority state are wire/runtime data and MUST NOT be persisted in this payload. A persisted or replayed `McpToolCall` always uses the generic result presentation.
 
 #### DynamicToolCall
 
@@ -590,6 +596,7 @@ MCP Apps live-view eligibility, `viewHandle`, UI resource HTML/blob, CSP, and li
 {
   "namespace": string,      // Optional canonical namespace; absent/null for a top-level Function
   "toolName": string,       // Runtime dynamic tool name
+  "providerFlatName": string,// Deterministic flat-provider alias persisted from the snapshot
   "callId": string,         // Provider/model call id; differs from Item.id
   "arguments": object,      // Tool arguments as key-value pairs
   "status": string,         // "inProgress" | "completed" | "failed"
@@ -616,12 +623,20 @@ Runtime Dynamic Tool invocations are represented by this single item. Session Co
 ```
 {
   "callId": string,          // Matches the ToolCall.callId
+  "namespace": string,       // Optional canonical namespace; absent/null for top-level tools
+  "toolName": string,        // Canonical local tool name
+  "providerFlatName": string,// Deterministic flat-provider alias persisted from the snapshot
   "definitionId": string,    // Source-qualified ToolDefinitionId
   "runtimeBindingId": string,// RuntimeBindingId used for the call
   "bindingRevision": string, // Binding revision used for the call
   "snapshotRevision": string,// EffectiveToolSnapshot revision used for the call
+  "sourceKind": string,      // Safe source kind
+  "sourceToolId": string,    // Optional safe raw source identity
   "sourceProvenance": object,// Optional sanitized source provenance
   "presentation": object,    // Optional trusted PresentationId + bounded options
+  "pluginId": string,        // Optional plugin provenance
+  "functionId": string,      // Optional plugin function provenance
+  "durationMs": number,      // Wall-clock duration of the invocation
   "result": string,          // Model/history-safe textual fallback
   "contentItems": [          // Optional model-safe rich content
     {
@@ -644,6 +659,8 @@ model/history-safe text fallback. Clients may use `contentItems` for richer
 presentation, such as showing image output from a file read, but history
 reconstruction continues to use only the normalized model-safe content. It never serializes
 `structuredContent` or `_meta` into provider history.
+
+`ToolResult` repeats the complete immutable invocation identity used by its matching `ToolCall`; clients do not join against current registry state to recover provenance or presentation. Standard tool projection appends exactly one terminal `ToolResult` for a call. Specialized `McpToolCall` and `DynamicToolCall` projections instead update their single item to exactly one terminal state and do not create `ToolResult`. All projections use one atomic terminal guard across completion, rejection, cancellation, timeout, and failure races. If an untrusted provider callback names an invalid, unknown, or unavailable function, the result is a recoverable tool failure with `success = false` and stable `errorCode = "tool_not_found"`; the same failure is returned to the model without escalating it to a Turn-level exception.
 
 #### CommandExecution
 
@@ -771,8 +788,11 @@ must not mutate the source thread.
 ### 4.3 Stable Identifiers and Normalization Rules
 
 - **Thread ID**: Generated by Session Core. Format `thread_{yyyyMMdd}_{6-char-random}`. Must be unique within the workspace. Used as the primary key for persistence and cross-channel resume.
-- **Turn ID**: Sequential within a Thread. Format `turn_{3-digit-sequence}`. Assigned by Session Core when a Turn starts.
-- **Item ID**: Sequential within a Turn. Format `item_{3-digit-sequence}`. Assigned by Session Core when an Item is created.
+- **Turn ID**: Sequential and never reused within a Thread. Format `turn_{3-digit-sequence}`. Assigned by Session Core when a Turn starts. Session Core maintains a historical sequence high-water mark across rollback, restart, fork initialization, subagent execution, and ordinary Turn creation; removing a visible Turn never lowers that mark.
+- **Item ID**: Sequential within a Turn. Format `item_{3-digit-sequence}`. Assigned by Session Core when an Item is created. Continuing an existing Turn resumes after its highest allocated sequence. Lifecycle updates may reuse the same id only for the same logical Item; a different type, call, or source MUST NOT overwrite it.
+- **Item reference**: An Item is addressed across Thread-level protocols by `(turnId, itemId)`. `itemId` alone is not a Thread-wide identity.
+- **Canonical tool identity**: The persisted pair `(namespace, toolName)` is the exact case-sensitive `ToolName` selected by the Turn snapshot. It is not parsed from a provider string. Each present component matches `^[A-Za-z0-9_]+$` and its deterministic flat form fits within 64 ASCII bytes.
+- **Flat provider alias**: `providerFlatName` is the exact deterministic alias selected by the same snapshot for providers that cannot represent namespaces. It is required on every new tool invocation payload, remains distinct from the canonical pair, and is never parsed to recover canonical or source-routing identity.
 - **UserId Normalization**: Session Core stores `UserId` as-is from the adapter. Cross-channel user identity resolution (is QQ user X the same as ACP user Y?) is out of scope for this spec.
 
 ## 5. Session Lifecycle Specification
@@ -909,12 +929,14 @@ WaitingApproval/WaitingInput ──────────► Cancelled
     - `ToolCall` is usually completed directly, but hosts may expose an intermediate streaming preview of argument construction before the final completed payload is persisted.
     - `ImageGeneration` starts when hosted image generation begins and completes with inline image data or a visible failure/unsupported-result payload.
     - `McpToolCall` and `DynamicToolCall` start with `status = "inProgress"` and nullable/absent `success`, then complete once with a terminal completed/failed payload.
-    - Legacy `PluginFunctionCall` items are read-only history and are never started by new execution.
+    - A reserved `PluginFunctionCall` item is projected as generic content and is never created by execution.
 
 **Invariants**:
 
 - An Item's Status never moves backward.
 - A Completed Item's payload is immutable.
+- A tool invocation has exactly one source-declared projection shape. Streaming observation and dispatcher recording atomically upsert its call item by Turn, call id, and shape.
+- Each invocation publishes at most one terminal projection. Competing completion, rejection, timeout, cancellation, and failure paths converge on the same terminal guard.
 - Items within a Turn are ordered by creation time. This order is the canonical sequence of events within the Turn.
 - Before model-visible history is submitted to a provider, Session Core MUST ensure
   that each assistant tool call has an immediately following tool result message.
@@ -965,7 +987,7 @@ The resumed agent has full context of previous Turns regardless of which channel
 
 When reconstructing model history, provider reasoning metadata MUST be preserved on assistant messages that contain tool calls. If one sampling segment produced `ReasoningContent`, visible assistant text, and one or more `ToolCall` Items before their matching `ToolResult` Items, the reconstructed history represents them as one assistant `ChatMessage` containing reasoning content, visible text, and all function calls. This preserves OpenAI protocol providers such as DeepSeek whose thinking mode requires `reasoning_content` to be round-tripped on assistant tool-call messages.
 
-Tool history reconstruction is source-neutral. It expands a valid standard `ToolCall`/`ToolResult` pair or a terminal `McpToolCall`/`DynamicToolCall` into the provider's function-call/function-result sequence while preserving the original provider `callId`. A legacy `PluginFunctionCall` may be expanded for read compatibility only. Orphaned, duplicated, or incomplete call ids are diagnosed and skipped or repaired at the request boundary; Session Core MUST NOT guess pairings. Only normalized model content participates in provider history. `structuredContent`, `_meta`, and raw MCP result fields never do.
+Tool history reconstruction is source-neutral. It expands a valid standard `ToolCall`/`ToolResult` pair or a terminal `McpToolCall`/`DynamicToolCall` into the provider's function-call/function-result sequence while preserving the original provider `callId`. A namespace-capable provider receives the persisted `(namespace, toolName)` tuple; a flat-only provider receives the persisted `providerFlatName`. Reconstruction MUST NOT consult the current tool inventory, parse a flat alias, regenerate one from current naming rules, substitute MCP `server`/`sourceToolId` for model identity, or expand a reserved `PluginFunctionCall` that lacks the canonical identity fields. Orphaned, duplicated, incomplete, or identity-incomplete calls are diagnosed and skipped or rejected at the request boundary; Session Core MUST NOT guess pairings. Only normalized model content participates in provider history. `structuredContent`, `_meta`, and raw MCP result fields never do.
 
 ## 6. Event Model
 
@@ -1522,7 +1544,7 @@ Cross-channel resume works for channels that share the same identity shape:
 |---------|---------|----------|
 | **Agent Exception** | `RunStreamingAsync` throws | Create Error Item. Set Turn status = Failed. Emit `turn/failed`. Save partial state. |
 | **Recoverable Provider Stream Disconnect** | The provider stream disconnects, becomes idle past `StreamIdleTimeoutMs`, or ends before the sampling request completes before visible output is emitted | Emit `system/event` with `kind = "streamError"` and retry the same sampling request up to the provider's `StreamMaxRetries`. Exhaustion falls through to Agent Exception behavior. Cleanup of the failed provider stream is best-effort and must not indefinitely block retry or failure delivery. |
-| **Tool Execution Error** | Unified dispatch returns or classifies a tool failure | Native/plugin/legacy App Binding calls complete `ToolResult` with stable failure fields; MCP and Runtime Dynamic calls complete their specialized lifecycle item as failed. The normalized textual failure is returned to the model, which decides whether to retry or stop. |
+| **Tool Execution Error** | Unified dispatch returns or classifies a tool failure | Native/plugin calls complete `ToolResult` with stable failure fields; MCP and Runtime Dynamic calls complete their specialized lifecycle item as failed. The normalized textual failure is returned to the model, which decides whether to retry or stop. |
 | **Incomplete Historical Tool Pair** | Persisted or in-memory model history contains a `tool_use`/function call without an immediately following `tool_result`/function result | Repair or filter the model request before provider submission so strict providers can accept the history. The repair is request-local and does not silently mutate rollout evidence. |
 | **Approval Timeout** | Adapter does not resolve approval within timeout | Reject the approval. Create Error Item noting timeout. Tool receives rejection. Agent may continue or fail. |
 | **Turn Timeout** | Turn exceeds configurable time limit | Cancel the `CancellationToken`. Create Error Item. Set Turn status = Failed. |
@@ -1562,6 +1584,7 @@ Cross-channel resume works for channels that share the same identity shape:
 `RollbackThread(threadId, numTurns)` removes `numTurns` turns from the end of a non-archived Thread. `numTurns` must be at least 1 and no turn in the Thread may be `Running` or `WaitingApproval`.
 
 Rollback appends a canonical rollback record to thread JSONL and updates thread metadata; it does not revert files or other workspace side effects created by tools. After rollback, Session Core first tries to trim the removed Turn tail from the optimized `AgentSession`. If the removed Turns are no longer present as a plain model-visible suffix, Session Core rebuilds through the newest surviving compaction checkpoint before falling back to full canonical history. Rollback must not silently restore model-visible history that had already been compacted out.
+Rollback does not release the historical Turn sequence numbers of removed Turns. Replay scans all valid `turn_started` records, including Turns later removed by rollback, before allocating a new Turn ID.
 Successful rollback also records a maintenance trace event for live Dashboard visibility. Dashboard must de-duplicate that live event with the canonical rollout-derived operation when both are available.
 
 - **Channel disconnects** are transparent to Session Core. Turns run to completion regardless of adapter state. Results are persisted and available on reconnect.

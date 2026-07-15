@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using DotCraft.Abstractions;
 using DotCraft.Agents;
 using DotCraft.Configuration;
@@ -33,6 +34,54 @@ public sealed class SessionServiceRuntimeSignalTests : IDisposable
     {
         try { Directory.Delete(_tempDir, true); }
         catch { /* best-effort */ }
+    }
+
+    [Fact]
+    public async Task SubmitInputAsync_RegisteredToolPersistsTrustedProjectionForTheLiveTurn()
+    {
+        var chatClient = new SingleToolCallChatClient("ProjectionRead");
+        var recorder = new ToolInvocationRecorderRouter();
+        var dispatcher = new ToolDispatcher(recorder: recorder);
+        await using var agentFactory = CreateAgentFactory(
+            chatClient,
+            [new ProjectionTestToolSource()],
+            toolDispatcher: dispatcher);
+        var service = CreateService(agentFactory, chatClient, useStreamingFunctionInvoker: true);
+        recorder.Bind(service);
+        var thread = await service.CreateThreadAsync(MakeIdentity());
+        await service.RefreshThreadAgentAsync(thread.Id);
+
+        await DrainAsync(service.SubmitInputAsync(thread.Id, [new TextContent("read")]));
+
+        var updated = await service.GetThreadAsync(thread.Id);
+        var turn = Assert.Single(updated.Turns);
+        Assert.True(turn.Status == TurnStatus.Completed, turn.Error);
+        var callItem = Assert.Single(turn.Items, item => item.Type == ItemType.ToolCall);
+        var call = Assert.IsType<ToolCallPayload>(callItem.Payload);
+        Assert.Equal("ProjectionRead", call.ToolName);
+        Assert.Equal("ProjectionRead", call.ProviderFlatName);
+        Assert.Equal("CoreNative", call.Source?.Kind);
+        Assert.Equal("core.read-file", call.Presentation?.PresentationId);
+        Assert.Equal(turn.Id, callItem.TurnId);
+        var result = Assert.IsType<ToolResultPayload>(
+            Assert.Single(turn.Items, item => item.Type == ItemType.ToolResult).Payload);
+        Assert.Equal(call.CallId, result.CallId);
+        Assert.Equal(call.ToolDefinitionId, result.ToolDefinitionId);
+        Assert.Equal(call.RuntimeBindingId, result.RuntimeBindingId);
+        Assert.Equal(call.Source, result.Source);
+        var callPresentation = Assert.IsType<ToolPresentationPayload>(call.Presentation);
+        var resultPresentation = Assert.IsType<ToolPresentationPayload>(result.Presentation);
+        Assert.Equal(callPresentation.PresentationId, resultPresentation.PresentationId);
+        Assert.Equal(
+            callPresentation.Options?.ToJsonString(),
+            resultPresentation.Options?.ToJsonString());
+        Assert.True(result.Success);
+
+        var reloaded = await new ThreadStore(_tempDir).LoadThreadAsync(thread.Id);
+        Assert.NotNull(reloaded);
+        var persistedTurn = Assert.Single(reloaded.Turns);
+        Assert.Single(persistedTurn.Items, item => item.Type == ItemType.ToolCall);
+        Assert.Single(persistedTurn.Items, item => item.Type == ItemType.ToolResult);
     }
 
     [Fact]
@@ -547,6 +596,32 @@ public sealed class SessionServiceRuntimeSignalTests : IDisposable
     }
 
     [Fact]
+    public async Task SubmitInputAsync_UnknownToolResult_PersistsStableFailure()
+    {
+        IChatClient chatClient = new FakeChatClient([
+            new ChatResponseUpdate(ChatRole.Assistant, [
+                StreamingFunctionInvokingChatClient.CreateToolFailureResult(
+                    "call-missing",
+                    "Error: Requested function \"missing\" not found.",
+                    ToolErrorCodes.NotFound)
+            ])
+        ]);
+        await using var agentFactory = CreateAgentFactory(chatClient);
+        var svc = CreateService(agentFactory, chatClient);
+        var thread = await svc.CreateThreadAsync(MakeIdentity());
+
+        await DrainAsync(svc.SubmitInputAsync(thread.Id, [new TextContent("hello")]));
+
+        var loaded = await new ThreadStore(_tempDir).LoadThreadAsync(thread.Id);
+        var turn = Assert.Single(loaded!.Turns);
+        var resultItem = Assert.Single(turn.Items, item => item.Type == ItemType.ToolResult);
+        var payload = Assert.IsType<ToolResultPayload>(resultItem.Payload);
+        Assert.False(payload.Success);
+        Assert.Equal(ToolErrorCodes.NotFound, payload.ErrorCode);
+        Assert.Contains("not found", payload.ErrorMessage, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
     public async Task SubmitInputAsync_ImageToolResult_PersistsAndEmitsContentItems()
     {
         var imageBytes = "abc"u8.ToArray();
@@ -759,6 +834,53 @@ public sealed class SessionServiceRuntimeSignalTests : IDisposable
         Assert.Equal(deltaEvent.ItemId, completedToolCall.ItemId);
         var payload = Assert.IsType<ToolCallPayload>(completedToolCall.ItemPayload!.Payload);
         Assert.Equal("tester", payload.Arguments?["agentNickname"]?.ToString());
+    }
+
+    [Fact]
+    public async Task SubmitInputAsync_NamespacedArgumentsDelta_WaitsForCompositeFinalIdentity()
+    {
+        var call = new FunctionCallContent(
+            "call-mcp",
+            "get_me",
+            new Dictionary<string, object?>())
+        {
+            AdditionalProperties = new AdditionalPropertiesDictionary
+            {
+                ["openai.responses.function_call.namespace"] = "mcp__code_host_apps",
+                ["namespace"] = "mcp__code_host_apps"
+            }
+        };
+        IChatClient chatClient = new FakeChatClient([
+            new ChatResponseUpdate(ChatRole.Assistant, [new ToolCallArgumentsDeltaContent
+            {
+                ToolCallIndex = 0,
+                ToolName = "get_me",
+                CallId = "call-mcp",
+                ArgumentsDelta = "{}"
+            }]),
+            new ChatResponseUpdate(ChatRole.Assistant, [call]),
+            new ChatResponseUpdate(ChatRole.Assistant, [new FunctionResultContent("call-mcp", "ok")])
+        ]);
+        await using var agentFactory = CreateAgentFactory(
+            chatClient,
+            [new NamespacedMcpToolSource()]);
+        var svc = CreateService(agentFactory, chatClient);
+        var thread = await svc.CreateThreadAsync(MakeIdentity());
+
+        await DrainAsync(svc.SubmitInputAsync(thread.Id, [new TextContent("hello")]));
+
+        var loaded = await new ThreadStore(_tempDir).LoadThreadAsync(thread.Id);
+        var turn = Assert.Single(loaded!.Turns);
+        Assert.DoesNotContain(turn.Items, item =>
+            item.Payload is ToolCallPayload payload
+            && string.Equals(payload.CallId, "call-mcp", StringComparison.Ordinal));
+        var mcpItem = Assert.Single(turn.Items, item =>
+            item.Type == ItemType.McpToolCall
+            && item.Payload is McpToolCallPayload { CallId: "call-mcp" });
+        var payload = Assert.IsType<McpToolCallPayload>(mcpItem.Payload);
+        Assert.Equal("mcp__code_host_apps", payload.Namespace);
+        Assert.Equal("get_me", payload.ToolName);
+        Assert.Equal("mcp__code_host_apps__get_me", payload.ProviderFlatName);
     }
 
     [Fact]
@@ -1796,7 +1918,8 @@ public sealed class SessionServiceRuntimeSignalTests : IDisposable
         Action<AppConfig>? configureConfig = null,
         IMemoryConsolidator? memoryConsolidator = null,
         IChatClient? compactionChatClient = null,
-        IApprovalService? approvalService = null)
+        IApprovalService? approvalService = null,
+        IToolDispatcher? toolDispatcher = null)
     {
         var config = AppConfigTestFactory.CreateOpenAI();
         configureConfig?.Invoke(config);
@@ -1811,6 +1934,7 @@ public sealed class SessionServiceRuntimeSignalTests : IDisposable
             approvalService: approvalService ?? new SessionScopedApprovalService(new AutoApproveApprovalService()),
             blacklist: null,
             chatClient: chatClientFactory,
+            toolDispatcher: toolDispatcher,
             toolSources: toolProviders ?? Array.Empty<IToolSource>(),
             memoryConsolidator: memoryConsolidator,
             compactionChatClient: compactionChatClient);
@@ -1965,6 +2089,60 @@ public sealed class SessionServiceRuntimeSignalTests : IDisposable
         {
             foreach (var update in streamUpdates)
                 yield return update;
+            await Task.CompletedTask;
+        }
+
+        public object? GetService(Type serviceType, object? serviceKey = null) => null;
+
+        public void Dispose()
+        {
+        }
+    }
+
+    private sealed class ProjectionTestToolSource : AIFunctionToolSource
+    {
+        public override string SourceId => "core-native";
+
+        protected override IEnumerable<AIFunction> CreateFunctions(ToolPlanningContext context)
+        {
+            yield return AIFunctionFactory.Create(
+                () => "file contents",
+                name: "ProjectionRead",
+                description: "Read a file.");
+        }
+
+        protected override ToolPresentationDescriptor? GetPresentation(
+            AIFunction function,
+            ToolPlanningContext context) =>
+            new(new PresentationId("core.read-file"));
+    }
+
+    private sealed class SingleToolCallChatClient(string toolName) : IChatClient
+    {
+        private int _requestCount;
+
+        public Task<ChatResponse> GetResponseAsync(
+            IEnumerable<ChatMessage> chatMessages,
+            ChatOptions? options = null,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(new ChatResponse([new ChatMessage(ChatRole.Assistant, [new TextContent("done")])]));
+
+        public async IAsyncEnumerable<ChatResponseUpdate> GetStreamingResponseAsync(
+            IEnumerable<ChatMessage> chatMessages,
+            ChatOptions? options = null,
+            [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
+        {
+            if (Interlocked.Increment(ref _requestCount) == 1)
+            {
+                Assert.Contains(options?.Tools ?? [], tool => string.Equals(tool.Name, toolName, StringComparison.Ordinal));
+                yield return new ChatResponseUpdate(ChatRole.Assistant,
+                    [new FunctionCallContent("call-projection", toolName, new Dictionary<string, object?>())]);
+            }
+            else
+            {
+                yield return new ChatResponseUpdate(ChatRole.Assistant, [new TextContent("done")]);
+            }
+
             await Task.CompletedTask;
         }
 
@@ -2212,6 +2390,50 @@ public sealed class SessionServiceRuntimeSignalTests : IDisposable
             Contexts.Add(context);
             return ValueTask.FromResult<IReadOnlyList<ToolRegistration>>([]);
         }
+    }
+
+    private sealed class NamespacedMcpToolSource : IToolSource
+    {
+        public string SourceId => "mcp-test";
+        public int Priority => 10;
+
+        public ValueTask<IReadOnlyList<ToolRegistration>> GetRegistrationsAsync(
+            ToolPlanningContext context,
+            CancellationToken cancellationToken = default)
+        {
+            var sourceToolId = new SourceToolId("get_me");
+            var definitionId = new ToolDefinitionId(ToolSourceKind.Mcp, "plugin:code-host-apps", sourceToolId);
+            var definition = new ToolDefinition(
+                definitionId,
+                new ToolName("mcp__code_host_apps", "get_me"),
+                "Get the current code-host user.",
+                JsonSerializer.SerializeToElement(new { type = "object" }),
+                provenance: new ToolProvenance(ToolSourceKind.Mcp, "plugin:code-host-apps", "plugin"));
+            var binding = new ToolRuntimeBinding(
+                new RuntimeBindingId("mcp:plugin:code-host-apps:get_me:1"),
+                definitionId,
+                new NamespacedMcpRuntime(),
+                ToolBindingLeases.AlwaysAvailable,
+                "mcp:plugin:code-host-apps:1",
+                1);
+            return ValueTask.FromResult<IReadOnlyList<ToolRegistration>>([
+                new ToolRegistration(
+                    definition,
+                    binding,
+                    ToolProjectionShape.McpLifecycle,
+                    ToolExposure.Direct,
+                    ToolInvocationAudience.Model)
+            ]);
+        }
+    }
+
+    private sealed class NamespacedMcpRuntime : IToolRuntime
+    {
+        public ValueTask<ToolExecutionResult> InvokeAsync(
+            ToolInvocationContext context,
+            JsonObject arguments,
+            CancellationToken cancellationToken = default) =>
+            ValueTask.FromResult(ToolExecutionResult.Succeeded("ok"));
     }
 
     private sealed class CapturingForkConsolidator : IMemoryForkConsolidator

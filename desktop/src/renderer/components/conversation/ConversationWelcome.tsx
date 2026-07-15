@@ -253,7 +253,7 @@ export function ConversationWelcome({
   const canUseCommandPicker = capabilities?.commandManagement === true
   const canUseSkillPicker = capabilities?.skillsManagement === true
   const canUseThreadGoals = capabilities?.threadGoals === true
-  const canUseAppBinding = capabilities?.appBinding === true
+  const canUseAppBinding = capabilities?.appBindingVersion === 2
   const canUseAgentProfiles = capabilities?.agentProfileManagement === true
   // A profile chosen via /Profile before sending; applied to the thread that the first message creates.
   const [profilePickerOpen, setProfilePickerOpen] = useState(false)
@@ -455,8 +455,6 @@ export function ConversationWelcome({
       const result = await createAppBindingRequest({
         threadId,
         appId: selectedApp.appId,
-        requestedScopes: defaultWelcomeRequestedScopes(selectedApp),
-        requestedTools: requestedWelcomeTools(selectedApp),
         source: 'welcome'
       })
       if (result.handoff?.uri) await openWelcomeAppHandoff(result.handoff, t)
@@ -2252,16 +2250,6 @@ function parseWelcomeSystemSlashCommand(text: string): { kind: 'agent' | 'plan' 
   if (trimmed === '/plan') return { kind: 'plan' }
   if (trimmed === '/agent') return { kind: 'agent' }
   return null
-}
-
-function defaultWelcomeRequestedScopes(app: AppInfo): string[] {
-  return app.scopes.map((scope) => scope.id)
-}
-
-function requestedWelcomeTools(app: AppInfo): string[] | undefined {
-  return app.dynamicToolCatalog?.enabled === true
-    ? undefined
-    : app.toolCatalog.map((tool) => tool.name)
 }
 
 function sameStringArray(left: string[], right: string[]): boolean {

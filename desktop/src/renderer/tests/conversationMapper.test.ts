@@ -34,7 +34,7 @@ describe('wireItemToConversationItem — flat (top-level) format', () => {
     expect(historical.mcpAppAvailable).toBe(false)
   })
 
-  it('restores a known Core presentation from complete durable provenance only', () => {
+  it('does not infer presentation when the server descriptor is missing', () => {
     const core = wireItemToConversationItem({
       id: 'tool-1',
       type: 'toolCall',
@@ -54,11 +54,19 @@ describe('wireItemToConversationItem — flat (top-level) format', () => {
       createdAt: '2025-01-01T00:00:00Z'
     })
 
-    expect(core.presentation).toEqual({
-      presentationId: 'core.file-write',
-      options: { operation: 'write' }
-    })
+    expect(core.presentation).toBeUndefined()
     expect(untrusted.presentation).toBeUndefined()
+  })
+
+  it('does not infer a Core presentation from the provider-visible tool name alone', () => {
+    const mapped = wireItemToConversationItem({
+      id: 'tool-search',
+      type: 'toolCall',
+      payload: { toolName: 'tool_search' },
+      createdAt: '2025-01-01T00:00:00Z'
+    })
+
+    expect(mapped.presentation).toBeUndefined()
   })
 
   it('extracts text from raw.text for agentMessage', () => {

@@ -230,11 +230,21 @@ internal sealed class McpRequestHandler(
         var start = ParseCursor(p.Cursor, statuses.Count);
         var limit = Math.Clamp(p.Limit ?? 100, 1, 500);
         var page = statuses.Skip(start).Take(limit).ToList();
+        var includeFullInventory = p.Detail is null or "full";
+        if (includeFullInventory)
+        {
+            await Task.WhenAll(page
+                .Where(static status => string.Equals(status.StartupState, "ready", StringComparison.Ordinal))
+                .Select(status => RefreshOptionalInventoryAsync(effectiveManager, status.Name, ct)));
+        }
         var data = new List<McpServerRuntimeStatusWire>(page.Count);
         foreach (var status in page)
         {
             var inventory = await effectiveManager.GetInventoryAsync(status.Name, ct);
-            var config = await effectiveManager.GetConfigAsync(status.Name, ct);
+            var resources = includeFullInventory ? inventory?.Resources.Cast<object>().ToList() ?? [] : [];
+            var resourceTemplates = includeFullInventory
+                ? inventory?.ResourceTemplates.Cast<object>().ToList() ?? []
+                : [];
             data.Add(new McpServerRuntimeStatusWire
             {
                 Name = status.Name,
@@ -242,7 +252,10 @@ internal sealed class McpRequestHandler(
                 RuntimeName = status.Name,
                 Enabled = status.Enabled,
                 StartupState = status.StartupState,
-                AuthState = InferAuthState(status),
+                LastError = status.LastError,
+                AuthState = string.Equals(status.AuthStatus, McpAuthenticationStatuses.NotLoggedIn, StringComparison.Ordinal)
+                    ? "loginRequired"
+                    : "notRequired",
                 ServerInfo = inventory?.ServerInfo,
                 Tools = inventory?.Tools.ToDictionary(
                             static tool => tool.Name,
@@ -255,18 +268,16 @@ internal sealed class McpRequestHandler(
                             },
                             StringComparer.Ordinal)
                         ?? new Dictionary<string, object>(StringComparer.Ordinal),
-                Resources = inventory?.Resources.Cast<object>().ToList() ?? [],
-                ResourceTemplates = inventory?.ResourceTemplates.Cast<object>().ToList() ?? [],
-                AuthStatus = await ResolveAuthStatusAsync(config, status, ct),
+                Resources = resources,
+                ResourceTemplates = resourceTemplates,
+                AuthStatus = status.AuthStatus,
                 Transport = status.Transport,
                 ToolCount = status.ToolCount,
-                ResourceCount = status.ResourceCount,
-                ResourceTemplateCount = status.ResourceTemplateCount,
+                ResourceCount = resources.Count,
+                ResourceTemplateCount = resourceTemplates.Count,
                 Generation = await effectiveManager.GetGenerationAsync(status.Name, ct),
                 Origin = McpWireMapper.ToWire(status.Origin),
-                FailureReason = string.Equals(InferAuthState(status), "loginRequired", StringComparison.Ordinal)
-                    ? "reauthenticationRequired"
-                    : null
+                FailureReason = status.FailureReason
             });
         }
 
@@ -354,8 +365,22 @@ internal sealed class McpRequestHandler(
         if (mcpClientManager == null)
             throw AppServerErrors.MethodNotFound(AppServerMethods.McpServerOAuthLogin);
 
-        var server = await mcpClientManager.GetConfigAsync(p.Name, ct)
+        var effectiveManager = !string.IsNullOrWhiteSpace(p.ThreadId) && threadMcpRuntimeService != null
+            ? await threadMcpRuntimeService.GetEffectiveMcpRuntimeAsync(p.ThreadId, ct)
+            : mcpClientManager;
+        if (effectiveManager == null)
+            throw AppServerErrors.MethodNotFound(AppServerMethods.McpServerOAuthLogin);
+
+        var server = await effectiveManager.GetConfigAsync(p.Name, ct)
                      ?? throw AppServerErrors.McpServerNotFound(p.Name);
+        var runtimeStatus = (await effectiveManager.ListStatusesAsync(ct))
+            .FirstOrDefault(status => string.Equals(status.Name, p.Name, StringComparison.OrdinalIgnoreCase));
+        if (runtimeStatus == null
+            || !string.Equals(runtimeStatus.AuthStatus, McpAuthenticationStatuses.NotLoggedIn, StringComparison.Ordinal))
+        {
+            throw AppServerErrors.InvalidRequest(
+                $"MCP server '{p.Name}' does not currently require OAuth authentication.");
+        }
         var authorizationUrl = await McpOAuthLoginCoordinator.BeginAsync(
             server,
             p.Scopes,
@@ -366,8 +391,7 @@ internal sealed class McpRequestHandler(
                 {
                     try
                     {
-                        var workspaceServers = await configService.GetWorkspaceServersAsync(CancellationToken.None);
-                        await configService.ReconnectEffectiveRuntimeAsync(workspaceServers, CancellationToken.None);
+                        await effectiveManager.UpsertAsync(server, CancellationToken.None);
                     }
                     catch (Exception reloadError)
                     {
@@ -404,29 +428,25 @@ internal sealed class McpRequestHandler(
         return value;
     }
 
-    private static string InferAuthState(McpServerStatusSnapshot status)
+    private static async Task RefreshOptionalInventoryAsync(
+        McpClientManager manager,
+        string serverName,
+        CancellationToken cancellationToken)
     {
-        if (status.LastError?.Contains("401", StringComparison.OrdinalIgnoreCase) == true ||
-            status.LastError?.Contains("unauthorized", StringComparison.OrdinalIgnoreCase) == true ||
-            status.LastError?.Contains("authentication", StringComparison.OrdinalIgnoreCase) == true)
-            return "loginRequired";
-        return "notRequired";
-    }
-
-    private static async Task<string> ResolveAuthStatusAsync(
-        McpServerConfig? config,
-        McpServerStatusSnapshot status,
-        CancellationToken ct)
-    {
-        if (config == null || !string.Equals(config.NormalizedTransport, "streamableHttp", StringComparison.Ordinal))
-            return "unsupported";
-        if (await McpOAuthTokenStore.Create(config).HasTokensAsync(ct))
-            return "oAuth";
-        if (!string.IsNullOrWhiteSpace(config.BearerTokenEnvVar) || config.Headers.ContainsKey("Authorization"))
-            return "bearerToken";
-        return string.Equals(InferAuthState(status), "loginRequired", StringComparison.Ordinal)
-            ? "notLoggedIn"
-            : "unsupported";
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        timeout.CancelAfter(TimeSpan.FromSeconds(5));
+        try
+        {
+            await manager.RefreshResourceInventoryAsync(serverName, timeout.Token);
+        }
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+        {
+            // Optional inventory timeout does not affect server readiness.
+        }
+        catch
+        {
+            // Optional inventory failure is represented as an empty collection.
+        }
     }
 
     private static void EnsureRuntimeCallParams(string server, string value, string valueName)

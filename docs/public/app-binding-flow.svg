@@ -1,6 +1,6 @@
 <svg width="1440" height="880" viewBox="0 0 1440 880" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title desc">
   <title id="title">DotCraft App Binding handoff</title>
-  <desc id="desc">A sequence diagram showing the App Binding handoff between the DotCraft client, the DotCraft AppServer binding layer, and a native app: request, deep-link handoff, inspect, accept, attach tools, and activation.</desc>
+  <desc id="desc">App Binding sequence: enable, handoff, principal authentication, binding activation, MCP capability sync, and confirmation.</desc>
   <style>
     text { font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; letter-spacing: 0; }
     .title { fill: #17203A; font-size: 42px; font-weight: 760; }
@@ -18,7 +18,7 @@
   </defs>
   <rect width="1440" height="880" fill="#F8FAF7"/>
   <text x="72" y="86" class="title">DotCraft App Binding handoff</text>
-  <text x="72" y="123" class="subtitle">DotCraft requests and exposes tools; the native app inspects, authorizes, and attaches. Real authorization stays app-owned.</text>
+  <text x="72" y="123" class="subtitle">AppServer owns thread authority; each app binding exposes tools through its own Streamable HTTP MCP session.</text>
 
   <!-- lifelines -->
   <line x1="260" y1="264" x2="260" y2="792" stroke="#C2CCDA" stroke-width="2.5" stroke-dasharray="0.5 9" stroke-linecap="round"/>
@@ -54,7 +54,7 @@
   <!-- step labels -->
   <g>
     <rect x="386" y="289" width="214" height="26" rx="7" fill="#FFFFFF" stroke="#E3E8F0"/>
-    <text x="493" y="306" text-anchor="middle" class="mono">binding/request/create</text>
+    <text x="493" y="306" text-anchor="middle" class="mono">appBindings/enable</text>
   </g>
   <g>
     <rect x="388" y="361" width="196" height="26" rx="7" fill="#FFFFFF" stroke="#E3E8F0"/>
@@ -70,11 +70,11 @@
   </g>
   <g>
     <rect x="871" y="577" width="150" height="26" rx="7" fill="#FFFFFF" stroke="#E3E8F0"/>
-    <text x="946" y="594" text-anchor="middle" class="mono">binding/accept</text>
+    <text x="946" y="594" text-anchor="middle" class="mono">connection/authenticate</text>
   </g>
   <g>
     <rect x="848" y="649" width="196" height="26" rx="7" fill="#FFFFFF" stroke="#E3E8F0"/>
-    <text x="946" y="666" text-anchor="middle" class="mono">binding/attachTools</text>
+    <text x="946" y="666" text-anchor="middle" class="mono">binding/activate + MCP</text>
   </g>
   <g>
     <rect x="351" y="721" width="270" height="26" rx="7" fill="#FFFFFF" stroke="#E3E8F0"/>
@@ -84,8 +84,8 @@
   <!-- side notes -->
   <text x="246" y="324" text-anchor="end" class="muted">user-confirmed</text>
   <text x="1196" y="540" class="muted">inspect from trusted source</text>
-  <text x="1196" y="612" class="muted">authorize · narrow scopes</text>
-  <text x="1196" y="684" class="muted">expose namespaced tools</text>
+  <text x="1196" y="612" class="muted">bind connection to app principal</text>
+  <text x="1196" y="684" class="muted">sync and confirm capabilities</text>
 
   <!-- step numbers -->
   <circle cx="260" cy="320" r="13" fill="#4459B8"/><text x="260" y="325" text-anchor="middle" class="num">1</text>

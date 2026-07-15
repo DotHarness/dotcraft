@@ -30,10 +30,6 @@ import { CreatePlanCard, hasCreatePlanDisplayData } from './CreatePlanCard'
 import { CronCreatedCard } from './CronCreatedCard'
 import { SkillManageCard } from './SkillManageCard'
 import { SkillViewCard } from './SkillViewCard'
-import {
-  LegacyAppBindingInteractiveView,
-  hasLegacyAppBindingInteractiveUi
-} from './InteractiveToolView'
 import { McpAppView, hasLiveMcpApp } from './McpAppView'
 import { ToolCollapseChevron } from './ToolCollapseChevron'
 import { CollapsibleContent } from './CollapsibleContent'
@@ -387,12 +383,7 @@ export const ToolCallCard = memo(function ToolCallCard({
   }
 
   if (!isRunning && hasLiveMcpApp(item)) {
-    return <McpAppView item={item} threadId={threadId} />
-  }
-
-  // Legacy App Binding tools that declare an Interactive Tool UI retain their isolated iframe path.
-  if (!isRunning && hasLegacyAppBindingInteractiveUi(item)) {
-    return <LegacyAppBindingInteractiveView item={item} threadId={threadId} locale={locale} />
+    return <McpAppView item={item} threadId={threadId} turnId={turnId} />
   }
 
   if (isRunning) {

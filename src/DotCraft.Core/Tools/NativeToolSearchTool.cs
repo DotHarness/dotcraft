@@ -116,10 +116,16 @@ internal sealed class NativeToolSearchTool(
             Strict: false,
             DeferLoading: true);
 
-    internal static NativeToolSearchOutputTool ToOutputTool(DeferredToolEntry entry) =>
-        string.IsNullOrWhiteSpace(entry.Namespace)
-            ? ToOutputTool(entry.Tool)
-            : CreateNamespaceTool(entry.Namespace!, [ToOutputTool(entry.Tool)]);
+    private static NativeToolSearchOutputTool ToOutputTool(AITool tool, string localName) =>
+        new(
+            "function",
+            localName,
+            tool.Description ?? string.Empty,
+            GetJsonSchema(tool).ValueKind == JsonValueKind.Undefined
+                ? JsonSerializer.SerializeToElement(new JsonObject { ["type"] = "object" })
+                : GetJsonSchema(tool),
+            Strict: false,
+            DeferLoading: true);
 
     internal static string FormatOutputForDisplay(NativeToolSearchOutput output)
     {
@@ -149,11 +155,12 @@ internal sealed class NativeToolSearchTool(
         return sb.ToString().TrimEnd();
     }
 
-    private static NativeToolSearchOutputTool[] ToOutputTools(IReadOnlyList<DeferredToolEntry> entries)
+    internal static NativeToolSearchOutputTool[] ToOutputTools(IReadOnlyList<DeferredToolEntry> entries)
     {
         var output = new List<NativeToolSearchOutputTool>(entries.Count);
         var namespaceOrder = new List<string>();
         var namespaceTools = new Dictionary<string, List<NativeToolSearchOutputTool>>(StringComparer.Ordinal);
+        var namespaceDescriptions = new Dictionary<string, List<string?>>(StringComparer.Ordinal);
 
         foreach (var entry in entries)
         {
@@ -168,25 +175,48 @@ internal sealed class NativeToolSearchTool(
             {
                 tools = [];
                 namespaceTools[namespaceName] = tools;
+                namespaceDescriptions[namespaceName] = [];
                 namespaceOrder.Add(namespaceName);
             }
 
-            tools.Add(ToOutputTool(entry.Tool));
+            if (!CanonicalToolIdentityMetadataResolver.TryGet(entry.Tool, out var canonicalName, out _)
+                || !string.Equals(canonicalName.Namespace, namespaceName, StringComparison.Ordinal))
+            {
+                continue;
+            }
+
+            tools.Add(ToOutputTool(
+                entry.Tool,
+                canonicalName.Name));
+            namespaceDescriptions[namespaceName].Add(entry.NamespaceDescription);
         }
 
         foreach (var namespaceName in namespaceOrder)
-            output.Add(CreateNamespaceTool(namespaceName, namespaceTools[namespaceName].ToArray()));
+        {
+            var tools = namespaceTools[namespaceName];
+            if (tools.Count == 0)
+                continue;
+
+            output.Add(CreateNamespaceTool(
+                namespaceName,
+                ToolNamespaceDescriptionResolver.Resolve(
+                    namespaceName,
+                    namespaceDescriptions[namespaceName],
+                    out _),
+                tools.ToArray()));
+        }
 
         return output.ToArray();
     }
 
     private static NativeToolSearchOutputTool CreateNamespaceTool(
         string namespaceName,
+        string description,
         NativeToolSearchOutputTool[] tools) =>
         new(
             "namespace",
             namespaceName,
-            $"Tools in the {namespaceName} namespace.",
+            description,
             Tools: tools);
 
     private static IEnumerable<NativeToolSearchDisplayTool> FlattenOutputTools(

@@ -2624,7 +2624,7 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
       }
       set((s) => ({
         turns: s.turns.map((t) =>
-          t.id === turnId ? { ...t, items: sortItemsByCreatedAt([...t.items, newItem]) } : t
+          t.id === turnId ? { ...t, items: upsertItemById(t.items, newItem) } : t
         )
       }))
     } else if (type === 'systemNotice') {

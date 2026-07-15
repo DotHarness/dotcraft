@@ -184,6 +184,7 @@ public sealed class PluginAppInfoWire
 {
     public string AppId { get; set; } = string.Empty;
 
+    [JsonIgnore]
     public string ToolNamespace { get; set; } = string.Empty;
 
     public string DisplayName { get; set; } = string.Empty;
@@ -204,8 +205,10 @@ public sealed class PluginAppInfoWire
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public PluginAppNativeApplicationWire? NativeApplication { get; set; }
 
+    [JsonIgnore]
     public List<PluginAppToolInfoWire> ToolCatalog { get; set; } = [];
 
+    [JsonIgnore]
     public PluginAppDynamicToolCatalogWire DynamicToolCatalog { get; set; } = new();
 }
 

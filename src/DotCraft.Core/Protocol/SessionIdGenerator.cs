@@ -31,6 +31,26 @@ public static class SessionIdGenerator
     /// </summary>
     public static string NewItemId(int sequence) => $"item_{sequence:D3}";
 
+    internal static int NextTurnSequence(IEnumerable<SessionTurn> turns) =>
+        NextSequence(turns.Select(static turn => turn.Id), "turn_");
+
+    internal static int LastTurnSequence(IEnumerable<SessionTurn> turns) =>
+        LastSequence(turns.Select(static turn => turn.Id), "turn_");
+
+    internal static int LastTurnSequence(IEnumerable<string> turnIds) =>
+        LastSequence(turnIds, "turn_");
+
+    internal static int ReserveNextTurnSequence(SessionThread thread)
+    {
+        ArgumentNullException.ThrowIfNull(thread);
+        var next = Math.Max(thread.TurnSequenceHighWatermark, LastTurnSequence(thread.Turns)) + 1;
+        thread.TurnSequenceHighWatermark = next;
+        return next;
+    }
+
+    internal static int LastItemSequence(IEnumerable<SessionItem> items) =>
+        NextSequence(items.Select(static item => item.Id), "item_") - 1;
+
     /// <summary>
     /// Generates a queued turn input ID.
     /// </summary>
@@ -47,5 +67,21 @@ public static class SessionIdGenerator
         for (var i = 0; i < length; i++)
             chars[i] = Chars[Random.Next(Chars.Length)];
         return new string(chars);
+    }
+
+    private static int NextSequence(IEnumerable<string> ids, string prefix)
+        => LastSequence(ids, prefix) + 1;
+
+    private static int LastSequence(IEnumerable<string> ids, string prefix)
+    {
+        var maximum = 0;
+        foreach (var id in ids)
+        {
+            if (id.StartsWith(prefix, StringComparison.Ordinal)
+                && int.TryParse(id.AsSpan(prefix.Length), out var sequence))
+                maximum = Math.Max(maximum, sequence);
+        }
+
+        return maximum;
     }
 }

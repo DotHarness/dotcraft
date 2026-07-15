@@ -2,9 +2,9 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.1.0 |
+| **Version** | 0.1.1 |
 | **Status** | Living |
-| **Date** | 2026-05-26 |
+| **Date** | 2026-07-15 |
 | **Parent Specs** | [Session Core](../architecture/session-core.md), [AppServer Protocol](../protocols/appserver-protocol.md), [OpenAI Subscription Auth](../architecture/openai-subscription-auth.md) |
 
 Purpose: define the per-protocol contract DotCraft must satisfy for the provider's prompt cache to hit, and the empirical hit-rate envelope each protocol is expected to deliver. This is a design document — it constrains what the runtime emits on the wire, not how it builds the request internally.
@@ -74,7 +74,8 @@ Invariants the runtime must uphold:
 - **`prompt_cache_key` equals the active thread id** across every request issued on that thread, including maintenance forks and session-backed subagent turns scoped to the parent thread. Isolated legacy/function-style subagent runtimes that execute outside the parent thread may use a deterministic derived identity because they are separate provider conversations; they must not overwrite the parent thread's remembered cache breakpoints.
 - **`store=false`**. The backend MUST be treated as stateless; conversation state lives in DotCraft. Reasoning items round-trip through `include: ["reasoning.encrypted_content"]`.
 - **Input is rebuilt deterministically each turn**. Reasoning items keep their original `encrypted_content` blob byte-for-byte. Re-encrypting or stripping them breaks prefix equality.
-- **Namespaced tools keep their provider-visible namespace shape**. Runtime tools with a namespace are serialized as Responses `namespace` tool definitions that wrap their child `function` definitions. Namespaced `function_call` input items retain the namespace. Matching `function_call_output` input items are correlated by `call_id` and must not include `namespace`; prompt-cache request-shape hashes must reflect only the legal provider-visible request shape so flat and namespaced tools cannot share the same tool-schema hash.
+- **Namespaced tools keep their provider-visible namespace shape**. Runtime tools with a namespace are serialized as Responses `namespace` tool definitions that wrap local child `function` definitions. The namespace is the canonical `ToolName.namespace`; a child definition's name is only `ToolName.name`, never a flattened `namespace__name`. Namespaced `function_call` input items retain that same namespace and local name. Matching `function_call_output` input items are correlated by `call_id` and must not include `namespace`; prompt-cache request-shape hashes must reflect only the legal provider-visible request shape so flat and namespaced tools cannot share the same tool-schema hash.
+- **Native tool search returns the same composite definitions used by direct projection**. A deferred result describes one namespace once and returns its children under their local names. Discovery and activation are keyed by the full canonical `ToolName`, so equal child names in different namespaces remain independent. The local search tool itself is the top-level canonical `tool_search` function.
 - **No volatile content in system / assistant turns**. Timestamps, randomised tool ordering, in-place mutation of caller options — all forbidden inside the cached prefix. Volatile content belongs only at the tail of the latest user turn.
 
 **Empirical envelope:** ~60% on a light baseline and ~40% on a heavy baseline. Exact numbers vary by gateway because each implements its own prefix-cache layer.
@@ -175,6 +176,8 @@ Native deferred tool loading uses Anthropic's beta tool-reference path without c
 - `tool_search` returns Anthropic `tool_reference` content blocks. DotCraft does not reuse the OpenAI Responses `tool_search_output` wire shape on this protocol.
 - Undiscovered deferred tools are not injected as ordinary complete schemas, so discovering a new tool does not perturb the cached prefix the way simulated deferred loading does.
 
+Anthropic's tool surface is flat. DotCraft therefore emits and replays the persisted `providerFlatName` selected by the Turn snapshot, while dispatch resolves that alias through the snapshot's exact reverse index. It does not flatten or parse namespace components at the provider callback boundary.
+
 **Empirical envelope:** ~82% aggregate hit rate on the `prompt-cache-baseline` workload.
 
 ### 2.5 Trace diagnostics
@@ -201,6 +204,7 @@ These rules apply to every protocol unless the protocol contract above explicitl
 6. **Thread id is the cache identity.** Wherever a provider exposes a cache key (`prompt_cache_key`, `session-id`, `thread-id`, `session_id`, `conversation_id`, etc.), it MUST be populated from the active thread id for the main conversation, maintenance forks, session-backed subagent turns scoped to the parent, and reactive recovery paths. Different threads MUST NOT share a cache key. Isolated legacy/function-style subagent runtimes that are not part of the parent thread's provider conversation may use their own thread id or a deterministic derived key such as `parent:sub:<task>`; that derived identity is a separate provider conversation and MUST NOT replace the parent thread's provider-visible cache identity or internal breakpoint state.
 7. **One canonical body per request.** Wire bodies must not contain duplicate top-level JSON keys. Downstream policies and inspectors are allowed to assume the body parses cleanly into a flat object.
 8. **Internal cache state may be narrower than provider identity.** DotCraft may track remembered prompt-cache breakpoints under an internal state key such as `thread:<id>:maintenance:<kind>:<run>` so maintenance forks and the main conversation do not overwrite each other's breakpoint history. One-shot maintenance forks may use that state key in `readOnlyPrefix` mode without committing new remembered breakpoints. This internal state key MUST NOT replace provider-visible cache identity; Responses `prompt_cache_key`, OAuth session/thread headers, and trace session ownership still use the active thread id.
+9. **Tool identity shape is cache state.** Canonical namespace/name pairs, flat aliases, namespace grouping, and child ordering come from the immutable Turn snapshot. Provider adapters must not re-sanitize names, derive namespaces from runtime source names, or enumerate collision groups in discovery order. History replay uses persisted canonical tuples for namespace-capable providers and persisted flat aliases for flat-only providers.
 
 ---
 
@@ -216,6 +220,7 @@ These rules apply to every protocol unless the protocol contract above explicitl
 | One-shot maintenance fork writes an unneeded tail breakpoint | Fork cache shaping MUST use `readOnlyPrefix` when no tool execution is enabled, mark only the reusable prefix, and skip committing fork-local remembered breakpoints |
 | Provider sticky-routing flap (ChatGPT OAuth) | Recognised as an upstream limitation. The runtime reports observed coverage faithfully and does not retry just to chase a higher hit rate |
 | Provider returns an empty post-tool response | After at least one tool result has been returned to the model, an empty provider response is retried once. If the retry is also empty, the turn fails explicitly with `agent_empty_response` rather than completing silently |
+| A tool identity cannot be represented by the target provider | Request serialization fails locally with stable `invalid_provider_tool_identity` diagnostics before HTTP transport; the runtime must not send a request known to violate the provider's name/length grammar |
 
 ---
 

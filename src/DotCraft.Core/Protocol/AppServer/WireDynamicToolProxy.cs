@@ -122,41 +122,6 @@ public sealed class WireDynamicToolProxy : IToolSource, IThreadScopedToolSource
         return true;
     }
 
-    internal static bool TryValidateAppBoundSpecs(
-        IReadOnlyList<AppBoundToolSpec>? tools,
-        out string message)
-    {
-        if (tools is null)
-        {
-            message = string.Empty;
-            return true;
-        }
-
-        var declarations = new List<RuntimeDynamicToolDeclaration>();
-        declarations.AddRange(tools
-            .Where(static tool => string.IsNullOrWhiteSpace(tool.Namespace))
-            .Select(ToRuntimeFunction));
-        declarations.AddRange(tools
-            .Where(static tool => !string.IsNullOrWhiteSpace(tool.Namespace))
-            .GroupBy(static tool => tool.Namespace!, StringComparer.Ordinal)
-            .Select(group => new RuntimeDynamicToolNamespace
-            {
-                Name = group.Key,
-                Description = $"App Binding tools in the '{group.Key}' namespace.",
-                Tools = [.. group.Select(ToRuntimeFunction)]
-            }));
-        return TryValidateSpecs(declarations, out message);
-
-        static RuntimeDynamicToolFunction ToRuntimeFunction(AppBoundToolSpec tool) => new()
-        {
-            Name = tool.Name,
-            Description = tool.Description,
-            InputSchema = tool.InputSchema?.DeepClone() as JsonObject,
-            DeferLoading = tool.DeferLoading,
-            Approval = tool.Approval
-        };
-    }
-
     private static bool TryValidateFunction(
         RuntimeDynamicToolFunction tool,
         string? toolNamespace,
@@ -194,7 +159,7 @@ public sealed class WireDynamicToolProxy : IToolSource, IThreadScopedToolSource
             return false;
         }
 
-        var spec = new RuntimeDynamicToolSpec(toolNamespace, tool);
+        var spec = new RuntimeDynamicToolSpec(toolNamespace, null, tool);
         if (tool.Approval != null && !TryValidateApprovalDescriptor(spec, out message))
         {
             message = $"Dynamic Function '{tool.Name}' has an invalid approval descriptor: {message}";
@@ -274,7 +239,8 @@ public sealed class WireDynamicToolProxy : IToolSource, IThreadScopedToolSource
             inputSchema,
             annotations: annotations,
             policyHints: new ToolPolicyHints(RequiresApproval: spec.Approval is not null),
-            provenance: new ToolProvenance(ToolSourceKind.RuntimeDynamic, sourceId, "thread"));
+            provenance: new ToolProvenance(ToolSourceKind.RuntimeDynamic, sourceId, "thread"),
+            namespaceDescription: spec.NamespaceDescription);
         var runtimeBinding = new ToolRuntimeBinding(
             new RuntimeBindingId($"dynamic:{binding.ThreadId}:{binding.Generation}:{sourceToolId.Value}"),
             definitionId,
@@ -286,9 +252,12 @@ public sealed class WireDynamicToolProxy : IToolSource, IThreadScopedToolSource
         return new ToolRegistration(
             definition,
             runtimeBinding,
+            ToolProjectionShape.DynamicLifecycle,
             deferred ? ToolExposure.Deferred : ToolExposure.Direct,
             ToolInvocationAudience.Model | ToolInvocationAudience.Host,
-            deferred ? new DeferredToolDescriptor(spec.Namespace!, spec.Description) : null);
+            deferred
+                ? new DeferredToolDescriptor(spec.Namespace!, spec.Description, spec.NamespaceDescription)
+                : null);
     }
 
     internal async ValueTask<RuntimeDynamicToolCallResult> InvokeAsync(
@@ -357,18 +326,18 @@ public sealed class WireDynamicToolProxy : IToolSource, IThreadScopedToolSource
         {
             if (declaration is RuntimeDynamicToolFunction function)
             {
-                yield return new RuntimeDynamicToolSpec(null, function);
+                yield return new RuntimeDynamicToolSpec(null, null, function);
             }
             else if (declaration is RuntimeDynamicToolNamespace toolNamespace)
             {
                 foreach (var child in toolNamespace.Tools.OfType<RuntimeDynamicToolFunction>())
-                    yield return new RuntimeDynamicToolSpec(toolNamespace.Name, child);
+                    yield return new RuntimeDynamicToolSpec(toolNamespace.Name, toolNamespace.Description, child);
             }
         }
     }
 
     private static RuntimeDynamicToolSpec CloneSpec(RuntimeDynamicToolSpec spec) =>
-        new(spec.Namespace, new RuntimeDynamicToolFunction
+        new(spec.Namespace, spec.NamespaceDescription, new RuntimeDynamicToolFunction
         {
             Name = spec.Name,
             Description = spec.Description,
@@ -565,6 +534,7 @@ public sealed class WireDynamicToolProxy : IToolSource, IThreadScopedToolSource
 
     internal sealed record RuntimeDynamicToolSpec(
         string? Namespace,
+        string? NamespaceDescription,
         RuntimeDynamicToolFunction Function)
     {
         public string Name => Function.Name;

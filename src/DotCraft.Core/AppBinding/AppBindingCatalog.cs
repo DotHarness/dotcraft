@@ -91,8 +91,24 @@ public static partial class AppBindingCatalog
 
         try
         {
+            var json = File.ReadAllText(path);
+            using var raw = JsonDocument.Parse(json, new JsonDocumentOptions
+            {
+                CommentHandling = JsonCommentHandling.Skip,
+                AllowTrailingCommas = true
+            });
+            if (ContainsV1ExecutionFields(raw.RootElement))
+            {
+                diagnostics.Add(PluginDiagnostic.Error(
+                    "AppBindingUpgradeRequired",
+                    "App Binding descriptors must not declare toolNamespace, scopes, toolCatalog, or dynamicToolCatalog.",
+                    plugin.Manifest.Id,
+                    path: path));
+                return [];
+            }
+
             var document = JsonSerializer.Deserialize<AppDescriptorDocument>(
-                File.ReadAllText(path),
+                json,
                 JsonOptions);
             if (document?.Apps is not { Count: > 0 })
             {
@@ -126,6 +142,25 @@ public static partial class AppBindingCatalog
         }
     }
 
+    private static bool ContainsV1ExecutionFields(JsonElement root)
+    {
+        if (!root.TryGetProperty("apps", out var apps) || apps.ValueKind != JsonValueKind.Array)
+            return false;
+        foreach (var app in apps.EnumerateArray())
+        {
+            if (app.ValueKind != JsonValueKind.Object) continue;
+            foreach (var property in app.EnumerateObject())
+            {
+                if (string.Equals(property.Name, "toolNamespace", StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(property.Name, "scopes", StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(property.Name, "toolCatalog", StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(property.Name, "dynamicToolCatalog", StringComparison.OrdinalIgnoreCase))
+                    return true;
+            }
+        }
+        return false;
+    }
+
     private static IReadOnlyList<PluginDiagnostic> ValidateDescriptor(
         DiscoveredPlugin plugin,
         AppDescriptor descriptor)
@@ -138,15 +173,6 @@ public static partial class AppBindingCatalog
             diagnostics.Add(PluginDiagnostic.Error(
                 "InvalidAppId",
                 "App descriptor appId must be lowercase reverse-DNS with at least three labels.",
-                plugin.Manifest.Id,
-                path: path));
-        }
-
-        if (!PluginManifestParser.IsValidFunctionName(descriptor.ToolNamespace))
-        {
-            diagnostics.Add(PluginDiagnostic.Error(
-                "InvalidAppToolNamespace",
-                "App descriptor toolNamespace must be a valid model-visible function namespace.",
                 plugin.Manifest.Id,
                 path: path));
         }
@@ -191,53 +217,6 @@ public static partial class AppBindingCatalog
                 plugin.Manifest.Id,
                 path: path));
         }
-
-        if (descriptor.Scopes.Count == 0)
-        {
-            diagnostics.Add(PluginDiagnostic.Error(
-                "MissingAppScopes",
-                "App descriptor scopes must not be empty.",
-                plugin.Manifest.Id,
-                path: path));
-        }
-
-        var scopeIds = new HashSet<string>(StringComparer.Ordinal);
-        foreach (var scope in descriptor.Scopes)
-        {
-            if (string.IsNullOrWhiteSpace(scope.Id)
-                || string.IsNullOrWhiteSpace(scope.DisplayName)
-                || string.IsNullOrWhiteSpace(scope.Description)
-                || !AppBindingRisks.IsKnown(scope.Risk))
-            {
-                diagnostics.Add(PluginDiagnostic.Error(
-                    "InvalidAppScope",
-                    "Each app scope requires id, displayName, description, and a valid risk.",
-                    plugin.Manifest.Id,
-                    path: path));
-            }
-
-            if (!scopeIds.Add(scope.Id))
-            {
-                diagnostics.Add(PluginDiagnostic.Error(
-                    "DuplicateAppScope",
-                    $"App scope '{scope.Id}' is declared more than once.",
-                    plugin.Manifest.Id,
-                    path: path));
-            }
-        }
-
-        if (descriptor.ToolCatalog.Count == 0 && !descriptor.DynamicToolCatalog.Enabled)
-        {
-            diagnostics.Add(PluginDiagnostic.Error(
-                "MissingAppToolCatalog",
-                "App descriptor toolCatalog must not be empty unless dynamicToolCatalog.enabled is true.",
-                plugin.Manifest.Id,
-                path: path));
-        }
-
-        var toolNames = new HashSet<string>(StringComparer.Ordinal);
-        foreach (var tool in descriptor.ToolCatalog)
-            ValidateToolCatalogEntry(plugin, path, descriptor, scopeIds, toolNames, tool, diagnostics);
 
         return diagnostics;
     }
@@ -336,13 +315,7 @@ public static partial class AppBindingCatalog
             .Where(group => group.Count() > 1)
             .Select(group => group.Key)
             .ToHashSet(StringComparer.Ordinal);
-        var duplicateNamespaces = candidates
-            .GroupBy(entry => entry.Descriptor.ToolNamespace, StringComparer.Ordinal)
-            .Where(group => group.Count() > 1)
-            .Select(group => group.Key)
-            .ToHashSet(StringComparer.Ordinal);
-
-        if (duplicateAppIds.Count == 0 && duplicateNamespaces.Count == 0)
+        if (duplicateAppIds.Count == 0)
             return candidates;
 
         var accepted = new List<AppCatalogEntry>();
@@ -355,16 +328,6 @@ public static partial class AppBindingCatalog
                 diagnostics.Add(PluginDiagnostic.Error(
                     "DuplicateAppId",
                     $"App descriptor '{entry.Descriptor.AppId}' was rejected because another plugin declares the same appId.",
-                    entry.Plugin.Manifest.Id,
-                    path: entry.Plugin.Manifest.AppsPath));
-            }
-
-            if (duplicateNamespaces.Contains(entry.Descriptor.ToolNamespace))
-            {
-                rejected = true;
-                diagnostics.Add(PluginDiagnostic.Error(
-                    "DuplicateAppToolNamespace",
-                    $"App descriptor namespace '{entry.Descriptor.ToolNamespace}' was rejected because another app declares the same toolNamespace.",
                     entry.Plugin.Manifest.Id,
                     path: entry.Plugin.Manifest.AppsPath));
             }

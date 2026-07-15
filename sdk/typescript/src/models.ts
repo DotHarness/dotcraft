@@ -162,7 +162,7 @@ export class ServerCapabilities {
     public subAgentManagement = false,
     public subAgentSessions = false,
     public mcpStatus = false,
-    public appBinding = false,
+    public appBindingVersion = 0,
     public extensions: Record<string, unknown> | null = null,
   ) {}
 
@@ -199,7 +199,7 @@ export class ServerCapabilities {
       Boolean(data.subAgentManagement),
       Boolean(data.subAgentSessions),
       Boolean(data.mcpStatus),
-      Boolean(data.appBinding),
+      Number(data.appBindingVersion ?? 0),
       (data.extensions as Record<string, unknown>) ?? null,
     );
   }

@@ -897,7 +897,7 @@ Success:
   "contentItems": [
     { "type": "text", "text": "Done." }
   ],
-  "structuredResult": {}
+  "structuredContent": {}
 }
 ```
 

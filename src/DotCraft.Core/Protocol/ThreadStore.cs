@@ -806,7 +806,10 @@ public sealed class ThreadStore
                 continue;
             }
 
-            paired.TryAdd(payload.CallId, ResolveProviderCallName(payload.ProviderCallName, payload.ToolName));
+            if (string.IsNullOrWhiteSpace(payload.ProviderFlatName))
+                continue;
+
+            paired.TryAdd(payload.CallId, payload.ProviderFlatName);
         }
 
         return paired;
@@ -830,16 +833,19 @@ public sealed class ThreadStore
         if (item.Payload is not ToolCallPayload payload ||
             string.IsNullOrWhiteSpace(payload.CallId) ||
             string.IsNullOrWhiteSpace(payload.ToolName) ||
+            string.IsNullOrWhiteSpace(payload.ProviderFlatName) ||
             !pairedToolCalls.ContainsKey(payload.CallId) ||
             string.Equals(payload.ToolName, HostedImageGenerationContent.ToolName, StringComparison.Ordinal))
         {
             return false;
         }
 
-        content = new FunctionCallContent(
+        content = CreatePersistedFunctionCall(
             payload.CallId,
-            ResolveProviderCallName(payload.ProviderCallName, payload.ToolName),
-            BuildToolArguments(payload.Arguments));
+            payload.Namespace,
+            payload.ToolName,
+            payload.ProviderFlatName,
+            payload.Arguments);
         return true;
     }
 
@@ -879,7 +885,9 @@ public sealed class ThreadStore
         resultMessage = new ChatMessage(ChatRole.Tool, string.Empty);
 
         string callId;
+        string? functionNamespace;
         string toolName;
+        string providerFlatName;
         JsonObject? arguments;
         IReadOnlyList<PluginFunctionContentItem>? contentItems;
         string? errorCode;
@@ -892,7 +900,11 @@ public sealed class ThreadStore
                      && !string.IsNullOrWhiteSpace(mcp.ToolName)
                      && !string.Equals(mcp.Status, "inProgress", StringComparison.OrdinalIgnoreCase):
                 callId = mcp.CallId;
-                toolName = ResolveProviderCallName(mcp.ProviderCallName, mcp.ToolName);
+                if (string.IsNullOrWhiteSpace(mcp.ProviderFlatName))
+                    return false;
+                toolName = mcp.ToolName;
+                functionNamespace = mcp.Namespace;
+                providerFlatName = mcp.ProviderFlatName;
                 arguments = mcp.Arguments;
                 contentItems = mcp.ModelContentItems;
                 errorCode = mcp.ErrorCode;
@@ -901,33 +913,30 @@ public sealed class ThreadStore
 
             case DynamicToolCallPayload dynamic
                 when !string.IsNullOrWhiteSpace(dynamic.CallId)
-                     && !string.IsNullOrWhiteSpace(dynamic.ToolName):
+                     && !string.IsNullOrWhiteSpace(dynamic.ToolName)
+                     && !string.Equals(dynamic.Status, "inProgress", StringComparison.OrdinalIgnoreCase):
                 callId = dynamic.CallId;
-                toolName = ResolveProviderCallName(dynamic.ProviderCallName, dynamic.ToolName);
+                if (string.IsNullOrWhiteSpace(dynamic.ProviderFlatName))
+                    return false;
+                toolName = dynamic.ToolName;
+                functionNamespace = dynamic.Namespace;
+                providerFlatName = dynamic.ProviderFlatName;
                 arguments = dynamic.Arguments;
                 contentItems = dynamic.ContentItems;
                 errorCode = dynamic.ErrorCode;
                 errorMessage = dynamic.ErrorMessage;
                 break;
 
-            // Read compatibility for sessions persisted before plugin functions moved to the
-            // standard ToolCall + ToolResult projection.
-            case PluginFunctionCallPayload plugin
-                when !string.IsNullOrWhiteSpace(plugin.CallId)
-                     && !string.IsNullOrWhiteSpace(plugin.FunctionName):
-                callId = plugin.CallId;
-                toolName = plugin.FunctionName;
-                arguments = plugin.Arguments;
-                contentItems = plugin.ContentItems;
-                errorCode = plugin.ErrorCode;
-                errorMessage = plugin.ErrorMessage;
-                break;
-
             default:
                 return false;
         }
 
-        call = new FunctionCallContent(callId, toolName, BuildToolArguments(arguments));
+        call = CreatePersistedFunctionCall(
+            callId,
+            functionNamespace,
+            toolName,
+            providerFlatName,
+            arguments);
         var result = BuildModelToolResult(contentItems, null, errorCode, errorMessage);
         resultMessage = new ChatMessage(
             ChatRole.Tool,
@@ -979,8 +988,28 @@ public sealed class ThreadStore
         return "Tool completed without model-visible content.";
     }
 
-    private static string ResolveProviderCallName(string? providerCallName, string canonicalName) =>
-        string.IsNullOrWhiteSpace(providerCallName) ? canonicalName : providerCallName;
+    private static FunctionCallContent CreatePersistedFunctionCall(
+        string callId,
+        string? functionNamespace,
+        string localName,
+        string providerFlatName,
+        JsonObject? arguments)
+    {
+        var call = new FunctionCallContent(callId, localName, BuildToolArguments(arguments))
+        {
+            AdditionalProperties = new AdditionalPropertiesDictionary
+            {
+                ["dotcraft.tool.provider_flat_name"] = providerFlatName
+            }
+        };
+        if (!string.IsNullOrWhiteSpace(functionNamespace))
+        {
+            call.AdditionalProperties["openai.responses.function_call.namespace"] = functionNamespace;
+            call.AdditionalProperties["namespace"] = functionNamespace;
+        }
+
+        return call;
+    }
 
     private static bool TryBuildHostedImageGenerationMessage(
         ToolResultPayload payload,

@@ -1,4 +1,4 @@
-import { AppBridge, PostMessageTransport } from '@modelcontextprotocol/ext-apps/app-bridge'
+import { AppBridge } from '@modelcontextprotocol/ext-apps/app-bridge'
 import { Maximize2, Minimize2, Puzzle, TriangleAlert } from 'lucide-react'
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
@@ -6,6 +6,11 @@ import { useLocale } from '../../contexts/LocaleContext'
 import type { ConversationItem } from '../../types/conversation'
 import { translate } from '../../../shared/locales'
 import { THEME_CHANGED_EVENT } from '../../../shared/theme'
+import {
+  buildMcpAppDocument,
+  MCP_APP_MAX_BRIDGE_MESSAGE_BYTES,
+  SizeLimitedPostMessageTransport
+} from './mcpAppSecurity'
 
 const ACTION_TIMEOUT_MS = 120_000
 const DEFAULT_HEIGHT = 420
@@ -14,6 +19,7 @@ const MAX_HEIGHT = 720
 interface McpAppViewProps {
   item: ConversationItem
   threadId: string | null
+  turnId: string
 }
 
 interface McpAppResource {
@@ -47,7 +53,23 @@ interface McpAppOpenResult {
 const SANDBOX_PROXY_HTML = `<!doctype html><html><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; frame-src 'self' data: blob:"></head><body style="margin:0;background:transparent"><script>
 (() => {
   let inner = null;
-  const forward = (message) => inner && inner.contentWindow && inner.contentWindow.postMessage(message, '*');
+  const maxBytes = ${MCP_APP_MAX_BRIDGE_MESSAGE_BYTES};
+  const withinLimit = (message) => {
+    try {
+      const json = JSON.stringify(message);
+      return json !== undefined && new TextEncoder().encode(json).byteLength <= maxBytes;
+    }
+    catch { return false; }
+  };
+  const violate = () => {
+    if (inner) inner.remove();
+    inner = null;
+    window.parent.postMessage({ jsonrpc: '2.0', method: 'ui/notifications/sandbox-bridge-violation', params: {} }, '*');
+  };
+  const forward = (message) => {
+    if (!withinLimit(message)) { violate(); return; }
+    if (inner && inner.contentWindow) inner.contentWindow.postMessage(message, '*');
+  };
   window.addEventListener('message', (event) => {
     if (event.source === window.parent) {
       const message = event.data;
@@ -64,7 +86,10 @@ const SANDBOX_PROXY_HTML = `<!doctype html><html><head><meta charset="utf-8"><me
       forward(message);
       return;
     }
-    if (inner && event.source === inner.contentWindow) window.parent.postMessage(event.data, '*');
+    if (inner && event.source === inner.contentWindow) {
+      if (!withinLimit(event.data)) { violate(); return; }
+      window.parent.postMessage(event.data, '*');
+    }
   });
   window.parent.postMessage({ jsonrpc: '2.0', method: 'ui/notifications/sandbox-proxy-ready', params: {} }, '*');
 })();
@@ -91,33 +116,6 @@ function hostContext(locale: string, fullscreen: boolean, height: number) {
   }
 }
 
-function buildInnerHtml(resource: McpAppResource): string {
-  const declared = resource.ui.csp
-  const resourceDomains = declared?.resourceDomains ?? []
-  const sources = (domains: readonly string[], extra: readonly string[] = []): string => {
-    const values = [...extra, ...domains]
-    return values.length > 0 ? values.join(' ') : "'none'"
-  }
-  const directives = [
-    "default-src 'none'",
-    `script-src ${sources(resourceDomains, ["'unsafe-inline'"])}`,
-    `style-src ${sources(resourceDomains, ["'unsafe-inline'"])}`,
-    `connect-src ${sources(declared?.connectDomains ?? [])}`,
-    `img-src ${sources(resourceDomains, ['data:', 'blob:'])}`,
-    `font-src ${sources(resourceDomains, ['data:'])}`,
-    `media-src ${sources(resourceDomains, ['data:', 'blob:'])}`,
-    `frame-src ${sources(declared?.frameDomains ?? [])}`,
-    `base-uri ${sources(declared?.baseUriDomains ?? [])}`,
-    "form-action 'none'",
-    "object-src 'none'"
-  ].join('; ')
-  const escapedPolicy = directives.replaceAll('&', '&amp;').replaceAll('"', '&quot;')
-  const meta = `<meta http-equiv="Content-Security-Policy" content="${escapedPolicy}">`
-  return /<head(\s[^>]*)?>/i.test(resource.html)
-    ? resource.html.replace(/<head(\s[^>]*)?>/i, (head) => `${head}${meta}`)
-    : `${meta}${resource.html}`
-}
-
 function asToolResult(result: McpAppOpenResult['toolResult']): Record<string, unknown> {
   return {
     content: result.content ?? [],
@@ -127,7 +125,7 @@ function asToolResult(result: McpAppOpenResult['toolResult']): Record<string, un
   }
 }
 
-function McpAppViewImpl({ item, threadId }: McpAppViewProps): JSX.Element {
+function McpAppViewImpl({ item, threadId, turnId }: McpAppViewProps): JSX.Element {
   const locale = useLocale()
   const iframeRef = useRef<HTMLIFrameElement | null>(null)
   const bridgeRef = useRef<AppBridge | null>(null)
@@ -148,6 +146,7 @@ function McpAppViewImpl({ item, threadId }: McpAppViewProps): JSX.Element {
     let cancelled = false
     void window.api.appServer.sendRequest('mcpApp/view/open', {
       threadId,
+      turnId,
       itemId: item.id
     }, ACTION_TIMEOUT_MS).then((result) => {
       if (cancelled) {
@@ -167,7 +166,7 @@ function McpAppViewImpl({ item, threadId }: McpAppViewProps): JSX.Element {
     return () => {
       cancelled = true
     }
-  }, [item.id, item.mcpAppAvailable, threadId])
+  }, [item.id, item.mcpAppAvailable, threadId, turnId])
 
   const closeView = useCallback(() => {
     const handle = handleRef.current
@@ -175,12 +174,25 @@ function McpAppViewImpl({ item, threadId }: McpAppViewProps): JSX.Element {
     if (handle) void window.api.appServer.sendRequest('mcpApp/view/close', { viewHandle: handle }).catch(() => {})
   }, [])
 
+  const failView = useCallback((reason: string) => {
+    setError(reason)
+    setStatus('failed')
+    const bridge = bridgeRef.current
+    bridgeRef.current = null
+    if (bridge) {
+      void bridge.teardownResource({}, { timeout: 1_000 }).catch(() => {}).finally(() => bridge.close())
+    }
+    closeView()
+  }, [closeView])
+
   const setIframeRef = useCallback((node: HTMLIFrameElement | null) => {
     if (iframeRef.current === node) return
     iframeRef.current = node
     const previousBridge = bridgeRef.current
     bridgeRef.current = null
-    if (previousBridge) void previousBridge.close().catch(() => {})
+    if (previousBridge) {
+      void previousBridge.teardownResource({}, { timeout: 1_000 }).catch(() => {}).finally(() => previousBridge.close())
+    }
   }, [])
 
   useEffect(() => () => {
@@ -196,9 +208,8 @@ function McpAppViewImpl({ item, threadId }: McpAppViewProps): JSX.Element {
     if (notification.method !== 'mcpApp/view/status/updated') return
     const params = notification.params as { viewHandle?: string; fallbackText?: string } | undefined
     if (!params || params.viewHandle !== handleRef.current) return
-    setError(params.fallbackText ?? '')
-    setStatus('failed')
-  }), [])
+    failView(params.fallbackText ?? '')
+  }), [failView])
 
   const connectBridge = useCallback(async () => {
     const iframe = iframeRef.current
@@ -293,20 +304,22 @@ function McpAppViewImpl({ item, threadId }: McpAppViewProps): JSX.Element {
     }
 
     try {
-      await bridge.connect(new PostMessageTransport(iframe.contentWindow, iframe.contentWindow))
+      const transport = new SizeLimitedPostMessageTransport(
+        iframe.contentWindow,
+        iframe.contentWindow,
+        () => failView('')
+      )
+      await bridge.connect(transport)
       await bridge.sendSandboxResourceReady({
-        html: buildInnerHtml(opened.resource),
+        html: buildMcpAppDocument(opened.resource.html, opened.resource.ui.csp),
         sandbox: 'allow-scripts',
         csp: opened.resource.ui.csp,
         permissions: {}
       })
     } catch (reason) {
-      bridgeRef.current = null
-      setError(reason instanceof Error ? reason.message : String(reason))
-      setStatus('failed')
-      await bridge.close().catch(() => {})
+      failView(reason instanceof Error ? reason.message : String(reason))
     }
-  }, [closeView, fullscreen, height, locale, openResult])
+  }, [failView, fullscreen, height, locale, openResult])
 
   useEffect(() => {
     const update = (): void => {

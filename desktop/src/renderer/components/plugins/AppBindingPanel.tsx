@@ -18,7 +18,7 @@ interface AppBindingPanelProps {
 export function AppBindingPanel({ plugin }: AppBindingPanelProps): JSX.Element | null {
   const t = useT()
   const confirm = useConfirmDialog()
-  const canUseAppBinding = useConnectionStore((s) => s.capabilities?.appBinding === true)
+  const canUseAppBinding = useConnectionStore((s) => s.capabilities?.appBindingVersion === 2)
   const activeThreadId = useThreadStore((s) => s.activeThreadId)
   const {
     apps,
@@ -30,6 +30,7 @@ export function AppBindingPanel({ plugin }: AppBindingPanelProps): JSX.Element |
     createBindingRequest,
     refreshThreadBindings,
     revokeThreadBinding,
+    confirmCapabilities,
     waitForConnection,
     waitForThreadBinding
   } = useAppBindingStore()
@@ -109,30 +110,9 @@ export function AppBindingPanel({ plugin }: AppBindingPanelProps): JSX.Element |
   async function handleBind(app: AppInfo): Promise<void> {
     if (!activeThreadId) return
     await runAction(`${app.appId}:bind`, async () => {
-      const scopes = defaultRequestedScopes(app)
-      const scopeSummary = scopes
-        .map((scopeId) => {
-          const scope = app.scopes.find((candidate) => candidate.id === scopeId)
-          return scope == null
-            ? scopeId
-            : `${scope.displayName || scope.id} (${riskLabel(scope.risk, t)})`
-        })
-        .join('\n')
-      const approved = await confirm({
-        title: t('appBinding.bindConfirmTitle'),
-        message: `${t('appBinding.bindConfirmMessage')}\n\n${scopeSummary}`,
-        confirmLabel: t('appBinding.bindThread'),
-        danger: scopes.some((scopeId) => {
-          const risk = app.scopes.find((scope) => scope.id === scopeId)?.risk
-          return risk === 'mutate' || risk === 'externalWrite'
-        })
-      })
-      if (!approved) return
       const result = await createBindingRequest({
         threadId: activeThreadId,
         appId: app.appId,
-        requestedScopes: scopes,
-        requestedTools: requestedToolsForBinding(app),
         source: 'pluginDetail'
       })
       setHandoffByAppId((current) => ({ ...current, [app.appId]: result.handoff }))
@@ -207,12 +187,19 @@ export function AppBindingPanel({ plugin }: AppBindingPanelProps): JSX.Element |
                   )}
                 </div>
                 <p style={appDescription}>{app.description}</p>
-                <div style={scopeLine}>
-                  {app.scopes.slice(0, 4).map((scope) => (
-                    <span key={scope.id} style={scopePill}>{scope.displayName || scope.id}</span>
-                  ))}
-                </div>
                 {handoff && <HandoffHint handoff={handoff} t={t} />}
+                {bindingOffline && (
+                  <div style={{ marginTop: 8 }}>
+                    <div style={mutedText}>{t('appBinding.approvedCapabilities')}</div>
+                    {(binding?.approvedTools ?? []).length > 0
+                      ? (binding?.approvedTools ?? []).map((tool, index) => (
+                          <div key={`${String(tool.namespace)}:${String(tool.name)}:${index}`} style={mutedText}>
+                            {String(tool.namespace)}.{String(tool.name)}
+                          </div>
+                        ))
+                      : <div style={mutedText}>{t('appBinding.noApprovedCapabilities')}</div>}
+                  </div>
+                )}
               </div>
               <div style={actions}>
                 {bindingOffline ? (
@@ -290,6 +277,20 @@ export function AppBindingPanel({ plugin }: AppBindingPanelProps): JSX.Element |
                 )}
                 {activeThreadId && binding && (
                   <>
+                    {binding.state === 'needsConfirmation' && binding.candidateCapabilityRevision != null && (
+                      <div style={{ width: '100%', padding: 8, borderRadius: 6, background: 'var(--color-bg-secondary)' }}>
+                        <div>{t('appBinding.capabilityExpansion')}</div>
+                        {(binding.pendingChanges ?? []).map((change) => (
+                          <div key={`${change.kind}:${change.tool}`} style={mutedText}>{change.tool}: {change.detail}</div>
+                        ))}
+                        <button type="button" style={primaryButton} onClick={() => { void confirmCapabilities(activeThreadId, binding.bindingId, binding.candidateCapabilityRevision!, 'accept') }}>
+                          {t('appBinding.acceptCapabilities')}
+                        </button>
+                        <button type="button" style={secondaryButton} onClick={() => { void confirmCapabilities(activeThreadId, binding.bindingId, binding.candidateCapabilityRevision!, 'reject') }}>
+                          {t('appBinding.rejectCapabilities')}
+                        </button>
+                      </div>
+                    )}
                     <button
                       type="button"
                       style={secondaryButton}
@@ -363,22 +364,6 @@ export async function openAppHandoff(
   }
 }
 
-function defaultRequestedScopes(app: AppInfo): string[] {
-  return app.scopes.map((scope) => scope.id)
-}
-
-function requestedToolsForBinding(app: AppInfo): string[] | undefined {
-  return app.dynamicToolCatalog?.enabled === true
-    ? undefined
-    : app.toolCatalog.map((tool) => tool.name)
-}
-
-function riskLabel(risk: string, t: ReturnType<typeof useT>): string {
-  if (risk === 'mutate') return t('appBinding.risk.mutate')
-  if (risk === 'externalWrite') return t('appBinding.risk.externalWrite')
-  return t('appBinding.risk.read')
-}
-
 function connectionStateLabel(state: string, t: ReturnType<typeof useT>): string {
   if (state === 'connected') return t('appBinding.connection.connected')
   if (state === 'connecting') return t('appBinding.connection.connecting')
@@ -390,9 +375,9 @@ function connectionStateLabel(state: string, t: ReturnType<typeof useT>): string
 function bindingStateLabel(state: string, t: ReturnType<typeof useT>): string {
   if (state === 'active') return t('appBinding.binding.active')
   if (state === 'offline') return t('appBinding.binding.offline')
-  if (state === 'expired') return t('appBinding.binding.expired')
+  if (state === 'needsConfirmation') return t('appBinding.capabilityExpansion')
   if (state === 'revoked') return t('appBinding.binding.revoked')
-  if (state === 'error') return t('appBinding.binding.error')
+  if (state === 'failed') return t('appBinding.binding.error')
   return t('appBinding.binding.pending')
 }
 
@@ -405,8 +390,7 @@ const appMain: CSSProperties = { minWidth: 0 }
 const appTitleRow: CSSProperties = { display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }
 const appTitle: CSSProperties = { fontSize: 13, color: 'var(--text-primary)' }
 const appDescription: CSSProperties = { margin: '6px 0 0', color: 'var(--text-secondary)', fontSize: 12, lineHeight: 1.45 }
-const scopeLine: CSSProperties = { display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 8 }
-const scopePill: CSSProperties = { border: '1px solid var(--border-default)', borderRadius: 999, padding: '3px 7px', fontSize: 11, color: 'var(--text-secondary)' }
+const mutedText: CSSProperties = { marginTop: 4, color: 'var(--text-secondary)', fontSize: 11, lineHeight: 1.4 }
 const handoffBox: CSSProperties = { marginTop: 8, display: 'flex', flexDirection: 'column', gap: 3, minWidth: 0 }
 const handoffHint: CSSProperties = { marginTop: 8, fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--text-tertiary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }
 const actions: CSSProperties = { display: 'flex', alignItems: 'flex-start', justifyContent: 'flex-end', flexWrap: 'wrap', gap: 8, maxWidth: 280 }

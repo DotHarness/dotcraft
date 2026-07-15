@@ -15,7 +15,6 @@ import {
 import { Transport } from "./transport.js";
 import type { ChannelToolDescriptor } from "./capability.js";
 import type {
-  AppBindingAcceptResult,
   AppBindingRequestGetResult,
   SocialChannelTarget,
   ThreadAppBinding,
@@ -320,7 +319,7 @@ export abstract class ChannelAdapter {
       {
         appId: binding.appId,
         bindingId: binding.bindingId,
-        bindingKind: binding.bindingKind ?? "socialChannel",
+        authorityRevision: binding.authorityRevision,
       },
     );
   }
@@ -346,51 +345,24 @@ export abstract class ChannelAdapter {
     if (!target) return false;
 
     try {
-      const appId = this.getSocialBindingAppId();
-      const request = await this.client.request<AppBindingRequestGetResult>(
-        "app/binding/request/get",
-        {
-          appId,
-          bindCode,
-          requestToken: bindCode,
-        },
+      await this.client.request<AppBindingRequestGetResult>(
+        "app/socialBinding/request/get",
+        { code: bindCode },
       );
-      const result = await this.client.request<AppBindingAcceptResult>(
-        "app/binding/accept",
-        {
-          bindingRequestId: request.bindingRequestId,
-          requestToken: bindCode,
-          grantId: this.socialGrantId(target),
-          grantedScopes: request.requestedScopes?.length
-            ? request.requestedScopes
-            : ["conversation.receive", "message.send"],
-          approvalMode: "channelBindCode",
-          approvedBy: target.boundBy?.platformUserId ?? String(sender.senderId ?? opts.userId),
-          auditRef: `channel:${target.channelName}:${target.conversationKind}:${target.conversationId}`,
-          grantProof: { acceptedVia: "bindCode" },
-          socialTarget: target,
-        },
+      const binding = await this.client.request<ThreadAppBinding>(
+        "app/socialBinding/accept",
+        { code: bindCode, target },
       );
       const identityKey = this.identityKey(opts.userId, channelContext);
-      this.threadResolver.setCachedThread(identityKey, result.binding.threadId);
+      this.threadResolver.setCachedThread(identityKey, binding.threadId);
       this.threadResolver.clearFreshThread(identityKey);
-      this.onThreadContextBound(result.binding.threadId, channelContext);
-      await this.onSocialBindingAccepted(result.binding, target, opts);
+      this.onThreadContextBound(binding.threadId, channelContext);
+      await this.onSocialBindingAccepted(binding, target, opts);
     } catch (error) {
       await this.onSocialBindingFailed(error, target, opts);
     }
 
     return true;
-  }
-
-  private socialGrantId(target: SocialChannelTarget): string {
-    return [
-      "social",
-      target.channelName,
-      target.accountId ?? "",
-      target.conversationKind,
-      target.conversationId,
-    ].join(":");
   }
 
   /**
@@ -543,15 +515,8 @@ export abstract class ChannelAdapter {
     opts: ChannelAdapterMessageOpts,
     sender: Record<string, unknown>,
   ): Promise<void> {
-    const grantId = binding.grantId?.trim();
-    if (!grantId) {
-      throw new Error(`Resolved social binding ${binding.bindingId} is missing grantId.`);
-    }
-
     await this.client.request("app/threadInput/enqueue", {
       bindingId: binding.bindingId,
-      appId: binding.appId,
-      grantId,
       input,
       displayText: opts.text,
       triggerLabel: `${this.channelName} message`,
@@ -568,7 +533,6 @@ export abstract class ChannelAdapter {
       const result = await this.client.request<{ binding?: ThreadAppBinding | null }>(
         "app/socialBinding/resolve",
         {
-          appId: this.getSocialBindingAppId(),
           channelName: target.channelName,
           accountId: target.accountId,
           conversationKind: target.conversationKind,

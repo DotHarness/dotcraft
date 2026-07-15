@@ -148,9 +148,8 @@ public sealed class AppServerPluginManagementTests : IDisposable
         Assert.Equal("com.example.registry-app", app.GetProperty("appId").GetString());
         Assert.Equal("Registry App", app.GetProperty("displayName").GetString());
         Assert.Equal("registryapp", app.GetProperty("nativeApplication").GetProperty("protocol").GetString());
-        Assert.Contains(
-            app.GetProperty("toolCatalog").EnumerateArray(),
-            tool => tool.GetProperty("name").GetString() == "RunRegistryAction");
+        Assert.False(app.TryGetProperty("toolNamespace", out _));
+        Assert.False(app.TryGetProperty("toolCatalog", out _));
 
         Assert.Contains(
             plugin.GetProperty("skills").EnumerateArray(),
@@ -370,7 +369,7 @@ public sealed class AppServerPluginManagementTests : IDisposable
     }
 
     [Fact]
-    public async Task McpServerStatusList_ReturnsCodexNamedPaginatedRuntimeShape()
+    public async Task McpServerStatusList_ReturnsCanonicalPaginatedRuntimeShape()
     {
         await using var manager = new McpClientManager();
         await manager.ConnectAsync([
@@ -567,7 +566,7 @@ public sealed class AppServerPluginManagementTests : IDisposable
 
         var app = Assert.Single(plugin.GetProperty("apps").EnumerateArray());
         Assert.Equal("com.example.registry-app", app.GetProperty("appId").GetString());
-        Assert.Equal("registryapp", app.GetProperty("toolNamespace").GetString());
+        Assert.False(app.TryGetProperty("toolNamespace", out _));
     }
 
     [Fact]
@@ -909,7 +908,6 @@ public sealed class AppServerPluginManagementTests : IDisposable
   "apps": [
     {
       "appId": "com.example.registry-app",
-      "toolNamespace": "registryapp",
       "displayName": "Registry App",
       "developerName": "Example Labs",
       "description": "Manage registry app workflows from selected DotCraft threads.",
@@ -926,24 +924,7 @@ public sealed class AppServerPluginManagementTests : IDisposable
             "uriTemplate": "registryapp://dotcraft/{operation}?app={appId}&request={requestId}&token={requestToken}&endpoint={endpoint}"
           }
         ]
-      },
-      "scopes": [
-        {
-          "id": "board.write",
-          "displayName": "Board write",
-          "description": "Read and write board items.",
-          "risk": "externalWrite"
-        }
-      ],
-      "toolCatalog": [
-        {
-          "name": "RunRegistryAction",
-          "scope": "board.write",
-          "risk": "externalWrite",
-          "defaultExposure": "direct",
-          "description": "Run a registry app action."
-        }
-      ]
+      }
     }
   ]
 }

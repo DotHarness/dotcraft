@@ -418,7 +418,7 @@ class TelegramMediaTools:
                     "text": f"Sent {noun} '{prepared.file_name or 'attachment'}' to the current Telegram chat.",
                 }
             ],
-            "structuredResult": {
+            "structuredContent": {
                 "delivered": True,
                 "messageId": message_id,
                 "mediaId": media_id,

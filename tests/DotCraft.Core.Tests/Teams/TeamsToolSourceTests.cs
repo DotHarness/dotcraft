@@ -80,9 +80,9 @@ public sealed class TeamsToolSourceTests : IDisposable
             7,
             ToolPlanningThreadKind.UserTopLevel);
         var snapshot = await new EffectiveToolSnapshotBuilder().BuildAsync([_source], planning);
-        var providerName = snapshot.ProviderCallNames[new ToolName("teams", "CreateTeam")];
+        var providerName = snapshot.ProviderFlatNames[new ToolName("teams", "CreateTeam")];
 
-        var result = await new ToolDispatcher().DispatchProviderCallAsync(
+        var result = await new ToolDispatcher().DispatchProviderFlatCallAsync(
             snapshot,
             providerName,
             new JsonObject
@@ -135,8 +135,8 @@ public sealed class TeamsToolSourceTests : IDisposable
             8,
             ToolPlanningThreadKind.ModuleManaged);
         var snapshot = await new EffectiveToolSnapshotBuilder().BuildAsync([_source], planning);
-        var assignProviderName = snapshot.ProviderCallNames[new ToolName("teams", "AssignTask")];
-        var result = await new ToolDispatcher().DispatchProviderCallAsync(
+        var assignProviderName = snapshot.ProviderFlatNames[new ToolName("teams", "AssignTask")];
+        var result = await new ToolDispatcher().DispatchProviderFlatCallAsync(
             snapshot,
             assignProviderName,
             new JsonObject

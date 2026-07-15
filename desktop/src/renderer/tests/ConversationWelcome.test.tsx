@@ -682,7 +682,7 @@ describe('ConversationWelcome composer', () => {
       capabilities: {
         commandManagement: true,
         skillsManagement: true,
-        appBinding: true,
+        appBindingVersion: 2,
         extensions: { welcomeSuggestions: true }
       }
     })
@@ -1124,7 +1124,7 @@ describe('ConversationWelcome composer', () => {
     useConnectionStore.setState({
       status: 'connected',
       capabilities: {
-        appBinding: true,
+        appBindingVersion: 2,
         commandManagement: true,
         skillsManagement: true,
         modelCatalogManagement: true,
@@ -1178,13 +1178,13 @@ describe('ConversationWelcome composer', () => {
           }
         }
       }
-      if (method === 'app/binding/request/create') {
+      if (method === 'thread/appBindings/enable') {
         return {
           bindingRequestId: 'request-1',
           threadId: 'thread-welcome',
           appId: 'com.example.workflow',
           requestedScopes: ['board.read'],
-          state: 'pending',
+          state: 'connecting',
           tokenExpiresAt: '2026-05-16T00:01:00Z',
           handoff: { mode: 'customProtocol', uri: 'workflow://dotcraft/bind?request=request-1' }
         }
@@ -1205,10 +1205,9 @@ describe('ConversationWelcome composer', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Send message' }))
 
     await waitFor(() => {
-      expect(appServerSendRequest).toHaveBeenCalledWith('app/binding/request/create', expect.objectContaining({
+      expect(appServerSendRequest).toHaveBeenCalledWith('thread/appBindings/enable', expect.objectContaining({
         threadId: 'thread-welcome',
-        appId: 'com.example.workflow',
-        source: 'welcome'
+        appId: 'com.example.workflow'
       }))
     })
     const startingButton = screen.getByRole('button', { name: 'Starting conversation' })

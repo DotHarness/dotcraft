@@ -29,7 +29,7 @@ public sealed class PluginToolSessionHistoryTests
                     {
                         Namespace = "external_channel",
                         ToolName = "send_document",
-                        ProviderCallName = "external_channel__send_document",
+                        ProviderFlatName = "external_channel__send_document",
                         ToolDefinitionId = "PluginNative:external-channel:telegram:send_document",
                         Source = new ToolSourceProvenancePayload
                         {
@@ -66,7 +66,9 @@ public sealed class PluginToolSessionHistoryTests
 
         var call = Assert.Single(history.SelectMany(message => message.Contents).OfType<FunctionCallContent>());
         Assert.Equal("provider-call-42", call.CallId);
-        Assert.Equal("external_channel__send_document", call.Name);
+        Assert.Equal("send_document", call.Name);
+        Assert.Equal("external_channel", call.AdditionalProperties!["openai.responses.function_call.namespace"]);
+        Assert.Equal("external_channel__send_document", call.AdditionalProperties["dotcraft.tool.provider_flat_name"]);
         var result = Assert.Single(history.SelectMany(message => message.Contents).OfType<FunctionResultContent>());
         Assert.Equal("provider-call-42", result.CallId);
         var text = Assert.IsType<string>(result.Result);

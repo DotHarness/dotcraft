@@ -66,6 +66,19 @@ public sealed class ProviderHostedCapabilityPlannerTests : IDisposable
         Assert.False(ProviderHostedCapabilityPlanner.ShouldEnableHostedImageGeneration(CreateContext(disabled)));
     }
 
+    [Fact]
+    public void Build_FreezesDeferredSearchModeAndProviderProtocol()
+    {
+        var native = ProviderHostedCapabilityPlanner.Build(CreateContext(CreateOpenAIConfig()));
+        Assert.Equal(DeferredToolLoadingMode.Native, native.DeferredToolSearch?.Mode);
+        Assert.Equal(ModelProviderProtocols.OpenAIResponses, native.DeferredToolSearch?.ProviderProtocol);
+
+        var simulated = ProviderHostedCapabilityPlanner.Build(CreateContext(
+            CreateOpenAIConfig(protocol: ModelProviderProtocols.OpenAIChatCompletions)));
+        Assert.Equal(DeferredToolLoadingMode.Simulated, simulated.DeferredToolSearch?.Mode);
+        Assert.Equal(ModelProviderProtocols.OpenAIChatCompletions, simulated.DeferredToolSearch?.ProviderProtocol);
+    }
+
     private AgentRuntimeContext CreateContext(AppConfig config)
     {
         var root = CreateTempRoot();

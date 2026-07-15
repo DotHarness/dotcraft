@@ -64,8 +64,8 @@ public sealed record McpAppResourcePermissions(
 
 /// <summary>Validated stable MCP Apps metadata attached to an MCP UI resource.</summary>
 /// <param name="Csp">Validated network and resource source declarations.</param>
-/// <param name="Permissions">Validated permission requests; the M2 Desktop host denies all of them.</param>
-/// <param name="Domain">The requested dedicated domain, retained as metadata but not granted in M2.</param>
+/// <param name="Permissions">Validated permission requests; the Desktop host denies all of them.</param>
+/// <param name="Domain">The requested dedicated domain, retained as metadata but not granted by Desktop.</param>
 /// <param name="PrefersBorder">Whether the resource prefers a host-rendered border.</param>
 public sealed record McpAppResourceMetadata(
     McpAppResourceCsp? Csp,
@@ -125,8 +125,26 @@ public static class McpAppMetadataParser
     public static bool TryParseToolMetadata(JsonObject? meta, out McpAppToolMetadata metadata)
     {
         metadata = new McpAppToolMetadata(null, McpAppVisibility.Model | McpAppVisibility.App);
-        if (meta is null || !meta.TryGetPropertyValue("ui", out var uiNode) || uiNode is null)
+        if (meta is null)
             return true;
+        if (!meta.TryGetPropertyValue("ui", out var uiNode) || uiNode is null)
+        {
+            if (!meta.TryGetPropertyValue("ui/resourceUri", out var flatResourceNode)
+                || flatResourceNode is null)
+                return true;
+            if (flatResourceNode is not JsonValue flatResourceValue
+                || !flatResourceValue.TryGetValue<string>(out var flatResourceText)
+                || !TryParseUiUri(flatResourceText, out var flatResourceUri))
+            {
+                metadata = new McpAppToolMetadata(null, McpAppVisibility.None);
+                return false;
+            }
+
+            metadata = new McpAppToolMetadata(
+                flatResourceUri,
+                McpAppVisibility.Model | McpAppVisibility.App);
+            return true;
+        }
         if (uiNode is not JsonObject ui)
         {
             metadata = new McpAppToolMetadata(null, McpAppVisibility.None);

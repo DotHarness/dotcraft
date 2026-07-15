@@ -1,4 +1,3 @@
-using System.Collections.Concurrent;
 using Microsoft.Extensions.AI;
 
 namespace DotCraft.Protocol;
@@ -9,8 +8,9 @@ namespace DotCraft.Protocol;
 /// </summary>
 public sealed class McpAppTransientContextStore
 {
-    private readonly ConcurrentDictionary<string, PendingContext> _byView = new(StringComparer.Ordinal);
-    private readonly ConcurrentDictionary<string, IReadOnlyList<AIContent>> _byQueuedInput = new(StringComparer.Ordinal);
+    private readonly object _gate = new();
+    private readonly Dictionary<string, PendingContext> _byView = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, IReadOnlyList<AIContent>> _byQueuedInput = new(StringComparer.Ordinal);
 
     /// <summary>Replaces one live View's pending context.</summary>
     public void Set(string viewHandle, string threadId, IReadOnlyList<AIContent> content)
@@ -18,40 +18,50 @@ public sealed class McpAppTransientContextStore
         ArgumentException.ThrowIfNullOrWhiteSpace(viewHandle);
         ArgumentException.ThrowIfNullOrWhiteSpace(threadId);
         ArgumentNullException.ThrowIfNull(content);
-        _byView[viewHandle] = new PendingContext(threadId, content.ToArray(), DateTimeOffset.UtcNow);
+        lock (_gate)
+            _byView[viewHandle] = new PendingContext(threadId, content.ToArray(), DateTimeOffset.UtcNow);
     }
 
     /// <summary>Clears pending context for a View.</summary>
-    public bool ClearView(string viewHandle) => _byView.TryRemove(viewHandle, out _);
+    public bool ClearView(string viewHandle)
+    {
+        lock (_gate)
+            return _byView.Remove(viewHandle);
+    }
 
     /// <summary>Consumes pending context for one View.</summary>
     public IReadOnlyList<AIContent> TakeForView(string viewHandle, string threadId)
     {
-        if (!_byView.TryRemove(viewHandle, out var pending)
-            || !string.Equals(pending.ThreadId, threadId, StringComparison.Ordinal))
+        lock (_gate)
         {
-            return [];
-        }
+            if (!_byView.TryGetValue(viewHandle, out var pending)
+                || !string.Equals(pending.ThreadId, threadId, StringComparison.Ordinal))
+            {
+                return [];
+            }
 
-        return pending.Content;
+            _byView.Remove(viewHandle);
+            return pending.Content;
+        }
     }
 
     /// <summary>Consumes all pending View context for a normal user turn.</summary>
     public IReadOnlyList<AIContent> TakeForThread(string threadId)
     {
-        var selected = new List<PendingContext>();
-        foreach (var (handle, pending) in _byView)
+        lock (_gate)
         {
-            if (!string.Equals(pending.ThreadId, threadId, StringComparison.Ordinal))
-                continue;
-            if (_byView.TryRemove(handle, out var removed))
-                selected.Add(removed);
-        }
+            var selected = _byView
+                .Where(entry => string.Equals(entry.Value.ThreadId, threadId, StringComparison.Ordinal))
+                .ToArray();
+            foreach (var (handle, _) in selected)
+                _byView.Remove(handle);
 
-        return selected
-            .OrderBy(static pending => pending.UpdatedAt)
-            .SelectMany(static pending => pending.Content)
-            .ToArray();
+            return selected
+                .Select(static entry => entry.Value)
+                .OrderBy(static pending => pending.UpdatedAt)
+                .SelectMany(static pending => pending.Content)
+                .ToArray();
+        }
     }
 
     /// <summary>
@@ -59,25 +69,49 @@ public sealed class McpAppTransientContextStore
     /// </summary>
     public void CaptureForQueuedInput(string viewHandle, string threadId, string queuedInputId)
     {
-        var context = TakeForView(viewHandle, threadId);
-        if (context.Count > 0)
-            _byQueuedInput[queuedInputId] = context;
+        lock (_gate)
+        {
+            if (!_byView.TryGetValue(viewHandle, out var pending)
+                || !string.Equals(pending.ThreadId, threadId, StringComparison.Ordinal))
+            {
+                return;
+            }
+
+            _byView.Remove(viewHandle);
+            if (pending.Content.Count > 0)
+                _byQueuedInput[queuedInputId] = pending.Content;
+        }
     }
 
     /// <summary>Consumes context previously attached to a queued input.</summary>
-    public IReadOnlyList<AIContent> TakeForQueuedInput(string queuedInputId) =>
-        _byQueuedInput.TryRemove(queuedInputId, out var context) ? context : [];
+    public IReadOnlyList<AIContent> TakeForQueuedInput(string queuedInputId)
+    {
+        lock (_gate)
+        {
+            if (!_byQueuedInput.Remove(queuedInputId, out var context))
+                return [];
+            return context;
+        }
+    }
 
     /// <summary>Clears a queued input sidecar after removal or cancellation.</summary>
-    public bool ClearQueuedInput(string queuedInputId) => _byQueuedInput.TryRemove(queuedInputId, out _);
+    public bool ClearQueuedInput(string queuedInputId)
+    {
+        lock (_gate)
+            return _byQueuedInput.Remove(queuedInputId);
+    }
 
     /// <summary>Clears all pending View context for a thread.</summary>
     public void ClearThread(string threadId)
     {
-        foreach (var (handle, pending) in _byView)
+        lock (_gate)
         {
-            if (string.Equals(pending.ThreadId, threadId, StringComparison.Ordinal))
-                _byView.TryRemove(handle, out _);
+            var handles = _byView
+                .Where(entry => string.Equals(entry.Value.ThreadId, threadId, StringComparison.Ordinal))
+                .Select(static entry => entry.Key)
+                .ToArray();
+            foreach (var handle in handles)
+                _byView.Remove(handle);
         }
     }
 

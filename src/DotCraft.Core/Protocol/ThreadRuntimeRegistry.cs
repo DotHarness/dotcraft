@@ -68,6 +68,9 @@ internal sealed class ThreadRuntimeRegistry
 
 internal sealed class ThreadRuntime(SessionThread thread) : IAsyncDisposable, IDisposable
 {
+    private readonly object _bindingMcpLock = new();
+    private readonly Dictionary<string, IReadOnlyList<McpServerConfig>> _bindingMcpServers =
+        new(StringComparer.Ordinal);
     private ThreadMaintenanceState? _maintenance;
     private int _activeAutoMemoryConsolidation;
     private int _goalContinuationStarting;
@@ -88,6 +91,24 @@ internal sealed class ThreadRuntime(SessionThread thread) : IAsyncDisposable, ID
     public AIAgent? Agent { get; set; }
 
     public McpClientManager? McpManager { get; set; }
+
+    public IReadOnlyList<McpServerConfig> GetBindingMcpServers()
+    {
+        lock (_bindingMcpLock)
+            return _bindingMcpServers.Values.SelectMany(static servers => servers).Select(static server => server.Clone()).ToArray();
+    }
+
+    public void SetBindingMcpServers(string bindingId, IReadOnlyList<McpServerConfig> servers)
+    {
+        lock (_bindingMcpLock)
+        {
+            if (servers.Count == 0)
+                _bindingMcpServers.Remove(bindingId);
+            else
+                _bindingMcpServers[bindingId] = servers.Select(static server => server.Clone()).ToArray();
+        }
+        MarkToolSnapshotDirty();
+    }
 
     public AgentModeManager? ModeManager { get; set; }
 
@@ -204,6 +225,15 @@ internal sealed class TurnRuntime : IDisposable
 
     /// <summary>Dispatcher-owned lifecycle items keyed by the original provider call id.</summary>
     public ConcurrentDictionary<string, SessionItem> ToolInvocationItems { get; } = new(StringComparer.Ordinal);
+
+    /// <summary>Terminal tool projections keyed by the original provider call id.</summary>
+    public ConcurrentDictionary<string, byte> TerminalToolInvocations { get; } = new(StringComparer.Ordinal);
+
+    /// <summary>Serializes streaming and dispatcher projection updates for this Turn.</summary>
+    public object ToolProjectionLock { get; } = new();
+
+    /// <summary>Allocates Session item sequence values for dispatcher-owned projections.</summary>
+    public Func<int>? NextToolItemSequence { get; set; }
 
     public SemaphoreSlim GoalAccountingLock { get; } = new(1, 1);
 

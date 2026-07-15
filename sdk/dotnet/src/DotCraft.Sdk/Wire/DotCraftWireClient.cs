@@ -75,6 +75,7 @@ public sealed class DotCraftWireClient : IAsyncDisposable
             ["requestUserInputSupport"] = options.RequestUserInputSupport,
             ["streamingSupport"] = options.StreamingSupport,
             ["configChange"] = options.ConfigChange
+            , ["appBindingVersion"] = 2
         };
         if (options.ExtraCapabilities is not null)
         {
@@ -344,7 +345,7 @@ public sealed class DotCraftWireClient : IAsyncDisposable
                 ReadBoolean(capabilities, "threadSubscriptions"),
                 ReadBoolean(capabilities, "dynamicToolRebind"),
                 ReadBoolean(capabilities, "runtimeAdditionalContext"),
-                ReadBoolean(capabilities, "appBinding"),
+                ReadInt32(capabilities, "appBindingVersion"),
                 ReadBoolean(capabilities, "modelCatalogManagement"),
                 capabilities.ValueKind == JsonValueKind.Undefined
                     ? JsonSerializer.SerializeToElement(new { }, DotCraftJson.Options)
@@ -356,6 +357,10 @@ public sealed class DotCraftWireClient : IAsyncDisposable
         element.ValueKind == JsonValueKind.Object &&
         element.TryGetProperty(propertyName, out var property) &&
         property.ValueKind == JsonValueKind.True;
+
+    private static int ReadInt32(JsonElement element, string propertyName) =>
+        element.ValueKind == JsonValueKind.Object && element.TryGetProperty(propertyName, out var property)
+        && property.TryGetInt32(out var value) ? value : 0;
 
     private static IReadOnlyList<string> ReadStringArray(JsonElement element, string propertyName)
     {

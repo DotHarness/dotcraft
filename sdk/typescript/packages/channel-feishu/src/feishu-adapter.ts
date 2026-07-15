@@ -424,7 +424,7 @@ export class FeishuAdapter extends ModuleChannelAdapter<FeishuConfig> {
       return {
         success: true,
         contentItems: [{ type: "text", text: `Sent ${effectiveFileName} to the current chat.` }],
-        structuredResult: {
+        structuredContent: {
           delivered: true,
           fileName: effectiveFileName,
           remoteMessageId: sendResult.messageId,

@@ -175,9 +175,14 @@ internal sealed class DefaultToolResultNormalizer(int maxModelContentCharacters 
 
         if (result.Content is { Length: > 0 } content && content.Length > maxModelContentCharacters)
         {
-            return ValueTask.FromResult(ToolExecutionResult.Failed(new ToolError(
-                ToolErrorCodes.ResultInvalid,
-                $"Tool '{registration.Definition.Name}' exceeded the model result size limit.")));
+            result = new ToolExecutionResult(
+                result.Success,
+                BuildBoundedPreview(content, maxModelContentCharacters),
+                result.StructuredContent,
+                result.Meta,
+                result.RawSourceResult,
+                result.Error,
+                result.ProviderResult);
         }
 
         if (result.Success && context.Audience.HasFlag(ToolInvocationAudience.Model) &&
@@ -194,6 +199,25 @@ internal sealed class DefaultToolResultNormalizer(int maxModelContentCharacters 
             result.StructuredContent,
             result.Meta,
             result.RawSourceResult,
-            result.Error));
+            result.Error,
+            result.ProviderResult));
+    }
+
+    private static string BuildBoundedPreview(string content, int maximumCharacters)
+    {
+        if (maximumCharacters <= 0)
+            return string.Empty;
+
+        var marker = $"\n\n[Tool result truncated from {content.Length} characters.]\n\n";
+        if (marker.Length >= maximumCharacters)
+            return marker[..maximumCharacters];
+
+        var available = maximumCharacters - marker.Length;
+        var headLength = (available + 1) / 2;
+        var tailLength = available - headLength;
+        return string.Concat(
+            content.AsSpan(0, headLength),
+            marker,
+            content.AsSpan(content.Length - tailLength, tailLength));
     }
 }

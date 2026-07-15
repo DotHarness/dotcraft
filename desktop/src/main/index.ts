@@ -8,11 +8,6 @@ import {
   registerPluginFileScheme,
   installPluginFileProtocolHandler
 } from './pluginFileProtocol'
-import {
-  registerDotCraftAppScheme,
-  installDotCraftAppProtocolHandler,
-  DOTCRAFT_APP_SCHEME
-} from './dotcraftAppProtocol'
 import { viewerBrowserManager } from './viewerBrowser'
 import { browserUseManager } from './browserUseManager'
 import { nodeReplManager } from './nodeReplManager'
@@ -21,7 +16,6 @@ import { getGitHubIdentity } from './githubProfile'
 // Register the custom viewer scheme as privileged BEFORE app.whenReady().
 registerViewerScheme()
 registerPluginFileScheme()
-registerDotCraftAppScheme()
 import type { IpcMainEvent, MenuItemConstructorOptions } from 'electron'
 import { join, basename } from 'path'
 import { existsSync } from 'fs'
@@ -2963,7 +2957,6 @@ app.whenReady().then(async () => {
 
   installViewerProtocolHandler()
   installPluginFileProtocolHandler()
-  installDotCraftAppProtocolHandler(() => wireClient)
   registerMenuPopupIpc()
   sharedSettings = loadSettings()
   applyNativeThemeSource(nativeTheme, sharedSettings)
@@ -2976,17 +2969,11 @@ app.whenReady().then(async () => {
 
   if (!import.meta.env.DEV) {
     session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
-      // Interactive Tool UI documents are served by the dotcraft-app: handler with
-      // their own per-resource CSP; preserve it instead of applying the app-shell CSP.
-      if (details.url.startsWith(`${DOTCRAFT_APP_SCHEME}:`)) {
-        callback({ responseHeaders: details.responseHeaders })
-        return
-      }
       callback({
         responseHeaders: {
           ...details.responseHeaders,
           'Content-Security-Policy': [
-            "default-src 'self' dotcraft-viewer: dotcraft-plugin:; script-src 'self' dotcraft-plugin:; style-src 'self' 'unsafe-inline' dotcraft-plugin:; img-src 'self' data: blob: file: dotcraft-viewer: dotcraft-plugin:; font-src 'self' data: dotcraft-plugin:; connect-src 'self' dotcraft-viewer:; frame-src 'self' dotcraft-app:"
+            "default-src 'self' dotcraft-viewer: dotcraft-plugin:; script-src 'self' dotcraft-plugin:; style-src 'self' 'unsafe-inline' dotcraft-plugin:; img-src 'self' data: blob: file: dotcraft-viewer: dotcraft-plugin:; font-src 'self' data: dotcraft-plugin:; connect-src 'self' dotcraft-viewer:; frame-src 'self'"
           ]
         }
       })

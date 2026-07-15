@@ -8,7 +8,7 @@ using ModelContextProtocol.Protocol;
 
 namespace DotCraft.Protocol.AppServer;
 
-/// <summary>Implements connection-owned MCP App View capabilities without sharing legacy UI authority.</summary>
+/// <summary>Implements connection-owned MCP App View capabilities with isolated UI authority.</summary>
 internal sealed class McpAppRequestHandler : IAppServerDomainHandler, IDisposable
 {
     private const int MaxMessageBytes = 16 * 1024;
@@ -19,11 +19,14 @@ internal sealed class McpAppRequestHandler : IAppServerDomainHandler, IDisposabl
     private readonly IAppServerTransport _transport;
     private readonly IThreadToolDispatchService? _dispatcher;
     private readonly IThreadToolSnapshotService? _snapshots;
+    private readonly IThreadToolSnapshotChangeSource? _snapshotChanges;
     private readonly IThreadMcpRuntimeService? _mcpRuntime;
     private readonly McpAppTransientContextStore? _contextStore;
-    private readonly McpAppViewRegistry _views = new();
+    private readonly McpAppViewRegistry _views;
+    private readonly System.Collections.Concurrent.ConcurrentDictionary<string, long> _publishedSnapshotRevisions = new(StringComparer.Ordinal);
     private readonly HashSet<McpClientManager> _watchedManagers = new(ReferenceEqualityComparer.Instance);
     private readonly object _watchedManagersLock = new();
+    private int _disposed;
 
     public McpAppRequestHandler(
         ISessionService sessions,
@@ -32,15 +35,21 @@ internal sealed class McpAppRequestHandler : IAppServerDomainHandler, IDisposabl
         IThreadToolDispatchService? dispatcher,
         IThreadToolSnapshotService? snapshots,
         IThreadMcpRuntimeService? mcpRuntime,
-        McpAppTransientContextStore? contextStore)
+        McpAppTransientContextStore? contextStore,
+        McpAppViewRegistry? views = null)
     {
         _sessions = sessions;
         _connection = connection;
         _transport = transport;
         _dispatcher = dispatcher;
         _snapshots = snapshots;
+        _snapshotChanges = snapshots as IThreadToolSnapshotChangeSource;
         _mcpRuntime = mcpRuntime;
         _contextStore = contextStore;
+        _views = views ?? new McpAppViewRegistry();
+        _connection.McpAppThreadEligibilityRevoked += OnThreadEligibilityRevoked;
+        if (_snapshotChanges is not null)
+            _snapshotChanges.EffectiveToolSnapshotChanged += OnEffectiveToolSnapshotChanged;
         _ = DisposeWhenConnectionClosesAsync();
     }
 
@@ -60,39 +69,34 @@ internal sealed class McpAppRequestHandler : IAppServerDomainHandler, IDisposabl
     {
         EnsureAvailable();
         var parameters = AppServerParams.Get<McpAppViewOpenParams>(message);
-        if (string.IsNullOrWhiteSpace(parameters.ThreadId) || string.IsNullOrWhiteSpace(parameters.ItemId))
-            throw AppServerErrors.InvalidParams("'threadId' and 'itemId' are required.");
-        if (!_connection.IsMcpAppItemEligible(parameters.ThreadId, parameters.ItemId))
+        if (string.IsNullOrWhiteSpace(parameters.ThreadId)
+            || string.IsNullOrWhiteSpace(parameters.TurnId)
+            || string.IsNullOrWhiteSpace(parameters.ItemId))
+            throw AppServerErrors.InvalidParams("'threadId', 'turnId', and 'itemId' are required.");
+        if (!_connection.IsMcpAppItemEligible(parameters.ThreadId, parameters.TurnId, parameters.ItemId))
             throw McpAppViewErrors.Create("stale", "Only a live MCP tool result can open an MCP App View.");
 
         var thread = await _sessions.GetThreadAsync(parameters.ThreadId, cancellationToken).ConfigureAwait(false);
-        var item = thread.Turns.SelectMany(static turn => turn.Items)
-            .FirstOrDefault(candidate => string.Equals(candidate.Id, parameters.ItemId, StringComparison.Ordinal));
-        if (item?.AsMcpToolCall is not { } payload
-            || item.Status != ItemStatus.Completed
-            || payload.Status is not ("completed" or "failed")
-            || payload.McpGeneration is not { } generation)
+        var item = thread.Turns
+            .FirstOrDefault(turn => string.Equals(turn.Id, parameters.TurnId, StringComparison.Ordinal))?
+            .Items.FirstOrDefault(candidate => string.Equals(candidate.Id, parameters.ItemId, StringComparison.Ordinal));
+        var eligibility = await McpAppLiveEligibilityResolver.ResolveAsync(
+            parameters.ThreadId,
+            parameters.TurnId,
+            item,
+            _snapshots,
+            _mcpRuntime,
+            cancellationToken).ConfigureAwait(false);
+        if (eligibility is null)
             throw McpAppViewErrors.Create("stale", "The MCP tool result is not eligible for a live View.");
-
+        var payload = eligibility.Payload;
+        var registration = eligibility.Registration;
+        var appMetadata = eligibility.AppMetadata;
+        var manager = eligibility.Manager;
+        var generation = eligibility.Generation;
+        var canonicalName = registration.Definition.Name;
+        var resourceUri = appMetadata.ResourceUri!;
         var snapshot = await _snapshots!.GetEffectiveToolSnapshotAsync(parameters.ThreadId, cancellationToken).ConfigureAwait(false);
-        var canonicalName = new ToolName(payload.Namespace, payload.ToolName);
-        if (!snapshot.Registrations.TryGetValue(canonicalName, out var registration)
-            || snapshot.Revision != payload.SnapshotRevision
-            || registration.Definition.Id.ToString() != payload.ToolDefinitionId
-            || registration.Binding.Id.Value != payload.RuntimeBindingId
-            || registration.Binding.Revision != payload.BindingRevision
-            || registration.Definition.Id.Kind != ToolSourceKind.Mcp
-            || !registration.InvocationAudiences.HasFlag(ToolInvocationAudience.App)
-            || !McpAppMetadataParser.TryGetToolMetadata(registration.Definition, out var appMetadata)
-            || !appMetadata.Visibility.HasFlag(McpAppVisibility.App)
-            || appMetadata.ResourceUri is null)
-            throw McpAppViewErrors.Create("revoked", "The MCP App tool authority is no longer valid.");
-
-        var manager = await _mcpRuntime!.GetEffectiveMcpRuntimeAsync(parameters.ThreadId, cancellationToken).ConfigureAwait(false)
-            ?? throw McpAppViewErrors.Create("offline", "The MCP server is offline.");
-        var currentGeneration = await manager.GetGenerationAsync(payload.Server, cancellationToken).ConfigureAwait(false);
-        if (currentGeneration != generation)
-            throw McpAppViewErrors.Create("stale", "The MCP server generation changed.");
         WatchManager(manager);
 
         ReadResourceResult rawResource;
@@ -100,7 +104,7 @@ internal sealed class McpAppRequestHandler : IAppServerDomainHandler, IDisposabl
         {
             rawResource = await manager.ReadResourceAsync(
                 payload.Server,
-                appMetadata.ResourceUri.AbsoluteUri,
+                resourceUri.AbsoluteUri,
                 generation,
                 cancellationToken).ConfigureAwait(false);
         }
@@ -109,7 +113,7 @@ internal sealed class McpAppRequestHandler : IAppServerDomainHandler, IDisposabl
             throw McpAppViewErrors.Create("protocol_error", "The MCP App resource could not be read.", exception.Message);
         }
 
-        if (!McpAppMetadataParser.TryParseResourceContent(rawResource, appMetadata.ResourceUri, out var resource, out var resourceError))
+        if (!McpAppMetadataParser.TryParseResourceContent(rawResource, resourceUri, out var resource, out var resourceError))
             throw McpAppViewErrors.Create("protocol_error", "The MCP App resource is invalid.", resourceError);
 
         var handle = $"view_{Guid.NewGuid():N}";
@@ -117,6 +121,7 @@ internal sealed class McpAppRequestHandler : IAppServerDomainHandler, IDisposabl
         {
             Handle = handle,
             ThreadId = parameters.ThreadId,
+            TurnId = parameters.TurnId,
             SourceItemId = parameters.ItemId,
             ServerName = payload.Server,
             Origin = payload.Origin,
@@ -127,9 +132,27 @@ internal sealed class McpAppRequestHandler : IAppServerDomainHandler, IDisposabl
             SnapshotRevision = snapshot.Revision,
             BindingRevision = registration.Binding.Revision,
             RawSourceToolId = payload.SourceToolId,
-            ResourceUri = appMetadata.ResourceUri,
+            ResourceUri = resourceUri,
             Manager = manager
         });
+
+        // Close the publication race between the initial authority check/resource read and
+        // capability registration. A change before Add is observed here; a change after Add is
+        // observed by the snapshot/status subscriptions.
+        var latestSnapshot = await _snapshots.GetEffectiveToolSnapshotAsync(parameters.ThreadId, cancellationToken).ConfigureAwait(false);
+        var latestGeneration = await manager.GetGenerationAsync(payload.Server, cancellationToken).ConfigureAwait(false);
+        var newerRevisionPublished = _publishedSnapshotRevisions.TryGetValue(state.ThreadId, out var publishedRevision)
+                                      && publishedRevision != state.SnapshotRevision;
+        if (latestGeneration != generation || newerRevisionPublished || !HasCurrentAuthority(latestSnapshot, state))
+        {
+            if (_views.Close(state.Handle, out var staleState) && staleState is not null)
+                staleState.Dispose();
+            throw McpAppViewErrors.Create(
+                latestGeneration != generation ? "stale" : "revoked",
+                latestGeneration != generation
+                    ? "The MCP server generation changed."
+                    : "The MCP App tool authority is no longer valid.");
+        }
 
         return new McpAppViewOpenResult
         {
@@ -302,22 +325,36 @@ internal sealed class McpAppRequestHandler : IAppServerDomainHandler, IDisposabl
         var generation = await state.Manager.GetGenerationAsync(state.ServerName, cancellationToken).ConfigureAwait(false);
         if (generation != state.Generation)
         {
-            _views.Close(handle, out _);
-            _contextStore?.ClearView(handle);
-            state.Dispose();
+            await RevokeViewAsync(
+                state,
+                "revoked",
+                "generation_changed",
+                "The MCP server generation changed.").ConfigureAwait(false);
             throw McpAppViewErrors.Create("stale", "The MCP server generation changed.");
         }
 
         var snapshot = await _snapshots!.GetEffectiveToolSnapshotAsync(state.ThreadId, cancellationToken).ConfigureAwait(false);
-        if (snapshot.Revision != state.SnapshotRevision
-            || !snapshot.Registrations.TryGetValue(state.ToolName, out var registration)
-            || registration.Definition.Id != state.DefinitionId
-            || registration.Binding.Id != state.RuntimeBindingId
-            || registration.Binding.Revision != state.BindingRevision
-            || !registration.InvocationAudiences.HasFlag(ToolInvocationAudience.App))
+        if (!HasCurrentAuthority(snapshot, state))
+        {
+            await RevokeViewAsync(
+                state,
+                "revoked",
+                "snapshot_changed",
+                "The MCP App View authority was revoked.").ConfigureAwait(false);
             throw McpAppViewErrors.Create("revoked", "The MCP App View authority was revoked.");
+        }
         return state;
     }
+
+    private static bool HasCurrentAuthority(EffectiveToolSnapshot snapshot, McpAppViewState state) =>
+        snapshot.Revision == state.SnapshotRevision
+        && snapshot.Registrations.TryGetValue(state.ToolName, out var registration)
+        && registration.Definition.Id == state.DefinitionId
+        && registration.Binding.Id == state.RuntimeBindingId
+        && registration.Binding.Revision == state.BindingRevision
+        && registration.InvocationAudiences.HasFlag(ToolInvocationAudience.App)
+        && McpAppMetadataParser.TryGetToolMetadata(registration.Definition, out var appMetadata)
+        && appMetadata.Visibility.HasFlag(McpAppVisibility.App);
 
     private void EnsureAvailable()
     {
@@ -441,6 +478,60 @@ internal sealed class McpAppRequestHandler : IAppServerDomainHandler, IDisposabl
             _ = RevokeStaleViewsAsync(manager, args.Status);
     }
 
+    private void OnEffectiveToolSnapshotChanged(object? sender, EffectiveToolSnapshotChangedEventArgs args)
+    {
+        _publishedSnapshotRevisions[args.ThreadId] = args.Revision;
+        _ = RevokeViewsForSnapshotChangeAsync(args);
+    }
+
+    private void OnThreadEligibilityRevoked(string threadId) =>
+        _ = RevokeViewsForThreadAsync(threadId);
+
+    private async Task RevokeViewsForThreadAsync(string threadId)
+    {
+        try
+        {
+            var candidates = _views.Snapshot()
+                .Where(view => string.Equals(view.ThreadId, threadId, StringComparison.Ordinal))
+                .ToArray();
+            foreach (var view in candidates)
+            {
+                await RevokeViewAsync(
+                    view,
+                    "revoked",
+                    "thread_rolled_back",
+                    "The thread was rolled back.").ConfigureAwait(false);
+            }
+        }
+        catch
+        {
+            // Connection teardown or concurrent View closure already released the capabilities.
+        }
+    }
+
+    private async Task RevokeViewsForSnapshotChangeAsync(EffectiveToolSnapshotChangedEventArgs args)
+    {
+        try
+        {
+            var candidates = _views.Snapshot()
+                .Where(view => string.Equals(view.ThreadId, args.ThreadId, StringComparison.Ordinal)
+                               && view.SnapshotRevision != args.Revision)
+                .ToArray();
+            foreach (var view in candidates)
+            {
+                await RevokeViewAsync(
+                    view,
+                    "revoked",
+                    "snapshot_changed",
+                    "The effective tool authority changed.").ConfigureAwait(false);
+            }
+        }
+        catch
+        {
+            // Connection teardown or concurrent View closure already released the capabilities.
+        }
+    }
+
     private async Task RevokeStaleViewsAsync(McpClientManager manager, McpServerStatusSnapshot status)
     {
         try
@@ -454,24 +545,11 @@ internal sealed class McpAppRequestHandler : IAppServerDomainHandler, IDisposabl
                 var ready = status.Enabled && string.Equals(status.StartupState, "ready", StringComparison.OrdinalIgnoreCase);
                 if (ready && generation == view.Generation)
                     continue;
-                if (!_views.Close(view.Handle, out _))
-                    continue;
-                _contextStore?.ClearView(view.Handle);
-                view.Dispose();
-                await _transport.WriteMessageAsync(new
-                {
-                    jsonrpc = "2.0",
-                    method = AppServerMethods.McpAppViewStatusUpdated,
-                    @params = new McpAppViewStatusUpdatedParams
-                    {
-                        ViewHandle = view.Handle,
-                        Status = ready ? "revoked" : "offline",
-                        Code = ready ? "generation_changed" : "server_offline",
-                        FallbackText = ready
-                            ? "The MCP server generation changed."
-                            : "The MCP server is offline."
-                    }
-                }).ConfigureAwait(false);
+                await RevokeViewAsync(
+                    view,
+                    ready ? "revoked" : "offline",
+                    ready ? "generation_changed" : "server_offline",
+                    ready ? "The MCP server generation changed." : "The MCP server is offline.").ConfigureAwait(false);
             }
         }
         catch
@@ -480,14 +558,49 @@ internal sealed class McpAppRequestHandler : IAppServerDomainHandler, IDisposabl
         }
     }
 
+    private async Task RevokeViewAsync(
+        McpAppViewState view,
+        string status,
+        string code,
+        string fallbackText)
+    {
+        if (!_views.Close(view.Handle, out var closed) || closed is null)
+            return;
+
+        _contextStore?.ClearView(view.Handle);
+        closed.Dispose();
+        if (_connection.IsClosed)
+            return;
+
+        await _transport.WriteMessageAsync(new
+        {
+            jsonrpc = "2.0",
+            method = AppServerMethods.McpAppViewStatusUpdated,
+            @params = new McpAppViewStatusUpdatedParams
+            {
+                ViewHandle = view.Handle,
+                Status = status,
+                Code = code,
+                FallbackText = fallbackText
+            }
+        }).ConfigureAwait(false);
+    }
+
     public void Dispose()
     {
+        if (Interlocked.Exchange(ref _disposed, 1) != 0)
+            return;
+        _connection.McpAppThreadEligibilityRevoked -= OnThreadEligibilityRevoked;
+        if (_snapshotChanges is not null)
+            _snapshotChanges.EffectiveToolSnapshotChanged -= OnEffectiveToolSnapshotChanged;
         lock (_watchedManagersLock)
         {
             foreach (var manager in _watchedManagers)
                 manager.StatusChanged -= OnMcpStatusChanged;
             _watchedManagers.Clear();
         }
+        foreach (var view in _views.Snapshot())
+            _contextStore?.ClearView(view.Handle);
         _views.Dispose();
     }
 }

@@ -74,7 +74,7 @@ This specification does not define:
 
 | Audience | Need | SDK Surface |
 |----------|------|-------------|
-| Native app authors | Accept App Binding handoffs, attach app-owned tools, and keep tool channels alive. | `DotCraft.Sdk.AppBinding`, `DotCraft.Sdk.AppServer` |
+| Native app authors | Complete principal handoffs, authenticate, and activate binding-scoped MCP sessions. | `DotCraft.Sdk.AppBinding`, `DotCraft.Sdk.AppServer` |
 | .NET application developers | Connect to a local or remote DotCraft AppServer and run work against persistent threads. | `DotCraft.Sdk.AppServer` |
 | Advanced protocol clients | Send raw AppServer JSON-RPC calls and consume notifications. | `DotCraft.Sdk.Wire` |
 | Test authors | Use in-memory or custom transports for protocol conformance tests. | `DotCraft.Sdk.Wire.IJsonRpcTransport` |
@@ -97,7 +97,7 @@ The current .NET SDK intentionally exposes a compact high-level surface and keep
 The SDK must make native app integration straightforward:
 
 ```text
-handoff URL -> AppServer connection -> inspect request -> accept -> attach tools -> keep alive
+handoff URL -> principal credential -> authenticate -> inspect request -> activate binding MCP -> rebind
 ```
 
 The SDK may provide general thread and turn APIs, but App Binding helpers are a primary design center for `DotCraft.Sdk`.
@@ -165,8 +165,8 @@ Current AppServer features with typed or semi-typed SDK support:
 | App connection completion | `app/connection/connect` | `DotCraftAppBindingClient.ConnectAsync<T>` |
 | App connection status | `app/connection/status` | `DotCraftAppBindingClient.GetConnectionStatusAsync<T>` |
 | App binding request read | `app/binding/request/get` | `DotCraftAppBindingClient.GetBindingRequestAsync<T>` |
-| App binding acceptance | `app/binding/accept` | `DotCraftAppBindingClient.AcceptBindingAsync<T>` |
-| App binding tool attachment | `app/binding/attachTools` | `DotCraftAppBindingClient.AttachToolsAsync<T>` |
+| App binding activation | `app/binding/activate` | `DotCraftAppBindingClient.ActivateAsync` |
+| App binding rebind | `app/binding/rebind` | `DotCraftAppBindingClient.RebindAsync` |
 | App-bound tool channel lifetime | raw notification drain | `DotCraftAppBindingClient.KeepAliveAsync` |
 
 Current Hub features:
@@ -182,7 +182,7 @@ Current Hub features:
 | Workspace AppServer lookup | `GET /v1/appservers/by-workspace` | `HubClient.GetAppServerByWorkspaceAsync` |
 | Workspace AppServer ensure | `POST /v1/appservers/ensure` | `HubClient.EnsureAppServerAsync`, `DotCraftClient.ConnectLocalAsync` |
 
-Resolved by the Run profile parity work (SDK alignment M3):
+The Run profile provides:
 
 - `DotCraftThread.RunAsync` / `RunStreamedAsync` provide the high-level run abstraction that waits for terminal turn notifications and returns merged text.
 - `DotCraftRunEvent` plus `RunStreamedAsync` normalize streaming notifications; a delta/snapshot reducer merges agent text.
@@ -985,7 +985,7 @@ The parser may validate expected URI scheme and expected app id.
 
 ### 14.2 Current App-Side RPC Helpers
 
-`DotCraftAppBindingClient` currently exposes typed helpers for app discovery, app connection lifecycle, thread binding requests, thread binding inspection/revocation/refresh, and app-owned tool attachment. It also keeps generic helpers for app-side request payloads whose app-specific data shape is owned by the external app:
+`DotCraftAppBindingClient` exposes the App Binding principal lifecycle and binding-scoped MCP control plane:
 
 | SDK Method | AppServer Method | Purpose |
 |------------|------------------|---------|
@@ -996,14 +996,16 @@ The parser may validate expected URI scheme and expected app id.
 | `CompleteConnectionAsync` | `app/connection/connect` | Complete an app connection request. |
 | `GetConnectionStatusAsync` | `app/connection/status` | Read app connection status. |
 | `RevokeConnectionAsync` | `app/connection/revoke` | Revoke an app connection. |
-| `CreateBindingRequestAsync` | `app/binding/request/create` | Create a thread binding request. |
+| `EnableBindingAsync` | `thread/appBindings/enable` | Enable the whole app for a thread. |
 | `GetBindingRequestAsync` | `app/binding/request/get` | Inspect a thread binding request. |
-| `CancelBindingRequestAsync` | `app/binding/request/cancel` | Cancel a pending thread binding request. |
-| `AcceptBindingAsync` | `app/binding/accept` | Accept a thread binding request. |
-| `AttachToolsAsync` | `app/binding/attachTools` | Attach app-owned Runtime Dynamic Tools to an accepted binding. |
+| `AuthenticateAsync` | `app/connection/authenticate` | Authenticate the current AppServer connection as an app principal. |
+| `RefreshCredentialAsync` | `app/connection/refresh` | Rotate the principal credential. |
+| `ActivateAsync` | `app/binding/activate` | Activate a binding-scoped Streamable HTTP MCP session. |
+| `RebindAsync` | `app/binding/rebind` | Replace an offline binding session at the expected authority revision. |
+| `ConfirmCapabilitiesAsync` | `thread/appBindings/confirmCapabilities` | Accept or reject a candidate capability expansion. |
 | `ListThreadBindingsAsync` | `thread/appBindings/list` | List thread app bindings. |
 | `RevokeThreadBindingAsync` | `thread/appBindings/revoke` | Revoke a thread app binding. |
-| `RefreshThreadBindingsAsync` | `thread/appBindings/refresh` | Refresh thread app binding state. |
+| `RefreshThreadBindingsAsync` | `thread/appBindings/list` | Refresh thread app binding state. |
 
 Typed App Binding DTOs must remain compatible with [App Binding](../protocols/app-binding.md). Methods that carry app-defined payloads may still expose generic type parameters or raw escape hatches so app authors can model their own connection and binding payloads.
 
@@ -1017,7 +1019,7 @@ Task KeepAliveAsync(
     CancellationToken cancellationToken = default);
 ```
 
-Native apps use this to keep the app-bound tool channel alive while the app is running.
+The control connection is independent from the binding MCP session. Draining notifications is useful for control-plane changes, but disconnecting this connection does not terminate a healthy binding MCP session.
 
 ### 14.4 Standard App Binding Tool Errors
 
@@ -1041,7 +1043,7 @@ Helper:
 public static DynamicToolResult ToolError(
     string code,
     string message,
-    object? structuredResult = null);
+    object? structuredContent = null);
 ```
 
 The helper returns a failed `DynamicToolResult` with matching `ErrorCode`, `ErrorMessage`, and a text content item.
@@ -1224,21 +1226,19 @@ Legend:
 | Subagent sessions | `subagent/sendMessage` | `subAgentSessions` | Raw | `RequestAsync` |
 | Subagent sessions | `subagent/followupTask` | `subAgentSessions` | Raw | `RequestAsync` |
 | Subagent sessions | `subagent/close` | `subAgentSessions` | Raw | `RequestAsync` |
-| App discovery | `app/list` | `appBinding` | Typed | `AppBindings.ListAppsAsync` |
-| App discovery | `app/view` | `appBinding` | Typed | `AppBindings.ViewAppAsync` |
-| App connection | `app/connection/start` | `appBinding` | Typed | `AppBindings.StartConnectionAsync` |
-| App connection | `app/connection/request/get` | `appBinding` | Generic | `AppBindings.GetConnectionRequestAsync<T>` |
-| App connection | `app/connection/connect` | `appBinding` | Typed | `AppBindings.CompleteConnectionAsync` |
-| App connection | `app/connection/status` | `appBinding` | Typed | `AppBindings.GetConnectionStatusAsync` |
-| App connection | `app/connection/revoke` | `appBinding` | Typed | `AppBindings.RevokeConnectionAsync` |
-| App binding | `app/binding/request/create` | `appBinding` | Typed | `AppBindings.CreateBindingRequestAsync` |
-| App binding | `app/binding/request/get` | `appBinding` | Typed | `AppBindings.GetBindingRequestAsync` |
-| App binding | `app/binding/request/cancel` | `appBinding` | Typed | `AppBindings.CancelBindingRequestAsync` |
-| App binding | `app/binding/accept` | `appBinding` | Typed | `AppBindings.AcceptBindingAsync` |
-| App binding | `app/binding/attachTools` | `appBinding` | Typed | `AppBindings.AttachToolsAsync` |
-| Thread app bindings | `thread/appBindings/list` | `appBinding` | Typed | `AppBindings.ListThreadBindingsAsync` |
-| Thread app bindings | `thread/appBindings/revoke` | `appBinding` | Typed | `AppBindings.RevokeThreadBindingAsync` |
-| Thread app bindings | `thread/appBindings/refresh` | `appBinding` | Typed | `AppBindings.RefreshThreadBindingsAsync` |
+| App discovery | `app/list` | `appBindingVersion: 2` | Typed | `AppBindings.ListAppsAsync` |
+| App discovery | `app/view` | `appBindingVersion: 2` | Typed | `AppBindings.ViewAppAsync` |
+| App connection | `app/connection/start` | `appBindingVersion: 2` | Typed | `AppBindings.StartConnectionAsync` |
+| App connection | `app/connection/request/get` | `appBindingVersion: 2` | Generic | `AppBindings.GetConnectionRequestAsync<T>` |
+| App connection | `app/connection/connect` | `appBindingVersion: 2` | Typed | `AppBindings.CompleteConnectionAsync` |
+| App connection | `app/connection/status` | `appBindingVersion: 2` | Typed | `AppBindings.GetConnectionStatusAsync` |
+| App connection | `app/connection/revoke` | `appBindingVersion: 2` | Typed | `AppBindings.RevokeConnectionAsync` |
+| App binding | `thread/appBindings/enable` | `appBindingVersion: 2` | Typed | `AppBindings.EnableBindingAsync` |
+| App binding | `app/binding/request/get` | `appBindingVersion: 2` | Typed | `AppBindings.GetBindingRequestAsync` |
+| App binding | `app/binding/activate` | `appBindingVersion: 2` | Typed | `AppBindings.ActivateAsync` |
+| App binding | `app/binding/rebind` | `appBindingVersion: 2` | Typed | `AppBindings.RebindAsync` |
+| Thread app bindings | `thread/appBindings/list` | `appBindingVersion: 2` | Typed | `AppBindings.ListThreadBindingsAsync` |
+| Thread app bindings | `thread/appBindings/revoke` | `appBindingVersion: 2` | Typed | `AppBindings.RevokeThreadBindingAsync` |
 
 When a raw-only row gains a typed wrapper, this matrix must be updated in the same change.
 
@@ -1255,7 +1255,7 @@ The SDK README should include:
 3. direct remote AppServer connection;
 4. thread start / subscribe / turn start;
 5. Runtime Dynamic Tool declaration and handler registration;
-6. App Binding handoff, accept, attach tools, and keep alive flow;
+6. App principal handoff/authentication, enable, activate, rebind, confirmation, and revoke flow;
 7. direct Hub query;
 8. low-level JSON-RPC escape hatch;
 9. development commands.
@@ -1286,7 +1286,7 @@ The current SDK test suite must cover:
 - Runtime Dynamic Tool dispatch;
 - `thread/start` identity and dynamic tool shape;
 - `turn/start` input shape and turn id extraction;
-- App Binding accept RPC method shape;
+- App Binding activation RPC method shape;
 - App Binding handoff parsing;
 - standard App Binding tool error shape;
 - Hub lock parsing and bearer auth;
@@ -1351,7 +1351,7 @@ Tool authors are responsible for:
 
 - validating arguments;
 - enforcing app-level authorization;
-- checking App Binding grant and scope state when applicable;
+- checking App Binding principal and authority revision when applicable;
 - returning structured failures instead of throwing for expected business errors.
 
 ### 20.5 Approval Safety
@@ -1424,7 +1424,7 @@ Examples:
 
 - `thread/resume.dynamicTools` requires `dynamicToolRebind`;
 - `model/list` requires `modelCatalogManagement`;
-- App Binding methods require `appBinding`;
+- App Binding methods require `appBindingVersion: 2`;
 - workspace config methods require `workspaceConfigManagement`.
 
 The current SDK exposes raw capabilities so callers can implement their own gates while typed wrappers are incomplete.
@@ -1469,7 +1469,7 @@ A complete implementation of the current .NET SDK baseline satisfies:
 - Runtime Dynamic Tools can be declared during thread start or resume.
 - `item/tool/call` is dispatched to registered handlers and returns structured failures when unsupported or when handlers throw.
 - App Binding handoff URLs can be parsed safely.
-- App-side App Binding request inspection, connection completion, binding acceptance, and tool attachment helpers work.
+- App-side request inspection, principal authentication, activation, rebind, and capability confirmation helpers work.
 - Standard App Binding tool error codes are available.
 - Hub lock validation rejects non-loopback URLs and uses bearer auth for protected Hub calls.
 - Current test suite passes.

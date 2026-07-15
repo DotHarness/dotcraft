@@ -1,9 +1,55 @@
 import { describe, it, expect } from 'vitest'
 import { aggregateToolCalls, isToolItemLive, planToolRunRender } from '../utils/toolCallAggregation'
 import type { ConversationItem } from '../types/conversation'
+import { CORE_TOOL_PRESENTATION_IDS } from '../utils/toolRendererRegistry'
 import { withTestCorePresentation } from './testToolPresentation'
 
+interface CoreFixturePresentation {
+  presentationId: string
+  options?: Record<string, unknown>
+}
+
+const EXPLORE: CoreFixturePresentation = { presentationId: CORE_TOOL_PRESENTATION_IDS.readFile }
+const WRITE: CoreFixturePresentation = {
+  presentationId: CORE_TOOL_PRESENTATION_IDS.fileWrite,
+  options: { operation: 'write' }
+}
+const EDIT: CoreFixturePresentation = {
+  presentationId: CORE_TOOL_PRESENTATION_IDS.fileWrite,
+  options: { operation: 'edit' }
+}
+const SHELL: CoreFixturePresentation = { presentationId: CORE_TOOL_PRESENTATION_IDS.shell }
+const WEB_SEARCH: CoreFixturePresentation = {
+  presentationId: CORE_TOOL_PRESENTATION_IDS.web,
+  options: { operation: 'search' }
+}
+const WEB_FETCH: CoreFixturePresentation = {
+  presentationId: CORE_TOOL_PRESENTATION_IDS.web,
+  options: { operation: 'fetch' }
+}
+const SUBAGENT_SPAWN: CoreFixturePresentation = {
+  presentationId: CORE_TOOL_PRESENTATION_IDS.subagent,
+  options: { operation: 'spawn' }
+}
+const SUBAGENT_WAIT: CoreFixturePresentation = {
+  presentationId: CORE_TOOL_PRESENTATION_IDS.subagent,
+  options: { operation: 'wait' }
+}
+const SUBAGENT_MESSAGE: CoreFixturePresentation = {
+  presentationId: CORE_TOOL_PRESENTATION_IDS.subagent,
+  options: { operation: 'sendMessage' }
+}
+const SUBAGENT_FOLLOWUP: CoreFixturePresentation = {
+  presentationId: CORE_TOOL_PRESENTATION_IDS.subagent,
+  options: { operation: 'followupTask' }
+}
+const SUBAGENT_LIST: CoreFixturePresentation = {
+  presentationId: CORE_TOOL_PRESENTATION_IDS.subagent,
+  options: { operation: 'list' }
+}
+
 function makeItem(
+  presentation: CoreFixturePresentation,
   toolName: string,
   id: string,
   overrides: Partial<ConversationItem> = {}
@@ -16,7 +62,7 @@ function makeItem(
     toolCallId: id,
     createdAt: new Date().toISOString(),
     ...overrides
-  })
+  }, presentation.presentationId, presentation.options)
 }
 
 describe('aggregateToolCalls', () => {
@@ -25,7 +71,7 @@ describe('aggregateToolCalls', () => {
   })
 
   it('keeps a single ReadFile as individual card', () => {
-    const items = [makeItem('ReadFile', '1')]
+    const items = [makeItem(EXPLORE, 'ReadFile', '1')]
     const result = aggregateToolCalls(items)
     expect(result).toHaveLength(1)
     expect(result[0].kind).toBe('single')
@@ -36,9 +82,9 @@ describe('aggregateToolCalls', () => {
 
   it('groups three consecutive ReadFile calls into one group', () => {
     const items = [
-      makeItem('ReadFile', '1'),
-      makeItem('ReadFile', '2'),
-      makeItem('ReadFile', '3')
+      makeItem(EXPLORE, 'ReadFile', '1'),
+      makeItem(EXPLORE, 'ReadFile', '2'),
+      makeItem(EXPLORE, 'ReadFile', '3')
     ]
     const result = aggregateToolCalls(items)
     expect(result).toHaveLength(1)
@@ -51,9 +97,9 @@ describe('aggregateToolCalls', () => {
 
   it('groups consecutive explore tools into one group', () => {
     const items = [
-      makeItem('ReadFile', '1'),
-      makeItem('GrepFiles', '2'),
-      makeItem('FindFiles', '3')
+      makeItem(EXPLORE, 'ReadFile', '1'),
+      makeItem(EXPLORE, 'GrepFiles', '2'),
+      makeItem(EXPLORE, 'FindFiles', '3')
     ]
     const result = aggregateToolCalls(items)
     expect(result).toHaveLength(1)
@@ -66,8 +112,8 @@ describe('aggregateToolCalls', () => {
 
   it('groups consecutive write tools into one group', () => {
     const items = [
-      makeItem('WriteFile', '1'),
-      makeItem('EditFile', '2')
+      makeItem(WRITE, 'WriteFile', '1'),
+      makeItem(EDIT, 'EditFile', '2')
     ]
     const result = aggregateToolCalls(items)
     expect(result).toHaveLength(1)
@@ -80,10 +126,10 @@ describe('aggregateToolCalls', () => {
 
   it('handles mixed sequences: [ReadFile, WriteFile, ReadFile, ReadFile]', () => {
     const items = [
-      makeItem('ReadFile', '1'),
-      makeItem('WriteFile', '2'),
-      makeItem('ReadFile', '3'),
-      makeItem('ReadFile', '4')
+      makeItem(EXPLORE, 'ReadFile', '1'),
+      makeItem(WRITE, 'WriteFile', '2'),
+      makeItem(EXPLORE, 'ReadFile', '3'),
+      makeItem(EXPLORE, 'ReadFile', '4')
     ]
     const result = aggregateToolCalls(items)
     expect(result).toHaveLength(3)
@@ -106,9 +152,9 @@ describe('aggregateToolCalls', () => {
 
   it('groups consecutive shell tools into one group', () => {
     const items = [
-      makeItem('Exec', '1', { result: 'ok', success: true }),
-      makeItem('RunCommand', '2', { result: 'ok', success: true }),
-      makeItem('BashCommand', '3', { result: 'ok', success: true })
+      makeItem(SHELL, 'Exec', '1', { result: 'ok', success: true }),
+      makeItem(SHELL, 'RunCommand', '2', { result: 'ok', success: true }),
+      makeItem(SHELL, 'BashCommand', '3', { result: 'ok', success: true })
     ]
     const result = aggregateToolCalls(items)
     expect(result).toHaveLength(1)
@@ -121,8 +167,8 @@ describe('aggregateToolCalls', () => {
 
   it('groups consecutive WebSearch calls into one web group', () => {
     const items = [
-      makeItem('WebSearch', '1', { result: '{"results":[]}', success: true }),
-      makeItem('WebSearch', '2', { result: '{"results":[]}', success: true })
+      makeItem(WEB_SEARCH, 'WebSearch', '1', { result: '{"results":[]}', success: true }),
+      makeItem(WEB_SEARCH, 'WebSearch', '2', { result: '{"results":[]}', success: true })
     ]
     const result = aggregateToolCalls(items)
     expect(result).toHaveLength(1)
@@ -135,8 +181,8 @@ describe('aggregateToolCalls', () => {
 
   it('groups mixed WebSearch and WebFetch calls into one web group', () => {
     const items = [
-      makeItem('WebSearch', '1', { result: '{"results":[]}', success: true }),
-      makeItem('WebFetch', '2', { result: '{"status":200}', success: true })
+      makeItem(WEB_SEARCH, 'WebSearch', '1', { result: '{"results":[]}', success: true }),
+      makeItem(WEB_FETCH, 'WebFetch', '2', { result: '{"status":200}', success: true })
     ]
     const result = aggregateToolCalls(items)
     expect(result).toHaveLength(1)
@@ -149,8 +195,8 @@ describe('aggregateToolCalls', () => {
 
   it('groups consecutive settled SpawnAgent calls', () => {
     const items = [
-      makeItem('SpawnAgent', '1', { result: '{"status":"running"}', success: true }),
-      makeItem('SpawnAgent', '2', { result: '{"status":"running"}', success: true })
+      makeItem(SUBAGENT_SPAWN, 'SpawnAgent', '1', { result: '{"status":"running"}', success: true }),
+      makeItem(SUBAGENT_SPAWN, 'SpawnAgent', '2', { result: '{"status":"running"}', success: true })
     ]
     const result = aggregateToolCalls(items)
     expect(result).toHaveLength(1)
@@ -163,9 +209,9 @@ describe('aggregateToolCalls', () => {
 
   it('groups consecutive settled SubAgent control calls', () => {
     const items = [
-      makeItem('SendMessage', '1', { result: '{"status":"sent"}', success: true }),
-      makeItem('FollowupTask', '2', { result: '{"status":"running"}', success: true }),
-      makeItem('ListAgents', '3', { result: '{"data":[]}', success: true })
+      makeItem(SUBAGENT_MESSAGE, 'SendMessage', '1', { result: '{"status":"sent"}', success: true }),
+      makeItem(SUBAGENT_FOLLOWUP, 'FollowupTask', '2', { result: '{"status":"running"}', success: true }),
+      makeItem(SUBAGENT_LIST, 'ListAgents', '3', { result: '{"data":[]}', success: true })
     ]
     const result = aggregateToolCalls(items)
     expect(result).toHaveLength(1)
@@ -178,8 +224,8 @@ describe('aggregateToolCalls', () => {
 
   it('keeps running SpawnAgent calls as individual cards', () => {
     const items = [
-      makeItem('SpawnAgent', '1', { status: 'started' }),
-      makeItem('SpawnAgent', '2', { result: '{"status":"running"}', success: true })
+      makeItem(SUBAGENT_SPAWN, 'SpawnAgent', '1', { status: 'started' }),
+      makeItem(SUBAGENT_SPAWN, 'SpawnAgent', '2', { result: '{"status":"running"}', success: true })
     ]
     const result = aggregateToolCalls(items)
     expect(result).toHaveLength(2)
@@ -189,10 +235,10 @@ describe('aggregateToolCalls', () => {
 
   it('preserves order of non-aggregatable items', () => {
     const items = [
-      makeItem('Exec', '1'),
-      makeItem('ReadFile', '2'),
-      makeItem('GrepFiles', '3'),
-      makeItem('WriteFile', '4')
+      makeItem(SHELL, 'Exec', '1'),
+      makeItem(EXPLORE, 'ReadFile', '2'),
+      makeItem(EXPLORE, 'GrepFiles', '3'),
+      makeItem(WRITE, 'WriteFile', '4')
     ]
     const result = aggregateToolCalls(items)
     expect(result).toHaveLength(3)
@@ -203,9 +249,9 @@ describe('aggregateToolCalls', () => {
 
   it('does not aggregate across category transitions', () => {
     const items = [
-      makeItem('ReadFile', '1'),
-      makeItem('WriteFile', '2'),
-      makeItem('Exec', '3')
+      makeItem(EXPLORE, 'ReadFile', '1'),
+      makeItem(WRITE, 'WriteFile', '2'),
+      makeItem(SHELL, 'Exec', '3')
     ]
     const result = aggregateToolCalls(items)
     expect(result).toHaveLength(3)
@@ -216,12 +262,12 @@ describe('aggregateToolCalls', () => {
 
   it('groups each category independently in a mixed run', () => {
     const items = [
-      makeItem('ReadFile', '1'),
-      makeItem('FindFiles', '2'),
-      makeItem('WriteFile', '3'),
-      makeItem('EditFile', '4'),
-      makeItem('Exec', '5', { result: 'ok', success: true }),
-      makeItem('RunCommand', '6', { result: 'ok', success: true })
+      makeItem(EXPLORE, 'ReadFile', '1'),
+      makeItem(EXPLORE, 'FindFiles', '2'),
+      makeItem(WRITE, 'WriteFile', '3'),
+      makeItem(EDIT, 'EditFile', '4'),
+      makeItem(SHELL, 'Exec', '5', { result: 'ok', success: true }),
+      makeItem(SHELL, 'RunCommand', '6', { result: 'ok', success: true })
     ]
     const result = aggregateToolCalls(items)
     expect(result).toHaveLength(3)
@@ -235,9 +281,9 @@ describe('aggregateToolCalls', () => {
 
   it('keeps settled write prefix grouped when trailing write item is live', () => {
     const items = [
-      makeItem('WriteFile', '1'),
-      makeItem('EditFile', '2'),
-      makeItem('WriteFile', '3', { status: 'streaming' })
+      makeItem(WRITE, 'WriteFile', '1'),
+      makeItem(EDIT, 'EditFile', '2'),
+      makeItem(WRITE, 'WriteFile', '3', { status: 'streaming' })
     ]
     const result = aggregateToolCalls(items)
     expect(result).toHaveLength(2)
@@ -254,19 +300,19 @@ describe('aggregateToolCalls', () => {
 
   it('keeps settled shell prefix grouped when trailing shell execution is live', () => {
     const items = [
-      makeItem('Exec', '1', {
+      makeItem(SHELL, 'Exec', '1', {
         status: 'completed',
         executionStatus: 'completed',
         result: 'done',
         success: true
       }),
-      makeItem('RunCommand', '2', {
+      makeItem(SHELL, 'RunCommand', '2', {
         status: 'completed',
         executionStatus: 'completed',
         result: 'done',
         success: true
       }),
-      makeItem('BashCommand', '3', {
+      makeItem(SHELL, 'BashCommand', '3', {
         status: 'completed',
         executionStatus: 'inProgress'
       })
@@ -286,11 +332,11 @@ describe('aggregateToolCalls', () => {
 
   it('does not de-aggregate settled prefix and suffix around a live item', () => {
     const items = [
-      makeItem('ReadFile', '1'),
-      makeItem('FindFiles', '2'),
-      makeItem('ReadFile', '3', { status: 'streaming' }),
-      makeItem('GrepFiles', '4'),
-      makeItem('ReadFile', '5')
+      makeItem(EXPLORE, 'ReadFile', '1'),
+      makeItem(EXPLORE, 'FindFiles', '2'),
+      makeItem(EXPLORE, 'ReadFile', '3', { status: 'streaming' }),
+      makeItem(EXPLORE, 'GrepFiles', '4'),
+      makeItem(EXPLORE, 'ReadFile', '5')
     ]
     const result = aggregateToolCalls(items)
     expect(result).toHaveLength(3)
@@ -310,11 +356,11 @@ describe('aggregateToolCalls', () => {
 
   it('keeps settled web calls grouped around a live web item', () => {
     const items = [
-      makeItem('WebSearch', '1', { result: '{"results":[]}', success: true }),
-      makeItem('WebFetch', '2', { result: '{"status":200}', success: true }),
-      makeItem('WebSearch', '3', { status: 'streaming' }),
-      makeItem('WebSearch', '4', { result: '{"results":[]}', success: true }),
-      makeItem('WebFetch', '5', { result: '{"status":200}', success: true })
+      makeItem(WEB_SEARCH, 'WebSearch', '1', { result: '{"results":[]}', success: true }),
+      makeItem(WEB_FETCH, 'WebFetch', '2', { result: '{"status":200}', success: true }),
+      makeItem(WEB_SEARCH, 'WebSearch', '3', { status: 'streaming' }),
+      makeItem(WEB_SEARCH, 'WebSearch', '4', { result: '{"results":[]}', success: true }),
+      makeItem(WEB_FETCH, 'WebFetch', '5', { result: '{"status":200}', success: true })
     ]
     const result = aggregateToolCalls(items)
     expect(result).toHaveLength(3)
@@ -335,7 +381,7 @@ describe('aggregateToolCalls', () => {
   })
 
   it('treats completed tool calls without tool results as live only while the turn is running', () => {
-    const pending = makeItem('WaitAgent', 'wait-1', {
+    const pending = makeItem(SUBAGENT_WAIT, 'WaitAgent', 'wait-1', {
       arguments: { agentNickname: 'Reviewer' }
     })
 
@@ -345,9 +391,9 @@ describe('aggregateToolCalls', () => {
 
   it('keeps pending-result tools out of settled groups in running turns', () => {
     const items = [
-      makeItem('ReadFile', '1', { result: 'ok', success: true }),
-      makeItem('ReadFile', '2'),
-      makeItem('ReadFile', '3', { result: 'ok', success: true })
+      makeItem(EXPLORE, 'ReadFile', '1', { result: 'ok', success: true }),
+      makeItem(EXPLORE, 'ReadFile', '2'),
+      makeItem(EXPLORE, 'ReadFile', '3', { result: 'ok', success: true })
     ]
 
     const result = aggregateToolCalls(items, { turnRunning: true })
@@ -363,8 +409,8 @@ describe('aggregateToolCalls', () => {
 
   it('does not keep missing-result historical tools live after the turn is completed', () => {
     const items = [
-      makeItem('ReadFile', '1'),
-      makeItem('ReadFile', '2')
+      makeItem(EXPLORE, 'ReadFile', '1'),
+      makeItem(EXPLORE, 'ReadFile', '2')
     ]
 
     const result = planToolRunRender(items, { isRunning: false, isTrailingRun: false })

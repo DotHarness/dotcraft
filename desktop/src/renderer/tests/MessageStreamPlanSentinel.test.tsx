@@ -8,17 +8,10 @@ import { useThreadStore } from '../stores/threadStore'
 import { ACCEPT_PLAN_SENTINEL_EN } from '../utils/planAcceptSentinel'
 import type { ThreadGoal } from '../types/thread'
 import type { FileDiff } from '../types/toolCall'
-import { withTestCorePresentation } from './testToolPresentation'
 
 const appServerSendRequest = vi.fn()
 
 function renderWithLocale(node: JSX.Element): ReturnType<typeof render> {
-  useConversationStore.setState((state) => ({
-    turns: state.turns.map((turn) => ({
-      ...turn,
-      items: turn.items.map(withTestCorePresentation)
-    }))
-  }))
   return render(<LocaleProvider>{node}</LocaleProvider>)
 }
 
@@ -103,6 +96,8 @@ function completedToolTurn(
         status: 'completed',
         toolCallId: `${id}-tool-call`,
         toolName: 'ReadFile',
+            source: { kind: 'CoreNative', sourceId: 'core-native', sourceToolId: 'ReadFile' },
+            presentation: { presentationId: 'core.read-file' },
         arguments: { path: toolPath },
         result: 'ok',
         success: true,
@@ -382,6 +377,8 @@ describe('MessageStream plan-accept sentinel filtering', () => {
               status: 'completed',
               toolCallId: 'turn-1-write-call',
               toolName: 'WriteFile',
+            source: { kind: 'CoreNative', sourceId: 'core-native', sourceToolId: 'WriteFile' },
+            presentation: { presentationId: 'core.file-write', options: { operation: 'write' } },
               arguments: { path: 'docs/old-artifact.md', content: 'new\n' },
               result: 'Wrote docs/old-artifact.md',
               success: true,
@@ -451,6 +448,8 @@ describe('MessageStream plan-accept sentinel filtering', () => {
                 status: 'completed',
                 toolCallId: `${activeTurnId}-tool-call`,
                 toolName: 'ReadFile',
+            source: { kind: 'CoreNative', sourceId: 'core-native', sourceToolId: 'ReadFile' },
+            presentation: { presentationId: 'core.read-file' },
                 arguments: { path: `src/active-${status}.ts` },
                 result: 'ok',
                 success: true,
@@ -545,14 +544,16 @@ describe('MessageStream plan-accept sentinel filtering', () => {
         ...makeRunningTurn(),
         items: [
           ...makeRunningTurn().items,
-          withTestCorePresentation({
+          {
             id: 'tool-1',
             type: 'toolCall',
             status: 'streaming',
             toolName: 'WebFetch',
+            source: { kind: 'CoreNative', sourceId: 'core-native', sourceToolId: 'WebFetch' },
+            presentation: { presentationId: 'core.web', options: { operation: 'fetch' } },
             toolCallId: 'webfetch-1',
             createdAt: new Date().toISOString()
-          })
+          }
         ]
       }],
       turnStatus: 'running',
@@ -578,6 +579,8 @@ describe('MessageStream plan-accept sentinel filtering', () => {
         turnId: 'turn-1',
         itemId: 'tool-1',
         toolName: 'WebFetch',
+            source: { kind: 'CoreNative', sourceId: 'core-native', sourceToolId: 'WebFetch' },
+            presentation: { presentationId: 'core.web', options: { operation: 'fetch' } },
         callId: 'webfetch-1',
         delta: '{"url":"https://dotcraft.ai"'
       })
@@ -683,6 +686,8 @@ describe('MessageStream plan-accept sentinel filtering', () => {
             type: 'toolCall',
             status: 'completed',
             toolName: 'RequestUserInput',
+            source: { kind: 'CoreNative', sourceId: 'core-native', sourceToolId: 'RequestUserInput' },
+            presentation: { presentationId: 'core.request-user-input' },
             toolCallId: 'call-question',
             arguments: {
               questions: [
