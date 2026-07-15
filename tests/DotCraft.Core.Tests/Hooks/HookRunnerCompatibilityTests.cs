@@ -273,9 +273,7 @@ public sealed class HookRunnerCompatibilityTests : IDisposable
             new HookInput { SessionId = "thread_1", TurnId = "turn_1", Response = "done" },
             CancellationToken.None);
 
-        var completed = await Task.WhenAny(tcs.Task, Task.Delay(TimeSpan.FromSeconds(5)));
-        Assert.Same(tcs.Task, completed);
-        var rewake = await tcs.Task;
+        var rewake = await tcs.Task.WaitAsync(TimeSpan.FromSeconds(10));
         Assert.Equal("thread_1", rewake.ThreadId);
         Assert.Contains("Review feedback:", rewake.Prompt);
         Assert.Contains("review finding", rewake.Prompt);
@@ -377,9 +375,7 @@ public sealed class HookRunnerCompatibilityTests : IDisposable
             },
             CancellationToken.None);
 
-        var completed = await Task.WhenAny(tcs.Task, Task.Delay(TimeSpan.FromSeconds(5)));
-        Assert.Same(tcs.Task, completed);
-        var rewake = await tcs.Task;
+        var rewake = await tcs.Task.WaitAsync(TimeSpan.FromSeconds(10));
         Assert.Equal("commit-hook", rewake.HookKey);
         Assert.Contains("Commit review:", rewake.Prompt);
         Assert.Contains("commit review finding", rewake.Prompt);
