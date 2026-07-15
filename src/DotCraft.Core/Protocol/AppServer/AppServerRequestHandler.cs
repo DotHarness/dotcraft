@@ -92,7 +92,9 @@ public sealed class AppServerRequestHandler(
             services.PlanStore,
             services.AppBindingService,
             services.ThreadOriginPresentationProviders,
-            services.BuiltInPluginSourceRoots);
+            services.BuiltInPluginSourceRoots,
+            sessionService as IThreadToolSnapshotService,
+            sessionService as IThreadMcpRuntimeService);
 
     private AppServerMethodTable? _domainMethods;
 

@@ -5,6 +5,7 @@ using DotCraft.Agents;
 using DotCraft.Configuration;
 using DotCraft.Context;
 using DotCraft.Memory;
+using DotCraft.Mcp;
 using DotCraft.Protocol;
 using DotCraft.Security;
 using DotCraft.Sessions;
@@ -881,6 +882,7 @@ public sealed class SessionServiceRuntimeSignalTests : IDisposable
         Assert.Equal("mcp__code_host_apps", payload.Namespace);
         Assert.Equal("get_me", payload.ToolName);
         Assert.Equal("mcp__code_host_apps__get_me", payload.ProviderFlatName);
+        Assert.Equal("ui://account/profile", payload.McpAppResourceUri);
     }
 
     [Fact]
@@ -2403,11 +2405,19 @@ public sealed class SessionServiceRuntimeSignalTests : IDisposable
         {
             var sourceToolId = new SourceToolId("get_me");
             var definitionId = new ToolDefinitionId(ToolSourceKind.Mcp, "plugin:code-host-apps", sourceToolId);
+            var appMetadata = new McpAppToolMetadata(
+                new Uri("ui://account/profile"),
+                McpAppVisibility.Model | McpAppVisibility.App);
             var definition = new ToolDefinition(
                 definitionId,
                 new ToolName("mcp__code_host_apps", "get_me"),
                 "Get the current code-host user.",
                 JsonSerializer.SerializeToElement(new { type = "object" }),
+                annotations: new Dictionary<string, JsonElement>
+                {
+                    [McpAppMetadataParser.ToolAnnotationKey] =
+                        McpAppMetadataParser.ToDefinitionAnnotation(appMetadata)
+                },
                 provenance: new ToolProvenance(ToolSourceKind.Mcp, "plugin:code-host-apps", "plugin"));
             var binding = new ToolRuntimeBinding(
                 new RuntimeBindingId("mcp:plugin:code-host-apps:get_me:1"),

@@ -180,15 +180,14 @@ public sealed class AppServerEventDispatcher
             || !_connection.SupportsMcpApps)
             return wire;
 
-        var eligibility = await McpAppLiveEligibilityResolver.ResolveAsync(
+        var eligibility = await McpAppEligibilityResolver.ResolveAsync(
             evt.ThreadId,
             turnId,
             item,
             _toolSnapshots,
             _mcpRuntime,
             cancellationToken).ConfigureAwait(false);
-        if (eligibility is null
-            || !_connection.TryRegisterMcpAppItem(evt.ThreadId, turnId, item.Id))
+        if (eligibility is null)
             return wire;
 
         return wire with { McpApp = new McpAppViewHintWire { Available = true } };

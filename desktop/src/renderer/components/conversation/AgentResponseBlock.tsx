@@ -4,7 +4,7 @@ import type { ConversationItem, ConversationTurn, PluginFunctionContentItem } fr
 import { isToolLikeItemType } from '../../types/conversation'
 import { ThinkingIndicator } from './ThinkingIndicator'
 import { renderSubAgentTitle, ToolCallCard } from './ToolCallCard'
-import { hasLiveMcpApp } from './McpAppView'
+import { hasAvailableMcpApp } from './McpAppView'
 import { AgentMessage } from './AgentMessage'
 import { ErrorBlock } from './ErrorBlock'
 import { CancelledNotice } from './CancelledNotice'
@@ -1250,13 +1250,13 @@ function findLastPinnedCoreRendererIndexBefore(items: ConversationItem[], before
 /**
  * A completed `dynamicToolCall` whose result declares an Interactive Tool UI
  * (`ui://` resource). These are user‑actionable surfaces, not model‑log noise, so
- * they are pinned out of the collapsed turn summary (tool-result-presentation §14, M‑vii).
+ * they are pinned out of the collapsed turn summary (tool-result-presentation §14).
  */
 function isInteractiveCardItem(item: ConversationItem): boolean {
   return isToolLikeItemType(item.type)
     && item.status === 'completed'
     && item.success !== false
-    && hasLiveMcpApp(item)
+    && hasAvailableMcpApp(item)
 }
 
 function findLastInteractiveCardIndexBefore(items: ConversationItem[], beforeIndex: number): number {

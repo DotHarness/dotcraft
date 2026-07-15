@@ -30,7 +30,7 @@ import { CreatePlanCard, hasCreatePlanDisplayData } from './CreatePlanCard'
 import { CronCreatedCard } from './CronCreatedCard'
 import { SkillManageCard } from './SkillManageCard'
 import { SkillViewCard } from './SkillViewCard'
-import { McpAppView, hasLiveMcpApp } from './McpAppView'
+import { McpAppView, hasAvailableMcpApp } from './McpAppView'
 import { ToolCollapseChevron } from './ToolCollapseChevron'
 import { CollapsibleContent } from './CollapsibleContent'
 import { AnsiPre } from './AnsiPre'
@@ -382,7 +382,7 @@ export const ToolCallCard = memo(function ToolCallCard({
     return <SubAgentToolResultCard display={subAgentDisplay} locale={locale} />
   }
 
-  if (!isRunning && hasLiveMcpApp(item)) {
+  if (!isRunning && hasAvailableMcpApp(item)) {
     return <McpAppView item={item} threadId={threadId} turnId={turnId} />
   }
 

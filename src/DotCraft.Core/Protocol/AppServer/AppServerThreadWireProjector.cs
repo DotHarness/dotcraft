@@ -15,7 +15,9 @@ internal sealed class AppServerThreadWireProjector(
     PlanStore? planStore,
     AppBindingService? appBindingService,
     IReadOnlyList<IThreadOriginPresentationProvider>? originPresentationProviders,
-    IReadOnlyList<string>? builtInPluginSourceRoots)
+    IReadOnlyList<string>? builtInPluginSourceRoots,
+    IThreadToolSnapshotService? toolSnapshots,
+    IThreadMcpRuntimeService? mcpRuntime)
 {
     public async Task<SessionWireThread> ProjectAsync(
         SessionThread thread,
@@ -35,10 +37,13 @@ internal sealed class AppServerThreadWireProjector(
     public async Task<SessionWireThread> EnrichAsync(
         SessionWireThread wire,
         SessionThread thread,
-        CancellationToken ct) =>
-        await HydrateThreadGoalAsync(
+        CancellationToken ct)
+    {
+        wire = await WithMcpAppAvailabilityAsync(wire, thread, ct).ConfigureAwait(false);
+        return await HydrateThreadGoalAsync(
             WithOriginPresentation(WithAppBindingAttribution(wire, thread.Id, thread.WorkspacePath)),
-            ct);
+            ct).ConfigureAwait(false);
+    }
 
     public SessionWireThread EnrichForNotification(SessionWireThread wire) =>
         WithOriginPresentation(WithAppBindingAttribution(wire, wire.Id, wire.WorkspacePath));
@@ -103,6 +108,44 @@ internal sealed class AppServerThreadWireProjector(
 
         foreach (var turn in wire.Turns)
             turn.Items?.RemoveAll(item => item.Type == ItemType.ToolExecution);
+        return wire;
+    }
+
+    private async Task<SessionWireThread> WithMcpAppAvailabilityAsync(
+        SessionWireThread wire,
+        SessionThread thread,
+        CancellationToken cancellationToken)
+    {
+        if (!connection.SupportsMcpApps || wire.Turns is null || wire.Turns.Count == 0)
+            return wire;
+
+        var context = await McpAppEligibilityResolver.CreateContextAsync(
+            thread.Id,
+            toolSnapshots,
+            mcpRuntime,
+            cancellationToken).ConfigureAwait(false);
+        if (context is null)
+            return wire;
+
+        var turnsById = thread.Turns.ToDictionary(turn => turn.Id, StringComparer.Ordinal);
+        foreach (var wireTurn in wire.Turns)
+        {
+            if (wireTurn.Items is null || !turnsById.TryGetValue(wireTurn.Id, out var turn))
+                continue;
+            var itemsById = turn.Items.ToDictionary(item => item.Id, StringComparer.Ordinal);
+            for (var index = 0; index < wireTurn.Items.Count; index++)
+            {
+                var wireItem = wireTurn.Items[index];
+                if (!itemsById.TryGetValue(wireItem.Id, out var item))
+                    continue;
+                var eligibility = McpAppEligibilityResolver.Resolve(turn.Id, item, context);
+                wireTurn.Items[index] = wireItem with
+                {
+                    McpApp = eligibility is null ? null : new McpAppViewHintWire { Available = true }
+                };
+            }
+        }
+
         return wire;
     }
 

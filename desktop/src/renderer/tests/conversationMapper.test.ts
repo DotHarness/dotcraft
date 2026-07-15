@@ -6,8 +6,8 @@ import { wireItemToConversationItem, wireTurnToConversationTurn } from '../types
 // ---------------------------------------------------------------------------
 
 describe('wireItemToConversationItem — flat (top-level) format', () => {
-  it('maps live MCP App eligibility without deriving it from persisted metadata', () => {
-    const live = wireItemToConversationItem({
+  it('maps current MCP App availability only from the server projection', () => {
+    const available = wireItemToConversationItem({
       id: 'mcp-1',
       type: 'mcpToolCall',
       mcpApp: { available: true },
@@ -20,18 +20,18 @@ describe('wireItemToConversationItem — flat (top-level) format', () => {
       },
       createdAt: '2025-01-01T00:00:00Z'
     })
-    const historical = wireItemToConversationItem({
+    const unavailable = wireItemToConversationItem({
       id: 'mcp-1',
       type: 'mcpToolCall',
       payload: { toolName: 'chart', status: 'completed' },
       createdAt: '2025-01-01T00:00:00Z'
     })
 
-    expect(live.type).toBe('mcpToolCall')
-    expect(live.mcpAppAvailable).toBe(true)
-    expect(live.result).toBe('fallback')
-    expect(live.structuredResult).toEqual({ points: 3 })
-    expect(historical.mcpAppAvailable).toBe(false)
+    expect(available.type).toBe('mcpToolCall')
+    expect(available.mcpAppAvailable).toBe(true)
+    expect(available.result).toBe('fallback')
+    expect(available.structuredResult).toEqual({ points: 3 })
+    expect(unavailable.mcpAppAvailable).toBe(false)
   })
 
   it('does not infer presentation when the server descriptor is missing', () => {

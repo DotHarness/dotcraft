@@ -1103,6 +1103,7 @@ public sealed class ThreadStoreTests : IDisposable
                 CallId = "mcp-call-1",
                 Status = "completed",
                 Success = true,
+                McpAppResourceUri = "ui://review/lookup",
                 Arguments = new JsonObject { ["id"] = 7 },
                 ModelContentItems = [new PluginFunctionContentItem { Type = "text", Text = "safe result" }],
                 StructuredContent = new JsonObject { ["secret"] = "client-only" },
@@ -1121,6 +1122,7 @@ public sealed class ThreadStoreTests : IDisposable
         Assert.Equal(7, persistedPayload.BindingRevision);
         Assert.Equal(11, persistedPayload.SnapshotRevision);
         Assert.Equal(7, persistedPayload.McpGeneration);
+        Assert.Equal("ui://review/lookup", persistedPayload.McpAppResourceUri);
         Assert.Equal("workspace", persistedPayload.Source!.Origin);
         Assert.Equal("core.review", persistedPayload.Presentation!.PresentationId);
 

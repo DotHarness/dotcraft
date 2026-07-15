@@ -13,7 +13,7 @@ public sealed class McpAppViewLifecycleTests : IDisposable
     private readonly string _tempDir = Path.Combine(Path.GetTempPath(), $"McpAppViewTests_{Guid.NewGuid():N}");
 
     [Fact]
-    public async Task LiveEligibility_RequiresExactTurnItemAndCurrentAppRegistration()
+    public async Task Eligibility_RequiresPersistedAssociationExactTurnAndCurrentAppRegistration()
     {
         await using var manager = await CreateConnectedManagerAsync();
         var generation = Assert.NotNull(await manager.GetGenerationAsync("review"));
@@ -46,18 +46,19 @@ public sealed class McpAppViewLifecycleTests : IDisposable
                 SourceToolId = "show",
                 CallId = "call-1",
                 Status = "completed",
-                Success = true
+                Success = true,
+                McpAppResourceUri = "ui://review/show"
             }
         };
 
-        var eligible = await McpAppLiveEligibilityResolver.ResolveAsync(
+        var eligible = await McpAppEligibilityResolver.ResolveAsync(
             "thread-1",
             "turn_002",
             item,
             new SnapshotSource(snapshot),
             new McpRuntimeService(manager),
             CancellationToken.None);
-        var wrongTurn = await McpAppLiveEligibilityResolver.ResolveAsync(
+        var wrongTurn = await McpAppEligibilityResolver.ResolveAsync(
             "thread-1",
             "turn_001",
             item,
@@ -68,6 +69,89 @@ public sealed class McpAppViewLifecycleTests : IDisposable
         Assert.NotNull(eligible);
         Assert.Equal("ui://review/show", eligible.AppMetadata.ResourceUri?.AbsoluteUri.TrimEnd('/'));
         Assert.Null(wrongTurn);
+    }
+
+    [Fact]
+    public async Task ThreadProjection_DerivesHistoricalAvailabilityFromCurrentRuntime()
+    {
+        Directory.CreateDirectory(_tempDir);
+        await using var manager = await CreateConnectedManagerAsync();
+        var generation = Assert.NotNull(await manager.GetGenerationAsync("review"));
+        var registration = Registration(
+            "review",
+            "show",
+            McpAppVisibility.Model | McpAppVisibility.App,
+            resourceUri: "ui://review/show",
+            generation);
+        var snapshot = new EffectiveToolSnapshotBuilder().Build([registration], revision: 4);
+        var now = DateTimeOffset.UtcNow;
+        var item = new SessionItem
+        {
+            Id = "item_001",
+            TurnId = "turn_001",
+            Type = ItemType.McpToolCall,
+            Status = ItemStatus.Completed,
+            CreatedAt = now,
+            CompletedAt = now,
+            Payload = new McpToolCallPayload
+            {
+                Namespace = registration.Definition.Name.Namespace,
+                ToolName = registration.Definition.Name.Name,
+                ProviderFlatName = "mcp__review__show",
+                ToolDefinitionId = registration.Definition.Id.ToString(),
+                RuntimeBindingId = registration.Binding.Id.Value,
+                BindingRevision = registration.Binding.Revision,
+                SnapshotRevision = snapshot.Revision,
+                McpGeneration = generation,
+                Server = "review",
+                SourceToolId = "show",
+                CallId = "call-1",
+                Status = "completed",
+                Success = true,
+                McpAppResourceUri = "ui://review/show"
+            }
+        };
+        var turn = new SessionTurn
+        {
+            Id = item.TurnId,
+            ThreadId = "thread-1",
+            Status = TurnStatus.Completed,
+            StartedAt = now,
+            CompletedAt = now,
+            Items = [item]
+        };
+        var thread = new SessionThread
+        {
+            Id = "thread-1",
+            WorkspacePath = _tempDir,
+            CreatedAt = now,
+            LastActiveAt = now,
+            Turns = [turn]
+        };
+        var store = new ThreadStore(_tempDir);
+        await store.SaveThreadAsync(thread);
+        var sessions = new TestableSessionService(store);
+        var projector = new AppServerThreadWireProjector(
+            sessions,
+            CreateMcpAppConnection(),
+            appConfigMonitor: null,
+            new WorkspaceConfigEditor(null, null),
+            skillsLoader: null,
+            planStore: null,
+            appBindingService: null,
+            originPresentationProviders: null,
+            builtInPluginSourceRoots: null,
+            new SnapshotSource(snapshot),
+            new McpRuntimeService(manager));
+
+        var projected = await projector.ProjectAsync(
+            thread,
+            includeTurns: true,
+            filterToolExecutions: false,
+            CancellationToken.None);
+
+        var projectedItem = Assert.Single(Assert.Single(projected.Turns!).Items!);
+        Assert.True(projectedItem.McpApp?.Available);
     }
 
     [Fact]

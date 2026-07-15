@@ -3068,7 +3068,7 @@ export const MESSAGES_DE = {
   'mcpApp.title': 'MCP-App',
   'mcpApp.loading': 'Sichere App wird geöffnet…',
   'mcpApp.failed': 'Diese MCP-App konnte nicht geöffnet werden.',
-  'mcpApp.historyUnavailable': 'Die interaktive Ansicht ist im Verlauf nicht verfügbar.',
+  'mcpApp.unavailable': 'Die interaktive Ansicht ist derzeit nicht verfügbar.',
   'mcpApp.fullscreen': 'Im Vollbild öffnen',
   'mcpApp.exitFullscreen': 'Vollbild beenden',
 } satisfies Partial<Record<MessageId, string>>

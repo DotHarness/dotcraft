@@ -579,6 +579,7 @@ For a registered call, streamed arguments and dispatcher lifecycle events are co
   "structuredContent": any,     // Client/view-only structured result
   "_meta": object,              // Sanitized host/view-only MCP metadata
   "rawContent": array,          // Raw MCP content retained for clients, not model history
+  "mcpAppResourceUri": string,  // Optional normalized ui:// association from the invoked definition
   "isError": boolean,
   "success": boolean,           // Absent/null while in progress
   "errorCode": string,
@@ -588,7 +589,7 @@ For a registered call, streamed arguments and dispatcher lifecycle events are co
 
 `McpToolCall` is one lifecycle item and has no companion `ToolResult`. History reconstruction uses only `contentItems`; it MUST NOT insert `structuredContent`, `_meta`, or `rawContent` into model context.
 
-MCP Apps live-view eligibility, `viewHandle`, UI resource HTML/blob, CSP, and live authority state are wire/runtime data and MUST NOT be persisted in this payload. A persisted or replayed `McpToolCall` always uses the generic result presentation.
+`mcpAppResourceUri` and the bounded tool result are the only persisted MCP App presentation inputs. Availability is recalculated against the current MCP registration and authority when the Item is projected. `viewHandle`, UI resource HTML/blob, CSP, iframe/AppBridge state, pending context, credentials, and live authority state are runtime data and MUST NOT be persisted. When current availability cannot be established, a persisted or replayed `McpToolCall` uses the generic result presentation.
 
 #### DynamicToolCall
 
@@ -1702,7 +1703,7 @@ For each migrated channel:
 - `ui/message` starts immediately or uses the normal queued-input path and persists only safe MCP App trigger provenance.
 - Per-view pending context is last-write-wins, consumed exactly once at the central Turn-start boundary, and discarded on view/thread teardown.
 - Ordinary user Turns consume all pending thread contexts while View messages consume only their originating context.
-- Persisted and replayed `McpToolCall` items contain invocation provenance and audience-separated results but never live eligibility, handles, HTML, CSP, or pending context.
+- Persisted and replayed `McpToolCall` items contain invocation provenance, the normalized UI resource association, and audience-separated results, but never availability, handles, HTML, CSP, or pending context.
 
 ## 14. Validation Priorities
 

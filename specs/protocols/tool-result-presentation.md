@@ -57,23 +57,23 @@ App-only tools remain registered but are not projected to the model. Model-only 
 
 The host reads the declared resource from the exact owning MCP server generation. The returned resource MUST match the requested URI, use `text/html;profile=mcp-app`, and contain exactly one of text HTML or valid base64 blob content. Resource `_meta.ui` may declare CSP, permissions, domain, and border preference. Stable tool and resource metadata are not interchangeable.
 
-## 4. Live-only View authority
+## 4. View availability and authority
 
-Only a terminal `McpToolCall` delivered live to the same AppServer connection that advertised `mcpApps` may open an MCP App. AppServer attaches a non-persistent `mcpApp.available = true` projection only to that live `item/completed` delivery.
+The terminal `McpToolCall` persists its normalized `ui://` association and bounded tool result. AppServer may attach the non-persistent `mcpApp.available = true` projection to a live completion or a history projection when the association still matches the current registration, App audience, binding authority, and online MCP runtime.
 
-`thread/read`, replay, resume, navigation reload, Desktop restart, a new AppServer connection, and MCP generation replacement always use the generic frozen result. Neither eligibility nor `viewHandle` is persisted. A same-named reconnected server never inherits prior view authority.
+Availability is advisory and is recalculated whenever the Item is projected or opened. Neither availability nor `viewHandle` is persisted. Navigation, resume, Desktop restart, or a new AppServer connection creates a new View against the current MCP session; it never restores a previous handle, iframe, AppBridge, pending context, or MCP generation. If current authority cannot be established, the client uses the generic frozen result.
 
-Thread rollback immediately clears connection-local eligibility for every removed live result in that thread. Existing handles must be closed or rejected by subsequent authority checks; rollback cannot make a prior result live again.
+Thread rollback immediately closes active Views for that thread. A removed result cannot pass a later availability or open check.
 
 `Turn.error` is the canonical user-facing presentation of a Turn failure. Session Core may retain an Error Item as a diagnostic record, but a client MUST present an identical Error Item and `Turn.error` only once. Distinct errors remain independently visible.
 
-`mcpApp/view/open` accepts only `threadId`, `turnId`, and `itemId`. Core validates the exact live delivery, terminal item, current snapshot, definition, runtime binding, authority, App visibility, and MCP generation before atomically reading the UI resource and issuing a random opaque handle.
+`mcpApp/view/open` accepts only `threadId`, `turnId`, and `itemId`. Core validates the terminal item, persisted association, current definition, runtime binding, authority, App visibility, and online MCP runtime before reading the UI resource with an independent bounded timeout and issuing a random opaque handle.
 
 Each handle is connection-owned and binds immutable thread/Turn/Item, server/origin, generation, definition/runtime binding, snapshot/authority revision, raw source tool id, and resource URI. Desktop and the iframe cannot supply or override those values. Disconnect, archive/delete, generation replacement, revoke, plugin disable, configuration replacement, or view close invalidates the handle immediately.
 
 ## 5. Host and AppBridge behavior
 
-The host implements the stable initialize/initialized lifecycle, ping, teardown, tool-input and tool-result notifications, host-context updates, same-server tools/resources, logging, safe links, `ui/message`, and `ui/update-model-context`.
+The host implements the stable initialize/initialized lifecycle, ping, teardown, tool-input and tool-result notifications, host-context updates, same-server tools/resources, logging, safe links, `ui/message`, and `ui/update-model-context`. Desktop creates the sandbox iframe only after `mcpApp/view/open` succeeds, connects AppBridge before loading the sandbox proxy, waits for sandbox readiness before delivering HTML, waits for View initialization, and only then delivers tool input and result. Every stage has a bounded timeout and a single teardown path.
 
 Supported display modes are inline and fullscreen. Fullscreen reuses the same view handle. Picture-in-picture, persisted widget state, dedicated domains, and iframe permissions are not supported.
 

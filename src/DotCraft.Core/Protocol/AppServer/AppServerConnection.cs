@@ -24,8 +24,6 @@ public sealed class AppServerConnection
 
     // Logical interactive requests already delivered on this connection.
     private readonly ConcurrentDictionary<InteractiveRequestKey, byte> _interactiveRequests = new();
-    private readonly ConcurrentDictionary<McpAppItemKey, byte> _mcpAppItems = new();
-
     internal event Action<string>? McpAppThreadEligibilityRevoked;
 
     // -------------------------------------------------------------------------
@@ -273,31 +271,12 @@ public sealed class AppServerConnection
         _isClosed = true;
         _appPrincipalId = null;
         _appPrincipalAppId = null;
-        _mcpAppItems.Clear();
         _closedTcs.TrySetResult();
     }
 
-    /// <summary>Marks a terminal MCP item as delivered live on this connection.</summary>
-    public bool TryRegisterMcpAppItem(string threadId, string turnId, string itemId) =>
-        SupportsMcpApps
-        && !_isClosed
-        && _mcpAppItems.TryAdd(new McpAppItemKey(threadId, turnId, itemId), 0);
-
-    /// <summary>Returns whether an item may open a View on this exact connection.</summary>
-    public bool IsMcpAppItemEligible(string threadId, string turnId, string itemId) =>
-        SupportsMcpApps
-        && !_isClosed
-        && _mcpAppItems.ContainsKey(new McpAppItemKey(threadId, turnId, itemId));
-
-    /// <summary>Revokes all live MCP App item authority for a thread on this connection.</summary>
+    /// <summary>Signals active MCP App Views for a rolled-back thread to close.</summary>
     internal void RevokeMcpAppThreadEligibility(string threadId)
     {
-        foreach (var key in _mcpAppItems.Keys.Where(key =>
-                     string.Equals(key.ThreadId, threadId, StringComparison.Ordinal)))
-        {
-            _mcpAppItems.TryRemove(key, out _);
-        }
-
         McpAppThreadEligibilityRevoked?.Invoke(threadId);
     }
 
@@ -425,7 +404,6 @@ public sealed class AppServerConnection
         string TurnId,
         string RequestId);
 
-    private readonly record struct McpAppItemKey(string ThreadId, string TurnId, string ItemId);
 }
 
 public sealed class ChannelToolRegistrationDiagnostic

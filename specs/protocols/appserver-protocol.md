@@ -1919,7 +1919,7 @@ The canonical item payload schemas are defined in [Session Core, Section 4.2](..
 | `toolExecution` | Runtime lifecycle enhancement for a normal tool invocation. Payload uses `callId`, `toolName`, `status`, `success`, `durationMs`, `resultPreview`, and `errorMessage`. It is emitted only when the client advertises `capabilities.toolExecutionLifecycle = true`. |
 | `imageGeneration` | Hosted image generation lifecycle item. Payload uses `callId`, `status` (`"inProgress"` / `"completed"` / `"failed"`), optional `revisedPrompt`, optional base64 `result`, `mediaType`, optional `savedPath`, and optional `errorMessage`. Clients should render it independently from ordinary tool aggregation and must not treat `"inProgress"` provider status as failure. |
 | `pluginFunctionCall` | Reserved persisted item type. Servers MUST NOT create this item for an invocation or expand it into model history because it lacks the canonical composite identity and `providerFlatName`. |
-| `mcpToolCall` | One MCP lifecycle item with canonical namespace/name, required `providerFlatName`, runtime `server`, `origin`, raw `sourceToolId`, definition/runtime binding identities, binding/snapshot revisions, safe provenance, original `callId`, arguments, status, duration, normalized `contentItems`, raw MCP content, `structuredContent`, sanitized `_meta`, `isError`, success, and stable error fields. It has no companion `toolResult`. View handles, HTML, CSP, and live eligibility are never persisted in the item. |
+| `mcpToolCall` | One MCP lifecycle item with canonical namespace/name, required `providerFlatName`, runtime `server`, `origin`, raw `sourceToolId`, definition/runtime binding identities, binding/snapshot revisions, safe provenance, original `callId`, arguments, status, duration, normalized `contentItems`, raw MCP content, `structuredContent`, sanitized `_meta`, `isError`, success, stable error fields, and optional normalized `mcpAppResourceUri`. It has no companion `toolResult`. View handles, HTML, CSP, and availability are never persisted in the item. |
 | `dynamicToolCall` | One Runtime Dynamic lifecycle item with optional canonical namespace, canonical local tool name, required `providerFlatName`, original `callId`, arguments, `inProgress`/`completed`/`failed` status, duration, `contentItems`, `structuredContent`, nullable terminal success, and stable error fields. It has no companion `toolCall`/`toolResult`. |
 | `toolResult` | Standard result paired by `callId`, preserving canonical namespace/name and required `providerFlatName`, with model-safe `result`/`contentItems`, client-only `structuredContent`, sanitized host-only `_meta`, success, and stable error fields. Provider history never includes `structuredContent` or `_meta`. |
 | `approvalRequest` | Approval payload uses the canonical fields plus wire enum/string serialization rules from this spec. |
@@ -2007,7 +2007,7 @@ Client handling rules:
 
 Emitted when an item is finalized. The `item.status` is `"completed"` and the payload contains the final accumulated value.
 
-For a terminal `mcpToolCall` delivered live to the same connection, the server MAY attach the following non-persistent wire enhancement when that connection advertised `capabilities.mcpApps = true` and the exact tool definition, binding, snapshot, authority, MCP generation, and UI resource declaration remain current:
+For a terminal `mcpToolCall`, the server MAY attach the following non-persistent wire enhancement when that connection advertised `capabilities.mcpApps = true` and the persisted UI association still matches the current tool definition, runtime, authority, and UI resource declaration:
 
 ```json
 {
@@ -2015,7 +2015,7 @@ For a terminal `mcpToolCall` delivered live to the same connection, the server M
 }
 ```
 
-This marker is connection-local capability evidence, not Session data. It is never returned by `thread/read`, replayed after resume, or recreated for a new connection. Eligibility is keyed by `(threadId, turnId, itemId)`. It contains no `viewHandle`; the client obtains a handle only through `mcpApp/view/open`.
+This marker is current availability evidence, not Session data or authority. It may be returned by live notifications and by `thread/read` or resume projections. It contains no resource URI or `viewHandle`; the client obtains a new handle only through `mcpApp/view/open`, which repeats every authority check.
 
 #### `item/commandExecution/outputDelta`
 
@@ -5247,15 +5247,15 @@ On failure, the method returns a successful JSON-RPC response with structured fi
 
 These methods implement the stable MCP Apps `io.modelcontextprotocol/ui` `2026-01-26` host boundary. They require both server and client `mcpApps` capabilities and are separate from App Binding control-plane methods and the unrestricted MCP runtime methods in Section 22.8.
 
-Only a terminal `mcpToolCall` that was delivered live with `mcpApp.available = true` to the same connection is eligible. Every handle is random, connection-owned, and internally binds the thread/Turn/Item, server/origin, MCP generation, definition/runtime binding identity, snapshot/authority revision, raw source tool identity, and resource URI. Those authority fields never appear as request parameters.
+Only a terminal `mcpToolCall` whose persisted UI association still matches the current MCP registration and authority is eligible. `mcpApp.available = true` is an advisory projection of that check, not a reusable capability. Every handle is random, connection-owned, and internally binds the thread/Turn/Item, server/origin, current MCP generation, definition/runtime binding identity, authority revision, raw source tool identity, and resource URI. Those authority fields never appear as request parameters.
 
-Successful `thread/rollback` clears that thread's connection-local MCP App item eligibility immediately. A removed Turn cannot open a new View, and an already issued handle must fail its next authority check or be closed.
+Successful `thread/rollback` closes that thread's active MCP App Views immediately. A removed Turn cannot pass a later availability or open check.
 
 #### 22.10.1 `mcpApp/view/open`
 
 **Direction:** client → server. Params are `{ "threadId": string, "turnId": string, "itemId": string }`.
 
-The server validates the live delivery, terminal item, current snapshot/binding/authority, App visibility, and MCP generation; reads and validates the declared resource atomically; then returns:
+The server validates the terminal item, persisted association, current registration/binding/authority, App visibility, and current MCP runtime; reads and validates the declared resource with an independent bounded timeout; then creates a new connection-owned handle and returns:
 
 ```json
 {
@@ -5284,6 +5284,8 @@ The server validates the live delivery, terminal item, current snapshot/binding/
 ```
 
 Resource content contains exactly one of `text` or `blob`. The URI must be absolute `ui://`, the returned URI must match, and the MIME type must be `text/html;profile=mcp-app`.
+
+No previous handle, iframe, AppBridge state, pending context, or MCP session authority is restored. Resource timeout is reported as `resource_timeout` and does not change the MCP server's Ready state.
 
 #### 22.10.2 `mcpApp/view/resource/read`
 

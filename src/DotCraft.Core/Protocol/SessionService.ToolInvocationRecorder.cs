@@ -1,5 +1,6 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using DotCraft.Mcp;
 using DotCraft.Plugins;
 using DotCraft.Tools;
 
@@ -175,6 +176,7 @@ public sealed partial class SessionService
                     McpGeneration = registration.Binding.Revision,
                     Source = ToSessionProvenance(registration.Definition),
                     Presentation = ToSessionPresentation(registration.Definition.Presentation),
+                    McpAppResourceUri = GetMcpAppResourceUri(registration.Definition),
                     Server = registration.Definition.Id.SourceId,
                     Origin = registration.Definition.Provenance.Origin ?? "workspace",
                     SourceToolId = registration.Definition.Id.SourceToolId.Value,
@@ -276,6 +278,11 @@ public sealed partial class SessionService
             Options = options
         };
     }
+
+    private static string? GetMcpAppResourceUri(ToolDefinition definition) =>
+        McpAppMetadataParser.TryGetToolMetadata(definition, out var metadata)
+            ? metadata.ResourceUri?.AbsoluteUri
+            : null;
 
     private static McpToolCallPayload CompleteMcpPayload(
         McpToolCallPayload started,

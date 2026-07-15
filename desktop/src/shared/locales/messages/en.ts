@@ -3251,7 +3251,7 @@ export const MESSAGES_EN = {
   'mcpApp.title': 'MCP App',
   'mcpApp.loading': 'Opening secure app…',
   'mcpApp.failed': 'This MCP App could not be opened.',
-  'mcpApp.historyUnavailable': 'Interactive view is unavailable for history.',
+  'mcpApp.unavailable': 'Interactive view is currently unavailable.',
   'mcpApp.fullscreen': 'Open fullscreen',
   'mcpApp.exitFullscreen': 'Exit fullscreen'
 } as const

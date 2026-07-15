@@ -3066,7 +3066,7 @@ export const MESSAGES_FR = {
   'mcpApp.title': 'Application MCP',
   'mcpApp.loading': 'Ouverture de l’application sécurisée…',
   'mcpApp.failed': 'Impossible d’ouvrir cette application MCP.',
-  'mcpApp.historyUnavailable': 'La vue interactive n’est pas disponible dans l’historique.',
+  'mcpApp.unavailable': 'La vue interactive est actuellement indisponible.',
   'mcpApp.fullscreen': 'Ouvrir en plein écran',
   'mcpApp.exitFullscreen': 'Quitter le plein écran',
 } satisfies Partial<Record<MessageId, string>>

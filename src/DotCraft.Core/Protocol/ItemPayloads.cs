@@ -578,6 +578,9 @@ public sealed record McpToolCallPayload
     [JsonPropertyName("_meta")]
     public JsonNode? Meta { get; init; }
 
+    /// <summary>Normalized MCP Apps UI resource associated with the invoked tool definition.</summary>
+    public string? McpAppResourceUri { get; init; }
+
     public bool? IsError { get; init; }
 
     public bool? Success { get; init; }

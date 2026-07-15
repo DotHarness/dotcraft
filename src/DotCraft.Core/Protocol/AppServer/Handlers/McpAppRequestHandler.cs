@@ -13,6 +13,7 @@ internal sealed class McpAppRequestHandler : IAppServerDomainHandler, IDisposabl
 {
     private const int MaxMessageBytes = 16 * 1024;
     private const int MaxBridgeResultBytes = 2 * 1024 * 1024;
+    private static readonly TimeSpan ResourceReadTimeout = TimeSpan.FromSeconds(10);
 
     private readonly ISessionService _sessions;
     private readonly AppServerConnection _connection;
@@ -73,14 +74,11 @@ internal sealed class McpAppRequestHandler : IAppServerDomainHandler, IDisposabl
             || string.IsNullOrWhiteSpace(parameters.TurnId)
             || string.IsNullOrWhiteSpace(parameters.ItemId))
             throw AppServerErrors.InvalidParams("'threadId', 'turnId', and 'itemId' are required.");
-        if (!_connection.IsMcpAppItemEligible(parameters.ThreadId, parameters.TurnId, parameters.ItemId))
-            throw McpAppViewErrors.Create("stale", "Only a live MCP tool result can open an MCP App View.");
-
         var thread = await _sessions.GetThreadAsync(parameters.ThreadId, cancellationToken).ConfigureAwait(false);
         var item = thread.Turns
             .FirstOrDefault(turn => string.Equals(turn.Id, parameters.TurnId, StringComparison.Ordinal))?
             .Items.FirstOrDefault(candidate => string.Equals(candidate.Id, parameters.ItemId, StringComparison.Ordinal));
-        var eligibility = await McpAppLiveEligibilityResolver.ResolveAsync(
+        var eligibility = await McpAppEligibilityResolver.ResolveAsync(
             parameters.ThreadId,
             parameters.TurnId,
             item,
@@ -88,7 +86,7 @@ internal sealed class McpAppRequestHandler : IAppServerDomainHandler, IDisposabl
             _mcpRuntime,
             cancellationToken).ConfigureAwait(false);
         if (eligibility is null)
-            throw McpAppViewErrors.Create("stale", "The MCP tool result is not eligible for a live View.");
+            throw McpAppViewErrors.Create("stale", "The MCP tool result is not currently eligible for a View.");
         var payload = eligibility.Payload;
         var registration = eligibility.Registration;
         var appMetadata = eligibility.AppMetadata;
@@ -96,17 +94,23 @@ internal sealed class McpAppRequestHandler : IAppServerDomainHandler, IDisposabl
         var generation = eligibility.Generation;
         var canonicalName = registration.Definition.Name;
         var resourceUri = appMetadata.ResourceUri!;
-        var snapshot = await _snapshots!.GetEffectiveToolSnapshotAsync(parameters.ThreadId, cancellationToken).ConfigureAwait(false);
+        var snapshot = eligibility.Snapshot;
         WatchManager(manager);
 
         ReadResourceResult rawResource;
         try
         {
+            using var resourceCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            resourceCts.CancelAfter(ResourceReadTimeout);
             rawResource = await manager.ReadResourceAsync(
                 payload.Server,
                 resourceUri.AbsoluteUri,
                 generation,
-                cancellationToken).ConfigureAwait(false);
+                resourceCts.Token).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+        {
+            throw McpAppViewErrors.Create("resource_timeout", "The MCP App resource read timed out.");
         }
         catch (Exception exception) when (exception is not OperationCanceledException)
         {
@@ -139,7 +143,7 @@ internal sealed class McpAppRequestHandler : IAppServerDomainHandler, IDisposabl
         // Close the publication race between the initial authority check/resource read and
         // capability registration. A change before Add is observed here; a change after Add is
         // observed by the snapshot/status subscriptions.
-        var latestSnapshot = await _snapshots.GetEffectiveToolSnapshotAsync(parameters.ThreadId, cancellationToken).ConfigureAwait(false);
+        var latestSnapshot = await _snapshots!.GetEffectiveToolSnapshotAsync(parameters.ThreadId, cancellationToken).ConfigureAwait(false);
         var latestGeneration = await manager.GetGenerationAsync(payload.Server, cancellationToken).ConfigureAwait(false);
         var newerRevisionPublished = _publishedSnapshotRevisions.TryGetValue(state.ThreadId, out var publishedRevision)
                                       && publishedRevision != state.SnapshotRevision;
@@ -177,11 +181,21 @@ internal sealed class McpAppRequestHandler : IAppServerDomainHandler, IDisposabl
         var state = await ValidateAsync(parameters.ViewHandle, cancellationToken).ConfigureAwait(false);
         if (!Uri.TryCreate(parameters.Uri, UriKind.Absolute, out _))
             throw McpAppViewErrors.Create("invalid_input", "A valid absolute resource URI is required.");
-        var result = await state.Manager.ReadResourceAsync(
-            state.ServerName,
-            parameters.Uri,
-            state.Generation,
-            cancellationToken).ConfigureAwait(false);
+        ReadResourceResult result;
+        try
+        {
+            using var resourceCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            resourceCts.CancelAfter(ResourceReadTimeout);
+            result = await state.Manager.ReadResourceAsync(
+                state.ServerName,
+                parameters.Uri,
+                state.Generation,
+                resourceCts.Token).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+        {
+            throw McpAppViewErrors.Create("resource_timeout", "The MCP App resource read timed out.");
+        }
         var contents = SerializeArray(result.Contents);
         if (Encoding.UTF8.GetByteCount(contents.ToJsonString()) > MaxBridgeResultBytes)
             throw McpAppViewErrors.Create("result_too_large", "The MCP App resource exceeds the maximum size.");
@@ -354,7 +368,14 @@ internal sealed class McpAppRequestHandler : IAppServerDomainHandler, IDisposabl
         && registration.Binding.Revision == state.BindingRevision
         && registration.InvocationAudiences.HasFlag(ToolInvocationAudience.App)
         && McpAppMetadataParser.TryGetToolMetadata(registration.Definition, out var appMetadata)
-        && appMetadata.Visibility.HasFlag(McpAppVisibility.App);
+        && appMetadata.Visibility.HasFlag(McpAppVisibility.App)
+        && appMetadata.ResourceUri is not null
+        && Uri.Compare(
+            appMetadata.ResourceUri,
+            state.ResourceUri,
+            UriComponents.AbsoluteUri,
+            UriFormat.SafeUnescaped,
+            StringComparison.Ordinal) == 0;
 
     private void EnsureAvailable()
     {

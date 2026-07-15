@@ -3060,7 +3060,7 @@ export const MESSAGES_KO = {
   'mcpApp.title': 'MCP 앱',
   'mcpApp.loading': '보안 앱을 여는 중…',
   'mcpApp.failed': '이 MCP 앱을 열 수 없습니다.',
-  'mcpApp.historyUnavailable': '기록에서는 대화형 보기를 사용할 수 없습니다.',
+  'mcpApp.unavailable': '현재 대화형 보기를 사용할 수 없습니다.',
   'mcpApp.fullscreen': '전체 화면으로 열기',
   'mcpApp.exitFullscreen': '전체 화면 종료',
 } satisfies Partial<Record<MessageId, string>>

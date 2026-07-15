@@ -13,6 +13,10 @@ import {
 } from './mcpAppSecurity'
 
 const ACTION_TIMEOUT_MS = 120_000
+const OPEN_TIMEOUT_MS = 15_000
+const SANDBOX_READY_TIMEOUT_MS = 10_000
+const INITIALIZE_TIMEOUT_MS = 15_000
+const DATA_DELIVERY_TIMEOUT_MS = 15_000
 const DEFAULT_HEIGHT = 420
 const MAX_HEIGHT = 720
 
@@ -137,18 +141,36 @@ function McpAppViewImpl({ item, threadId, turnId }: McpAppViewProps): JSX.Elemen
   const [fullscreen, setFullscreen] = useState(false)
   const logTimes = useRef<number[]>([])
   const sizeUpdateAt = useRef(0)
+  const phaseTimeoutRef = useRef<number | null>(null)
 
   useEffect(() => {
+    if (phaseTimeoutRef.current !== null) {
+      window.clearTimeout(phaseTimeoutRef.current)
+      phaseTimeoutRef.current = null
+    }
+    const previousBridge = bridgeRef.current
+    bridgeRef.current = null
+    if (previousBridge) {
+      void previousBridge.teardownResource({}, { timeout: 1_000 }).catch(() => {}).finally(() => previousBridge.close())
+    }
+    const previousHandle = handleRef.current
+    handleRef.current = null
+    if (previousHandle) {
+      void window.api.appServer.sendRequest('mcpApp/view/close', { viewHandle: previousHandle }).catch(() => {})
+    }
+    setOpenResult(null)
+    setError('')
     if (!threadId || !item.mcpAppAvailable) {
       setStatus('stale')
       return
     }
+    setStatus('opening')
     let cancelled = false
     void window.api.appServer.sendRequest('mcpApp/view/open', {
       threadId,
       turnId,
       itemId: item.id
-    }, ACTION_TIMEOUT_MS).then((result) => {
+    }, OPEN_TIMEOUT_MS).then((result) => {
       if (cancelled) {
         const handle = (result as McpAppOpenResult).viewHandle
         if (handle) void window.api.appServer.sendRequest('mcpApp/view/close', { viewHandle: handle }).catch(() => {})
@@ -174,7 +196,14 @@ function McpAppViewImpl({ item, threadId, turnId }: McpAppViewProps): JSX.Elemen
     if (handle) void window.api.appServer.sendRequest('mcpApp/view/close', { viewHandle: handle }).catch(() => {})
   }, [])
 
+  const clearPhaseTimeout = useCallback(() => {
+    if (phaseTimeoutRef.current === null) return
+    window.clearTimeout(phaseTimeoutRef.current)
+    phaseTimeoutRef.current = null
+  }, [])
+
   const failView = useCallback((reason: string) => {
+    clearPhaseTimeout()
     setError(reason)
     setStatus('failed')
     const bridge = bridgeRef.current
@@ -183,7 +212,12 @@ function McpAppViewImpl({ item, threadId, turnId }: McpAppViewProps): JSX.Elemen
       void bridge.teardownResource({}, { timeout: 1_000 }).catch(() => {}).finally(() => bridge.close())
     }
     closeView()
-  }, [closeView])
+  }, [clearPhaseTimeout, closeView])
+
+  const armPhaseTimeout = useCallback((timeoutMs: number) => {
+    clearPhaseTimeout()
+    phaseTimeoutRef.current = window.setTimeout(() => failView(''), timeoutMs)
+  }, [clearPhaseTimeout, failView])
 
   const setIframeRef = useCallback((node: HTMLIFrameElement | null) => {
     if (iframeRef.current === node) return
@@ -196,13 +230,14 @@ function McpAppViewImpl({ item, threadId, turnId }: McpAppViewProps): JSX.Elemen
   }, [])
 
   useEffect(() => () => {
+    clearPhaseTimeout()
     const bridge = bridgeRef.current
     bridgeRef.current = null
     if (bridge) {
       void bridge.teardownResource({}, { timeout: 1_000 }).catch(() => {}).finally(() => bridge.close())
     }
     closeView()
-  }, [closeView])
+  }, [clearPhaseTimeout, closeView])
 
   useEffect(() => window.api.appServer.onNotification((notification) => {
     if (notification.method !== 'mcpApp/view/status/updated') return
@@ -278,7 +313,7 @@ function McpAppViewImpl({ item, threadId, turnId }: McpAppViewProps): JSX.Elemen
       setFullscreen(granted === 'fullscreen')
       return { mode: granted }
     }
-    bridge.onrequestteardown = () => closeView()
+    bridge.onrequestteardown = () => failView('')
     bridge.onsizechange = ({ height: requestedHeight }) => {
       const now = Date.now()
       if (now - sizeUpdateAt.current < 100 || typeof requestedHeight !== 'number') return
@@ -293,14 +328,29 @@ function McpAppViewImpl({ item, threadId, turnId }: McpAppViewProps): JSX.Elemen
       const safeData = JSON.stringify(data)?.slice(0, 8 * 1024)
       console.debug(`[MCP App:${level}] ${String(logger ?? '').slice(0, 128)}`, safeData)
     }
+    let sandboxReady = false
+    ;(bridge as AppBridge & { onsandboxready?: () => void }).onsandboxready = () => {
+      if (sandboxReady) return
+      sandboxReady = true
+      clearPhaseTimeout()
+      armPhaseTimeout(INITIALIZE_TIMEOUT_MS)
+      void bridge.sendSandboxResourceReady({
+        html: buildMcpAppDocument(opened.resource.html, opened.resource.ui.csp),
+        sandbox: 'allow-scripts',
+        csp: opened.resource.ui.csp,
+        permissions: {}
+      }).catch((reason) => failView(reason instanceof Error ? reason.message : String(reason)))
+    }
     bridge.oninitialized = () => {
+      clearPhaseTimeout()
+      armPhaseTimeout(DATA_DELIVERY_TIMEOUT_MS)
       void bridge.sendToolInput({ arguments: opened.toolInput })
         .then(() => bridge.sendToolResult(asToolResult(opened.toolResult) as never))
-        .then(() => setStatus('ready'))
-        .catch((reason) => {
-          setError(reason instanceof Error ? reason.message : String(reason))
-          setStatus('failed')
+        .then(() => {
+          clearPhaseTimeout()
+          setStatus('ready')
         })
+        .catch((reason) => failView(reason instanceof Error ? reason.message : String(reason)))
     }
 
     try {
@@ -310,16 +360,17 @@ function McpAppViewImpl({ item, threadId, turnId }: McpAppViewProps): JSX.Elemen
         () => failView('')
       )
       await bridge.connect(transport)
-      await bridge.sendSandboxResourceReady({
-        html: buildMcpAppDocument(opened.resource.html, opened.resource.ui.csp),
-        sandbox: 'allow-scripts',
-        csp: opened.resource.ui.csp,
-        permissions: {}
-      })
+      armPhaseTimeout(SANDBOX_READY_TIMEOUT_MS)
+      iframe.srcdoc = SANDBOX_PROXY_HTML
     } catch (reason) {
       failView(reason instanceof Error ? reason.message : String(reason))
     }
-  }, [failView, fullscreen, height, locale, openResult])
+  }, [armPhaseTimeout, clearPhaseTimeout, failView, fullscreen, height, locale, openResult])
+
+  useEffect(() => {
+    if (status !== 'opening' || !openResult) return
+    void connectBridge()
+  }, [connectBridge, openResult, status])
 
   useEffect(() => {
     const update = (): void => {
@@ -345,10 +396,17 @@ function McpAppViewImpl({ item, threadId, turnId }: McpAppViewProps): JSX.Elemen
 
   const body = useMemo(() => {
     if (status === 'stale') {
-      return <Fallback icon={<Puzzle size={18} />} title={translate(locale, 'mcpApp.historyUnavailable')} detail={item.result} />
+      return <Fallback icon={<Puzzle size={18} />} title={translate(locale, 'mcpApp.unavailable')} detail={item.result} />
     }
     if (status === 'failed') {
       return <Fallback icon={<TriangleAlert size={18} />} title={translate(locale, 'mcpApp.failed')} detail={error || item.result} />
+    }
+    if (!openResult) {
+      return (
+        <div style={{ position: 'relative', width: '100%', height, minHeight: 120, display: 'grid', placeItems: 'center', color: 'var(--text-dimmed)', fontSize: 12 }}>
+          {translate(locale, 'mcpApp.loading')}
+        </div>
+      )
     }
     return (
       <div style={{ position: 'relative', width: '100%', height, minHeight: 120 }}>
@@ -360,16 +418,15 @@ function McpAppViewImpl({ item, threadId, turnId }: McpAppViewProps): JSX.Elemen
         <iframe
           ref={setIframeRef}
           title={translate(locale, 'mcpApp.title')}
-          srcDoc={SANDBOX_PROXY_HTML}
+          src="about:blank"
           sandbox="allow-scripts"
           referrerPolicy="no-referrer"
           allow=""
-          onLoad={() => void connectBridge()}
           style={{ width: '100%', height: '100%', border: 0, background: 'transparent', opacity: status === 'ready' ? 1 : 0 }}
         />
       </div>
     )
-  }, [connectBridge, error, height, item.result, locale, status])
+  }, [error, height, item.result, locale, openResult, status])
 
   const card = (
     <div style={{ border: openResult?.resource.ui.prefersBorder === false ? 'none' : '1px solid var(--border-default)', borderRadius: 8, overflow: 'hidden', background: 'var(--bg-secondary)' }}>
@@ -411,7 +468,7 @@ function Fallback({ icon, title, detail }: { icon: JSX.Element; title: string; d
   )
 }
 
-export function hasLiveMcpApp(item: ConversationItem): boolean {
+export function hasAvailableMcpApp(item: ConversationItem): boolean {
   return item.type === 'mcpToolCall' && item.status === 'completed' && item.mcpAppAvailable === true
 }
 

@@ -3152,7 +3152,7 @@ export const MESSAGES_ZH_HANS = {
   'mcpApp.title': 'MCP 应用',
   'mcpApp.loading': '正在打开安全应用…',
   'mcpApp.failed': '无法打开此 MCP 应用。',
-  'mcpApp.historyUnavailable': '历史记录不支持交互视图。',
+  'mcpApp.unavailable': '当前无法使用交互视图。',
   'mcpApp.fullscreen': '全屏打开',
   'mcpApp.exitFullscreen': '退出全屏',
 } satisfies Partial<Record<MessageId, string>>

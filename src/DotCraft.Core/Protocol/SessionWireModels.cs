@@ -367,13 +367,13 @@ public sealed record SessionWireItem
 
     public object? Payload { get; init; }
 
-    /// <summary>Connection-scoped live MCP Apps hint; absent from persisted thread reads.</summary>
+    /// <summary>Current MCP Apps availability hint derived from the active runtime and authority.</summary>
     [System.Text.Json.Serialization.JsonIgnore(
         Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     public McpAppViewHintWire? McpApp { get; init; }
 }
 
-/// <summary>Indicates that a live terminal MCP item can open an MCP App View.</summary>
+/// <summary>Indicates that a terminal MCP item can currently open a new MCP App View.</summary>
 public sealed record McpAppViewHintWire
 {
     public bool Available { get; init; }

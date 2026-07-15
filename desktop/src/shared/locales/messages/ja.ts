@@ -3058,7 +3058,7 @@ export const MESSAGES_JA = {
   'mcpApp.title': 'MCP アプリ',
   'mcpApp.loading': '安全なアプリを開いています…',
   'mcpApp.failed': 'この MCP アプリを開けませんでした。',
-  'mcpApp.historyUnavailable': '履歴ではインタラクティブビューを利用できません。',
+  'mcpApp.unavailable': '現在、インタラクティブビューを利用できません。',
   'mcpApp.fullscreen': '全画面で開く',
   'mcpApp.exitFullscreen': '全画面を終了',
 } satisfies Partial<Record<MessageId, string>>
