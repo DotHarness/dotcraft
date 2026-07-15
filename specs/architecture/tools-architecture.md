@@ -439,7 +439,7 @@ App Binding does not own:
 
 Enabling an already connected app is one thread-level authorization action. If the app is not connected, the handoff MAY combine connection/login/account selection and then automatically enable the requesting thread. DotCraft MUST NOT require a routine second confirmation after successful app-side connection.
 
-The first MCP initialization snapshot is approved by the original enable action. Later capability expansion requires a thread-side confirmation. Expansion includes a new tool, widened schema/visibility/risk, or widened UI CSP domain/permission. Removal, title/description changes, endpoint or token rotation, and capability narrowing are auto-accepted.
+The first MCP initialization snapshot is approved by the original enable action. Later capability expansion requires a thread-side confirmation. Expansion includes a new tool, widened schema/visibility/risk, or widened UI CSP domain/permission. Removal, title/description changes, endpoint or token rotation, and capability narrowing are auto-accepted. Rejecting an expansion discards the candidate and moves the binding offline; the previous approved snapshot remains only as the offline registration baseline and cannot dispatch until a compatible authenticated rebind succeeds.
 
 The grant is the whole app for one thread. App Binding does not expose a per-scope tool picker.
 
@@ -478,7 +478,7 @@ Social binding uses a dedicated channel-principal resolve/accept/rebind flow, no
 
 ### 16.3 External application integrations
 
-Long-lived application tools use binding MCP and interactive UI uses MCP Apps. Run-specific submission callbacks use Runtime Dynamic Tools because they are ephemeral callbacks owned by the active run/client connection. Integrations that host Streamable HTTP MCP add a binding-scoped authenticated endpoint or strictly separated authentication mode, independent per-binding session state, capability revision, and rebind. Binding authentication MUST NOT break shared MCP clients.
+Ordinary external integrations MAY expose tools through standard workspace, thread, or plugin MCP without App Binding. App Binding is used only when a product needs per-thread application authorization, connection handoff, capability confirmation, revoke, or rebind; those authorized tools use an independent binding MCP session. Interactive UI uses MCP Apps. Run-specific submission callbacks use Runtime Dynamic Tools because they are ephemeral callbacks owned by the active run/client connection. When one integration supports both shared and binding MCP, binding authentication and per-binding session state MUST remain isolated from shared MCP clients.
 
 ## 17. Baseline and intentional extensions
 
@@ -548,4 +548,4 @@ The architecture requires behavior-level coverage for:
 - Teams role-specific native snapshots plus live `TeamsService` business validation without App Binding;
 - App Binding enable/rebind/revoke/capability-expansion state transitions;
 - managed social target injection;
-- coordinated SDK and first-party wire conformance.
+- cross-SDK and first-party conformance for supported wire contracts.

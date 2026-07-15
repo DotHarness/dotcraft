@@ -126,7 +126,7 @@ The following require `thread/appBindings/confirmCapabilities`:
 
 Removal and provable narrowing take effect without confirmation. Stable reordering, title/description changes, endpoint rotation, and bearer rotation do not require confirmation. Complex or ambiguous schema/security differences are expansion.
 
-While `needsConfirmation`, the last approved compatible subset is the maximum authority. Candidate capabilities are not callable. Acceptance atomically promotes the candidate revision. Rejection discards it and retains the approved subset where the current server can still serve it safely; otherwise the binding becomes offline or failed.
+While `needsConfirmation`, candidate capabilities are not callable. Acceptance atomically promotes the candidate revision. Rejection discards the candidate and moves the binding offline; the previous `ApprovedTools` snapshot remains only as a non-executable registration, display, audit, and future-diff baseline. A compatible authenticated rebind may return the binding to `active` without another confirmation, while any later expansion creates a new candidate requiring confirmation.
 
 ### 6.3 Offline stubs
 
@@ -193,7 +193,7 @@ Security invariants:
 
 - One enable action activates and approves the initial binding MCP snapshot.
 - Restart creates offline stubs and authenticated rebind rotates the bearer.
-- Capability expansion is semantic, confirmed by the thread owner, and unenforceable before acceptance.
+- Capability expansion is semantic, confirmed by the thread owner, and unenforceable before acceptance; rejection leaves the binding offline until a compatible authenticated rebind.
 - App principal, binding bearer, and binding grant have independent revoke scopes.
 - Managed social tools use native registrations and server-owned targets.
 - Origin-channel execution remains independent.

@@ -214,8 +214,10 @@ Language bindings may expose only a subset as typed wrappers, but raw request ac
 Runtime Dynamic Tools use the same model in every SDK:
 
 - Tool specs are declared on `thread/start.dynamicTools` or `thread/resume.dynamicTools`.
+- Declarations use the canonical `Function` / `Namespace` tagged union; namespaced callback routing uses the composite `(namespace, tool)` identity rather than a flattened-name convention.
 - SDK-local handlers are not sent over the wire.
 - `item/tool/call` is dispatched by `threadId`, optional `namespace`, and `tool`.
+- Results use `success`, validated `contentItems`, optional client-only `structuredContent`, and stable `errorCode` / `errorMessage` fields. Legacy `structuredResult`, `_meta`, `_meta.ui`, and UI resource fields are invalid; interactive results use MCP Apps.
 - Missing handlers return `UnsupportedTool`.
 - Handler exceptions return `AdapterToolCallFailed`.
 - Tool handlers are responsible for argument validation and app-level authorization.
