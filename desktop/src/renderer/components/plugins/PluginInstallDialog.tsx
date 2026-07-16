@@ -537,4 +537,4 @@ const appSetupIconFallback: CSSProperties = { width: 36, height: 36, borderRadiu
 const primaryButton: CSSProperties = { minHeight: 38, border: 'none', borderRadius: 999, backgroundColor: 'var(--text-primary)', color: 'var(--bg-primary)', fontSize: 13, fontWeight: 700, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '0 16px' }
 const installPrimaryButton: CSSProperties = { ...primaryButton, width: '100%' }
 const completeCloseButton: CSSProperties = { ...installPrimaryButton, marginTop: 12 }
-const secondaryButton: CSSProperties = { minHeight: 34, border: 'none', borderRadius: 8, backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-primary)', fontSize: 12, fontWeight: 650, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '0 12px' }
+const secondaryButton: CSSProperties = { minHeight: 38, border: 'none', borderRadius: 8, backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-primary)', fontSize: 12, fontWeight: 650, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '0 12px' }

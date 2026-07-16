@@ -244,6 +244,8 @@ component family uses another token.
 - Cards and repeated items: 8px.
 - Dialogs and elevated popovers: 8px to 10px.
 - Pills, badges, and toggles: `999px` when the shape is semantically pill-like.
+  A standalone, high-emphasis primary action may also take the `999px` pill as a
+  documented exception (see Actions); ordinary in-row or repeated buttons do not.
 
 Keep shape language restrained. Large rounded rectangles should not be used as
 decoration.
@@ -282,6 +284,23 @@ Use them for inline affordances, low-frequency commands, and compact toolbars.
 Destructive actions must use explicit copy such as Delete, Remove, Discard, or
 Stop. Use `--error` for the danger affordance, but keep surrounding chrome
 neutral and require confirmation where appropriate.
+
+Text action buttons use a shared size so controls line up across panels,
+toolbars, rows, and dialogs:
+
+- default height `32px`, `8px` radius, `13px` type, `box-sizing: border-box`;
+- horizontal padding around `12–14px`; icon+label controls keep a `6px` gap;
+- buttons that share a row (for example a primary next to a secondary or a
+  refresh) must share the same height so the row reads as one control band.
+
+A taller, more prominent action is allowed as a deliberate exception, not the
+default. A standalone, high-emphasis call to action — the single primary button
+in a focused setup or install dialog, or a lone full-width confirm — may use a
+larger pill: a `~38px` height with `999px` radius to read as the one clear next
+step. This is the only case where an action button takes the pill (`999px`)
+shape; ordinary repeated or in-row actions stay at the `32px` / `8px` standard.
+When a prominent pill shares a row with other buttons, raise the others to the
+same height so the row still aligns.
 
 ### Icon Buttons
 
