@@ -276,7 +276,8 @@ internal sealed class WorkspaceRequestHandler(
         if (saveResult.ModelChanged || saveResult.ProviderModelsChanged)
             changedRegions.Add(ConfigChangeRegions.WorkspaceModel);
         if (saveResult.ProviderIdChanged
-            || saveResult.ModelChanged)
+            || saveResult.ModelChanged
+            || saveResult.ProviderModelsChanged)
         {
             runtimeConfig.RefreshCurrentLlmConfig();
             runtimeConfig.InvalidateThreadAgents();
