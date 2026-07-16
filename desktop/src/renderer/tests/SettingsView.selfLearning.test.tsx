@@ -102,6 +102,19 @@ function enableProviderManagement(): void {
   })
 }
 
+function enableProviderAndSubAgentManagement(): void {
+  useConnectionStore.setState({
+    status: 'connected',
+    capabilities: {
+      workspaceConfigManagement: true,
+      memoryManagement: true,
+      providerManagement: true,
+      modelCatalogManagement: true,
+      subAgentManagement: true
+    }
+  })
+}
+
 describe('SettingsView self-learning settings', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -118,7 +131,7 @@ describe('SettingsView self-learning settings', () => {
     const core: any = {
       workspace: {
         providerId: null,
-        model: null,
+        providerModels: {},
         apiKey: null,
         endPoint: null,
         welcomeSuggestionsEnabled: null,
@@ -132,7 +145,7 @@ describe('SettingsView self-learning settings', () => {
       },
       userDefaults: {
         providerId: null,
-        model: null,
+        providerModels: {},
         apiKey: null,
         endPoint: null,
         welcomeSuggestionsEnabled: null,
@@ -164,13 +177,12 @@ describe('SettingsView self-learning settings', () => {
     workspaceConfigGetCore.mockImplementation(async () => core)
     appServerSendRequest.mockImplementation(async (method: string, params?: Record<string, unknown>) => {
       if (method === 'workspace/config/update') {
+        if (params?.providerModels && typeof params.providerModels === 'object') {
+          core.workspace.providerModels = params.providerModels
+        }
         if (typeof params?.providerId === 'string' || params?.providerId === null) {
           core.workspace.providerId = params.providerId
           return { providerId: core.workspace.providerId }
-        }
-        if (typeof params?.model === 'string' || params?.model === null) {
-          core.workspace.model = params.model
-          return { model: core.workspace.model }
         }
         if (typeof params?.defaultApprovalPolicy === 'string') {
           core.workspace.defaultApprovalPolicy = params.defaultApprovalPolicy
@@ -905,6 +917,34 @@ describe('SettingsView self-learning settings', () => {
     expect(await screen.findByRole('combobox', { name: 'Protocol' })).toHaveTextContent('OpenAI-Legacy')
   })
 
+  it('shows remembered MainAgent and SubAgent models in each provider row', async () => {
+    enableProviderAndSubAgentManagement()
+    workspaceConfigGetCore.mockResolvedValue({
+      workspace: {
+        providerId: 'openai',
+        providerModels: { openai: 'main-model-v2' }
+      },
+      userDefaults: { providerModels: {} }
+    })
+    const defaultSendRequest = appServerSendRequest.getMockImplementation()
+    appServerSendRequest.mockImplementation(async (method: string, params?: Record<string, unknown>) => {
+      if (method === 'subagent/profiles/list') {
+        return {
+          profiles: [],
+          settings: { providerModels: { openai: 'subagent-model-v1' } }
+        }
+      }
+      return defaultSendRequest?.(method, params)
+    })
+    renderView()
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Model Providers' }))
+    const openAiRow = await screen.findByRole('button', { name: 'Use provider OpenAI' })
+
+    expect(within(openAiRow).getByText('MainAgent Model: main-model-v2')).toBeInTheDocument()
+    expect(within(openAiRow).getByText('SubAgent Model: subagent-model-v1')).toBeInTheDocument()
+  })
+
   it('uses the simplified provider list title in Chinese', async () => {
     settingsGet.mockResolvedValue({ locale: 'zh-Hans', connectionMode: 'stdio', visibleChannels: [] })
     enableProviderManagement()
@@ -928,7 +968,7 @@ describe('SettingsView self-learning settings', () => {
     await waitFor(() => {
       expect(appServerSendRequest).toHaveBeenCalledWith('workspace/config/update', {
         providerId: 'anthropic-main',
-        model: 'claude-sonnet-4-5'
+        providerModels: { 'anthropic-main': 'claude-sonnet-4-5' }
       }, 20_000)
     })
     expect(screen.queryByText('Changes require a service restart to take effect')).not.toBeInTheDocument()
@@ -944,7 +984,7 @@ describe('SettingsView self-learning settings', () => {
     workspaceConfigGetCore.mockResolvedValue({
       workspace: {
         providerId: 'codex',
-        model: 'gpt-5.5',
+        providerModels: { codex: 'gpt-5.5' },
         apiKey: null,
         endPoint: null,
         welcomeSuggestionsEnabled: null,
@@ -958,7 +998,7 @@ describe('SettingsView self-learning settings', () => {
       },
       userDefaults: {
         providerId: null,
-        model: null,
+        providerModels: {},
         apiKey: null,
         endPoint: null,
         welcomeSuggestionsEnabled: null,
@@ -986,15 +1026,15 @@ describe('SettingsView self-learning settings', () => {
 
     fireEvent.click(await screen.findByRole('button', { name: 'Model Providers' }))
     expect(await screen.findByText(/Workspace provider "codex" is not configured/)).toBeInTheDocument()
-    const providerSelect = await screen.findByRole('combobox', { name: 'Current provider' }) as HTMLButtonElement
+    const anthropicRow = await screen.findByRole('button', { name: 'Use provider Anthropic' })
     appServerSendRequest.mockClear()
 
-    fireEvent.change(providerSelect, { target: { value: 'anthropic-main' } })
+    fireEvent.click(anthropicRow)
 
     await waitFor(() => {
       expect(appServerSendRequest).toHaveBeenCalledWith('workspace/config/update', {
         providerId: 'anthropic-main',
-        model: 'claude-sonnet-4-5'
+        providerModels: { codex: 'gpt-5.5', 'anthropic-main': 'claude-sonnet-4-5' }
       }, 20_000)
     })
   })
@@ -1004,11 +1044,13 @@ describe('SettingsView self-learning settings', () => {
     renderView()
 
     fireEvent.click(await screen.findByRole('button', { name: 'Model Providers' }))
-    const modelSelect = await screen.findByLabelText('Model') as HTMLSelectElement
+    const modelSelect = await screen.findByLabelText('MainAgent Model') as HTMLSelectElement
     fireEvent.change(modelSelect, { target: { value: 'deepseek-v4-pro' } })
 
     await waitFor(() => {
-      expect(appServerSendRequest).toHaveBeenCalledWith('workspace/config/update', { model: 'deepseek-v4-pro' }, 20_000)
+      expect(appServerSendRequest).toHaveBeenCalledWith('workspace/config/update', {
+        providerModels: { openai: 'deepseek-v4-pro' }
+      }, 20_000)
     })
     appServerSendRequest.mockClear()
 
@@ -1017,12 +1059,12 @@ describe('SettingsView self-learning settings', () => {
     await waitFor(() => {
       expect(appServerSendRequest).toHaveBeenCalledWith('workspace/config/update', {
         providerId: 'anthropic-main',
-        model: 'claude-sonnet-4-5'
+        providerModels: { openai: 'deepseek-v4-pro', 'anthropic-main': 'claude-sonnet-4-5' }
       }, 20_000)
     })
   })
 
-  it('preserves the workspace model when the target provider lists it', async () => {
+  it('uses the target provider first listed model when it has no remembered model', async () => {
     enableProviderManagement()
     const defaultSendRequest = appServerSendRequest.getMockImplementation()
     appServerSendRequest.mockImplementation(async (method: string, params?: Record<string, unknown>) => {
@@ -1040,12 +1082,14 @@ describe('SettingsView self-learning settings', () => {
     renderView()
 
     fireEvent.click(await screen.findByRole('button', { name: 'Model Providers' }))
-    const modelSelect = await screen.findByRole('combobox', { name: 'Model' })
+    const modelSelect = await screen.findByRole('combobox', { name: 'MainAgent Model' })
     fireEvent.click(modelSelect)
     fireEvent.click(await screen.findByRole('option', { name: 'deepseek-v4-pro' }))
 
     await waitFor(() => {
-      expect(appServerSendRequest).toHaveBeenCalledWith('workspace/config/update', { model: 'deepseek-v4-pro' }, 20_000)
+      expect(appServerSendRequest).toHaveBeenCalledWith('workspace/config/update', {
+        providerModels: { openai: 'deepseek-v4-pro' }
+      }, 20_000)
     })
     appServerSendRequest.mockClear()
 
@@ -1054,7 +1098,136 @@ describe('SettingsView self-learning settings', () => {
     await waitFor(() => {
       expect(appServerSendRequest).toHaveBeenCalledWith('workspace/config/update', {
         providerId: 'anthropic-main',
-        model: 'deepseek-v4-pro'
+        providerModels: { openai: 'deepseek-v4-pro', 'anthropic-main': 'claude-sonnet-4-5' }
+      }, 20_000)
+    })
+  })
+
+  it('restores each provider remembered model when switching back and forth', async () => {
+    enableProviderManagement()
+    renderView()
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Model Providers' }))
+
+    // Pick a model for the active provider (openai).
+    const modelSelect = await screen.findByLabelText('MainAgent Model') as HTMLSelectElement
+    fireEvent.change(modelSelect, { target: { value: 'deepseek-v4-pro' } })
+    await waitFor(() => {
+      expect(appServerSendRequest).toHaveBeenCalledWith('workspace/config/update', {
+        providerModels: { openai: 'deepseek-v4-pro' }
+      }, 20_000)
+    })
+
+    // Switch to Anthropic: its model is not deepseek, so it falls back to the first listed model.
+    appServerSendRequest.mockClear()
+    fireEvent.click(screen.getByRole('button', { name: 'Use provider Anthropic' }))
+    await waitFor(() => {
+      expect(appServerSendRequest).toHaveBeenCalledWith('workspace/config/update', {
+        providerId: 'anthropic-main',
+        providerModels: { openai: 'deepseek-v4-pro', 'anthropic-main': 'claude-sonnet-4-5' }
+      }, 20_000)
+    })
+
+    // Switch back to OpenAI: its previously chosen model is restored instead of being discarded.
+    appServerSendRequest.mockClear()
+    fireEvent.click(screen.getByRole('button', { name: 'Use provider OpenAI' }))
+    await waitFor(() => {
+      expect(appServerSendRequest).toHaveBeenCalledWith('workspace/config/update', {
+        providerId: 'openai',
+        providerModels: { openai: 'deepseek-v4-pro', 'anthropic-main': 'claude-sonnet-4-5' }
+      }, 20_000)
+    })
+  })
+
+  it('persists the native SubAgent model per provider from Workspace preferences', async () => {
+    enableProviderAndSubAgentManagement()
+    const defaultSendRequest = appServerSendRequest.getMockImplementation()
+    const subAgentSettings = { providerModels: {} as Record<string, string> }
+    appServerSendRequest.mockImplementation(async (method: string, params?: Record<string, unknown>) => {
+      if (method === 'subagent/profiles/list') {
+        return { profiles: [], settings: { ...subAgentSettings } }
+      }
+      if (method === 'subagent/settings/update') {
+        if (params?.providerModels) {
+          subAgentSettings.providerModels = params.providerModels as Record<string, string>
+        }
+        return { settings: { ...subAgentSettings } }
+      }
+      return defaultSendRequest?.(method, params)
+    })
+    renderView()
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Model Providers' }))
+    const subAgentSelect = await screen.findByLabelText('SubAgent model') as HTMLSelectElement
+    appServerSendRequest.mockClear()
+
+    fireEvent.change(subAgentSelect, { target: { value: 'deepseek-v4-pro' } })
+
+    await waitFor(() => {
+      expect(appServerSendRequest).toHaveBeenCalledWith('subagent/settings/update', {
+        providerModels: { openai: 'deepseek-v4-pro' }
+      }, 20_000)
+    })
+  })
+
+  it('restores each provider remembered native SubAgent model when switching providers', async () => {
+    enableProviderAndSubAgentManagement()
+    const defaultSendRequest = appServerSendRequest.getMockImplementation()
+    const subAgentSettings = { providerModels: {} as Record<string, string> }
+    appServerSendRequest.mockImplementation(async (method: string, params?: Record<string, unknown>) => {
+      if (method === 'subagent/profiles/list') {
+        return { profiles: [], settings: { ...subAgentSettings } }
+      }
+      if (method === 'subagent/settings/update') {
+        if (params?.providerModels) {
+          subAgentSettings.providerModels = params.providerModels as Record<string, string>
+        }
+        return { settings: { ...subAgentSettings } }
+      }
+      return defaultSendRequest?.(method, params)
+    })
+    renderView()
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Model Providers' }))
+
+    // Pick a native model for the active provider (openai).
+    const subAgentSelect = await screen.findByLabelText('SubAgent model') as HTMLSelectElement
+    fireEvent.change(subAgentSelect, { target: { value: 'deepseek-v4-pro' } })
+    await waitFor(() => {
+      expect(appServerSendRequest).toHaveBeenCalledWith('subagent/settings/update', {
+        providerModels: { openai: 'deepseek-v4-pro' }
+      }, 20_000)
+    })
+
+    // Switch to Anthropic: it has no remembered native model, so it inherits (null) while openai is kept.
+    appServerSendRequest.mockClear()
+    fireEvent.click(screen.getByRole('button', { name: 'Use provider Anthropic' }))
+    await waitFor(() => {
+      expect(appServerSendRequest).toHaveBeenCalledWith('subagent/settings/update', {
+        providerModels: { openai: 'deepseek-v4-pro' }
+      }, 20_000)
+    })
+
+    // Choose a native model for Anthropic.
+    await waitFor(() => {
+      const select = screen.getByLabelText('SubAgent model') as HTMLSelectElement
+      expect(select).not.toBeDisabled()
+      expect(select.value).toBe('')
+    })
+    const anthropicSubAgentSelect = screen.getByLabelText('SubAgent model') as HTMLSelectElement
+    fireEvent.change(anthropicSubAgentSelect, { target: { value: 'claude-sonnet-4-5' } })
+    await waitFor(() => {
+      expect(appServerSendRequest).toHaveBeenCalledWith('subagent/settings/update', {
+        providerModels: { openai: 'deepseek-v4-pro', 'anthropic-main': 'claude-sonnet-4-5' }
+      }, 20_000)
+    })
+
+    // Switch back to OpenAI: its remembered native model is restored.
+    appServerSendRequest.mockClear()
+    fireEvent.click(screen.getByRole('button', { name: 'Use provider OpenAI' }))
+    await waitFor(() => {
+      expect(appServerSendRequest).toHaveBeenCalledWith('subagent/settings/update', {
+        providerModels: { openai: 'deepseek-v4-pro', 'anthropic-main': 'claude-sonnet-4-5' }
       }, 20_000)
     })
   })
@@ -1064,13 +1237,15 @@ describe('SettingsView self-learning settings', () => {
     renderView()
 
     fireEvent.click(await screen.findByRole('button', { name: 'Model Providers' }))
-    const modelSelect = await screen.findByLabelText('Model') as HTMLSelectElement
+    const modelSelect = await screen.findByLabelText('MainAgent Model') as HTMLSelectElement
     appServerSendRequest.mockClear()
 
     fireEvent.change(modelSelect, { target: { value: 'deepseek-v4-pro' } })
 
     await waitFor(() => {
-      expect(appServerSendRequest).toHaveBeenCalledWith('workspace/config/update', { model: 'deepseek-v4-pro' }, 20_000)
+      expect(appServerSendRequest).toHaveBeenCalledWith('workspace/config/update', {
+        providerModels: { openai: 'deepseek-v4-pro' }
+      }, 20_000)
     })
     expect(screen.queryByText('Choose a listed model or type one manually.')).not.toBeInTheDocument()
     expect(screen.queryByText('Changes require a service restart to take effect')).not.toBeInTheDocument()
@@ -1095,14 +1270,16 @@ describe('SettingsView self-learning settings', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Model Providers' }))
     const modelListWarning = await screen.findByText('Endpoint does not support model listing.')
     expect(modelListWarning).toBeInTheDocument()
-    const modelInput = await screen.findByLabelText('Model') as HTMLInputElement
+    const modelInput = await screen.findByLabelText('MainAgent Model') as HTMLInputElement
     appServerSendRequest.mockClear()
 
     fireEvent.change(modelInput, { target: { value: 'manual-model' } })
     fireEvent.keyDown(modelInput, { key: 'Enter' })
 
     await waitFor(() => {
-      expect(appServerSendRequest).toHaveBeenCalledWith('workspace/config/update', { model: 'manual-model' }, 20_000)
+      expect(appServerSendRequest).toHaveBeenCalledWith('workspace/config/update', {
+        providerModels: { openai: 'manual-model' }
+      }, 20_000)
     })
     expect(screen.queryByText('Changes require a service restart to take effect')).not.toBeInTheDocument()
   })

@@ -75,6 +75,38 @@ describe('ModelPicker', () => {
     expect(within(listbox).getByRole('option', { name: /Off/ })).toBeDisabled()
   })
 
+  it('exposes a keyboard-accessible provider submenu and can hide Default', () => {
+    const onProviderChange = vi.fn()
+    render(
+      <LocaleProvider>
+        <ModelPicker
+          providerId="anthropic"
+          providerOptions={[
+            { id: 'anthropic', displayName: 'Anthropic' },
+            { id: 'openai', displayName: 'OpenAI' }
+          ]}
+          modelName="claude-opus-4-7"
+          modelOptions={['claude-opus-4-7']}
+          onProviderChange={onProviderChange}
+          allowDefaultModel={false}
+          triggerStyle={{}}
+        />
+      </LocaleProvider>
+    )
+
+    const menu = openPicker()
+    const providerRow = within(menu).getByRole('menuitem', { name: /Provider/ })
+    providerRow.focus()
+    fireEvent.keyDown(document, { key: 'ArrowRight' })
+    const providerMenu = screen.getByRole('listbox', { name: 'Provider' })
+    fireEvent.click(within(providerMenu).getByRole('option', { name: /OpenAI/ }))
+    expect(onProviderChange).toHaveBeenCalledWith('openai')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Select model' }))
+    fireEvent.mouseEnter(screen.getByRole('menuitem', { name: /Model/ }))
+    expect(within(screen.getByRole('listbox', { name: 'Model' })).queryByText('Default')).not.toBeInTheDocument()
+  })
+
   it('shows speed only for a fast-capable model and applies the selection', () => {
     const onSpeedChange = vi.fn()
     render(
@@ -163,7 +195,7 @@ describe('ModelPicker', () => {
     expect(within(listbox).getByRole('option', { name: /xHigh/ })).toHaveAttribute('aria-selected', 'true')
   })
 
-  it('falls back to the new model default when the current effort is unsupported', () => {
+  it('delegates model compatibility adjustment to the atomic model-change handler', () => {
     const onChange = vi.fn()
     const onReasoningChange = vi.fn()
     render(
@@ -188,7 +220,7 @@ describe('ModelPicker', () => {
     fireEvent.click(screen.getByRole('option', { name: 'gpt-5.5-mini' }))
 
     expect(onChange).toHaveBeenCalledWith('gpt-5.5-mini')
-    expect(onReasoningChange).toHaveBeenCalledWith('medium')
+    expect(onReasoningChange).not.toHaveBeenCalled()
   })
 
   it('does not offer a stale selected model when a ready provider model list excludes it', () => {

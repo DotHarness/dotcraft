@@ -332,40 +332,21 @@ public sealed class AppServerWireClient(Stream input, Stream output) : IAsyncDis
     }
 
     /// <summary>
-    /// Updates workspace-level model persistence through <c>workspace/config/update</c>.
-    /// Requires the server to advertise <c>workspaceConfigManagement</c> capability.
-    /// </summary>
-    public Task<WorkspaceConfigUpdateResult> WorkspaceConfigUpdateAsync(string? model, CancellationToken ct = default)
-    {
-        var payload = new JsonObject
-        {
-            ["model"] = model == null ? null : JsonValue.Create(model)
-        };
-        return WorkspaceConfigUpdateAsync(payload, ct);
-    }
-
-    /// <summary>
-    /// Updates workspace provider/model selection and optionally saves credentials for that provider.
-    /// Null <paramref name="providerId"/> and <paramref name="model"/> values are sent as explicit removals.
-    /// Null credential values are omitted.
+    /// Updates workspace provider and provider-specific MainAgent model preferences.
+    /// Null values are sent as explicit removals.
     /// </summary>
     public Task<WorkspaceConfigUpdateResult> WorkspaceConfigUpdateAsync(
         string? providerId,
-        string? model,
-        string? apiKey = null,
-        string? endPoint = null,
+        IReadOnlyDictionary<string, string>? providerModels,
         CancellationToken ct = default)
     {
         var payload = new JsonObject
         {
             ["providerId"] = providerId == null ? null : JsonValue.Create(providerId),
-            ["model"] = model == null ? null : JsonValue.Create(model)
+            ["providerModels"] = providerModels == null
+                ? null
+                : JsonSerializer.SerializeToNode(providerModels)
         };
-        if (apiKey != null)
-            payload["apiKey"] = apiKey;
-        if (endPoint != null)
-            payload["endPoint"] = endPoint;
-
         return WorkspaceConfigUpdateAsync(payload, ct);
     }
 

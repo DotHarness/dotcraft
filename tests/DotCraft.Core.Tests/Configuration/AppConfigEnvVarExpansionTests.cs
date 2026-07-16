@@ -191,7 +191,7 @@ public class AppConfigEnvVarExpansionTests : IDisposable
             var config = AppConfig.Load(tmpFile);
 
             Assert.Equal("loaded-api-key", config.Providers["openai"].ApiKey);
-            Assert.Equal("gpt-4o", config.Model);
+            Assert.Empty(config.ProviderModels);
         }
         finally
         {

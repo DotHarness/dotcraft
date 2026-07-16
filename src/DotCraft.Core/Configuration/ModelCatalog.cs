@@ -29,7 +29,7 @@ internal static class ModelCatalog
 
         config.Compaction.ContextWindow = ApplyMaxContextWindow(
             Resolve(
-                config.Model,
+                ModelProviderResolver.ResolveConfiguredModel(config),
                 CatalogPathForConfig(globalConfigPath),
                 CatalogPathForConfig(workspaceConfigPath)),
             config.Compaction.MaxContextWindow);

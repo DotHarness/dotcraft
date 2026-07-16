@@ -25,8 +25,9 @@ public sealed class AppConfig
     [ConfigField(Reload = ReloadBehavior.ProcessRestart, HasReload = true)]
     public string ProviderId { get; set; } = string.Empty;
 
-    [ConfigField(Reload = ReloadBehavior.ProcessRestart, HasReload = true)]
-    public string Model { get; set; } = "gpt-4o-mini";
+    /// <summary>Workspace model preference keyed by provider id.</summary>
+    [ConfigField(Ignore = true)]
+    public Dictionary<string, string> ProviderModels { get; set; } = new(StringComparer.OrdinalIgnoreCase);
 
     /// <summary>Workspace inference-speed preset captured by newly created threads.</summary>
     [ConfigField(Ignore = true)]
@@ -112,7 +113,7 @@ public sealed class AppConfig
     public DreamsConfig Dreams { get; set; } = new();
 
     /// <summary>
-    /// Model used for memory consolidation. When empty, uses <see cref="Model"/> (same as main agent).
+    /// Model used for memory consolidation. When empty, uses the effective MainAgent model.
     /// When set, use this model for consolidation only (e.g. a non-thinking model to avoid tool_choice restrictions in thinking mode).
     /// </summary>
     [ConfigField(Hint = "Model for memory consolidation. Empty = use main Model. Set to a non-thinking model if main model does not support tool_choice in thinking mode.")]
@@ -1109,11 +1110,11 @@ public sealed class AppConfig
         public bool EnableExternalCliSessionResume { get; set; }
 
         /// <summary>
-        /// Optional model used by DotCraft-managed native SubAgents.
-        /// Empty means native SubAgents inherit the current thread's effective MainAgent model.
+        /// Native SubAgent model preference keyed by provider id.
+        /// A missing entry inherits the current thread's effective MainAgent model.
         /// </summary>
-        [ConfigField(Hint = "Model for native SubAgents. Empty = use the current thread's effective MainAgent model.", Reload = ReloadBehavior.Hot, HasReload = true)]
-        public string Model { get; set; } = string.Empty;
+        [ConfigField(Ignore = true)]
+        public Dictionary<string, string> ProviderModels { get; set; } = new(StringComparer.OrdinalIgnoreCase);
 
         /// <summary>
         /// Minimum accepted <c>WaitAgent.timeoutMs</c> value in milliseconds.

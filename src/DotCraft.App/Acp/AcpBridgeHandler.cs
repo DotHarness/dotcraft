@@ -1445,7 +1445,6 @@ public sealed class AcpBridgeHandler(
             var nextModel = string.Equals(p.Value, DefaultModelValue, StringComparison.Ordinal)
                 ? null
                 : p.Value.Trim();
-            await wire.WorkspaceConfigUpdateAsync(nextModel, ct);
 
             current = await ReadThreadConfigurationAsync(p.SessionId, includeTurns: false, ct);
             var config = current.Configuration ?? new JsonObject();

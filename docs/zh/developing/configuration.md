@@ -9,7 +9,7 @@ DotCraft 先读取全局 `~/.craft/config.json`，再叠加工作区 `.craft/con
 | 配置项 | 说明 | 默认值 |
 |--------|------|--------|
 | `ProviderId` | 当前选择的个人 Provider id；为空表示未选择 Provider | 空 |
-| `Model` | 默认模型名称 | `gpt-4o-mini` |
+| `ProviderModels` | 按 provider id 保存的 MainAgent 模型名称；当前 provider 必须存在有效条目 | `{}` |
 | `NetworkTimeoutSeconds` | 全局模型请求超时时间，单位秒；Provider 可单独覆盖 | `600` |
 | `Providers` | 个人模型 Provider 字典，通常写在 `~/.craft/config.json` | 空 |
 | `SubagentMaxConcurrency` | 最大并发子 Agent 数量 | `3` |
@@ -43,7 +43,9 @@ DotCraft 先读取全局 `~/.craft/config.json`，再叠加工作区 `.craft/con
 ```json
 {
   "ProviderId": "anthropic",
-  "Model": "claude-sonnet-4-5"
+  "ProviderModels": {
+    "anthropic": "claude-sonnet-4-5"
+  }
 }
 ```
 
@@ -587,7 +589,7 @@ MCP 示例：
 | 配置项 | 说明 | 默认值 |
 |--------|------|--------|
 | `SubAgent.MaxDepth` | session-backed SubAgent 最大生成深度；第一级子代理深度为 `1` | `1` |
-| `SubAgent.Model` | DotCraft 原生 SubAgent 使用的模型；空值继承当前线程的有效主模型 | 空 |
+| `SubAgent.ProviderModels` | 按父线程 provider 保存的原生 SubAgent 模型偏好；缺少对应项时继承该线程的有效 MainAgent 模型 | `{}` |
 | `SubAgent.MinWaitTimeoutMs` | `WaitAgent.timeoutMs` 接受的最小值，单位毫秒 | `15000` |
 | `SubAgent.DefaultWaitTimeoutMs` | `WaitAgent` 调用未传 timeout 时使用的默认毫秒数 | `60000` |
 | `SubAgent.MaxWaitTimeoutMs` | `WaitAgent.timeoutMs` 接受的最大值，单位毫秒 | `3600000` |

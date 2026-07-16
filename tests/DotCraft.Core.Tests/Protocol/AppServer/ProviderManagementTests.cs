@@ -369,19 +369,19 @@ public sealed class ProviderManagementTests : IDisposable
         await harness.ExecuteRequestAsync(harness.BuildRequest(AppServerMethods.WorkspaceConfigUpdate, new
         {
             providerId = "anthropic-main",
-            model = "claude-sonnet-4-5"
+            providerModels = new Dictionary<string, string> { ["anthropic-main"] = "claude-sonnet-4-5" }
         }));
 
         var response = AssertSingleResult(await harness.Transport.WaitAndDrainAsync(1, TimeSpan.FromSeconds(5)));
         var result = response.RootElement.GetProperty("result");
         Assert.Equal("anthropic-main", result.GetProperty("providerId").GetString());
-        Assert.Equal("claude-sonnet-4-5", result.GetProperty("model").GetString());
+        Assert.Equal("claude-sonnet-4-5", result.GetProperty("providerModels").GetProperty("anthropic-main").GetString());
         Assert.False(result.TryGetProperty("apiKey", out _));
         Assert.False(result.TryGetProperty("endPoint", out _));
 
         var workspace = JsonDocument.Parse(await File.ReadAllTextAsync(Path.Combine(_workspaceCraftPath, "config.json")));
         Assert.Equal("anthropic-main", workspace.RootElement.GetProperty("ProviderId").GetString());
-        Assert.Equal("claude-sonnet-4-5", workspace.RootElement.GetProperty("Model").GetString());
+        Assert.Equal("claude-sonnet-4-5", workspace.RootElement.GetProperty("ProviderModels").GetProperty("anthropic-main").GetString());
         Assert.Equal("dark", workspace.RootElement.GetProperty("Theme").GetString());
 
         var personal = JsonDocument.Parse(await File.ReadAllTextAsync(harness.Monitor.Current.GlobalConfigPath!));

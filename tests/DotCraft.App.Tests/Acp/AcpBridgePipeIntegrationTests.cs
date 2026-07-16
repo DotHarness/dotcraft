@@ -652,10 +652,7 @@ public sealed class AcpBridgePipeIntegrationTests
                         new ModelCatalogItem { Id = "gpt-beta" }
                     ]
                 },
-                AppServerMethods.WorkspaceConfigUpdate => new WorkspaceConfigUpdateResult
-                {
-                    Model = TryReadModelParam(msg.Params)
-                },
+                AppServerMethods.WorkspaceConfigUpdate => new WorkspaceConfigUpdateResult(),
                 AppServerMethods.ThreadRead => new
                 {
                     thread = new
@@ -761,7 +758,7 @@ public sealed class AcpBridgePipeIntegrationTests
         new(new AppConfig
         {
             ProviderId = "openai",
-            Model = "gpt-4o-mini",
+            ProviderModels = new() { ["openai"] = "gpt-4o-mini" },
             Providers =
             {
                 ["openai"] = new AppConfig.ModelProviderConfig

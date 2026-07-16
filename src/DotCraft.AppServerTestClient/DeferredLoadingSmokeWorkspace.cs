@@ -37,7 +37,7 @@ internal static class DeferredLoadingSmokeWorkspace
         var root = new JsonObject
         {
             ["ProviderId"] = providerId,
-            ["Model"] = model,
+            ["ProviderModels"] = new JsonObject { [providerId] = model },
             ["McpServers"] = new JsonObject
             {
                 [McpServerName] = new JsonObject

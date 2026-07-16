@@ -48,7 +48,7 @@ public sealed class AgentRuntimeContext
     /// </summary>
     public string EffectiveMainModel
     {
-        get => string.IsNullOrWhiteSpace(field) ? Config.Model : field;
+        get => string.IsNullOrWhiteSpace(field) ? ChatClientRegistry.ResolveMainModel(Config) : field;
         init;
     }
 

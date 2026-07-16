@@ -21,7 +21,7 @@ internal sealed class AppServerRuntimeConfigRefresher(
         var configPath = Path.Combine(workspaceCraftPath, "config.json");
         var mergedConfig = AppConfig.LoadWithGlobalFallback(configPath, workspaceConfig.EffectiveGlobalConfigPath);
         appConfigMonitor.Current.ProviderId = mergedConfig.ProviderId;
-        appConfigMonitor.Current.Model = mergedConfig.Model;
+        appConfigMonitor.Current.ProviderModels = new Dictionary<string, string>(mergedConfig.ProviderModels, StringComparer.OrdinalIgnoreCase);
         appConfigMonitor.Current.NetworkTimeoutSeconds = mergedConfig.NetworkTimeoutSeconds;
         appConfigMonitor.Current.Providers = mergedConfig.Providers.ToDictionary(
             pair => pair.Key,
@@ -142,7 +142,7 @@ internal sealed class AppServerRuntimeConfigRefresher(
         {
             DisabledProfiles = [.. mergedConfig.SubAgent.DisabledProfiles],
             EnableExternalCliSessionResume = mergedConfig.SubAgent.EnableExternalCliSessionResume,
-            Model = mergedConfig.SubAgent.Model,
+            ProviderModels = new Dictionary<string, string>(mergedConfig.SubAgent.ProviderModels, StringComparer.OrdinalIgnoreCase),
             MinWaitTimeoutMs = mergedConfig.SubAgent.MinWaitTimeoutMs,
             DefaultWaitTimeoutMs = mergedConfig.SubAgent.DefaultWaitTimeoutMs,
             MaxWaitTimeoutMs = mergedConfig.SubAgent.MaxWaitTimeoutMs,

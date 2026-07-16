@@ -101,7 +101,6 @@ export type WorkspaceSetupModelListResult =
   | { kind: 'missing-key' }
   | { kind: 'error'; retryable?: boolean }
 
-const DEFAULT_WORKSPACE_MODEL = 'gpt-4o-mini'
 
 function buildBinaryResolutionError(settings: AppSettings): Error {
   const resolved = resolveBinaryLocation({
@@ -238,7 +237,7 @@ function getUserConfigStatusFromParsed(
 
   const providers = readExplicitProviders(parsed)
   const providerId = normalizeOptionalString(getConfigValueCaseInsensitive(parsed, 'ProviderId'))
-  const model = normalizeOptionalString(getConfigValueCaseInsensitive(parsed, 'Model'))
+  const model = providerId ? readProviderModel(parsed, providerId) : ''
   const explicitProviderIds = new Set(providers.map((provider) => provider.id.toLowerCase()))
   return {
     hasUserConfig: true,
@@ -276,15 +275,28 @@ function resolveEffectiveProviderId(
   return userProviderId.present ? userProviderId.value : ''
 }
 
+function readProviderModel(
+  config: Record<string, unknown> | null,
+  providerId: string
+): string {
+  if (!config || !providerId.trim()) return ''
+  const raw = getConfigValueCaseInsensitive(config, 'ProviderModels')
+  if (raw == null || typeof raw !== 'object' || Array.isArray(raw)) return ''
+  const expected = providerId.trim().toLowerCase()
+  for (const [candidate, value] of Object.entries(raw as Record<string, unknown>)) {
+    if (candidate.trim().toLowerCase() !== expected) continue
+    const model = normalizeOptionalString(value)
+    return model && model.toLowerCase() !== 'default' ? model : ''
+  }
+  return ''
+}
+
 function resolveEffectiveModel(
   workspaceConfig: Record<string, unknown> | null,
   userConfig: Record<string, unknown> | null
 ): string {
-  const workspaceModel = readConfigString(workspaceConfig, 'Model')
-  if (workspaceModel.present) return workspaceModel.value
-
-  const userModel = readConfigString(userConfig, 'Model')
-  return userModel.present ? userModel.value : DEFAULT_WORKSPACE_MODEL
+  const providerId = resolveEffectiveProviderId(workspaceConfig, userConfig)
+  return readProviderModel(workspaceConfig, providerId) || readProviderModel(userConfig, providerId)
 }
 
 function hasConfiguredProvider(

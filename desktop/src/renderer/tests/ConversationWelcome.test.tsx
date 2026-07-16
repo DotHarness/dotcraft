@@ -215,12 +215,12 @@ describe('ConversationWelcome composer', () => {
     fileReadFile.mockResolvedValue('{}')
     workspaceConfigGetCore.mockResolvedValue({
       workspace: {
-        model: null,
+        providerModels: {},
         welcomeSuggestionsEnabled: null,
         defaultApprovalPolicy: null
       },
       userDefaults: {
-        model: null,
+        providerModels: {},
         welcomeSuggestionsEnabled: null,
         defaultApprovalPolicy: null
       }
@@ -623,20 +623,54 @@ describe('ConversationWelcome composer', () => {
       images: [],
       files: [],
       mode: 'agent',
-      model: 'mimo-v2.5-pro',
+      model: 'model-a-v1',
       approvalPolicy: 'default'
     })
-    fileReadFile.mockResolvedValue(JSON.stringify({ Model: 'claude-sonnet-4-5' }))
+    useConnectionStore.setState((state) => ({
+      capabilities: { ...state.capabilities, providerManagement: true }
+    }))
+    let workspaceConfig: Record<string, unknown> = {
+      ProviderId: 'provider-a',
+      Model: 'model-a-v1',
+      ProviderModels: { 'provider-a': 'model-a-v1' }
+    }
+    fileReadFile.mockImplementation(async () => JSON.stringify(workspaceConfig))
+    const defaultSendRequest = appServerSendRequest.getMockImplementation()
+    appServerSendRequest.mockImplementation(async (method: string, params?: Record<string, unknown>) => {
+      if (method === 'provider/list') {
+        return {
+          providers: [
+            { id: 'provider-a', displayName: 'Provider A', protocol: 'openai-responses' },
+            { id: 'provider-b', displayName: 'Provider B', protocol: 'anthropic' }
+          ]
+        }
+      }
+      if (method === 'model/list') {
+        return {
+          providerId: params?.providerId,
+          models: [{ id: params?.providerId === 'provider-b' ? 'model-b-v1' : 'model-a-v1' }]
+        }
+      }
+      return defaultSendRequest?.(method, params)
+    })
 
     const view = renderWelcome()
     await waitFor(() => {
-      expect(screen.getByRole('button', { name: 'Select model' })).toHaveTextContent('mimo-v2.5-pro')
+      expect(screen.getByRole('button', { name: 'Select model' })).toHaveTextContent('model-a-v1')
     })
+    fireEvent.click(screen.getByRole('button', { name: 'Select model' }))
+    expect(screen.getByRole('menuitem', { name: /Provider.*Provider A/ })).toBeInTheDocument()
+    fireEvent.keyDown(document, { key: 'Escape' })
 
     const change: WorkspaceConfigChangedPayload = {
       source: 'workspace/config/update',
       regions: ['workspace.provider'],
       changedAt: '2026-05-26T00:00:00.000Z'
+    }
+    workspaceConfig = {
+      ProviderId: 'provider-b',
+      Model: 'model-b-v1',
+      ProviderModels: { 'provider-a': 'model-a-v1', 'provider-b': 'model-b-v1' }
     }
     view.rerender(
       <LocaleProvider>
@@ -649,19 +683,82 @@ describe('ConversationWelcome composer', () => {
     )
 
     await waitFor(() => {
-      expect(screen.getByRole('button', { name: 'Select model' })).toHaveTextContent('claude-sonnet-4-5')
+      expect(screen.getByRole('button', { name: 'Select model' })).toHaveTextContent('model-b-v1')
     })
+    fireEvent.click(screen.getByRole('button', { name: 'Select model' }))
+    expect(screen.getByRole('menuitem', { name: /Provider.*Provider B/ })).toBeInTheDocument()
+  })
+
+  it('preserves the Welcome provider and model pair across unmount and remount', async () => {
+    useConnectionStore.setState((state) => ({
+      capabilities: { ...state.capabilities, providerManagement: true }
+    }))
+    fileReadFile.mockResolvedValue(JSON.stringify({
+      ProviderId: 'provider-b',
+      Model: 'model-b-v2',
+      ProviderModels: { 'provider-b': 'model-b-v2' }
+    }))
+    const defaultSendRequest = appServerSendRequest.getMockImplementation()
+    appServerSendRequest.mockImplementation(async (method: string, params?: Record<string, unknown>) => {
+      if (method === 'provider/list') {
+        return {
+          providers: [
+            { id: 'provider-a', displayName: 'Provider A', protocol: 'openai-responses' },
+            { id: 'provider-b', displayName: 'Provider B', protocol: 'anthropic' }
+          ]
+        }
+      }
+      if (method === 'model/list') {
+        return {
+          providerId: params?.providerId,
+          models: [{ id: 'model-b-v2' }]
+        }
+      }
+      return defaultSendRequest?.(method, params)
+    })
+
+    const firstMount = renderWelcome()
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Select model' })).toHaveTextContent('model-b-v2')
+    })
+    firstMount.unmount()
+
+    expect(useUIStore.getState().welcomeDraft).toMatchObject({
+      providerId: 'provider-b',
+      model: 'model-b-v2'
+    })
+
+    const secondMount = renderWelcome()
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Select model' })).toHaveTextContent('model-b-v2')
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Select model' }))
+    expect(screen.getByRole('menuitem', { name: /Provider.*Provider B/ })).toBeInTheDocument()
+    fireEvent.keyDown(document, { key: 'Escape' })
+    const textbox = screen.getByRole('textbox')
+    textbox.textContent = 'Start with the restored pair'
+    fireEvent.input(textbox)
+    fireEvent.click(screen.getByRole('button', { name: 'Send message' }))
+    await waitFor(() => {
+      expect(appServerSendRequest).toHaveBeenCalledWith('thread/start', expect.objectContaining({
+        config: { providerId: 'provider-b', model: 'model-b-v2' }
+      }))
+    })
+    secondMount.unmount()
+    useUIStore.setState({ welcomeDraft: null, welcomeDraftsByWorkspace: {} })
   })
 
   it('loads the workspace model from remote-aware core config without reading local files', async () => {
     workspaceConfigGetCore.mockResolvedValue({
       workspace: {
-        model: 'claude-sonnet-4-5',
+        providerId: 'anthropic',
+        providerModels: { anthropic: 'claude-sonnet-4-5' },
         welcomeSuggestionsEnabled: null,
         defaultApprovalPolicy: null
       },
       userDefaults: {
-        model: 'gpt-5',
+        providerId: 'openai',
+        providerModels: { openai: 'gpt-5' },
         welcomeSuggestionsEnabled: null,
         defaultApprovalPolicy: null
       }

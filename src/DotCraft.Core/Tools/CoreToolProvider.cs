@@ -122,7 +122,10 @@ public sealed class CoreToolSource(
         // SubAgent child threads cannot recursively spawn/control children.
         if (!context.ProviderCapabilities.Contains("subagent-child"))
         {
-            var mainRuntime = chatClientRegistry.ResolveMainRuntime(config);
+            var mainRuntime = chatClientRegistry.ResolveMainRuntime(
+                config,
+                context.EffectiveProviderId,
+                context.EffectiveMainModel);
             var subAgentChatClient = chatClientRegistry.GetSubAgentChatClient(
                 config,
                 mainRuntime.ProviderId,
@@ -160,7 +163,7 @@ public sealed class CoreToolSource(
                 subAgentCoordinator,
                 config.SubAgent.Roles,
                 config.SubAgent.MaxDepth,
-                config.SubAgent.Model,
+                subAgentRuntime.Model,
                 SubAgentWaitAgentTimeoutOptions.FromConfig(config.SubAgent));
             tools.Add(GeneratedToolFunctions.AgentTools_SpawnAgent(agentTools));
             tools.Add(GeneratedToolFunctions.AgentTools_SendMessage(agentTools));
@@ -224,7 +227,7 @@ public sealed class CoreToolSource(
         tools.Add(GeneratedToolFunctions.WebTools_WebFetch(webTools));
 
         var target = SkillVariantStore.CreateTarget(
-            config.Model,
+            context.EffectiveMainModel,
             context.WorkspacePath,
             config.Tools.Sandbox.Enabled,
             config.Permissions.DefaultApprovalPolicy.ToString(),

@@ -769,7 +769,8 @@ public sealed class MaintenanceForkRunnerTests
     private static AppConfig CreateReasoningConfig(string model = "claude-opus-4-8") =>
         new()
         {
-            Model = model,
+            ProviderId = "test",
+            ProviderModels = new() { ["test"] = model },
             Reasoning = new AppConfig.ReasoningConfig
             {
                 Enabled = true,

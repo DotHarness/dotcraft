@@ -35,7 +35,8 @@ public sealed class InitHelperSetupTests : IDisposable
         var globalNode = JsonNode.Parse(File.ReadAllText(globalConfigPath))!.AsObject();
         Assert.DoesNotContain("Language", globalNode.Select(p => p.Key));
         Assert.Equal("openai", globalNode["ProviderId"]?.GetValue<string>());
-        Assert.Equal("gpt-4o-mini", globalNode["Model"]?.GetValue<string>());
+        Assert.Equal("gpt-4o-mini", globalNode["ProviderModels"]!["openai"]?.GetValue<string>());
+        Assert.DoesNotContain("Model", globalNode.Select(p => p.Key));
         var globalProvider = globalNode["Providers"]!["openai"]!;
         Assert.Equal("sk-global", globalProvider["ApiKey"]?.GetValue<string>());
         Assert.Equal("https://example.com/v1", globalProvider["EndPoint"]?.GetValue<string>());
@@ -82,7 +83,8 @@ public sealed class InitHelperSetupTests : IDisposable
         var workspaceNode = JsonNode.Parse(File.ReadAllText(Path.Combine(craftPath, "config.json")))!.AsObject();
         Assert.DoesNotContain("Language", workspaceNode.Select(p => p.Key));
         Assert.Equal("openai", workspaceNode["ProviderId"]?.GetValue<string>());
-        Assert.Equal("deepseek-chat", workspaceNode["Model"]?.GetValue<string>());
+        Assert.Equal("deepseek-chat", workspaceNode["ProviderModels"]!["openai"]?.GetValue<string>());
+        Assert.DoesNotContain("Model", workspaceNode.Select(p => p.Key));
         Assert.DoesNotContain("ApiKey", workspaceNode.Select(p => p.Key));
         Assert.DoesNotContain("EndPoint", workspaceNode.Select(p => p.Key));
         var agentsPath = Path.Combine(craftPath, "AGENTS.md");
@@ -119,7 +121,7 @@ public sealed class InitHelperSetupTests : IDisposable
 
         var globalNode = JsonNode.Parse(File.ReadAllText(globalConfigPath))!.AsObject();
         Assert.Equal("https://example.com/v1", globalNode["EndPoint"]?.GetValue<string>());
-        Assert.Equal("gpt-4o-mini", globalNode["Model"]?.GetValue<string>());
+        Assert.DoesNotContain("Model", globalNode.Select(p => p.Key));
         Assert.Equal("sk-global", globalNode["ApiKey"]?.GetValue<string>());
         Assert.DoesNotContain("Language", globalNode.Select(p => p.Key));
         var provider = globalNode["Providers"]!["openai"]!;
@@ -131,7 +133,7 @@ public sealed class InitHelperSetupTests : IDisposable
         Assert.DoesNotContain("ApiKey", workspaceNode.Select(p => p.Key));
         Assert.DoesNotContain("EndPoint", workspaceNode.Select(p => p.Key));
         Assert.Equal("openai", workspaceNode["ProviderId"]?.GetValue<string>());
-        Assert.Equal("gpt-4.1", workspaceNode["Model"]?.GetValue<string>());
+        Assert.Equal("gpt-4.1", workspaceNode["ProviderModels"]!["openai"]?.GetValue<string>());
         Assert.False(File.Exists(Path.Combine(craftPath, "AGENTS.md")));
         Assert.False(File.Exists(Path.Combine(craftPath, "USER.md")));
     }
@@ -173,7 +175,7 @@ public sealed class InitHelperSetupTests : IDisposable
 
         var workspaceNode = JsonNode.Parse(File.ReadAllText(Path.Combine(craftPath, "config.json")))!.AsObject();
         Assert.Equal("anthropic", workspaceNode["ProviderId"]?.GetValue<string>());
-        Assert.Equal("claude-sonnet-4-5", workspaceNode["Model"]?.GetValue<string>());
+        Assert.Equal("claude-sonnet-4-5", workspaceNode["ProviderModels"]!["anthropic"]?.GetValue<string>());
         Assert.DoesNotContain("ApiKey", workspaceNode.Select(p => p.Key));
         Assert.DoesNotContain("EndPoint", workspaceNode.Select(p => p.Key));
         Assert.DoesNotContain("Language", workspaceNode.Select(p => p.Key));
@@ -213,7 +215,7 @@ public sealed class InitHelperSetupTests : IDisposable
 
         var workspaceNode = JsonNode.Parse(File.ReadAllText(Path.Combine(craftPath, "config.json")))!.AsObject();
         Assert.Equal("openai-api", workspaceNode["ProviderId"]?.GetValue<string>());
-        Assert.Equal("gpt-4.1", workspaceNode["Model"]?.GetValue<string>());
+        Assert.Equal("gpt-4.1", workspaceNode["ProviderModels"]!["openai-api"]?.GetValue<string>());
         Assert.False(File.Exists(Path.Combine(craftPath, "AGENTS.md")));
         Assert.False(File.Exists(Path.Combine(craftPath, "USER.md")));
     }
@@ -247,12 +249,14 @@ public sealed class InitHelperSetupTests : IDisposable
         var globalNode = JsonNode.Parse(File.ReadAllText(globalConfigPath))!.AsObject();
         Assert.DoesNotContain("Language", globalNode.Select(p => p.Key));
         Assert.Equal("openai-main", globalNode["ProviderId"]?.GetValue<string>());
-        Assert.Equal("gpt-4.1", globalNode["Model"]?.GetValue<string>());
+        Assert.Equal("gpt-4.1", globalNode["ProviderModels"]!["openai-main"]?.GetValue<string>());
+        Assert.DoesNotContain("Model", globalNode.Select(p => p.Key));
         Assert.Equal("OpenAI", globalNode["Providers"]!["openai-main"]!["DisplayName"]?.GetValue<string>());
 
         var workspaceNode = JsonNode.Parse(File.ReadAllText(Path.Combine(craftPath, "config.json")))!.AsObject();
         Assert.DoesNotContain("ProviderId", workspaceNode.Select(p => p.Key));
         Assert.DoesNotContain("Model", workspaceNode.Select(p => p.Key));
+        Assert.DoesNotContain("ProviderModels", workspaceNode.Select(p => p.Key));
         Assert.DoesNotContain("ApiKey", workspaceNode.Select(p => p.Key));
         Assert.DoesNotContain("EndPoint", workspaceNode.Select(p => p.Key));
     }

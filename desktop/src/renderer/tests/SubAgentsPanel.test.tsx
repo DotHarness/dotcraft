@@ -318,49 +318,6 @@ describe('SubAgentsPanel', () => {
     }
   })
 
-  it('saves the native model from the model dropdown', async () => {
-    renderPanel()
-
-    fireEvent.click(
-      await screen.findByRole('button', { name: 'Open sub-agent profile native' })
-    )
-
-    const modelSelect = await screen.findByLabelText('Native model')
-    fireEvent.change(modelSelect, { target: { value: 'gpt-subagent' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
-
-    await waitFor(() => {
-      expect(appServerSendRequest).toHaveBeenCalledWith(
-        'subagent/settings/update',
-        expect.objectContaining({ model: 'gpt-subagent' })
-      )
-    })
-  })
-
-  it('falls back to manual native model entry when model listing is unsupported', async () => {
-    appServerListModels.mockResolvedValue({
-      success: false,
-      errorCode: 'EndpointNotSupported',
-      models: []
-    })
-    renderPanel()
-
-    fireEvent.click(
-      await screen.findByRole('button', { name: 'Open sub-agent profile native' })
-    )
-
-    const modelInput = await screen.findByPlaceholderText('Inherit MainAgent model')
-    fireEvent.change(modelInput, { target: { value: 'manual-subagent-model' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
-
-    await waitFor(() => {
-      expect(appServerSendRequest).toHaveBeenCalledWith(
-        'subagent/settings/update',
-        expect.objectContaining({ model: 'manual-subagent-model' })
-      )
-    })
-  })
-
   it('creates a custom agent through the dedicated add flow', async () => {
     renderPanel()
 

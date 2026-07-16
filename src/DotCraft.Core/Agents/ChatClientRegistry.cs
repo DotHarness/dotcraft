@@ -49,15 +49,11 @@ public sealed class ChatClientRegistry(
     /// <summary>
     /// Resolves the effective native SubAgent model for the current thread context.
     /// </summary>
-    public string ResolveSubAgentModel(AppConfig config, string effectiveMainModel)
-    {
-        ArgumentNullException.ThrowIfNull(config);
-
-        var subAgentModel = config.SubAgent.Model;
-        return string.IsNullOrWhiteSpace(subAgentModel)
-            ? NormalizeRequiredModel(effectiveMainModel)
-            : subAgentModel.Trim();
-    }
+    public string ResolveSubAgentModel(
+        AppConfig config,
+        string effectiveMainProviderId,
+        string effectiveMainModel) =>
+        ResolveSubAgentRuntime(config, effectiveMainProviderId, effectiveMainModel).Model;
 
     /// <summary>
     /// Resolves the effective memory consolidation runtime.

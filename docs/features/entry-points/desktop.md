@@ -36,7 +36,7 @@ DotCraft --workspace /path/to/project
 | **Settings → Profile** | Token-activity heatmap for this workspace, lifetime/peak/streak stats, optional GitHub identity |
 | **Settings → General** | Current workspace path, AppServer binary path, language |
 | **Settings → Personalization** | Long-term memory / Dreams switches, run-now, auto-update, reset memory |
-| **Settings → Model Providers** | Personal providers, credentials, endpoints, workspace provider and model |
+| **Settings → Model Providers** | Personal providers, credentials, endpoints, and provider-specific MainAgent/SubAgent models |
 | **Settings → Sub Agents** | Reuse external CLI sessions (see [SubAgents](../agent-system/subagents)) |
 | **Settings → Connection** | Switch between local Hub and remote AppServer |
 
@@ -59,7 +59,9 @@ See [Memory & Dreams](../agent-system/memory) for the full picture.
 ### Model Providers
 
 - Provider credentials and endpoints are written to personal `~/.craft/config.json`, **not** the workspace.
-- The workspace only stores `ProviderId` and `Model`, so shared workspace config never holds secrets.
+- The workspace stores `ProviderId`, `ProviderModels`, and `SubAgent.ProviderModels`; shared workspace config never holds secrets.
+- The Welcome picker sets defaults for future threads. Each existing thread keeps its captured provider/model and may switch independently from its composer.
+- A native SubAgent uses the model remembered for its parent thread's provider, or inherits the parent MainAgent model when no SubAgent preference exists.
 - Desktop currently supports OpenAI and Anthropic providers.
 - Use **Test** to check credential and model-list reachability. If a provider cannot list models, save it and type the model name manually.
 

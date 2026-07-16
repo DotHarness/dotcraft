@@ -194,7 +194,7 @@ public static class ModelProviderResolver
 
         var provider = ResolveProvider(config, providerIdOverride);
         var model = string.IsNullOrWhiteSpace(modelOverride)
-            ? config.Model
+            ? ResolveConfiguredModel(config, provider.ProviderId)
             : modelOverride;
 
         if (string.IsNullOrWhiteSpace(model))
@@ -219,10 +219,38 @@ public static class ModelProviderResolver
         string effectiveMainProviderId,
         string effectiveMainModel)
     {
-        var model = string.IsNullOrWhiteSpace(config.SubAgent.Model)
-            ? effectiveMainModel
-            : config.SubAgent.Model;
+        var model = GetProviderModel(config.SubAgent.ProviderModels, effectiveMainProviderId)
+            ?? effectiveMainModel;
         return ResolveMain(config, effectiveMainProviderId, model);
+    }
+
+    private static string? GetProviderModel(
+        IReadOnlyDictionary<string, string>? providerModels,
+        string providerId)
+    {
+        if (providerModels is null)
+            return null;
+
+        foreach (var (key, value) in providerModels)
+        {
+            if (string.Equals(key, providerId, StringComparison.OrdinalIgnoreCase)
+                && !string.IsNullOrWhiteSpace(value)
+                && !string.Equals(value.Trim(), "Default", StringComparison.OrdinalIgnoreCase))
+                return value.Trim();
+        }
+
+        return null;
+    }
+
+    internal static string? ResolveConfiguredModel(AppConfig config, string? providerId = null)
+    {
+        ArgumentNullException.ThrowIfNull(config);
+        var effectiveProviderId = NormalizeProviderId(providerId);
+        if (string.IsNullOrWhiteSpace(effectiveProviderId))
+            effectiveProviderId = NormalizeProviderId(config.ProviderId);
+        return string.IsNullOrWhiteSpace(effectiveProviderId)
+            ? null
+            : GetProviderModel(config.ProviderModels, effectiveProviderId);
     }
 
     public static EffectiveModelRuntime ResolveProvider(AppConfig config, string? providerIdOverride = null)
@@ -333,7 +361,7 @@ public static class ModelProviderResolver
 
             runtime = new EffectiveModelRuntime(
                 providerId,
-                NormalizeRequiredModel(config.Model),
+                string.Empty,
                 protocol,
                 string.IsNullOrWhiteSpace(provider.DisplayName) ? providerId : provider.DisplayName.Trim(),
                 apiKey,
@@ -369,14 +397,6 @@ public static class ModelProviderResolver
             ModelProviderProtocols.Anthropic => ModelProviderDefaults.DefaultAnthropicEndpoint,
             _ => string.Empty
         };
-    }
-
-    private static string NormalizeRequiredModel(string? model)
-    {
-        if (string.IsNullOrWhiteSpace(model))
-            throw new ArgumentException("Model must be configured.", nameof(model));
-
-        return model.Trim();
     }
 
     private static int? NormalizePositiveNullable(int? value) =>

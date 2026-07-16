@@ -28,6 +28,8 @@ import { ComposerOverlapBand, useComposerOverlapBandHeight } from './useComposer
 export type ReasoningQuickValue = 'default' | 'off' | ReasoningEffortWire
 
 interface ModelPickerProps {
+  providerId?: string
+  providerOptions?: Array<{ id: string; displayName: string }>
   modelName: string
   modelOptions: string[]
   modelCatalog?: ModelCatalogItem[]
@@ -39,6 +41,7 @@ interface ModelPickerProps {
   errorMessage?: string | null
   modelListReady?: boolean
   onChange?: (model: string) => void
+  onProviderChange?: (providerId: string) => void
   onReasoningChange?: (value: ReasoningQuickValue) => void
   onSpeedChange?: (value: InferenceSpeedWire) => void
   onRetry?: () => void
@@ -54,19 +57,23 @@ interface ModelPickerProps {
   contextDegraded?: boolean
   contextConfiguredWindow?: number
   onContextModeChange?: (mode: ContextWindowMode) => void
+  allowDefaultModel?: boolean
 }
 
 type EffectiveReasoningValue = Exclude<ReasoningQuickValue, 'default'>
-type SecondaryMenu = 'model' | 'effort' | 'speed'
+type SecondaryMenu = 'provider' | 'model' | 'effort' | 'speed'
 
 const MAIN_MENU_WIDTH = 282
 const MODEL_MENU_WIDTH = 310
 const EFFORT_MENU_WIDTH = 248
 const SPEED_MENU_WIDTH = 248
+const PROVIDER_MENU_WIDTH = 280
 const MAX_SUBMENU_HEIGHT = 320
 const VIEWPORT_PADDING = 8
 
 export function ModelPicker({
+  providerId,
+  providerOptions = [],
   modelName,
   modelOptions,
   modelCatalog = [],
@@ -78,6 +85,7 @@ export function ModelPicker({
   errorMessage = null,
   modelListReady = false,
   onChange,
+  onProviderChange,
   onReasoningChange,
   onSpeedChange,
   onRetry,
@@ -87,7 +95,8 @@ export function ModelPicker({
   contextSupportsMax = false,
   contextDegraded = false,
   contextConfiguredWindow = 0,
-  onContextModeChange
+  onContextModeChange,
+  allowDefaultModel = true
 }: ModelPickerProps): JSX.Element {
   const t = useT()
   const contextEnabled = typeof onContextModeChange === 'function'
@@ -125,16 +134,20 @@ export function ModelPicker({
   const capability = activeModel?.reasoning ?? null
   const speedCapability = activeModel?.speed ?? null
   const speedVisible = speedCapability?.supportedModes.includes('fast') === true
+  const providerVisible = Boolean(providerId && providerOptions.length > 0 && onProviderChange)
+  const providerOffset = providerVisible ? 1 : 0
   const effectiveReasoning: EffectiveReasoningValue = reasoningValue === 'default'
     ? capability?.defaultEffort ?? 'medium'
     : reasoningValue
 
   const modelChoices = useMemo(() => {
-    const withDefault = ['Default', ...modelOptions.filter((option) => option !== 'Default')]
+    const withDefault = allowDefaultModel
+      ? ['Default', ...modelOptions.filter((option) => option !== 'Default')]
+      : modelOptions.filter((option) => option !== 'Default')
     if (!modelName || modelName === 'Default' || withDefault.includes(modelName)) return withDefault
     if (modelListReady && modelOptions.length > 0) return withDefault
     return [modelName, ...withDefault]
-  }, [modelListReady, modelName, modelOptions])
+  }, [allowDefaultModel, modelListReady, modelName, modelOptions])
 
   const effortChoices = useMemo<EffectiveReasoningValue[]>(() => {
     const next: EffectiveReasoningValue[] = []
@@ -366,7 +379,7 @@ export function ModelPicker({
 
   const openSecondary = (kind: SecondaryMenu, row: HTMLButtonElement): void => {
     const popupRect = popupRef.current?.getBoundingClientRect()
-    const secondaryWidth = kind === 'model' ? MODEL_MENU_WIDTH : kind === 'effort' ? EFFORT_MENU_WIDTH : SPEED_MENU_WIDTH
+    const secondaryWidth = kind === 'provider' ? PROVIDER_MENU_WIDTH : kind === 'model' ? MODEL_MENU_WIDTH : kind === 'effort' ? EFFORT_MENU_WIDTH : SPEED_MENU_WIDTH
     let shouldOpenLeft = false
     let nextShiftX = 0
     if (popupRect) {
@@ -422,7 +435,7 @@ export function ModelPicker({
   const handleMaxPointer = (event: ReactMouseEvent<HTMLDivElement>): void => {
     if (secondary) {
       guardMenuAim(event, () => {
-        setMainHighlight(speedVisible ? 3 : 2)
+        setMainHighlight(providerOffset + (speedVisible ? 3 : 2))
         setSecondary(null)
         setPopupShiftX(0)
       })
@@ -430,7 +443,7 @@ export function ModelPicker({
     }
 
     cancelMenuAim()
-    setMainHighlight(speedVisible ? 3 : 2)
+    setMainHighlight(providerOffset + (speedVisible ? 3 : 2))
     setSecondary(null)
     setPopupShiftX(0)
   }
@@ -443,12 +456,7 @@ export function ModelPicker({
   }
 
   const selectModel = (nextModel: string): void => {
-    const nextCapability = modelCatalog.find((model) => model.id === nextModel)?.reasoning ?? null
-    const remainsValid = effectiveReasoning === 'off'
-      ? nextCapability?.supportsDisable === true
-      : nextCapability?.supportedEfforts.some((option) => option.effort === effectiveReasoning) === true
     onChange?.(nextModel)
-    if (nextCapability && !remainsValid) onReasoningChange?.(nextCapability.defaultEffort)
     closePicker()
   }
 
@@ -641,27 +649,42 @@ export function ModelPicker({
             </div>
           )}
 
+          {providerVisible && (
+            <MainMenuRow
+              label={t('composer.providerHeading')}
+              value={providerOptions.find((provider) => provider.id === providerId)?.displayName ?? providerId ?? ''}
+              highlighted={mainHighlight === 0 || secondary === 'provider'}
+              submenu="provider"
+              onHover={(event) => handleSecondaryPointer('provider', 0, event)}
+              onClick={(event) => {
+                cancelMenuAim()
+                setMainHighlight(0)
+                openSecondary('provider', event.currentTarget)
+              }}
+            />
+          )}
+
           <MainMenuRow
             label={t('composer.modelHeading')}
             value={modelLabel}
-            highlighted={mainHighlight === 0 || secondary === 'model'}
+            highlighted={mainHighlight === providerOffset || secondary === 'model'}
             submenu="model"
-            onHover={(event) => handleSecondaryPointer('model', 0, event)}
+            onHover={(event) => handleSecondaryPointer('model', providerOffset, event)}
             onClick={(event) => {
               cancelMenuAim()
-              setMainHighlight(0)
+              setMainHighlight(providerOffset)
               openSecondary('model', event.currentTarget)
             }}
           />
           <MainMenuRow
             label={t('composer.reasoning.heading')}
             value={reasoningDisplayLabel}
-            highlighted={mainHighlight === 1 || secondary === 'effort'}
+            highlighted={mainHighlight === providerOffset + 1 || secondary === 'effort'}
             submenu="effort"
-            onHover={(event) => handleSecondaryPointer('effort', 1, event)}
+            onHover={(event) => handleSecondaryPointer('effort', providerOffset + 1, event)}
             onClick={(event) => {
               cancelMenuAim()
-              setMainHighlight(1)
+              setMainHighlight(providerOffset + 1)
               openSecondary('effort', event.currentTarget)
             }}
           />
@@ -669,12 +692,12 @@ export function ModelPicker({
             <MainMenuRow
               label={t('composer.speed.heading')}
               value={speedValue === 'fast' ? t('composer.speed.fast') : t('composer.speed.standard')}
-              highlighted={mainHighlight === 2 || secondary === 'speed'}
+              highlighted={mainHighlight === providerOffset + 2 || secondary === 'speed'}
               submenu="speed"
-              onHover={(event) => handleSecondaryPointer('speed', 2, event)}
+              onHover={(event) => handleSecondaryPointer('speed', providerOffset + 2, event)}
               onClick={(event) => {
                 cancelMenuAim()
-                setMainHighlight(2)
+                setMainHighlight(providerOffset + 2)
                 openSecondary('speed', event.currentTarget)
               }}
             />
@@ -682,7 +705,7 @@ export function ModelPicker({
           {contextEnabled && (
             <>
               <div
-                style={mainMenuRowStyle(mainHighlight === (speedVisible ? 3 : 2), contextDisabled, true)}
+                style={mainMenuRowStyle(mainHighlight === providerOffset + (speedVisible ? 3 : 2), contextDisabled, true)}
                 onMouseEnter={handleMaxPointer}
                 onMouseMove={handleMaxPointer}
               >
@@ -716,7 +739,9 @@ export function ModelPicker({
             <div
               ref={submenuRef}
               role="listbox"
-              aria-label={secondary === 'model'
+              aria-label={secondary === 'provider'
+                ? t('composer.providerHeading')
+                : secondary === 'model'
                 ? t('composer.modelHeading')
                 : secondary === 'effort'
                   ? t('composer.reasoning.heading')
@@ -725,7 +750,22 @@ export function ModelPicker({
               onMouseEnter={cancelMenuAim}
               onMouseMove={cancelMenuAim}
             >
-              {secondary === 'model'
+              {secondary === 'provider'
+                ? providerOptions.map((provider, index) => (
+                    <OptionRow
+                      key={provider.id}
+                      selected={provider.id === providerId}
+                      highlighted={submenuHighlight === index}
+                      label={provider.displayName}
+                      description={provider.id === provider.displayName ? undefined : provider.id}
+                      onHover={() => setSubmenuHighlight(index)}
+                      onSelect={() => {
+                        onProviderChange?.(provider.id)
+                        closePicker()
+                      }}
+                    />
+                  ))
+                : secondary === 'model'
                 ? modelChoices.map((model, index) => (
                     <OptionRow
                       key={model}
@@ -941,7 +981,7 @@ function mainMenuRowStyle(
 }
 
 function submenuStyle(kind: SecondaryMenu, top: number, opensLeft: boolean, maxHeight: number): CSSProperties {
-  const width = kind === 'model' ? MODEL_MENU_WIDTH : EFFORT_MENU_WIDTH
+  const width = kind === 'provider' ? PROVIDER_MENU_WIDTH : kind === 'model' ? MODEL_MENU_WIDTH : EFFORT_MENU_WIDTH
   return {
     position: 'absolute',
     top,

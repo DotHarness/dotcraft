@@ -39,9 +39,7 @@ export function SubAgentsPanel({ enabled, refreshTick = 0 }: SubAgentsPanelProps
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [externalCliSessionResumeEnabled, setExternalCliSessionResumeEnabled] = useState(false)
-  const [subAgentModel, setSubAgentModel] = useState('')
   const [saving, setSaving] = useState(false)
-  const [savingSubAgentModel, setSavingSubAgentModel] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [restoring, setRestoring] = useState(false)
   const [togglingName, setTogglingName] = useState<string | null>(null)
@@ -69,7 +67,6 @@ export function SubAgentsPanel({ enabled, refreshTick = 0 }: SubAgentsPanelProps
     if (!enabled) {
       setProfiles([])
         setExternalCliSessionResumeEnabled(false)
-        setSubAgentModel('')
         setView({ kind: 'list' })
       return
     }
@@ -81,7 +78,6 @@ export function SubAgentsPanel({ enabled, refreshTick = 0 }: SubAgentsPanelProps
         )) as SubAgentProfileListResult
         setProfiles(result.profiles)
         setExternalCliSessionResumeEnabled(result.settings.externalCliSessionResumeEnabled)
-        setSubAgentModel(result.settings.model?.trim() ?? '')
         setError(null)
         const keepView = preserveView ?? viewRef.current
         if (keepView.kind === 'preset' || keepView.kind === 'custom') {
@@ -144,31 +140,6 @@ export function SubAgentsPanel({ enabled, refreshTick = 0 }: SubAgentsPanelProps
     } finally {
       setTogglingName(null)
     }
-    },
-    [loadProfiles, t]
-  )
-
-  const handleSaveSubAgentModel = useCallback(
-    async (model: string) => {
-      setSavingSubAgentModel(true)
-      try {
-        const normalized = model.trim()
-        await window.api.appServer.sendRequest('subagent/settings/update', {
-          model: normalized.length > 0 ? normalized : null
-        })
-        setSubAgentModel(normalized)
-        addToast(t('settings.subAgents.savedToast', { name: 'native' }), 'success')
-        await loadProfiles({ kind: 'preset', name: 'native' })
-      } catch (err) {
-        addToast(
-          t('settings.subAgents.actionFailed', {
-            error: err instanceof Error ? err.message : String(err)
-          }),
-          'error'
-        )
-      } finally {
-        setSavingSubAgentModel(false)
-      }
     },
     [loadProfiles, t]
   )
@@ -314,10 +285,7 @@ export function SubAgentsPanel({ enabled, refreshTick = 0 }: SubAgentsPanelProps
       return (
         <NativeProfileDetail
           profile={selectedProfile}
-          model={subAgentModel}
-          savingModel={savingSubAgentModel}
           onBack={handleBack}
-          onSaveModel={handleSaveSubAgentModel}
         />
       )
     }

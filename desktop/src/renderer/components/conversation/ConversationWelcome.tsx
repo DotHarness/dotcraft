@@ -53,6 +53,8 @@ import type { WorkspaceConfigChangedPayload } from '../../utils/workspaceConfigC
 import {
   configObjectFromWorkspaceCore,
   resolveConcreteApprovalPolicyFromConfig,
+  resolveWorkspaceModelFromConfig,
+  resolveWorkspaceProviderFromConfig,
   type WorkspaceCoreConfigLike
 } from '../../utils/workspaceCoreConfig'
 
@@ -186,6 +188,7 @@ export function ConversationWelcome({
   const [welcomeDefaultApprovalPolicy, setWelcomeDefaultApprovalPolicy] = useState<VisibleApprovalPolicy>('prompt')
   const [welcomeApprovalPolicyDirty, setWelcomeApprovalPolicyDirty] = useState(false)
   const [modelName, setModelName] = useState<string>('Default')
+  const [providerId, setProviderId] = useState<string>('')
   const [reasoningConfig, setReasoningConfig] = useState<ResolvedReasoningConfig>(DEFAULT_REASONING_CONFIG)
   const [speedValue, setSpeedValue] = useState<InferenceSpeedWire>('standard')
   const [welcomeContextMode, setWelcomeContextMode] = useState<ContextWindowMode>('default')
@@ -205,7 +208,8 @@ export function ConversationWelcome({
   const welcomeApprovalPolicyRef = useRef<VisibleApprovalPolicy>('prompt')
   const welcomeApprovalPolicyDirtyRef = useRef(false)
   const initialWelcomeDraftRef = useRef(useUIStore.getState().getWelcomeDraftForWorkspace(draftProjectKey))
-  const workspaceLlmConfigChangedRef = useRef(false)
+  const workspaceLlmConfigResolvedRef = useRef(false)
+  const workspaceProviderFromConfigRef = useRef<string | null>(null)
   const workspaceModelFromConfigRef = useRef<string | null>(null)
   const suggestionFingerprintRef = useRef<string | null>(null)
   const suggestionRequestSeqRef = useRef(0)
@@ -232,6 +236,7 @@ export function ConversationWelcome({
   const activeCatalogProviderId = useModelCatalogStore((s) => s.providerId)
   const activeChatGptProvider = useChatGptOAuthSummary(activeCatalogProviderId)
   const reloadProviders = useProvidersStore((s) => s.reload)
+  const providerOptions = useProvidersStore((s) => s.providers)
   const { addThread, setActiveThreadId } = useThreadStore()
   const setWelcomeDraft = useUIStore((s) => s.setWelcomeDraft)
   const clearWelcomeDraft = useUIStore((s) => s.clearWelcomeDraft)
@@ -478,20 +483,22 @@ export function ConversationWelcome({
     return parseJsonConfig<Record<string, unknown>>(raw, {})
   }, [remoteWorkspace, workspaceConfigPath])
 
+  const readWorkspaceProviderModels = useCallback(async (): Promise<Record<string, string>> => {
+    if (remoteWorkspace) {
+      const getCore = window.api.workspaceConfig?.getCore
+      if (typeof getCore !== 'function') return {}
+      const core = await getCore() as WorkspaceCoreConfigLike
+      return { ...(core.workspace?.providerModels ?? {}) }
+    }
+    return readProviderModelsFromConfig(await readWorkspaceConfig())
+  }, [readWorkspaceConfig, remoteWorkspace])
+
   const getCaseInsensitiveValue = useCallback((record: Record<string, unknown>, key: string): unknown => {
     const expected = key.toLowerCase()
     for (const [candidate, value] of Object.entries(record)) {
       if (candidate.toLowerCase() === expected) return value
     }
     return undefined
-  }, [])
-
-  const resolveModelFromConfig = useCallback((cfg: Record<string, unknown>): string => {
-    const modelRaw = cfg.Model ?? cfg.model
-    if (typeof modelRaw !== 'string') return 'Default'
-    const trimmed = modelRaw.trim()
-    if (trimmed.length === 0 || trimmed === 'Default') return 'Default'
-    return trimmed
   }, [])
 
   const resolveReasoningFromConfig = useCallback((cfg: Record<string, unknown>): ResolvedReasoningConfig => {
@@ -648,6 +655,7 @@ export function ConversationWelcome({
     }
   }, [
     readWorkspaceConfig,
+    readWorkspaceProviderModels,
     resolveWelcomeSuggestionsEnabled,
     workspaceConfigChange,
     workspaceConfigChangeSeq
@@ -855,8 +863,14 @@ export function ConversationWelcome({
       setWelcomeContextMode(explicitDraftContextWindow.mode ?? 'default')
       setWelcomeContextExplicit(true)
     }
+    const useResolvedWorkspacePair = workspaceLlmConfigResolvedRef.current
+    setProviderId(
+      useResolvedWorkspacePair && workspaceProviderFromConfigRef.current != null
+        ? workspaceProviderFromConfigRef.current
+        : (welcomeDraft.providerId?.trim() ?? '')
+    )
     setModelName(
-      workspaceLlmConfigChangedRef.current && workspaceModelFromConfigRef.current != null
+      useResolvedWorkspacePair && workspaceModelFromConfigRef.current != null
         ? workspaceModelFromConfigRef.current
         : (welcomeDraft.model || 'Default')
     )
@@ -887,20 +901,12 @@ export function ConversationWelcome({
       const hasInitialDraftSpeed = initialWelcomeDraftRef.current?.speed != null
       const hasInitialDraftContext =
         normalizeContextWindowConfig(initialWelcomeDraftRef.current?.contextWindow) != null
-      if (
-        hasInitialDraft &&
-        hasInitialDraftContext &&
-        !workspaceModelChanged &&
-        !workspaceReasoningChanged &&
-        !workspaceSpeedChanged &&
-        !workspaceContextChanged
-      ) {
-        return
-      }
       if (!workspaceConfigPath) {
         if (!hasInitialDraft || workspaceModelChanged) {
-          workspaceLlmConfigChangedRef.current = true
+          workspaceLlmConfigResolvedRef.current = true
+          workspaceProviderFromConfigRef.current = ''
           workspaceModelFromConfigRef.current = 'Default'
+          setProviderId('')
           setModelName('Default')
         }
         if (!hasInitialDraft || workspaceReasoningChanged) {
@@ -919,10 +925,29 @@ export function ConversationWelcome({
       try {
         const cfg = await readWorkspaceConfig()
         if (disposed) return
-        if (!hasInitialDraft || workspaceModelChanged) {
-          const nextModel = resolveModelFromConfig(cfg)
-          workspaceLlmConfigChangedRef.current = true
+        const nextProviderId = resolveWorkspaceProviderFromConfig(cfg)
+        // A concrete workspace provider is authoritative even when a draft exists. This keeps
+        // Settings changes from reviving a stale provider/model pair on the Welcome screen.
+        if (!hasInitialDraft || workspaceModelChanged || nextProviderId !== '') {
+          let nextModel = resolveWorkspaceModelFromConfig(cfg, nextProviderId)
+          workspaceLlmConfigResolvedRef.current = true
+          workspaceProviderFromConfigRef.current = nextProviderId
           workspaceModelFromConfigRef.current = nextModel
+          if (nextProviderId) await loadModels(false, nextProviderId)
+          if (disposed) return
+          if (nextModel === 'Default') {
+            nextModel = useModelCatalogStore.getState().modelOptions[0] ?? 'Default'
+            if (nextModel !== 'Default' && nextProviderId) {
+              const providerModels = await readWorkspaceProviderModels()
+              providerModels[nextProviderId] = nextModel
+              await window.api.appServer.sendRequest('workspace/config/update', {
+                providerId: nextProviderId,
+                providerModels
+              })
+            }
+          }
+          workspaceModelFromConfigRef.current = nextModel
+          setProviderId(nextProviderId)
           setModelName(nextModel)
         }
         if (!hasInitialDraft || workspaceReasoningChanged) {
@@ -938,8 +963,10 @@ export function ConversationWelcome({
       } catch {
         if (!disposed) {
           if (!hasInitialDraft || workspaceModelChanged) {
-            workspaceLlmConfigChangedRef.current = true
+            workspaceLlmConfigResolvedRef.current = true
+            workspaceProviderFromConfigRef.current = ''
             workspaceModelFromConfigRef.current = 'Default'
+            setProviderId('')
             setModelName('Default')
           }
           if (!hasInitialDraft || workspaceReasoningChanged) {
@@ -963,7 +990,7 @@ export function ConversationWelcome({
   }, [
     readWorkspaceConfig,
     resolveContextModeFromConfig,
-    resolveModelFromConfig,
+    loadModels,
     resolveReasoningFromConfig,
     workspaceConfigChange,
     workspaceConfigChangeSeq,
@@ -1006,13 +1033,14 @@ export function ConversationWelcome({
       images: [...images],
       files: [...files],
       mode: welcomeMode,
+      providerId,
       model,
       reasoning: reasoningConfig,
       speed: speedValue,
       contextWindow: buildWelcomeContextWindowConfig(),
       approvalPolicy: welcomeApprovalPolicy
     }, draftProjectKey)
-  }, [buildWelcomeContextWindowConfig, clearWelcomeDraft, draftProjectKey, files, images, modelName, reasoningConfig, setWelcomeDraft, speedValue, welcomeApprovalPolicy, welcomeApprovalPolicyDirty, welcomeContextExplicit, welcomeMode])
+  }, [buildWelcomeContextWindowConfig, clearWelcomeDraft, draftProjectKey, files, images, modelName, providerId, reasoningConfig, setWelcomeDraft, speedValue, welcomeApprovalPolicy, welcomeApprovalPolicyDirty, welcomeContextExplicit, welcomeMode])
 
   useEffect(() => {
     if (!draftHydratedRef.current) return
@@ -1045,8 +1073,12 @@ export function ConversationWelcome({
       const previousModel = modelName
       setModelName(nextModel)
       try {
+        const providerModels = await readWorkspaceProviderModels()
+        if (providerId && nextModel !== 'Default') providerModels[providerId] = nextModel
+        else if (providerId) delete providerModels[providerId]
         await window.api.appServer.sendRequest('workspace/config/update', {
-          model: nextModel === 'Default' ? null : nextModel
+          providerId,
+          providerModels
         })
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err)
@@ -1056,8 +1088,44 @@ export function ConversationWelcome({
         setModelApplying(false)
       }
     },
-    [modelName, workspaceConfigPath]
+    [modelName, providerId, readWorkspaceProviderModels, workspaceConfigPath]
   )
+
+  const handleProviderChange = useCallback(async (nextProviderId: string): Promise<void> => {
+    if (!workspaceConfigPath || !nextProviderId || nextProviderId === providerId) return
+    setModelApplying(true)
+    const previousProvider = providerId
+    const previousModel = modelName
+    try {
+      const cfg = await readWorkspaceConfig()
+      await loadModels(true, nextProviderId)
+      const catalogState = useModelCatalogStore.getState()
+      const effectiveProviderModels = readProviderModelsFromConfig(cfg)
+      const remembered = Object.entries(effectiveProviderModels)
+        .find(([key]) => key.toLowerCase() === nextProviderId.toLowerCase())?.[1]
+      const nextModel = remembered || catalogState.modelOptions[0]
+      if (!nextModel) {
+        addToast(t('composer.providerModelUnavailable'), 'error')
+        await loadModels(true, previousProvider)
+        return
+      }
+      const providerModels = await readWorkspaceProviderModels()
+      providerModels[nextProviderId] = nextModel
+      await window.api.appServer.sendRequest('workspace/config/update', {
+        providerId: nextProviderId,
+        providerModels
+      })
+      setProviderId(nextProviderId)
+      setModelName(nextModel)
+    } catch (err) {
+      setProviderId(previousProvider)
+      setModelName(previousModel)
+      await loadModels(true, previousProvider)
+      addToast(`Failed to switch provider: ${err instanceof Error ? err.message : String(err)}`, 'error')
+    } finally {
+      setModelApplying(false)
+    }
+  }, [loadModels, modelName, providerId, readWorkspaceConfig, readWorkspaceProviderModels, t, workspaceConfigPath])
 
   const handleReasoningChange = useCallback(
     async (nextReasoning: ReasoningQuickValue): Promise<void> => {
@@ -1148,17 +1216,22 @@ export function ConversationWelcome({
       channelContext: `workspace:${identityPath}`,
       workspacePath: identityPath
     }
+    const config = providerId && modelName && modelName !== 'Default'
+      ? { providerId, model: modelName }
+      : undefined
 
     const thread = welcomeWorkspaceMode === 'worktree'
       ? (await window.api.appServer.sendRequest('worktree/createAndStart', {
           identity,
           historyMode: 'server',
           baseRef: welcomeBaseRef || undefined,
-          branchName: welcomeWorktreeBranchName || undefined
+          branchName: welcomeWorktreeBranchName || undefined,
+          config
         }, 180_000) as { thread: ThreadSummary }).thread
       : (await window.api.appServer.sendRequest('thread/start', {
           identity,
-          historyMode: 'server'
+          historyMode: 'server',
+          config
         }) as { thread: ThreadSummary }).thread
 
     // Apply a welcome pre-selected Perforce changelist to the new thread (non-default only).
@@ -1170,7 +1243,7 @@ export function ConversationWelcome({
       }
     }
     return thread
-  }, [identityPath, welcomeBaseRef, welcomeChangelist, welcomeWorkspaceMode, welcomeWorktreeBranchName])
+  }, [identityPath, modelName, providerId, welcomeBaseRef, welcomeChangelist, welcomeWorkspaceMode, welcomeWorktreeBranchName])
 
   // Apply a profile chosen via /Profile to the freshly created thread (the only method that lands the
   // profile's compiled config). No-op when no profile was selected.
@@ -1814,6 +1887,8 @@ export function ConversationWelcome({
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                   <ChatGptUsageBadge provider={activeChatGptProvider} />
                   <ModelPicker
+                    providerId={providerId}
+                    providerOptions={providerOptions}
                     modelName={modelName}
                     modelOptions={modelApiAvailable ? modelOptions : []}
                     modelCatalog={modelCatalog}
@@ -1835,6 +1910,9 @@ export function ConversationWelcome({
                     onChange={(nextModel) => {
                       void handleModelChange(nextModel)
                     }}
+                    onProviderChange={(nextProviderId) => {
+                      void handleProviderChange(nextProviderId)
+                    }}
                     onReasoningChange={(nextReasoning) => {
                       void handleReasoningChange(nextReasoning)
                     }}
@@ -1847,7 +1925,7 @@ export function ConversationWelcome({
                     contextConfiguredWindow={contextConfiguredWindow}
                     onContextModeChange={handleContextModeChange}
                     onRetry={() => {
-                      void loadModels(true)
+                      void loadModels(true, providerId)
                     }}
                     shortcut={ACTION_SHORTCUTS.selectModel}
                     triggerStyle={composerModelPillStyle(
@@ -2330,6 +2408,16 @@ function normalizeReasoningOutput(value: unknown): ReasoningOutputWire | null {
   if (normalized === 'summary') return 'summary'
   if (normalized === 'full') return 'full'
   return null
+}
+
+function readProviderModelsFromConfig(config: Record<string, unknown>): Record<string, string> {
+  const raw = config.ProviderModels ?? config.providerModels
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return {}
+  const result: Record<string, string> = {}
+  for (const [providerId, value] of Object.entries(raw as Record<string, unknown>)) {
+    if (providerId.trim() && typeof value === 'string' && value.trim()) result[providerId.trim()] = value.trim()
+  }
+  return result
 }
 
 function readInferenceSpeed(value: unknown): InferenceSpeedWire {

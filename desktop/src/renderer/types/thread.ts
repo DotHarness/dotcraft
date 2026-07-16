@@ -167,6 +167,8 @@ export interface Turn {
 
 export interface ThreadConfigurationWire {
   mode?: string
+  providerId?: string
+  ProviderId?: string
   model?: string
   Model?: string
   reasoning?: ReasoningConfigurationWire | null

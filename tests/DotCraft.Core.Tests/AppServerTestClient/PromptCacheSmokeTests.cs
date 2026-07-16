@@ -47,7 +47,8 @@ public sealed class PromptCacheSmokeTests
         var root = doc.RootElement;
 
         Assert.Equal("openai", root.GetProperty("ProviderId").GetString());
-        Assert.Equal("gpt-test", root.GetProperty("Model").GetString());
+        Assert.Equal("gpt-test", root.GetProperty("ProviderModels").GetProperty("openai").GetString());
+        Assert.False(root.TryGetProperty("Model", out _));
         Assert.False(root.TryGetProperty("Providers", out _));
         Assert.Equal(0, root.GetProperty("McpServers").GetArrayLength());
         Assert.Equal(0, root.GetProperty("LspServers").GetArrayLength());

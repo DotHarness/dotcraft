@@ -225,6 +225,45 @@ describe('AgentBuilderView intro composer', () => {
     expect(appServerSendRequest.mock.calls.some(([method]) => method === 'turn/enqueue')).toBe(false)
   })
 
+  it('starts a detached builder thread with the provider-specific workspace model', async () => {
+    vi.mocked(window.api.file.readFile).mockResolvedValue(JSON.stringify({
+      ProviderId: 'provider-a',
+      Model: 'legacy-model',
+      ProviderModels: { 'provider-a': 'provider-model' }
+    }))
+    const defaultSendRequest = appServerSendRequest.getMockImplementation()
+    appServerSendRequest.mockImplementation(async (method: string, params?: Record<string, unknown>) => {
+      if (method === 'model/list') {
+        return {
+          success: true,
+          providerId: params?.providerId,
+          models: [{ id: 'provider-model' }]
+        }
+      }
+      return defaultSendRequest?.(method, params)
+    })
+
+    renderView()
+    fireEvent.click(await screen.findByRole('button', { name: /New agent/i }))
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /Select model/i })).toHaveTextContent('provider-model')
+    })
+
+    const textbox = screen.getByRole('textbox')
+    textbox.textContent = 'Build a provider-aware helper'
+    fireEvent.input(textbox)
+    fireEvent.keyDown(textbox, { key: 'Enter', code: 'Enter' })
+
+    await waitFor(() => {
+      expect(appServerSendRequest).toHaveBeenCalledWith('thread/start', expect.objectContaining({
+        config: expect.objectContaining({
+          providerId: 'provider-a',
+          model: 'provider-model'
+        })
+      }))
+    })
+  })
+
   it('does not create a builder thread when starting a blank local draft', async () => {
     renderView()
 

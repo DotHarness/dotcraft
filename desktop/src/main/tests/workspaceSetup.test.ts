@@ -62,7 +62,7 @@ describe('getWorkspaceStatus', () => {
     writeFileSync(join(workspace, '.craft', 'config.json'), '{}', 'utf8')
     writeJson(userConfigPath, {
       ProviderId: 'openai',
-      Model: 'gpt-4.1',
+      ProviderModels: { openai: 'gpt-4.1' },
       Providers: {
         openai: {
           DisplayName: 'OpenAI',
@@ -102,6 +102,7 @@ describe('getWorkspaceStatus', () => {
       ProviderId: 'anthropic'
     })
     writeJson(userConfigPath, {
+      ProviderModels: { anthropic: 'claude-sonnet-4-5' },
       Providers: {
         anthropic: {
           DisplayName: 'Anthropic',
@@ -150,7 +151,7 @@ describe('getWorkspaceStatus', () => {
     })
   })
 
-  it('returns needs-setup when model is explicitly empty', () => {
+  it('ignores obsolete root model values when no provider model is configured', () => {
     const workspace = createTempWorkspace()
     const userHome = createTempWorkspace()
     const userConfigPath = join(userHome, '.craft', 'config.json')
@@ -186,7 +187,7 @@ describe('getWorkspaceStatus', () => {
       userConfigPath,
       JSON.stringify({
         ProviderId: 'anthropic',
-        Model: 'claude-sonnet-4-5',
+        ProviderModels: { anthropic: 'claude-sonnet-4-5' },
         ApiKey: 'sk-legacy',
         EndPoint: 'https://legacy.example/v1',
         Providers: {
@@ -284,9 +285,10 @@ describe('shouldRouteWorkspaceThroughSetupBeforeAppServerStart', () => {
     const userConfigPath = join(userHome, '.craft', 'config.json')
     writeJson(join(workspace, '.craft', 'config.json'), {
       ProviderId: 'openai',
-      Model: 'gpt-4.1'
+      ProviderModels: { openai: 'gpt-4.1' }
     })
     writeJson(userConfigPath, {
+      ProviderModels: { openai: 'gpt-4.1' },
       Providers: {
         openai: {
           DisplayName: 'OpenAI',
@@ -352,7 +354,11 @@ describe('workspace setup bootstrap import detection', () => {
       })
 
     mkdirSync(join(workspace, '.craft'), { recursive: true })
-    writeFileSync(join(workspace, '.craft', 'config.json'), '{"ProviderId":"openai"}', 'utf8')
+    writeFileSync(
+      join(workspace, '.craft', 'config.json'),
+      '{"ProviderId":"openai","ProviderModels":{"openai":"gpt-4.1"}}',
+      'utf8'
+    )
     expect(getWorkspaceStatus(workspace, { userConfigPath }))
       .not.toHaveProperty('bootstrapImportSources')
   })

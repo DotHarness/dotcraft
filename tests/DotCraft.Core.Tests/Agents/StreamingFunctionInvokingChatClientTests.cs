@@ -699,7 +699,8 @@ public sealed partial class StreamingFunctionInvokingChatClientTests
             inner,
             new AppConfig
             {
-                Model = "deepseek-reasoner"
+                ProviderId = "test",
+                ProviderModels = new() { ["test"] = "deepseek-reasoner" }
             },
             "deepseek-reasoner",
             "https://api.deepseek.com/v1");

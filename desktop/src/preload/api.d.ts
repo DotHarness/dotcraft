@@ -409,7 +409,7 @@ declare global {
         getCore(): Promise<{
       workspace: {
         providerId: string | null
-        model: string | null
+        providerModels: Record<string, string>
         welcomeSuggestionsEnabled: boolean | null
             skillsSelfLearningEnabled: boolean | null
             memoryAutoConsolidateEnabled: boolean | null
@@ -423,7 +423,7 @@ declare global {
           }
       userDefaults: {
         providerId: string | null
-        model: string | null
+        providerModels: Record<string, string>
         welcomeSuggestionsEnabled: boolean | null
             skillsSelfLearningEnabled: boolean | null
             memoryAutoConsolidateEnabled: boolean | null

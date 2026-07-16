@@ -6,19 +6,13 @@ namespace DotCraft.Tests.Agents;
 public sealed class ChatClientRegistryTests
 {
     [Fact]
-    public void ResolveSubAgentModel_ExplicitSubAgentModelWins()
+    public void ResolveSubAgentModel_ProviderSpecificSubAgentModelWins()
     {
-        var config = new AppConfig
-        {
-            Model = "main-model",
-            SubAgent = new AppConfig.SubAgentConfig
-            {
-                Model = "sub-model"
-            }
-        };
+        var config = AppConfigTestFactory.CreateOpenAI(model: "main-model");
+        config.SubAgent.ProviderModels[config.ProviderId] = "sub-model";
         var registry = new ChatClientRegistry();
 
-        var effective = registry.ResolveSubAgentModel(config, "thread-model");
+        var effective = registry.ResolveSubAgentModel(config, config.ProviderId, "thread-model");
 
         Assert.Equal("sub-model", effective);
     }
@@ -31,13 +25,13 @@ public sealed class ChatClientRegistryTests
         var registry = new ChatClientRegistry();
 
         var main = registry.ResolveMainModel(config, "thread-model");
-        var subAgent = registry.ResolveSubAgentModel(config, main);
+        var subAgent = registry.ResolveSubAgentModel(config, config.ProviderId, main);
 
         Assert.Equal("thread-model", subAgent);
     }
 
     [Fact]
-    public void ResolveMainModel_EmptyThreadModelFallsBackToWorkspaceModel()
+    public void ResolveMainModel_EmptyThreadModelUsesProviderPreference()
     {
         var config = AppConfigTestFactory.CreateOpenAI(model: "workspace-model");
         var registry = new ChatClientRegistry();
@@ -48,12 +42,36 @@ public sealed class ChatClientRegistryTests
     }
 
     [Fact]
+    public void ResolveMainModel_UsesProviderSpecificWorkspacePreference()
+    {
+        var config = AppConfigTestFactory.CreateOpenAI(model: "initial-model");
+        config.ProviderModels[config.ProviderId] = "remembered-model";
+        var registry = new ChatClientRegistry();
+
+        Assert.Equal("remembered-model", registry.ResolveMainModel(config));
+        Assert.Equal("thread-model", registry.ResolveMainModel(config, "thread-model"));
+    }
+
+    [Fact]
+    public void ResolveSubAgentRuntime_MissingProviderPreference_InheritsThreadModel()
+    {
+        var config = AppConfigTestFactory.CreateOpenAI(model: "workspace-model");
+        config.SubAgent.ProviderModels["another-provider"] = "wrong-model";
+        var registry = new ChatClientRegistry();
+
+        var runtime = registry.ResolveSubAgentRuntime(config, config.ProviderId, "thread-model");
+
+        Assert.Equal(config.ProviderId, runtime.ProviderId);
+        Assert.Equal("thread-model", runtime.Model);
+    }
+
+    [Fact]
     public void ResolveMainRuntime_UsesExplicitAnthropicProvider()
     {
         var config = new AppConfig
         {
             ProviderId = "anthropic-main",
-            Model = "claude-sonnet-4-5",
+            ProviderModels = new() { ["anthropic-main"] = "claude-sonnet-4-5" },
             Providers =
             {
                 ["anthropic-main"] = new AppConfig.ModelProviderConfig
@@ -81,7 +99,7 @@ public sealed class ChatClientRegistryTests
         var config = new AppConfig
         {
             ProviderId = "anthropic-main",
-            Model = "claude-sonnet-4-5",
+            ProviderModels = new() { ["anthropic-main"] = "claude-sonnet-4-5" },
             Providers =
             {
                 ["anthropic-main"] = new AppConfig.ModelProviderConfig
@@ -105,7 +123,7 @@ public sealed class ChatClientRegistryTests
         var config = new AppConfig
         {
             ProviderId = "openai-main",
-            Model = "gpt-5",
+            ProviderModels = new() { ["openai-main"] = "gpt-5" },
             Providers =
             {
                 ["openai-main"] = new AppConfig.ModelProviderConfig
@@ -163,7 +181,7 @@ public sealed class ChatClientRegistryTests
         var config = new AppConfig
         {
             ProviderId = "openrouter",
-            Model = "openrouter-model",
+            ProviderModels = new() { ["openrouter"] = "openrouter-model" },
             NetworkTimeoutSeconds = 600,
             Providers =
             {
@@ -192,10 +210,7 @@ public sealed class ChatClientRegistryTests
     [Fact]
     public void ResolveMainRuntime_NoProviderThrowsProviderNotConfigured()
     {
-        var config = new AppConfig
-        {
-            Model = "model-a"
-        };
+        var config = new AppConfig();
         var registry = new ChatClientRegistry();
 
         var exception = Assert.Throws<ModelProviderConfigurationException>(
@@ -206,12 +221,35 @@ public sealed class ChatClientRegistryTests
     }
 
     [Fact]
+    public void ResolveMainRuntime_ProviderWithoutRememberedModelThrows()
+    {
+        var config = new AppConfig
+        {
+            ProviderId = "openai",
+            Providers =
+            {
+                ["openai"] = new AppConfig.ModelProviderConfig
+                {
+                    Protocol = "openai",
+                    ApiKey = "sk-test"
+                }
+            }
+        };
+        var registry = new ChatClientRegistry();
+
+        var exception = Assert.Throws<ArgumentException>(() => registry.ResolveMainRuntime(config));
+
+        Assert.Equal("config", exception.ParamName);
+        Assert.StartsWith("Model must be configured.", exception.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void ResolveMainRuntime_OpenAIProviderIdUsesExplicitProvider()
     {
         var config = new AppConfig
         {
             ProviderId = "openai",
-            Model = "model-a",
+            ProviderModels = new() { ["openai"] = "model-a" },
             Providers =
             {
                 ["openai"] = new AppConfig.ModelProviderConfig
@@ -239,10 +277,13 @@ public sealed class ChatClientRegistryTests
         var config = new AppConfig
         {
             ProviderId = "anthropic-main",
-            Model = "main-model",
+            ProviderModels = new() { ["anthropic-main"] = "main-model" },
             SubAgent = new AppConfig.SubAgentConfig
             {
-                Model = "sub-model"
+                ProviderModels = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+                {
+                    ["anthropic-main"] = "sub-model"
+                }
             },
             Providers =
             {
@@ -280,7 +321,8 @@ public sealed class ChatClientRegistryTests
     {
         var config = new AppConfig
         {
-            Model = "workspace-model",
+            ProviderId = "test",
+            ProviderModels = new() { ["test"] = "workspace-model" },
             ConsolidationModel = "memory-model",
             Providers =
             {

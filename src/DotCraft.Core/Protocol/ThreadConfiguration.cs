@@ -69,7 +69,7 @@ public sealed class ThreadConfiguration
 
     /// <summary>
     /// Per-thread model. When empty during thread creation, Session Core captures
-    /// the current effective workspace/global <c>AppConfig.Model</c>.
+    /// the selected provider's workspace/global <c>AppConfig.ProviderModels</c> entry.
     /// </summary>
     public string? Model { get; set; }
 

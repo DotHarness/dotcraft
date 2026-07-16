@@ -26,7 +26,7 @@ public sealed class AppServerModelCatalogRuntimeConfigTests : IDisposable
             GlobalConfigPath = Path.Combine(_tempRoot, "global-oauth", "config.json"),
             WorkspaceConfigPath = Path.Combine(_workspaceCraftPath, "config.json"),
             ProviderId = "openai",
-            Model = ModelProviderDefaults.DefaultChatGptCodexModel
+            ProviderModels = new() { ["openai"] = ModelProviderDefaults.DefaultChatGptCodexModel }
         });
         monitor.Current.Providers["openai"] = new AppConfig.ModelProviderConfig
         {
@@ -66,7 +66,7 @@ public sealed class AppServerModelCatalogRuntimeConfigTests : IDisposable
             GlobalConfigPath = Path.Combine(_tempRoot, "global-context", "config.json"),
             WorkspaceConfigPath = Path.Combine(_workspaceCraftPath, "config.json"),
             ProviderId = "openai",
-            Model = ModelProviderDefaults.DefaultChatGptCodexModel
+            ProviderModels = new() { ["openai"] = ModelProviderDefaults.DefaultChatGptCodexModel }
         });
         monitor.Current.Providers["openai"] = new AppConfig.ModelProviderConfig
         {

@@ -23,7 +23,7 @@ public static class OpenAIAuthBindingPersistence
     /// account id / plan tier returned by login. Creates the provider entry if absent.
     /// </summary>
     /// <param name="globalConfigPath">Full path; defaults to <see cref="DefaultGlobalConfigPath"/>.</param>
-    /// <param name="defaultModel">Model to set as workspace default when none is configured.</param>
+    /// <param name="defaultModel">Model to remember for this provider when none is configured.</param>
     public static void BindProviderToOAuth(
         string providerId,
         OpenAIAuthStatus status,
@@ -52,9 +52,13 @@ public static class OpenAIAuthBindingPersistence
         // Make this provider the default if no provider is configured yet.
         if (string.IsNullOrWhiteSpace(GetStringValue(root, "ProviderId")))
             root["ProviderId"] = canonicalKey;
-        var existingModel = GetStringValue(root, "Model");
+        var legacyModelKey = root.FirstOrDefault(p => string.Equals(p.Key, "Model", StringComparison.OrdinalIgnoreCase)).Key;
+        if (!string.IsNullOrEmpty(legacyModelKey))
+            root.Remove(legacyModelKey);
+        var providerModels = GetOrCreateObject(root, "ProviderModels");
+        var existingModel = GetStringValue(providerModels, canonicalKey);
         if (string.IsNullOrWhiteSpace(existingModel) || IsLegacyChatGptDefaultModel(existingModel))
-            root["Model"] = defaultModel;
+            providerModels[canonicalKey] = defaultModel;
 
         Save(path, root);
     }

@@ -116,7 +116,7 @@ public sealed class ProviderHostedCapabilityPlannerTests : IDisposable
         var config = new AppConfig
         {
             ProviderId = "openai",
-            Model = "gpt-5"
+            ProviderModels = new() { ["openai"] = "gpt-5" }
         };
         config.Providers["openai"] = new AppConfig.ModelProviderConfig
         {
@@ -134,7 +134,7 @@ public sealed class ProviderHostedCapabilityPlannerTests : IDisposable
         var config = new AppConfig
         {
             ProviderId = "chatgpt",
-            Model = "gpt-5"
+            ProviderModels = new() { ["chatgpt"] = "gpt-5" }
         };
         config.Providers["chatgpt"] = new AppConfig.ModelProviderConfig
         {

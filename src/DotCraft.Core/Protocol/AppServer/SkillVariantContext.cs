@@ -43,9 +43,9 @@ internal sealed class SkillVariantContext(
         {
             return chatClientRegistry.ResolveMainModel(config);
         }
-        catch (ArgumentException)
+        catch (Exception ex) when (ex is ArgumentException or ModelProviderConfigurationException)
         {
-            return config.Model;
+            return string.Empty;
         }
     }
 }
