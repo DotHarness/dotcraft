@@ -3734,16 +3734,6 @@ export function SettingsView({
                             <label htmlFor="settings-subagent-model" style={sectionLabelStyle()}>
                               {t('settings.llm.subAgentModelTitle')}
                             </label>
-                            <div
-                              style={{
-                                fontSize: '11px',
-                                color: 'var(--text-dimmed)',
-                                marginBottom: '6px',
-                                lineHeight: 1.5
-                              }}
-                            >
-                              {t('settings.llm.subAgentModelDescription')}
-                            </div>
                             <div style={{ display: 'flex', gap: '8px' }}>
                               {providerModelLoading ? (
                                 <div
