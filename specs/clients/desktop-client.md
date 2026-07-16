@@ -324,7 +324,8 @@ This pipeline is a Desktop client responsibility. It does not change the AppServ
 Pending approval and model-initiated user-input requests are part of the active turn and must survive ordinary Desktop navigation.
 
 - Switching away from a thread is not a decline, cancel, approval timeout, empty user-input answer, or dismissal.
-- If `item/approval/request` or `item/tool/requestUserInput` arrives while its source thread is not the active fully-restored thread, Desktop parks the request on that source thread instead of presenting it immediately.
+- If `item/approval/request` or `item/tool/requestUserInput` arrives while its source thread is not the active fully-restored thread, while conversation rendering is paused, or while deferred conversation updates have not been reconciled, Desktop parks the request on that source thread instead of presenting it immediately.
+- Desktop activates parked requests only after the latest full `thread/read` generation has hydrated the active conversation. A request that arrives during an in-flight read makes that read insufficient and requires a follow-up generation before the composer may appear.
 - Replayed requests are matched by logical identity: `method + threadId + turnId + requestId`. A fresh JSON-RPC envelope id is transport state and must not make the prompt a new logical request.
 - Replayed requests with the same logical identity restore the actionable composer once; they must not create duplicate cards, duplicate queue entries, or duplicate local decisions.
 - Multiple pending approvals for one turn are restored as a queue. The user resolves one visible approval at a time, and the next approval becomes actionable only after the prior approval has been submitted or resolved.
@@ -341,6 +342,7 @@ Desktop receives thread truth through two channels: durable snapshots from `thre
 - A final `turn/completed`, `turn/failed`, or `turn/cancelled` state must clear running/waiting indicators even if an earlier local view still had live tools or composers.
 - `thread/runtimeChanged` is a summary signal for thread-list and activity state. It does not replace turn/item notifications and must not be treated as complete conversation history.
 - Desktop may use `thread/runtimeChanged` as a reconciliation trigger. If the server runtime says the active thread is idle while Desktop still shows running, waiting, or live awaiting-result tools, Desktop must perform a full `thread/read` with turns and reconcile the active conversation.
+- An active thread with a parked approval or user-input request must keep retrying full reconciliation on foreground, reconnect, and metadata refresh paths. A failed read keeps the request parked and must not synthesize a response.
 - After submitting an approval or user-input response, Desktop should continue applying live notifications normally. If live completion notifications are missed, the next full snapshot reconcile must restore completed tools, final assistant output, and terminal turn state without requiring the user to switch away and back.
 - Reconciliation must be scoped to the active foreground thread and workspace. Snapshot state from one thread or workspace must not preserve or overwrite realtime state from another.
 

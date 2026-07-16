@@ -943,6 +943,7 @@ WaitingApproval/WaitingInput ──────────► Cancelled
 - A tool invocation has exactly one source-declared projection shape. Streaming observation and dispatcher recording atomically upsert its call item by Turn, call id, and shape.
 - Each invocation publishes at most one terminal projection. Competing completion, rejection, timeout, cancellation, and failure paths converge on the same terminal guard.
 - Items within a Turn are ordered by creation time. This order is the canonical sequence of events within the Turn.
+- A tool-call boundary finalizes any preceding streaming `AgentMessage` and `ReasoningContent` before the tool lifecycle begins. Their accumulated payloads are persisted and their `item/completed` events are emitted before any approval or user-input request created by that tool can pause execution.
 - Before model-visible history is submitted to a provider, Session Core MUST ensure
   that each assistant tool call has an immediately following tool result message.
   If persisted or in-memory history contains an incomplete historical tool call,
@@ -1513,6 +1514,7 @@ The adapter is responsible only for presenting the request and returning the dec
 
 When the tool is invoked, Session Core must:
 
+- finalize and persist any assistant or reasoning content emitted before the tool call
 - emit a `UserInputRequest` Item tied to the active turn
 - pause the affected execution path until resolution, turn cancellation, or transport/unavailable-client fallback
 - record the returned `UserInputResponse` Item
@@ -1653,7 +1655,7 @@ All failures surface as:
 - `turn/failed` emitted on error
 - `approval/requested` emitted when approval needed
 - `approval/resolved` emitted when approval resolved
-- Event ordering is causal (started before delta before completed)
+- Event ordering is causal (started before delta before completed); a tool call and its interactive requests occur only after preceding streamed assistant/reasoning Items have completed
 - `turn/completed` is always the last event for a Turn
 
 #### Persistence

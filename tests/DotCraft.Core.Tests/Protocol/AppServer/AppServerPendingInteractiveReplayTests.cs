@@ -7,6 +7,43 @@ namespace DotCraft.Tests.Sessions.Protocol.AppServer;
 public sealed class AppServerPendingInteractiveReplayTests
 {
     [Fact]
+    public async Task ThreadRead_WhenUserInputPending_ReturnsCompletedPrefaceBeforeRequest()
+    {
+        using var harness = new AppServerTestHarness();
+        await harness.InitializeAsync(requestUserInputSupport: true);
+        var thread = await harness.Service.CreateThreadAsync(harness.Identity);
+        var turn = CreateWaitingTurn(thread, "turn_001", TurnStatus.WaitingInput);
+        turn.Items.Add(new SessionItem
+        {
+            Id = "item_message_001",
+            TurnId = turn.Id,
+            Type = ItemType.AgentMessage,
+            Status = ItemStatus.Completed,
+            CreatedAt = DateTimeOffset.UtcNow,
+            CompletedAt = DateTimeOffset.UtcNow,
+            Payload = new AgentMessagePayload { Text = "Choose the desired behavior." }
+        });
+        AddWaitingUserInputRequest(turn, "item_input_001", "req_input_001");
+
+        await harness.ExecuteRequestAsync(harness.BuildRequest(
+            AppServerMethods.ThreadRead,
+            new { threadId = thread.Id, includeTurns = true }));
+
+        using var response = await harness.Transport.ReadNextSentAsync();
+        AppServerTestHarness.AssertIsSuccessResponse(response);
+        var items = response.RootElement.GetProperty("result").GetProperty("thread")
+            .GetProperty("turns")[0].GetProperty("items").EnumerateArray().ToList();
+        Assert.Equal(["agentMessage", "userInputRequest"], items.Select(item => item.GetProperty("type").GetString()));
+        Assert.Equal("completed", items[0].GetProperty("status").GetString());
+        Assert.Equal(
+            "Choose the desired behavior.",
+            items[0].GetProperty("payload").GetProperty("text").GetString());
+        Assert.Equal(
+            "req_input_001",
+            items[1].GetProperty("payload").GetProperty("requestId").GetString());
+    }
+
+    [Fact]
     public async Task ThreadSubscribe_WhenThreadWaitingInput_ReplaysRequestAndResolvesResponse()
     {
         using var harness = new AppServerTestHarness();
@@ -255,10 +292,18 @@ public sealed class AppServerPendingInteractiveReplayTests
         string requestId)
     {
         var turn = CreateWaitingTurn(thread, turnId, TurnStatus.WaitingInput);
+        AddWaitingUserInputRequest(turn, itemId, requestId);
+    }
+
+    private static void AddWaitingUserInputRequest(
+        SessionTurn turn,
+        string itemId,
+        string requestId)
+    {
         turn.Items.Add(new SessionItem
         {
             Id = itemId,
-            TurnId = turnId,
+            TurnId = turn.Id,
             Type = ItemType.UserInputRequest,
             Status = ItemStatus.Completed,
             CreatedAt = DateTimeOffset.UtcNow,

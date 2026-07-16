@@ -737,7 +737,7 @@ export function App(): JSX.Element {
   const showMainWorkspaceUiRef = useRef(false)
   const threadListReloadGenerationRef = useRef(0)
   const ensureThreadSubscribedRef = useRef<EnsureThreadSubscribed | null>(null)
-  const reconcileActiveThreadSnapshotRef = useRef<((reason?: string) => void) | null>(null)
+  const reconcileActiveThreadSnapshotRef = useRef<((reason?: string) => Promise<boolean>) | null>(null)
   const windowVisibilityStateRef = useRef<WindowVisibilityState>(DEFAULT_WINDOW_VISIBILITY_STATE)
   const deferredActiveConversationRef = useRef<{
     threadId: string
@@ -746,8 +746,9 @@ export function App(): JSX.Element {
   const activeThreadSnapshotReconcileInFlightRef = useRef<{
     threadId: string
     scope: string
-    promise: Promise<void>
+    promise: Promise<boolean>
   } | null>(null)
+  const activeThreadSnapshotReconcileGenerationRef = useRef(0)
   const scheduledActiveThreadReconcileTimerRef = useRef<number | null>(null)
   const threadRestoreGateRef = useRef<{ threadId: string; token: number } | null>(null)
   const threadRestoreGateTokenRef = useRef(0)
@@ -807,7 +808,7 @@ export function App(): JSX.Element {
 
   const reconcileDeferredActiveConversation = useCallback((reason: string): void => {
     if (!hasDeferredActiveConversation()) return
-    reconcileActiveThreadSnapshotRef.current?.(reason)
+    void reconcileActiveThreadSnapshotRef.current?.(reason)
   }, [hasDeferredActiveConversation])
 
   const requestActiveConversationReconcile = useCallback((
@@ -819,7 +820,7 @@ export function App(): JSX.Element {
       markActiveConversationDeferred(threadId)
       return
     }
-    reconcileActiveThreadSnapshotRef.current?.(reason)
+    void reconcileActiveThreadSnapshotRef.current?.(reason)
   }, [isConversationRenderPaused, markActiveConversationDeferred])
 
   const shouldDeferActiveConversationUpdate = useCallback((
@@ -831,6 +832,26 @@ export function App(): JSX.Element {
     markActiveConversationDeferred(threadId)
     return true
   }, [isConversationRenderPaused, markActiveConversationDeferred])
+
+  const activateParkedInteractiveRequests = useCallback((threadId: string): boolean => {
+    if (useThreadStore.getState().activeThreadId !== threadId) return false
+    if (isThreadRestoreGated(threadId) || isConversationRenderPaused()) return false
+    if (hasDeferredActiveConversation()) return false
+
+    const threadStore = useThreadStore.getState()
+    const parkedApprovals = threadStore.consumeParkedApprovals(threadId)
+    for (const parked of parkedApprovals) {
+      useConversationStore.getState().onApprovalRequest(parked.bridgeId, parked.rawParams)
+    }
+    const parkedUserInput = useThreadStore.getState().consumeParkedUserInput(threadId)
+    if (parkedUserInput) {
+      useConversationStore.getState().onUserInputRequest(
+        parkedUserInput.bridgeId,
+        parkedUserInput.rawParams
+      )
+    }
+    return parkedApprovals.length > 0 || parkedUserInput != null
+  }, [hasDeferredActiveConversation, isConversationRenderPaused, isThreadRestoreGated])
 
   useEffect(() => {
     const handleForegrounded = (): void => {
@@ -1850,7 +1871,7 @@ export function App(): JSX.Element {
                 if (isConversationRenderPaused()) {
                   markActiveConversationDeferred(threadId)
                 } else {
-                  reconcileActiveThreadSnapshotRef.current?.('runtimeChanged')
+                  void reconcileActiveThreadSnapshotRef.current?.('runtimeChanged')
                 }
               }
             }
@@ -2343,12 +2364,21 @@ export function App(): JSX.Element {
         const threadId = typeof p.threadId === 'string' ? p.threadId : null
         const turnId = typeof p.turnId === 'string' ? p.turnId : null
         const activeThreadId = useThreadStore.getState().activeThreadId
-        if (threadId && (threadId !== activeThreadId || isThreadRestoreGated(threadId))) {
+        if (threadId && (
+          threadId !== activeThreadId
+          || isThreadRestoreGated(threadId)
+          || isConversationRenderPaused()
+          || hasDeferredActiveConversation()
+        )) {
           useThreadStore.getState().parkApproval(threadId, {
             bridgeId,
             turnId,
             rawParams: p
           })
+          if (threadId === activeThreadId) {
+            markActiveConversationDeferred(threadId)
+            requestActiveConversationReconcile(threadId, 'parked-approval-request')
+          }
           return
         }
         useConversationStore.getState().onApprovalRequest(bridgeId, p)
@@ -2359,12 +2389,21 @@ export function App(): JSX.Element {
         const threadId = typeof p.threadId === 'string' ? p.threadId : null
         const turnId = typeof p.turnId === 'string' ? p.turnId : null
         const activeThreadId = useThreadStore.getState().activeThreadId
-        if (threadId && (threadId !== activeThreadId || isThreadRestoreGated(threadId))) {
+        if (threadId && (
+          threadId !== activeThreadId
+          || isThreadRestoreGated(threadId)
+          || isConversationRenderPaused()
+          || hasDeferredActiveConversation()
+        )) {
           useThreadStore.getState().parkUserInput(threadId, {
             bridgeId,
             turnId,
             rawParams: p
           })
+          if (threadId === activeThreadId) {
+            markActiveConversationDeferred(threadId)
+            requestActiveConversationReconcile(threadId, 'parked-user-input-request')
+          }
           return
         }
         useConversationStore.getState().onUserInputRequest(bridgeId, p)
@@ -2971,6 +3010,7 @@ export function App(): JSX.Element {
           console.error('thread/subscribe failed:', err)
           return false
         })
+      const restoreGeneration = activeThreadSnapshotReconcileGenerationRef.current
       window.api.appServer
         .sendRequest('thread/read', { threadId: curr, includeTurns: true })
         .then(async (result) => {
@@ -2981,45 +3021,49 @@ export function App(): JSX.Element {
             return
           }
           const res = result as { thread: Thread }
-          useThreadStore.getState().setActiveThread(res.thread)
-          const runtime = res.thread.runtime
-          useThreadStore.getState().applyRuntimeSnapshot(requestedId, runtimeSnapshotFromThread(res.thread), {
-            isActive: true,
-            isDesktopOrigin: res.thread.originChannel?.toLowerCase() === 'dotcraft-desktop'
-          })
-          {
-            const name = res.thread.displayName?.trim()
-            if (name) {
-              const entry = useThreadStore.getState().threadList.find((t) => t.id === requestedId)
-              if (entry && entry.displayName !== name) {
-                useThreadStore.getState().renameThread(requestedId, name)
+          const restoreWasSuperseded =
+            restoreGeneration !== activeThreadSnapshotReconcileGenerationRef.current
+          if (!restoreWasSuperseded) {
+            useThreadStore.getState().setActiveThread(res.thread)
+            const runtime = res.thread.runtime
+            useThreadStore.getState().applyRuntimeSnapshot(requestedId, runtimeSnapshotFromThread(res.thread), {
+              isActive: true,
+              isDesktopOrigin: res.thread.originChannel?.toLowerCase() === 'dotcraft-desktop'
+            })
+            {
+              const name = res.thread.displayName?.trim()
+              if (name) {
+                const entry = useThreadStore.getState().threadList.find((t) => t.id === requestedId)
+                if (entry && entry.displayName !== name) {
+                  useThreadStore.getState().renameThread(requestedId, name)
+                }
               }
             }
+            // Populate conversationStore with historical turns
+            const rawTurns = (res.thread.turns ?? []) as unknown as Array<Record<string, unknown>>
+            const convTurns = rawTurns.map(wireTurnToConversationTurn)
+            performance.mark(`app:thread-switch-rendered:${requestedId}`)
+            performance.measure('app:thread-switch', `app:thread-switch-start:${requestedId}`, `app:thread-switch-rendered:${requestedId}`)
+            useConversationStore.getState().setTurns(convTurns, {
+              preserveExistingRealtime: true,
+              realtimeScopeThreadId: requestedId
+            })
+            clearDeferredActiveConversation(requestedId)
+            if (res.thread.plan) {
+              useConversationStore.getState().onPlanUpdated(res.thread.plan)
+            }
+            {
+              const rawMode = res.thread.configuration?.mode ?? res.thread.configuration?.Mode
+              const mode = typeof rawMode === 'string' && rawMode.toLowerCase() === 'plan'
+                ? 'plan'
+                : 'agent'
+              useConversationStore.getState().setThreadMode(mode)
+            }
+            useConversationStore.getState().setQueuedInputs(res.thread.queuedInputs ?? [])
+            useConversationStore.getState().setContextUsage(res.thread.contextUsage ?? null)
+            useConversationStore.getState().setMaintenanceKind(runtime?.maintenanceKind ?? null)
+            void useSubAgentStore.getState().fetchChildren(requestedId)
           }
-          // Populate conversationStore with historical turns
-          const rawTurns = (res.thread.turns ?? []) as unknown as Array<Record<string, unknown>>
-          const convTurns = rawTurns.map(wireTurnToConversationTurn)
-          performance.mark(`app:thread-switch-rendered:${requestedId}`)
-          performance.measure('app:thread-switch', `app:thread-switch-start:${requestedId}`, `app:thread-switch-rendered:${requestedId}`)
-          useConversationStore.getState().setTurns(convTurns, {
-            preserveExistingRealtime: true,
-            realtimeScopeThreadId: requestedId
-          })
-          clearDeferredActiveConversation(requestedId)
-          if (res.thread.plan) {
-            useConversationStore.getState().onPlanUpdated(res.thread.plan)
-          }
-          {
-            const rawMode = res.thread.configuration?.mode ?? res.thread.configuration?.Mode
-            const mode = typeof rawMode === 'string' && rawMode.toLowerCase() === 'plan'
-              ? 'plan'
-              : 'agent'
-            useConversationStore.getState().setThreadMode(mode)
-          }
-          useConversationStore.getState().setQueuedInputs(res.thread.queuedInputs ?? [])
-          useConversationStore.getState().setContextUsage(res.thread.contextUsage ?? null)
-          useConversationStore.getState().setMaintenanceKind(runtime?.maintenanceKind ?? null)
-          void useSubAgentStore.getState().fetchChildren(requestedId)
           if (!await subscriptionReady) {
             clearThreadRestoreGate(requestedId, restoreGateToken)
             if (useThreadStore.getState().activeThreadId === requestedId) {
@@ -3033,14 +3077,7 @@ export function App(): JSX.Element {
             return
           }
           clearThreadRestoreGate(requestedId, restoreGateToken)
-          const parkedApprovals = useThreadStore.getState().consumeParkedApprovals(requestedId)
-          for (const parked of parkedApprovals) {
-            useConversationStore.getState().onApprovalRequest(parked.bridgeId, parked.rawParams)
-          }
-          const parkedUserInput = useThreadStore.getState().consumeParkedUserInput(requestedId)
-          if (parkedUserInput) {
-            useConversationStore.getState().onUserInputRequest(parkedUserInput.bridgeId, parkedUserInput.rawParams)
-          }
+          activateParkedInteractiveRequests(requestedId)
 
           // Welcome composer: send first turn after historical turns are loaded so reset/setTurns do not drop optimistic UI.
           const pendingWelcome = useUIStore.getState().consumePendingWelcomeTurnIfMatch(requestedId)
@@ -3241,6 +3278,7 @@ export function App(): JSX.Element {
     // prev !== curr block. On window close the connection terminates anyway.
   }, [
     activeThreadId,
+    activateParkedInteractiveRequests,
     beginThreadRestoreGate,
     clearThreadRestoreGate,
     clearThreadSubscriptionState,
@@ -3310,31 +3348,47 @@ export function App(): JSX.Element {
     return runtimeSnapshot
   }, [])
 
-  const reconcileActiveThreadSnapshot = useCallback((reason = 'unspecified'): void => {
+  const reconcileActiveThreadSnapshot = useCallback((reason = 'unspecified'): Promise<boolean> => {
     const requestedId = useThreadStore.getState().activeThreadId
-    if (!requestedId) return
-    if (useConnectionStore.getState().status !== 'connected') return
+    if (!requestedId) return Promise.resolve(false)
+    if (useConnectionStore.getState().status !== 'connected') return Promise.resolve(false)
 
     const scope = activeThreadSubscriptionScopeRef.current
+    activeThreadSnapshotReconcileGenerationRef.current += 1
     const inFlight = activeThreadSnapshotReconcileInFlightRef.current
     if (inFlight?.threadId === requestedId && inFlight.scope === scope) {
-      return
+      return inFlight.promise
     }
 
-    let promise!: Promise<void>
+    let promise!: Promise<boolean>
     promise = (async () => {
       try {
-        const result = await window.api.appServer.sendRequest('thread/read', {
-          threadId: requestedId,
-          includeTurns: true
-        })
-        if (useThreadStore.getState().activeThreadId !== requestedId) return
-        if (activeThreadSubscriptionScopeRef.current !== scope) return
-        const res = result as { thread?: Thread }
-        if (!res.thread) return
-        applyActiveThreadSnapshot(res.thread, requestedId, true)
+        while (
+          useThreadStore.getState().activeThreadId === requestedId &&
+          activeThreadSubscriptionScopeRef.current === scope
+        ) {
+          const generation = activeThreadSnapshotReconcileGenerationRef.current
+          const result = await window.api.appServer.sendRequest('thread/read', {
+            threadId: requestedId,
+            includeTurns: true
+          })
+          if (useThreadStore.getState().activeThreadId !== requestedId) return false
+          if (activeThreadSubscriptionScopeRef.current !== scope) return false
+
+          // A request arrived while this read was in flight. Discard the stale
+          // snapshot and immediately read again before releasing parked UI.
+          if (generation !== activeThreadSnapshotReconcileGenerationRef.current) continue
+
+          const res = result as { thread?: Thread }
+          if (!res.thread) return false
+          applyActiveThreadSnapshot(res.thread, requestedId, true)
+          activateParkedInteractiveRequests(requestedId)
+          return true
+        }
+        return false
       } catch (err) {
         console.error(`thread/read reconcile failed (${reason}):`, err)
+        return false
       } finally {
         const current = activeThreadSnapshotReconcileInFlightRef.current
         if (current?.threadId === requestedId && current.scope === scope && current.promise === promise) {
@@ -3348,7 +3402,8 @@ export function App(): JSX.Element {
       scope,
       promise
     }
-  }, [applyActiveThreadSnapshot])
+    return promise
+  }, [activateParkedInteractiveRequests, applyActiveThreadSnapshot])
 
   reconcileActiveThreadSnapshotRef.current = reconcileActiveThreadSnapshot
 
@@ -3361,7 +3416,7 @@ export function App(): JSX.Element {
     scheduledActiveThreadReconcileTimerRef.current = window.setTimeout(() => {
       scheduledActiveThreadReconcileTimerRef.current = null
       if (useThreadStore.getState().activeThreadId !== scheduledThreadId) return
-      reconcileActiveThreadSnapshotRef.current?.('interactive-response')
+      void reconcileActiveThreadSnapshotRef.current?.('interactive-response')
     }, 750)
   }, [])
 
@@ -3384,12 +3439,21 @@ export function App(): JSX.Element {
         const res = result as { thread?: Thread }
         if (!res.thread) return
 
+        const threadStore = useThreadStore.getState()
+        const hasParkedInteractiveRequest =
+          (threadStore.parkedApprovals.get(requestedId)?.length ?? 0) > 0 ||
+          threadStore.parkedUserInputs.has(requestedId)
+        if (hasParkedInteractiveRequest) {
+          void reconcileActiveThreadSnapshot('metadata-refresh-parked-interaction')
+          return
+        }
+
         const runtimeSnapshot = applyActiveThreadSnapshot(res.thread, requestedId, false)
         if (conversationNeedsFullSnapshotReconcile({
           conversation: useConversationStore.getState(),
           runtime: runtimeSnapshot
         })) {
-          reconcileActiveThreadSnapshot('metadata-refresh')
+          void reconcileActiveThreadSnapshot('metadata-refresh')
         }
       } catch {
         // Best-effort metadata refresh. The existing subscription/read paths remain authoritative.
