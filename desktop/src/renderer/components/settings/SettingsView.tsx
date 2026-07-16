@@ -1751,13 +1751,10 @@ export function SettingsView({
       const result = (await window.api.appServer.sendRequest(
         'subagent/profiles/list',
         {}
-      )) as { settings?: { model?: string | null; providerModels?: Record<string, string> | null } }
-      const model = result.settings?.model?.trim() ?? ''
+      )) as { settings?: { providerModels?: Record<string, string> | null } }
       const nextProviderModels = { ...(result.settings?.providerModels ?? {}) }
       const activeProviderId = selectedProviderId.trim()
-      if (activeProviderId && model && !nextProviderModels[activeProviderId]) {
-        nextProviderModels[activeProviderId] = model
-      }
+      const model = activeProviderId ? (nextProviderModels[activeProviderId] ?? '').trim() : ''
       setSubAgentModel(model)
       setSubAgentManualModelDraft(model)
       setSubAgentProviderModels(nextProviderModels)
@@ -1954,7 +1951,6 @@ export function SettingsView({
             delete nextSubProviderModels[normalized]
           }
           await window.api.appServer.sendRequest('subagent/settings/update', {
-            model: nextSubModel || null,
             providerModels: nextSubProviderModels
           }, 20_000)
           setSubAgentModel(nextSubModel)
@@ -2038,7 +2034,6 @@ export function SettingsView({
         }
       }
       await window.api.appServer.sendRequest('subagent/settings/update', {
-        model: normalized || null,
         providerModels: nextSubProviderModels
       }, 20_000)
       setSubAgentModel(normalized)
@@ -3826,9 +3821,12 @@ export function SettingsView({
 
                         {!providersLoading && providers.map((provider) => {
                           const active = provider.id === selectedProviderId
-                          const rememberedModel = active
+                          const rememberedMainAgentModel = active
                             ? workspaceModel.trim() || (providerModels[provider.id] ?? '').trim()
                             : (providerModels[provider.id] ?? '').trim()
+                          const rememberedSubAgentModel = active
+                            ? subAgentModel.trim() || (subAgentProviderModels[provider.id] ?? '').trim()
+                            : (subAgentProviderModels[provider.id] ?? '').trim()
                           return (
                             <div
                               key={provider.id}
@@ -3891,18 +3889,28 @@ export function SettingsView({
                                     {provider.endPoint || t('settings.llm.providerDefaultEndpoint')}
                                   </span>
                                 </div>
-                                {rememberedModel && (
+                                {(rememberedMainAgentModel || rememberedSubAgentModel) && (
                                   <div
                                     style={{
                                       marginTop: '4px',
                                       fontSize: '12px',
                                       color: 'var(--text-dimmed)',
-                                      overflow: 'hidden',
-                                      textOverflow: 'ellipsis',
-                                      whiteSpace: 'nowrap'
+                                      display: 'flex',
+                                      flexWrap: 'wrap',
+                                      gap: '6px'
                                     }}
                                   >
-                                    {t('settings.llm.providerRememberedModel', { model: rememberedModel })}
+                                    {rememberedMainAgentModel && (
+                                      <span style={{ minWidth: 0, maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                        {t('settings.llm.providerRememberedMainAgentModel', { model: rememberedMainAgentModel })}
+                                      </span>
+                                    )}
+                                    {rememberedMainAgentModel && rememberedSubAgentModel && <span aria-hidden>·</span>}
+                                    {rememberedSubAgentModel && (
+                                      <span style={{ minWidth: 0, maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                        {t('settings.llm.providerRememberedSubAgentModel', { model: rememberedSubAgentModel })}
+                                      </span>
+                                    )}
                                   </div>
                                 )}
                               </div>

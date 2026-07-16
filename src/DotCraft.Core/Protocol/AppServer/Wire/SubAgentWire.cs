@@ -193,11 +193,8 @@ public sealed class SubAgentSettingsWire
 {
     public bool ExternalCliSessionResumeEnabled { get; set; }
 
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public string? Model { get; set; }
-
     /// <summary>
-    /// Per-provider native SubAgent model memory (providerId → model). UI-side memory only.
+    /// Per-provider native SubAgent model preference (providerId → model).
     /// Null means the map is empty or absent.
     /// </summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -213,8 +210,6 @@ public sealed class SubAgentSettingsWire
 public sealed class SubAgentSettingsUpdateParams
 {
     public bool? ExternalCliSessionResumeEnabled { get; set; }
-
-    public string? Model { get; set; }
 
     public Dictionary<string, string>? ProviderModels { get; set; }
 

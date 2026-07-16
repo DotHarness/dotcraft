@@ -1136,11 +1136,11 @@ Update per-thread agent configuration (MCP servers, extensions, context-window m
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
 | `threadId` | string | yes | Thread ID. |
-| `config` | ThreadConfiguration | yes | Configuration patch. |
+| `config` | ThreadConfiguration | yes | Complete replacement configuration; clients preserve unrelated fields. |
 
 **Result**: `{}`
 
-The server validates model-aware fields such as `reasoning` and `contextWindow` before persisting. Explicit `{ "contextWindow": { "mode": "max" } }` is accepted only when the thread's effective model has an explicit model-context catalog entry larger than the configured default window. On success, the server rebuilds the thread agent/compaction pipeline, persists the configuration, and broadcasts `thread/updated`.
+Provider changes include a non-empty `providerId` and `model` in the same request. The server validates model-aware fields such as `reasoning` and `contextWindow` against that pair before persisting. Explicit `{ "contextWindow": { "mode": "max" } }` is accepted only when the thread's effective model has an explicit model-context catalog entry larger than the configured default window. On success, the server rebuilds the thread agent/compaction pipeline, persists the configuration, and broadcasts authoritative `thread/updated` state.
 
 ---
 
@@ -5957,7 +5957,7 @@ Returns all builtin profiles plus workspace-defined custom profiles for the curr
   "defaultName": "native",
   "settings": {
     "externalCliSessionResumeEnabled": false,
-    "model": null,
+    "providerModels": { "anthropic": "claude-sonnet-4-5" },
     "minWaitTimeoutMs": 15000,
     "defaultWaitTimeoutMs": 60000,
     "maxWaitTimeoutMs": 3600000
@@ -5967,7 +5967,7 @@ Returns all builtin profiles plus workspace-defined custom profiles for the curr
 ```
 
 `settings.externalCliSessionResumeEnabled` is the workspace-scoped toggle that controls whether supported external CLI profiles may reuse saved external session ids.
-`settings.model` is the optional workspace-scoped default model for DotCraft-managed SubAgents. `null` or an empty string means the server uses the effective MainAgent model for the current thread.
+`settings.providerModels` contains native SubAgent model preferences keyed by provider id. A missing entry inherits the effective MainAgent model for that thread. The legacy `SubAgent.Model` field is neither read nor migrated.
 `settings.minWaitTimeoutMs`, `settings.defaultWaitTimeoutMs`, and `settings.maxWaitTimeoutMs` define the configured `WaitAgent(timeoutMs?)` range in milliseconds. Omitted `timeoutMs` uses the default; explicit values outside the configured range are rejected rather than clamped.
 `SubAgent.MaxDepth` defaults to `1`, so root threads can spawn first-level SubAgents but child SubAgents cannot recursively call `SpawnAgent` unless the workspace explicitly raises the depth limit and the selected role exposes Agent control.
 
@@ -5980,7 +5980,7 @@ Update workspace-level SubAgent settings.
 ```json
 {
   "externalCliSessionResumeEnabled": true,
-  "model": "gpt-4.1",
+  "providerModels": { "openai": "gpt-5.1" },
   "minWaitTimeoutMs": 15000,
   "defaultWaitTimeoutMs": 60000,
   "maxWaitTimeoutMs": 3600000
@@ -5989,11 +5989,11 @@ Update workspace-level SubAgent settings.
 
 **Semantics**:
 
-- clients may send `externalCliSessionResumeEnabled`, `model`, any `*WaitTimeoutMs` field, or a combination; at least one supported field is required
+- clients may send `externalCliSessionResumeEnabled`, `providerModels`, any `*WaitTimeoutMs` field, or a combination; at least one supported field is required
 - `externalCliSessionResumeEnabled` updates `SubAgent.EnableExternalCliSessionResume`
-- `model` updates `SubAgent.Model`; `null`, empty, or whitespace clears the SubAgent model override
+- `providerModels` replaces `SubAgent.ProviderModels`; empty/default values are omitted and an empty map clears the section
 - `minWaitTimeoutMs`, `defaultWaitTimeoutMs`, and `maxWaitTimeoutMs` update `SubAgent.MinWaitTimeoutMs`, `SubAgent.DefaultWaitTimeoutMs`, and `SubAgent.MaxWaitTimeoutMs`; each value must be between `0` and `3600000`, and the resulting triple must satisfy `min <= default <= max`
-- `SubAgent.Model` only affects DotCraft-managed native SubAgents in v1; external CLI profiles may opt into model selection in a future profile/runtime-specific contract
+- saving SubAgent settings removes an obsolete `SubAgent.Model` key if present; no migration or compatibility fallback is performed
 - the resume toggle affects only profiles whose effective definition has `supportsResume=true`
 - clearing or changing these settings does not delete existing saved external session ids
 - on success, the server emits `workspace/configChanged` (see [Section 25.5](#255-workspaceconfigchanged)) with `source: "subagent/settings/update"` and `regions: ["subagent"]`
@@ -6242,6 +6242,7 @@ Update workspace-level config values.
 |-------|------|----------|-------------|
 | `providerId` | string \| null | no | Workspace-selected personal provider id. `null` or empty removes the workspace `ProviderId` key; runtime then has no selected provider unless a managed runtime override supplies one. |
 | `model` | string \| null | no | Workspace default model. `null`, empty, or `"Default"` removes the `Model` key so runtime falls back to provider default behavior. |
+| `providerModels` | object \| null | no | Provider-keyed workspace model preferences. Empty/default values are omitted; `null` or an empty object clears the map. |
 | `welcomeSuggestionsEnabled` | boolean \| null | no | Workspace-level override for personalized welcome suggestions. `true` enables, `false` disables, and `null` removes the explicit override so server defaults apply. |
 | `skillsSelfLearningEnabled` | boolean \| null | no | Workspace-level override for `Skills.SelfLearning.Enabled`. `true` enables the SkillManage tool surface and skill-authoring built-in skill, `false` disables, and `null` removes the explicit override so server defaults apply (`true` by default). Takes effect on next AppServer restart (`Skills.SelfLearning.Enabled` is a `ProcessRestart` field). |
 | `memoryAutoConsolidateEnabled` | boolean \| null | no | Workspace-level override for `Memory.AutoConsolidateEnabled`. `true` enables turn-count-based long-term memory consolidation, `false` disables it, and `null` removes the explicit override so server defaults apply (`true` by default). Takes effect for future successful turns without restart. |
@@ -6261,6 +6262,7 @@ Update workspace-level config values.
 {
   "providerId": "anthropic",
   "model": "gpt-4o-mini",
+  "providerModels": { "anthropic": "claude-sonnet-4-5" },
   "welcomeSuggestionsEnabled": true,
   "skillsSelfLearningEnabled": true,
   "memoryAutoConsolidateEnabled": true,
@@ -6295,9 +6297,9 @@ If `model` is removed, the result returns:
 - This method updates **workspace default** only, not any active thread state.
 - Clients that need immediate effect in a running thread should additionally call `thread/config/update`.
 - Server preserves unrelated configuration state.
-- At least one of `providerId`, `model`, `welcomeSuggestionsEnabled`, `skillsSelfLearningEnabled`, `memoryAutoConsolidateEnabled`, `dreamsEnabled`, `dreamsInterval`, `dreamsThreadLookbackCount`, `dreamsAutoApply`, `defaultApprovalPolicy`, `toolsLspEnabled`, `reasoning`, `speed`, or `contextWindow` must be provided.
+- At least one of `providerId`, `model`, `providerModels`, `welcomeSuggestionsEnabled`, `skillsSelfLearningEnabled`, `memoryAutoConsolidateEnabled`, `dreamsEnabled`, `dreamsInterval`, `dreamsThreadLookbackCount`, `dreamsAutoApply`, `defaultApprovalPolicy`, `toolsLspEnabled`, `reasoning`, `speed`, or `contextWindow` must be provided.
 - Key matching is case-insensitive and normalized in-place (`ProviderId`, `Model`, and nested sections).
-- Provider-aware saves persist only `ProviderId` and `Model` to workspace config. Credentials and endpoints are changed through `provider/create` and `provider/update`.
+- Provider-aware saves persist `ProviderId`, `Model`, and `ProviderModels` to workspace config. Credentials and endpoints are changed through `provider/create` and `provider/update`.
 - Requests containing legacy root-level `apiKey` or `endPoint` parameters are rejected.
 - When `skillsSelfLearningEnabled` is provided, the server writes the boolean to the nested `Skills.SelfLearning.Enabled` key. Setting it to `null` removes the leaf, and the server prunes empty `Skills.SelfLearning` / `Skills` objects when no other keys remain.
 - When `memoryAutoConsolidateEnabled` is provided, the server writes the boolean to `Memory.AutoConsolidateEnabled`. Setting it to `null` removes the leaf, and the server prunes the empty `Memory` object when no other keys remain.

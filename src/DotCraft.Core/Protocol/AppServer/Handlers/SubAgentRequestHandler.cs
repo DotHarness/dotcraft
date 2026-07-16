@@ -42,14 +42,10 @@ internal sealed class SubAgentRequestHandler(
         _ = ct;
         EnsureSubAgentManagementAvailable();
         var p = AppServerParams.Get<SubAgentSettingsUpdateParams>(msg);
-        JsonElement modelEl = default;
         JsonElement providerModelsEl = default;
         JsonElement minWaitTimeoutMsEl = default;
         JsonElement defaultWaitTimeoutMsEl = default;
         JsonElement maxWaitTimeoutMsEl = default;
-        var hasModel = msg.Params.HasValue
-            && msg.Params.Value.ValueKind == JsonValueKind.Object
-            && TryGetCaseInsensitiveProperty(msg.Params.Value, "model", out modelEl);
         var hasProviderModels = msg.Params.HasValue
             && msg.Params.Value.ValueKind == JsonValueKind.Object
             && TryGetCaseInsensitiveProperty(msg.Params.Value, "providerModels", out providerModelsEl);
@@ -63,20 +59,16 @@ internal sealed class SubAgentRequestHandler(
             && msg.Params.Value.ValueKind == JsonValueKind.Object
             && TryGetCaseInsensitiveProperty(msg.Params.Value, "maxWaitTimeoutMs", out maxWaitTimeoutMsEl);
         if (!p.ExternalCliSessionResumeEnabled.HasValue
-            && !hasModel
             && !hasProviderModels
             && !hasMinWaitTimeoutMs
             && !hasDefaultWaitTimeoutMs
             && !hasMaxWaitTimeoutMs)
         {
-            throw AppServerErrors.InvalidParams("At least one of 'externalCliSessionResumeEnabled', 'model', 'providerModels', 'minWaitTimeoutMs', 'defaultWaitTimeoutMs', or 'maxWaitTimeoutMs' is required.");
+            throw AppServerErrors.InvalidParams("At least one of 'externalCliSessionResumeEnabled', 'providerModels', 'minWaitTimeoutMs', 'defaultWaitTimeoutMs', or 'maxWaitTimeoutMs' is required.");
         }
 
         var state = SubAgentProfilesPersistence.LoadWorkspaceState(workspaceCraftPath!);
         var nextResumeEnabled = p.ExternalCliSessionResumeEnabled ?? state.EnableExternalCliSessionResume;
-        var nextModel = hasModel
-            ? NormalizeOptionalString(ParseNullableString(modelEl, "model")) ?? string.Empty
-            : state.Model;
         var nextProviderModels = hasProviderModels
             ? NormalizeProviderModels(ParseNullableProviderModels(providerModelsEl, "providerModels"))
             : state.ProviderModels;
@@ -92,7 +84,6 @@ internal sealed class SubAgentRequestHandler(
             workspaceCraftPath!,
             state.DisabledProfiles,
             nextResumeEnabled,
-            nextModel,
             nextWaitAgentTimeouts,
             state.Profiles,
             hasProviderModels ? nextProviderModels : null);
@@ -107,7 +98,6 @@ internal sealed class SubAgentRequestHandler(
             Settings = new SubAgentSettingsWire
             {
                 ExternalCliSessionResumeEnabled = nextResumeEnabled,
-                Model = string.IsNullOrWhiteSpace(nextModel) ? null : nextModel,
                 ProviderModels = nextProviderModels.Count == 0
                     ? null
                     : new Dictionary<string, string>(nextProviderModels, StringComparer.Ordinal),
@@ -149,9 +139,9 @@ internal sealed class SubAgentRequestHandler(
             workspaceCraftPath!,
             disabled,
             state.EnableExternalCliSessionResume,
-            state.Model,
             state.WaitAgentTimeouts,
-            state.Profiles);
+            state.Profiles,
+            state.ProviderModels);
         runtimeConfig.RefreshCurrentSubAgentConfig();
         runtimeConfig.InvalidateThreadAgents();
         appConfigMonitor?.NotifyChanged(
@@ -186,9 +176,9 @@ internal sealed class SubAgentRequestHandler(
             workspaceCraftPath!,
             state.DisabledProfiles,
             state.EnableExternalCliSessionResume,
-            state.Model,
             state.WaitAgentTimeouts,
-            profiles);
+            profiles,
+            state.ProviderModels);
         runtimeConfig.RefreshCurrentSubAgentConfig();
         runtimeConfig.InvalidateThreadAgents();
         appConfigMonitor?.NotifyChanged(
@@ -225,9 +215,9 @@ internal sealed class SubAgentRequestHandler(
             workspaceCraftPath!,
             disabled,
             state.EnableExternalCliSessionResume,
-            state.Model,
             state.WaitAgentTimeouts,
-            workspaceProfiles);
+            workspaceProfiles,
+            state.ProviderModels);
         runtimeConfig.RefreshCurrentSubAgentConfig();
         runtimeConfig.InvalidateThreadAgents();
         appConfigMonitor?.NotifyChanged(
@@ -495,7 +485,6 @@ internal sealed class SubAgentRequestHandler(
             Settings = new SubAgentSettingsWire
             {
                 ExternalCliSessionResumeEnabled = state.EnableExternalCliSessionResume,
-                Model = string.IsNullOrWhiteSpace(state.Model) ? null : state.Model,
                 ProviderModels = state.ProviderModels.Count == 0
                     ? null
                     : new Dictionary<string, string>(state.ProviderModels, StringComparer.Ordinal),

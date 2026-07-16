@@ -614,10 +614,13 @@ Required behavior:
 
 - If model catalog capability is available, the client may offer model selection using server-provided values.
 - If model catalog capability is absent or temporarily fails, the conversation workflow remains usable.
-- Model catalog requests are scoped to the currently selected workspace provider when provider management is available.
+- Welcome model catalog requests are scoped to the workspace provider. Existing-thread requests are scoped to `thread.configuration.providerId` and do not follow workspace changes.
 - If model listing returns `EndpointNotSupported` or another provider-neutral error, the client must keep manual model entry available.
-- Updating workspace default model and updating active-thread model must remain distinct actions when both are supported.
-- The welcome-screen model picker updates the workspace default model for threads created after that change. Existing threads must continue using their captured thread model unless the user explicitly changes the model from that thread's conversation view.
+- The combined picker exposes configured Provider and model submenus with the existing keyboard and ARIA menu behavior.
+- Welcome atomically persists `providerId`, `model`, and `providerModels`, then sends the complete pair in `thread/start` or `worktree/createAndStart`.
+- Existing threads do not expose Default. A provider/model choice sends one full `thread/config/update`, never `workspace/config/update`, and updates local state only after success.
+- If a target provider has no remembered model, Desktop selects its first listed model. If listing is unavailable, it leaves the thread unchanged and directs the user to Model Providers settings.
+- Missing/deleted providers remain visible as missing thread state until the user explicitly migrates the thread.
 
 ### 6.6 Archived Threads
 
@@ -639,7 +642,7 @@ Required behavior:
 - When `providerManagement` is available, Desktop exposes provider-aware model settings:
   - personal providers can be created, edited, tested, and deleted from Settings;
   - `openai` is a normal explicit provider id and can be created, selected, edited, and deleted like other providers when it is not the active workspace selection;
-  - provider credentials and endpoints are personal config, while workspace saves write only `providerId` and `model`;
+  - provider credentials and endpoints are personal config, while workspace saves write `providerId`, `model`, and the provider-keyed `providerModels` preference map;
   - provider testing uses `provider/test` and must not perform hidden chat-completion requests;
   - unsupported model listing remains a recoverable setup state with manual model entry.
 - The legacy shared footer Save/Cancel pattern is retired. Settings actions are group-scoped (for example Apply, Restart, or Apply & Restart) based on the tier semantics of that group.

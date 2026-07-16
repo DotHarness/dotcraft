@@ -28,6 +28,10 @@ public sealed class AppConfig
     [ConfigField(Reload = ReloadBehavior.ProcessRestart, HasReload = true)]
     public string Model { get; set; } = "gpt-4o-mini";
 
+    /// <summary>Workspace model preference keyed by provider id.</summary>
+    [ConfigField(Ignore = true)]
+    public Dictionary<string, string> ProviderModels { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+
     /// <summary>Workspace inference-speed preset captured by newly created threads.</summary>
     [ConfigField(Ignore = true)]
     public InferenceSpeed Speed { get; set; } = InferenceSpeed.Standard;
@@ -1109,11 +1113,11 @@ public sealed class AppConfig
         public bool EnableExternalCliSessionResume { get; set; }
 
         /// <summary>
-        /// Optional model used by DotCraft-managed native SubAgents.
-        /// Empty means native SubAgents inherit the current thread's effective MainAgent model.
+        /// Native SubAgent model preference keyed by provider id.
+        /// A missing entry inherits the current thread's effective MainAgent model.
         /// </summary>
-        [ConfigField(Hint = "Model for native SubAgents. Empty = use the current thread's effective MainAgent model.", Reload = ReloadBehavior.Hot, HasReload = true)]
-        public string Model { get; set; } = string.Empty;
+        [ConfigField(Ignore = true)]
+        public Dictionary<string, string> ProviderModels { get; set; } = new(StringComparer.OrdinalIgnoreCase);
 
         /// <summary>
         /// Minimum accepted <c>WaitAgent.timeoutMs</c> value in milliseconds.

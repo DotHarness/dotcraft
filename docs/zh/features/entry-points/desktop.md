@@ -36,7 +36,7 @@ DotCraft --workspace /path/to/project
 | **Settings → Profile** | 当前工作区的 Token 活动热力图、累计/峰值/连续天数统计，以及可选的 GitHub 身份 |
 | **Settings → General** | 当前 Workspace 路径、AppServer binary 路径、语言 |
 | **Settings → Personalization** | 长期记忆与 Dreams 的开关、立即运行、自动更新、重置记忆 |
-| **Settings → Model Providers** | 个人 provider、凭证、Endpoint、工作区 provider 与模型 |
+| **Settings → Model Providers** | 个人 provider、凭证、Endpoint，以及各 provider 的 MainAgent/SubAgent 模型 |
 | **Settings → Sub Agents** | 复用外部 CLI 会话（详见 [SubAgents](../agent-system/subagents)） |
 | **Settings → Connection** | 本地 Hub vs 远程 AppServer 切换 |
 
@@ -59,7 +59,9 @@ DotCraft --workspace /path/to/project
 ### Model Providers
 
 - Provider 凭据与 endpoint 写入个人 `~/.craft/config.json`，**不**写入工作区。
-- 工作区只保存 `ProviderId` 与 `Model`，避免共享配置含有密钥。
+- 工作区保存 `ProviderId`、`Model`、`ProviderModels` 与 `SubAgent.ProviderModels`，共享配置仍不会包含密钥。
+- Welcome picker 只设置未来线程的默认值；已有线程保留创建时的 provider/model，也可以在自己的 composer 中独立切换。
+- 原生 SubAgent 使用父线程 provider 对应的 SubAgent 模型偏好；没有对应项时继承父线程 MainAgent 模型。
 - Desktop 当前支持 OpenAI 与 Anthropic provider。
 - 用 **Test** 检查凭据和模型列表可达性；如果 provider 不支持列模型，仍可保存并手动输入模型名。
 

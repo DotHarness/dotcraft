@@ -55,7 +55,10 @@ public sealed class SandboxToolSource(
 
         if (!context.ProviderCapabilities.Contains("subagent-child"))
         {
-            var mainRuntime = chatClientRegistry.ResolveMainRuntime(config);
+            var mainRuntime = chatClientRegistry.ResolveMainRuntime(
+                config,
+                context.EffectiveProviderId,
+                context.EffectiveMainModel);
             var subAgentRuntime = chatClientRegistry.ResolveSubAgentRuntime(
                 config,
                 mainRuntime.ProviderId,
@@ -89,7 +92,7 @@ public sealed class SandboxToolSource(
                 coordinator,
                 config.SubAgent.Roles,
                 config.SubAgent.MaxDepth,
-                config.SubAgent.Model,
+                subAgentRuntime.Model,
                 SubAgentWaitAgentTimeoutOptions.FromConfig(config.SubAgent));
             tools.Add(GeneratedToolFunctions.AgentTools_SpawnAgent(agentTools));
             tools.Add(GeneratedToolFunctions.AgentTools_SendMessage(agentTools));

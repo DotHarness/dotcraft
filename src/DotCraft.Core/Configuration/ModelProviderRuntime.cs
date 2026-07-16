@@ -194,7 +194,7 @@ public static class ModelProviderResolver
 
         var provider = ResolveProvider(config, providerIdOverride);
         var model = string.IsNullOrWhiteSpace(modelOverride)
-            ? config.Model
+            ? GetProviderModel(config.ProviderModels, provider.ProviderId) ?? config.Model
             : modelOverride;
 
         if (string.IsNullOrWhiteSpace(model))
@@ -219,10 +219,27 @@ public static class ModelProviderResolver
         string effectiveMainProviderId,
         string effectiveMainModel)
     {
-        var model = string.IsNullOrWhiteSpace(config.SubAgent.Model)
-            ? effectiveMainModel
-            : config.SubAgent.Model;
+        var model = GetProviderModel(config.SubAgent.ProviderModels, effectiveMainProviderId)
+            ?? effectiveMainModel;
         return ResolveMain(config, effectiveMainProviderId, model);
+    }
+
+    private static string? GetProviderModel(
+        IReadOnlyDictionary<string, string>? providerModels,
+        string providerId)
+    {
+        if (providerModels is null)
+            return null;
+
+        foreach (var (key, value) in providerModels)
+        {
+            if (string.Equals(key, providerId, StringComparison.OrdinalIgnoreCase)
+                && !string.IsNullOrWhiteSpace(value)
+                && !string.Equals(value.Trim(), "Default", StringComparison.OrdinalIgnoreCase))
+                return value.Trim();
+        }
+
+        return null;
     }
 
     public static EffectiveModelRuntime ResolveProvider(AppConfig config, string? providerIdOverride = null)

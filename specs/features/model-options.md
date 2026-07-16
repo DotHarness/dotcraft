@@ -59,7 +59,7 @@ Model options follow this lifecycle:
 2. `thread/start` captures effective provider, model, reasoning, and speed into `ThreadConfiguration`
    unless the request supplies explicit values. It captures workspace MAX only when the resolved model
    supports MAX.
-3. An active-thread picker change updates the workspace preset and the active thread configuration.
+3. A Welcome picker change atomically updates the workspace provider/model preset; an active-thread picker change updates only that thread's complete provider/model snapshot.
 4. A change affects future and queued turns; it never changes a running provider request.
 5. Forks copy the source thread configuration unless the fork request supplies an override.
 6. Existing threads keep their captured values when workspace defaults change.
@@ -210,6 +210,7 @@ capture MAX only when their resolved model supports it.
 
 The composer Model picker is the shared entry point:
 
+- Provider opens a submenu of configured providers. Welcome uses the workspace provider and remembered `ProviderModels` entry; an existing thread uses its captured provider.
 - Model opens the model submenu and preserves manual fallback behavior.
 - Effort exposes only the active model's reasoning choices and keeps the trigger label compact.
 - Speed appears only for Fast-capable models and offers Standard and Fast.
@@ -220,13 +221,16 @@ The composer Model picker is the shared entry point:
 - MAX is an advanced switch enabled only when `supportsMax=true`; a captured MAX that later becomes
   unsupported is shown as degraded until changed.
 
-If a model change invalidates the current reasoning effort, Desktop selects the new model's default
-effort and reports the adjustment through the normal toast/status channel. Unsupported option metadata
-must not block manual model selection.
+Provider/model changes are one `thread/config/update`. If the target model invalidates reasoning,
+Desktop selects its default effort; if it does not support MAX, Desktop clears MAX. Speed preference is
+preserved and unsupported Fast continues to run as Standard.
 
 The picker is disabled while a turn is running, waiting for approval, or waiting for user input. The
-Welcome picker updates workspace presets; the active-thread picker updates both workspace presets and
-the thread snapshot.
+Welcome updates `providerId`, `model`, and `providerModels` and passes the resulting pair to thread
+creation. Existing threads never show Default and update only their own snapshot. They load `model/list`
+for their captured provider and do not follow later workspace provider changes. Without a remembered
+model Desktop chooses the first listed model; if no list is available, it leaves state unchanged and
+directs the user to Model Providers settings.
 
 ---
 

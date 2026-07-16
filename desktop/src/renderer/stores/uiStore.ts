@@ -78,6 +78,7 @@ export interface WelcomeDraft {
   images: ImageAttachment[]
   files?: ComposerFileAttachment[]
   mode: ThreadMode
+  providerId?: string
   model: string
   reasoning?: {
     enabled: boolean

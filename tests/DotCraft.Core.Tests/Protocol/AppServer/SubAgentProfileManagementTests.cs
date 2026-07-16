@@ -146,7 +146,7 @@ public sealed class SubAgentProfileManagementTests : IDisposable
     }
 
     [Fact]
-    public async Task SettingsUpdate_Model_PersistsWorkspaceModel_AndListReflectsSetting()
+    public async Task SettingsUpdate_LegacyModelOnly_IsRejected()
     {
         using var harness = new AppServerTestHarness(workspaceCraftPath: _workspaceCraftPath);
         await harness.InitializeAsync();
@@ -158,21 +158,7 @@ public sealed class SubAgentProfileManagementTests : IDisposable
         await harness.ExecuteRequestAsync(updateReq);
 
         var sent = await harness.Transport.WaitAndDrainAsync(1, TimeSpan.FromSeconds(5));
-        AppServerTestHarness.AssertIsSuccessResponse(sent[0]);
-        var settings = sent[0].RootElement.GetProperty("result").GetProperty("settings");
-        Assert.False(settings.GetProperty("externalCliSessionResumeEnabled").GetBoolean());
-        Assert.Equal("gpt-subagent", settings.GetProperty("model").GetString());
-
-        var configPath = Path.Combine(_workspaceCraftPath, "config.json");
-        var json = await File.ReadAllTextAsync(configPath);
-        var root = JsonNode.Parse(json)!.AsObject();
-        Assert.Equal("gpt-subagent", root["SubAgent"]!["Model"]!.GetValue<string>());
-
-        var listReq = harness.BuildRequest(AppServerMethods.SubAgentProfileList, new { });
-        await harness.ExecuteRequestAsync(listReq);
-        var listSent = await harness.Transport.WaitAndDrainAsync(1, TimeSpan.FromSeconds(5));
-        var listedSettings = listSent[0].RootElement.GetProperty("result").GetProperty("settings");
-        Assert.Equal("gpt-subagent", listedSettings.GetProperty("model").GetString());
+        Assert.True(sent[0].RootElement.TryGetProperty("error", out _));
     }
 
     [Fact]
@@ -183,7 +169,6 @@ public sealed class SubAgentProfileManagementTests : IDisposable
 
         var updateReq = harness.BuildRequest(AppServerMethods.SubAgentSettingsUpdate, new
         {
-            model = "gpt-x",
             providerModels = new Dictionary<string, string>
             {
                 ["openai"] = "gpt-x",
@@ -240,16 +225,13 @@ public sealed class SubAgentProfileManagementTests : IDisposable
     }
 
     [Fact]
-    public async Task SettingsUpdate_ProviderModels_PreservesExistingModel()
+    public async Task SettingsUpdate_ProviderModels_RemovesLegacyModel()
     {
         using var harness = new AppServerTestHarness(workspaceCraftPath: _workspaceCraftPath);
         await harness.InitializeAsync();
 
-        await harness.ExecuteRequestAsync(harness.BuildRequest(AppServerMethods.SubAgentSettingsUpdate, new
-        {
-            model = "gpt-legacy"
-        }));
-        await harness.Transport.WaitAndDrainAsync(1, TimeSpan.FromSeconds(5));
+        var configPath = Path.Combine(_workspaceCraftPath, "config.json");
+        await File.WriteAllTextAsync(configPath, "{\"SubAgent\":{\"Model\":\"gpt-legacy\"}}");
 
         await harness.ExecuteRequestAsync(harness.BuildRequest(AppServerMethods.SubAgentSettingsUpdate, new
         {
@@ -258,40 +240,35 @@ public sealed class SubAgentProfileManagementTests : IDisposable
         var sent = await harness.Transport.WaitAndDrainAsync(1, TimeSpan.FromSeconds(5));
         AppServerTestHarness.AssertIsSuccessResponse(sent[0]);
         var settings = sent[0].RootElement.GetProperty("result").GetProperty("settings");
-        Assert.Equal("gpt-legacy", settings.GetProperty("model").GetString());
+        Assert.False(settings.TryGetProperty("model", out _));
         Assert.Equal("gpt-x", settings.GetProperty("providerModels").GetProperty("openai").GetString());
 
-        var configPath = Path.Combine(_workspaceCraftPath, "config.json");
         var root = JsonNode.Parse(await File.ReadAllTextAsync(configPath))!.AsObject();
-        Assert.Equal("gpt-legacy", root["SubAgent"]!["Model"]!.GetValue<string>());
+        Assert.False(root["SubAgent"]!.AsObject().ContainsKey("Model"));
         Assert.Equal("gpt-x", root["SubAgent"]!["ProviderModels"]!["openai"]!.GetValue<string>());
     }
 
     [Fact]
-    public async Task SettingsUpdate_ModelNull_ClearsWorkspaceModel()
+    public async Task SettingsUpdate_OtherSetting_RemovesLegacyModel()
     {
         using var harness = new AppServerTestHarness(workspaceCraftPath: _workspaceCraftPath);
         await harness.InitializeAsync();
 
-        await harness.ExecuteRequestAsync(harness.BuildRequest(AppServerMethods.SubAgentSettingsUpdate, new
-        {
-            model = "gpt-subagent"
-        }));
-        await harness.Transport.WaitAndDrainAsync(1, TimeSpan.FromSeconds(5));
+        var configPath = Path.Combine(_workspaceCraftPath, "config.json");
+        await File.WriteAllTextAsync(configPath, "{\"SubAgent\":{\"Model\":\"gpt-legacy\"}}");
 
         await harness.ExecuteRequestAsync(harness.BuildRequest(
             AppServerMethods.SubAgentSettingsUpdate,
-            new JsonObject { ["model"] = null }));
+            new JsonObject { ["externalCliSessionResumeEnabled"] = true }));
         var sent = await harness.Transport.WaitAndDrainAsync(1, TimeSpan.FromSeconds(5));
         AppServerTestHarness.AssertIsSuccessResponse(sent[0]);
 
         var settings = sent[0].RootElement.GetProperty("result").GetProperty("settings");
         Assert.False(settings.TryGetProperty("model", out _));
 
-        var configPath = Path.Combine(_workspaceCraftPath, "config.json");
         var json = await File.ReadAllTextAsync(configPath);
         var root = JsonNode.Parse(json)!.AsObject();
-        Assert.False(root.TryGetPropertyValue("SubAgent", out _));
+        Assert.False(root["SubAgent"]!.AsObject().ContainsKey("Model"));
     }
 
     [Fact]

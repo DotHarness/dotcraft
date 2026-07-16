@@ -124,6 +124,8 @@ interface InputComposerProps {
   /** File browsing and local attachment root. Worktree threads use effectiveWorkspacePath here. */
   fileWorkspacePath?: string
   modelName?: string
+  providerId?: string
+  providerOptions?: Array<{ id: string; displayName: string }>
   modelOptions?: string[]
   modelCatalog?: ModelCatalogItem[]
   reasoningValue?: ReasoningQuickValue
@@ -136,6 +138,7 @@ interface InputComposerProps {
   modelCatalogError?: boolean
   modelCatalogErrorMessage?: string | null
   onModelChange?: (model: string) => void
+  onProviderChange?: (providerId: string) => void
   onReasoningChange?: (value: ReasoningQuickValue) => void
   onSpeedChange?: (value: InferenceSpeedWire) => void
   onModelCatalogRetry?: () => void
@@ -182,6 +185,8 @@ export function InputComposer({
   workspacePath,
   fileWorkspacePath,
   modelName = 'Default',
+  providerId,
+  providerOptions = [],
   modelOptions = [],
   modelCatalog = [],
   reasoningValue = 'off',
@@ -193,6 +198,7 @@ export function InputComposer({
   modelCatalogError = false,
   modelCatalogErrorMessage = null,
   onModelChange,
+  onProviderChange,
   onReasoningChange,
   onSpeedChange,
   onModelCatalogRetry,
@@ -1704,6 +1710,8 @@ export function InputComposer({
             {!minimalChrome && <ChatGptUsageBadge provider={activeChatGptProvider} />}
             {!hasSubmitOverride && <ContextUsageRing />}
             <ModelPicker
+              providerId={providerId}
+              providerOptions={providerOptions}
               modelName={modelName}
               modelOptions={modelOptions}
               modelCatalog={modelCatalog}
@@ -1713,8 +1721,10 @@ export function InputComposer({
               unsupported={modelListUnsupportedEndpoint}
               modelListReady={!modelLoading && !modelListUnsupportedEndpoint && !modelCatalogError && modelOptions.length > 0}
               errorMessage={modelCatalogError ? (modelCatalogErrorMessage || t('composer.modelListError')) : null}
-              disabled={modelDisabled}
+              disabled={modelDisabled || isRunning || isWaitingApproval || isWaitingInput || isMaintenanceActive}
               onChange={onModelChange}
+              onProviderChange={onProviderChange}
+              allowDefaultModel={false}
               onReasoningChange={onReasoningChange}
               onSpeedChange={onSpeedChange}
               onRetry={onModelCatalogRetry}

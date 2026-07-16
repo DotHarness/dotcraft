@@ -31,7 +31,7 @@ You can identify the tier from the group action pattern: immediate apply, restar
 Notes:
 
 - The Desktop model page manages the provider registry; credentials and endpoints belong only to `Providers[id]`.
-- Changing `Model` updates new-session defaults through provider management APIs; existing threads keep the model captured at creation time unless the client explicitly changes that thread's model.
+- Changing workspace `ProviderId`, `Model`, or `ProviderModels` updates new-thread defaults; existing threads keep their captured provider/model pair unless their own composer atomically changes both values.
 - Workspaces save only the current `ProviderId` and `Model` overrides, not root-level `ApiKey` / `EndPoint`.
 - A Remote AppServer is owned by the user or remote environment. Desktop tests and switches the connection, but does not restart remote processes.
 - If Desktop was launched with `--remote`, the current session is controlled by that launch argument and persistent connection switching is unavailable in Settings.

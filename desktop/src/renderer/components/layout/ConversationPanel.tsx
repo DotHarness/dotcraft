@@ -255,6 +255,8 @@ export function ConversationPanel({
           prefillRequest={composerPrefillRequest}
           onBeforeSend={onBeforeSend}
           modelName={modelControls.modelName}
+          providerId={modelControls.providerId}
+          providerOptions={modelControls.providerOptions}
           modelOptions={modelControls.modelOptions}
           modelCatalog={modelControls.modelCatalog}
           reasoningValue={modelControls.reasoningValue}
@@ -265,6 +267,7 @@ export function ConversationPanel({
           modelCatalogError={modelControls.modelCatalogError}
           modelCatalogErrorMessage={modelControls.modelCatalogErrorMessage}
           onModelChange={modelControls.onModelChange}
+          onProviderChange={modelControls.onProviderChange}
           onReasoningChange={modelControls.onReasoningChange}
           onSpeedChange={modelControls.onSpeedChange}
           onModelCatalogRetry={modelControls.onModelCatalogRetry}

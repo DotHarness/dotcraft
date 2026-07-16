@@ -10,6 +10,7 @@ DotCraft reads global `~/.craft/config.json` first, then overlays workspace `.cr
 |-------|-------------|---------|
 | `ProviderId` | Current personal provider id. Empty means no provider is selected | Empty |
 | `Model` | Default model name | `gpt-4o-mini` |
+| `ProviderModels` | Remembered MainAgent model names keyed by provider id; the selected provider entry takes precedence over `Model` | `{}` |
 | `NetworkTimeoutSeconds` | Global model request timeout in seconds; providers can override it | `600` |
 | `Providers` | Personal model provider dictionary, usually stored in `~/.craft/config.json` | Empty |
 | `SubagentMaxConcurrency` | Maximum concurrent subagents | `3` |
@@ -589,7 +590,7 @@ For the beginner path, read [SubAgents](../features/agent-system/subagents).
 | Field | Description | Default |
 |-------|-------------|---------|
 | `SubAgent.MaxDepth` | Maximum session-backed SubAgent spawn depth; the first child is depth `1` | `1` |
-| `SubAgent.Model` | Model used by DotCraft native SubAgents; empty inherits the current thread's effective main model | Empty |
+| `SubAgent.ProviderModels` | Native SubAgent model preferences keyed by the parent thread provider; a missing entry inherits that thread's effective MainAgent model | `{}` |
 | `SubAgent.MinWaitTimeoutMs` | Minimum accepted `WaitAgent.timeoutMs` value in milliseconds | `15000` |
 | `SubAgent.DefaultWaitTimeoutMs` | `WaitAgent.timeoutMs` used when the tool call omits a timeout | `60000` |
 | `SubAgent.MaxWaitTimeoutMs` | Maximum accepted `WaitAgent.timeoutMs` value in milliseconds | `3600000` |

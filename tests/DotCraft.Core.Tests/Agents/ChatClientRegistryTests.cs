@@ -6,19 +6,13 @@ namespace DotCraft.Tests.Agents;
 public sealed class ChatClientRegistryTests
 {
     [Fact]
-    public void ResolveSubAgentModel_ExplicitSubAgentModelWins()
+    public void ResolveSubAgentModel_ProviderSpecificSubAgentModelWins()
     {
-        var config = new AppConfig
-        {
-            Model = "main-model",
-            SubAgent = new AppConfig.SubAgentConfig
-            {
-                Model = "sub-model"
-            }
-        };
+        var config = AppConfigTestFactory.CreateOpenAI(model: "main-model");
+        config.SubAgent.ProviderModels[config.ProviderId] = "sub-model";
         var registry = new ChatClientRegistry();
 
-        var effective = registry.ResolveSubAgentModel(config, "thread-model");
+        var effective = registry.ResolveSubAgentModel(config, config.ProviderId, "thread-model");
 
         Assert.Equal("sub-model", effective);
     }
@@ -31,7 +25,7 @@ public sealed class ChatClientRegistryTests
         var registry = new ChatClientRegistry();
 
         var main = registry.ResolveMainModel(config, "thread-model");
-        var subAgent = registry.ResolveSubAgentModel(config, main);
+        var subAgent = registry.ResolveSubAgentModel(config, config.ProviderId, main);
 
         Assert.Equal("thread-model", subAgent);
     }
@@ -45,6 +39,30 @@ public sealed class ChatClientRegistryTests
         var main = registry.ResolveMainModel(config, " ");
 
         Assert.Equal("workspace-model", main);
+    }
+
+    [Fact]
+    public void ResolveMainModel_UsesProviderSpecificWorkspacePreference()
+    {
+        var config = AppConfigTestFactory.CreateOpenAI(model: "legacy-model");
+        config.ProviderModels[config.ProviderId] = "remembered-model";
+        var registry = new ChatClientRegistry();
+
+        Assert.Equal("remembered-model", registry.ResolveMainModel(config));
+        Assert.Equal("thread-model", registry.ResolveMainModel(config, "thread-model"));
+    }
+
+    [Fact]
+    public void ResolveSubAgentRuntime_MissingProviderPreference_InheritsThreadModel()
+    {
+        var config = AppConfigTestFactory.CreateOpenAI(model: "workspace-model");
+        config.SubAgent.ProviderModels["another-provider"] = "wrong-model";
+        var registry = new ChatClientRegistry();
+
+        var runtime = registry.ResolveSubAgentRuntime(config, config.ProviderId, "thread-model");
+
+        Assert.Equal(config.ProviderId, runtime.ProviderId);
+        Assert.Equal("thread-model", runtime.Model);
     }
 
     [Fact]
@@ -242,7 +260,10 @@ public sealed class ChatClientRegistryTests
             Model = "main-model",
             SubAgent = new AppConfig.SubAgentConfig
             {
-                Model = "sub-model"
+                ProviderModels = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+                {
+                    ["anthropic-main"] = "sub-model"
+                }
             },
             Providers =
             {

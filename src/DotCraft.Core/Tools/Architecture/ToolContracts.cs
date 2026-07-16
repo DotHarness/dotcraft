@@ -353,7 +353,9 @@ public sealed class ToolPlanningContext
         string? profile,
         IEnumerable<string>? providerCapabilities,
         long revision,
-        ToolPlanningThreadKind threadKind = ToolPlanningThreadKind.Unknown)
+        ToolPlanningThreadKind threadKind = ToolPlanningThreadKind.Unknown,
+        string? effectiveProviderId = null,
+        string? effectiveMainModel = null)
     {
         if (string.IsNullOrWhiteSpace(threadId))
             throw new ArgumentException("A thread identifier is required.", nameof(threadId));
@@ -370,6 +372,8 @@ public sealed class ToolPlanningContext
             .ToFrozenSet(StringComparer.Ordinal);
         Revision = revision;
         ThreadKind = threadKind;
+        EffectiveProviderId = effectiveProviderId;
+        EffectiveMainModel = effectiveMainModel;
     }
 
     /// <summary>Gets the thread identifier.</summary>
@@ -388,6 +392,10 @@ public sealed class ToolPlanningContext
     public long Revision { get; }
     /// <summary>Gets the trusted thread classification frozen for this planning operation.</summary>
     public ToolPlanningThreadKind ThreadKind { get; }
+    /// <summary>Gets the provider snapshot effective for the current thread.</summary>
+    public string? EffectiveProviderId { get; }
+    /// <summary>Gets the MainAgent model snapshot effective for the current thread.</summary>
+    public string? EffectiveMainModel { get; }
 }
 
 /// <summary>Identifies the trusted host surface that initiated a direct tool invocation.</summary>
