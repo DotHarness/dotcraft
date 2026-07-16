@@ -379,29 +379,79 @@ public sealed class ThreadStoreTests : IDisposable
         thread.LastActiveAt = turn.StartedAt;
         await _store.SaveThreadAsync(thread);
 
-        var agentItem = new SessionItem
+        var toolCall = new SessionItem
         {
             Id = "item_002",
             TurnId = turn.Id,
-            Type = ItemType.AgentMessage,
-            Status = ItemStatus.Completed,
+            Type = ItemType.ToolCall,
+            Status = ItemStatus.Started,
             CreatedAt = turn.StartedAt.AddSeconds(1),
-            CompletedAt = turn.StartedAt.AddSeconds(1),
-            Payload = new AgentMessagePayload { Text = "world" }
+            Payload = new ToolCallPayload
+            {
+                ToolName = "ReadFile",
+                ProviderFlatName = "ReadFile",
+                CallId = "call_001"
+            }
         };
-        turn.Items.Add(agentItem);
+        turn.Items.Add(toolCall);
+        await _store.SaveThreadAsync(thread);
+
+        toolCall.Status = ItemStatus.Completed;
+        toolCall.CompletedAt = turn.StartedAt.AddSeconds(2);
+        turn.Items.Add(new SessionItem
+        {
+            Id = "item_003",
+            TurnId = turn.Id,
+            Type = ItemType.ToolResult,
+            Status = ItemStatus.Completed,
+            CreatedAt = turn.StartedAt.AddSeconds(2),
+            CompletedAt = turn.StartedAt.AddSeconds(2),
+            Payload = new ToolResultPayload
+            {
+                ToolName = "ReadFile",
+                ProviderFlatName = "ReadFile",
+                CallId = "call_001",
+                Result = "world",
+                Success = true
+            }
+        });
+        await _store.SaveThreadAsync(thread);
+
         turn.Status = TurnStatus.Completed;
-        turn.CompletedAt = turn.StartedAt.AddSeconds(1);
+        turn.CompletedAt = turn.StartedAt.AddSeconds(3);
         thread.LastActiveAt = turn.CompletedAt.Value;
         await _store.SaveThreadAsync(thread);
 
-        var loaded = await _store.LoadThreadAsync(thread.Id);
+        var rolloutPath = GetCanonicalPath(thread.Id, archived: false);
+        var records = File.ReadAllLines(rolloutPath)
+            .Select(line => JsonDocument.Parse(line))
+            .ToList();
+        try
+        {
+            Assert.Single(records, record =>
+                record.RootElement.GetProperty("kind").GetString() == "turn_started"
+                && record.RootElement.GetProperty("turnStarted").GetProperty("turn").GetProperty("id").GetString() == turn.Id);
+            Assert.Single(records, record =>
+                record.RootElement.GetProperty("kind").GetString() == "turn_completed"
+                && record.RootElement.GetProperty("turnCompleted").GetProperty("turnId").GetString() == turn.Id);
+            Assert.Equal(4, records.Count(record =>
+                record.RootElement.GetProperty("kind").GetString() == "item_appended"
+                && record.RootElement.GetProperty("itemAppended").GetProperty("turnId").GetString() == turn.Id));
+        }
+        finally
+        {
+            foreach (var record in records)
+                record.Dispose();
+        }
+
+        var loaded = await new ThreadStore(_root).LoadThreadAsync(thread.Id);
         Assert.NotNull(loaded);
         var loadedTurn = Assert.Single(loaded.Turns);
         Assert.Equal(TurnStatus.Completed, loadedTurn.Status);
-        Assert.Equal(2, loadedTurn.Items.Count);
+        Assert.Equal(3, loadedTurn.Items.Count);
         Assert.Equal("hello", loadedTurn.Input?.AsUserMessage?.Text);
-        Assert.Equal("world", loadedTurn.Items[1].AsAgentMessage?.Text);
+        Assert.Equal(ItemStatus.Completed, loadedTurn.Items[1].Status);
+        Assert.Equal("world", loadedTurn.Items[2].AsToolResult?.Result);
     }
 
     [Fact]

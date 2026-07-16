@@ -317,7 +317,7 @@ internal sealed class ThreadRolloutStore
             if (TurnsEquivalent(previousTurn, turn))
                 continue;
 
-            if (TryBuildTailItemAppendRecords(previousTurn, turn, records))
+            if (TryBuildIncrementalTurnRecords(previousTurn, turn, records))
                 continue;
 
             records.Add(CreateTurnStartedRecord(turn));
@@ -328,43 +328,62 @@ internal sealed class ThreadRolloutStore
                 records.Add(CreateTurnCompletedRecord(turn));
         }
 
-        static bool TryBuildTailItemAppendRecords(
+        static bool TryBuildIncrementalTurnRecords(
             SessionTurn previousTurn,
             SessionTurn currentTurn,
             List<ThreadRolloutRecord> records)
         {
-            if (previousTurn.Status != TurnStatus.Completed || currentTurn.Status != TurnStatus.Completed)
+            if (!TurnIdentityEquivalent(previousTurn, currentTurn))
                 return false;
-            if (!TurnMetadataEquivalent(previousTurn, currentTurn))
+            if (currentTurn.Items.Count < previousTurn.Items.Count)
                 return false;
-            if (currentTurn.Items.Count <= previousTurn.Items.Count)
+
+            var statusChanged = previousTurn.Status != currentTurn.Status;
+            if (statusChanged && previousTurn.Status != TurnStatus.Running)
                 return false;
 
             for (var i = 0; i < previousTurn.Items.Count; i++)
             {
-                if (!JsonEquals(previousTurn.Items[i], currentTurn.Items[i]))
+                if (!string.Equals(
+                        previousTurn.Items[i].Id,
+                        currentTurn.Items[i].Id,
+                        StringComparison.Ordinal))
                     return false;
             }
 
-            foreach (var item in currentTurn.Items.Skip(previousTurn.Items.Count))
-                records.Add(CreateItemAppendedRecord(currentTurn.Id, item));
+            if (!statusChanged && !TurnCompletionMetadataEquivalent(previousTurn, currentTurn))
+                return false;
+
+            for (var i = 0; i < currentTurn.Items.Count; i++)
+            {
+                if (i >= previousTurn.Items.Count
+                    || !JsonEquals(previousTurn.Items[i], currentTurn.Items[i]))
+                {
+                    records.Add(CreateItemAppendedRecord(currentTurn.Id, currentTurn.Items[i]));
+                }
+            }
+
+            if (statusChanged)
+                records.Add(CreateTurnCompletedRecord(currentTurn));
 
             return true;
         }
 
-        static bool TurnMetadataEquivalent(SessionTurn previousTurn, SessionTurn currentTurn)
+        static bool TurnIdentityEquivalent(SessionTurn previousTurn, SessionTurn currentTurn)
         {
             return string.Equals(previousTurn.Id, currentTurn.Id, StringComparison.Ordinal)
                 && string.Equals(previousTurn.ThreadId, currentTurn.ThreadId, StringComparison.Ordinal)
-                && previousTurn.Status == currentTurn.Status
                 && previousTurn.StartedAt == currentTurn.StartedAt
-                && previousTurn.CompletedAt == currentTurn.CompletedAt
                 && string.Equals(previousTurn.OriginChannel, currentTurn.OriginChannel, StringComparison.Ordinal)
-                && JsonEquals(previousTurn.TokenUsage, currentTurn.TokenUsage)
-                && JsonEquals(previousTurn.Error, currentTurn.Error)
                 && JsonEquals(previousTurn.Initiator, currentTurn.Initiator)
                 && JsonEquals(previousTurn.Input, currentTurn.Input);
         }
+
+        static bool TurnCompletionMetadataEquivalent(SessionTurn previousTurn, SessionTurn currentTurn) =>
+            previousTurn.Status == currentTurn.Status
+            && previousTurn.CompletedAt == currentTurn.CompletedAt
+            && JsonEquals(previousTurn.TokenUsage, currentTurn.TokenUsage)
+            && JsonEquals(previousTurn.Error, currentTurn.Error);
 
         if (!string.Equals(previous?.DisplayName, current.DisplayName, StringComparison.Ordinal))
         {

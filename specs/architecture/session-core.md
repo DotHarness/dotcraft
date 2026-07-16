@@ -1394,6 +1394,7 @@ Each thread is stored as an append-only JSONL rollout. Every line is a `ThreadRo
 ```
 
 Session Core reconstructs a `SessionThread` by replaying the rollout file in order.
+Each Turn writes its initial `turn_started` record once. While the Turn remains active, newly appended Items and updates to an existing Item are persisted as `item_appended`; an update reuses the same Turn-local Item id and replaces that Item during replay. Transitioning the Turn to a terminal state appends one `turn_completed` record instead of rewriting the complete Turn. A full `turn_started` replacement is reserved for incompatible recovery transitions such as Item removal or reordering.
 
 ### 9.3 Agent Session Storage
 
