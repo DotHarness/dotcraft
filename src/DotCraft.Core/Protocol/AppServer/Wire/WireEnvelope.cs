@@ -59,6 +59,10 @@ public sealed class AppServerClientInfo
 
 public sealed class AppServerClientCapabilities
 {
+    /// <summary>App Binding control-plane version required by the client.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public int? AppBindingVersion { get; set; }
+
     /// <summary>Whether the client can handle server-initiated approval requests. Default true.</summary>
     public bool? ApprovalSupport { get; set; }
 
@@ -101,6 +105,15 @@ public sealed class AppServerClientCapabilities
     /// host methods for it. See tool-result-presentation.md §3.
     /// </summary>
     public bool? InteractiveToolUi { get; set; }
+
+    /// <summary>
+    /// Whether the client hosts the stable MCP Apps extension. This is independent from the
+    /// private App Binding interactive UI capability.
+    /// </summary>
+    public bool? McpApps { get; set; }
+
+    /// <summary>Whether the client can answer MCP form and URL elicitation requests.</summary>
+    public bool? McpElicitation { get; set; }
 
     /// <summary>
     /// Channel adapter capability (external-channel-adapter.md §5.1).
@@ -260,16 +273,10 @@ public sealed class AppServerServerCapabilities
     public bool RuntimeAdditionalContext { get; set; }
 
     /// <summary>
-    /// Server supports App Binding methods (<c>app/*</c> and <c>thread/appBindings/*</c>).
+    /// App Binding control-plane version supported by the server.
     /// </summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public bool AppBinding { get; set; }
-
-    /// <summary>
-    /// Server supports AppBinding-owned thread app context blocks.
-    /// </summary>
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public bool AppContextBlocks { get; set; }
+    public int AppBindingVersion { get; set; }
 
     /// <summary>
     /// Server supports AppBinding-safe app-triggered queued input via <c>app/threadInput/enqueue</c>.
@@ -391,6 +398,18 @@ public sealed class AppServerServerCapabilities
     /// </summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public bool McpManagement { get; set; }
+
+    /// <summary>Server supports MCP runtime status, resource, tool-call, OAuth, and reload methods.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool McpRuntime { get; set; }
+
+    /// <summary>Server supports the connection-scoped opaque MCP Apps View API.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool McpApps { get; set; }
+
+    /// <summary>Server can forward standards-based MCP form and URL elicitation to a capable client.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool McpElicitation { get; set; }
 
     /// <summary>
     /// Server annotates MCP config/status DTOs with workspace/plugin origin metadata.

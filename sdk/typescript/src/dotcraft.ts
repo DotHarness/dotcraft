@@ -79,14 +79,23 @@ export interface ThreadIdentityOptions {
   channelContext?: string;
 }
 
-export interface DynamicToolSpec {
-  namespace?: string | null;
+export interface DynamicToolFunctionSpec {
+  type: "function";
   name: string;
   description: string;
   inputSchema: Record<string, unknown>;
   deferLoading?: boolean;
   approval?: Record<string, unknown>;
 }
+
+export interface DynamicToolNamespaceSpec {
+  type: "namespace";
+  name: string;
+  description: string;
+  tools: DynamicToolFunctionSpec[];
+}
+
+export type DynamicToolSpec = DynamicToolFunctionSpec | DynamicToolNamespaceSpec;
 
 export interface DynamicToolCallRequest {
   threadId: string;
@@ -99,38 +108,133 @@ export interface DynamicToolCallRequest {
 
 export interface DynamicToolCallResult {
   success: boolean;
-  contentItems?: Record<string, unknown>[];
-  structuredResult?: unknown;
+  contentItems?: DynamicToolContentItem[];
+  structuredContent?: unknown;
   errorCode?: string;
   errorMessage?: string;
 }
 
+export type DynamicToolContentItem =
+  | { type: "text"; text: string }
+  | { type: "image"; mediaType: string; url: string; dataBase64?: never }
+  | { type: "image"; mediaType: string; dataBase64: string; url?: never };
+
 export type DynamicToolHandler =
   (request: DynamicToolCallRequest) => Promise<DynamicToolCallResult> | DynamicToolCallResult;
 
-export interface DynamicToolBinding extends DynamicToolSpec {
-  handler: DynamicToolHandler;
+export type DynamicToolFunctionBinding = DynamicToolFunctionSpec & { handler: DynamicToolHandler };
+export type DynamicToolNamespaceBinding = Omit<DynamicToolNamespaceSpec, "tools"> & {
+  tools: DynamicToolFunctionBinding[];
+};
+export type DynamicToolBinding = DynamicToolFunctionBinding | DynamicToolNamespaceBinding;
+
+export type McpServerOriginKind = "workspace" | "plugin" | "thread" | "binding" | (string & {});
+
+export interface McpServerOrigin {
+  kind: McpServerOriginKind;
+  pluginId?: string | null;
+  pluginDisplayName?: string | null;
+  declaredName?: string | null;
+  threadId?: string | null;
+  bindingId?: string | null;
 }
 
-export interface AppScopeDescriptor {
-  id: string;
-  displayName: string;
-  description: string;
-  risk: "read" | "mutate" | "externalWrite" | string;
-  defaultSelected?: boolean | null;
-}
-
-export interface AppToolCatalogEntry {
+export interface McpServerRuntimeStatus {
   name: string;
-  scope: string;
-  risk: "read" | "mutate" | "externalWrite" | string;
-  defaultExposure: "direct" | "deferred" | string;
-  description?: string | null;
+  serverInfo?: unknown;
+  tools: Record<string, unknown>;
+  resources: unknown[];
+  resourceTemplates: unknown[];
+  authStatus: "unsupported" | "notLoggedIn" | "bearerToken" | "oAuth" | string;
+  declaredName?: string | null;
+  runtimeName?: string | null;
+  origin?: McpServerOrigin | null;
 }
 
-export interface AppDynamicToolCatalog {
-  enabled: boolean;
-  description?: string | null;
+export interface McpServerStatusListParams {
+  threadId?: string | null;
+  cursor?: string | null;
+  limit?: number | null;
+  detail?: "full" | "toolsAndAuthOnly" | null;
+}
+
+export interface McpServerStatusListResult {
+  data: McpServerRuntimeStatus[];
+  nextCursor?: string | null;
+}
+
+export interface McpServerResourceReadParams {
+  threadId?: string | null;
+  server: string;
+  uri: string;
+}
+
+export interface McpServerResourceReadResult { contents: unknown; }
+
+export interface McpServerToolCallParams {
+  threadId: string;
+  server: string;
+  tool: string;
+  arguments?: Record<string, unknown> | null;
+  _meta?: unknown;
+}
+
+export interface McpServerToolCallResult {
+  content?: unknown;
+  structuredContent?: unknown;
+  isError?: boolean;
+  _meta?: unknown;
+}
+
+export interface McpServerOAuthLoginParams {
+  name: string;
+  threadId?: string | null;
+  scopes?: string[] | null;
+  timeoutSecs?: number | null;
+}
+
+export interface McpServerOAuthLoginResult { authorizationUrl: string; }
+export type McpServerReloadResult = Record<string, never>;
+
+export interface McpServerStartupStatusUpdatedNotification {
+  threadId?: string | null;
+  name: string;
+  status: "starting" | "ready" | "failed" | "cancelled";
+  error?: string | null;
+  failureReason?: "reauthenticationRequired" | string | null;
+}
+
+export interface McpServerOAuthLoginCompletedNotification {
+  name: string;
+  threadId?: string | null;
+  success: boolean;
+  error?: string | null;
+}
+
+export interface McpServerElicitationRequest {
+  threadId?: string | null;
+  turnId?: string | null;
+  serverName: string;
+  mode: "form" | "url";
+  elicitationId?: string | null;
+  message?: string | null;
+  url?: string | null;
+  requestedSchema?: Record<string, unknown> | null;
+  _meta?: unknown;
+}
+
+export interface McpServerElicitationResponse {
+  action: "accept" | "decline" | "cancel";
+  content?: Record<string, unknown> | null;
+  _meta?: unknown;
+}
+
+export interface McpRuntimeManager {
+  listStatus(params?: McpServerStatusListParams): Promise<McpServerStatusListResult>;
+  readResource(params: McpServerResourceReadParams): Promise<McpServerResourceReadResult>;
+  callTool(params: McpServerToolCallParams): Promise<McpServerToolCallResult>;
+  loginOAuth(params: McpServerOAuthLoginParams): Promise<McpServerOAuthLoginResult>;
+  reload(): Promise<McpServerReloadResult>;
 }
 
 export interface AppHandoff {
@@ -173,7 +277,6 @@ export interface SocialChannelTarget {
 
 export interface AppInfo {
   appId: string;
-  toolNamespace: string;
   displayName: string;
   developerName: string;
   description: string;
@@ -190,58 +293,56 @@ export interface AppInfo {
   connectionState: string;
   accountLabel?: string | null;
   handoffModes: AppHandoff[];
-  scopes: AppScopeDescriptor[];
-  toolCatalog: AppToolCatalogEntry[];
-  dynamicToolCatalog?: AppDynamicToolCatalog | null;
   bindingSummary?: ThreadAppBindingSummary | null;
   diagnostics?: Record<string, unknown>[];
 }
 
 export interface ThreadAppBindingSummary {
-  bindingRequestId?: string | null;
   threadId: string;
   bindingId: string;
   appId: string;
-  grantId?: string | null;
-  bindingKind?: AppBindingKind | null;
   displayName?: string | null;
-  toolNamespace?: string | null;
   state: string;
-  connectionState: string;
-  grantedScopes: string[];
-  expiresAt?: string | null;
+  authorityRevision: number;
+  approvedCapabilityRevision: number;
+  candidateCapabilityRevision?: number | null;
   socialTarget?: SocialChannelTarget | null;
-  exposureRevision?: number;
+  failureReason?: string | null;
 }
 
 export interface ThreadAppBinding {
-  bindingRequestId?: string | null;
   bindingId: string;
   threadId: string;
   appId: string;
-  grantId?: string | null;
-  bindingKind?: AppBindingKind | null;
   displayName?: string | null;
-  toolNamespace?: string | null;
   state: string;
-  connectionState: string;
-  grantedScopes: string[];
-  attachedToolCount: number;
-  expiresAt?: string | null;
-  lastChangedAt: string;
-  approvalMode?: string | null;
-  auditRef?: string | null;
-  diagnostic?: string | null;
+  authorityRevision: number;
+  approvedCapabilityRevision: number;
+  candidateCapabilityRevision?: number | null;
+  approvedTools?: Record<string, unknown>[];
+  pendingChanges?: Array<{ kind: string; tool: string; detail: string }>;
   socialTarget?: SocialChannelTarget | null;
-  exposureRevision?: number;
+  failureReason?: string | null;
+  updatedAt?: string;
 }
 
 export interface AppConnectionStartResult {
   connectionRequestId: string;
-  appId: string;
-  state: string;
+  requestToken: string;
   expiresAt: string;
-  handoff: AppHandoff;
+  handoff?: AppHandoff | null;
+}
+
+export interface AppPrincipal {
+  principalId: string;
+  appId: string;
+  userId: string;
+  expiresAt: string;
+}
+
+export interface AppConnectionConnectResult {
+  principal: AppPrincipal;
+  credential: string;
 }
 
 export interface AppConnectionStatus {
@@ -255,41 +356,22 @@ export interface AppConnectionStatus {
 
 export interface AppBindingRequestCreateResult {
   bindingRequestId: string;
-  threadId: string;
-  appId: string;
-  requestedScopes: string[];
+  bindingId: string;
   state: string;
-  tokenExpiresAt: string;
-  handoff: AppHandoff;
-  confirmation?: Record<string, unknown>;
+  expiresAt: string;
+  handoff?: AppHandoff | null;
 }
 
 export interface AppBindingRequestGetResult {
   bindingRequestId: string;
+  bindingId: string;
   threadId: string;
   appId: string;
-  requestedScopes: string[];
-  requestedTools?: string[] | null;
-  reason?: string | null;
-  source?: string | null;
   state: string;
   expiresAt: string;
-  bindingKind?: AppBindingKind | null;
-  socialIntent?: SocialBindingIntent | null;
-}
-
-export interface AppBindingAcceptResult {
-  binding: ThreadAppBinding;
-}
-
-export interface AppBindingAttachToolsResult {
-  binding: ThreadAppBinding;
-  acceptedToolCount: number;
-  warnings: string[];
 }
 
 export interface AppSocialBindingResolveParams {
-  appId?: string;
   channelName: string;
   accountId?: string | null;
   conversationKind: string;
@@ -313,69 +395,32 @@ export interface AppBindingManager {
   connect(params: {
     connectionRequestId: string;
     requestToken: string;
-    appId: string;
     accountLabel?: string;
-    expiresAt?: string;
-    connectionProof?: Record<string, unknown>;
-  }): Promise<AppConnectionStatus>;
+  }): Promise<AppConnectionConnectResult>;
   connectionStatus(appId: string): Promise<AppConnectionStatus>;
   revokeConnection(appId: string, reason?: string): Promise<AppConnectionStatus>;
-  createBindingRequest(params: {
-    threadId: string;
-    appId: string;
-    requestedScopes: string[];
-    requestedTools?: string[];
-    reason?: string;
-    source: "pluginDetail" | "threadMenu" | "welcome" | "agentSuggestion" | "sdk";
-    bindingKind?: AppBindingKind;
-    socialIntent?: SocialBindingIntent;
-  }): Promise<AppBindingRequestCreateResult>;
+  authenticate(appId: string, credential: string): Promise<Record<string, unknown>>;
+  refreshCredential(): Promise<Record<string, unknown>>;
+  activate(params: { bindingRequestId: string; endpoint: string; bearer: string; bearerExpiresAt?: string }): Promise<Record<string, unknown>>;
+  rebind(params: { bindingId: string; authorityRevision: number; endpoint: string; bearer: string; bearerExpiresAt?: string }): Promise<Record<string, unknown>>;
+  confirmCapabilities(threadId: string, bindingId: string, candidateRevision: number, decision: "accept" | "reject"): Promise<Record<string, unknown>>;
+  enable(threadId: string, appId: string): Promise<AppBindingRequestCreateResult>;
   createSocialBindingRequest(params: {
     threadId: string;
     channelName: string;
-    appId?: string;
-    requestedScopes?: string[];
-    requestedTools?: string[];
-    reason?: string;
-    source?: "pluginDetail" | "threadMenu" | "welcome" | "agentSuggestion" | "sdk";
-    targetSelection?: SocialBindingTargetSelection;
-    displayHint?: string | null;
   }): Promise<AppBindingRequestCreateResult>;
   getBindingRequest(params: {
-    appId?: string;
     bindingRequestId?: string;
     requestToken?: string;
     bindCode?: string;
   }): Promise<AppBindingRequestGetResult>;
-  cancelBindingRequest(bindingRequestId: string, reason?: string): Promise<Record<string, unknown>>;
-  acceptBinding(params: {
-    bindingRequestId?: string;
-    requestToken: string;
-    grantId: string;
-    grantedScopes: string[];
-    expiresAt?: string;
-    approvalMode: "interactive" | "policyAutoApproved" | "adminApproved" | string;
-    approvedBy?: string;
-    auditRef?: string;
-    grantProof?: Record<string, unknown>;
-    socialTarget?: SocialChannelTarget;
-  }): Promise<AppBindingAcceptResult>;
   acceptSocialBinding(params: {
-    bindingRequestId?: string;
     requestToken: string;
-    grantId?: string;
-    grantedScopes?: string[];
-    expiresAt?: string;
-    approvedBy?: string;
-    auditRef?: string;
-    grantProof?: Record<string, unknown>;
     socialTarget: SocialChannelTarget;
-  }): Promise<AppBindingAcceptResult>;
+  }): Promise<ThreadAppBinding>;
   resolveSocialBinding(params: AppSocialBindingResolveParams): Promise<AppSocialBindingResolveResult>;
   enqueueThreadInput(params: {
     bindingId: string;
-    appId: string;
-    grantId: string;
     input: InputPart[];
     displayText?: string;
     triggerLabel?: string;
@@ -383,16 +428,6 @@ export interface AppBindingManager {
     startPolicy?: string;
     sender?: SenderContext;
   }): Promise<AppThreadInputEnqueueResult>;
-  attachTools(params: {
-    bindingId: string;
-    threadId: string;
-    appId: string;
-    grantId: string;
-    tools: DynamicToolBinding[];
-    directToolNames?: string[];
-    deferredToolNames?: string[];
-    grantProof?: Record<string, unknown>;
-  }): Promise<AppBindingAttachToolsResult>;
   listThreadBindings(threadId: string, includeRevoked?: boolean): Promise<ThreadAppBinding[]>;
   revokeThreadBinding(threadId: string, bindingId: string, reason?: string): Promise<Record<string, unknown>>;
   refreshThreadBindings(threadId: string, bindingId?: string): Promise<Record<string, unknown>[]>;
@@ -413,13 +448,13 @@ export type AppBindingErrorCode =
 export function appBindingToolError(
   errorCode: AppBindingErrorCode,
   errorMessage: string,
-  structuredResult?: unknown,
+  structuredContent?: unknown,
 ): DynamicToolCallResult {
   return {
     success: false,
     errorCode,
     errorMessage,
-    structuredResult,
+    structuredContent,
     contentItems: [{ type: "text", text: `${errorCode}: ${errorMessage}` }],
   };
 }
@@ -617,10 +652,6 @@ function defaultUserId(): string {
   }
 }
 
-function socialChannelAppId(channelName: string): string {
-  return `com.dotharness.channel.${channelName.trim().toLowerCase()}`;
-}
-
 function normalizeIdentity(options: ThreadIdentityOptions = {}): SessionIdentity {
   return {
     channelName: options.channelName ?? "sdk",
@@ -636,9 +667,18 @@ function normalizeRunInput(input: RunInput, sender?: SenderContext): { input: In
   return { input: input.input, sender: input.sender ?? sender };
 }
 
-function stripDynamicToolHandlers(tools: DynamicToolBinding[] | undefined): Record<string, unknown>[] | null {
-  if (!tools?.length) return null;
-  return tools.map(({ handler: _handler, ...tool }) => tool as Record<string, unknown>);
+function stripRuntimeDynamicToolHandlers(tools: DynamicToolBinding[] | undefined): DynamicToolSpec[] | undefined {
+  if (tools === undefined) return undefined;
+  return tools.map((declaration) => {
+    if (declaration.type === "namespace") {
+      return {
+        ...declaration,
+        tools: declaration.tools.map(({ handler: _handler, ...tool }) => tool),
+      };
+    }
+    const { handler: _handler, ...tool } = declaration;
+    return tool;
+  });
 }
 
 function toolKey(threadId: string, namespace: string | null | undefined, name: string): string {
@@ -791,7 +831,7 @@ class ThreadManagerImpl implements ThreadManager {
       displayName: options.displayName,
       historyMode: options.historyMode,
       config: options.config,
-      dynamicTools: stripDynamicToolHandlers(options.dynamicTools),
+      dynamicTools: stripRuntimeDynamicToolHandlers(options.dynamicTools),
       additionalContext: options.additionalContext,
     });
     const thread = new DotCraftThread(this.sdk, snapshot, identity);
@@ -801,7 +841,7 @@ class ThreadManagerImpl implements ThreadManager {
 
   async resume(threadId: string, options: ResumeThreadOptions = {}): Promise<DotCraftThread> {
     const snapshot = await this.sdk.wire.threadResume(threadId, {
-      dynamicTools: stripDynamicToolHandlers(options.dynamicTools),
+      dynamicTools: stripRuntimeDynamicToolHandlers(options.dynamicTools),
       additionalContext: options.additionalContext,
     });
     const thread = new DotCraftThread(this.sdk, snapshot, {
@@ -887,12 +927,13 @@ class AppBindingManagerImpl implements AppBindingManager {
   async connect(params: {
     connectionRequestId: string;
     requestToken: string;
-    appId: string;
     accountLabel?: string;
-    expiresAt?: string;
-    connectionProof?: Record<string, unknown>;
-  }): Promise<AppConnectionStatus> {
-    return await this.sdk.request<AppConnectionStatus>("app/connection/connect", params);
+  }): Promise<AppConnectionConnectResult> {
+    return await this.sdk.request<AppConnectionConnectResult>("app/connection/connect", {
+      connectionRequestId: params.connectionRequestId,
+      requestToken: params.requestToken,
+      accountLabel: params.accountLabel,
+    });
   }
 
   async connectionStatus(appId: string): Promise<AppConnectionStatus> {
@@ -903,112 +944,70 @@ class AppBindingManagerImpl implements AppBindingManager {
     return await this.sdk.request<AppConnectionStatus>("app/connection/revoke", { appId, reason });
   }
 
-  async createBindingRequest(params: {
-    threadId: string;
-    appId: string;
-    requestedScopes: string[];
-    requestedTools?: string[];
-    reason?: string;
-    source: "pluginDetail" | "threadMenu" | "welcome" | "agentSuggestion" | "sdk";
-    bindingKind?: AppBindingKind;
-    socialIntent?: SocialBindingIntent;
-  }): Promise<AppBindingRequestCreateResult> {
-    return await this.sdk.request<AppBindingRequestCreateResult>("app/binding/request/create", params);
+  async authenticate(appId: string, credential: string): Promise<Record<string, unknown>> {
+    return await this.sdk.request("app/connection/authenticate", { appId, credential });
+  }
+
+  async refreshCredential(): Promise<Record<string, unknown>> {
+    return await this.sdk.request("app/connection/refresh", {});
+  }
+
+  async activate(params: { bindingRequestId: string; endpoint: string; bearer: string; bearerExpiresAt?: string }): Promise<Record<string, unknown>> {
+    return await this.sdk.request("app/binding/activate", params);
+  }
+
+  async rebind(params: { bindingId: string; authorityRevision: number; endpoint: string; bearer: string; bearerExpiresAt?: string }): Promise<Record<string, unknown>> {
+    return await this.sdk.request("app/binding/rebind", params);
+  }
+
+  async confirmCapabilities(threadId: string, bindingId: string, candidateRevision: number, decision: "accept" | "reject"): Promise<Record<string, unknown>> {
+    return await this.sdk.request("thread/appBindings/confirmCapabilities", { threadId, bindingId, candidateRevision, decision });
+  }
+
+  async enable(threadId: string, appId: string): Promise<AppBindingRequestCreateResult> {
+    return await this.sdk.request<AppBindingRequestCreateResult>("thread/appBindings/enable", {
+      threadId,
+      appId,
+    });
   }
 
   async createSocialBindingRequest(params: {
     threadId: string;
     channelName: string;
-    appId?: string;
-    requestedScopes?: string[];
-    requestedTools?: string[];
-    reason?: string;
-    source?: "pluginDetail" | "threadMenu" | "welcome" | "agentSuggestion" | "sdk";
-    targetSelection?: SocialBindingTargetSelection;
-    displayHint?: string | null;
   }): Promise<AppBindingRequestCreateResult> {
-    return await this.createBindingRequest({
+    return await this.sdk.request<AppBindingRequestCreateResult>("thread/socialBindings/request/create", {
       threadId: params.threadId,
-      appId: params.appId ?? socialChannelAppId(params.channelName),
-      requestedScopes: params.requestedScopes ?? ["conversation.receive", "message.send"],
-      requestedTools: params.requestedTools,
-      reason: params.reason,
-      source: params.source ?? "sdk",
-      bindingKind: "socialChannel",
-      socialIntent: {
-        channelName: params.channelName,
-        targetSelection: params.targetSelection ?? "confirmInChannel",
-        displayHint: params.displayHint,
-      },
+      channelName: params.channelName,
     });
   }
 
   async getBindingRequest(params: {
-    appId?: string;
     bindingRequestId?: string;
     requestToken?: string;
     bindCode?: string;
   }): Promise<AppBindingRequestGetResult> {
-    return await this.sdk.request<AppBindingRequestGetResult>("app/binding/request/get", params);
-  }
-
-  async cancelBindingRequest(bindingRequestId: string, reason?: string): Promise<Record<string, unknown>> {
-    return await this.sdk.request<Record<string, unknown>>("app/binding/request/cancel", {
-      bindingRequestId,
-      reason,
-    });
-  }
-
-  async acceptBinding(params: {
-    bindingRequestId?: string;
-    requestToken: string;
-    grantId: string;
-    grantedScopes: string[];
-    expiresAt?: string;
-    approvalMode: "interactive" | "policyAutoApproved" | "adminApproved" | string;
-    approvedBy?: string;
-    auditRef?: string;
-    grantProof?: Record<string, unknown>;
-    socialTarget?: SocialChannelTarget;
-  }): Promise<AppBindingAcceptResult> {
-    return await this.sdk.request<AppBindingAcceptResult>("app/binding/accept", params);
+    return await this.sdk.request<AppBindingRequestGetResult>(
+      params.bindCode ? "app/socialBinding/request/get" : "app/binding/request/get",
+      params.bindCode ? { code: params.bindCode } : {
+        bindingRequestId: params.bindingRequestId,
+        requestToken: params.requestToken,
+      },
+    );
   }
 
   async acceptSocialBinding(params: {
-    bindingRequestId?: string;
     requestToken: string;
-    grantId?: string;
-    grantedScopes?: string[];
-    expiresAt?: string;
-    approvedBy?: string;
-    auditRef?: string;
-    grantProof?: Record<string, unknown>;
     socialTarget: SocialChannelTarget;
-  }): Promise<AppBindingAcceptResult> {
+  }): Promise<ThreadAppBinding> {
     const target = params.socialTarget;
-    return await this.acceptBinding({
-      bindingRequestId: params.bindingRequestId,
-      requestToken: params.requestToken,
-      grantId: params.grantId ?? [
-        "social",
-        target.channelName,
-        target.accountId ?? "",
-        target.conversationKind,
-        target.conversationId,
-      ].join(":"),
-      grantedScopes: params.grantedScopes ?? ["conversation.receive", "message.send"],
-      expiresAt: params.expiresAt,
-      approvalMode: "channelBindCode",
-      approvedBy: params.approvedBy ?? target.boundBy?.platformUserId,
-      auditRef: params.auditRef,
-      grantProof: params.grantProof,
-      socialTarget: target,
+    return await this.sdk.request<ThreadAppBinding>("app/socialBinding/accept", {
+      code: params.requestToken,
+      target,
     });
   }
 
   async resolveSocialBinding(params: AppSocialBindingResolveParams): Promise<AppSocialBindingResolveResult> {
     return await this.sdk.request<AppSocialBindingResolveResult>("app/socialBinding/resolve", {
-      appId: params.appId ?? socialChannelAppId(params.channelName),
       channelName: params.channelName,
       accountId: params.accountId,
       conversationKind: params.conversationKind,
@@ -1018,8 +1017,6 @@ class AppBindingManagerImpl implements AppBindingManager {
 
   async enqueueThreadInput(params: {
     bindingId: string;
-    appId: string;
-    grantId: string;
     input: InputPart[];
     displayText?: string;
     triggerLabel?: string;
@@ -1028,26 +1025,6 @@ class AppBindingManagerImpl implements AppBindingManager {
     sender?: SenderContext;
   }): Promise<AppThreadInputEnqueueResult> {
     return await this.sdk.request<AppThreadInputEnqueueResult>("app/threadInput/enqueue", params);
-  }
-
-  async attachTools(params: {
-    bindingId: string;
-    threadId: string;
-    appId: string;
-    grantId: string;
-    tools: DynamicToolBinding[];
-    directToolNames?: string[];
-    deferredToolNames?: string[];
-    grantProof?: Record<string, unknown>;
-  }): Promise<AppBindingAttachToolsResult> {
-    const result = await this.sdk.request<AppBindingAttachToolsResult>("app/binding/attachTools", {
-      ...params,
-      tools: stripDynamicToolHandlers(params.tools) ?? [],
-    });
-    for (const tool of params.tools) {
-      this.sdk.registerDynamicToolHandler(params.threadId, tool.namespace ?? null, tool.name, tool.handler);
-    }
-    return result;
   }
 
   async listThreadBindings(threadId: string, includeRevoked = false): Promise<ThreadAppBinding[]> {
@@ -1067,10 +1044,7 @@ class AppBindingManagerImpl implements AppBindingManager {
   }
 
   async refreshThreadBindings(threadId: string, bindingId?: string): Promise<Record<string, unknown>[]> {
-    const result = await this.sdk.request<{ bindings?: Record<string, unknown>[] }>("thread/appBindings/refresh", {
-      threadId,
-      bindingId,
-    });
+    const result = await this.sdk.request<{ bindings?: Record<string, unknown>[] }>("thread/appBindings/list", { threadId });
     return result.bindings ?? [];
   }
 }
@@ -1102,10 +1076,35 @@ class ModelManagerImpl implements ModelManager {
   }
 }
 
+class McpRuntimeManagerImpl implements McpRuntimeManager {
+  constructor(private readonly sdk: DotCraft) {}
+
+  listStatus(params: McpServerStatusListParams = {}): Promise<McpServerStatusListResult> {
+    return this.sdk.request("mcpServerStatus/list", params);
+  }
+
+  readResource(params: McpServerResourceReadParams): Promise<McpServerResourceReadResult> {
+    return this.sdk.request("mcpServer/resource/read", params);
+  }
+
+  callTool(params: McpServerToolCallParams): Promise<McpServerToolCallResult> {
+    return this.sdk.request("mcpServer/tool/call", params);
+  }
+
+  loginOAuth(params: McpServerOAuthLoginParams): Promise<McpServerOAuthLoginResult> {
+    return this.sdk.request("mcpServer/oauth/login", params);
+  }
+
+  reload(): Promise<McpServerReloadResult> {
+    return this.sdk.request("config/mcpServer/reload");
+  }
+}
+
 export class DotCraft {
   readonly threads: ThreadManager;
   readonly appBindings: AppBindingManager;
   readonly models: ModelManager;
+  readonly mcpRuntime: McpRuntimeManager;
 
   private constructor(
     readonly wire: DotCraftWireClient,
@@ -1117,6 +1116,7 @@ export class DotCraft {
     this.threads = new ThreadManagerImpl(this);
     this.appBindings = new AppBindingManagerImpl(this);
     this.models = new ModelManagerImpl(this);
+    this.mcpRuntime = new McpRuntimeManagerImpl(this);
     this.installServerRequestHandlers();
   }
 
@@ -1426,10 +1426,16 @@ export class DotCraftThread {
   }
 
   bindDynamicTools(tools: DynamicToolBinding[] | undefined): void {
-    if (!tools?.length) return;
     for (const unsubscribe of this.dynamicToolUnsubscribes.splice(0)) unsubscribe();
-    for (const tool of tools) {
-      this.dynamicToolUnsubscribes.push(this.onToolCall(tool.namespace ?? null, tool.name, tool.handler));
+    if (!tools) return;
+    for (const declaration of tools) {
+      if (declaration.type === "namespace") {
+        for (const tool of declaration.tools) {
+          this.dynamicToolUnsubscribes.push(this.onToolCall(declaration.name, tool.name, tool.handler));
+        }
+      } else {
+        this.dynamicToolUnsubscribes.push(this.onToolCall(null, declaration.name, declaration.handler));
+      }
     }
   }
 }

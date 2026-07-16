@@ -1,5 +1,5 @@
-using DotCraft.Abstractions;
 using DotCraft.GeneratedTools.Core;
+using DotCraft.Tools;
 using Microsoft.Extensions.AI;
 
 namespace DotCraft.Cron;
@@ -8,17 +8,15 @@ namespace DotCraft.Cron;
 /// Provides Cron (scheduled task) tools.
 /// Only available when CronTools is configured.
 /// </summary>
-public sealed class CronToolProvider : IAgentToolProvider
+public sealed class CronToolSource(CronTools cronTools) : AIFunctionToolSource
 {
     /// <inheritdoc />
-    public int Priority => 70; // System tools have lower priority
+    public override string SourceId => "cron";
 
     /// <inheritdoc />
-    public IEnumerable<AITool> CreateTools(ToolProviderContext context)
-    {
-        if (context.CronTools == null)
-            return [];
+    public override int Priority => 70;
 
-        return [GeneratedToolFunctions.CronTools_Cron(context.CronTools)];
-    }
+    /// <inheritdoc />
+    protected override IEnumerable<AIFunction> CreateFunctions(ToolPlanningContext context) =>
+        [GeneratedToolFunctions.CronTools_Cron(cronTools)];
 }

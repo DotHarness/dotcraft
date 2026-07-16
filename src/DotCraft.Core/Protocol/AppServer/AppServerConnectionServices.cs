@@ -57,6 +57,8 @@ public sealed record AppServerConnectionServices
     public IAutomationsRequestHandler? AutomationsHandler { get; init; }
     public Action<CronJobWireInfo, bool>? BroadcastCronStateChanged { get; init; }
     public Action<McpStatusInfoWire>? BroadcastMcpStatusChanged { get; init; }
+    public Action<string, string, object?>? NotifyAppPrincipal { get; init; }
+    public Action<string, object?>? BroadcastTrustedNotification { get; init; }
     public ICommitMessageSuggestService? CommitMessageSuggest { get; init; }
     public IWelcomeSuggestionService? WelcomeSuggestionService { get; init; }
     public string? DashboardUrl { get; init; }
@@ -66,6 +68,7 @@ public sealed record AppServerConnectionServices
     public CommandRegistry? CommandRegistry { get; init; }
     public IChannelStatusProvider? ChannelStatusProvider { get; init; }
     public McpClientManager? McpClientManager { get; init; }
+    public McpAppTransientContextStore? McpAppTransientContextStore { get; init; }
     public LspServerManager? LspServerManager { get; init; }
     public IEnumerable<IAppServerProtocolExtension>? ProtocolExtensions { get; init; }
     public Func<ExternalChannelEntry, CancellationToken, Task>? OnExternalChannelUpserted { get; init; }
@@ -83,6 +86,7 @@ public sealed record AppServerConnectionServices
     public DreamStore? DreamStore { get; init; }
     public DreamsService? DreamsService { get; init; }
     public AppBindingService? AppBindingService { get; init; }
+    public IReadOnlyList<IThreadOriginPresentationProvider>? ThreadOriginPresentationProviders { get; init; }
     public PlanStore? PlanStore { get; init; }
     public TraceStore? TraceStore { get; init; }
     public IReadOnlyList<string>? BuiltInPluginSourceRoots { get; init; }

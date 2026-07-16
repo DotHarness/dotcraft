@@ -228,7 +228,7 @@ public sealed class AppServerThreadModelSnapshotTests : IDisposable
             skillsLoader: skills,
             approvalService: new AutoApproveApprovalService(),
             blacklist: null,
-            toolProviders: Array.Empty<IAgentToolProvider>());
+            toolSources: Array.Empty<IToolSource>());
     }
 
     private async Task<string> StartThreadAndAssertModelAsync(

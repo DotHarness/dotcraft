@@ -436,7 +436,7 @@ async function executeListWikiNodesTool(params: {
   return {
     success: true,
     contentItems: [{ type: "text", text: `Listed ${page.items.length} wiki node(s) from space ${target.spaceId}.` }],
-    structuredResult: {
+    structuredContent: {
       spaceId: target.spaceId,
       parentNodeToken: target.parentNodeToken,
       items: page.items.map((item) => ({
@@ -465,7 +465,7 @@ async function executeGetWikiNodeInfoTool(params: {
   return {
     success: true,
     contentItems: [{ type: "text", text: `Loaded wiki node ${node.nodeToken}.` }],
-    structuredResult: {
+    structuredContent: {
       spaceId: node.spaceId,
       nodeToken: node.nodeToken,
       objToken: node.objToken,
@@ -496,7 +496,7 @@ async function executeListWikiSpacesTool(params: {
     contentItems: [
       { type: "text", text: `Listed ${page.items.length} wiki space(s).` },
     ],
-    structuredResult: {
+    structuredContent: {
       items: page.items.map((item) => ({
         spaceId: item.spaceId,
         name: item.name ?? "",
@@ -525,7 +525,7 @@ async function executeGetWikiSpaceTool(params: {
     contentItems: [
       { type: "text", text: `Loaded wiki space ${space.spaceId}.` },
     ],
-    structuredResult: {
+    structuredContent: {
       spaceId: space.spaceId,
       name: space.name ?? "",
       description: space.description ?? "",
@@ -598,7 +598,7 @@ async function executeCreateWikiNodeTool(params: {
         text: `Created wiki node ${created.nodeToken} (objType=${objType}) in space ${target.spaceId}.`,
       },
     ],
-    structuredResult: {
+    structuredContent: {
       spaceId: created.spaceId || target.spaceId,
       nodeToken: created.nodeToken,
       objToken: created.objToken,
@@ -629,7 +629,7 @@ async function executeRenameWikiNodeTool(params: {
   return {
     success: true,
     contentItems: [{ type: "text", text: `Renamed wiki node ${nodeToken} in space ${target.spaceId}.` }],
-    structuredResult: {
+    structuredContent: {
       spaceId: target.spaceId,
       nodeToken,
       title,
@@ -667,7 +667,7 @@ async function executeMoveDocxToWikiTool(params: {
     return {
       success: true,
       contentItems: [{ type: "text", text: `Moved docx ${documentId} into wiki space ${target.spaceId}.` }],
-      structuredResult: {
+      structuredContent: {
         ...baseStructured,
         ready: true,
         wikiToken: result.wikiToken,
@@ -681,7 +681,7 @@ async function executeMoveDocxToWikiTool(params: {
       contentItems: [
         { type: "text", text: `Move request submitted for approval (docx ${documentId}).` },
       ],
-      structuredResult: {
+      structuredContent: {
         ...baseStructured,
         ready: false,
         applied: true,
@@ -696,7 +696,7 @@ async function executeMoveDocxToWikiTool(params: {
       contentItems: [
         { type: "text", text: `Move response returned neither wiki_token nor task_id for docx ${documentId}.` },
       ],
-      structuredResult: {
+      structuredContent: {
         ...baseStructured,
         ready: false,
       },
@@ -709,7 +709,7 @@ async function executeMoveDocxToWikiTool(params: {
       contentItems: [
         { type: "text", text: `Async move task created (task_id=${result.taskId}).` },
       ],
-      structuredResult: {
+      structuredContent: {
         ...baseStructured,
         ready: false,
         taskId: result.taskId,
@@ -741,7 +741,7 @@ async function executeMoveDocxToWikiTool(params: {
           contentItems: [
             { type: "text", text: `Moved docx ${documentId} into wiki space ${target.spaceId}.` },
           ],
-          structuredResult: {
+          structuredContent: {
             ...baseStructured,
             ready: true,
             taskId: result.taskId,
@@ -775,7 +775,7 @@ async function executeMoveDocxToWikiTool(params: {
     contentItems: [
       { type: "text", text: `Async move task still processing (task_id=${result.taskId}).` },
     ],
-    structuredResult: {
+    structuredContent: {
       ...baseStructured,
       ready: false,
       timedOut: true,
@@ -858,7 +858,7 @@ async function executeMoveWikiNodeTool(params: {
         text: `Moved wiki node ${nodeToken} from space ${sourceSpaceId} to ${targetSpaceId}.`,
       },
     ],
-    structuredResult: {
+    structuredContent: {
       sourceSpaceId,
       targetSpaceId,
       nodeToken: movedNode.nodeToken || nodeToken,

@@ -1,4 +1,5 @@
 using DotCraft.Configuration;
+using DotCraft.Tools;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace DotCraft.Abstractions;
@@ -69,11 +70,12 @@ public interface IDotCraftModule
     IChannelService? CreateChannelService(IServiceProvider sp) => null;
 
     /// <summary>
-    /// Gets the tool providers contributed by this module.
-    /// Tool providers are used to register AI tools specific to this module's functionality.
+    /// Gets the tool sources contributed by this module.
+    /// Sources may resolve constructor-injected services from the supplied provider.
     /// </summary>
-    /// <returns>An enumerable of tool providers, or empty if the module provides no tools.</returns>
-    IEnumerable<IAgentToolProvider> GetToolProviders() => [];
+    /// <param name="services">The configured application service provider.</param>
+    /// <returns>An enumerable of tool sources, or empty if the module provides no tools.</returns>
+    IEnumerable<IToolSource> GetToolSources(IServiceProvider services) => [];
 
     /// <summary>
     /// Session origin channels contributed by this module for AppServer <c>channel/list</c>

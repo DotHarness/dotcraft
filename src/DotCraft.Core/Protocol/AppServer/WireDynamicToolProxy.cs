@@ -2,9 +2,8 @@ using System.Collections.Concurrent;
 using System.Reflection;
 using System.Text.Json;
 using System.Text.Json.Nodes;
-using DotCraft.Abstractions;
+using DotCraft.AppBinding;
 using DotCraft.Plugins;
-using DotCraft.Security;
 using DotCraft.Tools;
 using Microsoft.Extensions.AI;
 
@@ -13,10 +12,14 @@ namespace DotCraft.Protocol.AppServer;
 /// <summary>
 /// Routes runtime dynamic tool calls to the AppServer client bound to the current thread.
 /// </summary>
-public sealed class WireDynamicToolProxy : IThreadRuntimeToolProvider
+public sealed class WireDynamicToolProxy : IToolSource, IThreadScopedToolSource
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
     private readonly ConcurrentDictionary<string, DynamicToolThreadBinding> _byThread = new();
+    private long _generation;
+
+    /// <inheritdoc />
+    public string SourceId => "runtime-dynamic";
 
     public int Priority => 90;
 
@@ -27,82 +30,143 @@ public sealed class WireDynamicToolProxy : IThreadRuntimeToolProvider
         string threadId,
         IAppServerTransport transport,
         AppServerConnection connection,
-        IReadOnlyList<DynamicToolSpec>? tools)
+        IReadOnlyList<RuntimeDynamicToolDeclaration>? tools)
     {
-        if (tools is not { Count: > 0 })
+        if (tools is null)
             return;
+
+        if (!TryValidateSpecs(tools, out var validationError))
+            throw new ArgumentException(validationError, nameof(tools));
+
+        if (tools.Count == 0)
+        {
+            if (_byThread.TryGetValue(threadId, out var current)
+                && ReferenceEquals(current.Connection, connection))
+            {
+                _byThread.TryRemove(threadId, out _);
+            }
+            return;
+        }
 
         _byThread[threadId] = new DynamicToolThreadBinding(
             threadId,
             transport,
             connection,
-            tools.Select(CloneSpec).ToArray());
+            FlattenDeclarations(tools).Select(CloneSpec).ToArray(),
+            Interlocked.Increment(ref _generation));
     }
 
     public static bool TryValidateSpecs(
-        IReadOnlyList<DynamicToolSpec>? tools,
+        IReadOnlyList<RuntimeDynamicToolDeclaration>? tools,
         out string message)
     {
         message = string.Empty;
         if (tools is not { Count: > 0 })
             return true;
 
-        var names = new HashSet<string>(StringComparer.Ordinal);
+        var namespaces = new HashSet<string>(StringComparer.Ordinal);
         var qualifiedNames = new HashSet<string>(StringComparer.Ordinal);
-        foreach (var tool in tools)
+        foreach (var declaration in tools)
         {
-            if (!PluginManifestParser.IsValidFunctionName(tool.Name))
+            if (!PluginManifestParser.IsValidFunctionName(declaration.Name))
             {
                 message = "dynamicTools[].name is required and must be a valid model-visible function name.";
                 return false;
             }
 
-            if (!string.IsNullOrWhiteSpace(tool.Namespace)
-                && !PluginManifestParser.IsValidFunctionName(tool.Namespace))
+            if (string.IsNullOrWhiteSpace(declaration.Description))
             {
-                message = $"Dynamic tool '{tool.Name}' has an invalid namespace.";
+                message = $"Dynamic declaration '{declaration.Name}' must declare a description.";
                 return false;
             }
 
-            if (string.IsNullOrWhiteSpace(tool.Description))
+            switch (declaration)
             {
-                message = $"Dynamic tool '{tool.Name}' must declare a description.";
-                return false;
-            }
-
-            if (tool.InputSchema == null)
-            {
-                message = $"Dynamic tool '{tool.Name}' must declare inputSchema.";
-                return false;
-            }
-
-            if (!PluginFunctionSchemaValidator.TryValidateSchema(tool.InputSchema, out var schemaError))
-            {
-                message = $"Dynamic tool '{tool.Name}' has an invalid inputSchema: {schemaError}";
-                return false;
-            }
-
-            if (!names.Add(tool.Name))
-            {
-                message = $"Dynamic tool name '{tool.Name}' is declared more than once.";
-                return false;
-            }
-
-            var qualifiedName = $"{tool.Namespace ?? string.Empty}\u001f{tool.Name}";
-            if (!qualifiedNames.Add(qualifiedName))
-            {
-                message = $"Dynamic tool '{tool.Name}' is declared more than once in namespace '{tool.Namespace}'.";
-                return false;
-            }
-
-            if (tool.Approval != null
-                && !TryValidateApprovalDescriptor(tool, out message))
-            {
-                message = $"Dynamic tool '{tool.Name}' has an invalid approval descriptor: {message}";
-                return false;
+                case RuntimeDynamicToolFunction function:
+                    if (function.DeferLoading == true)
+                    {
+                        message = $"Top-level Dynamic Function '{function.Name}' cannot set deferLoading=true.";
+                        return false;
+                    }
+                    if (!TryValidateFunction(function, null, qualifiedNames, out message))
+                        return false;
+                    break;
+                case RuntimeDynamicToolNamespace toolNamespace:
+                    if (!namespaces.Add(toolNamespace.Name))
+                    {
+                        message = $"Dynamic namespace '{toolNamespace.Name}' is declared more than once.";
+                        return false;
+                    }
+                    if (toolNamespace.Tools.Count == 0)
+                    {
+                        message = $"Dynamic namespace '{toolNamespace.Name}' must contain at least one Function.";
+                        return false;
+                    }
+                    foreach (var child in toolNamespace.Tools)
+                    {
+                        if (child is not RuntimeDynamicToolFunction childFunction)
+                        {
+                            message = $"Dynamic namespace '{toolNamespace.Name}' may contain Functions only.";
+                            return false;
+                        }
+                        if (!TryValidateFunction(childFunction, toolNamespace.Name, qualifiedNames, out message))
+                            return false;
+                    }
+                    break;
+                default:
+                    message = $"Dynamic declaration '{declaration.Name}' has an unsupported type.";
+                    return false;
             }
         }
 
+        return true;
+    }
+
+    private static bool TryValidateFunction(
+        RuntimeDynamicToolFunction tool,
+        string? toolNamespace,
+        HashSet<string> qualifiedNames,
+        out string message)
+    {
+        if (!PluginManifestParser.IsValidFunctionName(tool.Name))
+        {
+            message = "Dynamic Function name is required and must be a valid model-visible function name.";
+            return false;
+        }
+
+        if (string.IsNullOrWhiteSpace(tool.Description))
+        {
+            message = $"Dynamic Function '{tool.Name}' must declare a description.";
+            return false;
+        }
+
+        if (tool.InputSchema == null)
+        {
+            message = $"Dynamic Function '{tool.Name}' must declare inputSchema.";
+            return false;
+        }
+
+        if (!PluginFunctionSchemaValidator.TryValidateSchema(tool.InputSchema, out var schemaError))
+        {
+            message = $"Dynamic Function '{tool.Name}' has an invalid inputSchema: {schemaError}";
+            return false;
+        }
+
+        var qualifiedName = $"{toolNamespace ?? string.Empty}\u001f{tool.Name}";
+        if (!qualifiedNames.Add(qualifiedName))
+        {
+            message = $"Dynamic Function '{tool.Name}' is declared more than once in namespace '{toolNamespace}'.";
+            return false;
+        }
+
+        var spec = new RuntimeDynamicToolSpec(toolNamespace, null, tool);
+        if (tool.Approval != null && !TryValidateApprovalDescriptor(spec, out message))
+        {
+            message = $"Dynamic Function '{tool.Name}' has an invalid approval descriptor: {message}";
+            return false;
+        }
+
+        message = string.Empty;
         return true;
     }
 
@@ -123,25 +187,83 @@ public sealed class WireDynamicToolProxy : IThreadRuntimeToolProvider
     /// </summary>
     public void UnbindThread(string threadId) => _byThread.TryRemove(threadId, out _);
 
-    public IReadOnlyList<AITool> CreateToolsForThread(
-        SessionThread thread,
-        IReadOnlySet<string> reservedToolNames)
+    /// <inheritdoc />
+    public ValueTask ReleaseThreadAsync(
+        string threadId,
+        CancellationToken cancellationToken = default)
     {
-        if (!_byThread.TryGetValue(thread.Id, out var binding) || binding.Connection.IsClosed)
-            return [];
-
-        return binding.Tools
-            .Where(tool => !reservedToolNames.Contains(tool.Name)
-                && UiToolVisibility.IsModelVisible(tool.Meta?.Ui))
-            .Select(tool => (AITool)new DynamicToolRuntimeFunction(this, binding, tool))
-            .ToArray();
+        cancellationToken.ThrowIfCancellationRequested();
+        UnbindThread(threadId);
+        return ValueTask.CompletedTask;
     }
 
-    internal async ValueTask<DynamicToolCallResult> InvokeAsync(
+    /// <inheritdoc />
+    public ValueTask<IReadOnlyList<ToolRegistration>> GetRegistrationsAsync(
+        ToolPlanningContext context,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(context);
+        cancellationToken.ThrowIfCancellationRequested();
+        if (!_byThread.TryGetValue(context.ThreadId, out var binding) || binding.Connection.IsClosed)
+            return ValueTask.FromResult<IReadOnlyList<ToolRegistration>>([]);
+
+        var registrations = binding.Tools
+            .OrderBy(tool => tool.Namespace, StringComparer.Ordinal)
+            .ThenBy(tool => tool.Name, StringComparer.Ordinal)
+            .Select(tool => CreateRegistration(binding, tool, context.Revision))
+            .ToArray();
+        return ValueTask.FromResult<IReadOnlyList<ToolRegistration>>(registrations);
+    }
+
+    private ToolRegistration CreateRegistration(
         DynamicToolThreadBinding binding,
-        DynamicToolSpec spec,
-        PluginFunctionExecutionContext execution,
-        string callId,
+        RuntimeDynamicToolSpec spec,
+        long snapshotRevision)
+    {
+        var sourceId = $"thread:{binding.ThreadId}";
+        var sourceToolId = new SourceToolId(spec.Namespace is null ? spec.Name : $"{spec.Namespace}/{spec.Name}");
+        var definitionId = new ToolDefinitionId(ToolSourceKind.RuntimeDynamic, sourceId, sourceToolId);
+        var inputSchema = JsonSerializer.Deserialize<JsonElement>(
+            (spec.InputSchema ?? new JsonObject { ["type"] = "object" }).ToJsonString(JsonOptions),
+            JsonOptions);
+        var annotations = spec.Approval is null
+            ? null
+            : new Dictionary<string, JsonElement>(StringComparer.Ordinal)
+            {
+                ["dotcraft/dynamicApproval"] = JsonSerializer.SerializeToElement(spec.Approval, JsonOptions)
+            };
+        var definition = new ToolDefinition(
+            definitionId,
+            new ToolName(spec.Namespace, spec.Name),
+            spec.Description,
+            inputSchema,
+            annotations: annotations,
+            policyHints: new ToolPolicyHints(RequiresApproval: spec.Approval is not null),
+            provenance: new ToolProvenance(ToolSourceKind.RuntimeDynamic, sourceId, "thread"),
+            namespaceDescription: spec.NamespaceDescription);
+        var runtimeBinding = new ToolRuntimeBinding(
+            new RuntimeBindingId($"dynamic:{binding.ThreadId}:{binding.Generation}:{sourceToolId.Value}"),
+            definitionId,
+            new DynamicToolRuntime(this, binding, spec),
+            new DynamicToolBindingLease(this, binding),
+            $"dynamic:{binding.ThreadId}:{binding.Generation}",
+            snapshotRevision);
+        var deferred = spec.DeferLoading == true && spec.Namespace is not null;
+        return new ToolRegistration(
+            definition,
+            runtimeBinding,
+            ToolProjectionShape.DynamicLifecycle,
+            deferred ? ToolExposure.Deferred : ToolExposure.Direct,
+            ToolInvocationAudience.Model | ToolInvocationAudience.Host,
+            deferred
+                ? new DeferredToolDescriptor(spec.Namespace!, spec.Description, spec.NamespaceDescription)
+                : null);
+    }
+
+    internal async ValueTask<RuntimeDynamicToolCallResult> InvokeAsync(
+        DynamicToolThreadBinding binding,
+        RuntimeDynamicToolSpec spec,
+        ToolInvocationContext execution,
         JsonObject arguments,
         CancellationToken cancellationToken)
     {
@@ -155,8 +277,8 @@ public sealed class WireDynamicToolProxy : IThreadRuntimeToolProvider
                 new DynamicToolCallParams
                 {
                     ThreadId = execution.ThreadId,
-                    TurnId = execution.TurnId,
-                    CallId = callId,
+                    TurnId = execution.TurnId ?? string.Empty,
+                    CallId = execution.CallId,
                     Namespace = spec.Namespace,
                     Tool = spec.Name,
                     Arguments = arguments
@@ -165,13 +287,27 @@ public sealed class WireDynamicToolProxy : IThreadRuntimeToolProvider
                 TimeSpan.FromSeconds(120));
 
             if (response.Error.HasValue)
-                return Failed("DynamicToolClientError", response.Error.Value.ToString());
+                return Failed("DynamicToolProtocolError", response.Error.Value.ToString());
 
             if (!response.Result.HasValue)
-                return Failed("DynamicToolInvalidResponse", $"Dynamic tool '{spec.Name}' returned no result.");
+                return Failed("DynamicToolResultInvalid", $"Dynamic tool '{spec.Name}' returned no result.");
 
-            return response.Result.Value.Deserialize<DynamicToolCallResult>(JsonOptions)
-                ?? Failed("DynamicToolInvalidResponse", $"Dynamic tool '{spec.Name}' returned an invalid result.");
+            RuntimeDynamicToolCallResult? result;
+            try
+            {
+                result = response.Result.Value.Deserialize<RuntimeDynamicToolCallResult>(JsonOptions);
+            }
+            catch (JsonException ex)
+            {
+                return Failed("DynamicToolResultInvalid", ex.Message);
+            }
+
+            if (result == null)
+                return Failed("DynamicToolResultInvalid", $"Dynamic tool '{spec.Name}' returned an invalid result.");
+
+            return TryValidateResult(result, out var resultError)
+                ? result
+                : Failed("DynamicToolResultInvalid", resultError);
         }
         catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
         {
@@ -179,14 +315,30 @@ public sealed class WireDynamicToolProxy : IThreadRuntimeToolProvider
         }
         catch (Exception ex)
         {
-            return Failed("DynamicToolFailed", ex.Message);
+            return Failed("DynamicToolProtocolError", ex.Message);
         }
     }
 
-    private static DynamicToolSpec CloneSpec(DynamicToolSpec spec) =>
-        new()
+    private static IEnumerable<RuntimeDynamicToolSpec> FlattenDeclarations(
+        IReadOnlyList<RuntimeDynamicToolDeclaration> declarations)
+    {
+        foreach (var declaration in declarations)
         {
-            Namespace = spec.Namespace,
+            if (declaration is RuntimeDynamicToolFunction function)
+            {
+                yield return new RuntimeDynamicToolSpec(null, null, function);
+            }
+            else if (declaration is RuntimeDynamicToolNamespace toolNamespace)
+            {
+                foreach (var child in toolNamespace.Tools.OfType<RuntimeDynamicToolFunction>())
+                    yield return new RuntimeDynamicToolSpec(toolNamespace.Name, toolNamespace.Description, child);
+            }
+        }
+    }
+
+    private static RuntimeDynamicToolSpec CloneSpec(RuntimeDynamicToolSpec spec) =>
+        new(spec.Namespace, spec.NamespaceDescription, new RuntimeDynamicToolFunction
+        {
             Name = spec.Name,
             Description = spec.Description,
             InputSchema = spec.InputSchema?.DeepClone() as JsonObject,
@@ -199,20 +351,99 @@ public sealed class WireDynamicToolProxy : IThreadRuntimeToolProvider
                     TargetArgument = spec.Approval.TargetArgument,
                     Operation = spec.Approval.Operation,
                     OperationArgument = spec.Approval.OperationArgument
-                },
-            Meta = spec.Meta
-        };
+                }
+        });
 
-    private static DynamicToolCallResult Failed(string code, string message) =>
+    private static RuntimeDynamicToolCallResult Failed(string code, string message) =>
         new()
         {
             Success = false,
             ErrorCode = code,
             ErrorMessage = message,
-            ContentItems = [new ExtChannelToolContentItem { Type = "text", Text = $"{code}: {message}" }]
+            ContentItems = [new RuntimeDynamicToolContentItem { Type = "text", Text = $"{code}: {message}" }]
         };
 
-    private static bool TryValidateApprovalDescriptor(DynamicToolSpec descriptor, out string message)
+    private static bool TryValidateResult(RuntimeDynamicToolCallResult result, out string message)
+    {
+        var hasUsefulText = false;
+        foreach (var item in result.ContentItems ?? [])
+        {
+            if (string.Equals(item.Type, "text", StringComparison.Ordinal))
+            {
+                if (string.IsNullOrWhiteSpace(item.Text)
+                    || item.MediaType != null
+                    || item.Url != null
+                    || item.DataBase64 != null)
+                {
+                    message = "Dynamic text content requires non-empty text and no image fields.";
+                    return false;
+                }
+
+                hasUsefulText = true;
+                continue;
+            }
+
+            if (!string.Equals(item.Type, "image", StringComparison.Ordinal))
+            {
+                message = $"Dynamic content type '{item.Type}' is not supported.";
+                return false;
+            }
+
+            if (item.Text != null
+                || string.IsNullOrWhiteSpace(item.MediaType)
+                || !item.MediaType.StartsWith("image/", StringComparison.OrdinalIgnoreCase)
+                || (item.Url is null) == (item.DataBase64 is null))
+            {
+                message = "Dynamic image content requires mediaType and exactly one of url or dataBase64.";
+                return false;
+            }
+
+            if (item.Url != null
+                && (!Uri.TryCreate(item.Url, UriKind.Absolute, out var uri)
+                    || uri.Scheme is not ("https" or "http")))
+            {
+                message = "Dynamic image url must be an absolute HTTP(S) URL; data URLs are not allowed.";
+                return false;
+            }
+
+            if (item.DataBase64 != null)
+            {
+                if (item.DataBase64.Length > 20_000_000)
+                {
+                    message = "Dynamic image dataBase64 exceeds the size limit.";
+                    return false;
+                }
+
+                try
+                {
+                    _ = Convert.FromBase64String(item.DataBase64);
+                }
+                catch (FormatException)
+                {
+                    message = "Dynamic image dataBase64 is invalid.";
+                    return false;
+                }
+            }
+        }
+
+        if (result.Success && !hasUsefulText)
+        {
+            message = "A successful Runtime Dynamic Tool result requires a useful text content item.";
+            return false;
+        }
+
+        if (!result.Success
+            && (string.IsNullOrWhiteSpace(result.ErrorCode) || string.IsNullOrWhiteSpace(result.ErrorMessage)))
+        {
+            message = "A failed Runtime Dynamic Tool result requires errorCode and errorMessage.";
+            return false;
+        }
+
+        message = string.Empty;
+        return true;
+    }
+
+    private static bool TryValidateApprovalDescriptor(RuntimeDynamicToolSpec descriptor, out string message)
     {
         var approval = descriptor.Approval;
         if (approval == null)
@@ -298,354 +529,149 @@ public sealed class WireDynamicToolProxy : IThreadRuntimeToolProvider
         string ThreadId,
         IAppServerTransport Transport,
         AppServerConnection Connection,
-        IReadOnlyList<DynamicToolSpec> Tools);
+        IReadOnlyList<RuntimeDynamicToolSpec> Tools,
+        long Generation);
 
-    private sealed class DynamicToolRuntimeFunction(
+    internal sealed record RuntimeDynamicToolSpec(
+        string? Namespace,
+        string? NamespaceDescription,
+        RuntimeDynamicToolFunction Function)
+    {
+        public string Name => Function.Name;
+
+        public string Description => Function.Description;
+
+        public JsonObject? InputSchema => Function.InputSchema;
+
+        public bool? DeferLoading => Function.DeferLoading;
+
+        public ChannelToolApprovalDescriptor? Approval => Function.Approval;
+    }
+
+    private sealed class DynamicToolRuntime(
         WireDynamicToolProxy proxy,
         DynamicToolThreadBinding binding,
-        DynamicToolSpec spec) : AIFunction, IDynamicToolRuntimeTool, IToolNamespaceMetadata
+        RuntimeDynamicToolSpec spec) : IToolRuntime
     {
-        private readonly JsonElement _jsonSchema = ToJsonElement(spec.InputSchema ?? new JsonObject { ["type"] = "object" });
-
-        public DynamicToolSpec Spec => spec;
-
-        public string? ToolNamespace => spec.Namespace;
-
-        public override string Name => spec.Name;
-
-        public override string Description => spec.Description;
-
-        public override JsonElement JsonSchema => _jsonSchema;
-
-        public override JsonElement? ReturnJsonSchema => null;
-
-        public override MethodInfo? UnderlyingMethod => null;
-
-        public override JsonSerializerOptions JsonSerializerOptions => SessionWireJsonOptions.Default;
-
-        protected override async ValueTask<object?> InvokeCoreAsync(
-            AIFunctionArguments arguments,
-            CancellationToken cancellationToken)
+        public async ValueTask<ToolExecutionResult> InvokeAsync(
+            ToolInvocationContext context,
+            JsonObject arguments,
+            CancellationToken cancellationToken = default)
         {
-            var scope = PluginFunctionExecutionScope.Current
-                ?? throw new InvalidOperationException("Runtime dynamic tools require an active turn scope.");
+            var result = await proxy.InvokeAsync(
+                binding,
+                spec,
+                context,
+                arguments,
+                cancellationToken).ConfigureAwait(false);
+            var content = string.Join(
+                Environment.NewLine,
+                (result.ContentItems ?? [])
+                    .Where(item => string.Equals(item.Type, "text", StringComparison.Ordinal))
+                    .Select(item => item.Text)
+                    .Where(text => !string.IsNullOrWhiteSpace(text)));
+            if (string.IsNullOrWhiteSpace(content) && !result.Success)
+                content = result.ErrorMessage ?? "Dynamic tool call failed.";
+            var contentItems = ToModelContentItems(result.ContentItems);
 
-            var callId = $"dyntool_{Guid.NewGuid():N}";
-            var argsObject = ToJsonObject(arguments);
-            var item = new SessionItem
+            JsonElement? structuredContent = result.StructuredContent is null
+                ? null
+                : JsonSerializer.Deserialize<JsonElement>(
+                    result.StructuredContent.ToJsonString(JsonOptions),
+                    JsonOptions);
+            var rawResult = JsonSerializer.SerializeToElement(result, JsonOptions);
+            if (result.Success)
             {
-                Id = SessionIdGenerator.NewItemId(scope.NextItemSequence()),
-                TurnId = scope.TurnId,
-                Type = ItemType.DynamicToolCall,
-                Status = ItemStatus.Started,
-                CreatedAt = DateTimeOffset.UtcNow,
-                Payload = CreatePayload(callId, argsObject)
-            };
-            scope.Turn.Items.Add(item);
-            scope.EmitItemStarted(item);
-
-            var inputSchema = spec.InputSchema ?? new JsonObject { ["type"] = "object" };
-            if (!PluginFunctionSchemaValidator.TryValidateArguments(inputSchema, argsObject, out var validationError))
-                return FinalizeFailure(item, scope, callId, argsObject, "InvalidArguments", validationError);
-
-            var approvalFailure = await ApplyServerApprovalAsync(scope, argsObject, cancellationToken);
-            if (approvalFailure != null)
-            {
-                return FinalizeFailure(
-                    item,
-                    scope,
-                    callId,
-                    argsObject,
-                    approvalFailure.Value.ErrorCode,
-                    approvalFailure.Value.ErrorMessage);
+                return ToolExecutionResult.Succeeded(
+                    content,
+                    structuredContent,
+                    rawSourceResult: rawResult,
+                    contentItems: contentItems);
             }
 
-            var result = await proxy.InvokeAsync(binding, spec, scope, callId, argsObject, cancellationToken);
-            item.Status = ItemStatus.Completed;
-            item.CompletedAt = DateTimeOffset.UtcNow;
-            item.Payload = CreatePayload(callId, argsObject, result);
-            scope.EmitItemCompleted(item);
-
-            return MapToolResultToModelValue(result);
+            var stableCode = result.ErrorCode switch
+            {
+                "DynamicToolUnavailable" => ToolErrorCodes.DynamicDisconnected,
+                "DynamicToolTimeout" => ToolErrorCodes.Timeout,
+                "DynamicToolProtocolError" => ToolErrorCodes.DynamicProtocolError,
+                "DynamicToolResultInvalid" => ToolErrorCodes.ResultInvalid,
+                _ => ToolErrorCodes.ExecutionFailed
+            };
+            return new ToolExecutionResult(
+                false,
+                content,
+                structuredContent,
+                rawSourceResult: rawResult,
+                error: new ToolError(
+                    stableCode,
+                    result.ErrorMessage ?? "Dynamic tool call failed.",
+                    string.IsNullOrWhiteSpace(result.ErrorCode)
+                        ? null
+                        : new Dictionary<string, JsonElement>(StringComparer.Ordinal)
+                        {
+                            ["sourceErrorCode"] = JsonSerializer.SerializeToElement(result.ErrorCode)
+                        }),
+                contentItems: contentItems);
         }
 
-        private DynamicToolCallPayload CreatePayload(
-            string callId,
-            JsonObject argsObject,
-            DynamicToolCallResult? result = null)
-            => new()
-            {
-                Namespace = spec.Namespace,
-                ToolName = spec.Name,
-                CallId = callId,
-                Arguments = argsObject.DeepClone() as JsonObject,
-                ContentItems = result?.ContentItems?.Select(MapContentItem).ToArray(),
-                StructuredResult = result?.StructuredResult?.DeepClone(),
-                Success = result?.Success ?? false,
-                ErrorCode = result?.ErrorCode,
-                ErrorMessage = result?.ErrorMessage,
-                Meta = result?.Meta?.DeepClone(),
-                Ui = spec.Meta?.Ui is { } ui
-                    ? JsonSerializer.SerializeToNode(ui, SessionWireJsonOptions.Default)
-                    : null
-            };
-
-        private async Task<(string ErrorCode, string ErrorMessage)?> ApplyServerApprovalAsync(
-            PluginFunctionExecutionContext scope,
-            JsonObject argsObject,
-            CancellationToken cancellationToken)
+        private static IReadOnlyList<AIContent>? ToModelContentItems(
+            IReadOnlyList<RuntimeDynamicToolContentItem>? items)
         {
-            var approval = spec.Approval;
-            if (approval == null)
+            if (items is not { Count: > 0 })
                 return null;
 
-            var targetState = ApprovalArgumentResolver.ResolveTargetArgument(
-                argsObject,
-                spec.InputSchema,
-                approval.TargetArgument,
-                out var approvalTarget);
-            if (targetState == ApprovalTargetArgumentState.MissingOptional)
-                return null;
-            if (targetState == ApprovalTargetArgumentState.MissingRequired)
+            var content = new List<AIContent>(items.Count);
+            foreach (var item in items)
             {
-                return (
-                    "InvalidArguments",
-                    $"Dynamic tool '{spec.Name}' requires string argument '{approval.TargetArgument}' for approval routing.");
-            }
-
-            if (!TryResolveApprovalOperation(argsObject, approval, out var approvalOperation, out var operationError))
-                return ("InvalidArguments", operationError);
-
-            return approval.Kind.ToLowerInvariant() switch
-            {
-                "file" => await GuardFileAccessAsync(scope, approvalTarget, approvalOperation, cancellationToken),
-                "shell" => await GuardShellAccessAsync(scope, approvalTarget, approvalOperation),
-                "remoteresource" => await GuardRemoteResourceAccessAsync(scope, approvalTarget, approvalOperation),
-                _ => (
-                    "InvalidDynamicToolDescriptor",
-                    $"Dynamic tool '{spec.Name}' uses unsupported approval kind '{approval.Kind}'.")
-            };
-        }
-
-        private bool TryResolveApprovalOperation(
-            JsonObject argsObject,
-            ChannelToolApprovalDescriptor approval,
-            out string operation,
-            out string error)
-        {
-            if (!string.IsNullOrWhiteSpace(approval.Operation))
-            {
-                operation = approval.Operation!;
-                error = string.Empty;
-                return true;
-            }
-
-            if (!string.IsNullOrWhiteSpace(approval.OperationArgument)
-                && ApprovalArgumentResolver.TryReadStringArgument(argsObject, approval.OperationArgument!, out var operationArgument))
-            {
-                operation = operationArgument;
-                error = string.Empty;
-                return true;
-            }
-
-            operation = string.Empty;
-            error = $"Dynamic tool '{spec.Name}' could not resolve approval operation metadata.";
-            return false;
-        }
-
-        private object FinalizeFailure(
-            SessionItem item,
-            PluginFunctionExecutionContext scope,
-            string callId,
-            JsonObject argsObject,
-            string errorCode,
-            string errorMessage)
-        {
-            var result = Failed(errorCode, errorMessage);
-            item.Status = ItemStatus.Completed;
-            item.CompletedAt = DateTimeOffset.UtcNow;
-            item.Payload = CreatePayload(callId, argsObject, result);
-            scope.EmitItemCompleted(item);
-            return MapToolResultToModelValue(result);
-        }
-
-        private static async Task<(string ErrorCode, string ErrorMessage)?> GuardFileAccessAsync(
-            PluginFunctionExecutionContext scope,
-            string path,
-            string operation,
-            CancellationToken cancellationToken)
-        {
-            var userDotCraftPath = Path.GetFullPath(Path.Combine(
-                Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".craft"));
-            var guard = new FileAccessGuard(
-                scope.WorkspacePath,
-                requireApprovalOutsideWorkspace: scope.RequireApprovalOutsideWorkspace,
-                approvalService: scope.ApprovalService,
-                blacklist: scope.PathBlacklist,
-                trustedReadPaths: [userDotCraftPath]);
-            var resolvedPath = guard.ResolvePath(path);
-            var error = await guard.ValidatePathAsync(resolvedPath, operation, path, cancellationToken);
-            return error == null ? null : ("AccessDenied", error);
-        }
-
-        private static async Task<(string ErrorCode, string ErrorMessage)?> GuardShellAccessAsync(
-            PluginFunctionExecutionContext scope,
-            string workingDirectory,
-            string command)
-        {
-            var normalizedCommand = command.Trim();
-            if (string.IsNullOrWhiteSpace(normalizedCommand))
-                return ("InvalidArguments", "Shell approval routing requires a non-empty command string.");
-
-            if (scope.PathBlacklist != null && scope.PathBlacklist.CommandReferencesBlacklistedPath(normalizedCommand))
-                return ("AccessDenied", "Error: Command references a blacklisted path and cannot be executed.");
-
-            var resolvedWorkingDirectory = string.IsNullOrWhiteSpace(workingDirectory)
-                ? scope.WorkspacePath
-                : ResolveAgainstWorkspace(scope.WorkspacePath, workingDirectory);
-            var hasPathTraversal = normalizedCommand.Contains("..\\", StringComparison.Ordinal)
-                || normalizedCommand.Contains("../", StringComparison.Ordinal);
-            var isOutsideWorkspace = !IsWithinBoundary(resolvedWorkingDirectory, scope.WorkspacePath);
-
-            if (!hasPathTraversal && !isOutsideWorkspace)
-                return null;
-
-            if (!scope.RequireApprovalOutsideWorkspace)
-            {
-                if (hasPathTraversal)
-                    return ("AccessDenied", "Error: Command blocked by safety guard (path traversal detected).");
-                return ("AccessDenied", "Error: Working directory is outside workspace boundary.");
-            }
-
-            var approved = await scope.ApprovalService.RequestShellApprovalAsync(
-                normalizedCommand,
-                resolvedWorkingDirectory,
-                ApprovalContextScope.Current);
-            return approved ? null : ("AccessDenied", "Error: Command execution was rejected by user.");
-        }
-
-        private static async Task<(string ErrorCode, string ErrorMessage)?> GuardRemoteResourceAccessAsync(
-            PluginFunctionExecutionContext scope,
-            string target,
-            string operation)
-        {
-            var normalizedTarget = target.Trim();
-            if (string.IsNullOrWhiteSpace(normalizedTarget))
-                return ("InvalidArguments", "Remote resource approval routing requires a non-empty target string.");
-
-            var normalizedOperation = operation.Trim();
-            if (string.IsNullOrWhiteSpace(normalizedOperation))
-                return ("InvalidArguments", "Remote resource approval routing requires a non-empty operation string.");
-
-            var approved = await scope.ApprovalService.RequestResourceApprovalAsync(
-                "remoteResource",
-                normalizedOperation,
-                normalizedTarget,
-                ApprovalContextScope.Current);
-            return approved ? null : ("AccessDenied", "Error: Remote resource operation was rejected by user.");
-        }
-
-        private static object MapToolResultToModelValue(DynamicToolCallResult result)
-        {
-            if (result.ContentItems is { Count: > 0 } contentItems)
-            {
-                var aiContents = new List<AIContent>();
-                foreach (var item in contentItems)
+                if (string.Equals(item.Type, "text", StringComparison.Ordinal)
+                    && !string.IsNullOrWhiteSpace(item.Text))
                 {
-                    if (string.Equals(item.Type, "text", StringComparison.OrdinalIgnoreCase)
-                        && !string.IsNullOrWhiteSpace(item.Text))
+                    content.Add(new TextContent(item.Text));
+                }
+                else if (string.Equals(item.Type, "image", StringComparison.Ordinal)
+                         && !string.IsNullOrWhiteSpace(item.MediaType))
+                {
+                    if (!string.IsNullOrWhiteSpace(item.Url))
                     {
-                        aiContents.Add(new TextContent(item.Text));
+                        content.Add(new UriContent(item.Url, item.MediaType));
                     }
-                    else if (string.Equals(item.Type, "image", StringComparison.OrdinalIgnoreCase)
-                             && !string.IsNullOrWhiteSpace(item.DataBase64)
-                             && !string.IsNullOrWhiteSpace(item.MediaType))
+                    else if (!string.IsNullOrWhiteSpace(item.DataBase64))
                     {
                         try
                         {
-                            aiContents.Add(new DataContent(Convert.FromBase64String(item.DataBase64), item.MediaType));
+                            content.Add(new DataContent(Convert.FromBase64String(item.DataBase64), item.MediaType));
                         }
                         catch (FormatException)
                         {
-                            aiContents.Add(new TextContent("[Invalid dynamic tool image payload]"));
+                            content.Add(new TextContent("[Invalid dynamic tool image payload]"));
                         }
                     }
                 }
-
-                if (aiContents.Count > 0)
-                {
-                    if (result.StructuredResult != null)
-                        aiContents.Add(new TextContent(result.StructuredResult.ToJsonString(SessionWireJsonOptions.Default)));
-
-                    return aiContents;
-                }
             }
 
-            if (result.StructuredResult != null)
-            {
-                return new
-                {
-                    result.Success,
-                    result.ContentItems,
-                    result.StructuredResult,
-                    result.ErrorCode,
-                    result.ErrorMessage
-                };
-            }
-
-            if (!result.Success)
-            {
-                var error = result.ErrorMessage ?? "Dynamic tool call failed.";
-                return string.IsNullOrWhiteSpace(result.ErrorCode) ? error : $"{result.ErrorCode}: {error}";
-            }
-
-            return "Dynamic tool completed.";
-        }
-
-        private static PluginFunctionContentItem MapContentItem(ExtChannelToolContentItem item)
-            => new()
-            {
-                Type = item.Type,
-                Text = item.Text,
-                DataBase64 = item.DataBase64,
-                MediaType = item.MediaType
-            };
-
-        private static JsonObject ToJsonObject(AIFunctionArguments arguments)
-        {
-            var root = new JsonObject();
-            foreach (var (key, value) in arguments)
-                root[key] = value is JsonNode node ? node.DeepClone() : JsonSerializer.SerializeToNode(value, SessionWireJsonOptions.Default);
-            return root;
-        }
-
-        private static JsonElement ToJsonElement(JsonNode node)
-            => JsonSerializer.Deserialize<JsonElement>(node.ToJsonString(SessionWireJsonOptions.Default), SessionWireJsonOptions.Default);
-
-        private static string ResolveAgainstWorkspace(string workspacePath, string path)
-            => Path.IsPathRooted(path)
-                ? Path.GetFullPath(path)
-                : Path.GetFullPath(Path.Combine(workspacePath, path));
-
-        private static bool IsWithinBoundary(string fullPath, string boundaryRoot)
-        {
-            var resolvedPath = Path.GetFullPath(fullPath);
-            var resolvedBoundary = Path.GetFullPath(boundaryRoot)
-                .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
-
-            if (resolvedPath.Equals(resolvedBoundary, StringComparison.OrdinalIgnoreCase))
-                return true;
-
-            return resolvedPath.StartsWith(resolvedBoundary + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase)
-                || resolvedPath.StartsWith(resolvedBoundary + Path.AltDirectorySeparatorChar, StringComparison.OrdinalIgnoreCase);
+            return content.Count == 0 ? null : content;
         }
     }
-}
 
-/// <summary>
-/// Marker for AIFunction wrappers that represent a runtime dynamic tool.
-/// </summary>
-public interface IDynamicToolRuntimeTool
-{
-    DynamicToolSpec Spec { get; }
+    private sealed class DynamicToolBindingLease(
+        WireDynamicToolProxy proxy,
+        DynamicToolThreadBinding binding) : IToolBindingLease
+    {
+        public ValueTask<ToolBindingLeaseResult> CheckAsync(
+            ToolInvocationContext context,
+            CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var available = !binding.Connection.IsClosed
+                && proxy._byThread.TryGetValue(binding.ThreadId, out var current)
+                && ReferenceEquals(current, binding);
+            return ValueTask.FromResult(available
+                ? ToolBindingLeaseResult.Available
+                : new ToolBindingLeaseResult(
+                    false,
+                    new ToolError(
+                        ToolErrorCodes.DynamicDisconnected,
+                        "The Runtime Dynamic Tool owner disconnected or its binding generation was replaced.")));
+        }
+    }
 }

@@ -1,20 +1,19 @@
 using DotCraft.Abstractions;
 using DotCraft.Agents;
-using DotCraft.Plugins;
 using DotCraft.Protocol.AppServer;
 using DotCraft.Tools;
 using Microsoft.Extensions.AI;
+using System.Text.Json.Nodes;
 
 namespace DotCraft.Protocol;
 
 /// <summary>
 /// Evaluates profile-shaped thread capability policy for tool discovery and invocation.
 /// </summary>
-internal sealed class ThreadCapabilityPolicyEvaluator(ThreadConfiguration config, ToolProviderContext context)
+internal sealed class ThreadCapabilityPolicyEvaluator(ThreadConfiguration config, AgentRuntimeContext context)
 {
     private const string PolicyDeniedCode = "PROFILE_TOOL_POLICY_DENIED";
     private const string TeamsChannelName = "teams";
-    private const string TeamsToolNamespace = "teams";
     private const string SkillViewToolName = "SkillView";
     private const string SkillManageToolName = "SkillManage";
 
@@ -37,6 +36,14 @@ internal sealed class ThreadCapabilityPolicyEvaluator(ThreadConfiguration config
     /// </summary>
     public bool AllowsTool(AITool tool) =>
         AllowsTool(tool, out _);
+
+    /// <summary>Returns true when source-qualified policy permits model exposure.</summary>
+    public bool AllowsRegistrationExposure(ToolRegistration registration)
+    {
+        ArgumentNullException.ThrowIfNull(registration);
+        return registration.Definition.Id.Kind != ToolSourceKind.Mcp
+               || AllowsMcpRegistration(registration, out _);
+    }
 
     /// <summary>
     /// Evaluates a model tool call before the concrete function is resolved.
@@ -67,6 +74,61 @@ internal sealed class ThreadCapabilityPolicyEvaluator(ThreadConfiguration config
             return Deny(invocation.Function.Name, reason);
 
         return ModeToolPolicyDecision.Allow;
+    }
+
+    /// <summary>Evaluates the source-qualified registration at the common dispatcher boundary.</summary>
+    public ToolDispatchDecision EvaluateRegistration(ToolRegistration registration, JsonObject arguments)
+    {
+        var name = registration.Definition.Name.Name;
+        if (string.Equals(config.Mode, "plan", StringComparison.OrdinalIgnoreCase))
+        {
+            if (ModeToolPolicy.PlanDeniedToolNames.Contains(name))
+                return ToolDispatchDecision.Deny(ToolErrorCodes.Unauthorized, $"Plan mode does not allow {name}.");
+            if (string.Equals(name, "Exec", StringComparison.OrdinalIgnoreCase)
+                && !PlanModeShellClassifier.IsReadOnly(
+                    arguments["command"]?.GetValue<string>(),
+                    arguments["shell"]?.GetValue<string>(),
+                    out var shellReason))
+            {
+                return ToolDispatchDecision.Deny(ToolErrorCodes.Unauthorized, shellReason);
+            }
+        }
+        else if (string.Equals(config.Mode, "agent", StringComparison.OrdinalIgnoreCase)
+                 && string.Equals(name, "CreatePlan", StringComparison.OrdinalIgnoreCase))
+        {
+            return ToolDispatchDecision.Deny(ToolErrorCodes.Unauthorized, "Agent mode does not allow CreatePlan.");
+        }
+
+        var reserved = IsTeamsReservedToolName(name) || IsRuntimeReservedToolName(name);
+        if (!AllowsToolName(name, reserved, out var reason))
+            return ToolDispatchDecision.Deny(ToolErrorCodes.Unauthorized, reason);
+
+        if (registration.Definition.Id.Kind == ToolSourceKind.Mcp && config.McpPolicy is not null)
+        {
+            if (!AllowsMcpRegistration(registration, out var mcpReason))
+                return ToolDispatchDecision.Deny(ToolErrorCodes.Unauthorized, mcpReason);
+        }
+
+        if (registration.Definition.Id.Kind == ToolSourceKind.PluginNative
+            && config.PluginPolicy is { } plugin)
+        {
+            var source = registration.Definition.Provenance.SourceId;
+            if (MatchesAny(source, plugin.Deny, allowWildcards: false)
+                || MatchesAny(name, plugin.Deny, allowWildcards: true)
+                || MatchesAny(registration.Definition.Name.ToString(), plugin.Deny, allowWildcards: true))
+                return ToolDispatchDecision.Deny(ToolErrorCodes.Unauthorized, "The thread plugin policy denies this plugin, app, or tool.");
+            if (plugin.Allow != null && !MatchesAny(source, plugin.Allow, allowWildcards: false))
+                return ToolDispatchDecision.Deny(ToolErrorCodes.Unauthorized, "The thread plugin policy does not allow this plugin or app.");
+        }
+
+        var invocationArguments = new AIFunctionArguments(arguments.ToDictionary(
+            static pair => pair.Key,
+            static pair => (object?)pair.Value,
+            StringComparer.Ordinal));
+        if (!AllowsSkillInvocation(name, invocationArguments, out reason))
+            return ToolDispatchDecision.Deny(ToolErrorCodes.Unauthorized, reason);
+
+        return ToolDispatchDecision.Allow;
     }
 
     private bool AllowsTool(AITool tool, out string reason)
@@ -140,6 +202,9 @@ internal sealed class ThreadCapabilityPolicyEvaluator(ThreadConfiguration config
         }
 
         var toolName = tool.Name;
+        var selector = CanonicalToolIdentityMetadataResolver.TryGet(tool, out var canonicalName, out _)
+            ? ToCanonicalSelector(canonicalName)
+            : toolName;
         var serverName = ResolveMcpServerName(toolName);
         var isKnownMcpTool = !string.IsNullOrWhiteSpace(serverName)
                              || toolName.StartsWith("mcp__", StringComparison.Ordinal);
@@ -153,7 +218,7 @@ internal sealed class ThreadCapabilityPolicyEvaluator(ThreadConfiguration config
             }
         }
 
-        if (MatchesAny(toolName, policy.Tools?.Deny, allowWildcards: true))
+        if (MatchesAny(selector, policy.Tools?.Deny, allowWildcards: true))
         {
             reason = "The thread MCP policy denies this MCP tool.";
             return false;
@@ -161,7 +226,7 @@ internal sealed class ThreadCapabilityPolicyEvaluator(ThreadConfiguration config
 
         if (isKnownMcpTool
             && policy.Tools?.Allow != null
-            && !MatchesAny(toolName, policy.Tools.Allow, allowWildcards: true))
+            && !MatchesAny(selector, policy.Tools.Allow, allowWildcards: true))
         {
             reason = "The thread MCP policy does not allow this MCP tool.";
             return false;
@@ -296,8 +361,7 @@ internal sealed class ThreadCapabilityPolicyEvaluator(ThreadConfiguration config
     private bool IsTeamsReservedTool(AITool tool) =>
         string.Equals(config.TeamsPolicy?.ReservedTools, "keep", StringComparison.OrdinalIgnoreCase)
         && string.Equals(context.CurrentOriginChannel, TeamsChannelName, StringComparison.OrdinalIgnoreCase)
-        && tool is IDynamicToolRuntimeTool dynamicTool
-        && string.Equals(dynamicTool.Spec.Namespace, TeamsToolNamespace, StringComparison.OrdinalIgnoreCase);
+        && TeamsReservedToolNames.Contains(tool.Name);
 
     private bool IsTeamsReservedToolName(string toolName) =>
         string.Equals(config.TeamsPolicy?.ReservedTools, "keep", StringComparison.OrdinalIgnoreCase)
@@ -313,27 +377,10 @@ internal sealed class ThreadCapabilityPolicyEvaluator(ThreadConfiguration config
     }
 
     private static string? ResolvePluginOrAppSourceId(AITool tool)
-    {
-        if (tool is IPluginFunctionTool { PluginFunctionDescriptor: { } descriptor }
-            && !string.IsNullOrWhiteSpace(descriptor.PluginId))
-        {
-            return descriptor.PluginId;
-        }
-
-        if (tool is IDynamicToolRuntimeTool { Spec: { } spec })
-        {
-            if (!string.IsNullOrWhiteSpace(spec.Meta?.Ui?.Domain))
-                return spec.Meta.Ui.Domain;
-            if (!string.IsNullOrWhiteSpace(spec.Namespace))
-                return spec.Namespace;
-        }
-
-        return null;
-    }
+        => null;
 
     private static bool IsRuntimeReservedToolName(string toolName) =>
-        string.Equals(toolName, nameof(ToolSearchTool.SearchTools), StringComparison.Ordinal)
-        || string.Equals(toolName, NativeToolSearchTool.ToolName, StringComparison.Ordinal);
+        string.Equals(toolName, NativeToolSearchTool.ToolName, StringComparison.Ordinal);
 
     private static bool HasLegacyAllowList(string[]? values) =>
         values?.Any(value => !string.IsNullOrWhiteSpace(value)) == true;
@@ -358,6 +405,43 @@ internal sealed class ThreadCapabilityPolicyEvaluator(ThreadConfiguration config
 
         return false;
     }
+
+    private bool AllowsMcpRegistration(ToolRegistration registration, out string reason)
+    {
+        var policy = config.McpPolicy;
+        if (policy == null)
+        {
+            reason = string.Empty;
+            return true;
+        }
+
+        var server = registration.Definition.Id.SourceId;
+        if (policy.Servers != null && !MatchesAny(server, policy.Servers, allowWildcards: false))
+        {
+            reason = "The thread MCP policy does not allow this MCP server.";
+            return false;
+        }
+
+        var selector = ToCanonicalSelector(registration.Definition.Name);
+        if (MatchesAny(selector, policy.Tools?.Deny, allowWildcards: true))
+        {
+            reason = "The thread MCP policy denies this MCP tool.";
+            return false;
+        }
+
+        if (policy.Tools?.Allow != null
+            && !MatchesAny(selector, policy.Tools.Allow, allowWildcards: true))
+        {
+            reason = "The thread MCP policy does not allow this MCP tool.";
+            return false;
+        }
+
+        reason = string.Empty;
+        return true;
+    }
+
+    private static string ToCanonicalSelector(ToolName toolName) =>
+        toolName.Namespace is null ? toolName.Name : $"{toolName.Namespace}/{toolName.Name}";
 
     private static bool MatchesWildcard(string value, string pattern)
     {

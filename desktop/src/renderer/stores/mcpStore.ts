@@ -2,6 +2,7 @@ import { create } from 'zustand'
 
 export type McpTransport = 'stdio' | 'streamableHttp'
 export type McpStartupState = 'idle' | 'starting' | 'ready' | 'error' | 'disabled'
+export type McpAuthStatus = 'unsupported' | 'notLoggedIn' | 'bearerToken' | 'oAuth'
 
 export interface McpServerOriginWire {
   kind: 'workspace' | 'plugin'
@@ -37,6 +38,8 @@ export interface McpServerStatusWire {
   resourceCount?: number | null
   resourceTemplateCount?: number | null
   lastError?: string | null
+  authStatus?: McpAuthStatus | null
+  failureReason?: 'reauthenticationRequired' | null
   transport: McpTransport
   origin?: McpServerOriginWire | null
   readOnly?: boolean

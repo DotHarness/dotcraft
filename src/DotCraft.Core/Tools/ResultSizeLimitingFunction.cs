@@ -1,5 +1,4 @@
 using DotCraft.Tracing;
-using DotCraft.Plugins;
 using Microsoft.Extensions.AI;
 
 namespace DotCraft.Tools;
@@ -9,10 +8,10 @@ namespace DotCraft.Tools;
 /// (spill-to-disk with preview when exceeded). Intended as the outermost wrapper so hooks see full results.
 /// </summary>
 internal sealed class ResultSizeLimitingFunction : DelegatingAIFunction,
-    IPluginFunctionTool,
     IDeferredToolMetadata,
     IGeneratedToolMetadata,
     IToolNamespaceMetadata,
+    ICanonicalToolIdentityMetadata,
     IOpenAIResponsesFunctionToolMetadata
 {
     private readonly int _maxResultChars;
@@ -31,11 +30,6 @@ internal sealed class ResultSizeLimitingFunction : DelegatingAIFunction,
         _previewLines = previewLines;
     }
 
-    public PluginFunctionDescriptor? PluginFunctionDescriptor =>
-        InnerFunction is IPluginFunctionTool pluginFunction
-            ? pluginFunction.PluginFunctionDescriptor
-            : null;
-
     public bool DeferLoading =>
         DeferredToolMetadataResolver.TryGet(InnerFunction, out var metadata) && metadata.DeferLoading;
 
@@ -47,6 +41,22 @@ internal sealed class ResultSizeLimitingFunction : DelegatingAIFunction,
 
     public string? ToolNamespace =>
         ToolNamespaceMetadataResolver.TryGet(InnerFunction, out var toolNamespace) ? toolNamespace : null;
+
+    public string? ToolNamespaceDescription => ToolNamespaceMetadataResolver.GetDescription(InnerFunction);
+
+    public ToolName CanonicalToolName =>
+        CanonicalToolIdentityMetadataResolver.TryGet(InnerFunction, out var toolName, out _)
+            ? toolName
+            : new ToolName(
+                ToolNamespaceMetadataResolver.TryGet(InnerFunction, out var toolNamespace)
+                    ? toolNamespace
+                    : null,
+                InnerFunction.Name);
+
+    public string ProviderFlatName =>
+        CanonicalToolIdentityMetadataResolver.TryGet(InnerFunction, out _, out var providerFlatName)
+            ? providerFlatName
+            : ProviderToolProjector.Project([CanonicalToolName])[CanonicalToolName];
 
     public bool? Strict =>
         InnerFunction is IOpenAIResponsesFunctionToolMetadata metadata ? metadata.Strict : null;

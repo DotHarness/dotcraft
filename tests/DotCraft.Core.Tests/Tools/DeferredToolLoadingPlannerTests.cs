@@ -21,9 +21,9 @@ public sealed class DeferredToolLoadingPlannerTests
 
         DeferredToolLoadingPlanner.Apply(tools, context);
 
-        Assert.Contains(tools, tool => tool.Name == nameof(ToolSearchTool.SearchTools));
-        Assert.NotNull(context.DeferredToolRegistry);
-        Assert.Equal("Simulated", context.DeferredToolRegistry!.Mode.ToString());
+        Assert.Contains(tools, tool => tool.Name == NativeToolSearchTool.ToolName);
+        Assert.NotNull(context.DeferredToolActivationIndex);
+        Assert.Equal("Simulated", context.DeferredToolActivationIndex!.Mode.ToString());
     }
 
     [Fact]
@@ -40,9 +40,9 @@ public sealed class DeferredToolLoadingPlannerTests
 
         Assert.DoesNotContain(tools, tool => tool.Name == "DeferredRuntimeTool");
         Assert.Contains(tools, tool => tool.Name == "ImmediateRuntimeTool");
-        Assert.Contains(tools, tool => tool.Name == nameof(ToolSearchTool.SearchTools));
-        Assert.NotNull(context.DeferredToolRegistry);
-        Assert.Contains("DeferredRuntimeTool", context.DeferredToolRegistry!.DeferredTools.Keys);
+        Assert.Contains(tools, tool => tool.Name == NativeToolSearchTool.ToolName);
+        Assert.NotNull(context.DeferredToolActivationIndex);
+        Assert.Contains("tests__DeferredRuntimeTool", context.DeferredToolActivationIndex!.DeferredTools.Keys);
     }
 
     [Fact]
@@ -57,7 +57,7 @@ public sealed class DeferredToolLoadingPlannerTests
 
         var marker = Assert.Single(tools);
         Assert.Equal(NativeToolSearchTool.ToolName, marker.Name);
-        Assert.Equal("Native", context.DeferredToolRegistry!.Mode.ToString());
+        Assert.Equal("Native", context.DeferredToolActivationIndex!.Mode.ToString());
     }
 
     [Fact]
@@ -72,7 +72,7 @@ public sealed class DeferredToolLoadingPlannerTests
 
         var marker = Assert.IsType<AnthropicToolSearchTool>(Assert.Single(tools));
         Assert.Equal(AnthropicToolSearchTool.ToolName, marker.Name);
-        Assert.Equal("Native", context.DeferredToolRegistry!.Mode.ToString());
+        Assert.Equal("Native", context.DeferredToolActivationIndex!.Mode.ToString());
     }
 
     [Fact]
@@ -85,9 +85,9 @@ public sealed class DeferredToolLoadingPlannerTests
 
         DeferredToolLoadingPlanner.Apply(tools, context);
 
-        Assert.Contains(tools, tool => tool.Name == nameof(ToolSearchTool.SearchTools));
+        Assert.Contains(tools, tool => tool.Name == NativeToolSearchTool.ToolName);
         Assert.DoesNotContain(tools, tool => tool is AnthropicToolSearchTool);
-        Assert.Equal("Simulated", context.DeferredToolRegistry!.Mode.ToString());
+        Assert.Equal("Simulated", context.DeferredToolActivationIndex!.Mode.ToString());
     }
 
     [Fact]
@@ -111,13 +111,32 @@ public sealed class DeferredToolLoadingPlannerTests
         Assert.Equal("TicketLookup", Assert.Single(results).Name);
     }
 
-    private static ToolProviderContext CreateContext(AppConfig config, string protocol)
+    [Fact]
+    public void Registry_SameLocalNameInDifferentNamespaces_RemainsIndependentlyAddressable()
+    {
+        var alpha = new MetadataFunction("Lookup", deferLoading: true);
+        var beta = new MetadataFunction("Lookup", deferLoading: true);
+        var registry = new DeferredToolRegistry([
+            new DeferredToolEntry(alpha, "alpha-source", "alpha"),
+            new DeferredToolEntry(beta, "beta-source", "beta")
+        ]);
+
+        Assert.Equal(2, registry.DeferredTools.Count);
+        Assert.Contains("alpha__Lookup", registry.DeferredTools.Keys);
+        Assert.Contains("beta__Lookup", registry.DeferredTools.Keys);
+
+        var activated = registry.SearchAndActivate("Lookup", maxResults: 2);
+        Assert.Equal(["alpha__Lookup", "beta__Lookup"],
+            activated.Select(static result => result.Name).Order(StringComparer.Ordinal).ToArray());
+    }
+
+    private static AgentRuntimeContext CreateContext(AppConfig config, string protocol)
     {
         var root = Path.Combine(Path.GetTempPath(), "dotcraft-deferred-tools-test-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(root);
         var botPath = Path.Combine(root, ".craft");
         Directory.CreateDirectory(botPath);
-        return new ToolProviderContext
+        return new AgentRuntimeContext
         {
             Config = config,
             ChatClient = null!,

@@ -136,4 +136,58 @@ public sealed class McpClientManagerTests
         Assert.Null(status.LastError);
     }
 
+    [Fact]
+    public async Task ConnectAsync_PublicHttpServer_DoesNotRequireOAuth()
+    {
+        await using var manager = new McpClientManager((_, _) => Task.FromResult(
+            new McpConnectionResult(new FakeClient(), [], AuthStatus: "unsupported")));
+
+        await manager.ConnectAsync([HttpServer("public")]);
+        await manager.WaitForStartupCompletionAsync();
+
+        var status = Assert.Single(await manager.ListStatusesAsync());
+        Assert.Equal("ready", status.StartupState);
+        Assert.Equal("unsupported", status.AuthStatus);
+        Assert.Null(status.FailureReason);
+    }
+
+    [Theory]
+    [InlineData(false, null)]
+    [InlineData(true, "reauthenticationRequired")]
+    public async Task ConnectAsync_OAuthChallenge_ReportsTypedLoginState(
+        bool reauthenticationRequired,
+        string? expectedFailureReason)
+    {
+        await using var manager = new McpClientManager((_, _) =>
+            Task.FromException<McpConnectionResult>(
+                new McpAuthenticationRequiredException(reauthenticationRequired)));
+
+        await manager.ConnectAsync([HttpServer("protected")]);
+        await manager.WaitForStartupCompletionAsync();
+
+        var status = Assert.Single(await manager.ListStatusesAsync());
+        Assert.Equal("error", status.StartupState);
+        Assert.Equal("notLoggedIn", status.AuthStatus);
+        Assert.Equal(expectedFailureReason, status.FailureReason);
+    }
+
+    [Fact]
+    public void DefaultStartupTimeout_MatchesReferenceBehavior()
+    {
+        Assert.Equal(30, McpClientManager.DefaultStartupTimeoutSeconds);
+    }
+
+    private static McpServerConfig HttpServer(string name) => new()
+    {
+        Name = name,
+        Enabled = true,
+        Transport = "streamableHttp",
+        Url = $"https://{name}.example.test/mcp"
+    };
+
+    private sealed class FakeClient : IAsyncDisposable
+    {
+        public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+    }
+
 }

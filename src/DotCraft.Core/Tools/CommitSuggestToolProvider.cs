@@ -1,5 +1,4 @@
 using System.ComponentModel;
-using DotCraft.Abstractions;
 using DotCraft.GeneratedTools.Core;
 using Microsoft.Extensions.AI;
 
@@ -8,9 +7,13 @@ namespace DotCraft.Tools;
 /// <summary>
 /// Single-tool profile for ephemeral source-control summary suggestion threads.
 /// </summary>
-public sealed class CommitSuggestToolProvider : IAgentToolProvider
+public sealed class CommitSuggestToolSource : AIFunctionToolSource
 {
-    public IEnumerable<AITool> CreateTools(ToolProviderContext context)
+    /// <inheritdoc />
+    public override string SourceId => "commit-suggest";
+
+    /// <inheritdoc />
+    protected override IEnumerable<AIFunction> CreateFunctions(ToolPlanningContext context)
     {
         yield return GeneratedToolFunctions.CommitSuggestMethods_CommitSuggest();
     }

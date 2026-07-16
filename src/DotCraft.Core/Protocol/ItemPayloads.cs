@@ -395,7 +395,41 @@ public sealed record ToolCallArgumentsDelta
 /// </summary>
 public sealed record ToolCallPayload
 {
+    /// <summary>
+    /// Canonical tool namespace. Null denotes a top-level function.
+    /// </summary>
+    public string? Namespace { get; init; }
+
     public string ToolName { get; init; } = string.Empty;
+
+    /// <summary>
+    /// Stable flat alias used by providers that cannot represent a namespace and local name
+    /// separately.
+    /// </summary>
+    [JsonRequired]
+    public string ProviderFlatName { get; init; } = string.Empty;
+
+    /// <summary>
+    /// Stable source-qualified definition identity when known.
+    /// </summary>
+    public string? ToolDefinitionId { get; init; }
+
+    /// <summary>Live runtime binding identity used for this invocation.</summary>
+    public string? RuntimeBindingId { get; init; }
+
+    /// <summary>Source binding revision used for this invocation.</summary>
+    public long? BindingRevision { get; init; }
+
+    /// <summary>Frozen effective tool snapshot revision used for this invocation.</summary>
+    public long? SnapshotRevision { get; init; }
+
+    /// <summary>
+    /// Safe source provenance used for diagnostics and trusted presentation selection.
+    /// </summary>
+    public ToolSourceProvenancePayload? Source { get; init; }
+
+    /// <summary>Trusted local presentation descriptor captured at invocation time.</summary>
+    public ToolPresentationPayload? Presentation { get; init; }
 
     /// <summary>
     /// Tool arguments as a JSON object.
@@ -443,44 +477,117 @@ public sealed record DynamicToolCallPayload
 
     public string ToolName { get; init; } = string.Empty;
 
+    [JsonRequired]
+    public string ProviderFlatName { get; init; } = string.Empty;
+
+    /// <summary>Stable source-qualified definition identity when known.</summary>
+    public string? ToolDefinitionId { get; init; }
+
+    /// <summary>Live runtime binding identity used for this invocation.</summary>
+    public string? RuntimeBindingId { get; init; }
+
+    /// <summary>Source binding revision used for this invocation.</summary>
+    public long? BindingRevision { get; init; }
+
+    /// <summary>Frozen effective tool snapshot revision used for this invocation.</summary>
+    public long? SnapshotRevision { get; init; }
+
+    /// <summary>Safe source provenance captured at invocation time.</summary>
+    public ToolSourceProvenancePayload? Source { get; init; }
+
+    /// <summary>Trusted local presentation descriptor captured at invocation time.</summary>
+    public ToolPresentationPayload? Presentation { get; init; }
+
     public string CallId { get; init; } = string.Empty;
 
     public JsonObject? Arguments { get; init; }
 
+    public string Status { get; init; } = "inProgress";
+
+    public long? DurationMs { get; init; }
+
     public IReadOnlyList<PluginFunctionContentItem>? ContentItems { get; init; }
 
-    public JsonNode? StructuredResult { get; init; }
+    public JsonNode? StructuredContent { get; init; }
 
-    public bool Success { get; init; }
+    public bool? Success { get; init; }
 
     public string? ErrorCode { get; init; }
 
     public string? ErrorMessage { get; init; }
 
-    /// <summary>
-    /// UI-only metadata (MCP Apps <c>_meta</c>) carried from the tool result to the host/UI.
-    /// Delivered to interactive clients via <c>item/completed</c>; never surfaced to the model.
-    /// </summary>
+}
+
+/// <summary>
+/// Payload for an MCP tool call. MCP calls use one lifecycle item so the raw MCP result can be
+/// retained for clients while a separate normalized fallback is used for model history.
+/// </summary>
+public sealed record McpToolCallPayload
+{
+    public string? Namespace { get; init; }
+
+    public string ToolName { get; init; } = string.Empty;
+
+    [JsonRequired]
+    public string ProviderFlatName { get; init; } = string.Empty;
+
+    /// <summary>Stable source-qualified definition identity used for this invocation.</summary>
+    public string? ToolDefinitionId { get; init; }
+
+    /// <summary>Live runtime binding identity used for this invocation.</summary>
+    public string? RuntimeBindingId { get; init; }
+
+    /// <summary>Source binding revision used for this invocation.</summary>
+    public long? BindingRevision { get; init; }
+
+    /// <summary>Frozen effective tool snapshot revision used for this invocation.</summary>
+    public long? SnapshotRevision { get; init; }
+
+    /// <summary>MCP server session generation used for this invocation.</summary>
+    public long? McpGeneration { get; init; }
+
+    /// <summary>Safe source provenance captured at invocation time.</summary>
+    public ToolSourceProvenancePayload? Source { get; init; }
+
+    /// <summary>Trusted local presentation descriptor captured at invocation time.</summary>
+    public ToolPresentationPayload? Presentation { get; init; }
+
+    public string Server { get; init; } = string.Empty;
+
+    public string Origin { get; init; } = "workspace";
+
+    public string SourceToolId { get; init; } = string.Empty;
+
+    public string CallId { get; init; } = string.Empty;
+
+    public JsonObject? Arguments { get; init; }
+
+    /// <summary>"inProgress", "completed", or "failed".</summary>
+    public string Status { get; init; } = "inProgress";
+
+    public long? DurationMs { get; init; }
+
+    /// <summary>Exact MCP content blocks for clients. They are not replayed directly to the model.</summary>
+    public JsonArray? Content { get; init; }
+
+    /// <summary>Normalized model-visible content used for provider history reconstruction.</summary>
+    public IReadOnlyList<PluginFunctionContentItem>? ModelContentItems { get; init; }
+
+    public JsonNode? StructuredContent { get; init; }
+
     [JsonPropertyName("_meta")]
     public JsonNode? Meta { get; init; }
 
-    /// <summary>
-    /// The tool's declared Interactive Tool UI descriptor (<c>_meta.ui</c>: resourceUri, csp,
-    /// visibility, …), surfaced to the host so it can render the UI without a separate catalog
-    /// lookup. Null when the tool declares no UI. Host/UI-only; never surfaced to the model.
-    /// </summary>
-    [JsonPropertyName("ui")]
-    public JsonNode? Ui { get; init; }
+    /// <summary>Normalized MCP Apps UI resource associated with the invoked tool definition.</summary>
+    public string? McpAppResourceUri { get; init; }
 
-    /// <summary>
-    /// UI-only Interactive Tool UI <c>widgetState</c> (M-iv), surfaced onto the item on
-    /// <c>thread/read</c> so the host can restore the iframe's persisted state. Not part of the
-    /// canonical rollout — populated from the mutable per-thread side store at read time. Never
-    /// surfaced to the model.
-    /// </summary>
-    [JsonPropertyName("widgetState")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public JsonNode? WidgetState { get; init; }
+    public bool? IsError { get; init; }
+
+    public bool? Success { get; init; }
+
+    public string? ErrorCode { get; init; }
+
+    public string? ErrorMessage { get; init; }
 }
 
 /// <summary>
@@ -493,6 +600,27 @@ public sealed record ToolResultPayload
     /// </summary>
     public string CallId { get; init; } = string.Empty;
 
+    public string? Namespace { get; init; }
+
+    public string ToolName { get; init; } = string.Empty;
+
+    [JsonRequired]
+    public string ProviderFlatName { get; init; } = string.Empty;
+
+    public string? ToolDefinitionId { get; init; }
+
+    public string? RuntimeBindingId { get; init; }
+
+    public long? BindingRevision { get; init; }
+
+    public long? SnapshotRevision { get; init; }
+
+    public ToolSourceProvenancePayload? Source { get; init; }
+
+    public ToolPresentationPayload? Presentation { get; init; }
+
+    public long? DurationMs { get; init; }
+
     /// <summary>
     /// Text fallback for the tool result. Used for model history reconstruction.
     /// </summary>
@@ -503,7 +631,48 @@ public sealed record ToolResultPayload
     /// </summary>
     public IReadOnlyList<PluginFunctionContentItem>? ContentItems { get; init; }
 
+    /// <summary>Client-only structured data. Never inserted into model history.</summary>
+    public JsonNode? StructuredContent { get; init; }
+
+    /// <summary>Host-only metadata. Never inserted into model history.</summary>
+    [JsonPropertyName("_meta")]
+    public JsonNode? Meta { get; init; }
+
+    public string? ErrorCode { get; init; }
+
+    public string? ErrorMessage { get; init; }
+
     public bool Success { get; init; }
+}
+
+/// <summary>
+/// Safe, persisted provenance for a tool definition. This payload never contains credentials or
+/// live connection state.
+/// </summary>
+public sealed record ToolSourceProvenancePayload
+{
+    public string Kind { get; init; } = string.Empty;
+
+    public string SourceId { get; init; } = string.Empty;
+
+    /// <summary>Gets the safe origin such as workspace, plugin, thread, or binding.</summary>
+    public string? Origin { get; init; }
+
+    public string? SourceToolId { get; init; }
+
+    public string? PluginId { get; init; }
+
+    public string? FunctionId { get; init; }
+}
+
+/// <summary>Safe, persisted trusted local presentation selection.</summary>
+public sealed record ToolPresentationPayload
+{
+    /// <summary>Gets the trusted presentation registration identifier.</summary>
+    public string PresentationId { get; init; } = string.Empty;
+
+    /// <summary>Gets bounded renderer-specific options captured from the tool definition.</summary>
+    public JsonObject? Options { get; init; }
 }
 
 /// <summary>

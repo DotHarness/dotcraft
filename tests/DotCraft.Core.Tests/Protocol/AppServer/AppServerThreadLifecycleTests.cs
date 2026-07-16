@@ -7,6 +7,7 @@ using DotCraft.Configuration;
 using DotCraft.Memory;
 using DotCraft.Protocol;
 using DotCraft.Protocol.AppServer;
+using DotCraft.Tools;
 using Microsoft.Extensions.AI;
 
 namespace DotCraft.Tests.Sessions.Protocol.AppServer;
@@ -51,7 +52,7 @@ public sealed class AppServerThreadLifecycleTests : IDisposable
     }
 
     [Fact]
-    public async Task ItemWidgetState_PersistsClearsAndSurfacesOnThreadRead()
+    public async Task ItemWidgetState_DoesNotSurfaceOnRuntimeDynamicItems()
     {
         var thread = await _h.Service.CreateThreadAsync(_h.Identity);
         var turn = new SessionTurn
@@ -98,7 +99,7 @@ public sealed class AppServerThreadLifecycleTests : IDisposable
             AppServerTestHarness.AssertIsSuccessResponse(readResp);
             var item = readResp.RootElement.GetProperty("result").GetProperty("thread")
                 .GetProperty("turns")[0].GetProperty("items")[0];
-            Assert.Equal(2, item.GetProperty("payload").GetProperty("widgetState").GetProperty("tab").GetInt32());
+            Assert.False(item.GetProperty("payload").TryGetProperty("widgetState", out _));
         }
 
         await _h.ExecuteRequestAsync(_h.BuildRequest(AppServerMethods.ItemWidgetStateSet, new
@@ -292,6 +293,50 @@ public sealed class AppServerThreadLifecycleTests : IDisposable
         Assert.StartsWith("thread_", notification.RootElement
             .GetProperty("params").GetProperty("thread")
             .GetProperty("id").GetString()!);
+    }
+
+    [Fact]
+    public async Task ThreadStart_OriginPresentationProvider_EnrichesResponseAndNotification()
+    {
+        using var harness = new AppServerTestHarness(
+            threadOriginPresentationProviders: [new TestOriginPresentationProvider()]);
+        await harness.InitializeAsync();
+
+        var msg = harness.BuildRequest(AppServerMethods.ThreadStart, new
+        {
+            identity = new
+            {
+                channelName = "teams",
+                userId = "dotcraft-teams",
+                channelContext = "mission_1:builder",
+                workspacePath = harness.Identity.WorkspacePath
+            }
+        });
+        await harness.ExecuteRequestAsync(msg);
+
+        using var response = await harness.Transport.ReadNextSentAsync();
+        using var notification = await harness.Transport.ReadNextSentAsync();
+        AppServerTestHarness.AssertIsSuccessResponse(response);
+        AppServerTestHarness.AssertIsNotification(notification, AppServerMethods.ThreadStarted);
+
+        AssertOriginPresentation(response.RootElement.GetProperty("result").GetProperty("thread"));
+        AssertOriginPresentation(notification.RootElement.GetProperty("params").GetProperty("thread"));
+
+        await harness.ExecuteRequestAsync(harness.BuildRequest(AppServerMethods.ThreadList, new
+        {
+            identity = new
+            {
+                channelName = "teams",
+                userId = "dotcraft-teams",
+                channelContext = "mission_1:builder",
+                workspacePath = harness.Identity.WorkspacePath
+            }
+        }));
+        using var listResponse = await harness.Transport.ReadNextSentAsync();
+        AppServerTestHarness.AssertIsSuccessResponse(listResponse);
+        var listedThread = Assert.Single(
+            listResponse.RootElement.GetProperty("result").GetProperty("data").EnumerateArray());
+        AssertOriginPresentation(listedThread);
     }
 
     [Fact]
@@ -1075,7 +1120,7 @@ public sealed class AppServerThreadLifecycleTests : IDisposable
         var msg = harness.BuildRequest(AppServerMethods.ThreadResume, new
         {
             threadId = thread.Id,
-            dynamicTools = new[] { CreateReviewToolSpec() }
+            dynamicTools = new RuntimeDynamicToolDeclaration[] { CreateReviewToolSpec() }
         });
         await harness.ExecuteRequestAsync(msg);
 
@@ -1085,8 +1130,16 @@ public sealed class AppServerThreadLifecycleTests : IDisposable
         AppServerTestHarness.AssertIsSuccessResponse(response);
         AppServerTestHarness.AssertIsNotification(notification, AppServerMethods.ThreadResumed);
         Assert.Contains(thread.Id, harness.Service.RefreshedThreadAgents);
-        var tool = Assert.Single(dynamicToolProxy.CreateToolsForThread(thread, EmptyReservedNames()));
-        Assert.Equal("SubmitReviewDraft", tool.Name);
+        var registration = Assert.Single(await dynamicToolProxy.GetRegistrationsAsync(
+            new ToolPlanningContext(
+                thread.Id,
+                null,
+                thread.WorkspacePath,
+                "default",
+                null,
+                [],
+                1)));
+        Assert.Equal("SubmitReviewDraft", registration.Definition.Name.Name);
     }
 
     [Fact]
@@ -1164,7 +1217,7 @@ public sealed class AppServerThreadLifecycleTests : IDisposable
         var msg = harness.BuildRequest(AppServerMethods.ThreadResume, new
         {
             threadId = thread.Id,
-            dynamicTools = new[] { invalidSpec }
+            dynamicTools = new RuntimeDynamicToolDeclaration[] { invalidSpec }
         });
         await harness.ExecuteRequestAsync(msg);
 
@@ -1172,7 +1225,15 @@ public sealed class AppServerThreadLifecycleTests : IDisposable
 
         AppServerTestHarness.AssertIsErrorResponse(response, AppServerErrors.InvalidParamsCode);
         Assert.Empty(harness.Service.RefreshedThreadAgents);
-        Assert.Empty(dynamicToolProxy.CreateToolsForThread(thread, EmptyReservedNames()));
+        Assert.Empty(await dynamicToolProxy.GetRegistrationsAsync(
+            new ToolPlanningContext(
+                thread.Id,
+                null,
+                thread.WorkspacePath,
+                "default",
+                null,
+                [],
+                1)));
     }
 
     // -------------------------------------------------------------------------
@@ -1877,6 +1938,37 @@ public sealed class AppServerThreadLifecycleTests : IDisposable
         thread.Turns.Add(turn);
     }
 
+    private static void AssertOriginPresentation(JsonElement thread)
+    {
+        var presentation = thread.GetProperty("originPresentation");
+        Assert.Equal("agent-teams", presentation.GetProperty("sourceId").GetString());
+        Assert.Equal("Builder", presentation.GetProperty("displayName").GetString());
+        Assert.Equal("data:image/svg+xml;base64,dGVzdA==", presentation.GetProperty("icon").GetString());
+        Assert.Equal("builder", presentation.GetProperty("subjectId").GetString());
+        Assert.Equal("member", presentation.GetProperty("subjectKind").GetString());
+    }
+
+    private sealed class TestOriginPresentationProvider : IThreadOriginPresentationProvider
+    {
+        public ThreadOriginPresentationWire? Resolve(ThreadOriginPresentationContext context)
+        {
+            if (!string.Equals(context.OriginChannel, "teams", StringComparison.OrdinalIgnoreCase)
+                || !string.Equals(context.ChannelContext, "mission_1:builder", StringComparison.Ordinal))
+            {
+                return null;
+            }
+
+            return new ThreadOriginPresentationWire
+            {
+                SourceId = "agent-teams",
+                DisplayName = "Builder",
+                Icon = "data:image/svg+xml;base64,dGVzdA==",
+                SubjectId = "builder",
+                SubjectKind = "member"
+            };
+        }
+    }
+
     private async Task<(SessionThread Parent, SessionThread Child)> CreatePathSubAgentAsync(
         AppServerTestHarness? harness = null,
         string runtimeType = NativeSubAgentRuntime.RuntimeTypeName,
@@ -2022,21 +2114,28 @@ public sealed class AppServerThreadLifecycleTests : IDisposable
             throw new InvalidOperationException($"git {string.Join(" ", args)} failed: {stderr}");
     }
 
-    private static DynamicToolSpec CreateReviewToolSpec()
+    private static RuntimeDynamicToolNamespace CreateReviewToolSpec()
         => new()
         {
-            Namespace = "workflow",
-            Name = "SubmitReviewDraft",
-            Description = "Submit a structured code review draft",
-            InputSchema = new JsonObject
-            {
-                ["type"] = "object",
-                ["properties"] = new JsonObject
+            Name = "workflow",
+            Description = "Workflow tools.",
+            Tools =
+            [
+                new RuntimeDynamicToolFunction
                 {
-                    ["body"] = new JsonObject { ["type"] = "string" }
-                },
-                ["required"] = new JsonArray("body")
-            }
+                    Name = "SubmitReviewDraft",
+                    Description = "Submit a structured code review draft",
+                    InputSchema = new JsonObject
+                    {
+                        ["type"] = "object",
+                        ["properties"] = new JsonObject
+                        {
+                            ["body"] = new JsonObject { ["type"] = "string" }
+                        },
+                        ["required"] = new JsonArray("body")
+                    }
+                }
+            ]
         };
 
     private static IReadOnlySet<string> EmptyReservedNames()

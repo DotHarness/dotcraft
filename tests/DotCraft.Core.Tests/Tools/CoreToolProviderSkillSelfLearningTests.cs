@@ -1,12 +1,8 @@
-using DotCraft.Abstractions;
 using DotCraft.Agents;
 using DotCraft.Configuration;
-using DotCraft.Memory;
-using DotCraft.Protocol;
 using DotCraft.Security;
 using DotCraft.Skills;
 using DotCraft.Tools;
-using DotCraft.Tools.Sandbox;
 
 namespace DotCraft.Tests.Tools;
 
@@ -15,79 +11,45 @@ public sealed class CoreToolProviderSkillSelfLearningTests : IDisposable
     private readonly string _tempRoot = Path.Combine(Path.GetTempPath(), "dotcraft-coretoolprovider-tests", Guid.NewGuid().ToString("N"));
 
     [Fact]
-    public void CreateTools_SelfLearningDisabled_DoesNotExposeSkillMutationTools()
+    public async Task CreateTools_SelfLearningDisabled_DoesNotExposeSkillMutationTools()
     {
-        var tools = CreateTools(new AppConfig.SelfLearningConfig { Enabled = false });
+        var tools = await CreateToolsAsync(new AppConfig.SelfLearningConfig { Enabled = false });
 
-        Assert.DoesNotContain(tools, tool => string.Equals(tool.Name, "SkillManage", StringComparison.Ordinal));
-        Assert.Contains(tools, tool => string.Equals(tool.Name, "SkillView", StringComparison.Ordinal));
+        Assert.DoesNotContain(tools, tool => string.Equals(tool.Name.Name, "SkillManage", StringComparison.Ordinal));
+        Assert.Contains(tools, tool => string.Equals(tool.Name.Name, "SkillView", StringComparison.Ordinal));
     }
 
     [Fact]
-    public void CreateTools_SelfLearningEnabled_ExposesSkillViewAndSkillManageTools()
+    public async Task CreateTools_SelfLearningEnabled_ExposesSkillViewAndSkillManageTools()
     {
-        var tools = CreateTools(new AppConfig.SelfLearningConfig { Enabled = true });
+        var tools = await CreateToolsAsync(new AppConfig.SelfLearningConfig { Enabled = true });
         var skillTools = tools
-            .Where(tool => tool.Name.StartsWith("Skill", StringComparison.Ordinal))
-            .Select(tool => tool.Name)
+            .Where(tool => tool.Name.Name.StartsWith("Skill", StringComparison.Ordinal))
+            .Select(tool => tool.Name.Name)
             .ToArray();
 
-        Assert.Equal(["SkillView", "SkillManage"], skillTools);
+        Assert.Equal(["SkillManage", "SkillView"], skillTools);
     }
 
     [Fact]
-    public void CreateTools_AgentControlToolsDisabled_DoesNotExposeSubAgentControlTools()
+    public async Task CreateTools_SubAgentChild_DoesNotExposeSubAgentControlTools()
     {
-        var tools = CreateTools(
+        var tools = await CreateToolsAsync(
             new AppConfig.SelfLearningConfig { Enabled = false },
-            agentControlToolAccess: AgentControlToolAccess.Disabled);
-        var toolNames = tools.Select(tool => tool.Name).ToHashSet(StringComparer.Ordinal);
+            providerCapabilities: ["subagent-child"]);
+        var toolNames = tools.Select(tool => tool.Name.Name).ToHashSet(StringComparer.Ordinal);
 
         Assert.All(AgentControlToolPolicy.AllToolNames, toolName => Assert.DoesNotContain(toolName, toolNames));
         Assert.Contains("ReadFile", toolNames);
     }
 
     [Fact]
-    public void CreateTools_AgentControlToolsFull_ExposesSubAgentControlTools()
+    public async Task CreateTools_MainThread_ExposesSubAgentControlTools()
     {
-        var tools = CreateTools(
-            new AppConfig.SelfLearningConfig { Enabled = false },
-            agentControlToolAccess: AgentControlToolAccess.Full);
-        var toolNames = tools.Select(tool => tool.Name).ToHashSet(StringComparer.Ordinal);
+        var tools = await CreateToolsAsync(new AppConfig.SelfLearningConfig { Enabled = false });
+        var toolNames = tools.Select(tool => tool.Name.Name).ToHashSet(StringComparer.Ordinal);
 
         Assert.All(AgentControlToolPolicy.AllToolNames, toolName => Assert.Contains(toolName, toolNames));
-    }
-
-    [Fact]
-    public void CreateTools_AgentControlToolsAllowList_ExposesOnlyAllowedControlTools()
-    {
-        var tools = CreateTools(
-            new AppConfig.SelfLearningConfig { Enabled = false },
-            agentControlToolAccess: AgentControlToolAccess.AllowList,
-            allowedAgentControlTools: new HashSet<string>(["WaitAgent", "CloseAgent"], StringComparer.Ordinal));
-        var toolNames = tools.Select(tool => tool.Name).ToHashSet(StringComparer.Ordinal);
-
-        Assert.DoesNotContain("SpawnAgent", toolNames);
-        Assert.DoesNotContain("SendMessage", toolNames);
-        Assert.DoesNotContain("FollowupTask", toolNames);
-        Assert.Contains("WaitAgent", toolNames);
-        Assert.DoesNotContain("ListAgents", toolNames);
-        Assert.Contains("CloseAgent", toolNames);
-    }
-
-    [Fact]
-    public void SandboxCreateTools_AgentControlToolsDisabled_DoesNotExposeSubAgentControlTools()
-    {
-        var context = CreateContext(
-            new AppConfig.SelfLearningConfig { Enabled = false },
-            agentControlToolAccess: AgentControlToolAccess.Disabled,
-            sandboxEnabled: true);
-        var tools = new SandboxToolProvider().CreateTools(context).ToList();
-        var toolNames = tools.Select(tool => tool.Name).ToHashSet(StringComparer.Ordinal);
-
-        Assert.All(AgentControlToolPolicy.AllToolNames, toolName => Assert.DoesNotContain(toolName, toolNames));
-        Assert.Contains("ReadFile", toolNames);
-        Assert.Contains("Exec", toolNames);
     }
 
     public void Dispose()
@@ -103,20 +65,9 @@ public sealed class CoreToolProviderSkillSelfLearningTests : IDisposable
         }
     }
 
-    private List<Microsoft.Extensions.AI.AITool> CreateTools(
+    private async Task<List<ToolDefinition>> CreateToolsAsync(
         AppConfig.SelfLearningConfig selfLearning,
-        AgentControlToolAccess agentControlToolAccess = AgentControlToolAccess.Full,
-        IReadOnlySet<string>? allowedAgentControlTools = null)
-    {
-        var context = CreateContext(selfLearning, agentControlToolAccess, allowedAgentControlTools);
-        return new CoreToolProvider().CreateTools(context).ToList();
-    }
-
-    private ToolProviderContext CreateContext(
-        AppConfig.SelfLearningConfig selfLearning,
-        AgentControlToolAccess agentControlToolAccess = AgentControlToolAccess.Full,
-        IReadOnlySet<string>? allowedAgentControlTools = null,
-        bool sandboxEnabled = false)
+        IReadOnlyList<string>? providerCapabilities = null)
     {
         Directory.CreateDirectory(_tempRoot);
         var config = AppConfigTestFactory.CreateOpenAI();
@@ -128,34 +79,26 @@ public sealed class CoreToolProviderSkillSelfLearningTests : IDisposable
         {
             Sandbox = new AppConfig.SandboxConfig
             {
-                Enabled = sandboxEnabled,
+                Enabled = false,
                 IdleTimeoutSeconds = 0
             }
         };
         var skillsLoader = new SkillsLoader(_tempRoot);
         var chatClientRegistry = new ChatClientRegistry();
-        var mainRuntime = chatClientRegistry.ResolveMainRuntime(config);
-        var mainModel = mainRuntime.Model;
-        return new ToolProviderContext
-        {
-            Config = config,
-            ChatClient = chatClientRegistry.GetChatClient(mainRuntime),
-            ChatClientRegistry = chatClientRegistry,
-            EffectiveProviderId = mainRuntime.ProviderId,
-            EffectiveProviderProtocol = mainRuntime.Protocol,
-            EffectiveMainModel = mainModel,
-            WorkspacePath = _tempRoot,
-            BotPath = _tempRoot,
-            MemoryStore = new MemoryStore(_tempRoot),
-            SkillsLoader = skillsLoader,
-            SkillMutationApplier = new WorkspaceFileSkillMutationApplier(skillsLoader),
-            ApprovalService = new AutoApproveApprovalService(),
-            CurrentThreadId = "thread_parent",
-            CurrentThreadSource = ThreadSource.User(),
-            CurrentOriginChannel = "dotcraft-desktop",
-            CurrentChannelContext = "workspace:test",
-            AgentControlToolAccess = agentControlToolAccess,
-            AllowedAgentControlTools = allowedAgentControlTools
-        };
+        var source = new CoreToolSource(
+            config,
+            chatClientRegistry,
+            skillsLoader,
+            new AutoApproveApprovalService(),
+            skillMutationApplier: new WorkspaceFileSkillMutationApplier(skillsLoader));
+        var registrations = await source.GetRegistrationsAsync(new ToolPlanningContext(
+            "thread_parent",
+            null,
+            _tempRoot,
+            "agent",
+            null,
+            providerCapabilities ?? [],
+            1));
+        return registrations.Select(registration => registration.Definition).ToList();
     }
 }

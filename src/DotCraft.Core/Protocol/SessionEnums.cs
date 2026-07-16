@@ -32,6 +32,7 @@ public enum ItemType
     ImageGeneration,
     ToolCall,
     PluginFunctionCall,
+    McpToolCall,
     DynamicToolCall,
     ToolResult,
     ApprovalRequest,

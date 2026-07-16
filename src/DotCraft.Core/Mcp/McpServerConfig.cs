@@ -14,11 +14,21 @@ public sealed class McpServerOrigin
 
     public string? DeclaredName { get; set; }
 
+    public string? ThreadId { get; set; }
+
+    public string? BindingId { get; set; }
+
     [JsonIgnore]
     public bool IsPlugin => string.Equals(Kind, "plugin", StringComparison.OrdinalIgnoreCase);
 
     [JsonIgnore]
-    public bool IsWorkspace => !IsPlugin;
+    public bool IsThread => string.Equals(Kind, "thread", StringComparison.OrdinalIgnoreCase);
+
+    [JsonIgnore]
+    public bool IsBinding => string.Equals(Kind, "binding", StringComparison.OrdinalIgnoreCase);
+
+    [JsonIgnore]
+    public bool IsWorkspace => string.Equals(Kind, "workspace", StringComparison.OrdinalIgnoreCase);
 
     public static McpServerOrigin Workspace() => new() { Kind = "workspace" };
 
@@ -31,13 +41,21 @@ public sealed class McpServerOrigin
             DeclaredName = declaredName
         };
 
+    public static McpServerOrigin Thread(string threadId, string declaredName) =>
+        new() { Kind = "thread", ThreadId = threadId, DeclaredName = declaredName };
+
+    public static McpServerOrigin Binding(string bindingId, string declaredName) =>
+        new() { Kind = "binding", BindingId = bindingId, DeclaredName = declaredName };
+
     public McpServerOrigin Clone() =>
         new()
         {
             Kind = string.IsNullOrWhiteSpace(Kind) ? "workspace" : Kind,
             PluginId = PluginId,
             PluginDisplayName = PluginDisplayName,
-            DeclaredName = DeclaredName
+            DeclaredName = DeclaredName,
+            ThreadId = ThreadId,
+            BindingId = BindingId
         };
 }
 
@@ -156,7 +174,7 @@ public sealed class McpServerConfig
     }
 
     [JsonIgnore]
-    public bool ReadOnly => Origin.IsPlugin;
+    public bool ReadOnly => !Origin.IsWorkspace;
 
     [JsonIgnore]
     public string NormalizedTransport =>

@@ -465,6 +465,8 @@ public sealed partial class StreamingFunctionInvokingChatClientTests
         var result = Assert.Single(inner.Calls[1].SelectMany(message => message.Contents).OfType<FunctionResultContent>());
         Assert.Equal("call-1", result.CallId);
         Assert.Contains("not found", result.Result?.ToString(), StringComparison.OrdinalIgnoreCase);
+        Assert.Equal(ToolErrorCodes.NotFound, StreamingFunctionInvokingChatClient.GetToolResultErrorCode(result));
+        Assert.Null(result.Exception);
     }
 
     [Fact]
@@ -870,6 +872,7 @@ public sealed partial class StreamingFunctionInvokingChatClientTests
 
         using var scope = ToolExecutionRuntimeScope.Set(new ToolExecutionRuntimeContext
         {
+            ThreadId = turn.ThreadId,
             TurnId = turn.Id,
             Turn = turn,
             NextItemSequence = () => turn.Items.Count + 1,

@@ -12,6 +12,8 @@ public sealed class AppServerExtensionContext(
     string? workspaceCraftPath,
     string? hostWorkspacePath,
     IContextPageManager? contextPageManager,
+    Action<string, string, object?>? notifyAppPrincipal,
+    Action<string, object?>? broadcastTrustedNotification,
     CancellationToken cancellationToken)
 {
     public AppServerConnection Connection { get; } = connection;
@@ -25,6 +27,10 @@ public sealed class AppServerExtensionContext(
     public string? HostWorkspacePath { get; } = hostWorkspacePath;
 
     public IContextPageManager? ContextPageManager { get; } = contextPageManager;
+
+    public Action<string, string, object?>? NotifyAppPrincipal { get; } = notifyAppPrincipal;
+
+    public Action<string, object?>? BroadcastTrustedNotification { get; } = broadcastTrustedNotification;
 
     public CancellationToken CancellationToken { get; } = cancellationToken;
 }

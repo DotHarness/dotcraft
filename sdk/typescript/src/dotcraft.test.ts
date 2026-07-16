@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import test from "node:test";
 
 import {
@@ -12,6 +13,19 @@ import {
 import { TurnInProgressError } from "./errors.js";
 import { ERR_TURN_IN_PROGRESS, JsonRpcMessage, ServerCapabilities, ServerInfo, Thread, Turn } from "./models.js";
 import type { DotCraftWireClient, ServerRequestHandler } from "./client.js";
+
+const appBindingFixture = JSON.parse(readFileSync(
+  new URL("../../../specs/protocols/fixtures/app-binding-v2.json", import.meta.url),
+  "utf8",
+)) as { version: number; states: string[]; socialMethods: string[]; errors: Record<string, string> };
+
+test("App Binding canonical fixture is stable", () => {
+  assert.equal(appBindingFixture.version, 2);
+  assert.deepEqual(appBindingFixture.states, [
+    "connecting", "syncing", "active", "offline", "needsConfirmation", "revoked", "failed", "cancelled",
+  ]);
+  assert.equal(appBindingFixture.errors.upgradeRequired, "AppBindingUpgradeRequired");
+});
 
 class FakeWire {
   approvalHandler: ServerRequestHandler | null = null;
@@ -143,26 +157,38 @@ test("DotCraft thread start strips dynamic tool handlers and binds callbacks", a
   const sdk = createSdk(wire);
   const toolResult: DynamicToolCallResult = {
     success: true,
-    structuredResult: { echoed: "hi" },
+    contentItems: [{ type: "text", text: "Echoed hi" }],
+    structuredContent: { echoed: "hi" },
   };
 
   const thread = await sdk.threads.start({
     userId: "u",
     dynamicTools: [
       {
-        namespace: "local",
-        name: "Echo",
-        description: "Echo input",
-        inputSchema: { type: "object" },
-        handler: async () => toolResult,
+        type: "namespace",
+        name: "local",
+        description: "Local tools",
+        tools: [
+          {
+            type: "function",
+            name: "Echo",
+            description: "Echo input",
+            inputSchema: { type: "object" },
+            handler: async () => toolResult,
+          },
+        ],
       },
     ],
   });
 
   const sentTools = wire.startParams?.dynamicTools as Array<Record<string, unknown>>;
   assert.equal(sentTools.length, 1);
-  assert.equal(sentTools[0].name, "Echo");
-  assert.equal("handler" in sentTools[0], false);
+  assert.equal(sentTools[0].type, "namespace");
+  assert.equal(sentTools[0].name, "local");
+  const sentFunctions = sentTools[0].tools as Array<Record<string, unknown>>;
+  assert.equal(sentFunctions[0].type, "function");
+  assert.equal(sentFunctions[0].name, "Echo");
+  assert.equal("handler" in sentFunctions[0], false);
 
   const handler = wire.requestHandlers.get("item/tool/call");
   assert.ok(handler);
@@ -192,6 +218,34 @@ test("DotCraft thread start strips dynamic tool handlers and binds callbacks", a
       errorMessage: "No handler registered for this dynamic tool.",
     },
   );
+});
+
+test("MCP runtime manager uses the specified methods and wire fields", async () => {
+  const wire = new FakeWire();
+  const sdk = createSdk(wire);
+
+  await sdk.mcpRuntime.listStatus({ threadId: "thread-1", cursor: "2", limit: 25, detail: "full" });
+  await sdk.mcpRuntime.readResource({ threadId: "thread-1", server: "docs", uri: "docs://intro" });
+  await sdk.mcpRuntime.callTool({
+    threadId: "thread-1",
+    server: "docs",
+    tool: "search",
+    arguments: { query: "MCP" },
+    _meta: { trace: "t1" },
+  });
+  await sdk.mcpRuntime.loginOAuth({ name: "docs", threadId: "thread-1", scopes: ["read"], timeoutSecs: 60 });
+  await sdk.mcpRuntime.reload();
+
+  assert.deepEqual(wire.requests.slice(-5), [
+    { method: "mcpServerStatus/list", params: { threadId: "thread-1", cursor: "2", limit: 25, detail: "full" } },
+    { method: "mcpServer/resource/read", params: { threadId: "thread-1", server: "docs", uri: "docs://intro" } },
+    {
+      method: "mcpServer/tool/call",
+      params: { threadId: "thread-1", server: "docs", tool: "search", arguments: { query: "MCP" }, _meta: { trace: "t1" } },
+    },
+    { method: "mcpServer/oauth/login", params: { name: "docs", threadId: "thread-1", scopes: ["read"], timeoutSecs: 60 } },
+    { method: "config/mcpServer/reload", params: undefined },
+  ]);
 });
 
 test("DotCraft default callbacks are non-blocking fallbacks", async () => {
@@ -295,11 +349,11 @@ test("DotCraftThread runStreamed interrupts the active turn on abort", async () 
 
 test("parseAppBindingHandoff extracts fields and validates scheme and appId", () => {
   const handoff = parseAppBindingHandoff(
-    "oratorio://dotcraft/connect?app=com.dotharness.oratorio&request=req_1&token=tok_1&endpoint=ws://127.0.0.1:1234/x",
-    { expectedScheme: "oratorio", expectedAppId: "com.dotharness.oratorio" },
+    "board-example://dotcraft/connect?app=com.example.board&request=req_1&token=tok_1&endpoint=ws://127.0.0.1:1234/x",
+    { expectedScheme: "board-example", expectedAppId: "com.example.board" },
   );
   assert.equal(handoff.operation, "connect");
-  assert.equal(handoff.appId, "com.dotharness.oratorio");
+  assert.equal(handoff.appId, "com.example.board");
   assert.equal(handoff.requestId, "req_1");
   assert.equal(handoff.requestToken, "tok_1");
   assert.equal(handoff.appServerUrl, "ws://127.0.0.1:1234/x");
@@ -308,7 +362,7 @@ test("parseAppBindingHandoff extracts fields and validates scheme and appId", ()
 test("parseAppBindingHandoff rejects an unexpected scheme", () => {
   assert.throws(() =>
     parseAppBindingHandoff("evil://dotcraft/connect?app=x&request=r&token=t", {
-      expectedScheme: "oratorio",
+      expectedScheme: "board-example",
     }),
   );
 });
@@ -341,16 +395,12 @@ test("DotCraft appBindings social helpers send expected JSON-RPC params", async 
   await sdk.appBindings.createSocialBindingRequest({
     threadId: "thread-1",
     channelName: "qq",
-    requestedTools: ["QQSendImageToCurrentChat"],
-    displayHint: "QQ",
   });
   await sdk.appBindings.getBindingRequest({
-    appId: "com.dotharness.channel.qq",
     bindCode: "482913",
     requestToken: "482913",
   });
   await sdk.appBindings.acceptSocialBinding({
-    bindingRequestId: "request-1",
     requestToken: "482913",
     socialTarget,
   });
@@ -361,8 +411,6 @@ test("DotCraft appBindings social helpers send expected JSON-RPC params", async 
   });
   await sdk.appBindings.enqueueThreadInput({
     bindingId: "binding-1",
-    appId: "com.dotharness.channel.qq",
-    grantId: "social:qq::group:123",
     input: [{ type: "text", text: "hello" }],
     displayText: "hello",
     triggerLabel: "qq message",
@@ -371,50 +419,27 @@ test("DotCraft appBindings social helpers send expected JSON-RPC params", async 
     sender: { senderId: "456", senderName: "Alice", groupId: "group:123" },
   });
 
-  assert.deepEqual(wire.requests.map((request) => request.method), [
-    "app/binding/request/create",
-    "app/binding/request/get",
-    "app/binding/accept",
-    "app/socialBinding/resolve",
-    "app/threadInput/enqueue",
-  ]);
+  assert.deepEqual(wire.requests.map((request) => request.method), appBindingFixture.socialMethods.filter(
+    (method) => method !== "app/socialBinding/rebind",
+  ));
   assert.deepEqual(wire.requests[0]?.params, {
     threadId: "thread-1",
-    appId: "com.dotharness.channel.qq",
-    requestedScopes: ["conversation.receive", "message.send"],
-    requestedTools: ["QQSendImageToCurrentChat"],
-    source: "sdk",
-    bindingKind: "socialChannel",
-    socialIntent: {
-      channelName: "qq",
-      targetSelection: "confirmInChannel",
-      displayHint: "QQ",
-    },
+    channelName: "qq",
   });
   assert.deepEqual(wire.requests[1]?.params, {
-    appId: "com.dotharness.channel.qq",
-    bindCode: "482913",
-    requestToken: "482913",
+    code: "482913",
   });
   assert.deepEqual(wire.requests[2]?.params, {
-    bindingRequestId: "request-1",
-    requestToken: "482913",
-    grantId: "social:qq::group:123",
-    grantedScopes: ["conversation.receive", "message.send"],
-    approvalMode: "channelBindCode",
-    approvedBy: "456",
-    socialTarget,
+    code: "482913",
+    target: socialTarget,
   });
   assert.deepEqual(wire.requests[3]?.params, {
-    appId: "com.dotharness.channel.qq",
     channelName: "qq",
     conversationKind: "group",
     conversationId: "123",
   });
   assert.deepEqual(wire.requests[4]?.params, {
     bindingId: "binding-1",
-    appId: "com.dotharness.channel.qq",
-    grantId: "social:qq::group:123",
     input: [{ type: "text", text: "hello" }],
     displayText: "hello",
     triggerLabel: "qq message",

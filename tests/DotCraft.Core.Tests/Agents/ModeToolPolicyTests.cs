@@ -217,6 +217,7 @@ Reason: denied by test policy
         });
         var toolContext = new ToolExecutionRuntimeContext
         {
+            ThreadId = turn.ThreadId,
             TurnId = turn.Id,
             Turn = turn,
             NextItemSequence = () => turn.Items.Count + 1,

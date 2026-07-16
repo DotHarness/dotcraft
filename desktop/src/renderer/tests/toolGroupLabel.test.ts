@@ -2,13 +2,16 @@ import { describe, expect, it } from 'vitest'
 import type { ConversationItem } from '../types/conversation'
 import type { FileDiff } from '../types/toolCall'
 import { formatToolGroupLabel } from '../utils/toolGroupLabel'
+import { CORE_TOOL_PRESENTATION_IDS } from '../utils/toolRendererRegistry'
+import { withTestCorePresentation } from './testToolPresentation'
 
 function makeItem(
   toolName: string,
   id: string,
+  operation: 'write' | 'edit',
   path?: string
 ): ConversationItem {
-  return {
+  return withTestCorePresentation({
     id,
     type: 'toolCall',
     status: 'completed',
@@ -16,7 +19,7 @@ function makeItem(
     toolCallId: id,
     arguments: path ? { path } : undefined,
     createdAt: new Date().toISOString()
-  }
+  }, CORE_TOOL_PRESENTATION_IDS.fileWrite, { operation })
 }
 
 function makeDiff(path: string, isNewFile: boolean): FileDiff {
@@ -35,8 +38,8 @@ function makeDiff(path: string, isNewFile: boolean): FileDiff {
 describe('formatToolGroupLabel write dedup', () => {
   it('deduplicates repeated EditFile calls on the same file path', () => {
     const items = [
-      makeItem('EditFile', '1', 'src/a.ts'),
-      makeItem('EditFile', '2', 'src/a.ts')
+      makeItem('EditFile', '1', 'edit', 'src/a.ts'),
+      makeItem('EditFile', '2', 'edit', 'src/a.ts')
     ]
 
     const label = formatToolGroupLabel('write', items, 'en', new Map())
@@ -45,8 +48,8 @@ describe('formatToolGroupLabel write dedup', () => {
 
   it('prefers created over modified for the same file path', () => {
     const items = [
-      makeItem('WriteFile', '1', 'src/new.ts'),
-      makeItem('EditFile', '2', 'src/new.ts')
+      makeItem('WriteFile', '1', 'write', 'src/new.ts'),
+      makeItem('EditFile', '2', 'edit', 'src/new.ts')
     ]
     const changedFiles = new Map<string, FileDiff>([
       ['src/new.ts', makeDiff('src/new.ts', true)]
@@ -58,11 +61,11 @@ describe('formatToolGroupLabel write dedup', () => {
 
   it('deduplicates mixed write operations across multiple files', () => {
     const items = [
-      makeItem('EditFile', '1', 'src/a.ts'),
-      makeItem('EditFile', '2', 'src/a.ts'),
-      makeItem('WriteFile', '3', 'src/b.ts'),
-      makeItem('WriteFile', '4', 'src/c.ts'),
-      makeItem('EditFile', '5', 'src/c.ts')
+      makeItem('EditFile', '1', 'edit', 'src/a.ts'),
+      makeItem('EditFile', '2', 'edit', 'src/a.ts'),
+      makeItem('WriteFile', '3', 'write', 'src/b.ts'),
+      makeItem('WriteFile', '4', 'write', 'src/c.ts'),
+      makeItem('EditFile', '5', 'edit', 'src/c.ts')
     ]
     const changedFiles = new Map<string, FileDiff>([
       ['src/b.ts', makeDiff('src/b.ts', false)],

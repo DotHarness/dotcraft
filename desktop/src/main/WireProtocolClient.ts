@@ -26,6 +26,8 @@ export interface ServerCapabilities {
   memoryManagement?: boolean
   dreams?: boolean
   mcpManagement?: boolean
+  mcpRuntime?: boolean
+  mcpElicitation?: boolean
   hooksManagement?: boolean
   pluginManagement?: boolean
   externalChannelManagement?: boolean
@@ -560,7 +562,9 @@ function buildInitializeCapabilities(_profile: InitializeProfile): Record<string
           toolExecutionLifecycle: true,
           backgroundTerminals: true,
           configChange: true,
-          interactiveToolUi: true,
+          mcpApps: true,
+          appBindingVersion: 2,
+          mcpElicitation: true,
           optOutNotificationMethods: [],
           nodeRepl: {
             backend: 'desktop-node'

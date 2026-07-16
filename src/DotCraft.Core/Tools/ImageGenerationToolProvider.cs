@@ -17,21 +17,37 @@ namespace DotCraft.Tools;
 /// <summary>
 /// Gates hosted OpenAI image generation support for provider request adapters.
 /// </summary>
-public sealed class ImageGenerationToolProvider : IAgentToolProvider
+public static class ProviderHostedCapabilityPlanner
 {
     internal const string ToolNamespace = "image_gen";
     internal const string ToolName = "imagegen";
     private const int HardMaxReferenceImages = 5;
 
-    public int Priority => 23;
-
-    public IEnumerable<AITool> CreateTools(ToolProviderContext context) => [];
-
-    internal static bool ShouldEnableHostedImageGeneration(ToolProviderContext context) =>
+    internal static bool ShouldEnableHostedImageGeneration(AgentRuntimeContext context) =>
         TryResolveSupportedRuntime(context, out _);
 
+    internal static ProviderHostedCapabilityPlan Build(AgentRuntimeContext context)
+    {
+        var deferredMode = DeferredToolLoadingPlanner.ResolveMode(
+            context.Config.Tools.DeferredLoading,
+            context.EffectiveProviderProtocol);
+        return new ProviderHostedCapabilityPlan(
+            ShouldEnableHostedImageGeneration(context),
+            NormalizeMaxReferenceImages(context.Config.Tools.ImageGeneration.MaxReferenceImages))
+        {
+            DeferredToolSearch = deferredMode == DeferredToolLoadingMode.Off
+                ? null
+                : new DeferredToolSearchPlan(
+                    deferredMode,
+                    context.Config.Tools.DeferredLoading.Strategy.ToString(),
+                    ModelProviderProtocols.Normalize(context.EffectiveProviderProtocol),
+                    context.Config.Tools.DeferredLoading.MaxSearchResults,
+                    context.TraceCollector)
+        };
+    }
+
     internal static bool TryResolveSupportedRuntime(
-        ToolProviderContext context,
+        AgentRuntimeContext context,
         out EffectiveModelRuntime runtime)
     {
         runtime = null!;
@@ -99,12 +115,12 @@ public sealed class ImageGenerationTools
         [".bmp"] = "image/bmp"
     };
 
-    private readonly ToolProviderContext _context;
+    private readonly AgentRuntimeContext _context;
     private readonly EffectiveModelRuntime _runtime;
     private readonly IImageGenerationService _imageService;
 
     internal ImageGenerationTools(
-        ToolProviderContext context,
+        AgentRuntimeContext context,
         EffectiveModelRuntime runtime,
         IImageGenerationService? imageService = null)
     {
@@ -130,7 +146,7 @@ public sealed class ImageGenerationTools
             if (!_context.Config.Tools.ImageGeneration.Enabled)
                 return TextOnly("Error: image generation is disabled by Tools.ImageGeneration.Enabled.");
 
-            if (!ImageGenerationToolProvider.IsSupportedRuntime(_runtime))
+            if (!ProviderHostedCapabilityPlanner.IsSupportedRuntime(_runtime))
             {
                 return TextOnly(
                     "Error: image generation is not enabled for this provider. Turn on SupportsHostedImageGeneration for a compatible OpenAI Responses provider.");
@@ -140,7 +156,7 @@ public sealed class ImageGenerationTools
             if (string.IsNullOrWhiteSpace(imageModel))
                 return TextOnly("Error: Tools.ImageGeneration.Model must be configured.");
 
-            var maxReferenceImages = ImageGenerationToolProvider.NormalizeMaxReferenceImages(
+            var maxReferenceImages = ProviderHostedCapabilityPlanner.NormalizeMaxReferenceImages(
                 _context.Config.Tools.ImageGeneration.MaxReferenceImages);
             var explicitPaths = NormalizeReferencedPaths(referencedImagePaths, out var pathError);
             if (pathError != null)

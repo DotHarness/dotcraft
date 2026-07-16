@@ -105,7 +105,7 @@ public sealed class SessionServiceApprovalPolicyResolutionTests : IDisposable
             skillsLoader: new SkillsLoader(_tempDir),
             approvalService: new AutoApproveApprovalService(),
             blacklist: null,
-            toolProviders: Array.Empty<IAgentToolProvider>());
+            toolSources: Array.Empty<IToolSource>());
     }
 
     private static ApprovalPolicy InvokeResolveApprovalPolicy(SessionService service, ApprovalPolicy threadPolicy)

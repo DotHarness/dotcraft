@@ -59,6 +59,11 @@ import { SettingsView } from './components/settings/SettingsView'
 import { ChannelsView } from './components/channels/ChannelsView'
 import { DesktopExtensionMainView } from './components/extensions/DesktopExtensionMainView'
 import { WhatsNewDialog } from './components/whats-new/WhatsNewDialog'
+import {
+  McpElicitationDialog,
+  type McpElicitationRequest,
+  type McpElicitationResponse
+} from './components/mcp/McpElicitationDialog'
 import { addJobResultToast, addToast } from './stores/toastStore'
 import type { ContextUsageSnapshotWire, SessionIdentity, Thread, ThreadGoal, ThreadSummary } from './types/thread'
 import { wireTurnToConversationTurn } from './types/conversation'
@@ -81,7 +86,6 @@ import {
 } from './utils/threadSubscriptionCoordinator'
 import {
   findDesktopMainViewExtension,
-  getDesktopMainViewExtensions,
   isExtensionMainView
 } from './utils/desktopExtensionRegistry'
 import {
@@ -688,6 +692,7 @@ export function App(): JSX.Element {
     releases: WhatsNewRelease[]
     markSeenVersion?: string
   } | null>(null)
+  const [mcpElicitation, setMcpElicitation] = useState<McpElicitationRequest | null>(null)
   const [whatsNewMediaStates, setWhatsNewMediaStates] = useState<Record<string, WhatsNewMediaState>>({})
   const activeMainView = useUIStore((s) => s.activeMainView)
   const activeDetailTab = useUIStore((s) => s.activeDetailTab)
@@ -1639,24 +1644,6 @@ export function App(): JSX.Element {
   }, [agentTeamsAvailable, reloadThreadList, status])
 
   useEffect(() => {
-    if (activeMainView !== 'teams') return
-    const teamsView = getDesktopMainViewExtensions(plugins).find((entry) =>
-      entry.plugin.id === 'agent-teams' && entry.viewId === 'teams'
-    )
-    if (teamsView) {
-      useUIStore.getState().setActiveMainView(teamsView.viewKey)
-      return
-    }
-    const ui = useUIStore.getState()
-    if (capabilities?.pluginManagement === true) {
-      ui.setPluginCatalogSurface('plugins')
-      ui.setActiveMainView('skills')
-      return
-    }
-    ui.setActiveMainView('conversation')
-  }, [activeMainView, capabilities?.pluginManagement, plugins])
-
-  useEffect(() => {
     if (!isExtensionMainView(activeMainView) || activeDesktopExtensionView) return
     const ui = useUIStore.getState()
     if (capabilities?.pluginManagement === true) {
@@ -2249,11 +2236,45 @@ export function App(): JSX.Element {
             break
           }
 
-          case 'mcp/status/updated': {
-            const server = (p.server ?? null) as McpServerStatusWire | null
-            if (server?.name) {
-              useMcpStore.getState().upsertStatus(server)
+          case 'mcpServer/startupStatus/updated': {
+            const name = typeof p.name === 'string' ? p.name : null
+            if (name) {
+              const runtimeStatus = typeof p.status === 'string' ? p.status : 'failed'
+              const store = useMcpStore.getState()
+              const existing = store.statuses[name.trim().toLowerCase()]
+              const transport = p.transport === 'streamableHttp' || p.transport === 'stdio'
+                ? p.transport
+                : existing?.transport ?? 'stdio'
+              const authStatus = p.authStatus === 'unsupported'
+                || p.authStatus === 'notLoggedIn'
+                || p.authStatus === 'bearerToken'
+                || p.authStatus === 'oAuth'
+                ? p.authStatus
+                : existing?.authStatus ?? null
+              store.upsertStatus({
+                ...existing,
+                name,
+                enabled: runtimeStatus !== 'cancelled',
+                startupState: runtimeStatus === 'failed' ? 'error' : runtimeStatus,
+                lastError: typeof p.error === 'string' ? p.error : null,
+                transport,
+                authStatus,
+                failureReason: p.failureReason === 'reauthenticationRequired'
+                  ? 'reauthenticationRequired'
+                  : null
+              } as McpServerStatusWire)
             }
+            break
+          }
+
+          case 'mcpServer/oauthLogin/completed': {
+            const success = p.success === true
+            addToast(
+              success
+                ? translate(localeRef.current, 'mcp.oauth.completed')
+                : translate(localeRef.current, 'mcp.oauth.failed'),
+              success ? 'success' : 'error'
+            )
             break
           }
 
@@ -2354,6 +2375,22 @@ export function App(): JSX.Element {
         // Decoupled mutate-approval for a UI tool call (M-v): show it in the shared approval
         // composer (generic-approval slot), independent of any turn.
         useConversationStore.getState().setGenericApproval(buildUiToolApproval(p, bridgeId, localeRef.current))
+        return
+      }
+      if (method === 'mcpServer/elicitation/request') {
+        const mode = p.mode === 'url' ? 'url' : p.mode === 'form' ? 'form' : null
+        if (mode == null) {
+          window.api.appServer.sendServerResponse(bridgeId, { action: 'decline' })
+          return
+        }
+        setMcpElicitation({
+          bridgeId,
+          serverName: typeof p.serverName === 'string' ? p.serverName : 'MCP',
+          mode,
+          message: typeof p.message === 'string' ? p.message : undefined,
+          url: typeof p.url === 'string' ? p.url : undefined,
+          requestedSchema: p.requestedSchema
+        })
         return
       }
         // Unknown server requests: respond with null to unblock AppServer
@@ -3654,8 +3691,6 @@ export function App(): JSX.Element {
                 <AutomationsView />
               ) : activeDesktopExtensionView ? (
                 <DesktopExtensionMainView entry={activeDesktopExtensionView} />
-              ) : activeMainView === 'teams' && capabilities?.pluginManagement === true ? (
-                <PluginsView />
               ) : (
                 <ConversationPanel
                   workspacePath={workspacePath}
@@ -3692,6 +3727,15 @@ export function App(): JSX.Element {
             releases={whatsNewDialog.releases}
             mediaStates={whatsNewMediaStates}
             onClose={closeWhatsNew}
+          />
+        )}
+        {mcpElicitation && (
+          <McpElicitationDialog
+            request={mcpElicitation}
+            onRespond={(response: McpElicitationResponse) => {
+              window.api.appServer.sendServerResponse(mcpElicitation.bridgeId, response)
+              setMcpElicitation(null)
+            }}
           />
         )}
       </>

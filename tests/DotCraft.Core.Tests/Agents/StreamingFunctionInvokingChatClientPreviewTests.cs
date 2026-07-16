@@ -1,3 +1,5 @@
+using System.Text.Json;
+using System.Text.Json.Nodes;
 using DotCraft.Agents;
 using DotCraft.Tools;
 using Microsoft.Extensions.AI;
@@ -279,6 +281,39 @@ public sealed partial class StreamingFunctionInvokingChatClientTests
     }
 
     [Fact]
+    public void BuildStreamOptOutToolNames_PreservesSnapshotMetadata()
+    {
+        var definitionId = new ToolDefinitionId(
+            ToolSourceKind.CoreNative,
+            "core",
+            new SourceToolId("SkillManage"));
+        var definition = new ToolDefinition(
+            definitionId,
+            new ToolName(null, "SkillManage"),
+            "Manage skills.",
+            JsonSerializer.SerializeToElement(new { type = "object" }),
+            annotations: new Dictionary<string, JsonElement>
+            {
+                ["dotcraft/streamArguments"] = JsonSerializer.SerializeToElement(false)
+            });
+        var registration = new ToolRegistration(
+            definition,
+            new ToolRuntimeBinding(
+                new RuntimeBindingId("native:core:SkillManage:1"),
+                definitionId,
+                new NoOpToolRuntime(),
+                ToolBindingLeases.AlwaysAvailable,
+                "native:core",
+                1),
+            ToolProjectionShape.StandardPair);
+        var snapshot = new EffectiveToolSnapshotBuilder().Build([registration], 1);
+
+        var optOut = AgentFactory.BuildStreamOptOutToolNames(AgentFactory.ProjectSnapshotTools(snapshot));
+
+        Assert.Contains("SkillManage", optOut);
+    }
+
+    [Fact]
     public void BuildStreamOptOutToolNames_DoesNotIncludeAgentTools()
     {
         var agentTools = new AgentTools();
@@ -306,6 +341,15 @@ public sealed partial class StreamingFunctionInvokingChatClientTests
         public static string Streaming(string query) => query;
 
         public static string WriteFile(string content) => content;
+    }
+
+    private sealed class NoOpToolRuntime : IToolRuntime
+    {
+        public ValueTask<ToolExecutionResult> InvokeAsync(
+            ToolInvocationContext context,
+            JsonObject arguments,
+            CancellationToken cancellationToken = default) =>
+            ValueTask.FromResult(ToolExecutionResult.Succeeded("ok"));
     }
 
     private sealed class MethodlessFakeFunction : AIFunction

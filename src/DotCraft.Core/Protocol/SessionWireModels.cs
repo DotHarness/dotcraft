@@ -266,6 +266,12 @@ public sealed record SessionWireThread
     public ThreadOriginAppWire? OriginApp { get; init; }
 
     /// <summary>
+    /// Source-neutral origin presentation resolved by an in-process provider.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public ThreadOriginPresentationWire? OriginPresentation { get; init; }
+
+    /// <summary>
     /// Turn summaries. Populated only when the caller requests turn history (e.g. thread/read with includeTurns = true).
     /// </summary>
     public List<SessionWireTurn>? Turns { get; init; }
@@ -360,6 +366,17 @@ public sealed record SessionWireItem
     public string? PayloadKind { get; init; }
 
     public object? Payload { get; init; }
+
+    /// <summary>Current MCP Apps availability hint derived from the active runtime and authority.</summary>
+    [System.Text.Json.Serialization.JsonIgnore(
+        Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public McpAppViewHintWire? McpApp { get; init; }
+}
+
+/// <summary>Indicates that a terminal MCP item can currently open a new MCP App View.</summary>
+public sealed record McpAppViewHintWire
+{
+    public bool Available { get; init; }
 }
 
 /// <summary>
@@ -749,6 +766,7 @@ public static class SessionWireMapper
             ErrorPayload => "error",
             ToolCallPayload => "toolCall",
             PluginFunctionCallPayload => "pluginFunctionCall",
+            McpToolCallPayload => "mcpToolCall",
             DynamicToolCallPayload => "dynamicToolCall",
             ToolResultPayload => "toolResult",
             UserMessagePayload => "userMessage",

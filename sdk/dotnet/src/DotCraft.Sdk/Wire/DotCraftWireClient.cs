@@ -75,6 +75,7 @@ public sealed class DotCraftWireClient : IAsyncDisposable
             ["requestUserInputSupport"] = options.RequestUserInputSupport,
             ["streamingSupport"] = options.StreamingSupport,
             ["configChange"] = options.ConfigChange
+            , ["appBindingVersion"] = 2
         };
         if (options.ExtraCapabilities is not null)
         {
@@ -114,13 +115,15 @@ public sealed class DotCraftWireClient : IAsyncDisposable
 
         try
         {
-            await _transport.WriteAsync(new
+            var request = new Dictionary<string, object?>
             {
-                jsonrpc = "2.0",
-                id,
-                method,
-                @params = parameters ?? new { }
-            }, cancellationToken);
+                ["jsonrpc"] = "2.0",
+                ["id"] = id,
+                ["method"] = method
+            };
+            if (parameters is not null)
+                request["params"] = parameters;
+            await _transport.WriteAsync(request, cancellationToken);
 
             using var cts = CancellationTokenSource.CreateLinkedTokenSource(_disposeCts.Token, cancellationToken);
             cts.CancelAfter(timeout ?? TimeSpan.FromSeconds(30));
@@ -342,7 +345,7 @@ public sealed class DotCraftWireClient : IAsyncDisposable
                 ReadBoolean(capabilities, "threadSubscriptions"),
                 ReadBoolean(capabilities, "dynamicToolRebind"),
                 ReadBoolean(capabilities, "runtimeAdditionalContext"),
-                ReadBoolean(capabilities, "appBinding"),
+                ReadInt32(capabilities, "appBindingVersion"),
                 ReadBoolean(capabilities, "modelCatalogManagement"),
                 capabilities.ValueKind == JsonValueKind.Undefined
                     ? JsonSerializer.SerializeToElement(new { }, DotCraftJson.Options)
@@ -354,6 +357,10 @@ public sealed class DotCraftWireClient : IAsyncDisposable
         element.ValueKind == JsonValueKind.Object &&
         element.TryGetProperty(propertyName, out var property) &&
         property.ValueKind == JsonValueKind.True;
+
+    private static int ReadInt32(JsonElement element, string propertyName) =>
+        element.ValueKind == JsonValueKind.Object && element.TryGetProperty(propertyName, out var property)
+        && property.TryGetInt32(out var value) ? value : 0;
 
     private static IReadOnlyList<string> ReadStringArray(JsonElement element, string propertyName)
     {

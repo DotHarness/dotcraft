@@ -1,3 +1,4 @@
+using System.Text.Json.Nodes;
 using DotCraft.AppBinding;
 using DotCraft.Configuration;
 using DotCraft.Memory;
@@ -13,7 +14,10 @@ internal sealed class AppServerThreadWireProjector(
     SkillsLoader? skillsLoader,
     PlanStore? planStore,
     AppBindingService? appBindingService,
-    IReadOnlyList<string>? builtInPluginSourceRoots)
+    IReadOnlyList<IThreadOriginPresentationProvider>? originPresentationProviders,
+    IReadOnlyList<string>? builtInPluginSourceRoots,
+    IThreadToolSnapshotService? toolSnapshots,
+    IThreadMcpRuntimeService? mcpRuntime)
 {
     public async Task<SessionWireThread> ProjectAsync(
         SessionThread thread,
@@ -33,11 +37,16 @@ internal sealed class AppServerThreadWireProjector(
     public async Task<SessionWireThread> EnrichAsync(
         SessionWireThread wire,
         SessionThread thread,
-        CancellationToken ct) =>
-        await HydrateThreadGoalAsync(WithAppBindingAttribution(wire, thread.Id, thread.WorkspacePath), ct);
+        CancellationToken ct)
+    {
+        wire = await WithMcpAppAvailabilityAsync(wire, thread, ct).ConfigureAwait(false);
+        return await HydrateThreadGoalAsync(
+            WithOriginPresentation(WithAppBindingAttribution(wire, thread.Id, thread.WorkspacePath)),
+            ct).ConfigureAwait(false);
+    }
 
     public SessionWireThread EnrichForNotification(SessionWireThread wire) =>
-        WithAppBindingAttribution(wire, wire.Id, wire.WorkspacePath);
+        WithOriginPresentation(WithAppBindingAttribution(wire, wire.Id, wire.WorkspacePath));
 
     public async Task<ThreadGoalWire?> TryGetGoalSnapshotAsync(string threadId, CancellationToken ct)
     {
@@ -61,6 +70,11 @@ internal sealed class AppServerThreadWireProjector(
         CancellationToken ct)
     {
         summary.Goal = await TryGetGoalSnapshotAsync(summary.Id, ct);
+        summary.OriginPresentation = ResolveOriginPresentation(
+            summary.Id,
+            summary.WorkspacePath,
+            summary.OriginChannel,
+            summary.ChannelContext);
         if (appBindingService == null)
             return;
 
@@ -73,13 +87,12 @@ internal sealed class AppServerThreadWireProjector(
         if (catalog is null)
             return;
 
-        var appBindings = appBindingService.ListThreadBindingSummaries(
+        var appBindings = MapBindingSummaries(
             catalog,
-            Path.Combine(summary.WorkspacePath, ".craft"),
-            summary.Id);
+            appBindingService.ListThreadBindings(Path.Combine(summary.WorkspacePath, ".craft"), summary.Id));
         if (appBindings.Count > 0)
             summary.AppBindings = appBindings;
-        summary.OriginApp = appBindingService.ResolveOriginApp(catalog, summary.OriginChannel, summary.ChannelContext);
+        summary.OriginApp = ResolveOriginApp(catalog, summary.OriginChannel, summary.ChannelContext);
     }
 
     public bool GoalsCapabilityEnabled()
@@ -95,6 +108,44 @@ internal sealed class AppServerThreadWireProjector(
 
         foreach (var turn in wire.Turns)
             turn.Items?.RemoveAll(item => item.Type == ItemType.ToolExecution);
+        return wire;
+    }
+
+    private async Task<SessionWireThread> WithMcpAppAvailabilityAsync(
+        SessionWireThread wire,
+        SessionThread thread,
+        CancellationToken cancellationToken)
+    {
+        if (!connection.SupportsMcpApps || wire.Turns is null || wire.Turns.Count == 0)
+            return wire;
+
+        var context = await McpAppEligibilityResolver.CreateContextAsync(
+            thread.Id,
+            toolSnapshots,
+            mcpRuntime,
+            cancellationToken).ConfigureAwait(false);
+        if (context is null)
+            return wire;
+
+        var turnsById = thread.Turns.ToDictionary(turn => turn.Id, StringComparer.Ordinal);
+        foreach (var wireTurn in wire.Turns)
+        {
+            if (wireTurn.Items is null || !turnsById.TryGetValue(wireTurn.Id, out var turn))
+                continue;
+            var itemsById = turn.Items.ToDictionary(item => item.Id, StringComparer.Ordinal);
+            for (var index = 0; index < wireTurn.Items.Count; index++)
+            {
+                var wireItem = wireTurn.Items[index];
+                if (!itemsById.TryGetValue(wireItem.Id, out var item))
+                    continue;
+                var eligibility = McpAppEligibilityResolver.Resolve(turn.Id, item, context);
+                wireTurn.Items[index] = wireItem with
+                {
+                    McpApp = eligibility is null ? null : new McpAppViewHintWire { Available = true }
+                };
+            }
+        }
+
         return wire;
     }
 
@@ -121,39 +172,16 @@ internal sealed class AppServerThreadWireProjector(
     }
 
     public SessionWireThread WithWidgetState(SessionWireThread wire, string threadId)
+        => wire;
+
+    public SessionWireThread WithOriginPresentation(SessionWireThread wire)
     {
-        if (wire.Turns is not { Count: > 0 } turns)
-            return wire;
-        var states = sessionService.GetItemWidgetStates(threadId);
-        if (states.Count == 0)
-            return wire;
-
-        foreach (var turn in turns)
-        {
-            if (turn.Items is not { Count: > 0 } items)
-                continue;
-            for (var i = 0; i < items.Count; i++)
-            {
-                if (items[i].Payload is not DynamicToolCallPayload payload
-                    || string.IsNullOrEmpty(payload.CallId)
-                    || !states.TryGetValue(payload.CallId, out var json))
-                {
-                    continue;
-                }
-
-                try
-                {
-                    if (System.Text.Json.Nodes.JsonNode.Parse(json) is { } node)
-                        items[i] = items[i] with { Payload = payload with { WidgetState = node } };
-                }
-                catch (System.Text.Json.JsonException)
-                {
-                    // Skip a corrupt stored state rather than failing the whole read.
-                }
-            }
-        }
-
-        return wire;
+        var presentation = ResolveOriginPresentation(
+            wire.Id,
+            wire.WorkspacePath,
+            wire.OriginChannel,
+            wire.ChannelContext);
+        return presentation is null ? wire : wire with { OriginPresentation = presentation };
     }
 
     public SessionWireThread WithAppBindingAttribution(
@@ -166,9 +194,10 @@ internal sealed class AppServerThreadWireProjector(
         var catalog = TryGetAppCatalog(workspacePath);
         if (catalog is null)
             return wire;
-        var appBindings = appBindingService.ListThreadBindingSummaries(
-            catalog, Path.Combine(workspacePath, ".craft"), threadId);
-        var originApp = appBindingService.ResolveOriginApp(catalog, wire.OriginChannel, wire.ChannelContext);
+        var appBindings = MapBindingSummaries(
+            catalog,
+            appBindingService.ListThreadBindings(Path.Combine(workspacePath, ".craft"), threadId));
+        var originApp = ResolveOriginApp(catalog, wire.OriginChannel, wire.ChannelContext);
         if (appBindings.Count == 0 && originApp is null)
             return wire;
         return wire with
@@ -185,12 +214,36 @@ internal sealed class AppServerThreadWireProjector(
         var craftPath = Path.Combine(workspacePath, ".craft");
         if (!Directory.Exists(craftPath))
             return null;
-        return appBindingService.DiscoverCatalog(
+        return AppBindingCatalog.Discover(
             appConfigMonitor?.Current ?? workspaceConfig.LoadCurrentMergedConfig(),
             workspacePath,
             craftPath,
             skillsLoader,
             builtInPluginSourceRoots);
+    }
+
+    private ThreadOriginPresentationWire? ResolveOriginPresentation(
+        string threadId,
+        string workspacePath,
+        string originChannel,
+        string? channelContext)
+    {
+        if (originPresentationProviders is null || originPresentationProviders.Count == 0)
+            return null;
+
+        var context = new ThreadOriginPresentationContext(
+            threadId,
+            workspacePath,
+            originChannel,
+            channelContext);
+        foreach (var provider in originPresentationProviders)
+        {
+            var presentation = provider.Resolve(context);
+            if (presentation is not null)
+                return presentation;
+        }
+
+        return null;
     }
 
     public void RevokeAppBindingsForDeletedThread(SessionThread thread)
@@ -202,31 +255,68 @@ internal sealed class AppServerThreadWireProjector(
         if (!Directory.Exists(craftPath))
             return;
 
-        var catalog = appBindingService.DiscoverCatalog(
-            appConfigMonitor?.Current ?? workspaceConfig.LoadCurrentMergedConfig(),
-            thread.WorkspacePath,
-            craftPath,
-            skillsLoader,
-            builtInPluginSourceRoots);
-        _ = appBindingService.RevokeBindingsForDeletedThread(catalog, craftPath, thread.Id);
+        _ = appBindingService.RevokeThreadBindings(craftPath, thread.Id, "threadDeleted");
     }
 
-    public ThreadArchiveSocialBindingCleanupResult RevokeSocialAppBindingsForArchivedThread(SessionThread thread)
+    public IReadOnlyList<AppBindingWire> RevokeSocialAppBindingsForArchivedThread(SessionThread thread)
     {
         if (appBindingService == null)
-            return new ThreadArchiveSocialBindingCleanupResult([], []);
+            return [];
 
         var craftPath = Path.Combine(thread.WorkspacePath, ".craft");
         if (!Directory.Exists(craftPath))
-            return new ThreadArchiveSocialBindingCleanupResult([], []);
+            return [];
 
-        var catalog = appBindingService.DiscoverCatalog(
-            appConfigMonitor?.Current ?? workspaceConfig.LoadCurrentMergedConfig(),
-            thread.WorkspacePath,
-            craftPath,
-            skillsLoader,
-            builtInPluginSourceRoots);
-        return appBindingService.RevokeSocialBindingsForArchivedThread(catalog, craftPath, thread.Id);
+        return appBindingService.ListThreadBindings(craftPath, thread.Id)
+            .Where(binding => binding.SocialTarget != null && binding.State != AppBindingStates.Revoked)
+            .Select(binding => appBindingService.RevokeBinding(craftPath, thread.Id, binding.BindingId, "threadArchived"))
+            .ToArray();
+    }
+
+    private static List<ThreadAppBindingSummaryWire> MapBindingSummaries(
+        AppCatalogSnapshot catalog,
+        IReadOnlyList<AppBindingWire> bindings) => bindings.Select(binding =>
+    {
+        var app = catalog.Entries.FirstOrDefault(entry =>
+            string.Equals(entry.Descriptor.AppId, binding.AppId, StringComparison.Ordinal));
+        return new ThreadAppBindingSummaryWire
+        {
+            ThreadId = binding.ThreadId,
+            BindingId = binding.BindingId,
+            AppId = binding.AppId,
+            DisplayName = app?.Descriptor.DisplayName ?? binding.AppId,
+            Icon = app?.Descriptor.Icon,
+            State = binding.State,
+            ConnectionState = AppConnectionStates.Connected,
+            BindingKind = binding.SocialTarget == null ? "app" : "socialChannel",
+            SocialTarget = binding.SocialTarget,
+            AuthorityRevision = binding.AuthorityRevision,
+            ApprovedCapabilityRevision = binding.ApprovedCapabilityRevision,
+            CandidateCapabilityRevision = binding.CandidateCapabilityRevision,
+            ApprovedTools = binding.ApprovedTools,
+            PendingChanges = binding.PendingChanges,
+            FailureReason = binding.FailureReason
+        };
+    }).ToList();
+
+    private static ThreadOriginAppWire? ResolveOriginApp(
+        AppCatalogSnapshot catalog,
+        string? originChannel,
+        string? channelContext)
+    {
+        _ = channelContext;
+        if (string.IsNullOrWhiteSpace(originChannel))
+            return null;
+        var descriptor = catalog.Entries.Select(entry => entry.Descriptor).FirstOrDefault(app =>
+            string.Equals(app.OriginChannel, originChannel, StringComparison.OrdinalIgnoreCase));
+        return descriptor == null
+            ? null
+            : new ThreadOriginAppWire
+            {
+                AppId = descriptor.AppId,
+                DisplayName = descriptor.DisplayName,
+                Icon = descriptor.Icon
+            };
     }
 
     public async Task<SessionWireThread> HydrateThreadGoalAsync(SessionWireThread wire, CancellationToken ct)

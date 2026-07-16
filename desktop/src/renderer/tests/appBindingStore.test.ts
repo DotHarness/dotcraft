@@ -23,7 +23,6 @@ describe('appBindingStore', () => {
       apps: [
         {
           appId: 'com.example.workflow',
-          toolNamespace: 'workflow',
           displayName: 'Workflow App',
           developerName: 'Example Labs',
           description: 'Board tools',
@@ -48,37 +47,28 @@ describe('appBindingStore', () => {
     const [app] = useAppBindingStore.getState().apps
     expect(app?.appId).toBe('com.example.workflow')
     expect(app?.handoffModes).toEqual([])
-    expect(app?.scopes).toEqual([])
-    expect(app?.toolCatalog).toEqual([])
-    expect(app?.dynamicToolCatalog).toEqual({ enabled: false })
     expect(app?.managed).toBe(false)
     expect(app?.requiresExternalConnection).toBe(true)
   })
 
-  it('omits requestedTools when creating a dynamic catalog binding request', async () => {
+  it('enables a whole app without tool-selection fields', async () => {
     sendRequest.mockResolvedValueOnce({
       bindingRequestId: 'request-1',
-      threadId: 'thread-1',
-      appId: 'com.example.dynamic-tools',
-      requestedScopes: ['unity.read'],
-      state: 'pending',
-      tokenExpiresAt: '2026-05-18T00:00:00Z',
+      bindingId: 'binding-1',
+      state: 'connecting',
+      expiresAt: '2026-05-18T00:00:00Z',
       handoff: { mode: 'url', uri: 'http://127.0.0.1:39777/dotcraft/bind' }
     })
 
     await useAppBindingStore.getState().createBindingRequest({
       threadId: 'thread-1',
       appId: 'com.example.dynamic-tools',
-      requestedScopes: ['unity.read'],
-      requestedTools: undefined,
       source: 'pluginDetail'
     })
 
-    expect(sendRequest).toHaveBeenCalledWith('app/binding/request/create', {
+    expect(sendRequest).toHaveBeenCalledWith('thread/appBindings/enable', {
       threadId: 'thread-1',
-      appId: 'com.example.dynamic-tools',
-      requestedScopes: ['unity.read'],
-      source: 'pluginDetail'
+      appId: 'com.example.dynamic-tools'
     })
   })
 
@@ -92,8 +82,8 @@ describe('appBindingStore', () => {
               threadId: 'thread-1',
               appId: 'com.example.workflow',
               state: 'active',
-              connectionState: 'connected',
-              lastChangedAt: '2026-05-16T00:00:00Z'
+              authorityRevision: 1,
+              approvedCapabilityRevision: 1
             }
           ]
         }
@@ -102,12 +92,12 @@ describe('appBindingStore', () => {
     })
 
     await useAppBindingStore.getState().refreshThreadBindings('thread-1', 'bind-1')
-    expect(sendRequest).toHaveBeenCalledWith('thread/appBindings/refresh', {
+    expect(sendRequest).toHaveBeenCalledWith('thread/appBindings/list', {
       threadId: 'thread-1',
-      bindingId: 'bind-1'
+      includeRevoked: false
     })
-    expect(useAppBindingStore.getState().bindingsByThread['thread-1']?.[0]?.grantedScopes).toEqual([])
-    expect(useAppBindingStore.getState().bindingsByThread['thread-1']?.[0]?.attachedToolCount).toBe(0)
+    expect(useAppBindingStore.getState().bindingsByThread['thread-1']?.[0]?.approvedTools).toEqual([])
+    expect(useAppBindingStore.getState().bindingsByThread['thread-1']?.[0]?.pendingChanges).toEqual([])
 
     await useAppBindingStore.getState().revokeThreadBinding('thread-1', 'bind-1', 'done')
     expect(sendRequest).toHaveBeenCalledWith('thread/appBindings/revoke', {
@@ -151,7 +141,6 @@ describe('appBindingStore', () => {
           apps: [
             {
               appId: 'com.example.workflow',
-              toolNamespace: 'workflow',
               displayName: 'Workflow App',
               developerName: 'Example Labs',
               description: 'Board tools',
@@ -182,7 +171,6 @@ describe('appBindingStore', () => {
           apps: [
             {
               appId: 'com.example.workflow',
-              toolNamespace: 'workflow',
               displayName: 'Workflow App',
               developerName: 'Example Labs',
               description: 'Board tools',
@@ -204,7 +192,7 @@ describe('appBindingStore', () => {
       .rejects.toThrow('App connection failed')
   })
 
-  it('waits for a thread binding to be active with attached tools', async () => {
+  it('waits for a thread binding to become active', async () => {
     let listCalls = 0
     sendRequest.mockImplementation(async (method: string) => {
       if (method === 'thread/appBindings/list') {
@@ -217,10 +205,8 @@ describe('appBindingStore', () => {
               threadId: 'thread-1',
               appId: 'com.example.workflow',
               state: 'active',
-              connectionState: 'connected',
-              grantedScopes: ['board.read'],
-              attachedToolCount: listCalls === 1 ? 0 : 4,
-              lastChangedAt: '2026-05-16T00:00:00Z'
+              authorityRevision: 1,
+              approvedCapabilityRevision: 1
             }
           ]
         }
@@ -238,11 +224,11 @@ describe('appBindingStore', () => {
     )
 
     expect(binding.state).toBe('active')
-    expect(binding.attachedToolCount).toBe(4)
-    expect(listCalls).toBe(2)
+    expect(binding.state).toBe('active')
+    expect(listCalls).toBe(1)
   })
 
-  it('treats an active social-channel binding as ready without attached tools', async () => {
+  it('treats an active social-channel binding as ready', async () => {
     sendRequest.mockImplementation(async (method: string) => {
       if (method === 'thread/appBindings/list') {
         return {
@@ -254,10 +240,8 @@ describe('appBindingStore', () => {
               appId: 'com.dotharness.channel.qq',
               bindingKind: 'socialChannel',
               state: 'active',
-              connectionState: 'connected',
-              grantedScopes: ['conversation.receive', 'message.send'],
-              attachedToolCount: 0,
-              lastChangedAt: '2026-05-16T00:00:00Z',
+              authorityRevision: 3,
+              approvedCapabilityRevision: 1,
               socialTarget: {
                 channelName: 'qq',
                 conversationKind: 'group',
@@ -282,11 +266,11 @@ describe('appBindingStore', () => {
     )
 
     expect(binding.state).toBe('active')
-    expect(binding.attachedToolCount).toBe(0)
+    expect(binding.authorityRevision).toBe(3)
     expect(binding.socialTarget?.displayName).toBe('QQ group 123456')
   })
 
-  it('times out while a thread binding has no attached tools', async () => {
+  it('treats an active MCP-backed binding as ready without attachment counts', async () => {
     sendRequest.mockImplementation(async (method: string) => {
       if (method === 'thread/appBindings/list') {
         return {
@@ -297,10 +281,8 @@ describe('appBindingStore', () => {
               threadId: 'thread-1',
               appId: 'com.example.workflow',
               state: 'active',
-              connectionState: 'connected',
-              grantedScopes: ['board.read'],
-              attachedToolCount: 0,
-              lastChangedAt: '2026-05-16T00:00:00Z'
+              authorityRevision: 1,
+              approvedCapabilityRevision: 1
             }
           ]
         }
@@ -315,6 +297,6 @@ describe('appBindingStore', () => {
         bindingRequestId: 'request-1'
       },
       { timeoutMs: 1, intervalMs: 0 }
-    )).rejects.toThrow('Timed out waiting for app binding')
+    )).resolves.toMatchObject({ state: 'active', bindingId: 'binding-1' })
   })
 })

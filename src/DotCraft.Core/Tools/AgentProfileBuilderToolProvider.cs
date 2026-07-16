@@ -1,6 +1,5 @@
 using System.ComponentModel;
 using System.Text.Json;
-using DotCraft.Abstractions;
 using DotCraft.Agents;
 using DotCraft.GeneratedTools.Core;
 using DotCraft.Mcp;
@@ -18,31 +17,43 @@ namespace DotCraft.Tools;
 /// composition (<see cref="ProfileBuilderDraftStore"/> / <c>ProfileBuilderSystemPromptProvider</c>).
 ///
 /// The tools are registered only on a builder thread — one whose
-/// <see cref="ToolProviderContext.AgentBuilderTargetId"/> is set — and never on ordinary threads.
+/// an immutable builder target capability is present — and never on ordinary threads.
 /// </summary>
-public sealed class AgentProfileBuilderToolProvider : IAgentToolProvider
+public sealed class AgentProfileBuilderToolSource(
+    SkillsLoader? skillsLoader,
+    McpClientManager? mcpClientManager) : AIFunctionToolSource
 {
-    public int Priority => 24;
+    /// <inheritdoc />
+    public override string SourceId => "agent-profile-builder";
 
-    public IEnumerable<AITool> CreateTools(ToolProviderContext context)
+    /// <inheritdoc />
+    public override int Priority => 24;
+
+    /// <inheritdoc />
+    protected override IEnumerable<AIFunction> CreateFunctions(ToolPlanningContext context)
     {
-        var targetId = context.AgentBuilderTargetId;
-        var threadId = context.CurrentThreadId;
+        var targetId = ReadCapability(context, "agent-builder-target=");
+        var threadId = context.ThreadId;
         if (string.IsNullOrWhiteSpace(targetId) || string.IsNullOrWhiteSpace(threadId))
             yield break;
 
-        var targetSource = string.IsNullOrWhiteSpace(context.AgentBuilderTargetSource)
+        var configuredSource = ReadCapability(context, "agent-builder-source=");
+        var targetSource = string.IsNullOrWhiteSpace(configuredSource)
             ? AgentProfileSources.Workspace
-            : context.AgentBuilderTargetSource!;
+            : configuredSource;
 
         // Seed this builder thread's working draft once, from the persisted profile if it already
         // exists on disk (empty for a brand-new agent). Presence of the entry marks the builder thread.
-        ProfileBuilderDraftStore.Seed(threadId!, targetId!, targetSource, SeedMarkdown(context, targetId!, targetSource));
+        ProfileBuilderDraftStore.Seed(
+            threadId,
+            targetId,
+            targetSource,
+            SeedMarkdown(threadId, context.WorkspacePath, targetId, targetSource));
 
         var methods = new AgentProfileBuilderToolMethods(
-            threadId!,
-            context.SkillsLoader,
-            context.McpClientManager);
+            threadId,
+            skillsLoader,
+            mcpClientManager);
 
         yield return GeneratedToolFunctions.AgentProfileBuilderToolMethods_SetAgentName(methods);
         yield return GeneratedToolFunctions.AgentProfileBuilderToolMethods_SetAgentDescription(methods);
@@ -59,16 +70,20 @@ public sealed class AgentProfileBuilderToolProvider : IAgentToolProvider
         yield return GeneratedToolFunctions.AgentProfileBuilderToolMethods_SetAgentApproval(methods);
     }
 
-    private static string SeedMarkdown(ToolProviderContext context, string targetId, string targetSource)
+    private static string SeedMarkdown(
+        string threadId,
+        string workspacePath,
+        string targetId,
+        string targetSource)
     {
         // Already seeded — keep the accumulated draft (the second arg is only used on first seed).
-        var existing = ProfileBuilderDraftStore.TryGet(context.CurrentThreadId!);
+        var existing = ProfileBuilderDraftStore.TryGet(threadId);
         if (existing != null)
             return existing.Markdown;
 
-        var craftPath = context.BotPath ?? (string.IsNullOrWhiteSpace(context.WorkspacePath)
+        var craftPath = string.IsNullOrWhiteSpace(workspacePath)
             ? null
-            : Path.Combine(context.WorkspacePath, ".craft"));
+            : Path.Combine(workspacePath, ".craft");
         if (string.IsNullOrWhiteSpace(craftPath))
             return string.Empty;
 
@@ -83,6 +98,10 @@ public sealed class AgentProfileBuilderToolProvider : IAgentToolProvider
             return string.Empty;
         }
     }
+
+    private static string? ReadCapability(ToolPlanningContext context, string prefix) =>
+        context.ProviderCapabilities
+            .FirstOrDefault(value => value.StartsWith(prefix, StringComparison.Ordinal))?[prefix.Length..];
 }
 
 /// <summary>

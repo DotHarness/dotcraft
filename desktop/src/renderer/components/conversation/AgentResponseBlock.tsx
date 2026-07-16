@@ -4,7 +4,7 @@ import type { ConversationItem, ConversationTurn, PluginFunctionContentItem } fr
 import { isToolLikeItemType } from '../../types/conversation'
 import { ThinkingIndicator } from './ThinkingIndicator'
 import { renderSubAgentTitle, ToolCallCard } from './ToolCallCard'
-import { hasInteractiveToolUi } from './InteractiveToolView'
+import { hasAvailableMcpApp } from './McpAppView'
 import { AgentMessage } from './AgentMessage'
 import { ErrorBlock } from './ErrorBlock'
 import { CancelledNotice } from './CancelledNotice'
@@ -29,7 +29,7 @@ import { addToast } from '../../stores/toastStore'
 import { ToolCollapseChevron } from './ToolCollapseChevron'
 import { useLocale } from '../../contexts/LocaleContext'
 import { formatToolGroupLabel } from '../../utils/toolGroupLabel'
-import { isShellToolName } from '../../utils/shellTools'
+import { resolveCoreToolRenderPlan } from '../../utils/toolRendererRegistry'
 import { TurnCollapsedSummary } from './TurnCollapsedSummary'
 import { translate, type AppLocale } from '../../../shared/locales'
 import { formatSubAgentMeta, getSubAgentAccent } from '../../utils/subAgentPresentation'
@@ -73,6 +73,10 @@ export type HistoricalToolContentMode = 'full' | 'trimmed'
 type ConversationNodeKind = 'assistant' | 'tool' | 'user' | 'other'
 
 const STREAMING_MESSAGE_STALL_MS = 2000
+
+function normalizedErrorMessage(message: string | undefined): string {
+  return (message ?? '').trim()
+}
 
 interface ConversationRenderNode {
   kind: ConversationNodeKind
@@ -440,12 +444,17 @@ export const AgentResponseBlock = memo(function AgentResponseBlock({
     })
   }
 
+  const hasMatchingErrorItem = turn.status === 'failed' && turn.error != null && turn.items.some(
+    (item) => item.type === 'error' &&
+      normalizedErrorMessage(item.text) === normalizedErrorMessage(turn.error)
+  )
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--conversation-tool-assistant-gap)' }}>
       <ConversationNodeFlow nodes={renderNodes} defaultGap="var(--conversation-tool-assistant-gap)" />
 
       {/* Turn-level failure */}
-      {turn.status === 'failed' && turn.error && (
+      {turn.status === 'failed' && turn.error && !hasMatchingErrorItem && (
         <ErrorBlock message={turn.error} />
       )}
 
@@ -1092,7 +1101,8 @@ function getSpawnAgentGroupDisplay(
   item: ConversationItem,
   locale: AppLocale
 ): SpawnAgentGroupDisplay | null {
-  if (item.toolName !== 'SpawnAgent') return null
+  const plan = resolveCoreToolRenderPlan(item)
+  if (plan?.family !== 'subagent' || plan.options.operation !== 'spawn') return null
   const parsed = parseJsonObject(item.result)
   const args = item.arguments
   const childThreadId = getString(parsed, 'childThreadId')
@@ -1195,7 +1205,7 @@ function isGroupedItemFailed(item: ConversationItem): boolean {
   // Shell tools (Exec/RunCommand/BashCommand) never render as failed in their
   // individual card — ToolCallCard forces success via `isShellTool`. Keep the
   // aggregated row consistent so an exec exit code / failure doesn't redden it.
-  if (isShellToolName(item.toolName)) return false
+  if (resolveCoreToolRenderPlan(item)?.successOverride === true) return false
   const executionFailed = item.executionStatus === 'failed'
     || item.executionStatus === 'cancelled'
     || (item.exitCode != null && item.exitCode !== 0)
@@ -1221,13 +1231,13 @@ function findLastVisibleAgentMessageIndex(items: ConversationItem[]): number {
   return -1
 }
 
-function findLastCreatePlanIndexBefore(items: ConversationItem[], beforeIndex: number): number {
+function findLastPinnedCoreRendererIndexBefore(items: ConversationItem[], beforeIndex: number): number {
   for (let i = beforeIndex - 1; i >= 0; i--) {
     const item = items[i]
     const isToolCall = isToolLikeItemType(item.type)
     if (
       isToolCall
-      && item.toolName === 'CreatePlan'
+      && resolveCoreToolRenderPlan(item)?.placement === 'pin-last-per-turn'
       && item.status === 'completed'
       && item.success !== false
     ) {
@@ -1240,13 +1250,13 @@ function findLastCreatePlanIndexBefore(items: ConversationItem[], beforeIndex: n
 /**
  * A completed `dynamicToolCall` whose result declares an Interactive Tool UI
  * (`ui://` resource). These are user‑actionable surfaces, not model‑log noise, so
- * they are pinned out of the collapsed turn summary (tool-result-presentation §14, M‑vii).
+ * they are pinned out of the collapsed turn summary (tool-result-presentation §14).
  */
 function isInteractiveCardItem(item: ConversationItem): boolean {
   return isToolLikeItemType(item.type)
     && item.status === 'completed'
     && item.success !== false
-    && hasInteractiveToolUi(item)
+    && hasAvailableMcpApp(item)
 }
 
 function findLastInteractiveCardIndexBefore(items: ConversationItem[], beforeIndex: number): number {
@@ -1278,7 +1288,7 @@ function findLastImageGenerationIndexBefore(items: ConversationItem[], beforeInd
  */
 function collectPinnedIntermediateIndices(items: ConversationItem[], beforeIndex: number): number[] {
   const indices = new Set<number>()
-  const planIndex = findLastCreatePlanIndexBefore(items, beforeIndex)
+  const planIndex = findLastPinnedCoreRendererIndexBefore(items, beforeIndex)
   if (planIndex >= 0) indices.add(planIndex)
   const cardIndex = findLastInteractiveCardIndexBefore(items, beforeIndex)
   if (cardIndex >= 0) indices.add(cardIndex)
@@ -1314,7 +1324,8 @@ function isDefaultRenderableItem(item: ConversationItem): boolean {
 }
 
 function isCreatePlanItem(item: ConversationItem): boolean {
-  return isToolLikeItemType(item.type) && item.toolName === 'CreatePlan'
+  return isToolLikeItemType(item.type)
+    && resolveCoreToolRenderPlan(item)?.family === 'createPlan'
 }
 
 function isTrimmedHistoryRenderableItem(item: ConversationItem): boolean {

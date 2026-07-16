@@ -1,7 +1,7 @@
 using System.Text.Json;
 using DotCraft.Agents;
-using DotCraft.Abstractions;
 using DotCraft.Protocol;
+using DotCraft.Tools;
 
 namespace DotCraft.Tests.Protocol;
 
@@ -11,14 +11,14 @@ public class ToolProfileAndApprovalPolicyTests
     public void ToolProfileRegistry_RegisterTryGet_IsCaseInsensitive()
     {
         var registry = new ToolProfileRegistry();
-        var providers = (IReadOnlyList<IAgentToolProvider>)Array.Empty<IAgentToolProvider>();
-        registry.Register("local-task", providers);
+        var sources = (IReadOnlyList<IToolSource>)Array.Empty<IToolSource>();
+        registry.Register("local-task", sources);
 
         Assert.True(registry.TryGet("local-task", out var p1));
-        Assert.Same(providers, p1);
+        Assert.Same(sources, p1);
 
         Assert.True(registry.TryGet("LOCAL-TASK", out var p2));
-        Assert.Same(providers, p2);
+        Assert.Same(sources, p2);
 
         Assert.False(registry.TryGet("missing", out _));
     }

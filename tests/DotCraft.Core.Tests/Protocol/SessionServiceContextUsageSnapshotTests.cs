@@ -362,6 +362,6 @@ public sealed class SessionServiceContextUsageSnapshotTests : IDisposable
             skillsLoader: skills,
             approvalService: new AutoApproveApprovalService(),
             blacklist: null,
-            toolProviders: Array.Empty<IAgentToolProvider>());
+            toolSources: Array.Empty<IToolSource>());
     }
 }

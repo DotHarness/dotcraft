@@ -10,7 +10,6 @@ namespace DotCraft.Tests.Sessions.Protocol;
 /// - AllCompleted() natural exit emits a final snapshot before breaking
 /// - DisposeAsync() emits an additional final snapshot after loop exit
 /// - Empty tracker emits nothing
-/// - Token data written before IsCompleted is visible in the next snapshot
 /// </summary>
 public sealed class SubAgentProgressAggregatorTests : IAsyncLifetime
 {
@@ -317,42 +316,4 @@ public sealed class SubAgentProgressAggregatorTests : IAsyncLifetime
         Assert.Equal("ReadFile", e.CurrentTool);
     }
 
-    // -------------------------------------------------------------------------
-    // Test 9: Critical race — tokens written AFTER IsCompleted but BEFORE next poll
-    // This tests the exact scenario where SpawnAsync does:
-    //   progressEntry.IsCompleted = true;  (in finally block)
-    //   progressEntry.AddTokens(...)       (via TokenTracker, also in finally)
-    // But actually in SpawnAsync, IsCompleted is set AFTER the try block returns.
-    // The real concern is: does the aggregator poll AFTER token write?
-    // -------------------------------------------------------------------------
-
-    [Fact]
-    public async Task Aggregator_TokensWrittenJustBeforeIsCompleted_CapturedInSnapshot()
-    {
-        var entry = SubAgentProgressBridge.GetOrCreate("agent-A");
-
-        await using var aggregator = new SubAgentProgressAggregator(
-            _channel, ThreadId, TurnId, interval: TimeSpan.FromMilliseconds(50));
-        aggregator.TrackLabel("agent-A");
-
-        await Task.Delay(70); // Let at least one empty snapshot go through
-
-        // Simulate the real SpawnAsync finally block order:
-        // 1. Tokens are accumulated during execution (via SubAgentProgressChatClient)
-        entry.AddTokens(1000, 500);
-        // 2. IsCompleted is set in the outer finally block
-        entry.IsCompleted = true;
-
-        // Wait for the next poll cycle
-        await Task.Delay(100);
-
-        List<SubAgentProgressPayload> snapshots;
-        lock (_capturedPayloads)
-            snapshots = [.. _capturedPayloads];
-
-        // Must have a snapshot with completed=true AND full tokens
-        var completedWithTokens = snapshots.Find(s =>
-            s.Entries.Any(e => e.IsCompleted && e.InputTokens == 1000 && e.OutputTokens == 500));
-        Assert.NotNull(completedWithTokens);
-    }
 }

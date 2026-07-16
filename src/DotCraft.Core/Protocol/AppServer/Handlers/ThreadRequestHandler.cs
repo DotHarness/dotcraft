@@ -462,6 +462,7 @@ internal sealed class ThreadRequestHandler(
             throw AppServerErrors.InvalidParams("'numTurns' must be >= 1.");
 
         var thread = await sessionService.RollbackThreadAsync(p.ThreadId, p.NumTurns, ct);
+        connection.RevokeMcpAppThreadEligibility(p.ThreadId);
         return new ThreadRollbackResponse
         {
             Thread = await threadProjector.ProjectAsync(thread, true, true, ct)
@@ -728,10 +729,10 @@ internal sealed class ThreadRequestHandler(
     }
 
     private async Task SendArchiveSocialBindingNotificationsAsync(
-        ThreadArchiveSocialBindingCleanupResult cleanup,
+        IReadOnlyList<AppBindingWire> revokedBindings,
         CancellationToken ct)
     {
-        foreach (var change in cleanup.RevokedBindings)
+        foreach (var binding in revokedBindings)
         {
             await transport.WriteMessageAsync(new
             {
@@ -739,33 +740,16 @@ internal sealed class ThreadRequestHandler(
                 method = ThreadAppBindingsChanged,
                 @params = new
                 {
-                    threadId = change.Binding.ThreadId,
-                    bindingId = change.Binding.BindingId,
-                    appId = change.Binding.AppId,
-                    state = change.Binding.State,
-                    previousState = change.PreviousState,
+                    threadId = binding.ThreadId,
+                    bindingId = binding.BindingId,
+                    appId = binding.AppId,
+                    state = binding.State,
+                    previousState = AppBindingStates.Active,
                     changeKind = "threadArchived"
                 }
             }, ct);
         }
 
-        foreach (var request in cleanup.CancelledRequests)
-        {
-            await transport.WriteMessageAsync(new
-            {
-                jsonrpc = "2.0",
-                method = ThreadAppBindingsChanged,
-                @params = new
-                {
-                    threadId = request.ThreadId,
-                    bindingRequestId = request.BindingRequestId,
-                    appId = request.AppId,
-                    state = request.State,
-                    previousState = AppBindingStates.Pending,
-                    changeKind = "threadArchived"
-                }
-            }, ct);
-        }
     }
 
     private async Task<object?> HandleThreadUnarchiveAsync(AppServerIncomingMessage msg, CancellationToken ct)

@@ -1,5 +1,4 @@
 using System.ComponentModel;
-using DotCraft.Abstractions;
 using DotCraft.Automations.Abstractions;
 using DotCraft.Tools;
 using Microsoft.Extensions.AI;
@@ -10,15 +9,20 @@ namespace DotCraft.Automations.Local;
 /// <summary>
 /// Injects <c>CompleteLocalTask</c> for local automation agent sessions (same role as GitHub <c>CompleteIssue</c>).
 /// </summary>
-public sealed class LocalTaskCompletionToolProvider(
+public sealed class LocalTaskCompletionToolSource(
     LocalTaskFileStore fileStore,
-    ILogger<LocalTaskCompletionToolProvider> logger) : IAgentToolProvider
+    ILogger<LocalTaskCompletionToolSource> logger) : AIFunctionToolSource
 {
-    public int Priority => 95;
+    /// <inheritdoc />
+    public override string SourceId => "local-task-completion";
 
-    public IEnumerable<AITool> CreateTools(ToolProviderContext context)
+    /// <inheritdoc />
+    public override int Priority => 95;
+
+    /// <inheritdoc />
+    protected override IEnumerable<AIFunction> CreateFunctions(ToolPlanningContext context)
     {
-        var taskDir = context.AutomationTaskDirectory ?? TryResolveTaskDirectory(context.WorkspacePath);
+        var taskDir = TryResolveTaskDirectory(context.WorkspacePath);
         if (taskDir == null)
             yield break;
 

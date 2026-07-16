@@ -1,6 +1,10 @@
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Logging;
+using System.Text;
+using System.Text.Json;
+using ModelContextProtocol.Authentication;
 using ModelContextProtocol.Client;
+using ModelContextProtocol.Protocol;
 using Spectre.Console;
 
 namespace DotCraft.Mcp;
@@ -14,6 +18,8 @@ public sealed class McpServerStatusSnapshot
     public int ResourceCount { get; set; }
     public int ResourceTemplateCount { get; set; }
     public string? LastError { get; set; }
+    public string AuthStatus { get; set; } = McpAuthenticationStatuses.Unsupported;
+    public string? FailureReason { get; set; }
     public string Transport { get; set; } = "stdio";
     public McpServerOrigin Origin { get; set; } = McpServerOrigin.Workspace();
     public bool ReadOnly { get; set; }
@@ -24,19 +30,39 @@ public sealed class McpServerStatusChangedEventArgs : EventArgs
     public McpServerStatusSnapshot Status { get; init; } = new();
 }
 
+/// <summary>Raw MCP tool and resource inventory for one runtime generation.</summary>
+/// <param name="ServerInfo">The server implementation reported during initialization.</param>
+/// <param name="ServerInstructions">The untrusted server instructions reported during initialization.</param>
+/// <param name="Tools">The raw-generation MCP tool wrappers.</param>
+/// <param name="Resources">The raw resources returned for the generation.</param>
+/// <param name="ResourceTemplates">The raw resource templates returned for the generation.</param>
+/// <param name="Generation">The live manager generation from which the inventory was captured.</param>
+public sealed record McpServerInventorySnapshot(
+    Implementation? ServerInfo,
+    string? ServerInstructions,
+    IReadOnlyList<AIFunction> Tools,
+    IReadOnlyList<Resource> Resources,
+    IReadOnlyList<ResourceTemplate> ResourceTemplates,
+    long Generation);
+
 public sealed class McpClientManager : IMcpToolInvocationCoordinator, IAsyncDisposable
 {
-    private const double DefaultStartupTimeoutSeconds = 5;
+    internal const double DefaultStartupTimeoutSeconds = 30;
 
     private sealed class ServerRuntimeState
     {
         public McpServerConfig Config { get; set; } = new();
         public IAsyncDisposable? Client { get; set; }
+        public McpClient? ProtocolClient { get; set; }
         public bool HasSessionId { get; set; }
         public McpServerStatusSnapshot Status { get; set; } = new();
         public List<AIFunction> CachedTools { get; set; } = [];
+        public IReadOnlyList<Resource> CachedResources { get; set; } = [];
+        public IReadOnlyList<ResourceTemplate> CachedResourceTemplates { get; set; } = [];
         public long Generation { get; set; }
         public Task<McpToolInvocationTarget?>? StaleSessionRefreshTask { get; set; }
+        public int ActiveOperations { get; set; }
+        public List<IAsyncDisposable> RetiredClients { get; } = [];
     }
 
     private readonly ILogger<McpClientManager>? _logger;
@@ -48,16 +74,162 @@ public sealed class McpClientManager : IMcpToolInvocationCoordinator, IAsyncDisp
     private readonly SemaphoreSlim _mutex = new(1, 1);
     private readonly CancellationTokenSource _lifetimeCts = new();
     private long _nextGeneration;
+    private string? _effectiveConfigFingerprint;
     private bool _disposed;
+    private Func<string, ElicitRequestParams?, CancellationToken, ValueTask<ElicitResult>>? _elicitationHandler;
 
     public IReadOnlyList<AITool> Tools => Volatile.Read(ref _toolsSnapshot);
     public IReadOnlyDictionary<string, string> ToolServerMap => Volatile.Read(ref _toolServerMapSnapshot);
 
     public event EventHandler<McpServerStatusChangedEventArgs>? StatusChanged;
 
-    public McpClientManager(ILogger<McpClientManager>? logger = null)
-        : this(ConnectClientAndListToolsAsync, logger)
+    /// <summary>Returns raw MCP inventory cached for a live server generation.</summary>
+    public async Task<McpServerInventorySnapshot?> GetInventoryAsync(
+        string serverName,
+        CancellationToken cancellationToken = default)
     {
+        await _mutex.WaitAsync(cancellationToken);
+        try
+        {
+            if (!_servers.TryGetValue(serverName, out var state))
+                return null;
+            return new McpServerInventorySnapshot(
+                state.ProtocolClient?.ServerInfo,
+                state.ProtocolClient?.ServerInstructions,
+                state.CachedTools.ToArray(),
+                state.CachedResources.ToArray(),
+                state.CachedResourceTemplates.ToArray(),
+                state.Generation);
+        }
+        finally
+        {
+            _mutex.Release();
+        }
+    }
+
+    /// <summary>Refreshes optional resources for a ready server without changing startup readiness.</summary>
+    public async Task RefreshResourceInventoryAsync(
+        string serverName,
+        CancellationToken cancellationToken = default)
+    {
+        await using var session = await GetProtocolSessionAsync(serverName, expectedGeneration: null, cancellationToken);
+        var resourcesTask = TryListResourcesAsync(session.Client, serverName, cancellationToken);
+        var templatesTask = TryListResourceTemplatesAsync(session.Client, serverName, cancellationToken);
+        await Task.WhenAll(resourcesTask, templatesTask);
+
+        McpServerStatusSnapshot? snapshot = null;
+        await _mutex.WaitAsync(cancellationToken);
+        try
+        {
+            if (_servers.TryGetValue(serverName, out var state)
+                && state.Generation == session.Generation
+                && state.Status.StartupState == "ready")
+            {
+                state.CachedResources = await resourcesTask;
+                state.CachedResourceTemplates = await templatesTask;
+                state.Status.ResourceCount = state.CachedResources.Count;
+                state.Status.ResourceTemplateCount = state.CachedResourceTemplates.Count;
+                snapshot = CloneStatus(state.Status);
+            }
+        }
+        finally
+        {
+            _mutex.Release();
+        }
+
+        if (snapshot != null)
+            OnStatusChanged(snapshot);
+    }
+
+    /// <summary>
+    /// Configures the host elicitation broker used by subsequently created MCP sessions.
+    /// Unknown or unavailable client interactions are rejected safely.
+    /// </summary>
+    public void ConfigureElicitationHandler(
+        Func<string, ElicitRequestParams?, CancellationToken, ValueTask<ElicitResult>>? handler) =>
+        _elicitationHandler = handler;
+
+    internal ValueTask<ElicitResult> RequestElicitationAsync(
+        string serverName,
+        ElicitRequestParams? request,
+        CancellationToken cancellationToken = default) =>
+        _elicitationHandler == null
+            ? ValueTask.FromResult(new ElicitResult { Action = "decline" })
+            : _elicitationHandler(serverName, request, cancellationToken);
+
+    /// <summary>
+    /// Calls a raw MCP tool through the live protocol session. The caller remains responsible for
+    /// thread authority, approval, lifecycle recording, and model-result normalization.
+    /// </summary>
+    public async Task<CallToolResult> CallToolAsync(
+        string serverName,
+        string toolName,
+        IReadOnlyDictionary<string, object?>? arguments = null,
+        long? expectedGeneration = null,
+        CancellationToken cancellationToken = default)
+    {
+        await using var session = await GetProtocolSessionAsync(serverName, expectedGeneration, cancellationToken);
+        return await session.Client.CallToolAsync(
+            toolName,
+            arguments,
+            progress: null,
+            options: null,
+            cancellationToken);
+    }
+
+    /// <summary>
+    /// Reads a raw MCP resource through the live protocol session without producing a tool item.
+    /// </summary>
+    public async Task<ReadResourceResult> ReadResourceAsync(
+        string serverName,
+        string uri,
+        CancellationToken cancellationToken = default)
+        => await ReadResourceAsync(serverName, uri, expectedGeneration: null, cancellationToken);
+
+    /// <summary>
+    /// Reads a raw MCP resource only when the named server still has the expected runtime
+    /// generation. This prevents a live view from crossing a reconnect boundary.
+    /// </summary>
+    public async Task<ReadResourceResult> ReadResourceAsync(
+        string serverName,
+        string uri,
+        long expectedGeneration,
+        CancellationToken cancellationToken = default)
+        => await ReadResourceAsync(serverName, uri, (long?)expectedGeneration, cancellationToken);
+
+    private async Task<ReadResourceResult> ReadResourceAsync(
+        string serverName,
+        string uri,
+        long? expectedGeneration,
+        CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(uri))
+            throw new ArgumentException("A resource URI is required.", nameof(uri));
+
+        await using var session = await GetProtocolSessionAsync(serverName, expectedGeneration, cancellationToken);
+        return await session.Client.ReadResourceAsync(uri, options: null, cancellationToken);
+    }
+
+    /// <summary>Gets the current live generation for a server.</summary>
+    public async Task<long?> GetGenerationAsync(
+        string serverName,
+        CancellationToken cancellationToken = default)
+    {
+        await _mutex.WaitAsync(cancellationToken);
+        try
+        {
+            return _servers.TryGetValue(serverName, out var state) ? state.Generation : null;
+        }
+        finally
+        {
+            _mutex.Release();
+        }
+    }
+
+    public McpClientManager(ILogger<McpClientManager>? logger = null)
+    {
+        _connectServer = ConnectClientAndListToolsAsync;
+        _logger = logger;
     }
 
     internal McpClientManager(
@@ -76,6 +248,7 @@ public sealed class McpClientManager : IMcpToolInvocationCoordinator, IAsyncDisp
             .GroupBy(s => s.Name, StringComparer.OrdinalIgnoreCase)
             .Select(g => g.First())
             .ToList();
+        var fingerprint = ComputeConfigFingerprint(configs);
         var clientsToDispose = new List<IAsyncDisposable>();
         var statusesToNotify = new List<McpServerStatusSnapshot>();
         var connectWork = new List<(McpServerConfig Config, long Generation)>();
@@ -84,6 +257,9 @@ public sealed class McpClientManager : IMcpToolInvocationCoordinator, IAsyncDisp
         try
         {
             ThrowIfDisposed();
+            if (string.Equals(_effectiveConfigFingerprint, fingerprint, StringComparison.Ordinal))
+                return;
+            _effectiveConfigFingerprint = fingerprint;
             CollectClientsUnsafe(clientsToDispose);
             _servers.Clear();
 
@@ -106,6 +282,8 @@ public sealed class McpClientManager : IMcpToolInvocationCoordinator, IAsyncDisp
             }
 
             RebuildToolIndexUnsafe();
+            _effectiveConfigFingerprint = ComputeConfigFingerprint(
+                _servers.Values.Select(static state => state.Config));
         }
         finally
         {
@@ -253,6 +431,8 @@ public sealed class McpClientManager : IMcpToolInvocationCoordinator, IAsyncDisp
 
             CollectClientUnsafe(state, clientsToDispose);
             RebuildToolIndexUnsafe();
+            _effectiveConfigFingerprint = ComputeConfigFingerprint(
+                _servers.Values.Select(static candidate => candidate.Config));
         }
         finally
         {
@@ -277,6 +457,8 @@ public sealed class McpClientManager : IMcpToolInvocationCoordinator, IAsyncDisp
             client = result.Client;
             status.StartupState = "ready";
             status.ToolCount = result.Tools.Count;
+            status.AuthStatus = result.AuthStatus;
+            status.FailureReason = result.FailureReason;
             return status;
         }
         catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
@@ -323,6 +505,41 @@ public sealed class McpClientManager : IMcpToolInvocationCoordinator, IAsyncDisp
             return _servers.TryGetValue(serverName, out var state)
                 ? CreateInvocationTargetUnsafe(state, toolName)
                 : null;
+        }
+        finally
+        {
+            _mutex.Release();
+        }
+    }
+
+    private async Task<ProtocolSession> GetProtocolSessionAsync(
+        string serverName,
+        long? expectedGeneration,
+        CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(serverName))
+            throw new ArgumentException("An MCP server name is required.", nameof(serverName));
+
+        await _mutex.WaitAsync(cancellationToken);
+        try
+        {
+            ThrowIfDisposed();
+            if (!_servers.TryGetValue(serverName, out var state))
+                throw new KeyNotFoundException($"MCP server '{serverName}' was not found.");
+            if (expectedGeneration.HasValue && state.Generation != expectedGeneration.Value)
+            {
+                throw new InvalidOperationException(
+                    $"MCP server '{serverName}' generation {expectedGeneration.Value} is no longer active.");
+            }
+            if (!string.Equals(state.Status.StartupState, "ready", StringComparison.Ordinal) ||
+                state.ProtocolClient == null)
+            {
+                throw new InvalidOperationException(
+                    $"MCP server '{serverName}' is not currently available ({state.Status.StartupState}).");
+            }
+
+            state.ActiveOperations++;
+            return new ProtocolSession(this, state, state.ProtocolClient, state.Generation);
         }
         finally
         {
@@ -388,6 +605,9 @@ public sealed class McpClientManager : IMcpToolInvocationCoordinator, IAsyncDisp
                 result.Tools,
                 client,
                 result.HasSessionId,
+                result.ProtocolClient,
+                result.Resources ?? [],
+                result.ResourceTemplates ?? [],
                 _lifetimeCts.Token);
 
             if (applyResult.Accepted)
@@ -422,6 +642,9 @@ public sealed class McpClientManager : IMcpToolInvocationCoordinator, IAsyncDisp
         IReadOnlyList<AIFunction> tools,
         IAsyncDisposable client,
         bool hasSessionId,
+        McpClient? protocolClient,
+        IReadOnlyList<Resource> resources,
+        IReadOnlyList<ResourceTemplate> resourceTemplates,
         CancellationToken cancellationToken)
     {
         IAsyncDisposable? previousClient = null;
@@ -438,11 +661,16 @@ public sealed class McpClientManager : IMcpToolInvocationCoordinator, IAsyncDisp
                 {
                     previousClient = state.Client;
                     state.Client = client;
+                    state.ProtocolClient = protocolClient;
                     state.HasSessionId = hasSessionId;
                     state.CachedTools = [.. tools];
+                    state.CachedResources = resources;
+                    state.CachedResourceTemplates = resourceTemplates;
                     state.Generation = NextGenerationUnsafe();
                     state.Status = CreateStatus(state.Config, "ready");
                     state.Status.ToolCount = state.CachedTools.Count;
+                    state.Status.ResourceCount = state.CachedResources.Count;
+                    state.Status.ResourceTemplateCount = state.CachedResourceTemplates.Count;
                     state.StaleSessionRefreshTask = null;
                     RebuildToolIndexUnsafe();
                     target = CreateInvocationTargetUnsafe(state, toolName);
@@ -499,8 +727,11 @@ public sealed class McpClientManager : IMcpToolInvocationCoordinator, IAsyncDisp
             {
                 previousClient = state.Client;
                 state.Client = null;
+                state.ProtocolClient = null;
                 state.HasSessionId = false;
                 state.CachedTools.Clear();
+                state.CachedResources = [];
+                state.CachedResourceTemplates = [];
                 state.Generation = NextGenerationUnsafe();
                 state.Status = CreateStatus(state.Config, "error");
                 state.Status.LastError = lastError;
@@ -569,7 +800,10 @@ public sealed class McpClientManager : IMcpToolInvocationCoordinator, IAsyncDisp
 
         IAsyncDisposable? client = null;
         IReadOnlyList<AIFunction> tools = [];
+        IReadOnlyList<Resource> resources = [];
+        IReadOnlyList<ResourceTemplate> resourceTemplates = [];
         var hasSessionId = false;
+        McpClient? protocolClient = null;
         McpServerStatusSnapshot status;
         try
         {
@@ -578,6 +812,9 @@ public sealed class McpClientManager : IMcpToolInvocationCoordinator, IAsyncDisp
             client = result.Client;
             tools = result.Tools;
             hasSessionId = result.HasSessionId;
+            protocolClient = result.ProtocolClient;
+            resources = result.Resources ?? [];
+            resourceTemplates = result.ResourceTemplates ?? [];
 
             if (result.RecoveredFromStaleSession)
             {
@@ -588,6 +825,8 @@ public sealed class McpClientManager : IMcpToolInvocationCoordinator, IAsyncDisp
 
             status = CreateStatus(config, "ready");
             status.ToolCount = tools.Count;
+            status.AuthStatus = result.AuthStatus;
+            status.FailureReason = result.FailureReason;
             _logger?.LogInformation(
                 "MCP connected to {ServerName} with {ToolCount} tools",
                 config.Name,
@@ -608,13 +847,30 @@ public sealed class McpClientManager : IMcpToolInvocationCoordinator, IAsyncDisp
         {
             status = CreateStatus(config, "error");
             status.LastError = ex.Message;
+            if (FindAuthenticationRequired(ex) is { } authenticationRequired)
+            {
+                status.AuthStatus = McpAuthenticationStatuses.NotLoggedIn;
+                status.FailureReason = authenticationRequired.ReauthenticationRequired
+                    ? "reauthenticationRequired"
+                    : null;
+            }
 
             _logger?.LogError(ex, "MCP connection to {ServerName} failed", config.Name);
             TryWriteMcpConsoleLine(
                 $"[grey][[MCP]][/] [red]Failed to connect to {Markup.Escape(config.Name)}: {Markup.Escape(ex.Message)}[/]");
         }
 
-        var accepted = await ApplyConnectResultAsync(config, generation, status, tools, client, hasSessionId, lifetimeToken);
+        var accepted = await ApplyConnectResultAsync(
+            config,
+            generation,
+            status,
+            tools,
+            client,
+            hasSessionId,
+            protocolClient,
+            resources,
+            resourceTemplates,
+            lifetimeToken);
         if (accepted)
             client = null;
 
@@ -653,6 +909,10 @@ public sealed class McpClientManager : IMcpToolInvocationCoordinator, IAsyncDisp
             ResourceCount = 0,
             ResourceTemplateCount = 0,
             LastError = null,
+            AuthStatus = config.Enabled && HasConfiguredBearerToken(config)
+                ? McpAuthenticationStatuses.BearerToken
+                : McpAuthenticationStatuses.Unsupported,
+            FailureReason = null,
             Transport = config.NormalizedTransport,
             Origin = config.Origin.Clone(),
             ReadOnly = config.ReadOnly
@@ -668,6 +928,8 @@ public sealed class McpClientManager : IMcpToolInvocationCoordinator, IAsyncDisp
             ResourceCount = status.ResourceCount,
             ResourceTemplateCount = status.ResourceTemplateCount,
             LastError = status.LastError,
+            AuthStatus = status.AuthStatus,
+            FailureReason = status.FailureReason,
             Transport = status.Transport,
             Origin = status.Origin.Clone(),
             ReadOnly = status.ReadOnly
@@ -743,6 +1005,9 @@ public sealed class McpClientManager : IMcpToolInvocationCoordinator, IAsyncDisp
         IReadOnlyList<AIFunction> tools,
         IAsyncDisposable? client,
         bool hasSessionId,
+        McpClient? protocolClient,
+        IReadOnlyList<Resource> resources,
+        IReadOnlyList<ResourceTemplate> resourceTemplates,
         CancellationToken cancellationToken)
     {
         IAsyncDisposable? previousClient = null;
@@ -756,8 +1021,13 @@ public sealed class McpClientManager : IMcpToolInvocationCoordinator, IAsyncDisp
             {
                 previousClient = state.Client;
                 state.Client = status.StartupState == "ready" ? client : null;
+                state.ProtocolClient = status.StartupState == "ready" ? protocolClient : null;
                 state.HasSessionId = status.StartupState == "ready" && hasSessionId;
                 state.CachedTools = status.StartupState == "ready" ? [.. tools] : [];
+                state.CachedResources = status.StartupState == "ready" ? resources : [];
+                state.CachedResourceTemplates = status.StartupState == "ready" ? resourceTemplates : [];
+                state.Status.ResourceCount = state.CachedResources.Count;
+                state.Status.ResourceTemplateCount = state.CachedResourceTemplates.Count;
                 state.Status = status;
                 state.StaleSessionRefreshTask = null;
                 RebuildToolIndexUnsafe();
@@ -771,7 +1041,13 @@ public sealed class McpClientManager : IMcpToolInvocationCoordinator, IAsyncDisp
         }
 
         if (previousClient != null)
-            await DisposeClientAsync(previousClient);
+        {
+            if (await RetireClientAsync(config.Name, generation, previousClient, cancellationToken)
+                is { } disposable)
+            {
+                await DisposeClientAsync(disposable);
+            }
+        }
 
         if (snapshot != null)
             OnStatusChanged(snapshot);
@@ -806,11 +1082,25 @@ public sealed class McpClientManager : IMcpToolInvocationCoordinator, IAsyncDisp
     private static void CollectClientUnsafe(ServerRuntimeState state, List<IAsyncDisposable> clients)
     {
         if (state.Client != null)
-            clients.Add(state.Client);
+        {
+            if (state.ActiveOperations == 0)
+                clients.Add(state.Client);
+            else
+                state.RetiredClients.Add(state.Client);
+        }
+
+        if (state.ActiveOperations == 0 && state.RetiredClients.Count > 0)
+        {
+            clients.AddRange(state.RetiredClients);
+            state.RetiredClients.Clear();
+        }
 
         state.Client = null;
+        state.ProtocolClient = null;
         state.HasSessionId = false;
         state.CachedTools.Clear();
+        state.CachedResources = [];
+        state.CachedResourceTemplates = [];
         state.StaleSessionRefreshTask = null;
     }
 
@@ -842,6 +1132,120 @@ public sealed class McpClientManager : IMcpToolInvocationCoordinator, IAsyncDisp
     }
 
     private long NextGenerationUnsafe() => unchecked(++_nextGeneration);
+
+    private static string ComputeConfigFingerprint(IEnumerable<McpServerConfig> configs)
+    {
+        var builder = new StringBuilder();
+        foreach (var config in configs.OrderBy(static value => value.Name, StringComparer.OrdinalIgnoreCase))
+        {
+            AppendFingerprintValue(builder, config.Name);
+            AppendFingerprintValue(builder, config.Enabled.ToString());
+            AppendFingerprintValue(builder, config.NormalizedTransport);
+            AppendFingerprintValue(builder, config.Command);
+            foreach (var argument in config.Arguments)
+                AppendFingerprintValue(builder, argument);
+            foreach (var pair in config.EnvironmentVariables.OrderBy(static pair => pair.Key, StringComparer.Ordinal))
+            {
+                AppendFingerprintValue(builder, pair.Key);
+                AppendFingerprintValue(builder, pair.Value);
+            }
+            foreach (var name in config.EnvVars.OrderBy(static value => value, StringComparer.Ordinal))
+                AppendFingerprintValue(builder, name);
+            AppendFingerprintValue(builder, config.Cwd);
+            AppendFingerprintValue(builder, config.Url);
+            AppendFingerprintValue(builder, config.BearerTokenEnvVar);
+            foreach (var pair in config.Headers.OrderBy(static pair => pair.Key, StringComparer.OrdinalIgnoreCase))
+            {
+                AppendFingerprintValue(builder, pair.Key);
+                AppendFingerprintValue(builder, pair.Value);
+            }
+            foreach (var pair in config.EnvHttpHeaders.OrderBy(static pair => pair.Key, StringComparer.OrdinalIgnoreCase))
+            {
+                AppendFingerprintValue(builder, pair.Key);
+                AppendFingerprintValue(builder, pair.Value);
+            }
+            AppendFingerprintValue(builder, config.StartupTimeoutSec?.ToString(System.Globalization.CultureInfo.InvariantCulture));
+            AppendFingerprintValue(builder, config.ToolTimeoutSec?.ToString(System.Globalization.CultureInfo.InvariantCulture));
+            AppendFingerprintValue(builder, config.Origin.Kind);
+            AppendFingerprintValue(builder, config.Origin.PluginId);
+            AppendFingerprintValue(builder, config.Origin.ThreadId);
+            AppendFingerprintValue(builder, config.Origin.BindingId);
+            AppendFingerprintValue(builder, config.Origin.DeclaredName);
+        }
+
+        return Convert.ToHexStringLower(System.Security.Cryptography.SHA256.HashData(
+            Encoding.UTF8.GetBytes(builder.ToString())));
+    }
+
+    private async Task<IAsyncDisposable?> RetireClientAsync(
+        string serverName,
+        long generation,
+        IAsyncDisposable client,
+        CancellationToken cancellationToken)
+    {
+        await _mutex.WaitAsync(cancellationToken);
+        try
+        {
+            if (_servers.TryGetValue(serverName, out var state) && state.Generation == generation
+                && state.ActiveOperations > 0)
+            {
+                state.RetiredClients.Add(client);
+                return null;
+            }
+            return client;
+        }
+        finally
+        {
+            _mutex.Release();
+        }
+    }
+
+    private async ValueTask ReleaseProtocolSessionAsync(ServerRuntimeState state)
+    {
+        List<IAsyncDisposable>? clients = null;
+        await _mutex.WaitAsync();
+        try
+        {
+            if (state.ActiveOperations > 0)
+                state.ActiveOperations--;
+            if (state.ActiveOperations == 0 && state.RetiredClients.Count > 0)
+            {
+                clients = [.. state.RetiredClients];
+                state.RetiredClients.Clear();
+            }
+        }
+        finally
+        {
+            _mutex.Release();
+        }
+
+        if (clients != null)
+            await DisposeClientsAsync(clients);
+    }
+
+    private static void AppendFingerprintValue(StringBuilder builder, string? value)
+    {
+        value ??= string.Empty;
+        builder.Append(value.Length).Append(':').Append(value).Append(';');
+    }
+
+    private sealed class ProtocolSession(
+        McpClientManager owner,
+        ServerRuntimeState state,
+        McpClient client,
+        long generation) : IAsyncDisposable
+    {
+        private int _disposed;
+
+        public McpClient Client { get; } = client;
+        public long Generation { get; } = generation;
+
+        public async ValueTask DisposeAsync()
+        {
+            if (Interlocked.Exchange(ref _disposed, 1) == 0)
+                await owner.ReleaseProtocolSessionAsync(state);
+        }
+    }
 
     private void ThrowIfDisposed()
     {
@@ -875,14 +1279,23 @@ public sealed class McpClientManager : IMcpToolInvocationCoordinator, IAsyncDisp
     private static string CreateStartupTimeoutMessage(McpServerConfig config) =>
         $"MCP server '{config.Name}' startup timed out after {GetStartupTimeout(config).TotalSeconds:0.###}s.";
 
-    private static async Task<McpConnectionResult> ConnectClientAndListToolsAsync(
+    private async Task<McpConnectionResult> ConnectClientAndListToolsAsync(
         McpServerConfig server,
         CancellationToken cancellationToken)
     {
         var recoveredFromStaleSession = false;
         for (var attempt = 0; ; attempt++)
         {
-            var client = await CreateClientAsync(server, cancellationToken);
+            var tokenStore = McpOAuthTokenStore.Create(server);
+            var hadOAuthTokens = IsOAuthCandidate(server)
+                                 && await tokenStore.HasTokensAsync(cancellationToken);
+            var client = await CreateClientAsync(
+                server,
+                _elicitationHandler == null
+                    ? null
+                    : (request, ct) => RequestElicitationAsync(server.Name, request, ct),
+                oauthOptions: null,
+                cancellationToken: cancellationToken);
             var hasSessionId = HasSessionId(client);
             try
             {
@@ -891,7 +1304,13 @@ public sealed class McpClientManager : IMcpToolInvocationCoordinator, IAsyncDisp
                     client,
                     [.. tools.Cast<AIFunction>()],
                     hasSessionId,
-                    recoveredFromStaleSession);
+                    recoveredFromStaleSession,
+                    client,
+                    AuthStatus: HasConfiguredBearerToken(server)
+                        ? McpAuthenticationStatuses.BearerToken
+                        : hadOAuthTokens
+                            ? McpAuthenticationStatuses.OAuth
+                            : McpAuthenticationStatuses.Unsupported);
             }
             catch (Exception ex) when (attempt == 0 && ShouldRetryConnectAfterStaleSession(server, ex, hasSessionId))
             {
@@ -914,6 +1333,51 @@ public sealed class McpClientManager : IMcpToolInvocationCoordinator, IAsyncDisp
         string.Equals(server.NormalizedTransport, "streamableHttp", StringComparison.OrdinalIgnoreCase) &&
         McpStaleSessionDetector.IsStaleSessionFailure(exception, hasSessionId);
 
+    private async Task<IReadOnlyList<Resource>> TryListResourcesAsync(
+        McpClient client,
+        string serverName,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var resources = await client.ListResourcesAsync(cancellationToken: cancellationToken);
+            return resources.Select(static resource => resource.ProtocolResource).ToArray();
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            _logger?.LogDebug(ex, "Optional MCP resource enumeration failed for {ServerName}", serverName);
+            return [];
+        }
+    }
+
+    private async Task<IReadOnlyList<ResourceTemplate>> TryListResourceTemplatesAsync(
+        McpClient client,
+        string serverName,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var templates = await client.ListResourceTemplatesAsync(cancellationToken: cancellationToken);
+            return templates.Select(static template => template.ProtocolResourceTemplate).ToArray();
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            _logger?.LogDebug(
+                ex,
+                "Optional MCP resource-template enumeration failed for {ServerName}",
+                serverName);
+            return [];
+        }
+    }
+
     private static async Task DisposeClientBestEffortAsync(IAsyncDisposable client)
     {
         try
@@ -926,7 +1390,11 @@ public sealed class McpClientManager : IMcpToolInvocationCoordinator, IAsyncDisp
         }
     }
 
-    private static async Task<McpClient> CreateClientAsync(McpServerConfig server, CancellationToken cancellationToken)
+    internal static async Task<McpClient> CreateClientAsync(
+        McpServerConfig server,
+        Func<ElicitRequestParams?, CancellationToken, ValueTask<ElicitResult>>? elicitationHandler,
+        ClientOAuthOptions? oauthOptions,
+        CancellationToken cancellationToken)
     {
         IClientTransport transport;
 
@@ -940,6 +1408,24 @@ public sealed class McpClientManager : IMcpToolInvocationCoordinator, IAsyncDisp
                 Endpoint = new Uri(server.Url),
                 Name = server.Name,
             };
+
+            if (oauthOptions == null)
+            {
+                var tokenStore = McpOAuthTokenStore.Create(server);
+                if (IsOAuthCandidate(server))
+                {
+                    var hadTokens = await tokenStore.HasTokensAsync(cancellationToken);
+                    oauthOptions = new ClientOAuthOptions
+                    {
+                        RedirectUri = new Uri("http://127.0.0.1/callback"),
+                        TokenCache = tokenStore,
+                        AuthorizationRedirectDelegate = (_, _, _) =>
+                            throw new McpAuthenticationRequiredException(hadTokens)
+                    };
+                }
+            }
+
+            options.OAuth = oauthOptions;
 
             var headers = new Dictionary<string, string>(server.Headers, StringComparer.OrdinalIgnoreCase);
             if (!string.IsNullOrWhiteSpace(server.BearerTokenEnvVar))
@@ -961,7 +1447,17 @@ public sealed class McpClientManager : IMcpToolInvocationCoordinator, IAsyncDisp
             if (headers.Count > 0)
                 options.AdditionalHeaders = headers;
 
-            transport = new HttpClientTransport(options);
+            if (server.Origin.IsBinding)
+            {
+                // A binding endpoint is an authority boundary. Following a redirect could move the
+                // one-time bearer to a different origin without a fresh activation decision.
+                var handler = new HttpClientHandler { AllowAutoRedirect = false };
+                transport = new HttpClientTransport(options, new HttpClient(handler), loggerFactory: null, ownsHttpClient: true);
+            }
+            else
+            {
+                transport = new HttpClientTransport(options);
+            }
         }
         else
         {
@@ -994,7 +1490,60 @@ public sealed class McpClientManager : IMcpToolInvocationCoordinator, IAsyncDisp
             transport = new StdioClientTransport(options);
         }
 
-        return await McpClient.CreateAsync(transport, cancellationToken: cancellationToken);
+        var clientOptions = CreateClientOptions(elicitationHandler);
+        return await McpClient.CreateAsync(transport, clientOptions, cancellationToken: cancellationToken);
+    }
+
+    private static bool HasConfiguredBearerToken(McpServerConfig server) =>
+        !string.IsNullOrWhiteSpace(server.BearerTokenEnvVar)
+        || server.Headers.Keys.Any(static name =>
+            string.Equals(name, "Authorization", StringComparison.OrdinalIgnoreCase))
+        || server.EnvHttpHeaders.Keys.Any(static name =>
+            string.Equals(name, "Authorization", StringComparison.OrdinalIgnoreCase));
+
+    private static bool IsOAuthCandidate(McpServerConfig server) =>
+        string.Equals(server.NormalizedTransport, "streamableHttp", StringComparison.Ordinal)
+        && !HasConfiguredBearerToken(server);
+
+    private static McpAuthenticationRequiredException? FindAuthenticationRequired(Exception exception)
+    {
+        for (Exception? current = exception; current != null; current = current.InnerException)
+        {
+            if (current is McpAuthenticationRequiredException authenticationRequired)
+                return authenticationRequired;
+            if (current is AggregateException aggregate)
+            {
+                foreach (var inner in aggregate.Flatten().InnerExceptions)
+                {
+                    if (FindAuthenticationRequired(inner) is { } nested)
+                        return nested;
+                }
+            }
+        }
+        return null;
+    }
+
+    internal static McpClientOptions CreateClientOptions(
+        Func<ElicitRequestParams?, CancellationToken, ValueTask<ElicitResult>>? elicitationHandler)
+    {
+        var options = new McpClientOptions
+        {
+            Capabilities = new ClientCapabilities
+            {
+#pragma warning disable MCPEXP001 // Stable MCP extensions use the SDK's extension transport hook.
+                Extensions = new Dictionary<string, object>(StringComparer.Ordinal)
+                {
+                    [McpAppMetadataParser.ExtensionIdentifier] = JsonSerializer.SerializeToElement(new
+                    {
+                        mimeTypes = new[] { McpAppMetadataParser.HtmlMimeType }
+                    })
+                }
+#pragma warning restore MCPEXP001
+            }
+        };
+        if (elicitationHandler is not null)
+            options.Handlers = new McpClientHandlers { ElicitationHandler = elicitationHandler };
+        return options;
     }
 
     public async ValueTask DisposeAsync()

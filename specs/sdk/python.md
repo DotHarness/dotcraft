@@ -81,7 +81,7 @@ This specification does not define:
 | Application developers | Connect to a local or remote DotCraft AppServer and run agent work against persistent threads from Python. | `dotcraft` |
 | Channel authors | Build external channels that bridge messaging platforms to DotCraft. | `dotcraft` channel adapter |
 | Advanced protocol clients | Access raw AppServer JSON-RPC methods and notifications. | `dotcraft` wire client |
-| Native app authors | Accept App Binding handoffs and attach app-owned tools from a Python process. | `dotcraft` App Binding helpers |
+| Native app authors | Complete principal handoffs and activate binding-scoped MCP sessions from Python. | `dotcraft` App Binding helpers |
 
 ---
 
@@ -144,7 +144,7 @@ Gaps in the `dotcraft-wire` baseline, now closed in `dotcraft`:
 - The `turn/enqueue` wrapper.
 - The user-input callback.
 - Runtime dynamic tool declaration (`dynamic_tools` on start/resume) and the `item/tool/call` callback (`on_tool_call`).
-- App Binding helpers (handoff parse, connection, binding accept, attach tools, tool error shape).
+- App Binding helpers (handoff parse, principal authentication, enable, activate, rebind, confirm, revoke).
 
 The model-list wrapper (`dotcraft.models.list()`) and typed App Binding DTOs are also implemented. No client-surface gaps remain; future work is limited to synchronous wrappers and reconnect policy.
 
@@ -562,11 +562,11 @@ Result fields: `scheme`, `operation`, `app_id`, `request_id`, `request_token`, `
 
 ### 15.2 App Binding Manager
 
-`dotcraft.app_bindings` exposes the App Binding methods: `list_apps`, `view_app`, connection `start_connection` / `connect` / `connection_status` / `revoke_connection`, binding `create_binding_request` / `get_binding_request` / `cancel_binding_request` / `accept_binding` / `attach_tools`, and thread bindings `list_thread_bindings` / `revoke_thread_binding` / `refresh_thread_bindings`. Methods may accept and return generic mappings first, with typed models added later, provided they stay compatible with [App Binding](../protocols/app-binding.md).
+`dotcraft.app_bindings` exposes connection `start_connection` / `complete_connection` / `authenticate` / `refresh_credential` / `connection_status` / `revoke_connection`, binding `enable` / `get_binding_request` / `activate` / `rebind` / `confirm_capabilities`, and thread binding list/revoke helpers.
 
 ### 15.3 Keep Alive
 
-A `keep_alive()` coroutine drains AppServer notifications until cancellation so a native Python app can keep its app-bound tool channel alive while running.
+A `keep_alive()` coroutine drains control-plane notifications. The binding-scoped MCP session has an independent lifecycle and is not terminated when the control connection disconnects.
 
 ### 15.4 Standard Tool Errors
 
@@ -638,7 +638,7 @@ At least one runnable example demonstrates local and remote connect, `run_stream
 - delta/snapshot text merge.
 - explicit `turn/enqueue` and `TurnInProgressError`.
 - approval, dynamic tool, and user-input callbacks.
-- App Binding handoff parse, accept method shape, and tool error shape.
+- App Binding handoff parse, principal authentication, activation, and tool error shape.
 - channel adapter queueing, thread resolution, and dispatch (existing coverage preserved).
 
 ### 19.2 Conformance Alignment
@@ -693,7 +693,7 @@ A complete implementation of this specification satisfies:
 - Final run results merge delta and snapshot text without duplication.
 - Approval, dynamic tool, and user-input callbacks work.
 - A public `request()` escape hatch is available on the high-level and wire clients.
-- App Binding handoff parse, connection, binding accept, attach tools, keep alive, and tool error shape work.
+- App Binding handoff parse, connection, authentication, activation, rebind, confirmation, and tool error shape work.
 - The channel adapter preserves existing behavior.
 - Python SDK tests pass.
 - Chinese and English Python SDK docs follow the shared skeleton.

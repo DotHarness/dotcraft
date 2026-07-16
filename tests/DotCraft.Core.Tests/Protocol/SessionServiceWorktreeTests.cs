@@ -4,6 +4,7 @@ using DotCraft.Agents;
 using DotCraft.Configuration;
 using DotCraft.Memory;
 using DotCraft.Protocol;
+using DotCraft.Tools;
 using DotCraft.Security;
 using DotCraft.Sessions;
 using DotCraft.Skills;
@@ -144,11 +145,8 @@ public sealed class SessionServiceWorktreeTests : IDisposable
             BranchName = "dotcraft/worktree-context"
         });
 
-        var seen = Assert.Single(recorder.Contexts, context => context.CurrentThreadId == result.Thread.Id);
+        var seen = Assert.Single(recorder.Contexts, context => context.ThreadId == result.Thread.Id);
         Assert.Equal(result.Worktree.Path, seen.WorkspacePath);
-        Assert.Equal(_tempDir, seen.BotPath);
-        Assert.StartsWith(Path.Combine(_tempDir, "memory"), seen.MemoryStore.MemoryDirectoryPath, StringComparison.OrdinalIgnoreCase);
-        Assert.Equal(Path.Combine(_tempDir, "skills"), seen.SkillsLoader.WorkspaceSkillsPath);
 
         var guard = new FileAccessGuard(seen.WorkspacePath, requireApprovalOutsideWorkspace: false);
         var worktreeFile = Path.Combine(result.Worktree.Path, "README.md");
@@ -434,7 +432,7 @@ public sealed class SessionServiceWorktreeTests : IDisposable
         return new SessionService(agentFactory, defaultAgent, _persistence, new SessionGate());
     }
 
-    private AgentFactory CreateAgentFactory(IReadOnlyList<IAgentToolProvider>? toolProviders = null)
+    private AgentFactory CreateAgentFactory(IReadOnlyList<IToolSource>? toolProviders = null)
     {
         var config = AppConfigTestFactory.CreateOpenAI();
         return new AgentFactory(
@@ -445,7 +443,7 @@ public sealed class SessionServiceWorktreeTests : IDisposable
             skillsLoader: new SkillsLoader(_tempDir),
             approvalService: new AutoApproveApprovalService(),
             blacklist: null,
-            toolProviders: toolProviders ?? Array.Empty<IAgentToolProvider>());
+            toolSources: toolProviders ?? Array.Empty<IToolSource>());
     }
 
     private SessionIdentity MakeIdentity() =>
@@ -562,16 +560,19 @@ public sealed class SessionServiceWorktreeTests : IDisposable
         psi.Environment["PWD"] = workingDirectory;
     }
 
-    private sealed class RecordingToolProvider : IAgentToolProvider
+    private sealed class RecordingToolProvider : IToolSource
     {
+        public string SourceId => "recording";
         public int Priority => 10;
 
-        public List<ToolProviderContext> Contexts { get; } = [];
+        public List<ToolPlanningContext> Contexts { get; } = [];
 
-        public IEnumerable<AITool> CreateTools(ToolProviderContext context)
+        public ValueTask<IReadOnlyList<ToolRegistration>> GetRegistrationsAsync(
+            ToolPlanningContext context,
+            CancellationToken cancellationToken = default)
         {
             Contexts.Add(context);
-            return [];
+            return ValueTask.FromResult<IReadOnlyList<ToolRegistration>>([]);
         }
     }
 }

@@ -404,15 +404,45 @@ public sealed class OpenAIResponsesToolSearchChatClientTests
         var namespaceTool = Assert.Single(document.RootElement.GetProperty("tools").EnumerateArray());
         Assert.Equal("namespace", namespaceTool.GetProperty("type").GetString());
         Assert.Equal("image_gen", namespaceTool.GetProperty("name").GetString());
-        Assert.Equal("Tools in the image_gen namespace.", namespaceTool.GetProperty("description").GetString());
+        var function = Assert.Single(namespaceTool.GetProperty("tools").EnumerateArray());
+        Assert.Equal("function", function.GetProperty("type").GetString());
+        Assert.Equal("imagegen", function.GetProperty("name").GetString());
+        Assert.Equal("Generate an image.", function.GetProperty("description").GetString());
+        Assert.Equal("object", function.GetProperty("parameters").GetProperty("type").GetString());
+        Assert.False(function.TryGetProperty("defer_loading", out _));
+    }
 
-        var child = Assert.Single(namespaceTool.GetProperty("tools").EnumerateArray());
-        Assert.Equal("function", child.GetProperty("type").GetString());
-        Assert.Equal("imagegen", child.GetProperty("name").GetString());
-        Assert.Equal("Generate an image.", child.GetProperty("description").GetString());
-        Assert.Equal("object", child.GetProperty("parameters").GetProperty("type").GetString());
-        Assert.False(child.TryGetProperty("namespace", out _));
-        Assert.False(child.TryGetProperty("defer_loading", out _));
+    [Fact]
+    public void CreateResponseOptions_UsesOneResolvedNamespaceDescription()
+    {
+        var first = new TestFunction("first", "First tool.", "mcp__catalog", "Catalog tools.");
+        var second = new TestFunction("second", "Second tool.", "mcp__catalog", "Catalog tools.");
+
+        using var document = JsonDocument.Parse(CreateRequestJson(
+            "gpt-test",
+            [new ChatMessage(ChatRole.User, "use catalog")],
+            new ChatOptions { Tools = [first, second] }));
+
+        var namespaceTool = Assert.Single(document.RootElement.GetProperty("tools").EnumerateArray());
+        Assert.Equal("mcp__catalog", namespaceTool.GetProperty("name").GetString());
+        Assert.Equal("Catalog tools.", namespaceTool.GetProperty("description").GetString());
+        Assert.Equal(2, namespaceTool.GetProperty("tools").GetArrayLength());
+    }
+
+    [Fact]
+    public void CreateResponseOptions_ConflictingNamespaceDescriptionsUseGenericDescription()
+    {
+        var first = new TestFunction("first", "First tool.", "workflow", "First description.");
+        var second = new TestFunction("second", "Second tool.", "workflow", "Second description.");
+
+        using var document = JsonDocument.Parse(CreateRequestJson(
+            "gpt-test",
+            [new ChatMessage(ChatRole.User, "use workflow")],
+            new ChatOptions { Tools = [first, second] }));
+
+        var namespaceTool = Assert.Single(document.RootElement.GetProperty("tools").EnumerateArray());
+        Assert.Equal("Tools in the workflow namespace.", namespaceTool.GetProperty("description").GetString());
+        Assert.Equal(2, namespaceTool.GetProperty("tools").GetArrayLength());
     }
 
     [Fact]
@@ -430,18 +460,29 @@ public sealed class OpenAIResponsesToolSearchChatClientTests
             [new ChatMessage(ChatRole.User, "make an image")],
             options));
 
-        var hostedTool = Assert.Single(document.RootElement.GetProperty("tools").EnumerateArray());
+        var tools = document.RootElement.GetProperty("tools").EnumerateArray().ToArray();
+        Assert.Equal(2, tools.Length);
+        var hostedTool = Assert.Single(tools, tool => tool.GetProperty("type").GetString() == "image_generation");
         Assert.Equal("image_generation", hostedTool.GetProperty("type").GetString());
         Assert.Equal("png", hostedTool.GetProperty("output_format").GetString());
         Assert.False(hostedTool.TryGetProperty("name", out _));
-        Assert.DoesNotContain(
-            document.RootElement.GetProperty("tools").EnumerateArray(),
-            tool => tool.TryGetProperty("name", out var name) && name.GetString() == "image_gen");
-        Assert.DoesNotContain(
-            document.RootElement.GetProperty("tools").EnumerateArray(),
-            tool => tool.TryGetProperty("tools", out var children)
-                    && children.EnumerateArray().Any(child =>
-                        child.TryGetProperty("name", out var childName) && childName.GetString() == "imagegen"));
+        Assert.Contains(
+            tools,
+            tool => tool.GetProperty("type").GetString() == "namespace"
+                    && tool.GetProperty("name").GetString() == "image_gen");
+    }
+
+    [Fact]
+    public void CreateResponseOptions_RejectsInvalidProviderIdentityLocally()
+    {
+        var invalidTool = new TestFunction("read", "Read.", "code-host-apps:code-host-apps");
+
+        var error = Assert.Throws<InvalidOperationException>(() => CreateRequestJson(
+            "gpt-test",
+            [new ChatMessage(ChatRole.User, "read")],
+            new ChatOptions { Tools = [invalidTool] }));
+
+        Assert.StartsWith("invalid_provider_tool_identity:", error.Message, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -1611,23 +1652,48 @@ public sealed class OpenAIResponsesToolSearchChatClientTests
             Configuration = new ThreadConfiguration()
         };
 
+        RuntimeDynamicToolDeclaration declaration = toolNamespace is null
+            ? new RuntimeDynamicToolFunction
+            {
+                Name = name,
+                Description = "Generate an image.",
+                InputSchema = new JsonObject { ["type"] = "object" }
+            }
+            : new RuntimeDynamicToolNamespace
+            {
+                Name = toolNamespace,
+                Description = $"{toolNamespace} tools.",
+                Tools =
+                [
+                    new RuntimeDynamicToolFunction
+                    {
+                        Name = name,
+                        Description = "Generate an image.",
+                        InputSchema = new JsonObject { ["type"] = "object" }
+                    }
+                ]
+            };
+
         proxy.BindThread(
             thread.Id,
             new NoopAppServerTransport(),
             new AppServerConnection(),
-            [
-                new DynamicToolSpec
-                {
-                    Namespace = toolNamespace,
-                    Name = name,
-                    Description = "Generate an image.",
-                    InputSchema = new JsonObject { ["type"] = "object" }
-                }
-            ]);
+            [declaration]);
 
-        return Assert.Single(proxy.CreateToolsForThread(
-            thread,
-            new HashSet<string>(StringComparer.Ordinal)));
+        var planning = new ToolPlanningContext(
+            thread.Id,
+            null,
+            thread.WorkspacePath,
+            "default",
+            null,
+            [],
+            1);
+        var snapshot = new EffectiveToolSnapshotBuilder()
+            .BuildAsync([proxy], planning)
+            .AsTask()
+            .GetAwaiter()
+            .GetResult();
+        return Assert.Single(AgentFactory.ProjectSnapshotTools(snapshot));
     }
 
     private static byte[] CreateImageBytes(string mediaType)
@@ -1741,7 +1807,8 @@ public sealed class OpenAIResponsesToolSearchChatClientTests
     private sealed class TestFunction(
         string name,
         string description,
-        string? toolNamespace = null) : AIFunction, IToolNamespaceMetadata
+        string? toolNamespace = null,
+        string? namespaceDescription = null) : AIFunction, IToolNamespaceMetadata
     {
         private static readonly JsonElement Schema = JsonSerializer.SerializeToElement(new
         {
@@ -1749,6 +1816,8 @@ public sealed class OpenAIResponsesToolSearchChatClientTests
         });
 
         public string? ToolNamespace => toolNamespace;
+
+        public string? ToolNamespaceDescription => namespaceDescription;
 
         public override string Name => name;
 

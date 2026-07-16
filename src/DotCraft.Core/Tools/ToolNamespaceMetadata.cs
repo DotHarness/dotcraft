@@ -1,5 +1,3 @@
-using DotCraft.Plugins;
-using DotCraft.Protocol.AppServer;
 using Microsoft.Extensions.AI;
 
 namespace DotCraft.Tools;
@@ -7,6 +5,21 @@ namespace DotCraft.Tools;
 internal interface IToolNamespaceMetadata
 {
     string? ToolNamespace { get; }
+
+    string? ToolNamespaceDescription => null;
+}
+
+/// <summary>
+/// Carries the canonical composite identity independently from the flat alias used by
+/// providers that cannot represent namespaces.
+/// </summary>
+internal interface ICanonicalToolIdentityMetadata : IToolNamespaceMetadata
+{
+    ToolName CanonicalToolName { get; }
+
+    string ProviderFlatName { get; }
+
+    string IToolNamespaceMetadata.ToolNamespace => CanonicalToolName.Namespace!;
 }
 
 internal interface IOpenAIResponsesFunctionToolMetadata
@@ -28,19 +41,14 @@ internal static class ToolNamespaceMetadataResolver
                 when TryNormalize(deferred.DeferredToolNamespace, out toolNamespace):
                 return true;
 
-            case IDynamicToolRuntimeTool dynamicTool
-                when TryNormalize(dynamicTool.Spec.Namespace, out toolNamespace):
-                return true;
-
-            case IPluginFunctionTool { PluginFunctionDescriptor: { } descriptor }
-                when TryNormalize(descriptor.Namespace, out toolNamespace):
-                return true;
-
             default:
                 toolNamespace = string.Empty;
                 return false;
         }
     }
+
+    public static string? GetDescription(AITool tool) =>
+        tool is IToolNamespaceMetadata metadata ? metadata.ToolNamespaceDescription : null;
 
     private static bool TryNormalize(string? value, out string normalized)
     {
@@ -50,5 +58,42 @@ internal static class ToolNamespaceMetadataResolver
 
         normalized = value.Trim();
         return true;
+    }
+}
+
+internal static class ToolNamespaceDescriptionResolver
+{
+    public static string Resolve(
+        string namespaceName,
+        IEnumerable<string?> descriptions,
+        out bool hasConflict)
+    {
+        var distinct = descriptions
+            .Where(static description => !string.IsNullOrWhiteSpace(description))
+            .Select(static description => description!.Trim())
+            .Distinct(StringComparer.Ordinal)
+            .Take(2)
+            .ToArray();
+        hasConflict = distinct.Length > 1;
+        return distinct.Length == 1
+            ? distinct[0]
+            : $"Tools in the {namespaceName} namespace.";
+    }
+}
+
+internal static class CanonicalToolIdentityMetadataResolver
+{
+    public static bool TryGet(AITool tool, out ToolName toolName, out string providerFlatName)
+    {
+        if (tool is ICanonicalToolIdentityMetadata metadata)
+        {
+            toolName = metadata.CanonicalToolName;
+            providerFlatName = metadata.ProviderFlatName;
+            return true;
+        }
+
+        toolName = default;
+        providerFlatName = string.Empty;
+        return false;
     }
 }

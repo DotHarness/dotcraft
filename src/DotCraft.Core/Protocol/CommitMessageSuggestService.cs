@@ -10,7 +10,7 @@ using Microsoft.Extensions.Logging;
 namespace DotCraft.Protocol;
 
 /// <summary>
-/// Orchestrates source-control summary suggestion via an ephemeral thread and the <see cref="CommitSuggestToolProvider"/> profile.
+/// Orchestrates source-control summary suggestion via an ephemeral thread and the <see cref="CommitSuggestToolSource"/> profile.
 /// </summary>
 public interface ICommitMessageSuggestService
 {

@@ -142,10 +142,16 @@ if ([string]::IsNullOrWhiteSpace($PluginsRepoRoot)) {
 }
 
 $dotcraftDevSkillsPath = Join-Path $PluginsRepoRoot "plugins\dotcraft-dev\skills"
+$harnessWorkflowSkillsPath = Join-Path $PluginsRepoRoot "plugins\harness-workflow\skills"
+$registrySkillSourceNames = @("DotCraft dev skills", "Harness Workflow skills")
 $skillSources = @(
     @{
         Name = "DotCraft dev skills"
         Path = $dotcraftDevSkillsPath
+    },
+    @{
+        Name = "Harness Workflow skills"
+        Path = $harnessWorkflowSkillsPath
     },
     @{
         Name = "DotCraft Doctor skills"
@@ -167,7 +173,7 @@ foreach ($skillSource in $skillSources) {
 
 foreach ($skillSource in $skillSources) {
     if (-not (Test-Path -LiteralPath $skillSource.Path)) {
-        if ($skillSource.Name -eq "DotCraft dev skills") {
+        if ($registrySkillSourceNames -contains $skillSource.Name) {
             throw "Source skills directory not found: $($skillSource.Path). Pass -PluginsRepoRoot or set DOTCRAFT_PLUGINS_REPO for a local checkout, or pass -PluginRegistryUrl / set DOTCRAFT_DEFAULT_PLUGIN_REGISTRY_URL for another registry."
         }
 
@@ -202,4 +208,4 @@ Write-Host "  - Cursor gets per-skill junctions; unrelated existing skills are l
 Write-Host "  - Codex gets per-skill junctions; unrelated existing skills are left untouched." -ForegroundColor Green
 Write-Host "  - Claude gets per-skill junctions; unrelated existing skills are left untouched." -ForegroundColor Green
 Write-Host "DotCraft Doctor skill edits in this repo take effect immediately in all linked tools." -ForegroundColor Green
-Write-Host "DotCraft dev skills come from the local override or resolved plugin registry; use -ForcePluginRegistryRefresh to refresh the registry now." -ForegroundColor Green
+Write-Host "DotCraft dev and Harness Workflow skills come from the local override or resolved plugin registry; use -ForcePluginRegistryRefresh to refresh the registry now." -ForegroundColor Green

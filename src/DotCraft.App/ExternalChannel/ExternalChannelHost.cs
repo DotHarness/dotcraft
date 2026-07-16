@@ -48,6 +48,7 @@ public sealed class ExternalChannelHost : IChannelService, IChannelToolRegistrat
     private readonly IAppConfigMonitor? _appConfigMonitor;
     private readonly IReadOnlyList<IAppServerProtocolExtension> _protocolExtensions;
     private readonly AppBindingService? _appBindingService;
+    private readonly IReadOnlyList<IThreadOriginPresentationProvider> _originPresentationProviders;
 
     // Current transport/connection/handler — replaced on restart or reconnect
     private IAppServerTransport? _transport;
@@ -91,7 +92,8 @@ public sealed class ExternalChannelHost : IChannelService, IChannelToolRegistrat
         SessionStreamDebugLogger? streamDebugLogger = null,
         IAppConfigMonitor? appConfigMonitor = null,
         IEnumerable<IAppServerProtocolExtension>? protocolExtensions = null,
-        AppBindingService? appBindingService = null)
+        AppBindingService? appBindingService = null,
+        IEnumerable<IThreadOriginPresentationProvider>? originPresentationProviders = null)
         : this(
             config,
             sessionService,
@@ -105,7 +107,8 @@ public sealed class ExternalChannelHost : IChannelService, IChannelToolRegistrat
             streamDebugLogger,
             appConfigMonitor,
             protocolExtensions,
-            appBindingService)
+            appBindingService,
+            originPresentationProviders)
     {
     }
 
@@ -120,7 +123,8 @@ public sealed class ExternalChannelHost : IChannelService, IChannelToolRegistrat
         SessionStreamDebugLogger? streamDebugLogger = null,
         IAppConfigMonitor? appConfigMonitor = null,
         IEnumerable<IAppServerProtocolExtension>? protocolExtensions = null,
-        AppBindingService? appBindingService = null)
+        AppBindingService? appBindingService = null,
+        IEnumerable<IThreadOriginPresentationProvider>? originPresentationProviders = null)
         : this(
             config,
             sessionService,
@@ -134,7 +138,8 @@ public sealed class ExternalChannelHost : IChannelService, IChannelToolRegistrat
             streamDebugLogger,
             appConfigMonitor,
             protocolExtensions,
-            appBindingService)
+            appBindingService,
+            originPresentationProviders)
     {
     }
 
@@ -151,7 +156,8 @@ public sealed class ExternalChannelHost : IChannelService, IChannelToolRegistrat
         SessionStreamDebugLogger? streamDebugLogger = null,
         IAppConfigMonitor? appConfigMonitor = null,
         IEnumerable<IAppServerProtocolExtension>? protocolExtensions = null,
-        AppBindingService? appBindingService = null)
+        AppBindingService? appBindingService = null,
+        IEnumerable<IThreadOriginPresentationProvider>? originPresentationProviders = null)
     {
         _config = config ?? throw new ArgumentNullException(nameof(config));
         _sessionService = sessionService ?? throw new ArgumentNullException(nameof(sessionService));
@@ -165,6 +171,7 @@ public sealed class ExternalChannelHost : IChannelService, IChannelToolRegistrat
         _appConfigMonitor = appConfigMonitor;
         _protocolExtensions = protocolExtensions?.ToArray() ?? [];
         _appBindingService = appBindingService;
+        _originPresentationProviders = originPresentationProviders?.ToArray() ?? [];
     }
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -456,6 +463,7 @@ public sealed class ExternalChannelHost : IChannelService, IChannelToolRegistrat
                 AppConfigMonitor = _appConfigMonitor,
                 ProtocolExtensions = _protocolExtensions,
                 AppBindingService = _appBindingService,
+                ThreadOriginPresentationProviders = _originPresentationProviders,
             });
 
         // Forward stderr to DotCraft's diagnostic log
@@ -709,6 +717,7 @@ public sealed class ExternalChannelHost : IChannelService, IChannelToolRegistrat
                 AppConfigMonitor = _appConfigMonitor,
                 ProtocolExtensions = _protocolExtensions,
                 AppBindingService = _appBindingService,
+                ThreadOriginPresentationProviders = _originPresentationProviders,
             });
 
         AnsiConsole.MarkupLine(
@@ -771,6 +780,7 @@ public sealed class ExternalChannelHost : IChannelService, IChannelToolRegistrat
                     AppConfigMonitor = _appConfigMonitor,
                     ProtocolExtensions = _protocolExtensions,
                     AppBindingService = _appBindingService,
+                    ThreadOriginPresentationProviders = _originPresentationProviders,
                 });
 
             AnsiConsole.MarkupLine(

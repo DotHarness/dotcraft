@@ -1,927 +1,763 @@
-using System.Text.Json;
-using System.Text.Json.Nodes;
-using DotCraft.Abstractions;
-using DotCraft.Configuration;
-using DotCraft.Context;
-using DotCraft.Plugins;
+using System.Collections.Concurrent;
 using DotCraft.Protocol;
 using DotCraft.Protocol.AppServer;
-using DotCraft.Skills;
-using Microsoft.Extensions.AI;
-using static DotCraft.AppBinding.AppBindingStoreAccessor;
 
 namespace DotCraft.AppBinding;
 
-/// <summary>
-/// Coordinates App Binding discovery, durable lifecycle state, and runtime tool dispatch.
-/// </summary>
+/// <summary>Owns App Binding durable authority, principal credentials, and state transitions.</summary>
 public sealed class AppBindingService
 {
-    private readonly AppBindingStoreAccessor _storeAccessor = new();
-    private readonly AppBindingAttachmentRegistry _attachments = new();
-    private readonly IReadOnlyDictionary<string, IManagedAppBindingRuntime> _managedRuntimesByAppId;
-    private readonly AppBindingWireMapper _wireMapper;
-    private readonly AppConnectionService _connections;
-    private readonly AppContextBlockService _contextBlocks;
-    private readonly AppToolAttachmentService _tools;
-    private readonly AppBindingLifecycleService _lifecycle;
-    private readonly AppUiInteractionService _ui;
+    private readonly ConcurrentDictionary<string, AppBindingStateStore> _stores =
+        new(StringComparer.OrdinalIgnoreCase);
 
-    /// <summary>
-    /// Raised after app-supplied context blocks for a thread change.
-    /// </summary>
-    public event Action<string>? AppContextBlocksChanged;
+    internal AppBindingStateStore Store(string workspaceCraftPath) =>
+        _stores.GetOrAdd(Path.GetFullPath(workspaceCraftPath), static path => new(path));
 
-    /// <summary>
-    /// Creates the service with optional first-party managed App Binding runtimes.
-    /// </summary>
-    public AppBindingService(IEnumerable<IManagedAppBindingRuntime>? managedRuntimes = null)
-    {
-        _managedRuntimesByAppId = (managedRuntimes ?? [])
-            .Where(runtime => !string.IsNullOrWhiteSpace(runtime.Descriptor.AppId))
-            .GroupBy(runtime => runtime.Descriptor.AppId, StringComparer.Ordinal)
-            .ToDictionary(group => group.Key, group => group.First(), StringComparer.Ordinal);
-        _wireMapper = new AppBindingWireMapper(_managedRuntimesByAppId);
-        _connections = new AppConnectionService(_storeAccessor, _attachments);
-        _contextBlocks = new AppContextBlockService(_storeAccessor, _managedRuntimesByAppId, NotifyAppContextBlocksChanged);
-        _tools = new AppToolAttachmentService(this, _storeAccessor, _attachments, _managedRuntimesByAppId);
-        _lifecycle = new AppBindingLifecycleService(this, _storeAccessor, _attachments, _tools, _managedRuntimesByAppId);
-        _ui = new AppUiInteractionService(_storeAccessor, _tools, NotifyAppContextBlocksChanged);
-    }
-
-    public AppCatalogSnapshot DiscoverCatalog(
-        AppConfig config,
-        string workspacePath,
+    public AppConnectionStartResult StartConnection(
         string workspaceCraftPath,
-        SkillsLoader? skillsLoader = null,
-        IReadOnlyList<string>? builtInPluginSourceRoots = null)
+        string appId,
+        string userId)
     {
-        var catalog = AppBindingCatalog.Discover(config, workspacePath, workspaceCraftPath, skillsLoader, builtInPluginSourceRoots);
-        if (_managedRuntimesByAppId.Count == 0)
-            return catalog;
-
-        var entries = catalog.Entries.ToList();
-        var diagnostics = catalog.Diagnostics.ToList();
-        foreach (var runtime in _managedRuntimesByAppId.Values.OrderBy(runtime => runtime.Descriptor.DisplayName, StringComparer.OrdinalIgnoreCase))
+        Require(appId, "appId");
+        var token = AppBindingSecrets.NewSecret();
+        var now = DateTimeOffset.UtcNow;
+        var record = new AppConnectionRequestRecord
         {
-            var owningPluginId = runtime.OwningPluginId;
-            var owningPlugin = string.IsNullOrWhiteSpace(owningPluginId)
-                ? CreateSyntheticManagedPlugin(runtime.Descriptor, workspaceCraftPath)
-                : catalog.Plugins
-                    .FirstOrDefault(plugin => plugin.Installed
-                                              && PluginIds.EqualsCanonical(plugin.Manifest.Id, owningPluginId));
-            if (owningPlugin == null)
-                continue;
-
-            if (entries.Any(entry =>
-                    string.Equals(entry.Descriptor.AppId, runtime.Descriptor.AppId, StringComparison.Ordinal)
-                    || string.Equals(entry.Descriptor.ToolNamespace, runtime.Descriptor.ToolNamespace, StringComparison.Ordinal)))
-            {
-                diagnostics.Add(PluginDiagnostic.Error(
-                    "ManagedAppBindingCollision",
-                    $"Managed app '{runtime.Descriptor.AppId}' was skipped because a catalog app already uses its appId or toolNamespace.",
-                    runtime.Descriptor.AppId));
-                continue;
-            }
-
-            entries.Add(new AppCatalogEntry(
-                CloneDescriptor(runtime.Descriptor),
-                owningPlugin,
-                [])
-            {
-                ManagedRuntime = new ManagedAppBindingCatalogMetadata(
-                    owningPlugin.Manifest.Id,
-                    runtime.CatalogSurfaces,
-                    runtime.RequiresExternalConnection)
-            });
-        }
-
-        return new AppCatalogSnapshot(entries, diagnostics)
+            ConnectionRequestId = $"appconn_{Guid.NewGuid():N}",
+            AppId = appId.Trim(),
+            UserId = NormalizeUser(userId),
+            RequestTokenHash = AppBindingSecrets.HashRequestToken(token),
+            CreatedAt = now,
+            ExpiresAt = now.Add(AppBindingContract.HandoffLifetime)
+        };
+        Store(workspaceCraftPath).Update(state =>
         {
-            Plugins = entries
-                .Select(entry => entry.Plugin)
-                .Concat(catalog.Plugins)
-                .GroupBy(plugin => plugin.Manifest.Id, StringComparer.OrdinalIgnoreCase)
-                .Select(group => group.First())
-                .ToArray()
+            state.ConnectionRequests.RemoveAll(candidate => candidate.ExpiresAt <= now || candidate.Consumed);
+            state.ConnectionRequests.Add(record);
+            Audit(state, "connection.requested", record.UserId, record.AppId);
+            return 0;
+        });
+        return new()
+        {
+            ConnectionRequestId = record.ConnectionRequestId,
+            RequestToken = token,
+            ExpiresAt = record.ExpiresAt
         };
     }
 
-    public AppListResult ListApps(
-        AppCatalogSnapshot catalog,
+    internal AppConnectionRequestRecord GetConnectionRequest(
         string workspaceCraftPath,
-        string userId,
-        AppListParams p)
+        AppConnectionRequestGetParams parameters)
     {
-        var state = GetStore(workspaceCraftPath).Snapshot();
-        var includeDisabled = p.IncludeDisabled != false;
-        var includeCatalog = p.IncludeCatalog != false;
-        var surface = AppBindingCatalogSurfaces.Normalize(p.Surface);
-        var apps = catalog.Entries
-            .Where(entry => (includeCatalog || entry.Plugin.Installed)
-                            && (includeDisabled || entry.Plugin.Enabled)
-                            && AppBindingWireMapper.IsVisibleOnAppListSurface(entry, surface))
-            .Select(entry => _wireMapper.MapAppInfo(entry, state, userId, p.ThreadId, surface))
-            .OrderBy(app => app.DisplayName, StringComparer.OrdinalIgnoreCase)
-            .ToList();
-        return new AppListResult { Apps = apps };
+        Require(parameters.ConnectionRequestId, "connectionRequestId");
+        Require(parameters.RequestToken, "requestToken");
+        var record = Store(workspaceCraftPath).Snapshot().ConnectionRequests.FirstOrDefault(candidate =>
+            string.Equals(candidate.ConnectionRequestId, parameters.ConnectionRequestId, StringComparison.Ordinal));
+        ValidateRequest(record, parameters.RequestToken);
+        return record!;
     }
 
-    public AppViewResult ViewApp(
-        AppCatalogSnapshot catalog,
+    public AppConnectionConnectResult Connect(
         string workspaceCraftPath,
-        string userId,
-        string appId,
-        string? threadId)
+        AppConnectionConnectParams parameters)
     {
-        var entry = FindApp(catalog, appId);
-        var state = GetStore(workspaceCraftPath).Snapshot();
-        return new AppViewResult { App = _wireMapper.MapAppInfo(entry, state, userId, threadId, AppBindingCatalogSurfaces.SdkDefault) };
-    }
-
-    public AppConnectionStartResult StartConnection(
-        AppCatalogSnapshot catalog,
-        string workspaceCraftPath,
-        string userId,
-        AppConnectionStartParams p) =>
-        _connections.StartConnection(catalog, workspaceCraftPath, userId, p);
-
-    public AppConnectionRequestGetResult GetConnectionRequest(
-        AppCatalogSnapshot catalog,
-        string workspaceCraftPath,
-        AppConnectionRequestGetParams p) =>
-        _connections.GetConnectionRequest(catalog, workspaceCraftPath, p);
-
-    public AppConnectionStatusWire CompleteConnection(
-        AppCatalogSnapshot catalog,
-        string workspaceCraftPath,
-        AppConnectionConnectParams p) =>
-        _connections.CompleteConnection(catalog, workspaceCraftPath, p);
-
-    public AppConnectionStatusWire GetConnectionStatus(
-        AppCatalogSnapshot catalog,
-        string workspaceCraftPath,
-        string userId,
-        string appId)
-    {
-        var fallback = _connections.GetConnectionStatus(catalog, workspaceCraftPath, userId, appId);
-        return ResolveManagedConnectionStatus(appId, fallback);
-    }
-
-    /// <summary>
-    /// Refreshes only the <c>publicMetadata</c> of an existing connected connection
-    /// (for example a new dynamic loopback surface port). The refresh is initiated by
-    /// the app over its own loopback app-server connection, which does not share the
-    /// Desktop initiator's user id; authority is therefore the app-owned connection
-    /// proof, not the caller's user. Never creates a connection or changes scope.
-    /// </summary>
-    public AppConnectionStatusWire RefreshConnectionMetadata(
-        AppCatalogSnapshot catalog,
-        string workspaceCraftPath,
-        AppConnectionMetadataRefreshParams p) =>
-        _connections.RefreshConnectionMetadata(catalog, workspaceCraftPath, p);
-
-    public AppConnectionStatusWire RevokeConnection(
-        AppCatalogSnapshot catalog,
-        string workspaceCraftPath,
-        string userId,
-        AppConnectionRevokeParams p) =>
-        _connections.RevokeConnection(catalog, workspaceCraftPath, userId, p);
-
-    public AppBindingRequestCreateResult CreateBindingRequest(
-        AppCatalogSnapshot catalog,
-        string workspaceCraftPath,
-        string userId,
-        AppBindingRequestCreateParams p) =>
-        _lifecycle.CreateBindingRequest(catalog, workspaceCraftPath, userId, p);
-
-    public AppBindingRequestGetResult GetBindingRequest(
-        AppCatalogSnapshot catalog,
-        string workspaceCraftPath,
-        AppBindingRequestGetParams p,
-        string? threadTitle = null,
-        string? channelAdapterName = null,
-        bool requireSocialAuthorization = false) =>
-        _lifecycle.GetBindingRequest(
-            catalog,
-            workspaceCraftPath,
-            p,
-            threadTitle,
-            channelAdapterName,
-            requireSocialAuthorization);
-
-    public AppBindingRequestCancelResult CancelBindingRequest(
-        string workspaceCraftPath,
-        AppBindingRequestCancelParams p) =>
-        _lifecycle.CancelBindingRequest(workspaceCraftPath, p);
-
-    public AppBindingAcceptResult AcceptBinding(
-        AppCatalogSnapshot catalog,
-        string workspaceCraftPath,
-        AppBindingAcceptParams p) =>
-        _lifecycle.AcceptBinding(catalog, workspaceCraftPath, p);
-
-    internal SocialBindingAcceptPreflightResult GetSocialBindingAcceptPreflight(
-        AppCatalogSnapshot catalog,
-        string workspaceCraftPath,
-        AppBindingAcceptParams p,
-        string? channelAdapterName = null,
-        bool requireSocialAuthorization = false) =>
-        _lifecycle.GetSocialBindingAcceptPreflight(
-            catalog,
-            workspaceCraftPath,
-            p,
-            channelAdapterName,
-            requireSocialAuthorization);
-
-    public AppSocialBindingResolveResult ResolveSocialBinding(
-        AppCatalogSnapshot catalog,
-        string workspaceCraftPath,
-        AppSocialBindingResolveParams p) =>
-        _lifecycle.ResolveSocialBinding(catalog, workspaceCraftPath, p);
-
-    internal ThreadAppBindingWire? FindActiveSocialBindingConflict(
-        AppCatalogSnapshot catalog,
-        string workspaceCraftPath,
-        string appId,
-        SocialChannelTargetWire socialTarget) =>
-        _lifecycle.FindActiveSocialBindingConflict(catalog, workspaceCraftPath, appId, socialTarget);
-
-    internal ThreadAppBindingWire? RevokeStaleSocialBinding(
-        AppCatalogSnapshot catalog,
-        string workspaceCraftPath,
-        string bindingId,
-        string diagnostic,
-        string auditEvent) =>
-        _lifecycle.RevokeStaleSocialBinding(catalog, workspaceCraftPath, bindingId, diagnostic, auditEvent);
-
-    internal AppBindingRequestCancelResult? CancelPendingSocialBindingRequestForUnavailableThread(
-        string workspaceCraftPath,
-        string bindingRequestId,
-        string diagnostic,
-        string auditEvent) =>
-        _lifecycle.CancelPendingSocialBindingRequestForUnavailableThread(
-            workspaceCraftPath,
-            bindingRequestId,
-            diagnostic,
-            auditEvent);
-
-    public AppBindingAttachToolsResult AttachTools(
-        AppCatalogSnapshot catalog,
-        string workspaceCraftPath,
-        IAppServerTransport transport,
-        AppServerConnection connection,
-        AppBindingAttachToolsParams p) =>
-        _tools.AttachTools(catalog, workspaceCraftPath, transport, connection, p);
-
-    /// <summary>
-    /// Creates or repairs an active binding for a first-party managed App Binding runtime.
-    /// </summary>
-    public ThreadAppBindingWire EnsureManagedBinding(
-        string workspaceCraftPath,
-        string threadId,
-        string appId,
-        string userId,
-        string grantId,
-        IReadOnlyList<string> grantedScopes,
-        IReadOnlyList<DynamicToolSpec>? tools = null,
-        AppDescriptor? descriptorOverride = null) =>
-        _lifecycle.EnsureManagedBinding(
-            workspaceCraftPath,
-            threadId,
-            appId,
-            userId,
-            grantId,
-            grantedScopes,
-            tools,
-            descriptorOverride);
-
-    public AppBindingContextUpsertResult UpsertContextBlock(
-        AppCatalogSnapshot catalog,
-        string workspaceCraftPath,
-        AppBindingContextUpsertParams p) =>
-        _contextBlocks.UpsertContextBlock(catalog, workspaceCraftPath, p);
-
-    /// <summary>
-    /// Creates or replaces one context block for a managed App Binding runtime.
-    /// </summary>
-    public AppBindingContextUpsertResult UpsertManagedContextBlock(
-        string workspaceCraftPath,
-        AppBindingContextUpsertParams p) =>
-        _contextBlocks.UpsertManagedContextBlock(workspaceCraftPath, p);
-
-    public AppBindingContextRemoveResult RemoveContextBlock(
-        AppCatalogSnapshot catalog,
-        string workspaceCraftPath,
-        AppBindingContextRemoveParams p) =>
-        _contextBlocks.RemoveContextBlock(catalog, workspaceCraftPath, p);
-
-    private void NotifyAppContextBlocksChanged(string threadId)
-    {
-        if (!string.IsNullOrWhiteSpace(threadId))
-            AppContextBlocksChanged?.Invoke(threadId);
-    }
-
-    /// <summary>
-    /// Validates an App Binding-safe queued input request and returns the binding target thread id.
-    /// </summary>
-    public string AuthorizeThreadInputEnqueue(
-        AppCatalogSnapshot catalog,
-        string workspaceCraftPath,
-        AppThreadInputEnqueueParams p) =>
-        _contextBlocks.AuthorizeThreadInputEnqueue(catalog, workspaceCraftPath, p);
-
-    /// <summary>
-    /// Records audit for an App Binding-safe queued input write.
-    /// </summary>
-    public void RecordThreadInputEnqueued(
-        string workspaceCraftPath,
-        string bindingId,
-        string queuedInputId,
-        string triggerKind,
-        string? triggerLabel,
-        string? triggerRefId) =>
-        _contextBlocks.RecordThreadInputEnqueued(
-            workspaceCraftPath,
-            bindingId,
-            queuedInputId,
-            triggerKind,
-            triggerLabel,
-            triggerRefId);
-
-    public ThreadAppContextBlocksListResult ListThreadContextBlocks(
-        string workspaceCraftPath,
-        string threadId,
-        bool includeInactive) =>
-        _contextBlocks.ListThreadContextBlocks(workspaceCraftPath, threadId, includeInactive);
-
-    public string? BuildAppContextPromptSection(string workspaceCraftPath, string threadId) =>
-        _contextBlocks.BuildAppContextPromptSection(workspaceCraftPath, threadId);
-
-    public ThreadAppBindingsListResult ListThreadBindings(
-        AppCatalogSnapshot catalog,
-        string workspaceCraftPath,
-        string threadId,
-        bool includeRevoked) =>
-        _lifecycle.ListThreadBindings(catalog, workspaceCraftPath, threadId, includeRevoked);
-
-    public SocialChannelTargetWire? GetSocialTarget(string workspaceCraftPath, string bindingId)
-    {
-        if (string.IsNullOrWhiteSpace(bindingId))
-            return null;
-
-        var binding = GetStore(workspaceCraftPath).Snapshot().Bindings.FirstOrDefault(candidate =>
-            string.Equals(candidate.BindingId, bindingId, StringComparison.Ordinal));
-        return binding?.SocialTarget;
-    }
-
-    public SocialChannelTargetWire? GetActiveSocialTarget(string workspaceCraftPath, string bindingId)
-    {
-        if (string.IsNullOrWhiteSpace(bindingId))
-            return null;
-
-        var binding = GetStore(workspaceCraftPath).Snapshot().Bindings.FirstOrDefault(candidate =>
-            string.Equals(candidate.BindingId, bindingId, StringComparison.Ordinal));
-        if (binding == null
-            || binding.State != AppBindingStates.Active
-            || !string.Equals(binding.BindingKind, AppBindingKinds.SocialChannel, StringComparison.Ordinal)
-            || binding.SocialTarget == null)
+        Require(parameters.ConnectionRequestId, "connectionRequestId");
+        Require(parameters.RequestToken, "requestToken");
+        var credential = AppBindingSecrets.NewSecret();
+        var verifier = AppBindingSecrets.CreateVerifier(credential);
+        var now = DateTimeOffset.UtcNow;
+        return Store(workspaceCraftPath).Update(state =>
         {
-            return null;
-        }
+            var request = state.ConnectionRequests.FirstOrDefault(candidate =>
+                string.Equals(candidate.ConnectionRequestId, parameters.ConnectionRequestId, StringComparison.Ordinal));
+            ValidateRequest(request, parameters.RequestToken);
+            request!.Consumed = true;
 
-        if (binding.ExpiresAt is { } expiresAt && expiresAt <= DateTimeOffset.UtcNow)
-            return null;
+            foreach (var existing in state.Principals.Where(candidate =>
+                         string.Equals(candidate.AppId, request.AppId, StringComparison.Ordinal)
+                         && string.Equals(candidate.UserId, request.UserId, StringComparison.Ordinal)
+                         && candidate.RevokedAt == null))
+            {
+                existing.RevokedAt = now;
+            }
 
-        return binding.SocialTarget;
-    }
-
-    public void RecordSocialDelivery(
-        string workspaceCraftPath,
-        string bindingId,
-        string turnId,
-        bool delivered,
-        string? diagnostic)
-    {
-        if (string.IsNullOrWhiteSpace(bindingId) || string.IsNullOrWhiteSpace(turnId))
-            return;
-
-        GetStore(workspaceCraftPath).Update(state =>
-        {
-            var binding = state.Bindings.FirstOrDefault(candidate =>
-                string.Equals(candidate.BindingId, bindingId.Trim(), StringComparison.Ordinal));
-            AddAudit(
-                state,
-                delivered ? "binding.socialDelivery.delivered" : "binding.socialDelivery.failed",
-                binding?.ThreadId,
-                binding?.BindingId ?? bindingId.Trim(),
-                binding?.AppId,
-                binding?.UserId,
-                string.IsNullOrWhiteSpace(diagnostic) ? turnId : $"{turnId}:{diagnostic}");
-            return true;
+            var principal = new AppPrincipalRecord
+            {
+                PrincipalId = $"apppr_{Guid.NewGuid():N}",
+                AppId = request.AppId,
+                UserId = request.UserId,
+                CredentialSalt = verifier.Salt,
+                CredentialVerifier = verifier.Verifier,
+                ExpiresAt = now.Add(AppBindingContract.PrincipalCredentialLifetime),
+                AccountLabel = string.IsNullOrWhiteSpace(parameters.AccountLabel)
+                    ? null
+                    : parameters.AccountLabel.Trim()
+            };
+            state.Principals.Add(principal);
+            Audit(state, "connection.connected", principal.UserId, principal.AppId, principalId: principal.PrincipalId);
+            return new AppConnectionConnectResult
+            {
+                Principal = ToWire(principal),
+                Credential = credential
+            };
         });
     }
 
-    public IReadOnlyList<ThreadAppBindingWire> ListBindingsForAppUser(
-        AppCatalogSnapshot catalog,
+    public AppPrincipalWire Authenticate(
         string workspaceCraftPath,
-        string userId,
         string appId,
-        bool includeRevoked) =>
-        _lifecycle.ListBindingsForAppUser(catalog, workspaceCraftPath, userId, appId, includeRevoked);
+        string credential)
+    {
+        Require(appId, "appId");
+        Require(credential, "credential");
+        var now = DateTimeOffset.UtcNow;
+        var principal = Store(workspaceCraftPath).Snapshot().Principals.FirstOrDefault(candidate =>
+            string.Equals(candidate.AppId, appId, StringComparison.Ordinal)
+            && candidate.RevokedAt == null
+            && candidate.ExpiresAt > now
+            && AppBindingSecrets.Verify(credential, candidate.CredentialSalt, candidate.CredentialVerifier));
+        if (principal == null)
+            throw AppServerErrors.AppPrincipalUnauthorized("The app credential is invalid, expired, or revoked.");
+        return ToWire(principal);
+    }
 
-    public IReadOnlyList<ThreadAppBindingWire> MoveActiveBindingsOfflineForApps(
-        AppCatalogSnapshot catalog,
+    public AppPrincipalWire? GetActivePrincipal(string workspaceCraftPath, string appId)
+    {
+        var now = DateTimeOffset.UtcNow;
+        var principal = Store(workspaceCraftPath).Snapshot().Principals
+            .Where(candidate => string.Equals(candidate.AppId, appId, StringComparison.Ordinal)
+                                && candidate.RevokedAt == null
+                                && candidate.ExpiresAt > now)
+            .OrderByDescending(candidate => candidate.ExpiresAt)
+            .FirstOrDefault();
+        return principal == null ? null : ToWire(principal);
+    }
+
+    public void RevokeApp(string workspaceCraftPath, string appId, string actor)
+    {
+        var principalIds = Store(workspaceCraftPath).Snapshot().Principals
+            .Where(candidate => string.Equals(candidate.AppId, appId, StringComparison.Ordinal)
+                                && candidate.RevokedAt == null)
+            .Select(candidate => candidate.PrincipalId)
+            .ToArray();
+        foreach (var principalId in principalIds)
+            RevokePrincipal(workspaceCraftPath, principalId, actor);
+    }
+
+    public AppConnectionRefreshResult Refresh(
         string workspaceCraftPath,
-        IReadOnlyCollection<string> appIds,
-        string diagnostic,
-        string auditEvent) =>
-        _lifecycle.MoveActiveBindingsOfflineForApps(catalog, workspaceCraftPath, appIds, diagnostic, auditEvent);
+        string principalId)
+    {
+        var credential = AppBindingSecrets.NewSecret();
+        var verifier = AppBindingSecrets.CreateVerifier(credential);
+        var now = DateTimeOffset.UtcNow;
+        return Store(workspaceCraftPath).Update(state =>
+        {
+            var principal = RequirePrincipal(state, principalId, now);
+            principal.CredentialSalt = verifier.Salt;
+            principal.CredentialVerifier = verifier.Verifier;
+            principal.ExpiresAt = now.Add(AppBindingContract.PrincipalCredentialLifetime);
+            Audit(state, "connection.refreshed", principal.UserId, principal.AppId, principalId: principal.PrincipalId);
+            return new AppConnectionRefreshResult
+            {
+                Principal = ToWire(principal),
+                Credential = credential
+            };
+        });
+    }
 
-    public List<ThreadAppBindingSummaryWire> ListThreadBindingSummaries(
-        AppCatalogSnapshot catalog,
+    public void RevokePrincipal(string workspaceCraftPath, string principalId, string actor)
+    {
+        var now = DateTimeOffset.UtcNow;
+        Store(workspaceCraftPath).Update(state =>
+        {
+            var principal = state.Principals.FirstOrDefault(candidate =>
+                string.Equals(candidate.PrincipalId, principalId, StringComparison.Ordinal));
+            if (principal == null)
+                throw AppServerErrors.AppPrincipalUnauthorized("The app principal was not found.");
+            principal.RevokedAt ??= now;
+            foreach (var binding in state.Bindings.Where(candidate =>
+                         string.Equals(candidate.PrincipalId, principalId, StringComparison.Ordinal)
+                         && candidate.State != AppBindingStates.Revoked))
+            {
+                binding.State = AppBindingStates.Revoked;
+                binding.AuthorityRevision++;
+                binding.RevokedAt = now;
+                binding.UpdatedAt = now;
+            }
+            Audit(state, "connection.revoked", actor, principal.AppId, principalId: principalId);
+            return 0;
+        });
+    }
+
+    public ThreadAppBindingEnableResult Enable(
         string workspaceCraftPath,
-        string threadId) =>
-        _lifecycle.ListThreadBindingSummaries(catalog, workspaceCraftPath, threadId);
+        string threadId,
+        string appId,
+        string userId)
+    {
+        Require(threadId, "threadId");
+        Require(appId, "appId");
+        var now = DateTimeOffset.UtcNow;
+        var token = AppBindingSecrets.NewSecret();
+        return Store(workspaceCraftPath).Update(state =>
+        {
+            if (state.Bindings.Any(candidate =>
+                    candidate.State != AppBindingStates.Revoked
+                    && string.Equals(candidate.ThreadId, threadId, StringComparison.Ordinal)
+                    && string.Equals(candidate.AppId, appId, StringComparison.Ordinal)))
+            {
+                throw AppServerErrors.AppBindingConflict("This app is already enabled or enabling for the thread.");
+            }
 
-    public IReadOnlyList<ThreadAppBindingWire> RevokeBindingsForDeletedThread(
-        AppCatalogSnapshot catalog,
+            var binding = new AppBindingRecord
+            {
+                BindingId = $"appbind_{Guid.NewGuid():N}",
+                ThreadId = threadId,
+                AppId = appId,
+                UserId = NormalizeUser(userId),
+                State = AppBindingStates.Connecting,
+                CreatedAt = now,
+                UpdatedAt = now
+            };
+            var request = new AppBindingRequestRecord
+            {
+                BindingRequestId = $"appbindreq_{Guid.NewGuid():N}",
+                BindingId = binding.BindingId,
+                ThreadId = threadId,
+                AppId = appId,
+                UserId = binding.UserId,
+                RequestTokenHash = AppBindingSecrets.HashRequestToken(token),
+                CreatedAt = now,
+                ExpiresAt = now.Add(AppBindingContract.HandoffLifetime)
+            };
+            state.Bindings.Add(binding);
+            state.BindingRequests.Add(request);
+            Audit(state, "binding.enabled", binding.UserId, appId, threadId, binding.BindingId, binding.AuthorityRevision);
+            return new ThreadAppBindingEnableResult
+            {
+                BindingRequestId = request.BindingRequestId,
+                BindingId = binding.BindingId,
+                State = binding.State,
+                ExpiresAt = request.ExpiresAt,
+                RequestToken = token,
+                Handoff = new AppHandoffWire { Mode = "bind" }
+            };
+        });
+    }
+
+    public AppBindingRequestWire GetBindingRequest(
         string workspaceCraftPath,
-        string threadId) =>
-        _lifecycle.RevokeBindingsForDeletedThread(catalog, workspaceCraftPath, threadId);
+        AppBindingRequestGetParams parameters,
+        string? authenticatedPrincipalId)
+    {
+        var state = Store(workspaceCraftPath).Snapshot();
+        var request = state.BindingRequests.FirstOrDefault(candidate =>
+            string.Equals(candidate.BindingRequestId, parameters.BindingRequestId, StringComparison.Ordinal));
+        if (request == null || request.Consumed || request.ExpiresAt <= DateTimeOffset.UtcNow)
+            throw AppServerErrors.InvalidParams("Binding request is no longer available.");
+        var principalAuthorized = !string.IsNullOrWhiteSpace(authenticatedPrincipalId)
+                                  && state.Principals.Any(candidate =>
+                                      string.Equals(candidate.PrincipalId, authenticatedPrincipalId, StringComparison.Ordinal)
+                                      && string.Equals(candidate.AppId, request.AppId, StringComparison.Ordinal)
+                                      && candidate.RevokedAt == null
+                                      && candidate.ExpiresAt > DateTimeOffset.UtcNow);
+        var tokenAuthorized = !string.IsNullOrWhiteSpace(parameters.RequestToken)
+                              && string.Equals(
+                                  AppBindingSecrets.HashRequestToken(parameters.RequestToken),
+                                  request.RequestTokenHash,
+                                  StringComparison.Ordinal);
+        if (!principalAuthorized && !tokenAuthorized)
+            throw AppServerErrors.AppPrincipalUnauthorized("The binding request does not belong to this app principal.");
+        return ToWire(request);
+    }
 
-    internal ThreadArchiveSocialBindingCleanupResult RevokeSocialBindingsForArchivedThread(
-        AppCatalogSnapshot catalog,
+    public IReadOnlyList<AppBindingWire> ListThreadBindings(string workspaceCraftPath, string threadId) =>
+        Store(workspaceCraftPath).Snapshot().Bindings
+            .Where(candidate => string.Equals(candidate.ThreadId, threadId, StringComparison.Ordinal))
+            .Select(ToWire)
+            .ToArray();
+
+    public IReadOnlyList<AppBindingWire> ListPrincipalBindings(string workspaceCraftPath, string principalId)
+    {
+        var state = Store(workspaceCraftPath).Snapshot();
+        var principal = RequirePrincipal(state, principalId, DateTimeOffset.UtcNow);
+        return state.Bindings
+            .Where(candidate => string.Equals(candidate.AppId, principal.AppId, StringComparison.Ordinal)
+                                && candidate.State != AppBindingStates.Revoked)
+            .Select(ToWire)
+            .ToArray();
+    }
+
+    internal IReadOnlyList<AppBindingWire> ListAppBindings(string workspaceCraftPath, string appId) =>
+        Store(workspaceCraftPath).Snapshot().Bindings
+            .Where(binding => binding.State != AppBindingStates.Revoked
+                              && string.Equals(binding.AppId, appId, StringComparison.Ordinal))
+            .Select(ToWire).ToArray();
+
+    public AppBindingWire RevokeBinding(
         string workspaceCraftPath,
-        string threadId) =>
-        _lifecycle.RevokeSocialBindingsForArchivedThread(catalog, workspaceCraftPath, threadId);
+        string threadId,
+        string bindingId,
+        string actor)
+    {
+        var now = DateTimeOffset.UtcNow;
+        return Store(workspaceCraftPath).Update(state =>
+        {
+            var binding = state.Bindings.FirstOrDefault(candidate =>
+                string.Equals(candidate.BindingId, bindingId, StringComparison.Ordinal)
+                && string.Equals(candidate.ThreadId, threadId, StringComparison.Ordinal));
+            if (binding == null)
+                throw AppServerErrors.InvalidParams("Binding was not found for the thread.");
+            binding.State = AppBindingStates.Revoked;
+            binding.AuthorityRevision++;
+            binding.RevokedAt = now;
+            binding.UpdatedAt = now;
+            binding.CandidateTools.Clear();
+            binding.PendingChanges.Clear();
+            binding.CandidateCapabilityRevision = null;
+            Audit(state, "binding.revoked", actor, binding.AppId, threadId, bindingId, binding.AuthorityRevision);
+            return ToWire(binding);
+        });
+    }
 
-    public ThreadAppBindingRevokeResult RevokeBinding(
+    public IReadOnlyList<AppBindingWire> RevokeThreadBindings(
         string workspaceCraftPath,
-        ThreadAppBindingRevokeParams p) =>
-        _lifecycle.RevokeBinding(workspaceCraftPath, p);
+        string threadId,
+        string actor)
+    {
+        var bindings = ListThreadBindings(workspaceCraftPath, threadId)
+            .Where(binding => binding.State != AppBindingStates.Revoked)
+            .ToArray();
+        return bindings
+            .Select(binding => RevokeBinding(workspaceCraftPath, threadId, binding.BindingId, actor))
+            .ToArray();
+    }
 
-    public ThreadAppBindingRefreshResult RefreshBindings(
-        AppCatalogSnapshot catalog,
+    internal AppBindingRecord BeginActivation(
         string workspaceCraftPath,
-        ThreadAppBindingRefreshParams p) =>
-        _lifecycle.RefreshBindings(catalog, workspaceCraftPath, p);
+        string principalId,
+        string bindingId,
+        long? expectedAuthorityRevision,
+        string endpoint,
+        string? bindingRequestId = null)
+    {
+        ValidateBindingEndpoint(endpoint);
+        var endpointIdentity = NormalizeEndpointIdentity(endpoint);
+        var now = DateTimeOffset.UtcNow;
+        return Store(workspaceCraftPath).Update(state =>
+        {
+            var principal = RequirePrincipal(state, principalId, now);
+            var binding = state.Bindings.FirstOrDefault(candidate =>
+                string.Equals(candidate.BindingId, bindingId, StringComparison.Ordinal))
+                ?? throw AppServerErrors.InvalidParams("Binding was not found.");
+            if (!string.Equals(binding.AppId, principal.AppId, StringComparison.Ordinal))
+                throw AppServerErrors.AppPrincipalUnauthorized("The binding belongs to a different app principal.");
+            if (binding.State == AppBindingStates.Revoked)
+                throw AppServerErrors.AppBindingConflict("A revoked binding cannot be activated.");
+            if (expectedAuthorityRevision.HasValue && binding.AuthorityRevision != expectedAuthorityRevision.Value)
+                throw AppServerErrors.AppBindingConflict("The binding authority revision is stale.");
+            if (!string.IsNullOrWhiteSpace(bindingRequestId))
+            {
+                var request = state.BindingRequests.FirstOrDefault(candidate =>
+                    string.Equals(candidate.BindingRequestId, bindingRequestId, StringComparison.Ordinal)
+                    && string.Equals(candidate.BindingId, bindingId, StringComparison.Ordinal));
+                if (request == null || request.Consumed || request.ExpiresAt <= now)
+                    throw AppServerErrors.InvalidParams("Binding request is invalid, expired, or consumed.");
+                request.Consumed = true;
+                request.State = AppBindingStates.Syncing;
+            }
+            binding.PrincipalId = principal.PrincipalId;
+            binding.EndpointIdentity = endpointIdentity;
+            binding.State = AppBindingStates.Syncing;
+            binding.FailureReason = null;
+            binding.AuthorityRevision++;
+            binding.UpdatedAt = now;
+            Audit(state, "binding.syncing", principal.PrincipalId, binding.AppId, binding.ThreadId,
+                binding.BindingId, binding.AuthorityRevision);
+            return Clone(binding);
+        });
+    }
 
-    public IReadOnlyList<AITool> CreateRuntimeToolsForThread(
-        SessionThread thread,
-        IReadOnlySet<string> reservedToolNames) =>
-        _tools.CreateRuntimeToolsForThread(thread, reservedToolNames);
-
-    internal async ValueTask<DynamicToolCallResult> InvokeAttachedToolAsync(
+    internal AppBindingWire CompleteSync(
         string workspaceCraftPath,
         string bindingId,
-        DynamicToolSpec spec,
-        string executionThreadId,
-        string executionTurnId,
-        ISessionService? executionSessionService,
-        string callId,
-        JsonObject arguments,
-        CancellationToken cancellationToken) =>
-        await _tools.InvokeAttachedToolAsync(
-            workspaceCraftPath,
-            bindingId,
-            spec,
-            executionThreadId,
-            executionTurnId,
-            executionSessionService,
-            callId,
-            arguments,
-            cancellationToken);
-
-    /// <summary>
-    /// Invokes an app-bound tool on behalf of its Interactive Tool UI (MCP Apps <c>callTool</c>).
-    /// The call is decoupled from the agent conversation: it produces no turn or item, is gated by
-    /// App Binding scope + UI visibility, is recorded on the audit trail, and returns its result to
-    /// the host (which relays it to the UI). The model only learns of UI state via
-    /// <c>ui/update-model-context</c> or <c>ui/message</c>. See appserver-protocol.md §11.3.2.
-    /// </summary>
-    internal async ValueTask<DynamicToolCallResult> InvokeUiToolAsync(
-        string workspaceCraftPath,
-        string threadId,
-        string? @namespace,
-        string tool,
-        JsonObject arguments,
-        string? sourceCallId,
-        string userId,
-        ISessionService? sessionService,
-        UiToolApprovalGate? approvalGate,
-        CancellationToken cancellationToken) =>
-        await _ui.InvokeUiToolAsync(
-            workspaceCraftPath,
-            threadId,
-            @namespace,
-            tool,
-            arguments,
-            sourceCallId,
-            userId,
-            sessionService,
-            approvalGate,
-            cancellationToken);
-
-    internal UiOpenLinkResult OpenLink(
-        AppCatalogSnapshot catalog,
-        string workspaceCraftPath,
-        string threadId,
-        string? @namespace,
-        string url,
-        string? sourceCallId,
-        string userId) =>
-        _ui.OpenLink(catalog, workspaceCraftPath, threadId, @namespace, url, sourceCallId, userId);
-
-    internal UiUpdateModelContextResult UpdateModelContext(
-        string workspaceCraftPath,
-        string threadId,
-        string? @namespace,
-        string sourceCallId,
-        string? title,
-        string? content,
-        string userId) =>
-        _ui.UpdateModelContext(workspaceCraftPath, threadId, @namespace, sourceCallId, title, content, userId);
-
-    internal async ValueTask<UiResourceReadResult> ReadUiResourceAsync(
-        string workspaceCraftPath,
-        string threadId,
-        string? @namespace,
-        string uri,
-        CancellationToken cancellationToken) =>
-        await _ui.ReadUiResourceAsync(workspaceCraftPath, threadId, @namespace, uri, cancellationToken);
-    internal AppBindingStore GetStore(string workspaceCraftPath) =>
-        _storeAccessor.GetStore(workspaceCraftPath);
-
-    internal bool IsBindingConnectionUsable(AppBindingStateDocument state, AppBindingRecord binding) =>
-        IsAppConnectionUsable(state, binding.UserId, binding.AppId);
-
-    internal bool IsAppConnectionUsable(AppBindingStateDocument state, string userId, string appId) =>
-        IsManagedAppWithoutExternalConnection(appId)
-            ? IsManagedAppWithoutExternalConnectionReady(appId)
-            : IsConnectionUsable(FindConnection(state, userId, appId));
-
-    internal bool IsManagedAppWithoutExternalConnection(string appId) =>
-        _managedRuntimesByAppId.TryGetValue(appId, out var runtime)
-        && runtime.RequiresExternalConnection == false;
-
-    internal bool IsManagedAppWithoutExternalConnectionReady(string appId) =>
-        _managedRuntimesByAppId.TryGetValue(appId, out var runtime)
-        && runtime.RequiresExternalConnection == false
-        && string.Equals(runtime.GetConnectionStatus(appId).State, AppConnectionStates.Connected, StringComparison.Ordinal);
-
-    internal AppConnectionStatusWire ResolveManagedConnectionStatus(
-        string appId,
-        AppConnectionStatusWire fallback)
+        IReadOnlyList<AppBindingToolCapabilityWire> tools)
     {
-        if (!_managedRuntimesByAppId.TryGetValue(appId, out var runtime)
-            || runtime.RequiresExternalConnection)
+        var normalized = tools.OrderBy(tool => tool.Namespace, StringComparer.Ordinal)
+            .ThenBy(tool => tool.Name, StringComparer.Ordinal).ToList();
+        var now = DateTimeOffset.UtcNow;
+        return Store(workspaceCraftPath).Update(state =>
         {
-            return fallback;
-        }
-
-        var status = runtime.GetConnectionStatus(appId);
-        if (string.IsNullOrWhiteSpace(status.AppId))
-            status.AppId = appId;
-        return status;
-    }
-
-    internal static void ValidateRequestedScopes(AppDescriptor descriptor, IReadOnlyList<string> requestedScopes)
-    {
-        var known = descriptor.Scopes.Select(scope => scope.Id).ToHashSet(StringComparer.Ordinal);
-        foreach (var scope in requestedScopes)
-        {
-            if (!known.Contains(scope))
-                throw AppServerErrors.InvalidParams($"Requested scope '{scope}' is not declared by app '{descriptor.AppId}'.");
-        }
-    }
-
-    internal static void ValidateRequestedTools(AppDescriptor descriptor, IReadOnlyList<string>? requestedTools)
-    {
-        if (requestedTools is not { Count: > 0 })
-            return;
-
-        if (descriptor.DynamicToolCatalog.Enabled)
-            return;
-
-        var known = descriptor.ToolCatalog.Select(tool => tool.Name).ToHashSet(StringComparer.Ordinal);
-        foreach (var tool in requestedTools)
-        {
-            if (!known.Contains(tool))
-                throw AppServerErrors.InvalidParams($"Requested tool '{tool}' is not declared by app '{descriptor.AppId}'.");
-        }
-    }
-
-    internal static void ValidateGrantedScopes(
-        AppDescriptor descriptor,
-        IReadOnlyList<string> requestedScopes,
-        IReadOnlyList<string> grantedScopes)
-    {
-        ValidateRequestedScopes(descriptor, grantedScopes);
-        var requested = requestedScopes.ToHashSet(StringComparer.Ordinal);
-        foreach (var scope in grantedScopes)
-        {
-            if (!requested.Contains(scope))
-                throw AppServerErrors.InvalidParams($"Granted scope '{scope}' was not requested.");
-        }
-    }
-
-    internal static List<DynamicToolSpec> ValidateAttachedTools(
-        AppDescriptor descriptor,
-        AppBindingRecord binding,
-        AppBindingAttachToolsParams p,
-        List<string> warnings,
-        bool allowDirectMutatingToolExposure = false)
-    {
-        var catalogByName = descriptor.ToolCatalog.ToDictionary(tool => tool.Name, StringComparer.Ordinal);
-        AddDynamicAttachedToolCatalog(descriptor, p.ToolCatalog, catalogByName);
-        var grantedScopes = binding.GrantedScopes.ToHashSet(StringComparer.Ordinal);
-        var accepted = new List<DynamicToolSpec>();
-        var direct = p.DirectToolNames?.ToHashSet(StringComparer.Ordinal) ?? [];
-        var deferred = p.DeferredToolNames?.ToHashSet(StringComparer.Ordinal) ?? [];
-
-        foreach (var tool in p.Tools)
-        {
-            if (!string.Equals(tool.Namespace, descriptor.ToolNamespace, StringComparison.Ordinal))
-                throw AppServerErrors.InvalidParams($"Attached tool '{tool.Name}' must use namespace '{descriptor.ToolNamespace}'.");
-
-            if (!catalogByName.TryGetValue(tool.Name, out var catalogEntry))
-                throw AppServerErrors.InvalidParams($"Attached tool '{tool.Name}' is not declared in the app tool catalog.");
-
-            if (!grantedScopes.Contains(catalogEntry.Scope))
-                throw AppServerErrors.InvalidParams($"Attached tool '{tool.Name}' requires ungranted scope '{catalogEntry.Scope}'.");
-
-            var clone = CloneSpec(tool);
-            var requestedDirect = direct.Contains(tool.Name);
-            var requestedDeferred = deferred.Contains(tool.Name);
-            if (requestedDirect && requestedDeferred)
-                warnings.Add($"Tool '{tool.Name}' was listed as both direct and deferred; deferred wins.");
-
-            var enforceDeferredForRisk = AppBindingRisks.Rank(catalogEntry.Risk) > AppBindingRisks.Rank(AppBindingRisks.Read)
-                && !allowDirectMutatingToolExposure;
-
-            if (enforceDeferredForRisk
-                && requestedDirect
-                && !requestedDeferred)
+            var binding = RequireLiveBinding(state, bindingId);
+            var nextRevision = Math.Max(binding.ApprovedCapabilityRevision,
+                binding.CandidateCapabilityRevision ?? 0) + 1;
+            if (binding.ApprovedCapabilityRevision == 0)
             {
-                warnings.Add($"Tool '{tool.Name}' is {catalogEntry.Risk}; deferred exposure was enforced.");
+                binding.ApprovedTools = normalized;
+                binding.ApprovedCapabilityRevision = nextRevision;
+                binding.State = AppBindingStates.Active;
+                binding.PendingChanges.Clear();
+                Audit(state, "capabilities.initial-approved", binding.PrincipalId, binding.AppId,
+                    binding.ThreadId, binding.BindingId, binding.AuthorityRevision, nextRevision);
             }
-
-            clone.DeferLoading = requestedDeferred
-                || enforceDeferredForRisk
-                || (!requestedDirect && string.Equals(catalogEntry.DefaultExposure, AppBindingExposures.Deferred, StringComparison.Ordinal));
-            accepted.Add(clone);
-        }
-
-        return accepted;
-    }
-
-    private static void AddDynamicAttachedToolCatalog(
-        AppDescriptor descriptor,
-        IReadOnlyList<AppToolCatalogEntry>? dynamicCatalog,
-        Dictionary<string, AppToolCatalogEntry> catalogByName)
-    {
-        if (dynamicCatalog is not { Count: > 0 })
-            return;
-
-        if (!descriptor.DynamicToolCatalog.Enabled)
-            throw AppServerErrors.InvalidParams($"App '{descriptor.AppId}' does not allow dynamic app tool catalogs.");
-
-        var scopeById = descriptor.Scopes.ToDictionary(scope => scope.Id, StringComparer.Ordinal);
-        foreach (var tool in dynamicCatalog)
-        {
-            if (!PluginManifestParser.IsValidFunctionName(tool.Name)
-                || string.IsNullOrWhiteSpace(tool.Scope)
-                || !AppBindingRisks.IsKnown(tool.Risk)
-                || !AppBindingExposures.IsKnown(tool.DefaultExposure))
+            else
             {
-                throw AppServerErrors.InvalidParams("Dynamic app tool catalog entries require a valid name, scope, risk, and defaultExposure.");
-            }
-
-            if (!scopeById.TryGetValue(tool.Scope, out var scope))
-                throw AppServerErrors.InvalidParams($"Dynamic app tool '{tool.Name}' references unknown scope '{tool.Scope}'.");
-
-            if (AppBindingRisks.Rank(tool.Risk) < AppBindingRisks.Rank(scope.Risk))
-                throw AppServerErrors.InvalidParams($"Dynamic app tool '{tool.Name}' risk must not be lower than scope '{tool.Scope}' risk.");
-
-            if (catalogByName.ContainsKey(tool.Name))
-                throw AppServerErrors.InvalidParams($"Dynamic app tool '{tool.Name}' is declared more than once.");
-
-            catalogByName.Add(tool.Name, tool);
-        }
-    }
-
-    public ThreadOriginAppWire? ResolveOriginApp(AppCatalogSnapshot catalog, string? originChannel, string? channelContext = null) =>
-        _wireMapper.ResolveOriginApp(catalog, originChannel, channelContext);
-
-    internal ThreadAppBindingWire MapBinding(
-        AppBindingRecord binding,
-        AppDescriptor? descriptor,
-        AppConnectionStatusWire connection) =>
-        _wireMapper.MapBinding(binding, descriptor, connection);
-
-    internal ThreadAppBindingWire MapPendingBindingRequest(
-        AppBindingRequestRecord request,
-        AppDescriptor? descriptor,
-        AppConnectionStatusWire connection) =>
-        _wireMapper.MapPendingBindingRequest(request, descriptor, connection);
-
-    internal static ThreadAppBindingRefreshWire MapRefresh(AppBindingRecord binding) =>
-        AppBindingWireMapper.MapRefresh(binding);
-
-    internal static ThreadAppBindingSummaryWire MapSummary(ThreadAppBindingWire binding) =>
-        AppBindingWireMapper.MapSummary(binding);
-
-    internal static AppConnectionStatusWire MapConnectionStatus(AppConnectionRecord? connection, string? appId = null) =>
-        AppBindingWireMapper.MapConnectionStatus(connection, appId);
-
-    internal static AppConnectionStatusWire MapConnectionStatus(
-        AppBindingStateDocument state,
-        string userId,
-        string appId) =>
-        AppBindingWireMapper.MapConnectionStatus(state, userId, appId);
-    internal static AppHandoffWire BuildHandoff(
-        string workspaceCraftPath,
-        AppDescriptor descriptor,
-        string? preferredMode,
-        string requestId,
-        string requestToken,
-        string operation,
-        IReadOnlyList<string>? scopes = null)
-    {
-        var handoff = descriptor.Connection.HandoffModes.FirstOrDefault(mode =>
-                          !string.IsNullOrWhiteSpace(preferredMode)
-                          && string.Equals(mode.Mode, preferredMode, StringComparison.Ordinal))
-                      ?? descriptor.Connection.HandoffModes.First();
-        return new AppHandoffWire
-        {
-            Mode = handoff.Mode,
-            Uri = string.IsNullOrWhiteSpace(handoff.UriTemplate)
-                ? null
-                : FillTemplate(
-                    handoff.UriTemplate!,
-                    descriptor.AppId,
-                    requestId,
-                    requestToken,
-                    operation,
-                    scopes,
-                    ReadAppServerEndpoint(workspaceCraftPath),
-                    escapeValues: true)
-        };
-    }
-
-    private static string FillTemplate(
-        string template,
-        string appId,
-        string requestId,
-        string token,
-        string operation,
-        IReadOnlyList<string>? scopes,
-        string endpoint,
-        bool escapeValues)
-    {
-        var joinedScopes = string.Join(",", scopes ?? []);
-        return template
-            .Replace("{appId}", TemplateValue(appId, escapeValues), StringComparison.Ordinal)
-            .Replace("{requestId}", TemplateValue(requestId, escapeValues), StringComparison.Ordinal)
-            .Replace("{requestToken}", TemplateValue(token, escapeValues), StringComparison.Ordinal)
-            .Replace("{request}", TemplateValue(requestId, escapeValues), StringComparison.Ordinal)
-            .Replace("{operation}", TemplateValue(operation, escapeValues), StringComparison.Ordinal)
-            .Replace("{endpoint}", TemplateValue(endpoint, escapeValues), StringComparison.Ordinal)
-            .Replace("{scopes}", TemplateValue(joinedScopes, escapeValues), StringComparison.Ordinal);
-    }
-
-    private static string TemplateValue(string value, bool escapeValue) =>
-        escapeValue ? Uri.EscapeDataString(value) : value;
-
-    private static string ReadAppServerEndpoint(string workspaceCraftPath)
-    {
-        try
-        {
-            var lockPath = Path.Combine(workspaceCraftPath, "appserver.lock");
-            if (!File.Exists(lockPath))
-                return string.Empty;
-
-            using var document = JsonDocument.Parse(File.ReadAllText(lockPath));
-            if (!document.RootElement.TryGetProperty("endpoints", out var endpoints))
-                return string.Empty;
-            if (!endpoints.TryGetProperty("appServerWebSocket", out var endpoint))
-                return string.Empty;
-            return endpoint.GetString() ?? string.Empty;
-        }
-        catch
-        {
-            return string.Empty;
-        }
-    }
-
-    internal static string HighestRisk(AppDescriptor descriptor, IReadOnlyList<string> requestedScopes)
-    {
-        var byId = descriptor.Scopes.ToDictionary(scope => scope.Id, StringComparer.Ordinal);
-        return requestedScopes
-            .Select(scope => byId[scope].Risk)
-            .OrderByDescending(AppBindingRisks.Rank)
-            .FirstOrDefault() ?? AppBindingRisks.Read;
-    }
-
-    private static DynamicToolSpec CloneSpec(DynamicToolSpec spec) =>
-        new()
-        {
-            Namespace = spec.Namespace,
-            Name = spec.Name,
-            Description = spec.Description,
-            InputSchema = spec.InputSchema?.DeepClone() as JsonObject,
-            DeferLoading = spec.DeferLoading,
-            Approval = spec.Approval == null
-                ? null
-                : new ChannelToolApprovalDescriptor
+                var changes = AppBindingCapabilityDiffer.FindExpansions(binding.ApprovedTools, normalized);
+                if (changes.Count == 0)
                 {
-                    Kind = spec.Approval.Kind,
-                    TargetArgument = spec.Approval.TargetArgument,
-                    Operation = spec.Approval.Operation,
-                    OperationArgument = spec.Approval.OperationArgument
-                },
-            Meta = spec.Meta
-        };
-
-    private static AppDescriptor CloneDescriptor(AppDescriptor descriptor) =>
-        JsonSerializer.Deserialize<AppDescriptor>(
-            JsonSerializer.Serialize(descriptor, SessionWireJsonOptions.Default),
-            SessionWireJsonOptions.Default) ?? new AppDescriptor();
-
-    private static DiscoveredPlugin CreateSyntheticManagedPlugin(AppDescriptor descriptor, string workspaceCraftPath)
-    {
-        var root = Path.GetFullPath(Path.Combine(workspaceCraftPath, "managed-apps", descriptor.AppId));
-        return new DiscoveredPlugin(
-            new PluginManifest
-            {
-                SchemaVersion = PluginManifestParser.SupportedSchemaVersion,
-                Id = $"managed:{descriptor.AppId}",
-                DisplayName = descriptor.DisplayName,
-                Description = descriptor.Description,
-                Capabilities = ["app"],
-                RootPath = root,
-                ManifestPath = Path.Combine(root, ".craft-plugin", "plugin.json")
-            },
-            PluginDiscoverySourceKind.BuiltIn,
-            root,
-            Enabled: true,
-            Installed: true,
-            Installable: false,
-            Removable: false);
+                    binding.ApprovedTools = normalized;
+                    binding.ApprovedCapabilityRevision = nextRevision;
+                    binding.CandidateTools.Clear();
+                    binding.CandidateCapabilityRevision = null;
+                    binding.PendingChanges.Clear();
+                    binding.State = AppBindingStates.Active;
+                    Audit(state, "capabilities.auto-accepted", binding.PrincipalId, binding.AppId,
+                        binding.ThreadId, binding.BindingId, binding.AuthorityRevision, nextRevision);
+                }
+                else
+                {
+                    binding.CandidateTools = normalized;
+                    binding.CandidateCapabilityRevision = nextRevision;
+                    binding.PendingChanges = changes;
+                    binding.State = AppBindingStates.NeedsConfirmation;
+                    Audit(state, "capabilities.confirmation-required", binding.PrincipalId, binding.AppId,
+                        binding.ThreadId, binding.BindingId, binding.AuthorityRevision, nextRevision);
+                }
+            }
+            binding.FailureReason = null;
+            binding.UpdatedAt = now;
+            return ToWire(binding);
+        });
     }
 
-    internal static void AddAudit(
+    public AppBindingWire ConfirmCapabilities(
+        string workspaceCraftPath,
+        ThreadAppBindingConfirmCapabilitiesParams parameters,
+        string actor)
+    {
+        var accept = string.Equals(parameters.Decision, "accept", StringComparison.OrdinalIgnoreCase);
+        var reject = string.Equals(parameters.Decision, "reject", StringComparison.OrdinalIgnoreCase);
+        if (!accept && !reject)
+            throw AppServerErrors.InvalidParams("'decision' must be 'accept' or 'reject'.");
+        return Store(workspaceCraftPath).Update(state =>
+        {
+            var binding = RequireLiveBinding(state, parameters.BindingId);
+            if (!string.Equals(binding.ThreadId, parameters.ThreadId, StringComparison.Ordinal)
+                || binding.State != AppBindingStates.NeedsConfirmation
+                || binding.CandidateCapabilityRevision != parameters.CandidateRevision)
+                throw AppServerErrors.AppBindingConflict("The candidate capability revision is stale.");
+            if (accept)
+            {
+                binding.ApprovedTools = binding.CandidateTools;
+                binding.ApprovedCapabilityRevision = parameters.CandidateRevision;
+                binding.State = AppBindingStates.Active;
+            }
+            else
+            {
+                binding.State = AppBindingStates.Active;
+            }
+            binding.CandidateTools = [];
+            binding.CandidateCapabilityRevision = null;
+            binding.PendingChanges = [];
+            binding.UpdatedAt = DateTimeOffset.UtcNow;
+            Audit(state, accept ? "capabilities.accepted" : "capabilities.rejected", actor, binding.AppId,
+                binding.ThreadId, binding.BindingId, binding.AuthorityRevision, parameters.CandidateRevision);
+            return ToWire(binding);
+        });
+    }
+
+    internal AppBindingWire MarkUnavailable(
+        string workspaceCraftPath,
+        string bindingId,
+        string reason,
+        bool failed = false) =>
+        Store(workspaceCraftPath).Update(state =>
+        {
+            var binding = RequireLiveBinding(state, bindingId);
+            binding.State = failed && binding.ApprovedCapabilityRevision == 0
+                ? AppBindingStates.Failed
+                : AppBindingStates.Offline;
+            binding.FailureReason = reason;
+            binding.UpdatedAt = DateTimeOffset.UtcNow;
+            Audit(state, "binding.unavailable", binding.PrincipalId, binding.AppId, binding.ThreadId,
+                binding.BindingId, binding.AuthorityRevision);
+            return ToWire(binding);
+        });
+
+    internal AppBindingRecord GetBinding(string workspaceCraftPath, string bindingId) =>
+        Clone(Store(workspaceCraftPath).Snapshot().Bindings.FirstOrDefault(candidate =>
+                  string.Equals(candidate.BindingId, bindingId, StringComparison.Ordinal))
+              ?? throw AppServerErrors.InvalidParams("Binding was not found."));
+
+    internal AppBindingRecord AuthorizeThreadInput(
+        string workspaceCraftPath, string bindingId, string principalId)
+    {
+        var state = Store(workspaceCraftPath).Snapshot();
+        if (!principalId.StartsWith("channel:", StringComparison.Ordinal))
+            _ = RequirePrincipal(state, principalId, DateTimeOffset.UtcNow);
+        var binding = Clone(state.Bindings.FirstOrDefault(candidate => candidate.BindingId == bindingId)
+                            ?? throw AppServerErrors.InvalidParams("Binding was not found."));
+        if (binding.State != AppBindingStates.Active
+            || !string.Equals(binding.PrincipalId, principalId, StringComparison.Ordinal))
+            throw AppServerErrors.AppPrincipalUnauthorized("The caller does not own an active binding.");
+        return binding;
+    }
+
+    public object CreateSocialRequest(string workspaceCraftPath, string threadId, string channelName, string userId)
+    {
+        Require(threadId, "threadId");
+        Require(channelName, "channelName");
+        var normalizedChannel = channelName.Trim().ToLowerInvariant();
+        var appId = AppIdForChannel(normalizedChannel);
+        var code = AppBindingSecrets.NewSecret()[..12];
+        var now = DateTimeOffset.UtcNow;
+        return Store(workspaceCraftPath).Update(state =>
+        {
+            if (state.Bindings.Any(binding => binding.State != AppBindingStates.Revoked
+                                              && binding.Kind == "social"
+                                              && binding.ThreadId == threadId
+                                              && binding.AppId == appId))
+                throw AppServerErrors.AppBindingConflict("This social channel is already binding to the thread.");
+            var binding = new AppBindingRecord
+            {
+                BindingId = $"socialbind_{Guid.NewGuid():N}", ThreadId = threadId, AppId = appId,
+                UserId = NormalizeUser(userId), Kind = "social", State = AppBindingStates.Connecting,
+                CreatedAt = now, UpdatedAt = now
+            };
+            var request = new AppBindingRequestRecord
+            {
+                BindingRequestId = $"socialreq_{Guid.NewGuid():N}", BindingId = binding.BindingId,
+                ThreadId = threadId, AppId = appId, UserId = binding.UserId,
+                RequestTokenHash = AppBindingSecrets.HashRequestToken(code), CreatedAt = now,
+                ExpiresAt = now.Add(AppBindingContract.HandoffLifetime)
+            };
+            state.Bindings.Add(binding); state.BindingRequests.Add(request);
+            Audit(state, "social.requested", binding.UserId, appId, threadId, binding.BindingId, binding.AuthorityRevision);
+            return new { request.BindingRequestId, binding.BindingId, code, channelName = normalizedChannel, request.ExpiresAt };
+        });
+    }
+
+    public AppBindingRequestWire GetSocialRequest(string workspaceCraftPath, string code, string channelName)
+    {
+        Require(code, "code");
+        var state = Store(workspaceCraftPath).Snapshot();
+        var hash = AppBindingSecrets.HashRequestToken(code);
+        var request = state.BindingRequests.FirstOrDefault(candidate => candidate.ExpiresAt > DateTimeOffset.UtcNow
+            && !candidate.Consumed && candidate.RequestTokenHash == hash);
+        if (request == null) throw AppServerErrors.InvalidParams("Social binding code is invalid or expired.");
+        var expected = AppIdForChannel(channelName);
+        if (!string.Equals(request.AppId, expected, StringComparison.Ordinal))
+            throw AppServerErrors.AppPrincipalUnauthorized("The social binding request belongs to another channel.");
+        return ToWire(request);
+    }
+
+    public AppBindingWire AcceptSocial(
+        string workspaceCraftPath, string channelName, SocialBindingAcceptParams parameters)
+    {
+        ValidateSocialTarget(channelName, parameters.Target);
+        var now = DateTimeOffset.UtcNow;
+        var hash = AppBindingSecrets.HashRequestToken(parameters.Code);
+        return Store(workspaceCraftPath).Update(state =>
+        {
+            var request = state.BindingRequests.FirstOrDefault(candidate => !candidate.Consumed
+                && candidate.ExpiresAt > now && candidate.RequestTokenHash == hash)
+                ?? throw AppServerErrors.InvalidParams("Social binding code is invalid or expired.");
+            var binding = RequireLiveBinding(state, request.BindingId);
+            if (!string.Equals(binding.AppId, AppIdForChannel(channelName), StringComparison.Ordinal))
+                throw AppServerErrors.AppPrincipalUnauthorized("The binding request belongs to another channel.");
+            EnsureUniqueSocialTarget(state, binding.BindingId, parameters.Target);
+            request.Consumed = true; request.State = AppBindingStates.Active;
+            binding.PrincipalId = $"channel:{channelName.ToLowerInvariant()}";
+            binding.SocialTarget = parameters.Target;
+            binding.State = AppBindingStates.Active;
+            binding.AuthorityRevision++;
+            binding.ApprovedCapabilityRevision = Math.Max(1, binding.ApprovedCapabilityRevision + 1);
+            binding.UpdatedAt = now;
+            Audit(state, "social.accepted", binding.PrincipalId, binding.AppId, binding.ThreadId,
+                binding.BindingId, binding.AuthorityRevision, binding.ApprovedCapabilityRevision);
+            return ToWire(binding);
+        });
+    }
+
+    public AppBindingWire RebindSocial(
+        string workspaceCraftPath, string channelName, SocialBindingRebindParams parameters)
+    {
+        ValidateSocialTarget(channelName, parameters.Target);
+        return Store(workspaceCraftPath).Update(state =>
+        {
+            var binding = RequireLiveBinding(state, parameters.BindingId);
+            if (binding.Kind != "social" || binding.AuthorityRevision != parameters.AuthorityRevision
+                || !string.Equals(binding.AppId, AppIdForChannel(channelName), StringComparison.Ordinal))
+                throw AppServerErrors.AppBindingConflict("The social binding authority is stale or owned by another channel.");
+            EnsureUniqueSocialTarget(state, binding.BindingId, parameters.Target);
+            binding.SocialTarget = parameters.Target;
+            binding.State = AppBindingStates.Active;
+            binding.AuthorityRevision++;
+            binding.UpdatedAt = DateTimeOffset.UtcNow;
+            Audit(state, "social.rebound", $"channel:{channelName}", binding.AppId, binding.ThreadId,
+                binding.BindingId, binding.AuthorityRevision);
+            return ToWire(binding);
+        });
+    }
+
+    public AppBindingWire? ResolveSocial(
+        string workspaceCraftPath, string channelName, string? accountId, string conversationKind, string conversationId) =>
+        Store(workspaceCraftPath).Snapshot().Bindings
+            .Where(binding => binding.Kind == "social" && binding.State == AppBindingStates.Active
+                              && string.Equals(binding.SocialTarget?.ChannelName, channelName, StringComparison.OrdinalIgnoreCase)
+                              && string.Equals(binding.SocialTarget?.AccountId ?? string.Empty, accountId ?? string.Empty, StringComparison.Ordinal)
+                              && string.Equals(binding.SocialTarget?.ConversationKind, conversationKind, StringComparison.OrdinalIgnoreCase)
+                              && string.Equals(binding.SocialTarget?.ConversationId, conversationId, StringComparison.Ordinal))
+            .Select(ToWire).SingleOrDefault();
+
+    private static void ValidateSocialTarget(string channelName, SocialChannelTargetWire target)
+    {
+        if (!string.Equals(target.ChannelName, channelName, StringComparison.OrdinalIgnoreCase)
+            || string.IsNullOrWhiteSpace(target.ConversationKind)
+            || string.IsNullOrWhiteSpace(target.ConversationId)
+            || string.IsNullOrWhiteSpace(target.DeliveryTarget))
+            throw AppServerErrors.InvalidParams("The social target is incomplete or belongs to another channel.");
+    }
+
+    private static void EnsureUniqueSocialTarget(
+        AppBindingStateDocument state,
+        string bindingId,
+        SocialChannelTargetWire target)
+    {
+        if (state.Bindings.Any(candidate => candidate.Kind == "social"
+            && candidate.State == AppBindingStates.Active
+            && !string.Equals(candidate.BindingId, bindingId, StringComparison.Ordinal)
+            && string.Equals(candidate.SocialTarget?.ChannelName, target.ChannelName, StringComparison.OrdinalIgnoreCase)
+            && string.Equals(candidate.SocialTarget?.AccountId ?? string.Empty, target.AccountId ?? string.Empty, StringComparison.Ordinal)
+            && string.Equals(candidate.SocialTarget?.ConversationKind, target.ConversationKind, StringComparison.OrdinalIgnoreCase)
+            && string.Equals(candidate.SocialTarget?.ConversationId, target.ConversationId, StringComparison.Ordinal)))
+        {
+            throw AppServerErrors.AppBindingConflict("This social conversation is already bound to another thread.");
+        }
+    }
+
+    internal static void ValidateBindingEndpoint(string endpoint)
+    {
+        if (!Uri.TryCreate(endpoint, UriKind.Absolute, out var uri))
+            throw AppServerErrors.AppBindingPolicyDenied("Binding MCP endpoint must be an absolute URI.");
+        var allowed = string.Equals(uri.Scheme, Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase)
+                      || (string.Equals(uri.Scheme, Uri.UriSchemeHttp, StringComparison.OrdinalIgnoreCase)
+                          && uri.IsLoopback);
+        if (!allowed)
+            throw AppServerErrors.AppBindingPolicyDenied("Binding MCP permits only remote HTTPS or loopback HTTP.");
+        if (!string.IsNullOrWhiteSpace(uri.UserInfo))
+            throw AppServerErrors.AppBindingPolicyDenied("Binding MCP endpoint must not contain user information.");
+    }
+
+    private static string NormalizeEndpointIdentity(string endpoint)
+    {
+        var uri = new Uri(endpoint, UriKind.Absolute);
+        return new UriBuilder(uri) { UserName = string.Empty, Password = string.Empty, Fragment = string.Empty }
+            .Uri.AbsoluteUri;
+    }
+
+    private static AppBindingRecord RequireLiveBinding(AppBindingStateDocument state, string bindingId)
+    {
+        var binding = state.Bindings.FirstOrDefault(candidate =>
+            string.Equals(candidate.BindingId, bindingId, StringComparison.Ordinal));
+        if (binding == null || binding.State == AppBindingStates.Revoked)
+            throw AppServerErrors.AppBindingConflict("Binding authority is no longer live.");
+        return binding;
+    }
+
+    private static AppBindingRecord Clone(AppBindingRecord binding) =>
+        System.Text.Json.JsonSerializer.Deserialize<AppBindingRecord>(
+            System.Text.Json.JsonSerializer.Serialize(binding, SessionWireJsonOptions.Default),
+            SessionWireJsonOptions.Default)!;
+
+    internal static AppBindingWire ToWire(AppBindingRecord binding) => new()
+    {
+        BindingId = binding.BindingId,
+        ThreadId = binding.ThreadId,
+        AppId = binding.AppId,
+        State = binding.State,
+        AuthorityRevision = binding.AuthorityRevision,
+        ApprovedCapabilityRevision = binding.ApprovedCapabilityRevision,
+        CandidateCapabilityRevision = binding.CandidateCapabilityRevision,
+        ApprovedTools = binding.ApprovedTools,
+        PendingChanges = binding.PendingChanges,
+        SocialTarget = binding.SocialTarget,
+        FailureReason = binding.FailureReason,
+        UpdatedAt = binding.UpdatedAt
+    };
+
+    private static AppPrincipalRecord RequirePrincipal(
+        AppBindingStateDocument state,
+        string principalId,
+        DateTimeOffset now) =>
+        state.Principals.FirstOrDefault(candidate =>
+            string.Equals(candidate.PrincipalId, principalId, StringComparison.Ordinal)
+            && candidate.RevokedAt == null
+            && candidate.ExpiresAt > now)
+        ?? throw AppServerErrors.AppPrincipalUnauthorized("The app principal is invalid, expired, or revoked.");
+
+    private static AppPrincipalWire ToWire(AppPrincipalRecord principal) => new()
+    {
+        PrincipalId = principal.PrincipalId,
+        AppId = principal.AppId,
+        UserId = principal.UserId,
+        ExpiresAt = principal.ExpiresAt
+    };
+
+    private static AppBindingRequestWire ToWire(AppBindingRequestRecord request) => new()
+    {
+        BindingRequestId = request.BindingRequestId,
+        BindingId = request.BindingId,
+        ThreadId = request.ThreadId,
+        AppId = request.AppId,
+        State = request.State,
+        ExpiresAt = request.ExpiresAt
+    };
+
+    private static void ValidateRequest(AppConnectionRequestRecord? request, string token)
+    {
+        if (request == null || request.Consumed || request.ExpiresAt <= DateTimeOffset.UtcNow
+            || !string.Equals(
+                AppBindingSecrets.HashRequestToken(token),
+                request.RequestTokenHash,
+                StringComparison.Ordinal))
+        {
+            throw AppServerErrors.InvalidParams("Connection request is invalid, expired, or consumed.");
+        }
+    }
+
+    private static void Audit(
         AppBindingStateDocument state,
         string @event,
-        string? threadId,
-        string? bindingId,
-        string? appId,
-        string? userId,
-        string? detail)
-    {
+        string actor,
+        string appId,
+        string? threadId = null,
+        string? bindingId = null,
+        long? authorityRevision = null,
+        long? capabilityRevision = null,
+        string? principalId = null) =>
         state.Audit.Add(new AppBindingAuditRecord
         {
             Timestamp = DateTimeOffset.UtcNow,
             Event = @event,
+            Actor = string.IsNullOrWhiteSpace(principalId) ? actor : principalId,
+            AppId = appId,
             ThreadId = threadId,
             BindingId = bindingId,
-            AppId = appId,
-            UserId = userId,
-            Detail = detail
+            AuthorityRevision = authorityRevision,
+            CapabilityRevision = capabilityRevision
         });
-    }
 
-}
+    private static string NormalizeUser(string userId) =>
+        string.IsNullOrWhiteSpace(userId) ? "appserver" : userId.Trim();
 
-/// <summary>
-/// Projects active AppBinding context blocks into a thread-scoped system prompt page.
-/// </summary>
-public sealed class AppBindingThreadSystemPromptContextProvider(AppBindingService service) : IThreadSystemPromptContextProvider
-{
-    public ContextPageKey ContextPageKey => ContextPageKeys.AppContextBlocks();
+    private static string AppIdForChannel(string channelName) =>
+        $"com.dotharness.channel.{channelName.Trim().ToLowerInvariant()}";
 
-    public string? GetSystemPromptSection(ThreadSystemPromptContext context)
+    private static void Require(string value, string name)
     {
-        if (string.IsNullOrWhiteSpace(context.WorkspacePath))
-            return null;
-
-        var workspaceCraftPath = Path.Combine(context.WorkspacePath, ".craft");
-        return Directory.Exists(workspaceCraftPath)
-            ? service.BuildAppContextPromptSection(workspaceCraftPath, context.ThreadId)
-            : null;
+        if (string.IsNullOrWhiteSpace(value))
+            throw AppServerErrors.InvalidParams($"'{name}' is required.");
     }
-}
-
-/// <summary>
-/// Exposes App Binding grants as thread-scoped runtime tools.
-/// </summary>
-public sealed class AppBindingRuntimeToolProvider(AppBindingService service) : IThreadRuntimeToolProvider
-{
-    public int Priority => 91;
-
-    public IReadOnlyList<AITool> CreateToolsForThread(
-        SessionThread thread,
-        IReadOnlySet<string> reservedToolNames) =>
-        service.CreateRuntimeToolsForThread(thread, reservedToolNames);
 }

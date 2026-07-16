@@ -18,6 +18,7 @@ using DotCraft.Skills;
 using DotCraft.State;
 using DotCraft.Tools;
 using DotCraft.Tools.BackgroundTerminals;
+using DotCraft.Tools.Sandbox;
 using DotCraft.Tracing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -42,9 +43,7 @@ public sealed class WorkspaceRuntime : IAsyncDisposable
         IAppServerChannelListContributor channelListContributor,
         IReadOnlyList<ConfigSchemaSection> configSchema,
         IContextPageManager contextPageManager,
-        IWorkspaceRuntimeAppServerFeature? appServerFeature,
-        AppBindingService? appBindingService,
-        Action<string>? appContextBlocksChangedHandler)
+        IWorkspaceRuntimeAppServerFeature? appServerFeature)
     {
         public AgentFactory AgentFactory { get; } = agentFactory;
 
@@ -78,9 +77,6 @@ public sealed class WorkspaceRuntime : IAsyncDisposable
 
         public IWorkspaceRuntimeAppServerFeature? AppServerFeature { get; } = appServerFeature;
 
-        public AppBindingService? AppBindingService { get; } = appBindingService;
-
-        public Action<string>? AppContextBlocksChangedHandler { get; } = appContextBlocksChangedHandler;
     }
 
     private readonly IAppConfigMonitor _appConfigMonitor;
@@ -211,29 +207,44 @@ public sealed class WorkspaceRuntime : IAsyncDisposable
             var mainRuntime = chatClientRegistry.ResolveMainRuntime(Config);
             var mainModel = mainRuntime.Model;
             var contextPageManager = new ContextPageManager();
-            var appBindingService = Services.GetService<AppBindingService>();
-            Action<string>? appContextBlocksChangedHandler = null;
-            if (appBindingService != null)
-            {
-                appContextBlocksChangedHandler = threadId =>
-                    contextPageManager.ReleaseStablePage(threadId, ContextPageKeys.AppContextBlocks());
-                appBindingService.AppContextBlocksChanged += appContextBlocksChangedHandler;
-            }
-
             var threadSystemPromptContextProviders = Services.GetServices<IThreadSystemPromptContextProvider>().ToArray();
 
-            ToolProviderCollector.ScanToolIcons(moduleRegistry, Config);
-            var toolProviders = ToolProviderCollector.Collect(moduleRegistry, Config);
+            ToolSourceCollector.ScanToolIcons(moduleRegistry, Config);
 
             var fallbackApproval = new AutoApproveApprovalService();
             var scopedApproval = new SessionScopedApprovalService(fallbackApproval);
             var planStore = new PlanStore(Paths.CraftPath, Services.GetRequiredService<StateRuntime>());
             var wireAcpExtensionProxy = new WireAcpExtensionProxy();
             var wireNodeReplProxy = new WireNodeReplProxy();
-            var wireDynamicToolProxy =
-                Services.GetServices<IThreadRuntimeToolProvider>().OfType<WireDynamicToolProxy>().FirstOrDefault()
-                ?? Services.GetService<WireDynamicToolProxy>()
+            var wireDynamicToolProxy = Services.GetService<WireDynamicToolProxy>()
                 ?? new WireDynamicToolProxy();
+            var toolSources = new ToolSourceCollector(moduleRegistry, Services, Config).Collect().ToList();
+            toolSources.Add(new CoreToolSource(
+                Config,
+                chatClientRegistry,
+                SkillsLoader,
+                scopedApproval,
+                PathBlacklist,
+                LspServerManager,
+                backgroundTerminalService,
+                traceCollector,
+                Services.GetService<ISkillMutationApplier>(),
+                contextPageManager));
+            if (Config.Tools.Sandbox.Enabled)
+            {
+                toolSources.Add(new SandboxToolSource(
+                    Config,
+                    chatClientRegistry,
+                    SkillsLoader,
+                    scopedApproval,
+                    PathBlacklist,
+                    traceCollector,
+                    Services.GetService<ISkillMutationApplier>(),
+                    contextPageManager));
+            }
+            toolSources.Add(new NodeReplPluginToolSource(Config, wireNodeReplProxy, Paths.CraftPath));
+            if (!toolSources.Contains(wireDynamicToolProxy))
+                toolSources.Add(wireDynamicToolProxy);
 
             AgentFactory? agentFactory = null;
             HeartbeatService? heartbeatService = null;
@@ -247,8 +258,7 @@ public sealed class WorkspaceRuntime : IAsyncDisposable
                     MemoryStore, SkillsLoader,
                     approvalService: scopedApproval,
                     PathBlacklist,
-                    toolProviders: toolProviders,
-                    toolProviderContext: new ToolProviderContext
+                    runtimeContext: new AgentRuntimeContext
                     {
                         Config = Config,
                         ChatClient = chatClientRegistry.GetChatClient(mainRuntime),
@@ -277,13 +287,9 @@ public sealed class WorkspaceRuntime : IAsyncDisposable
                     planStore: planStore,
                     onPlanUpdated: (threadId, plan) => PlanUpdated?.Invoke(threadId, plan),
                     hookRunner: Services.GetService<HookRunner>(),
-                    chatClientRegistry: chatClientRegistry);
-
-                if (Services.GetService<IChannelRuntimeToolProvider>() is IReservedRuntimeToolNameConfigurator reservedToolNameConfigurator)
-                {
-                    reservedToolNameConfigurator.ConfigureReservedToolNames(
-                        agentFactory.CreateToolsForMode(AgentMode.Agent).Select(tool => tool.Name));
-                }
+                    chatClientRegistry: chatClientRegistry,
+                    toolDispatcher: Services.GetRequiredService<IToolDispatcher>(),
+                    toolSources: toolSources);
 
                 var agent = agentFactory.CreateAgentForMode(AgentMode.Agent);
                 var sessionService = SessionServiceFactory.Create(agentFactory, agent, Services);
@@ -414,18 +420,13 @@ public sealed class WorkspaceRuntime : IAsyncDisposable
                     channelListContributor,
                     configSchema,
                     contextPageManager,
-                    appServerFeature,
-                    appBindingService,
-                    appContextBlocksChangedHandler);
+                    appServerFeature);
 
                 _appConfigMonitor.Changed += OnAppConfigChanged;
                 McpClientManager.StatusChanged += OnMcpStatusChanged;
             }
             catch
             {
-                if (appBindingService != null && appContextBlocksChangedHandler != null)
-                    appBindingService.AppContextBlocksChanged -= appContextBlocksChangedHandler;
-
                 if (appServerFeature != null)
                 {
                     appServerFeature.AutomationTaskUpdated -= OnAutomationTaskUpdated;
@@ -536,9 +537,6 @@ public sealed class WorkspaceRuntime : IAsyncDisposable
             McpClientManager.StatusChanged -= OnMcpStatusChanged;
 
             List<Exception>? errors = null;
-
-            if (started.AppBindingService != null && started.AppContextBlocksChangedHandler != null)
-                started.AppBindingService.AppContextBlocksChanged -= started.AppContextBlocksChangedHandler;
 
             if (started.AppServerFeature != null)
             {

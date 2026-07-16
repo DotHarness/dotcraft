@@ -1538,6 +1538,7 @@ export function SettingsView({
   const [savingMcp, setSavingMcp] = useState(false)
   const [deletingMcp, setDeletingMcp] = useState(false)
   const [togglingServerName, setTogglingServerName] = useState<string | null>(null)
+  const [authenticatingMcpName, setAuthenticatingMcpName] = useState<string | null>(null)
   const [mcpTestResult, setMcpTestResult] = useState<McpTestResultWire | null>(null)
   const [mcpSavedHint, setMcpSavedHint] = useState('')
   const [subAgentRefreshTick, setSubAgentRefreshTick] = useState(0)
@@ -2576,11 +2577,11 @@ export function SettingsView({
       try {
         const [listRes, statusRes] = await Promise.all([
           window.api.appServer.sendRequest('mcp/list', {}),
-          window.api.appServer.sendRequest('mcp/status/list', {})
+          window.api.appServer.sendRequest('mcpServerStatus/list', { detail: 'toolsAndAuthOnly' })
         ])
         if (cancelled) return
         const list = (listRes as { servers?: McpServerConfigWire[] }).servers ?? []
-        const statuses = (statusRes as { servers?: McpServerStatusWire[] }).servers ?? []
+        const statuses = (statusRes as { data?: McpServerStatusWire[] }).data ?? []
         setMcpServers(list)
         setMcpStatuses(statuses)
       } catch (err) {
@@ -2696,8 +2697,8 @@ export function SettingsView({
   }
 
   async function reloadMcpStatuses(): Promise<void> {
-    const statusRes = await window.api.appServer.sendRequest('mcp/status/list', {})
-    const statuses = (statusRes as { servers?: McpServerStatusWire[] }).servers ?? []
+    const statusRes = await window.api.appServer.sendRequest('mcpServerStatus/list', { detail: 'toolsAndAuthOnly' })
+    const statuses = (statusRes as { data?: McpServerStatusWire[] }).data ?? []
     setMcpStatuses(statuses)
   }
 
@@ -2805,6 +2806,25 @@ export function SettingsView({
       setActiveMainView('skills')
     } catch (err) {
       addToast(`Failed to open plugin: ${err instanceof Error ? err.message : String(err)}`, 'error')
+    }
+  }
+
+  async function handleMcpOAuthLogin(server: McpServerConfigWire): Promise<void> {
+    setAuthenticatingMcpName(server.name)
+    try {
+      const result = (await window.api.appServer.sendRequest('mcpServer/oauth/login', {
+        name: server.name
+      })) as { authorizationUrl?: string }
+      if (!result.authorizationUrl) throw new Error('The MCP server did not return an authorization URL.')
+      await window.api.shell.openExternal(result.authorizationUrl)
+      addToast(t('settings.mcp.oauthOpened'), 'info')
+    } catch (err) {
+      addToast(
+        t('settings.mcp.oauthFailed', { error: err instanceof Error ? err.message : String(err) }),
+        'error'
+      )
+    } finally {
+      setAuthenticatingMcpName((current) => current === server.name ? null : current)
     }
   }
 
@@ -5154,6 +5174,24 @@ export function SettingsView({
                                 </div>
                               )}
                             </div>
+                            <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
+                            {status?.authStatus === 'notLoggedIn' && (
+                              <button
+                                type="button"
+                                disabled={authenticatingMcpName === server.name}
+                                onClick={(event) => {
+                                  event.stopPropagation()
+                                  void handleMcpOAuthLogin(server)
+                                }}
+                                style={secondaryButtonStyle(false)}
+                              >
+                                {authenticatingMcpName === server.name
+                                  ? t('settings.mcp.authenticating')
+                                  : status.failureReason === 'reauthenticationRequired'
+                                    ? t('settings.mcp.reauthenticate')
+                                    : t('settings.mcp.authenticate')}
+                              </button>
+                            )}
                             {isPluginManaged ? (
                               <button
                                 type="button"
@@ -5181,6 +5219,7 @@ export function SettingsView({
                                 />
                               </span>
                             )}
+                            </div>
                           </div>
                         )
                       })}

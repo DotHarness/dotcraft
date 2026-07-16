@@ -8,6 +8,7 @@ using DotCraft.Hosting;
 using DotCraft.Modules;
 using DotCraft.Plugins;
 using DotCraft.Protocol.AppServer;
+using DotCraft.Tools;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 
@@ -33,47 +34,18 @@ public sealed partial class GatewayModule : ModuleBase
         // Register ExternalChannelRegistry as a singleton (all external hosts + WebSocket routing)
         services.TryAddSingleton<ExternalChannelRegistry>();
         services.TryAddSingleton<ChannelToolRegistrationService>();
-        services.TryAddEnumerable(ServiceDescriptor.Singleton<IThreadPluginFunctionProvider, ExternalChannelToolProvider>());
-        services.AddSingleton<IManagedAppBindingRuntime>(sp => new SocialChannelAppBindingRuntime(
-            "qq",
-            "QQ",
-            "Continue this thread in a QQ group or private chat.",
-            sp.GetRequiredService<IChannelRuntimeRegistry>(),
-            sp.GetRequiredService<ChannelToolRegistrationService>()));
-        services.AddSingleton<IManagedAppBindingRuntime>(sp => new SocialChannelAppBindingRuntime(
-            "wecom",
-            "WeCom",
-            "Continue this thread in a WeCom conversation.",
-            sp.GetRequiredService<IChannelRuntimeRegistry>(),
-            sp.GetRequiredService<ChannelToolRegistrationService>()));
-        services.AddSingleton<IManagedAppBindingRuntime>(sp => new SocialChannelAppBindingRuntime(
-            "telegram",
-            "Telegram",
-            "Continue this thread in a Telegram chat.",
-            sp.GetRequiredService<IChannelRuntimeRegistry>(),
-            sp.GetRequiredService<ChannelToolRegistrationService>()));
-        services.AddSingleton<IManagedAppBindingRuntime>(sp => new SocialChannelAppBindingRuntime(
-            "feishu",
-            "Feishu",
-            "Continue this thread in a Feishu chat.",
-            sp.GetRequiredService<IChannelRuntimeRegistry>(),
-            sp.GetRequiredService<ChannelToolRegistrationService>()));
-        services.AddSingleton<IManagedAppBindingRuntime>(sp => new SocialChannelAppBindingRuntime(
-            "weixin",
-            "Weixin",
-            "Continue this thread in a Weixin conversation.",
-            sp.GetRequiredService<IChannelRuntimeRegistry>(),
-            sp.GetRequiredService<ChannelToolRegistrationService>()));
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IThreadPluginToolSourceProvider, ExternalChannelToolProvider>());
         services.TryAddSingleton<AppBindingService>();
+        services.TryAddSingleton<AppBindingCoordinator>();
         services.TryAddSingleton<WireRuntimeAdditionalContextProvider>();
-        services.TryAddEnumerable(ServiceDescriptor.Singleton<IThreadRuntimeToolProvider, WireDynamicToolProxy>());
-        services.TryAddEnumerable(ServiceDescriptor.Singleton<IThreadRuntimeToolProvider, AppBindingRuntimeToolProvider>());
+        services.TryAddSingleton<WireDynamicToolProxy>();
+        services.AddSingleton<IToolSource>(
+            provider => provider.GetRequiredService<WireDynamicToolProxy>());
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IThreadSystemPromptContextProvider, WireRuntimeAdditionalContextSystemPromptProvider>());
-        services.TryAddEnumerable(ServiceDescriptor.Singleton<IThreadSystemPromptContextProvider, AppBindingThreadSystemPromptContextProvider>());
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IThreadSystemPromptContextProvider, DotCraft.Agents.ProfileBuilderSystemPromptProvider>());
-        services.TryAddEnumerable(ServiceDescriptor.Singleton<IThreadRuntimeToolProvider, ThreadPluginFunctionToolProvider>());
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IAppServerProtocolExtension, AppBindingProtocolExtension>());
-        services.TryAddSingleton<IChannelRuntimeToolProvider, CompositeChannelRuntimeToolProvider>();
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IToolSource, AppBindingOfflineToolSource>());
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IToolSource, ManagedSocialToolSource>());
     }
 
     /// <inheritdoc />

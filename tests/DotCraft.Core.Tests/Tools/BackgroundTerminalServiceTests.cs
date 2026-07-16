@@ -53,12 +53,15 @@ public sealed class BackgroundTerminalServiceTests : IAsyncLifetime
     [Fact]
     public async Task StartAsync_ForegroundCommand_OutputDeltaCarriesCorrelationIds()
     {
-        var events = new List<BackgroundTerminalEvent>();
-        var eventsLock = new object();
+        var outputDeltaSource = new TaskCompletionSource<BackgroundTerminalEvent>(
+            TaskCreationOptions.RunContinuationsAsynchronously);
         Service.TerminalEvent += terminalEvent =>
         {
-            lock (eventsLock)
-                events.Add(terminalEvent);
+            if (terminalEvent.EventType == "outputDelta"
+                && terminalEvent.Delta?.Contains("live", StringComparison.Ordinal) == true)
+            {
+                outputDeltaSource.TrySetResult(terminalEvent);
+            }
         };
 
         var snapshot = await Service.StartAsync(new BackgroundTerminalStartRequest
@@ -73,10 +76,7 @@ public sealed class BackgroundTerminalServiceTests : IAsyncLifetime
         });
 
         Assert.Equal(BackgroundTerminalStatus.Completed, snapshot.Status);
-        BackgroundTerminalEvent[] capturedEvents;
-        lock (eventsLock)
-            capturedEvents = events.ToArray();
-        var outputDelta = Assert.Single(capturedEvents, e => e.EventType == "outputDelta");
+        var outputDelta = await outputDeltaSource.Task.WaitAsync(TimeSpan.FromSeconds(10));
         Assert.Equal("call_live", outputDelta.Terminal.CallId);
         Assert.Equal("thread_live", outputDelta.Terminal.ThreadId);
         Assert.Equal("turn_live", outputDelta.Terminal.TurnId);
@@ -117,8 +117,9 @@ public sealed class BackgroundTerminalServiceTests : IAsyncLifetime
             MaxOutputChars = 20_000
         });
 
-        var completed = await Service.ReadAsync(started.SessionId, waitMs: 3000, maxOutputChars: 20_000);
-        var log = await File.ReadAllTextAsync(started.OutputPath);
+        await Service.ReadAsync(started.SessionId, waitMs: 3000, maxOutputChars: 20_000);
+        var log = await ReadUntilContainsAsync(started.OutputPath, "out-100", "err-100");
+        var completed = await Service.ReadAsync(started.SessionId, maxOutputChars: 20_000);
 
         Assert.Equal(BackgroundTerminalStatus.Completed, completed.Status);
         Assert.Contains("out-1", completed.Output);
@@ -191,6 +192,28 @@ public sealed class BackgroundTerminalServiceTests : IAsyncLifetime
         OperatingSystem.IsWindows()
             ? "1..100 | ForEach-Object { [Console]::Out.WriteLine(\"out-$_\"); [Console]::Error.WriteLine(\"err-$_\") }"
             : "for i in $(seq 1 100); do echo out-$i; echo err-$i >&2; done";
+
+    private static async Task<string> ReadUntilContainsAsync(
+        string path,
+        params string[] expectedValues)
+    {
+        var deadline = DateTimeOffset.UtcNow.AddSeconds(10);
+        var content = string.Empty;
+
+        while (DateTimeOffset.UtcNow < deadline)
+        {
+            if (File.Exists(path))
+            {
+                content = await File.ReadAllTextAsync(path);
+                if (expectedValues.All(value => content.Contains(value, StringComparison.Ordinal)))
+                    return content;
+            }
+
+            await Task.Delay(20);
+        }
+
+        return content;
+    }
 
     private static string QuotePowerShell(string value) => "'" + value.Replace("'", "''") + "'";
 

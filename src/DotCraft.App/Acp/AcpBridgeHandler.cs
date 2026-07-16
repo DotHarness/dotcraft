@@ -59,7 +59,7 @@ public sealed class AcpBridgeHandler(
     private readonly ConcurrentDictionary<string, CancellationTokenSource> _activePrompts = new();
     private readonly ConcurrentDictionary<string, string> _activeToolNames = new();
     private readonly ConcurrentDictionary<string, AcpRuntimeToolDescriptor> _runtimeToolDescriptors = new();
-    private IReadOnlyList<DynamicToolSpec> _runtimeDynamicTools = [];
+    private IReadOnlyList<RuntimeDynamicToolDeclaration> _runtimeDynamicTools = [];
 
     private readonly AppServerProcess? _appServerProcess = appServerProcess;
     private readonly TimeSpan _extForwardTimeout = TimeSpan.FromSeconds(extForwardTimeoutSeconds);
@@ -249,7 +249,7 @@ public sealed class AcpBridgeHandler(
 
     internal static bool TryBuildRuntimeTools(
         ClientCapabilities? caps,
-        out IReadOnlyList<DynamicToolSpec> dynamicTools,
+        out IReadOnlyList<RuntimeDynamicToolDeclaration> dynamicTools,
         out IReadOnlyList<AcpRuntimeToolDescriptor> descriptors,
         out string message)
     {
@@ -261,7 +261,8 @@ public sealed class AcpBridgeHandler(
         if (requested is not { Count: > 0 })
             return true;
 
-        var specs = new List<DynamicToolSpec>();
+        var topLevelFunctions = new List<RuntimeDynamicToolFunction>();
+        var namespacedFunctions = new Dictionary<string, List<RuntimeDynamicToolFunction>>(StringComparer.Ordinal);
         var normalizedDescriptors = new List<AcpRuntimeToolDescriptor>();
         foreach (var descriptor in requested)
         {
@@ -302,9 +303,8 @@ public sealed class AcpBridgeHandler(
                     }
             };
             normalizedDescriptors.Add(normalized);
-            specs.Add(new DynamicToolSpec
+            var function = new RuntimeDynamicToolFunction
             {
-                Namespace = normalized.Namespace,
                 Name = normalized.Name,
                 Description = normalized.Description,
                 InputSchema = normalized.InputSchema?.DeepClone() as JsonObject,
@@ -318,8 +318,31 @@ public sealed class AcpBridgeHandler(
                         Operation = normalized.Approval.Operation,
                         OperationArgument = normalized.Approval.OperationArgument
                     }
-            });
+            };
+
+            if (normalized.Namespace is null)
+            {
+                topLevelFunctions.Add(function);
+            }
+            else
+            {
+                if (!namespacedFunctions.TryGetValue(normalized.Namespace, out var functions))
+                {
+                    functions = [];
+                    namespacedFunctions[normalized.Namespace] = functions;
+                }
+
+                functions.Add(function);
+            }
         }
+
+        var specs = new List<RuntimeDynamicToolDeclaration>(topLevelFunctions);
+        specs.AddRange(namespacedFunctions.Select(pair => new RuntimeDynamicToolNamespace
+        {
+            Name = pair.Key,
+            Description = $"ACP runtime tools in the '{pair.Key}' namespace.",
+            Tools = [.. pair.Value]
+        }));
 
         if (!WireDynamicToolProxy.TryValidateSpecs(specs, out message))
             return false;
@@ -329,7 +352,7 @@ public sealed class AcpBridgeHandler(
         return true;
     }
 
-    private IReadOnlyList<DynamicToolSpec>? RuntimeDynamicToolsOrNull()
+    private IReadOnlyList<RuntimeDynamicToolDeclaration>? RuntimeDynamicToolsOrNull()
         => _runtimeDynamicTools.Count == 0 ? null : _runtimeDynamicTools;
 
     private static bool TryNormalizeAcpRuntimeMethod(
@@ -987,7 +1010,7 @@ public sealed class AcpBridgeHandler(
         return new { decision = "decline" };
     }
 
-    private async Task<DynamicToolCallResult> HandleRuntimeToolCallAsync(JsonElement wireParams, CancellationToken ct)
+    private async Task<RuntimeDynamicToolCallResult> HandleRuntimeToolCallAsync(JsonElement wireParams, CancellationToken ct)
     {
         var toolName = TryGetStringProperty(wireParams, "tool");
         if (string.IsNullOrWhiteSpace(toolName))
@@ -1015,10 +1038,18 @@ public sealed class AcpBridgeHandler(
                 arguments,
                 ct,
                 timeout: _extForwardTimeout).ConfigureAwait(false);
-            return new DynamicToolCallResult
+            return new RuntimeDynamicToolCallResult
             {
                 Success = true,
-                StructuredResult = JsonNode.Parse(result.GetRawText())
+                ContentItems =
+                [
+                    new RuntimeDynamicToolContentItem
+                    {
+                        Type = "text",
+                        Text = $"ACP runtime tool '{toolName}' completed successfully."
+                    }
+                ],
+                StructuredContent = JsonNode.Parse(result.GetRawText())
             };
         }
         catch (OperationCanceledException) when (!ct.IsCancellationRequested)
@@ -1031,13 +1062,13 @@ public sealed class AcpBridgeHandler(
         }
     }
 
-    private static DynamicToolCallResult RuntimeToolFailed(string code, string message)
+    private static RuntimeDynamicToolCallResult RuntimeToolFailed(string code, string message)
         => new()
         {
             Success = false,
             ErrorCode = code,
             ErrorMessage = message,
-            ContentItems = [new ExtChannelToolContentItem { Type = "text", Text = $"{code}: {message}" }]
+            ContentItems = [new RuntimeDynamicToolContentItem { Type = "text", Text = $"{code}: {message}" }]
         };
 
     /// <summary>
@@ -1243,10 +1274,10 @@ public sealed class AcpBridgeHandler(
 
     private static object? ExtractDynamicToolResult(JsonElement payload)
     {
-        if (payload.TryGetProperty("structuredResult", out var structuredResult)
-            && structuredResult.ValueKind is not (JsonValueKind.Null or JsonValueKind.Undefined))
+        if (payload.TryGetProperty("structuredContent", out var structuredContent)
+            && structuredContent.ValueKind is not (JsonValueKind.Null or JsonValueKind.Undefined))
         {
-            return JsonSerializer.Deserialize<object>(structuredResult.GetRawText(), JsonOptions);
+            return JsonSerializer.Deserialize<object>(structuredContent.GetRawText(), JsonOptions);
         }
 
         if (payload.TryGetProperty("contentItems", out var contentItems)

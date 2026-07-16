@@ -1,234 +1,135 @@
-# DotCraft Interactive Tool UI Specification
+# DotCraft Tool Result Presentation Specification
 
 | Field | Value |
-|-------|-------|
-| **Version** | 0.8.0 |
-| **Status** | Stable |
-| **Date** | 2026-06-10 |
-
-Purpose: let an App Binding app present a **rich, interactive UI for tool results** by shipping a sandboxed UI resource that DotCraft Desktop renders in an iframe, with a postMessage JSON‑RPC bridge between the UI and the host. DotCraft adopts the MCP Apps interaction + security model and binds it to DotCraft's App Binding authority: the app plays the MCP‑server role (tools + `ui://` resources) over its trusted, locally‑installed loopback connection; AppServer brokers; Desktop is the host that renders and bridges. Because apps are trusted and locally installed, the sandbox is defense‑in‑depth — authority is still enforced by App Binding.
-
-Interactive UI renders only on Desktop (iframe). Clients that do not negotiate the capability receive the text fallback (§12).
-
----
+|---|---|
+| Version | 2.0 |
+| Status | Normative |
+| Date | 2026-07-14 |
+| Parent | [Tool Architecture](../architecture/tools-architecture.md) |
+| Wire protocol | [AppServer Protocol](appserver-protocol.md) |
 
 ## 1. Scope
 
-Defines: capability negotiation (§3); UI resource declaration + tool linkage (§4); the tool‑result data‑audience split (§5); sandboxed iframe rendering (§6); the host ⇄ UI bridge (§7); host context / theme / display mode (§8); widget‑state persistence (§9); authorization of UI‑initiated tool calls (§10); security (§11); text fallback (§12); architecture & host/app responsibilities (§13); lifecycle & conversation placement (§14); the Oratorio validation contract (§15); acceptance (§16).
+This specification defines two independent enhancement paths for tool results:
 
-Does not define a declarative block/card vocabulary, cross‑client rich rendering (Desktop‑only), or a replacement for App Binding, Runtime Dynamic Tools, or core MCP.
+- stable MCP Apps `io.modelcontextprotocol/ui`, version `2026-01-26`, for server-provided interactive resources;
+- the trusted Desktop `ToolRendererRegistry` for local Core renderers.
 
-**Blocking / elicitation cards are out of scope.** Interactive Tool UI cards are **non‑blocking** — the tool returns, the card renders, and the agent continues; the card drives further work through the bridge (`tools/call`, `ui/message`, …), never by pausing the turn. This matches MCP Apps (SEP‑1865), whose UI templates are non‑blocking; mid‑turn structured user input is **core MCP elicitation** (`elicitation/create`) — a separate, schema‑driven, host‑rendered concern that is not a `ui://` card and is not built here.
+Interactive presentation is optional. Every model-visible tool result MUST retain useful model/text fallback content. This specification does not grant tools or views additional execution authority.
 
----
+## 2. Result audiences
 
-## 2. Model
+| Field | Audience | Rule |
+|---|---|---|
+| `content` / `contentItems` | model and text clients | Normalized text/image fallback used for provider history. |
+| `structuredContent` | client/view | Structured application data; never automatically inserted into model history. |
+| `_meta` | host/view | Sanitized private metadata; never inserted into model history. |
+| raw MCP result | trusted MCP App host | Preserved for a live view after limits and sanitization; not provider history. |
 
-| Concept | DotCraft binding |
-|---------|------------------|
-| MCP server (tools + UI resources) | An **App Binding** app: trusted, locally‑installed, bound to a thread over a loopback connection. |
-| `resources/read` of a `ui://` resource | Served by the app and brokered by AppServer (§4). |
-| `tools/call` from the UI | A call to an app‑bound Runtime Dynamic Tool, gated by App Binding scope/risk/approval/audit (§10). |
-| Host consent for UI tool calls | DotCraft's existing approval flow + scope/risk policy. |
+History reconstruction uses normalized model content only. Generic rendering, logs, traces, compaction, resume, and fork MUST NOT serialize `structuredContent`, `_meta`, or raw MCP data into provider context.
 
----
+## 3. MCP Apps baseline and discovery
 
-## 3. Capability Negotiation
+DotCraft implements stable MCP Apps `2026-01-26`. Desktop uses the official host-side `AppBridge` from exact package version `@modelcontextprotocol/ext-apps@1.7.4`. Core uses validated wrappers over raw MCP metadata and does not require a preview C# Apps package.
 
-Interactive UI is explicitly negotiated. A client that can render it sets the boolean `interactiveToolUi` capability at `initialize` (default `false`). Only DotCraft Desktop declares it; channel adapters do not and receive the text fallback (§12). For a client that did not declare it, AppServer does not honor the `ui/*` host methods (`ui/resource/read`, `ui/tool/call`, `ui/open-link`, `ui/update-model-context`, `item/widget-state/set`) — they are rejected as unsupported — so a non‑declaring client can neither serve nor drive an app's `ui://` surface.
+Every DotCraft MCP client initialization advertises:
 
----
+```json
+{
+  "extensions": {
+    "io.modelcontextprotocol/ui": {
+      "mimeTypes": ["text/html;profile=mcp-app"]
+    }
+  }
+}
+```
 
-## 4. UI Resources and Tool Linkage
+This MCP capability belongs to the MCP session and does not change when Desktop connects or disconnects.
 
-### 4.1 UI resource
-- **URI scheme:** `ui://` (e.g. `ui://oratorio/board.html`). Changing the URI is the cache‑bust / version lever.
-- **MIME type:** `text/html;profile=mcp-app`.
-- **Content:** an HTML document (inline style/script, or a root element plus a bundle whose origin is allowed by CSP, §11). Served by the app on `item/resource/read`, brokered from the host's `ui/resource/read`; predeclared so the host can prefetch and inspect.
+Tool linkage is read from tool metadata. `_meta.ui.resourceUri` is canonical and `_meta["ui/resourceUri"]` is accepted as an input alias when the nested field is absent. An invalid present nested declaration fails closed and is not replaced by the alias:
 
-### 4.2 Tool → UI linkage (`_meta.ui`)
-A tool references its UI in its descriptor `_meta` (not in the result), so the host can preload before completion:
+- `resourceUri` is an absolute `ui://` URI;
+- omitted `visibility` means `model` and `app`;
+- `[]` means neither audience;
+- any unknown visibility value invalidates the declaration and exposes the tool to neither audience.
 
-| `_meta.ui` field | Meaning |
-|------------------|---------|
-| `resourceUri` | The `ui://` resource to render for this tool's result. |
-| `visibility` | Who may call the tool (§11) — default `["model","app"]`. |
-| `csp` | Sandbox CSP allow‑lists: `connectDomains`, `resourceDomains`, `frameDomains` (§11). |
-| `permissions` | Permissions‑Policy grants (e.g. camera, microphone, geolocation, clipboardWrite). |
-| `prefersBorder` | Render the host frame with a border. |
-| `domain` | The app's canonical domain (display/attribution). |
+App-only tools remain registered but are not projected to the model. Model-only tools cannot be called by a view.
 
-`_meta.ui` is client‑facing metadata and MUST NOT enter the model‑visible tool description.
+The host reads the declared resource from the exact owning MCP server generation. The returned resource MUST match the requested URI, use `text/html;profile=mcp-app`, and contain exactly one of text HTML or valid base64 blob content. Resource `_meta.ui` may declare CSP, permissions, domain, and border preference. Stable tool and resource metadata are not interchangeable.
 
----
+## 4. View availability and authority
 
-## 5. Tool Result Data Audience
+The terminal `McpToolCall` persists its normalized `ui://` association and bounded tool result. AppServer may attach the non-persistent `mcpApp.available = true` projection to a live completion or a history projection when the association still matches the current registration, App audience, binding authority, and online MCP runtime.
 
-A dynamic tool result carries three payloads with distinct audiences:
+Availability is advisory and is recalculated whenever the Item is projected or opened. Neither availability nor `viewHandle` is persisted. Navigation, resume, Desktop restart, or a new AppServer connection creates a new View against the current MCP session; it never restores a previous handle, iframe, AppBridge, pending context, or MCP generation. If current authority cannot be established, the client uses the generic frozen result.
 
-| DotCraft field | Audience | Purpose |
-|----------------|----------|---------|
-| `contentItems` | **Model only** | Text/image narration the model reads/relays; also the non‑Desktop text fallback. |
-| `structuredResult` | **Model + UI** | Concise JSON the UI renders and the model can inspect (ids for follow‑ups). Keep it minimal. |
-| `_meta` | **UI only** | Larger or sensitive display data for the UI. **Never reaches the model.** |
+Thread rollback immediately closes active Views for that thread. A removed result cannot pass a later availability or open check.
 
-The bridge presents these to the iframe as `content`, `structuredContent`, and `_meta`. AppServer MUST exclude `_meta` from the model‑visible value. Oversized `structuredResult` degrades model performance and slows rendering — keep it small.
+`Turn.error` is the canonical user-facing presentation of a Turn failure. Session Core may retain an Error Item as a diagnostic record, but a client MUST present an identical Error Item and `Turn.error` only once. Distinct errors remain independently visible.
 
----
+`mcpApp/view/open` accepts only `threadId`, `turnId`, and `itemId`. Core validates the terminal item, persisted association, current definition, runtime binding, authority, App visibility, and online MCP runtime before reading the UI resource with an independent bounded timeout and issuing a random opaque handle.
 
-## 6. Rendering
+Each handle is connection-owned and binds immutable thread/Turn/Item, server/origin, generation, definition/runtime binding, snapshot/authority revision, raw source tool id, and resource URI. Desktop and the iframe cannot supply or override those values. Disconnect, archive/delete, generation replacement, revoke, plugin disable, configuration replacement, or view close invalidates the handle immediately.
 
-DotCraft Desktop renders the UI resource in a **sandboxed iframe served by a privileged host scheme**:
+## 5. Host and AppBridge behavior
 
-- **Host scheme + own CSP.** The host registers a privileged scheme (`dotcraft-app://`) and serves the app's `ui://` HTML through it, applying a **per‑resource CSP** to that response so the document carries its **own** CSP, independent of the app‑shell CSP. A `srcdoc` / `blob:` iframe is not used: it would inherit the embedding document's CSP (which forbids inline scripts in production).
-- **Sandbox.** `sandbox="allow-scripts"`, **without** `allow-same-origin`: opaque origin; no access to parent DOM/cookies/storage; cannot navigate the parent; no Node.
-- **CSP source.** Restrictive by default (network‑denied); widened only from the server‑validated `_meta.ui.csp` (§11): `connectDomains`→`connect-src`, `resourceDomains`→img/style/font/media‑src, `frameDomains`→`frame-src`. The CSP is built host‑side, never from the iframe. The app‑shell CSP must allow framing the host scheme.
-- **No runtime injection.** The host injects nothing into the iframe. The app's own HTML/bundle speaks the bridge (§7) to `window.parent` via `postMessage`; the renderer is the host‑side bridge peer and validates both `event.source` and the per-document bridge token returned by the initial handshake.
-- The app's bundle mounts into its own root element; DotCraft does not restyle the inner UI, handing theme/locale via host context (§8). The host owns only the surrounding frame (quiet tool/app attribution; sizing).
+The host implements the stable initialize/initialized lifecycle, ping, teardown, tool-input and tool-result notifications, host-context updates, same-server tools/resources, logging, safe links, `ui/message`, and `ui/update-model-context`. Desktop creates the sandbox iframe only after `mcpApp/view/open` succeeds, connects AppBridge before loading the sandbox proxy, waits for sandbox readiness before delivering HTML, waits for View initialization, and only then delivers tool input and result. Every stage has a bounded timeout and a single teardown path.
 
----
+Supported display modes are inline and fullscreen. Fullscreen reuses the same view handle. Picture-in-picture, persisted widget state, dedicated domains, and iframe permissions are not supported.
 
-## 7. Host ⇄ UI Bridge
+Theme, locale, time zone, dimensions, display mode, and standard CSS variables are supplied through host context. Size and host-context updates are coalesced to at most ten per second.
 
-The UI and host communicate via **JSON‑RPC 2.0 over `window.postMessage`** — a `ui/`‑prefixed dialect with reused core methods (`tools/call`). DotCraft implements the host side.
+The host renders through a trusted isolated-origin proxy and an inner sandboxed iframe. The inner document has no preload, Node, Electron, filesystem, shell, generic IPC, parent DOM, or undeclared network access. DotCraft applies a restrictive default CSP and only adds validated declared domains to their matching directives. Resource `domain` is attribution metadata and does not select a real origin.
 
-Layering note: method names in this section are the Desktop host ⇄ iframe bridge dialect, not AppServer wire methods. When bridge actions need server authority, Desktop forwards them to AppServer using the server RPC names in [AppServer Protocol](appserver-protocol.md#113-interactive-tool-ui-host-methods): `tools/call` → `ui/tool/call`, UI resource fetch → `ui/resource/read`, widget state persistence → `item/widget-state/set`, and link/context actions → `ui/open-link` / `ui/update-model-context`. `ui/message` and display-mode negotiation are host responsibilities unless a separate AppServer method is specified.
+DotCraft validates permission declarations but grants none. Camera, microphone, geolocation, and clipboard-write remain denied. `ui/open-link` permits HTTPS, `mailto`, and explicit loopback HTTP only; `file`, `data`, `javascript`, and custom schemes are rejected.
 
-### 7.1 Handshake / lifecycle
-1. UI → host **`ui/initialize`** (app capabilities) → host result: **`bridgeToken`** (an unguessable per-frame token for later UI→host requests), **`hostContext`** (§8), **`hostCapabilities`** (`openLinks`, `serverTools`, `updateModelContext`, `message`, `logging`), and the restored **`widgetState`** (§9).
-2. Host → UI **`ui/notifications/tool-input`** (the call's arguments), then **`ui/notifications/tool-result`** (`content` + `structuredContent` + `_meta` + `isError`).
-3. Teardown: host → UI **`ui/resource-teardown`** (§14).
+## 6. View actions
 
-### 7.2 Host → UI notifications
-- `ui/notifications/tool-input`, `ui/notifications/tool-input-partial` (streamed/healed partial args), `ui/notifications/tool-result`.
-- `ui/notifications/host-context-changed` (theme / locale / display mode / dimensions changed, §8).
-- `ui/resource-teardown`.
+Same-server `tools/call` resolves the original MCP source identity from the handle and current snapshot. It uses `ToolInvocationAudience.App`, a server-generated `app_<guid>` call id, and the common schema, lease, policy, hook, approval, timeout, normalization, and result-limit dispatcher. Cross-server, model-only, stale, revoked, and unavailable calls are rejected.
 
-### 7.3 UI → host requests
+An App call creates no Turn, Session tool item, or provider-history entry. Its bounded raw MCP result is returned only to the view. Safe tracing may record the invocation origin without recording private result audiences.
 
-Every UI→host bridge request that asks the host to act (`tools/call`, `ui/open-link`, `ui/message`, `ui/update-model-context`, `ui/request-display-mode`, `ui/set-widget-state`) MUST include the top-level `bridgeToken` returned by the first successful `ui/initialize`. The initial handshake must occur before the first iframe load completes; duplicate or late initialization is rejected and disables the bridge. Host actions before initialization, after bridge disablement, or with a missing/wrong token are rejected or ignored. The host also disables the bridge when the iframe navigates away from the served resource so a new document in the same frame/window proxy cannot inherit the previous app document's authority.
+An accepted `ui/message` contains `role: "user"` and one text content block. It starts a source-marked MCP App Turn immediately when idle or enters the normal queued-input path while another Turn is active. The view cannot forge user/channel identity.
 
-| Request | Use | DotCraft handling |
-|---------|-----|-------------------|
-| `tools/call` | Invoke an app‑bound dynamic tool | Forwarded by Desktop as AppServer `ui/tool/call`, gated by App Binding (§10), **decoupled** from the conversation (no turn/item), audited; result returned to the UI only. The model learns of UI state only via `ui/update-model-context` or `ui/message`. |
-| `ui/open-link` | Open a URL | **No tool call.** Host‑owned scheme policy (§11): `https:` / `mailto:` and the bound app's declared deep‑link protocol; all others rejected. When server policy/audit is needed, Desktop forwards the action as AppServer `ui/open-link`. |
-| `ui/message` | Send a follow‑up user message → triggers a model turn | Added as a **visible** user message and a normal turn, **rate‑limited**; host MAY request consent. The iframe gesture is not host‑verifiable, so it is not verified. |
-| `ui/update-model-context` | Feed UI state to the model's next turn | Forwarded by Desktop as AppServer `ui/update-model-context`; recorded as an App Binding context block (`visibility:"model"`), keyed to the originating item, **last‑write‑wins**, size‑bounded; **removed on teardown**. No turn/item. |
-| `ui/request-display-mode` | Request `inline` / `pip` / `fullscreen` | Host returns the **granted** mode (may differ; §8). Must be user‑initiated. |
+Each live view has one last-write-wins pending model context. Empty content clears it. An accepted `ui/message` consumes only its originating view's value; an ordinary user Turn atomically consumes all pending values for the thread. The value is injected once as bounded, untrusted transient context and is not an independent Session item or persistent configuration. Teardown, revoke, disconnect, or thread closure discards unconsumed context.
 
-Not every action is a tool call: a button may open a link, `fetch` the app's own backend (under CSP `connect-src`, §11), message the thread, or call a tool — the app chooses per action.
+Unknown input content blocks reject the entire message/context update. Supported text/image blocks are safely materialized; structured content may be injected only as bounded JSON.
 
-### 7.4 Host introspection (from the UI)
-- `getHostContext()` → `theme`, `displayMode`, `locale`, `timeZone`, `platform`, `containerDimensions`, `availableDisplayModes`.
-- `getHostCapabilities()` → the static capability flags above.
-- `getHostVersion()` → `{ name, version }`.
+## 7. Limits and lifecycle
 
----
+Normative limits:
 
-## 8. Host Context, Theme & Display Mode
+- four concurrent tool calls and 60 calls per view per minute;
+- 16 KiB per `ui/message` or model-context update;
+- 2 MiB per resource or raw result;
+- 256 KiB per ordinary bridge JSON message. The trusted host-to-sandbox
+  `ui/notifications/sandbox-resource-ready` bootstrap carries the already-validated HTML resource
+  under the 2 MiB resource limit; its remaining envelope stays within the bridge-message limit;
+- eight active views per thread and 32 per connection;
+- 8 KiB per log entry and 60 logs per view per minute.
 
-The host pushes a context object at `ui/initialize` and on change via `ui/notifications/host-context-changed`:
+The live state sequence is unavailable → loading → initializing → ready-inline/fullscreen → tearing-down → closed. Resource/protocol failure produces generic fallback. Session loss produces offline; authority removal produces revoked. All terminal paths remove listeners, rate-limit state, and pending context.
 
-- `theme` (`light`/`dark`), `locale`, `timeZone`, `platform`.
-- `displayMode` (`inline`/`pip`/`fullscreen`) + `availableDisplayModes`.
-- `maxHeight`, `safeArea.insets`, `containerDimensions`.
-- Host CSS variables, so the UI can match the desktop theme if it opts in.
+## 8. Core-only local renderer registry
 
-**Live push.** When Desktop theme, locale, or display mode changes, the host re‑emits `host-context-changed`; the UI re‑themes/re‑localizes **without reload**.
+The local renderer registry is independent of MCP Apps. Only trusted Core/Desktop renderers may register. Plugin and third-party code loading is deferred to a separate trust specification.
 
-**Display modes.** `ui/request-display-mode` is user‑initiated; the host arbitrates and returns the granted mode. `inline` is the default in‑conversation surface; `pip` is a floating corner window; `fullscreen` is a portal overlay over the conversation (backdrop + close). On a narrow window the host coerces `pip`→`fullscreen`. While a card is expanded, its inline slot shows a placeholder with a Collapse affordance, so only one live iframe exists per card; re‑mounting in the expanded surface relies on `widgetState` restore (§9) to preserve state.
+Selection uses an ordinal server-projected `PresentationId` plus matching safe Core provenance. Both values originate from the frozen tool registration and are persisted on the source-declared Session projection. Each renderer validates its bounded options. Duplicate ids fail registry construction. Unknown ids, invalid options, missing presentation, or provenance mismatch use the generic card. Remote MCP metadata, Dynamic declarations, plugin payloads, tool names, arguments, and results cannot select local code.
 
----
+The registry contains the Core renderer families for CreatePlan, Cron, SkillManage, SkillView, all SubAgent operations, shell, WriteFile/EditFile and streaming diff, WebSearch/WebFetch, RequestUserInput, ReadFile, TodoWrite/UpdateTodos, deferred tool search, and generic fallback. Conversation cards, pinning, grouping, and labels consume registry render plans rather than branching on tool names.
 
-## 9. Widget State Persistence
+Items without a trusted presentation descriptor use the generic renderer. The Desktop MUST NOT derive a renderer from tool names, arguments, results, provenance labels, or provider metadata.
 
-- The UI may persist a `widgetState` (UI‑only state: selected row, expanded panel, staged input) via the bridge; the host persists it **keyed to the originating `dynamicToolCall` item**, asynchronously (the UI need not await). Desktop writes the server-side value through AppServer `item/widget-state/set` when the state must survive reload or cross-client reads.
-- Because the canonical thread rollout is append‑only / event‑sourced, `widgetState` is stored in a **dedicated mutable per‑thread side store**, surfaced on the item's payload on `thread/read`, and written back via that decoupled set method (no turn/item).
-- It is **restored in the `ui/initialize` result** (alongside `hostContext`), so it is present at/before first paint — no flash of a stale or empty card. Restore survives scroll‑away, thread reload, and app restart.
-- **UI‑only** — it never reaches the model unless the UI explicitly calls `ui/update-model-context`. **Size‑bounded** (≤ 8 KB per item; oversized updates rejected).
-- It is layered on top of the server‑authoritative `structuredResult`, which is re‑applied from the tool result each turn. `widgetState` is never authoritative data.
+## 9. App Binding boundary
 
----
+App Binding has no private presentation protocol. Binding-owned interactive results use the same MCP Apps resource, view-handle, authority, approval, and teardown contract as every other MCP origin. `interactiveToolUi`, `ui/resource/read`, `ui/tool/call`, widget-state APIs, custom bridge tokens, and Dynamic `_meta.ui` are invalid.
 
-## 10. Authorization
+## 10. Acceptance
 
-A UI‑initiated bridge `tools/call` carries no authority of its own; DotCraft re‑derives and enforces it at the AppServer `ui/tool/call` boundary:
-
-- The target tool MUST be app‑bound to the current thread, `app`‑visible (§11), and within the binding's granted scope.
-- **Risk gating.** A `read` / no‑approval tool proceeds. A `mutate` / `externalWrite` tool (one that declares an approval descriptor) raises a **decoupled approval** that reuses Desktop's existing approval surface; the `ui/tool/call` awaits the decision, then dispatches or rejects. The approval is **transient** (keyed to the thread + approval id) — no turn is created and no persisted conversation item — so decoupling is preserved; every decision is audited.
-- Cross‑binding / cross‑app tool calls from a UI are rejected; out‑of‑scope or non‑`app`‑visible calls are rejected with an error the UI receives.
-- Every UI‑initiated `tools/call`, approval, and `ui/open-link` is recorded on the App Binding audit trail.
-- `ui/message` and `ui/update-model-context` inherit normal turn / context‑block semantics.
-
-The UI's access to its own app backend (direct `fetch`) is governed by CSP `connect-src` (§11), not DotCraft tool authority — the app talks to itself over its declared loopback origin.
-
----
-
-## 11. Security
-
-- **Visibility** (`_meta.ui.visibility`, default `["model","app"]`): `["app"]` = UI‑only (callable from the UI, hidden from the model); `["model"]` = model‑only. AppServer enforces visibility when building the model tool list and validating UI `tools/call`.
-- **Sandbox & CSP:** mandatory iframe sandbox; restrictive default CSP, widened only from the server‑validated `_meta.ui.csp`. Widening one iframe's CSP must not affect other iframes or the app shell.
-- **Permissions:** the iframe is granted **only** the powerful features the app declares in `_meta.ui.permissions` (`camera`, `microphone`, `geolocation`, `clipboardWrite`), mapped from the server‑validated descriptor onto the iframe's Permissions‑Policy `allow`. Unknown tokens are dropped; with none declared, every powerful feature is denied (deny‑by‑default).
-- **Links:** `ui/open-link` is governed by a **host‑owned scheme policy** — `https:`, `mailto:`, and the bound app's declared `nativeApplication.protocol` deep‑link scheme (binding‑scoped — a vetted catalog declaration, not an ad‑hoc per‑app scheme). `javascript:` / `data:` / `file:` and every other scheme are forbidden. Blocked opens are audited.
-- **Loopback fetch (data path B):** an app backend serving the iframe's direct `fetch` must allow the iframe's opaque origin (CORS, loopback only, no credentials). This is the app's responsibility.
-- **Bridge authorization:** `event.source` is necessary but not sufficient because a sandboxed iframe can self-navigate while retaining the same frame/window proxy. Desktop mints a per-frame `bridgeToken` during the initial `dotcraft-app://` document handshake, requires it on all UI→host actions, and disables the bridge on duplicate initialization or iframe navigation.
-- **Auditable + inspectable:** all UI→host traffic is JSON‑RPC (loggable); predeclared `ui://` resources are inspectable before render. The host bounds resource size, iframe count, and message rate.
-
----
-
-## 12. Fallback (non‑Desktop)
-
-Clients that did not negotiate `interactiveToolUi`, including chat channels, and any failure to render MUST fall back to the tool result's text — `contentItems` / `structuredResult` / error fields, with `_meta` excluded. Apps MUST always return useful text; the interactive UI is an enhancement, never required for correctness.
-
----
-
-## 13. Architecture & Host/App Responsibilities
-
-Three actors: **AppServer** brokers MCP between the host and the app; the **app** plays the MCP‑server role (tools + `ui://` resources) over its App Binding connection; **Desktop** is the host that renders and bridges.
-
-The host owns:
-- **Sandbox iframe + host scheme** — one sandboxed iframe per UI‑bearing `dynamicToolCall`; the privileged `dotcraft-app://` scheme with a per‑resource CSP; no runtime injection; `maxHeight` / display‑mode enforcement.
-- **Bridge runtime** — the `ui/*` + `tools/*` JSON‑RPC peer over postMessage; push `hostContext` / notifications; service the UI→host requests; validate `event.source` plus `bridgeToken`, and disable the bridge when the iframe navigates away.
-- **Resource fetch + cache** — broker `ui/resource/read`; cache by URI; refetch when the URI changes.
-- **Tool‑call proxy + consent** — enforce visibility + scope/risk/approval; forward the call; return the result; hide `app`‑only tools from the model.
-- **State persistence** — persist `widgetState` keyed to the item; route `ui/update-model-context` (deferred) and `ui/message` (immediate turn).
-- **Theme / display handoff** — compute and push theme/locale/displayMode/dimensions; arbitrate display‑mode requests; expose host CSS variables.
-
-The app owns: the HTML template / root element / bundle and its own bridge code; the tool + `ui://` resource declarations; the result audience split (§5); the choice of `widgetState` vs `structuredResult` vs `_meta`. The SDK provides folder/prefix static serving so an app exposes a folder of `ui://` resources without per‑URI boilerplate.
-
-Net: the host is the trust / arbitration boundary; the app owns its declarations, bundle, and in‑iframe logic.
-
----
-
-## 14. Lifecycle & Placement
-
-- A UI instance is bound to a tool‑call result. The host renders after the `dynamicToolCall` item completes and sends `tool-result`. Results are atomic; optional streaming partial args flow via `tool-input-partial`.
-- **Placement.** Once a turn settles, a non‑blocking interactive card is **pinned** out of the collapsed turn summary — rendered standalone above the final agent message — rather than folded into the intermediate "Processed" disclosure like ordinary tool output. Only the last completed interactive card of a turn is pinned (earlier, superseded cards stay collapsed); pinning composes with the plan‑card pin. Deep‑history turns beyond the recent window trim their tool content (including the card's result data), so pinning applies to the live render path only.
-- On thread close, item teardown, or navigation away, the host sends `ui/resource-teardown` when still talking to the original document, disables/disposes the iframe bridge, and clears the model‑context block (§10).
-
----
-
-## 15. Oratorio Validation Contract
-
-Oratorio is the first validating app. It ships UI resources in its bundle, declares `_meta.ui` on its catalog tools, and always returns `structuredResult` text for non‑Desktop fallback.
-
-| Tool | `resourceUri` | Behavior |
-|------|---------------|----------|
-| `ListBoardItems` | `ui://oratorio/board.html` | Interactive board; "Open in Oratorio" via `ui/open-link`; refresh via `tools/call`. |
-| `GetBoardItem` | `ui://oratorio/item.html` | One item + activity; app‑open via `ui/open-link`. |
-| `QueueReviewRound` | `ui://oratorio/review.html` | Queue via `tools/call` (`externalWrite` → decoupled approval, §10). |
-
----
-
-## 16. Acceptance
-
-- Desktop negotiates `interactiveToolUi`; other clients fall back to tool‑result text.
-- A tool with `_meta.ui.resourceUri` renders its `ui://` resource in a sandboxed iframe.
-- The bridge supports the tokenized handshake + `tools/call`, `ui/open-link`, `ui/message`, `ui/update-model-context`, `ui/request-display-mode`, and host introspection.
-- Audience split enforced: `_meta` never reaches the model; `structuredResult` reaches model + UI; `contentItems` is the model / text fallback.
-- `visibility:["app"]` tools are hidden from the model but callable from the UI.
-- UI‑initiated `tools/call` is gated by scope/risk/approval and audited; mutating calls raise a decoupled approval; cross‑binding calls rejected.
-- Sandbox + CSP + permissions + `ui/open-link` scheme policy enforced.
-- Host context (theme/locale/displayMode) is pushed live; `widgetState` persists and restores per item.
-- A non‑blocking interactive card is pinned out of the collapsed turn summary.
-- The interactive UI is never required for correctness; text fallback always present.
+- stable metadata, visibility, resource, and AppBridge fixtures pass;
+- only live terminal MCP items on the owning capable connection can open a view;
+- same-server authority, approval, audience separation, limits, and teardown are enforced;
+- inline/fullscreen, generic fallback, safe links, messages, and one-shot context work;
+- reconnected items remain generic;
+- all hard-coded Core renderer families resolve through the provenance-gated registry;
+- App Binding authorization cannot bypass or replace MCP Apps view authority.

@@ -34,7 +34,7 @@ public sealed class SessionServiceHookTests : IDisposable
     {
         var marker = "SUPERPOWERS_HOOK_CONTEXT";
         var chatClient = new CapturingChatClient("ok");
-        await using var agentFactory = CreateAgentFactory();
+        await using var agentFactory = CreateAgentFactory(chatClient);
         var service = CreateService(agentFactory, chatClient, CreateSessionStartRunner(marker));
         var thread = await CreateThreadAsync(service);
 
@@ -52,7 +52,7 @@ public sealed class SessionServiceHookTests : IDisposable
     {
         var marker = "SESSION_START_ONCE_MARKER";
         var chatClient = new CapturingChatClient("ok");
-        await using var agentFactory = CreateAgentFactory();
+        await using var agentFactory = CreateAgentFactory(chatClient);
         var service = CreateService(agentFactory, chatClient, CreateSessionStartRunner(marker));
         var thread = await CreateThreadAsync(service);
 
@@ -71,7 +71,7 @@ public sealed class SessionServiceHookTests : IDisposable
     public async Task SubmitInputAsync_DoesNotStopSessionStartHooksOnExitTwo()
     {
         var chatClient = new CapturingChatClient("ok");
-        await using var agentFactory = CreateAgentFactory();
+        await using var agentFactory = CreateAgentFactory(chatClient);
         var service = CreateService(
             agentFactory,
             chatClient,
@@ -94,7 +94,7 @@ public sealed class SessionServiceHookTests : IDisposable
     {
         var marker = "USER_PROMPT_SUBMIT_CONTEXT";
         var chatClient = new CapturingChatClient("ok");
-        await using var agentFactory = CreateAgentFactory();
+        await using var agentFactory = CreateAgentFactory(chatClient);
         var service = CreateService(
             agentFactory,
             chatClient,
@@ -114,7 +114,7 @@ public sealed class SessionServiceHookTests : IDisposable
     public async Task SubmitInputAsync_UserPromptSubmitExitTwoBlocksBeforeAgent()
     {
         var chatClient = new CapturingChatClient("ok");
-        await using var agentFactory = CreateAgentFactory();
+        await using var agentFactory = CreateAgentFactory(chatClient);
         var service = CreateService(
             agentFactory,
             chatClient,
@@ -137,7 +137,7 @@ public sealed class SessionServiceHookTests : IDisposable
             hookRunner: hookRunner);
     }
 
-    private AgentFactory CreateAgentFactory()
+    private AgentFactory CreateAgentFactory(IChatClient chatClient)
     {
         var config = AppConfigTestFactory.CreateOpenAI();
         return new AgentFactory(
@@ -148,7 +148,8 @@ public sealed class SessionServiceHookTests : IDisposable
             skillsLoader: new SkillsLoader(_tempDir),
             approvalService: new AutoApproveApprovalService(),
             blacklist: null,
-            toolProviders: Array.Empty<IAgentToolProvider>());
+            chatClient: chatClient,
+            toolSources: Array.Empty<IToolSource>());
     }
 
     private HookRunner CreateSessionStartRunner(string output) =>

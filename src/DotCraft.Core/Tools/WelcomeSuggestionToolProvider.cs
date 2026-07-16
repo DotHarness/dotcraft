@@ -1,6 +1,5 @@
 using System.ComponentModel;
 using System.Text.Json;
-using DotCraft.Abstractions;
 using DotCraft.GeneratedTools.Core;
 using DotCraft.Memory;
 using DotCraft.Protocol;
@@ -11,13 +10,17 @@ namespace DotCraft.Tools;
 /// <summary>
 /// Tool profile for ephemeral welcome-suggestion threads.
 /// </summary>
-public sealed class WelcomeSuggestionToolProvider(
-    MemoryStore memoryStore) : IAgentToolProvider
+public sealed class WelcomeSuggestionToolSource(
+    MemoryStore memoryStore) : AIFunctionToolSource
 {
     private readonly WelcomeSuggestionToolMethods _methods =
         new(memoryStore);
 
-    public IEnumerable<AITool> CreateTools(ToolProviderContext context)
+    /// <inheritdoc />
+    public override string SourceId => "welcome-suggestion";
+
+    /// <inheritdoc />
+    protected override IEnumerable<AIFunction> CreateFunctions(ToolPlanningContext context)
     {
         yield return GeneratedToolFunctions.WelcomeSuggestionToolMethods_ReadWelcomeWorkspaceMemory(_methods);
         yield return GeneratedToolFunctions.WelcomeSuggestionToolMethods_EmitWelcomeSuggestions(_methods);

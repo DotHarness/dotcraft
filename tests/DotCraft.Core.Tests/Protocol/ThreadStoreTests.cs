@@ -3,6 +3,7 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using DotCraft.Agents;
 using DotCraft.Context.Compaction;
+using DotCraft.Plugins;
 using DotCraft.Protocol;
 using Microsoft.Agents.AI;
 using Microsoft.Data.Sqlite;
@@ -378,29 +379,79 @@ public sealed class ThreadStoreTests : IDisposable
         thread.LastActiveAt = turn.StartedAt;
         await _store.SaveThreadAsync(thread);
 
-        var agentItem = new SessionItem
+        var toolCall = new SessionItem
         {
             Id = "item_002",
             TurnId = turn.Id,
-            Type = ItemType.AgentMessage,
-            Status = ItemStatus.Completed,
+            Type = ItemType.ToolCall,
+            Status = ItemStatus.Started,
             CreatedAt = turn.StartedAt.AddSeconds(1),
-            CompletedAt = turn.StartedAt.AddSeconds(1),
-            Payload = new AgentMessagePayload { Text = "world" }
+            Payload = new ToolCallPayload
+            {
+                ToolName = "ReadFile",
+                ProviderFlatName = "ReadFile",
+                CallId = "call_001"
+            }
         };
-        turn.Items.Add(agentItem);
+        turn.Items.Add(toolCall);
+        await _store.SaveThreadAsync(thread);
+
+        toolCall.Status = ItemStatus.Completed;
+        toolCall.CompletedAt = turn.StartedAt.AddSeconds(2);
+        turn.Items.Add(new SessionItem
+        {
+            Id = "item_003",
+            TurnId = turn.Id,
+            Type = ItemType.ToolResult,
+            Status = ItemStatus.Completed,
+            CreatedAt = turn.StartedAt.AddSeconds(2),
+            CompletedAt = turn.StartedAt.AddSeconds(2),
+            Payload = new ToolResultPayload
+            {
+                ToolName = "ReadFile",
+                ProviderFlatName = "ReadFile",
+                CallId = "call_001",
+                Result = "world",
+                Success = true
+            }
+        });
+        await _store.SaveThreadAsync(thread);
+
         turn.Status = TurnStatus.Completed;
-        turn.CompletedAt = turn.StartedAt.AddSeconds(1);
+        turn.CompletedAt = turn.StartedAt.AddSeconds(3);
         thread.LastActiveAt = turn.CompletedAt.Value;
         await _store.SaveThreadAsync(thread);
 
-        var loaded = await _store.LoadThreadAsync(thread.Id);
+        var rolloutPath = GetCanonicalPath(thread.Id, archived: false);
+        var records = File.ReadAllLines(rolloutPath)
+            .Select(line => JsonDocument.Parse(line))
+            .ToList();
+        try
+        {
+            Assert.Single(records, record =>
+                record.RootElement.GetProperty("kind").GetString() == "turn_started"
+                && record.RootElement.GetProperty("turnStarted").GetProperty("turn").GetProperty("id").GetString() == turn.Id);
+            Assert.Single(records, record =>
+                record.RootElement.GetProperty("kind").GetString() == "turn_completed"
+                && record.RootElement.GetProperty("turnCompleted").GetProperty("turnId").GetString() == turn.Id);
+            Assert.Equal(4, records.Count(record =>
+                record.RootElement.GetProperty("kind").GetString() == "item_appended"
+                && record.RootElement.GetProperty("itemAppended").GetProperty("turnId").GetString() == turn.Id));
+        }
+        finally
+        {
+            foreach (var record in records)
+                record.Dispose();
+        }
+
+        var loaded = await new ThreadStore(_root).LoadThreadAsync(thread.Id);
         Assert.NotNull(loaded);
         var loadedTurn = Assert.Single(loaded.Turns);
         Assert.Equal(TurnStatus.Completed, loadedTurn.Status);
-        Assert.Equal(2, loadedTurn.Items.Count);
+        Assert.Equal(3, loadedTurn.Items.Count);
         Assert.Equal("hello", loadedTurn.Input?.AsUserMessage?.Text);
-        Assert.Equal("world", loadedTurn.Items[1].AsAgentMessage?.Text);
+        Assert.Equal(ItemStatus.Completed, loadedTurn.Items[1].Status);
+        Assert.Equal("world", loadedTurn.Items[2].AsToolResult?.Result);
     }
 
     [Fact]
@@ -427,6 +478,8 @@ public sealed class ThreadStoreTests : IDisposable
         var remaining = Assert.Single(loaded.Turns);
         Assert.Equal("first", remaining.Input?.AsUserMessage?.Text);
         Assert.Equal("one", remaining.Items[1].AsAgentMessage?.Text);
+        Assert.Equal(2, loaded.TurnSequenceHighWatermark);
+        Assert.Equal(3, SessionIdGenerator.ReserveNextTurnSequence(loaded));
     }
 
     [Fact]
@@ -549,6 +602,7 @@ public sealed class ThreadStoreTests : IDisposable
             Payload = new ToolCallPayload
             {
                 ToolName = "ReadFile",
+                ProviderFlatName = "ReadFile",
                 CallId = "call_guidance_order",
                 Arguments = new JsonObject()
             }
@@ -618,6 +672,7 @@ public sealed class ThreadStoreTests : IDisposable
             Payload = new ToolCallPayload
             {
                 ToolName = "ReadFile",
+                ProviderFlatName = "ReadFile",
                 CallId = "call-1",
                 Arguments = new JsonObject { ["path"] = "a.txt" }
             }
@@ -681,6 +736,7 @@ public sealed class ThreadStoreTests : IDisposable
             Payload = new ToolCallPayload
             {
                 ToolName = HostedImageGenerationContent.ToolName,
+                ProviderFlatName = HostedImageGenerationContent.ToolName,
                 CallId = "ig_123",
                 Arguments = new JsonObject()
             }
@@ -829,6 +885,7 @@ public sealed class ThreadStoreTests : IDisposable
             Payload = new ToolCallPayload
             {
                 ToolName = "GetStatus",
+                ProviderFlatName = "GetStatus",
                 CallId = "call-1",
                 Arguments = new JsonObject()
             }
@@ -892,6 +949,7 @@ public sealed class ThreadStoreTests : IDisposable
             Payload = new ToolCallPayload
             {
                 ToolName = "ReadFile",
+                ProviderFlatName = "ReadFile",
                 CallId = "call-1",
                 Arguments = new JsonObject { ["path"] = "a.txt" }
             }
@@ -943,6 +1001,7 @@ public sealed class ThreadStoreTests : IDisposable
             Payload = new ToolCallPayload
             {
                 ToolName = "ReadFile",
+                ProviderFlatName = "ReadFile",
                 CallId = "call-1",
                 Arguments = new JsonObject { ["path"] = "a.txt" }
             }
@@ -958,6 +1017,7 @@ public sealed class ThreadStoreTests : IDisposable
             Payload = new ToolCallPayload
             {
                 ToolName = "ListFiles",
+                ProviderFlatName = "ListFiles",
                 CallId = "call-2",
                 Arguments = new JsonObject()
             }
@@ -1023,6 +1083,7 @@ public sealed class ThreadStoreTests : IDisposable
             Payload = new ToolCallPayload
             {
                 ToolName = "ReadFile",
+                ProviderFlatName = "ReadFile",
                 CallId = "missing",
                 Arguments = new JsonObject()
             }
@@ -1049,6 +1110,154 @@ public sealed class ThreadStoreTests : IDisposable
         var session = await _store.LoadOrCreateSessionAsync(agent, thread.Id);
 
         Assert.Equal(["user:hello", "assistant:before"], FormatHistoryWithContents(session));
+    }
+
+    [Fact]
+    public async Task LoadOrCreateSessionAsync_RebuildsMcpLifecycleItemWithoutLeakingClientData()
+    {
+        var thread = CreateThread();
+        AddTurnWithMessages(thread, "hello", "calling MCP");
+        var turn = thread.Turns[0];
+        turn.Items.Add(new SessionItem
+        {
+            Id = SessionIdGenerator.NewItemId(3),
+            TurnId = turn.Id,
+            Type = ItemType.McpToolCall,
+            Status = ItemStatus.Completed,
+            CreatedAt = DateTimeOffset.UtcNow,
+            CompletedAt = DateTimeOffset.UtcNow,
+            Payload = new McpToolCallPayload
+            {
+                Namespace = "mcp__review",
+                ToolName = "lookup",
+                ProviderFlatName = "mcp__review__lookup",
+                ToolDefinitionId = "Mcp:review:lookup_raw",
+                RuntimeBindingId = "mcp:review:lookup_raw:7",
+                BindingRevision = 7,
+                SnapshotRevision = 11,
+                McpGeneration = 7,
+                Source = new ToolSourceProvenancePayload
+                {
+                    Kind = "Mcp",
+                    SourceId = "review",
+                    SourceToolId = "lookup_raw",
+                    Origin = "workspace"
+                },
+                Presentation = new ToolPresentationPayload
+                {
+                    PresentationId = "core.review",
+                    Options = new JsonObject { ["variant"] = "compact" }
+                },
+                Server = "review",
+                SourceToolId = "lookup_raw",
+                CallId = "mcp-call-1",
+                Status = "completed",
+                Success = true,
+                McpAppResourceUri = "ui://review/lookup",
+                Arguments = new JsonObject { ["id"] = 7 },
+                ModelContentItems = [new PluginFunctionContentItem { Type = "text", Text = "safe result" }],
+                StructuredContent = new JsonObject { ["secret"] = "client-only" },
+                Meta = new JsonObject { ["token"] = "host-only" }
+            }
+        });
+        await _store.SaveThreadAsync(thread);
+
+        var persisted = await _store.LoadThreadAsync(thread.Id);
+        var persistedPayload = Assert.IsType<McpToolCallPayload>(
+            Assert.Single(
+                Assert.Single(persisted!.Turns).Items,
+                item => item.Type == ItemType.McpToolCall).Payload);
+        Assert.Equal("Mcp:review:lookup_raw", persistedPayload.ToolDefinitionId);
+        Assert.Equal("mcp:review:lookup_raw:7", persistedPayload.RuntimeBindingId);
+        Assert.Equal(7, persistedPayload.BindingRevision);
+        Assert.Equal(11, persistedPayload.SnapshotRevision);
+        Assert.Equal(7, persistedPayload.McpGeneration);
+        Assert.Equal("ui://review/lookup", persistedPayload.McpAppResourceUri);
+        Assert.Equal("workspace", persistedPayload.Source!.Origin);
+        Assert.Equal("core.review", persistedPayload.Presentation!.PresentationId);
+
+        var session = await new ThreadStore(_root).LoadOrCreateSessionAsync(CreateAgent(), thread.Id);
+        var formatted = FormatHistoryWithContents(session);
+
+        Assert.Contains("assistant:calling MCPfunction_call:lookup:mcp-call-1", formatted);
+        Assert.Contains("tool:function_result:mcp-call-1:safe result", formatted);
+        Assert.DoesNotContain(formatted, value => value.Contains("client-only", StringComparison.Ordinal));
+        Assert.DoesNotContain(formatted, value => value.Contains("host-only", StringComparison.Ordinal));
+
+        Assert.True(session.TryGetInMemoryChatHistory(
+            out var history,
+            jsonSerializerOptions: SessionPersistenceJsonOptions.Default));
+        var call = Assert.Single(history.SelectMany(message => message.Contents).OfType<FunctionCallContent>());
+        Assert.Equal("mcp__review", call.AdditionalProperties!["openai.responses.function_call.namespace"]);
+        Assert.Equal("mcp__review__lookup", call.AdditionalProperties["dotcraft.tool.provider_flat_name"]);
+    }
+
+    [Fact]
+    public async Task LoadOrCreateSessionAsync_SkipsInProgressDynamicLifecycleItem()
+    {
+        var thread = CreateThread();
+        AddTurnWithMessages(thread, "hello", "calling dynamic tool");
+        var turn = thread.Turns[0];
+        turn.Items.Add(new SessionItem
+        {
+            Id = SessionIdGenerator.NewItemId(3),
+            TurnId = turn.Id,
+            Type = ItemType.DynamicToolCall,
+            Status = ItemStatus.Streaming,
+            CreatedAt = DateTimeOffset.UtcNow,
+            Payload = new DynamicToolCallPayload
+            {
+                Namespace = "board",
+                ToolName = "lookup",
+                ProviderFlatName = "board__lookup",
+                CallId = "dynamic-call-1",
+                Status = "inProgress",
+                Arguments = new JsonObject { ["id"] = 7 }
+            }
+        });
+        await _store.SaveThreadAsync(thread);
+
+        var session = await new ThreadStore(_root).LoadOrCreateSessionAsync(CreateAgent(), thread.Id);
+
+        Assert.Equal(
+            ["user:hello", "assistant:calling dynamic tool"],
+            FormatHistoryWithContents(session));
+    }
+
+    [Fact]
+    public async Task LoadOrCreateSessionAsync_DoesNotReplayRemovedLegacyPluginItem()
+    {
+        var thread = CreateThread();
+        AddTurnWithMessages(thread, "hello", "calling plugin");
+        var turn = thread.Turns[0];
+        turn.Items.Add(new SessionItem
+        {
+            Id = SessionIdGenerator.NewItemId(3),
+            TurnId = turn.Id,
+            Type = ItemType.PluginFunctionCall,
+            Status = ItemStatus.Completed,
+            CreatedAt = DateTimeOffset.UtcNow,
+            CompletedAt = DateTimeOffset.UtcNow,
+            Payload = new PluginFunctionCallPayload
+            {
+                PluginId = "legacy",
+                FunctionName = "legacy_tool",
+                CallId = "legacy-call-1",
+                Success = true,
+                ContentItems = [new PluginFunctionContentItem { Type = "text", Text = "legacy result" }],
+                StructuredResult = new JsonObject { ["hidden"] = true }
+            }
+        });
+        await _store.SaveThreadAsync(thread);
+
+        var session = await new ThreadStore(_root).LoadOrCreateSessionAsync(CreateAgent(), thread.Id);
+
+        Assert.Equal(
+            [
+                "user:hello",
+                "assistant:calling plugin"
+            ],
+            FormatHistoryWithContents(session));
     }
 
     // -------------------------------------------------------------------------

@@ -127,7 +127,7 @@ export class WeComMediaTools {
           text: result.delivered ? "Message sent." : String(result.errorMessage ?? "Tool execution failed."),
         },
       ],
-      structuredResult: {
+      structuredContent: {
         delivered: Boolean(result.delivered),
         errorCode: result.errorCode ?? null,
         target: pusher.getChatId(),

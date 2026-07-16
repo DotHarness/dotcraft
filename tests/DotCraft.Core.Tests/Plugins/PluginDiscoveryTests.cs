@@ -2,6 +2,7 @@ using DotCraft.Configuration;
 using DotCraft.Hooks;
 using DotCraft.Lsp;
 using DotCraft.Plugins;
+using DotCraft.Tools;
 using System.IO.Compression;
 
 namespace DotCraft.Core.Tests.Plugins;
@@ -1267,20 +1268,23 @@ public sealed class PluginDiscoveryTests
     }
 
     [Fact]
-    public void ConflictResolver_RejectsDuplicateFunctionNames()
+    public async Task Snapshot_QuarantinesAllDuplicateCanonicalPluginNames()
     {
-        var diagnostics = new List<PluginDiagnostic>();
         var invoker = new NoopPluginInvoker();
-        var registrations = new[]
+        var sources = new IToolSource[]
         {
-            new PluginFunctionRegistration(Descriptor("plugin-a", "SameName"), invoker),
-            new PluginFunctionRegistration(Descriptor("plugin-b", "SameName"), invoker)
+            new PluginToolSource("plugin-a", [new PluginToolRegistration(Descriptor("plugin-a", "SameName"), invoker)]),
+            new PluginToolSource("plugin-b", [new PluginToolRegistration(Descriptor("plugin-b", "SameName"), invoker)])
         };
 
-        var resolved = PluginFunctionConflictResolver.ResolveRegistrations(registrations, diagnostics);
+        var snapshot = await new EffectiveToolSnapshotBuilder().BuildAsync(
+            sources,
+            new ToolPlanningContext("thread_1", "turn_1", NewTempDir(), "default", null, [], 1));
 
-        Assert.Single(resolved);
-        Assert.Contains(diagnostics, d => d.Code == "DuplicatePluginFunctionName");
+        Assert.Empty(snapshot.Registrations);
+        var diagnostic = Assert.Single(snapshot.Diagnostics);
+        Assert.Equal(ToolSnapshotDiagnosticCodes.DuplicateCanonicalName, diagnostic.Code);
+        Assert.Equal(2, diagnostic.Provenances.Count);
     }
 
     private static PluginFunctionDescriptor Descriptor(string pluginId, string name) =>
@@ -1635,10 +1639,10 @@ description: Test skill
 }
 """;
 
-    private sealed class NoopPluginInvoker : IPluginFunctionInvoker
+    private sealed class NoopPluginInvoker : IPluginToolInvoker
     {
         public ValueTask<PluginFunctionInvocationResult> InvokeAsync(
-            PluginFunctionInvocationContext context,
+            PluginToolInvocationContext context,
             CancellationToken cancellationToken) =>
             ValueTask.FromResult(new PluginFunctionInvocationResult());
     }

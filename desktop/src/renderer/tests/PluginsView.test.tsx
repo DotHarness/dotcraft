@@ -63,7 +63,6 @@ const workflowPlugin: PluginEntry = {
   apps: [
     {
       appId: 'com.example.workflow',
-      toolNamespace: 'workflow',
       displayName: 'Workflow App',
       developerName: 'Example Labs',
       description: 'Manage Workflow App board items and review rounds from selected DotCraft threads.',
@@ -73,16 +72,7 @@ const workflowPlugin: PluginEntry = {
         displayName: 'Workflow App',
         protocol: 'workflow',
         installUrl: 'https://example.com/workflow/releases'
-      },
-      toolCatalog: [
-        {
-          name: 'QueueReviewRound',
-          scope: 'board.manage',
-          risk: 'mutate',
-          defaultExposure: 'deferred',
-          description: 'Queue a review round.'
-        }
-      ]
+      }
     }
   ],
   mcpServers: [],
@@ -152,7 +142,6 @@ function workflowAppInfo({
   return {
     appId: 'com.example.workflow',
     pluginId: 'workflow',
-    toolNamespace: 'workflow',
     displayName: 'Workflow App',
     developerName: 'Example Labs',
     description: 'Manage Workflow App board items and review rounds from selected DotCraft threads.',
@@ -175,13 +164,12 @@ function workflowAppInfo({
           displayName: 'Workflow App',
           state: bindingState,
           connectionState,
-          grantedScopes: ['board.read'],
           icon: null,
-          toolNamespace: 'workflow'
+          authorityRevision: 2,
+          approvedCapabilityRevision: 1,
+          approvedTools: [{ namespace: 'workflow', name: 'ReadBoard' }]
         },
     handoffModes: [],
-    scopes: [],
-    toolCatalog: []
   }
 }
 
@@ -436,7 +424,7 @@ describe('PluginsView local plugin visibility', () => {
       status: 'connected',
       capabilities: {
         pluginManagement: true,
-        appBinding: true
+        appBindingVersion: 2
       }
     })
     useAppBindingStore.setState({
@@ -468,7 +456,7 @@ describe('PluginsView local plugin visibility', () => {
       status: 'connected',
       capabilities: {
         pluginManagement: true,
-        appBinding: true
+        appBindingVersion: 2
       }
     })
     useThreadStore.getState().setActiveThreadId('thread-1')
@@ -500,6 +488,8 @@ describe('PluginsView local plugin visibility', () => {
     expect(await screen.findByText('App Settings')).toBeInTheDocument()
     expect(screen.getByText('Authorized')).toBeInTheDocument()
     expect(screen.getByText('Offline')).toBeInTheDocument()
+    expect(screen.getByText('Last approved capabilities')).toBeInTheDocument()
+    expect(screen.getByText('workflow.ReadBoard')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Open app' })).toBeInTheDocument()
     expect(screen.queryByText('Connected Apps')).not.toBeInTheDocument()
     expect(screen.queryByText('Connected')).not.toBeInTheDocument()

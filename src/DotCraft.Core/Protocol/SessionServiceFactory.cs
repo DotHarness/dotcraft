@@ -3,9 +3,11 @@ using DotCraft.Abstractions;
 using DotCraft.Configuration;
 using DotCraft.Hooks;
 using DotCraft.Logging;
+using DotCraft.Plugins;
 using DotCraft.Security;
 using DotCraft.Sessions;
 using DotCraft.Tools.BackgroundTerminals;
+using DotCraft.Tools;
 using DotCraft.Tracing;
 using Microsoft.Agents.AI;
 using Microsoft.Extensions.DependencyInjection;
@@ -32,12 +34,12 @@ public static class SessionServiceFactory
         TimeSpan? approvalTimeout = null)
     {
         var loggerFactory = sp.GetService<ILoggerFactory>();
-        return new SessionService(
+        sp.GetService<CommonToolApprovalEvaluator>()?.Bind(agentFactory.RuntimeContext.ApprovalService);
+        var sessionService = new SessionService(
             agentFactory,
             agent,
             sp.GetRequiredService<SessionPersistenceService>(),
             sp.GetRequiredService<SessionGate>(),
-            sp.GetService<IChannelRuntimeToolProvider>(),
             sp.GetService<HookRunner>(),
             sp.GetService<TraceCollector>(),
             sp.GetService<TokenUsageStore>(),
@@ -47,6 +49,21 @@ public static class SessionServiceFactory
             toolProfileRegistry: sp.GetService<IToolProfileRegistry>(),
             sessionStreamDebugLogger: sp.GetService<SessionStreamDebugLogger>(),
             backgroundTerminalService: sp.GetService<IBackgroundTerminalService>(),
-            appConfigMonitor: sp.GetService<IAppConfigMonitor>());
+            appConfigMonitor: sp.GetService<IAppConfigMonitor>(),
+            pluginToolSourceProviders: sp.GetServices<IThreadPluginToolSourceProvider>(),
+            toolDispatchPolicyRegistry: sp.GetService<ThreadToolDispatchPolicyRegistry>(),
+            mcpAppTransientContextStore: sp.GetService<McpAppTransientContextStore>());
+        sp.GetService<ToolInvocationRecorderRouter>()?.Bind(sessionService);
+        BindSessionServiceConsumers(sp, sessionService);
+        return sessionService;
+    }
+
+    internal static void BindSessionServiceConsumers(IServiceProvider services, ISessionService sessionService)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+        ArgumentNullException.ThrowIfNull(sessionService);
+
+        foreach (var consumer in services.GetServices<ISessionServiceConsumer>())
+            consumer.SetSessionService(sessionService);
     }
 }

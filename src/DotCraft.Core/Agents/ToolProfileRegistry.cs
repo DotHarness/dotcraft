@@ -1,5 +1,5 @@
 using System.Collections.Concurrent;
-using DotCraft.Abstractions;
+using DotCraft.Tools;
 
 namespace DotCraft.Agents;
 
@@ -8,26 +8,26 @@ namespace DotCraft.Agents;
 /// </summary>
 public sealed class ToolProfileRegistry : IToolProfileRegistry
 {
-    private readonly ConcurrentDictionary<string, IReadOnlyList<IAgentToolProvider>> _profiles =
+    private readonly ConcurrentDictionary<string, IReadOnlyList<IToolSource>> _profiles =
         new(StringComparer.OrdinalIgnoreCase);
 
     /// <inheritdoc />
-    public void Register(string profileName, IReadOnlyList<IAgentToolProvider> providers)
+    public void Register(string profileName, IReadOnlyList<IToolSource> sources)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(profileName);
-        ArgumentNullException.ThrowIfNull(providers);
-        _profiles[profileName] = providers;
+        ArgumentNullException.ThrowIfNull(sources);
+        _profiles[profileName] = sources;
     }
 
     /// <inheritdoc />
-    public bool TryGet(string profileName, out IReadOnlyList<IAgentToolProvider>? providers)
+    public bool TryGet(string profileName, out IReadOnlyList<IToolSource>? sources)
     {
         if (string.IsNullOrWhiteSpace(profileName))
         {
-            providers = null;
+            sources = null;
             return false;
         }
 
-        return _profiles.TryGetValue(profileName, out providers);
+        return _profiles.TryGetValue(profileName, out sources);
     }
 }

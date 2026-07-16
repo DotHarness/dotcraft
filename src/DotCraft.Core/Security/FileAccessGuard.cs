@@ -89,6 +89,17 @@ public sealed class FileAccessGuard
         return null;
     }
 
+    /// <summary>
+    /// Returns whether a non-blacklisted access needs an outside-workspace approval.
+    /// This uses the same symlink-aware boundary and trusted-read rules as execution.
+    /// </summary>
+    public bool RequiresOutsideWorkspaceApproval(string fullPath, string operation)
+    {
+        if (IsWithinBoundary(fullPath, _workspaceRoot))
+            return false;
+        return operation is not ("read" or "list") || !IsWithinTrustedReadPath(fullPath);
+    }
+
     private bool IsWithinTrustedReadPath(string fullPath)
     {
         foreach (var trustedPath in _trustedReadPaths)

@@ -214,8 +214,10 @@ Language bindings may expose only a subset as typed wrappers, but raw request ac
 Runtime Dynamic Tools use the same model in every SDK:
 
 - Tool specs are declared on `thread/start.dynamicTools` or `thread/resume.dynamicTools`.
+- Declarations use the canonical `Function` / `Namespace` tagged union; namespaced callback routing uses the composite `(namespace, tool)` identity rather than a flattened-name convention.
 - SDK-local handlers are not sent over the wire.
 - `item/tool/call` is dispatched by `threadId`, optional `namespace`, and `tool`.
+- Results use `success`, validated `contentItems`, optional client-only `structuredContent`, and stable `errorCode` / `errorMessage` fields. Legacy `structuredResult`, `_meta`, `_meta.ui`, and UI resource fields are invalid; interactive results use MCP Apps.
 - Missing handlers return `UnsupportedTool`.
 - Handler exceptions return `AdapterToolCallFailed`.
 - Tool handlers are responsible for argument validation and app-level authorization.
@@ -275,7 +277,7 @@ Status values:
 - **Partial**: some methods in the capability family are typed or generic, while others remain raw or unsupported.
 - **Gap**: no support beyond what the lower layer incidentally exposes.
 
-Parity Target applies to every general-purpose SDK (TypeScript, .NET, Python) unless the row names a single-language profile. Cells record the current status per language; cells below the target are tracked parity debt closed by the SDK alignment milestones.
+Parity Target applies to every general-purpose SDK (TypeScript, .NET, Python) unless the row names a single-language profile. Cells record the current status per language.
 
 | Capability | Owning Spec | TypeScript | .NET | Python | Parity Target |
 |------------|-------------|------------|------|--------|---------------|
@@ -314,11 +316,12 @@ Parity Target applies to every general-purpose SDK (TypeScript, .NET, Python) un
 | Model list | AppServer | Typed | Typed | Typed | Optional typed |
 | App Binding handoff parse | App Binding | Typed | Typed | Typed | App Binding profile |
 | App Binding request inspect | App Binding | Raw | Typed | Typed | App Binding profile |
-| App Binding accept | App Binding | Typed | Typed | Typed | App Binding profile |
-| App Binding attach tools | App Binding | Typed | Typed | Typed | App Binding profile |
+| App Binding principal authenticate/refresh | App Binding | Typed | Typed | Typed | App Binding profile |
+| App Binding enable/activate/rebind | App Binding | Typed | Typed | Typed | App Binding profile |
+| App Binding capability confirmation | App Binding | Typed | Typed | Typed | App Binding profile |
 | App Binding app list/view | App Binding | Typed | Typed | Typed | Optional typed |
 | App Binding connection start/revoke/status | App Binding | Typed | Typed | Typed | Optional typed |
-| Thread app bindings list/revoke/refresh | App Binding | Typed | Typed | Typed | Optional typed |
+| Thread app bindings list/revoke | App Binding | Typed | Typed | Typed | Required typed |
 | App Binding tool error shape | App Binding | Typed | Typed | Typed | Required App Binding profile |
 | Channel adapter base class | External Channel Adapter | Profile | Gap | Profile | TypeScript + Python profile |
 | Channel runtime reducers/dispatchers | External Channel Adapter | Profile | Gap | Profile | TypeScript + Python profile |

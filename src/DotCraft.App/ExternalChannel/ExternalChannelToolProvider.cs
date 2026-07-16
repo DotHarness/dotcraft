@@ -3,7 +3,7 @@ using DotCraft.Configuration;
 using DotCraft.Plugins;
 using DotCraft.Protocol;
 using DotCraft.Protocol.AppServer;
-using Microsoft.Extensions.AI;
+using DotCraft.Tools;
 
 namespace DotCraft.ExternalChannel;
 
@@ -11,19 +11,14 @@ internal sealed class ExternalChannelToolProvider(
     IChannelRuntimeRegistry registry,
     AppConfig? config = null,
     ChannelToolRegistrationService? channelToolRegistration = null)
-    : IThreadPluginFunctionProvider, IReservedRuntimeToolNameConfigurator
+    : IThreadPluginToolSourceProvider
 {
     private const string PluginId = "external-channel";
     private const string PluginIdPrefix = "external-channel:";
     private readonly ChannelToolRegistrationService _channelToolRegistration =
         channelToolRegistration ?? new ChannelToolRegistrationService();
 
-    public void ConfigureReservedToolNames(IEnumerable<string> toolNames)
-        => _channelToolRegistration.ConfigureReservedToolNames(toolNames);
-
-    public IReadOnlyList<PluginFunctionRegistration> CreateFunctionsForThread(
-        SessionThread thread,
-        IReadOnlySet<string> reservedToolNames)
+    public IReadOnlyList<IToolSource> CreateToolSourcesForThread(SessionThread thread)
     {
         if (string.IsNullOrWhiteSpace(thread.OriginChannel))
             return [];
@@ -37,26 +32,32 @@ internal sealed class ExternalChannelToolProvider(
             return [];
         }
 
-        var descriptors = _channelToolRegistration
+        var registrations = _channelToolRegistration
             .GetRegisteredTools(runtime)
-            .Where(descriptor => !reservedToolNames.Contains(descriptor.Name))
+            .Select(descriptor => new PluginToolRegistration(
+                MapDescriptor(runtime, descriptor),
+                new ExternalChannelPluginToolInvoker(runtime, descriptor)))
             .ToArray();
-        if (descriptors.Length == 0)
+        if (registrations.Length == 0)
             return [];
 
-        return descriptors
-            .Select(descriptor => new PluginFunctionRegistration(
-                MapDescriptor(runtime, descriptor),
-                new ExternalChannelPluginFunctionInvoker(runtime, descriptor)))
-            .ToArray();
+        return
+        [
+            new PluginToolSource(
+                PluginIdPrefix + runtime.Name,
+                registrations,
+                new PluginToolInvocationMetadata(
+                    thread.OriginChannel,
+                    thread.ChannelContext,
+                    thread.UserId),
+                new ExternalChannelPluginLease(
+                    registry,
+                    runtime,
+                    config,
+                    PluginIdPrefix + runtime.Name),
+                priority: 100)
+        ];
     }
-
-    public IReadOnlyList<AITool> CreateToolsForThread(
-        SessionThread thread,
-        IReadOnlySet<string> reservedToolNames)
-        => CreateFunctionsForThread(thread, reservedToolNames)
-            .Select(registration => (AITool)new PluginFunctionRuntimeFunction(registration))
-            .ToArray();
 
     private static PluginFunctionDescriptor MapDescriptor(
         IChannelRuntime runtime,
@@ -64,6 +65,7 @@ internal sealed class ExternalChannelToolProvider(
         => new()
         {
             PluginId = PluginIdPrefix + runtime.Name,
+            FunctionId = descriptor.Name,
             Namespace = "external_channel",
             Name = descriptor.Name,
             Description = descriptor.Description,
@@ -90,31 +92,40 @@ internal sealed class ExternalChannelToolProvider(
             DeferLoading = descriptor.DeferLoading
         };
 
-    private sealed class ExternalChannelPluginFunctionInvoker(
+    private sealed class ExternalChannelPluginToolInvoker(
         IChannelRuntime runtime,
-        ChannelToolDescriptor descriptor) : IPluginFunctionInvoker
+        ChannelToolDescriptor descriptor) : IPluginToolInvoker
     {
         public async ValueTask<PluginFunctionInvocationResult> InvokeAsync(
-            PluginFunctionInvocationContext context,
+            PluginToolInvocationContext context,
             CancellationToken cancellationToken)
         {
+            if (descriptor.RequiresChatContext
+                && string.IsNullOrWhiteSpace(context.ChannelContext)
+                && string.IsNullOrWhiteSpace(context.GroupId))
+            {
+                return PluginFunctionInvocationResult.Failed(
+                    "MissingChatContext",
+                    $"Function '{descriptor.Name}' requires channel chat context, but this thread does not have one.");
+            }
+
             ExtChannelToolCallResult result;
             try
             {
                 result = await runtime.ExecuteToolAsync(
                     new ExtChannelToolCallParams
                     {
-                        ThreadId = context.Execution.ThreadId,
-                        TurnId = context.Execution.TurnId,
-                        CallId = context.CallId,
+                        ThreadId = context.Invocation.ThreadId,
+                        TurnId = context.Invocation.TurnId ?? string.Empty,
+                        CallId = context.Invocation.CallId,
                         Tool = descriptor.Name,
                         Arguments = context.Arguments,
                         Context = new ExtChannelToolCallContext
                         {
-                            ChannelName = context.Execution.OriginChannel,
-                            ChannelContext = context.Execution.ChannelContext,
-                            SenderId = context.Execution.SenderId,
-                            GroupId = context.Execution.GroupId
+                            ChannelName = context.OriginChannel ?? string.Empty,
+                            ChannelContext = context.ChannelContext,
+                            SenderId = context.SenderId,
+                            GroupId = context.GroupId
                         }
                     },
                     cancellationToken);
@@ -144,5 +155,29 @@ internal sealed class ExternalChannelToolProvider(
                 DataBase64 = item.DataBase64,
                 MediaType = item.MediaType
             };
+    }
+
+    private sealed class ExternalChannelPluginLease(
+        IChannelRuntimeRegistry registry,
+        IChannelRuntime runtime,
+        AppConfig? config,
+        string pluginId) : IToolBindingLease
+    {
+        public ValueTask<ToolBindingLeaseResult> CheckAsync(
+            ToolInvocationContext context,
+            CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var enabled = config?.Plugins.IsPluginEnabled(PluginId, defaultEnabled: true) != false
+                && config?.Plugins.IsPluginEnabled(pluginId, defaultEnabled: true) != false;
+            var available = enabled
+                && registry.TryGet(runtime.Name, out var current)
+                && ReferenceEquals(current, runtime)
+                && runtime.IsReady;
+            return ValueTask.FromResult(available
+                ? ToolBindingLeaseResult.Available
+                : ToolBindingLeaseResult.Unavailable(
+                    $"External channel plugin runtime '{runtime.Name}' is disconnected or disabled."));
+        }
     }
 }

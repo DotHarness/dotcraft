@@ -16,6 +16,11 @@ internal sealed class InitializeRequestHandler(
     {
         _ = ct;
         var p = AppServerParams.Get<AppServerInitializeParams>(msg);
+        if (p.Capabilities?.AppBindingVersion is { } requestedAppBindingVersion
+            && requestedAppBindingVersion != DotCraft.AppBinding.AppBindingContract.Version)
+        {
+            throw AppServerErrors.AppBindingUpgradeRequired();
+        }
         if (!connection.TryMarkInitialized(p.ClientInfo, p.Capabilities))
             throw AppServerErrors.AlreadyInitialized();
 
@@ -52,6 +57,9 @@ internal sealed class InitializeRequestHandler(
             MemoryManagement = services.MemoryStore != null,
             Dreams = services.DreamsService != null && !string.IsNullOrWhiteSpace(workspaceCraftPath),
             McpManagement = !string.IsNullOrWhiteSpace(workspaceCraftPath) && services.McpClientManager != null,
+            McpRuntime = services.McpClientManager != null,
+            McpApps = services.McpClientManager != null && p.Capabilities?.McpApps == true,
+            McpElicitation = services.McpClientManager != null && p.Capabilities?.McpElicitation == true,
             McpServerOrigins = services.McpClientManager != null,
             ExternalChannelManagement = !string.IsNullOrWhiteSpace(workspaceCraftPath),
             AgentProfileManagement = true,

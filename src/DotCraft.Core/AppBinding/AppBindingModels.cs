@@ -21,6 +21,7 @@ public sealed class AppDescriptor
 {
     public string AppId { get; set; } = string.Empty;
 
+    [JsonIgnore]
     public string ToolNamespace { get; set; } = string.Empty;
 
     public string DisplayName { get; set; } = string.Empty;
@@ -56,10 +57,13 @@ public sealed class AppDescriptor
 
     public AppNativeApplicationDescriptor NativeApplication { get; set; } = new();
 
+    [JsonIgnore]
     public List<AppScopeDescriptor> Scopes { get; set; } = [];
 
+    [JsonIgnore]
     public List<AppToolCatalogEntry> ToolCatalog { get; set; } = [];
 
+    [JsonIgnore]
     public AppDynamicToolCatalogDescriptor DynamicToolCatalog { get; set; } = new();
 
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -197,7 +201,7 @@ public static class AppBindingExposures
         || string.Equals(value, Deferred, StringComparison.Ordinal);
 }
 
-public static class AppBindingStates
+internal static class LegacyAppBindingStates
 {
     public const string Pending = "pending";
     public const string Active = "active";
@@ -272,6 +276,7 @@ public sealed class SocialChannelTargetWire
 
 public sealed class AppSocialBindingResolveParams
 {
+    [JsonIgnore]
     public string AppId { get; set; } = string.Empty;
 
     public string ChannelName { get; set; } = string.Empty;
@@ -394,6 +399,7 @@ public sealed class AppInfoWire
 {
     public string AppId { get; set; } = string.Empty;
 
+    [JsonIgnore]
     public string ToolNamespace { get; set; } = string.Empty;
 
     public string DisplayName { get; set; } = string.Empty;
@@ -435,10 +441,13 @@ public sealed class AppInfoWire
 
     public List<AppHandoffModeDescriptor> HandoffModes { get; set; } = [];
 
+    [JsonIgnore]
     public List<AppScopeDescriptor> Scopes { get; set; } = [];
 
+    [JsonIgnore]
     public List<AppToolCatalogEntry> ToolCatalog { get; set; } = [];
 
+    [JsonIgnore]
     public AppDynamicToolCatalogDescriptor DynamicToolCatalog { get; set; } = new();
 
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -492,7 +501,7 @@ public sealed class AppViewResult
     public AppInfoWire App { get; set; } = new();
 }
 
-public sealed class AppConnectionStartParams
+internal sealed class LegacyAppConnectionStartParams
 {
     public string AppId { get; set; } = string.Empty;
 
@@ -503,7 +512,7 @@ public sealed class AppConnectionStartParams
     public string? ReturnTo { get; set; }
 }
 
-public sealed class AppConnectionStartResult
+internal sealed class LegacyAppConnectionStartResult
 {
     public string ConnectionRequestId { get; set; } = string.Empty;
 
@@ -516,7 +525,7 @@ public sealed class AppConnectionStartResult
     public AppHandoffWire Handoff { get; set; } = new();
 }
 
-public sealed class AppConnectionConnectParams
+internal sealed class LegacyAppConnectionConnectParams
 {
     public string ConnectionRequestId { get; set; } = string.Empty;
 
@@ -558,7 +567,7 @@ public sealed class AppConnectionMetadataRefreshParams
     public JsonObject? PublicMetadata { get; set; }
 }
 
-public sealed class AppConnectionRequestGetParams
+internal sealed class LegacyAppConnectionRequestGetParams
 {
     public string AppId { get; set; } = string.Empty;
 
@@ -647,7 +656,7 @@ public sealed class AppBindingRequestCreateResult
 
     public List<string> RequestedScopes { get; set; } = [];
 
-    public string State { get; set; } = AppBindingStates.Pending;
+    public string State { get; set; } = LegacyAppBindingStates.Pending;
 
     public DateTimeOffset TokenExpiresAt { get; set; }
 
@@ -677,7 +686,7 @@ public sealed class AppBindingRequestCancelResult
     public string State { get; set; } = AppBindingStates.Cancelled;
 }
 
-public sealed class AppBindingRequestGetParams
+internal sealed class LegacyAppBindingRequestGetParams
 {
     public string AppId { get; set; } = string.Empty;
 
@@ -774,7 +783,7 @@ public sealed class AppBindingAttachToolsParams
 
     public string GrantId { get; set; } = string.Empty;
 
-    public List<DynamicToolSpec> Tools { get; set; } = [];
+    public List<JsonObject> Tools { get; set; } = [];
 
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public List<AppToolCatalogEntry>? ToolCatalog { get; set; }
@@ -856,8 +865,12 @@ public sealed class AppThreadInputEnqueueParams
 {
     public string BindingId { get; set; } = string.Empty;
 
+    // Read-only projection fields. App Binding authorization is derived
+    // exclusively from BindingId and these values never cross the wire.
+    [JsonIgnore]
     public string AppId { get; set; } = string.Empty;
 
+    [JsonIgnore]
     public string GrantId { get; set; } = string.Empty;
 
     public List<SessionWireInputPart> Input { get; set; } = [];
@@ -950,7 +963,7 @@ public sealed class ThreadAppBindingWire
 
     public string AppId { get; set; } = string.Empty;
 
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonIgnore]
     public string? GrantId { get; set; }
 
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -959,36 +972,40 @@ public sealed class ThreadAppBindingWire
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? Icon { get; set; }
 
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonIgnore]
     public string? ToolNamespace { get; set; }
 
-    public string State { get; set; } = AppBindingStates.Pending;
+    public string State { get; set; } = LegacyAppBindingStates.Pending;
 
+    [JsonIgnore]
     public string ConnectionState { get; set; } = AppConnectionStates.NotConnected;
 
     public bool Managed { get; set; }
 
     public bool RequiresExternalConnection { get; set; } = true;
 
+    [JsonIgnore]
     public List<string> GrantedScopes { get; set; } = [];
 
+    [JsonIgnore]
     public int AttachedToolCount { get; set; }
 
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonIgnore]
     public DateTimeOffset? ExpiresAt { get; set; }
 
+    [JsonIgnore]
     public DateTimeOffset LastChangedAt { get; set; }
 
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonIgnore]
     public string? ApprovalMode { get; set; }
 
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonIgnore]
     public string? AuditRef { get; set; }
 
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonIgnore]
     public string? Diagnostic { get; set; }
 
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonIgnore]
     public string? BindingKind { get; set; }
 
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -996,6 +1013,22 @@ public sealed class ThreadAppBindingWire
 
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public long ExposureRevision { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public long AuthorityRevision { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public long ApprovedCapabilityRevision { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public long? CandidateCapabilityRevision { get; set; }
+
+    public List<AppBindingToolCapabilityWire> ApprovedTools { get; set; } = [];
+
+    public List<AppBindingCapabilityChangeWire> PendingChanges { get; set; } = [];
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? FailureReason { get; set; }
 }
 
 public sealed class ThreadAppContextBlockWire
@@ -1046,37 +1079,55 @@ public sealed class ThreadAppBindingSummaryWire
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? Icon { get; set; }
 
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonIgnore]
     public string? ToolNamespace { get; set; }
 
-    public string State { get; set; } = AppBindingStates.Pending;
+    public string State { get; set; } = LegacyAppBindingStates.Pending;
 
+    [JsonIgnore]
     public string ConnectionState { get; set; } = AppConnectionStates.NotConnected;
 
     public bool Managed { get; set; }
 
     public bool RequiresExternalConnection { get; set; } = true;
 
+    [JsonIgnore]
     public List<string> GrantedScopes { get; set; } = [];
 
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonIgnore]
     public DateTimeOffset? ExpiresAt { get; set; }
 
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonIgnore]
     public string? BindingKind { get; set; }
 
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public SocialChannelTargetWire? SocialTarget { get; set; }
 
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    [JsonIgnore]
     public long ExposureRevision { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public long AuthorityRevision { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public long ApprovedCapabilityRevision { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public long? CandidateCapabilityRevision { get; set; }
+
+    public List<AppBindingToolCapabilityWire> ApprovedTools { get; set; } = [];
+
+    public List<AppBindingCapabilityChangeWire> PendingChanges { get; set; } = [];
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? FailureReason { get; set; }
 }
 
 public sealed class ThreadAppBindingRefreshWire
 {
     public string BindingId { get; set; } = string.Empty;
 
-    public string State { get; set; } = AppBindingStates.Pending;
+    public string State { get; set; } = LegacyAppBindingStates.Pending;
 
     public int AttachedToolCount { get; set; }
 }

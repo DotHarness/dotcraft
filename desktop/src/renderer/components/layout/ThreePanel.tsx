@@ -34,7 +34,6 @@ function isDetailPanelEffectivelyVisible(
     activeMainView === 'channels' ||
     activeMainView === 'skills' ||
     activeMainView === 'automations' ||
-    activeMainView === 'teams' ||
     isWelcomeState
   ) && detailPanelVisible
 }
@@ -298,10 +297,10 @@ export function ThreePanel({ sidebar, conversation, detail }: ThreePanelProps): 
         </div>
 
         {/* Detail panel — same background as conversation so it reads as an
-            embedded extension. The T-shape divider is composed of:
-            (a) a single overlay horizontal line painted at the parent level, and
-            (b) the DetailPanel body's real inset divider (below the tab bar).
-            The outer container itself carries no border/shadow. */}
+            embedded extension. The T-shape divider is composed entirely of
+            parent-level overlays (below): a horizontal header line plus a
+            vertical arm and its hover/drag glow at the conversation↔detail
+            boundary. The outer container itself carries no border/shadow. */}
         <div
           style={{
             width: effectiveDetailPanelVisible ? `${effectiveDetailPanelWidth}px` : '0px',
@@ -312,11 +311,8 @@ export function ThreePanel({ sidebar, conversation, detail }: ThreePanelProps): 
               resizingEdge === 'detail' ? 'none' : 'width 200ms ease-out, min-width 200ms ease-out',
             background: 'transparent',
             display: 'flex',
-            flexDirection: 'column',
-            '--detail-divider-border': detailDividerHighlighted
-              ? 'var(--resize-divider-active)'
-              : 'var(--glass-border)'
-          } as CSSProperties}
+            flexDirection: 'column'
+          }}
         >
           {effectiveDetailPanelVisible && detail}
         </div>
@@ -350,6 +346,50 @@ export function ThreePanel({ sidebar, conversation, detail }: ThreePanelProps): 
               background: 'var(--glass-border)',
               pointerEvents: 'none',
               zIndex: 3
+            }}
+          />
+        )}
+
+        {/* Conversation↔detail divider — the vertical arm of the T. Painted here
+            as a top-layer overlay (not inside the DetailPanel body) so panel
+            content such as full-bleed diff row backgrounds can never obscure it.
+            Runs from just below the header line to the bottom. */}
+        {effectiveDetailPanelVisible && (
+          <div
+            aria-hidden
+            data-testid="detail-divider-line"
+            style={{
+              position: 'absolute',
+              top: 'var(--chrome-header-height)',
+              bottom: 0,
+              right: `${effectiveDetailPanelWidth}px`,
+              width: '1px',
+              background: 'var(--glass-border)',
+              pointerEvents: 'none',
+              zIndex: 3
+            }}
+          />
+        )}
+
+        {/* Detail resize-divider highlight. On hover/drag a neutral vertical
+            gradient fades in over the boundary — brightest at center, fading
+            toward the top and bottom. Reuses the exact --main-surface-edge-glow
+            treatment used on the sidebar boundary so both dividers match. */}
+        {effectiveDetailPanelVisible && (
+          <div
+            aria-hidden
+            data-testid="detail-divider-glow"
+            style={{
+              position: 'absolute',
+              top: 'var(--chrome-header-height)',
+              bottom: 0,
+              right: `${effectiveDetailPanelWidth}px`,
+              width: 'var(--main-surface-edge-glow-width)',
+              background: 'var(--main-surface-edge-glow)',
+              opacity: detailDividerHighlighted ? 1 : 0,
+              transition: 'opacity 150ms ease',
+              pointerEvents: 'none',
+              zIndex: 4
             }}
           />
         )}

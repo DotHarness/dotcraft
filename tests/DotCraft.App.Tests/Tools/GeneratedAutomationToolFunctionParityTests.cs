@@ -1,14 +1,9 @@
 using System.Reflection;
 using System.Text.Json;
 using System.Text.Json.Nodes;
-using DotCraft.Abstractions;
 using DotCraft.Automations;
 using DotCraft.Automations.Local;
-using DotCraft.Configuration;
 using DotCraft.Hosting;
-using DotCraft.Memory;
-using DotCraft.Security;
-using DotCraft.Skills;
 using DotCraft.Tools;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -38,23 +33,24 @@ public sealed class GeneratedAutomationToolFunctionParityTests : IDisposable
     }
 
     [Fact]
-    public void CompleteLocalTask_GeneratedWrapperMatchesAIFunctionFactoryShape()
+    public async Task CompleteLocalTask_SourceDefinitionMatchesAIFunctionFactoryShape()
     {
         var store = CreateStore();
         var taskDir = Path.Combine(_tempRoot, "task");
-        var provider = new LocalTaskCompletionToolProvider(
+        var workspace = Path.Combine(taskDir, "workspace");
+        Directory.CreateDirectory(workspace);
+        File.WriteAllText(Path.Combine(taskDir, "task.md"), "status: running");
+        var source = new LocalTaskCompletionToolSource(
             store,
-            NullLogger<LocalTaskCompletionToolProvider>.Instance);
-        var generated = Assert.IsAssignableFrom<AIFunction>(Assert.Single(provider.CreateTools(CreateContext(taskDir))));
+            NullLogger<LocalTaskCompletionToolSource>.Instance);
+        var registration = Assert.Single(await source.GetRegistrationsAsync(
+            new ToolPlanningContext("thread_test", null, workspace, "agent", "local-task", [], 1)));
         var factory = CreateFactoryCompleteLocalTask(store, taskDir);
 
-        Assert.Equal(factory.Name, generated.Name);
-        Assert.Equal(factory.Description, generated.Description);
-        AssertJsonEqual(factory.JsonSchema, generated.JsonSchema, "CompleteLocalTask raw input schema");
-        AssertNullableJsonEqual(factory.ReturnJsonSchema, generated.ReturnJsonSchema, "CompleteLocalTask return schema");
-        Assert.Same(factory.JsonSerializerOptions, generated.JsonSerializerOptions);
-        Assert.NotNull(factory.UnderlyingMethod);
-        Assert.Null(generated.UnderlyingMethod);
+        Assert.Equal(factory.Name, registration.Definition.Name.Name);
+        Assert.Equal(factory.Description, registration.Definition.Description);
+        AssertJsonEqual(factory.JsonSchema, registration.Definition.InputSchema, "CompleteLocalTask raw input schema");
+        AssertNullableJsonEqual(factory.ReturnJsonSchema, registration.Definition.OutputSchema, "CompleteLocalTask return schema");
     }
 
     private LocalTaskFileStore CreateStore()
@@ -67,25 +63,9 @@ public sealed class GeneratedAutomationToolFunctionParityTests : IDisposable
             NullLogger<LocalTaskFileStore>.Instance);
     }
 
-    private ToolProviderContext CreateContext(string taskDir)
-    {
-        var craftPath = Path.Combine(_tempRoot, ".craft");
-        return new ToolProviderContext
-        {
-            Config = new AppConfig(),
-            ChatClient = null!,
-            WorkspacePath = _tempRoot,
-            AutomationTaskDirectory = taskDir,
-            BotPath = craftPath,
-            MemoryStore = new MemoryStore(craftPath),
-            SkillsLoader = new SkillsLoader(craftPath),
-            ApprovalService = new AutoApproveApprovalService()
-        };
-    }
-
     private static AIFunction CreateFactoryCompleteLocalTask(LocalTaskFileStore store, string taskDir)
     {
-        var methodsType = typeof(LocalTaskCompletionToolProvider).Assembly.GetType(
+        var methodsType = typeof(LocalTaskCompletionToolSource).Assembly.GetType(
             "DotCraft.Automations.Local.LocalTaskCompletionToolMethods",
             throwOnError: true)!;
         var methods = Activator.CreateInstance(

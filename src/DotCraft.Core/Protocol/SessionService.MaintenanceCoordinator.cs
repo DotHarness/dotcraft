@@ -361,7 +361,7 @@ public sealed partial class SessionService
                 threadId,
                 thread?.Configuration?.ProviderId,
                 thread?.Configuration?.Model,
-                owner._appConfigMonitor?.Current ?? owner.AgentFactory.ToolProviderContext.Config,
+                owner._appConfigMonitor?.Current ?? owner.AgentFactory.RuntimeContext.Config,
                 thread?.Configuration?.ContextWindow?.Mode ?? ContextWindowMode.Default);
 
         public void CompleteThreadMaintenance(string threadId, ThreadMaintenanceState state)
@@ -397,7 +397,7 @@ public sealed partial class SessionService
                 return false;
 
             var memoryConfig = owner._appConfigMonitor?.Current.Memory
-                ?? owner.AgentFactory.ToolProviderContext.Config.Memory;
+                ?? owner.AgentFactory.RuntimeContext.Config.Memory;
 
             if (!memoryConfig.AutoConsolidateEnabled)
                 return false;
@@ -515,24 +515,15 @@ public sealed partial class SessionService
             SessionThread thread,
             CancellationToken ct)
         {
-            if (owner.RequiresPerThreadAgent(thread) || owner._forcePerThreadAgents)
+            await owner.EnsurePerThreadAgentIfMissingAsync(thread.Id, thread, ct);
+            if (owner._runtimeRegistry.TryGetRuntime(thread.Id, out var runtime)
+                && runtime.LatestToolSnapshot is { } snapshot)
             {
-                await owner.EnsurePerThreadAgentIfMissingAsync(thread.Id, thread, ct);
-                if (owner._runtimeRegistry.TryGetRuntime(thread.Id, out var runtime)
-                    && runtime.CurrentTools is { } threadTools)
-                    return threadTools;
+                return AgentFactory.ProjectSnapshotTools(snapshot);
             }
 
-            var config = thread.Configuration ?? new ThreadConfiguration();
-            var mode = config.Mode.Equals("plan", StringComparison.OrdinalIgnoreCase)
-                ? AgentMode.Plan
-                : AgentMode.Agent;
-            var tools = owner.AgentFactory.CreateToolsForMode(mode);
-            owner.AppendChannelTools(tools, thread);
-            ApplyThreadToolFilters(
-                tools,
-                new ThreadCapabilityPolicyEvaluator(config, owner.AgentFactory.ToolProviderContext));
-            return tools;
+            throw new InvalidOperationException(
+                $"Thread '{thread.Id}' does not have an effective tool snapshot for compaction.");
         }
 
         private ThreadMaintenanceRegistration RegisterThreadMaintenance(string threadId, string kind)
@@ -633,7 +624,7 @@ public sealed partial class SessionService
             ThreadEventBroker broker,
             CancellationToken ct)
         {
-            var currentConfig = owner._appConfigMonitor?.Current ?? owner.AgentFactory.ToolProviderContext.Config;
+            var currentConfig = owner._appConfigMonitor?.Current ?? owner.AgentFactory.RuntimeContext.Config;
             var consolidator = owner.AgentFactory.CreateConsolidatorForRuntime(
                 currentConfig,
                 thread.Configuration?.ProviderId,

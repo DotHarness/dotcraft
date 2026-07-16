@@ -2,6 +2,7 @@ using DotCraft.Abstractions;
 using DotCraft.Configuration;
 using DotCraft.Hosting;
 using DotCraft.Modules;
+using DotCraft.Tools;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace DotCraft.CLI;
@@ -21,7 +22,7 @@ public sealed partial class CliModule : ModuleBase
     }
 
     /// <inheritdoc />
-    public override IEnumerable<IAgentToolProvider> GetToolProviders()
+    public override IEnumerable<IToolSource> GetToolSources(IServiceProvider services)
         => [];
 
     /// <inheritdoc />

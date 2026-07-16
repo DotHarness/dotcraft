@@ -3,6 +3,7 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using DotCraft.Agents;
 using DotCraft.Context.Compaction;
+using DotCraft.Plugins;
 using DotCraft.State;
 using Microsoft.Agents.AI;
 using Microsoft.Extensions.AI;
@@ -676,6 +677,15 @@ public sealed class ThreadStore
                 FlushAssistantSegment(history, assistantBuilder);
                 history.Add(toolResultMessage);
             }
+            else if (TryBuildSpecializedToolHistory(
+                         item,
+                         out var specializedCall,
+                         out var specializedResult))
+            {
+                assistantBuilder.AddToolCall(specializedCall);
+                FlushAssistantSegment(history, assistantBuilder);
+                history.Add(specializedResult);
+            }
             else if (item.Type == ItemType.ImageGeneration &&
                      TryBuildImageGenerationMessage(item, out var imageGenerationMessage))
             {
@@ -796,7 +806,10 @@ public sealed class ThreadStore
                 continue;
             }
 
-            paired.TryAdd(payload.CallId, payload.ToolName);
+            if (string.IsNullOrWhiteSpace(payload.ProviderFlatName))
+                continue;
+
+            paired.TryAdd(payload.CallId, payload.ProviderFlatName);
         }
 
         return paired;
@@ -820,16 +833,19 @@ public sealed class ThreadStore
         if (item.Payload is not ToolCallPayload payload ||
             string.IsNullOrWhiteSpace(payload.CallId) ||
             string.IsNullOrWhiteSpace(payload.ToolName) ||
+            string.IsNullOrWhiteSpace(payload.ProviderFlatName) ||
             !pairedToolCalls.ContainsKey(payload.CallId) ||
             string.Equals(payload.ToolName, HostedImageGenerationContent.ToolName, StringComparison.Ordinal))
         {
             return false;
         }
 
-        content = new FunctionCallContent(
+        content = CreatePersistedFunctionCall(
             payload.CallId,
+            payload.Namespace,
             payload.ToolName,
-            BuildToolArguments(payload.Arguments));
+            payload.ProviderFlatName,
+            payload.Arguments);
         return true;
     }
 
@@ -849,10 +865,150 @@ public sealed class ThreadStore
         if (string.Equals(toolName, HostedImageGenerationContent.ToolName, StringComparison.Ordinal))
             return TryBuildHostedImageGenerationMessage(payload, out message);
 
+        var result = BuildModelToolResult(
+            payload.ContentItems,
+            payload.Result,
+            payload.ErrorCode,
+            payload.ErrorMessage);
         message = new ChatMessage(
             ChatRole.Tool,
-            (IList<AIContent>)[new FunctionResultContent(payload.CallId, payload.Result)]);
+            (IList<AIContent>)[new FunctionResultContent(payload.CallId, result)]);
         return true;
+    }
+
+    private static bool TryBuildSpecializedToolHistory(
+        SessionItem item,
+        out FunctionCallContent call,
+        out ChatMessage resultMessage)
+    {
+        call = new FunctionCallContent(string.Empty, string.Empty);
+        resultMessage = new ChatMessage(ChatRole.Tool, string.Empty);
+
+        string callId;
+        string? functionNamespace;
+        string toolName;
+        string providerFlatName;
+        JsonObject? arguments;
+        IReadOnlyList<PluginFunctionContentItem>? contentItems;
+        string? errorCode;
+        string? errorMessage;
+
+        switch (item.Payload)
+        {
+            case McpToolCallPayload mcp
+                when !string.IsNullOrWhiteSpace(mcp.CallId)
+                     && !string.IsNullOrWhiteSpace(mcp.ToolName)
+                     && !string.Equals(mcp.Status, "inProgress", StringComparison.OrdinalIgnoreCase):
+                callId = mcp.CallId;
+                if (string.IsNullOrWhiteSpace(mcp.ProviderFlatName))
+                    return false;
+                toolName = mcp.ToolName;
+                functionNamespace = mcp.Namespace;
+                providerFlatName = mcp.ProviderFlatName;
+                arguments = mcp.Arguments;
+                contentItems = mcp.ModelContentItems;
+                errorCode = mcp.ErrorCode;
+                errorMessage = mcp.ErrorMessage;
+                break;
+
+            case DynamicToolCallPayload dynamic
+                when !string.IsNullOrWhiteSpace(dynamic.CallId)
+                     && !string.IsNullOrWhiteSpace(dynamic.ToolName)
+                     && !string.Equals(dynamic.Status, "inProgress", StringComparison.OrdinalIgnoreCase):
+                callId = dynamic.CallId;
+                if (string.IsNullOrWhiteSpace(dynamic.ProviderFlatName))
+                    return false;
+                toolName = dynamic.ToolName;
+                functionNamespace = dynamic.Namespace;
+                providerFlatName = dynamic.ProviderFlatName;
+                arguments = dynamic.Arguments;
+                contentItems = dynamic.ContentItems;
+                errorCode = dynamic.ErrorCode;
+                errorMessage = dynamic.ErrorMessage;
+                break;
+
+            default:
+                return false;
+        }
+
+        call = CreatePersistedFunctionCall(
+            callId,
+            functionNamespace,
+            toolName,
+            providerFlatName,
+            arguments);
+        var result = BuildModelToolResult(contentItems, null, errorCode, errorMessage);
+        resultMessage = new ChatMessage(
+            ChatRole.Tool,
+            (IList<AIContent>)[new FunctionResultContent(callId, result)]);
+        return true;
+    }
+
+    private static object BuildModelToolResult(
+        IReadOnlyList<PluginFunctionContentItem>? contentItems,
+        string? fallback,
+        string? errorCode,
+        string? errorMessage)
+    {
+        var contents = new List<AIContent>();
+        if (contentItems != null)
+        {
+            foreach (var item in contentItems)
+            {
+                if (string.Equals(item.Type, "text", StringComparison.OrdinalIgnoreCase)
+                    && !string.IsNullOrWhiteSpace(item.Text))
+                {
+                    contents.Add(new TextContent(item.Text));
+                }
+                else if (string.Equals(item.Type, "image", StringComparison.OrdinalIgnoreCase)
+                         && !string.IsNullOrWhiteSpace(item.DataBase64)
+                         && !string.IsNullOrWhiteSpace(item.MediaType))
+                {
+                    try
+                    {
+                        contents.Add(new DataContent(Convert.FromBase64String(item.DataBase64), item.MediaType));
+                    }
+                    catch (FormatException)
+                    {
+                        // Invalid persisted image data is omitted; textual fallback remains usable.
+                    }
+                }
+            }
+        }
+
+        if (contents.Count == 1 && contents[0] is TextContent text)
+            return text.Text;
+        if (contents.Count > 0)
+            return contents;
+        if (!string.IsNullOrWhiteSpace(fallback))
+            return fallback;
+        if (!string.IsNullOrWhiteSpace(errorMessage))
+            return string.IsNullOrWhiteSpace(errorCode) ? errorMessage : $"{errorCode}: {errorMessage}";
+
+        return "Tool completed without model-visible content.";
+    }
+
+    private static FunctionCallContent CreatePersistedFunctionCall(
+        string callId,
+        string? functionNamespace,
+        string localName,
+        string providerFlatName,
+        JsonObject? arguments)
+    {
+        var call = new FunctionCallContent(callId, localName, BuildToolArguments(arguments))
+        {
+            AdditionalProperties = new AdditionalPropertiesDictionary
+            {
+                ["dotcraft.tool.provider_flat_name"] = providerFlatName
+            }
+        };
+        if (!string.IsNullOrWhiteSpace(functionNamespace))
+        {
+            call.AdditionalProperties["openai.responses.function_call.namespace"] = functionNamespace;
+            call.AdditionalProperties["namespace"] = functionNamespace;
+        }
+
+        return call;
     }
 
     private static bool TryBuildHostedImageGenerationMessage(

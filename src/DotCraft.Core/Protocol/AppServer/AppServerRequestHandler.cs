@@ -91,7 +91,10 @@ public sealed class AppServerRequestHandler(
             services.SkillsLoader,
             services.PlanStore,
             services.AppBindingService,
-            services.BuiltInPluginSourceRoots);
+            services.ThreadOriginPresentationProviders,
+            services.BuiltInPluginSourceRoots,
+            sessionService as IThreadToolSnapshotService,
+            sessionService as IThreadMcpRuntimeService);
 
     private AppServerMethodTable? _domainMethods;
 
@@ -118,7 +121,15 @@ public sealed class AppServerRequestHandler(
         new DreamsRequestHandler(services.DreamsService, services.DreamStore, services.AppConfigMonitor, services.WorkspaceCraftPath, services.ContextPageManager),
         new SkillsRequestHandler(services.SkillsLoader, services.ContextPageManager, services.AppConfigMonitor, services.WorkspaceCraftPath, SkillVariants),
         new ToolRequestHandler(),
-        new McpRequestHandler(services.McpClientManager, McpConfig, services.AppConfigMonitor, services.BroadcastMcpStatusChanged),
+        new McpRequestHandler(services.McpClientManager, McpConfig, transport, services.AppConfigMonitor, services.BroadcastMcpStatusChanged, sessionService as IThreadToolDispatchService, sessionService as IThreadMcpRuntimeService, sessionService as IThreadAgentRefreshService),
+        new McpAppRequestHandler(
+            sessionService,
+            connection,
+            transport,
+            sessionService as IThreadToolDispatchService,
+            sessionService as IThreadToolSnapshotService,
+            sessionService as IThreadMcpRuntimeService,
+            services.McpAppTransientContextStore),
         new ChannelRequestHandler(channelListContributor, services.ChannelStatusProvider, WorkspaceConfig, ExternalChannelConfig, services.WorkspaceCraftPath, services.AppConfigMonitor, services.OnExternalChannelUpserted, services.OnExternalChannelRemoved, services.ExternalChannelLogProvider),
         new ProviderRequestHandler(transport, WorkspaceConfig, RuntimeConfig, services.WorkspaceCraftPath, services.AppConfigMonitor, services.OpenAIClientProvider, services.OpenAIAuthService, services.OpenAIUsageService),
         new WorkspaceRequestHandler(services.CommitMessageSuggest, services.WelcomeSuggestionService, _configSchema, services.MemoryStore, services.DreamStore, services.DreamsService, services.LspServerManager, services.AppConfigMonitor, services.WorkspaceCraftPath, services.HostWorkspacePath, services.ContextPageManager, WorkspaceConfig, RuntimeConfig),
@@ -216,6 +227,14 @@ public sealed class AppServerRequestHandler(
         AppServerMethods.SkillsSetEnabled,
         AppServerMethods.SkillsUninstall,
         AppServerMethods.ToolList,
+        AppServerMethods.McpAppViewOpen,
+        AppServerMethods.McpAppViewResourceRead,
+        AppServerMethods.McpAppViewToolsList,
+        AppServerMethods.McpAppViewToolCall,
+        AppServerMethods.McpAppViewMessage,
+        AppServerMethods.McpAppViewModelContextUpdate,
+        AppServerMethods.McpAppViewOpenLink,
+        AppServerMethods.McpAppViewClose,
         AppServerMethods.PluginList,
         AppServerMethods.PluginView,
         AppServerMethods.PluginInstall,
@@ -236,7 +255,6 @@ public sealed class AppServerRequestHandler(
         AppServerMethods.McpGet,
         AppServerMethods.McpUpsert,
         AppServerMethods.McpRemove,
-        AppServerMethods.McpStatusList,
         AppServerMethods.McpTest,
         AppServerMethods.HooksList,
         AppServerMethods.HooksSetState,
@@ -287,6 +305,9 @@ public sealed class AppServerRequestHandler(
         if (method != AppServerMethods.Initialize && connection.IsInitialized && !connection.IsClientReady)
             throw AppServerErrors.InvalidRequest("Server is awaiting the 'initialized' notification before handling requests.");
 
+        if (connection.IsAppPrincipalAuthenticated && !IsAppPrincipalMethod(method))
+            throw AppServerErrors.AppPrincipalUnauthorized("App-principal connections may call only App Binding app-role methods.");
+
         try
         {
             // Extracted domain handlers register their methods in the table; protocol extensions
@@ -315,6 +336,17 @@ public sealed class AppServerRequestHandler(
         }
     }
 
+    private static bool IsAppPrincipalMethod(string method) => method is
+        "app/connection/authenticate"
+        or "app/connection/refresh"
+        or "app/connection/status"
+        or "app/connection/revoke"
+        or "app/binding/request/get"
+        or "app/binding/activate"
+        or "app/binding/rebind"
+        or "app/bindings/list"
+        or "app/threadInput/enqueue";
+
     /// <summary>
     /// Handles the <c>initialized</c> client notification (no response required).
     /// </summary>
@@ -337,6 +369,8 @@ public sealed class AppServerRequestHandler(
                 services.WorkspaceCraftPath,
                 services.HostWorkspacePath,
                 services.ContextPageManager,
+                services.NotifyAppPrincipal,
+                services.BroadcastTrustedNotification,
                 ct));
     }
 

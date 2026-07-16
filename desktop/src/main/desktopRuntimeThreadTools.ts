@@ -21,17 +21,30 @@ export interface RuntimeAdditionalContextEntry {
   value: string
 }
 
-export interface DynamicToolSpec {
-  namespace?: string
+export interface DynamicToolFunctionSpec {
+  type: 'function'
+  name: string
+  description: string
+  inputSchema: JsonObject
+  deferLoading?: boolean
+}
+
+export interface DynamicToolNamespaceSpec {
+  type: 'namespace'
+  name: string
+  description: string
+  tools: DynamicToolFunctionSpec[]
+}
+
+export type DynamicToolSpec = DynamicToolFunctionSpec | DynamicToolNamespaceSpec
+
+interface DesktopThreadFunctionAuthoring {
+  namespace: string
   name: string
   description: string
   inputSchema: JsonObject
   outputSchema?: JsonObject
-  deferLoading?: boolean
-  display?: {
-    title?: string
-    subtitle?: string
-  }
+  display?: { title?: string; subtitle?: string }
 }
 
 export interface AppServerRequestClient {
@@ -60,12 +73,13 @@ export interface DynamicToolCallParams {
 
 export type DynamicToolContentItem =
   | { type: 'text'; text: string }
-  | { type: 'image'; mediaType?: string; dataBase64: string }
+  | { type: 'image'; mediaType: string; url: string; dataBase64?: never }
+  | { type: 'image'; mediaType: string; dataBase64: string; url?: never }
 
 export interface DynamicToolCallResult {
   success: boolean
   contentItems?: DynamicToolContentItem[]
-  structuredResult?: unknown
+  structuredContent?: unknown
   errorCode?: string
   errorMessage?: string
 }
@@ -115,7 +129,7 @@ export function resetDesktopThreadToolBindings(): void {
 }
 
 export function buildDesktopThreadDynamicTools(): DynamicToolSpec[] {
-  return [
+  const functions: DesktopThreadFunctionAuthoring[] = [
     {
       namespace: DESKTOP_THREAD_TOOL_NAMESPACE,
       name: 'CreateThread',
@@ -291,7 +305,20 @@ export function buildDesktopThreadDynamicTools(): DynamicToolSpec[] {
       },
       display: { title: 'Pin thread', subtitle: 'Desktop' }
     }
-  ].map((tool) => ({ ...tool, deferLoading: true }))
+  ]
+
+  return [
+    {
+      type: 'namespace',
+      name: DESKTOP_THREAD_TOOL_NAMESPACE,
+      description: 'Desktop thread management tools.',
+      tools: functions.map(({ namespace: _namespace, outputSchema: _outputSchema, display: _display, ...tool }) => ({
+        type: 'function',
+        ...tool,
+        deferLoading: true
+      }))
+    }
+  ]
 }
 
 export function buildDesktopThreadAdditionalContext(): Record<string, RuntimeAdditionalContextEntry> {
@@ -760,9 +787,9 @@ function requestIncludesDesktopThreadTools(params: unknown): boolean {
 
 function isDesktopThreadToolSpec(value: unknown): boolean {
   if (!isRecord(value)) return false
-  return value.namespace === DESKTOP_THREAD_TOOL_NAMESPACE
-    && typeof value.name === 'string'
-    && TOOL_NAMES.has(value.name)
+  return value.type === 'namespace'
+    && value.name === DESKTOP_THREAD_TOOL_NAMESPACE
+    && Array.isArray(value.tools)
 }
 
 function markDesktopThreadToolsBound(client: AppServerRequestClient, threadId: string): void {
@@ -785,20 +812,20 @@ function desktopIdentity(workspacePath: string): JsonObject {
   }
 }
 
-function ok(text: string, structuredResult?: unknown): DynamicToolCallResult {
+function ok(text: string, structuredContent?: unknown): DynamicToolCallResult {
   return {
     success: true,
     contentItems: [{ type: 'text', text }],
-    structuredResult
+    structuredContent
   }
 }
 
-function fail(errorCode: string, errorMessage: string, structuredResult?: unknown): DynamicToolCallResult {
+function fail(errorCode: string, errorMessage: string, structuredContent?: unknown): DynamicToolCallResult {
   return {
     success: false,
     errorCode,
     errorMessage,
-    ...(structuredResult === undefined ? {} : { structuredResult })
+    ...(structuredContent === undefined ? {} : { structuredContent })
   }
 }
 
@@ -1069,7 +1096,7 @@ function enforceReadSummaryBudget(summary: JsonObject, maxChars: number): JsonOb
         'output',
         'result',
         'contentPreview',
-        'structuredResultPreview',
+        'structuredContentPreview',
         'argumentsPreview',
         'text',
         'message',
@@ -1438,9 +1465,9 @@ function addToolOutputPreview(summary: JsonObject, payload: Record<string, unkno
   if (textItems.length > 0) {
     summary.contentPreview = truncate(textItems.join('\n'), maxOutputCharsPerItem)
   }
-  const structuredResult = jsonPreview(payload.structuredResult, maxOutputCharsPerItem)
-  if (structuredResult) {
-    summary.structuredResultPreview = structuredResult
+  const structuredContent = jsonPreview(payload.structuredContent, maxOutputCharsPerItem)
+  if (structuredContent) {
+    summary.structuredContentPreview = structuredContent
   }
 }
 

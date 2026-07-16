@@ -151,27 +151,6 @@ function makeGoal(threadId = 'thread-welcome', objective = 'Build feature'): Thr
   }
 }
 
-function agentTeamsWelcomeApp(overrides: Record<string, unknown> = {}) {
-  return {
-    appId: 'com.dotharness.dotcraft-teams',
-    toolNamespace: 'teams',
-    displayName: 'Agent Teams',
-    developerName: 'Example Labs',
-    description: 'Create Team missions',
-    pluginId: 'agent-teams',
-    installed: true,
-    enabled: true,
-    catalogVisible: true,
-    managed: true,
-    requiresExternalConnection: false,
-    connectionState: 'connected',
-    nativeApp: { displayName: 'Agent Teams', protocol: '', status: 'installed' },
-    scopes: [{ id: 'mission.manage', displayName: 'Create Team missions', description: 'Create Team missions', risk: 'mutate' }],
-    toolCatalog: [{ name: 'CreateTeam', scope: 'mission.manage', risk: 'mutate', defaultExposure: 'direct' }],
-    ...overrides
-  }
-}
-
 describe('ConversationWelcome composer', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -703,7 +682,7 @@ describe('ConversationWelcome composer', () => {
       capabilities: {
         commandManagement: true,
         skillsManagement: true,
-        appBinding: true,
+        appBindingVersion: 2,
         extensions: { welcomeSuggestions: true }
       }
     })
@@ -749,45 +728,6 @@ describe('ConversationWelcome composer', () => {
 
     await waitFor(() => {
       expect(screen.getByRole('switch', { name: 'Use Workflow App for the first turn' }))
-        .toHaveAttribute('aria-checked', 'false')
-    })
-  })
-
-  it('keeps manually enabled managed Teams selected on welcome while leaving it off by default', async () => {
-    useConnectionStore.setState({
-      status: 'connected',
-      capabilities: {
-        commandManagement: true,
-        skillsManagement: true,
-        appBinding: true,
-        extensions: { welcomeSuggestions: true }
-      }
-    })
-    appServerSendRequest.mockImplementation(async (method: string) => {
-      if (method === 'command/list') return { commands: [] }
-      if (method === 'skills/list') return { skills: [] }
-      if (method === 'welcome/suggestions') return { source: 'none', items: [], fingerprint: 'none' }
-      if (method === 'app/list') return { apps: [agentTeamsWelcomeApp()] }
-      return {}
-    })
-
-    renderWelcome()
-
-    fireEvent.click(await screen.findByRole('button', { name: 'Apps' }))
-    expect(await screen.findByRole('switch', { name: 'Use Agent Teams for the first turn' }))
-      .toHaveAttribute('aria-checked', 'false')
-
-    fireEvent.click(screen.getByRole('switch', { name: 'Use Agent Teams for the first turn' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Refresh' }))
-
-    await waitFor(() => {
-      expect(screen.getByRole('switch', { name: 'Use Agent Teams for the first turn' }))
-        .toHaveAttribute('aria-checked', 'true')
-    })
-
-    fireEvent.click(screen.getByRole('switch', { name: 'Use Agent Teams for the first turn' }))
-    await waitFor(() => {
-      expect(screen.getByRole('switch', { name: 'Use Agent Teams for the first turn' }))
         .toHaveAttribute('aria-checked', 'false')
     })
   })
@@ -1184,7 +1124,7 @@ describe('ConversationWelcome composer', () => {
     useConnectionStore.setState({
       status: 'connected',
       capabilities: {
-        appBinding: true,
+        appBindingVersion: 2,
         commandManagement: true,
         skillsManagement: true,
         modelCatalogManagement: true,
@@ -1238,13 +1178,13 @@ describe('ConversationWelcome composer', () => {
           }
         }
       }
-      if (method === 'app/binding/request/create') {
+      if (method === 'thread/appBindings/enable') {
         return {
           bindingRequestId: 'request-1',
           threadId: 'thread-welcome',
           appId: 'com.example.workflow',
           requestedScopes: ['board.read'],
-          state: 'pending',
+          state: 'connecting',
           tokenExpiresAt: '2026-05-16T00:01:00Z',
           handoff: { mode: 'customProtocol', uri: 'workflow://dotcraft/bind?request=request-1' }
         }
@@ -1265,10 +1205,9 @@ describe('ConversationWelcome composer', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Send message' }))
 
     await waitFor(() => {
-      expect(appServerSendRequest).toHaveBeenCalledWith('app/binding/request/create', expect.objectContaining({
+      expect(appServerSendRequest).toHaveBeenCalledWith('thread/appBindings/enable', expect.objectContaining({
         threadId: 'thread-welcome',
-        appId: 'com.example.workflow',
-        source: 'welcome'
+        appId: 'com.example.workflow'
       }))
     })
     const startingButton = screen.getByRole('button', { name: 'Starting conversation' })
@@ -1297,104 +1236,6 @@ describe('ConversationWelcome composer', () => {
       expect(useUIStore.getState().pendingWelcomeTurn).toMatchObject({
         threadId: 'thread-welcome',
         text: 'List my Workflow App board items'
-      })
-    })
-  })
-
-  it('creates a managed Teams welcome binding before storing the first pending turn', async () => {
-    useConnectionStore.setState({
-      status: 'connected',
-      capabilities: {
-        appBinding: true,
-        commandManagement: true,
-        skillsManagement: true,
-        modelCatalogManagement: true,
-        workspaceConfigManagement: true,
-        extensions: {
-          welcomeSuggestions: true
-        }
-      }
-    })
-    let bound = false
-    appServerSendRequest.mockImplementation(async (method: string) => {
-      if (method === 'command/list') return { commands: [] }
-      if (method === 'skills/list') return { skills: [] }
-      if (method === 'welcome/suggestions') return { source: 'none', items: [], fingerprint: 'none' }
-      if (method === 'app/list') return { apps: [agentTeamsWelcomeApp()] }
-      if (method === 'thread/start') {
-        return {
-          thread: {
-            id: 'thread-welcome',
-            displayName: 'Welcome thread',
-            status: 'active',
-            originChannel: 'dotcraft-desktop',
-            createdAt: '2026-04-16T08:00:00.000Z',
-            lastActiveAt: '2026-04-16T08:00:00.000Z'
-          }
-        }
-      }
-      if (method === 'app/binding/request/create') {
-        bound = true
-        return {
-          bindingRequestId: 'binding-teams',
-          threadId: 'thread-welcome',
-          appId: 'com.dotharness.dotcraft-teams',
-          requestedScopes: ['mission.manage'],
-          state: 'active',
-          tokenExpiresAt: '2026-05-16T00:01:00Z',
-          handoff: { mode: 'managed' }
-        }
-      }
-      if (method === 'thread/appBindings/list') {
-        return {
-          bindings: bound
-            ? [
-                {
-                  bindingRequestId: 'binding-teams',
-                  bindingId: 'binding-teams',
-                  threadId: 'thread-welcome',
-                  appId: 'com.dotharness.dotcraft-teams',
-                  displayName: 'Agent Teams',
-                  state: 'active',
-                  connectionState: 'connected',
-                  managed: true,
-                  requiresExternalConnection: false,
-                  grantedScopes: ['mission.manage'],
-                  attachedToolCount: 1,
-                  lastChangedAt: '2026-05-16T00:00:00Z'
-                }
-              ]
-            : []
-        }
-      }
-      return {}
-    })
-
-    renderWelcome()
-
-    fireEvent.click(await screen.findByRole('button', { name: 'Apps' }))
-    fireEvent.click(await screen.findByRole('switch', { name: 'Use Agent Teams for the first turn' }))
-
-    const textbox = await screen.findByRole('textbox')
-    textbox.textContent = 'Ask the team to investigate the workspace'
-    fireEvent.input(textbox)
-    fireEvent.click(screen.getByRole('button', { name: 'Send message' }))
-
-    await waitFor(() => {
-      expect(appServerSendRequest).toHaveBeenCalledWith('app/binding/request/create', expect.objectContaining({
-        threadId: 'thread-welcome',
-        appId: 'com.dotharness.dotcraft-teams',
-        requestedScopes: ['mission.manage'],
-        requestedTools: ['CreateTeam'],
-        source: 'welcome'
-      }))
-    })
-    expect(appServerSendRequest).not.toHaveBeenCalledWith('app/connection/start', expect.anything())
-    expect(shellOpenExternal).not.toHaveBeenCalled()
-    await waitFor(() => {
-      expect(useUIStore.getState().pendingWelcomeTurn).toMatchObject({
-        threadId: 'thread-welcome',
-        text: 'Ask the team to investigate the workspace'
       })
     })
   })

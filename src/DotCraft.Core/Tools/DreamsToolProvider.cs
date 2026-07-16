@@ -1,6 +1,7 @@
-using DotCraft.Abstractions;
+using DotCraft.Configuration;
 using DotCraft.Dreams;
 using DotCraft.GeneratedTools.Core;
+using DotCraft.Security;
 using Microsoft.Extensions.AI;
 
 namespace DotCraft.Tools;
@@ -8,11 +9,18 @@ namespace DotCraft.Tools;
 /// <summary>
 /// Tool profile for internal Dreams maintenance threads.
 /// </summary>
-public sealed class DreamsToolProvider(DreamsRunRegistry runRegistry) : IAgentToolProvider
+public sealed class DreamsToolSource(
+    DreamsRunRegistry runRegistry,
+    AppConfig config,
+    PathBlacklist? pathBlacklist = null) : AIFunctionToolSource
 {
-    public IEnumerable<AITool> CreateTools(ToolProviderContext context)
+    /// <inheritdoc />
+    public override string SourceId => "dreams";
+
+    /// <inheritdoc />
+    protected override IEnumerable<AIFunction> CreateFunctions(ToolPlanningContext context)
     {
-        if (!runRegistry.TryGetFileWorkspace(context.CurrentThreadId, out var workspace))
+        if (!runRegistry.TryGetFileWorkspace(context.ThreadId, out var workspace))
             yield break;
 
         var trustedReadPaths = new List<string>
@@ -26,13 +34,13 @@ public sealed class DreamsToolProvider(DreamsRunRegistry runRegistry) : IAgentTo
         var fileTools = new FileTools(
             workspace.OutputStorePath,
             requireApprovalOutsideWorkspace: false,
-            maxFileSize: context.Config.Tools.File.MaxFileSize,
+            maxFileSize: config.Tools.File.MaxFileSize,
             approvalService: null,
-            blacklist: context.PathBlacklist,
+            blacklist: pathBlacklist,
             trustedReadPaths: trustedReadPaths,
             lspServerManager: null,
-            ripgrepPath: context.Config.Tools.File.RipgrepPath,
-            searchTimeout: TimeSpan.FromSeconds(Math.Max(1, context.Config.Tools.File.SearchTimeoutSeconds)));
+            ripgrepPath: config.Tools.File.RipgrepPath,
+            searchTimeout: TimeSpan.FromSeconds(Math.Max(1, config.Tools.File.SearchTimeoutSeconds)));
 
         yield return GeneratedToolFunctions.FileTools_ReadFile(fileTools);
         yield return GeneratedToolFunctions.FileTools_WriteFile(fileTools);

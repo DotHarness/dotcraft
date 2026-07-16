@@ -254,7 +254,8 @@ public sealed class ChannelRunner : IAsyncDisposable, IChannelStatusProvider, IE
                 streamDebugLogger,
                 appConfigMonitor,
                 _sp.GetServices<IAppServerProtocolExtension>(),
-                _sp.GetService<AppBindingService>());
+                _sp.GetService<AppBindingService>(),
+                _sp.GetServices<IThreadOriginPresentationProvider>());
 
             foreach (var extCh in ecManager.Channels)
             {
@@ -435,7 +436,8 @@ public sealed class ChannelRunner : IAsyncDisposable, IChannelStatusProvider, IE
             streamDebugLogger: _sp.GetService<SessionStreamDebugLogger>(),
             appConfigMonitor: _sp.GetService<IAppConfigMonitor>(),
             protocolExtensions: _sp.GetServices<IAppServerProtocolExtension>(),
-            appBindingService: _sp.GetService<AppBindingService>());
+            appBindingService: _sp.GetService<AppBindingService>(),
+            originPresentationProviders: _sp.GetServices<IThreadOriginPresentationProvider>());
     }
 
     private ExternalChannelHost? RemoveExternalChannelHost_NoLock(string channelName)

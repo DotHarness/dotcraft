@@ -1,5 +1,7 @@
 # AppServer Protocol
 
+> App Binding 客户端通过 `capabilities.appBindingVersion: 2` 协商版本。App principal 连接只能访问 `app/connection/*`、`app/binding/*` 与 `app/bindings/list` 控制面；工具由 binding-scoped MCP session 提供。不支持的方法会返回 `AppBindingUpgradeRequired`。
+
 AppServer Protocol 是 DotCraft 暴露给外部客户端的 JSON-RPC wire protocol。Desktop、ACP bridge、外部 channel adapter 和自定义 IDE client 都可以通过它创建或恢复线程、提交用户输入、消费流式事件，并参与命令执行或文件变更审批。
 
 如果你只是在本机寻找或启动工作区 AppServer，请先使用 [Hub Protocol](./hub-protocol)。Hub 返回 AppServer WebSocket endpoint 后，后续会话流量才进入本协议。

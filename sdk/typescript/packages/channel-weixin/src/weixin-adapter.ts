@@ -416,9 +416,9 @@ export class WeixinAdapter extends ModuleChannelAdapter<WeixinConfig> {
       updated.captionError = caption.errorMessage;
     }
 
-    const structured = result.structuredResult;
+    const structured = result.structuredContent;
     if (structured && typeof structured === "object" && !Array.isArray(structured)) {
-      updated.structuredResult = {
+      updated.structuredContent = {
         ...(structured as Record<string, unknown>),
         captionDelivered: caption.delivered === true,
         captionError: caption.errorMessage ?? null,
@@ -633,7 +633,7 @@ export class WeixinAdapter extends ModuleChannelAdapter<WeixinConfig> {
             errorCode: error.code,
             errorMessage: error.message,
             contentItems: [{ type: "text", text: error.message }],
-            structuredResult: {
+            structuredContent: {
               delivered: false,
               errorCode: error.code,
               errorMessage: error.message,
@@ -648,7 +648,7 @@ export class WeixinAdapter extends ModuleChannelAdapter<WeixinConfig> {
           errorCode: "AdapterToolCallFailed",
           errorMessage: error instanceof Error ? error.message : String(error),
           contentItems: [{ type: "text", text: error instanceof Error ? error.message : String(error) }],
-          structuredResult: {
+          structuredContent: {
             delivered: false,
             errorCode: "AdapterToolCallFailed",
             errorMessage: error instanceof Error ? error.message : String(error),

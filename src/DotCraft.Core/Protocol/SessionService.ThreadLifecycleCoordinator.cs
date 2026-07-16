@@ -193,6 +193,8 @@ public sealed partial class SessionService
             var previousStatus = thread.Status;
             thread.Status = ThreadStatus.Archived;
             owner.ClearThreadAgentCaches(thread.Id);
+            owner.ToolDispatchPolicyRegistry?.Remove(thread.Id);
+            await owner.AgentFactory.ReleaseThreadToolResourcesAsync(thread.Id, ct);
             owner.ForgetContextPages(thread.Id);
             if (owner.BackgroundTerminalService != null)
                 await owner.BackgroundTerminalService.CleanThreadAsync(thread.Id, ct);
@@ -236,6 +238,8 @@ public sealed partial class SessionService
 
             if (owner._runtimeRegistry.TryRemove(threadId, out var removedRuntime))
                 await removedRuntime.DisposeAsync();
+            owner.ToolDispatchPolicyRegistry?.Remove(threadId);
+            await owner.AgentFactory.ReleaseThreadToolResourcesAsync(threadId, ct);
             owner.InvalidatePromptRequestSnapshot(threadId, "thread_deleted");
             owner.ClearContextUsageAnchor(threadId);
             owner.ForgetContextPages(threadId);

@@ -95,6 +95,12 @@ public sealed class SessionThread
     public List<SessionTurn> Turns { get; set; } = [];
 
     /// <summary>
+    /// Highest Turn sequence ever allocated in this Thread, including Turns later removed by rollback.
+    /// Runtime-only; rollout replay reconstructs it from turn_started records.
+    /// </summary>
+    internal int TurnSequenceHighWatermark { get; set; }
+
+    /// <summary>
     /// FIFO user inputs waiting for the current running turn to complete.
     /// </summary>
     public List<QueuedTurnInput> QueuedInputs { get; set; } = [];

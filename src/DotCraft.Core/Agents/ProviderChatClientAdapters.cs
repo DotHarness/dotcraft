@@ -111,6 +111,9 @@ internal static class ProviderChatClientAdapters
         if (normalizedProtocol is null)
             return;
 
+        if (!ModelProviderProtocols.IsOpenAIResponses(normalizedProtocol))
+            builder.Use(innerClient => new FlatToolIdentityChatClient(innerClient));
+
         if (ModelProviderProtocols.IsOpenAIProtocol(normalizedProtocol))
         {
             builder.Use(innerClient => new PromptCachingChatClient(

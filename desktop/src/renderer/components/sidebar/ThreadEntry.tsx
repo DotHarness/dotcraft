@@ -113,10 +113,13 @@ export function ThreadEntry({ thread }: ThreadEntryProps): JSX.Element {
     projectName,
     relativeTime
   })
+  const originPresentation = thread.originPresentation
   const showOriginBadge =
     !isSubAgent &&
-    thread.originChannel.length > 0 &&
-    thread.originChannel.toLowerCase() !== 'dotcraft-desktop'
+    (Boolean(originPresentation || thread.originApp) || (
+      thread.originChannel.length > 0 &&
+      thread.originChannel.toLowerCase() !== 'dotcraft-desktop'
+    ))
   // Hide the archive action during a drag session so the right side stays
   // clean while the drop-hint / already-bound pill is shown.
   const canPin = !isSubAgent && thread.status !== 'archived'
@@ -426,7 +429,16 @@ export function ThreadEntry({ thread }: ThreadEntryProps): JSX.Element {
                   flexShrink: 0
                 }}
               >
-                {thread.originApp ? (
+                {originPresentation ? (
+                  <ChannelIconBadge
+                    channelName={thread.originChannel}
+                    iconSrc={originPresentation.icon ?? undefined}
+                    label={originPresentation.displayName}
+                    tooltip={t('threadEntry.originMember', { name: originPresentation.displayName })}
+                    muted={!isActive}
+                    size={18}
+                  />
+                ) : thread.originApp ? (
                   <ChannelIconBadge
                     channelName={thread.originChannel}
                     iconSrc={thread.originApp.icon ?? undefined}

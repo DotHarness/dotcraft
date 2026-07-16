@@ -6,7 +6,6 @@ namespace DotCraft.Teams;
 
 public static class TeamsConstants
 {
-    public const string AppId = "com.dotharness.dotcraft-teams";
     public const string ToolNamespace = "teams";
     public const string UserId = "dotcraft-teams";
     public const string ChannelName = "teams";
@@ -37,9 +36,7 @@ public static class TeamTaskStatuses
 public static class TeamMessageStatuses
 {
     public const string Recorded = "recorded";
-    public const string Summarized = "summarized";
     public const string DeliveredToTurn = "deliveredToTurn";
-    public const string Superseded = "superseded";
 }
 
 public static class TeamMessageKinds
@@ -53,26 +50,10 @@ public static class TeamMessageKinds
     public const string Synthesis = "synthesis";
 }
 
-public static class TeamLeaderWaitStatuses
-{
-    public const string Active = "active";
-    public const string Satisfied = "satisfied";
-    public const string Delivered = "delivered";
-    public const string Superseded = "superseded";
-    public const string Cancelled = "cancelled";
-}
-
-public static class TeamLeaderWaitConditions
-{
-    public const string MissionReady = "missionReady";
-    public const string AllTasksDone = "allTasksDone";
-    public const string AnyTaskDone = "anyTaskDone";
-    public const string AnyTaskBlocked = "anyTaskBlocked";
-    public const string AnyTaskFailed = "anyTaskFailed";
-}
-
 public sealed class TeamsStateDocument
 {
+    public int SchemaVersion { get; set; } = TeamsStateStore.CurrentSchemaVersion;
+
     public TeamRecord Team { get; set; } = new();
 
     public List<TeamMemberRecord> Members { get; set; } = [];
@@ -85,20 +66,14 @@ public sealed class TeamsStateDocument
 
     public List<TeamMessageRecord> Messages { get; set; } = [];
 
-    public List<TeamLeaderWaitRecord> LeaderWaits { get; set; } = [];
-
     public List<MailboxDigestRecord> MailboxDigests { get; set; } = [];
 
     public List<ArtifactRefRecord> Artifacts { get; set; } = [];
 }
 
-public sealed record TeamsMissionOrigin(string ThreadId, string BindingId);
-
 public sealed class TeamRecord
 {
     public string TeamId { get; set; } = "default";
-
-    public bool Enabled { get; set; }
 
     public DateTimeOffset CreatedAt { get; set; }
 
@@ -118,18 +93,7 @@ public class TeamMemberRecord
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? AgentProfileId { get; set; }
 
-    public string ThreadId { get; set; } = string.Empty;
-
-    public string BindingId { get; set; } = string.Empty;
-
-    public string GrantId { get; set; } = string.Empty;
-
     public string AvatarAccent { get; set; } = string.Empty;
-
-    public string Status { get; set; } = "idle";
-
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public string? CurrentTaskId { get; set; }
 
     public double DeskX { get; set; }
 
@@ -146,7 +110,7 @@ public sealed class MissionRecord
 
     public string Plan { get; set; } = string.Empty;
 
-    public string Status { get; set; } = "new";
+    public string Status { get; set; } = TeamMissionStatuses.Planning;
 
     public DateTimeOffset CreatedAt { get; set; }
 
@@ -176,9 +140,6 @@ public sealed class MissionRecord
     public string? OriginThreadId { get; set; }
 
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public string? OriginBindingId { get; set; }
-
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? CompletionQueuedInputId { get; set; }
 
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -192,10 +153,6 @@ public class MissionThreadRecord
     public string MemberId { get; set; } = string.Empty;
 
     public string ThreadId { get; set; } = string.Empty;
-
-    public string BindingId { get; set; } = string.Empty;
-
-    public string GrantId { get; set; } = string.Empty;
 
     public string Status { get; set; } = "idle";
 
@@ -323,37 +280,6 @@ public sealed class TeamMessageRecord
     public DateTimeOffset CreatedAt { get; set; }
 }
 
-public sealed class TeamLeaderWaitRecord
-{
-    public string WaitId { get; set; } = string.Empty;
-
-    public string MissionId { get; set; } = string.Empty;
-
-    public string Condition { get; set; } = TeamLeaderWaitConditions.MissionReady;
-
-    public List<string> TaskIds { get; set; } = [];
-
-    public string Reason { get; set; } = string.Empty;
-
-    public string Status { get; set; } = TeamLeaderWaitStatuses.Active;
-
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public string? SatisfiedReason { get; set; }
-
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public string? DeliveredQueuedInputId { get; set; }
-
-    public DateTimeOffset CreatedAt { get; set; }
-
-    public DateTimeOffset UpdatedAt { get; set; }
-
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public DateTimeOffset? SatisfiedAt { get; set; }
-
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public DateTimeOffset? DeliveredAt { get; set; }
-}
-
 public sealed class ArtifactRefRecord
 {
     public string ArtifactId { get; set; } = string.Empty;
@@ -382,8 +308,6 @@ public sealed class ArtifactRefRecord
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? Summary { get; set; }
 
-    public string Description { get; set; } = string.Empty;
-
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public JsonObject? Metadata { get; set; }
 
@@ -407,8 +331,6 @@ public sealed class TeamsTeamViewResult
     public List<TeamTaskRecord> Tasks { get; set; } = [];
 
     public List<TeamMessageRecord> Messages { get; set; } = [];
-
-    public List<TeamLeaderWaitRecord> LeaderWaits { get; set; } = [];
 
     public List<MailboxDigestRecord> MailboxDigests { get; set; } = [];
 
@@ -436,6 +358,11 @@ public sealed class TeamsTeamStats
 
 public sealed class TeamMemberView : TeamMemberRecord
 {
+    public string Status { get; set; } = "idle";
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? CurrentTaskId { get; set; }
+
     public int QueuedInputCount { get; set; }
 
     public bool Running { get; set; }
@@ -489,10 +416,6 @@ public sealed class MissionThreadView : MissionThreadRecord
     public bool WaitingOnApproval { get; set; }
 
     public bool WaitingOnInput { get; set; }
-}
-
-public sealed class TeamsTeamEnableParams
-{
 }
 
 public sealed class TeamsMissionCreateParams

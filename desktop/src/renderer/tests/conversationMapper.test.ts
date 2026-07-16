@@ -6,6 +6,69 @@ import { wireItemToConversationItem, wireTurnToConversationTurn } from '../types
 // ---------------------------------------------------------------------------
 
 describe('wireItemToConversationItem — flat (top-level) format', () => {
+  it('maps current MCP App availability only from the server projection', () => {
+    const available = wireItemToConversationItem({
+      id: 'mcp-1',
+      type: 'mcpToolCall',
+      mcpApp: { available: true },
+      payload: {
+        toolName: 'chart',
+        callId: 'call-1',
+        status: 'completed',
+        content: [{ type: 'text', text: 'fallback' }],
+        structuredContent: { points: 3 }
+      },
+      createdAt: '2025-01-01T00:00:00Z'
+    })
+    const unavailable = wireItemToConversationItem({
+      id: 'mcp-1',
+      type: 'mcpToolCall',
+      payload: { toolName: 'chart', status: 'completed' },
+      createdAt: '2025-01-01T00:00:00Z'
+    })
+
+    expect(available.type).toBe('mcpToolCall')
+    expect(available.mcpAppAvailable).toBe(true)
+    expect(available.result).toBe('fallback')
+    expect(available.structuredResult).toEqual({ points: 3 })
+    expect(unavailable.mcpAppAvailable).toBe(false)
+  })
+
+  it('does not infer presentation when the server descriptor is missing', () => {
+    const core = wireItemToConversationItem({
+      id: 'tool-1',
+      type: 'toolCall',
+      payload: {
+        toolName: 'WriteFile',
+        source: { kind: 'CoreNative', sourceId: 'core-native', sourceToolId: 'WriteFile' }
+      },
+      createdAt: '2025-01-01T00:00:00Z'
+    })
+    const untrusted = wireItemToConversationItem({
+      id: 'tool-2',
+      type: 'toolCall',
+      payload: {
+        toolName: 'WriteFile',
+        source: { kind: 'PluginNative', sourceId: 'plugin', sourceToolId: 'WriteFile' }
+      },
+      createdAt: '2025-01-01T00:00:00Z'
+    })
+
+    expect(core.presentation).toBeUndefined()
+    expect(untrusted.presentation).toBeUndefined()
+  })
+
+  it('does not infer a Core presentation from the provider-visible tool name alone', () => {
+    const mapped = wireItemToConversationItem({
+      id: 'tool-search',
+      type: 'toolCall',
+      payload: { toolName: 'tool_search' },
+      createdAt: '2025-01-01T00:00:00Z'
+    })
+
+    expect(mapped.presentation).toBeUndefined()
+  })
+
   it('extracts text from raw.text for agentMessage', () => {
     const item = wireItemToConversationItem({
       id: 'i1',

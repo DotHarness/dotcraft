@@ -91,6 +91,8 @@ describe('ToolCallCard RequestUserInput rendering', () => {
       type: 'toolCall',
       status: 'completed',
       toolName: 'RequestUserInput',
+      source: { kind: 'CoreNative', sourceId: 'core-native', sourceToolId: 'RequestUserInput' },
+      presentation: { presentationId: 'core.request-user-input' },
       toolCallId: 'call-question',
       arguments: {
         questions: [
@@ -186,6 +188,8 @@ describe('ToolCallCard subagent result rendering', () => {
       type: 'toolCall',
       status: 'completed',
       toolName: 'SpawnAgent',
+      source: { kind: 'CoreNative', sourceId: 'core-native', sourceToolId: 'SpawnAgent' },
+      presentation: { presentationId: 'core.subagent', options: { operation: 'spawn' } },
       toolCallId: 'call-1',
       arguments: {
         agentPrompt: 'Create hatch pet',
@@ -217,6 +221,8 @@ describe('ToolCallCard subagent result rendering', () => {
       type: 'toolCall',
       status: 'streaming',
       toolName: 'SpawnAgent',
+      source: { kind: 'CoreNative', sourceId: 'core-native', sourceToolId: 'SpawnAgent' },
+      presentation: { presentationId: 'core.subagent', options: { operation: 'spawn' } },
       toolCallId: 'call-streaming',
       argumentsPreview: '{"agentPrompt":"Review the API surface","agentNickname":"Reviewer"}',
       createdAt: '2026-05-03T10:00:00.000Z'
@@ -233,6 +239,8 @@ describe('ToolCallCard subagent result rendering', () => {
       type: 'toolCall',
       status: 'completed',
       toolName: 'WaitAgent',
+      source: { kind: 'CoreNative', sourceId: 'core-native', sourceToolId: 'WaitAgent' },
+      presentation: { presentationId: 'core.subagent', options: { operation: 'wait' } },
       toolCallId: 'call-2',
       arguments: { childThreadId: 'thread_child' },
       result: JSON.stringify({
@@ -260,6 +268,8 @@ describe('ToolCallCard subagent result rendering', () => {
       type: 'toolCall',
       status: 'started',
       toolName: 'WaitAgent',
+      source: { kind: 'CoreNative', sourceId: 'core-native', sourceToolId: 'WaitAgent' },
+      presentation: { presentationId: 'core.subagent', options: { operation: 'wait' } },
       toolCallId: 'call-running-wait',
       arguments: { childThreadId: 'thread_child', agentNickname: 'Reviewer' },
       createdAt: '2026-05-03T10:00:00.000Z'
@@ -277,6 +287,8 @@ describe('ToolCallCard subagent result rendering', () => {
       type: 'toolCall',
       status: 'completed',
       toolName: 'WaitAgent',
+      source: { kind: 'CoreNative', sourceId: 'core-native', sourceToolId: 'WaitAgent' },
+      presentation: { presentationId: 'core.subagent', options: { operation: 'wait' } },
       toolCallId: 'call-pending-wait',
       arguments: { childThreadId: 'thread_child', agentNickname: 'Reviewer' },
       createdAt: '2026-05-03T10:00:00.000Z'
@@ -294,6 +306,8 @@ describe('ToolCallCard subagent result rendering', () => {
       type: 'toolCall',
       status: 'completed',
       toolName: 'WaitAgent',
+      source: { kind: 'CoreNative', sourceId: 'core-native', sourceToolId: 'WaitAgent' },
+      presentation: { presentationId: 'core.subagent', options: { operation: 'wait' } },
       toolCallId: 'call-historical-wait',
       arguments: { childThreadId: 'thread_child', agentNickname: 'Reviewer' },
       createdAt: '2026-05-03T10:00:00.000Z'
@@ -310,6 +324,8 @@ describe('ToolCallCard subagent result rendering', () => {
       type: 'toolCall',
       status: 'completed',
       toolName: 'WaitAgent',
+      source: { kind: 'CoreNative', sourceId: 'core-native', sourceToolId: 'WaitAgent' },
+      presentation: { presentationId: 'core.subagent', options: { operation: 'wait' } },
       toolCallId: 'call-timeout',
       arguments: { childThreadId: 'thread_child', agentNickname: 'Reviewer' },
       result: JSON.stringify({
@@ -370,6 +386,8 @@ describe('ToolCallCard shell rendering', () => {
       type: 'toolCall',
       status: 'started',
       toolName: 'Exec',
+      source: { kind: 'CoreNative', sourceId: 'core-native', sourceToolId: 'Exec' },
+      presentation: { presentationId: 'core.shell' },
       toolCallId: 'exec-1',
       arguments: { command: 'npm test' },
       aggregatedOutput: 'line 1\nline 2\n',
@@ -394,6 +412,8 @@ describe('ToolCallCard shell rendering', () => {
       type: 'toolCall',
       status: 'completed',
       toolName: 'Exec',
+      source: { kind: 'CoreNative', sourceId: 'core-native', sourceToolId: 'Exec' },
+      presentation: { presentationId: 'core.shell' },
       toolCallId: 'exec-ansi-1',
       arguments: { command: 'pnpm test' },
       aggregatedOutput: '\u001b[1;46m RUN \u001b[0m\u001b[36mv3.2.4\u001b[0m',
@@ -418,6 +438,8 @@ describe('ToolCallCard shell rendering', () => {
       type: 'toolCall',
       status: 'completed',
       toolName: 'Exec',
+      source: { kind: 'CoreNative', sourceId: 'core-native', sourceToolId: 'Exec' },
+      presentation: { presentationId: 'core.shell' },
       toolCallId: 'exec-large-collapsed',
       arguments: { command: 'pnpm test' },
       aggregatedOutput: fullOutput,
@@ -445,6 +467,8 @@ describe('ToolCallCard shell rendering', () => {
       type: 'toolCall',
       status: 'completed',
       toolName: 'Exec',
+      source: { kind: 'CoreNative', sourceId: 'core-native', sourceToolId: 'Exec' },
+      presentation: { presentationId: 'core.shell' },
       toolCallId: 'exec-failed-1',
       arguments: { command: 'ping 10.8.8.8 -n 1' },
       aggregatedOutput: 'Request timed out.\nExit code: 1',
@@ -492,6 +516,8 @@ describe('ToolCallCard shell rendering', () => {
       type: 'toolCall',
       status: 'completed',
       toolName: 'Exec',
+      source: { kind: 'CoreNative', sourceId: 'core-native', sourceToolId: 'Exec' },
+      presentation: { presentationId: 'core.shell' },
       toolCallId: 'exec-empty-1',
       arguments: { command: 'true' },
       result: '',
@@ -512,6 +538,8 @@ describe('ToolCallCard shell rendering', () => {
       type: 'toolCall',
       status: 'started',
       toolName: 'WriteFile',
+      source: { kind: 'CoreNative', sourceId: 'core-native', sourceToolId: 'WriteFile' },
+      presentation: { presentationId: 'core.file-write', options: { operation: 'write' } },
       toolCallId: 'write-streaming-1',
       createdAt: new Date().toISOString()
     }
@@ -552,6 +580,8 @@ describe('ToolCallCard shell rendering', () => {
       type: 'toolCall',
       status: 'streaming',
       toolName: 'WriteFile',
+      source: { kind: 'CoreNative', sourceId: 'core-native', sourceToolId: 'WriteFile' },
+      presentation: { presentationId: 'core.file-write', options: { operation: 'write' } },
       toolCallId: 'write-empty-streaming-1',
       argumentsPreview: '{"path":"src/empty.ts"',
       createdAt: new Date().toISOString()
@@ -570,6 +600,8 @@ describe('ToolCallCard shell rendering', () => {
       type: 'toolCall',
       status: 'started',
       toolName: 'EditFile',
+      source: { kind: 'CoreNative', sourceId: 'core-native', sourceToolId: 'EditFile' },
+      presentation: { presentationId: 'core.file-write', options: { operation: 'edit' } },
       toolCallId: 'edit-streaming-1',
       createdAt: new Date().toISOString()
     }
@@ -613,6 +645,8 @@ describe('ToolCallCard shell rendering', () => {
       type: 'toolCall',
       status: 'completed',
       toolName: 'EditFile',
+      source: { kind: 'CoreNative', sourceId: 'core-native', sourceToolId: 'EditFile' },
+      presentation: { presentationId: 'core.file-write', options: { operation: 'edit' } },
       toolCallId: 'edit-completed-1',
       arguments: { path: 'src/Target.cs', oldText: 'old', newText: 'new' },
       result: 'Successfully edited src/Target.cs',
@@ -662,6 +696,8 @@ describe('ToolCallCard shell rendering', () => {
       type: 'toolCall',
       status: 'completed',
       toolName: 'Exec',
+      source: { kind: 'CoreNative', sourceId: 'core-native', sourceToolId: 'Exec' },
+      presentation: { presentationId: 'core.shell' },
       toolCallId: 'exec-2',
       arguments: { command: 'ping -n 10 8.8.8.8' },
       executionStatus: 'inProgress',
@@ -684,6 +720,8 @@ describe('ToolCallCard shell rendering', () => {
       type: 'toolCall',
       status: 'completed',
       toolName: 'Exec',
+      source: { kind: 'CoreNative', sourceId: 'core-native', sourceToolId: 'Exec' },
+      presentation: { presentationId: 'core.shell' },
       toolCallId: 'exec-3',
       arguments: { command: 'slow-cmd' },
       createdAt: '2026-04-13T10:00:00.000Z'
@@ -702,6 +740,8 @@ describe('ToolCallCard shell rendering', () => {
       type: 'toolCall',
       status: 'started',
       toolName: 'Exec',
+      source: { kind: 'CoreNative', sourceId: 'core-native', sourceToolId: 'Exec' },
+      presentation: { presentationId: 'core.shell' },
       toolCallId: 'exec-ran',
       arguments: { command: 'echo hello' },
       executionStatus: 'inProgress',
@@ -713,6 +753,45 @@ describe('ToolCallCard shell rendering', () => {
     expect(document.querySelector('.tool-running-gradient-text')).toBeInTheDocument()
   })
 
+  it('uses the streamed command while final arguments are still an empty object', () => {
+    const item: ConversationItem = {
+      id: 'tool-streaming-args',
+      type: 'toolCall',
+      status: 'streaming',
+      toolName: 'Exec',
+      source: { kind: 'CoreNative', sourceId: 'core-native', sourceToolId: 'Exec' },
+      presentation: { presentationId: 'core.shell' },
+      toolCallId: 'exec-streaming-args',
+      arguments: {},
+      argumentsPreview: '{"command":"dotnet test --filter Session',
+      createdAt: new Date().toISOString()
+    }
+
+    renderWithLocale(<ToolCallCard item={item} turnId="turn-1" />)
+
+    expect(screen.getByText('Running: dotnet test --filter Session')).toBeInTheDocument()
+    expect(screen.queryByText('Ran Exec')).not.toBeInTheDocument()
+  })
+
+  it('does not expose streamed arguments when an MCP tool claims an Exec presentation', () => {
+    const item: ConversationItem = {
+      id: 'external-exec',
+      type: 'mcpToolCall',
+      status: 'streaming',
+      toolName: 'Exec',
+      source: { kind: 'Mcp', sourceId: 'remote', sourceToolId: 'Exec' },
+      presentation: { presentationId: 'core.shell' },
+      toolCallId: 'external-exec-call',
+      argumentsPreview: '{"command":"sensitive-command',
+      createdAt: new Date().toISOString()
+    }
+
+    renderWithLocale(<ToolCallCard item={item} turnId="turn-1" />)
+
+    expect(screen.getByText('Generating parameters for Exec...')).toBeInTheDocument()
+    expect(screen.queryByText(/sensitive-command/)).not.toBeInTheDocument()
+  })
+
   it('treats legacy executionStatus started as running (mis-mapped wire lifecycle)', () => {
     vi.useFakeTimers()
     vi.setSystemTime(new Date('2026-04-13T10:00:01.500Z'))
@@ -722,6 +801,8 @@ describe('ToolCallCard shell rendering', () => {
       type: 'toolCall' as const,
       status: 'completed' as const,
       toolName: 'Exec',
+      source: { kind: 'CoreNative', sourceId: 'core-native', sourceToolId: 'Exec' },
+      presentation: { presentationId: 'core.shell' },
       toolCallId: 'exec-legacy',
       arguments: { command: 'ping' },
       executionStatus: 'started' as ConversationItem['executionStatus'],
@@ -743,6 +824,8 @@ describe('ToolCallCard shell rendering', () => {
       type: 'toolCall',
       status: 'started',
       toolName: 'Exec',
+      source: { kind: 'CoreNative', sourceId: 'core-native', sourceToolId: 'Exec' },
+      presentation: { presentationId: 'core.shell' },
       toolCallId: 'exec-auto-open-1',
       arguments: { command: 'sleep 10' },
       aggregatedOutput: 'booting\n',
@@ -795,6 +878,8 @@ describe('ToolCallCard shell rendering', () => {
       type: 'toolCall',
       status: 'started',
       toolName: 'Exec',
+      source: { kind: 'CoreNative', sourceId: 'core-native', sourceToolId: 'Exec' },
+      presentation: { presentationId: 'core.shell' },
       toolCallId: 'exec-empty-auto-open-1',
       arguments: { command: 'sleep 10' },
       createdAt: '2026-04-13T10:00:00.000Z'
@@ -820,6 +905,8 @@ describe('ToolCallCard shell rendering', () => {
       type: 'toolCall',
       status: 'started',
       toolName: 'WebFetch',
+      source: { kind: 'CoreNative', sourceId: 'core-native', sourceToolId: 'WebFetch' },
+      presentation: { presentationId: 'core.web', options: { operation: 'fetch' } },
       toolCallId: 'webfetch-2',
       arguments: { url: 'https://dotcraft.ai' },
       createdAt: '2026-04-13T10:00:00.000Z'
@@ -844,6 +931,8 @@ describe('ToolCallCard shell rendering', () => {
       type: 'toolCall',
       status: 'started',
       toolName: 'Exec',
+      source: { kind: 'CoreNative', sourceId: 'core-native', sourceToolId: 'Exec' },
+      presentation: { presentationId: 'core.shell' },
       toolCallId: 'exec-user-open-1',
       arguments: { command: 'dotcraft search' },
       aggregatedOutput: 'searching\n',
@@ -883,6 +972,8 @@ describe('ToolCallCard shell rendering', () => {
       type: 'toolCall',
       status: 'completed',
       toolName: 'WebSearch',
+      source: { kind: 'CoreNative', sourceId: 'core-native', sourceToolId: 'WebSearch' },
+      presentation: { presentationId: 'core.web', options: { operation: 'search' } },
       toolCallId: 'websearch-table-1',
       arguments: { query: 'dotcraft docs' },
       result: JSON.stringify({
@@ -921,6 +1012,8 @@ describe('ToolCallCard shell rendering', () => {
       type: 'toolCall',
       status: 'completed',
       toolName: 'tool_search',
+      source: { kind: 'CoreNative', sourceId: 'core-native', sourceToolId: 'SearchTools' },
+      presentation: { presentationId: 'core.deferred-search' },
       toolCallId: 'tool-search-1',
       arguments: { query: 'board task' },
       result: 'Found 1 matching tool(s):\n- workflow.CreateBoardTask: Create a Workflow App board task.',
@@ -943,6 +1036,8 @@ describe('ToolCallCard shell rendering', () => {
       type: 'toolCall',
       status: 'completed',
       toolName: 'WebFetch',
+      source: { kind: 'CoreNative', sourceId: 'core-native', sourceToolId: 'WebFetch' },
+      presentation: { presentationId: 'core.web', options: { operation: 'fetch' } },
       toolCallId: 'webfetch-summary-1',
       arguments: { url: 'https://dotcraft.ai' },
       result: JSON.stringify({
@@ -971,6 +1066,8 @@ describe('ToolCallCard shell rendering', () => {
       type: 'toolCall',
       status: 'completed',
       toolName: 'SkillManage',
+      source: { kind: 'CoreNative', sourceId: 'core-native', sourceToolId: 'SkillManage' },
+      presentation: { presentationId: 'core.skill-manage' },
       toolCallId: 'skill-create-call-1',
       arguments: {
         action: 'create',
@@ -1068,6 +1165,8 @@ describe('ToolCallCard shell rendering', () => {
       type: 'toolCall',
       status: 'completed',
       toolName: 'SkillManage',
+      source: { kind: 'CoreNative', sourceId: 'core-native', sourceToolId: 'SkillManage' },
+      presentation: { presentationId: 'core.skill-manage' },
       toolCallId: 'skill-patch-call-1',
       arguments: {
         action: 'patch',
@@ -1108,6 +1207,8 @@ describe('ToolCallCard shell rendering', () => {
       type: 'toolCall',
       status: 'completed',
       toolName: 'SkillManage',
+      source: { kind: 'CoreNative', sourceId: 'core-native', sourceToolId: 'SkillManage' },
+      presentation: { presentationId: 'core.skill-manage' },
       toolCallId: 'skill-delete-call-1',
       arguments: {
         action: 'delete',
@@ -1136,6 +1237,8 @@ describe('ToolCallCard shell rendering', () => {
       type: 'toolCall',
       status: 'completed',
       toolName: 'SkillManage',
+      source: { kind: 'CoreNative', sourceId: 'core-native', sourceToolId: 'SkillManage' },
+      presentation: { presentationId: 'core.skill-manage' },
       toolCallId: 'skill-fail-call-1',
       arguments: {
         action: 'patch',
@@ -1164,6 +1267,8 @@ describe('ToolCallCard shell rendering', () => {
       type: 'toolCall',
       status: 'completed',
       toolName: 'SkillView',
+      source: { kind: 'CoreNative', sourceId: 'core-native', sourceToolId: 'SkillView' },
+      presentation: { presentationId: 'core.skill-view' },
       toolCallId: 'skill-view-call-1',
       arguments: { name: 'browser' },
       result: '---\nname: browser\ndescription: Browser workflow\n---\n# Browser workflow\nLoaded instructions',
@@ -1221,6 +1326,8 @@ describe('ToolCallCard shell rendering', () => {
       type: 'toolCall',
       status: 'completed',
       toolName: 'SkillView',
+      source: { kind: 'CoreNative', sourceId: 'core-native', sourceToolId: 'SkillView' },
+      presentation: { presentationId: 'core.skill-view' },
       toolCallId: 'skill-view-not-found-call-1',
       arguments: { name: 'missing-skill' },
       result: "Skill 'missing-skill' not found.",
@@ -1241,6 +1348,8 @@ describe('ToolCallCard shell rendering', () => {
       type: 'toolCall',
       status: 'completed',
       toolName: 'Exec',
+      source: { kind: 'CoreNative', sourceId: 'core-native', sourceToolId: 'Exec' },
+      presentation: { presentationId: 'core.shell' },
       toolCallId: 'exec-manual-collapse-1',
       arguments: { command: 'echo hello' },
       result: 'hello',
@@ -1271,6 +1380,8 @@ describe('ToolCallCard shell rendering', () => {
       type: 'toolCall',
       status: 'completed',
       toolName: 'ReadFile',
+      source: { kind: 'CoreNative', sourceId: 'core-native', sourceToolId: 'ReadFile' },
+      presentation: { presentationId: 'core.read-file' },
       toolCallId: 'call-style-1',
       arguments: { path: 'src/main.ts' },
       result: 'ok',
@@ -1306,6 +1417,8 @@ describe('ToolCallCard todo rendering safety', () => {
       type: 'toolCall',
       status: 'completed',
       toolName: 'TodoWrite',
+      source: { kind: 'CoreNative', sourceId: 'core-native', sourceToolId: 'TodoWrite' },
+      presentation: { presentationId: 'core.todo' },
       toolCallId: 'todo-write-call-1',
       arguments: {
         merge: false,
@@ -1329,6 +1442,8 @@ describe('ToolCallCard todo rendering safety', () => {
       type: 'toolCall',
       status: 'completed',
       toolName: 'UpdateTodos',
+      source: { kind: 'CoreNative', sourceId: 'core-native', sourceToolId: 'UpdateTodos' },
+      presentation: { presentationId: 'core.todo' },
       toolCallId: 'todo-update-call-1',
       arguments: {
         updates: [{ id: 't1', status: 'completed' }]
@@ -1357,6 +1472,8 @@ describe('ToolCallCard todo rendering safety', () => {
       type: 'toolCall',
       status: 'completed',
       toolName: 'UpdateTodos',
+      source: { kind: 'CoreNative', sourceId: 'core-native', sourceToolId: 'UpdateTodos' },
+      presentation: { presentationId: 'core.todo' },
       toolCallId: 'todo-update-call-2',
       arguments: {
         updates: [{ id: '123', status: 'in_progress' }]
@@ -1393,6 +1510,8 @@ describe('ToolCallCard CreatePlan rendering', () => {
       type: 'toolCall',
       status: 'completed',
       toolName: 'CreatePlan',
+      source: { kind: 'CoreNative', sourceId: 'core-native', sourceToolId: 'CreatePlan' },
+      presentation: { presentationId: 'core.create-plan' },
       toolCallId: 'create-plan-call-1',
       arguments: {
         plan: '# Release Plan\n\n## Summary\n\nShip the feature in two phases.\n\n## Implementation Changes\n\n- add tests\n- run smoke checks',
@@ -1420,6 +1539,8 @@ describe('ToolCallCard CreatePlan rendering', () => {
       type: 'toolCall',
       status: 'started',
       toolName: 'CreatePlan',
+      source: { kind: 'CoreNative', sourceId: 'core-native', sourceToolId: 'CreatePlan' },
+      presentation: { presentationId: 'core.create-plan' },
       toolCallId: 'create-plan-call-2',
       argumentsPreview: '{"plan":"# Migration\\n\\n## Summary\\n\\nRolling update\\n\\n- step 1"}',
       createdAt: new Date().toISOString()

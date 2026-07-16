@@ -192,6 +192,8 @@ public sealed class AppServerHost(
             terminals.TerminalEvent += BroadcastBackgroundTerminalEvent;
         if (_services.GetService<DotCraft.Auth.OpenAI.IOpenAIUsageService>() is { } usage)
             usage.SnapshotChanged += BroadcastOpenAiUsageChanged;
+        if (_services.GetService<AppBindingCoordinator>() is { } bindings)
+            bindings.BindingStatusChanged += BroadcastAppBindingStatusChanged;
     }
 
     private void UnsubscribeRuntimeEvents()
@@ -215,6 +217,8 @@ public sealed class AppServerHost(
             terminals.TerminalEvent -= BroadcastBackgroundTerminalEvent;
         if (_services.GetService<DotCraft.Auth.OpenAI.IOpenAIUsageService>() is { } usage)
             usage.SnapshotChanged -= BroadcastOpenAiUsageChanged;
+        if (_services.GetService<AppBindingCoordinator>() is { } bindings)
+            bindings.BindingStatusChanged -= BroadcastAppBindingStatusChanged;
     }
 
     private AppServerRequestHandler CreateRequestHandler(
@@ -245,8 +249,11 @@ public sealed class AppServerHost(
                 WireDynamicToolProxy = runtime.WireDynamicToolProxy,
                 ChannelStatusProvider = runtime.ChannelStatusProvider,
                 McpClientManager = runtime.McpClientManager,
+                McpAppTransientContextStore = _services.GetService<McpAppTransientContextStore>(),
                 LspServerManager = runtime.LspServerManager,
                 BroadcastMcpStatusChanged = BroadcastMcpStatusChanged,
+                NotifyAppPrincipal = NotifyAppPrincipal,
+                BroadcastTrustedNotification = BroadcastTrustedNotification,
                 ProtocolExtensions = ProtocolExtensions,
                 OnExternalChannelUpserted = runtime.ApplyExternalChannelUpsertAsync,
                 OnExternalChannelRemoved = runtime.ApplyExternalChannelRemoveAsync,
@@ -263,6 +270,7 @@ public sealed class AppServerHost(
                 DreamStore = _services.GetService<DreamStore>(),
                 DreamsService = runtime.DreamsService,
                 AppBindingService = _services.GetService<AppBindingService>(),
+                ThreadOriginPresentationProviders = _services.GetServices<IThreadOriginPresentationProvider>().ToArray(),
                 PlanStore = runtime.PlanStore,
                 TraceStore = _services.GetService<TraceStore>(),
                 WireRuntimeAdditionalContextProvider = _services.GetService<WireRuntimeAdditionalContextProvider>(),
@@ -686,6 +694,8 @@ public sealed class AppServerHost(
             ResourceTemplateCount = e.Status.ResourceTemplateCount,
             LastError = e.Status.LastError,
             Transport = e.Status.Transport,
+            AuthStatus = e.Status.AuthStatus,
+            FailureReason = e.Status.FailureReason,
             Origin = new McpServerOriginWire
             {
                 Kind = e.Status.Origin.Kind,
@@ -810,6 +820,47 @@ public sealed class AppServerHost(
         }
     }
 
+    private void NotifyAppPrincipal(string appId, string method, object? parameters)
+    {
+        var notification = new { jsonrpc = "2.0", method, @params = parameters };
+        foreach (var (transport, connection) in _activeTransports)
+        {
+            if (!connection.IsAppPrincipalAuthenticated
+                || !string.Equals(connection.AppPrincipalAppId, appId, StringComparison.Ordinal))
+                continue;
+            _ = Task.Run(async () =>
+            {
+                try { await transport.WriteMessageAsync(notification, CancellationToken.None); }
+                catch { _activeTransports.TryRemove(transport, out _); }
+            });
+        }
+    }
+
+    private void BroadcastTrustedNotification(string method, object? parameters)
+    {
+        var notification = new { jsonrpc = "2.0", method, @params = parameters };
+        foreach (var (transport, connection) in _activeTransports)
+        {
+            if (connection.IsAppPrincipalAuthenticated || connection.IsChannelAdapter) continue;
+            _ = Task.Run(async () =>
+            {
+                try { await transport.WriteMessageAsync(notification, CancellationToken.None); }
+                catch { _activeTransports.TryRemove(transport, out _); }
+            });
+        }
+    }
+
+    private void BroadcastAppBindingStatusChanged(AppBindingWire binding) =>
+        BroadcastTrustedNotification("thread/appBindings/changed", new
+        {
+            binding.ThreadId,
+            binding.BindingId,
+            binding.AppId,
+            binding.State,
+            binding.FailureReason,
+            binding.AuthorityRevision
+        });
+
     private void BroadcastOpenAiUsageChanged(DotCraft.Auth.OpenAI.OpenAIUsageSnapshot? snapshot)
     {
         var result = Auth.OpenAI.OpenAIUsageMapping.ToWire(snapshot);
@@ -841,16 +892,32 @@ public sealed class AppServerHost(
 
     private void BroadcastMcpStatusChanged(McpStatusInfoWire server)
     {
+        var status = server.StartupState switch
+        {
+            "ready" => "ready",
+            "starting" => "starting",
+            "disabled" => "cancelled",
+            _ => "failed"
+        };
         var notification = new
         {
             jsonrpc = "2.0",
-            method = AppServerMethods.McpStatusUpdated,
-            @params = new { server }
+            method = AppServerMethods.McpServerStartupStatusUpdated,
+            @params = new
+            {
+                threadId = (string?)null,
+                name = server.Name,
+                status,
+                error = server.LastError,
+                failureReason = server.FailureReason,
+                transport = server.Transport,
+                authStatus = server.AuthStatus
+            }
         };
 
         foreach (var (transport, connection) in _activeTransports)
         {
-            if (!connection.ShouldSendNotification(AppServerMethods.McpStatusUpdated))
+            if (!connection.ShouldSendNotification(AppServerMethods.McpServerStartupStatusUpdated))
                 continue;
 
             _ = Task.Run(async () =>

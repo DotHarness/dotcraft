@@ -3,6 +3,7 @@ using DotCraft.Agents;
 using DotCraft.Context;
 using DotCraft.Context.Compaction;
 using DotCraft.Mcp;
+using DotCraft.Tools;
 using Microsoft.Agents.AI;
 using Microsoft.Extensions.AI;
 
@@ -67,12 +68,17 @@ internal sealed class ThreadRuntimeRegistry
 
 internal sealed class ThreadRuntime(SessionThread thread) : IAsyncDisposable, IDisposable
 {
+    private readonly object _bindingMcpLock = new();
+    private readonly Dictionary<string, IReadOnlyList<McpServerConfig>> _bindingMcpServers =
+        new(StringComparer.Ordinal);
     private ThreadMaintenanceState? _maintenance;
     private int _activeAutoMemoryConsolidation;
     private int _goalContinuationStarting;
     private int _turnsSinceConsolidation;
     private AutoMemoryConsolidationWork? _pendingAutoMemoryConsolidation;
     private readonly ConcurrentDictionary<string, byte> _goalBudgetLimitReported = new(StringComparer.Ordinal);
+    private long _toolSnapshotRevision;
+    private int _toolSnapshotDirty = 1;
 
     public SessionThread Thread { get; set; } = thread;
 
@@ -86,13 +92,40 @@ internal sealed class ThreadRuntime(SessionThread thread) : IAsyncDisposable, ID
 
     public McpClientManager? McpManager { get; set; }
 
+    public IReadOnlyList<McpServerConfig> GetBindingMcpServers()
+    {
+        lock (_bindingMcpLock)
+            return _bindingMcpServers.Values.SelectMany(static servers => servers).Select(static server => server.Clone()).ToArray();
+    }
+
+    public void SetBindingMcpServers(string bindingId, IReadOnlyList<McpServerConfig> servers)
+    {
+        lock (_bindingMcpLock)
+        {
+            if (servers.Count == 0)
+                _bindingMcpServers.Remove(bindingId);
+            else
+                _bindingMcpServers[bindingId] = servers.Select(static server => server.Clone()).ToArray();
+        }
+        MarkToolSnapshotDirty();
+    }
+
     public AgentModeManager? ModeManager { get; set; }
 
-    public IReadOnlyList<AITool>? CurrentTools { get; set; }
+    /// <summary>The latest immutable tool snapshot available outside an active Turn.</summary>
+    public EffectiveToolSnapshot? LatestToolSnapshot { get; private set; }
 
-    public IReadOnlySet<string>? PluginFunctionToolNames { get; set; }
+    public long NextToolSnapshotRevision() => Interlocked.Increment(ref _toolSnapshotRevision);
 
-    public IReadOnlySet<string>? DynamicToolNames { get; set; }
+    public bool ToolSnapshotDirty => Volatile.Read(ref _toolSnapshotDirty) != 0;
+
+    public void MarkToolSnapshotDirty() => Volatile.Write(ref _toolSnapshotDirty, 1);
+
+    public void SetLatestToolSnapshot(EffectiveToolSnapshot snapshot)
+    {
+        LatestToolSnapshot = snapshot ?? throw new ArgumentNullException(nameof(snapshot));
+        Volatile.Write(ref _toolSnapshotDirty, 0);
+    }
 
     public ThreadMaintenanceState? Maintenance => Volatile.Read(ref _maintenance);
 
@@ -186,6 +219,24 @@ internal sealed class TurnRuntime : IDisposable
     public GoalTurnSnapshot? GoalSnapshot { get; set; }
 
     public TokenUsageInfo LatestGoalUsage { get; set; } = new();
+
+    /// <summary>The immutable tool registry frozen for this Turn.</summary>
+    public EffectiveToolSnapshot? ToolSnapshot { get; set; }
+
+    /// <summary>The canonical event channel returned by <c>SubmitInputAsync</c> for this Turn.</summary>
+    public SessionEventChannel? EventChannel { get; set; }
+
+    /// <summary>Dispatcher-owned lifecycle items keyed by the original provider call id.</summary>
+    public ConcurrentDictionary<string, SessionItem> ToolInvocationItems { get; } = new(StringComparer.Ordinal);
+
+    /// <summary>Terminal tool projections keyed by the original provider call id.</summary>
+    public ConcurrentDictionary<string, byte> TerminalToolInvocations { get; } = new(StringComparer.Ordinal);
+
+    /// <summary>Serializes streaming and dispatcher projection updates for this Turn.</summary>
+    public object ToolProjectionLock { get; } = new();
+
+    /// <summary>Allocates Session item sequence values for dispatcher-owned projections.</summary>
+    public Func<int>? NextToolItemSequence { get; set; }
 
     public SemaphoreSlim GoalAccountingLock { get; } = new(1, 1);
 

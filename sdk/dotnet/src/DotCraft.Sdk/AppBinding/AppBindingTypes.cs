@@ -3,22 +3,6 @@ using DotCraft.Sdk.AppServer;
 
 namespace DotCraft.Sdk.AppBinding;
 
-/// <summary>A scope declared by an app descriptor.</summary>
-public sealed record AppScopeDescriptor(
-    string Id,
-    string DisplayName,
-    string Description,
-    string Risk,
-    bool? DefaultSelected = null);
-
-/// <summary>A tool catalog entry declared by an app descriptor.</summary>
-public sealed record AppToolCatalogEntry(
-    string Name,
-    string Scope,
-    string Risk,
-    string DefaultExposure,
-    string? Description = null);
-
 /// <summary>A connection/binding handoff mode from an app descriptor.</summary>
 public sealed record AppHandoffMode(
     string Mode,
@@ -30,7 +14,6 @@ public sealed record AppHandoffMode(
 /// <summary>An installed/visible app, as returned by app/list and app/view.</summary>
 public sealed record AppInfo(
     string AppId,
-    string ToolNamespace,
     string DisplayName,
     string DeveloperName,
     string Description,
@@ -39,8 +22,6 @@ public sealed record AppInfo(
     bool Enabled,
     bool CatalogVisible,
     string ConnectionState,
-    IReadOnlyList<AppScopeDescriptor> Scopes,
-    IReadOnlyList<AppToolCatalogEntry> ToolCatalog,
     IReadOnlyList<AppHandoffMode>? HandoffModes = null,
     string? Category = null,
     string? Icon = null,
@@ -60,10 +41,17 @@ public sealed record AppConnectionStatus(
 /// <summary>Result of app/connection/start.</summary>
 public sealed record AppConnectionStartResult(
     string ConnectionRequestId,
-    string AppId,
-    string State,
+    string RequestToken,
     string ExpiresAt,
-    AppHandoffMode Handoff);
+    AppHandoffMode? Handoff = null);
+
+public sealed record AppPrincipal(
+    string PrincipalId,
+    string AppId,
+    string UserId,
+    string ExpiresAt);
+
+public sealed record AppConnectionConnectResult(AppPrincipal Principal, string Credential);
 
 /// <summary>An active thread binding.</summary>
 public sealed record ThreadAppBinding(
@@ -71,17 +59,13 @@ public sealed record ThreadAppBinding(
     string ThreadId,
     string AppId,
     string State,
-    IReadOnlyList<string> GrantedScopes,
-    int AttachedToolCount,
-    string? BindingRequestId = null,
+    long AuthorityRevision = 0,
+    long ApprovedCapabilityRevision = 0,
+    long? CandidateCapabilityRevision = null,
     string? DisplayName = null,
-    string? ToolNamespace = null,
-    string? ConnectionState = null,
-    string? ExpiresAt = null,
-    string? LastChangedAt = null,
-    string? ApprovalMode = null,
-    string? AuditRef = null,
-    string? Diagnostic = null);
+    IReadOnlyList<JsonElement>? ApprovedTools = null,
+    IReadOnlyList<JsonElement>? PendingChanges = null,
+    string? FailureReason = null);
 
 /// <summary>A thread binding summary as returned by thread/appBindings/list.</summary>
 public sealed record ThreadAppBindingSummary(
@@ -89,75 +73,31 @@ public sealed record ThreadAppBindingSummary(
     string BindingId,
     string AppId,
     string State,
-    string ConnectionState,
-    IReadOnlyList<string> GrantedScopes,
-    string? BindingRequestId = null,
+    long AuthorityRevision = 0,
+    long ApprovedCapabilityRevision = 0,
+    long? CandidateCapabilityRevision = null,
     string? DisplayName = null,
-    string? ToolNamespace = null,
-    string? ExpiresAt = null);
+    string? FailureReason = null);
 
 /// <summary>A pending binding request, as returned by app/binding/request/get.</summary>
 public sealed record AppBindingRequestInfo(
     string BindingRequestId,
+    string BindingId,
     string ThreadId,
     string AppId,
-    IReadOnlyList<AppScopeDescriptor> RequestedScopes,
-    IReadOnlyList<AppToolCatalogEntry> RequestedTools,
-    string Source,
-    string? ThreadTitle = null,
-    string? Reason = null,
+    string State,
     string? ExpiresAt = null);
 
-/// <summary>Result of app/binding/request/create.</summary>
+/// <summary>Result of thread/appBindings/enable.</summary>
 public sealed record AppBindingRequestCreateResult(
     string BindingRequestId,
-    string ThreadId,
-    string AppId,
-    IReadOnlyList<string> RequestedScopes,
+    string BindingId,
     string State,
-    string TokenExpiresAt,
-    AppHandoffMode Handoff,
-    JsonElement? Confirmation = null);
-
-/// <summary>Result of app/binding/accept.</summary>
-public sealed record AppBindingAcceptResult(ThreadAppBinding Binding);
-
-/// <summary>Result of app/binding/attachTools.</summary>
-public sealed record AppBindingAttachToolsResult(
-    ThreadAppBinding Binding,
-    int AcceptedToolCount,
-    IReadOnlyList<JsonElement>? RejectedTools = null,
-    IReadOnlyList<string>? Warnings = null);
+    string ExpiresAt,
+    AppHandoffMode? Handoff = null);
 
 /// <summary>Parameters for completing an app connection (app/connection/connect).</summary>
 public sealed record CompleteConnectionRequest(
     string ConnectionRequestId,
     string RequestToken,
-    string AppId,
-    string? AccountLabel = null,
-    string? ExpiresAt = null,
-    object? ConnectionProof = null);
-
-/// <summary>Parameters for accepting a binding request (app/binding/accept).</summary>
-public sealed record AcceptBindingRequest(
-    string BindingRequestId,
-    string RequestToken,
-    string GrantId,
-    IReadOnlyList<string> GrantedScopes,
-    string ApprovalMode,
-    string? ApprovedBy = null,
-    string? ExpiresAt = null,
-    object? GrantProof = null,
-    string? AuditRef = null);
-
-/// <summary>Parameters for attaching tools to an accepted binding (app/binding/attachTools).</summary>
-public sealed record AttachToolsRequest(
-    string BindingId,
-    string ThreadId,
-    string AppId,
-    string GrantId,
-    IReadOnlyList<DynamicToolSpec> Tools,
-    IReadOnlyList<AppToolCatalogEntry>? ToolCatalog = null,
-    IReadOnlyList<string>? DirectToolNames = null,
-    IReadOnlyList<string>? DeferredToolNames = null,
-    object? GrantProof = null);
+    string? AccountLabel = null);

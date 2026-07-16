@@ -201,12 +201,12 @@ public sealed class AnthropicDeferredToolLoadingChatClientTests
             TracingChatClient.CurrentSessionKey = sessionKey;
             await searchTool.InvokeAsync(new AIFunctionArguments
             {
-                ["query"] = "select:TicketLookup",
+                ["query"] = "select:issues__TicketLookup",
                 ["max_results"] = 5
             });
             await searchTool.InvokeAsync(new AIFunctionArguments
             {
-                ["query"] = "select:TicketLookup",
+                ["query"] = "select:issues__TicketLookup",
                 ["max_results"] = 5
             });
         }
@@ -232,7 +232,7 @@ public sealed class AnthropicDeferredToolLoadingChatClientTests
         Assert.Equal(ModelProviderProtocols.Anthropic, root.GetProperty("providerProtocol").GetString());
         Assert.Equal(AnthropicToolSearchTool.ToolName, root.GetProperty("trigger").GetString());
         Assert.Equal("anthropic_tool_reference", root.GetProperty("wireShape").GetString());
-        Assert.Equal("select:TicketLookup", root.GetProperty("query").GetString());
+        Assert.Equal("select:issues__TicketLookup", root.GetProperty("query").GetString());
         Assert.Equal(1, root.GetProperty("deferredToolCount").GetInt32());
         Assert.Equal(5, root.GetProperty("requestedMaxResults").GetInt32());
         Assert.Equal(5, root.GetProperty("maxSearchResults").GetInt32());

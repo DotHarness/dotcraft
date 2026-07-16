@@ -169,6 +169,12 @@ public sealed class ThreadSummary
     public ThreadOriginAppWire? OriginApp { get; set; }
 
     /// <summary>
+    /// Optional source-neutral thread-origin presentation resolved by an in-process provider.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public ThreadOriginPresentationWire? OriginPresentation { get; set; }
+
+    /// <summary>
     /// Channel-specific metadata copied from the Thread.
     /// </summary>
     public Dictionary<string, string> Metadata { get; set; } = [];

@@ -33,7 +33,7 @@ public sealed class CliHost(
                 return;
             }
 
-            ToolProviderCollector.ScanToolIcons(moduleRegistry, config);
+            ToolSourceCollector.ScanToolIcons(moduleRegistry, config);
 
             var cliConfig = config.GetSection<CliConfig>("CLI");
             var wire = await ConnectAsync(cliConfig, cancellationToken).ConfigureAwait(false);

@@ -6,6 +6,8 @@ using DotCraft.Protocol;
 using DotCraft.Security;
 using DotCraft.Skills;
 using Microsoft.Extensions.AI;
+using System.Text.Json;
+using System.Text.Json.Nodes;
 
 namespace DotCraft.Tests.Protocol;
 
@@ -140,6 +142,47 @@ public sealed class ThreadCapabilityPolicyEvaluatorTests : IDisposable
         Assert.Equal(ModeToolPolicyDecisionKind.DenyRecoverable, ordinaryDecision.Kind);
     }
 
+    [Fact]
+    public void EvaluateRegistration_EnforcesQualifiedMcpAndPlanPolicyAtDispatcherBoundary()
+    {
+        var config = new ThreadConfiguration
+        {
+            Mode = "plan",
+            McpPolicy = new ThreadMcpPolicy
+            {
+                Servers = ["catalog-service"],
+                Tools = new ThreadNamePolicy { Deny = ["mcp__catalog_service/write_*"] }
+            }
+        };
+        var policy = new ThreadCapabilityPolicyEvaluator(config, CreateContext());
+
+        Assert.False(policy.EvaluateRegistration(
+            Registration(new ToolName("mcp__catalog_service", "write_record"), ToolSourceKind.Mcp, "catalog-service"),
+            []).Allowed);
+        Assert.False(policy.EvaluateRegistration(
+            Registration(new ToolName(null, "WriteFile"), ToolSourceKind.CoreNative, "core"),
+            new JsonObject { ["path"] = "notes.txt" }).Allowed);
+        Assert.True(policy.EvaluateRegistration(
+            Registration(new ToolName("mcp__catalog_service", "get_record"), ToolSourceKind.Mcp, "catalog-service"),
+            []).Allowed);
+    }
+
+    [Fact]
+    public void AllowsRegistrationExposure_UsesRuntimeServerIdentityInsteadOfProviderAlias()
+    {
+        var config = new ThreadConfiguration
+        {
+            McpPolicy = new ThreadMcpPolicy { Servers = ["allowed-server"] }
+        };
+        var policy = new ThreadCapabilityPolicyEvaluator(config, CreateContext());
+        var registration = Registration(
+            new ToolName("mcp__code_host_apps", "get_me"),
+            ToolSourceKind.Mcp,
+            "plugin:code-host-apps");
+
+        Assert.False(policy.AllowsRegistrationExposure(registration));
+    }
+
     public void Dispose()
     {
         try
@@ -153,12 +196,12 @@ public sealed class ThreadCapabilityPolicyEvaluatorTests : IDisposable
         }
     }
 
-    private ToolProviderContext CreateContext(string originChannel = "test-channel")
+    private AgentRuntimeContext CreateContext(string originChannel = "test-channel")
     {
         Directory.CreateDirectory(_tempRoot);
         var craftPath = Path.Combine(_tempRoot, ".craft");
         Directory.CreateDirectory(craftPath);
-        return new ToolProviderContext
+        return new AgentRuntimeContext
         {
             Config = new AppConfig(),
             ChatClient = new StaticChatClient(),
@@ -175,6 +218,35 @@ public sealed class ThreadCapabilityPolicyEvaluatorTests : IDisposable
 
     private static AITool Tool(string name) =>
         AIFunctionFactory.Create(() => "ok", name: name);
+
+    private static ToolRegistration Registration(ToolName name, ToolSourceKind kind, string sourceId)
+    {
+        var id = new ToolDefinitionId(kind, sourceId, new SourceToolId(name.Name));
+        return new ToolRegistration(
+            new ToolDefinition(
+                id,
+                name,
+                "test",
+                JsonDocument.Parse("""{"type":"object"}""").RootElement.Clone(),
+                provenance: new ToolProvenance(kind, sourceId)),
+            new ToolRuntimeBinding(
+                new RuntimeBindingId($"test:{sourceId}:{name}"),
+                id,
+                new NoopRuntime(),
+                ToolBindingLeases.AlwaysAvailable,
+                "test",
+                1),
+            ToolProjectionShape.StandardPair);
+    }
+
+    private sealed class NoopRuntime : IToolRuntime
+    {
+        public ValueTask<ToolExecutionResult> InvokeAsync(
+            ToolInvocationContext context,
+            JsonObject arguments,
+            CancellationToken cancellationToken = default) =>
+            ValueTask.FromResult(ToolExecutionResult.Succeeded("ok"));
+    }
 
     private sealed class StaticChatClient : IChatClient
     {

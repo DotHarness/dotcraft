@@ -1,9 +1,8 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
-using DotCraft.Plugins;
 using DotCraft.Protocol;
 using DotCraft.Protocol.AppServer;
-using DotCraft.Security;
+using DotCraft.Tools;
 using Microsoft.Extensions.AI;
 
 namespace DotCraft.Core.Tests.Protocol.AppServer;
@@ -11,411 +10,289 @@ namespace DotCraft.Core.Tests.Protocol.AppServer;
 public sealed class WireDynamicToolProxyTests
 {
     [Fact]
-    public async Task RuntimeDynamicTool_DispatchesItemToolCallAndEmitsDynamicToolCallItem()
+    public async Task Dispatcher_SendsOnlyCallbackWithOriginalProviderCallId()
     {
         var proxy = new WireDynamicToolProxy();
-        var thread = CreateThread();
-        var turn = CreateTurn(thread.Id);
-        var transport = new RecordingTransport(new DynamicToolCallResult
-        {
-            Success = true,
-            ContentItems = [new ExtChannelToolContentItem { Type = "text", Text = "draft submitted" }],
-            StructuredResult = JsonNode.Parse("""{"reviewId":"r1"}""")
-        });
-        var connection = new AppServerConnection();
-        var spec = CreateReviewToolSpec();
+        var transport = SuccessTransport("draft submitted", new JsonObject { ["reviewId"] = "r1" });
+        proxy.BindThread("thread_test", transport, new AppServerConnection(), [CreateReviewToolSpec()]);
+        var snapshot = await BuildSnapshotAsync(proxy);
+        var definition = Assert.Single(snapshot.ModelVisibleDefinitions);
 
-        proxy.BindThread(thread.Id, transport, connection, [spec]);
-        var tool = Assert.IsAssignableFrom<AIFunction>(Assert.Single(proxy.CreateToolsForThread(thread, EmptyReservedNames())));
+        var result = await new ToolDispatcher().DispatchProviderFlatCallAsync(
+            snapshot,
+            snapshot.ProviderFlatNames[definition.Name],
+            new JsonObject { ["body"] = "Looks good." },
+            new ToolInvocationRequest(
+                "thread_test",
+                "turn_001",
+                "provider-call-42",
+                ToolInvocationAudience.Model));
 
-        var started = new List<SessionItem>();
-        var completed = new List<SessionItem>();
-        var seq = 0;
-        using var scope = PluginFunctionExecutionScope.Set(new PluginFunctionExecutionContext
-        {
-            ThreadId = thread.Id,
-            TurnId = turn.Id,
-            OriginChannel = "appserver",
-            WorkspacePath = Environment.CurrentDirectory,
-            RequireApprovalOutsideWorkspace = false,
-            ApprovalService = new AutoApproveApprovalService(),
-            Turn = turn,
-            NextItemSequence = () => ++seq,
-            EmitItemStarted = started.Add,
-            EmitItemCompleted = completed.Add
-        });
-
-        await tool.InvokeAsync(new AIFunctionArguments(new Dictionary<string, object?>
-        {
-            ["body"] = "Looks good."
-        }));
-
+        Assert.True(result.Success);
+        Assert.Equal("draft submitted", result.Content);
+        Assert.Equal("r1", result.StructuredContent?.GetProperty("reviewId").GetString());
         Assert.Equal(AppServerMethods.ItemToolCall, transport.Method);
         var request = Assert.IsType<DynamicToolCallParams>(transport.Params);
-        Assert.Equal(thread.Id, request.ThreadId);
-        Assert.Equal(turn.Id, request.TurnId);
+        Assert.Equal("provider-call-42", request.CallId);
+        Assert.Equal("turn_001", request.TurnId);
         Assert.Equal("SubmitReviewDraft", request.Tool);
         Assert.Equal("Looks good.", request.Arguments["body"]?.GetValue<string>());
-
-        var item = Assert.Single(turn.Items);
-        Assert.Same(item, Assert.Single(started));
-        Assert.Same(item, Assert.Single(completed));
-        Assert.Equal(ItemType.DynamicToolCall, item.Type);
-        Assert.Equal(ItemStatus.Completed, item.Status);
-
-        var payload = Assert.IsType<DynamicToolCallPayload>(item.Payload);
-        Assert.True(payload.Success);
-        Assert.Equal("SubmitReviewDraft", payload.ToolName);
-        Assert.Equal("draft submitted", Assert.Single(payload.ContentItems!).Text);
-        Assert.Equal("r1", payload.StructuredResult?["reviewId"]?.GetValue<string>());
     }
 
     [Fact]
-    public async Task BindThread_RebindReplacesOldTransportBinding()
+    public async Task Dispatcher_PreservesDynamicImageForTheModel()
     {
+        var imageBytes = "dynamic-image"u8.ToArray();
         var proxy = new WireDynamicToolProxy();
-        var thread = CreateThread();
-        var turn = CreateTurn(thread.Id);
-        var oldTransport = new RecordingTransport(new DynamicToolCallResult { Success = true });
-        var oldConnection = new AppServerConnection();
-        var newTransport = new RecordingTransport(new DynamicToolCallResult
+        var transport = new RecordingTransport(new RuntimeDynamicToolCallResult
         {
             Success = true,
-            ContentItems = [new ExtChannelToolContentItem { Type = "text", Text = "new binding" }]
-        });
-        var newConnection = new AppServerConnection();
-        var spec = CreateReviewToolSpec();
-
-        proxy.BindThread(thread.Id, oldTransport, oldConnection, [spec]);
-        oldConnection.MarkClosed();
-        proxy.BindThread(thread.Id, newTransport, newConnection, [spec]);
-        proxy.UnbindTransport(oldTransport);
-        var tool = Assert.IsAssignableFrom<AIFunction>(Assert.Single(proxy.CreateToolsForThread(thread, EmptyReservedNames())));
-
-        var seq = 0;
-        using var scope = PluginFunctionExecutionScope.Set(new PluginFunctionExecutionContext
-        {
-            ThreadId = thread.Id,
-            TurnId = turn.Id,
-            OriginChannel = "appserver",
-            WorkspacePath = Environment.CurrentDirectory,
-            RequireApprovalOutsideWorkspace = false,
-            ApprovalService = new AutoApproveApprovalService(),
-            Turn = turn,
-            NextItemSequence = () => ++seq,
-            EmitItemStarted = _ => { },
-            EmitItemCompleted = _ => { }
-        });
-
-        await tool.InvokeAsync(new AIFunctionArguments(new Dictionary<string, object?>
-        {
-            ["body"] = "Looks good."
-        }));
-
-        Assert.Null(oldTransport.Method);
-        Assert.Equal(AppServerMethods.ItemToolCall, newTransport.Method);
-        var payload = Assert.IsType<DynamicToolCallPayload>(Assert.Single(turn.Items).Payload);
-        Assert.True(payload.Success);
-        Assert.Equal("new binding", Assert.Single(payload.ContentItems!).Text);
-    }
-
-    [Fact]
-    public async Task RuntimeDynamicTool_ApprovalRejectionBlocksClientDispatch()
-    {
-        var proxy = new WireDynamicToolProxy();
-        var thread = CreateThread();
-        var turn = CreateTurn(thread.Id);
-        var transport = new RecordingTransport(new DynamicToolCallResult { Success = true });
-        var connection = new AppServerConnection();
-        var spec = CreateReviewToolSpec(new ChannelToolApprovalDescriptor
-        {
-            Kind = "remoteResource",
-            TargetArgument = "body",
-            Operation = "submitReviewDraft"
-        });
-
-        proxy.BindThread(thread.Id, transport, connection, [spec]);
-        var tool = Assert.IsAssignableFrom<AIFunction>(Assert.Single(proxy.CreateToolsForThread(thread, EmptyReservedNames())));
-
-        var seq = 0;
-        using var scope = PluginFunctionExecutionScope.Set(new PluginFunctionExecutionContext
-        {
-            ThreadId = thread.Id,
-            TurnId = turn.Id,
-            OriginChannel = "appserver",
-            WorkspacePath = Environment.CurrentDirectory,
-            RequireApprovalOutsideWorkspace = false,
-            ApprovalService = new RejectingApprovalService(),
-            Turn = turn,
-            NextItemSequence = () => ++seq,
-            EmitItemStarted = _ => { },
-            EmitItemCompleted = _ => { }
-        });
-
-        await tool.InvokeAsync(new AIFunctionArguments(new Dictionary<string, object?>
-        {
-            ["body"] = "Needs work."
-        }));
-
-        Assert.Null(transport.Method);
-        var payload = Assert.IsType<DynamicToolCallPayload>(Assert.Single(turn.Items).Payload);
-        Assert.False(payload.Success);
-        Assert.Equal("AccessDenied", payload.ErrorCode);
-    }
-
-    [Fact]
-    public async Task RuntimeDynamicTool_OptionalApprovalTargetMissing_DispatchesWithoutApproval()
-    {
-        var proxy = new WireDynamicToolProxy();
-        var thread = CreateThread();
-        var turn = CreateTurn(thread.Id);
-        var transport = new RecordingTransport(new DynamicToolCallResult
-        {
-            Success = true,
-            ContentItems = [new ExtChannelToolContentItem { Type = "text", Text = "done" }]
-        });
-        var connection = new AppServerConnection();
-        var spec = CreateOptionalApprovalToolSpec();
-
-        proxy.BindThread(thread.Id, transport, connection, [spec]);
-        var tool = Assert.IsAssignableFrom<AIFunction>(Assert.Single(proxy.CreateToolsForThread(thread, EmptyReservedNames())));
-
-        var seq = 0;
-        using var scope = PluginFunctionExecutionScope.Set(new PluginFunctionExecutionContext
-        {
-            ThreadId = thread.Id,
-            TurnId = turn.Id,
-            OriginChannel = "appserver",
-            WorkspacePath = Environment.CurrentDirectory,
-            RequireApprovalOutsideWorkspace = false,
-            ApprovalService = new RejectingApprovalService(),
-            Turn = turn,
-            NextItemSequence = () => ++seq,
-            EmitItemStarted = _ => { },
-            EmitItemCompleted = _ => { }
-        });
-
-        await tool.InvokeAsync(new AIFunctionArguments(new Dictionary<string, object?>
-        {
-            ["url"] = "https://example.test/report.pdf"
-        }));
-
-        Assert.Equal(AppServerMethods.ItemToolCall, transport.Method);
-        var payload = Assert.IsType<DynamicToolCallPayload>(Assert.Single(turn.Items).Payload);
-        Assert.True(payload.Success);
-    }
-
-    [Fact]
-    public async Task RuntimeDynamicTool_OptionalApprovalTargetPresent_BlocksClientDispatchWhenRejected()
-    {
-        var proxy = new WireDynamicToolProxy();
-        var thread = CreateThread();
-        var turn = CreateTurn(thread.Id);
-        var transport = new RecordingTransport(new DynamicToolCallResult { Success = true });
-        var connection = new AppServerConnection();
-        var spec = CreateOptionalApprovalToolSpec();
-
-        proxy.BindThread(thread.Id, transport, connection, [spec]);
-        var tool = Assert.IsAssignableFrom<AIFunction>(Assert.Single(proxy.CreateToolsForThread(thread, EmptyReservedNames())));
-
-        var seq = 0;
-        using var scope = PluginFunctionExecutionScope.Set(new PluginFunctionExecutionContext
-        {
-            ThreadId = thread.Id,
-            TurnId = turn.Id,
-            OriginChannel = "appserver",
-            WorkspacePath = Environment.CurrentDirectory,
-            RequireApprovalOutsideWorkspace = false,
-            ApprovalService = new RejectingApprovalService(),
-            Turn = turn,
-            NextItemSequence = () => ++seq,
-            EmitItemStarted = _ => { },
-            EmitItemCompleted = _ => { }
-        });
-
-        await tool.InvokeAsync(new AIFunctionArguments(new Dictionary<string, object?>
-        {
-            ["url"] = "https://example.test/report.pdf",
-            ["resource"] = "https://example.test/report.pdf"
-        }));
-
-        Assert.Null(transport.Method);
-        var payload = Assert.IsType<DynamicToolCallPayload>(Assert.Single(turn.Items).Payload);
-        Assert.False(payload.Success);
-        Assert.Equal("AccessDenied", payload.ErrorCode);
-    }
-
-    [Fact]
-    public async Task RuntimeDynamicTool_InterruptApprovalPolicyReturnsAccessDeniedWithoutCancellingTurn()
-    {
-        var proxy = new WireDynamicToolProxy();
-        var thread = CreateThread();
-        var turn = CreateTurn(thread.Id);
-        var transport = new RecordingTransport(new DynamicToolCallResult { Success = true });
-        var connection = new AppServerConnection();
-        var spec = CreateReviewToolSpec(new ChannelToolApprovalDescriptor
-        {
-            Kind = "remoteResource",
-            TargetArgument = "body",
-            Operation = "submitReviewDraft"
-        });
-
-        proxy.BindThread(thread.Id, transport, connection, [spec]);
-        var tool = Assert.IsAssignableFrom<AIFunction>(Assert.Single(proxy.CreateToolsForThread(thread, EmptyReservedNames())));
-
-        var seq = 0;
-        using var scope = PluginFunctionExecutionScope.Set(new PluginFunctionExecutionContext
-        {
-            ThreadId = thread.Id,
-            TurnId = turn.Id,
-            OriginChannel = "appserver",
-            WorkspacePath = Environment.CurrentDirectory,
-            RequireApprovalOutsideWorkspace = false,
-            ApprovalService = new InterruptOnApprovalService(),
-            Turn = turn,
-            NextItemSequence = () => ++seq,
-            EmitItemStarted = _ => { },
-            EmitItemCompleted = _ => { }
-        });
-
-        await tool.InvokeAsync(new AIFunctionArguments(new Dictionary<string, object?>
-        {
-            ["body"] = "Needs work."
-        }));
-
-        Assert.Null(transport.Method);
-        Assert.Equal(TurnStatus.Running, turn.Status);
-        var payload = Assert.IsType<DynamicToolCallPayload>(Assert.Single(turn.Items).Payload);
-        Assert.False(payload.Success);
-        Assert.Equal("AccessDenied", payload.ErrorCode);
-        Assert.Contains("rejected", payload.ErrorMessage, StringComparison.OrdinalIgnoreCase);
-    }
-
-    [Fact]
-    public async Task RuntimeDynamicTool_CarriesUiMetaToPayloadButHidesItFromModel()
-    {
-        var proxy = new WireDynamicToolProxy();
-        var thread = CreateThread();
-        var turn = CreateTurn(thread.Id);
-        var transport = new RecordingTransport(new DynamicToolCallResult
-        {
-            Success = true,
-            StructuredResult = JsonNode.Parse("""{"reviewId":"r1"}"""),
-            Meta = JsonNode.Parse("""{"ui":{"badge":"secret-ui-only"}}""")
-        });
-        var connection = new AppServerConnection();
-        var spec = CreateReviewToolSpec();
-
-        proxy.BindThread(thread.Id, transport, connection, [spec]);
-        var tool = Assert.IsAssignableFrom<AIFunction>(Assert.Single(proxy.CreateToolsForThread(thread, EmptyReservedNames())));
-
-        var seq = 0;
-        using var scope = PluginFunctionExecutionScope.Set(new PluginFunctionExecutionContext
-        {
-            ThreadId = thread.Id,
-            TurnId = turn.Id,
-            OriginChannel = "appserver",
-            WorkspacePath = Environment.CurrentDirectory,
-            RequireApprovalOutsideWorkspace = false,
-            ApprovalService = new AutoApproveApprovalService(),
-            Turn = turn,
-            NextItemSequence = () => ++seq,
-            EmitItemStarted = _ => { },
-            EmitItemCompleted = _ => { }
-        });
-
-        var modelValue = await tool.InvokeAsync(new AIFunctionArguments(new Dictionary<string, object?>
-        {
-            ["body"] = "Looks good."
-        }));
-
-        // _meta is carried on the stored item (host/UI surface)…
-        var payload = Assert.IsType<DynamicToolCallPayload>(Assert.Single(turn.Items).Payload);
-        Assert.Equal("secret-ui-only", payload.Meta?["ui"]?["badge"]?.GetValue<string>());
-
-        // …but never leaks into the model-visible value.
-        var modelJson = JsonSerializer.Serialize(modelValue, SessionWireJsonOptions.Default);
-        Assert.DoesNotContain("secret-ui-only", modelJson, StringComparison.Ordinal);
-        Assert.DoesNotContain("_meta", modelJson, StringComparison.Ordinal);
-        Assert.Contains("r1", modelJson, StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public void CreateToolsForThread_ExcludesAppOnlyTools()
-    {
-        var proxy = new WireDynamicToolProxy();
-        var thread = CreateThread();
-        var modelTool = CreateReviewToolSpec();
-        modelTool.Meta = new DynamicToolMeta
-        {
-            Ui = new UiToolMeta
-            {
-                ResourceUri = "ui://workflow/board",
-                Visibility = ["model", "app"]
-            }
-        };
-        var appOnlyTool = new DynamicToolSpec
-        {
-            Name = "RefreshBoard",
-            Description = "Refresh the board (UI-only)",
-            InputSchema = new JsonObject { ["type"] = "object" },
-            Meta = new DynamicToolMeta
-            {
-                Ui = new UiToolMeta
+            ContentItems =
+            [
+                new RuntimeDynamicToolContentItem { Type = "text", Text = "captured" },
+                new RuntimeDynamicToolContentItem
                 {
-                    ResourceUri = "ui://workflow/board",
-                    Visibility = ["app"]
+                    Type = "image",
+                    MediaType = "image/png",
+                    DataBase64 = Convert.ToBase64String(imageBytes)
                 }
-            }
-        };
+            ]
+        });
+        proxy.BindThread("thread_test", transport, new AppServerConnection(), [CreateReviewToolSpec()]);
+        var snapshot = await BuildSnapshotAsync(proxy);
 
-        proxy.BindThread(thread.Id, new RecordingTransport(new DynamicToolCallResult { Success = true }), new AppServerConnection(), [modelTool, appOnlyTool]);
+        var result = await new ToolDispatcher().DispatchAsync(
+            snapshot,
+            new ToolName(null, "SubmitReviewDraft"),
+            new JsonObject { ["body"] = "capture" },
+            new ToolInvocationRequest("thread_test", "turn_001", "call_image", ToolInvocationAudience.Model));
 
-        var tools = proxy.CreateToolsForThread(thread, EmptyReservedNames());
-        var tool = Assert.IsAssignableFrom<AIFunction>(Assert.Single(tools));
-        Assert.Equal("SubmitReviewDraft", tool.Name);
+        Assert.True(result.Success);
+        var contentItems = Assert.IsAssignableFrom<IReadOnlyList<AIContent>>(result.ContentItems);
+        Assert.Equal("captured", Assert.IsType<TextContent>(contentItems[0]).Text);
+        var image = Assert.IsType<DataContent>(contentItems[1]);
+        Assert.Equal("image/png", image.MediaType);
+        Assert.Equal(imageBytes, image.Data.ToArray());
     }
 
     [Fact]
-    public void TryValidateSpecs_RejectsInvalidApprovalMetadata()
+    public async Task Replacement_InvalidatesOldSnapshotLeaseAndUsesNewOwnerGeneration()
     {
-        var spec = CreateReviewToolSpec(new ChannelToolApprovalDescriptor
+        var proxy = new WireDynamicToolProxy();
+        var oldTransport = SuccessTransport("old");
+        var newTransport = SuccessTransport("new");
+        proxy.BindThread("thread_test", oldTransport, new AppServerConnection(), [CreateReviewToolSpec()]);
+        var oldSnapshot = await BuildSnapshotAsync(proxy);
+        proxy.BindThread("thread_test", newTransport, new AppServerConnection(), [CreateReviewToolSpec()]);
+        var newSnapshot = await BuildSnapshotAsync(proxy, revision: 2);
+        var toolName = new ToolName(null, "SubmitReviewDraft");
+        var request = new ToolInvocationRequest(
+            "thread_test", "turn_001", "call_replace", ToolInvocationAudience.Model);
+
+        var staleResult = await new ToolDispatcher().DispatchAsync(
+            oldSnapshot, toolName, new JsonObject { ["body"] = "old" }, request);
+        var currentResult = await new ToolDispatcher().DispatchAsync(
+            newSnapshot, toolName, new JsonObject { ["body"] = "new" }, request);
+
+        Assert.False(staleResult.Success);
+        Assert.Equal(ToolErrorCodes.DynamicDisconnected, staleResult.Error?.Code);
+        Assert.Null(oldTransport.Method);
+        Assert.True(currentResult.Success);
+        Assert.Equal("new", currentResult.Content);
+        Assert.Equal(AppServerMethods.ItemToolCall, newTransport.Method);
+    }
+
+    [Fact]
+    public async Task NullIsNoChangeAndEmptyClearsOnlyOwningConnection()
+    {
+        var proxy = new WireDynamicToolProxy();
+        var owner = new AppServerConnection();
+        var other = new AppServerConnection();
+        var transport = SuccessTransport("ok");
+        proxy.BindThread("thread_test", transport, owner, [CreateReviewToolSpec()]);
+
+        proxy.BindThread("thread_test", transport, other, null);
+        Assert.Single((await BuildSnapshotAsync(proxy)).Registrations);
+        proxy.BindThread("thread_test", transport, other, []);
+        Assert.Single((await BuildSnapshotAsync(proxy)).Registrations);
+        proxy.BindThread("thread_test", transport, owner, []);
+        Assert.Empty((await BuildSnapshotAsync(proxy)).Registrations);
+    }
+
+    [Fact]
+    public async Task DisconnectImmediatelyBlocksFrozenSnapshot()
+    {
+        var proxy = new WireDynamicToolProxy();
+        var transport = SuccessTransport("ok");
+        var connection = new AppServerConnection();
+        proxy.BindThread("thread_test", transport, connection, [CreateReviewToolSpec()]);
+        var snapshot = await BuildSnapshotAsync(proxy);
+        connection.MarkClosed();
+
+        var result = await new ToolDispatcher().DispatchAsync(
+            snapshot,
+            new ToolName(null, "SubmitReviewDraft"),
+            new JsonObject { ["body"] = "test" },
+            new ToolInvocationRequest(
+                "thread_test", "turn_001", "call_disconnect", ToolInvocationAudience.Model));
+
+        Assert.False(result.Success);
+        Assert.Equal(ToolErrorCodes.DynamicDisconnected, result.Error?.Code);
+        Assert.Null(transport.Method);
+    }
+
+    [Fact]
+    public async Task ApprovalHintIsHandledByCommonDispatcherBeforeCallback()
+    {
+        var proxy = new WireDynamicToolProxy();
+        var transport = SuccessTransport("unexpected");
+        proxy.BindThread(
+            "thread_test",
+            transport,
+            new AppServerConnection(),
+            [CreateReviewToolSpec(new ChannelToolApprovalDescriptor
+            {
+                Kind = "remoteResource",
+                TargetArgument = "body",
+                Operation = "submitReviewDraft"
+            })]);
+        var snapshot = await BuildSnapshotAsync(proxy);
+
+        var result = await new ToolDispatcher().DispatchAsync(
+            snapshot,
+            new ToolName(null, "SubmitReviewDraft"),
+            new JsonObject { ["body"] = "Needs work." },
+            new ToolInvocationRequest(
+                "thread_test", "turn_001", "call_approval", ToolInvocationAudience.Model));
+
+        Assert.False(result.Success);
+        Assert.Equal(ToolErrorCodes.ApprovalRejected, result.Error?.Code);
+        Assert.Null(transport.Method);
+    }
+
+    [Fact]
+    public async Task InvalidCallbackResultMapsToStableProtocolError()
+    {
+        var proxy = new WireDynamicToolProxy();
+        var transport = new RecordingTransport(new RuntimeDynamicToolCallResult
+        {
+            Success = true,
+            StructuredContent = new JsonObject { ["only"] = "structured" }
+        });
+        proxy.BindThread("thread_test", transport, new AppServerConnection(), [CreateReviewToolSpec()]);
+        var snapshot = await BuildSnapshotAsync(proxy);
+
+        var result = await new ToolDispatcher().DispatchAsync(
+            snapshot,
+            new ToolName(null, "SubmitReviewDraft"),
+            new JsonObject { ["body"] = "test" },
+            new ToolInvocationRequest(
+                "thread_test", "turn_001", "call_invalid", ToolInvocationAudience.Model));
+
+        Assert.False(result.Success);
+        Assert.Equal(ToolErrorCodes.ResultInvalid, result.Error?.Code);
+    }
+
+    [Fact]
+    public async Task NamespacedDeclarationsAllowSameLocalNameAndDeferredDiscovery()
+    {
+        RuntimeDynamicToolNamespace CreateNamespace(string name, bool deferred) => new()
+        {
+            Name = name,
+            Description = $"{name} tools.",
+            Tools =
+            [
+                new RuntimeDynamicToolFunction
+                {
+                    Name = "RefreshBoard",
+                    Description = "Refresh the board.",
+                    InputSchema = new JsonObject { ["type"] = "object" },
+                    DeferLoading = deferred
+                }
+            ]
+        };
+        var declarations = new RuntimeDynamicToolDeclaration[]
+        {
+            CreateNamespace("desktop", false),
+            CreateNamespace("sampleboard", true)
+        };
+        Assert.True(WireDynamicToolProxy.TryValidateSpecs(declarations, out var message), message);
+        var proxy = new WireDynamicToolProxy();
+        proxy.BindThread("thread_test", SuccessTransport("ok"), new AppServerConnection(), declarations);
+
+        var snapshot = await BuildSnapshotAsync(proxy);
+
+        Assert.Equal(2, snapshot.Registrations.Count);
+        Assert.Equal(ToolExposure.Direct, snapshot.Registrations[new ToolName("desktop", "RefreshBoard")].Exposure);
+        var deferred = snapshot.Registrations[new ToolName("sampleboard", "RefreshBoard")];
+        Assert.Equal(ToolExposure.Deferred, deferred.Exposure);
+        Assert.Equal("sampleboard tools.", deferred.Definition.NamespaceDescription);
+        Assert.Equal("sampleboard tools.", deferred.Deferred?.NamespaceDescription);
+    }
+
+    [Fact]
+    public void ValidationRejectsDeferredTopLevelAndInvalidApprovalMetadata()
+    {
+        var deferred = CreateReviewToolSpec();
+        deferred.DeferLoading = true;
+        Assert.False(WireDynamicToolProxy.TryValidateSpecs([deferred], out var deferredMessage));
+        Assert.Contains("cannot set deferLoading=true", deferredMessage, StringComparison.Ordinal);
+
+        var invalidApproval = CreateReviewToolSpec(new ChannelToolApprovalDescriptor
         {
             Kind = "remoteResource",
             TargetArgument = "missing",
             Operation = "submitReviewDraft"
         });
-
-        Assert.False(WireDynamicToolProxy.TryValidateSpecs([spec], out var message));
-        Assert.Contains("approval references unknown property 'missing'", message);
+        Assert.False(WireDynamicToolProxy.TryValidateSpecs([invalidApproval], out var approvalMessage));
+        Assert.Contains("approval references unknown property 'missing'", approvalMessage);
     }
 
-    private static SessionThread CreateThread()
-        => new()
-        {
-            Id = "thread_test",
-            WorkspacePath = Environment.CurrentDirectory,
-            OriginChannel = "appserver",
-            Status = ThreadStatus.Active,
-            CreatedAt = DateTimeOffset.UtcNow,
-            LastActiveAt = DateTimeOffset.UtcNow,
-            Configuration = new ThreadConfiguration()
-        };
+    [Fact]
+    public async Task InvalidReplacementIsAtomicAndKeepsPreviousBinding()
+    {
+        var proxy = new WireDynamicToolProxy();
+        var transport = SuccessTransport("old binding");
+        var owner = new AppServerConnection();
+        proxy.BindThread("thread_test", transport, owner, [CreateReviewToolSpec()]);
+        var invalid = CreateReviewToolSpec();
+        invalid.Description = string.Empty;
 
-    private static IReadOnlySet<string> EmptyReservedNames()
-        => new HashSet<string>(StringComparer.Ordinal);
+        Assert.Throws<ArgumentException>(() =>
+            proxy.BindThread(
+                "thread_test",
+                SuccessTransport("invalid replacement"),
+                new AppServerConnection(),
+                [invalid]));
 
-    private static SessionTurn CreateTurn(string threadId)
-        => new()
-        {
-            Id = "turn_001",
-            ThreadId = threadId,
-            Status = TurnStatus.Running,
-            StartedAt = DateTimeOffset.UtcNow
-        };
+        var snapshot = await BuildSnapshotAsync(proxy);
+        var result = await new ToolDispatcher().DispatchAsync(
+            snapshot,
+            new ToolName(null, "SubmitReviewDraft"),
+            new JsonObject { ["body"] = "still old" },
+            new ToolInvocationRequest(
+                "thread_test", "turn_001", "call_atomic", ToolInvocationAudience.Model));
+        Assert.True(result.Success);
+        Assert.Equal("old binding", result.Content);
+    }
 
-    private static DynamicToolSpec CreateReviewToolSpec(ChannelToolApprovalDescriptor? approval = null)
-        => new()
+    private static async Task<EffectiveToolSnapshot> BuildSnapshotAsync(
+        WireDynamicToolProxy proxy,
+        long revision = 1) =>
+        await new EffectiveToolSnapshotBuilder().BuildAsync(
+            [proxy],
+            new ToolPlanningContext(
+                "thread_test",
+                "turn_001",
+                Environment.CurrentDirectory,
+                "default",
+                null,
+                [],
+                revision));
+
+    private static RuntimeDynamicToolFunction CreateReviewToolSpec(
+        ChannelToolApprovalDescriptor? approval = null) =>
+        new()
         {
             Name = "SubmitReviewDraft",
             Description = "Submit a structured code review draft",
@@ -431,41 +308,28 @@ public sealed class WireDynamicToolProxyTests
             Approval = approval
         };
 
-    private static DynamicToolSpec CreateOptionalApprovalToolSpec()
-        => new()
+    private static RecordingTransport SuccessTransport(
+        string text,
+        JsonNode? structuredContent = null) =>
+        new(new RuntimeDynamicToolCallResult
         {
-            Name = "SendRemoteReport",
-            Description = "Send a report from either a URL or an approval-gated resource.",
-            InputSchema = new JsonObject
-            {
-                ["type"] = "object",
-                ["properties"] = new JsonObject
-                {
-                    ["url"] = new JsonObject { ["type"] = "string" },
-                    ["resource"] = new JsonObject { ["type"] = "string" }
-                }
-            },
-            Approval = new ChannelToolApprovalDescriptor
-            {
-                Kind = "remoteResource",
-                TargetArgument = "resource",
-                Operation = "fetch"
-            }
-        };
+            Success = true,
+            ContentItems = [new RuntimeDynamicToolContentItem { Type = "text", Text = text }],
+            StructuredContent = structuredContent
+        });
 
     private sealed class RecordingTransport(object result) : IAppServerTransport
     {
         public string? Method { get; private set; }
-
         public object? Params { get; private set; }
 
         public ValueTask DisposeAsync() => ValueTask.CompletedTask;
 
-        public Task<AppServerIncomingMessage?> ReadMessageAsync(CancellationToken ct = default)
-            => Task.FromResult<AppServerIncomingMessage?>(null);
+        public Task<AppServerIncomingMessage?> ReadMessageAsync(CancellationToken ct = default) =>
+            Task.FromResult<AppServerIncomingMessage?>(null);
 
-        public Task WriteMessageAsync(object message, CancellationToken ct = default)
-            => Task.CompletedTask;
+        public Task WriteMessageAsync(object message, CancellationToken ct = default) =>
+            Task.CompletedTask;
 
         public Task<AppServerIncomingMessage> SendClientRequestAsync(
             string method,
@@ -481,21 +345,5 @@ public sealed class WireDynamicToolProxyTests
                 Result = JsonSerializer.SerializeToElement(result, SessionWireJsonOptions.Default)
             });
         }
-    }
-
-    private sealed class RejectingApprovalService : IApprovalService
-    {
-        public Task<bool> RequestFileApprovalAsync(string operation, string path, ApprovalContext? context = null)
-            => Task.FromResult(false);
-
-        public Task<bool> RequestShellApprovalAsync(string command, string? workingDir, ApprovalContext? context = null)
-            => Task.FromResult(false);
-
-        public Task<bool> RequestResourceApprovalAsync(
-            string kind,
-            string operation,
-            string target,
-            ApprovalContext? context = null)
-            => Task.FromResult(false);
     }
 }

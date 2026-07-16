@@ -261,25 +261,22 @@ test("FeishuAdapter accepts social bind codes for group context", async () => {
   };
   adapter.client.request = async (method, params) => {
     requests.push({ method, params });
-    if (method === "app/binding/request/get") {
+    if (method === "app/socialBinding/request/get") {
       return {
         bindingRequestId: "request-1",
         appId: "com.dotharness.channel.feishu",
         threadId: "thread-1",
         bindingKind: "socialChannel",
-        requestedScopes: ["conversation.receive", "message.send"],
       };
     }
-    if (method === "app/binding/accept") {
+    if (method === "app/socialBinding/accept") {
       return {
-        binding: {
           bindingId: "binding-1",
           appId: "com.dotharness.channel.feishu",
           threadId: "thread-1",
           state: "active",
-          bindingKind: "socialChannel",
-          socialTarget: params.socialTarget,
-        },
+          authorityRevision: 1,
+          socialTarget: params.target,
       };
     }
     throw new Error(`unexpected request ${method}`);
@@ -302,15 +299,11 @@ test("FeishuAdapter accepts social bind codes for group context", async () => {
   });
 
   assert.deepEqual(requests[0], {
-    method: "app/binding/request/get",
-    params: {
-      appId: "com.dotharness.channel.feishu",
-      bindCode: "482913",
-      requestToken: "482913",
-    },
+    method: "app/socialBinding/request/get",
+    params: { code: "482913" },
   });
-  assert.equal(requests[1]?.method, "app/binding/accept");
-  assert.deepEqual(requests[1]?.params.socialTarget, {
+  assert.equal(requests[1]?.method, "app/socialBinding/accept");
+  assert.deepEqual(requests[1]?.params.target, {
     channelName: "feishu",
     conversationKind: "group",
     conversationId: "oc_group_1",
@@ -321,9 +314,6 @@ test("FeishuAdapter accepts social bind codes for group context", async () => {
       displayName: "Alice",
     },
   });
-  assert.equal(requests[1]?.params.grantId, "social:feishu::group:oc_group_1");
-  assert.equal(requests[1]?.params.approvedBy, "ou_user_1");
-  assert.equal(requests[1]?.params.auditRef, "channel:feishu:group:oc_group_1");
   assert.deepEqual(deliveries, [
     {
       target: "group:oc_group_1",
@@ -331,7 +321,7 @@ test("FeishuAdapter accepts social bind codes for group context", async () => {
       metadata: {
         appId: "com.dotharness.channel.feishu",
         bindingId: "binding-1",
-        bindingKind: "socialChannel",
+        authorityRevision: 1,
       },
     },
   ]);

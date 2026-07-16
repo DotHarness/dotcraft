@@ -11,8 +11,8 @@ import type { FileDiff } from '../types/toolCall'
 
 const appServerSendRequest = vi.fn()
 
-function renderWithLocale(node: JSX.Element): void {
-  render(<LocaleProvider>{node}</LocaleProvider>)
+function renderWithLocale(node: JSX.Element): ReturnType<typeof render> {
+  return render(<LocaleProvider>{node}</LocaleProvider>)
 }
 
 function makeRunningTurn(): ReturnType<typeof useConversationStore.getState>['turns'][number] {
@@ -96,6 +96,8 @@ function completedToolTurn(
         status: 'completed',
         toolCallId: `${id}-tool-call`,
         toolName: 'ReadFile',
+            source: { kind: 'CoreNative', sourceId: 'core-native', sourceToolId: 'ReadFile' },
+            presentation: { presentationId: 'core.read-file' },
         arguments: { path: toolPath },
         result: 'ok',
         success: true,
@@ -375,6 +377,8 @@ describe('MessageStream plan-accept sentinel filtering', () => {
               status: 'completed',
               toolCallId: 'turn-1-write-call',
               toolName: 'WriteFile',
+            source: { kind: 'CoreNative', sourceId: 'core-native', sourceToolId: 'WriteFile' },
+            presentation: { presentationId: 'core.file-write', options: { operation: 'write' } },
               arguments: { path: 'docs/old-artifact.md', content: 'new\n' },
               result: 'Wrote docs/old-artifact.md',
               success: true,
@@ -444,6 +448,8 @@ describe('MessageStream plan-accept sentinel filtering', () => {
                 status: 'completed',
                 toolCallId: `${activeTurnId}-tool-call`,
                 toolName: 'ReadFile',
+            source: { kind: 'CoreNative', sourceId: 'core-native', sourceToolId: 'ReadFile' },
+            presentation: { presentationId: 'core.read-file' },
                 arguments: { path: `src/active-${status}.ts` },
                 result: 'ok',
                 success: true,
@@ -460,11 +466,7 @@ describe('MessageStream plan-accept sentinel filtering', () => {
         turnStartedAt: Date.now()
       })
 
-      const { unmount } = render(
-        <LocaleProvider>
-          <MessageStream />
-        </LocaleProvider>
-      )
+      const { unmount } = renderWithLocale(<MessageStream />)
 
       expect(screen.getByText(`Read active-${status}.ts`)).toBeInTheDocument()
       unmount()
@@ -538,7 +540,22 @@ describe('MessageStream plan-accept sentinel filtering', () => {
   it('keeps running tool auto-scroll stable under StrictMode streaming updates', () => {
     const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {})
     useConversationStore.setState({
-      turns: [makeRunningTurn()],
+      turns: [{
+        ...makeRunningTurn(),
+        items: [
+          ...makeRunningTurn().items,
+          {
+            id: 'tool-1',
+            type: 'toolCall',
+            status: 'streaming',
+            toolName: 'WebFetch',
+            source: { kind: 'CoreNative', sourceId: 'core-native', sourceToolId: 'WebFetch' },
+            presentation: { presentationId: 'core.web', options: { operation: 'fetch' } },
+            toolCallId: 'webfetch-1',
+            createdAt: new Date().toISOString()
+          }
+        ]
+      }],
       turnStatus: 'running',
       activeTurnId: 'turn-1',
       turnStartedAt: Date.now()
@@ -562,6 +579,8 @@ describe('MessageStream plan-accept sentinel filtering', () => {
         turnId: 'turn-1',
         itemId: 'tool-1',
         toolName: 'WebFetch',
+            source: { kind: 'CoreNative', sourceId: 'core-native', sourceToolId: 'WebFetch' },
+            presentation: { presentationId: 'core.web', options: { operation: 'fetch' } },
         callId: 'webfetch-1',
         delta: '{"url":"https://dotcraft.ai"'
       })
@@ -667,6 +686,8 @@ describe('MessageStream plan-accept sentinel filtering', () => {
             type: 'toolCall',
             status: 'completed',
             toolName: 'RequestUserInput',
+            source: { kind: 'CoreNative', sourceId: 'core-native', sourceToolId: 'RequestUserInput' },
+            presentation: { presentationId: 'core.request-user-input' },
             toolCallId: 'call-question',
             arguments: {
               questions: [

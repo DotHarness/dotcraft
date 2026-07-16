@@ -397,7 +397,7 @@ export class TelegramMediaTools {
           text: `Sent ${noun} '${prepared.fileName ?? "attachment"}' to the current Telegram chat.`,
         },
       ],
-      structuredResult: {
+      structuredContent: {
         delivered: true,
         messageId,
         mediaId,

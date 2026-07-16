@@ -34,6 +34,8 @@ internal static class McpWireMapper
         ResourceTemplateCount = status.ResourceTemplateCount,
         LastError = status.LastError,
         Transport = status.Transport,
+        AuthStatus = status.AuthStatus,
+        FailureReason = status.FailureReason,
         Origin = ToWire(status.Origin),
         ReadOnly = status.ReadOnly
     };
@@ -92,13 +94,15 @@ internal static class McpWireMapper
         }
     }
 
-    private static McpServerOriginWire ToWire(McpServerOrigin origin) =>
+    internal static McpServerOriginWire ToWire(McpServerOrigin origin) =>
         new()
         {
-            Kind = origin.IsPlugin ? "plugin" : "workspace",
+            Kind = string.IsNullOrWhiteSpace(origin.Kind) ? "workspace" : origin.Kind,
             PluginId = origin.PluginId,
             PluginDisplayName = origin.PluginDisplayName,
-            DeclaredName = origin.DeclaredName
+            DeclaredName = origin.DeclaredName,
+            ThreadId = origin.ThreadId,
+            BindingId = origin.BindingId
         };
 
     private static string NormalizeTransport(string? transport) =>

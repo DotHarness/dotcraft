@@ -192,8 +192,11 @@ public sealed class AcpBridgePipeIntegrationTests
 
             var threadStartParams = await capturedThreadStart.Task.WaitAsync(TimeSpan.FromSeconds(10));
             var dynamicTools = threadStartParams.GetProperty("dynamicTools");
-            var tool = Assert.Single(dynamicTools.EnumerateArray());
-            Assert.Equal("unity", tool.GetProperty("namespace").GetString());
+            var toolNamespace = Assert.Single(dynamicTools.EnumerateArray());
+            Assert.Equal("namespace", toolNamespace.GetProperty("type").GetString());
+            Assert.Equal("unity", toolNamespace.GetProperty("name").GetString());
+            var tool = Assert.Single(toolNamespace.GetProperty("tools").EnumerateArray());
+            Assert.Equal("function", tool.GetProperty("type").GetString());
             Assert.Equal("unity_scene_query", tool.GetProperty("name").GetString());
             Assert.Equal("Query Unity scene hierarchy.", tool.GetProperty("description").GetString());
             Assert.True(tool.GetProperty("deferLoading").GetBoolean());

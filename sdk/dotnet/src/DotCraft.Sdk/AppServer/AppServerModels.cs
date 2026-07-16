@@ -111,7 +111,7 @@ public sealed record AppServerServerCapabilities(
     bool ThreadSubscriptions,
     bool DynamicToolRebind,
     bool RuntimeAdditionalContext,
-    bool AppBinding,
+    int AppBindingVersion,
     bool ModelCatalogManagement,
     JsonElement Raw);
 
@@ -137,7 +137,7 @@ public sealed record DotCraftThreadStartRequest(
     string? DisplayName = null,
     string HistoryMode = "server",
     object? Config = null,
-    IReadOnlyList<DynamicToolSpec>? DynamicTools = null,
+    IReadOnlyList<RuntimeDynamicToolDeclaration>? DynamicTools = null,
     IReadOnlyDictionary<string, RuntimeAdditionalContextEntry>? AdditionalContext = null);
 
 /// <summary>
@@ -145,7 +145,7 @@ public sealed record DotCraftThreadStartRequest(
 /// </summary>
 public sealed record DotCraftThreadResumeRequest(
     string ThreadId,
-    IReadOnlyList<DynamicToolSpec>? DynamicTools = null,
+    IReadOnlyList<RuntimeDynamicToolDeclaration>? DynamicTools = null,
     IReadOnlyDictionary<string, RuntimeAdditionalContextEntry>? AdditionalContext = null);
 
 /// <summary>
@@ -190,17 +190,120 @@ public sealed record DotCraftTurnEnqueueResult(string? QueuedInputId, JsonElemen
 /// </summary>
 public sealed record ModelInfo(string Id, string DisplayName, string? Provider);
 
+/// <summary>Safe provenance for an effective MCP runtime server.</summary>
+public sealed record McpServerOrigin(
+    string Kind,
+    string? PluginId = null,
+    string? PluginDisplayName = null,
+    string? DeclaredName = null,
+    string? ThreadId = null,
+    string? BindingId = null);
+
+/// <summary>One source-aware MCP runtime status entry.</summary>
+public sealed record McpServerRuntimeStatus(
+    string Name,
+    JsonElement? ServerInfo,
+    IReadOnlyDictionary<string, JsonElement> Tools,
+    IReadOnlyList<JsonElement> Resources,
+    IReadOnlyList<JsonElement> ResourceTemplates,
+    string AuthStatus,
+    string? DeclaredName = null,
+    string? RuntimeName = null,
+    McpServerOrigin? Origin = null);
+
+public sealed record McpServerStatusListParams(
+    string? ThreadId = null,
+    string? Cursor = null,
+    int? Limit = null,
+    string? Detail = null);
+
+public sealed record McpServerStatusListResult(
+    IReadOnlyList<McpServerRuntimeStatus> Data,
+    string? NextCursor = null);
+
+public sealed record McpServerResourceReadParams(string Server, string Uri, string? ThreadId = null);
+public sealed record McpServerResourceReadResult(JsonElement Contents);
+
+public sealed record McpServerToolCallParams(
+    string ThreadId,
+    string Server,
+    string Tool,
+    IReadOnlyDictionary<string, object?>? Arguments = null,
+    [property: JsonPropertyName("_meta")] JsonElement? Meta = null);
+
+public sealed record McpServerToolCallResult(
+    JsonElement Content,
+    JsonElement? StructuredContent = null,
+    bool IsError = false,
+    [property: JsonPropertyName("_meta")] JsonElement? Meta = null);
+
+public sealed record McpServerOAuthLoginParams(
+    string Name,
+    string? ThreadId = null,
+    IReadOnlyList<string>? Scopes = null,
+    double? TimeoutSecs = null);
+
+public sealed record McpServerOAuthLoginResult(string AuthorizationUrl);
+public sealed record McpServerReloadResult;
+
+public sealed record McpServerStartupStatusUpdatedNotification(
+    string Name,
+    string Status,
+    string? ThreadId = null,
+    string? Error = null,
+    string? FailureReason = null);
+
+public sealed record McpServerOAuthLoginCompletedNotification(
+    string Name,
+    bool Success,
+    string? ThreadId = null,
+    string? Error = null);
+
+public sealed record McpServerElicitationRequest(
+    string ServerName,
+    string Mode,
+    string? ThreadId = null,
+    string? TurnId = null,
+    string? ElicitationId = null,
+    string? Message = null,
+    string? Url = null,
+    JsonElement? RequestedSchema = null,
+    [property: JsonPropertyName("_meta")] JsonElement? Meta = null);
+
+public sealed record McpServerElicitationResponse(
+    string Action,
+    IReadOnlyDictionary<string, object?>? Content = null,
+    [property: JsonPropertyName("_meta")] JsonElement? Meta = null);
+
 /// <summary>
-/// Runtime dynamic tool declaration.
+/// Base type for a Runtime Dynamic Tool Function/Namespace declaration.
 /// </summary>
-public sealed record DynamicToolSpec(
-    string? Namespace,
+[JsonPolymorphic(TypeDiscriminatorPropertyName = "type")]
+[JsonDerivedType(typeof(RuntimeDynamicToolFunction), "function")]
+[JsonDerivedType(typeof(RuntimeDynamicToolNamespace), "namespace")]
+public abstract record RuntimeDynamicToolDeclaration(
+    string Name,
+    string Description);
+
+/// <summary>
+/// A Runtime Dynamic Function. A top-level function has no namespace.
+/// </summary>
+public sealed record RuntimeDynamicToolFunction(
     string Name,
     string Description,
     JsonElement InputSchema,
     bool DeferLoading = false,
-    ToolApprovalDescriptor? Approval = null,
-    [property: JsonPropertyName("_meta")] DynamicToolMeta? Meta = null);
+    ToolApprovalDescriptor? Approval = null)
+    : RuntimeDynamicToolDeclaration(Name, Description);
+
+/// <summary>
+/// A Runtime Dynamic Namespace containing one or more functions.
+/// </summary>
+public sealed record RuntimeDynamicToolNamespace(
+    string Name,
+    string Description,
+    IReadOnlyList<RuntimeDynamicToolDeclaration> Tools)
+    : RuntimeDynamicToolDeclaration(Name, Description);
 
 /// <summary>
 /// Approval metadata for a runtime dynamic tool.
@@ -210,31 +313,6 @@ public sealed record ToolApprovalDescriptor(
     string TargetArgument,
     string? Operation = null,
     string? OperationArgument = null);
-
-/// <summary>
-/// Extensible <c>_meta</c> envelope on a dynamic tool spec (MCP Apps).
-/// </summary>
-public sealed record DynamicToolMeta(
-    [property: JsonPropertyName("ui")] DynamicToolUiMeta? Ui = null);
-
-/// <summary>
-/// Interactive Tool UI descriptor (<c>_meta.ui</c>), aligned to MCP Apps / SEP-1865.
-/// </summary>
-public sealed record DynamicToolUiMeta(
-    [property: JsonPropertyName("resourceUri")] string ResourceUri,
-    [property: JsonPropertyName("visibility")] IReadOnlyList<string>? Visibility = null,
-    [property: JsonPropertyName("csp")] DynamicToolUiCsp? Csp = null,
-    [property: JsonPropertyName("permissions")] IReadOnlyList<string>? Permissions = null,
-    [property: JsonPropertyName("prefersBorder")] bool? PrefersBorder = null,
-    [property: JsonPropertyName("domain")] string? Domain = null);
-
-/// <summary>
-/// Content-Security-Policy allowances for an Interactive Tool UI iframe.
-/// </summary>
-public sealed record DynamicToolUiCsp(
-    [property: JsonPropertyName("connectDomains")] IReadOnlyList<string>? ConnectDomains = null,
-    [property: JsonPropertyName("resourceDomains")] IReadOnlyList<string>? ResourceDomains = null,
-    [property: JsonPropertyName("frameDomains")] IReadOnlyList<string>? FrameDomains = null);
 
 /// <summary>
 /// Runtime dynamic tool call sent from AppServer to the SDK client.
@@ -253,34 +331,19 @@ public sealed record DynamicToolCall(
 public sealed record DynamicToolResult(
     bool Success,
     IReadOnlyList<ToolContentItem>? ContentItems = null,
-    object? StructuredResult = null,
+    object? StructuredContent = null,
     string? ErrorCode = null,
-    string? ErrorMessage = null,
-    [property: JsonPropertyName("_meta")] object? Meta = null);
+    string? ErrorMessage = null);
 
 /// <summary>
 /// Text or media content returned from a runtime dynamic tool.
 /// </summary>
-public sealed record ToolContentItem(string Type, string? Text = null);
-
-/// <summary>
-/// Request to read a <c>ui://</c> Interactive Tool UI resource (MCP Apps), brokered from the host.
-/// </summary>
-public sealed record ResourceReadRequest(string ThreadId, string? Namespace, string Uri);
-
-/// <summary>
-/// A single <c>ui://</c> resource entry returned by the app.
-/// </summary>
-public sealed record ResourceContent(
-    [property: JsonPropertyName("uri")] string Uri,
-    [property: JsonPropertyName("mimeType")] string? MimeType = null,
-    [property: JsonPropertyName("text")] string? Text = null);
-
-/// <summary>
-/// Result of a <c>ui://</c> resource read; aligned to MCP <c>resources/read</c>.
-/// </summary>
-public sealed record ResourceReadResult(
-    [property: JsonPropertyName("contents")] IReadOnlyList<ResourceContent> Contents);
+public sealed record ToolContentItem(
+    string Type,
+    string? Text = null,
+    string? MediaType = null,
+    string? Url = null,
+    string? DataBase64 = null);
 
 internal static class JsonElementReaders
 {

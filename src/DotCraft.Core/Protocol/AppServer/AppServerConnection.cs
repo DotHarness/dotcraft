@@ -16,12 +16,15 @@ public sealed class AppServerConnection
     private AppServerClientInfo? _clientInfo;
     private AppServerClientCapabilities? _clientCapabilities;
     private HashSet<string>? _optOutMethods;
+    private string? _appPrincipalId;
+    private string? _appPrincipalAppId;
 
     // Active passive thread subscriptions: threadId → CancellationTokenSource
     private readonly ConcurrentDictionary<string, CancellationTokenSource> _subscriptions = new();
 
     // Logical interactive requests already delivered on this connection.
     private readonly ConcurrentDictionary<InteractiveRequestKey, byte> _interactiveRequests = new();
+    internal event Action<string>? McpAppThreadEligibilityRevoked;
 
     // -------------------------------------------------------------------------
     // Initialization state
@@ -59,6 +62,9 @@ public sealed class AppServerConnection
     /// <summary>True when the client declared Interactive Tool UI support during <c>initialize</c>.</summary>
     public bool SupportsInteractiveToolUi => _clientCapabilities?.InteractiveToolUi == true;
 
+    /// <summary>True when the client declared stable MCP Apps host support.</summary>
+    public bool SupportsMcpApps => _clientCapabilities?.McpApps == true;
+
     // -------------------------------------------------------------------------
     // Channel adapter state (external-channel-adapter.md §5.1)
     // -------------------------------------------------------------------------
@@ -73,6 +79,32 @@ public sealed class AppServerConnection
     /// True if this connection represents an external channel adapter.
     /// </summary>
     public bool IsChannelAdapter => ChannelAdapterName != null;
+
+    /// <summary>True after App Binding authenticates this connection as an app principal.</summary>
+    public bool IsAppPrincipalAuthenticated => !string.IsNullOrWhiteSpace(_appPrincipalId);
+
+    /// <summary>The authenticated App Binding principal identifier.</summary>
+    public string? AppPrincipalId => _appPrincipalId;
+
+    /// <summary>The app owned by the authenticated App Binding principal.</summary>
+    public string? AppPrincipalAppId => _appPrincipalAppId;
+
+    /// <summary>Binds this initialized connection to one authenticated app principal.</summary>
+    public void BindAppPrincipal(string principalId, string appId)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(principalId);
+        ArgumentException.ThrowIfNullOrWhiteSpace(appId);
+        if (IsChannelAdapter)
+            throw new InvalidOperationException("A channel-adapter connection cannot become an app-principal connection.");
+        if (IsAppPrincipalAuthenticated
+            && (!string.Equals(_appPrincipalId, principalId, StringComparison.Ordinal)
+                || !string.Equals(_appPrincipalAppId, appId, StringComparison.Ordinal)))
+        {
+            throw new InvalidOperationException("The AppServer connection is already bound to another app principal.");
+        }
+        _appPrincipalId = principalId;
+        _appPrincipalAppId = appId;
+    }
 
     /// <summary>
     /// Structured delivery descriptor declared by the adapter during initialize, if any.
@@ -237,7 +269,15 @@ public sealed class AppServerConnection
     public void MarkClosed()
     {
         _isClosed = true;
+        _appPrincipalId = null;
+        _appPrincipalAppId = null;
         _closedTcs.TrySetResult();
+    }
+
+    /// <summary>Signals active MCP App Views for a rolled-back thread to close.</summary>
+    internal void RevokeMcpAppThreadEligibility(string threadId)
+    {
+        McpAppThreadEligibilityRevoked?.Invoke(threadId);
     }
 
     // -------------------------------------------------------------------------
@@ -363,6 +403,7 @@ public sealed class AppServerConnection
         string ThreadId,
         string TurnId,
         string RequestId);
+
 }
 
 public sealed class ChannelToolRegistrationDiagnostic

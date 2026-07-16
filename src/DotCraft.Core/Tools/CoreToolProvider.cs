@@ -1,9 +1,14 @@
-using DotCraft.Abstractions;
 using DotCraft.Agents;
 using DotCraft.Configuration;
+using DotCraft.Context;
 using DotCraft.GeneratedTools.Core;
+using DotCraft.Lsp;
+using DotCraft.Security;
 using DotCraft.Skills;
+using DotCraft.Tools.BackgroundTerminals;
+using DotCraft.Tracing;
 using Microsoft.Extensions.AI;
+using System.Text.Json;
 
 namespace DotCraft.Tools;
 
@@ -11,69 +16,158 @@ namespace DotCraft.Tools;
 /// Provides core tools: file operations, shell execution, web tools, and agent spawning.
 /// These tools are available in all running modes.
 /// </summary>
-public sealed class CoreToolProvider : IAgentToolProvider
+public sealed class CoreToolSource(
+    AppConfig config,
+    ChatClientRegistry chatClientRegistry,
+    SkillsLoader skillsLoader,
+    IApprovalService approvalService,
+    PathBlacklist? pathBlacklist = null,
+    LspServerManager? lspServerManager = null,
+    IBackgroundTerminalService? backgroundTerminalService = null,
+    TraceCollector? traceCollector = null,
+    ISkillMutationApplier? skillMutationApplier = null,
+    IContextPageManager? contextPageManager = null) : AIFunctionToolSource
 {
     /// <inheritdoc />
-    public int Priority => 10; // Core tools have highest priority (lowest number)
+    public override string SourceId => "core-native";
 
     /// <inheritdoc />
-    public IEnumerable<AITool> CreateTools(ToolProviderContext context)
+    public override int Priority => 10;
+
+    /// <inheritdoc />
+    protected override ToolPolicyHints GetPolicyHints(AIFunction function, ToolPlanningContext context) =>
+        GetNativeApprovalDescriptor(function, context) is null
+            ? new ToolPolicyHints()
+            : new ToolPolicyHints(RequiresApproval: true);
+
+    /// <inheritdoc />
+    protected override IReadOnlyDictionary<string, JsonElement>? GetAnnotations(
+        AIFunction function,
+        ToolPlanningContext context)
+    {
+        var descriptor = GetNativeApprovalDescriptor(function, context);
+        return descriptor is null
+            ? null
+            : new Dictionary<string, JsonElement>(StringComparer.Ordinal)
+            {
+                ["dotcraft/nativeApproval"] = JsonSerializer.SerializeToElement(descriptor)
+            };
+    }
+
+    private object? GetNativeApprovalDescriptor(AIFunction function, ToolPlanningContext context)
+    {
+        if (string.Equals(function.Name, "SkillManage", StringComparison.Ordinal))
+        {
+            return new
+            {
+                kind = "remoteResource",
+                targetArgument = "name",
+                operationArgument = "action",
+                whenOperationIn = new[] { "create", "delete" }
+            };
+        }
+
+        if (!config.Tools.File.RequireApprovalOutsideWorkspace)
+            return null;
+
+        return function.Name switch
+        {
+            "ReadFile" => FileApproval("path", "read", context.WorkspacePath, trustedRead: true),
+            "WriteFile" => FileApproval("path", "write", context.WorkspacePath),
+            "EditFile" => FileApproval("path", "edit", context.WorkspacePath),
+            "GrepFiles" => FileApproval("path", "read", context.WorkspacePath, trustedRead: true),
+            "FindFiles" => FileApproval("path", "read", context.WorkspacePath, trustedRead: true),
+            "LSP" => FileApproval("filePath", "read", context.WorkspacePath, trustedRead: true),
+            "Exec" => new
+            {
+                kind = "shell",
+                targetArgument = "workingDir",
+                operationArgument = "command",
+                workspacePath = context.WorkspacePath,
+                outsideWorkspaceOnly = true
+            },
+            _ => null
+        };
+    }
+
+    private static object FileApproval(
+        string targetArgument,
+        string operation,
+        string workspacePath,
+        bool trustedRead = false) => new
+    {
+        kind = "file",
+        targetArgument,
+        operation,
+        workspacePath,
+        outsideWorkspaceOnly = true,
+        trustedReadPaths = trustedRead
+            ? new[] { Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".craft") }
+            : Array.Empty<string>()
+    };
+
+    /// <inheritdoc />
+    protected override IEnumerable<AIFunction> CreateFunctions(ToolPlanningContext context)
     {
         // When sandbox mode is enabled, SandboxToolProvider supplies shell/file/agent tools.
         // CoreToolProvider only provides web tools in that case to avoid duplication.
-        if (context.Config.Tools.Sandbox.Enabled)
+        if (config.Tools.Sandbox.Enabled)
             return [];
 
-        var tools = new List<AITool>();
-        var requireOutside =
-            context.RequireApprovalOutsideWorkspace ?? context.Config.Tools.File.RequireApprovalOutsideWorkspace;
-        var fileSearchTimeout = TimeSpan.FromSeconds(Math.Max(1, context.Config.Tools.File.SearchTimeoutSeconds));
+        var tools = new List<AIFunction>();
+        var requireOutside = config.Tools.File.RequireApprovalOutsideWorkspace;
+        var fileSearchTimeout = TimeSpan.FromSeconds(Math.Max(1, config.Tools.File.SearchTimeoutSeconds));
 
         // Agent-control tools are gated by the context policy so session-backed
         // SubAgent child threads cannot recursively spawn/control children.
-        if (AgentControlToolPolicy.AllowsAny(context))
+        if (!context.ProviderCapabilities.Contains("subagent-child"))
         {
-            var subAgentChatClient = context.ChatClientRegistry.GetSubAgentChatClient(
-                context.Config,
-                context.EffectiveProviderId,
-                context.EffectiveMainModel);
-            var subAgentRuntime = context.ChatClientRegistry.ResolveSubAgentRuntime(
-                context.Config,
-                context.EffectiveProviderId,
-                context.EffectiveMainModel);
+            var mainRuntime = chatClientRegistry.ResolveMainRuntime(config);
+            var subAgentChatClient = chatClientRegistry.GetSubAgentChatClient(
+                config,
+                mainRuntime.ProviderId,
+                mainRuntime.Model);
+            var subAgentRuntime = chatClientRegistry.ResolveSubAgentRuntime(
+                config,
+                mainRuntime.ProviderId,
+                mainRuntime.Model);
             var subAgentManager = new SubAgentManager(
                 subAgentChatClient,
                 context.WorkspacePath,
-                maxConcurrency: context.Config.SubagentMaxConcurrency,
-                shellTimeout: context.Config.Tools.Shell.Timeout,
+                maxConcurrency: config.SubagentMaxConcurrency,
+                shellTimeout: config.Tools.Shell.Timeout,
                 requireApprovalOutsideWorkspace: requireOutside,
-                reasoningConfig: context.EffectiveReasoning,
-                promptCachingConfig: context.Config.PromptCaching,
+                reasoningConfig: config.Reasoning,
+                promptCachingConfig: config.PromptCaching,
                 model: subAgentRuntime.Model,
                 providerProtocol: subAgentRuntime.Protocol,
-                blacklist: context.PathBlacklist,
-                approvalService: context.ApprovalService,
-                traceCollector: context.TraceCollector,
-                ripgrepPath: context.Config.Tools.File.RipgrepPath,
+                blacklist: pathBlacklist,
+                approvalService: approvalService,
+                traceCollector: traceCollector,
+                ripgrepPath: config.Tools.File.RipgrepPath,
                 endpoint: subAgentRuntime.EndPoint,
                 maxOutputTokens: subAgentRuntime.MaxOutputTokens,
-                config: context.Config);
+                config: config);
             var subAgentCoordinator = new SubAgentCoordinator(
                 context.WorkspacePath,
                 [new NativeSubAgentRuntime(subAgentManager), new CliOneshotRuntime()],
-                context.Config.SubAgentProfiles,
-                context.ApprovalService,
-                context.Config.SubAgent.DisabledProfiles,
-                context.ExternalCliSessionStore,
-                context.Config.SubAgent.EnableExternalCliSessionResume);
-            AgentControlToolRegistrar.AddTools(
-                tools,
-                context,
+                config.SubAgentProfiles,
+                approvalService,
+                config.SubAgent.DisabledProfiles,
+                externalCliSessionStore: null,
+                config.SubAgent.EnableExternalCliSessionResume);
+            var agentTools = new AgentTools(
                 subAgentCoordinator,
-                context.Config.SubAgent.Roles,
-                context.Config.SubAgent.MaxDepth,
-                context.Config.SubAgent.Model,
-                SubAgentWaitAgentTimeoutOptions.FromConfig(context.Config.SubAgent));
+                config.SubAgent.Roles,
+                config.SubAgent.MaxDepth,
+                config.SubAgent.Model,
+                SubAgentWaitAgentTimeoutOptions.FromConfig(config.SubAgent));
+            tools.Add(GeneratedToolFunctions.AgentTools_SpawnAgent(agentTools));
+            tools.Add(GeneratedToolFunctions.AgentTools_SendMessage(agentTools));
+            tools.Add(GeneratedToolFunctions.AgentTools_FollowupTask(agentTools));
+            tools.Add(GeneratedToolFunctions.AgentTools_WaitAgent(agentTools));
+            tools.Add(GeneratedToolFunctions.AgentTools_ListAgents(agentTools));
+            tools.Add(GeneratedToolFunctions.AgentTools_CloseAgent(agentTools));
         }
 
         // File tools
@@ -82,14 +176,13 @@ public sealed class CoreToolProvider : IAgentToolProvider
         var fileTools = new FileTools(
             context.WorkspacePath,
             requireOutside,
-            context.Config.Tools.File.MaxFileSize,
-            context.ApprovalService,
-            context.PathBlacklist,
+            config.Tools.File.MaxFileSize,
+            approvalService: null,
+            pathBlacklist,
             trustedReadPaths: [userDotCraftPath],
-            lspServerManager: context.LspServerManager,
-            ripgrepPath: context.Config.Tools.File.RipgrepPath,
-            searchTimeout: fileSearchTimeout,
-            sourceControlWriteCoordinator: context.SourceControlWriteCoordinator);
+            lspServerManager: lspServerManager,
+            ripgrepPath: config.Tools.File.RipgrepPath,
+            searchTimeout: fileSearchTimeout);
         tools.Add(GeneratedToolFunctions.FileTools_ReadFile(fileTools));
         tools.Add(GeneratedToolFunctions.FileTools_WriteFile(fileTools));
         tools.Add(GeneratedToolFunctions.FileTools_EditFile(fileTools));
@@ -97,63 +190,66 @@ public sealed class CoreToolProvider : IAgentToolProvider
         tools.Add(GeneratedToolFunctions.FileTools_FindFiles(fileTools));
 
         // LSP tool
-        if (context.Config.Tools.Lsp.Enabled && context.LspServerManager != null)
+        if (config.Tools.Lsp.Enabled && lspServerManager != null)
         {
             var lspTool = new LspTool(
                 context.WorkspacePath,
-                context.LspServerManager,
+                lspServerManager,
                 requireOutside,
-                context.Config.Tools.Lsp.MaxFileSize,
-                context.ApprovalService,
-                context.PathBlacklist);
+                config.Tools.Lsp.MaxFileSize,
+                approvalService: null,
+                pathBlacklist);
             tools.Add(GeneratedToolFunctions.LspTool_LSP(lspTool));
         }
 
         // Shell tools
         var shellTools = new ShellTools(
             context.WorkspacePath,
-            context.Config.Tools.Shell.Timeout,
+            config.Tools.Shell.Timeout,
             requireOutside,
-            context.Config.Tools.Shell.MaxOutputLength,
-            approvalService: context.ApprovalService,
-            blacklist: context.PathBlacklist,
-            backgroundTerminals: context.BackgroundTerminalService);
+            config.Tools.Shell.MaxOutputLength,
+            approvalService: null,
+            blacklist: pathBlacklist,
+            backgroundTerminals: backgroundTerminalService);
         tools.Add(GeneratedToolFunctions.ShellTools_Exec(shellTools));
         tools.Add(GeneratedToolFunctions.ShellTools_WriteStdin(shellTools));
 
         // Web tools
         var webTools = new WebTools(
-            context.Config.Tools.Web.MaxChars,
-            context.Config.Tools.Web.Timeout,
-            context.Config.Tools.Web.SearchMaxResults,
-            context.Config.Tools.Web.SearchProvider);
+            config.Tools.Web.MaxChars,
+            config.Tools.Web.Timeout,
+            config.Tools.Web.SearchMaxResults,
+            config.Tools.Web.SearchProvider);
         tools.Add(GeneratedToolFunctions.WebTools_WebSearch(webTools));
         tools.Add(GeneratedToolFunctions.WebTools_WebFetch(webTools));
 
         var target = SkillVariantStore.CreateTarget(
-            context.EffectiveMainModel,
+            config.Model,
             context.WorkspacePath,
-            context.Config.Tools.Sandbox.Enabled,
-            context.Config.Permissions.DefaultApprovalPolicy.ToString(),
+            config.Tools.Sandbox.Enabled,
+            config.Permissions.DefaultApprovalPolicy.ToString(),
             tools.Select(t => t.Name).ToArray());
-        var selfLearning = context.Config.Skills.SelfLearning;
+        var selfLearning = config.Skills.SelfLearning;
         var variantModeEnabled = string.Equals(selfLearning.VariantMode, "enabled", StringComparison.OrdinalIgnoreCase);
 
         // Effective skill loading is always available; SkillManage remains opt-in.
-        var skillViewTool = new SkillViewTool(context.SkillsLoader, variantModeEnabled, target, context.TraceCollector);
+        var skillViewTool = new SkillViewTool(skillsLoader, variantModeEnabled, target, traceCollector);
         tools.Add(GeneratedToolFunctions.SkillViewTool_SkillView(skillViewTool));
 
         // Skill self-learning mutation tools are opt-in and hidden from the model unless enabled.
         if (selfLearning.Enabled)
         {
             var mutationApplier = variantModeEnabled
-                ? new VariantSkillMutationApplier(context.SkillMutationApplier, context.SkillsLoader, target)
-                : context.SkillMutationApplier;
+                ? new VariantSkillMutationApplier(
+                    skillMutationApplier ?? new WorkspaceFileSkillMutationApplier(skillsLoader),
+                    skillsLoader,
+                    target)
+                : skillMutationApplier ?? new WorkspaceFileSkillMutationApplier(skillsLoader);
             var skillManageTool = new SkillManageTool(
                 mutationApplier,
                 selfLearning,
-                context.ApprovalService,
-                context.ContextPageManager);
+                approvalService: null,
+                contextPageManager);
             tools.Add(GeneratedToolFunctions.SkillManageTool_SkillManage(skillManageTool));
         }
 

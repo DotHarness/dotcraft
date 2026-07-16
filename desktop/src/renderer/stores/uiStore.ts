@@ -60,7 +60,7 @@ interface DetailRevealOptions {
 }
 
 /** Main content area: conversation vs auxiliary surfaces (Skills, Automations, Settings). */
-export type BuiltInMainView = 'conversation' | 'skills' | 'automations' | 'settings' | 'channels' | 'teams'
+export type BuiltInMainView = 'conversation' | 'skills' | 'automations' | 'settings' | 'channels'
 export type ExtensionMainView = `extension:${string}`
 export type ActiveMainView = BuiltInMainView | ExtensionMainView
 

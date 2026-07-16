@@ -91,6 +91,17 @@ The management page does not query SkillHub / ClawHub. Disabled skills do not en
 
 When self-learning is on, DotCraft gives the agent an on-demand `skill-authoring` reference: how to structure a skill's frontmatter, where supporting files may live, common pitfalls, and how to validate the result. Turn self-learning off and this reference goes away with it.
 
+## Official Development Workflow Plugins
+
+Official development skills are split by scope:
+
+| Plugin | Skills | Scope |
+|---|---|---|
+| `dotcraft-dev` | `$dotcraft-dev-guide`, `$dotcraft-docs-guide`, `$release-draft` | DotCraft-specific development norms, bilingual product documentation, and release drafting. |
+| `harness-workflow` | `$feature-workflow`, `$ui-prototype`, `$svg-design` | Shared feature planning, isolated UI prototyping, and SVG asset workflows that follow the current project's conventions. |
+
+Enable either plugin from the Plugins catalog according to the work at hand. Contributors working on substantial DotCraft features will commonly enable both.
+
 ## Safety & Trust
 
 - System and plugin-bundled skills are trusted by default.
@@ -111,4 +122,4 @@ When self-learning is on, DotCraft gives the agent an on-demand `skill-authoring
 
 - [Plugins & Tools](./plugins-tools) — distributing skills + tools as plugins
 - [Project Workspace](../project-first) — where `.craft/skills/` sits
-- [Spec-Driven Development](../../developing/workflow/spec-driven-development) — development skills packaged by `dotcraft-dev`
+- [Spec-Driven Development](../../developing/workflow/spec-driven-development) — how `dotcraft-dev` and `harness-workflow` divide product rules from shared workflows

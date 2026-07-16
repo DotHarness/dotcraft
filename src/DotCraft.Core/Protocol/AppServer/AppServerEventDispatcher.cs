@@ -21,6 +21,8 @@ public sealed class AppServerEventDispatcher
     private readonly IAppServerTransport _transport;
     private readonly SessionStreamDebugLogger? _streamDebugLogger;
     private readonly AppServerInteractiveRequestSender _interactiveRequests;
+    private readonly IThreadToolSnapshotService? _toolSnapshots;
+    private readonly IThreadMcpRuntimeService? _mcpRuntime;
     private bool _transportUnavailable;
 
     /// <summary>
@@ -68,6 +70,8 @@ public sealed class AppServerEventDispatcher
         _onTurnStarted = onTurnStarted;
         _streamDebugLogger = streamDebugLogger;
         _enrichThreadWire = enrichThreadWire;
+        _toolSnapshots = sessionService as IThreadToolSnapshotService;
+        _mcpRuntime = sessionService as IThreadMcpRuntimeService;
         _interactiveRequests = new AppServerInteractiveRequestSender(
             connection,
             transport,
@@ -144,7 +148,12 @@ public sealed class AppServerEventDispatcher
 
             default:
                 if (CanSendToClient(method))
-                    await SendNotificationAsync(method, BuildParams(evt), ct);
+                {
+                    var parameters = evt.EventType == SessionEventType.ItemCompleted
+                        ? await BuildItemCompletedParamsAsync(evt, ct).ConfigureAwait(false)
+                        : BuildParams(evt);
+                    await SendNotificationAsync(method, parameters, ct);
+                }
                 break;
         }
     }
@@ -158,6 +167,52 @@ public sealed class AppServerEventDispatcher
 
     private SessionWireThread? EnrichThreadWire(SessionWireThread? wire) =>
         wire is null || _enrichThreadWire is null ? wire : _enrichThreadWire(wire);
+
+    private async ValueTask<SessionWireItem?> ToLiveItemWireAsync(SessionEvent evt, CancellationToken cancellationToken)
+        => await ProjectCompletedItemAsync(
+            evt,
+            _connection.SupportsMcpApps,
+            _toolSnapshots,
+            _mcpRuntime,
+            cancellationToken).ConfigureAwait(false);
+
+    internal static async ValueTask<SessionWireItem?> ProjectCompletedItemAsync(
+        SessionEvent evt,
+        bool supportsMcpApps,
+        IThreadToolSnapshotService? toolSnapshots,
+        IThreadMcpRuntimeService? mcpRuntime,
+        CancellationToken cancellationToken)
+    {
+        var item = evt.ItemPayload;
+        var wire = item?.ToWire();
+        if (evt.EventType != SessionEventType.ItemCompleted
+            || evt.TurnId is not { Length: > 0 } turnId
+            || item is null
+            || wire is null
+            || !supportsMcpApps)
+            return wire;
+
+        var eligibility = await McpAppEligibilityResolver.ResolveAsync(
+            evt.ThreadId,
+            turnId,
+            item,
+            toolSnapshots,
+            mcpRuntime,
+            cancellationToken).ConfigureAwait(false);
+        if (eligibility is null)
+            return wire;
+
+        return wire with { McpApp = new McpAppViewHintWire { Available = true } };
+    }
+
+    private async ValueTask<object> BuildItemCompletedParamsAsync(
+        SessionEvent evt,
+        CancellationToken cancellationToken) => new
+    {
+        threadId = evt.ThreadId,
+        turnId = evt.TurnId,
+        item = await ToLiveItemWireAsync(evt, cancellationToken).ConfigureAwait(false)
+    };
 
     private object? BuildParams(SessionEvent evt) => evt.EventType switch
     {

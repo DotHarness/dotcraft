@@ -58,13 +58,17 @@ public sealed class ConformanceFixtureTests
             HistoryMode: "server",
             DynamicTools:
             [
-                new DynamicToolSpec(
-                    "oratorio",
-                    "GetBoardItem",
-                    "Read one Oratorio board item.",
-                    inputSchema,
-                    DeferLoading: true,
-                    Approval: new ToolApprovalDescriptor("tool", "itemId"))
+                new RuntimeDynamicToolNamespace(
+                    "sampleboard",
+                    "Sample board tools.",
+                    [
+                        new RuntimeDynamicToolFunction(
+                            "GetBoardItem",
+                            "Read one sample board item.",
+                            inputSchema,
+                            DeferLoading: true,
+                            Approval: new ToolApprovalDescriptor("remoteResource", "itemId"))
+                    ])
             ]));
 
         using var outbound = await transport.ReadOutboundAsync();
@@ -74,11 +78,14 @@ public sealed class ConformanceFixtureTests
         Assert.Equal("vscode", parameters.GetProperty("identity").GetProperty("channelName").GetString());
         Assert.Equal("/home/dev/myproject", parameters.GetProperty("identity").GetProperty("workspacePath").GetString());
         Assert.Equal("server", parameters.GetProperty("historyMode").GetString());
-        var tool = parameters.GetProperty("dynamicTools")[0];
-        Assert.Equal("oratorio", tool.GetProperty("namespace").GetString());
+        var toolNamespace = parameters.GetProperty("dynamicTools")[0];
+        Assert.Equal("namespace", toolNamespace.GetProperty("type").GetString());
+        Assert.Equal("sampleboard", toolNamespace.GetProperty("name").GetString());
+        var tool = toolNamespace.GetProperty("tools")[0];
+        Assert.Equal("function", tool.GetProperty("type").GetString());
         Assert.Equal("GetBoardItem", tool.GetProperty("name").GetString());
         Assert.True(tool.GetProperty("deferLoading").GetBoolean());
-        Assert.Equal("tool", tool.GetProperty("approval").GetProperty("kind").GetString());
+        Assert.Equal("remoteResource", tool.GetProperty("approval").GetProperty("kind").GetString());
 
         await transport.PushInboundAsync(new
         {
@@ -139,23 +146,17 @@ public sealed class ConformanceFixtureTests
     }
 
     [Fact]
-    public async Task AppBindingAccept_UsesSpecRpcMethod()
+    public async Task AppBindingActivate_UsesSpecRpcMethod()
     {
         await using var transport = new TestJsonRpcTransport();
         await using var client = await ConnectInitializedAsync(transport);
 
-        var acceptTask = client.AppBindings.AcceptBindingAsync<JsonElement>(new
-        {
-            bindingRequestId = "bind_req_1",
-            requestToken = "request-token",
-            grantId = "grant_1",
-            grantedScopes = new[] { "board:read" },
-            approvalMode = "appAccepted"
-        });
+        var activateTask = client.AppBindings.ActivateAsync(
+            "bind_req_1", "https://app.example/mcp", "one-time-bearer");
 
         using var outbound = await transport.ReadOutboundAsync();
         var root = outbound.RootElement;
-        Assert.Equal("app/binding/accept", root.GetProperty("method").GetString());
+        Assert.Equal("app/binding/activate", root.GetProperty("method").GetString());
         Assert.Equal("bind_req_1", root.GetProperty("params").GetProperty("bindingRequestId").GetString());
 
         await transport.PushInboundAsync(new
@@ -164,18 +165,112 @@ public sealed class ConformanceFixtureTests
             id = root.GetProperty("id").GetInt64(),
             result = new
             {
-                binding = new
-                {
-                    bindingId = "binding_1",
-                    threadId = "thread_1",
-                    appId = "com.dotharness.oratorio",
-                    state = "accepted"
-                }
+                bindingId = "binding_1",
+                threadId = "thread_1",
+                appId = "com.example.board",
+                state = "active"
             }
         });
 
-        var accepted = await acceptTask;
-        Assert.Equal("binding_1", accepted.GetProperty("binding").GetProperty("bindingId").GetString());
+        var activated = await activateTask;
+        Assert.Equal("binding_1", activated.GetProperty("bindingId").GetString());
+    }
+
+    [Fact]
+    public async Task McpRuntime_UsesSpecifiedMethodsAndTypedResults()
+    {
+        await using var transport = new TestJsonRpcTransport();
+        await using var client = await ConnectInitializedAsync(transport);
+
+        var statusTask = client.McpRuntime.ListStatusAsync(
+            new McpServerStatusListParams("thread_1", "2", 25, "full"));
+        using (var outbound = await transport.ReadOutboundAsync())
+        {
+            var root = outbound.RootElement;
+            Assert.Equal("mcpServerStatus/list", root.GetProperty("method").GetString());
+            Assert.Equal("thread_1", root.GetProperty("params").GetProperty("threadId").GetString());
+            await transport.PushInboundAsync(new
+            {
+                jsonrpc = "2.0",
+                id = root.GetProperty("id").GetInt64(),
+                result = new
+                {
+                    data = new[] { new
+                    {
+                        name = "docs", serverInfo = new { name = "Docs", version = "1" },
+                        tools = new Dictionary<string, object> { ["search"] = new { name = "search" } },
+                        resources = Array.Empty<object>(), resourceTemplates = Array.Empty<object>(),
+                        authStatus = "oAuth", declaredName = "docs", runtimeName = "docs"
+                    } },
+                    nextCursor = (string?)null
+                }
+            });
+        }
+        Assert.Equal("docs", Assert.Single((await statusTask).Data).RuntimeName);
+
+        var resourceTask = client.McpRuntime.ReadResourceAsync(
+            new McpServerResourceReadParams("docs", "docs://intro", "thread_1"));
+        using (var outbound = await transport.ReadOutboundAsync())
+        {
+            var root = outbound.RootElement;
+            Assert.Equal("mcpServer/resource/read", root.GetProperty("method").GetString());
+            await transport.PushInboundAsync(new
+            {
+                jsonrpc = "2.0", id = root.GetProperty("id").GetInt64(),
+                result = new { contents = new[] { new { uri = "docs://intro" } } }
+            });
+        }
+        Assert.Equal("docs://intro", (await resourceTask).Contents[0].GetProperty("uri").GetString());
+
+        var toolTask = client.McpRuntime.CallToolAsync(new McpServerToolCallParams(
+            "thread_1", "docs", "search",
+            new Dictionary<string, object?> { ["query"] = "MCP" },
+            JsonSerializer.SerializeToElement(new { trace = "t1" })));
+        using (var outbound = await transport.ReadOutboundAsync())
+        {
+            var root = outbound.RootElement;
+            Assert.Equal("mcpServer/tool/call", root.GetProperty("method").GetString());
+            Assert.Equal("t1", root.GetProperty("params").GetProperty("_meta").GetProperty("trace").GetString());
+            await transport.PushInboundAsync(new
+            {
+                jsonrpc = "2.0", id = root.GetProperty("id").GetInt64(),
+                result = new
+                {
+                    content = new[] { new { type = "text", text = "found" } },
+                    structuredContent = new { count = 1 }, isError = false,
+                    _meta = new { source = "docs" }
+                }
+            });
+        }
+        Assert.Equal(1, (await toolTask).StructuredContent?.GetProperty("count").GetInt32());
+
+        var loginTask = client.McpRuntime.LoginOAuthAsync(
+            new McpServerOAuthLoginParams("docs", "thread_1", ["read"], 60));
+        using (var outbound = await transport.ReadOutboundAsync())
+        {
+            var root = outbound.RootElement;
+            Assert.Equal("mcpServer/oauth/login", root.GetProperty("method").GetString());
+            await transport.PushInboundAsync(new
+            {
+                jsonrpc = "2.0", id = root.GetProperty("id").GetInt64(),
+                result = new { authorizationUrl = "https://auth.example/" }
+            });
+        }
+        Assert.Equal("https://auth.example/", (await loginTask).AuthorizationUrl);
+
+        var reloadTask = client.McpRuntime.ReloadAsync();
+        using (var outbound = await transport.ReadOutboundAsync())
+        {
+            var root = outbound.RootElement;
+            Assert.Equal("config/mcpServer/reload", root.GetProperty("method").GetString());
+            Assert.False(root.TryGetProperty("params", out _));
+            await transport.PushInboundAsync(new
+            {
+                jsonrpc = "2.0", id = root.GetProperty("id").GetInt64(),
+                result = new { }
+            });
+        }
+        Assert.NotNull(await reloadTask);
     }
 
     private static async Task<DotCraftClient> ConnectInitializedAsync(TestJsonRpcTransport transport)

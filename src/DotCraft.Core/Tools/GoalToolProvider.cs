@@ -1,6 +1,6 @@
 using System.ComponentModel;
 using System.Text.Json;
-using DotCraft.Abstractions;
+using DotCraft.Configuration;
 using DotCraft.GeneratedTools.Core;
 using DotCraft.Protocol;
 using Microsoft.Extensions.AI;
@@ -10,18 +10,23 @@ namespace DotCraft.Tools;
 /// <summary>
 /// Provides Session Core goal tools to the main-thread agent runtime.
 /// </summary>
-public sealed class GoalToolProvider : IAgentToolProvider
+public sealed class GoalToolSource(AppConfig config) : AIFunctionToolSource
 {
     private readonly GoalToolMethods _methods = new();
 
-    public int Priority => 25;
+    /// <inheritdoc />
+    public override string SourceId => "goal";
 
-    public IEnumerable<AITool> CreateTools(ToolProviderContext context)
+    /// <inheritdoc />
+    public override int Priority => 25;
+
+    /// <inheritdoc />
+    protected override IEnumerable<AIFunction> CreateFunctions(ToolPlanningContext context)
     {
-        if (!context.Config.Goals.Enabled)
+        if (!config.Goals.Enabled)
             yield break;
 
-        if (context.CurrentThreadSource?.SubAgent != null)
+        if (context.ProviderCapabilities.Contains("subagent-child"))
             yield break;
 
         yield return GeneratedToolFunctions.GoalToolMethods_GetGoal(_methods);

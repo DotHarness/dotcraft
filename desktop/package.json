@@ -1,6 +1,6 @@
 {
   "name": "dotcraft-desktop",
-  "version": "0.3.2",
+  "version": "0.4.0",
   "description": "DotCraft",
   "author": {
     "name": "DotCraft"
@@ -34,6 +34,8 @@
     "@iconify-json/vscode-icons": "^1.2.53",
     "@iconify/react": "^6.0.2",
     "@lydell/node-pty": "^1.2.0-beta.3",
+    "@modelcontextprotocol/ext-apps": "1.7.4",
+    "@modelcontextprotocol/sdk": "1.29.0",
     "@monaco-editor/react": "^4.7.0",
     "@vscode/ripgrep": "^1.18.0",
     "@xterm/addon-fit": "^0.11.0",
@@ -52,6 +54,7 @@
     "rehype-highlight": "^7.0.2",
     "remark-gfm": "^4.0.1",
     "ws": "^8.21.0",
+    "zod": "4.4.3",
     "zustand": "^5.0.3"
   },
   "devDependencies": {

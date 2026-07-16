@@ -138,7 +138,7 @@ internal sealed class PluginRequestHandler(
             Plugin = MapPluginToWire(plugin, diagnostics, hookSummaries, mcpSummaries, lspSummaries)
         };
         var appListUpdate = TryBuildAppListUpdatedNotification(discovery, pluginId, p.Enabled ? "plugin/enable" : "plugin/disable");
-        IReadOnlyList<ThreadAppBindingWire> offlineBindings = p.Enabled
+        IReadOnlyList<AppBindingWire> offlineBindings = p.Enabled
             ? []
             : TryMoveActiveAppBindingsOfflineForPlugin(
                 TryDiscoverAppBindingCatalog(),
@@ -337,13 +337,12 @@ internal sealed class PluginRequestHandler(
         AppServerIncomingMessage msg,
         object result,
         object? appListUpdatedParams,
-        IReadOnlyList<ThreadAppBindingWire> offlineBindings,
+        IReadOnlyList<AppBindingWire> offlineBindings,
         CancellationToken ct)
     {
         if (appListUpdatedParams == null && offlineBindings.Count == 0)
             return result;
 
-        ReleaseAppContextPagesForBindings(offlineBindings);
         await transport.WriteMessageAsync(AppServerRequestHandler.BuildResponse(msg.Id, result), ct);
         if (appListUpdatedParams != null)
         {
@@ -418,7 +417,7 @@ internal sealed class PluginRequestHandler(
         };
     }
 
-    private IReadOnlyList<ThreadAppBindingWire> TryMoveActiveAppBindingsOfflineForPlugin(
+    private IReadOnlyList<AppBindingWire> TryMoveActiveAppBindingsOfflineForPlugin(
         AppCatalogSnapshot? catalog,
         string pluginId,
         string diagnostic,
@@ -432,9 +431,18 @@ internal sealed class PluginRequestHandler(
         }
 
         var appIds = ResolveAppBindingAppIdsForPlugin(catalog, pluginId);
+        _ = auditEvent;
         return appIds.Count == 0
             ? []
-            : appBindingService.MoveActiveBindingsOfflineForApps(catalog, workspaceCraftPath, appIds, diagnostic, auditEvent);
+            : appIds
+                .SelectMany(appId => appBindingService.ListAppBindings(workspaceCraftPath, appId))
+                .Where(binding => binding.State == AppBindingStates.Active)
+                .Select(binding => appBindingService.MarkUnavailable(
+                    workspaceCraftPath,
+                    binding.BindingId,
+                    diagnostic,
+                    failed: false))
+                .ToArray();
     }
 
     private List<string> TryResolveAppBindingAppIdsForPlugin(string pluginId)
@@ -454,7 +462,7 @@ internal sealed class PluginRequestHandler(
 
         try
         {
-            return appBindingService.DiscoverCatalog(
+            return AppBindingCatalog.Discover(
                 appConfigMonitor?.Current ?? workspaceConfig.LoadCurrentMergedConfig(),
                 hostWorkspacePath,
                 workspaceCraftPath,

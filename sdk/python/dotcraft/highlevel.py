@@ -31,6 +31,11 @@ from .models import (
     ERR_TURN_IN_PROGRESS,
     JsonRpcMessage,
     ModelInfo,
+    McpServerOAuthLoginResult,
+    McpServerReloadResult,
+    McpServerResourceReadResult,
+    McpServerStatusListResult,
+    McpServerToolCallResult,
     ServerCapabilities,
     ServerInfo,
     Thread as ThreadModel,
@@ -106,6 +111,7 @@ class DotCraft:
         self._threads = ThreadManager(self)
         self._app_bindings = AppBindingManager(client)
         self._models = ModelManager(client)
+        self._mcp_runtime = McpRuntimeManager(client)
 
     @property
     def server_info(self) -> ServerInfo | None:
@@ -126,6 +132,10 @@ class DotCraft:
     @property
     def models(self) -> "ModelManager":
         return self._models
+
+    @property
+    def mcp_runtime(self) -> "McpRuntimeManager":
+        return self._mcp_runtime
 
     @property
     def client(self) -> DotCraftClient:
@@ -254,6 +264,39 @@ class ModelManager:
 
     async def list(self) -> list[ModelInfo]:
         return await self._client.model_list()
+
+
+class McpRuntimeManager:
+    """MCP runtime and control operations."""
+
+    def __init__(self, client: DotCraftClient) -> None:
+        self._client = client
+
+    async def list_status(self, **kwargs: Any) -> McpServerStatusListResult:
+        return await self._client.mcp_server_status_list(**kwargs)
+
+    async def read_resource(
+        self, server: str, uri: str, thread_id: str | None = None
+    ) -> McpServerResourceReadResult:
+        return await self._client.mcp_server_resource_read(server, uri, thread_id)
+
+    async def call_tool(
+        self,
+        thread_id: str,
+        server: str,
+        tool: str,
+        arguments: dict | None = None,
+        meta: Any = None,
+    ) -> McpServerToolCallResult:
+        return await self._client.mcp_server_tool_call(
+            thread_id, server, tool, arguments, meta
+        )
+
+    async def login_oauth(self, **kwargs: Any) -> McpServerOAuthLoginResult:
+        return await self._client.mcp_server_oauth_login(**kwargs)
+
+    async def reload(self) -> McpServerReloadResult:
+        return await self._client.mcp_server_reload()
 
 
 class ThreadManager:

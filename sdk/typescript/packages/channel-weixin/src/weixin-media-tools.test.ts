@@ -468,7 +468,7 @@ test("adapter reports caption failure without blocking file tool delivery", asyn
       return {
         success: true,
         contentItems: [{ type: "text", text: "Sent file." }],
-        structuredResult: { delivered: true, mediaId: "media-id", fileName: "report.txt" },
+        structuredContent: { delivered: true, mediaId: "media-id", fileName: "report.txt" },
       };
     },
     async sendStructuredMessage(): Promise<Record<string, unknown>> {
@@ -496,7 +496,7 @@ test("adapter reports caption failure without blocking file tool delivery", asyn
     assert.equal(result.success, true);
     assert.equal(result.captionDelivered, false);
     assert.match(String(result.captionError ?? ""), /sendMessage 400/);
-    const structured = result.structuredResult as Record<string, unknown>;
+    const structured = result.structuredContent as Record<string, unknown>;
     assert.equal(structured.captionDelivered, false);
     assert.match(String(structured.captionError ?? ""), /sendMessage 400/);
   } finally {

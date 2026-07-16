@@ -13,7 +13,7 @@ internal sealed class AnthropicDeferredToolLoadingChatClient(
     IChatClient innerClient,
     string? model,
     int? defaultMaxOutputTokens = null,
-    DeferredToolRegistry? registry = null)
+    DeferredToolActivationIndex? registry = null)
     : DelegatingChatClient(innerClient)
 {
     internal const string ToolSearchBetaHeader = "advanced-tool-use-2025-11-20";

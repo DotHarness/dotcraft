@@ -312,7 +312,7 @@ test("FeishuReadDocxContent accepts docx URLs and returns raw content", async ()
 
   assert.ok(result);
   assert.equal(result?.success, true);
-  assert.deepEqual(result?.structuredResult, {
+  assert.deepEqual(result?.structuredContent, {
     documentId: DOC_ID,
     content: "hello from docx",
     isEmpty: false,
@@ -347,7 +347,7 @@ test("FeishuReadDocxContent accepts wiki URLs by resolving node metadata", async
 
   assert.ok(result);
   assert.equal(result?.success, true);
-  assert.deepEqual(result?.structuredResult, {
+  assert.deepEqual(result?.structuredContent, {
     documentId: DOC_ID,
     content: "hello from wiki-backed docx",
     isEmpty: false,
@@ -430,7 +430,7 @@ test("FeishuCreateDocxAndShareToCurrentChat supports wiki target", async () => {
   assert.equal(updateTitleCalls, 1);
   assert.match(sentShareText, /https:\/\/feishu\.cn\/wiki\//);
   assert.equal(result?.success, true);
-  assert.deepEqual(result?.structuredResult, {
+  assert.deepEqual(result?.structuredContent, {
     delivered: true,
     documentId: DOC_ID,
     revisionId: 17,
@@ -561,7 +561,7 @@ test("FeishuAppendDocxContent appends blocks at the root using translated docx c
   assert.equal(typeof captured?.options.clientToken, "string");
   assert.deepEqual(captured?.options.children, toFeishuDocxChildren(blocks));
   assert.equal(result?.success, true);
-  assert.deepEqual(result?.structuredResult, {
+  assert.deepEqual(result?.structuredContent, {
     documentId: DOC_ID,
     revisionId: 7,
     appendedBlocks: [
@@ -594,7 +594,7 @@ test("FeishuListDocxBlocks returns block page", async () => {
     client,
   });
   assert.equal(result?.success, true);
-  assert.equal((result?.structuredResult as { items: unknown[] }).items.length, 1);
+  assert.equal((result?.structuredContent as { items: unknown[] }).items.length, 1);
 });
 
 test("FeishuGetDocxBlock returns one block", async () => {
@@ -612,7 +612,7 @@ test("FeishuGetDocxBlock returns one block", async () => {
     client,
   });
   assert.equal(result?.success, true);
-  assert.equal((result?.structuredResult as { block: { blockId: string } }).block.blockId, "blk_100");
+  assert.equal((result?.structuredContent as { block: { blockId: string } }).block.blockId, "blk_100");
 });
 
 test("FeishuInsertDocxBlocks inserts blocks at explicit index", async () => {
@@ -847,7 +847,7 @@ test("FeishuListDocxComments returns paged comment cards", async () => {
     client,
   });
   assert.equal(result?.success, true);
-  assert.equal((result?.structuredResult as { items: unknown[] }).items.length, 1);
+  assert.equal((result?.structuredContent as { items: unknown[] }).items.length, 1);
 });
 
 test("FeishuBatchQueryDocxComments queries by commentIds", async () => {
@@ -890,7 +890,7 @@ test("FeishuListDocxCommentReplies returns replies page", async () => {
     client,
   });
   assert.equal(result?.success, true);
-  assert.equal((result?.structuredResult as { items: Array<{ replyId: string }> }).items[0]?.replyId, "reply_1");
+  assert.equal((result?.structuredContent as { items: Array<{ replyId: string }> }).items[0]?.replyId, "reply_1");
 });
 
 test("FeishuAddDocxComment creates full comment when no locator is provided", async () => {
@@ -914,7 +914,7 @@ test("FeishuAddDocxComment creates full comment when no locator is provided", as
   });
   assert.equal(result?.success, true);
   assert.equal(capturedAnchor, undefined);
-  assert.equal((result?.structuredResult as { commentMode: string }).commentMode, "full");
+  assert.equal((result?.structuredContent as { commentMode: string }).commentMode, "full");
 });
 
 test("FeishuAddDocxComment resolves selectionWithEllipsis into anchor block id", async () => {
@@ -945,7 +945,7 @@ test("FeishuAddDocxComment resolves selectionWithEllipsis into anchor block id",
   });
   assert.equal(result?.success, true);
   assert.equal(capturedAnchor, "blk_1");
-  assert.equal((result?.structuredResult as { commentMode: string }).commentMode, "local");
+  assert.equal((result?.structuredContent as { commentMode: string }).commentMode, "local");
 });
 
 test("FeishuAddDocxComment returns AmbiguousMatch when selection hits multiple blocks", async () => {

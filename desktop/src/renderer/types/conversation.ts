@@ -22,6 +22,7 @@ export type ItemType =
   | 'toolCall'
   | 'pluginFunctionCall'
   | 'dynamicToolCall'
+  | 'mcpToolCall'
   | 'toolResult'
   | 'error'
   | 'approvalCard'
@@ -70,6 +71,20 @@ export interface PluginFunctionContentItem {
   mediaType?: string
 }
 
+export interface ToolSourceProvenance {
+  kind: string
+  sourceId?: string
+  origin?: string
+  sourceToolId?: string
+  pluginId?: string
+  functionId?: string
+}
+
+export interface ToolPresentationDescriptor {
+  presentationId: string
+  options?: Record<string, unknown>
+}
+
 /**
  * A single item within a turn.
  * Uses optional discriminated fields rather than a full union to keep
@@ -95,6 +110,10 @@ export interface ConversationItem {
   reasoning?: string
   /** Tool name for toolCall items */
   toolName?: string
+  /** Safe server-projected source provenance used to authorize local renderers. */
+  source?: ToolSourceProvenance
+  /** Trusted server-projected local presentation descriptor. */
+  presentation?: ToolPresentationDescriptor
   /** Correlation ID between toolCall and toolResult */
   toolCallId?: string
   /** Shell command text for commandExecution items */
@@ -133,9 +152,11 @@ export interface ConversationItem {
   contentItems?: PluginFunctionContentItem[]
   /** Structured result returned by pluginFunctionCall/dynamicToolCall items */
   structuredResult?: unknown
-  /** UI-only metadata (MCP Apps `_meta`) from the tool result; for the interactive UI only, never the model. */
+  /** True only on the connection that received this terminal MCP item live. */
+  mcpAppAvailable?: boolean
+  /** Read-only App Binding host metadata; never interpreted as MCP Apps authority. */
   meta?: Record<string, unknown>
-  /** The tool's declared Interactive Tool UI descriptor (`_meta.ui`); present → render a sandboxed iframe. */
+  /** Read-only private iframe descriptor. Provenance is required before use. */
   toolUi?: ToolUiDescriptor
   /** UI-only Interactive Tool UI widgetState (M-iv), surfaced on thread/read for iframe restore. */
   widgetState?: unknown
@@ -254,8 +275,8 @@ export interface UserMessageImageRef {
 
 export function isToolLikeItemType(
   type: string | undefined
-): type is 'toolCall' | 'pluginFunctionCall' | 'dynamicToolCall' {
-  return type === 'toolCall' || type === 'pluginFunctionCall' || type === 'dynamicToolCall'
+): type is 'toolCall' | 'pluginFunctionCall' | 'dynamicToolCall' | 'mcpToolCall' {
+  return type === 'toolCall' || type === 'pluginFunctionCall' || type === 'dynamicToolCall' || type === 'mcpToolCall'
 }
 
 const CONVERSATION_ITEM_TYPE_ALIASES: Record<string, ItemType> = {
@@ -277,6 +298,8 @@ const CONVERSATION_ITEM_TYPE_ALIASES: Record<string, ItemType> = {
   PluginFunctionCall: 'pluginFunctionCall',
   dynamicToolCall: 'dynamicToolCall',
   DynamicToolCall: 'dynamicToolCall',
+  mcpToolCall: 'mcpToolCall',
+  McpToolCall: 'mcpToolCall',
   toolResult: 'toolResult',
   ToolResult: 'toolResult',
   error: 'error',
@@ -292,8 +315,8 @@ export function normalizeConversationItemType(value: unknown): ItemType | undefi
   return CONVERSATION_ITEM_TYPE_ALIASES[value.trim()]
 }
 
-function isStructuredInvocationType(type: ItemType): type is 'pluginFunctionCall' | 'dynamicToolCall' {
-  return type === 'pluginFunctionCall' || type === 'dynamicToolCall'
+function isStructuredInvocationType(type: ItemType): type is 'pluginFunctionCall' | 'dynamicToolCall' | 'mcpToolCall' {
+  return type === 'pluginFunctionCall' || type === 'dynamicToolCall' || type === 'mcpToolCall'
 }
 
 export function normalizePluginFunctionContentItems(
@@ -321,6 +344,36 @@ export function normalizePluginFunctionContentItems(
     .filter((item): item is PluginFunctionContentItem => item != null)
 
   return items.length > 0 ? items : undefined
+}
+
+export function normalizeToolSourceProvenance(value: unknown): ToolSourceProvenance | undefined {
+  if (value == null || typeof value !== 'object' || Array.isArray(value)) return undefined
+  const source = value as Record<string, unknown>
+  if (typeof source.kind !== 'string' || source.kind.length === 0) return undefined
+  const optionalString = (name: string): string | undefined => (
+    typeof source[name] === 'string' && source[name] !== '' ? source[name] as string : undefined
+  )
+  return {
+    kind: source.kind,
+    sourceId: optionalString('sourceId'),
+    origin: optionalString('origin'),
+    sourceToolId: optionalString('sourceToolId'),
+    pluginId: optionalString('pluginId'),
+    functionId: optionalString('functionId')
+  }
+}
+
+export function normalizeToolPresentation(value: unknown): ToolPresentationDescriptor | undefined {
+  if (value == null || typeof value !== 'object' || Array.isArray(value)) return undefined
+  const presentation = value as Record<string, unknown>
+  if (typeof presentation.presentationId !== 'string' || presentation.presentationId.length === 0) return undefined
+  const options = presentation.options
+  return {
+    presentationId: presentation.presentationId,
+    ...(options != null && typeof options === 'object' && !Array.isArray(options)
+      ? { options: options as Record<string, unknown> }
+      : {})
+  }
 }
 
 export function derivePluginFunctionResultText(
@@ -452,7 +505,7 @@ function mapReasoningElapsedSeconds(
  * This function falls back to payload fields so that both the flat (legacy/streaming)
  * and nested (thread/read history) shapes are handled correctly.
  */
-/** Interactive Tool UI descriptor (MCP Apps `_meta.ui`), surfaced on dynamicToolCall items. */
+/** Read-only private iframe descriptor surfaced on persisted tool items. */
 export interface ToolUiDescriptor {
   resourceUri: string
   visibility?: string[]
@@ -472,7 +525,7 @@ function toStringArray(value: unknown): string[] | undefined {
     : undefined
 }
 
-/** Validates a wire `_meta.ui` / payload `ui` descriptor; only a `ui://` resourceUri renders an iframe. */
+/** Parses a read-only private descriptor; the renderer separately requires matching provenance. */
 export function normalizeToolUiDescriptor(value: unknown): ToolUiDescriptor | undefined {
   if (value == null || typeof value !== 'object') return undefined
   const obj = value as Record<string, unknown>
@@ -502,13 +555,17 @@ export function wireItemToConversationItem(raw: Record<string, unknown>): Conver
   const payload = (raw.payload ?? {}) as Record<string, unknown>
   const isStructuredInvocation = isStructuredInvocationType(type)
   const invocationContentItems = isStructuredInvocation
-    ? normalizePluginFunctionContentItems(raw.contentItems ?? payload.contentItems)
+    ? normalizePluginFunctionContentItems(
+      raw.contentItems ?? payload.contentItems ?? payload.modelContentItems ?? payload.content
+    )
     : undefined
   const toolResultContentItems = type === 'toolResult'
     ? normalizePluginFunctionContentItems(raw.contentItems ?? payload.contentItems)
     : undefined
   const invocationStructuredResult = isStructuredInvocation
-    ? ((raw.structuredResult as unknown) ?? (payload.structuredResult as unknown))
+    ? ((raw.structuredResult as unknown)
+      ?? (payload.structuredResult as unknown)
+      ?? (payload.structuredContent as unknown))
     : undefined
   const invocationMeta = isStructuredInvocation
     ? ((raw._meta as Record<string, unknown> | undefined)
@@ -566,6 +623,8 @@ export function wireItemToConversationItem(raw: Record<string, unknown>): Conver
     ?? (payload.text as string | undefined)
     ?? (raw.content as string | undefined)
     ?? (payload.message as string | undefined)
+  const source = normalizeToolSourceProvenance(raw.source ?? payload.source)
+  const presentation = normalizeToolPresentation(raw.presentation ?? payload.presentation)
 
   return {
     id: (raw.id as string) ?? '',
@@ -587,6 +646,8 @@ export function wireItemToConversationItem(raw: Record<string, unknown>): Conver
       ?? (raw.functionName as string | undefined)
       ?? (payload.functionName as string | undefined)
       ?? (raw.name as string | undefined),
+    source,
+    presentation,
     toolCallId: (raw.toolCallId as string | undefined)
       ?? (payload.callId as string | undefined)
       ?? (raw.callId as string | undefined),
@@ -626,6 +687,9 @@ export function wireItemToConversationItem(raw: Record<string, unknown>): Conver
       ?? (payload.functionName as string | undefined),
     contentItems: invocationContentItems ?? toolResultContentItems,
     structuredResult: invocationStructuredResult,
+    mcpAppAvailable:
+      type === 'mcpToolCall'
+      && (raw.mcpApp as { available?: unknown } | undefined)?.available === true,
     meta: invocationMeta,
     toolUi: invocationToolUi,
     widgetState: invocationWidgetState,
