@@ -59,7 +59,7 @@ See [Memory & Dreams](../agent-system/memory) for the full picture.
 ### Model Providers
 
 - Provider credentials and endpoints are written to personal `~/.craft/config.json`, **not** the workspace.
-- The workspace stores `ProviderId`, `Model`, `ProviderModels`, and `SubAgent.ProviderModels`; shared workspace config never holds secrets.
+- The workspace stores `ProviderId`, `ProviderModels`, and `SubAgent.ProviderModels`; shared workspace config never holds secrets.
 - The Welcome picker sets defaults for future threads. Each existing thread keeps its captured provider/model and may switch independently from its composer.
 - A native SubAgent uses the model remembered for its parent thread's provider, or inherits the parent MainAgent model when no SubAgent preference exists.
 - Desktop currently supports OpenAI and Anthropic providers.

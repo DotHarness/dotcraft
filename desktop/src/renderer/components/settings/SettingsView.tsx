@@ -107,7 +107,6 @@ interface McpTestResultWire {
 
 interface WorkspaceCoreConfig {
   providerId: string | null
-  model: string | null
   providerModels: Record<string, string>
   welcomeSuggestionsEnabled: boolean | null
   skillsSelfLearningEnabled: boolean | null
@@ -126,7 +125,6 @@ interface WorkspaceCoreConfigResult {
 
 const EMPTY_WORKSPACE_CORE_CONFIG: WorkspaceCoreConfig = {
   providerId: null,
-  model: null,
   providerModels: {},
   welcomeSuggestionsEnabled: null,
   skillsSelfLearningEnabled: null,
@@ -495,18 +493,34 @@ function normalizeProviderModels(value: unknown): Record<string, string> {
   for (const [providerId, rawModel] of Object.entries(value as Record<string, unknown>)) {
     const normalizedProviderId = providerId.trim()
     const model = typeof rawModel === 'string' ? rawModel.trim() : ''
-    if (normalizedProviderId && model) {
+    if (normalizedProviderId && model && model.toLowerCase() !== 'default') {
       result[normalizedProviderId] = model
     }
   }
   return result
 }
 
+function getProviderModel(providerModels: Record<string, string>, providerId: string): string {
+  const expected = providerId.trim().toLowerCase()
+  if (!expected) return ''
+  const entry = Object.entries(providerModels).find(
+    ([candidate]) => candidate.trim().toLowerCase() === expected
+  )
+  return entry?.[1]?.trim() ?? ''
+}
+
+function resolveEffectiveProviderModel(
+  workspaceProviderModels: Record<string, string>,
+  userProviderModels: Record<string, string>,
+  providerId: string
+): string {
+  return getProviderModel(workspaceProviderModels, providerId) || getProviderModel(userProviderModels, providerId)
+}
+
 function normalizeWorkspaceCoreConfig(value: unknown): WorkspaceCoreConfig {
   const source = value != null && typeof value === 'object' ? value as Partial<WorkspaceCoreConfig> : {}
   return {
     providerId: typeof source.providerId === 'string' ? source.providerId : null,
-    model: typeof source.model === 'string' ? source.model : null,
     providerModels: normalizeProviderModels(source.providerModels),
     welcomeSuggestionsEnabled:
       typeof source.welcomeSuggestionsEnabled === 'boolean'
@@ -1477,7 +1491,6 @@ export function SettingsView({
   } | null>(null)
   const [, setWorkspaceCoreBaseline] = useState<WorkspaceCoreConfig>({
     providerId: null,
-    model: null,
     providerModels: {},
     welcomeSuggestionsEnabled: null,
     skillsSelfLearningEnabled: null,
@@ -1488,9 +1501,8 @@ export function SettingsView({
     dreamsAutoApply: null,
     defaultApprovalPolicy: null
   })
-  const [, setUserDefaultCore] = useState<WorkspaceCoreConfig>({
+  const [userDefaultCore, setUserDefaultCore] = useState<WorkspaceCoreConfig>({
     providerId: null,
-    model: null,
     providerModels: {},
     welcomeSuggestionsEnabled: null,
     skillsSelfLearningEnabled: null,
@@ -1652,14 +1664,14 @@ export function SettingsView({
     if (!keepDraftValues) {
       const resolvedProviderId = core.workspace.providerId ?? core.userDefaults.providerId ?? 'openai'
       setSelectedProviderId(resolvedProviderId)
-      const resolvedModel = core.workspace.model ?? core.userDefaults.model ?? ''
+      const resolvedModel = resolveEffectiveProviderModel(
+        core.workspace.providerModels,
+        core.userDefaults.providerModels,
+        resolvedProviderId
+      )
       setWorkspaceModel(resolvedModel)
       setWorkspaceManualModelDraft(resolvedModel)
-      const nextProviderModels = { ...core.workspace.providerModels }
-      if (resolvedProviderId && resolvedModel && !nextProviderModels[resolvedProviderId]) {
-        nextProviderModels[resolvedProviderId] = resolvedModel
-      }
-      setProviderModels(nextProviderModels)
+      setProviderModels({ ...core.workspace.providerModels })
     }
 
     const resolvedWelcomeSuggestionsEnabled =
@@ -1892,33 +1904,26 @@ export function SettingsView({
     setProviderModelError('')
     try {
       const listedModels = await fetchWorkspaceProviderModelOptions(normalized)
-      const currentModel = workspaceModel.trim()
-      const rememberedModel = (providerModels[normalized] ?? '').trim()
-      // Prefer this provider's remembered model, then keep the current model if the target lists
-      // it, otherwise fall back to the first listed model.
+      const rememberedModel = resolveEffectiveProviderModel(
+        providerModels,
+        userDefaultCore.providerModels,
+        normalized
+      )
       const nextModel =
         listedModels != null && listedModels.length > 0
           ? rememberedModel && listedModels.includes(rememberedModel)
             ? rememberedModel
-            : currentModel && listedModels.includes(currentModel)
-              ? currentModel
-              : listedModels[0]
+            : listedModels[0]
           : rememberedModel || undefined
 
       const nextProviderModels = { ...providerModels }
-      if (previousProviderId && currentModel) {
-        nextProviderModels[previousProviderId] = currentModel
-      }
       if (nextModel !== undefined && nextModel.trim()) {
         nextProviderModels[normalized] = nextModel.trim()
       }
 
-      const updatePayload: { providerId: string; model?: string; providerModels: Record<string, string> } = {
+      const updatePayload: { providerId: string; providerModels: Record<string, string> } = {
         providerId: normalized,
         providerModels: nextProviderModels
-      }
-      if (nextModel !== undefined) {
-        updatePayload.model = nextModel
       }
 
       await window.api.appServer.sendRequest('workspace/config/update', updatePayload, 20_000)
@@ -1927,8 +1932,7 @@ export function SettingsView({
       setWorkspaceCoreBaseline((current) => ({
         ...current,
         providerId: normalized,
-        providerModels: nextProviderModels,
-        ...(nextModel !== undefined ? { model: nextModel || null } : {})
+        providerModels: nextProviderModels
       }))
       if (nextModel !== undefined) {
         setWorkspaceModel(nextModel)
@@ -1939,12 +1943,8 @@ export function SettingsView({
       // here must not roll back the (already persisted) main provider selection.
       if (subAgentEnabled) {
         try {
-          const previousSubModel = subAgentModel.trim()
-          const nextSubModel = (subAgentProviderModels[normalized] ?? '').trim()
+          const nextSubModel = getProviderModel(subAgentProviderModels, normalized)
           const nextSubProviderModels = { ...subAgentProviderModels }
-          if (previousProviderId && previousSubModel) {
-            nextSubProviderModels[previousProviderId] = previousSubModel
-          }
           if (nextSubModel) {
             nextSubProviderModels[normalized] = nextSubModel
           } else {
@@ -1988,13 +1988,11 @@ export function SettingsView({
         }
       }
       await window.api.appServer.sendRequest('workspace/config/update', {
-        model: normalized || null,
         providerModels: nextProviderModels
       }, 20_000)
       setProviderModels(nextProviderModels)
       setWorkspaceCoreBaseline((current) => ({
         ...current,
-        model: normalized || null,
         providerModels: nextProviderModels
       }))
       setWorkspaceModel(normalized)
@@ -3822,8 +3820,16 @@ export function SettingsView({
                         {!providersLoading && providers.map((provider) => {
                           const active = provider.id === selectedProviderId
                           const rememberedMainAgentModel = active
-                            ? workspaceModel.trim() || (providerModels[provider.id] ?? '').trim()
-                            : (providerModels[provider.id] ?? '').trim()
+                            ? workspaceModel.trim() || resolveEffectiveProviderModel(
+                              providerModels,
+                              userDefaultCore.providerModels,
+                              provider.id
+                            )
+                            : resolveEffectiveProviderModel(
+                              providerModels,
+                              userDefaultCore.providerModels,
+                              provider.id
+                            )
                           const rememberedSubAgentModel = active
                             ? subAgentModel.trim() || (subAgentProviderModels[provider.id] ?? '').trim()
                             : (subAgentProviderModels[provider.id] ?? '').trim()

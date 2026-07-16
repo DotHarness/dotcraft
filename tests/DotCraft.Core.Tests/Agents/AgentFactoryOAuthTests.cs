@@ -23,7 +23,7 @@ public sealed class AgentFactoryOAuthTests : IDisposable
         var config = new AppConfig
         {
             ProviderId = "openai",
-            Model = "gpt-5-codex",
+            ProviderModels = new() { ["openai"] = "gpt-5-codex" },
             Providers =
             {
                 ["openai"] = new AppConfig.ModelProviderConfig

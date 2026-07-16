@@ -75,16 +75,8 @@ public sealed class WorkspaceConfigUpdateParams
     public string? ProviderId { get; set; }
 
     /// <summary>
-    /// Workspace default model. Null/empty/"Default" removes the workspace model key.
-    /// </summary>
-    [JsonIgnore(Condition = JsonIgnoreCondition.Never)]
-    public string? Model { get; set; }
-
-    /// <summary>
-    /// Per-provider remembered model map (providerId → model). Empty/null removes the
+    /// Per-provider MainAgent model map (providerId → model). Empty/null removes the
     /// workspace ProviderModels key. Only entries with a non-empty, non-"Default" model are kept.
-    /// This is a UI-side memory used to restore <see cref="Model"/> when a provider is re-selected;
-    /// the runtime keeps reading <see cref="Model"/>.
     /// </summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public Dictionary<string, string>? ProviderModels { get; set; }
@@ -171,13 +163,6 @@ public sealed class WorkspaceConfigUpdateResult
     /// </summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.Never)]
     public string? ProviderId { get; set; }
-
-    /// <summary>
-    /// Persisted workspace model after normalization.
-    /// Null means the model key was removed (workspace default behavior).
-    /// </summary>
-    [JsonIgnore(Condition = JsonIgnoreCondition.Never)]
-    public string? Model { get; set; }
 
     /// <summary>
     /// Persisted per-provider remembered model map after normalization.

@@ -6,7 +6,6 @@ export type WorkspaceInferenceSpeed = 'standard' | 'fast'
 export interface WorkspaceCoreConfigLike {
   workspace?: {
     providerId?: string | null
-    model?: string | null
     providerModels?: Record<string, string> | null
     welcomeSuggestionsEnabled?: boolean | null
     defaultApprovalPolicy?: WorkspaceDefaultApprovalPolicy | null
@@ -15,7 +14,6 @@ export interface WorkspaceCoreConfigLike {
   } | null
   userDefaults?: {
     providerId?: string | null
-    model?: string | null
     providerModels?: Record<string, string> | null
     welcomeSuggestionsEnabled?: boolean | null
     defaultApprovalPolicy?: WorkspaceDefaultApprovalPolicy | null
@@ -98,7 +96,7 @@ export function resolveWorkspaceModelFromConfig(
     if (providerModel) return providerModel
   }
 
-  return normalizeOptionalModel(getCaseInsensitiveValue(config, 'Model')) ?? 'Default'
+  return 'Default'
 }
 
 export function resolveConcreteApprovalPolicyFromWorkspaceDefault(value: unknown): ConcreteApprovalPolicy {
@@ -127,11 +125,6 @@ export function configObjectFromWorkspaceCore(core: WorkspaceCoreConfigLike): Re
   )
   if (Object.keys(providerModels).length > 0) {
     config.ProviderModels = providerModels
-  }
-
-  const model = normalizeOptionalModel(core.workspace?.model ?? core.userDefaults?.model)
-  if (model) {
-    config.Model = model
   }
 
   const speed = core.workspace?.speed ?? core.userDefaults?.speed

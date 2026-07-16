@@ -9,8 +9,7 @@ DotCraft reads global `~/.craft/config.json` first, then overlays workspace `.cr
 | Field | Description | Default |
 |-------|-------------|---------|
 | `ProviderId` | Current personal provider id. Empty means no provider is selected | Empty |
-| `Model` | Default model name | `gpt-4o-mini` |
-| `ProviderModels` | Remembered MainAgent model names keyed by provider id; the selected provider entry takes precedence over `Model` | `{}` |
+| `ProviderModels` | MainAgent model names keyed by provider id. The selected provider must have an effective entry | `{}` |
 | `NetworkTimeoutSeconds` | Global model request timeout in seconds; providers can override it | `600` |
 | `Providers` | Personal model provider dictionary, usually stored in `~/.craft/config.json` | Empty |
 | `SubagentMaxConcurrency` | Maximum concurrent subagents | `3` |
@@ -44,7 +43,9 @@ Workspace model selection example:
 ```json
 {
   "ProviderId": "anthropic",
-  "Model": "claude-sonnet-4-5"
+  "ProviderModels": {
+    "anthropic": "claude-sonnet-4-5"
+  }
 }
 ```
 

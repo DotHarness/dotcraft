@@ -191,7 +191,7 @@ public sealed class SessionServiceSetThreadModeTests : IDisposable
         Assert.Equal(ContextWindowMode.Max, existingThread.Configuration?.ContextWindow?.Mode);
         Assert.Null(svc.DebugGetRuntime(existingThread.Id)?.Agent);
 
-        monitor.Current.Model = "model-b";
+        monitor.Current.ProviderModels[monitor.Current.ProviderId] = "model-b";
         monitor.Current.Reasoning = new AppConfig.ReasoningConfig
         {
             Enabled = false,

@@ -45,7 +45,7 @@ public sealed class AppServerThreadModelSnapshotTests : IDisposable
                   "EndPoint": "https://127.0.0.1:9/v1"
                 }
               },
-              "Model": "model-a",
+              "ProviderModels": { "openai": "model-a" },
               "Speed": "Fast"
             }
             """);
@@ -89,7 +89,7 @@ public sealed class AppServerThreadModelSnapshotTests : IDisposable
 
         var update = InMemoryTransport.BuildRequest(
             AppServerMethods.WorkspaceConfigUpdate,
-            new { model = "model-b" },
+            new { providerModels = new Dictionary<string, string> { ["openai"] = "model-b" } },
             id: 11);
         await ExecuteRequestAsync(handler, transport, update);
         await ReadResponseForIdAsync(transport, 11);
@@ -140,7 +140,7 @@ public sealed class AppServerThreadModelSnapshotTests : IDisposable
             """
             {
               "ProviderId": "anthropic-main",
-              "Model": "claude-sonnet-4-5"
+              "ProviderModels": { "anthropic-main": "claude-sonnet-4-5" }
             }
             """);
 
@@ -184,7 +184,11 @@ public sealed class AppServerThreadModelSnapshotTests : IDisposable
             new
             {
                 providerId = "openrouter",
-                model = "openrouter-model"
+                providerModels = new Dictionary<string, string>
+                {
+                    ["anthropic-main"] = "claude-sonnet-4-5",
+                    ["openrouter"] = "openrouter-model"
+                }
             },
             id: 21);
         await ExecuteRequestAsync(handler, transport, update);

@@ -7,7 +7,11 @@ public sealed class AppConfigMonitorTests
     [Fact]
     public void Current_ReturnsInjectedInstance()
     {
-        var config = new AppConfig { Model = "gpt-4o-mini" };
+        var config = new AppConfig
+        {
+            ProviderId = "openai",
+            ProviderModels = new() { ["openai"] = "gpt-4o-mini" }
+        };
         var monitor = new AppConfigMonitor(config);
 
         Assert.Same(config, monitor.Current);

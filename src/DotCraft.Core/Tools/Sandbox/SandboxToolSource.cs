@@ -111,7 +111,7 @@ public sealed class SandboxToolSource(
         tools.Add(GeneratedToolFunctions.WebTools_WebFetch(webTools));
 
         var target = SkillVariantStore.CreateTarget(
-            config.Model,
+            context.EffectiveMainModel,
             context.WorkspacePath,
             sandboxEnabled: true,
             config.Permissions.DefaultApprovalPolicy.ToString(),

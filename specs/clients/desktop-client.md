@@ -617,7 +617,7 @@ Required behavior:
 - Welcome model catalog requests are scoped to the workspace provider. Existing-thread requests are scoped to `thread.configuration.providerId` and do not follow workspace changes.
 - If model listing returns `EndpointNotSupported` or another provider-neutral error, the client must keep manual model entry available.
 - The combined picker exposes configured Provider and model submenus with the existing keyboard and ARIA menu behavior.
-- Welcome atomically persists `providerId`, `model`, and `providerModels`, then sends the complete pair in `thread/start` or `worktree/createAndStart`.
+- Welcome atomically persists `providerId` and `providerModels`, then sends the complete pair in `thread/start` or `worktree/createAndStart`.
 - Existing threads do not expose Default. A provider/model choice sends one full `thread/config/update`, never `workspace/config/update`, and updates local state only after success.
 - If a target provider has no remembered model, Desktop selects its first listed model. If listing is unavailable, it leaves the thread unchanged and directs the user to Model Providers settings.
 - Missing/deleted providers remain visible as missing thread state until the user explicitly migrates the thread.

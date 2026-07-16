@@ -95,7 +95,7 @@ internal sealed class WorkspaceRequestHandler(
     private async Task<object?> HandleWorkspaceConfigUpdateAsync(AppServerIncomingMessage msg, CancellationToken ct)
     {
         const string requiredFieldMessage =
-            "At least one of 'providerId', 'model', 'providerModels', 'welcomeSuggestionsEnabled', " +
+            "At least one of 'providerId', 'providerModels', 'welcomeSuggestionsEnabled', " +
             "'skillsSelfLearningEnabled', 'memoryAutoConsolidateEnabled', 'dreamsEnabled', 'dreamsInterval', " +
             "'dreamsThreadLookbackCount', 'dreamsAutoApply', 'defaultApprovalPolicy', 'toolsLspEnabled', " +
             "'reasoning', 'speed', or 'contextWindow' is required.";
@@ -106,13 +106,16 @@ internal sealed class WorkspaceRequestHandler(
             throw AppServerErrors.InvalidParams(requiredFieldMessage);
 
         var hasProviderId = TryGetCaseInsensitiveProperty(msg.Params.Value, "providerId", out var providerIdEl);
-        var hasModel = TryGetCaseInsensitiveProperty(msg.Params.Value, "model", out var modelEl);
+        var hasModel = TryGetCaseInsensitiveProperty(msg.Params.Value, "model", out _);
         var hasProviderModels = TryGetCaseInsensitiveProperty(msg.Params.Value, "providerModels", out var providerModelsEl);
         var hasApiKey = TryGetCaseInsensitiveProperty(msg.Params.Value, "apiKey", out var apiKeyEl);
         var hasEndPoint = TryGetCaseInsensitiveProperty(msg.Params.Value, "endPoint", out var endPointEl);
         if (hasApiKey || hasEndPoint)
             throw AppServerErrors.InvalidParams(
                 "'apiKey' and 'endPoint' are no longer accepted by workspace/config/update. Use provider/create or provider/update.");
+        if (hasModel)
+            throw AppServerErrors.InvalidParams(
+                "'model' is no longer accepted by workspace/config/update. Set the selected provider's entry in 'providerModels'.");
         var hasWelcomeSuggestionsEnabled = TryGetCaseInsensitiveProperty(
             msg.Params.Value,
             "welcomeSuggestionsEnabled",
@@ -162,7 +165,6 @@ internal sealed class WorkspaceRequestHandler(
             "contextWindow",
             out var contextWindowEl);
         if (!hasProviderId
-            && !hasModel
             && !hasProviderModels
             && !hasWelcomeSuggestionsEnabled
             && !hasSkillsSelfLearningEnabled
@@ -182,7 +184,6 @@ internal sealed class WorkspaceRequestHandler(
 
         var currentConfig = appConfigMonitor?.Current ?? workspaceConfig.LoadCurrentMergedConfig();
         var providerId = hasProviderId ? NormalizeOptionalString(ParseNullableString(providerIdEl, "providerId")) : null;
-        var model = hasModel ? ParseNullableString(modelEl, "model") : null;
         var providerModels = hasProviderModels ? ParseNullableProviderModels(providerModelsEl, "providerModels") : null;
         var welcomeSuggestionsEnabled = hasWelcomeSuggestionsEnabled
             ? ParseNullableBoolean(welcomeSuggestionsEnabledEl, "welcomeSuggestionsEnabled")
@@ -221,27 +222,33 @@ internal sealed class WorkspaceRequestHandler(
             ? ParseNullableWorkspaceContextWindowConfig(contextWindowEl, "contextWindow")
             : null;
 
+        var prospectiveProviderId = hasProviderId ? providerId : currentConfig.ProviderId;
+        var prospectiveModel = ResolveProspectiveWorkspaceModel(
+            currentConfig,
+            workspaceConfig.PersonalConfigPath,
+            prospectiveProviderId,
+            hasProviderModels ? providerModels : null,
+            hasProviderModels);
         if (hasReasoning && reasoning != null)
         {
             AppServerRuntimeRequestValidator.ValidateReasoningForRuntime(
                 currentConfig,
-                hasProviderId ? providerId : currentConfig.ProviderId,
-                hasModel ? NormalizeWorkspaceModel(model) : currentConfig.Model,
+                prospectiveProviderId,
+                prospectiveModel,
                 reasoning);
         }
         if (hasContextWindow && contextWindow != null)
         {
             AppServerRuntimeRequestValidator.ValidateContextWindowForRuntime(
                 currentConfig,
-                hasProviderId ? providerId : currentConfig.ProviderId,
-                hasModel ? NormalizeWorkspaceModel(model) : currentConfig.Model,
+                prospectiveProviderId,
+                prospectiveModel,
                 contextWindow);
         }
 
         var saveResult = SaveWorkspaceCoreConfig(
             workspaceCraftPath!,
             hasProviderId ? providerId : null,
-            hasModel ? NormalizeWorkspaceModel(model) : null,
             hasProviderModels ? providerModels : null,
             welcomeSuggestionsEnabled,
             skillsSelfLearningEnabled,
@@ -255,7 +262,6 @@ internal sealed class WorkspaceRequestHandler(
             reasoning,
             contextWindow,
             hasProviderId,
-            hasModel,
             hasProviderModels,
             hasWelcomeSuggestionsEnabled,
             hasSkillsSelfLearningEnabled,
@@ -273,10 +279,9 @@ internal sealed class WorkspaceRequestHandler(
         var changedRegions = new List<string>();
         if (saveResult.ProviderIdChanged)
             changedRegions.Add(ConfigChangeRegions.WorkspaceProvider);
-        if (saveResult.ModelChanged || saveResult.ProviderModelsChanged)
+        if (saveResult.ProviderModelsChanged)
             changedRegions.Add(ConfigChangeRegions.WorkspaceModel);
         if (saveResult.ProviderIdChanged
-            || saveResult.ModelChanged
             || saveResult.ProviderModelsChanged)
         {
             runtimeConfig.RefreshCurrentLlmConfig();
@@ -344,7 +349,6 @@ internal sealed class WorkspaceRequestHandler(
         return new WorkspaceConfigUpdateResult
         {
             ProviderId = saveResult.ProviderId,
-            Model = saveResult.Model,
             ProviderModels = saveResult.ProviderModels,
             WelcomeSuggestionsEnabled = saveResult.WelcomeSuggestionsEnabled,
             SkillsSelfLearningEnabled = saveResult.SkillsSelfLearningEnabled,
@@ -500,6 +504,31 @@ internal sealed class WorkspaceRequestHandler(
         return result;
     }
 
+    private static string? ResolveProspectiveWorkspaceModel(
+        AppConfig currentConfig,
+        string personalConfigPath,
+        string? providerId,
+        Dictionary<string, string>? workspaceProviderModels,
+        bool updateProviderModels)
+    {
+        if (!updateProviderModels)
+            return ModelProviderResolver.ResolveConfiguredModel(currentConfig, providerId);
+
+        var effectiveModels = new Dictionary<string, string>(
+            AppConfig.Load(personalConfigPath).ProviderModels,
+            StringComparer.OrdinalIgnoreCase);
+        foreach (var (key, value) in NormalizeProviderModels(workspaceProviderModels))
+            effectiveModels[key] = value;
+
+        return ModelProviderResolver.ResolveConfiguredModel(
+            new AppConfig
+            {
+                ProviderId = providerId ?? string.Empty,
+                ProviderModels = effectiveModels
+            },
+            providerId);
+    }
+
     private static Dictionary<string, string> ReadConfigProviderModels(JsonObject root)
     {
         var result = new Dictionary<string, string>(StringComparer.Ordinal);
@@ -569,7 +598,6 @@ internal sealed class WorkspaceRequestHandler(
     private static WorkspaceConfigSaveResult SaveWorkspaceCoreConfig(
         string workspaceCraftPath,
         string? providerId,
-        string? model,
         Dictionary<string, string>? providerModels,
         bool? welcomeSuggestionsEnabled,
         bool? skillsSelfLearningEnabled,
@@ -583,7 +611,6 @@ internal sealed class WorkspaceRequestHandler(
         AppConfig.ReasoningConfig? reasoning,
         ThreadContextWindowConfig? contextWindow,
         bool updateProviderId,
-        bool updateModel,
         bool updateProviderModels,
         bool updateWelcomeSuggestionsEnabled,
         bool updateSkillsSelfLearningEnabled,
@@ -602,9 +629,10 @@ internal sealed class WorkspaceRequestHandler(
         var root = LoadWorkspaceConfigObject(configPath);
         var legacyLanguageKey = FindCaseInsensitiveKey(root, "Language");
         var legacyLanguageRemoved = legacyLanguageKey != null && root.Remove(legacyLanguageKey);
+        var legacyModelKey = FindCaseInsensitiveKey(root, "Model");
+        var legacyModelRemoved = legacyModelKey != null && root.Remove(legacyModelKey);
 
         var providerIdKey = FindCaseInsensitiveKey(root, "ProviderId");
-        var modelKey = FindCaseInsensitiveKey(root, "Model");
         var welcomeSection = GetOrCreateConfigSection(root, "WelcomeSuggestions", createIfMissing: updateWelcomeSuggestionsEnabled);
         var welcomeEnabledKey = welcomeSection == null ? null : FindCaseInsensitiveKey(welcomeSection, "Enabled");
         var skillsSection = GetOrCreateConfigSection(root, "Skills", createIfMissing: updateSkillsSelfLearningEnabled);
@@ -634,7 +662,6 @@ internal sealed class WorkspaceRequestHandler(
         var contextWindowModeKey = compactionSection == null ? null : FindCaseInsensitiveKey(compactionSection, "ContextWindowMode");
 
         var existingProviderId = NormalizeOptionalString(ReadConfigStringValue(root, providerIdKey));
-        var existingModel = NormalizeWorkspaceModel(ReadConfigStringValue(root, modelKey));
         var existingProviderModels = ReadConfigProviderModels(root);
         var existingWelcomeSuggestionsEnabled = ReadConfigBooleanValue(welcomeSection, welcomeEnabledKey);
         var existingSkillsSelfLearningEnabled = ReadConfigBooleanValue(selfLearningSection, selfLearningEnabledKey);
@@ -649,7 +676,6 @@ internal sealed class WorkspaceRequestHandler(
         var existingContextWindow = ReadConfigContextWindowValue(compactionSection, contextWindowModeKey);
 
         var providerIdChanged = updateProviderId && !string.Equals(existingProviderId, providerId, StringComparison.Ordinal);
-        var modelChanged = updateModel && !string.Equals(existingModel, model, StringComparison.Ordinal);
         var normalizedProviderModels = updateProviderModels ? NormalizeProviderModels(providerModels) : existingProviderModels;
         var providerModelsChanged = updateProviderModels && !ProviderModelsEqual(existingProviderModels, normalizedProviderModels);
         var welcomeSuggestionsChanged = updateWelcomeSuggestionsEnabled
@@ -677,8 +703,6 @@ internal sealed class WorkspaceRequestHandler(
 
         if (updateProviderId)
             UpsertOrRemoveConfigValue(root, providerIdKey, "ProviderId", providerId);
-        if (updateModel)
-            UpsertOrRemoveConfigValue(root, modelKey, "Model", model);
         if (updateProviderModels)
             WriteProviderModels(root, normalizedProviderModels);
         if (updateWelcomeSuggestionsEnabled)
@@ -783,7 +807,6 @@ internal sealed class WorkspaceRequestHandler(
         }
 
         if (providerIdChanged
-            || modelChanged
             || providerModelsChanged
             || welcomeSuggestionsChanged
             || skillsSelfLearningChanged
@@ -796,7 +819,8 @@ internal sealed class WorkspaceRequestHandler(
             || toolsLspEnabledChanged
             || reasoningChanged
             || contextWindowChanged
-            || legacyLanguageRemoved)
+            || legacyLanguageRemoved
+            || legacyModelRemoved)
         {
             WriteConfigObject(configPath, root);
         }
@@ -804,7 +828,6 @@ internal sealed class WorkspaceRequestHandler(
         return new WorkspaceConfigSaveResult
         {
             ProviderId = updateProviderId ? providerId : existingProviderId,
-            Model = updateModel ? model : existingModel,
             ProviderModels = normalizedProviderModels.Count == 0 ? null : new Dictionary<string, string>(normalizedProviderModels, StringComparer.Ordinal),
             WelcomeSuggestionsEnabled = updateWelcomeSuggestionsEnabled
                 ? welcomeSuggestionsEnabled
@@ -840,7 +863,6 @@ internal sealed class WorkspaceRequestHandler(
                 ? CloneNullableContextWindowConfig(contextWindow)
                 : CloneNullableContextWindowConfig(existingContextWindow),
             ProviderIdChanged = providerIdChanged,
-            ModelChanged = modelChanged,
             ProviderModelsChanged = providerModelsChanged,
             WelcomeSuggestionsChanged = welcomeSuggestionsChanged,
             SkillsSelfLearningChanged = skillsSelfLearningChanged,
@@ -1228,8 +1250,6 @@ internal sealed class WorkspaceRequestHandler(
     {
         public string? ProviderId { get; init; }
 
-        public string? Model { get; init; }
-
         public Dictionary<string, string>? ProviderModels { get; init; }
 
         public bool? WelcomeSuggestionsEnabled { get; init; }
@@ -1255,8 +1275,6 @@ internal sealed class WorkspaceRequestHandler(
         public ThreadContextWindowConfig? ContextWindow { get; init; }
 
         public bool ProviderIdChanged { get; init; }
-
-        public bool ModelChanged { get; init; }
 
         public bool ProviderModelsChanged { get; init; }
 

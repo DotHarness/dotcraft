@@ -1764,7 +1764,7 @@ ThreadConfiguration
 ├── Extensions: string[]?                        // Active extension prefixes, e.g. ["_unity"]
 ├── CustomTools: string[]?                       // Additional tool names to enable
 ├── ProviderId: string?                          // Per-thread provider id captured at thread creation
-├── Model: string?                               // Per-thread model; defaults to the effective workspace model at thread creation
+├── Model: string?                               // Per-thread model captured from ProviderModels at thread creation
 ├── Reasoning: ReasoningConfig?                  // Per-thread reasoning configuration
 ├── ContextWindow: { mode: "default"|"max" }?    // Per-thread context-window mode
 ├── WorkspaceOverride: string?                   // Alternate workspace root for this thread
@@ -1790,7 +1790,8 @@ When a thread is created or its configuration changes, Session Core recreates th
 
 Model resolution is thread-aware:
 
-- when a server-managed thread is created, Session Core captures a complete effective `ProviderId` + `Model` pair; an explicit request pair wins, otherwise the model resolves from `AppConfig.ProviderModels[ProviderId]` and then `AppConfig.Model`
+- when a server-managed thread is created, Session Core captures a complete effective `ProviderId` + `Model` pair; an explicit request pair wins, otherwise the model resolves from `AppConfig.ProviderModels[ProviderId]`
+- a selected provider without a non-empty `ProviderModels` entry is not a valid MainAgent runtime; the obsolete root `Model` key is ignored and is never migrated or used as a fallback
 - the MainAgent uses the thread pair for every turn, resume, and tool-planning operation; workspace defaults never replace either value on an existing thread
 - DotCraft-managed native SubAgents resolve `AppConfig.SubAgent.ProviderModels[Thread.Configuration.ProviderId]`; a missing entry inherits the parent thread's MainAgent model
 - `SubAgent.Model` is not a configuration field or fallback and is ignored when present in an old config file

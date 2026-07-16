@@ -25,9 +25,6 @@ public sealed class AppConfig
     [ConfigField(Reload = ReloadBehavior.ProcessRestart, HasReload = true)]
     public string ProviderId { get; set; } = string.Empty;
 
-    [ConfigField(Reload = ReloadBehavior.ProcessRestart, HasReload = true)]
-    public string Model { get; set; } = "gpt-4o-mini";
-
     /// <summary>Workspace model preference keyed by provider id.</summary>
     [ConfigField(Ignore = true)]
     public Dictionary<string, string> ProviderModels { get; set; } = new(StringComparer.OrdinalIgnoreCase);
@@ -116,7 +113,7 @@ public sealed class AppConfig
     public DreamsConfig Dreams { get; set; } = new();
 
     /// <summary>
-    /// Model used for memory consolidation. When empty, uses <see cref="Model"/> (same as main agent).
+    /// Model used for memory consolidation. When empty, uses the effective MainAgent model.
     /// When set, use this model for consolidation only (e.g. a non-thinking model to avoid tool_choice restrictions in thinking mode).
     /// </summary>
     [ConfigField(Hint = "Model for memory consolidation. Empty = use main Model. Set to a non-thinking model if main model does not support tool_choice in thinking mode.")]

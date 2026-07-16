@@ -10,7 +10,7 @@ public sealed class ModelProviderResolverOAuthTests
         var config = new AppConfig
         {
             ProviderId = "openai",
-            Model = "gpt-5-codex",
+            ProviderModels = new() { ["openai"] = "gpt-5-codex" },
             Providers =
             {
                 ["openai"] = new AppConfig.ModelProviderConfig
@@ -40,7 +40,7 @@ public sealed class ModelProviderResolverOAuthTests
         var config = new AppConfig
         {
             ProviderId = "openai",
-            Model = "gpt-4o",
+            ProviderModels = new() { ["openai"] = "gpt-4o" },
             Providers =
             {
                 ["openai"] = new AppConfig.ModelProviderConfig
@@ -67,7 +67,7 @@ public sealed class ModelProviderResolverOAuthTests
         var config = new AppConfig
         {
             ProviderId = "anthropic",
-            Model = "claude-3-5-sonnet",
+            ProviderModels = new() { ["anthropic"] = "claude-3-5-sonnet" },
             Providers =
             {
                 ["anthropic"] = new AppConfig.ModelProviderConfig

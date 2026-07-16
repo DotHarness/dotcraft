@@ -9,7 +9,6 @@ describe('SettingsView workspace core readers', () => {
     await expect(readWorkspaceCoreSafeFromApi(undefined)).resolves.toEqual({
       workspace: {
         providerId: null,
-        model: null,
         providerModels: {},
         welcomeSuggestionsEnabled: null,
         skillsSelfLearningEnabled: null,
@@ -22,7 +21,6 @@ describe('SettingsView workspace core readers', () => {
       },
       userDefaults: {
         providerId: null,
-        model: null,
         providerModels: {},
         welcomeSuggestionsEnabled: null,
         skillsSelfLearningEnabled: null,
@@ -81,7 +79,6 @@ describe('SettingsView workspace core readers', () => {
     ).resolves.toEqual({
       workspace: {
         providerId: null,
-        model: null,
         providerModels: {},
         welcomeSuggestionsEnabled: null,
         skillsSelfLearningEnabled: true,
@@ -94,7 +91,6 @@ describe('SettingsView workspace core readers', () => {
       },
       userDefaults: {
         providerId: null,
-        model: null,
         providerModels: {},
         welcomeSuggestionsEnabled: null,
         skillsSelfLearningEnabled: false,

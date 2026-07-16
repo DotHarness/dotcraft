@@ -131,7 +131,7 @@ describe('SettingsView self-learning settings', () => {
     const core: any = {
       workspace: {
         providerId: null,
-        model: null,
+        providerModels: {},
         apiKey: null,
         endPoint: null,
         welcomeSuggestionsEnabled: null,
@@ -145,7 +145,7 @@ describe('SettingsView self-learning settings', () => {
       },
       userDefaults: {
         providerId: null,
-        model: null,
+        providerModels: {},
         apiKey: null,
         endPoint: null,
         welcomeSuggestionsEnabled: null,
@@ -177,13 +177,12 @@ describe('SettingsView self-learning settings', () => {
     workspaceConfigGetCore.mockImplementation(async () => core)
     appServerSendRequest.mockImplementation(async (method: string, params?: Record<string, unknown>) => {
       if (method === 'workspace/config/update') {
+        if (params?.providerModels && typeof params.providerModels === 'object') {
+          core.workspace.providerModels = params.providerModels
+        }
         if (typeof params?.providerId === 'string' || params?.providerId === null) {
           core.workspace.providerId = params.providerId
           return { providerId: core.workspace.providerId }
-        }
-        if (typeof params?.model === 'string' || params?.model === null) {
-          core.workspace.model = params.model
-          return { model: core.workspace.model }
         }
         if (typeof params?.defaultApprovalPolicy === 'string') {
           core.workspace.defaultApprovalPolicy = params.defaultApprovalPolicy
@@ -923,7 +922,6 @@ describe('SettingsView self-learning settings', () => {
     workspaceConfigGetCore.mockResolvedValue({
       workspace: {
         providerId: 'openai',
-        model: 'main-model-v2',
         providerModels: { openai: 'main-model-v2' }
       },
       userDefaults: { providerModels: {} }
@@ -970,7 +968,6 @@ describe('SettingsView self-learning settings', () => {
     await waitFor(() => {
       expect(appServerSendRequest).toHaveBeenCalledWith('workspace/config/update', {
         providerId: 'anthropic-main',
-        model: 'claude-sonnet-4-5',
         providerModels: { 'anthropic-main': 'claude-sonnet-4-5' }
       }, 20_000)
     })
@@ -987,7 +984,7 @@ describe('SettingsView self-learning settings', () => {
     workspaceConfigGetCore.mockResolvedValue({
       workspace: {
         providerId: 'codex',
-        model: 'gpt-5.5',
+        providerModels: { codex: 'gpt-5.5' },
         apiKey: null,
         endPoint: null,
         welcomeSuggestionsEnabled: null,
@@ -1001,7 +998,7 @@ describe('SettingsView self-learning settings', () => {
       },
       userDefaults: {
         providerId: null,
-        model: null,
+        providerModels: {},
         apiKey: null,
         endPoint: null,
         welcomeSuggestionsEnabled: null,
@@ -1037,7 +1034,6 @@ describe('SettingsView self-learning settings', () => {
     await waitFor(() => {
       expect(appServerSendRequest).toHaveBeenCalledWith('workspace/config/update', {
         providerId: 'anthropic-main',
-        model: 'claude-sonnet-4-5',
         providerModels: { codex: 'gpt-5.5', 'anthropic-main': 'claude-sonnet-4-5' }
       }, 20_000)
     })
@@ -1053,7 +1049,6 @@ describe('SettingsView self-learning settings', () => {
 
     await waitFor(() => {
       expect(appServerSendRequest).toHaveBeenCalledWith('workspace/config/update', {
-        model: 'deepseek-v4-pro',
         providerModels: { openai: 'deepseek-v4-pro' }
       }, 20_000)
     })
@@ -1064,13 +1059,12 @@ describe('SettingsView self-learning settings', () => {
     await waitFor(() => {
       expect(appServerSendRequest).toHaveBeenCalledWith('workspace/config/update', {
         providerId: 'anthropic-main',
-        model: 'claude-sonnet-4-5',
         providerModels: { openai: 'deepseek-v4-pro', 'anthropic-main': 'claude-sonnet-4-5' }
       }, 20_000)
     })
   })
 
-  it('preserves the workspace model when the target provider lists it', async () => {
+  it('uses the target provider first listed model when it has no remembered model', async () => {
     enableProviderManagement()
     const defaultSendRequest = appServerSendRequest.getMockImplementation()
     appServerSendRequest.mockImplementation(async (method: string, params?: Record<string, unknown>) => {
@@ -1094,7 +1088,6 @@ describe('SettingsView self-learning settings', () => {
 
     await waitFor(() => {
       expect(appServerSendRequest).toHaveBeenCalledWith('workspace/config/update', {
-        model: 'deepseek-v4-pro',
         providerModels: { openai: 'deepseek-v4-pro' }
       }, 20_000)
     })
@@ -1105,8 +1098,7 @@ describe('SettingsView self-learning settings', () => {
     await waitFor(() => {
       expect(appServerSendRequest).toHaveBeenCalledWith('workspace/config/update', {
         providerId: 'anthropic-main',
-        model: 'deepseek-v4-pro',
-        providerModels: { openai: 'deepseek-v4-pro', 'anthropic-main': 'deepseek-v4-pro' }
+        providerModels: { openai: 'deepseek-v4-pro', 'anthropic-main': 'claude-sonnet-4-5' }
       }, 20_000)
     })
   })
@@ -1122,7 +1114,6 @@ describe('SettingsView self-learning settings', () => {
     fireEvent.change(modelSelect, { target: { value: 'deepseek-v4-pro' } })
     await waitFor(() => {
       expect(appServerSendRequest).toHaveBeenCalledWith('workspace/config/update', {
-        model: 'deepseek-v4-pro',
         providerModels: { openai: 'deepseek-v4-pro' }
       }, 20_000)
     })
@@ -1133,7 +1124,6 @@ describe('SettingsView self-learning settings', () => {
     await waitFor(() => {
       expect(appServerSendRequest).toHaveBeenCalledWith('workspace/config/update', {
         providerId: 'anthropic-main',
-        model: 'claude-sonnet-4-5',
         providerModels: { openai: 'deepseek-v4-pro', 'anthropic-main': 'claude-sonnet-4-5' }
       }, 20_000)
     })
@@ -1144,7 +1134,6 @@ describe('SettingsView self-learning settings', () => {
     await waitFor(() => {
       expect(appServerSendRequest).toHaveBeenCalledWith('workspace/config/update', {
         providerId: 'openai',
-        model: 'deepseek-v4-pro',
         providerModels: { openai: 'deepseek-v4-pro', 'anthropic-main': 'claude-sonnet-4-5' }
       }, 20_000)
     })
@@ -1220,7 +1209,12 @@ describe('SettingsView self-learning settings', () => {
     })
 
     // Choose a native model for Anthropic.
-    const anthropicSubAgentSelect = await screen.findByLabelText('SubAgent model') as HTMLSelectElement
+    await waitFor(() => {
+      const select = screen.getByLabelText('SubAgent model') as HTMLSelectElement
+      expect(select).not.toBeDisabled()
+      expect(select.value).toBe('')
+    })
+    const anthropicSubAgentSelect = screen.getByLabelText('SubAgent model') as HTMLSelectElement
     fireEvent.change(anthropicSubAgentSelect, { target: { value: 'claude-sonnet-4-5' } })
     await waitFor(() => {
       expect(appServerSendRequest).toHaveBeenCalledWith('subagent/settings/update', {
@@ -1250,7 +1244,6 @@ describe('SettingsView self-learning settings', () => {
 
     await waitFor(() => {
       expect(appServerSendRequest).toHaveBeenCalledWith('workspace/config/update', {
-        model: 'deepseek-v4-pro',
         providerModels: { openai: 'deepseek-v4-pro' }
       }, 20_000)
     })
@@ -1285,7 +1278,6 @@ describe('SettingsView self-learning settings', () => {
 
     await waitFor(() => {
       expect(appServerSendRequest).toHaveBeenCalledWith('workspace/config/update', {
-        model: 'manual-model',
         providerModels: { openai: 'manual-model' }
       }, 20_000)
     })

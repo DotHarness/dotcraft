@@ -194,7 +194,7 @@ public static class ModelProviderResolver
 
         var provider = ResolveProvider(config, providerIdOverride);
         var model = string.IsNullOrWhiteSpace(modelOverride)
-            ? GetProviderModel(config.ProviderModels, provider.ProviderId) ?? config.Model
+            ? ResolveConfiguredModel(config, provider.ProviderId)
             : modelOverride;
 
         if (string.IsNullOrWhiteSpace(model))
@@ -240,6 +240,17 @@ public static class ModelProviderResolver
         }
 
         return null;
+    }
+
+    internal static string? ResolveConfiguredModel(AppConfig config, string? providerId = null)
+    {
+        ArgumentNullException.ThrowIfNull(config);
+        var effectiveProviderId = NormalizeProviderId(providerId);
+        if (string.IsNullOrWhiteSpace(effectiveProviderId))
+            effectiveProviderId = NormalizeProviderId(config.ProviderId);
+        return string.IsNullOrWhiteSpace(effectiveProviderId)
+            ? null
+            : GetProviderModel(config.ProviderModels, effectiveProviderId);
     }
 
     public static EffectiveModelRuntime ResolveProvider(AppConfig config, string? providerIdOverride = null)
@@ -350,7 +361,7 @@ public static class ModelProviderResolver
 
             runtime = new EffectiveModelRuntime(
                 providerId,
-                NormalizeRequiredModel(config.Model),
+                string.Empty,
                 protocol,
                 string.IsNullOrWhiteSpace(provider.DisplayName) ? providerId : provider.DisplayName.Trim(),
                 apiKey,
@@ -386,14 +397,6 @@ public static class ModelProviderResolver
             ModelProviderProtocols.Anthropic => ModelProviderDefaults.DefaultAnthropicEndpoint,
             _ => string.Empty
         };
-    }
-
-    private static string NormalizeRequiredModel(string? model)
-    {
-        if (string.IsNullOrWhiteSpace(model))
-            throw new ArgumentException("Model must be configured.", nameof(model));
-
-        return model.Trim();
     }
 
     private static int? NormalizePositiveNullable(int? value) =>

@@ -215,12 +215,12 @@ describe('ConversationWelcome composer', () => {
     fileReadFile.mockResolvedValue('{}')
     workspaceConfigGetCore.mockResolvedValue({
       workspace: {
-        model: null,
+        providerModels: {},
         welcomeSuggestionsEnabled: null,
         defaultApprovalPolicy: null
       },
       userDefaults: {
-        model: null,
+        providerModels: {},
         welcomeSuggestionsEnabled: null,
         defaultApprovalPolicy: null
       }
@@ -751,12 +751,14 @@ describe('ConversationWelcome composer', () => {
   it('loads the workspace model from remote-aware core config without reading local files', async () => {
     workspaceConfigGetCore.mockResolvedValue({
       workspace: {
-        model: 'claude-sonnet-4-5',
+        providerId: 'anthropic',
+        providerModels: { anthropic: 'claude-sonnet-4-5' },
         welcomeSuggestionsEnabled: null,
         defaultApprovalPolicy: null
       },
       userDefaults: {
-        model: 'gpt-5',
+        providerId: 'openai',
+        providerModels: { openai: 'gpt-5' },
         welcomeSuggestionsEnabled: null,
         defaultApprovalPolicy: null
       }

@@ -13,8 +13,7 @@ public sealed class GeneratedConfigSchemaTests
         var fields = core.Fields.ToDictionary(f => f.Key, f => f);
 
         Assert.Equal(ReloadBehavior.ProcessRestart, fields["ProviderId"].Reload);
-        Assert.Equal(ReloadBehavior.ProcessRestart, fields["Model"].Reload);
-        Assert.Equal("gpt-4o-mini", fields["Model"].DefaultValue);
+        Assert.False(fields.ContainsKey("Model"));
         Assert.Equal("number", fields["NetworkTimeoutSeconds"].Type);
         Assert.Equal(1, fields["NetworkTimeoutSeconds"].Min);
         Assert.False(fields.ContainsKey("ApiKey"));

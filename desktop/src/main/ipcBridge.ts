@@ -811,7 +811,6 @@ function normalizeOptionalStringValue(value: unknown): string | null {
 
 interface WorkspaceCoreConfigSnapshot {
   providerId: string | null
-  model: string | null
   providerModels: Record<string, string>
   welcomeSuggestionsEnabled: boolean | null
   skillsSelfLearningEnabled: boolean | null
@@ -932,7 +931,6 @@ function readProviderModels(record: Record<string, unknown>): Record<string, str
 function createEmptyCoreConfigSnapshot(): WorkspaceCoreConfigSnapshot {
   return {
     providerId: null,
-    model: null,
     providerModels: {},
     welcomeSuggestionsEnabled: null,
     skillsSelfLearningEnabled: null,
@@ -952,7 +950,6 @@ function readCoreConfigSnapshotFromText(raw: string): WorkspaceCoreConfigSnapsho
   const parsed = parseJsonObjectConfig(raw)
   return {
     providerId: normalizeOptionalStringValue(parsed.ProviderId ?? parsed.providerId),
-    model: normalizeOptionalStringValue(parsed.Model ?? parsed.model),
     providerModels: readProviderModels(parsed),
     welcomeSuggestionsEnabled: readNestedBoolean(parsed, 'WelcomeSuggestions', 'Enabled'),
     skillsSelfLearningEnabled: readSkillsSelfLearningEnabled(parsed),

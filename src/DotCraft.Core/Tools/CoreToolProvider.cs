@@ -227,7 +227,7 @@ public sealed class CoreToolSource(
         tools.Add(GeneratedToolFunctions.WebTools_WebFetch(webTools));
 
         var target = SkillVariantStore.CreateTarget(
-            config.Model,
+            context.EffectiveMainModel,
             context.WorkspacePath,
             config.Tools.Sandbox.Enabled,
             config.Permissions.DefaultApprovalPolicy.ToString(),

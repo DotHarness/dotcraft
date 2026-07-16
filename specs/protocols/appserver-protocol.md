@@ -4948,7 +4948,7 @@ Provider mutations emit `workspace/configChanged` with region `providers`.
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `id` | string | Model id used in `config.Model` / request payloads. |
+| `id` | string | Model id used in `ProviderModels` and thread configuration payloads. |
 | `ownedBy` | string | Provider-reported owner string when available; may be empty. |
 | `createdAt` | string (ISO 8601 UTC) | Provider-reported creation time. |
 | `reasoning` | object | Optional server-authored reasoning UI capability metadata. Clients must not hardcode model compatibility rules; use this metadata when present. |
@@ -6212,11 +6212,6 @@ Return the server-derived workspace config schema, including per-field reload me
           "key": "ProviderId",
           "type": "string",
           "reload": "processRestart"
-        },
-        {
-          "key": "Model",
-          "type": "string",
-          "reload": "processRestart"
         }
       ]
     }
@@ -6241,7 +6236,6 @@ Update workspace-level config values.
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
 | `providerId` | string \| null | no | Workspace-selected personal provider id. `null` or empty removes the workspace `ProviderId` key; runtime then has no selected provider unless a managed runtime override supplies one. |
-| `model` | string \| null | no | Workspace default model. `null`, empty, or `"Default"` removes the `Model` key so runtime falls back to provider default behavior. |
 | `providerModels` | object \| null | no | Provider-keyed workspace model preferences. Empty/default values are omitted; `null` or an empty object clears the map. |
 | `welcomeSuggestionsEnabled` | boolean \| null | no | Workspace-level override for personalized welcome suggestions. `true` enables, `false` disables, and `null` removes the explicit override so server defaults apply. |
 | `skillsSelfLearningEnabled` | boolean \| null | no | Workspace-level override for `Skills.SelfLearning.Enabled`. `true` enables the SkillManage tool surface and skill-authoring built-in skill, `false` disables, and `null` removes the explicit override so server defaults apply (`true` by default). Takes effect on next AppServer restart (`Skills.SelfLearning.Enabled` is a `ProcessRestart` field). |
@@ -6261,7 +6255,6 @@ Update workspace-level config values.
 ```json
 {
   "providerId": "anthropic",
-  "model": "gpt-4o-mini",
   "providerModels": { "anthropic": "claude-sonnet-4-5" },
   "welcomeSuggestionsEnabled": true,
   "skillsSelfLearningEnabled": true,
@@ -6284,22 +6277,14 @@ Update workspace-level config values.
 }
 ```
 
-If `model` is removed, the result returns:
-
-```json
-{
-  "model": null
-}
-```
-
 **Semantics**:
 
 - This method updates **workspace default** only, not any active thread state.
 - Clients that need immediate effect in a running thread should additionally call `thread/config/update`.
 - Server preserves unrelated configuration state.
-- At least one of `providerId`, `model`, `providerModels`, `welcomeSuggestionsEnabled`, `skillsSelfLearningEnabled`, `memoryAutoConsolidateEnabled`, `dreamsEnabled`, `dreamsInterval`, `dreamsThreadLookbackCount`, `dreamsAutoApply`, `defaultApprovalPolicy`, `toolsLspEnabled`, `reasoning`, `speed`, or `contextWindow` must be provided.
-- Key matching is case-insensitive and normalized in-place (`ProviderId`, `Model`, and nested sections).
-- Provider-aware saves persist `ProviderId`, `Model`, and `ProviderModels` to workspace config. Credentials and endpoints are changed through `provider/create` and `provider/update`.
+- At least one of `providerId`, `providerModels`, `welcomeSuggestionsEnabled`, `skillsSelfLearningEnabled`, `memoryAutoConsolidateEnabled`, `dreamsEnabled`, `dreamsInterval`, `dreamsThreadLookbackCount`, `dreamsAutoApply`, `defaultApprovalPolicy`, `toolsLspEnabled`, `reasoning`, `speed`, or `contextWindow` must be provided.
+- Key matching is case-insensitive and normalized in-place (`ProviderId`, `ProviderModels`, and nested sections).
+- Provider-aware saves persist `ProviderId` and `ProviderModels` to workspace config and remove an obsolete root `Model` key without reading or migrating it. Credentials and endpoints are changed through `provider/create` and `provider/update`.
 - Requests containing legacy root-level `apiKey` or `endPoint` parameters are rejected.
 - When `skillsSelfLearningEnabled` is provided, the server writes the boolean to the nested `Skills.SelfLearning.Enabled` key. Setting it to `null` removes the leaf, and the server prunes empty `Skills.SelfLearning` / `Skills` objects when no other keys remain.
 - When `memoryAutoConsolidateEnabled` is provided, the server writes the boolean to `Memory.AutoConsolidateEnabled`. Setting it to `null` removes the leaf, and the server prunes the empty `Memory` object when no other keys remain.
@@ -6308,7 +6293,7 @@ If `model` is removed, the result returns:
 - When `toolsLspEnabled` is provided, the server writes the boolean to `Tools.Lsp.Enabled`. Setting it to `null` removes the leaf, and the server prunes empty `Tools.Lsp` / `Tools` objects when no other keys remain.
 - When `reasoning` is provided, `null` removes the workspace `Reasoning` section. `enabled: false` writes an explicit Off override; `enabled: true` or a payload that only sets `effort` writes an enabled override. Missing `effort` and `output` are filled from existing workspace values, merged config values, then `medium` / `full`.
 - When `speed` is provided, the server writes the canonical `Speed` string. Existing configurations without it resolve to `standard`.
-- When `contextWindow` is provided, `null` or `{ "mode": "default" }` removes `Compaction.ContextWindowMode`; `{ "mode": "max" }` writes `Compaction.ContextWindowMode = Max`. Explicit `max` is validated against the current or updated workspace provider/model before saving.
+- When `contextWindow` is provided, `null` or `{ "mode": "default" }` removes `Compaction.ContextWindowMode`; `{ "mode": "max" }` writes `Compaction.ContextWindowMode = Max`. Explicit `max` is validated against the prospective provider and its `ProviderModels` entry before saving.
 - On success, the server emits `workspace/configChanged` (see [Section 25.5](#255-workspaceconfigchanged)) with `source: "workspace/config/update"` and one or more regions from `workspace.provider`, `workspace.model`, `workspace.reasoning`, `workspace.speed`, `workspace.contextWindow`, `providers`, `welcomeSuggestions`, `skills`, `memory`, `workspace.defaultApprovalPolicy`, or `lsp`.
 
 ### 25.4 Capability Advertisement

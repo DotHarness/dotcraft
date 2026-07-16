@@ -59,7 +59,7 @@ DotCraft --workspace /path/to/project
 ### Model Providers
 
 - Provider 凭据与 endpoint 写入个人 `~/.craft/config.json`，**不**写入工作区。
-- 工作区保存 `ProviderId`、`Model`、`ProviderModels` 与 `SubAgent.ProviderModels`，共享配置仍不会包含密钥。
+- 工作区保存 `ProviderId`、`ProviderModels` 与 `SubAgent.ProviderModels`，共享配置仍不会包含密钥。
 - Welcome picker 只设置未来线程的默认值；已有线程保留创建时的 provider/model，也可以在自己的 composer 中独立切换。
 - 原生 SubAgent 使用父线程 provider 对应的 SubAgent 模型偏好；没有对应项时继承父线程 MainAgent 模型。
 - Desktop 当前支持 OpenAI 与 Anthropic provider。

@@ -483,6 +483,16 @@ export function ConversationWelcome({
     return parseJsonConfig<Record<string, unknown>>(raw, {})
   }, [remoteWorkspace, workspaceConfigPath])
 
+  const readWorkspaceProviderModels = useCallback(async (): Promise<Record<string, string>> => {
+    if (remoteWorkspace) {
+      const getCore = window.api.workspaceConfig?.getCore
+      if (typeof getCore !== 'function') return {}
+      const core = await getCore() as WorkspaceCoreConfigLike
+      return { ...(core.workspace?.providerModels ?? {}) }
+    }
+    return readProviderModelsFromConfig(await readWorkspaceConfig())
+  }, [readWorkspaceConfig, remoteWorkspace])
+
   const getCaseInsensitiveValue = useCallback((record: Record<string, unknown>, key: string): unknown => {
     const expected = key.toLowerCase()
     for (const [candidate, value] of Object.entries(record)) {
@@ -645,6 +655,7 @@ export function ConversationWelcome({
     }
   }, [
     readWorkspaceConfig,
+    readWorkspaceProviderModels,
     resolveWelcomeSuggestionsEnabled,
     workspaceConfigChange,
     workspaceConfigChangeSeq
@@ -927,11 +938,10 @@ export function ConversationWelcome({
           if (nextModel === 'Default') {
             nextModel = useModelCatalogStore.getState().modelOptions[0] ?? 'Default'
             if (nextModel !== 'Default' && nextProviderId) {
-              const providerModels = readProviderModelsFromConfig(cfg)
+              const providerModels = await readWorkspaceProviderModels()
               providerModels[nextProviderId] = nextModel
               await window.api.appServer.sendRequest('workspace/config/update', {
                 providerId: nextProviderId,
-                model: nextModel,
                 providerModels
               })
             }
@@ -1063,12 +1073,11 @@ export function ConversationWelcome({
       const previousModel = modelName
       setModelName(nextModel)
       try {
-        const cfg = await readWorkspaceConfig()
-        const providerModels = readProviderModelsFromConfig(cfg)
+        const providerModels = await readWorkspaceProviderModels()
         if (providerId && nextModel !== 'Default') providerModels[providerId] = nextModel
+        else if (providerId) delete providerModels[providerId]
         await window.api.appServer.sendRequest('workspace/config/update', {
           providerId,
-          model: nextModel === 'Default' ? null : nextModel,
           providerModels
         })
       } catch (err) {
@@ -1079,7 +1088,7 @@ export function ConversationWelcome({
         setModelApplying(false)
       }
     },
-    [modelName, providerId, readWorkspaceConfig, workspaceConfigPath]
+    [modelName, providerId, readWorkspaceProviderModels, workspaceConfigPath]
   )
 
   const handleProviderChange = useCallback(async (nextProviderId: string): Promise<void> => {
@@ -1091,8 +1100,8 @@ export function ConversationWelcome({
       const cfg = await readWorkspaceConfig()
       await loadModels(true, nextProviderId)
       const catalogState = useModelCatalogStore.getState()
-      const providerModels = readProviderModelsFromConfig(cfg)
-      const remembered = Object.entries(providerModels)
+      const effectiveProviderModels = readProviderModelsFromConfig(cfg)
+      const remembered = Object.entries(effectiveProviderModels)
         .find(([key]) => key.toLowerCase() === nextProviderId.toLowerCase())?.[1]
       const nextModel = remembered || catalogState.modelOptions[0]
       if (!nextModel) {
@@ -1100,10 +1109,10 @@ export function ConversationWelcome({
         await loadModels(true, previousProvider)
         return
       }
+      const providerModels = await readWorkspaceProviderModels()
       providerModels[nextProviderId] = nextModel
       await window.api.appServer.sendRequest('workspace/config/update', {
         providerId: nextProviderId,
-        model: nextModel,
         providerModels
       })
       setProviderId(nextProviderId)
@@ -1116,7 +1125,7 @@ export function ConversationWelcome({
     } finally {
       setModelApplying(false)
     }
-  }, [loadModels, modelName, providerId, readWorkspaceConfig, t, workspaceConfigPath])
+  }, [loadModels, modelName, providerId, readWorkspaceConfig, readWorkspaceProviderModels, t, workspaceConfigPath])
 
   const handleReasoningChange = useCallback(
     async (nextReasoning: ReasoningQuickValue): Promise<void> => {

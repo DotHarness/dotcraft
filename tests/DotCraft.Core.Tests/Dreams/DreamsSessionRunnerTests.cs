@@ -72,7 +72,8 @@ public sealed class DreamsSessionRunnerTests : IDisposable
         };
         var config = new AppConfig
         {
-            Model = "fake-main",
+            ProviderId = "test",
+            ProviderModels = new() { ["test"] = "fake-main" },
             ConsolidationModel = "fake-consolidation"
         };
         var runner = new DreamsSessionRunner(

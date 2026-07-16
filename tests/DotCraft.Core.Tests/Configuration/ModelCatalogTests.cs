@@ -151,7 +151,8 @@ public sealed class ModelCatalogTests : IDisposable
 
         var config = new AppConfig
         {
-            Model = "gpt-5.5"
+            ProviderId = "test",
+            ProviderModels = new() { ["test"] = "gpt-5.5" }
         };
         ModelCatalog.ApplyToConfig(
             config,
@@ -168,7 +169,8 @@ public sealed class ModelCatalogTests : IDisposable
     {
         var config = new AppConfig
         {
-            Model = "gpt-5.5"
+            ProviderId = "test",
+            ProviderModels = new() { ["test"] = "gpt-5.5" }
         };
         ModelCatalog.ApplyToConfig(
             config,
@@ -195,7 +197,8 @@ public sealed class ModelCatalogTests : IDisposable
     {
         var config = new AppConfig
         {
-            Model = "unknown-model"
+            ProviderId = "test",
+            ProviderModels = new() { ["test"] = "unknown-model" }
         };
         ModelCatalog.ApplyToConfig(
             config,
@@ -222,7 +225,8 @@ public sealed class ModelCatalogTests : IDisposable
     {
         var config = new AppConfig
         {
-            Model = "mimo-v2.5-pro"
+            ProviderId = "test",
+            ProviderModels = new() { ["test"] = "mimo-v2.5-pro" }
         };
         ModelCatalog.ApplyToConfig(
             config,
@@ -241,7 +245,8 @@ public sealed class ModelCatalogTests : IDisposable
     {
         var config = new AppConfig
         {
-            Model = "mimo-v2.5-pro",
+            ProviderId = "test",
+            ProviderModels = new() { ["test"] = "mimo-v2.5-pro" },
             Compaction =
             {
                 MaxContextWindow = 300_000
@@ -264,7 +269,8 @@ public sealed class ModelCatalogTests : IDisposable
     {
         var config = new AppConfig
         {
-            Model = "mimo-v2.5-pro",
+            ProviderId = "test",
+            ProviderModels = new() { ["test"] = "mimo-v2.5-pro" },
             Compaction = new DotCraft.Context.Compaction.CompactionConfig
             {
                 ContextWindow = 123_000,
@@ -342,7 +348,8 @@ public sealed class ModelCatalogTests : IDisposable
     {
         var configPath = WriteConfig("workspace", """
             {
-              "Model": "my-model",
+              "ProviderId": "test",
+              "ProviderModels": { "test": "my-model" },
               "Compaction": {
                 "MaxContextWindow": 400000
               }
@@ -368,7 +375,7 @@ public sealed class ModelCatalogTests : IDisposable
 
         var config = AppConfig.Load(configPath);
 
-        Assert.Equal(128_000, config.Compaction.ContextWindow);
+        Assert.Equal(ModelCatalog.DefaultContextWindow, config.Compaction.ContextWindow);
     }
 
     [Fact]

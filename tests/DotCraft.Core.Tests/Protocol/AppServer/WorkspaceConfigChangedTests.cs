@@ -39,7 +39,10 @@ public sealed class WorkspaceConfigChangedTests : IDisposable
         using var bridge = AttachConfigChangedBridge(harness);
         await harness.InitializeAsync(configChange: true);
 
-        var req = harness.BuildRequest(AppServerMethods.WorkspaceConfigUpdate, new { model = "gpt-4o-mini" });
+        var req = harness.BuildRequest(AppServerMethods.WorkspaceConfigUpdate, new
+        {
+            providerModels = new Dictionary<string, string> { ["openai"] = "gpt-test-new" }
+        });
         await harness.ExecuteRequestAsync(req);
 
         var sent = await harness.Transport.WaitAndDrainAsync(2, TimeSpan.FromSeconds(5));
@@ -54,6 +57,21 @@ public sealed class WorkspaceConfigChangedTests : IDisposable
         await harness.InitializeAsync(configChange: true);
 
         var req = harness.BuildRequest(AppServerMethods.WorkspaceConfigUpdate, new { apiKey = "sk-live-key" });
+        await harness.ExecuteRequestAsync(req);
+
+        var sent = await harness.Transport.WaitAndDrainAsync(1, TimeSpan.FromSeconds(5));
+        AppServerTestHarness.AssertIsErrorResponse(Assert.Single(sent), AppServerErrors.InvalidParamsCode);
+        AssertNoConfigChanged(sent);
+    }
+
+    [Fact]
+    public async Task WorkspaceConfigUpdate_LegacyModel_ReturnsInvalidParamsWithoutConfigChanged()
+    {
+        using var harness = new AppServerTestHarness(workspaceCraftPath: _workspaceCraftPath);
+        using var bridge = AttachConfigChangedBridge(harness);
+        await harness.InitializeAsync(configChange: true);
+
+        var req = harness.BuildRequest(AppServerMethods.WorkspaceConfigUpdate, new { model = "gpt-legacy" });
         await harness.ExecuteRequestAsync(req);
 
         var sent = await harness.Transport.WaitAndDrainAsync(1, TimeSpan.FromSeconds(5));
@@ -494,7 +512,7 @@ public sealed class WorkspaceConfigChangedTests : IDisposable
 
         var req = harness.BuildRequest(AppServerMethods.WorkspaceConfigUpdate, new
         {
-            model = "gpt-4o-mini",
+            providerModels = new Dictionary<string, string> { ["openai"] = "gpt-test-new" },
             welcomeSuggestionsEnabled = false,
             skillsSelfLearningEnabled = true,
             memoryAutoConsolidateEnabled = false,
@@ -524,14 +542,14 @@ public sealed class WorkspaceConfigChangedTests : IDisposable
 
         var firstReq = harness.BuildRequest(AppServerMethods.WorkspaceConfigUpdate, new
         {
-            model = "gpt-4.1"
+            providerModels = new Dictionary<string, string> { ["openai"] = "gpt-4.1" }
         });
         await harness.ExecuteRequestAsync(firstReq);
         await harness.Transport.WaitAndDrainAsync(2, TimeSpan.FromSeconds(5));
 
         var secondReq = harness.BuildRequest(AppServerMethods.WorkspaceConfigUpdate, new
         {
-            model = "gpt-4.1"
+            providerModels = new Dictionary<string, string> { ["openai"] = "gpt-4.1" }
         });
         await harness.ExecuteRequestAsync(secondReq);
 
@@ -559,12 +577,13 @@ public sealed class WorkspaceConfigChangedTests : IDisposable
 
         var req = harness.BuildRequest(AppServerMethods.WorkspaceConfigUpdate, new
         {
-            model = "gpt-4o-mini"
+            providerModels = new Dictionary<string, string> { ["openai"] = "gpt-4o-mini" }
         });
         await harness.ExecuteRequestAsync(req);
 
         var json = await File.ReadAllTextAsync(configPath);
-        Assert.Contains("\"model\": \"gpt-4o-mini\"", json, StringComparison.Ordinal);
+        Assert.DoesNotContain("\"model\":", json, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("\"ProviderModels\"", json, StringComparison.Ordinal);
         Assert.Contains("\"apikey\": \"sk-old\"", json, StringComparison.Ordinal);
         Assert.Contains("\"endpoint\": \"https://old.example.com/v1\"", json, StringComparison.Ordinal);
         Assert.Contains("\"Theme\": \"dark\"", json, StringComparison.Ordinal);
@@ -837,7 +856,10 @@ public sealed class WorkspaceConfigChangedTests : IDisposable
         harness.Monitor.Changed += OnChanged;
         await harness.InitializeAsync(configChange: false);
 
-        var req = harness.BuildRequest(AppServerMethods.WorkspaceConfigUpdate, new { model = "gpt-4o-mini" });
+        var req = harness.BuildRequest(AppServerMethods.WorkspaceConfigUpdate, new
+        {
+            providerModels = new Dictionary<string, string> { ["openai"] = "gpt-test-new" }
+        });
         await harness.ExecuteRequestAsync(req);
 
         var sent = await harness.Transport.WaitAndDrainAsync(1, TimeSpan.FromSeconds(5));
@@ -864,7 +886,6 @@ public sealed class WorkspaceConfigChangedTests : IDisposable
 
         var req = harness.BuildRequest(AppServerMethods.WorkspaceConfigUpdate, new
         {
-            model = "gpt-x",
             providerModels = new Dictionary<string, string>
             {
                 ["openai"] = "gpt-x",
@@ -878,7 +899,7 @@ public sealed class WorkspaceConfigChangedTests : IDisposable
 
         var response = Assert.Single(sent, d => d.RootElement.TryGetProperty("result", out _));
         var result = response.RootElement.GetProperty("result");
-        Assert.Equal("gpt-x", result.GetProperty("model").GetString());
+        Assert.False(result.TryGetProperty("model", out _));
         var resultModels = result.GetProperty("providerModels");
         Assert.Equal("gpt-x", resultModels.GetProperty("openai").GetString());
         Assert.Equal("claude-y", resultModels.GetProperty("anthropic-main").GetString());
@@ -947,7 +968,7 @@ public sealed class WorkspaceConfigChangedTests : IDisposable
         await harness.ExecuteRequestAsync(req);
 
         var json = await File.ReadAllTextAsync(configPath);
-        Assert.Contains("\"model\": \"gpt-legacy\"", json, StringComparison.Ordinal);
+        Assert.DoesNotContain("\"model\":", json, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("\"Theme\": \"dark\"", json, StringComparison.Ordinal);
         using var doc = JsonDocument.Parse(json);
         Assert.Equal("gpt-x", doc.RootElement.GetProperty("ProviderModels").GetProperty("openai").GetString());

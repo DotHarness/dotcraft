@@ -226,7 +226,7 @@ Desktop selects its default effort; if it does not support MAX, Desktop clears M
 preserved and unsupported Fast continues to run as Standard.
 
 The picker is disabled while a turn is running, waiting for approval, or waiting for user input. The
-Welcome updates `providerId`, `model`, and `providerModels` and passes the resulting pair to thread
+Welcome atomically updates `providerId` and `providerModels` and passes the resulting pair to thread
 creation. Existing threads never show Default and update only their own snapshot. They load `model/list`
 for their captured provider and do not follow later workspace provider changes. Without a remembered
 model Desktop chooses the first listed model; if no list is available, it leaves state unchanged and
@@ -242,6 +242,7 @@ directs the user to Model Providers settings.
 - Unknown models never receive Fast fields or MAX capability without a catalog match.
 - Existing reasoning configurations retain their current `Reasoning` shape.
 - Existing threads without Speed use Standard; existing threads without Context Window use default.
+- The obsolete workspace root `Model` key is ignored and is neither migrated nor used as a fallback.
 
 ---
 

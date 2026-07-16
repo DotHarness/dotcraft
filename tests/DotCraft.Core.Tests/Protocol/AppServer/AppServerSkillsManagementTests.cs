@@ -79,7 +79,7 @@ public sealed class AppServerSkillsManagementTests : IDisposable
         WriteSkill(loader, "demo-skill", "Source body.");
         using var harness = new AppServerTestHarness(workspaceCraftPath: craftPath, skillsLoader: loader);
         var target = SkillVariantStore.CreateTarget(
-            harness.Monitor.Current.Model,
+            harness.Monitor.Current.ProviderModels[harness.Monitor.Current.ProviderId],
             harness.Identity.WorkspacePath,
             sandboxEnabled: false,
             harness.Monitor.Current.Permissions.DefaultApprovalPolicy.ToString(),
@@ -110,7 +110,7 @@ public sealed class AppServerSkillsManagementTests : IDisposable
         WriteSkill(loader, "demo-skill", "Source body.");
         using var harness = new AppServerTestHarness(workspaceCraftPath: craftPath, skillsLoader: loader);
         var target = SkillVariantStore.CreateTarget(
-            harness.Monitor.Current.Model,
+            harness.Monitor.Current.ProviderModels[harness.Monitor.Current.ProviderId],
             harness.Identity.WorkspacePath,
             sandboxEnabled: false,
             harness.Monitor.Current.Permissions.DefaultApprovalPolicy.ToString(),
@@ -143,7 +143,7 @@ public sealed class AppServerSkillsManagementTests : IDisposable
         WriteSkill(loader, "demo-skill", "Source body.");
         using var harness = new AppServerTestHarness(workspaceCraftPath: craftPath, skillsLoader: loader);
         var target = SkillVariantStore.CreateTarget(
-            harness.Monitor.Current.Model,
+            harness.Monitor.Current.ProviderModels[harness.Monitor.Current.ProviderId],
             harness.Identity.WorkspacePath,
             sandboxEnabled: false,
             harness.Monitor.Current.Permissions.DefaultApprovalPolicy.ToString(),
@@ -251,7 +251,7 @@ public sealed class AppServerSkillsManagementTests : IDisposable
         WriteSkill(loader, "demo-skill", "Source body.");
         using var harness = new AppServerTestHarness(workspaceCraftPath: craftPath, skillsLoader: loader);
         var target = SkillVariantStore.CreateTarget(
-            harness.Monitor.Current.Model,
+            harness.Monitor.Current.ProviderModels[harness.Monitor.Current.ProviderId],
             harness.Identity.WorkspacePath,
             sandboxEnabled: false,
             harness.Monitor.Current.Permissions.DefaultApprovalPolicy.ToString(),

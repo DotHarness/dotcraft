@@ -21,13 +21,16 @@ public sealed class OpenAIAuthBindingPersistenceTests : IDisposable
         OpenAIAuthBindingPersistence.BindProviderToOAuth("openai", Status(), configPath);
 
         using var document = JsonDocument.Parse(File.ReadAllText(configPath));
-        Assert.Equal(ModelProviderDefaults.DefaultChatGptCodexModel, document.RootElement.GetProperty("Model").GetString());
+        Assert.Equal(
+            ModelProviderDefaults.DefaultChatGptCodexModel,
+            document.RootElement.GetProperty("ProviderModels").GetProperty("openai").GetString());
+        Assert.False(document.RootElement.TryGetProperty("Model", out _));
     }
 
     [Theory]
     [InlineData("gpt-5")]
     [InlineData("gpt-5-codex")]
-    public void BindProviderToOAuth_MigratesLegacyGeneratedChatGptDefaults(string legacyModel)
+    public void BindProviderToOAuth_IgnoresAndRemovesLegacyRootModel(string legacyModel)
     {
         var configPath = Path.Combine(_tempRoot, ".craft", "config.json");
         Directory.CreateDirectory(Path.GetDirectoryName(configPath)!);
@@ -36,7 +39,10 @@ public sealed class OpenAIAuthBindingPersistenceTests : IDisposable
         OpenAIAuthBindingPersistence.BindProviderToOAuth("openai", Status(), configPath);
 
         using var document = JsonDocument.Parse(File.ReadAllText(configPath));
-        Assert.Equal(ModelProviderDefaults.DefaultChatGptCodexModel, document.RootElement.GetProperty("Model").GetString());
+        Assert.Equal(
+            ModelProviderDefaults.DefaultChatGptCodexModel,
+            document.RootElement.GetProperty("ProviderModels").GetProperty("openai").GetString());
+        Assert.False(document.RootElement.TryGetProperty("Model", out _));
     }
 
     public void Dispose()

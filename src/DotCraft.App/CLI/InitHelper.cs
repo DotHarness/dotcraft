@@ -126,6 +126,13 @@ public static class InitHelper
         return matched.Value?.GetValue<string>()?.Trim();
     }
 
+    private static void RemoveCaseInsensitive(JsonObject node, string key)
+    {
+        var matched = node.FirstOrDefault(p => string.Equals(p.Key, key, StringComparison.OrdinalIgnoreCase));
+        if (!string.IsNullOrEmpty(matched.Key))
+            node.Remove(matched.Key);
+    }
+
     private static void RemoveCoreConfigFields(JsonObject node)
     {
         node.Remove("Language");
@@ -138,6 +145,7 @@ public static class InitHelper
     {
         RemoveCoreConfigFields(node);
         node.Remove("ProviderId");
+        node.Remove("ProviderModels");
     }
 
     private static JsonObject GetOrCreateObject(JsonObject node, string key)
@@ -256,14 +264,14 @@ public static class InitHelper
         }
 
         var trimmedModel = model.Trim();
+        var globalProviderModels = globalNode["ProviderModels"] as JsonObject;
+        var inheritedModel = globalProviderModels == null
+            ? null
+            : ReadTrimmedString(globalProviderModels, trimmedProviderId);
         if (!string.IsNullOrWhiteSpace(trimmedModel)
-            && !string.Equals(ReadTrimmedString(globalNode, "Model"), trimmedModel, StringComparison.Ordinal))
+            && !string.Equals(inheritedModel, trimmedModel, StringComparison.Ordinal))
         {
-            workspaceNode["Model"] = trimmedModel;
-        }
-        else
-        {
-            workspaceNode.Remove("Model");
+            GetOrCreateObject(workspaceNode, "ProviderModels")[trimmedProviderId] = trimmedModel;
         }
     }
 
@@ -273,7 +281,8 @@ public static class InitHelper
         string globalConfigPath)
     {
         var globalNode = LoadJsonObject(globalConfigPath);
-        globalNode.Remove("Language");
+        RemoveCaseInsensitive(globalNode, "Language");
+        RemoveCaseInsensitive(globalNode, "Model");
         var workspaceConfigPath = Path.Combine(craftPath, "config.json");
         var workspaceNode = LoadJsonObject(workspaceConfigPath);
 
@@ -327,7 +336,7 @@ public static class InitHelper
         if (setAsUserDefault)
         {
             globalNode["ProviderId"] = providerId;
-            globalNode["Model"] = model;
+            GetOrCreateObject(globalNode, "ProviderModels")[providerId] = model;
         }
 
         SaveJsonObject(globalConfigPath, globalNode);
@@ -447,7 +456,10 @@ public static class InitHelper
             ["ApiKey"] = apiKey
         };
         configNode["ProviderId"] = "openai";
-        configNode["Model"] = "gpt-4o-mini";
+        configNode["ProviderModels"] = new JsonObject
+        {
+            ["openai"] = "gpt-4o-mini"
+        };
         SaveJsonObject(configPath, configNode);
     }
 }

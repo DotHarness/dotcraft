@@ -75,12 +75,14 @@ In Desktop, the setup wizard handles this end to end: choose a provider, paste a
 
 Already paying for ChatGPT Plus / Pro / Team / Business / Enterprise? Pick **Sign in with ChatGPT** in the wizard's OpenAI template, or run `dotcraft auth openai login` after setup, to reuse that subscription instead of an API key.
 
-Prefer to edit configuration directly? The minimal config is a list of providers plus the selected `ProviderId` and `Model`:
+Prefer to edit configuration directly? The minimal config is a list of providers plus the selected `ProviderId` and its `ProviderModels` entry:
 
 ```json
 {
   "ProviderId": "anthropic",
-  "Model": "claude-sonnet-4-5",
+  "ProviderModels": {
+    "anthropic": "claude-sonnet-4-5"
+  },
   "Providers": {
     "anthropic": {
       "DisplayName": "Anthropic",
@@ -97,7 +99,7 @@ Prefer to edit configuration directly? The minimal config is a list of providers
 }
 ```
 
-Keep API keys and endpoints in the global file at `~/.craft/config.json`; a workspace usually overrides only `ProviderId` and `Model`. For every field — protocols, endpoints, and the `/v1` rule for OpenAI-compatible services — see the [Configuration Reference](./developing/configuration).
+Keep API keys and endpoints in the global file at `~/.craft/config.json`; a workspace usually overrides only `ProviderId` and `ProviderModels`. For every field — protocols, endpoints, and the `/v1` rule for OpenAI-compatible services — see the [Configuration Reference](./developing/configuration).
 
 ### 4. Run the First Session
 
@@ -131,10 +133,10 @@ First-time setup only needs a few fields:
 |-------|---------|----------------------|
 | `Providers` | Model provider registry, including API keys and endpoints | Global config |
 | `ProviderId` | Current model provider id | Global or workspace config |
-| `Model` | Default model name | Global or workspace config |
+| `ProviderModels` | MainAgent model names keyed by provider id | Global or workspace config |
 | `DashBoard.Enabled` | Enable web debugging and visual configuration | Workspace config |
 
-If unsure, put providers globally and let the workspace override only `ProviderId` and `Model`.
+If unsure, put providers globally and let the workspace override only `ProviderId` and `ProviderModels`.
 
 ## Choose the Next Step by Goal
 

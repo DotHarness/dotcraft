@@ -52,7 +52,8 @@ public sealed class DeferredLoadingSmokeTests
         var root = doc.RootElement;
 
         Assert.Equal("anthropic", root.GetProperty("ProviderId").GetString());
-        Assert.Equal("claude-smoke", root.GetProperty("Model").GetString());
+        Assert.Equal("claude-smoke", root.GetProperty("ProviderModels").GetProperty("anthropic").GetString());
+        Assert.False(root.TryGetProperty("Model", out _));
         Assert.False(root.TryGetProperty("Providers", out _));
         Assert.True(root.GetProperty("Tracing").GetProperty("Enabled").GetBoolean());
 

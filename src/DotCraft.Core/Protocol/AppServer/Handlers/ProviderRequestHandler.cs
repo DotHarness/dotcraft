@@ -291,7 +291,6 @@ internal sealed class ProviderRequestHandler(
             var draftProviderId = "__provider_test__";
             var draftConfig = new AppConfig
             {
-                Model = string.IsNullOrWhiteSpace(config.Model) ? "gpt-4o-mini" : config.Model,
                 NetworkTimeoutSeconds = config.NetworkTimeoutSeconds,
                 Providers = new Dictionary<string, AppConfig.ModelProviderConfig>(StringComparer.OrdinalIgnoreCase)
                 {
