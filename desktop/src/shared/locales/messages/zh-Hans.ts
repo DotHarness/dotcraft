@@ -1263,6 +1263,8 @@ export const MESSAGES_ZH_HANS = {
   'composer.queueGuide': '引导',
   'composer.queueGuidancePending': '引导中',
   'composer.queueRemove': '移除',
+  'composer.queueEdit': '编辑排队消息',
+  'composer.queueEditFailed': '编辑排队消息失败：{{error}}',
   'composer.queueDockTitleOne': '1 条排队消息',
   'composer.queueDockTitleMany': '{{count}} 条排队消息',
   'composer.queueSection': '排队消息',

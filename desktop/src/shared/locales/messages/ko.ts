@@ -2213,6 +2213,8 @@ export const MESSAGES_KO = {
   'composer.queueGuide': '조종하다',
   'composer.queueGuidancePending': '스티어링',
   'composer.queueRemove': '제거',
+  'composer.queueEdit': '대기 중인 메시지 편집',
+  'composer.queueEditFailed': '대기 중인 메시지를 편집하지 못했습니다: {{error}}',
   'composer.queueDockTitleOne': '대기 중인 메시지 1개',
   'composer.queueDockTitleMany': '{{count}} 대기 중인 메시지',
   'composer.queueSection': '대기 중인 메시지',

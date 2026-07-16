@@ -15,7 +15,7 @@ import {
   verticalListSortingStrategy
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import { Bot, ChevronDown, CornerDownRight, ExternalLink, GripVertical, ListChecks, Square, Trash2 } from 'lucide-react'
+import { Bot, ChevronDown, CornerDownRight, ExternalLink, GripVertical, ListChecks, Pencil, Square, Trash2 } from 'lucide-react'
 import { useT } from '../../contexts/LocaleContext'
 import {
   isSubAgentChildRunning,
@@ -38,7 +38,9 @@ interface BackgroundActivityDockProps extends SubAgentDockProps {
   queuedInputs?: QueuedTurnInput[]
   onQueueSteer?: (id: string) => void
   onQueueRemove?: (id: string) => void
+  onQueueEdit?: (id: string) => void
   onQueueReorder?: (orderedQueuedInputIds: string[]) => void
+  editingQueuedInputId?: string | null
 }
 
 export function SubAgentDock({ parentThreadId }: SubAgentDockProps): JSX.Element | null {
@@ -50,7 +52,9 @@ export function BackgroundActivityDock({
   queuedInputs = EMPTY_QUEUED_INPUTS,
   onQueueSteer,
   onQueueRemove,
-  onQueueReorder
+  onQueueEdit,
+  onQueueReorder,
+  editingQueuedInputId = null
 }: BackgroundActivityDockProps): JSX.Element | null {
   const t = useT()
   const children = useSubAgentStore((s) => s.childrenByParent.get(parentThreadId) ?? EMPTY_SUB_AGENT_CHILDREN)
@@ -163,7 +167,9 @@ export function BackgroundActivityDock({
               separated={hasSubAgents}
               onSteer={onQueueSteer}
               onRemove={onQueueRemove}
+              onEdit={onQueueEdit}
               onReorder={onQueueReorder}
+              editingQueuedInputId={editingQueuedInputId}
             />
           </SortableContext>
         </DndContext>
@@ -220,14 +226,18 @@ function QueuedInputDockSection({
   separated,
   onSteer,
   onRemove,
-  onReorder
+  onEdit,
+  onReorder,
+  editingQueuedInputId
 }: {
   queuedInputs: QueuedTurnInput[]
   showSectionLabel: boolean
   separated: boolean
   onSteer?: (id: string) => void
   onRemove?: (id: string) => void
+  onEdit?: (id: string) => void
   onReorder?: (orderedQueuedInputIds: string[]) => void
+  editingQueuedInputId?: string | null
 }): JSX.Element {
   const t = useT()
   const queuedIds = useMemo(() => queuedInputs.map((item) => item.id), [queuedInputs])
@@ -250,7 +260,9 @@ function QueuedInputDockSection({
             label={summarizeQueuedInput(item, t)}
             onSteer={onSteer}
             onRemove={onRemove}
+            onEdit={onEdit}
             onKeyboardMove={moveQueuedInput}
+            editing={editingQueuedInputId === item.id}
           />
         ))}
       </div>
@@ -263,16 +275,21 @@ function QueuedInputDockRow({
   label,
   onSteer,
   onRemove,
-  onKeyboardMove
+  onEdit,
+  onKeyboardMove,
+  editing
 }: {
   item: QueuedTurnInput
   label: string
   onSteer?: (id: string) => void
   onRemove?: (id: string) => void
+  onEdit?: (id: string) => void
   onKeyboardMove?: (id: string, delta: -1 | 1) => void
+  editing: boolean
 }): JSX.Element {
   const t = useT()
   const isGuidancePending = item.status === 'guidancePending'
+  const canEdit = item.status === 'queued' && !item.triggerKind && item.sentAsGoal !== true && Boolean(onEdit)
   const {
     attributes,
     listeners,
@@ -346,6 +363,24 @@ function QueuedInputDockRow({
           style={queuedIconButtonStyle}
         >
           <Trash2 size={14} strokeWidth={1.8} aria-hidden />
+        </button>
+      </ActionTooltip>
+      <ActionTooltip label={t('composer.queueEdit')} placement="top">
+        <button
+          type="button"
+          onClick={() => onEdit?.(item.id)}
+          disabled={!canEdit || editing}
+          aria-label={t('composer.queueEdit')}
+          aria-busy={editing}
+          style={{
+            ...queuedIconButtonStyle,
+            opacity: canEdit ? 1 : 0.55,
+            cursor: canEdit && !editing ? 'pointer' : 'default'
+          }}
+        >
+          {editing
+            ? <RunningSpinner size={12} borderWidth={1.8} testId={`queued-editing-${item.id}`} />
+            : <Pencil size={14} strokeWidth={1.8} aria-hidden />}
         </button>
       </ActionTooltip>
     </div>
