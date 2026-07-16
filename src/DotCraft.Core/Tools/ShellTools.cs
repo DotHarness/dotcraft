@@ -14,13 +14,13 @@ namespace DotCraft.Tools;
 public sealed class ShellTools
 {
     private readonly string _workingDirectory;
-    
+
     private readonly int _timeoutSeconds;
-    
+
     private readonly bool _requireApprovalOutsideWorkspace;
-    
+
     private readonly int _maxOutputLength;
-    
+
     private readonly IApprovalService? _approvalService;
 
     private readonly PathBlacklist? _blacklist;
@@ -268,7 +268,7 @@ public sealed class ShellTools
                 if (string.Equals(evt.Terminal.BackgroundReason, "runInBackground", StringComparison.Ordinal))
                     return;
 
-                commandExecution?.Append(evt.Delta);
+                commandExecution?.Append(evt.Delta, mirrorsTerminalOutput: true);
             }
 
             var shouldForwardTerminalDelta =
@@ -369,7 +369,7 @@ public sealed class ShellTools
         }
 
         var hasPathTraversal = normalized.Contains("..\\") || normalized.Contains("../");
-        
+
         var cwdPath = new DirectoryInfo(cwd).FullName;
         var workspace = new DirectoryInfo(_workingDirectory).FullName;
         var isOutsideWorkspace = !cwdPath.StartsWith(workspace, StringComparison.OrdinalIgnoreCase);
@@ -389,7 +389,7 @@ public sealed class ShellTools
                 if (isOutsideWorkspace)
                     return "Error: Working directory is outside workspace boundary.";
             }
-            
+
             if (_approvalService != null)
             {
                 var context = ApprovalContextScope.Current;

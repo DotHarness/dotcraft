@@ -3,7 +3,7 @@ import { Image as ImageIcon, Info } from 'lucide-react'
 import type { ConversationItem, ConversationTurn, PluginFunctionContentItem } from '../../types/conversation'
 import { isToolLikeItemType } from '../../types/conversation'
 import { ThinkingIndicator } from './ThinkingIndicator'
-import { renderSubAgentTitle, ToolCallCard } from './ToolCallCard'
+import { renderSubAgentTitle, ToolCallCard, type ShellRuntimeScope } from './ToolCallCard'
 import { hasAvailableMcpApp } from './McpAppView'
 import { AgentMessage } from './AgentMessage'
 import { ErrorBlock } from './ErrorBlock'
@@ -61,6 +61,8 @@ interface AgentResponseBlockProps {
   activeItemIdOverride?: string | null
   /** Scoped to automation review surfaces that do not use the global conversation store. */
   subAgentEntriesOverride?: SubAgentEntry[]
+  /** Selects the transient shell runtime owned by this rendering surface. */
+  shellRuntimeScope?: ShellRuntimeScope
   /**
    * Main conversation optimization for older history: keep assistant/user text
    * and plans visible while avoiding historical tool-detail component mounts.
@@ -115,6 +117,7 @@ export const AgentResponseBlock = memo(function AgentResponseBlock({
   isLastTurn = false,
   showIdleThinkingFallback = false,
   activeItemIdOverride,
+  shellRuntimeScope = 'conversation',
   historicalToolContentMode = 'full'
 }: AgentResponseBlockProps): JSX.Element {
   const pendingApproval = useConversationStore((s) => s.pendingApproval)
@@ -161,6 +164,7 @@ export const AgentResponseBlock = memo(function AgentResponseBlock({
             turn.id,
             offset,
             isRunning,
+            shellRuntimeScope,
             `${keyPrefix}-tool-run-${item.id}`
           )
         )
@@ -638,6 +642,7 @@ function renderAggregatedEntry(
   turnId: string,
   offset: number,
   turnRunning: boolean,
+  shellRuntimeScope: ShellRuntimeScope,
   keyPrefix = ''
 ): React.ReactNode {
   if (entry.kind === 'single') {
@@ -651,6 +656,7 @@ function renderAggregatedEntry(
           item={entry.item}
           turnId={turnId}
           turnRunning={turnRunning}
+          shellRuntimeScope={shellRuntimeScope}
         />
       </ToolEntryWithOutputs>
     )
@@ -666,6 +672,7 @@ function renderAggregatedEntry(
         items={entry.items}
         turnId={turnId}
         turnRunning={turnRunning}
+        shellRuntimeScope={shellRuntimeScope}
       />
     </ToolEntryWithOutputs>
   )
@@ -939,13 +946,20 @@ interface GroupedToolCallRowProps {
   items: ConversationItem[]
   turnId: string
   turnRunning: boolean
+  shellRuntimeScope: ShellRuntimeScope
 }
 
 /**
  * Collapsed summary row for a group of consecutive aggregated tool calls.
  * Expandable to show each individual child tool card.
  */
-function GroupedToolCallRow({ category, items, turnId, turnRunning }: GroupedToolCallRowProps): JSX.Element {
+function GroupedToolCallRow({
+  category,
+  items,
+  turnId,
+  turnRunning,
+  shellRuntimeScope
+}: GroupedToolCallRowProps): JSX.Element {
   const locale = useLocale()
   const changedFiles = useConversationStore((s) => s.changedFiles)
   const label = formatToolGroupLabel(category, items, locale, changedFiles)
@@ -997,11 +1011,11 @@ function GroupedToolCallRow({ category, items, turnId, turnRunning }: GroupedToo
       </button>
       {expanded && (
         category === 'subagent'
-          ? <SpawnAgentGroupItems items={items} locale={locale} turnId={turnId} turnRunning={turnRunning} />
+          ? <SpawnAgentGroupItems items={items} locale={locale} turnId={turnId} turnRunning={turnRunning} shellRuntimeScope={shellRuntimeScope} />
           : (
             <div style={{ paddingLeft: '16px' }}>
               {items.map((item) => (
-                <ToolCallCard key={item.id} item={item} turnId={turnId} turnRunning={turnRunning} />
+                <ToolCallCard key={item.id} item={item} turnId={turnId} turnRunning={turnRunning} shellRuntimeScope={shellRuntimeScope} />
               ))}
             </div>
           )
@@ -1022,12 +1036,14 @@ function SpawnAgentGroupItems({
   items,
   locale,
   turnId,
-  turnRunning
+  turnRunning,
+  shellRuntimeScope
 }: {
   items: ConversationItem[]
   locale: AppLocale
   turnId: string
   turnRunning: boolean
+  shellRuntimeScope: ShellRuntimeScope
 }): JSX.Element {
   const displays = items
     .map((item) => getSpawnAgentGroupDisplay(item, locale))
@@ -1037,7 +1053,7 @@ function SpawnAgentGroupItems({
     return (
       <div style={{ paddingLeft: '16px' }}>
         {items.map((item) => (
-          <ToolCallCard key={item.id} item={item} turnId={turnId} turnRunning={turnRunning} />
+          <ToolCallCard key={item.id} item={item} turnId={turnId} turnRunning={turnRunning} shellRuntimeScope={shellRuntimeScope} />
         ))}
       </div>
     )

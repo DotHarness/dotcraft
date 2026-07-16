@@ -4715,7 +4715,7 @@ Servers that have a client-declared `backgroundTerminals` capability may emit:
 - `terminal/stalled`
 - `terminal/cleaned`
 
-Notifications use the same terminal snapshot shape. `terminal/outputDelta` additionally carries the output delta text.
+Notifications use the same terminal snapshot shape. `terminal/outputDelta` additionally carries the output delta text. Servers may coalesce multiple process writes or lines into one delta; clients must concatenate deltas in arrival order and must not depend on line-level notification granularity. Before a terminal notification reaches a terminal status, the server flushes all accepted output so the final snapshot and persisted output include every preceding delta.
 
 Clients with terminal rendering support, such as Desktop, use these notifications for live Shell tool output, including foreground `Exec` calls. When a terminal originates from an `Exec` tool call, `terminal.callId` correlates it to the `toolCall` item that should receive live output and status updates. `terminal.threadId` scopes the update to the owning thread, and `terminal.turnId` scopes it to the originating turn when available.
 

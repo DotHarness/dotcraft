@@ -32,6 +32,21 @@ function ids(threads: unknown[]): string[] {
 }
 
 describe('workspace thread cache notifications', () => {
+  it('leaves the project cache unchanged for shell output notifications', () => {
+    const cache = [thread('active')]
+
+    for (const method of ['terminal/outputDelta', 'item/commandExecution/outputDelta']) {
+      const result = applyWorkspaceThreadNotificationToCache(cache, method, {
+        threadId: 'active',
+        delta: 'many lines'
+      })
+
+      expect(result.changed).toBe(false)
+      expect(result.refreshThreadList).toBe(false)
+      expect(result.threads).toBe(cache)
+    }
+  })
+
   it('removes an archived thread tree from the project cache', () => {
     const cache = [
       thread('parent'),

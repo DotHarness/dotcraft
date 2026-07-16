@@ -3,6 +3,7 @@ import { translate, type AppLocale } from '../../../shared/locales'
 import type { ConversationItem } from '../../types/conversation'
 import { useLocale } from '../../contexts/LocaleContext'
 import { useConversationStore } from '../../stores/conversationStore'
+import { useReviewPanelStore } from '../../stores/reviewPanelStore'
 import {
   formatCronRunningLabel,
   formatCronResultLines,
@@ -62,10 +63,13 @@ import {
 } from '../../utils/requestUserInputToolDisplay'
 import { resolveCoreToolRenderPlan, type ToolRendererFamily } from '../../utils/toolRendererRegistry'
 
+export type ShellRuntimeScope = 'conversation' | 'review' | 'none'
+
 interface ToolCallCardProps {
   item: ConversationItem
   turnId: string
   turnRunning?: boolean
+  shellRuntimeScope?: ShellRuntimeScope
 }
 
 function formatRunningToolLabel(
@@ -154,7 +158,8 @@ function hasRenderableDiff(diff: FileDiff | undefined): boolean {
 export const ToolCallCard = memo(function ToolCallCard({
   item,
   turnId,
-  turnRunning = false
+  turnRunning = false,
+  shellRuntimeScope = 'conversation'
 }: ToolCallCardProps): JSX.Element {
   const locale = useLocale()
   const threadId = useThreadStore((state) => state.activeThreadId)
@@ -182,7 +187,20 @@ export const ToolCallCard = memo(function ToolCallCard({
     : { label: translate(locale, 'toolCall.streaming.genericExternal', { toolName }) }
   const isRunning = isToolItemLive(item, { turnRunning })
   const toolResult = item.result ?? item.errorMessage ?? item.resultPreview
-  const shellOutput = item.aggregatedOutput ?? toolResult ?? ''
+  const conversationShellRuntime = useConversationStore((state) =>
+    shellRuntimeScope === 'conversation' && item.toolCallId
+      ? state.shellRuntimeByCallId.get(item.toolCallId)
+      : undefined
+  )
+  const reviewShellRuntime = useReviewPanelStore((state) =>
+    shellRuntimeScope === 'review' && item.toolCallId
+      ? state.shellRuntimeByCallId.get(item.toolCallId)
+      : undefined
+  )
+  const liveShellRuntime = shellRuntimeScope === 'review'
+    ? reviewShellRuntime
+    : conversationShellRuntime
+  const shellOutput = liveShellRuntime?.output ?? item.aggregatedOutput ?? toolResult ?? ''
   const skillManageDisplay = isSkillManageTool ? getSkillManageDisplay(args, item.result) : null
   const skillViewDisplay = isSkillViewTool ? getSkillViewDisplay(args, item.result) : null
   const success = (rendererPlan?.successOverride === true || item.success !== false)

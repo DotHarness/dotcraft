@@ -20,7 +20,9 @@ public sealed partial class SessionService
             return;
 
         SessionItem item;
+        SessionItem? commandExecutionItem = null;
         bool emitStarted;
+        var channel = turnRuntime.EventChannel ?? runtime.Broker.CreateTurnChannel(turn.Id);
         lock (turnRuntime.ToolProjectionLock)
         {
             var existing = turn.Items.LastOrDefault(candidate => HasCallId(candidate, context.CallId));
@@ -44,12 +46,99 @@ public sealed partial class SessionService
             if (existing is null)
                 turn.Items.Add(item);
             turnRuntime.ToolInvocationItems[context.CallId] = item;
+            commandExecutionItem = RegisterCommandExecutionForInvocation(
+                context,
+                registration,
+                arguments,
+                turn,
+                turnRuntime);
         }
 
         if (emitStarted)
-            (turnRuntime.EventChannel ?? runtime.Broker.CreateTurnChannel(turn.Id)).EmitItemStarted(item);
+            channel.EmitItemStarted(item);
+        if (commandExecutionItem is not null)
+            channel.EmitItemStarted(commandExecutionItem);
         await PersistThreadIfMaterializedAsync(runtime.Thread, cancellationToken).ConfigureAwait(false);
     }
+
+    internal static SessionItem? RegisterCommandExecutionForInvocation(
+        ToolInvocationContext context,
+        ToolRegistration registration,
+        JsonObject arguments,
+        SessionTurn turn,
+        TurnRuntime turnRuntime)
+    {
+        var definition = registration.Definition;
+        if (!IsTrustedShellExec(definition)
+            || CommandExecutionRuntimeScope.Current is not { } commandRuntime)
+        {
+            return null;
+        }
+
+        var command = arguments["command"]?.GetValue<string>();
+        if (string.IsNullOrWhiteSpace(command))
+            return null;
+
+        var requestedWorkingDirectory = arguments["workingDir"]?.GetValue<string>();
+        var isSandbox = string.Equals(definition.Id.SourceId, "sandbox-native", StringComparison.Ordinal);
+        var workingDirectory = !string.IsNullOrWhiteSpace(requestedWorkingDirectory)
+            ? isSandbox ? requestedWorkingDirectory : Path.GetFullPath(requestedWorkingDirectory)
+            : isSandbox ? "/workspace" : context.WorkspacePath;
+        if (string.IsNullOrWhiteSpace(workingDirectory))
+            return null;
+
+        var source = isSandbox ? "sandbox" : "host";
+        var shellRegistration = new PendingShellExecutionRegistration
+        {
+            CallId = context.CallId,
+            Command = command,
+            WorkingDirectory = workingDirectory,
+            Source = source
+        };
+        if (!commandRuntime.TryRegisterPendingShellExecution(shellRegistration))
+            return null;
+
+        if (!commandRuntime.SupportsCommandExecutionStreaming)
+            return null;
+
+        var commandItem = new SessionItem
+        {
+            Id = SessionIdGenerator.NewItemId(
+                turnRuntime.NextToolItemSequence?.Invoke() ?? turn.Items.Count + 1),
+            TurnId = turn.Id,
+            Type = ItemType.CommandExecution,
+            Status = ItemStatus.Started,
+            CreatedAt = DateTimeOffset.UtcNow,
+            Payload = new CommandExecutionPayload
+            {
+                CallId = context.CallId,
+                Command = command,
+                WorkingDirectory = workingDirectory,
+                Source = source,
+                Status = "inProgress",
+                AggregatedOutput = string.Empty
+            }
+        };
+        if (!commandRuntime.TryRegisterPending(new PendingCommandExecutionRegistration
+            {
+                CallId = context.CallId,
+                Command = command,
+                WorkingDirectory = workingDirectory,
+                Source = source,
+                Item = commandItem
+            }))
+        {
+            return null;
+        }
+
+        turn.Items.Add(commandItem);
+        return commandItem;
+    }
+
+    private static bool IsTrustedShellExec(ToolDefinition definition) =>
+        definition.Id.Kind == ToolSourceKind.CoreNative
+        && string.Equals(definition.Id.SourceToolId.Value, "Exec", StringComparison.Ordinal)
+        && definition.Id.SourceId is "core-native" or "sandbox-native";
 
     /// <inheritdoc />
     public async ValueTask RecordTerminalAsync(
@@ -67,6 +156,12 @@ public sealed partial class SessionService
         var completedAt = DateTimeOffset.UtcNow;
         var durationMs = Math.Max(0L, (long)duration.TotalMilliseconds);
         var channel = turnRuntime.EventChannel ?? runtime.Broker.CreateTurnChannel(turn.Id);
+        if (!result.Success && IsTrustedShellExec(registration.Definition))
+        {
+            CommandExecutionTracker.CompletePendingFailureByCallId(
+                context.CallId,
+                result.Content ?? result.Error?.Message ?? "Command execution failed.");
+        }
         lock (turnRuntime.ToolProjectionLock)
         {
             switch (registration.ProjectionShape)

@@ -3,6 +3,7 @@ using System.Diagnostics;
 using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
+using System.Threading.Channels;
 using DotCraft.Configuration;
 using Microsoft.Extensions.Logging;
 
@@ -130,6 +131,7 @@ public sealed class BackgroundTerminalService : IBackgroundTerminalService, IAsy
 {
     private const string MetadataExtension = ".json";
     private const string OutputExtension = ".log";
+    private static readonly TimeSpan OutputFlushInterval = TimeSpan.FromMilliseconds(50);
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web)
     {
         WriteIndented = true
@@ -375,21 +377,27 @@ public sealed class BackgroundTerminalService : IBackgroundTerminalService, IAsy
         try
         {
             await terminal.Process.WaitForExitAsync().ConfigureAwait(false);
-            await Task.Delay(100).ConfigureAwait(false);
+            terminal.Process.WaitForExit();
             var status = terminal.Process.ExitCode == 0
                 ? BackgroundTerminalStatus.Completed
                 : BackgroundTerminalStatus.Failed;
-            await CompleteAsync(terminal, status, terminal.Process.ExitCode, CancellationToken.None).ConfigureAwait(false);
+            await CompleteAsync(terminal, status, terminal.Process.ExitCode).ConfigureAwait(false);
         }
         catch (Exception ex)
         {
             _logger?.LogWarning(ex, "Background terminal {SessionId} watcher failed.", terminal.SessionId);
-            await CompleteAsync(terminal, BackgroundTerminalStatus.Failed, null, CancellationToken.None).ConfigureAwait(false);
+            await CompleteAsync(terminal, BackgroundTerminalStatus.Failed, null).ConfigureAwait(false);
         }
     }
 
     private async Task KillAsync(ActiveTerminal terminal, string status, CancellationToken ct)
     {
+        if (!terminal.TryBeginCompletion())
+        {
+            await terminal.WaitForCompletionMetadataAsync(ct).ConfigureAwait(false);
+            return;
+        }
+
         if (!terminal.Process.HasExited)
         {
             try
@@ -402,19 +410,45 @@ public sealed class BackgroundTerminalService : IBackgroundTerminalService, IAsy
             }
         }
 
-        await CompleteAsync(terminal, status, null, ct).ConfigureAwait(false);
+        try
+        {
+            await terminal.Process.WaitForExitAsync(ct).ConfigureAwait(false);
+            terminal.Process.WaitForExit();
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            // The process has already been killed. Completion still drains any accepted output.
+        }
+
+        await CompleteAsync(terminal, status, null, completionReserved: true).ConfigureAwait(false);
     }
 
-    private async Task CompleteAsync(ActiveTerminal terminal, string status, int? exitCode, CancellationToken ct)
+    private async Task CompleteAsync(
+        ActiveTerminal terminal,
+        string status,
+        int? exitCode,
+        bool completionReserved = false)
     {
-        if (!terminal.TryComplete(status, exitCode))
+        if (!completionReserved && !terminal.TryBeginCompletion())
             return;
 
-        _active.TryRemove(terminal.SessionId, out _);
-        var metadata = terminal.ToMetadata(status);
-        _metadata[terminal.SessionId] = metadata;
-        await PersistMetadataAsync(metadata, ct).ConfigureAwait(false);
-        Raise("completed", terminal.CreateSnapshot(maxOutputChars: _config.DefaultReadMaxOutputChars), null);
+        try
+        {
+            await terminal.DrainOutputAsync().ConfigureAwait(false);
+            terminal.FinishCompletion(status, exitCode);
+
+            _active.TryRemove(terminal.SessionId, out _);
+            var metadata = terminal.ToMetadata(status);
+            _metadata[terminal.SessionId] = metadata;
+            await PersistMetadataAsync(metadata, CancellationToken.None).ConfigureAwait(false);
+            Raise("completed", terminal.CreateSnapshot(maxOutputChars: _config.DefaultReadMaxOutputChars), null);
+            terminal.SignalCompletionPublished();
+        }
+        catch (Exception ex)
+        {
+            terminal.SignalCompletionFailed(ex);
+            throw;
+        }
     }
 
     private async Task PersistMetadataAsync(BackgroundTerminalMetadata metadata, CancellationToken ct)
@@ -546,7 +580,17 @@ public sealed class BackgroundTerminalService : IBackgroundTerminalService, IAsy
         private readonly BackgroundTerminalService _owner;
         private readonly object _sync = new();
         private readonly StringBuilder _output = new();
-        private bool _completed;
+        private readonly Channel<string> _pendingOutput = Channel.CreateUnbounded<string>(new UnboundedChannelOptions
+        {
+            SingleReader = true,
+            SingleWriter = false,
+            AllowSynchronousContinuations = false
+        });
+        private readonly TaskCompletionSource _stdoutCompleted = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private readonly TaskCompletionSource _stderrCompleted = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private Task? _outputPump;
+        private Task? _drainTask;
+        private bool _completionStarted;
         private string _status = BackgroundTerminalStatus.Running;
         private int? _exitCode;
         private DateTimeOffset? _completedAt;
@@ -587,36 +631,64 @@ public sealed class BackgroundTerminalService : IBackgroundTerminalService, IAsy
 
         public void BeginReading()
         {
+            _outputPump = PumpOutputAsync();
             Process.OutputDataReceived += (_, e) =>
             {
                 if (e.Data != null)
-                    Append(e.Data + Environment.NewLine);
+                    _pendingOutput.Writer.TryWrite(e.Data + Environment.NewLine);
+                else
+                    _stdoutCompleted.TrySetResult();
             };
             Process.ErrorDataReceived += (_, e) =>
             {
                 if (e.Data != null)
-                    Append(e.Data + Environment.NewLine);
+                    _pendingOutput.Writer.TryWrite(e.Data + Environment.NewLine);
+                else
+                    _stderrCompleted.TrySetResult();
             };
             Process.EnableRaisingEvents = true;
             Process.BeginOutputReadLine();
             Process.BeginErrorReadLine();
         }
 
-        public bool TryComplete(string status, int? exitCode)
+        public bool TryBeginCompletion()
         {
             lock (_sync)
             {
-                if (_completed)
+                if (_completionStarted)
                     return false;
 
-                _completed = true;
+                _completionStarted = true;
+                return true;
+            }
+        }
+
+        public void FinishCompletion(string status, int? exitCode)
+        {
+            lock (_sync)
+            {
                 _status = status;
                 _exitCode = exitCode;
                 _completedAt = DateTimeOffset.UtcNow;
             }
+        }
 
+        public Task DrainOutputAsync()
+        {
+            lock (_sync)
+            {
+                return _drainTask ??= DrainOutputCoreAsync();
+            }
+        }
+
+        public void SignalCompletionPublished()
+        {
             MetadataCompleted.TrySetResult();
-            return true;
+        }
+
+        public void SignalCompletionFailed(Exception error)
+        {
+            MetadataCompleted.TrySetException(error);
         }
 
         public async Task WaitForCompletionMetadataAsync(CancellationToken ct)
@@ -687,18 +759,40 @@ public sealed class BackgroundTerminalService : IBackgroundTerminalService, IAsy
             };
         }
 
-        private void Append(string text)
+        private async Task DrainOutputCoreAsync()
         {
-            BackgroundTerminalSnapshot snapshot;
-            lock (_sync)
-            {
-                _output.Append(text);
-                Directory.CreateDirectory(Path.GetDirectoryName(OutputPath)!);
-                File.AppendAllText(OutputPath, text, Encoding.UTF8);
-                snapshot = CreateSnapshot(maxOutputChars: _owner._config.DefaultReadMaxOutputChars);
-            }
+            await Task.WhenAll(_stdoutCompleted.Task, _stderrCompleted.Task).ConfigureAwait(false);
+            _pendingOutput.Writer.TryComplete();
+            if (_outputPump != null)
+                await _outputPump.ConfigureAwait(false);
+        }
 
-            _owner.Raise("outputDelta", snapshot, text);
+        private async Task PumpOutputAsync()
+        {
+            var reader = _pendingOutput.Reader;
+            while (await reader.WaitToReadAsync().ConfigureAwait(false))
+            {
+                if (!reader.TryRead(out var first))
+                    continue;
+
+                var batch = new StringBuilder(first);
+                if (!reader.Completion.IsCompleted)
+                    await Task.Delay(OutputFlushInterval).ConfigureAwait(false);
+                while (reader.TryRead(out var next))
+                    batch.Append(next);
+
+                var text = batch.ToString();
+                BackgroundTerminalSnapshot snapshot;
+                lock (_sync)
+                {
+                    _output.Append(text);
+                    snapshot = CreateSnapshot(maxOutputChars: _owner._config.DefaultReadMaxOutputChars);
+                }
+
+                Directory.CreateDirectory(Path.GetDirectoryName(OutputPath)!);
+                await File.AppendAllTextAsync(OutputPath, text, Encoding.UTF8).ConfigureAwait(false);
+                _owner.Raise("outputDelta", snapshot, text);
+            }
         }
     }
 

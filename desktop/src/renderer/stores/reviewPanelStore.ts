@@ -12,6 +12,11 @@ import { isShellToolName } from '../utils/shellTools'
 import type { AutomationTask } from './automationsStore'
 import { useAutomationsStore } from './automationsStore'
 import type { SubAgentEntry } from '../types/toolCall'
+import {
+  createShellRuntimeBuffer,
+  mergeShellRuntimeUpdates,
+  type ShellRuntimeEntry
+} from './shellRuntimeBuffer'
 
 interface PendingTerminalEntry {
   event: string
@@ -178,7 +183,10 @@ function applyPendingTerminalsToTurn(
     if (!terminalMatchesTurn(entry, turn) || !turnHasShellToolCall({ ...turn, items }, callId)) {
       continue
     }
-    items = mergeTerminalAcrossItems(items, entry.terminal, entry.event, '')
+    const durableTerminal = entry.event === 'terminal/outputDelta'
+      ? { ...entry.terminal, output: undefined }
+      : entry.terminal
+    items = mergeTerminalAcrossItems(items, durableTerminal, entry.event, '')
     appliedCallIds.add(callId)
   }
   return appliedCallIds.size > 0
@@ -364,6 +372,8 @@ export interface ReviewPanelState {
   activeItemId: string | null
   streamingActive: boolean
   pendingTerminalByCallId: Map<string, PendingTerminalEntry>
+  /** Batched live shell output, isolated from the durable review turn tree. */
+  shellRuntimeByCallId: Map<string, ShellRuntimeEntry>
   loading: boolean
   loadError: string | null
   /** SubAgent progress rows for the thread being reviewed (isolated from main conversation). */
@@ -404,9 +414,19 @@ function emptyTurnFields() {
     activeItemId: null as string | null,
     streamingActive: false,
     pendingTerminalByCallId: new Map<string, PendingTerminalEntry>(),
+    shellRuntimeByCallId: new Map<string, ShellRuntimeEntry>(),
     subAgentEntries: [] as SubAgentEntry[]
   }
 }
+
+const reviewShellRuntimeBuffer = createShellRuntimeBuffer((updates) => {
+  useReviewPanelStore.setState((state) => {
+    const shellRuntimeByCallId = mergeShellRuntimeUpdates(state.shellRuntimeByCallId, updates)
+    return shellRuntimeByCallId === state.shellRuntimeByCallId
+      ? state
+      : { shellRuntimeByCallId }
+  })
+})
 
 export const useReviewPanelStore = create<ReviewPanelState>((set, get) => ({
   openedTaskId: null,
@@ -419,6 +439,7 @@ export const useReviewPanelStore = create<ReviewPanelState>((set, get) => ({
   _seq: 0,
 
   async openReviewPanel(taskId: string) {
+    reviewShellRuntimeBuffer.reset()
     const prev = get()
 
     // Unsubscribe from previous thread if any
@@ -482,6 +503,7 @@ export const useReviewPanelStore = create<ReviewPanelState>((set, get) => ({
   },
 
   async loadThreadSnapshot(threadId: string, task: AutomationTask) {
+    reviewShellRuntimeBuffer.reset()
     const seqAtStart = get()._seq
     set({ reviewThreadId: threadId, ...emptyTurnFields(), subscriptionActive: false })
 
@@ -558,6 +580,7 @@ export const useReviewPanelStore = create<ReviewPanelState>((set, get) => ({
   },
 
   destroyReviewPanel() {
+    reviewShellRuntimeBuffer.reset()
     const { reviewThreadId, subscriptionActive, _seq } = get()
     if (subscriptionActive && reviewThreadId) {
       void window.api.appServer
@@ -750,26 +773,18 @@ export const useReviewPanelStore = create<ReviewPanelState>((set, get) => ({
     const delta = params.delta ?? ''
     if (!turnId || !itemId || !delta) return
 
-    set((state) => ({
-      turns: state.turns.map((t) =>
-        t.id !== turnId
-          ? t
-          : {
-              ...t,
-              items: sortItemsByCreatedAt((() => {
-                const updatedItems = t.items.map((i) =>
-                  i.id === itemId && i.type === 'commandExecution'
-                    ? { ...i, aggregatedOutput: (i.aggregatedOutput ?? '') + delta }
-                    : i
-                )
-                const commandExecution = updatedItems.find((i) => i.id === itemId && i.type === 'commandExecution')
-                return commandExecution
-                  ? mergeCommandExecutionAcrossItems(updatedItems, commandExecution)
-                  : updatedItems
-              })())
-            }
-      )
-    }))
+    const turn = get().turns.find((candidate) => candidate.id === turnId)
+    const commandExecution = turn?.items.find(
+      (item) => item.id === itemId && item.type === 'commandExecution'
+    )
+    if (!commandExecution?.toolCallId) return
+    const matchingToolCall = turn?.items.find(
+      (item) => item.type === 'toolCall' && item.toolCallId === commandExecution.toolCallId
+    )
+    if (isTerminalExecutionStatus(commandExecution.executionStatus)
+        || isTerminalExecutionStatus(matchingToolCall?.executionStatus)) return
+
+    reviewShellRuntimeBuffer.queue(commandExecution.toolCallId, 'commandExecution', delta)
   },
 
   onTerminalEvent(params) {
@@ -781,6 +796,47 @@ export const useReviewPanelStore = create<ReviewPanelState>((set, get) => ({
 
     const turnId = (terminal.turnId as string | undefined) ?? ''
     const delta = params.delta ?? ''
+    if (params.event === 'terminal/outputDelta') {
+      const existing = get()
+      const completedPending = existing.pendingTerminalByCallId.get(callId)
+      const matchingToolCall = existing.turns
+        .find((turn) => !turnId || turn.id === turnId)
+        ?.items.find((item) => item.type === 'toolCall' && item.toolCallId === callId)
+      if (completedPending?.event === 'terminal/completed'
+          || completedPending?.event === 'terminal/cleaned'
+          || isTerminalExecutionStatus(matchingToolCall?.executionStatus)) return
+
+      const snapshotOutput = terminal.output as string | undefined
+      const replace = shouldUseTerminalSnapshotOutput(params.event, snapshotOutput)
+      reviewShellRuntimeBuffer.queue(
+        callId,
+        'terminal',
+        replace ? snapshotOutput : delta,
+        replace
+      )
+      const hasMatchingToolCall = existing.turns.some(
+        (turn) => (!turnId || turn.id === turnId) && turnHasShellToolCall(turn, callId)
+      )
+      if (!hasMatchingToolCall) {
+        set((state) => {
+          const pendingTerminalByCallId = new Map(state.pendingTerminalByCallId)
+          pendingTerminalByCallId.set(callId, mergePendingTerminalEntry(
+            pendingTerminalByCallId.get(callId),
+            terminal,
+            params.event,
+            delta
+          ))
+          return { pendingTerminalByCallId }
+        })
+      }
+      return
+    }
+
+    const isTerminalEnd = params.event === 'terminal/completed' || params.event === 'terminal/cleaned'
+    if (isTerminalEnd) {
+      reviewShellRuntimeBuffer.flush()
+      reviewShellRuntimeBuffer.clear(callId)
+    }
     set((state) => {
       const pendingEntry = mergePendingTerminalEntry(
         state.pendingTerminalByCallId.get(callId),
@@ -808,7 +864,14 @@ export const useReviewPanelStore = create<ReviewPanelState>((set, get) => ({
       } else {
         pendingTerminalByCallId.set(callId, pendingEntry)
       }
-      return { turns, pendingTerminalByCallId }
+      const shellRuntimeByCallId = isTerminalEnd
+        ? (() => {
+            const next = new Map(state.shellRuntimeByCallId)
+            next.delete(callId)
+            return next
+          })()
+        : state.shellRuntimeByCallId
+      return { turns, pendingTerminalByCallId, shellRuntimeByCallId }
     })
   },
 
@@ -967,6 +1030,10 @@ export const useReviewPanelStore = create<ReviewPanelState>((set, get) => ({
       })
     } else if (type === 'commandExecution') {
       const itemPayload = (item?.payload ?? {}) as Record<string, unknown>
+      const completedCallId = (item?.callId as string | undefined)
+        ?? (itemPayload.callId as string | undefined)
+      reviewShellRuntimeBuffer.flush()
+      if (completedCallId) reviewShellRuntimeBuffer.clear(completedCallId)
       set((s) => ({
         turns: s.turns.map((t) =>
           t.id !== turnId
@@ -994,6 +1061,7 @@ export const useReviewPanelStore = create<ReviewPanelState>((set, get) => ({
                         ?? i.commandSource,
                       aggregatedOutput: (item?.aggregatedOutput as string | undefined)
                         ?? (itemPayload.aggregatedOutput as string | undefined)
+                        ?? (completedCallId ? s.shellRuntimeByCallId.get(completedCallId)?.output : undefined)
                         ?? i.aggregatedOutput
                         ?? '',
                       exitCode: (item?.exitCode as number | null | undefined)
@@ -1018,7 +1086,14 @@ export const useReviewPanelStore = create<ReviewPanelState>((set, get) => ({
                     : updatedItems
                 })())
             }
-        )
+        ),
+        shellRuntimeByCallId: completedCallId
+          ? (() => {
+              const next = new Map(s.shellRuntimeByCallId)
+              next.delete(completedCallId)
+              return next
+            })()
+          : s.shellRuntimeByCallId
       }))
     } else if (type === 'toolExecution') {
       const toolExecution = wireItemToConversationItem(item)

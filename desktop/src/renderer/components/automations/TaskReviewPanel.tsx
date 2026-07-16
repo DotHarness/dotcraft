@@ -351,6 +351,7 @@ function ReviewTurnBlock({
         isActiveTurn={turn.id === activeTurnId}
         activeItemIdOverride={isRunning ? activeItemId ?? null : undefined}
         subAgentEntriesOverride={subAgentEntriesOverride}
+        shellRuntimeScope="review"
         isLastTurn={isLastTurn}
       />
     </div>

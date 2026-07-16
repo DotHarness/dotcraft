@@ -171,6 +171,7 @@ export function CronReviewPanel(): JSX.Element {
               streamingReasoning=""
               isRunning={false}
               isActiveTurn={false}
+              shellRuntimeScope="none"
               isLastTurn={idx === turns.length - 1}
             />
           </div>

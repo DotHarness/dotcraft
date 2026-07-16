@@ -136,6 +136,7 @@ public sealed class AppServerEventDispatcher
                     && !_transportUnavailable
                     && _connection.SupportsStreaming
                     && !IsEmptyDelta(evt)
+                    && !ShouldSuppressTerminalMirror(evt)
                     && _connection.ShouldSendNotification(method))
                     await SendNotificationAsync(method, BuildParams(evt), ct);
                 break;
@@ -442,6 +443,11 @@ public sealed class AppServerEventDispatcher
             : evt.CommandExecutionDeltaPayload is { } c ? string.IsNullOrEmpty(c.TextDelta)
             : evt.ReasoningDeltaPayload is { } r ? string.IsNullOrEmpty(r.TextDelta)
             : evt.ToolCallArgumentsDeltaPayload is { } t && string.IsNullOrEmpty(t.Delta));
+
+    private bool ShouldSuppressTerminalMirror(SessionEvent evt) =>
+        evt.CommandExecutionDeltaPayload?.MirrorsTerminalOutput == true
+        && _connection.SupportsBackgroundTerminals
+        && _connection.ShouldSendNotification(AppServerMethods.TerminalOutputDelta);
 
     private void LogOutboundDelta(SessionEvent evt, string method)
     {

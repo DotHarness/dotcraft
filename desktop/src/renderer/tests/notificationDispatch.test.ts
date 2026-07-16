@@ -14,7 +14,7 @@
  * causing ALL notifications to be silently dropped.
  */
 
-import { describe, it, expect, beforeEach, vi } from 'vitest'
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { useConversationStore } from '../stores/conversationStore'
 import { useThreadStore } from '../stores/threadStore'
 import { useConnectionStore } from '../stores/connectionStore'
@@ -447,6 +447,10 @@ beforeEach(() => {
     statusFilter: 'all'
   })
   workspaceConfigChangedDedupe.clear()
+})
+
+afterEach(() => {
+  vi.useRealTimers()
 })
 
 // ---------------------------------------------------------------------------
@@ -1235,6 +1239,7 @@ describe('notification dispatch payload format', () => {
   })
 
   it('updates the existing Exec toolCall instead of requiring a standalone terminal block', () => {
+    vi.useFakeTimers()
     dispatch({ method: 'turn/started', params: { turn: makeTurnPayload('turn_1') } })
     dispatch({
       method: 'item/started',
@@ -1271,14 +1276,17 @@ describe('notification dispatch payload format', () => {
       method: 'item/commandExecution/outputDelta',
       params: { threadId: 'thread-1', turnId: 'turn_1', itemId: 'cmd_3', delta: 'file.txt\n' }
     })
+    vi.advanceTimersByTime(50)
 
     const toolItem = s().turns[0].items.find((i) => i.id === 'tool_1')
     expect(toolItem?.type).toBe('toolCall')
-    expect(toolItem?.aggregatedOutput).toBe('file.txt\n')
+    expect(toolItem?.aggregatedOutput).toBe('')
+    expect(s().shellRuntimeByCallId.get('exec-3')?.output).toBe('file.txt\n')
     expect(toolItem?.executionStatus).toBe('inProgress')
   })
 
   it('dispatches terminal output deltas into the matching Exec tool card', () => {
+    vi.useFakeTimers()
     dispatch({ method: 'turn/started', params: { turn: makeTurnPayload('turn_1') } })
     dispatch({
       method: 'item/started',
@@ -1314,13 +1322,12 @@ describe('notification dispatch payload format', () => {
         delta: 'chunk\n'
       }
     })
+    vi.advanceTimersByTime(50)
 
     let toolItem = s().turns[0].items.find((i) => i.id === 'tool_terminal')
     expect(toolItem?.type).toBe('toolCall')
-    expect(toolItem?.aggregatedOutput).toBe('chunk\n')
-    expect(toolItem?.executionStatus).toBe('inProgress')
-    expect(toolItem?.command).toBe('npm test')
-    expect(toolItem?.workingDirectory).toBe('/workspace/project')
+    expect(toolItem?.aggregatedOutput).toBeUndefined()
+    expect(s().shellRuntimeByCallId.get('exec-terminal')?.output).toBe('chunk\n')
 
     dispatch({
       method: 'terminal/completed',
@@ -1389,6 +1396,7 @@ describe('notification dispatch payload format', () => {
   })
 
   it('keeps Exec render state live when command execution starts before toolCall completion', () => {
+    vi.useFakeTimers()
     dispatch({ method: 'turn/started', params: { turn: makeTurnPayload('turn_1') } })
     dispatch({
       method: 'item/started',
@@ -1440,13 +1448,15 @@ describe('notification dispatch payload format', () => {
       method: 'item/commandExecution/outputDelta',
       params: { threadId: 'thread-1', turnId: 'turn_1', itemId: 'cmd_real_order', delta: 'file.txt\n' }
     })
+    vi.advanceTimersByTime(50)
 
     const toolItem = s().turns[0].items.find((i) => i.id === 'tool_real_order')
     expect(toolItem?.type).toBe('toolCall')
     expect(toolItem?.status).toBe('completed')
     expect(toolItem?.arguments?.command).toBe('dir')
     expect(toolItem?.executionStatus).toBe('inProgress')
-    expect(toolItem?.aggregatedOutput).toBe('file.txt\n')
+    expect(toolItem?.aggregatedOutput).toBe('')
+    expect(s().shellRuntimeByCallId.get('exec-real-order')?.output).toBe('file.txt\n')
   })
 
   it('dispatches item/usage/delta and accumulates tokens', () => {

@@ -46,6 +46,7 @@ public sealed class AppServerHost(
     /// out-of-band notifications (e.g. <c>plan/updated</c>) to all clients.
     /// </summary>
     private readonly ConcurrentDictionary<IAppServerTransport, AppServerConnection> _activeTransports = new();
+    private readonly ConcurrentDictionary<IAppServerTransport, Lazy<OrderedAppServerNotificationQueue>> _terminalNotificationQueues = new();
     private readonly ConcurrentDictionary<string, RuntimeFacts> _threadRuntime = new(StringComparer.Ordinal);
 
     private readonly record struct RuntimeFacts(
@@ -301,6 +302,7 @@ public sealed class AppServerHost(
         finally
         {
             _activeTransports.TryRemove(transport, out _);
+            RemoveTerminalNotificationQueue(transport);
         }
     }
 
@@ -353,6 +355,7 @@ public sealed class AppServerHost(
         finally
         {
             _activeTransports.TryRemove(transport, out _);
+            RemoveTerminalNotificationQueue(transport);
             // Stop the WebSocket server when stdio exits
             await wsApp.StopAsync(CancellationToken.None);
         }
@@ -522,6 +525,7 @@ public sealed class AppServerHost(
             finally
             {
                 _activeTransports.TryRemove(wsTransport, out _);
+                RemoveTerminalNotificationQueue(wsTransport);
             }
         });
 
@@ -679,6 +683,9 @@ public sealed class AppServerHost(
 
     public async ValueTask DisposeAsync()
     {
+        var queues = _terminalNotificationQueues.Keys.ToArray();
+        foreach (var transport in queues)
+            RemoveTerminalNotificationQueue(transport);
         await runtime.DisposeAsync();
     }
 
@@ -994,18 +1001,25 @@ public sealed class AppServerHost(
             if (!connection.SupportsBackgroundTerminals || !connection.ShouldSendNotification(method))
                 continue;
 
-            _ = Task.Run(async () =>
-            {
-                try
-                {
-                    await transport.WriteMessageAsync(notification, CancellationToken.None);
-                }
-                catch
-                {
-                    _activeTransports.TryRemove(transport, out _);
-                }
-            });
+            var queue = _terminalNotificationQueues.GetOrAdd(
+                transport,
+                candidate => new Lazy<OrderedAppServerNotificationQueue>(
+                    () => new OrderedAppServerNotificationQueue(
+                        candidate,
+                        () =>
+                        {
+                            _activeTransports.TryRemove(candidate, out _);
+                            RemoveTerminalNotificationQueue(candidate);
+                        }),
+                    LazyThreadSafetyMode.ExecutionAndPublication));
+            queue.Value.Enqueue(notification);
         }
+    }
+
+    private void RemoveTerminalNotificationQueue(IAppServerTransport transport)
+    {
+        if (_terminalNotificationQueues.TryRemove(transport, out var queue) && queue.IsValueCreated)
+            queue.Value.Complete();
     }
 
     /// <summary>

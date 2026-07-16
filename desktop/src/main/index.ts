@@ -553,7 +553,9 @@ async function refreshConnectionThreadList(entry: WorkspaceConnectionEntry): Pro
 function applyWorkspaceThreadNotification(entry: WorkspaceConnectionEntry, method: string, params: unknown): void {
   const result = applyWorkspaceThreadNotificationToCache(entry.threads, method, params)
   entry.threads = result.threads
-  emitWorkspaceProjects()
+  if (result.changed) {
+    emitWorkspaceProjects()
+  }
   if (result.refreshThreadList) {
     void refreshConnectionThreadList(entry)
   }

@@ -24,10 +24,31 @@ public sealed class CommandExecutionRuntimeContext
 
     private readonly ConcurrentQueue<PendingShellExecutionRegistration> _pendingShellExecutions = new();
 
-    public void RegisterPending(PendingCommandExecutionRegistration registration) => _pending.Enqueue(registration);
+    private readonly ConcurrentDictionary<string, byte> _pendingCallIds = new(StringComparer.Ordinal);
+
+    private readonly ConcurrentDictionary<string, byte> _pendingShellCallIds = new(StringComparer.Ordinal);
+
+    public void RegisterPending(PendingCommandExecutionRegistration registration) =>
+        TryRegisterPending(registration);
 
     public void RegisterPendingShellExecution(PendingShellExecutionRegistration registration) =>
+        TryRegisterPendingShellExecution(registration);
+
+    internal bool TryRegisterPending(PendingCommandExecutionRegistration registration)
+    {
+        if (!_pendingCallIds.TryAdd(registration.CallId, 0))
+            return false;
+        _pending.Enqueue(registration);
+        return true;
+    }
+
+    internal bool TryRegisterPendingShellExecution(PendingShellExecutionRegistration registration)
+    {
+        if (!_pendingShellCallIds.TryAdd(registration.CallId, 0))
+            return false;
         _pendingShellExecutions.Enqueue(registration);
+        return true;
+    }
 
     public PendingCommandExecutionRegistration? TryClaimPending(
         string command,
@@ -46,6 +67,7 @@ public sealed class CommandExecutionRuntimeContext
                 string.Equals(entry.WorkingDirectory, workingDirectory, StringComparison.OrdinalIgnoreCase))
             {
                 match = entry;
+                _pendingCallIds.TryRemove(entry.CallId, out _);
                 continue;
             }
 
@@ -71,6 +93,7 @@ public sealed class CommandExecutionRuntimeContext
             if (match == null && string.Equals(entry.CallId, callId, StringComparison.Ordinal))
             {
                 match = entry;
+                _pendingCallIds.TryRemove(entry.CallId, out _);
                 continue;
             }
 
@@ -100,6 +123,7 @@ public sealed class CommandExecutionRuntimeContext
                 string.Equals(entry.WorkingDirectory, workingDirectory, StringComparison.OrdinalIgnoreCase))
             {
                 match = entry;
+                _pendingShellCallIds.TryRemove(entry.CallId, out _);
                 continue;
             }
 
@@ -125,6 +149,7 @@ public sealed class CommandExecutionRuntimeContext
             if (match == null && string.Equals(entry.CallId, callId, StringComparison.Ordinal))
             {
                 match = entry;
+                _pendingShellCallIds.TryRemove(entry.CallId, out _);
                 continue;
             }
 
