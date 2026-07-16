@@ -310,6 +310,13 @@ public sealed record CommandExecutionOutputDelta
     public string DeltaKind { get; init; } = "commandExecution";
 
     public string TextDelta { get; init; } = string.Empty;
+
+    /// <summary>
+    /// Internal delivery hint for output already published through terminal/outputDelta.
+    /// This is never persisted or exposed on the AppServer wire.
+    /// </summary>
+    [JsonIgnore]
+    public bool MirrorsTerminalOutput { get; init; }
 }
 
 /// <summary>

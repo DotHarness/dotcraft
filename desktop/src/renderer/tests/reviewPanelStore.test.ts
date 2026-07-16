@@ -30,6 +30,7 @@ beforeEach(() => {
     activeItemId: null,
     streamingActive: false,
     pendingTerminalByCallId: new Map(),
+    shellRuntimeByCallId: new Map(),
     loading: false,
     loadError: null,
     subAgentEntries: [],
@@ -109,6 +110,7 @@ describe('reviewPanelStore streaming message timing', () => {
   })
 
   it('applies terminal output that arrives before the matching review Exec toolCall item', () => {
+    vi.useFakeTimers()
     s().onTurnStarted(makeTurn())
     s().onTerminalEvent({
       event: 'terminal/outputDelta',
@@ -140,7 +142,129 @@ describe('reviewPanelStore streaming message timing', () => {
 
     const toolItem = s().turns[0].items.find((i) => i.id === 'tool-review-terminal')
     expect(toolItem?.type).toBe('toolCall')
-    expect(toolItem?.aggregatedOutput).toBe('Pinging 10.8.8.8\n')
+    expect(toolItem?.aggregatedOutput).toBeUndefined()
     expect(toolItem?.executionStatus).toBe('inProgress')
+    vi.advanceTimersByTime(50)
+    expect(s().shellRuntimeByCallId.get('exec-review-terminal')).toEqual({
+      source: 'terminal',
+      output: 'Pinging 10.8.8.8\n'
+    })
+  })
+
+  it('batches review output, prefers terminal snapshots, and commits once on completion', () => {
+    vi.useFakeTimers()
+    s().onTurnStarted(makeTurn())
+    s().onItemStarted({
+      turnId: 'turn-review-1',
+      item: {
+        id: 'tool-review-burst',
+        type: 'toolCall',
+        payload: { callId: 'exec-review-burst', toolName: 'Exec', arguments: { command: 'many-lines' } }
+      }
+    })
+    s().onItemStarted({
+      turnId: 'turn-review-1',
+      item: {
+        id: 'command-review-burst',
+        type: 'commandExecution',
+        payload: { callId: 'exec-review-burst', command: 'many-lines', status: 'inProgress', aggregatedOutput: '' }
+      }
+    })
+    const durableTurn = s().turns[0]
+
+    for (let index = 0; index < 100; index++) {
+      s().onCommandExecutionDelta({
+        turnId: 'turn-review-1',
+        itemId: 'command-review-burst',
+        delta: `${index}\n`
+      })
+    }
+    s().onTerminalEvent({
+      event: 'terminal/outputDelta',
+      terminal: {
+        turnId: 'turn-review-1',
+        callId: 'exec-review-burst',
+        status: 'running',
+        output: 'terminal-authoritative\n'
+      },
+      delta: 'terminal-authoritative\n'
+    })
+
+    expect(s().turns[0]).toBe(durableTurn)
+    expect(s().shellRuntimeByCallId.size).toBe(0)
+    vi.advanceTimersByTime(50)
+    expect(s().turns[0]).toBe(durableTurn)
+    expect(s().shellRuntimeByCallId.get('exec-review-burst')).toEqual({
+      source: 'terminal',
+      output: 'terminal-authoritative\n'
+    })
+
+    s().onTerminalEvent({
+      event: 'terminal/completed',
+      terminal: {
+        turnId: 'turn-review-1',
+        callId: 'exec-review-burst',
+        status: 'completed',
+        output: 'terminal-authoritative\nfinal\n',
+        exitCode: 0,
+        wallTimeMs: 321
+      }
+    })
+
+    const completedTool = s().turns[0].items.find((item) => item.id === 'tool-review-burst')
+    expect(completedTool?.aggregatedOutput).toBe('terminal-authoritative\nfinal\n')
+    expect(completedTool?.executionStatus).toBe('completed')
+    expect(completedTool?.exitCode).toBe(0)
+    expect(completedTool?.duration).toBe(321)
+    expect(s().shellRuntimeByCallId.size).toBe(0)
+
+    s().onTerminalEvent({
+      event: 'terminal/outputDelta',
+      terminal: { turnId: 'turn-review-1', callId: 'exec-review-burst', status: 'running' },
+      delta: 'late\n'
+    })
+    vi.advanceTimersByTime(100)
+    expect(s().shellRuntimeByCallId.size).toBe(0)
+  })
+
+  it('uses commandExecution as a review fallback and clears pending batches when closed', () => {
+    vi.useFakeTimers()
+    s().onTurnStarted(makeTurn())
+    s().onItemStarted({
+      turnId: 'turn-review-1',
+      item: {
+        id: 'tool-review-fallback',
+        type: 'toolCall',
+        payload: { callId: 'exec-review-fallback', toolName: 'Exec', arguments: { command: 'fallback' } }
+      }
+    })
+    s().onItemStarted({
+      turnId: 'turn-review-1',
+      item: {
+        id: 'command-review-fallback',
+        type: 'commandExecution',
+        payload: { callId: 'exec-review-fallback', command: 'fallback', status: 'inProgress', aggregatedOutput: '' }
+      }
+    })
+
+    s().onCommandExecutionDelta({
+      turnId: 'turn-review-1',
+      itemId: 'command-review-fallback',
+      delta: 'fallback output\n'
+    })
+    vi.advanceTimersByTime(50)
+    expect(s().shellRuntimeByCallId.get('exec-review-fallback')).toEqual({
+      source: 'commandExecution',
+      output: 'fallback output\n'
+    })
+
+    s().onCommandExecutionDelta({
+      turnId: 'turn-review-1',
+      itemId: 'command-review-fallback',
+      delta: 'pending\n'
+    })
+    s().destroyReviewPanel()
+    vi.advanceTimersByTime(100)
+    expect(s().shellRuntimeByCallId.size).toBe(0)
   })
 })

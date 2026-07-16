@@ -9,6 +9,48 @@ namespace DotCraft.Tests.Sessions.Protocol.AppServer;
 public sealed class AppServerEventDispatcherDisconnectTests
 {
     [Theory]
+    [InlineData(true, false, 0)]
+    [InlineData(false, false, 1)]
+    [InlineData(true, true, 1)]
+    public async Task RunAsync_TerminalMirrorCommandDelta_UsesTerminalWhenAvailable(
+        bool backgroundTerminals,
+        bool optOutTerminalDelta,
+        int expectedNotifications)
+    {
+        using var harness = new AppServerTestHarness();
+        var transport = new CapturingTransport();
+        var evt = new SessionEvent
+        {
+            EventId = "e_command_delta",
+            EventType = SessionEventType.ItemDelta,
+            ThreadId = "thread_001",
+            TurnId = "turn_001",
+            ItemId = "item_command_001",
+            Timestamp = DateTimeOffset.UtcNow,
+            Payload = new CommandExecutionOutputDelta
+            {
+                TextDelta = "live output",
+                MirrorsTerminalOutput = true
+            }
+        };
+        var dispatcher = new AppServerEventDispatcher(
+            TrackEvents([evt], []),
+            CreateReadyConnection(backgroundTerminals: backgroundTerminals, optOutTerminalDelta: optOutTerminalDelta),
+            transport,
+            harness.Service);
+
+        await dispatcher.RunAsync();
+
+        Assert.Equal(expectedNotifications, transport.Sent.Count);
+        if (expectedNotifications > 0)
+        {
+            var json = JsonSerializer.Serialize(Assert.Single(transport.Sent));
+            Assert.Contains(AppServerMethods.ItemCommandExecutionOutputDelta, json);
+            Assert.Contains("live output", json);
+        }
+    }
+
+    [Theory]
     [InlineData(1)]
     [InlineData(3)]
     [InlineData(5)]
@@ -420,7 +462,9 @@ public sealed class AppServerEventDispatcherDisconnectTests
 
     private static AppServerConnection CreateReadyConnection(
         bool requestUserInputSupport = false,
-        bool mcpApps = false)
+        bool mcpApps = false,
+        bool backgroundTerminals = false,
+        bool optOutTerminalDelta = false)
     {
         var connection = new AppServerConnection();
         Assert.True(connection.TryMarkInitialized(
@@ -430,7 +474,11 @@ public sealed class AppServerEventDispatcherDisconnectTests
                 ApprovalSupport = true,
                 StreamingSupport = true,
                 RequestUserInputSupport = requestUserInputSupport,
-                McpApps = mcpApps
+                McpApps = mcpApps,
+                BackgroundTerminals = backgroundTerminals,
+                OptOutNotificationMethods = optOutTerminalDelta
+                    ? [AppServerMethods.TerminalOutputDelta]
+                    : []
             }));
         connection.MarkClientReady();
         return connection;

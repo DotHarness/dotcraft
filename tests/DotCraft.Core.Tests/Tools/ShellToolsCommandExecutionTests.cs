@@ -110,6 +110,7 @@ public sealed class ShellToolsCommandExecutionTests : IDisposable
         Assert.Contains("stream-final", result);
         var delta = Assert.IsType<CommandExecutionOutputDelta>(Assert.Single(deltas));
         Assert.Equal("stream-live" + Environment.NewLine, delta.TextDelta);
+        Assert.True(delta.MirrorsTerminalOutput);
         Assert.Same(pending, Assert.Single(completed));
     }
 

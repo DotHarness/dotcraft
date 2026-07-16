@@ -417,6 +417,7 @@ describe('turn lifecycle', () => {
   })
 
   it('mirrors command execution output onto the matching Exec toolCall item', () => {
+    vi.useFakeTimers()
     s().onTurnStarted(makeTurn())
     s().onItemStarted({
       turnId: 'turn-1',
@@ -444,14 +445,17 @@ describe('turn lifecycle', () => {
       }
     })
     s().onCommandExecutionDelta({ turnId: 'turn-1', itemId: 'cmd-2', delta: 'chunk\n' })
+    vi.advanceTimersByTime(50)
 
     const toolItem = s().turns[0].items.find((i) => i.id === 'tool-1')
     expect(toolItem?.type).toBe('toolCall')
-    expect(toolItem?.aggregatedOutput).toBe('chunk\n')
+    expect(toolItem?.aggregatedOutput).toBe('')
+    expect(s().shellRuntimeByCallId.get('exec-2')?.output).toBe('chunk\n')
     expect(toolItem?.executionStatus).toBe('inProgress')
   })
 
   it('applies terminal output that arrives before the matching Exec toolCall item', () => {
+    vi.useFakeTimers()
     s().onTurnStarted(makeTurn())
     s().onTerminalEvent({
       event: 'terminal/outputDelta',
@@ -483,9 +487,11 @@ describe('turn lifecycle', () => {
 
     const toolItem = s().turns[0].items.find((i) => i.id === 'tool-terminal-early')
     expect(toolItem?.type).toBe('toolCall')
-    expect(toolItem?.aggregatedOutput).toBe('Pinging 10.8.8.8\n')
+    expect(toolItem?.aggregatedOutput).toBeUndefined()
     expect(toolItem?.executionStatus).toBe('inProgress')
     expect(toolItem?.command).toBe('ping -n 4 10.8.8.8')
+    vi.advanceTimersByTime(50)
+    expect(s().shellRuntimeByCallId.get('exec-terminal-early')?.output).toBe('Pinging 10.8.8.8\n')
   })
 
   it('keeps completed terminal snapshot fields when the Exec toolCall completes later', () => {
@@ -579,6 +585,7 @@ describe('turn lifecycle', () => {
   })
 
   it('uses terminal snapshots as authoritative output instead of duplicating deltas', () => {
+    vi.useFakeTimers()
     s().onTurnStarted(makeTurn())
     s().onItemStarted({
       turnId: 'turn-1',
@@ -615,9 +622,98 @@ describe('turn lifecycle', () => {
       },
       delta: 'line 2\n'
     })
+    vi.advanceTimersByTime(50)
 
     const toolItem = s().turns[0].items.find((i) => i.id === 'tool-terminal-snapshot')
-    expect(toolItem?.aggregatedOutput).toBe('line 1\nline 2\n')
+    expect(toolItem?.aggregatedOutput).toBeUndefined()
+    expect(s().shellRuntimeByCallId.get('exec-terminal-snapshot')).toEqual({
+      source: 'terminal',
+      output: 'line 1\nline 2\n'
+    })
+  })
+
+  it('batches high-frequency shell output without replacing the durable turn tree', () => {
+    vi.useFakeTimers()
+    s().onTurnStarted(makeTurn())
+    s().onItemStarted({
+      turnId: 'turn-1',
+      item: {
+        id: 'tool-batched',
+        type: 'toolCall',
+        payload: { callId: 'exec-batched', toolName: 'Exec', arguments: { command: 'many-lines' } }
+      }
+    })
+    s().onItemStarted({
+      turnId: 'turn-1',
+      item: {
+        id: 'cmd-batched',
+        type: 'commandExecution',
+        payload: { callId: 'exec-batched', command: 'many-lines', status: 'inProgress', aggregatedOutput: '' }
+      }
+    })
+    const durableTurn = s().turns[0]
+
+    for (let index = 0; index < 100; index++) {
+      s().onCommandExecutionDelta({
+        turnId: 'turn-1',
+        itemId: 'cmd-batched',
+        delta: `${index}\n`
+      })
+    }
+
+    expect(s().turns[0]).toBe(durableTurn)
+    expect(s().shellRuntimeByCallId.has('exec-batched')).toBe(false)
+    vi.advanceTimersByTime(49)
+    expect(s().shellRuntimeByCallId.has('exec-batched')).toBe(false)
+    vi.advanceTimersByTime(1)
+    expect(s().turns[0]).toBe(durableTurn)
+    expect(s().shellRuntimeByCallId.get('exec-batched')?.output).toContain('0\n1\n')
+    expect(s().shellRuntimeByCallId.get('exec-batched')?.output).toContain('99\n')
+  })
+
+  it('prefers terminal output, isolates parallel calls, and cancels pending flushes on reset', () => {
+    vi.useFakeTimers()
+    s().onTurnStarted(makeTurn())
+    for (const callId of ['exec-a', 'exec-b']) {
+      s().onItemStarted({
+        turnId: 'turn-1',
+        item: {
+          id: `tool-${callId}`,
+          type: 'toolCall',
+          payload: { callId, toolName: 'Exec', arguments: { command: callId } }
+        }
+      })
+      s().onItemStarted({
+        turnId: 'turn-1',
+        item: {
+          id: `cmd-${callId}`,
+          type: 'commandExecution',
+          payload: { callId, command: callId, status: 'inProgress', aggregatedOutput: '' }
+        }
+      })
+    }
+    s().onCommandExecutionDelta({ turnId: 'turn-1', itemId: 'cmd-exec-a', delta: 'compat-a\n' })
+    s().onTerminalEvent({
+      event: 'terminal/outputDelta',
+      terminal: { turnId: 'turn-1', callId: 'exec-a', status: 'running', output: 'terminal-a\n' },
+      delta: 'terminal-a\n'
+    })
+    s().onCommandExecutionDelta({ turnId: 'turn-1', itemId: 'cmd-exec-b', delta: 'compat-b\n' })
+    vi.advanceTimersByTime(50)
+
+    expect(s().shellRuntimeByCallId.get('exec-a')).toEqual({
+      source: 'terminal',
+      output: 'terminal-a\n'
+    })
+    expect(s().shellRuntimeByCallId.get('exec-b')).toEqual({
+      source: 'commandExecution',
+      output: 'compat-b\n'
+    })
+
+    s().onCommandExecutionDelta({ turnId: 'turn-1', itemId: 'cmd-exec-b', delta: 'late\n' })
+    s().reset()
+    vi.advanceTimersByTime(100)
+    expect(s().shellRuntimeByCallId.size).toBe(0)
   })
 
   it('ignores runInBackground terminal events for inline Exec tool output', () => {
@@ -652,7 +748,7 @@ describe('turn lifecycle', () => {
     expect(toolItem?.aggregatedOutput).toBeUndefined()
   })
 
-  it('applies pending terminal output when setTurns later loads the matching Exec toolCall', () => {
+  it('does not copy pending running terminal output into a restored durable turn', () => {
     s().onTerminalEvent({
       event: 'terminal/outputDelta',
       terminal: {
@@ -683,7 +779,7 @@ describe('turn lifecycle', () => {
 
     const toolItem = s().turns[0].items.find((i) => i.id === 'tool-terminal-setturns')
     expect(toolItem?.type).toBe('toolCall')
-    expect(toolItem?.aggregatedOutput).toBe('booting\n')
+    expect(toolItem?.aggregatedOutput).toBeUndefined()
     expect(toolItem?.executionStatus).toBe('inProgress')
   })
 
@@ -1386,6 +1482,7 @@ describe('turn lifecycle', () => {
   })
 
   it('mirrors command execution onto matching RunCommand toolCall (not only Exec)', () => {
+    vi.useFakeTimers()
     s().onTurnStarted(makeTurn())
     s().onItemStarted({
       turnId: 'turn-1',
@@ -1413,11 +1510,13 @@ describe('turn lifecycle', () => {
       }
     })
     s().onCommandExecutionDelta({ turnId: 'turn-1', itemId: 'cmd-rc', delta: 'out\n' })
+    vi.advanceTimersByTime(50)
 
     const toolItem = s().turns[0].items.find((i) => i.id === 'tool-rc')
     expect(toolItem?.type).toBe('toolCall')
     expect(toolItem?.toolName).toBe('RunCommand')
-    expect(toolItem?.aggregatedOutput).toBe('out\n')
+    expect(toolItem?.aggregatedOutput).toBe('')
+    expect(s().shellRuntimeByCallId.get('run-1')?.output).toBe('out\n')
     expect(toolItem?.executionStatus).toBe('inProgress')
   })
 

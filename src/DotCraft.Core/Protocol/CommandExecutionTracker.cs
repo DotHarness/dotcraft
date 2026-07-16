@@ -98,7 +98,7 @@ internal sealed class CommandExecutionTracker
         return new CommandExecutionTracker(item, DateTimeOffset.UtcNow, runtime.EmitItemDelta, runtime.EmitItemCompleted);
     }
 
-    public void Append(string text)
+    public void Append(string text, bool mirrorsTerminalOutput = false)
     {
         if (string.IsNullOrEmpty(text))
             return;
@@ -108,7 +108,11 @@ internal sealed class CommandExecutionTracker
             _aggregated.Append(text);
         }
 
-        _emitItemDelta(_item, new CommandExecutionOutputDelta { TextDelta = text });
+        _emitItemDelta(_item, new CommandExecutionOutputDelta
+        {
+            TextDelta = text,
+            MirrorsTerminalOutput = mirrorsTerminalOutput
+        });
     }
 
     public void Complete(

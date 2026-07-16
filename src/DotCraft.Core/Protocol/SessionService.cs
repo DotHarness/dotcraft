@@ -4317,13 +4317,16 @@ public sealed partial class SessionService(
             ? Path.GetFullPath(workingDirectory)
             : defaultWorkspacePath;
 
-        runtime.RegisterPendingShellExecution(new PendingShellExecutionRegistration
+        if (!runtime.TryRegisterPendingShellExecution(new PendingShellExecutionRegistration
         {
             CallId = functionCall.CallId,
             Command = command,
             WorkingDirectory = workingDirectory,
             Source = "host"
-        });
+        }))
+        {
+            return;
+        }
 
         if (!supportsCommandExecutionStreaming)
             return;
@@ -4345,16 +4348,19 @@ public sealed partial class SessionService(
                 AggregatedOutput = string.Empty
             }
         };
-        turn.Items.Add(item);
-        eventChannel.EmitItemStarted(item);
-        runtime.RegisterPending(new PendingCommandExecutionRegistration
+        if (!runtime.TryRegisterPending(new PendingCommandExecutionRegistration
         {
             CallId = functionCall.CallId,
             Command = command,
             WorkingDirectory = workingDirectory,
             Source = "host",
             Item = item
-        });
+        }))
+        {
+            return;
+        }
+        turn.Items.Add(item);
+        eventChannel.EmitItemStarted(item);
     }
 
     private static void RegisterToolExecutionIfNeeded(

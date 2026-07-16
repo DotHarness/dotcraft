@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using DotCraft.Configuration;
 using DotCraft.Tools.BackgroundTerminals;
 
@@ -129,6 +130,99 @@ public sealed class BackgroundTerminalServiceTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task StartAsync_BurstOutput_CoalescesDeltasAndFlushesBeforeCompleted()
+    {
+        var events = new ConcurrentQueue<BackgroundTerminalEvent>();
+        Service.TerminalEvent += events.Enqueue;
+
+        var completed = await Service.StartAsync(new BackgroundTerminalStartRequest
+        {
+            ThreadId = "thread_burst",
+            CallId = "call_burst",
+            Command = BurstOutputCommand(500),
+            WorkingDirectory = _tempDir,
+            TimeoutSeconds = 10,
+            MaxOutputChars = 100_000
+        });
+
+        var captured = events.Where(evt => evt.Terminal.CallId == "call_burst").ToArray();
+        var deltas = captured.Where(evt => evt.EventType == "outputDelta").ToArray();
+        var deltaOutput = string.Concat(deltas.Select(evt => evt.Delta));
+        var persistedOutput = await File.ReadAllTextAsync(completed.OutputPath);
+
+        Assert.Equal(BackgroundTerminalStatus.Completed, completed.Status);
+        Assert.NotEmpty(deltas);
+        Assert.True(deltas.Length < 100, $"Expected burst coalescing, received {deltas.Length} deltas.");
+        Assert.Equal(persistedOutput, deltaOutput);
+        Assert.Equal(persistedOutput.TrimEnd('\r', '\n'), completed.Output);
+        Assert.Equal("started", captured[0].EventType);
+        Assert.Equal("completed", captured[^1].EventType);
+        Assert.DoesNotContain(captured.SkipWhile(evt => evt.EventType != "completed").Skip(1),
+            evt => evt.EventType == "outputDelta");
+    }
+
+    [Fact]
+    public async Task StartAsync_Timeout_FlushesAcceptedOutputBeforeCompletion()
+    {
+        var events = new ConcurrentQueue<BackgroundTerminalEvent>();
+        Service.TerminalEvent += events.Enqueue;
+
+        var completed = await Service.StartAsync(new BackgroundTerminalStartRequest
+        {
+            ThreadId = "thread_timeout",
+            CallId = "call_timeout",
+            Command = EchoThenSleepCommand("before-timeout"),
+            WorkingDirectory = _tempDir,
+            TimeoutSeconds = 1,
+            MaxOutputChars = 10_000
+        });
+
+        var captured = events.Where(evt => evt.Terminal.CallId == "call_timeout").ToArray();
+        Assert.Equal(BackgroundTerminalStatus.TimedOut, completed.Status);
+        Assert.Contains("before-timeout", completed.Output);
+        Assert.Equal("completed", captured[^1].EventType);
+        Assert.Contains("before-timeout", await File.ReadAllTextAsync(completed.OutputPath));
+    }
+
+    [Fact]
+    public async Task StartAsync_FourParallelBursts_KeepEachLifecycleOrderedAndBounded()
+    {
+        var events = new ConcurrentQueue<BackgroundTerminalEvent>();
+        Service.TerminalEvent += events.Enqueue;
+
+        var snapshots = await Task.WhenAll(Enumerable.Range(0, 4).Select(index =>
+            Service.StartAsync(new BackgroundTerminalStartRequest
+            {
+                ThreadId = $"thread_parallel_{index}",
+                CallId = $"call_parallel_{index}",
+                Command = BurstOutputCommand(1_000),
+                WorkingDirectory = _tempDir,
+                TimeoutSeconds = 15,
+                MaxOutputChars = 200_000
+            })));
+
+        Assert.All(snapshots, snapshot =>
+        {
+            Assert.Equal(BackgroundTerminalStatus.Completed, snapshot.Status);
+            Assert.Contains("burst-1000", snapshot.Output);
+        });
+
+        var totalDeltaCount = 0;
+        for (var index = 0; index < 4; index++)
+        {
+            var callId = $"call_parallel_{index}";
+            var lifecycle = events.Where(evt => evt.Terminal.CallId == callId).ToArray();
+            var deltaCount = lifecycle.Count(evt => evt.EventType == "outputDelta");
+            totalDeltaCount += deltaCount;
+            Assert.Equal("started", lifecycle[0].EventType);
+            Assert.Equal("completed", lifecycle[^1].EventType);
+            Assert.InRange(deltaCount, 1, 99);
+        }
+
+        Assert.InRange(totalDeltaCount, 4, 399);
+    }
+
+    [Fact]
     public async Task StopAsync_KillsRunningBackgroundCommand()
     {
         var started = await Service.StartAsync(new BackgroundTerminalStartRequest
@@ -192,6 +286,16 @@ public sealed class BackgroundTerminalServiceTests : IAsyncLifetime
         OperatingSystem.IsWindows()
             ? "1..100 | ForEach-Object { [Console]::Out.WriteLine(\"out-$_\"); [Console]::Error.WriteLine(\"err-$_\") }"
             : "for i in $(seq 1 100); do echo out-$i; echo err-$i >&2; done";
+
+    private static string BurstOutputCommand(int count) =>
+        OperatingSystem.IsWindows()
+            ? $"1..{count} | ForEach-Object {{ [Console]::Out.WriteLine(\"burst-$_\") }}"
+            : $"for i in $(seq 1 {count}); do echo burst-$i; done";
+
+    private static string EchoThenSleepCommand(string text) =>
+        OperatingSystem.IsWindows()
+            ? $"Write-Output {QuotePowerShell(text)}; Start-Sleep -Seconds 5"
+            : $"echo {QuoteBash(text)}; sleep 5";
 
     private static async Task<string> ReadUntilContainsAsync(
         string path,

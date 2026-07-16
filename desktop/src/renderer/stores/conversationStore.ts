@@ -33,6 +33,13 @@ import {
   extractStreamingFilePath
 } from '../utils/streamingDiff'
 import { parsePlanMarkdown } from '../utils/planMarkdown'
+import {
+  createShellRuntimeBuffer,
+  mergeShellRuntimeUpdates,
+  type ShellRuntimeEntry
+} from './shellRuntimeBuffer'
+
+export type { ShellRuntimeEntry } from './shellRuntimeBuffer'
 
 // ---------------------------------------------------------------------------
 // Plan types
@@ -359,6 +366,8 @@ interface ConversationState {
   streamingBaselines: Map<string, StreamingFileBaseline>
   /** Foreground terminal events that arrived before their Exec toolCall item. */
   pendingTerminalByCallId: Map<string, PendingTerminalEntry>
+  /** Batched live shell output, isolated from the durable conversation tree. */
+  shellRuntimeByCallId: Map<string, ShellRuntimeEntry>
   /** Tool completion items that arrived before their matching toolCall item. */
   pendingToolCompletionsByCallKey: Map<string, PendingToolCompletionEntry>
   /** Live SubAgent progress entries — replaced wholesale on each notification */
@@ -552,10 +561,41 @@ const initialState: ConversationState = {
   streamingItemDiffs: new Map<string, FileDiff>(),
   streamingBaselines: new Map<string, StreamingFileBaseline>(),
   pendingTerminalByCallId: new Map<string, PendingTerminalEntry>(),
+  shellRuntimeByCallId: new Map<string, ShellRuntimeEntry>(),
   pendingToolCompletionsByCallKey: new Map<string, PendingToolCompletionEntry>(),
   subAgentEntries: [],
   plan: null,
   contextUsage: null
+}
+
+const shellRuntimeBuffer = createShellRuntimeBuffer((updates) => {
+  useConversationStore.setState((state) => {
+    const shellRuntimeByCallId = mergeShellRuntimeUpdates(state.shellRuntimeByCallId, updates)
+    return shellRuntimeByCallId === state.shellRuntimeByCallId
+      ? state
+      : { shellRuntimeByCallId }
+  })
+})
+
+function queueShellRuntimeUpdate(
+  callId: string,
+  source: ShellRuntimeEntry['source'],
+  output: string,
+  replace: boolean
+): void {
+  shellRuntimeBuffer.queue(callId, source, output, replace)
+}
+
+function flushShellRuntimeUpdates(): void {
+  shellRuntimeBuffer.flush()
+}
+
+function clearShellRuntime(callId: string): void {
+  shellRuntimeBuffer.clear(callId)
+}
+
+function resetShellRuntimeBuffer(): void {
+  shellRuntimeBuffer.reset()
 }
 
 // ---------------------------------------------------------------------------
@@ -711,7 +751,10 @@ function applyPendingTerminalsToTurn(
     if (!terminalMatchesTurn(entry, turn) || !turnHasShellToolCall({ ...turn, items }, callId)) {
       continue
     }
-    items = mergeTerminalAcrossItems(items, entry.terminal, entry.event, '')
+    const durableTerminal = entry.event === 'terminal/outputDelta'
+      ? { ...entry.terminal, output: undefined }
+      : entry.terminal
+    items = mergeTerminalAcrossItems(items, durableTerminal, entry.event, '')
     appliedCallIds.add(callId)
   }
   return appliedCallIds.size > 0
@@ -1897,6 +1940,7 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
       preserveExistingRealtime &&
       rehydratedTurns.length === 0 &&
       turnsForState.length > 0
+    if (!preserveExistingRealtime) resetShellRuntimeBuffer()
 
     const activeTurn = [...turnsForState]
       .reverse()
@@ -1940,6 +1984,9 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
           : rehydratedItemDiffs,
         streamingItemDiffs: new Map<string, FileDiff>(),
         streamingBaselines: new Map<string, StreamingFileBaseline>(),
+        shellRuntimeByCallId: preserveExistingRealtime
+          ? state.shellRuntimeByCallId
+          : new Map<string, ShellRuntimeEntry>(),
         pendingTerminalByCallId: terminalApplied.pendingTerminalByCallId,
         pendingToolCompletionsByCallKey: toolCompletionApplied.pendingToolCompletionsByCallKey,
         contextUsage: compactedNotice
@@ -2286,29 +2333,16 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
     const delta = params.delta ?? ''
     if (!turnId || !itemId || !delta) return
 
-    set((state) => ({
-      turns: state.turns.map((t) =>
-        t.id !== turnId
-          ? t
-          : {
-              ...t,
-              items: sortItemsByCreatedAt((() => {
-                const updatedItems = t.items.map((i) =>
-                  i.id === itemId && i.type === 'commandExecution'
-                    ? {
-                        ...i,
-                        aggregatedOutput: (i.aggregatedOutput ?? '') + delta
-                      }
-                    : i
-                )
-                const commandExecution = updatedItems.find((i) => i.id === itemId && i.type === 'commandExecution')
-                return commandExecution
-                  ? mergeCommandExecutionAcrossItems(updatedItems, commandExecution)
-                  : updatedItems
-              })())
-            }
-      )
-    }))
+    const commandExecution = get().turns
+      .find((turn) => turn.id === turnId)
+      ?.items.find((item) => item.id === itemId && item.type === 'commandExecution')
+    if (!commandExecution?.toolCallId) return
+    const matchingToolCall = get().turns
+      .find((turn) => turn.id === turnId)
+      ?.items.find((item) => item.type === 'toolCall' && item.toolCallId === commandExecution.toolCallId)
+    if (isTerminalExecutionStatus(commandExecution.executionStatus)
+        || isTerminalExecutionStatus(matchingToolCall?.executionStatus)) return
+    queueShellRuntimeUpdate(commandExecution.toolCallId, 'commandExecution', delta, false)
   },
 
   onTerminalEvent(params) {
@@ -2320,6 +2354,46 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
 
     const turnId = (terminal.turnId as string | undefined) ?? ''
     const delta = params.delta ?? ''
+    if (params.event === 'terminal/outputDelta') {
+      const existing = get()
+      const completedPending = existing.pendingTerminalByCallId.get(callId)
+      const matchingToolCall = existing.turns
+        .find((turn) => !turnId || turn.id === turnId)
+        ?.items.find((item) => item.type === 'toolCall' && item.toolCallId === callId)
+      if (completedPending?.event === 'terminal/completed'
+          || completedPending?.event === 'terminal/cleaned'
+          || isTerminalExecutionStatus(matchingToolCall?.executionStatus)) return
+
+      const snapshotOutput = terminal.output as string | undefined
+      queueShellRuntimeUpdate(
+        callId,
+        'terminal',
+        shouldUseTerminalSnapshotOutput(params.event, snapshotOutput) ? snapshotOutput : delta,
+        shouldUseTerminalSnapshotOutput(params.event, snapshotOutput)
+      )
+      const hasMatchingToolCall = get().turns.some(
+        (turn) => (!turnId || turn.id === turnId) && turnHasShellToolCall(turn, callId)
+      )
+      if (!hasMatchingToolCall) {
+        set((state) => {
+          const pendingTerminalByCallId = new Map(state.pendingTerminalByCallId)
+          pendingTerminalByCallId.set(callId, mergePendingTerminalEntry(
+            pendingTerminalByCallId.get(callId),
+            terminal,
+            params.event,
+            delta
+          ))
+          return { pendingTerminalByCallId }
+        })
+      }
+      return
+    }
+
+    const isTerminalEnd = params.event === 'terminal/completed' || params.event === 'terminal/cleaned'
+    if (isTerminalEnd) {
+      flushShellRuntimeUpdates()
+      clearShellRuntime(callId)
+    }
     set((state) => {
       const pendingEntry = mergePendingTerminalEntry(
         state.pendingTerminalByCallId.get(callId),
@@ -2347,7 +2421,14 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
       } else {
         pendingTerminalByCallId.set(callId, pendingEntry)
       }
-      return { turns, pendingTerminalByCallId }
+      const shellRuntimeByCallId = isTerminalEnd
+        ? (() => {
+            const next = new Map(state.shellRuntimeByCallId)
+            next.delete(callId)
+            return next
+          })()
+        : state.shellRuntimeByCallId
+      return { turns, pendingTerminalByCallId, shellRuntimeByCallId }
     })
   },
 
@@ -2735,6 +2816,10 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
       })
     } else if (type === 'commandExecution') {
       const itemPayload = (item?.payload ?? {}) as Record<string, unknown>
+      const completedCallId = (item?.callId as string | undefined)
+        ?? (itemPayload.callId as string | undefined)
+      flushShellRuntimeUpdates()
+      if (completedCallId) clearShellRuntime(completedCallId)
       set((s) => ({
         turns: s.turns.map((t) =>
           t.id !== turnId
@@ -2762,6 +2847,7 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
                         ?? i.commandSource,
                       aggregatedOutput: (item?.aggregatedOutput as string | undefined)
                         ?? (itemPayload.aggregatedOutput as string | undefined)
+                        ?? (completedCallId ? s.shellRuntimeByCallId.get(completedCallId)?.output : undefined)
                         ?? i.aggregatedOutput
                         ?? '',
                       exitCode: (item?.exitCode as number | null | undefined)
@@ -2785,7 +2871,14 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
                     : updatedItems
                 })())
             }
-        )
+        ),
+        shellRuntimeByCallId: completedCallId
+          ? (() => {
+              const next = new Map(s.shellRuntimeByCallId)
+              next.delete(completedCallId)
+              return next
+            })()
+          : s.shellRuntimeByCallId
       }))
     } else if (type === 'toolExecution') {
       const toolExecution = wireItemToConversationItem(item)
@@ -3523,6 +3616,7 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
 
   reset() {
     subAgentStreamingArgumentBuffers.clear()
+    resetShellRuntimeBuffer()
     set((state) => ({
       ...initialState,
       workspacePath: state.workspacePath,
@@ -3532,6 +3626,7 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
       streamingItemDiffs: new Map<string, FileDiff>(),
       streamingBaselines: new Map<string, StreamingFileBaseline>(),
       pendingTerminalByCallId: new Map<string, PendingTerminalEntry>(),
+      shellRuntimeByCallId: new Map<string, ShellRuntimeEntry>(),
       pendingToolCompletionsByCallKey: new Map<string, PendingToolCompletionEntry>(),
       subAgentEntries: [],
       pendingApproval: null,
