@@ -2,11 +2,11 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.5.0 |
+| **Version** | 0.6.0 |
 | **Status** | Living |
-| **Date** | 2026-06-07 |
+| **Date** | 2026-07-16 |
 | **Parent Spec** | [AppServer Protocol](../protocols/appserver-protocol.md) |
-| **Related Specs** | [Plugin Architecture](../architecture/plugin-architecture.md), [Tool Result Presentation](../protocols/tool-result-presentation.md), [Goal Design](../features/goal.md), [Remote Server Management](../features/remote-server-management.md), [Desktop DESIGN.md](../architecture/DESIGN.md) |
+| **Related Specs** | [App Binding](../protocols/app-binding.md), [Plugin Architecture](../architecture/plugin-architecture.md), [Tool Result Presentation](../protocols/tool-result-presentation.md), [Goal Design](../features/goal.md), [Remote Server Management](../features/remote-server-management.md), [Desktop DESIGN.md](../architecture/DESIGN.md) |
 
 Purpose: Define the stable user-experience behavior of **DotCraft Desktop** as a protocol client for DotCraft AppServer. This document specifies user-visible flows, interaction rules, state transitions, and recovery behavior. It does not define frontend implementation details, visual design, or framework choices.
 
@@ -572,9 +572,12 @@ Required behavior:
 - Plugin detail pages list declared Desktop extension content alongside skills, apps, and tool integrations.
 - Extension bundles load from local installed plugin files only. Desktop must not execute JavaScript directly from remote URLs.
 - Extension code runs as trusted local renderer code.
-- Extension host APIs expose only the declared app and network surfaces for that extension. App Binding status/connection/open helpers are scoped by `requiredAppIds`, local HTTP reads are scoped by `connectOrigins`, and local HTTP writes additionally require `surfaceWriteScopes`.
+- Extension host APIs expose only app surfaces declared by `requiredAppSurfaces`. Each `{ appId, surfaceId, access }` entry scopes `host.appSurfaces.getJson` to `read` and `host.appSurfaces.postJson` to `write`; the declared app ids also scope App Binding status/connection/open helpers.
+- App Surface calls accept only an origin-relative path. Extension code cannot supply an absolute URL, origin, endpoint, authorization header, or bearer.
 - Desktop must enforce descriptor-bound extension host capabilities in the main process from a verified plugin descriptor. Renderer-provided policy values are not an authorization source.
-- Extension network reads must go through Desktop's host bridge so the main process can validate loopback origins before issuing the request. Extension bundles must not rely on broad renderer `connect-src` access for app-owned local surfaces.
+- For every App Surface call, Desktop main resolves `(appId, surfaceId)` through `app/surface/resolve`, proxies the GET or POST to the returned loopback HTTP(S) endpoint, and injects the returned bearer. Endpoint and bearer values never enter renderer state.
+- Missing or expired publications produce the stable `AppSurfaceUnavailable` error. Desktop may show a reconnect/unavailable state but must not bypass the registry or reuse an expired resolution.
+- Extension app traffic must go through `host.appSurfaces`; bundles must not rely on broad renderer `connect-src` access for app-owned local surfaces.
 - Failed extension loads show a localized error state for that extension surface without breaking core conversation workflows.
 
 ### 6.2 Automations

@@ -32,6 +32,7 @@ class FakeWire {
   readonly requestHandlers = new Map<string, ServerRequestHandler>();
   readonly calls: string[] = [];
   readonly requests: Array<{ method: string; params: unknown }> = [];
+  readonly requestResults = new Map<string, unknown>();
   startParams: Record<string, unknown> | null = null;
   turnStartInput: unknown;
   turnStartSender: unknown;
@@ -111,6 +112,9 @@ class FakeWire {
 
   async request<T>(method: string, params?: unknown): Promise<T> {
     this.requests.push({ method, params: toJsonParams(params) });
+    if (this.requestResults.has(method)) {
+      return this.requestResults.get(method) as T;
+    }
     if (method === "model/list") {
       return {
         models: [{ id: "claude-opus-4-8", displayName: "Claude Opus 4.8", provider: "anthropic" }],
@@ -375,6 +379,50 @@ test("DotCraft models.list returns typed model info", async () => {
   assert.equal(models[0].id, "claude-opus-4-8");
   assert.equal(models[0].displayName, "Claude Opus 4.8");
   assert.equal(models[0].provider, "anthropic");
+});
+
+test("DotCraft appBindings surface helpers use typed contracts", async () => {
+  const wire = new FakeWire();
+  const sdk = createSdk(wire);
+  const surface = {
+    appId: "com.example.board",
+    surfaceId: "board",
+    endpoint: "http://127.0.0.1:43120/",
+    bearer: "surface-secret",
+    expiresAt: "2026-07-16T12:02:00Z",
+  };
+  wire.requestResults.set("app/surface/publish", surface);
+  wire.requestResults.set("app/surface/resolve", surface);
+
+  const published = await sdk.appBindings.publishSurface({
+    surfaceId: "board",
+    endpoint: "http://127.0.0.1:43120/",
+    bearer: "surface-secret",
+  });
+  const resolved = await sdk.appBindings.resolveSurface({
+    appId: "com.example.board",
+    surfaceId: "board",
+  });
+
+  assert.deepEqual(published, surface);
+  assert.deepEqual(resolved, surface);
+  assert.deepEqual(wire.requests, [
+    {
+      method: "app/surface/publish",
+      params: {
+        surfaceId: "board",
+        endpoint: "http://127.0.0.1:43120/",
+        bearer: "surface-secret",
+      },
+    },
+    {
+      method: "app/surface/resolve",
+      params: {
+        appId: "com.example.board",
+        surfaceId: "board",
+      },
+    },
+  ]);
 });
 
 test("DotCraft appBindings social helpers send expected JSON-RPC params", async () => {

@@ -18,6 +18,8 @@ public sealed class AppBindingProtocolExtension : IAppServerProtocolExtension
     private const string ConnectionRefresh = "app/connection/refresh";
     private const string ConnectionStatus = "app/connection/status";
     private const string ConnectionRevoke = "app/connection/revoke";
+    private const string SurfacePublish = "app/surface/publish";
+    private const string SurfaceResolve = "app/surface/resolve";
     private const string BindingEnable = "thread/appBindings/enable";
     private const string BindingRequestGet = "app/binding/request/get";
     private const string BindingActivate = "app/binding/activate";
@@ -79,7 +81,7 @@ public sealed class AppBindingProtocolExtension : IAppServerProtocolExtension
     [
         AppList, AppView,
         ConnectionStart, ConnectionRequestGet, ConnectionConnect, ConnectionAuthenticate,
-        ConnectionRefresh, ConnectionStatus, ConnectionRevoke,
+        ConnectionRefresh, ConnectionStatus, ConnectionRevoke, SurfacePublish, SurfaceResolve,
         BindingEnable, BindingRequestGet, BindingActivate, BindingRebind,
         PrincipalBindingsList, ThreadBindingsList, BindingConfirm, BindingRevoke,
         SocialRequestCreate, SocialRequestGet, SocialAccept, SocialRebind, SocialResolve,
@@ -213,6 +215,18 @@ public sealed class AppBindingProtocolExtension : IAppServerProtocolExtension
                 var result = new { state = AppBindingStates.Revoked };
                 return await SendNotificationsAfterResponseAsync(msg, context, result,
                     ("app/connection/changed", new { appId = parameters.AppId ?? context.Connection.AppPrincipalAppId, state = "revoked" }));
+            }
+            case SurfacePublish:
+                return _controlPlane.PublishSurface(
+                    craftPath,
+                    RequirePrincipal(context.Connection),
+                    GetParams<AppSurfacePublishParams>(msg));
+            case SurfaceResolve:
+            {
+                EnsureTrustedClient(context.Connection);
+                var parameters = GetParams<AppSurfaceResolveParams>(msg);
+                EnsureCatalogApp(context, parameters.AppId);
+                return _controlPlane.ResolveSurface(craftPath, parameters.AppId, parameters.SurfaceId);
             }
             case BindingEnable:
             {

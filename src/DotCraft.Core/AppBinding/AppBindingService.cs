@@ -7,7 +7,10 @@ namespace DotCraft.AppBinding;
 /// <summary>Owns App Binding durable authority, principal credentials, and state transitions.</summary>
 public sealed class AppBindingService
 {
+    private static readonly TimeSpan SurfaceLeaseLifetime = TimeSpan.FromMinutes(2);
     private readonly ConcurrentDictionary<string, AppBindingStateStore> _stores =
+        new(StringComparer.OrdinalIgnoreCase);
+    private readonly ConcurrentDictionary<string, ConcurrentDictionary<string, AppSurfaceLease>> _surfaces =
         new(StringComparer.OrdinalIgnoreCase);
 
     internal AppBindingStateStore Store(string workspaceCraftPath) =>
@@ -144,6 +147,54 @@ public sealed class AppBindingService
             RevokePrincipal(workspaceCraftPath, principalId, actor);
     }
 
+    public AppSurfaceWire PublishSurface(
+        string workspaceCraftPath,
+        string principalId,
+        AppSurfacePublishParams parameters)
+    {
+        Require(parameters.SurfaceId, "surfaceId");
+        Require(parameters.Endpoint, "endpoint");
+        Require(parameters.Bearer, "bearer");
+        ValidateSurfaceEndpoint(parameters.Endpoint);
+
+        var now = DateTimeOffset.UtcNow;
+        var state = Store(workspaceCraftPath).Snapshot();
+        var principal = RequirePrincipal(state, principalId, now);
+        var lease = new AppSurfaceLease(
+            principal.PrincipalId,
+            principal.AppId,
+            parameters.SurfaceId.Trim(),
+            NormalizeEndpointIdentity(parameters.Endpoint),
+            parameters.Bearer,
+            now.Add(SurfaceLeaseLifetime));
+        SurfaceStore(workspaceCraftPath)[SurfaceKey(principal.AppId, lease.SurfaceId)] = lease;
+        return ToWire(lease);
+    }
+
+    public AppSurfaceWire ResolveSurface(
+        string workspaceCraftPath,
+        string appId,
+        string surfaceId)
+    {
+        Require(appId, "appId");
+        Require(surfaceId, "surfaceId");
+        var key = SurfaceKey(appId.Trim(), surfaceId.Trim());
+        var surfaces = SurfaceStore(workspaceCraftPath);
+        if (!surfaces.TryGetValue(key, out var lease))
+            throw AppServerErrors.AppSurfaceUnavailable(appId, surfaceId);
+
+        var now = DateTimeOffset.UtcNow;
+        var principal = GetActivePrincipal(workspaceCraftPath, appId);
+        if (lease.ExpiresAt <= now || principal == null
+            || !string.Equals(principal.PrincipalId, lease.PrincipalId, StringComparison.Ordinal))
+        {
+            surfaces.TryRemove(key, out _);
+            throw AppServerErrors.AppSurfaceUnavailable(appId, surfaceId);
+        }
+
+        return ToWire(lease);
+    }
+
     public AppConnectionRefreshResult Refresh(
         string workspaceCraftPath,
         string principalId)
@@ -188,6 +239,12 @@ public sealed class AppBindingService
             Audit(state, "connection.revoked", actor, principal.AppId, principalId: principalId);
             return 0;
         });
+        if (_surfaces.TryGetValue(Path.GetFullPath(workspaceCraftPath), out var surfaces))
+        {
+            foreach (var entry in surfaces.Where(entry =>
+                         string.Equals(entry.Value.PrincipalId, principalId, StringComparison.Ordinal)).ToArray())
+                surfaces.TryRemove(entry.Key, out _);
+        }
     }
 
     public ThreadAppBindingEnableResult Enable(
@@ -650,6 +707,31 @@ public sealed class AppBindingService
             throw AppServerErrors.AppBindingPolicyDenied("Binding MCP endpoint must not contain user information.");
     }
 
+    internal static void ValidateSurfaceEndpoint(string endpoint)
+    {
+        if (!Uri.TryCreate(endpoint, UriKind.Absolute, out var uri)
+            || !uri.IsLoopback
+            || (uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps))
+            throw AppServerErrors.AppBindingPolicyDenied("App surfaces permit only loopback HTTP or HTTPS endpoints.");
+        if (!string.IsNullOrWhiteSpace(uri.UserInfo) || !string.IsNullOrWhiteSpace(uri.Fragment))
+            throw AppServerErrors.AppBindingPolicyDenied("App surface endpoints must not contain user information or fragments.");
+    }
+
+    private ConcurrentDictionary<string, AppSurfaceLease> SurfaceStore(string workspaceCraftPath) =>
+        _surfaces.GetOrAdd(Path.GetFullPath(workspaceCraftPath), static _ =>
+            new ConcurrentDictionary<string, AppSurfaceLease>(StringComparer.Ordinal));
+
+    private static string SurfaceKey(string appId, string surfaceId) => $"{appId}\n{surfaceId}";
+
+    private static AppSurfaceWire ToWire(AppSurfaceLease lease) => new()
+    {
+        AppId = lease.AppId,
+        SurfaceId = lease.SurfaceId,
+        Endpoint = lease.Endpoint,
+        Bearer = lease.Bearer,
+        ExpiresAt = lease.ExpiresAt
+    };
+
     private static string NormalizeEndpointIdentity(string endpoint)
     {
         var uri = new Uri(endpoint, UriKind.Absolute);
@@ -754,6 +836,14 @@ public sealed class AppBindingService
 
     private static string AppIdForChannel(string channelName) =>
         $"com.dotharness.channel.{channelName.Trim().ToLowerInvariant()}";
+
+    private sealed record AppSurfaceLease(
+        string PrincipalId,
+        string AppId,
+        string SurfaceId,
+        string Endpoint,
+        string Bearer,
+        DateTimeOffset ExpiresAt);
 
     private static void Require(string value, string name)
     {

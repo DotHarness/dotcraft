@@ -209,6 +209,9 @@ function mockDesktopExtensionPluginFixture(options: {
           id: 'workflow-board',
           entry: './desktop/workflow-board.mjs',
           requiredAppIds: ['com.example.workflow'],
+          requiredAppSurfaces: [
+            { appId: 'com.example.workflow', surfaceId: 'board', access: ['read', 'write'] }
+          ],
           connectOrigins: ['http://127.0.0.1:*'],
           surfaceWriteScopes: ['board.manage'],
           ...(options.extension ?? {})
@@ -517,6 +520,209 @@ describe('registerIpcHandlers', () => {
 
     expect(fetchMock).toHaveBeenCalledTimes(1)
     expect((fetchMock.mock.calls[0]![1] as { redirect: string }).redirect).toBe('error')
+    vi.unstubAllGlobals()
+  })
+
+  it('proxies App Surface GET through a freshly resolved endpoint and bearer', async () => {
+    const rootPath = mockDesktopExtensionPluginFixture()
+    const sendRequest = vi.fn().mockResolvedValue({
+      appId: 'com.example.workflow',
+      surfaceId: 'board',
+      endpoint: 'http://127.0.0.1:5087/dotcraft/board/api/v1',
+      bearer: 'surface-secret',
+      expiresAt: '2099-01-01T00:00:00Z'
+    })
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      text: vi.fn().mockResolvedValue('{"items":[]}')
+    })
+    vi.stubGlobal('fetch', fetchMock)
+    const handlers = registerHandlersForTest('/workspace', () => ({ sendRequest } as never))
+    const grant = await handlers.get('desktop-extension:authorize-extension')?.({}, {
+      pluginId: 'workflow',
+      rootPath,
+      extensionId: 'workflow-board'
+    }) as { grantId: string }
+
+    await expect(handlers.get('desktop-extension:app-surface-get-json')?.({}, {
+      grantId: grant.grantId,
+      appId: 'com.example.workflow',
+      surfaceId: 'board',
+      relativePath: '/items?state=open',
+      timeoutMs: 5_000,
+      endpoint: 'http://attacker.invalid',
+      bearer: 'attacker-token'
+    })).resolves.toEqual({ items: [] })
+
+    expect(sendRequest).toHaveBeenCalledWith(
+      'app/surface/resolve',
+      { appId: 'com.example.workflow', surfaceId: 'board' },
+      20_000
+    )
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit]
+    expect(url).toBe('http://127.0.0.1:5087/dotcraft/board/api/v1/items?state=open')
+    expect(init).toMatchObject({ method: 'GET', redirect: 'error' })
+    expect(init.headers).toMatchObject({ Authorization: 'Bearer surface-secret' })
+    vi.unstubAllGlobals()
+  })
+
+  it('proxies App Surface POST with JSON and rejects an expired resolution', async () => {
+    const rootPath = mockDesktopExtensionPluginFixture()
+    const sendRequest = vi.fn()
+      .mockResolvedValueOnce({
+        appId: 'com.example.workflow',
+        surfaceId: 'board',
+        endpoint: 'http://127.0.0.1:5087/api/v1',
+        bearer: 'write-secret',
+        expiresAt: '2099-01-01T00:00:00Z'
+      })
+      .mockResolvedValueOnce({
+        appId: 'com.example.workflow',
+        surfaceId: 'board',
+        endpoint: 'http://127.0.0.1:5087/api/v1',
+        bearer: 'expired-secret',
+        expiresAt: '2000-01-01T00:00:00Z'
+      })
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      text: vi.fn().mockResolvedValue('{"ok":true}')
+    })
+    vi.stubGlobal('fetch', fetchMock)
+    const handlers = registerHandlersForTest('/workspace', () => ({ sendRequest } as never))
+    const grant = await handlers.get('desktop-extension:authorize-extension')?.({}, {
+      pluginId: 'workflow',
+      rootPath,
+      extensionId: 'workflow-board'
+    }) as { grantId: string }
+
+    await expect(handlers.get('desktop-extension:app-surface-post-json')?.({}, {
+      grantId: grant.grantId,
+      appId: 'com.example.workflow',
+      surfaceId: 'board',
+      relativePath: '/items',
+      body: { title: 'Created' }
+    })).resolves.toEqual({ ok: true })
+    const [, init] = fetchMock.mock.calls[0] as [string, RequestInit]
+    expect(init).toMatchObject({ method: 'POST', redirect: 'error', body: '{"title":"Created"}' })
+    expect(init.headers).toMatchObject({
+      Authorization: 'Bearer write-secret',
+      'Content-Type': 'application/json'
+    })
+
+    await expect(handlers.get('desktop-extension:app-surface-get-json')?.({}, {
+      grantId: grant.grantId,
+      appId: 'com.example.workflow',
+      surfaceId: 'board',
+      relativePath: '/items'
+    })).rejects.toThrow('AppSurfaceUnavailable')
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    vi.unstubAllGlobals()
+  })
+
+  it('enforces App Surface descriptor access before resolve or fetch', async () => {
+    const rootPath = mockDesktopExtensionPluginFixture({
+      extension: {
+        requiredAppSurfaces: [
+          { appId: 'com.example.workflow', surfaceId: 'board', access: ['read'] }
+        ]
+      }
+    })
+    const sendRequest = vi.fn()
+    const fetchMock = vi.fn()
+    vi.stubGlobal('fetch', fetchMock)
+    const handlers = registerHandlersForTest('/workspace', () => ({ sendRequest } as never))
+    const grant = await handlers.get('desktop-extension:authorize-extension')?.({}, {
+      pluginId: 'workflow',
+      rootPath,
+      extensionId: 'workflow-board'
+    }) as { grantId: string }
+
+    await expect(handlers.get('desktop-extension:app-surface-post-json')?.({}, {
+      grantId: grant.grantId,
+      appId: 'com.example.workflow',
+      surfaceId: 'board',
+      relativePath: '/items',
+      body: { title: 'Blocked' }
+    })).rejects.toThrow('not allowed to write')
+    await expect(handlers.get('desktop-extension:app-surface-get-json')?.({}, {
+      grantId: grant.grantId,
+      appId: 'com.example.workflow',
+      surfaceId: 'private',
+      relativePath: '/items'
+    })).rejects.toThrow('not allowed to read')
+
+    expect(sendRequest).not.toHaveBeenCalled()
+    expect(fetchMock).not.toHaveBeenCalled()
+    vi.unstubAllGlobals()
+  })
+
+  it.each([
+    'https://example.com/items',
+    '//example.com/items',
+    '/../admin',
+    '/%2e%2e/admin',
+    '/%2e%2e%2fadmin',
+    '/safe\\..\\admin'
+  ])('rejects unsafe App Surface relative path %s without fetching', async (relativePath) => {
+    const rootPath = mockDesktopExtensionPluginFixture()
+    const sendRequest = vi.fn().mockResolvedValue({
+      appId: 'com.example.workflow',
+      surfaceId: 'board',
+      endpoint: 'http://127.0.0.1:5087/dotcraft/board/api/v1',
+      bearer: 'surface-secret',
+      expiresAt: '2099-01-01T00:00:00Z'
+    })
+    const fetchMock = vi.fn()
+    vi.stubGlobal('fetch', fetchMock)
+    const handlers = registerHandlersForTest('/workspace', () => ({ sendRequest } as never))
+    const grant = await handlers.get('desktop-extension:authorize-extension')?.({}, {
+      pluginId: 'workflow',
+      rootPath,
+      extensionId: 'workflow-board'
+    }) as { grantId: string }
+
+    await expect(handlers.get('desktop-extension:app-surface-get-json')?.({}, {
+      grantId: grant.grantId,
+      appId: 'com.example.workflow',
+      surfaceId: 'board',
+      relativePath
+    })).rejects.toThrow()
+
+    expect(fetchMock).not.toHaveBeenCalled()
+    vi.unstubAllGlobals()
+  })
+
+  it('uses the existing JSON response size limit for App Surface requests', async () => {
+    const rootPath = mockDesktopExtensionPluginFixture()
+    const sendRequest = vi.fn().mockResolvedValue({
+      appId: 'com.example.workflow',
+      surfaceId: 'board',
+      endpoint: 'http://127.0.0.1:5087/api',
+      bearer: 'surface-secret',
+      expiresAt: '2099-01-01T00:00:00Z'
+    })
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      text: vi.fn().mockResolvedValue('x'.repeat(1_000_001))
+    })
+    vi.stubGlobal('fetch', fetchMock)
+    const handlers = registerHandlersForTest('/workspace', () => ({ sendRequest } as never))
+    const grant = await handlers.get('desktop-extension:authorize-extension')?.({}, {
+      pluginId: 'workflow',
+      rootPath,
+      extensionId: 'workflow-board'
+    }) as { grantId: string }
+
+    await expect(handlers.get('desktop-extension:app-surface-get-json')?.({}, {
+      grantId: grant.grantId,
+      appId: 'com.example.workflow',
+      surfaceId: 'board',
+      relativePath: '/items'
+    })).rejects.toThrow('Response is too large')
     vi.unstubAllGlobals()
   })
 

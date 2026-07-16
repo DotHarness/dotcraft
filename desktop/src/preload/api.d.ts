@@ -519,6 +519,21 @@ declare global {
         toPluginUrl(pluginId: string, absolutePath: string): Promise<{ url: string }>
         fetchJson(params: { grantId: string; url: string; timeoutMs?: number }): Promise<unknown>
         postJson(params: { grantId: string; url: string; body?: unknown; timeoutMs?: number }): Promise<unknown>
+        appSurfaceGetJson(params: {
+          grantId: string
+          appId: string
+          surfaceId: string
+          relativePath: string
+          timeoutMs?: number
+        }): Promise<unknown>
+        appSurfacePostJson(params: {
+          grantId: string
+          appId: string
+          surfaceId: string
+          relativePath: string
+          body?: unknown
+          timeoutMs?: number
+        }): Promise<unknown>
         getAppConnectionStatus(params: { grantId: string; appId: string }): Promise<unknown>
         startAppConnection(params: { grantId: string; appId: string }): Promise<unknown>
         openApp(params: { grantId: string; appId: string; url: string }): Promise<void>

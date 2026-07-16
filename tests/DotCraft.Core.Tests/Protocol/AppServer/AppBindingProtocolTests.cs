@@ -89,6 +89,47 @@ public sealed class AppBindingProtocolTests : IDisposable
         AssertHandoff(response.RootElement.GetProperty("result"), "bind");
     }
 
+    [Fact]
+    public async Task SurfacePublishAndResolve_UsePrincipalAndTrustedClientRoles()
+    {
+        WriteHandoffAppPlugin();
+        var control = new AppBindingService();
+        var start = control.StartConnection(Path.Combine(_root, ".craft"), "com.example.handoff", "user");
+        var connected = control.Connect(Path.Combine(_root, ".craft"), new AppConnectionConnectParams
+        {
+            ConnectionRequestId = start.ConnectionRequestId,
+            RequestToken = start.RequestToken
+        });
+
+        using (var publisher = CreateHarness(control))
+        {
+            await publisher.InitializeAsync();
+            publisher.Connection.BindAppPrincipal(connected.Principal.PrincipalId, connected.Principal.AppId);
+            await publisher.ExecuteRequestAsync(publisher.BuildRequest("app/surface/publish", new
+            {
+                surfaceId = "board",
+                endpoint = "http://127.0.0.1:5199/dotcraft/board/api/v1",
+                bearer = "surface-secret"
+            }));
+            using var response = await publisher.Transport.ReadNextSentAsync();
+            AppServerTestHarness.AssertIsSuccessResponse(response);
+            Assert.Equal("board", response.RootElement.GetProperty("result").GetProperty("surfaceId").GetString());
+        }
+
+        using var resolver = CreateHarness(control);
+        await resolver.InitializeAsync();
+        await resolver.ExecuteRequestAsync(resolver.BuildRequest("app/surface/resolve", new
+        {
+            appId = "com.example.handoff",
+            surfaceId = "board"
+        }));
+        using var resolved = await resolver.Transport.ReadNextSentAsync();
+        AppServerTestHarness.AssertIsSuccessResponse(resolved);
+        var result = resolved.RootElement.GetProperty("result");
+        Assert.Equal("http://127.0.0.1:5199/dotcraft/board/api/v1", result.GetProperty("endpoint").GetString());
+        Assert.Equal("surface-secret", result.GetProperty("bearer").GetString());
+    }
+
     private static void AssertHandoff(JsonElement result, string operation)
     {
         var handoff = result.GetProperty("handoff");
@@ -164,11 +205,11 @@ public sealed class AppBindingProtocolTests : IDisposable
         """);
     }
 
-    private AppServerTestHarness CreateHarness()
+    private AppServerTestHarness CreateHarness(AppBindingService? control = null)
     {
         Directory.CreateDirectory(Path.Combine(_root, ".craft"));
         var monitor = new AppConfigMonitor(AppConfigTestFactory.CreateOpenAI());
-        var control = new AppBindingService();
+        control ??= new AppBindingService();
         var extension = new AppBindingProtocolExtension(control, new AppBindingCoordinator(control), monitor);
         return new AppServerTestHarness(protocolExtensions: [extension], workspaceCraftPath: Path.Combine(_root, ".craft"), appConfigMonitor: monitor);
     }

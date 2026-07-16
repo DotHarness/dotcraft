@@ -36,6 +36,10 @@ interface DesktopExtensionHost {
     getJson(url: string, timeoutMs?: number): Promise<unknown>
     postJson(url: string, body: unknown, timeoutMs?: number): Promise<unknown>
   }
+  appSurfaces: {
+    getJson(appId: string, surfaceId: string, relativePath: string, timeoutMs?: number): Promise<unknown>
+    postJson(appId: string, surfaceId: string, relativePath: string, body: unknown, timeoutMs?: number): Promise<unknown>
+  }
   /**
    * Scoped DotCraft AppServer JSON-RPC bridge. Each call is allow-listed in the
    * main process against the extension's `appServerScopes` (declared in
@@ -208,21 +212,12 @@ function createDesktopExtensionHost(
     },
     appBindings: {
       getConnectionStatus(appId) {
-        if (!isAppIdAllowed(entry.extension.requiredAppIds, appId)) {
-          return Promise.reject(new Error(`Desktop extension '${entry.extension.id}' is not allowed to inspect app '${appId}'.`))
-        }
         return window.api.desktopExtensions.getAppConnectionStatus({ grantId, appId }) as Promise<AppConnectionStatus>
       },
       startConnection(appId) {
-        if (!isAppIdAllowed(entry.extension.requiredAppIds, appId)) {
-          return Promise.reject(new Error(`Desktop extension '${entry.extension.id}' is not allowed to connect app '${appId}'.`))
-        }
         return window.api.desktopExtensions.startAppConnection({ grantId, appId }) as Promise<AppConnectionStartResult>
       },
       openApp(appId, url) {
-        if (!isAppIdAllowed(entry.extension.requiredAppIds, appId)) {
-          return Promise.reject(new Error(`Desktop extension '${entry.extension.id}' is not allowed to open app '${appId}'.`))
-        }
         if (!isAppUrlAllowed(entry.plugin.apps ?? [], appId, url)) {
           return Promise.reject(new Error(`Desktop extension '${entry.extension.id}' is not allowed to open this app URL.`))
         }
@@ -238,16 +233,34 @@ function createDesktopExtensionHost(
         })
       },
       postJson(url, body, timeoutMs) {
-        // Scoped write transport: only extensions that declared surfaceWriteScopes
-        // may mutate. Loopback origin is enforced in the main process; per-request
-        // authorization is enforced by the app's surface. See
-        // specs/architecture/plugin-architecture.md.
+        // Keep the legacy scoped network write transport for existing extensions.
         if ((entry.extension.surfaceWriteScopes ?? []).length === 0) {
           return Promise.reject(new Error(`Desktop extension '${entry.extension.id}' did not declare surfaceWriteScopes and cannot write.`))
         }
         return window.api.desktopExtensions.postJson({
           grantId,
           url,
+          body,
+          timeoutMs
+        })
+      }
+    },
+    appSurfaces: {
+      getJson(appId, surfaceId, relativePath, timeoutMs) {
+        return window.api.desktopExtensions.appSurfaceGetJson({
+          grantId,
+          appId,
+          surfaceId,
+          relativePath,
+          timeoutMs
+        })
+      },
+      postJson(appId, surfaceId, relativePath, body, timeoutMs) {
+        return window.api.desktopExtensions.appSurfacePostJson({
+          grantId,
+          appId,
+          surfaceId,
+          relativePath,
           body,
           timeoutMs
         })
@@ -386,10 +399,6 @@ function ExtensionStatus({ title, message }: { title: string; message: string })
       </div>
     </div>
   )
-}
-
-function isAppIdAllowed(requiredAppIds: string[], appId: string): boolean {
-  return requiredAppIds.some((candidate) => candidate === appId)
 }
 
 function isAppUrlAllowed(apps: PluginAppInfo[], appId: string, url: string): boolean {

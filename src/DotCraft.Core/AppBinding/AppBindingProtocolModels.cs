@@ -76,6 +76,31 @@ public sealed class AppConnectionRefreshResult
     public string Credential { get; set; } = string.Empty;
 }
 
+/// <summary>Publishes or renews one short-lived app-owned Desktop surface.</summary>
+public sealed class AppSurfacePublishParams
+{
+    public string SurfaceId { get; set; } = string.Empty;
+    public string Endpoint { get; set; } = string.Empty;
+    public string Bearer { get; set; } = string.Empty;
+}
+
+/// <summary>Resolves one live app-owned Desktop surface.</summary>
+public sealed class AppSurfaceResolveParams
+{
+    public string AppId { get; set; } = string.Empty;
+    public string SurfaceId { get; set; } = string.Empty;
+}
+
+/// <summary>A short-lived app-owned Desktop surface lease.</summary>
+public sealed class AppSurfaceWire
+{
+    public string AppId { get; set; } = string.Empty;
+    public string SurfaceId { get; set; } = string.Empty;
+    public string Endpoint { get; set; } = string.Empty;
+    public string Bearer { get; set; } = string.Empty;
+    public DateTimeOffset ExpiresAt { get; set; }
+}
+
 public sealed class ThreadAppBindingEnableParams
 {
     public string ThreadId { get; set; } = string.Empty;

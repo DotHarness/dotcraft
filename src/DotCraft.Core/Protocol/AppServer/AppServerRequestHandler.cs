@@ -341,6 +341,7 @@ public sealed class AppServerRequestHandler(
         or "app/connection/refresh"
         or "app/connection/status"
         or "app/connection/revoke"
+        or "app/surface/publish"
         or "app/binding/request/get"
         or "app/binding/activate"
         or "app/binding/rebind"

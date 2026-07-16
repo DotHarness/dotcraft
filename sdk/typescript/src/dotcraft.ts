@@ -382,6 +382,25 @@ export interface AppSocialBindingResolveResult {
   binding?: ThreadAppBinding | null;
 }
 
+export interface AppSurface {
+  appId: string;
+  surfaceId: string;
+  endpoint: string;
+  bearer: string;
+  expiresAt: string;
+}
+
+export interface AppSurfacePublishParams {
+  surfaceId: string;
+  endpoint: string;
+  bearer: string;
+}
+
+export interface AppSurfaceResolveParams {
+  appId: string;
+  surfaceId: string;
+}
+
 export interface AppThreadInputEnqueueResult {
   queuedInput?: unknown;
   queuedInputs?: unknown[];
@@ -399,6 +418,8 @@ export interface AppBindingManager {
   }): Promise<AppConnectionConnectResult>;
   connectionStatus(appId: string): Promise<AppConnectionStatus>;
   revokeConnection(appId: string, reason?: string): Promise<AppConnectionStatus>;
+  publishSurface(params: AppSurfacePublishParams): Promise<AppSurface>;
+  resolveSurface(params: AppSurfaceResolveParams): Promise<AppSurface>;
   authenticate(appId: string, credential: string): Promise<Record<string, unknown>>;
   refreshCredential(): Promise<Record<string, unknown>>;
   activate(params: { bindingRequestId: string; endpoint: string; bearer: string; bearerExpiresAt?: string }): Promise<Record<string, unknown>>;
@@ -942,6 +963,21 @@ class AppBindingManagerImpl implements AppBindingManager {
 
   async revokeConnection(appId: string, reason?: string): Promise<AppConnectionStatus> {
     return await this.sdk.request<AppConnectionStatus>("app/connection/revoke", { appId, reason });
+  }
+
+  async publishSurface(params: AppSurfacePublishParams): Promise<AppSurface> {
+    return await this.sdk.request<AppSurface>("app/surface/publish", {
+      surfaceId: params.surfaceId,
+      endpoint: params.endpoint,
+      bearer: params.bearer,
+    });
+  }
+
+  async resolveSurface(params: AppSurfaceResolveParams): Promise<AppSurface> {
+    return await this.sdk.request<AppSurface>("app/surface/resolve", {
+      appId: params.appId,
+      surfaceId: params.surfaceId,
+    });
   }
 
   async authenticate(appId: string, credential: string): Promise<Record<string, unknown>> {

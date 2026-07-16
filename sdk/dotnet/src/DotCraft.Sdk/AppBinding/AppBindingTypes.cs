@@ -96,6 +96,14 @@ public sealed record AppBindingRequestCreateResult(
     string ExpiresAt,
     AppHandoffMode? Handoff = null);
 
+/// <summary>An app-owned surface published through AppServer.</summary>
+public sealed record AppSurface(
+    string AppId,
+    string SurfaceId,
+    string Endpoint,
+    string Bearer,
+    string ExpiresAt);
+
 /// <summary>Parameters for completing an app connection (app/connection/connect).</summary>
 public sealed record CompleteConnectionRequest(
     string ConnectionRequestId,

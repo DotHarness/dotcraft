@@ -2,9 +2,9 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 1.3.1 |
+| **Version** | 1.4.0 |
 | **Status** | Living |
-| **Date** | 2026-07-15 |
+| **Date** | 2026-07-16 |
 | **Related Specs** | [AppServer Protocol](../protocols/appserver-protocol.md), [Plugin Registry](plugin-registry.md), [Tool Result Presentation](../protocols/tool-result-presentation.md), [Session Core](session-core.md), [Lifecycle Hooks](../features/lifecycle-hooks.md), [External Channel Adapter](../protocols/external-channel-adapter.md), [Desktop Client](../clients/desktop-client.md) |
 
 Purpose: define the durable architecture for DotCraft plugins, including plugin-contained skills, local plugin manifests, plugin-bundled MCP servers, client-facing plugin metadata, and the TypeScript external channel module contract.
@@ -110,7 +110,7 @@ Example MCP plugin:
 
 `apps` points to a plugin-contained App Binding descriptor document, for example `"./apps.json"`. Apps contributed by installed and enabled plugins become eligible for App Binding connection and thread binding. Catalog-visible built-in plugins may expose app metadata before installation, but connection and binding are blocked until the owning plugin is installed and enabled.
 
-`desktopExtensions` points to a plugin-contained Desktop extension descriptor document, for example `"./desktop-extensions.json"`. Desktop extensions are trusted client UI bundles loaded only after the plugin is installed and enabled. Desktop extension v1 is not an untrusted JavaScript sandbox: extension code runs in the Desktop renderer as trusted plugin code. The descriptor is still the source of truth for host capabilities such as `requiredAppIds`, `connectOrigins`, and `surfaceWriteScopes`; any capability crossing from renderer to main, AppServer, shell, or local network must be enforced by Desktop from the verified plugin descriptor, not from renderer-supplied policy. The descriptor contains one or more ESM bundle entries and the Desktop surfaces they contribute:
+`desktopExtensions` points to a plugin-contained Desktop extension descriptor document, for example `"./desktop-extensions.json"`. Desktop extensions are trusted client UI bundles loaded only after the plugin is installed and enabled. Desktop extension v1 is not an untrusted JavaScript sandbox: extension code runs in the Desktop renderer as trusted plugin code. The descriptor is the source of truth for host capabilities such as `requiredAppSurfaces`; any capability crossing from renderer to main, AppServer, shell, or local network must be enforced by Desktop from the verified plugin descriptor, not from renderer-supplied policy. The descriptor contains one or more ESM bundle entries and the Desktop surfaces they contribute:
 
 ```json
 {
@@ -137,8 +137,14 @@ Example MCP plugin:
           "description": "Adds the Team board to Desktop."
         }
       ],
-      "requiredAppIds": [],
-      "connectOrigins": []
+      "requiredAppIds": ["com.example.team-board"],
+      "requiredAppSurfaces": [
+        {
+          "appId": "com.example.team-board",
+          "surfaceId": "board",
+          "access": ["read", "write"]
+        }
+      ]
     }
   ]
 }
@@ -150,20 +156,23 @@ A `mainView` surface may declare an optional `icon`, a host-resolved named glyph
 
 Surface display text is localized by the extension, not the host catalog. `label` is the required base (English) string; an optional `localizedLabel` object carries per-locale overrides keyed by app locale (for example `"zh-Hans"`). The client resolves the active locale and falls back to `label` when a locale is absent, so extensions ship their own translations and unknown locales degrade gracefully.
 
-`connectOrigins` declares the loopback origins a trusted Desktop extension may access through Desktop's extension network bridge. Origins must be absolute `http`, `https`, `ws`, or `wss` loopback origins without path, query, or fragment; dynamic local app ports may be declared with a wildcard port such as `http://127.0.0.1:*`. Desktop must reject renderer-initiated extension network requests whose target origin is not listed by the verified descriptor loaded by the main process. Renderer-supplied `connectOrigins` values are never an authorization source. By itself `connectOrigins` permits local presentation data transport (read), not app mutation authority; mutation over a declared origin is allowed only through the scoped write transport below.
+`requiredAppSurfaces` declares the app-owned surfaces an extension may use through Desktop. Each entry has:
 
-The concrete surface endpoint (host and port) the extension talks to is discovered at runtime from the connected app's `publicMetadata.surfaceEndpoints`, not hard-coded. A native app that reopens on a new dynamic loopback port may refresh that endpoint without a new user grant via the App Binding connection metadata refresh (see [App Binding](../protocols/app-binding.md) §9.6), so a wildcard-port `connectOrigins` keeps working across app restarts.
+- `appId`: the App Binding app id;
+- `surfaceId`: the app-defined surface id published through `app/surface/publish`;
+- `access`: a non-empty, duplicate-free subset of `read` and `write`.
 
-### Extension surface write transport
+Duplicate `(appId, surfaceId)` entries are invalid. Omission or an empty array grants no App Surface access. `requiredAppIds` remains the independent allow-list for the extension's `host.appBindings` connection-status, start, and open helpers; declaring a surface does not implicitly grant those helpers.
 
-The Desktop extension network bridge is read-only by default: it issues HTTP `GET` JSON requests to a declared `connectOrigins` target for presentation, exposed to the bundle as `host.network.getJson(url)`.
+### Extension App Surface transport
 
-An extension may additionally issue scoped mutating requests (HTTP `POST` with a JSON body, exposed as `host.network.postJson(url, body)`) to an app's published loopback surface endpoint only when all of the following hold:
+Extensions access app-owned presentation APIs only through `host.appSurfaces.getJson(appId, surfaceId, path)` and `host.appSurfaces.postJson(appId, surfaceId, path, body)`. `getJson` requires descriptor access `read`; `postJson` requires `write`.
 
-- the target origin is declared in the extension's `connectOrigins`;
-- the extension descriptor declares a non-empty `surfaceWriteScopes` — the App Binding mutate scope ids (drawn from a required app's descriptor) the extension exercises over its surface endpoints (optional, defaults to empty = read-only).
+The renderer supplies only `appId`, `surfaceId`, an origin-relative path, and for POST a JSON body. The path MUST begin with `/` and MUST NOT contain a scheme, authority, user info, or fragment. Desktop main rejects network-path references such as `//host/path`, resolves the live endpoint through trusted-client `app/surface/resolve`, and verifies the descriptor grant before issuing the request. The renderer cannot provide or override an origin, endpoint, authorization header, or bearer.
 
-Desktop must reject a renderer-initiated mutating extension request when the target origin is not declared in the verified descriptor or `surfaceWriteScopes` is empty. `surfaceWriteScopes` is the extension's declared write intent: it is surfaced when the plugin is installed and the app is connected, and it gates whether Desktop exposes `postJson` at all. Renderer host wrappers may reject calls early for user experience, but the main process is the enforcement point for descriptor-bound origins, app ids, and write intent. Per-request authorization is enforced by the app's loopback surface using the connection credential it issued, not re-checked by Desktop — App Binding scopes are granted per thread binding rather than per connection, so the surface endpoint (not Desktop) is the authority for an un-bound, workspace-level surface write. The extension should issue writes only while a required app is connected; Desktop does not prompt per write, because the user authorized the app connection and its published surface. The app's loopback surface must validate every request and may reject it. This is the explicit mutation grant anticipated by [App Binding](../protocols/app-binding.md) `publicMetadata.surfaceEndpoints`; agent-invoked and externally-visible writes still go through App Binding tools and app-owned approval.
+Desktop main proxies an HTTP `GET` or `POST` to the resolved loopback HTTP(S) endpoint, preserves the endpoint's origin and base path, injects `Authorization: Bearer <resolved bearer>`, and returns the parsed JSON result. Redirects MUST NOT escape the resolved loopback origin. Missing or expired publication, including a lease that expires before dispatch, is exposed as the stable `AppSurfaceUnavailable` error. Endpoint and bearer values remain main-process-only and MUST NOT be returned to extension code.
+
+A repeated app publication may replace the endpoint and bearer without changing the descriptor. Desktop resolves for each request rather than treating a prior resolution as durable authority. Renderer wrappers may reject calls early for user experience, but the main process is the enforcement and proxy boundary. Agent-invoked and externally visible writes still use App Binding tools and app-owned approval; `requiredAppSurfaces` grants only the trusted Desktop extension transport described here.
 
 ### Extension AppServer bridge (Desktop descriptor authority)
 
@@ -175,7 +184,7 @@ Rules:
 
 - The allow-list is enforced in the main process, read straight from the verified `desktop-extensions.json` on disk when the extension grant is created — the on-disk descriptor is the authority.
 - A request whose method matches no declared `appServerScopes` pattern is rejected, and an extension that declares no `appServerScopes` cannot reach AppServer at all (default-closed).
-- Unlike `host.network` (loopback HTTP to a connected app's surface), this bridge targets the DotCraft AppServer itself — the same JSON-RPC the Desktop client uses — so it is appropriate only for extensions managing first-party DotCraft capabilities. The declared scopes are the extension's AppServer intent and may be surfaced by Desktop at install time.
+- Unlike `host.appSurfaces` (descriptor-authorized loopback HTTP to a published app surface), this bridge targets the DotCraft AppServer itself — the same JSON-RPC the Desktop client uses — so it is appropriate only for extensions managing first-party DotCraft capabilities. The declared scopes are the extension's AppServer intent and may be surfaced by Desktop at install time.
 - Renderer host wrappers may reject early for UX, but the main process is the enforcement point.
 
 DotCraft discovers plugin roots from:
