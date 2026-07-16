@@ -608,6 +608,7 @@ const api = {
       workspace: {
         providerId: string | null
         model: string | null
+        providerModels: Record<string, string>
         welcomeSuggestionsEnabled: boolean | null
         skillsSelfLearningEnabled: boolean | null
         memoryAutoConsolidateEnabled: boolean | null
@@ -622,6 +623,7 @@ const api = {
       userDefaults: {
         providerId: string | null
         model: string | null
+        providerModels: Record<string, string>
         welcomeSuggestionsEnabled: boolean | null
         skillsSelfLearningEnabled: boolean | null
         memoryAutoConsolidateEnabled: boolean | null

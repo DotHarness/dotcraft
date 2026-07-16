@@ -14,7 +14,12 @@ import { useProvidersStore, type ProviderSummary } from '../../stores/providersS
 import type { Thread, ThreadConfigurationWire, ContextWindowMode } from '../../types/thread'
 import type { WorkspaceConfigChangedPayload } from '../../utils/workspaceConfigChanged'
 import { parseJsonConfig } from '../../../shared/jsonConfig'
-import { configObjectFromWorkspaceCore, type WorkspaceCoreConfigLike } from '../../utils/workspaceCoreConfig'
+import {
+  configObjectFromWorkspaceCore,
+  resolveWorkspaceModelFromConfig,
+  resolveWorkspaceProviderFromConfig,
+  type WorkspaceCoreConfigLike
+} from '../../utils/workspaceCoreConfig'
 import type { ReasoningQuickValue } from './ModelPicker'
 import { useT } from '../../contexts/LocaleContext'
 
@@ -151,16 +156,9 @@ export function useComposerModelControls({
   }, [])
 
   const resolveEffectiveModel = useCallback(
-    (thread: Thread | null, workspaceCfg: Record<string, unknown>): string => {
-      const workspaceModelRaw = workspaceCfg.Model ?? workspaceCfg.model
-      const ws = typeof workspaceModelRaw === 'string' ? workspaceModelRaw.trim() : ''
-      const workspaceModel = ws.length > 0 && ws !== 'Default' ? ws : null
+    (thread: Thread | null, workspaceCfg: Record<string, unknown>, effectiveProviderId: string): string => {
       const threadRaw = thread?.configuration?.model ?? thread?.configuration?.Model
-      const threadTrimmed = typeof threadRaw === 'string' ? threadRaw.trim() : ''
-      if (threadTrimmed.length > 0 && threadTrimmed !== 'Default') {
-        return threadTrimmed
-      }
-      return workspaceModel ?? 'Default'
+      return resolveWorkspaceModelFromConfig(workspaceCfg, effectiveProviderId, threadRaw)
     },
     []
   )
@@ -180,8 +178,7 @@ export function useComposerModelControls({
       const threadRaw = thread?.configuration?.providerId ?? thread?.configuration?.ProviderId
       const threadProvider = typeof threadRaw === 'string' ? threadRaw.trim() : ''
       if (threadProvider) return threadProvider
-      const workspaceRaw = workspaceCfg.ProviderId ?? workspaceCfg.providerId
-      return typeof workspaceRaw === 'string' ? workspaceRaw.trim() : ''
+      return resolveWorkspaceProviderFromConfig(workspaceCfg)
     },
     []
   )
@@ -222,7 +219,7 @@ export function useComposerModelControls({
         setProviderId(effectiveProviderId)
         if (effectiveProviderId) void loadModels(false, effectiveProviderId)
         if (!detached || !detachedModelTouched) {
-          setModelName(resolveEffectiveModel(activeThread, workspaceCfg))
+          setModelName(resolveEffectiveModel(activeThread, workspaceCfg, effectiveProviderId))
         }
         if (!detached || !detachedReasoningTouched) {
           setReasoningConfig(resolveEffectiveReasoning(activeThread, workspaceCfg))
@@ -604,9 +601,8 @@ export function useComposerModelControls({
   const threadStartConfig = useMemo<ThreadConfigurationWire>(() => {
     if (!detached) return {}
     const config: ThreadConfigurationWire = {}
-    if (detachedModelTouched && modelName && modelName !== 'Default') {
-      config.model = modelName
-    }
+    if (providerId) config.providerId = providerId
+    if (modelName && modelName !== 'Default') config.model = modelName
     if (detachedReasoningTouched && detachedReasoningOverride != null) {
       config.reasoning = detachedReasoningOverride
     }
@@ -619,11 +615,11 @@ export function useComposerModelControls({
     contextMode,
     detached,
     detachedContextTouched,
-    detachedModelTouched,
     detachedReasoningOverride,
     detachedReasoningTouched,
     detachedSpeedTouched,
     modelName,
+    providerId,
     speedValue
   ])
 

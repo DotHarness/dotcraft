@@ -53,6 +53,8 @@ import type { WorkspaceConfigChangedPayload } from '../../utils/workspaceConfigC
 import {
   configObjectFromWorkspaceCore,
   resolveConcreteApprovalPolicyFromConfig,
+  resolveWorkspaceModelFromConfig,
+  resolveWorkspaceProviderFromConfig,
   type WorkspaceCoreConfigLike
 } from '../../utils/workspaceCoreConfig'
 
@@ -489,27 +491,6 @@ export function ConversationWelcome({
     return undefined
   }, [])
 
-  const resolveModelFromConfig = useCallback((cfg: Record<string, unknown>): string => {
-    const providerRaw = cfg.ProviderId ?? cfg.providerId
-    const selectedProvider = typeof providerRaw === 'string' ? providerRaw.trim() : ''
-    const mapRaw = cfg.ProviderModels ?? cfg.providerModels
-    if (selectedProvider && mapRaw && typeof mapRaw === 'object' && !Array.isArray(mapRaw)) {
-      const remembered = Object.entries(mapRaw as Record<string, unknown>)
-        .find(([key]) => key.toLowerCase() === selectedProvider.toLowerCase())?.[1]
-      if (typeof remembered === 'string' && remembered.trim()) return remembered.trim()
-    }
-    const modelRaw = cfg.Model ?? cfg.model
-    if (typeof modelRaw !== 'string') return 'Default'
-    const trimmed = modelRaw.trim()
-    if (trimmed.length === 0 || trimmed === 'Default') return 'Default'
-    return trimmed
-  }, [])
-
-  const resolveProviderFromConfig = useCallback((cfg: Record<string, unknown>): string => {
-    const raw = cfg.ProviderId ?? cfg.providerId
-    return typeof raw === 'string' ? raw.trim() : ''
-  }, [])
-
   const resolveReasoningFromConfig = useCallback((cfg: Record<string, unknown>): ResolvedReasoningConfig => {
     return readReasoningObject(cfg.Reasoning ?? cfg.reasoning) ?? DEFAULT_REASONING_CONFIG
   }, [])
@@ -933,11 +914,11 @@ export function ConversationWelcome({
       try {
         const cfg = await readWorkspaceConfig()
         if (disposed) return
-        const nextProviderId = resolveProviderFromConfig(cfg)
+        const nextProviderId = resolveWorkspaceProviderFromConfig(cfg)
         // A concrete workspace provider is authoritative even when a draft exists. This keeps
         // Settings changes from reviving a stale provider/model pair on the Welcome screen.
         if (!hasInitialDraft || workspaceModelChanged || nextProviderId !== '') {
-          let nextModel = resolveModelFromConfig(cfg)
+          let nextModel = resolveWorkspaceModelFromConfig(cfg, nextProviderId)
           workspaceLlmConfigResolvedRef.current = true
           workspaceProviderFromConfigRef.current = nextProviderId
           workspaceModelFromConfigRef.current = nextModel
@@ -999,8 +980,6 @@ export function ConversationWelcome({
   }, [
     readWorkspaceConfig,
     resolveContextModeFromConfig,
-    resolveModelFromConfig,
-    resolveProviderFromConfig,
     loadModels,
     resolveReasoningFromConfig,
     workspaceConfigChange,
