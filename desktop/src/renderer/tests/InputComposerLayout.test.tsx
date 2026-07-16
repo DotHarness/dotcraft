@@ -12,6 +12,7 @@ import { useThreadStore } from '../stores/threadStore'
 import { useToastStore } from '../stores/toastStore'
 import { useUIStore } from '../stores/uiStore'
 import { useGitStore } from '../stores/gitStore'
+import { useComposerDraftStore } from '../stores/composerDraftStore'
 import type { ConversationTurn } from '../types/conversation'
 
 class ResizeObserverMock {
@@ -28,6 +29,7 @@ Object.defineProperty(globalThis, 'ResizeObserver', {
 
 const settingsGet = vi.fn()
 const appServerSendRequest = vi.fn()
+const readImageAsDataUrl = vi.fn()
 
 function renderComposer(extraProps: Partial<ComponentProps<typeof InputComposer>> = {}): void {
   render(
@@ -78,13 +80,14 @@ describe('InputComposer layout', () => {
     vi.clearAllMocks()
     settingsGet.mockResolvedValue({ locale: 'en' })
     appServerSendRequest.mockResolvedValue({})
+    readImageAsDataUrl.mockResolvedValue({ dataUrl: 'data:image/png;base64,AA==' })
 
     Object.defineProperty(window, 'api', {
       configurable: true,
       value: {
         settings: { get: settingsGet },
         appServer: { sendRequest: appServerSendRequest },
-        workspace: { saveImageToTemp: vi.fn() }
+        workspace: { saveImageToTemp: vi.fn(), readImageAsDataUrl }
       }
     })
 
@@ -95,6 +98,7 @@ describe('InputComposer layout', () => {
     useSubAgentStore.getState().reset()
     useThreadStore.getState().reset()
     useGitStore.getState().reset()
+    useComposerDraftStore.setState({ draftsByThread: {} })
     useToastStore.setState({ toasts: [] })
     useUIStore.setState({
       activeMainView: 'conversation',
@@ -447,6 +451,162 @@ describe('InputComposer layout', () => {
       })
       expect(screen.queryByText('remove this follow-up')).not.toBeInTheDocument()
     })
+  })
+
+  it('edits a queued message after the remove action and restores rich composer content', async () => {
+    useConversationStore.setState({
+      queuedInputs: [
+        {
+          id: 'queued-1',
+          threadId: 'thread-1',
+          displayText: 'queued follow-up',
+          status: 'queued',
+          createdAt: new Date().toISOString(),
+          nativeInputParts: [
+            { type: 'text', text: 'queued ' },
+            { type: 'fileRef', path: 'docs/a.md', displayPath: 'docs/a.md' },
+            { type: 'text', text: ' ' },
+            { type: 'commandRef', name: 'review', rawText: '/review src' },
+            { type: 'text', text: ' ' },
+            { type: 'skillRef', name: 'browser' },
+            { type: 'localImage', path: 'C:\\temp\\diagram.png', fileName: 'diagram.png', mimeType: 'image/png' }
+          ]
+        }
+      ]
+    })
+    appServerSendRequest.mockImplementation(async (method: string) => {
+      if (method === 'turn/queue/remove') return { queuedInputs: [] }
+      return {}
+    })
+
+    renderComposer()
+
+    const textbox = screen.getByRole('textbox')
+    textbox.textContent = 'replace this draft'
+    fireEvent.input(textbox)
+    const removeButton = screen.getByRole('button', { name: 'Remove' })
+    const editButton = screen.getByRole('button', { name: 'Edit queued message' })
+    expect(removeButton.compareDocumentPosition(editButton) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+
+    fireEvent.click(editButton)
+
+    await waitFor(() => {
+      expect(appServerSendRequest).toHaveBeenCalledWith('turn/queue/remove', {
+        threadId: 'thread-1',
+        queuedInputId: 'queued-1'
+      })
+      expect(useConversationStore.getState().queuedInputs).toEqual([])
+      expect(textbox).toHaveFocus()
+    })
+    expect(textbox.textContent).not.toContain('replace this draft')
+    expect(textbox.querySelector('[data-ref-type="file"]')).toHaveAttribute('data-relative-path', 'docs/a.md')
+    expect(textbox.querySelector('[data-ref-type="command"]')).toHaveAttribute('data-command', '/review')
+    expect(textbox.querySelector('[data-ref-type="skill"]')).toHaveAttribute('data-skill', 'browser')
+    expect(screen.getByRole('button', { name: 'Preview image diagram.png' })).toBeInTheDocument()
+    expect(readImageAsDataUrl).toHaveBeenCalledWith({ path: 'C:\\temp\\diagram.png' })
+    expect(readImageAsDataUrl.mock.invocationCallOrder[0]).toBeLessThan(
+      appServerSendRequest.mock.invocationCallOrder.find((_, index) =>
+        appServerSendRequest.mock.calls[index]?.[0] === 'turn/queue/remove'
+      ) ?? Number.MAX_SAFE_INTEGER
+    )
+    expect(useComposerDraftStore.getState().getDraft('thread-1')?.images[0]).toMatchObject({
+      tempPath: 'C:\\temp\\diagram.png',
+      fileName: 'diagram.png',
+      mimeType: 'image/png'
+    })
+  })
+
+  it('disables queued edit for guidance and system-triggered inputs', () => {
+    useConversationStore.setState({
+      queuedInputs: [
+        {
+          id: 'queued-guidance',
+          threadId: 'thread-1',
+          displayText: 'pending guidance',
+          status: 'guidancePending',
+          createdAt: new Date().toISOString()
+        },
+        {
+          id: 'queued-automation',
+          threadId: 'thread-1',
+          displayText: 'automated follow-up',
+          status: 'queued',
+          triggerKind: 'automation',
+          createdAt: new Date().toISOString()
+        }
+      ]
+    })
+
+    renderComposer()
+
+    const editButtons = screen.getAllByRole('button', { name: 'Edit queued message' })
+    expect(editButtons).toHaveLength(2)
+    expect(editButtons[0]).toBeDisabled()
+    expect(editButtons[1]).toBeDisabled()
+  })
+
+  it('keeps the queue and current composer when a queued image cannot be restored', async () => {
+    readImageAsDataUrl.mockRejectedValue(new Error('missing image'))
+    useConversationStore.setState({
+      queuedInputs: [
+        {
+          id: 'queued-1',
+          threadId: 'thread-1',
+          displayText: 'image follow-up',
+          status: 'queued',
+          createdAt: new Date().toISOString(),
+          nativeInputParts: [{ type: 'localImage', path: 'C:\\temp\\missing.png' }]
+        }
+      ]
+    })
+
+    renderComposer()
+    const textbox = screen.getByRole('textbox')
+    textbox.textContent = 'keep this draft'
+    fireEvent.input(textbox)
+    fireEvent.click(screen.getByRole('button', { name: 'Edit queued message' }))
+
+    await waitFor(() => {
+      expect(useToastStore.getState().toasts.some((toast) =>
+        toast.message === 'Failed to edit queued message: missing image'
+      )).toBe(true)
+    })
+    expect(appServerSendRequest).not.toHaveBeenCalledWith('turn/queue/remove', expect.anything())
+    expect(useConversationStore.getState().queuedInputs).toHaveLength(1)
+    expect(textbox.textContent).toBe('keep this draft')
+  })
+
+  it('keeps the queue and current composer when removing an edited input fails', async () => {
+    useConversationStore.setState({
+      queuedInputs: [
+        {
+          id: 'queued-1',
+          threadId: 'thread-1',
+          displayText: 'queued replacement',
+          status: 'queued',
+          createdAt: new Date().toISOString(),
+          nativeInputParts: [{ type: 'text', text: 'queued replacement' }]
+        }
+      ]
+    })
+    appServerSendRequest.mockImplementation(async (method: string) => {
+      if (method === 'turn/queue/remove') throw new Error('stale queue')
+      return {}
+    })
+
+    renderComposer()
+    const textbox = screen.getByRole('textbox')
+    textbox.textContent = 'keep this draft'
+    fireEvent.input(textbox)
+    fireEvent.click(screen.getByRole('button', { name: 'Edit queued message' }))
+
+    await waitFor(() => {
+      expect(useToastStore.getState().toasts.some((toast) =>
+        toast.message === 'Failed to edit queued message: stale queue'
+      )).toBe(true)
+    })
+    expect(useConversationStore.getState().queuedInputs).toHaveLength(1)
+    expect(textbox.textContent).toBe('keep this draft')
   })
 
   it('calls turn queue reorder when queued message order changes', async () => {

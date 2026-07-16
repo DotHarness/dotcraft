@@ -2216,6 +2216,8 @@ export const MESSAGES_ES = {
   'composer.queueGuide': 'dirigir',
   'composer.queueGuidancePending': 'dirección',
   'composer.queueRemove': 'Quitar',
+  'composer.queueEdit': 'Editar mensaje en cola',
+  'composer.queueEditFailed': 'No se pudo editar el mensaje en cola: {{error}}',
   'composer.queueDockTitleOne': '1 mensaje en cola',
   'composer.queueDockTitleMany': '{{count}} mensajes en cola',
   'composer.queueSection': 'Mensajes en cola',

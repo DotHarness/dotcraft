@@ -1311,6 +1311,8 @@ export const MESSAGES_EN = {
   'composer.queueGuide': 'Steer',
   'composer.queueGuidancePending': 'Steering',
   'composer.queueRemove': 'Remove',
+  'composer.queueEdit': 'Edit queued message',
+  'composer.queueEditFailed': 'Failed to edit queued message: {{error}}',
   'composer.queueDockTitleOne': '1 queued message',
   'composer.queueDockTitleMany': '{{count}} queued messages',
   'composer.queueSection': 'Queued messages',

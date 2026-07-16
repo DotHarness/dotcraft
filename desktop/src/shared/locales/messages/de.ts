@@ -2220,6 +2220,8 @@ export const MESSAGES_DE = {
   'composer.queueGuide': 'Lenken',
   'composer.queueGuidancePending': 'Lenkung',
   'composer.queueRemove': 'Entfernen',
+  'composer.queueEdit': 'Nachricht in Warteschlange bearbeiten',
+  'composer.queueEditFailed': 'Nachricht in Warteschlange konnte nicht bearbeitet werden: {{error}}',
   'composer.queueDockTitleOne': '1 Nachricht in der Warteschlange',
   'composer.queueDockTitleMany': '{{count}} Nachrichten in der Warteschlange',
   'composer.queueSection': 'Nachrichten in der Warteschlange',

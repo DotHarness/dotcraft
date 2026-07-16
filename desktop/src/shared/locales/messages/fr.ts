@@ -2217,6 +2217,8 @@ export const MESSAGES_FR = {
   'composer.queueGuide': 'Diriger',
   'composer.queueGuidancePending': 'Direction',
   'composer.queueRemove': 'Supprimer',
+  'composer.queueEdit': 'Modifier le message en file d\'attente',
+  'composer.queueEditFailed': 'Échec de la modification du message en file d\'attente : {{error}}',
   'composer.queueDockTitleOne': '1 message en file d\'attente',
   'composer.queueDockTitleMany': '{{count}} messages en file d\'attente',
   'composer.queueSection': 'Messages en file d\'attente',

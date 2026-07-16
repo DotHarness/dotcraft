@@ -234,6 +234,7 @@ export function InputComposer({
   const [goalBusy, setGoalBusy] = useState(false)
   const [compactBusy, setCompactBusy] = useState(false)
   const [consolidateBusy, setConsolidateBusy] = useState(false)
+  const [editingQueuedInputId, setEditingQueuedInputId] = useState<string | null>(null)
   const [dragOver, setDragOver] = useState(false)
   const [editorFocused, setEditorFocused] = useState(false)
   /** Bumps on rich-input edits so `canSend` re-evaluates from ref (contentEditable has no React state). */
@@ -242,6 +243,7 @@ export function InputComposer({
   const [mascotBounce, setMascotBounce] = useState(0)
   const richRef = useRef<RichInputAreaHandle>(null)
   const sendInFlightRef = useRef(false)
+  const editingQueuedInputIdRef = useRef<string | null>(null)
   const pendingModeChangeRef = useRef<Promise<unknown> | null>(null)
   const applyingHistoryRef = useRef(false)
   const historyDraftRef = useRef<ComposerDraftSnapshot | null>(null)
@@ -1147,6 +1149,49 @@ export function InputComposer({
     }
   }, [threadId])
 
+  const editQueuedInput = useCallback(async (queuedInputId: string): Promise<void> => {
+    if (editingQueuedInputIdRef.current) return
+    const queued = useConversationStore.getState().queuedInputs.find((item) => item.id === queuedInputId)
+    if (!queued || queued.status !== 'queued' || queued.triggerKind || queued.sentAsGoal === true) return
+
+    editingQueuedInputIdRef.current = queuedInputId
+    setEditingQueuedInputId(queuedInputId)
+    try {
+      const draft = await queuedInputToComposerDraft(queued)
+      const res = await window.api.appServer.sendRequest('turn/queue/remove', {
+        threadId,
+        queuedInputId
+      }) as { queuedInputs?: unknown[] }
+
+      useConversationStore.getState().setQueuedInputs((res.queuedInputs ?? []) as QueuedTurnInput[])
+      applyComposerSnapshot(draft, draft.files, draft.images)
+      latestDraftRef.current = {
+        text: draft.text,
+        segments: [...draft.segments],
+        files: [...draft.files],
+        images: [...draft.images]
+      }
+      if (threadComposerDraftHasContent(draft)) {
+        useComposerDraftStore.getState().saveDraft(threadId, draft)
+      } else {
+        useComposerDraftStore.getState().clearDraft(threadId)
+      }
+      setHistoryCursor(null)
+      historyDraftRef.current = null
+      window.setTimeout(() => richRef.current?.focus(), 0)
+    } catch (err) {
+      addToast(
+        t('composer.queueEditFailed', {
+          error: err instanceof Error ? err.message : String(err)
+        }),
+        'error'
+      )
+    } finally {
+      editingQueuedInputIdRef.current = null
+      setEditingQueuedInputId(null)
+    }
+  }, [applyComposerSnapshot, threadId, t])
+
   const steerQueuedInput = useCallback(async (queuedInputId: string): Promise<void> => {
     const state = useConversationStore.getState()
     const activeTurnId = state.activeTurnId
@@ -1493,7 +1538,9 @@ export function InputComposer({
             queuedInputs={visibleQueuedInputs}
             onQueueSteer={(id) => { void steerQueuedInput(id) }}
             onQueueRemove={(id) => { void removeQueuedInput(id) }}
+            onQueueEdit={(id) => { void editQueuedInput(id) }}
             onQueueReorder={(orderedIds) => { void reorderQueuedInputs(orderedIds) }}
+            editingQueuedInputId={editingQueuedInputId}
           />
         )}
         topAccessoryVisible={hasBackgroundActivityDock}
@@ -1871,6 +1918,58 @@ function inputPartsToComposerSegments(parts: InputPart[]): ComposerDraftSegment[
     }
   }
   return segments
+}
+
+async function queuedInputToComposerDraft(item: QueuedTurnInput): Promise<ComposerDraftSnapshot> {
+  const parts = item.nativeInputParts?.length
+    ? item.nativeInputParts
+    : item.materializedInputParts?.length
+      ? item.materializedInputParts
+      : null
+
+  if (!parts) {
+    if (!item.displayText) throw new Error('Queued message has no editable content.')
+    return {
+      text: item.displayText,
+      segments: [{ type: 'text', value: item.displayText }],
+      files: [],
+      images: []
+    }
+  }
+
+  if (parts.some((part) => part.type === 'image')) {
+    throw new Error('Remote image inputs cannot be restored in the composer.')
+  }
+
+  const segments = inputPartsToComposerSegments(parts)
+  const images: ImageAttachment[] = []
+  for (const part of parts) {
+    if (part.type !== 'localImage') continue
+    const { dataUrl } = await window.api.workspace.readImageAsDataUrl({ path: part.path })
+    if (!dataUrl) throw new Error(`Unable to read queued image: ${part.fileName || part.path}`)
+    images.push({
+      tempPath: part.path,
+      dataUrl,
+      fileName: part.fileName?.trim() || fileNameFromPath(part.path),
+      mimeType: part.mimeType?.trim() || mimeTypeFromDataUrl(dataUrl) || 'image/png'
+    })
+  }
+
+  return {
+    text: stringifyComposerDraftSegments(segments),
+    segments,
+    files: [],
+    images
+  }
+}
+
+function fileNameFromPath(path: string): string {
+  return path.split(/[/\\]/).pop() || path
+}
+
+function mimeTypeFromDataUrl(dataUrl: string): string | null {
+  const match = /^data:([^;,]+)[;,]/i.exec(dataUrl)
+  return match?.[1] ?? null
 }
 
 function pushComposerTextSegment(segments: ComposerDraftSegment[], value: string): void {

@@ -2211,6 +2211,8 @@ export const MESSAGES_JA = {
   'composer.queueGuide': 'ステアリング',
   'composer.queueGuidancePending': 'ステアリング',
   'composer.queueRemove': '削除',
+  'composer.queueEdit': 'キュー内のメッセージを編集',
+  'composer.queueEditFailed': 'キュー内のメッセージを編集できませんでした: {{error}}',
   'composer.queueDockTitleOne': '1 つのキューに入れられたメッセージ',
   'composer.queueDockTitleMany': '{{count}} キューに入れられたメッセージ',
   'composer.queueSection': 'キューに入れられたメッセージ',
