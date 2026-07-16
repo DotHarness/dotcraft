@@ -363,6 +363,11 @@ describe('InputComposer layout', () => {
     expect(within(dock).getAllByRole('button', { name: 'Reorder queued message' })).toHaveLength(2)
     expect(within(dock).getByRole('button', { name: 'Steering' })).toBeDisabled()
     expect(within(dock).getAllByRole('button', { name: 'Reorder queued message' })[1]).toBeDisabled()
+    const firstEditButton = within(dock).getAllByRole('button', { name: 'Edit queued message' })[0]
+    const firstQueueRow = firstEditButton.parentElement?.parentElement
+    expect(firstQueueRow).toHaveStyle({
+      gridTemplateColumns: '18px minmax(0, 1fr) auto 24px 24px'
+    })
   })
 
   it('separates queued messages from background agents inside one dock', () => {

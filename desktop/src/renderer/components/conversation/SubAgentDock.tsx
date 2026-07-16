@@ -611,7 +611,7 @@ const queueRowStyle: CSSProperties = {
   position: 'relative',
   minHeight: '26px',
   display: 'grid',
-  gridTemplateColumns: '18px minmax(0, 1fr) auto auto',
+  gridTemplateColumns: '18px minmax(0, 1fr) auto 24px 24px',
   alignItems: 'center',
   gap: '6px',
   color: 'var(--text-secondary)',
