@@ -134,7 +134,13 @@ export function ThreadEntry({ thread }: ThreadEntryProps): JSX.Element {
     !isActive && !showPendingApprovalBadge && !showPendingUserInputBadge && hasPendingPlanConfirmation
   const showPendingBadge =
     showPendingApprovalBadge || showPendingUserInputBadge || showPendingPlanBadge
-  const hasBadgeContent = dropActive || alreadyBound || showPendingBadge || anim === 'success'
+  // The pending pill moves into the trailing status slot (replacing the running
+  // spinner) so it sits flush at the row's trailing edge for a cleaner look,
+  // unless a transient drag / success state is using the middle badge column
+  // together with the status spinner.
+  const showPendingInStatus =
+    showPendingBadge && !dropActive && !alreadyBound && anim !== 'success'
+  const hasBadgeContent = dropActive || alreadyBound || anim === 'success'
   const showStatusIcon = !isActive && thread.status !== 'active'
   const showUnreadCompletedDot =
     !isActive
@@ -142,20 +148,23 @@ export function ThreadEntry({ thread }: ThreadEntryProps): JSX.Element {
     && !isSubAgent
     && thread.status === 'active'
     && hasUnreadCompleted
-  const showRelativeTimeStatus = !hasRunningTurn && !showUnreadCompletedDot && !showStatusIcon
+  const showRelativeTimeStatus =
+    !showPendingInStatus && !hasRunningTurn && !showUnreadCompletedDot && !showStatusIcon
   const compactStatusColumn = '24px'
   const relativeTimeStatusColumn = 'minmax(24px, max-content)'
   // On hover the archive action replaces the status content in a compact 24px
-  // slot; otherwise the relative-time slot may grow to fit its content.
+  // slot; otherwise the relative-time slot / pending pill may grow to fit its
+  // content and hug the trailing edge.
   const showRelativeTimeSlot = !showArchiveAction && showRelativeTimeStatus
-  const usesRelativeTimeColumn = showRelativeTimeSlot
-  const statusColumn = usesRelativeTimeColumn ? relativeTimeStatusColumn : compactStatusColumn
-  const statusSlotWidth = usesRelativeTimeColumn ? 'max-content' : compactStatusColumn
+  const showPendingSlot = !showArchiveAction && showPendingInStatus
+  const usesWideStatusColumn = showRelativeTimeSlot || showPendingSlot
+  const statusColumn = usesWideStatusColumn ? relativeTimeStatusColumn : compactStatusColumn
+  const statusSlotWidth = usesWideStatusColumn ? 'max-content' : compactStatusColumn
   const statusSlotMinWidth = compactStatusColumn
-  const statusSlotJustifySelf = usesRelativeTimeColumn ? 'end' : 'center'
-  // Center the relative time within its (>=24px) slot so it shares the same
-  // horizontal center as the spinner / archive / status icons that replace it,
-  // instead of hugging the right edge and sitting ~4px off from them.
+  const statusSlotJustifySelf = usesWideStatusColumn ? 'end' : 'center'
+  // Center the relative time / pending pill within its (>=24px) slot so it shares
+  // the same horizontal center as the spinner / archive / status icons that
+  // replace it, instead of hugging the right edge and sitting ~4px off from them.
   const statusContentJustify = 'center'
 
   const performArchiveThread = useCallback(async (): Promise<void> => {
@@ -522,7 +531,42 @@ export function ThreadEntry({ thread }: ThreadEntryProps): JSX.Element {
               >
                 {dropActive ? t('auto.dnd.dropHere') : t('auto.dnd.alreadyBoundBadge')}
               </span>
-            ) : showPendingBadge ? (
+            ) : (
+              <span
+                aria-hidden="true"
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: 'var(--type-ui-size)',
+                  lineHeight: 'var(--type-ui-line-height)',
+                  color: 'var(--accent)',
+                  animation: 'slideInBadge 450ms ease-out'
+                }}
+              >
+                💬
+              </span>
+            )
+          ) : undefined
+        }
+        status={
+          <span
+            aria-hidden={showArchiveAction}
+            style={{
+              fontSize: 'var(--type-secondary-size)',
+              color: 'var(--text-dimmed)',
+              lineHeight: 'var(--type-secondary-line-height)',
+              whiteSpace: 'nowrap',
+              display: showArchiveAction ? 'none' : 'inline-flex',
+              alignItems: 'center',
+              justifyContent: statusContentJustify,
+              width: '100%',
+              overflow: 'hidden',
+              textOverflow: 'clip',
+              opacity: showArchiveAction ? 0 : 1
+            }}
+          >
+            {showPendingInStatus ? (
               <span
                 data-testid={
                   showPendingApprovalBadge
@@ -562,42 +606,7 @@ export function ThreadEntry({ thread }: ThreadEntryProps): JSX.Element {
                     ? t('threadEntry.pendingUserInput')
                     : t('threadEntry.pendingPlanConfirmation')}
               </span>
-            ) : (
-              <span
-                aria-hidden="true"
-                style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  fontSize: 'var(--type-ui-size)',
-                  lineHeight: 'var(--type-ui-line-height)',
-                  color: 'var(--accent)',
-                  animation: 'slideInBadge 450ms ease-out'
-                }}
-              >
-                💬
-              </span>
-            )
-          ) : undefined
-        }
-        status={
-          <span
-            aria-hidden={showArchiveAction}
-            style={{
-              fontSize: 'var(--type-secondary-size)',
-              color: 'var(--text-dimmed)',
-              lineHeight: 'var(--type-secondary-line-height)',
-              whiteSpace: 'nowrap',
-              display: showArchiveAction ? 'none' : 'inline-flex',
-              alignItems: 'center',
-              justifyContent: statusContentJustify,
-              width: '100%',
-              overflow: 'hidden',
-              textOverflow: 'clip',
-              opacity: showArchiveAction ? 0 : 1
-            }}
-          >
-            {hasRunningTurn ? (
+            ) : hasRunningTurn ? (
               <RunningSpinner
                 label={t('threadEntry.turnRunning')}
                 testId={`thread-running-indicator-${thread.id}`}

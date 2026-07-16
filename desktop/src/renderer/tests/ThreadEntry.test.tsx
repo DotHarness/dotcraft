@@ -546,28 +546,30 @@ describe('ThreadEntry', () => {
     expect(screen.getByText('Awaiting confirmation')).toBeInTheDocument()
   })
 
-  it('keeps long-title pending badges and running status in their slots', () => {
+  it('moves the pending pill into the trailing status slot and hides the running spinner', () => {
     useThreadStore.setState({
       pendingPlanConfirmationThreadIds: new Set<string>(['thread-1']),
       runningTurnThreadIds: new Set<string>(['thread-1'])
     })
 
     renderThreadEntry(makeThread({
-      displayName: 'A very long thread title that should give space to the badge without stealing the status slot'
+      displayName: 'A very long thread title that should give space to the pill without stealing the status slot'
     }))
 
     const content = screen.getByTestId('thread-layout-thread-1')
     const title = screen.getByTestId('thread-title-thread-1')
-    const badgeSlot = screen.getByTestId('thread-badge-slot-thread-1')
-    const badge = screen.getByTestId('thread-pending-confirmation-thread-1')
     const statusSlot = screen.getByTestId('thread-status-slot-thread-1')
-    const spinner = screen.getByTestId('thread-running-indicator-thread-1')
+    const badge = screen.getByTestId('thread-pending-confirmation-thread-1')
 
     expect(title.parentElement).toBe(content)
-    expect(badgeSlot.parentElement).toBe(content)
     expect(statusSlot.parentElement).toBe(content)
-    expect(badge.parentElement).toBe(badgeSlot)
-    expect(spinner.parentElement?.parentElement?.parentElement).toBe(statusSlot)
+    // The pending pill now lives in the trailing status slot
+    // (pill span -> status span -> status slot).
+    expect(badge.parentElement?.parentElement).toBe(statusSlot)
+    // The running spinner is suppressed while the pending pill occupies the slot.
+    expect(screen.queryByTestId('thread-running-indicator-thread-1')).not.toBeInTheDocument()
+    // The middle badge slot is no longer rendered for the pending pill.
+    expect(screen.queryByTestId('thread-badge-slot-thread-1')).not.toBeInTheDocument()
   })
 
   it('keeps a pending badge row interactive when relative time swaps to archive', async () => {
