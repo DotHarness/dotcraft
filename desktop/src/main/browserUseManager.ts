@@ -4498,61 +4498,47 @@ export class BrowserUseManager implements BrowserUseBackendRequestHandler {
     options?: { fullPage?: boolean; clip?: Electron.Rectangle }
   ): Promise<BrowserUseImageResult> {
     this.markAutomation(tab, 'screenshot')
-    await this.waitForPageReady(tab, {
-      operation: 'screenshot.ready',
-      requireContent: false,
-      timeoutMs: this.operationTimeoutMs()
-    })
-    if (options?.fullPage) {
-      const dataBase64 = await this.captureFullPageScreenshot(tab, options.clip)
-      return {
-        mediaType: 'image/png',
-        dataBase64
-      }
-    }
-    const image = await this.withBrowserOperation(
+    const dataBase64 = await this.withBrowserOperation(
       tab,
       'screenshot',
-      () => this.webContentsFor(tab.owner, tab.id).capturePage(options?.clip))
+      async () => {
+        const runtime = this.getRuntimeForTab(tab)
+        const metrics = await this.cdpCommand<{
+          cssContentSize?: { x?: number; y?: number; width?: number; height?: number }
+          cssVisualViewport?: { pageX?: number; pageY?: number; clientWidth?: number; clientHeight?: number }
+          contentSize?: { x?: number; y?: number; width?: number; height?: number }
+        }>(tab, 'Page.getLayoutMetrics')
+        const sourceClip = options?.clip
+          ?? (options?.fullPage
+            ? metrics.cssContentSize ?? metrics.contentSize
+            : metrics.cssVisualViewport == null
+              ? { x: 0, y: 0, width: runtime.viewportWidth, height: runtime.viewportHeight }
+              : {
+                  x: metrics.cssVisualViewport.pageX,
+                  y: metrics.cssVisualViewport.pageY,
+                  width: metrics.cssVisualViewport.clientWidth,
+                  height: metrics.cssVisualViewport.clientHeight
+                })
+        const clip = {
+          x: Math.max(0, Number(sourceClip?.x) || 0),
+          y: Math.max(0, Number(sourceClip?.y) || 0),
+          width: Math.max(1, Number(sourceClip?.width) || runtime.viewportWidth),
+          height: Math.max(1, Number(sourceClip?.height) || runtime.viewportHeight),
+          scale: 1
+        }
+        const result = await this.cdpCommand<{ data?: string }>(tab, 'Page.captureScreenshot', {
+          format: 'png',
+          fromSurface: true,
+          captureBeyondViewport: options?.fullPage === true || options?.clip != null,
+          clip
+        })
+        if (!result.data) throw new Error(`Page.captureScreenshot returned no data for tab ${tab.id}.`)
+        return result.data
+      })
     return {
       mediaType: 'image/png',
-      dataBase64: image.toPNG().toString('base64')
+      dataBase64
     }
-  }
-
-  private async captureFullPageScreenshot(tab: BrowserUseTabRuntime, clip?: Electron.Rectangle): Promise<string> {
-    const runtime = this.getRuntimeForTab(tab)
-    const metrics = await this.withBrowserOperation(
-      tab,
-      'screenshot.metrics',
-      () => this.cdpCommand<{
-        contentSize?: { x?: number; y?: number; width?: number; height?: number }
-      }>(tab, 'Page.getLayoutMetrics'))
-    const contentSize = metrics.contentSize ?? {}
-    const sourceClip = clip ?? {
-      x: contentSize.x ?? 0,
-      y: contentSize.y ?? 0,
-      width: contentSize.width ?? runtime.viewportWidth,
-      height: contentSize.height ?? runtime.viewportHeight
-    }
-    const normalizedClip = {
-      x: Math.max(0, Number(sourceClip.x) || 0),
-      y: Math.max(0, Number(sourceClip.y) || 0),
-      width: Math.max(1, Number(sourceClip.width) || runtime.viewportWidth),
-      height: Math.max(1, Number(sourceClip.height) || runtime.viewportHeight),
-      scale: 1
-    }
-    const result = await this.withBrowserOperation(
-      tab,
-      'screenshot.fullPage',
-      () => this.cdpCommand<{ data?: string }>(tab, 'Page.captureScreenshot', {
-        format: 'png',
-        fromSurface: true,
-        captureBeyondViewport: true,
-        clip: normalizedClip
-      }))
-    if (!result.data) throw new Error(`Browser tab ${tab.id} did not return screenshot data.`)
-    return result.data
   }
 
   private async domSnapshot(tab: BrowserUseTabRuntime): Promise<string> {

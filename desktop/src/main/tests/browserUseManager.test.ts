@@ -777,9 +777,16 @@ describe('BrowserUseManager IAB backend', () => {
   it('returns a readable timeout when screenshot capture hangs', async () => {
     const wc = createFakeWebContents()
     let releaseCapture: (() => void) | undefined
-    ;(wc.capturePage as ReturnType<typeof vi.fn>).mockImplementation(() => new Promise((resolve) => {
-      releaseCapture = () => resolve({ toPNG: () => Buffer.from([9, 9, 9]) })
-    }))
+    const defaultSendCommand = (wc.debugger.sendCommand as ReturnType<typeof vi.fn>).getMockImplementation()
+    ;(wc.debugger.sendCommand as ReturnType<typeof vi.fn>).mockImplementation(
+      async (method: string, params?: Record<string, unknown>) => {
+        if (method === 'Page.captureScreenshot') {
+          return await new Promise((resolve) => {
+            releaseCapture = () => resolve({ data: 'CQkJ' })
+          })
+        }
+        return await defaultSendCommand?.(method, params)
+      })
     const host = createFakeHost(wc)
     const manager = new BrowserUseManager(host, { operationMs: 25 })
     const owner = createFakeOwner()
@@ -796,6 +803,63 @@ describe('BrowserUseManager IAB backend', () => {
     expect(result.error).toContain("Browser operation 'screenshot' timed out")
     expect(result.error).toContain('http://127.0.0.1:5173/')
     releaseCapture?.()
+  })
+
+  it('captures viewport screenshots through CDP', async () => {
+    const wc = createFakeWebContents()
+    const host = createFakeHost(wc)
+    const manager = new BrowserUseManager(host)
+    const owner = createFakeOwner()
+
+    const result = await runBrowserUse(manager, owner, {
+      threadId: 'thread-viewport-shot',
+      workspacePath: '/workspace/test-root',
+      code: `
+        const tab = await agent.browser.goto("http://127.0.0.1:5173/");
+        return await tab.screenshot();
+      `
+    })
+
+    expect(result.error).toBeUndefined()
+    expect(JSON.parse(result.resultText ?? '{}')).toEqual({
+      mediaType: 'image/png',
+      dataBase64: 'AQID'
+    })
+    expect(wc.capturePage).not.toHaveBeenCalled()
+    expect(wc.debugger.sendCommand).toHaveBeenCalledWith('Page.captureScreenshot', expect.objectContaining({
+      captureBeyondViewport: false,
+      clip: {
+        x: 0,
+        y: 0,
+        width: 1280,
+        height: 720,
+        scale: 1
+      }
+    }))
+  })
+
+  it('rejects empty CDP screenshot data', async () => {
+    const wc = createFakeWebContents()
+    const defaultSendCommand = (wc.debugger.sendCommand as ReturnType<typeof vi.fn>).getMockImplementation()
+    ;(wc.debugger.sendCommand as ReturnType<typeof vi.fn>).mockImplementation(
+      async (method: string, params?: Record<string, unknown>) => {
+        if (method === 'Page.captureScreenshot') return { data: '' }
+        return await defaultSendCommand?.(method, params)
+      })
+    const host = createFakeHost(wc)
+    const manager = new BrowserUseManager(host)
+    const owner = createFakeOwner()
+
+    const result = await runBrowserUse(manager, owner, {
+      threadId: 'thread-empty-shot',
+      workspacePath: '/workspace/test-root',
+      code: `
+        const tab = await agent.browser.goto("http://127.0.0.1:5173/");
+        return await tab.screenshot();
+      `
+    })
+
+    expect(result.error).toContain('Page.captureScreenshot returned no data')
   })
 
   it('captures full-page screenshots with the CDP page dimensions', async () => {
