@@ -804,6 +804,21 @@ describe('InputComposer layout', () => {
     expect(tooltip).not.toHaveTextContent('Stop (Esc)')
   })
 
+  it('keeps the model picker available while a turn is running', () => {
+    useConversationStore.setState({
+      turnStatus: 'running',
+      activeTurnId: 'turn-123'
+    })
+
+    renderComposer()
+
+    const modelButton = screen.getByRole('button', { name: 'Select model' })
+    expect(modelButton).toBeEnabled()
+
+    fireEvent.click(modelButton)
+    expect(screen.getByRole('menu', { name: 'Select model' })).toBeInTheDocument()
+  })
+
   it('shows the queued send action instead of stop while running with draft text', () => {
     useConversationStore.setState({
       turnStatus: 'running',

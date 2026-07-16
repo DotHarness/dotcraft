@@ -225,12 +225,14 @@ Provider/model changes are one `thread/config/update`. If the target model inval
 Desktop selects its default effort; if it does not support MAX, Desktop clears MAX. Speed preference is
 preserved and unsupported Fast continues to run as Standard.
 
-The picker is disabled while a turn is running, waiting for approval, or waiting for user input. The
-Welcome atomically updates `providerId` and `providerModels` and passes the resulting pair to thread
-creation. Existing threads never show Default and update only their own snapshot. They load `model/list`
-for their captured provider and do not follow later workspace provider changes. Without a remembered
-model Desktop chooses the first listed model; if no list is available, it leaves state unchanged and
-directs the user to Model Providers settings.
+The picker remains available while a turn is running; changes update the thread snapshot for queued and
+future turns without changing the active provider request. It is disabled while waiting for approval or
+user input, during blocking maintenance, or while a configuration update is being applied. The Welcome
+atomically updates `providerId` and `providerModels` and passes the resulting pair to thread creation.
+Existing threads never show Default and update only their own snapshot. They load `model/list` for their
+captured provider and do not follow later workspace provider changes. Without a remembered model Desktop
+chooses the first listed model; if no list is available, it leaves state unchanged and directs the user
+to Model Providers settings.
 
 ---
 
