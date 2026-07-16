@@ -157,7 +157,7 @@ export function AppBindingPanel({ plugin }: AppBindingPanelProps): JSX.Element |
                 </div>
               </div>
               <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-                <Skeleton width={96} height={30} radius={8} />
+                <Skeleton width={96} height={32} radius={8} />
               </div>
             </div>
           ))}
@@ -411,7 +411,7 @@ const mutedText: CSSProperties = { marginTop: 4, color: 'var(--text-secondary)',
 const handoffBox: CSSProperties = { marginTop: 8, display: 'flex', flexDirection: 'column', gap: 3, minWidth: 0 }
 const handoffHint: CSSProperties = { marginTop: 8, fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--text-tertiary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }
 const actions: CSSProperties = { display: 'flex', alignItems: 'flex-start', justifyContent: 'flex-end', flexWrap: 'wrap', gap: 8, maxWidth: 280 }
-const baseButton: CSSProperties = { border: 'none', borderRadius: 8, padding: '7px 10px', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 600 }
+const baseButton: CSSProperties = { border: 'none', borderRadius: 8, height: 32, padding: '0 12px', boxSizing: 'border-box', lineHeight: 1, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6, fontSize: 13, fontWeight: 600 }
 const primaryButton: CSSProperties = { ...baseButton, background: 'var(--text-primary)', color: 'var(--bg-primary)', border: '1px solid var(--text-primary)' }
 const secondaryButton: CSSProperties = { ...baseButton, background: 'var(--bg-tertiary)', color: 'var(--text-primary)' }
 const capabilityBlock: CSSProperties = {
@@ -430,10 +430,10 @@ const capabilityTitle: CSSProperties = { fontSize: 12, fontWeight: 600, color: '
 const capabilityChanges: CSSProperties = { display: 'flex', flexDirection: 'column', gap: 3 }
 const capabilityChange: CSSProperties = { display: 'flex', gap: 6, fontSize: 11.5, color: 'var(--text-secondary)', fontFamily: 'var(--font-mono)' }
 const capabilityActions: CSSProperties = { display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 2 }
-const smallButton: CSSProperties = { ...baseButton, borderRadius: 6, padding: '5px 10px', fontSize: 11.5 }
+const smallButton: CSSProperties = { ...baseButton, height: 'auto', borderRadius: 6, padding: '5px 10px', fontSize: 11.5 }
 const smallPrimaryButton: CSSProperties = { ...smallButton, background: 'var(--text-primary)', color: 'var(--bg-primary)', border: '1px solid var(--text-primary)' }
 const smallGhostButton: CSSProperties = { ...smallButton, background: 'transparent', color: 'var(--text-secondary)', border: '1px solid var(--border-default)', fontWeight: 500 }
-const iconButton: CSSProperties = { width: 30, height: 30, border: 'none', borderRadius: 8, background: 'transparent', color: 'var(--text-secondary)', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }
+const iconButton: CSSProperties = { width: 32, height: 32, border: 'none', borderRadius: 8, background: 'transparent', color: 'var(--text-secondary)', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }
 const errorText: CSSProperties = { margin: 0, color: 'var(--error)', fontSize: 13 }
 
 function statePill(good: boolean): CSSProperties {
