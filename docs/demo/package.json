@@ -16,6 +16,8 @@
     "@dnd-kit/utilities": "^3.2.2",
     "@iconify-json/vscode-icons": "^1.2.53",
     "@iconify/react": "^6.0.2",
+    "@modelcontextprotocol/ext-apps": "1.7.4",
+    "@modelcontextprotocol/sdk": "1.29.0",
     "diff": "^8.0.3",
     "dompurify": "^3.4.5",
     "highlight.js": "^11.11.1",
@@ -26,6 +28,7 @@
     "react-markdown": "^10.1.0",
     "rehype-highlight": "^7.0.2",
     "remark-gfm": "^4.0.1",
+    "zod": "4.4.3",
     "zustand": "^5.0.3"
   },
   "devDependencies": {
