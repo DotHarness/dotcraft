@@ -2,6 +2,14 @@ import { randomUUID } from 'crypto'
 import { promises as fs } from 'fs'
 import * as path from 'path'
 
+export type DesktopExtensionAppSurfaceAccess = 'read' | 'write'
+
+export interface DesktopExtensionAppSurfaceGrant {
+  appId: string
+  surfaceId: string
+  access: DesktopExtensionAppSurfaceAccess[]
+}
+
 export interface DesktopExtensionGrant {
   grantId: string
   pluginId: string
@@ -10,6 +18,7 @@ export interface DesktopExtensionGrant {
   connectOrigins: string[]
   surfaceWriteScopes: string[]
   requiredAppIds: string[]
+  requiredAppSurfaces: DesktopExtensionAppSurfaceGrant[]
   /**
    * AppServer JSON-RPC method patterns this extension may call through the
    * scoped `host.appServer.request` bridge. Read straight from the plugin's
@@ -25,6 +34,7 @@ interface DesktopExtensionDescriptor {
   connectOrigins?: unknown
   surfaceWriteScopes?: unknown
   requiredAppIds?: unknown
+  requiredAppSurfaces?: unknown
   appServerScopes?: unknown
 }
 
@@ -63,6 +73,8 @@ export async function authorizeDesktopExtensionGrant(params: {
     throw new Error(`Desktop extension '${params.extensionId}' is not declared by plugin '${params.pluginId}'.`)
   }
 
+  const requiredAppSurfaces = appSurfaceGrantsField(descriptor, 'requiredAppSurfaces')
+
   const grantId = randomUUID()
   grants.set(grantId, {
     grantId,
@@ -72,6 +84,7 @@ export async function authorizeDesktopExtensionGrant(params: {
     connectOrigins: stringArrayField(descriptor, 'connectOrigins'),
     surfaceWriteScopes: stringArrayField(descriptor, 'surfaceWriteScopes'),
     requiredAppIds: stringArrayField(descriptor, 'requiredAppIds'),
+    requiredAppSurfaces,
     appServerScopes: stringArrayField(descriptor, 'appServerScopes'),
     appProtocols: await readPluginAppProtocols(rootPath, stringField(manifest, 'apps'))
   })
@@ -105,6 +118,23 @@ export function ensureDesktopExtensionAppAllowed(
 ): void {
   if (!grant.requiredAppIds.some((candidate) => candidate === appId)) {
     throw new Error(`Desktop extension '${grant.extensionId}' is not allowed to access app '${appId}'.`)
+  }
+}
+
+export function ensureDesktopExtensionAppSurfaceAllowed(
+  grant: DesktopExtensionGrant,
+  appId: string,
+  surfaceId: string,
+  access: DesktopExtensionAppSurfaceAccess
+): void {
+  const allowed = grant.requiredAppSurfaces.some((surface) =>
+    surface.appId === appId
+    && surface.surfaceId === surfaceId
+    && surface.access.includes(access))
+  if (!allowed) {
+    throw new Error(
+      `Desktop extension '${grant.extensionId}' is not allowed to ${access} app surface '${appId}/${surfaceId}'.`
+    )
   }
 }
 
@@ -228,6 +258,45 @@ function stringArrayField(record: Record<string, unknown>, field: keyof DesktopE
   return Array.isArray(value)
     ? value.filter((entry): entry is string => typeof entry === 'string' && entry.trim() !== '').map((entry) => entry.trim())
     : []
+}
+
+function appSurfaceGrantsField(
+  record: Record<string, unknown>,
+  field: 'requiredAppSurfaces'
+): DesktopExtensionAppSurfaceGrant[] {
+  const value = record[field]
+  if (value == null) return []
+  if (!Array.isArray(value)) {
+    throw new Error(`Desktop extension field '${field}' must be an array.`)
+  }
+
+  const result: DesktopExtensionAppSurfaceGrant[] = []
+  const keys = new Set<string>()
+  for (const entry of value) {
+    if (!isRecord(entry)) {
+      throw new Error(`Desktop extension field '${field}' contains an invalid entry.`)
+    }
+    const appId = stringField(entry, 'appId')
+    const surfaceId = stringField(entry, 'surfaceId')
+    const rawAccess = entry.access
+    if (!appId || !surfaceId || !Array.isArray(rawAccess) || rawAccess.length === 0) {
+      throw new Error(`Desktop extension field '${field}' contains an invalid entry.`)
+    }
+    const access: DesktopExtensionAppSurfaceAccess[] = []
+    for (const candidate of rawAccess) {
+      if ((candidate !== 'read' && candidate !== 'write') || access.includes(candidate)) {
+        throw new Error(`Desktop extension field '${field}' contains invalid access values.`)
+      }
+      access.push(candidate)
+    }
+    const key = `${appId}\n${surfaceId}`
+    if (keys.has(key)) {
+      throw new Error(`Desktop extension field '${field}' contains duplicate app surface '${appId}/${surfaceId}'.`)
+    }
+    keys.add(key)
+    result.push({ appId, surfaceId, access })
+  }
+  return result
 }
 
 function arrayField(record: Record<string, unknown>, field: string): unknown[] {

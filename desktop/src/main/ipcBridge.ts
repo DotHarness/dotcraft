@@ -45,6 +45,7 @@ import {
   clearDesktopExtensionGrants,
   ensureDesktopExtensionAppAllowed,
   ensureDesktopExtensionAppServerMethodAllowed,
+  ensureDesktopExtensionAppSurfaceAllowed,
   ensureDesktopExtensionAppUrlAllowed,
   requireDesktopExtensionGrant,
   revokeDesktopExtensionGrant,
@@ -601,6 +602,137 @@ export async function postDesktopExtensionJson(
       method: 'POST',
       headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
       body: JSON.stringify(body ?? {}),
+      redirect: 'error',
+      signal: controller.signal
+    })
+    return await readDesktopExtensionResponse(response)
+  } finally {
+    clearTimeout(timeout)
+  }
+}
+
+interface ResolvedDesktopAppSurface {
+  appId: string
+  surfaceId: string
+  endpoint: string
+  bearer: string
+  expiresAt: string
+}
+
+function appSurfaceUnavailable(): Error {
+  return new Error('AppSurfaceUnavailable')
+}
+
+function validateDesktopExtensionRelativePath(relativePath: string): URL {
+  if (typeof relativePath !== 'string' || relativePath.length === 0 || relativePath.length > MAX_EXTERNAL_URL_LENGTH) {
+    throw new Error('Invalid App Surface relative path')
+  }
+  if (!relativePath.startsWith('/') || relativePath.startsWith('//') || relativePath.includes('\\') || relativePath.includes('#')) {
+    throw new Error('App Surface path must be origin-relative')
+  }
+
+  const pathOnly = relativePath.split('?', 1)[0]
+  for (const rawSegment of pathOnly.split('/')) {
+    let segment = rawSegment
+    for (let depth = 0; depth < 4; depth++) {
+      let decoded: string
+      try {
+        decoded = decodeURIComponent(segment)
+      } catch {
+        throw new Error('Invalid App Surface relative path')
+      }
+      if (decoded.split(/[\\/]/).some((part) => part === '.' || part === '..')) {
+        throw new Error('App Surface path traversal is not allowed')
+      }
+      if (decoded === segment) break
+      segment = decoded
+    }
+  }
+
+  const parsed = new URL(relativePath, 'http://dotcraft-app-surface.invalid')
+  if (parsed.origin !== 'http://dotcraft-app-surface.invalid' || parsed.username || parsed.password || parsed.hash) {
+    throw new Error('App Surface path must be origin-relative')
+  }
+  return parsed
+}
+
+export function resolveDesktopExtensionAppSurfaceUrl(endpoint: string, relativePath: string): string {
+  let base: URL
+  try {
+    base = new URL(endpoint)
+  } catch {
+    throw appSurfaceUnavailable()
+  }
+  if (
+    (base.protocol !== 'http:' && base.protocol !== 'https:')
+    || !isLoopbackHostname(base.hostname)
+    || base.username !== ''
+    || base.password !== ''
+    || base.hash !== ''
+  ) {
+    throw appSurfaceUnavailable()
+  }
+
+  const relative = validateDesktopExtensionRelativePath(relativePath)
+  const basePath = base.pathname.endsWith('/') ? base.pathname : `${base.pathname}/`
+  const target = new URL(base.href)
+  target.pathname = `${basePath}${relative.pathname.slice(1)}`
+  target.search = relative.search
+  target.hash = ''
+
+  if (target.origin !== base.origin || !target.pathname.startsWith(basePath)) {
+    throw new Error('App Surface path must stay within the resolved endpoint base path')
+  }
+  return target.href
+}
+
+async function resolveDesktopExtensionAppSurface(
+  client: WireProtocolClient,
+  appId: string,
+  surfaceId: string
+): Promise<ResolvedDesktopAppSurface> {
+  const result = await client.sendRequest<unknown>('app/surface/resolve', { appId, surfaceId }, 20_000)
+  if (result == null || typeof result !== 'object' || Array.isArray(result)) throw appSurfaceUnavailable()
+  const surface = result as Record<string, unknown>
+  if (
+    surface.appId !== appId
+    || surface.surfaceId !== surfaceId
+    || typeof surface.endpoint !== 'string'
+    || typeof surface.bearer !== 'string'
+    || surface.bearer.trim() === ''
+    || typeof surface.expiresAt !== 'string'
+    || !Number.isFinite(Date.parse(surface.expiresAt))
+  ) {
+    throw appSurfaceUnavailable()
+  }
+  return surface as unknown as ResolvedDesktopAppSurface
+}
+
+export async function requestDesktopExtensionAppSurfaceJson(
+  client: WireProtocolClient,
+  grant: DesktopExtensionGrant,
+  method: 'GET' | 'POST',
+  appId: string,
+  surfaceId: string,
+  relativePath: string,
+  body?: unknown,
+  timeoutMs?: number
+): Promise<unknown> {
+  ensureDesktopExtensionAppSurfaceAllowed(grant, appId, surfaceId, method === 'GET' ? 'read' : 'write')
+  const surface = await resolveDesktopExtensionAppSurface(client, appId, surfaceId)
+  if (Date.parse(surface.expiresAt) <= Date.now()) throw appSurfaceUnavailable()
+  const url = resolveDesktopExtensionAppSurfaceUrl(surface.endpoint, relativePath)
+  const controller = new AbortController()
+  const timeout = setTimeout(() => controller.abort(), Math.min(Math.max(timeoutMs ?? 10000, 1000), 30000))
+  try {
+    const response = await fetch(url, {
+      method,
+      headers: {
+        Accept: 'application/json',
+        Authorization: `Bearer ${surface.bearer}`,
+        ...(method === 'POST' ? { 'Content-Type': 'application/json' } : {})
+      },
+      ...(method === 'POST' ? { body: JSON.stringify(body ?? {}) } : {}),
       redirect: 'error',
       signal: controller.signal
     })
@@ -1966,6 +2098,57 @@ export function registerIpcHandlers(
     }
   )
 
+  const requestExtensionAppSurface = async (
+    params: {
+      grantId: string
+      appId: string
+      surfaceId: string
+      relativePath: string
+      body?: unknown
+      timeoutMs?: number
+    },
+    method: 'GET' | 'POST'
+  ): Promise<unknown> => {
+    const grant = requireDesktopExtensionGrant(params.grantId)
+    const client = getWireClient()
+    if (!client) {
+      throw new Error(translate(mainLocale(callbacks), 'ipc.appServerNotConnected'))
+    }
+    return requestDesktopExtensionAppSurfaceJson(
+      client,
+      grant,
+      method,
+      params.appId,
+      params.surfaceId,
+      params.relativePath,
+      params.body,
+      params.timeoutMs
+    )
+  }
+
+  handleSafe(
+    'desktop-extension:app-surface-get-json',
+    async (_event, params: {
+      grantId: string
+      appId: string
+      surfaceId: string
+      relativePath: string
+      timeoutMs?: number
+    }): Promise<unknown> => requestExtensionAppSurface(params, 'GET')
+  )
+
+  handleSafe(
+    'desktop-extension:app-surface-post-json',
+    async (_event, params: {
+      grantId: string
+      appId: string
+      surfaceId: string
+      relativePath: string
+      body?: unknown
+      timeoutMs?: number
+    }): Promise<unknown> => requestExtensionAppSurface(params, 'POST')
+  )
+
   handleSafe(
     'desktop-extension:app-connection-status',
     async (_event, params: { grantId: string; appId: string }): Promise<unknown> => {
@@ -2688,6 +2871,8 @@ export function unregisterIpcHandlers(): void {
   ipcMain.removeHandler('desktop-extension:to-plugin-url')
   ipcMain.removeHandler('desktop-extension:fetch-json')
   ipcMain.removeHandler('desktop-extension:post-json')
+  ipcMain.removeHandler('desktop-extension:app-surface-get-json')
+  ipcMain.removeHandler('desktop-extension:app-surface-post-json')
   ipcMain.removeHandler('desktop-extension:app-connection-status')
   ipcMain.removeHandler('desktop-extension:app-connection-start')
   ipcMain.removeHandler('desktop-extension:app-open')

@@ -149,6 +149,25 @@ class AppConnectionConnectResult:
 
 
 @dataclass
+class AppSurface:
+    app_id: str
+    surface_id: str
+    endpoint: str
+    bearer: str
+    expires_at: str
+
+    @classmethod
+    def from_wire(cls, d: dict) -> "AppSurface":
+        return cls(
+            app_id=d.get("appId", ""),
+            surface_id=d.get("surfaceId", ""),
+            endpoint=d.get("endpoint", ""),
+            bearer=d.get("bearer", ""),
+            expires_at=d.get("expiresAt", ""),
+        )
+
+
+@dataclass
 class ThreadAppBinding:
     binding_id: str
     thread_id: str
@@ -292,6 +311,21 @@ class AppBindingManager:
     async def revoke_connection(self, app_id: str, reason: str | None = None) -> AppConnectionStatus:
         result = await self._client.request("app/connection/revoke", _compact({"appId": app_id, "reason": reason}))
         return AppConnectionStatus.from_wire(result)
+
+    async def publish_surface(self, surface_id: str, endpoint: str, bearer: str) -> AppSurface:
+        result = await self._client.request("app/surface/publish", {
+            "surfaceId": surface_id,
+            "endpoint": endpoint,
+            "bearer": bearer,
+        })
+        return AppSurface.from_wire(result)
+
+    async def resolve_surface(self, app_id: str, surface_id: str) -> AppSurface:
+        result = await self._client.request("app/surface/resolve", {
+            "appId": app_id,
+            "surfaceId": surface_id,
+        })
+        return AppSurface.from_wire(result)
 
     # Binding
     async def enable(self, thread_id: str, app_id: str) -> AppBindingRequestCreateResult:

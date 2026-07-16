@@ -340,6 +340,52 @@ async def test_app_binding_activate_uses_v2_method():
     await dotcraft.close()
 
 
+async def test_app_binding_surface_methods_use_typed_contracts():
+    dotcraft, transport = await _connect()
+
+    publish_task = asyncio.create_task(dotcraft.app_bindings.publish_surface(
+        surface_id="board",
+        endpoint="http://127.0.0.1:43120/",
+        bearer="surface-secret",
+    ))
+    request = await transport.read_outbound()
+    assert request["method"] == "app/surface/publish"
+    assert request["params"] == {
+        "surfaceId": "board",
+        "endpoint": "http://127.0.0.1:43120/",
+        "bearer": "surface-secret",
+    }
+    surface_wire = {
+        "appId": "com.example.board",
+        "surfaceId": "board",
+        "endpoint": "http://127.0.0.1:43120/",
+        "bearer": "surface-secret",
+        "expiresAt": "2026-07-16T12:02:00Z",
+    }
+    await transport.push(_response(request, surface_wire))
+    published = await asyncio.wait_for(publish_task, timeout=5)
+    assert published.app_id == "com.example.board"
+    assert published.surface_id == "board"
+    assert published.endpoint == "http://127.0.0.1:43120/"
+    assert published.bearer == "surface-secret"
+    assert published.expires_at == "2026-07-16T12:02:00Z"
+
+    resolve_task = asyncio.create_task(dotcraft.app_bindings.resolve_surface(
+        app_id="com.example.board",
+        surface_id="board",
+    ))
+    request = await transport.read_outbound()
+    assert request["method"] == "app/surface/resolve"
+    assert request["params"] == {
+        "appId": "com.example.board",
+        "surfaceId": "board",
+    }
+    await transport.push(_response(request, surface_wire))
+    resolved = await asyncio.wait_for(resolve_task, timeout=5)
+    assert resolved == published
+    await dotcraft.close()
+
+
 async def test_app_binding_list_thread_bindings_typed():
     dotcraft, transport = await _connect()
     list_task = asyncio.create_task(dotcraft.app_bindings.list_thread_bindings("thread_1"))

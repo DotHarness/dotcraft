@@ -143,6 +143,7 @@ The App Binding profile covers app-side and application-side helpers over [App B
 - Parse or represent App Binding handoffs when the runtime participates in native-app flows.
 - Inspect connection and binding requests.
 - Complete or revoke app connections.
+- Publish app-owned loopback surfaces from authenticated app principals and resolve live surfaces from trusted AppServer clients.
 - Create, cancel, inspect, accept, refresh, revoke, and list thread bindings when a typed wrapper exists.
 - Attach runtime Dynamic Tools to accepted bindings.
 - Keep app-bound tool channels alive while the app is running.

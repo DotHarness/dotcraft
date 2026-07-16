@@ -975,6 +975,86 @@ public sealed class SessionServiceRuntimeSignalTests : IDisposable
     }
 
     [Fact]
+    public async Task SubmitInputAsync_TextBeforeArgumentsDelta_FinalizesMessageBeforeToolCall()
+    {
+        IChatClient chatClient = new FakeChatClient([
+            new ChatResponseUpdate(ChatRole.Assistant, [new TextContent("Before the tool")]),
+            new ChatResponseUpdate(ChatRole.Assistant, [new ToolCallArgumentsDeltaContent
+            {
+                ToolCallIndex = 0,
+                ToolName = "ExampleTool",
+                CallId = "call-1",
+                ArgumentsDelta = "{\"path\":\"a.txt\"}"
+            }]),
+            new ChatResponseUpdate(ChatRole.Assistant, [new FunctionCallContent(
+                callId: "call-1",
+                name: "ExampleTool",
+                arguments: new Dictionary<string, object?> { ["path"] = "a.txt" })]),
+            new ChatResponseUpdate(ChatRole.Assistant, [new FunctionResultContent("call-1", "tool result")]),
+            new ChatResponseUpdate(ChatRole.Assistant, [new TextContent("After the tool")])
+        ]);
+        await using var agentFactory = CreateAgentFactory(chatClient);
+        var svc = CreateService(agentFactory, chatClient);
+        var thread = await svc.CreateThreadAsync(MakeIdentity());
+
+        var events = await CollectAsync(svc.SubmitInputAsync(thread.Id, [new TextContent("hello")]));
+
+        var loaded = await new ThreadStore(_tempDir).LoadThreadAsync(thread.Id);
+        var turn = Assert.Single(loaded!.Turns);
+        var assistantItems = turn.Items.Where(item => item.Type != ItemType.UserMessage).ToList();
+        Assert.Equal(
+            [ItemType.AgentMessage, ItemType.ToolCall, ItemType.ToolResult, ItemType.AgentMessage],
+            assistantItems.Select(item => item.Type));
+        Assert.Equal("Before the tool", Assert.IsType<AgentMessagePayload>(assistantItems[0].Payload).Text);
+        Assert.Equal("After the tool", Assert.IsType<AgentMessagePayload>(assistantItems[3].Payload).Text);
+        Assert.Equal(ItemStatus.Completed, assistantItems[0].Status);
+        Assert.NotNull(assistantItems[0].CompletedAt);
+
+        var messageCompletedIndex = events.Select((evt, index) => (evt, index)).Single(entry =>
+            entry.evt.EventType == SessionEventType.ItemCompleted &&
+            entry.evt.ItemPayload?.Payload is AgentMessagePayload { Text: "Before the tool" }).index;
+        var toolStartedIndex = events.Select((evt, index) => (evt, index)).Single(entry =>
+            entry.evt.EventType == SessionEventType.ItemStarted &&
+            entry.evt.ItemPayload?.Type == ItemType.ToolCall).index;
+        Assert.True(messageCompletedIndex < toolStartedIndex);
+    }
+
+    [Fact]
+    public async Task SubmitInputAsync_TextBeforeFunctionCallWithoutArgumentsDelta_FinalizesMessageFirst()
+    {
+        IChatClient chatClient = new FakeChatClient([
+            new ChatResponseUpdate(ChatRole.Assistant, [new TextContent("Before direct call")]),
+            new ChatResponseUpdate(ChatRole.Assistant, [new FunctionCallContent(
+                callId: "call-direct",
+                name: "ExampleTool",
+                arguments: new Dictionary<string, object?> { ["path"] = "b.txt" })]),
+            new ChatResponseUpdate(ChatRole.Assistant, [new FunctionResultContent("call-direct", "tool result")])
+        ]);
+        await using var agentFactory = CreateAgentFactory(chatClient);
+        var svc = CreateService(agentFactory, chatClient);
+        var thread = await svc.CreateThreadAsync(MakeIdentity());
+
+        var events = await CollectAsync(svc.SubmitInputAsync(thread.Id, [new TextContent("hello")]));
+
+        var loaded = await new ThreadStore(_tempDir).LoadThreadAsync(thread.Id);
+        var turn = Assert.Single(loaded!.Turns);
+        var assistantItems = turn.Items.Where(item => item.Type != ItemType.UserMessage).ToList();
+        Assert.Equal(
+            [ItemType.AgentMessage, ItemType.ToolCall, ItemType.ToolResult],
+            assistantItems.Select(item => item.Type));
+        Assert.Equal("Before direct call", Assert.IsType<AgentMessagePayload>(assistantItems[0].Payload).Text);
+        Assert.Equal(ItemStatus.Completed, assistantItems[0].Status);
+
+        var messageCompletedIndex = events.Select((evt, index) => (evt, index)).Single(entry =>
+            entry.evt.EventType == SessionEventType.ItemCompleted &&
+            entry.evt.ItemPayload?.Type == ItemType.AgentMessage).index;
+        var toolStartedIndex = events.Select((evt, index) => (evt, index)).Single(entry =>
+            entry.evt.EventType == SessionEventType.ItemStarted &&
+            entry.evt.ItemPayload?.Type == ItemType.ToolCall).index;
+        Assert.True(messageCompletedIndex < toolStartedIndex);
+    }
+
+    [Fact]
     public async Task SubmitInputAsync_NamespacedArgumentsDelta_WaitsForCompositeFinalIdentity()
     {
         var call = new FunctionCallContent(

@@ -63,6 +63,74 @@ public sealed class AppBindingTests
     }
 
     [Fact]
+    public async Task SurfaceMethods_UseTypedContracts()
+    {
+        var (client, transport) = await ConnectAsync();
+        await using var _ = client;
+
+        var publishTask = client.AppBindings.PublishSurfaceAsync(
+            "board", "http://127.0.0.1:43120/", "surface-secret");
+
+        using (var outbound = await transport.ReadOutboundAsync())
+        {
+            Assert.Equal("app/surface/publish", outbound.RootElement.GetProperty("method").GetString());
+            var @params = outbound.RootElement.GetProperty("params");
+            Assert.Equal("board", @params.GetProperty("surfaceId").GetString());
+            Assert.Equal("http://127.0.0.1:43120/", @params.GetProperty("endpoint").GetString());
+            Assert.Equal("surface-secret", @params.GetProperty("bearer").GetString());
+            Assert.Equal(3, @params.EnumerateObject().Count());
+
+            await transport.PushInboundAsync(new
+            {
+                jsonrpc = "2.0",
+                id = outbound.RootElement.GetProperty("id").GetInt64(),
+                result = new
+                {
+                    appId = "com.example.board",
+                    surfaceId = "board",
+                    endpoint = "http://127.0.0.1:43120/",
+                    bearer = "surface-secret",
+                    expiresAt = "2026-07-16T12:02:00Z"
+                }
+            });
+        }
+
+        var published = await publishTask.WaitAsync(Timeout);
+        Assert.Equal("com.example.board", published.AppId);
+        Assert.Equal("board", published.SurfaceId);
+        Assert.Equal("http://127.0.0.1:43120/", published.Endpoint);
+        Assert.Equal("surface-secret", published.Bearer);
+        Assert.Equal("2026-07-16T12:02:00Z", published.ExpiresAt);
+
+        var resolveTask = client.AppBindings.ResolveSurfaceAsync("com.example.board", "board");
+        using (var outbound = await transport.ReadOutboundAsync())
+        {
+            Assert.Equal("app/surface/resolve", outbound.RootElement.GetProperty("method").GetString());
+            var @params = outbound.RootElement.GetProperty("params");
+            Assert.Equal("com.example.board", @params.GetProperty("appId").GetString());
+            Assert.Equal("board", @params.GetProperty("surfaceId").GetString());
+            Assert.Equal(2, @params.EnumerateObject().Count());
+
+            await transport.PushInboundAsync(new
+            {
+                jsonrpc = "2.0",
+                id = outbound.RootElement.GetProperty("id").GetInt64(),
+                result = new
+                {
+                    appId = "com.example.board",
+                    surfaceId = "board",
+                    endpoint = "http://127.0.0.1:43120/",
+                    bearer = "surface-secret",
+                    expiresAt = "2026-07-16T12:02:00Z"
+                }
+            });
+        }
+
+        var resolved = await resolveTask.WaitAsync(Timeout);
+        Assert.Equal(published, resolved);
+    }
+
+    [Fact]
     public async Task ListThreadBindingsAsync_ParsesBindings()
     {
         var (client, transport) = await ConnectAsync();

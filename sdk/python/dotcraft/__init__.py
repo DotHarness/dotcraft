@@ -26,6 +26,7 @@ from .app_binding import (
     AppConnectionConnectResult,
     AppConnectionStatus,
     AppInfo,
+    AppSurface,
     ThreadAppBinding,
     app_binding_tool_error,
 )
@@ -147,6 +148,7 @@ __all__ = [
     "AppConnectionStatus",
     "AppConnectionStartResult",
     "AppConnectionConnectResult",
+    "AppSurface",
     "ThreadAppBinding",
     "AppBindingRequestInfo",
     "AppBindingRequestCreateResult",

@@ -2,11 +2,11 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.5.0 |
+| **Version** | 0.6.0 |
 | **Status** | Living |
-| **Date** | 2026-06-07 |
+| **Date** | 2026-07-16 |
 | **Parent Spec** | [AppServer Protocol](../protocols/appserver-protocol.md) |
-| **Related Specs** | [Plugin Architecture](../architecture/plugin-architecture.md), [Tool Result Presentation](../protocols/tool-result-presentation.md), [Goal Design](../features/goal.md), [Remote Server Management](../features/remote-server-management.md), [Desktop DESIGN.md](../architecture/DESIGN.md) |
+| **Related Specs** | [App Binding](../protocols/app-binding.md), [Plugin Architecture](../architecture/plugin-architecture.md), [Tool Result Presentation](../protocols/tool-result-presentation.md), [Goal Design](../features/goal.md), [Remote Server Management](../features/remote-server-management.md), [Desktop DESIGN.md](../architecture/DESIGN.md) |
 
 Purpose: Define the stable user-experience behavior of **DotCraft Desktop** as a protocol client for DotCraft AppServer. This document specifies user-visible flows, interaction rules, state transitions, and recovery behavior. It does not define frontend implementation details, visual design, or framework choices.
 
@@ -324,7 +324,8 @@ This pipeline is a Desktop client responsibility. It does not change the AppServ
 Pending approval and model-initiated user-input requests are part of the active turn and must survive ordinary Desktop navigation.
 
 - Switching away from a thread is not a decline, cancel, approval timeout, empty user-input answer, or dismissal.
-- If `item/approval/request` or `item/tool/requestUserInput` arrives while its source thread is not the active fully-restored thread, Desktop parks the request on that source thread instead of presenting it immediately.
+- If `item/approval/request` or `item/tool/requestUserInput` arrives while its source thread is not the active fully-restored thread, while conversation rendering is paused, or while deferred conversation updates have not been reconciled, Desktop parks the request on that source thread instead of presenting it immediately.
+- Desktop activates parked requests only after the latest full `thread/read` generation has hydrated the active conversation. A request that arrives during an in-flight read makes that read insufficient and requires a follow-up generation before the composer may appear.
 - Replayed requests are matched by logical identity: `method + threadId + turnId + requestId`. A fresh JSON-RPC envelope id is transport state and must not make the prompt a new logical request.
 - Replayed requests with the same logical identity restore the actionable composer once; they must not create duplicate cards, duplicate queue entries, or duplicate local decisions.
 - Multiple pending approvals for one turn are restored as a queue. The user resolves one visible approval at a time, and the next approval becomes actionable only after the prior approval has been submitted or resolved.
@@ -341,6 +342,7 @@ Desktop receives thread truth through two channels: durable snapshots from `thre
 - A final `turn/completed`, `turn/failed`, or `turn/cancelled` state must clear running/waiting indicators even if an earlier local view still had live tools or composers.
 - `thread/runtimeChanged` is a summary signal for thread-list and activity state. It does not replace turn/item notifications and must not be treated as complete conversation history.
 - Desktop may use `thread/runtimeChanged` as a reconciliation trigger. If the server runtime says the active thread is idle while Desktop still shows running, waiting, or live awaiting-result tools, Desktop must perform a full `thread/read` with turns and reconcile the active conversation.
+- An active thread with a parked approval or user-input request must keep retrying full reconciliation on foreground, reconnect, and metadata refresh paths. A failed read keeps the request parked and must not synthesize a response.
 - After submitting an approval or user-input response, Desktop should continue applying live notifications normally. If live completion notifications are missed, the next full snapshot reconcile must restore completed tools, final assistant output, and terminal turn state without requiring the user to switch away and back.
 - Reconciliation must be scoped to the active foreground thread and workspace. Snapshot state from one thread or workspace must not preserve or overwrite realtime state from another.
 
@@ -572,9 +574,12 @@ Required behavior:
 - Plugin detail pages list declared Desktop extension content alongside skills, apps, and tool integrations.
 - Extension bundles load from local installed plugin files only. Desktop must not execute JavaScript directly from remote URLs.
 - Extension code runs as trusted local renderer code.
-- Extension host APIs expose only the declared app and network surfaces for that extension. App Binding status/connection/open helpers are scoped by `requiredAppIds`, local HTTP reads are scoped by `connectOrigins`, and local HTTP writes additionally require `surfaceWriteScopes`.
+- Extension host APIs expose only app surfaces declared by `requiredAppSurfaces`. Each `{ appId, surfaceId, access }` entry scopes `host.appSurfaces.getJson` to `read` and `host.appSurfaces.postJson` to `write`; the declared app ids also scope App Binding status/connection/open helpers.
+- App Surface calls accept only an origin-relative path. Extension code cannot supply an absolute URL, origin, endpoint, authorization header, or bearer.
 - Desktop must enforce descriptor-bound extension host capabilities in the main process from a verified plugin descriptor. Renderer-provided policy values are not an authorization source.
-- Extension network reads must go through Desktop's host bridge so the main process can validate loopback origins before issuing the request. Extension bundles must not rely on broad renderer `connect-src` access for app-owned local surfaces.
+- For every App Surface call, Desktop main resolves `(appId, surfaceId)` through `app/surface/resolve`, proxies the GET or POST to the returned loopback HTTP(S) endpoint, and injects the returned bearer. Endpoint and bearer values never enter renderer state.
+- Missing or expired publications produce the stable `AppSurfaceUnavailable` error. Desktop may show a reconnect/unavailable state but must not bypass the registry or reuse an expired resolution.
+- Extension app traffic must go through `host.appSurfaces`; bundles must not rely on broad renderer `connect-src` access for app-owned local surfaces.
 - Failed extension loads show a localized error state for that extension surface without breaking core conversation workflows.
 
 ### 6.2 Automations

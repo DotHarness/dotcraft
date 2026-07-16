@@ -185,6 +185,27 @@ public sealed class DotCraftAppBindingClient(DotCraftClient client)
     public Task<AppConnectionStatus> RevokeConnectionAsync(string appId, string? reason = null, CancellationToken cancellationToken = default) =>
         client.RequestAsync<AppConnectionStatus>("app/connection/revoke", new { appId, reason }, cancellationToken);
 
+    /// <summary>Publishes an app-owned surface (app/surface/publish).</summary>
+    public Task<AppSurface> PublishSurfaceAsync(
+        string surfaceId,
+        string endpoint,
+        string bearer,
+        CancellationToken cancellationToken = default) =>
+        client.RequestAsync<AppSurface>(
+            "app/surface/publish",
+            new { surfaceId, endpoint, bearer },
+            cancellationToken);
+
+    /// <summary>Resolves a live app-owned surface (app/surface/resolve).</summary>
+    public Task<AppSurface> ResolveSurfaceAsync(
+        string appId,
+        string surfaceId,
+        CancellationToken cancellationToken = default) =>
+        client.RequestAsync<AppSurface>(
+            "app/surface/resolve",
+            new { appId, surfaceId },
+            cancellationToken);
+
     /// <summary>Enables the whole app for a thread (thread/appBindings/enable).</summary>
     public Task<AppBindingRequestCreateResult> EnableBindingAsync(
         string threadId,

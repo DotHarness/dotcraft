@@ -21,12 +21,17 @@ interface ArchivedThreadsSettingsViewProps {
 
 function actionButtonStyle(disabled = false): CSSProperties {
   return {
-    padding: '8px 12px',
-    borderRadius: '999px',
+    height: '32px',
+    padding: '0 12px',
+    boxSizing: 'border-box',
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: '8px',
     border: '1px solid var(--border-default)',
     background: 'transparent',
     color: 'var(--text-primary)',
-    fontSize: '12px',
+    fontSize: '13px',
     fontWeight: 600,
     cursor: disabled ? 'default' : 'pointer',
     opacity: disabled ? 0.7 : 1
@@ -223,7 +228,7 @@ export function ArchivedThreadsSettingsView({
               </span>
             }
             description={<Skeleton width="34%" height={11} />}
-            control={<Skeleton width={132} height={28} radius={6} />}
+            control={<Skeleton width={132} height={32} radius={8} />}
           />
         ))}
 
@@ -308,9 +313,9 @@ export function ArchivedThreadsSettingsView({
                       disabled={restoring || deleting}
                       aria-label={t('archivedThreads.delete')}
                       style={{
-                      width: '28px',
-                      height: '28px',
-                      borderRadius: '6px',
+                      width: '32px',
+                      height: '32px',
+                      borderRadius: '8px',
                       border: '1px solid color-mix(in srgb, var(--error) 46%, transparent)',
                       background: 'transparent',
                       color: 'var(--error)',

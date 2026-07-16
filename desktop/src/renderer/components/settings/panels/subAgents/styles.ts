@@ -51,7 +51,10 @@ export function primaryButtonStyle(disabled = false): CSSProperties {
     alignItems: 'center',
     justifyContent: 'center',
     gap: '6px',
-    padding: '8px 14px',
+    height: '32px',
+    padding: '0 14px',
+    boxSizing: 'border-box',
+    lineHeight: 1,
     border: 'none',
     borderRadius: '8px',
     backgroundColor: disabled ? 'var(--bg-tertiary)' : 'var(--text-primary)',
@@ -64,7 +67,14 @@ export function primaryButtonStyle(disabled = false): CSSProperties {
 
 export function secondaryButtonStyle(disabled = false): CSSProperties {
   return {
-    padding: '8px 14px',
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: '6px',
+    height: '32px',
+    padding: '0 14px',
+    boxSizing: 'border-box',
+    lineHeight: 1,
     border: '1px solid var(--border-default)',
     borderRadius: '8px',
     background: 'transparent',
@@ -78,7 +88,14 @@ export function secondaryButtonStyle(disabled = false): CSSProperties {
 
 export function dangerButtonStyle(disabled = false): CSSProperties {
   return {
-    padding: '8px 14px',
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: '6px',
+    height: '32px',
+    padding: '0 14px',
+    boxSizing: 'border-box',
+    lineHeight: 1,
     border: '1px solid color-mix(in srgb, var(--error, #ff453a) 45%, var(--border-default))',
     borderRadius: '8px',
     background: 'transparent',

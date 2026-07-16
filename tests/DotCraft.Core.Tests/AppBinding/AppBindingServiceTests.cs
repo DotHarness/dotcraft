@@ -76,6 +76,42 @@ public sealed class AppBindingServiceTests : IDisposable
     }
 
     [Fact]
+    public void SurfacePublish_ReplacesLease_AndRevokeMakesItUnavailable()
+    {
+        var control = new AppBindingService();
+        var start = control.StartConnection(CraftPath, "com.example.test", "user");
+        var connected = control.Connect(CraftPath, new AppConnectionConnectParams
+        {
+            ConnectionRequestId = start.ConnectionRequestId, RequestToken = start.RequestToken
+        });
+
+        var first = control.PublishSurface(CraftPath, connected.Principal.PrincipalId, new AppSurfacePublishParams
+        {
+            SurfaceId = "board", Endpoint = "http://127.0.0.1:5100/dotcraft/board/api/v1", Bearer = "first"
+        });
+        var second = control.PublishSurface(CraftPath, connected.Principal.PrincipalId, new AppSurfacePublishParams
+        {
+            SurfaceId = "board", Endpoint = "http://127.0.0.1:5200/dotcraft/board/api/v1", Bearer = "second"
+        });
+
+        var resolved = control.ResolveSurface(CraftPath, "com.example.test", "board");
+        Assert.Equal(second.Endpoint, resolved.Endpoint);
+        Assert.Equal("second", resolved.Bearer);
+        Assert.True(second.ExpiresAt >= first.ExpiresAt);
+        Assert.DoesNotContain("second", File.ReadAllText(Path.Combine(CraftPath, "app-bindings", "state.json")));
+
+        control.RevokePrincipal(CraftPath, connected.Principal.PrincipalId, "user");
+        Assert.ThrowsAny<Exception>(() => control.ResolveSurface(CraftPath, "com.example.test", "board"));
+    }
+
+    [Theory]
+    [InlineData("https://example.test/api")]
+    [InlineData("file:///tmp/app")]
+    [InlineData("http://127.0.0.1:5000/api#fragment")]
+    public void InvalidSurfaceEndpoint_IsRejected(string endpoint) =>
+        Assert.ThrowsAny<Exception>(() => AppBindingService.ValidateSurfaceEndpoint(endpoint));
+
+    [Fact]
     public void RemovingAnUnmodeledSchemaConstraint_IsTreatedAsExpansion()
     {
         var control = new AppBindingService();

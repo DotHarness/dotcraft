@@ -2325,6 +2325,7 @@ public sealed partial class SessionService(
                                         break;
                                     }
                                     FinalizeStreamingReasoning();
+                                    FinalizeStreamingAgentMessage();
                                     streamingToolCallItemsByIndex ??= [];
                                     if (!streamingToolCallItemsByIndex.TryGetValue(toolCallIndex, out var streamingToolCallItem))
                                     {
@@ -2432,10 +2433,10 @@ public sealed partial class SessionService(
                                 case FunctionCallContent fc:
                                 {
                                     FinalizeStreamingReasoning();
+                                    FinalizeStreamingAgentMessage();
                                     if (!string.IsNullOrWhiteSpace(fc.CallId)
                                         && turnRuntime?.ToolInvocationItems.ContainsKey(fc.CallId) == true)
                                     {
-                                        FinalizeStreamingAgentMessage();
                                         break;
                                     }
                                     RegisterCommandExecutionIfNeeded(

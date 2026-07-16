@@ -996,6 +996,8 @@ The parser may validate expected URI scheme and expected app id.
 | `CompleteConnectionAsync` | `app/connection/connect` | Complete an app connection request. |
 | `GetConnectionStatusAsync` | `app/connection/status` | Read app connection status. |
 | `RevokeConnectionAsync` | `app/connection/revoke` | Revoke an app connection. |
+| `PublishSurfaceAsync` | `app/surface/publish` | Publish or renew an authenticated app principal's loopback surface lease. |
+| `ResolveSurfaceAsync` | `app/surface/resolve` | Resolve a live surface as a trusted AppServer client. |
 | `EnableBindingAsync` | `thread/appBindings/enable` | Enable the whole app for a thread. |
 | `GetBindingRequestAsync` | `app/binding/request/get` | Inspect a thread binding request. |
 | `AuthenticateAsync` | `app/connection/authenticate` | Authenticate the current AppServer connection as an app principal. |

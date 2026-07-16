@@ -104,6 +104,7 @@ public static class AppServerErrors
     public const int AgentProfileSourceUnavailableCode = -32089;
     public const int WorktreeHandoffConflictCode = -32090;
     public const int AgentProfileConflictCode = -32091;
+    public const int AppSurfaceUnavailableCode = -32092;
     // ── Automation-specific codes (-32050 to -32059) ──
 
     public const int TaskNotFoundCode = -32051;
@@ -242,6 +243,14 @@ public static class AppServerErrors
             "errors.appBindingPolicyDenied",
             "App Binding policy denied the request",
             detail: detail);
+
+    public static AppServerException AppSurfaceUnavailable(string appId, string surfaceId) =>
+        Create(
+            AppSurfaceUnavailableCode,
+            "AppSurfaceUnavailable",
+            "errors.appSurfaceUnavailable",
+            "App surface is unavailable",
+            new { appId, surfaceId });
 
     public static AppServerException ExternalChannelNotFound(string name) =>
         Create(ExternalChannelNotFoundCode, "ExternalChannelNotFound", "errors.externalChannelNotFound", $"External channel not found: {name}", new { name });

@@ -562,7 +562,7 @@ Result fields: `scheme`, `operation`, `app_id`, `request_id`, `request_token`, `
 
 ### 15.2 App Binding Manager
 
-`dotcraft.app_bindings` exposes connection `start_connection` / `complete_connection` / `authenticate` / `refresh_credential` / `connection_status` / `revoke_connection`, binding `enable` / `get_binding_request` / `activate` / `rebind` / `confirm_capabilities`, and thread binding list/revoke helpers.
+`dotcraft.app_bindings` exposes connection `start_connection` / `complete_connection` / `authenticate` / `refresh_credential` / `connection_status` / `revoke_connection`, surface `publish_surface` / `resolve_surface`, binding `enable` / `get_binding_request` / `activate` / `rebind` / `confirm_capabilities`, and thread binding list/revoke helpers. Surface publication requires an authenticated app-principal connection; resolution is for trusted AppServer clients.
 
 ### 15.3 Keep Alive
 

@@ -374,11 +374,15 @@ function presetDescriptionFor(
 
 function inlineCodeStyle(): CSSProperties {
   return {
-    padding: '2px 6px',
+    display: 'inline-flex',
+    alignItems: 'center',
+    minHeight: '24px',
+    padding: '4px 8px',
     borderRadius: '6px',
     background: 'var(--bg-tertiary)',
     fontFamily: 'var(--font-mono)',
     fontSize: '12px',
+    lineHeight: 1.4,
     color: 'var(--text-primary)'
   }
 }

@@ -921,6 +921,25 @@ const api = {
     postJson(params: { grantId: string; url: string; body?: unknown; timeoutMs?: number }): Promise<unknown> {
       return ipcRenderer.invoke('desktop-extension:post-json', params)
     },
+    appSurfaceGetJson(params: {
+      grantId: string
+      appId: string
+      surfaceId: string
+      relativePath: string
+      timeoutMs?: number
+    }): Promise<unknown> {
+      return ipcRenderer.invoke('desktop-extension:app-surface-get-json', params)
+    },
+    appSurfacePostJson(params: {
+      grantId: string
+      appId: string
+      surfaceId: string
+      relativePath: string
+      body?: unknown
+      timeoutMs?: number
+    }): Promise<unknown> {
+      return ipcRenderer.invoke('desktop-extension:app-surface-post-json', params)
+    },
     getAppConnectionStatus(params: { grantId: string; appId: string }): Promise<unknown> {
       return ipcRenderer.invoke('desktop-extension:app-connection-status', params)
     },

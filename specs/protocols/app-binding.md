@@ -2,9 +2,9 @@
 
 | Field | Value |
 |---|---|
-| Version | 2.0.0 |
+| Version | 2.1.0 |
 | Status | Normative |
-| Date | 2026-07-15 |
+| Date | 2026-07-16 |
 | Related specs | [Tools architecture](../architecture/tools-architecture.md), [AppServer protocol](appserver-protocol.md), [Tool result presentation](tool-result-presentation.md), [Session Core](../architecture/session-core.md) |
 
 App Binding is DotCraft's application connection and thread-authorization control plane. It does not define, attach, execute, or present tools. Ordinary application capabilities come from one binding-scoped MCP session; interactive presentation uses MCP Apps. Social-channel bindings authorize a conversation target whose operations are exposed by a managed native tool source.
@@ -48,7 +48,29 @@ The app principal is scoped to workspace, user, and app id. The standard flow is
 
 Principal credentials expire after 30 days. `app/connection/refresh` atomically rotates the credential and immediately invalidates the old credential. DotCraft persists only principal identity, expiry, random salt, and a fixed-time comparable verifier. Raw principal credentials are never returned after creation or rotation.
 
-`app/connection/revoke` invalidates the principal, prevents new activation/rebind, and revokes all bindings owned by it. Disconnecting a control connection does not stop an otherwise healthy binding MCP session. Multiple authenticated connections for the same principal may coexist.
+`app/connection/revoke` invalidates the principal, removes its published App Surfaces, prevents new activation/rebind, and revokes all bindings owned by it. Disconnecting a control connection does not stop an otherwise healthy binding MCP session. Multiple authenticated connections for the same principal may coexist.
+
+### 3.1 App Surface registry
+
+AppServer maintains a minimal, workspace-scoped, in-memory registry for app-owned Desktop surfaces. A registry key is `(appId, surfaceId)`. It is discovery and credential handoff only; it does not grant an extension access to a surface.
+
+An authenticated app principal publishes a surface with `app/surface/publish`:
+
+```json
+{
+  "surfaceId": "board",
+  "endpoint": "http://127.0.0.1:43120/",
+  "bearer": "<opaque-secret>"
+}
+```
+
+`appId` is taken from the authenticated principal and MUST NOT be accepted from request parameters. `surfaceId` is a non-empty app-defined stable id. `endpoint` MUST be an absolute loopback `http` or `https` URL. User info and fragments are forbidden. `bearer` is a non-empty opaque credential.
+
+Every successful publish creates a fixed 120-second lease and returns `{ appId, surfaceId, endpoint, bearer, expiresAt }`. Publishing the same `(appId, surfaceId)` again atomically replaces the endpoint and bearer, even when either value is unchanged, and renews the lease to 120 seconds from that publish. There is no configurable lease duration and no durable registry state. AppServer restart clears every surface; control-connection loss does not remove a surface before its lease expires.
+
+A trusted client resolves a live surface with `app/surface/resolve` and `{ appId, surfaceId }`. The result is `{ appId, surfaceId, endpoint, bearer, expiresAt }`. If the key is absent or its lease has expired, the method MUST return the stable error `AppSurfaceUnavailable`; expired entries MUST NOT be returned. Resolve is restricted to trusted clients. Returned endpoint and bearer material MUST remain outside untrusted renderer state, logs, persistence, and audit records.
+
+Desktop extension authorization is independently derived from the verified extension descriptor's `requiredAppSurfaces` entries. A successful resolve never widens descriptor authority.
 
 ## 4. Ordinary binding workflow
 
@@ -168,7 +190,10 @@ Trusted client methods:
 App-principal methods:
 
 - `app/connection/request/get`, `app/connection/connect`, `app/connection/authenticate`, `app/connection/refresh`;
-- `app/binding/request/get`, `app/binding/activate`, `app/binding/rebind`, `app/bindings/list`.
+- `app/binding/request/get`, `app/binding/activate`, `app/binding/rebind`, `app/bindings/list`;
+- `app/surface/publish`.
+
+Trusted clients may call `app/surface/resolve`. It is not available to app or channel principals.
 
 Channel-principal methods are the social methods in Section 7 plus `app/threadInput/enqueue` where the External Channel Adapter protocol permits it.
 
@@ -185,9 +210,10 @@ Security invariants:
 1. An app descriptor, endpoint, tool definition, resource, or invocation argument cannot grant authority.
 2. Revocation and expiry are checked at dispatch, not only snapshot construction.
 3. One binding cannot reuse another binding's bearer, MCP session, view, target, or authority revision.
-4. App-principal connections cannot call general AppServer methods.
-5. Common tool approval remains required after whole-app enablement.
-6. UI support is optional; useful non-interactive output remains required.
+4. App-principal connections cannot call general AppServer methods other than their enumerated role methods, including `app/surface/publish`.
+5. App Surface endpoints and bearers are memory-only, lease-bound, and unavailable to extension renderer code.
+6. Common tool approval remains required after whole-app enablement.
+7. UI support is optional; useful non-interactive output remains required.
 
 ## 10. Acceptance
 
@@ -197,5 +223,7 @@ Security invariants:
 - App principal, binding bearer, and binding grant have independent revoke scopes.
 - Managed social tools use native registrations and server-owned targets.
 - Origin-channel execution remains independent.
+- App Surface publication is app-authenticated, loopback-only, memory-only, and expires exactly 120 seconds after the latest publish.
+- Surface resolution is trusted-client-only and returns `AppSurfaceUnavailable` for missing or expired leases.
 - Version 1 execution, private UI, scopes, catalogs, attachments, and context blocks are absent.
 - Core, Desktop, .NET, TypeScript, and Python agree on the version 2 wire contract.
