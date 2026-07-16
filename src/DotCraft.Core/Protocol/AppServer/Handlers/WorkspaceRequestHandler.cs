@@ -95,7 +95,7 @@ internal sealed class WorkspaceRequestHandler(
     private async Task<object?> HandleWorkspaceConfigUpdateAsync(AppServerIncomingMessage msg, CancellationToken ct)
     {
         const string requiredFieldMessage =
-            "At least one of 'providerId', 'model', 'welcomeSuggestionsEnabled', " +
+            "At least one of 'providerId', 'model', 'providerModels', 'welcomeSuggestionsEnabled', " +
             "'skillsSelfLearningEnabled', 'memoryAutoConsolidateEnabled', 'dreamsEnabled', 'dreamsInterval', " +
             "'dreamsThreadLookbackCount', 'dreamsAutoApply', 'defaultApprovalPolicy', 'toolsLspEnabled', " +
             "'reasoning', 'speed', or 'contextWindow' is required.";
@@ -107,6 +107,7 @@ internal sealed class WorkspaceRequestHandler(
 
         var hasProviderId = TryGetCaseInsensitiveProperty(msg.Params.Value, "providerId", out var providerIdEl);
         var hasModel = TryGetCaseInsensitiveProperty(msg.Params.Value, "model", out var modelEl);
+        var hasProviderModels = TryGetCaseInsensitiveProperty(msg.Params.Value, "providerModels", out var providerModelsEl);
         var hasApiKey = TryGetCaseInsensitiveProperty(msg.Params.Value, "apiKey", out var apiKeyEl);
         var hasEndPoint = TryGetCaseInsensitiveProperty(msg.Params.Value, "endPoint", out var endPointEl);
         if (hasApiKey || hasEndPoint)
@@ -162,6 +163,7 @@ internal sealed class WorkspaceRequestHandler(
             out var contextWindowEl);
         if (!hasProviderId
             && !hasModel
+            && !hasProviderModels
             && !hasWelcomeSuggestionsEnabled
             && !hasSkillsSelfLearningEnabled
             && !hasMemoryAutoConsolidateEnabled
@@ -181,6 +183,7 @@ internal sealed class WorkspaceRequestHandler(
         var currentConfig = appConfigMonitor?.Current ?? workspaceConfig.LoadCurrentMergedConfig();
         var providerId = hasProviderId ? NormalizeOptionalString(ParseNullableString(providerIdEl, "providerId")) : null;
         var model = hasModel ? ParseNullableString(modelEl, "model") : null;
+        var providerModels = hasProviderModels ? ParseNullableProviderModels(providerModelsEl, "providerModels") : null;
         var welcomeSuggestionsEnabled = hasWelcomeSuggestionsEnabled
             ? ParseNullableBoolean(welcomeSuggestionsEnabledEl, "welcomeSuggestionsEnabled")
             : null;
@@ -239,6 +242,7 @@ internal sealed class WorkspaceRequestHandler(
             workspaceCraftPath!,
             hasProviderId ? providerId : null,
             hasModel ? NormalizeWorkspaceModel(model) : null,
+            hasProviderModels ? providerModels : null,
             welcomeSuggestionsEnabled,
             skillsSelfLearningEnabled,
             memoryAutoConsolidateEnabled,
@@ -252,6 +256,7 @@ internal sealed class WorkspaceRequestHandler(
             contextWindow,
             hasProviderId,
             hasModel,
+            hasProviderModels,
             hasWelcomeSuggestionsEnabled,
             hasSkillsSelfLearningEnabled,
             hasMemoryAutoConsolidateEnabled,
@@ -268,7 +273,7 @@ internal sealed class WorkspaceRequestHandler(
         var changedRegions = new List<string>();
         if (saveResult.ProviderIdChanged)
             changedRegions.Add(ConfigChangeRegions.WorkspaceProvider);
-        if (saveResult.ModelChanged)
+        if (saveResult.ModelChanged || saveResult.ProviderModelsChanged)
             changedRegions.Add(ConfigChangeRegions.WorkspaceModel);
         if (saveResult.ProviderIdChanged
             || saveResult.ModelChanged)
@@ -339,6 +344,7 @@ internal sealed class WorkspaceRequestHandler(
         {
             ProviderId = saveResult.ProviderId,
             Model = saveResult.Model,
+            ProviderModels = saveResult.ProviderModels,
             WelcomeSuggestionsEnabled = saveResult.WelcomeSuggestionsEnabled,
             SkillsSelfLearningEnabled = saveResult.SkillsSelfLearningEnabled,
             MemoryAutoConsolidateEnabled = saveResult.MemoryAutoConsolidateEnabled,
@@ -448,6 +454,103 @@ internal sealed class WorkspaceRequestHandler(
         return trimmed;
     }
 
+    private static Dictionary<string, string>? ParseNullableProviderModels(JsonElement element, string fieldName)
+    {
+        if (element.ValueKind == JsonValueKind.Null)
+            return null;
+        if (element.ValueKind != JsonValueKind.Object)
+            throw AppServerErrors.InvalidParams($"'{fieldName}' must be an object or null.");
+
+        var result = new Dictionary<string, string>(StringComparer.Ordinal);
+        foreach (var prop in element.EnumerateObject())
+        {
+            var providerId = NormalizeOptionalString(prop.Name);
+            if (providerId == null)
+                continue;
+            if (prop.Value.ValueKind != JsonValueKind.String && prop.Value.ValueKind != JsonValueKind.Null)
+                throw AppServerErrors.InvalidParams($"'{fieldName}.{prop.Name}' must be a string or null.");
+            var model = prop.Value.ValueKind == JsonValueKind.String
+                ? NormalizeWorkspaceModel(prop.Value.GetString())
+                : null;
+            if (model == null)
+                continue;
+            result[providerId] = model;
+        }
+
+        return result;
+    }
+
+    private static Dictionary<string, string> NormalizeProviderModels(Dictionary<string, string>? providerModels)
+    {
+        var result = new Dictionary<string, string>(StringComparer.Ordinal);
+        if (providerModels == null)
+            return result;
+        foreach (var kv in providerModels)
+        {
+            var providerId = NormalizeOptionalString(kv.Key);
+            if (providerId == null)
+                continue;
+            var model = NormalizeWorkspaceModel(kv.Value);
+            if (model == null)
+                continue;
+            result[providerId] = model;
+        }
+
+        return result;
+    }
+
+    private static Dictionary<string, string> ReadConfigProviderModels(JsonObject root)
+    {
+        var result = new Dictionary<string, string>(StringComparer.Ordinal);
+        var key = FindCaseInsensitiveKey(root, "ProviderModels");
+        if (key == null || root[key] is not JsonObject obj)
+            return result;
+
+        foreach (var kv in obj)
+        {
+            var providerId = NormalizeOptionalString(kv.Key);
+            if (providerId == null)
+                continue;
+            if (kv.Value is not JsonValue value || !value.TryGetValue<string>(out var rawModel))
+                continue;
+            var model = NormalizeWorkspaceModel(rawModel);
+            if (model == null)
+                continue;
+            result[providerId] = model;
+        }
+
+        return result;
+    }
+
+    private static bool ProviderModelsEqual(Dictionary<string, string> a, Dictionary<string, string> b)
+    {
+        if (a.Count != b.Count)
+            return false;
+        foreach (var kv in a)
+        {
+            if (!b.TryGetValue(kv.Key, out var other) || !string.Equals(other, kv.Value, StringComparison.Ordinal))
+                return false;
+        }
+
+        return true;
+    }
+
+    private static void WriteProviderModels(JsonObject root, Dictionary<string, string> providerModels)
+    {
+        var existingKey = FindCaseInsensitiveKey(root, "ProviderModels");
+        if (providerModels.Count == 0)
+        {
+            if (existingKey != null)
+                root.Remove(existingKey);
+            return;
+        }
+
+        var obj = new JsonObject();
+        foreach (var kv in providerModels)
+            obj[kv.Key] = JsonValue.Create(kv.Value);
+        root[existingKey ?? "ProviderModels"] = obj;
+    }
+
     private static string? NormalizeDefaultApprovalPolicy(string? rawPolicy)
     {
         var trimmed = rawPolicy?.Trim();
@@ -466,6 +569,7 @@ internal sealed class WorkspaceRequestHandler(
         string workspaceCraftPath,
         string? providerId,
         string? model,
+        Dictionary<string, string>? providerModels,
         bool? welcomeSuggestionsEnabled,
         bool? skillsSelfLearningEnabled,
         bool? memoryAutoConsolidateEnabled,
@@ -479,6 +583,7 @@ internal sealed class WorkspaceRequestHandler(
         ThreadContextWindowConfig? contextWindow,
         bool updateProviderId,
         bool updateModel,
+        bool updateProviderModels,
         bool updateWelcomeSuggestionsEnabled,
         bool updateSkillsSelfLearningEnabled,
         bool updateMemoryAutoConsolidateEnabled,
@@ -529,6 +634,7 @@ internal sealed class WorkspaceRequestHandler(
 
         var existingProviderId = NormalizeOptionalString(ReadConfigStringValue(root, providerIdKey));
         var existingModel = NormalizeWorkspaceModel(ReadConfigStringValue(root, modelKey));
+        var existingProviderModels = ReadConfigProviderModels(root);
         var existingWelcomeSuggestionsEnabled = ReadConfigBooleanValue(welcomeSection, welcomeEnabledKey);
         var existingSkillsSelfLearningEnabled = ReadConfigBooleanValue(selfLearningSection, selfLearningEnabledKey);
         var existingMemoryAutoConsolidateEnabled = ReadConfigBooleanValue(memorySection, memoryAutoConsolidateEnabledKey);
@@ -543,6 +649,8 @@ internal sealed class WorkspaceRequestHandler(
 
         var providerIdChanged = updateProviderId && !string.Equals(existingProviderId, providerId, StringComparison.Ordinal);
         var modelChanged = updateModel && !string.Equals(existingModel, model, StringComparison.Ordinal);
+        var normalizedProviderModels = updateProviderModels ? NormalizeProviderModels(providerModels) : existingProviderModels;
+        var providerModelsChanged = updateProviderModels && !ProviderModelsEqual(existingProviderModels, normalizedProviderModels);
         var welcomeSuggestionsChanged = updateWelcomeSuggestionsEnabled
             && existingWelcomeSuggestionsEnabled != welcomeSuggestionsEnabled;
         var skillsSelfLearningChanged = updateSkillsSelfLearningEnabled
@@ -570,6 +678,8 @@ internal sealed class WorkspaceRequestHandler(
             UpsertOrRemoveConfigValue(root, providerIdKey, "ProviderId", providerId);
         if (updateModel)
             UpsertOrRemoveConfigValue(root, modelKey, "Model", model);
+        if (updateProviderModels)
+            WriteProviderModels(root, normalizedProviderModels);
         if (updateWelcomeSuggestionsEnabled)
         {
             var section = GetOrCreateConfigSection(root, "WelcomeSuggestions", createIfMissing: true)!;
@@ -673,6 +783,7 @@ internal sealed class WorkspaceRequestHandler(
 
         if (providerIdChanged
             || modelChanged
+            || providerModelsChanged
             || welcomeSuggestionsChanged
             || skillsSelfLearningChanged
             || memoryAutoConsolidateChanged
@@ -693,6 +804,7 @@ internal sealed class WorkspaceRequestHandler(
         {
             ProviderId = updateProviderId ? providerId : existingProviderId,
             Model = updateModel ? model : existingModel,
+            ProviderModels = normalizedProviderModels.Count == 0 ? null : new Dictionary<string, string>(normalizedProviderModels, StringComparer.Ordinal),
             WelcomeSuggestionsEnabled = updateWelcomeSuggestionsEnabled
                 ? welcomeSuggestionsEnabled
                 : existingWelcomeSuggestionsEnabled,
@@ -728,6 +840,7 @@ internal sealed class WorkspaceRequestHandler(
                 : CloneNullableContextWindowConfig(existingContextWindow),
             ProviderIdChanged = providerIdChanged,
             ModelChanged = modelChanged,
+            ProviderModelsChanged = providerModelsChanged,
             WelcomeSuggestionsChanged = welcomeSuggestionsChanged,
             SkillsSelfLearningChanged = skillsSelfLearningChanged,
             MemoryAutoConsolidateChanged = memoryAutoConsolidateChanged,
@@ -1116,6 +1229,8 @@ internal sealed class WorkspaceRequestHandler(
 
         public string? Model { get; init; }
 
+        public Dictionary<string, string>? ProviderModels { get; init; }
+
         public bool? WelcomeSuggestionsEnabled { get; init; }
 
         public bool? SkillsSelfLearningEnabled { get; init; }
@@ -1141,6 +1256,8 @@ internal sealed class WorkspaceRequestHandler(
         public bool ProviderIdChanged { get; init; }
 
         public bool ModelChanged { get; init; }
+
+        public bool ProviderModelsChanged { get; init; }
 
         public bool WelcomeSuggestionsChanged { get; init; }
 

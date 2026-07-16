@@ -10,6 +10,7 @@ describe('SettingsView workspace core readers', () => {
       workspace: {
         providerId: null,
         model: null,
+        providerModels: {},
         welcomeSuggestionsEnabled: null,
         skillsSelfLearningEnabled: null,
         memoryAutoConsolidateEnabled: null,
@@ -22,6 +23,7 @@ describe('SettingsView workspace core readers', () => {
       userDefaults: {
         providerId: null,
         model: null,
+        providerModels: {},
         welcomeSuggestionsEnabled: null,
         skillsSelfLearningEnabled: null,
         memoryAutoConsolidateEnabled: null,
@@ -80,6 +82,7 @@ describe('SettingsView workspace core readers', () => {
       workspace: {
         providerId: null,
         model: null,
+        providerModels: {},
         welcomeSuggestionsEnabled: null,
         skillsSelfLearningEnabled: true,
         memoryAutoConsolidateEnabled: false,
@@ -92,6 +95,7 @@ describe('SettingsView workspace core readers', () => {
       userDefaults: {
         providerId: null,
         model: null,
+        providerModels: {},
         welcomeSuggestionsEnabled: null,
         skillsSelfLearningEnabled: false,
         memoryAutoConsolidateEnabled: true,

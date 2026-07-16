@@ -854,6 +854,105 @@ public sealed class WorkspaceConfigChangedTests : IDisposable
         }
     }
 
+    [Fact]
+    public async Task WorkspaceConfigUpdate_ProviderModels_RoundTripsPersistsAndEmitsWorkspaceModelRegion()
+    {
+        var configPath = Path.Combine(_workspaceCraftPath, "config.json");
+        using var harness = new AppServerTestHarness(workspaceCraftPath: _workspaceCraftPath);
+        using var bridge = AttachConfigChangedBridge(harness);
+        await harness.InitializeAsync(configChange: true);
+
+        var req = harness.BuildRequest(AppServerMethods.WorkspaceConfigUpdate, new
+        {
+            model = "gpt-x",
+            providerModels = new Dictionary<string, string>
+            {
+                ["openai"] = "gpt-x",
+                ["anthropic-main"] = "claude-y"
+            }
+        });
+        await harness.ExecuteRequestAsync(req);
+
+        var sent = await harness.Transport.WaitAndDrainAsync(2, TimeSpan.FromSeconds(5));
+        AssertSingleConfigChanged(sent, AppServerMethods.WorkspaceConfigUpdate, ConfigChangeRegions.WorkspaceModel);
+
+        var response = Assert.Single(sent, d => d.RootElement.TryGetProperty("result", out _));
+        var result = response.RootElement.GetProperty("result");
+        Assert.Equal("gpt-x", result.GetProperty("model").GetString());
+        var resultModels = result.GetProperty("providerModels");
+        Assert.Equal("gpt-x", resultModels.GetProperty("openai").GetString());
+        Assert.Equal("claude-y", resultModels.GetProperty("anthropic-main").GetString());
+
+        using var doc = JsonDocument.Parse(await File.ReadAllTextAsync(configPath));
+        var persisted = doc.RootElement.GetProperty("ProviderModels");
+        Assert.Equal("gpt-x", persisted.GetProperty("openai").GetString());
+        Assert.Equal("claude-y", persisted.GetProperty("anthropic-main").GetString());
+    }
+
+    [Fact]
+    public async Task WorkspaceConfigUpdate_ProviderModelsEmpty_RemovesKeyAndReturnsNull()
+    {
+        var configPath = Path.Combine(_workspaceCraftPath, "config.json");
+        await File.WriteAllTextAsync(
+            configPath,
+            """
+            {
+              "ProviderModels": {
+                "openai": "gpt-x",
+                "anthropic-main": "claude-y"
+              }
+            }
+            """);
+
+        using var harness = new AppServerTestHarness(workspaceCraftPath: _workspaceCraftPath);
+        using var bridge = AttachConfigChangedBridge(harness);
+        await harness.InitializeAsync(configChange: true);
+
+        var req = harness.BuildRequest(AppServerMethods.WorkspaceConfigUpdate, new
+        {
+            providerModels = new Dictionary<string, string>()
+        });
+        await harness.ExecuteRequestAsync(req);
+
+        var sent = await harness.Transport.WaitAndDrainAsync(2, TimeSpan.FromSeconds(5));
+        AssertSingleConfigChanged(sent, AppServerMethods.WorkspaceConfigUpdate, ConfigChangeRegions.WorkspaceModel);
+
+        var response = Assert.Single(sent, d => d.RootElement.TryGetProperty("result", out _));
+        Assert.False(response.RootElement.GetProperty("result").TryGetProperty("providerModels", out _));
+
+        using var doc = JsonDocument.Parse(await File.ReadAllTextAsync(configPath));
+        Assert.False(doc.RootElement.TryGetProperty("ProviderModels", out _));
+    }
+
+    [Fact]
+    public async Task WorkspaceConfigUpdate_ProviderModels_PreservesUnrelatedFieldsAndKeyCasing()
+    {
+        var configPath = Path.Combine(_workspaceCraftPath, "config.json");
+        await File.WriteAllTextAsync(
+            configPath,
+            """
+            {
+              "model": "gpt-legacy",
+              "Theme": "dark"
+            }
+            """);
+
+        using var harness = new AppServerTestHarness(workspaceCraftPath: _workspaceCraftPath);
+        await harness.InitializeAsync(configChange: true);
+
+        var req = harness.BuildRequest(AppServerMethods.WorkspaceConfigUpdate, new
+        {
+            providerModels = new Dictionary<string, string> { ["openai"] = "gpt-x" }
+        });
+        await harness.ExecuteRequestAsync(req);
+
+        var json = await File.ReadAllTextAsync(configPath);
+        Assert.Contains("\"model\": \"gpt-legacy\"", json, StringComparison.Ordinal);
+        Assert.Contains("\"Theme\": \"dark\"", json, StringComparison.Ordinal);
+        using var doc = JsonDocument.Parse(json);
+        Assert.Equal("gpt-x", doc.RootElement.GetProperty("ProviderModels").GetProperty("openai").GetString());
+    }
+
     private static IDisposable AttachConfigChangedBridge(AppServerTestHarness harness)
     {
         void OnChanged(object? sender, AppConfigChangedEventArgs change)

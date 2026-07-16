@@ -812,6 +812,7 @@ function normalizeOptionalStringValue(value: unknown): string | null {
 interface WorkspaceCoreConfigSnapshot {
   providerId: string | null
   model: string | null
+  providerModels: Record<string, string>
   welcomeSuggestionsEnabled: boolean | null
   skillsSelfLearningEnabled: boolean | null
   memoryAutoConsolidateEnabled: boolean | null
@@ -912,10 +913,27 @@ function readInferenceSpeed(record: Record<string, unknown>): 'standard' | 'fast
   return normalized === 'standard' || normalized === 'fast' ? normalized : null
 }
 
+function readProviderModels(record: Record<string, unknown>): Record<string, string> {
+  const section = getCaseInsensitiveRecordValue(record, 'ProviderModels')
+  if (section == null || typeof section !== 'object' || Array.isArray(section)) {
+    return {}
+  }
+  const result: Record<string, string> = {}
+  for (const [providerId, rawModel] of Object.entries(section as Record<string, unknown>)) {
+    const normalizedProviderId = providerId.trim()
+    const model = normalizeOptionalStringValue(rawModel)
+    if (normalizedProviderId && model) {
+      result[normalizedProviderId] = model
+    }
+  }
+  return result
+}
+
 function createEmptyCoreConfigSnapshot(): WorkspaceCoreConfigSnapshot {
   return {
     providerId: null,
     model: null,
+    providerModels: {},
     welcomeSuggestionsEnabled: null,
     skillsSelfLearningEnabled: null,
     memoryAutoConsolidateEnabled: null,
@@ -935,6 +953,7 @@ function readCoreConfigSnapshotFromText(raw: string): WorkspaceCoreConfigSnapsho
   return {
     providerId: normalizeOptionalStringValue(parsed.ProviderId ?? parsed.providerId),
     model: normalizeOptionalStringValue(parsed.Model ?? parsed.model),
+    providerModels: readProviderModels(parsed),
     welcomeSuggestionsEnabled: readNestedBoolean(parsed, 'WelcomeSuggestions', 'Enabled'),
     skillsSelfLearningEnabled: readSkillsSelfLearningEnabled(parsed),
     memoryAutoConsolidateEnabled: readNestedBoolean(parsed, 'Memory', 'AutoConsolidateEnabled'),

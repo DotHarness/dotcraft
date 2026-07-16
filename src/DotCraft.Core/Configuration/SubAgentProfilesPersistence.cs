@@ -20,6 +20,7 @@ public static class SubAgentProfilesPersistence
                 .ToArray(),
             config.SubAgent.EnableExternalCliSessionResume,
             config.SubAgent.Model,
+            ReadProviderModelsFromFile(configPath),
             SubAgentWaitAgentTimeoutOptions.FromConfig(config.SubAgent),
             config.SubAgentProfiles
                 .Where(profile => !string.IsNullOrWhiteSpace(profile.Name))
@@ -33,7 +34,8 @@ public static class SubAgentProfilesPersistence
         bool enableExternalCliSessionResume,
         string? model,
         SubAgentWaitAgentTimeoutOptions waitAgentTimeouts,
-        IReadOnlyCollection<SubAgentProfile> profiles)
+        IReadOnlyCollection<SubAgentProfile> profiles,
+        IReadOnlyDictionary<string, string>? providerModels = null)
     {
         var configPath = Path.Combine(craftPath, "config.json");
         Directory.CreateDirectory(craftPath);
@@ -44,6 +46,7 @@ public static class SubAgentProfilesPersistence
         WriteModel(root, model);
         WriteWaitAgentTimeouts(root, waitAgentTimeouts);
         WriteProfiles(root, profiles);
+        WriteProviderModels(root, providerModels);
 
         var json = root.ToJsonString(new JsonSerializerOptions { WriteIndented = true });
         File.WriteAllText(configPath, $"{json}{Environment.NewLine}", new UTF8Encoding(false));
@@ -112,6 +115,37 @@ public static class SubAgentProfilesPersistence
         }
 
         section[key ?? "Model"] = normalized;
+    }
+
+    /// <summary>
+    /// Writes the per-provider native SubAgent model memory map under <c>SubAgent.ProviderModels</c>.
+    /// A null map preserves the existing key (no change); an empty map removes it. This map is UI-side
+    /// memory only and is never consumed by the runtime (which reads <c>SubAgent.Model</c>).
+    /// </summary>
+    private static void WriteProviderModels(JsonObject root, IReadOnlyDictionary<string, string>? providerModels)
+    {
+        if (providerModels == null)
+            return;
+
+        var normalized = NormalizeProviderModels(providerModels);
+        var section = GetOrCreateConfigSection(root, "SubAgent", createIfMissing: normalized.Count > 0);
+        if (section == null)
+            return;
+
+        var key = FindCaseInsensitiveKey(section, "ProviderModels");
+        if (normalized.Count == 0)
+        {
+            if (key != null)
+                section.Remove(key);
+            RemoveConfigSectionIfEmpty(root, "SubAgent");
+            return;
+        }
+
+        var objectNode = new JsonObject();
+        foreach (var kv in normalized.OrderBy(kv => kv.Key, StringComparer.OrdinalIgnoreCase))
+            objectNode[kv.Key] = JsonValue.Create(kv.Value);
+
+        section[key ?? "ProviderModels"] = objectNode;
     }
 
     private static void WriteWaitAgentTimeouts(JsonObject root, SubAgentWaitAgentTimeoutOptions waitAgentTimeouts)
@@ -200,6 +234,57 @@ public static class SubAgentProfilesPersistence
         }
     }
 
+    /// <summary>
+    /// Reads the per-provider native SubAgent model memory map from raw config JSON
+    /// (<c>SubAgent.ProviderModels</c>). This is not a typed <see cref="AppConfig"/> field.
+    /// </summary>
+    private static IReadOnlyDictionary<string, string> ReadProviderModelsFromFile(string configPath)
+    {
+        var root = LoadWorkspaceConfigObject(configPath);
+        var subKey = FindCaseInsensitiveKey(root, "SubAgent");
+        if (subKey == null || root[subKey] is not JsonObject section)
+            return new Dictionary<string, string>(StringComparer.Ordinal);
+
+        var pmKey = FindCaseInsensitiveKey(section, "ProviderModels");
+        if (pmKey == null || section[pmKey] is not JsonObject obj)
+            return new Dictionary<string, string>(StringComparer.Ordinal);
+
+        var raw = new Dictionary<string, string>(StringComparer.Ordinal);
+        foreach (var kv in obj)
+        {
+            if (kv.Value is not JsonValue value || !value.TryGetValue<string>(out var rawModel))
+                continue;
+            raw[kv.Key] = rawModel;
+        }
+
+        return NormalizeProviderModels(raw);
+    }
+
+    /// <summary>
+    /// Normalizes a provider-model map: trims keys/values and drops empty provider ids and
+    /// empty or "default" model values.
+    /// </summary>
+    private static Dictionary<string, string> NormalizeProviderModels(IReadOnlyDictionary<string, string> providerModels)
+    {
+        var result = new Dictionary<string, string>(StringComparer.Ordinal);
+        foreach (var kv in providerModels)
+        {
+            var providerId = kv.Key?.Trim();
+            if (string.IsNullOrWhiteSpace(providerId))
+                continue;
+            var model = kv.Value?.Trim();
+            if (string.IsNullOrWhiteSpace(model) ||
+                string.Equals(model, "default", StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            result[providerId] = model;
+        }
+
+        return result;
+    }
+
     private static string? FindCaseInsensitiveKey(JsonObject obj, string expectedKey)
     {
         foreach (var kvp in obj)
@@ -250,5 +335,6 @@ public sealed record SubAgentWorkspaceState(
     IReadOnlyList<string> DisabledProfiles,
     bool EnableExternalCliSessionResume,
     string Model,
+    IReadOnlyDictionary<string, string> ProviderModels,
     SubAgentWaitAgentTimeoutOptions WaitAgentTimeouts,
     IReadOnlyList<SubAgentProfile> Profiles);

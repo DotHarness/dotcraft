@@ -81,6 +81,15 @@ public sealed class WorkspaceConfigUpdateParams
     public string? Model { get; set; }
 
     /// <summary>
+    /// Per-provider remembered model map (providerId → model). Empty/null removes the
+    /// workspace ProviderModels key. Only entries with a non-empty, non-"Default" model are kept.
+    /// This is a UI-side memory used to restore <see cref="Model"/> when a provider is re-selected;
+    /// the runtime keeps reading <see cref="Model"/>.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public Dictionary<string, string>? ProviderModels { get; set; }
+
+    /// <summary>
     /// Workspace-level toggle for personalized welcome suggestions. Null removes the workspace override.
     /// </summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.Never)]
@@ -169,6 +178,13 @@ public sealed class WorkspaceConfigUpdateResult
     /// </summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.Never)]
     public string? Model { get; set; }
+
+    /// <summary>
+    /// Persisted per-provider remembered model map after normalization.
+    /// Null means the workspace ProviderModels key was removed or is absent.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public Dictionary<string, string>? ProviderModels { get; set; }
 
     /// <summary>
     /// Persisted workspace personalized-welcome-suggestions toggle after normalization.
