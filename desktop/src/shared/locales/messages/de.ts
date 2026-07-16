@@ -3071,4 +3071,7 @@ export const MESSAGES_DE = {
   'mcpApp.unavailable': 'Die interaktive Ansicht ist derzeit nicht verfügbar.',
   'mcpApp.fullscreen': 'Im Vollbild öffnen',
   'mcpApp.exitFullscreen': 'Vollbild beenden',
+  'mcpApp.sandboxed': 'Sandbox',
+  'mcpApp.sandboxedTooltip': 'Diese Ansicht läuft in einer isolierten Sandbox.',
+  'mcpApp.sandboxedFrom': 'Sandbox-Ansicht · {{domain}}',
 } satisfies Partial<Record<MessageId, string>>

@@ -364,16 +364,16 @@ export function DetailPanel({
       </div>
 
       {/* ── Panel body ──
-          The 1px inset shadow on the left draws the vertical arm of the
-          T divider, starting exactly below the overlay header
-          line. Using inset shadow (not borderLeft) avoids a 1px layout shift. */}
+          The vertical arm of the T divider (and its hover/drag glow) is painted
+          by ThreePanel as a top-layer overlay at the conversation↔detail
+          boundary, so panel content (e.g. full-bleed diff row backgrounds) can
+          never obscure it. The body itself carries no border/shadow. */}
       <div
         style={{
           flex: 1,
           overflow: 'hidden',
           display: 'flex',
-          flexDirection: 'column',
-          boxShadow: 'inset 1px 0 0 0 var(--detail-divider-border, var(--glass-border))'
+          flexDirection: 'column'
         }}
       >
         {isLauncher && (

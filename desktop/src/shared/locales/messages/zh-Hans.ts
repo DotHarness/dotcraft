@@ -3155,4 +3155,7 @@ export const MESSAGES_ZH_HANS = {
   'mcpApp.unavailable': '当前无法使用交互视图。',
   'mcpApp.fullscreen': '全屏打开',
   'mcpApp.exitFullscreen': '退出全屏',
+  'mcpApp.sandboxed': '沙箱',
+  'mcpApp.sandboxedTooltip': '此视图运行在隔离的沙箱中。',
+  'mcpApp.sandboxedFrom': '沙箱视图 · {{domain}}',
 } satisfies Partial<Record<MessageId, string>>

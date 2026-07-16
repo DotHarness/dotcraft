@@ -9,6 +9,7 @@ import {
   type JSX,
   type MouseEvent as ReactMouseEvent
 } from 'react'
+import { createPortal } from 'react-dom'
 import { Check, ChevronDown, ChevronRight, Zap } from 'lucide-react'
 import { useT } from '../../contexts/LocaleContext'
 import { useMenuAim } from '../../hooks/useMenuAim'
@@ -113,7 +114,12 @@ export function ModelPicker({
     side: secondaryOpensLeft ? 'left' : 'right'
   })
   const menuId = useId()
-  const overlapBandHeight = useComposerOverlapBandHeight(popupRef, open)
+  // The popup is portaled to document.body so it floats above everything
+  // (including the detail panel) and is never clipped by the conversation
+  // column's `overflow: hidden`. It is anchored to the trigger with fixed
+  // offsets, recomputed on open/scroll/resize.
+  const [anchor, setAnchor] = useState<{ right: number; bottom: number } | null>(null)
+  const overlapBandHeight = useComposerOverlapBandHeight(popupRef, open, wrapRef)
 
   const activeModel = modelCatalog.find((model) => model.id === modelName)
   const capability = activeModel?.reasoning ?? null
@@ -148,6 +154,30 @@ export function ModelPicker({
       ? t('composer.modelListUnsupportedTitle')
       : undefined
 
+  useLayoutEffect(() => {
+    if (!open) {
+      setAnchor(null)
+      return
+    }
+    const compute = (): void => {
+      const rect = wrapRef.current?.getBoundingClientRect()
+      if (!rect) return
+      // Right-align the popup to the trigger and open upward (8px gap), anchored
+      // from the viewport edges so `position: fixed` places it correctly.
+      setAnchor({
+        right: Math.max(VIEWPORT_PADDING, window.innerWidth - rect.right),
+        bottom: Math.max(VIEWPORT_PADDING, window.innerHeight - rect.top + 8)
+      })
+    }
+    compute()
+    window.addEventListener('resize', compute)
+    window.addEventListener('scroll', compute, true)
+    return () => {
+      window.removeEventListener('resize', compute)
+      window.removeEventListener('scroll', compute, true)
+    }
+  }, [open])
+
   useEffect(() => {
     if (!open) {
       setSecondary(null)
@@ -172,10 +202,12 @@ export function ModelPicker({
     }
 
     const handlePointerDown = (event: MouseEvent): void => {
-      if (!wrapRef.current?.contains(event.target as Node)) {
-        cancelMenuAim()
-        setOpen(false)
-      }
+      const target = event.target as Node
+      // The popup is portaled to document.body, so it is not inside wrapRef;
+      // treat clicks within either the trigger or the popup as inside.
+      if (wrapRef.current?.contains(target) || popupRef.current?.contains(target)) return
+      cancelMenuAim()
+      setOpen(false)
     }
 
     const handleKeyDown = (event: KeyboardEvent): void => {
@@ -539,17 +571,20 @@ export function ModelPicker({
         </button>
       </ActionTooltip>
 
-      {interactive && open && (
+      {interactive && open && createPortal(
         <div
           ref={popupRef}
           id={menuId}
           role="menu"
           aria-label={tooltipLabel}
           style={{
-            position: 'absolute',
-            right: 0,
-            bottom: 'calc(100% + 8px)',
-            zIndex: 70,
+            position: 'fixed',
+            right: `${anchor?.right ?? 0}px`,
+            bottom: `${anchor?.bottom ?? 0}px`,
+            // Hidden until the trigger is measured to avoid a first-frame flash
+            // at the wrong position.
+            visibility: anchor ? 'visible' : 'hidden',
+            zIndex: 1100,
             width: `${MAIN_MENU_WIDTH}px`,
             padding: '6px',
             border: 'none',
@@ -745,7 +780,8 @@ export function ModelPicker({
                   ))}
             </div>
           )}
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   )

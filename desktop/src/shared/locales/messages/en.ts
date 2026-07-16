@@ -3253,7 +3253,10 @@ export const MESSAGES_EN = {
   'mcpApp.failed': 'This MCP App could not be opened.',
   'mcpApp.unavailable': 'Interactive view is currently unavailable.',
   'mcpApp.fullscreen': 'Open fullscreen',
-  'mcpApp.exitFullscreen': 'Exit fullscreen'
+  'mcpApp.exitFullscreen': 'Exit fullscreen',
+  'mcpApp.sandboxed': 'Sandboxed',
+  'mcpApp.sandboxedTooltip': 'This view runs in an isolated sandbox.',
+  'mcpApp.sandboxedFrom': 'Sandboxed view · {{domain}}'
 } as const
 
 export type MessageId = keyof typeof MESSAGES_EN

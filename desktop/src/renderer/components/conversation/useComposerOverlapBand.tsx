@@ -14,7 +14,13 @@ import { useLayoutEffect, useRef, useState, type RefObject } from 'react'
  */
 export function useComposerOverlapBandHeight(
   popupRef: RefObject<HTMLElement | null>,
-  open: boolean
+  open: boolean,
+  /**
+   * Optional trigger/anchor element used to locate the composer card when the
+   * popup is rendered through a portal (e.g. ModelPicker), so it is no longer a
+   * DOM descendant of the composer and `closest` from the popup cannot find it.
+   */
+  anchorRef?: RefObject<HTMLElement | null>
 ): number {
   const [height, setHeight] = useState(0)
 
@@ -26,10 +32,14 @@ export function useComposerOverlapBandHeight(
     }
     // Toolbar/mention popups live inside the card; the workspace-footer dropdowns sit
     // in the footer (a sibling below the card), so fall back to finding the card via
-    // the composer root.
+    // the composer root. Portaled popups resolve the card from the anchor instead,
+    // since the popup itself is mounted on document.body.
+    const anchor = anchorRef?.current ?? null
     const card =
       popup.closest('[data-composer-card]') ??
       popup.closest('[data-composer-root]')?.querySelector('[data-composer-card]') ??
+      anchor?.closest('[data-composer-card]') ??
+      anchor?.closest('[data-composer-root]')?.querySelector('[data-composer-card]') ??
       null
     if (!card) {
       setHeight(0)
@@ -48,7 +58,7 @@ export function useComposerOverlapBandHeight(
     observer.observe(card)
     observer.observe(popup)
     return () => observer.disconnect()
-  }, [open, popupRef])
+  }, [open, popupRef, anchorRef])
 
   return height
 }

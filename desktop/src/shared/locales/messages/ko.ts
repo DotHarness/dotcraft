@@ -3063,4 +3063,7 @@ export const MESSAGES_KO = {
   'mcpApp.unavailable': '현재 대화형 보기를 사용할 수 없습니다.',
   'mcpApp.fullscreen': '전체 화면으로 열기',
   'mcpApp.exitFullscreen': '전체 화면 종료',
+  'mcpApp.sandboxed': '샌드박스',
+  'mcpApp.sandboxedTooltip': '이 보기는 격리된 샌드박스에서 실행됩니다.',
+  'mcpApp.sandboxedFrom': '샌드박스 보기 · {{domain}}',
 } satisfies Partial<Record<MessageId, string>>

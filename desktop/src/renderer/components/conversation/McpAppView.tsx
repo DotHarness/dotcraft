@@ -1,9 +1,10 @@
 import { AppBridge } from '@modelcontextprotocol/ext-apps/app-bridge'
-import { Maximize2, Minimize2, Puzzle, TriangleAlert } from 'lucide-react'
+import { Maximize2, Minimize2, Puzzle, ShieldCheck, TriangleAlert } from 'lucide-react'
 import { memo, useCallback, useEffect, useRef, useState } from 'react'
 import { useLocale } from '../../contexts/LocaleContext'
 import type { ConversationItem } from '../../types/conversation'
 import { translate } from '../../../shared/locales'
+import { Skeleton } from '../ui/Skeleton'
 import { THEME_CHANGED_EVENT } from '../../../shared/theme'
 import {
   MCP_APP_SANDBOX_BRIDGE_VIOLATION_METHOD,
@@ -97,6 +98,21 @@ function hostContext(locale: string, fullscreen: boolean, containerDimensions: H
       hover: window.matchMedia?.('(hover: hover)').matches ?? false
     }
   }
+}
+
+/**
+ * Resolve a human-readable app attribution for the host header. The MCP Apps
+ * spec treats the resource `name`/tool title as display identity and the sandbox
+ * `domain` as a technical origin, not a label — so the domain never becomes the
+ * title (it is surfaced only as the sandbox affordance tooltip). We use the tool
+ * name (or plugin namespace) as the closest available identity, falling back to
+ * the generic label. Returns null when no real identity is available.
+ */
+function resolveAppName(item: ConversationItem): string | null {
+  const toolName = item.toolName?.trim()
+  if (toolName && toolName !== 'tool') return toolName
+  const namespace = item.pluginNamespace?.trim()
+  return namespace ? namespace : null
 }
 
 function asToolResult(result: McpAppOpenResult['toolResult']): Record<string, unknown> {
@@ -491,8 +507,8 @@ function McpAppViewImpl({ item, threadId, turnId }: McpAppViewProps): JSX.Elemen
     }
     if (!openResult) {
       return (
-        <div style={{ position: 'relative', width: '100%', height: fullscreen ? '100%' : height, minHeight: MIN_HEIGHT, display: 'grid', placeItems: 'center', color: 'var(--text-dimmed)', fontSize: 12, flex: fullscreen ? 1 : undefined }}>
-          {translate(locale, 'mcpApp.loading')}
+        <div style={{ position: 'relative', width: '100%', height: fullscreen ? '100%' : height, minHeight: MIN_HEIGHT, flex: fullscreen ? 1 : undefined }}>
+          <LoadingSkeleton label={translate(locale, 'mcpApp.loading')} />
         </div>
       )
     }
@@ -509,8 +525,8 @@ function McpAppViewImpl({ item, threadId, turnId }: McpAppViewProps): JSX.Elemen
         }}
       >
         {status !== 'ready' && (
-          <div style={{ position: 'absolute', inset: 0, display: 'grid', placeItems: 'center', color: 'var(--text-dimmed)', fontSize: 12 }}>
-            {translate(locale, 'mcpApp.loading')}
+          <div style={{ position: 'absolute', inset: 0 }}>
+            <LoadingSkeleton label={translate(locale, 'mcpApp.loading')} />
           </div>
         )}
         <iframe
@@ -527,6 +543,11 @@ function McpAppViewImpl({ item, threadId, turnId }: McpAppViewProps): JSX.Elemen
   })()
 
   const borderless = openResult?.resource.ui.prefersBorder === false
+  const appName = resolveAppName(item)
+  const sandboxDomain = openResult?.resource.ui.requestedDomain?.trim()
+  const sandboxTooltip = sandboxDomain
+    ? translate(locale, 'mcpApp.sandboxedFrom', { domain: sandboxDomain })
+    : translate(locale, 'mcpApp.sandboxedTooltip')
 
   return (
     <div
@@ -559,20 +580,69 @@ function McpAppViewImpl({ item, threadId, turnId }: McpAppViewProps): JSX.Elemen
           minWidth: 0
         }}
       >
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 8px', color: 'var(--text-secondary)', fontSize: 12, flexShrink: 0 }}>
-          <span>{translate(locale, 'mcpApp.title')}</span>
-          {status !== 'stale' && (
-            <button
-              type="button"
-              aria-label={fullscreen ? translate(locale, 'mcpApp.exitFullscreen') : translate(locale, 'mcpApp.fullscreen')}
-              onClick={() => setFullscreen((value) => !value)}
-              style={{ border: 0, background: 'transparent', color: 'inherit', cursor: 'pointer', padding: 4 }}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, padding: '6px 8px 6px 10px', color: 'var(--text-secondary)', fontSize: 12, flexShrink: 0 }}>
+          <span style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+            <span
+              aria-hidden
+              style={{ width: 18, height: 18, borderRadius: 5, background: 'var(--bg-tertiary)', display: 'grid', placeItems: 'center', color: 'var(--text-secondary)', flexShrink: 0 }}
             >
-              {fullscreen ? <Minimize2 size={15} /> : <Maximize2 size={15} />}
-            </button>
+              <Puzzle size={12} />
+            </span>
+            <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+              {appName
+                ? <span style={{ color: 'var(--text-primary)', fontWeight: 500 }}>{appName}</span>
+                : translate(locale, 'mcpApp.title')}
+            </span>
+          </span>
+          {status !== 'stale' && (
+            <span style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+              <span
+                title={sandboxTooltip}
+                style={{ display: 'inline-flex', alignItems: 'center', gap: 3, color: 'var(--text-dimmed)', fontSize: 11, padding: '1px 6px 1px 5px', borderRadius: 999, border: '1px solid var(--border-default)', cursor: 'default' }}
+              >
+                <ShieldCheck size={12} />
+                {translate(locale, 'mcpApp.sandboxed')}
+              </span>
+              <button
+                type="button"
+                aria-label={fullscreen ? translate(locale, 'mcpApp.exitFullscreen') : translate(locale, 'mcpApp.fullscreen')}
+                onClick={() => setFullscreen((value) => !value)}
+                style={{ border: 0, background: 'transparent', color: 'inherit', cursor: 'pointer', padding: 4, borderRadius: 6, display: 'grid', placeItems: 'center' }}
+              >
+                {fullscreen ? <Minimize2 size={15} /> : <Maximize2 size={15} />}
+              </button>
+            </span>
           )}
         </div>
         {body}
+      </div>
+    </div>
+  )
+}
+
+/**
+ * Body-filling skeleton for the MCP App host frame. The shape (a heading row, a
+ * large content block, and a control row) mirrors a typical app view so the
+ * loading placeholder matches the content that arrives, per DESIGN "Loading &
+ * Progress". Marked role=status/aria-busy so the removed text label is still
+ * announced.
+ */
+function LoadingSkeleton({ label }: { label: string }): JSX.Element {
+  return (
+    <div
+      role="status"
+      aria-busy="true"
+      aria-label={label}
+      style={{ position: 'absolute', inset: 0, padding: 14, display: 'flex', flexDirection: 'column', gap: 12 }}
+    >
+      <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+        <Skeleton width={120} height={14} />
+        <Skeleton width={60} height={14} style={{ marginLeft: 'auto' }} />
+      </div>
+      <Skeleton width="100%" height="auto" radius={6} style={{ flex: 1 }} />
+      <div style={{ display: 'flex', gap: 12 }}>
+        <Skeleton width={80} height={26} radius={6} />
+        <Skeleton width={80} height={26} radius={6} />
       </div>
     </div>
   )

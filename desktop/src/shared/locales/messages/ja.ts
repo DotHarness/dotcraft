@@ -3061,4 +3061,7 @@ export const MESSAGES_JA = {
   'mcpApp.unavailable': '現在、インタラクティブビューを利用できません。',
   'mcpApp.fullscreen': '全画面で開く',
   'mcpApp.exitFullscreen': '全画面を終了',
+  'mcpApp.sandboxed': 'サンドボックス',
+  'mcpApp.sandboxedTooltip': 'このビューは隔離されたサンドボックスで実行されます。',
+  'mcpApp.sandboxedFrom': 'サンドボックスビュー · {{domain}}',
 } satisfies Partial<Record<MessageId, string>>

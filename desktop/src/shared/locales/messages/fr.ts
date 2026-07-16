@@ -3069,4 +3069,7 @@ export const MESSAGES_FR = {
   'mcpApp.unavailable': 'La vue interactive est actuellement indisponible.',
   'mcpApp.fullscreen': 'Ouvrir en plein écran',
   'mcpApp.exitFullscreen': 'Quitter le plein écran',
+  'mcpApp.sandboxed': 'Isolé',
+  'mcpApp.sandboxedTooltip': 'Cette vue s’exécute dans un bac à sable isolé.',
+  'mcpApp.sandboxedFrom': 'Vue isolée · {{domain}}',
 } satisfies Partial<Record<MessageId, string>>

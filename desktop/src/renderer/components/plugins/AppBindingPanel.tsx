@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState, type CSSProperties } from 'react'
-import { Link2, RefreshCw, ShieldCheck, Unlink } from 'lucide-react'
+import { Link2, RefreshCw, ShieldAlert, ShieldCheck, Unlink } from 'lucide-react'
 import { useT } from '../../contexts/LocaleContext'
 import { useAppBindingStore, type AppHandoff, type AppInfo } from '../../stores/appBindingStore'
 import { useConnectionStore } from '../../stores/connectionStore'
@@ -200,6 +200,37 @@ export function AppBindingPanel({ plugin }: AppBindingPanelProps): JSX.Element |
                       : <div style={mutedText}>{t('appBinding.noApprovedCapabilities')}</div>}
                   </div>
                 )}
+                {activeThreadId && binding && binding.state === 'needsConfirmation' && binding.candidateCapabilityRevision != null && (
+                  <div style={capabilityBlock} role="group" aria-label={t('appBinding.capabilityExpansion')}>
+                    <div style={capabilityHead}>
+                      <ShieldAlert size={14} aria-hidden style={{ color: 'var(--warning)', flexShrink: 0 }} />
+                      <span style={capabilityTitle}>{t('appBinding.capabilityExpansion')}</span>
+                    </div>
+                    {(binding.pendingChanges ?? []).length > 0 && (
+                      <div style={capabilityChanges}>
+                        {(binding.pendingChanges ?? []).map((change) => (
+                          <div key={`${change.kind}:${change.tool}`} style={capabilityChange}>
+                            <span aria-hidden style={{ color: change.kind === 'removed' ? 'var(--error)' : 'var(--success)', flexShrink: 0 }}>
+                              {change.kind === 'removed' ? '−' : '+'}
+                            </span>
+                            <span>
+                              <span style={{ color: 'var(--text-primary)', fontWeight: 500 }}>{change.tool}</span>
+                              {change.detail ? ` · ${change.detail}` : ''}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    <div style={capabilityActions}>
+                      <button type="button" style={smallPrimaryButton} onClick={() => { void confirmCapabilities(activeThreadId, binding.bindingId, binding.candidateCapabilityRevision!, 'accept') }}>
+                        {t('appBinding.acceptCapabilities')}
+                      </button>
+                      <button type="button" style={smallGhostButton} onClick={() => { void confirmCapabilities(activeThreadId, binding.bindingId, binding.candidateCapabilityRevision!, 'reject') }}>
+                        {t('appBinding.rejectCapabilities')}
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
               <div style={actions}>
                 {bindingOffline ? (
@@ -277,20 +308,6 @@ export function AppBindingPanel({ plugin }: AppBindingPanelProps): JSX.Element |
                 )}
                 {activeThreadId && binding && (
                   <>
-                    {binding.state === 'needsConfirmation' && binding.candidateCapabilityRevision != null && (
-                      <div style={{ width: '100%', padding: 8, borderRadius: 6, background: 'var(--color-bg-secondary)' }}>
-                        <div>{t('appBinding.capabilityExpansion')}</div>
-                        {(binding.pendingChanges ?? []).map((change) => (
-                          <div key={`${change.kind}:${change.tool}`} style={mutedText}>{change.tool}: {change.detail}</div>
-                        ))}
-                        <button type="button" style={primaryButton} onClick={() => { void confirmCapabilities(activeThreadId, binding.bindingId, binding.candidateCapabilityRevision!, 'accept') }}>
-                          {t('appBinding.acceptCapabilities')}
-                        </button>
-                        <button type="button" style={secondaryButton} onClick={() => { void confirmCapabilities(activeThreadId, binding.bindingId, binding.candidateCapabilityRevision!, 'reject') }}>
-                          {t('appBinding.rejectCapabilities')}
-                        </button>
-                      </div>
-                    )}
                     <button
                       type="button"
                       style={secondaryButton}
@@ -395,8 +412,27 @@ const handoffBox: CSSProperties = { marginTop: 8, display: 'flex', flexDirection
 const handoffHint: CSSProperties = { marginTop: 8, fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--text-tertiary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }
 const actions: CSSProperties = { display: 'flex', alignItems: 'flex-start', justifyContent: 'flex-end', flexWrap: 'wrap', gap: 8, maxWidth: 280 }
 const baseButton: CSSProperties = { border: 'none', borderRadius: 8, padding: '7px 10px', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 600 }
-const primaryButton: CSSProperties = { ...baseButton, background: '#050505', color: '#fff' }
+const primaryButton: CSSProperties = { ...baseButton, background: 'var(--text-primary)', color: 'var(--bg-primary)', border: '1px solid var(--text-primary)' }
 const secondaryButton: CSSProperties = { ...baseButton, background: 'var(--bg-tertiary)', color: 'var(--text-primary)' }
+const capabilityBlock: CSSProperties = {
+  width: '100%',
+  marginTop: 8,
+  padding: '10px 12px',
+  borderRadius: 8,
+  border: '1px solid color-mix(in srgb, var(--warning) 40%, var(--border-default))',
+  background: 'var(--bg-tertiary)',
+  display: 'flex',
+  flexDirection: 'column',
+  gap: 8
+}
+const capabilityHead: CSSProperties = { display: 'flex', alignItems: 'center', gap: 7 }
+const capabilityTitle: CSSProperties = { fontSize: 12, fontWeight: 600, color: 'var(--text-primary)' }
+const capabilityChanges: CSSProperties = { display: 'flex', flexDirection: 'column', gap: 3 }
+const capabilityChange: CSSProperties = { display: 'flex', gap: 6, fontSize: 11.5, color: 'var(--text-secondary)', fontFamily: 'var(--font-mono)' }
+const capabilityActions: CSSProperties = { display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 2 }
+const smallButton: CSSProperties = { ...baseButton, borderRadius: 6, padding: '5px 10px', fontSize: 11.5 }
+const smallPrimaryButton: CSSProperties = { ...smallButton, background: 'var(--text-primary)', color: 'var(--bg-primary)', border: '1px solid var(--text-primary)' }
+const smallGhostButton: CSSProperties = { ...smallButton, background: 'transparent', color: 'var(--text-secondary)', border: '1px solid var(--border-default)', fontWeight: 500 }
 const iconButton: CSSProperties = { width: 30, height: 30, border: 'none', borderRadius: 8, background: 'transparent', color: 'var(--text-secondary)', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }
 const errorText: CSSProperties = { margin: 0, color: 'var(--error)', fontSize: 13 }
 

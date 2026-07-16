@@ -3068,4 +3068,7 @@ export const MESSAGES_ES = {
   'mcpApp.unavailable': 'La vista interactiva no está disponible en este momento.',
   'mcpApp.fullscreen': 'Abrir en pantalla completa',
   'mcpApp.exitFullscreen': 'Salir de pantalla completa',
+  'mcpApp.sandboxed': 'Aislado',
+  'mcpApp.sandboxedTooltip': 'Esta vista se ejecuta en un entorno aislado.',
+  'mcpApp.sandboxedFrom': 'Vista aislada · {{domain}}',
 } satisfies Partial<Record<MessageId, string>>
