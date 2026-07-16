@@ -421,13 +421,56 @@ public sealed class AppBindingProtocolExtension : IAppServerProtocolExtension
             Mode = mode.Mode,
             Uri = string.IsNullOrWhiteSpace(mode.UriTemplate)
                 ? null
-                : mode.UriTemplate
-                    .Replace("{appId}", Uri.EscapeDataString(appId), StringComparison.Ordinal)
-                    .Replace("{requestId}", Uri.EscapeDataString(requestId), StringComparison.Ordinal)
-                    .Replace("{request}", Uri.EscapeDataString(requestId), StringComparison.Ordinal)
-                    .Replace("{requestToken}", Uri.EscapeDataString(token), StringComparison.Ordinal)
-                    .Replace("{operation}", Uri.EscapeDataString(operation), StringComparison.Ordinal)
+                : FillHandoffTemplate(
+                    mode.UriTemplate,
+                    appId,
+                    requestId,
+                    token,
+                    operation,
+                    ReadAppServerEndpoint(context.WorkspaceCraftPath!))
         };
+    }
+
+    private static string FillHandoffTemplate(
+        string template,
+        string appId,
+        string requestId,
+        string token,
+        string operation,
+        string endpoint) =>
+        template
+            .Replace("{appId}", Uri.EscapeDataString(appId), StringComparison.Ordinal)
+            .Replace("{requestId}", Uri.EscapeDataString(requestId), StringComparison.Ordinal)
+            .Replace("{request}", Uri.EscapeDataString(requestId), StringComparison.Ordinal)
+            .Replace("{requestToken}", Uri.EscapeDataString(token), StringComparison.Ordinal)
+            .Replace("{operation}", Uri.EscapeDataString(operation), StringComparison.Ordinal)
+            .Replace("{endpoint}", Uri.EscapeDataString(endpoint), StringComparison.Ordinal);
+
+    private static string ReadAppServerEndpoint(string workspaceCraftPath)
+    {
+        try
+        {
+            var lockPath = Path.Combine(workspaceCraftPath, "appserver.lock");
+            if (!File.Exists(lockPath))
+                return string.Empty;
+
+            using var document = JsonDocument.Parse(File.ReadAllText(lockPath));
+            if (!document.RootElement.TryGetProperty("endpoints", out var endpoints)
+                || !endpoints.TryGetProperty("appServerWebSocket", out var endpoint))
+            {
+                return string.Empty;
+            }
+
+            return endpoint.GetString() ?? string.Empty;
+        }
+        catch (JsonException)
+        {
+            return string.Empty;
+        }
+        catch (IOException)
+        {
+            return string.Empty;
+        }
     }
 
     private static void EnsureTrustedClient(AppServerConnection connection)
