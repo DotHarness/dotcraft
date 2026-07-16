@@ -3,6 +3,7 @@ using System.Text.Json.Nodes;
 using DotCraft.Mcp;
 using DotCraft.Plugins;
 using DotCraft.Tools;
+using Microsoft.Extensions.AI;
 
 namespace DotCraft.Protocol;
 
@@ -46,7 +47,7 @@ public sealed partial class SessionService
         }
 
         if (emitStarted)
-            runtime.Broker.CreateTurnChannel(turn.Id).EmitItemStarted(item);
+            (turnRuntime.EventChannel ?? runtime.Broker.CreateTurnChannel(turn.Id)).EmitItemStarted(item);
         await PersistThreadIfMaterializedAsync(runtime.Thread, cancellationToken).ConfigureAwait(false);
     }
 
@@ -65,7 +66,7 @@ public sealed partial class SessionService
 
         var completedAt = DateTimeOffset.UtcNow;
         var durationMs = Math.Max(0L, (long)duration.TotalMilliseconds);
-        var channel = runtime.Broker.CreateTurnChannel(turn.Id);
+        var channel = turnRuntime.EventChannel ?? runtime.Broker.CreateTurnChannel(turn.Id);
         lock (turnRuntime.ToolProjectionLock)
         {
             switch (registration.ProjectionShape)
@@ -122,7 +123,7 @@ public sealed partial class SessionService
                         Presentation = ToSessionPresentation(registration.Definition.Presentation),
                         DurationMs = durationMs,
                         Result = result.Content ?? result.Error?.Message ?? string.Empty,
-                        ContentItems = ToModelContentItems(result.Content),
+                        ContentItems = ToModelContentItems(result.ContentItems, result.Content),
                         StructuredContent = ToJsonNode(result.StructuredContent),
                         Meta = ToJsonNode(result.Meta),
                         ErrorCode = result.Error?.Code,
@@ -333,6 +334,41 @@ public sealed partial class SessionService
         string.IsNullOrEmpty(content)
             ? null
             : [new PluginFunctionContentItem { Type = "text", Text = content }];
+
+    private static IReadOnlyList<PluginFunctionContentItem>? ToModelContentItems(
+        IReadOnlyList<AIContent>? contentItems,
+        string? fallbackContent)
+    {
+        if (contentItems is not { Count: > 0 })
+            return ToModelContentItems(fallbackContent);
+
+        var mapped = new List<PluginFunctionContentItem>(contentItems.Count);
+        foreach (var item in contentItems)
+        {
+            switch (item)
+            {
+                case TextContent text when !string.IsNullOrEmpty(text.Text):
+                    mapped.Add(new PluginFunctionContentItem
+                    {
+                        Type = "text",
+                        Text = text.Text
+                    });
+                    break;
+                case DataContent data when data.MediaType?.StartsWith(
+                    "image/",
+                    StringComparison.OrdinalIgnoreCase) == true:
+                    mapped.Add(new PluginFunctionContentItem
+                    {
+                        Type = "image",
+                        MediaType = data.MediaType,
+                        DataBase64 = Convert.ToBase64String(data.Data.ToArray())
+                    });
+                    break;
+            }
+        }
+
+        return mapped.Count == 0 ? ToModelContentItems(fallbackContent) : mapped;
+    }
 
     private static JsonNode? ToJsonNode(JsonElement? element) =>
         element is null ? null : JsonNode.Parse(element.Value.GetRawText());

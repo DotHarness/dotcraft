@@ -2,6 +2,7 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using DotCraft.Protocol;
 using DotCraft.Tools;
+using Microsoft.Extensions.AI;
 
 namespace DotCraft.Plugins;
 
@@ -140,38 +141,61 @@ public sealed class PluginToolRuntime(
         ArgumentNullException.ThrowIfNull(arguments);
 
         PluginFunctionInvocationResult result;
-        try
+        if (_registration.Descriptor.RequiresChatContext
+            && string.IsNullOrWhiteSpace(_invocationMetadata.ChannelContext)
+            && string.IsNullOrWhiteSpace(_invocationMetadata.GroupId))
         {
-            result = await _registration.Invoker.InvokeAsync(
-                new PluginToolInvocationContext
-                {
-                    Descriptor = _registration.Descriptor,
-                    Invocation = context,
-                    Arguments = arguments.DeepClone().AsObject(),
-                    OriginChannel = _invocationMetadata.OriginChannel,
-                    ChannelContext = _invocationMetadata.ChannelContext,
-                    SenderId = _invocationMetadata.SenderId,
-                    GroupId = _invocationMetadata.GroupId
-                },
-                cancellationToken).ConfigureAwait(false);
+            result = PluginFunctionInvocationResult.Failed(
+                "MissingChatContext",
+                $"Function '{_registration.Descriptor.Name}' requires channel chat context, but this turn does not have one.");
         }
-        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        else
         {
-            throw;
-        }
-        catch (Exception ex)
-        {
-            return ToolExecutionResult.Failed(
-                new ToolError(ToolErrorCodes.ExecutionFailed, ex.Message));
+            try
+            {
+                result = await _registration.Invoker.InvokeAsync(
+                    new PluginToolInvocationContext
+                    {
+                        Descriptor = _registration.Descriptor,
+                        Invocation = context,
+                        Arguments = arguments.DeepClone().AsObject(),
+                        OriginChannel = _invocationMetadata.OriginChannel,
+                        ChannelContext = _invocationMetadata.ChannelContext,
+                        SenderId = _invocationMetadata.SenderId,
+                        GroupId = _invocationMetadata.GroupId
+                    },
+                    cancellationToken).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch (OperationCanceledException)
+            {
+                result = PluginFunctionInvocationResult.Failed(
+                    "PluginFunctionTimeout",
+                    $"Function '{_registration.Descriptor.Name}' timed out while waiting for a plugin response.");
+            }
+            catch (Exception ex)
+            {
+                result = PluginFunctionInvocationResult.Failed("PluginFunctionFailed", ex.Message);
+            }
         }
 
         var content = NormalizeModelContent(result);
+        var contentItems = ToModelContentItems(result.ContentItems);
         JsonElement? structuredContent = result.StructuredResult is null
             ? null
             : ToJsonElement(result.StructuredResult);
         var rawResult = ToJsonElement(JsonSerializer.SerializeToNode(result, SessionWireJsonOptions.Default)!);
         if (result.Success)
-            return ToolExecutionResult.Succeeded(content, structuredContent, rawSourceResult: rawResult);
+        {
+            return ToolExecutionResult.Succeeded(
+                content,
+                structuredContent,
+                rawSourceResult: rawResult,
+                contentItems: contentItems);
+        }
 
         return new ToolExecutionResult(
             false,
@@ -179,10 +203,17 @@ public sealed class PluginToolRuntime(
             structuredContent,
             rawSourceResult: rawResult,
             error: new ToolError(
-                ToolErrorCodes.ExecutionFailed,
+                ResolveErrorCode(result.ErrorCode),
                 result.ErrorMessage ?? "Plugin operation failed.",
-                CreateErrorParameters(result.ErrorCode)));
+                CreateErrorParameters(result.ErrorCode)),
+            contentItems: contentItems);
     }
+
+    private static string ResolveErrorCode(string? sourceErrorCode) => sourceErrorCode switch
+    {
+        "PluginFunctionTimeout" or "ExternalChannelToolTimeout" => ToolErrorCodes.Timeout,
+        _ => ToolErrorCodes.ExecutionFailed
+    };
 
     private static string NormalizeModelContent(PluginFunctionInvocationResult result)
     {
@@ -215,6 +246,42 @@ public sealed class PluginToolRuntime(
         {
             ["sourceErrorCode"] = JsonSerializer.SerializeToElement(sourceErrorCode)
         };
+    }
+
+    private static IReadOnlyList<AIContent>? ToModelContentItems(
+        IReadOnlyList<PluginFunctionContentItem>? contentItems)
+    {
+        if (contentItems is not { Count: > 0 })
+            return null;
+
+        var mapped = new List<AIContent>(contentItems.Count);
+        foreach (var item in contentItems)
+        {
+            if (string.Equals(item.Type, "text", StringComparison.OrdinalIgnoreCase)
+                && !string.IsNullOrWhiteSpace(item.Text))
+            {
+                mapped.Add(new TextContent(item.Text));
+                continue;
+            }
+
+            if (!string.Equals(item.Type, "image", StringComparison.OrdinalIgnoreCase)
+                || string.IsNullOrWhiteSpace(item.DataBase64)
+                || string.IsNullOrWhiteSpace(item.MediaType))
+            {
+                continue;
+            }
+
+            try
+            {
+                mapped.Add(new DataContent(Convert.FromBase64String(item.DataBase64), item.MediaType));
+            }
+            catch (FormatException)
+            {
+                mapped.Add(new TextContent("[Invalid plugin image payload]"));
+            }
+        }
+
+        return mapped.Count == 0 ? null : mapped;
     }
 
     private static JsonElement ToJsonElement(JsonNode node) =>

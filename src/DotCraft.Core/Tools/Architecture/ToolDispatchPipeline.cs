@@ -1,4 +1,5 @@
 using System.Text.Json.Nodes;
+using Microsoft.Extensions.AI;
 
 namespace DotCraft.Tools;
 
@@ -158,7 +159,10 @@ internal sealed class NoopToolInvocationRecorder : IToolInvocationRecorder
         CancellationToken cancellationToken = default) => ValueTask.CompletedTask;
 }
 
-internal sealed class DefaultToolResultNormalizer(int maxModelContentCharacters = 100_000) : IToolResultNormalizer
+internal sealed class DefaultToolResultNormalizer(
+    int maxModelContentCharacters = 100_000,
+    string? defaultWorkspacePath = null,
+    int spillPreviewLines = 20) : IToolResultNormalizer
 {
     public ValueTask<ToolExecutionResult> NormalizeAsync(
         ToolInvocationContext context,
@@ -173,24 +177,44 @@ internal sealed class DefaultToolResultNormalizer(int maxModelContentCharacters 
                 $"Tool '{registration.Definition.Name}' returned inconsistent success and error state.")));
         }
 
-        if (result.Content is { Length: > 0 } content && content.Length > maxModelContentCharacters)
+        var limit = ResolveResultLimit(registration, maxModelContentCharacters);
+        if (result.Content is { Length: > 0 } content && limit > 0 && content.Length > limit)
         {
+            var workspacePath = string.IsNullOrWhiteSpace(context.WorkspacePath)
+                ? defaultWorkspacePath
+                : context.WorkspacePath;
+            var normalizedContent = string.IsNullOrWhiteSpace(workspacePath)
+                ? BuildBoundedPreview(content, limit)
+                : (string)ToolResultProcessor.Process(
+                    registration.Definition.Name.Name,
+                    content,
+                    limit,
+                    workspacePath,
+                    context.ThreadId,
+                    spillPreviewLines)!;
             result = new ToolExecutionResult(
                 result.Success,
-                BuildBoundedPreview(content, maxModelContentCharacters),
+                normalizedContent,
                 result.StructuredContent,
                 result.Meta,
                 result.RawSourceResult,
                 result.Error,
-                result.ProviderResult);
+                result.ProviderResult,
+                LimitRichText(result.ContentItems, normalizedContent));
         }
 
-        if (result.Success && context.Audience.HasFlag(ToolInvocationAudience.Model) &&
-            string.IsNullOrWhiteSpace(result.Content))
+        if (result.Success
+            && context.Audience.HasFlag(ToolInvocationAudience.Model)
+            && string.IsNullOrWhiteSpace(result.Content))
         {
-            return ValueTask.FromResult(ToolExecutionResult.Failed(new ToolError(
-                ToolErrorCodes.ResultInvalid,
-                $"Tool '{registration.Definition.Name}' returned no model-visible content.")));
+            result = new ToolExecutionResult(
+                true,
+                ToolResultProcessor.EmptyResultMessage(registration.Definition.Name.Name),
+                result.StructuredContent,
+                result.Meta,
+                result.RawSourceResult,
+                providerResult: result.ProviderResult,
+                contentItems: result.ContentItems);
         }
 
         return ValueTask.FromResult(new ToolExecutionResult(
@@ -200,7 +224,41 @@ internal sealed class DefaultToolResultNormalizer(int maxModelContentCharacters 
             result.Meta,
             result.RawSourceResult,
             result.Error,
-            result.ProviderResult));
+            result.ProviderResult,
+            result.ContentItems));
+    }
+
+    private static int ResolveResultLimit(ToolRegistration registration, int globalLimit) =>
+        registration.Definition.Annotations.TryGetValue("dotcraft/maxResultChars", out var value)
+        && value.TryGetInt32(out var perToolLimit)
+            ? Math.Max(0, perToolLimit)
+            : Math.Max(0, globalLimit);
+
+    private static IReadOnlyList<AIContent>? LimitRichText(
+        IReadOnlyList<AIContent>? contentItems,
+        string normalizedContent)
+    {
+        if (contentItems is not { Count: > 0 })
+            return null;
+
+        var result = new List<AIContent>(contentItems.Count);
+        var insertedText = false;
+        foreach (var item in contentItems)
+        {
+            if (item is TextContent)
+            {
+                if (!insertedText)
+                {
+                    result.Add(new TextContent(normalizedContent));
+                    insertedText = true;
+                }
+                continue;
+            }
+            result.Add(item);
+        }
+        if (!insertedText)
+            result.Insert(0, new TextContent(normalizedContent));
+        return result;
     }
 
     private static string BuildBoundedPreview(string content, int maximumCharacters)

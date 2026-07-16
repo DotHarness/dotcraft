@@ -223,6 +223,9 @@ internal sealed class TurnRuntime : IDisposable
     /// <summary>The immutable tool registry frozen for this Turn.</summary>
     public EffectiveToolSnapshot? ToolSnapshot { get; set; }
 
+    /// <summary>The canonical event channel returned by <c>SubmitInputAsync</c> for this Turn.</summary>
+    public SessionEventChannel? EventChannel { get; set; }
+
     /// <summary>Dispatcher-owned lifecycle items keyed by the original provider call id.</summary>
     public ConcurrentDictionary<string, SessionItem> ToolInvocationItems { get; } = new(StringComparer.Ordinal);
 

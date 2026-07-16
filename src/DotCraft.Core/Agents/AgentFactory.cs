@@ -341,23 +341,41 @@ public sealed class AgentFactory : IAsyncDisposable
     }
 
     /// <summary>Builds an immutable effective snapshot from source registrations.</summary>
-    public ValueTask<EffectiveToolSnapshot> BuildToolSnapshotAsync(
+    public async ValueTask<EffectiveToolSnapshot> BuildToolSnapshotAsync(
         IEnumerable<IToolSource> sources,
         ToolPlanningContext planningContext,
-        CancellationToken cancellationToken = default) =>
-        new EffectiveToolSnapshotBuilder().BuildAsync(sources, planningContext, cancellationToken);
+        CancellationToken cancellationToken = default)
+    {
+        var snapshot = await new EffectiveToolSnapshotBuilder()
+            .BuildAsync(sources, planningContext, cancellationToken)
+            .ConfigureAwait(false);
+        return ApplyGlobalToolExposure(snapshot);
+    }
 
     /// <summary>Builds a snapshot including capabilities hosted by the selected provider.</summary>
-    public ValueTask<EffectiveToolSnapshot> BuildToolSnapshotAsync(
+    public async ValueTask<EffectiveToolSnapshot> BuildToolSnapshotAsync(
         IEnumerable<IToolSource> sources,
         ToolPlanningContext planningContext,
         AgentRuntimeContext runtimeContext,
-        CancellationToken cancellationToken = default) =>
-        new EffectiveToolSnapshotBuilder().BuildAsync(
-            sources,
-            planningContext,
-            ProviderHostedCapabilityPlanner.Build(runtimeContext),
-            cancellationToken);
+        CancellationToken cancellationToken = default)
+    {
+        var snapshot = await new EffectiveToolSnapshotBuilder().BuildAsync(
+                sources,
+                planningContext,
+                ProviderHostedCapabilityPlanner.Build(runtimeContext),
+                cancellationToken)
+            .ConfigureAwait(false);
+        return ApplyGlobalToolExposure(snapshot);
+    }
+
+    private EffectiveToolSnapshot ApplyGlobalToolExposure(EffectiveToolSnapshot snapshot)
+    {
+        if (_globalEnabledToolNames.Count == 0)
+            return snapshot;
+
+        return snapshot.WithModelExposure(definition =>
+            _globalEnabledToolNames.Contains(snapshot.ProviderFlatNames[definition.Name]));
+    }
 
     /// <summary>Dispatches a host or app call through an already frozen snapshot.</summary>
     public ValueTask<ToolExecutionResult> DispatchToolAsync(
@@ -741,15 +759,22 @@ public sealed class AgentFactory : IAsyncDisposable
                 invocationThreadId,
                 invocationTurnId,
                 invocation.CallContent.CallId,
-                ToolInvocationAudience.Model),
+                ToolInvocationAudience.Model,
+                WorkspacePath: planningContext.WorkspacePath),
             cancellationToken).ConfigureAwait(false);
         if (result.Success)
-            return result.ProviderResult ?? result.Content;
+            return result.ProviderResult ?? (object?)result.ContentItems ?? result.Content;
 
-        var message = result.Error is null
-            ? "Tool execution failed."
-            : $"{result.Error.Code}: {result.Error.Message}";
-        throw new InvalidOperationException(message);
+        var errorCode = result.Error?.Code ?? ToolErrorCodes.ExecutionFailed;
+        var message = !string.IsNullOrWhiteSpace(result.Content)
+            ? result.Content
+            : result.Error is null
+                ? $"{errorCode}: Tool execution failed."
+                : $"{errorCode}: {result.Error.Message}";
+        return StreamingFunctionInvokingChatClient.CreateToolFailureResult(
+            invocation.CallContent.CallId,
+            message,
+            errorCode);
     }
 
     private static ToolName? ResolveInvocationToolName(
@@ -770,7 +795,7 @@ public sealed class AgentFactory : IAsyncDisposable
         string providerFlatName,
         ToolDefinition definition,
         string? namespaceDescription)
-        : AIFunction, ICanonicalToolIdentityMetadata
+        : AIFunction, ICanonicalToolIdentityMetadata, IGeneratedToolMetadata
     {
         public override string Name => providerFlatName;
         public ToolName CanonicalToolName => definition.Name;
@@ -781,6 +806,16 @@ public sealed class AgentFactory : IAsyncDisposable
         public override JsonElement? ReturnJsonSchema => definition.OutputSchema;
         public override MethodInfo? UnderlyingMethod => null;
         public override JsonSerializerOptions JsonSerializerOptions => SessionWireJsonOptions.Default;
+        public bool StreamArgumentsEnabled =>
+            !definition.Annotations.TryGetValue("dotcraft/streamArguments", out var value)
+            || value.ValueKind != JsonValueKind.False;
+        public int? MaxResultChars =>
+            definition.Annotations.TryGetValue("dotcraft/maxResultChars", out var value)
+            && value.TryGetInt32(out var limit)
+                ? limit
+                : null;
+        public string? Icon => null;
+        public Func<IDictionary<string, object?>?, string>? DisplayFormatter => null;
 
         protected override ValueTask<object?> InvokeCoreAsync(
             AIFunctionArguments arguments,

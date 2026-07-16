@@ -26,7 +26,7 @@ public sealed class GoalToolSource(AppConfig config) : AIFunctionToolSource
         if (!config.Goals.Enabled)
             yield break;
 
-        if (context.ProviderCapabilities.Contains("subagent"))
+        if (context.ProviderCapabilities.Contains("subagent-child"))
             yield break;
 
         yield return GeneratedToolFunctions.GoalToolMethods_GetGoal(_methods);

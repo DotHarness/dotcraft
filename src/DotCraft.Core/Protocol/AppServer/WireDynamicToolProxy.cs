@@ -572,6 +572,7 @@ public sealed class WireDynamicToolProxy : IToolSource, IThreadScopedToolSource
                     .Where(text => !string.IsNullOrWhiteSpace(text)));
             if (string.IsNullOrWhiteSpace(content) && !result.Success)
                 content = result.ErrorMessage ?? "Dynamic tool call failed.";
+            var contentItems = ToModelContentItems(result.ContentItems);
 
             JsonElement? structuredContent = result.StructuredContent is null
                 ? null
@@ -584,7 +585,8 @@ public sealed class WireDynamicToolProxy : IToolSource, IThreadScopedToolSource
                 return ToolExecutionResult.Succeeded(
                     content,
                     structuredContent,
-                    rawSourceResult: rawResult);
+                    rawSourceResult: rawResult,
+                    contentItems: contentItems);
             }
 
             var stableCode = result.ErrorCode switch
@@ -608,7 +610,46 @@ public sealed class WireDynamicToolProxy : IToolSource, IThreadScopedToolSource
                         : new Dictionary<string, JsonElement>(StringComparer.Ordinal)
                         {
                             ["sourceErrorCode"] = JsonSerializer.SerializeToElement(result.ErrorCode)
-                        }));
+                        }),
+                contentItems: contentItems);
+        }
+
+        private static IReadOnlyList<AIContent>? ToModelContentItems(
+            IReadOnlyList<RuntimeDynamicToolContentItem>? items)
+        {
+            if (items is not { Count: > 0 })
+                return null;
+
+            var content = new List<AIContent>(items.Count);
+            foreach (var item in items)
+            {
+                if (string.Equals(item.Type, "text", StringComparison.Ordinal)
+                    && !string.IsNullOrWhiteSpace(item.Text))
+                {
+                    content.Add(new TextContent(item.Text));
+                }
+                else if (string.Equals(item.Type, "image", StringComparison.Ordinal)
+                         && !string.IsNullOrWhiteSpace(item.MediaType))
+                {
+                    if (!string.IsNullOrWhiteSpace(item.Url))
+                    {
+                        content.Add(new UriContent(item.Url, item.MediaType));
+                    }
+                    else if (!string.IsNullOrWhiteSpace(item.DataBase64))
+                    {
+                        try
+                        {
+                            content.Add(new DataContent(Convert.FromBase64String(item.DataBase64), item.MediaType));
+                        }
+                        catch (FormatException)
+                        {
+                            content.Add(new TextContent("[Invalid dynamic tool image payload]"));
+                        }
+                    }
+                }
+            }
+
+            return content.Count == 0 ? null : content;
         }
     }
 

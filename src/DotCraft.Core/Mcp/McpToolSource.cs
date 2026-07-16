@@ -220,6 +220,7 @@ internal sealed class McpToolRuntime(
                 : JsonSerializer.SerializeToElement(result.Meta, SessionWireJsonOptions.Default);
             (raw, structured, meta) = BoundPersistedResult(raw, structured, meta, result.IsError == true);
             var normalized = NormalizeModelContent(result);
+            var contentItems = NormalizeModelContentItems(result);
             if (result.IsError == true)
             {
                 return new ToolExecutionResult(
@@ -229,10 +230,16 @@ internal sealed class McpToolRuntime(
                     meta,
                     raw,
                     new ToolError(ToolErrorCodes.ExecutionFailed,
-                        string.IsNullOrWhiteSpace(normalized) ? "The MCP tool returned an error." : normalized));
+                        string.IsNullOrWhiteSpace(normalized) ? "The MCP tool returned an error." : normalized),
+                    contentItems: contentItems);
             }
 
-            return ToolExecutionResult.Succeeded(normalized, structured, meta, raw);
+            return ToolExecutionResult.Succeeded(
+                normalized,
+                structured,
+                meta,
+                raw,
+                contentItems: contentItems);
         }
         catch (InvalidOperationException ex) when (
             ex.Message.Contains("authentication", StringComparison.OrdinalIgnoreCase) ||
@@ -308,5 +315,34 @@ internal sealed class McpToolRuntime(
         }
 
         return parts.Count == 0 ? null : string.Join("\n", parts);
+    }
+
+    internal static IReadOnlyList<AIContent>? NormalizeModelContentItems(CallToolResult result)
+    {
+        var items = new List<AIContent>();
+        foreach (var content in result.Content)
+        {
+            switch (content)
+            {
+            case TextContentBlock text when !string.IsNullOrWhiteSpace(text.Text):
+                items.Add(new TextContent(text.Text));
+                break;
+            case ImageContentBlock image when !string.IsNullOrWhiteSpace(image.MimeType):
+                try
+                {
+                    items.Add(new DataContent(image.DecodedData, image.MimeType));
+                }
+                catch (FormatException)
+                {
+                    items.Add(new TextContent("[Invalid MCP image payload]"));
+                }
+                break;
+            default:
+                items.Add(new TextContent($"[{content.Type} content]"));
+                break;
+            }
+        }
+
+        return items.Count == 0 ? null : items;
     }
 }

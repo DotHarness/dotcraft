@@ -1,7 +1,10 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using DotCraft.Plugins;
+using DotCraft.Protocol;
 using DotCraft.Security;
 using DotCraft.Tools;
+using Microsoft.Extensions.AI;
 
 namespace DotCraft.Core.Tests.Tools.Architecture;
 
@@ -117,7 +120,7 @@ public sealed class ToolDispatcherTests
     }
 
     [Fact]
-    public async Task DispatchAsync_RejectsEmptySuccessfulModelContentButAllowsHostOnlyStructuredResult()
+    public async Task DispatchAsync_NormalizesEmptySuccessfulModelContentAndPreservesHostStructuredResult()
     {
         var structured = Json("""{"count":2}""");
         var registration = Registration(
@@ -138,8 +141,9 @@ public sealed class ToolDispatcherTests
             [],
             Request(ToolInvocationAudience.Host));
 
-        Assert.False(modelResult.Success);
-        Assert.Equal(ToolErrorCodes.ResultInvalid, modelResult.Error?.Code);
+        Assert.True(modelResult.Success);
+        Assert.Equal("(structured completed with no output)", modelResult.Content);
+        Assert.Equal(2, modelResult.StructuredContent?.GetProperty("count").GetInt32());
         Assert.True(hostResult.Success);
         Assert.Equal(2, hostResult.StructuredContent?.GetProperty("count").GetInt32());
     }
@@ -244,6 +248,62 @@ public sealed class ToolDispatcherTests
         Assert.Contains("Tool result truncated", result.Content);
         Assert.StartsWith("head-", result.Content);
         Assert.EndsWith("-tail", result.Content);
+    }
+
+    [Fact]
+    public async Task DispatchAsync_PerToolLimitSpillsRichTextAndPreservesImage()
+    {
+        var workspace = Path.Combine(Path.GetTempPath(), "dotcraft-result-limit-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(workspace);
+        try
+        {
+            var fullText = string.Join('\n', Enumerable.Range(0, 40).Select(index => $"line-{index:D2}-payload"));
+            var imageBytes = "image"u8.ToArray();
+            var registration = Registration(
+                new ToolName(null, "Exec"),
+                new DelegateRuntime((_, _) => ToolExecutionResult.Succeeded(
+                    fullText,
+                    contentItems:
+                    [
+                        new TextContent(fullText),
+                        new DataContent(imageBytes, "image/png")
+                    ])),
+                annotations: new Dictionary<string, JsonElement>
+                {
+                    ["dotcraft/maxResultChars"] = JsonSerializer.SerializeToElement(80)
+                });
+            var snapshot = new EffectiveToolSnapshotBuilder().Build([registration], 1);
+            var dispatcher = new ToolDispatcher(
+                resultNormalizer: new DefaultToolResultNormalizer(
+                    maxModelContentCharacters: 1_000,
+                    defaultWorkspacePath: workspace,
+                    spillPreviewLines: 2));
+
+            var result = await dispatcher.DispatchAsync(
+                snapshot,
+                registration.Definition.Name,
+                [],
+                new ToolInvocationRequest(
+                    "thread_result_limit",
+                    "turn",
+                    "call",
+                    ToolInvocationAudience.Model,
+                    WorkspacePath: workspace));
+
+            Assert.True(result.Success);
+            Assert.Contains(ToolResultProcessor.SpillPreviewMarker, result.Content);
+            var spillFile = Assert.Single(Directory.GetFiles(
+                Path.Combine(workspace, ".craft", "tool-results", "thread_result_limit"),
+                "*.txt"));
+            Assert.Equal(fullText, File.ReadAllText(spillFile).TrimStart('\uFEFF'));
+            var contentItems = Assert.IsAssignableFrom<IReadOnlyList<AIContent>>(result.ContentItems);
+            Assert.Equal(result.Content, Assert.IsType<TextContent>(contentItems[0]).Text);
+            Assert.Equal(imageBytes, Assert.IsType<DataContent>(contentItems[1]).Data.ToArray());
+        }
+        finally
+        {
+            Directory.Delete(workspace, recursive: true);
+        }
     }
 
     [Fact]
@@ -406,6 +466,99 @@ public sealed class ToolDispatcherTests
         Assert.Equal(1, approval.ResourceApprovalCalls);
         Assert.Equal(("externalChannel", "send", "room-42"), approval.LastResourceApproval);
     }
+
+    [Fact]
+    public async Task CommonApproval_PluginFileGuardRejectsBlacklistedPathBeforeInvocation()
+    {
+        var workspace = Path.Combine(Path.GetTempPath(), "dotcraft-plugin-workspace");
+        var blockedPath = Path.Combine(Path.GetTempPath(), "dotcraft-plugin-blocked", "secret.txt");
+        var invoked = false;
+        var approval = new RecordingApprovalService(approved: true);
+        var evaluator = new CommonToolApprovalEvaluator();
+        evaluator.Bind(approval);
+        var registration = PluginFileRegistration(() => invoked = true, requiredTarget: true);
+        var snapshot = new EffectiveToolSnapshotBuilder().Build([registration], 1);
+        using var scope = SetPluginScope(workspace, approval, new PathBlacklist([Path.GetDirectoryName(blockedPath)!]));
+
+        var result = await new ToolDispatcher(approvalEvaluator: evaluator).DispatchAsync(
+            snapshot,
+            registration.Definition.Name,
+            new JsonObject { ["path"] = blockedPath },
+            Request());
+
+        Assert.False(result.Success);
+        Assert.Equal(ToolErrorCodes.AccessDenied, result.Error?.Code);
+        Assert.Equal(0, approval.FileApprovalCalls);
+        Assert.False(invoked);
+    }
+
+    [Fact]
+    public async Task CommonApproval_PluginOptionalTargetMissingSkipsApproval()
+    {
+        var workspace = Path.Combine(Path.GetTempPath(), "dotcraft-plugin-workspace");
+        var invoked = false;
+        var approval = new RecordingApprovalService(approved: false);
+        var evaluator = new CommonToolApprovalEvaluator();
+        evaluator.Bind(approval);
+        var registration = PluginFileRegistration(() => invoked = true, requiredTarget: false);
+        var snapshot = new EffectiveToolSnapshotBuilder().Build([registration], 1);
+        using var scope = SetPluginScope(workspace, approval, new PathBlacklist([]));
+
+        var result = await new ToolDispatcher(approvalEvaluator: evaluator).DispatchAsync(
+            snapshot,
+            registration.Definition.Name,
+            [],
+            Request());
+
+        Assert.True(result.Success);
+        Assert.Equal(0, approval.FileApprovalCalls);
+        Assert.True(invoked);
+    }
+
+    private static ToolRegistration PluginFileRegistration(Action invoke, bool requiredTarget)
+    {
+        var inputSchema = requiredTarget
+            ? Json("""{"type":"object","required":["path"],"properties":{"path":{"type":"string"}}}""")
+            : Json("""{"type":"object","properties":{"path":{"type":"string"}}}""");
+        return Registration(
+            new ToolName("plugin", "write_file"),
+            new DelegateRuntime((_, _) =>
+            {
+                invoke();
+                return ToolExecutionResult.Succeeded("ok");
+            }),
+            inputSchema: inputSchema,
+            annotations: new Dictionary<string, JsonElement>
+            {
+                ["dotcraft/pluginApproval"] = JsonSerializer.SerializeToElement(new
+                {
+                    kind = "file",
+                    targetArgument = "path",
+                    operation = "write"
+                })
+            },
+            policyHints: new ToolPolicyHints(RequiresApproval: true),
+            kind: ToolSourceKind.PluginNative);
+    }
+
+    private static IDisposable SetPluginScope(
+        string workspace,
+        IApprovalService approval,
+        PathBlacklist blacklist) =>
+        PluginFunctionExecutionScope.Set(new PluginFunctionExecutionContext
+        {
+            ThreadId = "thread",
+            TurnId = "turn",
+            OriginChannel = "test",
+            WorkspacePath = workspace,
+            RequireApprovalOutsideWorkspace = true,
+            ApprovalService = approval,
+            PathBlacklist = blacklist,
+            Turn = new SessionTurn { Id = "turn", ThreadId = "thread" },
+            NextItemSequence = () => 1,
+            EmitItemStarted = _ => { },
+            EmitItemCompleted = _ => { }
+        });
 
     private static ToolInvocationRequest Request(
         ToolInvocationAudience audience = ToolInvocationAudience.Model) =>

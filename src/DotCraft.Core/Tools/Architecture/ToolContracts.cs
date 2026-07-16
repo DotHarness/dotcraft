@@ -2,6 +2,7 @@ using System.Collections.Frozen;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using Microsoft.Extensions.AI;
 
 namespace DotCraft.Tools;
 
@@ -416,7 +417,8 @@ public sealed record ToolInvocationRequest(
     string? TurnId,
     string CallId,
     ToolInvocationAudience Audience,
-    ToolInvocationOrigin? Origin = null);
+    ToolInvocationOrigin? Origin = null,
+    string? WorkspacePath = null);
 
 /// <summary>Resolved immutable invocation metadata supplied to a tool runtime.</summary>
 public sealed record ToolInvocationContext(
@@ -429,7 +431,8 @@ public sealed record ToolInvocationContext(
     RuntimeBindingId RuntimeBindingId,
     long SnapshotRevision,
     DateTimeOffset StartedAt,
-    ToolInvocationOrigin? Origin = null);
+    ToolInvocationOrigin? Origin = null,
+    string? WorkspacePath = null);
 
 /// <summary>A stable source-neutral tool execution error.</summary>
 public sealed class ToolError
@@ -470,6 +473,8 @@ public static class ToolErrorCodes
     public const string InputInvalid = "tool_input_invalid";
     /// <summary>The required approval was declined or cancelled.</summary>
     public const string ApprovalRejected = "tool_approval_rejected";
+    /// <summary>A server-authoritative workspace or blacklist guard denied the operation.</summary>
+    public const string AccessDenied = "tool_access_denied";
     /// <summary>The invocation exceeded its configured deadline.</summary>
     public const string Timeout = "tool_timeout";
     /// <summary>The runtime failed while executing the tool.</summary>
@@ -499,7 +504,8 @@ public sealed class ToolExecutionResult
         JsonElement? meta = null,
         JsonElement? rawSourceResult = null,
         ToolError? error = null,
-        object? providerResult = null)
+        object? providerResult = null,
+        IReadOnlyList<AIContent>? contentItems = null)
     {
         Success = success;
         Content = content;
@@ -508,6 +514,7 @@ public sealed class ToolExecutionResult
         RawSourceResult = rawSourceResult?.Clone();
         Error = error;
         ProviderResult = providerResult;
+        ContentItems = contentItems is { Count: > 0 } ? contentItems.ToArray() : null;
     }
 
     /// <summary>Gets whether execution succeeded.</summary>
@@ -524,6 +531,8 @@ public sealed class ToolExecutionResult
     public ToolError? Error { get; }
     /// <summary>Gets an optional transient provider-native result. It is never persisted or exposed to clients.</summary>
     public object? ProviderResult { get; }
+    /// <summary>Gets optional model-safe rich content preserved for model history and client projection.</summary>
+    public IReadOnlyList<AIContent>? ContentItems { get; }
 
     /// <summary>Creates a successful result.</summary>
     public static ToolExecutionResult Succeeded(
@@ -531,12 +540,20 @@ public sealed class ToolExecutionResult
         JsonElement? structuredContent = null,
         JsonElement? meta = null,
         JsonElement? rawSourceResult = null,
-        object? providerResult = null) =>
-        new(true, content, structuredContent, meta, rawSourceResult, providerResult: providerResult);
+        object? providerResult = null,
+        IReadOnlyList<AIContent>? contentItems = null) =>
+        new(true, content, structuredContent, meta, rawSourceResult, providerResult: providerResult, contentItems: contentItems);
 
     /// <summary>Creates a failed result.</summary>
-    public static ToolExecutionResult Failed(ToolError error, string? content = null) =>
-        new(false, content, error: error ?? throw new ArgumentNullException(nameof(error)));
+    public static ToolExecutionResult Failed(
+        ToolError error,
+        string? content = null,
+        IReadOnlyList<AIContent>? contentItems = null) =>
+        new(
+            false,
+            content,
+            error: error ?? throw new ArgumentNullException(nameof(error)),
+            contentItems: contentItems);
 }
 
 /// <summary>The outcome of checking a binding's current live lease.</summary>

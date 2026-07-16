@@ -1,6 +1,8 @@
 using System.Text;
 using System.Text.Json;
 using DotCraft.Mcp;
+using Microsoft.Extensions.AI;
+using ModelContextProtocol.Protocol;
 
 namespace DotCraft.Tests.Mcp;
 
@@ -48,5 +50,27 @@ public sealed class McpToolRuntimeResultBudgetTests
         Assert.Contains(
             "MCP result truncated before persistence",
             bounded.Raw.GetProperty("content")[0].GetProperty("text").GetString());
+    }
+
+    [Fact]
+    public void NormalizeModelContentItems_PreservesMcpTextAndImage()
+    {
+        var imageBytes = "mcp-image"u8.ToArray();
+        var result = new CallToolResult
+        {
+            Content =
+            [
+                new TextContentBlock { Text = "captured" },
+                ImageContentBlock.FromBytes(imageBytes, "image/png")
+            ]
+        };
+
+        var contentItems = Assert.IsAssignableFrom<IReadOnlyList<AIContent>>(
+            McpToolRuntime.NormalizeModelContentItems(result));
+
+        Assert.Equal("captured", Assert.IsType<TextContent>(contentItems[0]).Text);
+        var image = Assert.IsType<DataContent>(contentItems[1]);
+        Assert.Equal("image/png", image.MediaType);
+        Assert.Equal(imageBytes, image.Data.ToArray());
     }
 }

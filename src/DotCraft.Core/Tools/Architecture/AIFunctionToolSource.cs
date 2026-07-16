@@ -64,7 +64,7 @@ public abstract class AIFunctionToolSource : IToolSource
             string.IsNullOrWhiteSpace(function.Description) ? function.Name : function.Description,
             function.JsonSchema,
             function.ReturnJsonSchema,
-            annotations: GetAnnotations(function, context),
+            annotations: BuildAnnotations(function, context),
             policyHints: GetPolicyHints(function, context),
             presentation: GetPresentation(function, context),
             provenance: new ToolProvenance(ToolSourceKind.CoreNative, SourceId, "native"));
@@ -76,6 +76,27 @@ public abstract class AIFunctionToolSource : IToolSource
             $"native:{SourceId}",
             revision);
         return new ToolRegistration(definition, binding, ToolProjectionShape.StandardPair);
+    }
+
+    private IReadOnlyDictionary<string, JsonElement>? BuildAnnotations(
+        AIFunction function,
+        ToolPlanningContext context)
+    {
+        var annotations = GetAnnotations(function, context) is { } sourceAnnotations
+            ? new Dictionary<string, JsonElement>(sourceAnnotations, StringComparer.Ordinal)
+            : new Dictionary<string, JsonElement>(StringComparer.Ordinal);
+        if (GeneratedToolMetadataResolver.TryGet(function, out var metadata))
+        {
+            annotations["dotcraft/streamArguments"] =
+                JsonSerializer.SerializeToElement(metadata.StreamArgumentsEnabled);
+            if (metadata.MaxResultChars.HasValue)
+            {
+                annotations["dotcraft/maxResultChars"] =
+                    JsonSerializer.SerializeToElement(metadata.MaxResultChars.Value);
+            }
+        }
+
+        return annotations.Count == 0 ? null : annotations;
     }
 }
 
@@ -143,7 +164,14 @@ public sealed class AIFunctionToolRuntime(AIFunction function) : IToolRuntime
         {
             var result = await _function.InvokeAsync(new AIFunctionArguments(values), cancellationToken)
                 .ConfigureAwait(false);
-            return ToolExecutionResult.Succeeded(ToModelText(result));
+            if (result is IEnumerable<AIContent> richContent)
+            {
+                var contentItems = richContent.ToArray();
+                return ToolExecutionResult.Succeeded(
+                    EnsureModelText(ToModelText(contentItems)),
+                    contentItems: contentItems);
+            }
+            return ToolExecutionResult.Succeeded(EnsureModelText(ToModelText(result)));
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -170,4 +198,9 @@ public sealed class AIFunctionToolRuntime(AIFunction function) : IToolRuntime
             content.OfType<TextContent>().Select(item => item.Text)),
         _ => JsonSerializer.Serialize(value, _function.JsonSerializerOptions)
     };
+
+    private string EnsureModelText(string? text) =>
+        string.IsNullOrWhiteSpace(text)
+            ? $"({_function.Name} completed with no output)"
+            : text;
 }

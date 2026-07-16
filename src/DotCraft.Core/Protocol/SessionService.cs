@@ -1334,6 +1334,7 @@ public sealed partial class SessionService(
         if (turnRuntime != null)
         {
             turnRuntime.Cancellation = cts;
+            turnRuntime.EventChannel = eventChannel;
             if (_runtimeRegistry.TryGetRuntime(threadId, out var threadRuntime))
                 turnRuntime.ToolSnapshot = threadRuntime.LatestToolSnapshot;
         }
@@ -3233,13 +3234,22 @@ public sealed partial class SessionService(
         if (string.IsNullOrWhiteSpace(callId))
             throw new ArgumentException("A provider call identifier is required.", nameof(callId));
 
+        var thread = await GetOrLoadThreadAsync(threadId, cancellationToken).ConfigureAwait(false);
         var snapshot = await GetEffectiveToolSnapshotAsync(threadId, cancellationToken).ConfigureAwait(false);
 
         return await agentFactory.DispatchToolAsync(
             snapshot,
             toolName,
             arguments,
-            new ToolInvocationRequest(threadId, null, callId, audience, origin),
+            new ToolInvocationRequest(
+                threadId,
+                null,
+                callId,
+                audience,
+                origin,
+                string.IsNullOrWhiteSpace(thread.Configuration?.WorkspaceOverride)
+                    ? thread.WorkspacePath
+                    : thread.Configuration.WorkspaceOverride),
             cancellationToken).ConfigureAwait(false);
     }
 

@@ -443,6 +443,25 @@ public sealed class SessionServiceGoalTests : IDisposable
     }
 
     [Fact]
+    public async Task GoalToolSource_HidesGoalToolsFromSubAgentChildren()
+    {
+        var config = AppConfigTestFactory.CreateOpenAI();
+        var source = new GoalToolSource(config);
+        var context = new ToolPlanningContext(
+            "thread_child",
+            "turn_child",
+            _tempDir,
+            "agent",
+            profile: null,
+            providerCapabilities: ["subagent-child"],
+            revision: 1);
+
+        var registrations = await source.GetRegistrationsAsync(context);
+
+        Assert.Empty(registrations);
+    }
+
+    [Fact]
     public async Task SetThreadGoalAsync_OnEmptyThread_DoesNotStartAutoContinuation()
     {
         var chatClient = new CompleteGoalChatClient();

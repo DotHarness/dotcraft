@@ -95,7 +95,8 @@ public sealed class ToolDispatcher(
             registration.Binding.Id,
             snapshot.Revision,
             DateTimeOffset.UtcNow,
-            request.Origin);
+            request.Origin,
+            request.WorkspacePath);
 
         await _recorder.RecordStartedAsync(
                 invocationContext,

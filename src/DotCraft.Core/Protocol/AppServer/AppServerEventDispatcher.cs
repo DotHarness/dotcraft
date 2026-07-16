@@ -169,23 +169,35 @@ public sealed class AppServerEventDispatcher
         wire is null || _enrichThreadWire is null ? wire : _enrichThreadWire(wire);
 
     private async ValueTask<SessionWireItem?> ToLiveItemWireAsync(SessionEvent evt, CancellationToken cancellationToken)
+        => await ProjectCompletedItemAsync(
+            evt,
+            _connection.SupportsMcpApps,
+            _toolSnapshots,
+            _mcpRuntime,
+            cancellationToken).ConfigureAwait(false);
+
+    internal static async ValueTask<SessionWireItem?> ProjectCompletedItemAsync(
+        SessionEvent evt,
+        bool supportsMcpApps,
+        IThreadToolSnapshotService? toolSnapshots,
+        IThreadMcpRuntimeService? mcpRuntime,
+        CancellationToken cancellationToken)
     {
         var item = evt.ItemPayload;
         var wire = item?.ToWire();
         if (evt.EventType != SessionEventType.ItemCompleted
-            || evt.IsReplay
             || evt.TurnId is not { Length: > 0 } turnId
             || item is null
             || wire is null
-            || !_connection.SupportsMcpApps)
+            || !supportsMcpApps)
             return wire;
 
         var eligibility = await McpAppEligibilityResolver.ResolveAsync(
             evt.ThreadId,
             turnId,
             item,
-            _toolSnapshots,
-            _mcpRuntime,
+            toolSnapshots,
+            mcpRuntime,
             cancellationToken).ConfigureAwait(false);
         if (eligibility is null)
             return wire;

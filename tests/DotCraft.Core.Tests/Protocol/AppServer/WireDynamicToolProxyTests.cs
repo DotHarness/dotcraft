@@ -3,6 +3,7 @@ using System.Text.Json.Nodes;
 using DotCraft.Protocol;
 using DotCraft.Protocol.AppServer;
 using DotCraft.Tools;
+using Microsoft.Extensions.AI;
 
 namespace DotCraft.Core.Tests.Protocol.AppServer;
 
@@ -36,6 +37,42 @@ public sealed class WireDynamicToolProxyTests
         Assert.Equal("turn_001", request.TurnId);
         Assert.Equal("SubmitReviewDraft", request.Tool);
         Assert.Equal("Looks good.", request.Arguments["body"]?.GetValue<string>());
+    }
+
+    [Fact]
+    public async Task Dispatcher_PreservesDynamicImageForTheModel()
+    {
+        var imageBytes = "dynamic-image"u8.ToArray();
+        var proxy = new WireDynamicToolProxy();
+        var transport = new RecordingTransport(new RuntimeDynamicToolCallResult
+        {
+            Success = true,
+            ContentItems =
+            [
+                new RuntimeDynamicToolContentItem { Type = "text", Text = "captured" },
+                new RuntimeDynamicToolContentItem
+                {
+                    Type = "image",
+                    MediaType = "image/png",
+                    DataBase64 = Convert.ToBase64String(imageBytes)
+                }
+            ]
+        });
+        proxy.BindThread("thread_test", transport, new AppServerConnection(), [CreateReviewToolSpec()]);
+        var snapshot = await BuildSnapshotAsync(proxy);
+
+        var result = await new ToolDispatcher().DispatchAsync(
+            snapshot,
+            new ToolName(null, "SubmitReviewDraft"),
+            new JsonObject { ["body"] = "capture" },
+            new ToolInvocationRequest("thread_test", "turn_001", "call_image", ToolInvocationAudience.Model));
+
+        Assert.True(result.Success);
+        var contentItems = Assert.IsAssignableFrom<IReadOnlyList<AIContent>>(result.ContentItems);
+        Assert.Equal("captured", Assert.IsType<TextContent>(contentItems[0]).Text);
+        var image = Assert.IsType<DataContent>(contentItems[1]);
+        Assert.Equal("image/png", image.MediaType);
+        Assert.Equal(imageBytes, image.Data.ToArray());
     }
 
     [Fact]

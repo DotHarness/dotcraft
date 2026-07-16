@@ -72,6 +72,67 @@ public sealed class McpAppViewLifecycleTests : IDisposable
     }
 
     [Fact]
+    public async Task CompletedItemProjection_ReplayMatchesLiveMcpAppAvailability()
+    {
+        await using var manager = await CreateConnectedManagerAsync();
+        var generation = Assert.NotNull(await manager.GetGenerationAsync("review"));
+        var registration = Registration(
+            "review",
+            "show",
+            McpAppVisibility.Model | McpAppVisibility.App,
+            resourceUri: "ui://review/show",
+            generation);
+        var snapshot = new EffectiveToolSnapshotBuilder().Build([registration], revision: 4);
+        var item = new SessionItem
+        {
+            Id = "item_001",
+            TurnId = "turn_001",
+            Type = ItemType.McpToolCall,
+            Status = ItemStatus.Completed,
+            CreatedAt = DateTimeOffset.UtcNow,
+            CompletedAt = DateTimeOffset.UtcNow,
+            Payload = new McpToolCallPayload
+            {
+                Namespace = registration.Definition.Name.Namespace,
+                ToolName = registration.Definition.Name.Name,
+                ProviderFlatName = snapshot.ProviderFlatNames[registration.Definition.Name],
+                ToolDefinitionId = registration.Definition.Id.ToString(),
+                RuntimeBindingId = registration.Binding.Id.Value,
+                BindingRevision = registration.Binding.Revision,
+                SnapshotRevision = snapshot.Revision,
+                McpGeneration = generation,
+                Server = "review",
+                SourceToolId = "show",
+                CallId = "call-1",
+                Status = "completed",
+                Success = true,
+                McpAppResourceUri = "ui://review/show"
+            }
+        };
+        SessionEvent Event(bool replay) => new()
+        {
+            IsReplay = replay,
+            EventId = replay ? "evt_replay" : "evt_live",
+            EventType = SessionEventType.ItemCompleted,
+            ThreadId = "thread-1",
+            TurnId = item.TurnId,
+            ItemId = item.Id,
+            Timestamp = DateTimeOffset.UtcNow,
+            Payload = item
+        };
+        var snapshots = new SnapshotSource(snapshot);
+        var runtime = new McpRuntimeService(manager);
+
+        var live = await AppServerEventDispatcher.ProjectCompletedItemAsync(
+            Event(replay: false), true, snapshots, runtime, CancellationToken.None);
+        var replay = await AppServerEventDispatcher.ProjectCompletedItemAsync(
+            Event(replay: true), true, snapshots, runtime, CancellationToken.None);
+
+        Assert.True(live?.McpApp?.Available);
+        Assert.True(replay?.McpApp?.Available);
+    }
+
+    [Fact]
     public async Task ThreadProjection_DerivesHistoricalAvailabilityFromCurrentRuntime()
     {
         Directory.CreateDirectory(_tempDir);

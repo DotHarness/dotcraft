@@ -52,7 +52,7 @@ public sealed class SessionServiceRuntimeSignalTests : IDisposable
         var thread = await service.CreateThreadAsync(MakeIdentity());
         await service.RefreshThreadAgentAsync(thread.Id);
 
-        await DrainAsync(service.SubmitInputAsync(thread.Id, [new TextContent("read")]));
+        var events = await CollectAsync(service.SubmitInputAsync(thread.Id, [new TextContent("read")]));
 
         var updated = await service.GetThreadAsync(thread.Id);
         var turn = Assert.Single(updated.Turns);
@@ -77,12 +77,141 @@ public sealed class SessionServiceRuntimeSignalTests : IDisposable
             callPresentation.Options?.ToJsonString(),
             resultPresentation.Options?.ToJsonString());
         Assert.True(result.Success);
+        var startedCall = Assert.Single(events, item =>
+            item.EventType == SessionEventType.ItemStarted
+            && item.ItemPayload?.Payload is ToolCallPayload);
+        var completedCall = Assert.Single(events, item =>
+            item.EventType == SessionEventType.ItemCompleted
+            && item.ItemPayload?.Payload is ToolCallPayload);
+        var completedResult = Assert.Single(events, item =>
+            item.EventType == SessionEventType.ItemCompleted
+            && item.ItemPayload?.Payload is ToolResultPayload);
+        Assert.Equal(callItem.Id, startedCall.ItemId);
+        Assert.Equal(callItem.Id, completedCall.ItemId);
+        Assert.Equal(result.CallId, Assert.IsType<ToolResultPayload>(completedResult.ItemPayload!.Payload).CallId);
+        Assert.True(events.IndexOf(completedResult) < events.FindIndex(item =>
+            item.EventType == SessionEventType.TurnCompleted));
 
         var reloaded = await new ThreadStore(_tempDir).LoadThreadAsync(thread.Id);
         Assert.NotNull(reloaded);
         var persistedTurn = Assert.Single(reloaded.Turns);
         Assert.Single(persistedTurn.Items, item => item.Type == ItemType.ToolCall);
         Assert.Single(persistedTurn.Items, item => item.Type == ItemType.ToolResult);
+    }
+
+    [Fact]
+    public async Task CreateDefaultTools_EnabledToolsFiltersSnapshotExposure()
+    {
+        var chatClient = new SingleToolCallChatClient("ProjectionRead");
+        await using var agentFactory = CreateAgentFactory(
+            chatClient,
+            [
+                new ProjectionTestToolSource(),
+                new NormalizedFailureToolSource("test_error", "hidden")
+            ],
+            configureConfig: config => config.EnabledTools = ["ProjectionRead"]);
+
+        var tools = agentFactory.CreateDefaultTools();
+
+        Assert.Equal(["ProjectionRead"], tools.Select(tool => tool.Name).ToArray());
+    }
+
+    [Fact]
+    public async Task SubmitInputAsync_NormalizedToolFailureReturnsToModelAndCompletesTurn()
+    {
+        const string errorCode = "browser_screenshot_timeout";
+        const string modelContent = "Screenshot timed out after 30000ms.";
+        var chatClient = new CapturingToolFailureChatClient("FailingProjection");
+        var recorder = new ToolInvocationRecorderRouter();
+        var dispatcher = new ToolDispatcher(recorder: recorder);
+        await using var agentFactory = CreateAgentFactory(
+            chatClient,
+            [new NormalizedFailureToolSource(errorCode, modelContent)],
+            toolDispatcher: dispatcher);
+        var service = CreateService(agentFactory, chatClient, useStreamingFunctionInvoker: true);
+        recorder.Bind(service);
+        var thread = await service.CreateThreadAsync(MakeIdentity());
+        await service.RefreshThreadAgentAsync(thread.Id);
+
+        await DrainAsync(service.SubmitInputAsync(thread.Id, [new TextContent("capture screenshot")]));
+
+        var modelResult = Assert.IsType<FunctionResultContent>(chatClient.ToolResult);
+        Assert.Equal(modelContent, modelResult.Result);
+        Assert.Null(modelResult.Exception);
+        Assert.Equal(errorCode, StreamingFunctionInvokingChatClient.GetToolResultErrorCode(modelResult));
+
+        var updated = await service.GetThreadAsync(thread.Id);
+        var turn = Assert.Single(updated.Turns);
+        Assert.True(turn.Status == TurnStatus.Completed, turn.Error);
+        var persistedResult = Assert.IsType<ToolResultPayload>(
+            Assert.Single(turn.Items, item => item.Type == ItemType.ToolResult).Payload);
+        Assert.False(persistedResult.Success);
+        Assert.Equal(errorCode, persistedResult.ErrorCode);
+        Assert.Equal(modelContent, persistedResult.Result);
+        Assert.Equal("The screenshot operation timed out.", persistedResult.ErrorMessage);
+    }
+
+    [Fact]
+    public async Task SubmitInputAsync_NodeReplImageReachesModelAndToolResult()
+    {
+        var imageBytes = Convert.FromBase64String(
+            "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=");
+        var proxy = new ImageNodeReplProxy(imageBytes);
+        var chatClient = new CapturingImageToolChatClient("node_repl__NodeReplJs");
+        var recorder = new ToolInvocationRecorderRouter();
+        var dispatcher = new ToolDispatcher(recorder: recorder);
+        var source = new NodeReplPluginToolSource(
+            new AppConfig(),
+            proxy,
+            _tempDir,
+            (_, _) => true);
+        await using var agentFactory = CreateAgentFactory(
+            chatClient,
+            [source],
+            toolDispatcher: dispatcher);
+        var service = CreateService(agentFactory, chatClient, useStreamingFunctionInvoker: true);
+        recorder.Bind(service);
+        var thread = await service.CreateThreadAsync(MakeIdentity());
+        await service.RefreshThreadAgentAsync(thread.Id);
+
+        await DrainAsync(service.SubmitInputAsync(
+            thread.Id,
+            [new TextContent("capture screenshot")]));
+
+        var modelImage = Assert.IsType<DataContent>(chatClient.ImageContent);
+        Assert.Equal("image/png", modelImage.MediaType);
+        Assert.Equal(imageBytes, modelImage.Data.ToArray());
+
+        var updated = await service.GetThreadAsync(thread.Id);
+        var turn = Assert.Single(updated.Turns);
+        Assert.True(turn.Status == TurnStatus.Completed, turn.Error);
+        var persistedResult = Assert.IsType<ToolResultPayload>(
+            Assert.Single(turn.Items, item => item.Type == ItemType.ToolResult).Payload);
+        var contentItems = Assert.IsAssignableFrom<IReadOnlyList<DotCraft.Plugins.PluginFunctionContentItem>>(
+            persistedResult.ContentItems);
+        Assert.Equal("text", contentItems[0].Type);
+        Assert.Equal("image", contentItems[1].Type);
+        Assert.Equal("image/png", contentItems[1].MediaType);
+        Assert.Equal(Convert.ToBase64String(imageBytes), contentItems[1].DataBase64);
+
+        SessionEvent? completedResultEvent = null;
+        using var replayTimeout = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        await foreach (var item in service.SubscribeThreadAsync(
+                           thread.Id,
+                           replayRecent: true,
+                           replayTimeout.Token))
+        {
+            if (item.EventType == SessionEventType.ItemCompleted
+                && item.ItemPayload?.Payload is ToolResultPayload)
+            {
+                completedResultEvent = item;
+                break;
+            }
+        }
+        Assert.NotNull(completedResultEvent);
+        var completedResult = Assert.IsType<ToolResultPayload>(completedResultEvent.ItemPayload!.Payload);
+        Assert.Equal(Convert.ToBase64String(imageBytes), completedResult.ContentItems?[1].DataBase64);
+        Assert.Equal(thread.Id, proxy.LastMetadata?.ThreadId);
     }
 
     [Fact]
@@ -2125,6 +2254,155 @@ public sealed class SessionServiceRuntimeSignalTests : IDisposable
             AIFunction function,
             ToolPlanningContext context) =>
             new(new PresentationId("core.read-file"));
+    }
+
+    private sealed class NormalizedFailureToolSource(string errorCode, string content) : IToolSource
+    {
+        public string SourceId => "normalized-failure";
+
+        public ValueTask<IReadOnlyList<ToolRegistration>> GetRegistrationsAsync(
+            ToolPlanningContext context,
+            CancellationToken cancellationToken = default)
+        {
+            var sourceToolId = new SourceToolId("FailingProjection");
+            var definitionId = new ToolDefinitionId(ToolSourceKind.CoreNative, SourceId, sourceToolId);
+            var definition = new ToolDefinition(
+                definitionId,
+                new ToolName(null, "FailingProjection"),
+                "Return a normalized test failure.",
+                JsonSerializer.SerializeToElement(new { type = "object" }));
+            var binding = new ToolRuntimeBinding(
+                new RuntimeBindingId("normalized-failure:1"),
+                definitionId,
+                new NormalizedFailureRuntime(errorCode, content),
+                ToolBindingLeases.AlwaysAvailable,
+                "test:normalized-failure",
+                context.Revision);
+            return ValueTask.FromResult<IReadOnlyList<ToolRegistration>>([
+                new ToolRegistration(definition, binding, ToolProjectionShape.StandardPair)
+            ]);
+        }
+    }
+
+    private sealed class NormalizedFailureRuntime(string errorCode, string content) : IToolRuntime
+    {
+        public ValueTask<ToolExecutionResult> InvokeAsync(
+            ToolInvocationContext context,
+            JsonObject arguments,
+            CancellationToken cancellationToken = default) =>
+            ValueTask.FromResult(ToolExecutionResult.Failed(
+                new ToolError(errorCode, "The screenshot operation timed out."),
+                content));
+    }
+
+    private sealed class CapturingToolFailureChatClient(string toolName) : IChatClient
+    {
+        private int _requestCount;
+
+        public FunctionResultContent? ToolResult { get; private set; }
+
+        public Task<ChatResponse> GetResponseAsync(
+            IEnumerable<ChatMessage> chatMessages,
+            ChatOptions? options = null,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(new ChatResponse([new ChatMessage(ChatRole.Assistant, [new TextContent("done")])]));
+
+        public async IAsyncEnumerable<ChatResponseUpdate> GetStreamingResponseAsync(
+            IEnumerable<ChatMessage> chatMessages,
+            ChatOptions? options = null,
+            [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
+        {
+            if (Interlocked.Increment(ref _requestCount) == 1)
+            {
+                yield return new ChatResponseUpdate(ChatRole.Assistant,
+                    [new FunctionCallContent("call-failure", toolName, new Dictionary<string, object?>())]);
+            }
+            else
+            {
+                ToolResult = Assert.Single(chatMessages
+                    .SelectMany(message => message.Contents)
+                    .OfType<FunctionResultContent>());
+                yield return new ChatResponseUpdate(ChatRole.Assistant, [new TextContent("handled failure")]);
+            }
+
+            await Task.CompletedTask;
+        }
+
+        public object? GetService(Type serviceType, object? serviceKey = null) => null;
+
+        public void Dispose()
+        {
+        }
+    }
+
+    private sealed class ImageNodeReplProxy(byte[] imageBytes) : INodeReplProxy
+    {
+        public bool IsAvailable => true;
+
+        public NodeReplEvaluationMetadata? LastMetadata { get; private set; }
+
+        public Task<NodeReplEvaluateResult?> EvaluateAsync(
+            string code,
+            int? timeoutSeconds = null,
+            CancellationToken ct = default,
+            NodeReplEvaluationMetadata? metadata = null)
+        {
+            LastMetadata = metadata;
+            return Task.FromResult<NodeReplEvaluateResult?>(new NodeReplEvaluateResult
+            {
+                Images =
+                [
+                    new NodeReplImageResult
+                    {
+                        MediaType = "image/png",
+                        DataBase64 = Convert.ToBase64String(imageBytes)
+                    }
+                ]
+            });
+        }
+    }
+
+    private sealed class CapturingImageToolChatClient(string toolName) : IChatClient
+    {
+        private int _requestCount;
+
+        public DataContent? ImageContent { get; private set; }
+
+        public Task<ChatResponse> GetResponseAsync(
+            IEnumerable<ChatMessage> chatMessages,
+            ChatOptions? options = null,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(new ChatResponse([new ChatMessage(ChatRole.Assistant, [new TextContent("done")])]));
+
+        public async IAsyncEnumerable<ChatResponseUpdate> GetStreamingResponseAsync(
+            IEnumerable<ChatMessage> chatMessages,
+            ChatOptions? options = null,
+            [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
+        {
+            if (Interlocked.Increment(ref _requestCount) == 1)
+            {
+                yield return new ChatResponseUpdate(ChatRole.Assistant,
+                    [new FunctionCallContent(
+                        "call-node-repl-image",
+                        toolName,
+                        new Dictionary<string, object?> { ["code"] = "emitImage(image)" })]);
+            }
+            else
+            {
+                ImageContent = Assert.Single(chatMessages
+                    .SelectMany(message => message.Contents)
+                    .OfType<DataContent>());
+                yield return new ChatResponseUpdate(ChatRole.Assistant, [new TextContent("handled image")]);
+            }
+
+            await Task.CompletedTask;
+        }
+
+        public object? GetService(Type serviceType, object? serviceKey = null) => null;
+
+        public void Dispose()
+        {
+        }
     }
 
     private sealed class SingleToolCallChatClient(string toolName) : IChatClient

@@ -90,6 +90,38 @@ public sealed class PluginToolSourceTests
     }
 
     [Fact]
+    public async Task Runtime_NonCallerCancellationPreservesLegacyTimeoutClassification()
+    {
+        var invoker = new RecordingInvoker { Exception = new OperationCanceledException("plugin timeout") };
+        var registration = Assert.Single(await CreateSource(invoker).GetRegistrationsAsync(CreatePlanningContext()));
+
+        var result = await registration.Binding.Runtime.InvokeAsync(CreateInvocation(registration), []);
+
+        Assert.False(result.Success);
+        Assert.Equal(ToolErrorCodes.Timeout, result.Error?.Code);
+        Assert.Equal("PluginFunctionTimeout", result.Error?.Parameters["sourceErrorCode"].GetString());
+        Assert.Contains("timed out", result.Error?.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task Runtime_RequiresChatContextRejectsBeforeInvoker()
+    {
+        var invoker = new RecordingInvoker();
+        var source = CreateSource(
+            invoker,
+            requiresChatContext: true,
+            invocationMetadata: new PluginToolInvocationMetadata("desktop"));
+        var registration = Assert.Single(await source.GetRegistrationsAsync(CreatePlanningContext()));
+
+        var result = await registration.Binding.Runtime.InvokeAsync(CreateInvocation(registration), []);
+
+        Assert.False(result.Success);
+        Assert.Equal(ToolErrorCodes.ExecutionFailed, result.Error?.Code);
+        Assert.Equal("MissingChatContext", result.Error?.Parameters["sourceErrorCode"].GetString());
+        Assert.Null(invoker.LastContext);
+    }
+
+    [Fact]
     public async Task SameLocalNameInDifferentNamespaces_HasDistinctCanonicalAndSourceIdentity()
     {
         var invoker = new RecordingInvoker();
@@ -111,7 +143,11 @@ public sealed class PluginToolSourceTests
             snapshot.Registrations.Values.Select(item => item.Definition.Id.SourceToolId).Distinct().Count());
     }
 
-    private static PluginToolSource CreateSource(RecordingInvoker invoker, bool deferLoading = false) =>
+    private static PluginToolSource CreateSource(
+        RecordingInvoker invoker,
+        bool deferLoading = false,
+        bool requiresChatContext = false,
+        PluginToolInvocationMetadata? invocationMetadata = null) =>
         new(
             "example-plugin",
             [
@@ -123,6 +159,7 @@ public sealed class PluginToolSourceTests
                         Name = "lookup",
                         Description = "Looks up an example.",
                         DeferLoading = deferLoading,
+                        RequiresChatContext = requiresChatContext,
                         InputSchema = new JsonObject
                         {
                             ["type"] = "object",
@@ -134,7 +171,19 @@ public sealed class PluginToolSourceTests
                     },
                     invoker)
             ],
-            new PluginToolInvocationMetadata("desktop", "chat:1", "user:1"));
+            invocationMetadata ?? new PluginToolInvocationMetadata("desktop", "chat:1", "user:1"));
+
+    private static ToolInvocationContext CreateInvocation(ToolRegistration registration) =>
+        new(
+            "thread_1",
+            "turn_1",
+            "call_1",
+            ToolInvocationAudience.Model,
+            registration.Definition.Name,
+            registration.Definition.Id,
+            registration.Binding.Id,
+            9,
+            DateTimeOffset.UtcNow);
 
     private static PluginFunctionDescriptor CreateDescriptor(string toolNamespace, string name) =>
         new()
@@ -156,10 +205,14 @@ public sealed class PluginToolSourceTests
 
         public PluginToolInvocationContext? LastContext { get; private set; }
 
+        public Exception? Exception { get; init; }
+
         public ValueTask<PluginFunctionInvocationResult> InvokeAsync(
             PluginToolInvocationContext context,
             CancellationToken cancellationToken)
         {
+            if (Exception is not null)
+                throw Exception;
             LastContext = context;
             return ValueTask.FromResult(Result);
         }

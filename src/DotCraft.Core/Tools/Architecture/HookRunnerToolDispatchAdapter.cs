@@ -8,7 +8,7 @@ namespace DotCraft.Tools;
 /// <summary>Runs the repository hook protocol at the common dispatcher boundary.</summary>
 public sealed class HookRunnerToolDispatchAdapter(HookRunner hookRunner) : IToolDispatchHookRunner
 {
-    private readonly ConcurrentDictionary<string, Dictionary<string, object?>> _arguments = new(StringComparer.Ordinal);
+    private readonly ConcurrentDictionary<InvocationKey, Dictionary<string, object?>> _arguments = new();
 
     /// <inheritdoc />
     public async ValueTask<ToolDispatchDecision> RunPreToolUseAsync(
@@ -21,7 +21,7 @@ public sealed class HookRunnerToolDispatchAdapter(HookRunner hookRunner) : ITool
             static pair => pair.Key,
             static pair => (object?)pair.Value?.DeepClone(),
             StringComparer.Ordinal);
-        _arguments[context.CallId] = values;
+        _arguments[InvocationKey.From(context)] = values;
         var hookResult = await hookRunner.RunAsync(
             HookEvent.PreToolUse,
             new HookInput
@@ -45,7 +45,7 @@ public sealed class HookRunnerToolDispatchAdapter(HookRunner hookRunner) : ITool
         ToolExecutionResult result,
         CancellationToken cancellationToken = default)
     {
-        _arguments.TryRemove(context.CallId, out var values);
+        _arguments.TryRemove(InvocationKey.From(context), out var values);
         var hookEvent = result.Success ? HookEvent.PostToolUse : HookEvent.PostToolUseFailure;
         var hookResult = await hookRunner.RunAsync(
             hookEvent,
@@ -59,5 +59,11 @@ public sealed class HookRunnerToolDispatchAdapter(HookRunner hookRunner) : ITool
             },
             cancellationToken).ConfigureAwait(false);
         ToolHookFeedbackScope.Current?.Add(hookEvent, hookResult);
+    }
+
+    private readonly record struct InvocationKey(string ThreadId, string? TurnId, string CallId)
+    {
+        public static InvocationKey From(ToolInvocationContext context) =>
+            new(context.ThreadId, context.TurnId, context.CallId);
     }
 }

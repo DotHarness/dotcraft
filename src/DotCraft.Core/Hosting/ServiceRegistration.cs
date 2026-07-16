@@ -80,7 +80,10 @@ public static class ServiceRegistration
             hookRunner: new HookRunnerToolDispatchAdapter(sp.GetRequiredService<HookRunner>()),
             approvalEvaluator: sp.GetRequiredService<CommonToolApprovalEvaluator>(),
             recorder: sp.GetRequiredService<ToolInvocationRecorderRouter>(),
-            resultNormalizer: new DefaultToolResultNormalizer(config.Tools.ResultLimits.MaxToolResultChars)));
+            resultNormalizer: new DefaultToolResultNormalizer(
+                config.Tools.ResultLimits.MaxToolResultChars,
+                workspacePath,
+                config.Tools.ResultLimits.SpillPreviewLines)));
         services.AddSingleton<OpenAITokenStore>(_ => new OpenAITokenStore());
         services.AddSingleton<OpenAIInstallationIdProvider>(_ => new OpenAIInstallationIdProvider());
         services.AddSingleton<IOpenAIAuthService, OpenAIAuthManager>();
