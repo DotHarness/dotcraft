@@ -178,6 +178,7 @@ internal static class ProviderChatClientAdapters
                 maxOutputTokens,
                 reasoningConfig,
                 useDefaultReasoning));
+            builder.Use(innerClient => new AnthropicEagerToolInputStreamingChatClient(innerClient));
         }
     }
 

@@ -3,6 +3,11 @@ using System.Text.Json.Nodes;
 using DotCraft.Agents;
 using DotCraft.Tools;
 using Microsoft.Extensions.AI;
+using AnthropicBetaInputJsonDelta = Anthropic.Models.Beta.Messages.BetaInputJsonDelta;
+using AnthropicBetaRawContentBlockDeltaEvent = Anthropic.Models.Beta.Messages.BetaRawContentBlockDeltaEvent;
+using AnthropicBetaRawContentBlockStartEvent = Anthropic.Models.Beta.Messages.BetaRawContentBlockStartEvent;
+using AnthropicBetaRawMessageStreamEvent = Anthropic.Models.Beta.Messages.BetaRawMessageStreamEvent;
+using AnthropicBetaToolUseBlock = Anthropic.Models.Beta.Messages.BetaToolUseBlock;
 
 namespace DotCraft.Tests.Agents;
 
@@ -61,6 +66,116 @@ public sealed partial class StreamingFunctionInvokingChatClientTests
         Assert.Null(deltas[1].ToolName);
         Assert.Null(deltas[1].CallId);
         Assert.Equal("lo\"}", deltas[1].ArgumentsDelta);
+    }
+
+    [Fact]
+    public async Task GetStreamingResponseAsync_AnthropicToolUse_InjectsInputJsonChunks()
+    {
+        var updates = new[]
+        {
+            new ChatResponseUpdate(ChatRole.Assistant, [new TextContent("a")])
+            {
+                RawRepresentation = CreateAnthropicToolStart(0, "CreatePlan", "call-plan")
+            },
+            new ChatResponseUpdate(ChatRole.Assistant, [new TextContent("b")])
+            {
+                RawRepresentation = CreateAnthropicArgumentsDelta(0, "{\"plan\":\"# Ship")
+            },
+            new ChatResponseUpdate(ChatRole.Assistant, [new TextContent("c")])
+            {
+                RawRepresentation = CreateAnthropicArgumentsDelta(0, " feature with")
+            },
+            new ChatResponseUpdate(ChatRole.Assistant, [new TextContent("d")])
+            {
+                RawRepresentation = CreateAnthropicArgumentsDelta(0, " fine-grained streaming\"}")
+            }
+        };
+        var client = new StreamingFunctionInvokingChatClient(new FakeChatClient(streamUpdates: updates))
+        {
+            EnableToolCallArgumentPreviews = true
+        };
+
+        var deltas = new List<ToolCallArgumentsDeltaContent>();
+        await foreach (var update in client.GetStreamingResponseAsync([]))
+            deltas.AddRange(update.Contents.OfType<ToolCallArgumentsDeltaContent>());
+
+        Assert.Equal(3, deltas.Count);
+        Assert.Equal(0, deltas[0].ToolCallIndex);
+        Assert.Equal("CreatePlan", deltas[0].ToolName);
+        Assert.Equal("call-plan", deltas[0].CallId);
+        Assert.Equal("{\"plan\":\"# Ship", deltas[0].ArgumentsDelta);
+        Assert.Null(deltas[1].ToolName);
+        Assert.Null(deltas[1].CallId);
+        Assert.Equal(" feature with", deltas[1].ArgumentsDelta);
+        Assert.Null(deltas[2].ToolName);
+        Assert.Null(deltas[2].CallId);
+        Assert.Equal(" fine-grained streaming\"}", deltas[2].ArgumentsDelta);
+    }
+
+    [Fact]
+    public async Task GetStreamingResponseAsync_AnthropicToolUse_TracksParallelIndexes()
+    {
+        var updates = new[]
+        {
+            new ChatResponseUpdate(ChatRole.Assistant, [new TextContent("a")])
+            {
+                RawRepresentation = CreateAnthropicToolStart(2, "WriteFile", "call-write")
+            },
+            new ChatResponseUpdate(ChatRole.Assistant, [new TextContent("b")])
+            {
+                RawRepresentation = CreateAnthropicToolStart(5, "EditFile", "call-edit")
+            },
+            new ChatResponseUpdate(ChatRole.Assistant, [new TextContent("c")])
+            {
+                RawRepresentation = CreateAnthropicArgumentsDelta(5, "{\"oldText\":\"a\"")
+            },
+            new ChatResponseUpdate(ChatRole.Assistant, [new TextContent("d")])
+            {
+                RawRepresentation = CreateAnthropicArgumentsDelta(2, "{\"content\":\"b\"}")
+            }
+        };
+        var client = new StreamingFunctionInvokingChatClient(new FakeChatClient(streamUpdates: updates))
+        {
+            EnableToolCallArgumentPreviews = true
+        };
+
+        var deltas = new List<ToolCallArgumentsDeltaContent>();
+        await foreach (var update in client.GetStreamingResponseAsync([]))
+            deltas.AddRange(update.Contents.OfType<ToolCallArgumentsDeltaContent>());
+
+        Assert.Equal(2, deltas.Count);
+        Assert.Equal(5, deltas[0].ToolCallIndex);
+        Assert.Equal("EditFile", deltas[0].ToolName);
+        Assert.Equal("call-edit", deltas[0].CallId);
+        Assert.Equal(2, deltas[1].ToolCallIndex);
+        Assert.Equal("WriteFile", deltas[1].ToolName);
+        Assert.Equal("call-write", deltas[1].CallId);
+    }
+
+    [Fact]
+    public async Task GetStreamingResponseAsync_AnthropicToolUse_IgnoresInvalidIndex()
+    {
+        var updates = new[]
+        {
+            new ChatResponseUpdate(ChatRole.Assistant, [new TextContent("a")])
+            {
+                RawRepresentation = CreateAnthropicToolStart((long)int.MaxValue + 1, "CreatePlan", "call-plan")
+            },
+            new ChatResponseUpdate(ChatRole.Assistant, [new TextContent("b")])
+            {
+                RawRepresentation = CreateAnthropicArgumentsDelta((long)int.MaxValue + 1, "{\"plan\":\"ignored\"}")
+            }
+        };
+        var client = new StreamingFunctionInvokingChatClient(new FakeChatClient(streamUpdates: updates))
+        {
+            EnableToolCallArgumentPreviews = true
+        };
+
+        var deltas = new List<ToolCallArgumentsDeltaContent>();
+        await foreach (var update in client.GetStreamingResponseAsync([]))
+            deltas.AddRange(update.Contents.OfType<ToolCallArgumentsDeltaContent>());
+
+        Assert.Empty(deltas);
     }
 
     [Fact]
@@ -366,6 +481,30 @@ public sealed partial class StreamingFunctionInvokingChatClientTests
     {
         public IEnumerable<ToolCallDeltaChunk> GetToolCallDeltaChunks() => chunks;
     }
+
+    private static AnthropicBetaRawMessageStreamEvent CreateAnthropicToolStart(
+        long index,
+        string toolName,
+        string callId) =>
+        new(
+            new AnthropicBetaRawContentBlockStartEvent
+            {
+                Index = index,
+                ContentBlock = new AnthropicBetaToolUseBlock
+                {
+                    ID = callId,
+                    Name = toolName,
+                    Input = new Dictionary<string, JsonElement>()
+                }
+            });
+
+    private static AnthropicBetaRawMessageStreamEvent CreateAnthropicArgumentsDelta(long index, string delta) =>
+        new(
+            new AnthropicBetaRawContentBlockDeltaEvent
+            {
+                Index = index,
+                Delta = new AnthropicBetaInputJsonDelta(delta)
+            });
 
     private sealed class FakeChatClient : IChatClient
     {

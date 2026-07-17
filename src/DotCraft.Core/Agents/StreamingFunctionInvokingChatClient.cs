@@ -12,6 +12,9 @@ using DotCraft.Protocol;
 using DotCraft.Tools;
 using DotCraft.Tracing;
 using Microsoft.Extensions.AI;
+using AnthropicBetaRawContentBlockDeltaEvent = Anthropic.Models.Beta.Messages.BetaRawContentBlockDeltaEvent;
+using AnthropicBetaRawContentBlockStartEvent = Anthropic.Models.Beta.Messages.BetaRawContentBlockStartEvent;
+using AnthropicBetaRawMessageStreamEvent = Anthropic.Models.Beta.Messages.BetaRawMessageStreamEvent;
 using OpenAiStreamingUpdate = OpenAI.Chat.StreamingChatCompletionUpdate;
 using OpenAI.Responses;
 
@@ -629,11 +632,50 @@ public sealed class StreamingFunctionInvokingChatClient(IChatClient innerClient,
             yield break;
         }
 
+        if (rawRepresentation is AnthropicBetaRawMessageStreamEvent anthropicStreamEvent)
+            rawRepresentation = anthropicStreamEvent.Value;
+
+        if (rawRepresentation is AnthropicBetaRawContentBlockStartEvent anthropicStart
+            && anthropicStart.ContentBlock.TryPickBetaToolUse(out var anthropicToolUse)
+            && TryConvertToolCallIndex(anthropicStart.Index, out var anthropicStartIndex))
+        {
+            yield return new ToolCallDeltaChunk(
+                anthropicStartIndex,
+                anthropicToolUse.Name,
+                anthropicToolUse.ID,
+                null);
+            yield break;
+        }
+
+        if (rawRepresentation is AnthropicBetaRawContentBlockDeltaEvent anthropicDelta
+            && anthropicDelta.Delta.TryPickInputJson(out var anthropicInputJson)
+            && TryConvertToolCallIndex(anthropicDelta.Index, out var anthropicDeltaIndex))
+        {
+            yield return new ToolCallDeltaChunk(
+                anthropicDeltaIndex,
+                null,
+                null,
+                anthropicInputJson.PartialJson);
+            yield break;
+        }
+
         if (rawRepresentation is IToolCallDeltaChunkSource source)
         {
             foreach (var chunk in source.GetToolCallDeltaChunks())
                 yield return chunk;
         }
+    }
+
+    private static bool TryConvertToolCallIndex(long index, out int converted)
+    {
+        if (index is < 0 or > int.MaxValue)
+        {
+            converted = default;
+            return false;
+        }
+
+        converted = (int)index;
+        return true;
     }
 
     private bool ShouldTerminateLoopBasedOnHandleableFunctions(List<FunctionCallContent> functionCalls, ChatOptions? options)
