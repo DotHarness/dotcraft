@@ -43,6 +43,7 @@ import type { AppUpdateState } from '../shared/appUpdate'
 import type { ConnectionSettingsDraft } from '../shared/remoteConnection'
 import type { WorkspaceProjectsPayload } from '../shared/workspaceProjects'
 import type { GitHeadInspection } from '../shared/gitHead'
+import type { InlineVisualizationCaptureRect, InlineVisualizationCaptureResult } from '../shared/inlineVisualization'
 import { TokenMulticastDispatcher } from './notificationDispatcher'
 
 export type UnsubscribeFn = () => void
@@ -511,6 +512,12 @@ const api = {
   menu: {
     popupTopLevel(menuId: TopLevelMenuId, x: number, y: number): Promise<void> {
       return ipcRenderer.invoke('menu:popup-top-level', { menuId, x, y })
+    }
+  },
+
+  visualization: {
+    copyImage(rect: InlineVisualizationCaptureRect): Promise<InlineVisualizationCaptureResult> {
+      return ipcRenderer.invoke('visualization:copy-image', rect)
     }
   },
 

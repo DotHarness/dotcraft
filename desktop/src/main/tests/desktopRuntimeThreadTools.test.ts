@@ -130,6 +130,115 @@ describe('desktop runtime thread tools', () => {
     expect(calls[1][0]).toBe('turn/start')
   })
 
+  it('rebinds the current Desktop connection before opening a historical visualization', async () => {
+    const client = createClient(async (method) => {
+      if (method === 'thread/resume') return { thread: { id: 'thread-old' } }
+      if (method === 'visualization/view/open') return { viewHandle: 'view-1', fragment: '<div />' }
+      throw new Error(`unexpected ${method}`)
+    })
+
+    await sendDesktopAppServerRequest(client, 'visualization/view/open', {
+      threadId: 'thread-old', turnId: 'turn-1', itemId: 'item-1', file: 'chart.html'
+    }, undefined, { supportsDynamicToolRebind: true })
+
+    const calls = vi.mocked(client.sendRequest).mock.calls
+    expect(calls.map(call => call[0])).toEqual(['thread/resume', 'visualization/view/open'])
+    expect(calls[0][1]).toEqual(expect.objectContaining({
+      threadId: 'thread-old',
+      dynamicTools: expect.arrayContaining([expect.objectContaining({ name: DESKTOP_THREAD_TOOL_NAMESPACE })]),
+      additionalContext: expect.objectContaining({ [DESKTOP_THREAD_COORDINATION_CONTEXT_KEY]: expect.anything() })
+    }))
+  })
+
+  it('uses a plain resume for visualization binding when dynamic rebind is unavailable', async () => {
+    const client = createClient(async (method) => {
+      if (method === 'thread/resume') return { thread: { id: 'thread-old' } }
+      if (method === 'visualization/view/open') return { viewHandle: 'view-1' }
+      throw new Error(`unexpected ${method}`)
+    })
+
+    await sendDesktopAppServerRequest(client, 'visualization/view/open', {
+      threadId: 'thread-old', turnId: 'turn-1', itemId: 'item-1', file: 'chart.html'
+    })
+
+    expect(vi.mocked(client.sendRequest).mock.calls[0]).toEqual(['thread/resume', { threadId: 'thread-old' }])
+  })
+
+  it('shares one visualization resume across concurrent opens in the same thread', async () => {
+    let finishResume!: () => void
+    const resumePending = new Promise<void>(resolve => { finishResume = resolve })
+    const client = createClient(async (method) => {
+      if (method === 'thread/resume') {
+        await resumePending
+        return { thread: { id: 'thread-old' } }
+      }
+      if (method === 'visualization/view/open') return { viewHandle: 'view-1' }
+      throw new Error(`unexpected ${method}`)
+    })
+
+    const first = sendDesktopAppServerRequest(client, 'visualization/view/open', {
+      threadId: 'thread-old', turnId: 'turn-1', itemId: 'item-1', file: 'one.html'
+    })
+    const second = sendDesktopAppServerRequest(client, 'visualization/view/open', {
+      threadId: 'thread-old', turnId: 'turn-1', itemId: 'item-2', file: 'two.html'
+    })
+    await Promise.resolve()
+    expect(vi.mocked(client.sendRequest).mock.calls.filter(call => call[0] === 'thread/resume')).toHaveLength(1)
+
+    finishResume()
+    await Promise.all([first, second])
+    expect(vi.mocked(client.sendRequest).mock.calls.map(call => call[0])).toEqual([
+      'thread/resume', 'visualization/view/open', 'visualization/view/open'
+    ])
+  })
+
+  it('does not eagerly bind visualizations during thread/read and retries a failed on-demand resume', async () => {
+    let resumeAttempts = 0
+    const client = createClient(async (method) => {
+      if (method === 'thread/read') return { thread: { id: 'thread-old' } }
+      if (method === 'thread/resume') {
+        resumeAttempts++
+        if (resumeAttempts === 1) throw new Error('connection changed')
+        return { thread: { id: 'thread-old' } }
+      }
+      if (method === 'visualization/view/open') return { viewHandle: 'view-1' }
+      throw new Error(`unexpected ${method}`)
+    })
+
+    await sendDesktopAppServerRequest(client, 'thread/read', { threadId: 'thread-old', includeTurns: true })
+    expect(vi.mocked(client.sendRequest).mock.calls.map(call => call[0])).toEqual(['thread/read'])
+
+    const openParams = { threadId: 'thread-old', turnId: 'turn-1', itemId: 'item-1', file: 'chart.html' }
+    await expect(sendDesktopAppServerRequest(client, 'visualization/view/open', openParams)).rejects.toThrow('connection changed')
+    await expect(sendDesktopAppServerRequest(client, 'visualization/view/open', openParams)).resolves.toEqual({ viewHandle: 'view-1' })
+    expect(resumeAttempts).toBe(2)
+  })
+
+  it('reuses start binding on one client and rebinds after the client changes', async () => {
+    const firstClient = createClient(async (method) => {
+      if (method === 'thread/start') return { thread: { id: 'thread-1' } }
+      if (method === 'visualization/view/open') return { viewHandle: 'view-1' }
+      throw new Error(`unexpected ${method}`)
+    })
+    const secondClient = createClient(async (method) => {
+      if (method === 'thread/resume') return { thread: { id: 'thread-1' } }
+      if (method === 'visualization/view/open') return { viewHandle: 'view-2' }
+      throw new Error(`unexpected ${method}`)
+    })
+    const openParams = { threadId: 'thread-1', turnId: 'turn-1', itemId: 'item-1', file: 'chart.html' }
+
+    await sendDesktopAppServerRequest(firstClient, 'thread/start', { identity: { channelName: 'dotcraft-desktop' } })
+    await sendDesktopAppServerRequest(firstClient, 'visualization/view/open', openParams)
+    expect(vi.mocked(firstClient.sendRequest).mock.calls.map(call => call[0])).toEqual([
+      'thread/start', 'visualization/view/open'
+    ])
+
+    await sendDesktopAppServerRequest(secondClient, 'visualization/view/open', openParams)
+    expect(vi.mocked(secondClient.sendRequest).mock.calls.map(call => call[0])).toEqual([
+      'thread/resume', 'visualization/view/open'
+    ])
+  })
+
   it('preserves non-Desktop runtime additional context when declaring thread tools', async () => {
     const client = createClient(async (method) => {
       if (method === 'thread/start') return { thread: { id: 'thread-1' } }

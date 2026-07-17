@@ -4126,6 +4126,36 @@ input.dc-plain-number {
   border-color: var(--border-active);
 }
 
+/* ─── Conversation inline visualization actions ─── */
+.inline-visualization-copy-button {
+  position: absolute;
+  z-index: 4;
+  top: 4px;
+  right: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: opacity 120ms ease, color 120ms ease, background-color 120ms ease;
+}
+
+.inline-visualization-copy-button:hover:not(:disabled) {
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+}
+
+.inline-visualization-copy-button:disabled {
+  color: var(--text-dimmed);
+  cursor: default;
+}
+
 /* ─── Accessibility: global focus-visible outline ─── */
 :focus-visible {
   outline: 2px solid var(--accent);

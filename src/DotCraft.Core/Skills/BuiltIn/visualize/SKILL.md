@@ -15,7 +15,7 @@ description: Create visualizations and interactive tools in conversation. Use wh
 
 1. Choose a new lowercase ASCII hyphenated name ending in `.html`. Never overwrite or edit an earlier visualization.
 2. Build a literal HTML fragment only: no doctype, `html`, `head`, or `body` tags; no `fetch`, XHR, WebSocket, local files, or other API calls; keep it below 2 MiB.
-3. Give the fragment a unique root id. Scope scripts and styles to it. Use semantic controls, visible focus, accessible chart descriptions, and layouts that reflow from 736px to 320px.
+3. Give the fragment a unique root id and the `viz-root` class. The root is an unframed conversation surface: do not wrap the whole visualization in `.card`. Scope scripts and content-specific styles to the root, but use the host button and form utilities instead of redefining ordinary product controls. Use semantic controls, visible focus, accessible chart descriptions, and layouts that reflow from 736px to 320px.
 4. Use the ordinary `WriteFile` tool with an absolute path inside the visualization directory from system context.
 5. Read the file back with `ReadFile`. Inspect the returned source and rewrite any literal escaped quotes or newlines before continuing.
 6. After a successful write and read-back, put this exact directive on its own line where the visual belongs:
@@ -29,7 +29,7 @@ Keep necessary explanation outside the fragment. Do not link to or announce the 
 ## Host contract
 
 - Theme variables: `--background`, `--foreground`, `--card`, `--card-foreground`, `--primary`, `--primary-foreground`, `--secondary`, `--secondary-foreground`, `--muted`, `--muted-foreground`, `--accent`, `--accent-foreground`, `--destructive`, `--border`, `--input`, `--ring`, and `--viz-series-1` through `--viz-series-6`.
-- Utilities: `.card`, `.viz-grid`, `.viz-row`, `.viz-controls`, `.viz-stat`, `.viz-stat-value`, `.viz-badge`, `.btn`, `.btn-primary`, `.btn-ghost`, `.form-label`, `.form-control`, `.form-select`, `.form-range`, `.form-check`, `.form-switch`, `.table`, `.table-responsive`, `.text-small`, `.text-muted`, `.text-center`, `.text-end`, `.sr-only`, and `[data-tooltip]`.
+- Utilities: `.viz-root`, `.card`, `.viz-grid`, `.viz-row`, `.viz-controls`, `.viz-stat`, `.viz-stat-value`, `.viz-badge`, `.btn`, `.btn-primary`, `.btn-ghost`, `.form-label`, `.form-control`, `.form-select`, `.form-range`, `.form-check`, `.form-switch`, `.table`, `.table-responsive`, `.text-small`, `.text-muted`, `.text-center`, `.text-end`, `.sr-only`, and `[data-tooltip]`.
 - Prefer inline SVG for simple charts. Pair color with text or shape and label axes and units.
 - Static CDN resources may come only from `cdnjs.cloudflare.com`, `esm.sh`, `cdn.jsdelivr.net`, `unpkg.com`, `fonts.googleapis.com`, `fonts.gstatic.com`, or `fonts.bunny.net`.
 - Lucide is available as `globalThis.lucide`. Initial static icons are initialized by the host. Initialize dynamically added icons with `lucide.createIcons({ attrs: { width: 16, height: 16 } })`.

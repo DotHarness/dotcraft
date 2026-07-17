@@ -423,6 +423,25 @@ The app owns the inner UI; Desktop owns only the host frame around it.
 - Non-Desktop clients do not render the iframe; they show the tool result's text. Do not
   design flows that require the interactive UI.
 
+### Inline Visualization
+
+Assistant inline visualizations are conversation-native media, not tool cards. Their host is
+transparent and unframed, with no header or attribution row. Host actions sit just outside the
+visualization content edge in a narrow host-owned action rail so they never cover the rendered
+media. A single available command is exposed directly as a borderless tertiary icon button
+rather than being hidden behind an overflow menu. It may appear on hover, keyboard focus, or
+coarse-pointer devices and is not included when the visualization is copied as an image.
+
+Historical visualization views are lazy-loaded near the message viewport. Before the preload
+boundary is reached, reserve the expected content shape without a running animation. From the
+first runtime request through iframe readiness, use one animated, shape-matched skeleton; do not
+show a second spinner or eagerly open off-screen visualization views.
+
+Desktop injects the active neutral surface, text, border, focus, accent, and font tokens into the
+visualization document. Ordinary visualization buttons follow the shared 32px / 8px Desktop
+action treatment; primary actions use neutral inversion rather than an accent fill. Feature
+colors remain available for charts and diagrams, not ordinary controls.
+
 ## Loading & Progress
 
 Loading is communicated by a placeholder shaped like the content that will

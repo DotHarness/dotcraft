@@ -122,10 +122,14 @@ const DESKTOP_THREAD_COORDINATION_CONTEXT: RuntimeAdditionalContextEntry = {
 // Bound-tool state is connection-local; reconnecting gives AppServer a new callback target.
 let boundClient: AppServerRequestClient | null = null
 let boundThreadIds = new Set<string>()
+let visualizationBoundThreadIds = new Set<string>()
+let visualizationBindingPromises = new Map<string, Promise<void>>()
 
 export function resetDesktopThreadToolBindings(): void {
   boundClient = null
   boundThreadIds = new Set<string>()
+  visualizationBoundThreadIds = new Set<string>()
+  visualizationBindingPromises = new Map<string, Promise<void>>()
 }
 
 export function buildDesktopThreadDynamicTools(): DynamicToolSpec[] {
@@ -343,6 +347,13 @@ export async function sendDesktopAppServerRequest<T = unknown>(
     }
   }
 
+  if (method === 'visualization/view/open') {
+    const threadId = getStringProperty(params, 'threadId')
+    if (threadId) {
+      await ensureInlineVisualizationThreadBound(client, threadId, options)
+    }
+  }
+
   const nextParams = method === 'thread/start'
     ? withDesktopThreadDynamicTools(params)
     : method === 'thread/resume' && options.supportsDynamicToolRebind === true
@@ -353,12 +364,48 @@ export async function sendDesktopAppServerRequest<T = unknown>(
 
   if (method === 'thread/start' || method === 'thread/resume') {
     const threadId = extractThreadId(result)
+      ?? (method === 'thread/resume' ? getStringProperty(nextParams, 'threadId') : undefined)
+    if (threadId) {
+      visualizationBoundThreadIds.add(threadId)
+    }
     if (threadId && requestIncludesDesktopThreadTools(nextParams)) {
       markDesktopThreadToolsBound(client, threadId)
     }
   }
 
   return result
+}
+
+async function ensureInlineVisualizationThreadBound(
+  client: AppServerRequestClient,
+  threadId: string,
+  options: DesktopAppServerRequestOptions
+): Promise<void> {
+  trackClient(client)
+  if (visualizationBoundThreadIds.has(threadId)) return
+
+  const existing = visualizationBindingPromises.get(threadId)
+  if (existing) {
+    await existing
+    return
+  }
+
+  const resumeParams = options.supportsDynamicToolRebind === true
+    ? withDesktopThreadDynamicTools({ threadId })
+    : { threadId }
+  const binding = client.sendRequest('thread/resume', resumeParams).then(() => {
+    if (boundClient !== client) return
+    visualizationBoundThreadIds.add(threadId)
+    if (requestIncludesDesktopThreadTools(resumeParams)) boundThreadIds.add(threadId)
+  })
+  visualizationBindingPromises.set(threadId, binding)
+  try {
+    await binding
+  } finally {
+    if (visualizationBindingPromises.get(threadId) === binding) {
+      visualizationBindingPromises.delete(threadId)
+    }
+  }
 }
 
 export async function handleDesktopRuntimeThreadToolCall(
@@ -801,6 +848,8 @@ function trackClient(client: AppServerRequestClient): void {
   if (boundClient === client) return
   boundClient = client
   boundThreadIds = new Set<string>()
+  visualizationBoundThreadIds = new Set<string>()
+  visualizationBindingPromises = new Map<string, Promise<void>>()
 }
 
 function desktopIdentity(workspacePath: string): JsonObject {

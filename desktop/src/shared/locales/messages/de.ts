@@ -3098,4 +3098,6 @@ export const MESSAGES_DE = {
   'inlineVisualization.scrollHint': 'Diese Visualisierung ist sehr hoch. Scrollen Sie darin, um den restlichen Inhalt zu sehen.',
   'inlineVisualization.unavailable': 'Diese Visualisierung ist nicht verfügbar.',
   'inlineVisualization.frameTitle': 'Interaktive Visualisierung: {{file}}',
+  'inlineVisualization.copyImage': 'Als Bild kopieren',
+  'inlineVisualization.copyFailed': 'Diese Visualisierung konnte nicht als Bild kopiert werden.',
 } satisfies Partial<Record<MessageId, string>>

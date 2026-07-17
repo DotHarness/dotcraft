@@ -49,6 +49,24 @@ confirmed user follow-up bridge; they do not expose MCP tools, resources, model 
 files, Electron, Node, or generic IPC. The inner frame uses an opaque origin and
 `sandbox="allow-scripts"`. Desktop applies a fixed CSP and a fixed static-resource allowlist.
 
+Desktop presents an inline visualization as an unframed conversation media surface. It does not
+add a card, header, background, or border around the iframe. The injected host stylesheet maps
+the documented visualization controls and theme variables to the active Desktop design tokens;
+the visualization may still use internal cards where grouping is semantically useful.
+
+Desktop may provide trusted host actions outside the iframe, including copying the current
+rendered visualization to the system clipboard as an image. A sole action is presented directly
+outside the content edge as a borderless icon button rather than through an overflow menu. Such
+actions capture only the visualization bounds, are not exposed to fragment script, and do not
+add AppServer methods, Session data, filesystem access, or sandbox bridge authority.
+
+Historical inline visualizations are loaded on demand. Reading or selecting a thread does not
+open every referenced view. Desktop starts the existing connection-scoped runtime binding and
+`visualization/view/open` flow only when a visualization enters the conversation viewport's
+nearby preload range. During binding, file open, sandbox bootstrap, and iframe readiness, the
+host displays a shape-matched skeleton. Once loaded, a view remains mounted until its message is
+unmounted so scrolling does not discard interactive state.
+
 ## 2. Result audiences
 
 | Field | Audience | Rule |

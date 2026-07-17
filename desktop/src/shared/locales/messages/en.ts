@@ -3280,7 +3280,9 @@ export const MESSAGES_EN = {
   'inlineVisualization.loading': 'Loading interactive visualization.',
   'inlineVisualization.scrollHint': 'This visualization is very tall. Scroll inside it to see the remaining content.',
   'inlineVisualization.unavailable': 'This visualization is unavailable.',
-  'inlineVisualization.frameTitle': 'Interactive visualization: {{file}}'
+  'inlineVisualization.frameTitle': 'Interactive visualization: {{file}}',
+  'inlineVisualization.copyImage': 'Copy as image',
+  'inlineVisualization.copyFailed': 'Could not copy this visualization as an image.'
 } as const
 
 export type MessageId = keyof typeof MESSAGES_EN

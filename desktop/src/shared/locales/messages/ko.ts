@@ -3090,4 +3090,6 @@ export const MESSAGES_KO = {
   'inlineVisualization.scrollHint': '시각화가 매우 깁니다. 내부를 스크롤하여 나머지 내용을 확인하세요.',
   'inlineVisualization.unavailable': '이 시각화를 사용할 수 없습니다.',
   'inlineVisualization.frameTitle': '대화형 시각화: {{file}}',
+  'inlineVisualization.copyImage': '이미지로 복사',
+  'inlineVisualization.copyFailed': '이 시각화를 이미지로 복사할 수 없습니다.',
 } satisfies Partial<Record<MessageId, string>>

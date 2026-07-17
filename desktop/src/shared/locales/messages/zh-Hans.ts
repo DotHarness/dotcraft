@@ -3182,4 +3182,6 @@ export const MESSAGES_ZH_HANS = {
   'inlineVisualization.scrollHint': '此可视化内容较长，请在其中滚动查看剩余内容。',
   'inlineVisualization.unavailable': '此可视化当前不可用。',
   'inlineVisualization.frameTitle': '交互式可视化：{{file}}',
+  'inlineVisualization.copyImage': '复制为图片',
+  'inlineVisualization.copyFailed': '无法将此可视化复制为图片。',
 } satisfies Partial<Record<MessageId, string>>
