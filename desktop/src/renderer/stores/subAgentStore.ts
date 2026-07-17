@@ -86,9 +86,12 @@ interface SubAgentStoreActions {
   /**
    * Loads a short preview of each child's most recent agent message via
    * `thread/read`, populating {@link SubAgentChild.lastMessagePreview}. Skips
-   * children that already have a preview unless `force` is set.
+   * children that already have a preview unless `force` is set. When
+   * `runningOnly` is set, only running children are read and they are always
+   * refreshed (ignoring the cached preview) — used by the panel's live poll so a
+   * running subagent's message keeps updating.
    */
-  fetchPreviews(parentThreadId: string, options?: { force?: boolean }): Promise<void>
+  fetchPreviews(parentThreadId: string, options?: { force?: boolean; runningOnly?: boolean }): Promise<void>
   updateProgress(parentThreadId: string, entries: SubAgentEntry[]): void
   updateChildRuntime(childThreadId: string, runtime: ThreadRuntimeSnapshot): void
   setParentCollapsed(parentThreadId: string, collapsed: boolean, userInitiated?: boolean): void
@@ -411,10 +414,14 @@ export const useSubAgentStore = create<SubAgentStore>((set, get) => ({
 
   async fetchPreviews(parentThreadId, options) {
     if (!parentThreadId) return
-    const force = options?.force === true
+    const runningOnly = options?.runningOnly === true
+    // runningOnly polls always refresh (the message is still changing); the
+    // default pass only fills children that have no cached preview yet.
+    const force = options?.force === true || runningOnly
     const children = get().childrenByParent.get(parentThreadId) ?? []
     const targets = children.filter((child) =>
       child.isPlaceholder !== true
+      && (!runningOnly || isSubAgentChildRunning(child))
       && (force || child.lastMessagePreview == null)
     )
     if (targets.length === 0) return

@@ -442,14 +442,19 @@ function SubAgentDockRow({
     <div style={rowContainerStyle}>
       <div style={rowStyle}>
         <span style={statusSlotStyle}>
-          {running ? (
-            <RunningSpinner
-              label={t('subAgentDock.running')}
-              testId={`subagent-dock-running-${child.childThreadId}`}
-            />
-          ) : (
-            <span aria-hidden style={{ width: 6, height: 6, borderRadius: 999, background: 'var(--text-dimmed)', opacity: 0.58 }} />
-          )}
+          {/* Running state is conveyed by the gradient "Running" label below, so
+              no spinner here — just a small accent dot for running rows and a
+              muted dot for finished ones, keeping the column aligned. */}
+          <span
+            aria-hidden
+            style={{
+              width: 6,
+              height: 6,
+              borderRadius: 999,
+              background: running ? color : 'var(--text-dimmed)',
+              opacity: running ? 0.9 : 0.58
+            }}
+          />
         </span>
         <span style={nameGroupStyle}>
           <ActionTooltip label={child.nickname} wrapperStyle={{ display: 'block', minWidth: 0, overflow: 'hidden', flexShrink: 1 }}>

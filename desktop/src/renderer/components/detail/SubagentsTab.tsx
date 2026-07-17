@@ -9,12 +9,14 @@ import {
 } from '../../stores/subAgentStore'
 import { useThreadStore } from '../../stores/threadStore'
 import { useUIStore } from '../../stores/uiStore'
-import { RunningSpinner } from '../ui/RunningSpinner'
 import { ActionTooltip } from '../ui/ActionTooltip'
 import { formatSubAgentMeta, getSubAgentAccent } from '../../utils/subAgentPresentation'
 import { formatRelativeTime } from '../../utils/relativeTime'
 
 const EMPTY_CHILDREN: SubAgentChild[] = []
+
+/** Refresh interval for running subagents' live message preview while the tab is open. */
+const RUNNING_PREVIEW_POLL_MS = 3000
 
 /**
  * Subagents tab — collects the active thread's subagents into Active (running),
@@ -50,6 +52,19 @@ export function SubagentsTab(): JSX.Element {
       void fetchPreviews(activeThreadId)
     }
   }, [activeThreadId, children, fetchPreviews])
+
+  const hasRunningSubagent = children.some(isSubAgentChildRunning)
+
+  // While the tab is open and any subagent is running, poll its latest agent
+  // message so the Active rows show live progress. Stops when nothing is running
+  // or the tab unmounts, so idle tabs never poll.
+  useEffect(() => {
+    if (!activeThreadId || !hasRunningSubagent) return
+    const timer = setInterval(() => {
+      void fetchPreviews(activeThreadId, { runningOnly: true })
+    }, RUNNING_PREVIEW_POLL_MS)
+    return () => clearInterval(timer)
+  }, [activeThreadId, hasRunningSubagent, fetchPreviews])
 
   const { active, done, closed } = useMemo(() => {
     const running: SubAgentChild[] = []
@@ -157,18 +172,16 @@ function SubagentRow({ child }: { child: SubAgentChild }): JSX.Element {
       }}
     >
       <span style={iconSlotStyle}>
-        {running ? (
-          <RunningSpinner
-            label={t('subAgentDock.running')}
-            testId={`subagents-tab-running-${child.childThreadId}`}
-          />
-        ) : (
-          <Bot size={15} strokeWidth={2} aria-hidden style={{ color, display: 'block' }} />
-        )}
+        {/* Both active and finished rows use the Bot glyph; the running state is
+            conveyed by the gradient preview text below, not a separate spinner. */}
+        <Bot size={15} strokeWidth={2} aria-hidden style={{ color, display: 'block' }} />
       </span>
       <span style={bodyCellStyle}>
         <span style={titleRowStyle}>
-          <span style={{ ...nicknameStyle, color }}>{child.nickname}</span>
+          <span style={nameGroupStyle}>
+            <span style={{ ...nicknameStyle, color }}>{child.nickname}</span>
+            {meta && <span style={metaStyle}>({meta})</span>}
+          </span>
           {timeLabel && <span style={timeStyle}>{timeLabel}</span>}
         </span>
         <ActionTooltip label={preview} wrapperStyle={{ display: 'block', minWidth: 0, overflow: 'hidden' }}>
@@ -176,7 +189,7 @@ function SubagentRow({ child }: { child: SubAgentChild }): JSX.Element {
             className={running ? 'tool-running-gradient-text' : undefined}
             style={{ ...previewStyle, display: 'block' }}
           >
-            {meta && !running ? `${meta} · ${preview}` : preview}
+            {preview}
           </span>
         </ActionTooltip>
       </span>
@@ -190,7 +203,11 @@ function resolvePreview(
   t: (key: string, vars?: Record<string, string | number>) => string
 ): string {
   if (running) {
-    return child.lastToolDisplay?.trim() || t('subAgentDock.running')
+    // Prefer the live agent message the subagent is producing (refreshed by the
+    // panel's poll); fall back to the current tool activity, then to "Running".
+    return child.lastMessagePreview?.trim()
+      || child.lastToolDisplay?.trim()
+      || t('subAgentDock.running')
   }
   const preview = child.lastMessagePreview?.trim()
   if (preview) return preview
@@ -319,13 +336,29 @@ const titleRowStyle: CSSProperties = {
   minWidth: 0
 }
 
+const nameGroupStyle: CSSProperties = {
+  minWidth: 0,
+  display: 'inline-flex',
+  alignItems: 'baseline',
+  gap: '5px',
+  overflow: 'hidden',
+  whiteSpace: 'nowrap'
+}
+
 const nicknameStyle: CSSProperties = {
   minWidth: 0,
   overflow: 'hidden',
   textOverflow: 'ellipsis',
   whiteSpace: 'nowrap',
   fontSize: '13px',
-  fontWeight: 600
+  fontWeight: 600,
+  flexShrink: 1
+}
+
+const metaStyle: CSSProperties = {
+  flexShrink: 0,
+  color: 'var(--text-dimmed)',
+  fontSize: '12px'
 }
 
 const timeStyle: CSSProperties = {

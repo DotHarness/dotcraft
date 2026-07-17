@@ -144,6 +144,80 @@ describe('SubagentsTab', () => {
     expect(screen.getByText(/Budget research complete and reported back\./)).toBeInTheDocument()
   })
 
+  it('shows the live agent message for a running subagent instead of "Running"', () => {
+    useSubAgentStore.getState().setChildren('thread-1', [
+      makeChild({
+        childThreadId: 'child-running',
+        nickname: 'Lovelace',
+        lastMessagePreview: 'Currently analyzing the deployment scripts',
+        lastToolDisplay: 'Reading atlas'
+      })
+    ])
+
+    renderTab()
+
+    expect(screen.getByText('Currently analyzing the deployment scripts')).toBeInTheDocument()
+    expect(screen.queryByText('Running')).not.toBeInTheDocument()
+  })
+
+  it('falls back to tool progress, then Running, when a running subagent has no message', () => {
+    useSubAgentStore.getState().setChildren('thread-1', [
+      makeChild({ childThreadId: 'child-tool', nickname: 'ToolOnly', lastToolDisplay: 'Reading atlas' }),
+      makeChild({ childThreadId: 'child-bare', nickname: 'Bare' })
+    ])
+
+    renderTab()
+
+    expect(screen.getByText('Reading atlas')).toBeInTheDocument()
+    expect(screen.getByText('Running')).toBeInTheDocument()
+  })
+
+  it('polls thread/read for running subagents while the tab is open', () => {
+    vi.useFakeTimers()
+    try {
+      useSubAgentStore.getState().setChildren('thread-1', [
+        makeChild({ childThreadId: 'child-running', nickname: 'Lovelace', lastMessagePreview: 'Working' })
+      ])
+
+      renderTab()
+      appServerSendRequest.mockClear()
+
+      vi.advanceTimersByTime(3000)
+
+      expect(appServerSendRequest).toHaveBeenCalledWith('thread/read', {
+        threadId: 'child-running',
+        includeTurns: true
+      })
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('does not poll when no subagent is running', () => {
+    vi.useFakeTimers()
+    try {
+      useSubAgentStore.getState().setChildren('thread-1', [
+        makeChild({
+          childThreadId: 'child-done',
+          nickname: 'Babbage',
+          status: 'completed',
+          isCompleted: true,
+          lastMessagePreview: 'All done.',
+          runtime: { running: false, waitingOnApproval: false, waitingOnPlanConfirmation: false }
+        })
+      ])
+
+      renderTab()
+      appServerSendRequest.mockClear()
+
+      vi.advanceTimersByTime(9000)
+
+      expect(appServerSendRequest).not.toHaveBeenCalledWith('thread/read', expect.anything())
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('opens the child thread when the whole row is clicked', () => {
     useSubAgentStore.getState().setChildren('thread-1', [
       makeChild({ childThreadId: 'child-running', nickname: 'Lovelace' })
