@@ -73,6 +73,13 @@ interface SubAgentStoreState {
 
 interface FetchChildrenOptions {
   authoritative?: boolean
+  /**
+   * Include closed (main-agent-closed or residency-reclaimed) edges. Defaults to
+   * false so the shared loader used by the dock and notification refresh paths
+   * only surfaces active children. Only the Subagents detail tab opts in to keep
+   * closed subagents visible for read-only review.
+   */
+  includeClosed?: boolean
 }
 
 interface SetChildrenOptions {
@@ -387,10 +394,7 @@ export const useSubAgentStore = create<SubAgentStore>((set, get) => ({
     try {
       const result = await window.api.appServer.sendRequest('subagent/children/list', {
         parentThreadId,
-        // Include closed edges so the Subagents panel can still surface subagents
-        // the main agent closed (or that residency auto-reclaimed) for read-only
-        // review. Running/done vs closed is distinguished on the client.
-        includeClosed: true,
+        includeClosed: options?.includeClosed === true,
         includeThreads: true
       }) as { data?: SubAgentChildWire[] }
       const children = (result.data ?? [])

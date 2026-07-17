@@ -107,6 +107,24 @@ describe('SubagentsTab', () => {
     expect(appServerSendRequest).not.toHaveBeenCalledWith('subagent/close', expect.anything())
   })
 
+  it('requests closed edges so the panel can show closed subagents', async () => {
+    useConnectionStore.setState({ capabilities: { subAgentSessions: true } })
+    appServerSendRequest.mockImplementation(async (method: string) => {
+      if (method === 'subagent/children/list') return { data: [] }
+      return {}
+    })
+
+    renderTab()
+
+    await vi.waitFor(() => {
+      expect(appServerSendRequest).toHaveBeenCalledWith('subagent/children/list', {
+        parentThreadId: 'thread-1',
+        includeClosed: true,
+        includeThreads: true
+      })
+    })
+  })
+
   it('keeps closed subagents visible in a Closed section for read-only review', () => {
     useSubAgentStore.getState().setChildren('thread-1', [
       makeChild({

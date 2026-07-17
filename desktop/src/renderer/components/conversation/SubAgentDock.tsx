@@ -18,6 +18,7 @@ import { CSS } from '@dnd-kit/utilities'
 import { Bot, ChevronDown, CornerDownRight, ExternalLink, GripVertical, ListChecks, Pencil, Square, Trash2 } from 'lucide-react'
 import { useT } from '../../contexts/LocaleContext'
 import {
+  isSubAgentChildClosed,
   isSubAgentChildRunning,
   useSubAgentStore,
   type SubAgentChild
@@ -82,7 +83,12 @@ export function BackgroundActivityDock({
 
   const hasSubAgents = runningChildren.length > 0
   const hasQueue = queuedInputs.length > 0
-  const doneCount = children.length - runningChildren.length
+  // Count only finished-but-open subagents. The shared store may include closed
+  // ones (the Subagents tab requests them), but the dock's "Done · N" link should
+  // ignore closed/reclaimed agents.
+  const doneCount = children.filter(
+    (child) => !isSubAgentChildRunning(child) && !isSubAgentChildClosed(child)
+  ).length
   const closeableRunning = runningChildren.filter((child) => child.supportsClose && child.agentPath)
   const contentMaxHeight = Math.min(runningChildren.length * 62 + 8, 260)
   const openSubagentsTab = (): void => useUIStore.getState().setActiveDetailTab('subagents')

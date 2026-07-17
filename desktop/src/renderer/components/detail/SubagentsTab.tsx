@@ -39,7 +39,7 @@ export function SubagentsTab(): JSX.Element {
   useEffect(() => {
     if (!activeThreadId) return
     void (async () => {
-      await fetchChildren(activeThreadId, { authoritative: true })
+      await fetchChildren(activeThreadId, { authoritative: true, includeClosed: true })
       await fetchPreviews(activeThreadId)
     })()
   }, [fetchChildren, fetchPreviews, activeThreadId])

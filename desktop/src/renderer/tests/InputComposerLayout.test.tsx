@@ -412,6 +412,30 @@ describe('InputComposer layout', () => {
           waitingOnApproval: false,
           waitingOnPlanConfirmation: false
         }
+      },
+      {
+        // A closed child (the Subagents tab requests these into shared state).
+        // The dock's "Done · N" must not count it.
+        childThreadId: 'child-closed',
+        parentThreadId: 'thread-1',
+        nickname: 'Retired',
+        agentRole: null,
+        profileName: 'native',
+        runtimeType: 'native',
+        supportsSendInput: true,
+        supportsResume: true,
+        supportsClose: true,
+        status: 'closed',
+        lastToolDisplay: null,
+        currentTool: null,
+        inputTokens: 1,
+        outputTokens: 2,
+        isCompleted: true,
+        runtime: {
+          running: false,
+          waitingOnApproval: false,
+          waitingOnPlanConfirmation: false
+        }
       }
     ])
 
@@ -419,6 +443,7 @@ describe('InputComposer layout', () => {
 
     const dock = screen.getByTestId('subagent-dock')
     expect(within(dock).getByText('1 background agents')).toBeInTheDocument()
+    // Only the finished-but-open child counts; the closed one is excluded.
     expect(within(dock).getByRole('button', { name: 'Done · 1' })).toBeInTheDocument()
   })
 
