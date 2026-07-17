@@ -15,6 +15,11 @@ using DotCraft.Tracing;
 using Microsoft.Agents.AI;
 using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.AI;
+using AnthropicBetaInputJsonDelta = Anthropic.Models.Beta.Messages.BetaInputJsonDelta;
+using AnthropicBetaRawContentBlockDeltaEvent = Anthropic.Models.Beta.Messages.BetaRawContentBlockDeltaEvent;
+using AnthropicBetaRawContentBlockStartEvent = Anthropic.Models.Beta.Messages.BetaRawContentBlockStartEvent;
+using AnthropicBetaRawMessageStreamEvent = Anthropic.Models.Beta.Messages.BetaRawMessageStreamEvent;
+using AnthropicBetaToolUseBlock = Anthropic.Models.Beta.Messages.BetaToolUseBlock;
 
 namespace DotCraft.Tests.Sessions.Protocol;
 
@@ -973,6 +978,95 @@ public sealed class SessionServiceRuntimeSignalTests : IDisposable
         Assert.Equal(deltaEvent.ItemId, completedToolCall.ItemId);
         var payload = Assert.IsType<ToolCallPayload>(completedToolCall.ItemPayload!.Payload);
         Assert.Equal("tester", payload.Arguments?["agentNickname"]?.ToString());
+    }
+
+    [Fact]
+    public async Task SubmitInputAsync_AnthropicArgumentsDelta_CompletesSameToolCallItem()
+    {
+        IChatClient rawChatClient = new FakeChatClient([
+            new ChatResponseUpdate(ChatRole.Assistant, [])
+            {
+                RawRepresentation = new AnthropicBetaRawMessageStreamEvent(
+                    new AnthropicBetaRawContentBlockStartEvent
+                    {
+                        Index = 0,
+                        ContentBlock = new AnthropicBetaToolUseBlock
+                        {
+                            ID = "call-plan",
+                            Name = "CreatePlan",
+                            Input = new Dictionary<string, JsonElement>()
+                        }
+                    })
+            },
+            new ChatResponseUpdate(ChatRole.Assistant, [])
+            {
+                RawRepresentation = new AnthropicBetaRawMessageStreamEvent(
+                    new AnthropicBetaRawContentBlockDeltaEvent
+                    {
+                        Index = 0,
+                        Delta = new AnthropicBetaInputJsonDelta("{\"plan\":\"# Ship")
+                    })
+            },
+            new ChatResponseUpdate(ChatRole.Assistant, [])
+            {
+                RawRepresentation = new AnthropicBetaRawMessageStreamEvent(
+                    new AnthropicBetaRawContentBlockDeltaEvent
+                    {
+                        Index = 0,
+                        Delta = new AnthropicBetaInputJsonDelta(" feature with")
+                    })
+            },
+            new ChatResponseUpdate(ChatRole.Assistant, [])
+            {
+                RawRepresentation = new AnthropicBetaRawMessageStreamEvent(
+                    new AnthropicBetaRawContentBlockDeltaEvent
+                    {
+                        Index = 0,
+                        Delta = new AnthropicBetaInputJsonDelta(" fine-grained streaming\"}")
+                    })
+            },
+            new ChatResponseUpdate(ChatRole.Assistant, [new FunctionCallContent(
+                callId: "call-plan",
+                name: "CreatePlan",
+                arguments: new Dictionary<string, object?> { ["plan"] = "# Ship feature with fine-grained streaming" })]),
+            new ChatResponseUpdate(ChatRole.Assistant, [new FunctionResultContent("call-plan", "Plan created")])
+        ]);
+        IChatClient chatClient = new StreamingFunctionInvokingChatClient(rawChatClient)
+        {
+            EnableToolCallArgumentPreviews = true
+        };
+        await using var agentFactory = CreateAgentFactory(chatClient);
+        var svc = CreateService(agentFactory, chatClient);
+        var thread = await svc.CreateThreadAsync(MakeIdentity());
+
+        var events = await CollectAsync(svc.SubmitInputAsync(thread.Id, [new TextContent("hello")]));
+
+        var deltas = events.Where(e => e.ToolCallArgumentsDeltaPayload != null).ToList();
+        Assert.Equal(3, deltas.Count);
+        var firstDelta = Assert.IsType<ToolCallArgumentsDelta>(deltas[0].ToolCallArgumentsDeltaPayload);
+        var secondDelta = Assert.IsType<ToolCallArgumentsDelta>(deltas[1].ToolCallArgumentsDeltaPayload);
+        var thirdDelta = Assert.IsType<ToolCallArgumentsDelta>(deltas[2].ToolCallArgumentsDeltaPayload);
+        Assert.Equal("CreatePlan", firstDelta.ToolName);
+        Assert.Equal("call-plan", firstDelta.CallId);
+        Assert.Equal("{\"plan\":\"# Ship", firstDelta.Delta);
+        Assert.Equal(" feature with", secondDelta.Delta);
+        Assert.Equal(" fine-grained streaming\"}", thirdDelta.Delta);
+
+        var startedToolCall = Assert.Single(
+            events,
+            e => e.EventType == SessionEventType.ItemStarted
+                && e.ItemId == deltas[0].ItemId
+                && e.ItemPayload?.Payload is ToolCallPayload { ToolName: "CreatePlan" });
+        Assert.Null(Assert.IsType<ToolCallPayload>(startedToolCall.ItemPayload!.Payload).Arguments);
+
+        var completedToolCall = Assert.Single(
+            events,
+            e => e.EventType == SessionEventType.ItemCompleted
+                && e.ItemPayload?.Type == ItemType.ToolCall
+                && e.ItemPayload.Payload is ToolCallPayload { ToolName: "CreatePlan" });
+        Assert.Equal(deltas[0].ItemId, completedToolCall.ItemId);
+        var completedPayload = Assert.IsType<ToolCallPayload>(completedToolCall.ItemPayload!.Payload);
+        Assert.Equal("# Ship feature with fine-grained streaming", completedPayload.Arguments?["plan"]?.ToString());
     }
 
     [Fact]
