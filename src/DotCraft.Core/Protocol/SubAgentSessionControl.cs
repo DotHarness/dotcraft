@@ -77,6 +77,12 @@ public sealed class SubAgentSpawnOptions
 
     public int MaxDepth { get; set; } = 1;
 
+    /// <summary>
+    /// Maximum number of open (resident) SubAgents allowed within the root thread
+    /// subtree. Exceeding it auto-closes the oldest idle SubAgent before spawning.
+    /// </summary>
+    public int MaxConcurrentSubAgents { get; set; } = 16;
+
     public string? ForkTurns { get; set; }
 }
 
@@ -241,6 +247,7 @@ public static class SubAgentSessionControl
         var maxDepth = Math.Max(1, options.MaxDepth);
         if (depth > maxDepth)
             throw new InvalidOperationException($"Subagent depth limit reached. Maximum depth is {maxDepth}.");
+        await EnforceResidencyLimitAsync(context, options.MaxConcurrentSubAgents, ct);
         var now = DateTimeOffset.UtcNow;
         var childConfiguration = ApplyRoleToChildConfiguration(
             context.ParentThread.Configuration,
@@ -1190,6 +1197,69 @@ public static class SubAgentSessionControl
                 .OfType<TextContent>()
                 .Select(content => content.Text));
         return string.IsNullOrWhiteSpace(text) ? queued.DisplayText : text;
+    }
+
+    /// <summary>
+    /// Bounds the number of open (resident) SubAgents in the root thread's subtree.
+    /// When spawning would exceed the limit, the oldest idle (non-running) SubAgent is
+    /// closed to make room. If every resident SubAgent is still running, the spawn
+    /// fails instead of evicting active work. Runs before a new child thread/edge is
+    /// created.
+    /// </summary>
+    private static async Task EnforceResidencyLimitAsync(
+        SubAgentSessionContext context,
+        int maxConcurrentSubAgents,
+        CancellationToken ct)
+    {
+        var cap = Math.Max(1, maxConcurrentSubAgents);
+        while (true)
+        {
+            // Keep resident open edges strictly below the cap so the pending spawn fits.
+            var openEdges = await CollectOpenSubtreeEdgesAsync(context.SessionService, context.RootThreadId, ct);
+            if (openEdges.Count < cap)
+                return;
+
+            var evictable = openEdges
+                .Where(edge => !RunningChildren.ContainsKey(edge.ChildThreadId))
+                .OrderBy(edge => edge.UpdatedAt)
+                .FirstOrDefault();
+            if (evictable == null)
+                throw new InvalidOperationException(
+                    $"Subagent concurrency limit reached: up to {cap} agents can be active at once. "
+                    + "Close a running agent with CloseAgent before spawning another.");
+
+            await CloseAgentAsync(context.SessionService, evictable.ChildThreadId, ct);
+        }
+    }
+
+    /// <summary>
+    /// Collects every open (non-closed) spawn edge in the root thread's subtree,
+    /// breadth-first, so residency can be measured across nested SubAgents.
+    /// </summary>
+    private static async Task<List<ThreadSpawnEdge>> CollectOpenSubtreeEdgesAsync(
+        ISessionService sessionService,
+        string rootThreadId,
+        CancellationToken ct)
+    {
+        var openEdges = new List<ThreadSpawnEdge>();
+        var visited = new HashSet<string>(StringComparer.Ordinal);
+        var queue = new Queue<string>();
+        queue.Enqueue(rootThreadId);
+        while (queue.Count > 0)
+        {
+            var parentThreadId = queue.Dequeue();
+            if (!visited.Add(parentThreadId))
+                continue;
+
+            var edges = await sessionService.ListSubAgentChildrenAsync(parentThreadId, includeClosed: false, ct);
+            foreach (var edge in edges)
+            {
+                openEdges.Add(edge);
+                queue.Enqueue(edge.ChildThreadId);
+            }
+        }
+
+        return openEdges;
     }
 
     private static async Task ThrowIfDuplicateSiblingPathAsync(

@@ -44,6 +44,17 @@ public sealed class PromptBuilderSubAgentTests : IDisposable
     }
 
     [Fact]
+    public void MainPrompt_WhenCloseAgentAvailable_TiesCloseGuidanceToConcurrencyLimit()
+    {
+        var prompt = CreateMainBuilder(
+                toolNames: ["SpawnAgent", "WaitAgent", "CloseAgent"])
+            .BuildSystemPrompt();
+
+        Assert.Contains("`CloseAgent`", prompt, StringComparison.Ordinal);
+        Assert.Contains("count toward the concurrency limit until closed", prompt, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void MainPrompt_WhenSpawnAgentUnavailable_OmitsLifecycleGuidance()
     {
         var prompt = CreateMainBuilder(

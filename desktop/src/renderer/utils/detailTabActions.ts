@@ -39,6 +39,10 @@ export function performAddTabAction(action: AddTabMenuAction, ctx: AddTabActionC
     ui.setActiveDetailTab('plan')
     return
   }
+  if (action === 'newSubagents') {
+    ui.setActiveDetailTab('subagents')
+    return
+  }
 
   const { threadId, workspacePath, t } = ctx
   if (!threadId || !workspacePath) return

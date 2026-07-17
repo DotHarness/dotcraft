@@ -5,6 +5,7 @@ import { useT } from '../../contexts/LocaleContext'
 import { useThreadStore } from '../../stores/threadStore'
 import { useUIStore } from '../../stores/uiStore'
 import type { ThreadSummary } from '../../types/thread'
+import { isSubAgentThread } from '../../utils/subAgentThreads'
 import { ShortcutBadge } from '../ui/ShortcutBadge'
 import { ACTION_SHORTCUTS } from '../ui/shortcutKeys'
 import {
@@ -94,7 +95,7 @@ function ThreadSearchDialog({ workspaceName, onClose }: ThreadSearchDialogProps)
 
   const visibleThreads = useMemo(() => {
     const visible = threadList
-      .filter((thread) => thread.status !== 'archived')
+      .filter((thread) => thread.status !== 'archived' && !isSubAgentThread(thread))
       .sort((a, b) => new Date(b.lastActiveAt).getTime() - new Date(a.lastActiveAt).getTime())
 
     const trimmed = query.trim().toLowerCase()

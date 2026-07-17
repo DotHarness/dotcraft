@@ -93,7 +93,8 @@ public sealed class SandboxToolSource(
                 config.SubAgent.Roles,
                 config.SubAgent.MaxDepth,
                 subAgentRuntime.Model,
-                SubAgentWaitAgentTimeoutOptions.FromConfig(config.SubAgent));
+                SubAgentWaitAgentTimeoutOptions.FromConfig(config.SubAgent),
+                config.SubAgent.MaxConcurrentSubAgents);
             tools.Add(GeneratedToolFunctions.AgentTools_SpawnAgent(agentTools));
             tools.Add(GeneratedToolFunctions.AgentTools_SendMessage(agentTools));
             tools.Add(GeneratedToolFunctions.AgentTools_FollowupTask(agentTools));

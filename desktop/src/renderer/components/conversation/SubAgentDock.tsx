@@ -76,12 +76,16 @@ export function BackgroundActivityDock({
     void fetchChildren(parentThreadId)
   }, [fetchChildren, parentThreadId])
 
-  if (children.length === 0 && queuedInputs.length === 0) return null
+  // Dock is for in-flight work only: it shows running subagents (and the queue).
+  // Completed subagents live in the Subagents detail tab, reached via "View done".
+  if (runningChildren.length === 0 && queuedInputs.length === 0) return null
 
-  const hasSubAgents = children.length > 0
+  const hasSubAgents = runningChildren.length > 0
   const hasQueue = queuedInputs.length > 0
+  const doneCount = children.length - runningChildren.length
   const closeableRunning = runningChildren.filter((child) => child.supportsClose && child.agentPath)
-  const contentMaxHeight = Math.min(children.length * 62 + 8, 260)
+  const contentMaxHeight = Math.min(runningChildren.length * 62 + 8, 260)
+  const openSubagentsTab = (): void => useUIStore.getState().setActiveDetailTab('subagents')
 
   const stopAll = async (): Promise<void> => {
     try {
@@ -93,7 +97,7 @@ export function BackgroundActivityDock({
   }
   const toggleCollapsed = (): void => setParentCollapsed(parentThreadId, !collapsed)
   const title = hasSubAgents
-    ? t('subAgentDock.title', { count: children.length })
+    ? t('subAgentDock.title', { count: runningChildren.length })
     : t(queuedInputs.length === 1 ? 'composer.queueDockTitleOne' : 'composer.queueDockTitleMany', { count: queuedInputs.length })
 
   const handleDragEnd = (event: DragEndEvent): void => {
@@ -140,6 +144,19 @@ export function BackgroundActivityDock({
           </div>
         )}
         <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', flexShrink: 0 }}>
+          {doneCount > 0 && (
+            <button
+              type="button"
+              aria-label={t('subAgentDock.viewDone', { count: doneCount })}
+              onClick={(event) => {
+                event.stopPropagation()
+                openSubagentsTab()
+              }}
+              style={viewDoneButtonStyle}
+            >
+              {t('subAgentDock.viewDone', { count: doneCount })}
+            </button>
+          )}
           {closeableRunning.length > 0 && (
             <ActionTooltip label={t('subAgentDock.stopAll')} placement="top">
               <button
@@ -182,7 +199,7 @@ export function BackgroundActivityDock({
           style={rowsViewportStyle(collapsed, contentMaxHeight)}
         >
           <div style={rowsStyle}>
-            {children.map((child, index) => (
+            {runningChildren.map((child, index) => (
               <SubAgentDockRow
                 key={child.childThreadId}
                 child={child}
@@ -772,4 +789,17 @@ const textButtonStyle: CSSProperties = {
   padding: '2px 4px',
   fontSize: '12px',
   cursor: 'pointer'
+}
+
+const viewDoneButtonStyle: CSSProperties = {
+  border: 'none',
+  background: 'transparent',
+  color: 'var(--text-dimmed)',
+  display: 'inline-flex',
+  alignItems: 'center',
+  padding: '2px 8px',
+  fontSize: '12px',
+  borderRadius: '6px',
+  cursor: 'pointer',
+  whiteSpace: 'nowrap'
 }

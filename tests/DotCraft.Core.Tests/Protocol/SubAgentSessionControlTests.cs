@@ -580,6 +580,111 @@ public sealed class SubAgentSessionControlTests : IDisposable
     }
 
     [Fact]
+    public async Task SpawnAgent_WhenResidencyLimitReached_ClosesOldestIdleSubAgent()
+    {
+        var runtime = new FakeRuntime(CliOneshotRuntime.RuntimeTypeName, "ok");
+        var coordinator = CreateCoordinator(runtime, supportsResume: false, resumeEnabled: false);
+        var context = await CreateContextAsync();
+        var now = DateTimeOffset.UtcNow;
+        var older = await CreateIdleSubAgentAsync(context, "/root/older", "older", now.AddMinutes(-10));
+        var newer = await CreateIdleSubAgentAsync(context, "/root/newer", "newer", now.AddMinutes(-5));
+
+        await SubAgentSessionControl.SpawnAgentAsync(
+            context,
+            new SubAgentSpawnOptions
+            {
+                AgentPrompt = "fresh work",
+                TaskName = "fresh",
+                ProfileName = "cli-run",
+                MaxConcurrentSubAgents = 2
+            },
+            waitForCompletion: true,
+            coordinator,
+            CancellationToken.None);
+
+        var openPaths = (await _sessionService.ListSubAgentChildrenAsync(context.ParentThread.Id))
+            .Select(edge => edge.AgentPath)
+            .OrderBy(path => path, StringComparer.Ordinal)
+            .ToArray();
+
+        Assert.Equal(["/root/fresh", "/root/newer"], openPaths);
+        Assert.Equal(ThreadStatus.Archived, (await _sessionService.GetThreadAsync(older.Id)).Status);
+        Assert.Equal(ThreadStatus.Active, (await _sessionService.GetThreadAsync(newer.Id)).Status);
+    }
+
+    [Fact]
+    public async Task SpawnAgent_WhenResidencyLimitReached_EvictionArchivesIdleSubtree()
+    {
+        var runtime = new FakeRuntime(CliOneshotRuntime.RuntimeTypeName, "ok");
+        var coordinator = CreateCoordinator(runtime, supportsResume: false, resumeEnabled: false);
+        var context = await CreateContextAsync();
+        var now = DateTimeOffset.UtcNow;
+        var older = await CreateIdleSubAgentAsync(context, "/root/older", "older", now.AddMinutes(-10));
+        var deep = await CreateIdleSubAgentAsync(
+            context,
+            "/root/older/deep",
+            "deep",
+            now.AddMinutes(-9),
+            parentThreadId: older.Id,
+            depth: 2);
+        await CreateIdleSubAgentAsync(context, "/root/newer", "newer", now.AddMinutes(-5));
+
+        await SubAgentSessionControl.SpawnAgentAsync(
+            context,
+            new SubAgentSpawnOptions
+            {
+                AgentPrompt = "fresh work",
+                TaskName = "fresh",
+                ProfileName = "cli-run",
+                MaxConcurrentSubAgents = 2
+            },
+            waitForCompletion: true,
+            coordinator,
+            CancellationToken.None);
+
+        Assert.Equal(ThreadStatus.Archived, (await _sessionService.GetThreadAsync(older.Id)).Status);
+        Assert.Equal(ThreadStatus.Archived, (await _sessionService.GetThreadAsync(deep.Id)).Status);
+    }
+
+    [Fact]
+    public async Task SpawnAgent_WhenResidencyLimitReachedAndAllRunning_Throws()
+    {
+        var runtime = new FakeRuntime(CliOneshotRuntime.RuntimeTypeName, "unused")
+        {
+            WaitForCancellation = true
+        };
+        var coordinator = CreateCoordinator(runtime, supportsResume: false, resumeEnabled: false);
+        var context = await CreateContextAsync();
+
+        var first = await SubAgentSessionControl.SpawnAgentAsync(
+            context,
+            new SubAgentSpawnOptions { AgentPrompt = "one", TaskName = "one", ProfileName = "cli-run", MaxConcurrentSubAgents = 2 },
+            waitForCompletion: false,
+            coordinator,
+            CancellationToken.None);
+        var second = await SubAgentSessionControl.SpawnAgentAsync(
+            context,
+            new SubAgentSpawnOptions { AgentPrompt = "two", TaskName = "two", ProfileName = "cli-run", MaxConcurrentSubAgents = 2 },
+            waitForCompletion: false,
+            coordinator,
+            CancellationToken.None);
+
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            SubAgentSessionControl.SpawnAgentAsync(
+                context,
+                new SubAgentSpawnOptions { AgentPrompt = "three", TaskName = "three", ProfileName = "cli-run", MaxConcurrentSubAgents = 2 },
+                waitForCompletion: false,
+                coordinator,
+                CancellationToken.None));
+
+        Assert.Contains("concurrency limit reached", ex.Message, StringComparison.Ordinal);
+        Assert.Equal(2, (await _sessionService.ListSubAgentChildrenAsync(context.ParentThread.Id)).Count);
+
+        await SubAgentSessionControl.CloseAgentAsync(_sessionService, first.ChildThreadId, CancellationToken.None);
+        await SubAgentSessionControl.CloseAgentAsync(_sessionService, second.ChildThreadId, CancellationToken.None);
+    }
+
+    [Fact]
     public async Task SpawnAgent_WritesAgentPathAndRejectsDuplicateSiblingTaskName()
     {
         var context = await CreateContextAsync();
@@ -1360,6 +1465,61 @@ public sealed class SubAgentSessionControlTests : IDisposable
             SupportsFollowupTask = true,
             SupportsClose = true,
             Status = ThreadSpawnEdgeStatus.Open
+        });
+
+        return child;
+    }
+
+    private async Task<SessionThread> CreateIdleSubAgentAsync(
+        SubAgentSessionContext context,
+        string agentPath,
+        string taskName,
+        DateTimeOffset updatedAt,
+        string? parentThreadId = null,
+        int depth = 1)
+    {
+        var effectiveParentId = parentThreadId ?? context.ParentThread.Id;
+        var child = await _sessionService.CreateThreadAsync(
+            new SessionIdentity
+            {
+                WorkspacePath = _tempDir,
+                UserId = "user",
+                ChannelName = SubAgentThreadOrigin.ChannelName,
+                ChannelContext = effectiveParentId
+            },
+            displayName: taskName,
+            source: ThreadSource.ForSubAgent(new SubAgentThreadSource
+            {
+                ParentThreadId = effectiveParentId,
+                ParentTurnId = "turn_seed",
+                RootThreadId = context.RootThreadId,
+                Depth = depth,
+                AgentPath = agentPath,
+                TaskName = taskName,
+                AgentNickname = taskName,
+                ProfileName = SubAgentCoordinator.DefaultProfileName,
+                RuntimeType = NativeSubAgentRuntime.RuntimeTypeName,
+                SupportsSendMessage = true,
+                SupportsFollowupTask = true,
+                SupportsClose = true
+            }));
+        await _sessionService.UpsertThreadSpawnEdgeAsync(new ThreadSpawnEdge
+        {
+            ParentThreadId = effectiveParentId,
+            ChildThreadId = child.Id,
+            ParentTurnId = "turn_seed",
+            Depth = depth,
+            AgentPath = agentPath,
+            TaskName = taskName,
+            AgentNickname = taskName,
+            ProfileName = SubAgentCoordinator.DefaultProfileName,
+            RuntimeType = NativeSubAgentRuntime.RuntimeTypeName,
+            SupportsSendMessage = true,
+            SupportsFollowupTask = true,
+            SupportsClose = true,
+            Status = ThreadSpawnEdgeStatus.Open,
+            CreatedAt = updatedAt,
+            UpdatedAt = updatedAt
         });
 
         return child;

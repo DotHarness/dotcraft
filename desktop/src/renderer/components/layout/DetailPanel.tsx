@@ -5,9 +5,11 @@ import type { SystemDetailTab } from '../../stores/uiStore'
 import { useViewerTabStore } from '../../stores/viewerTabStore'
 import { useConversationStore } from '../../stores/conversationStore'
 import { useThreadStore } from '../../stores/threadStore'
-import { FilePlus2, ListChecks, SquareTerminal, Plus, X, Globe, PanelRightClose, MousePointer2 } from 'lucide-react'
+import { FilePlus2, ListChecks, SquareTerminal, Plus, X, Globe, PanelRightClose, MousePointer2, Bot } from 'lucide-react'
 import { ChangesTab } from '../detail/ChangesTab'
 import { PlanTab } from '../detail/PlanTab'
+import { SubagentsTab } from '../detail/SubagentsTab'
+import { isSubAgentChildRunning, useSubAgentStore } from '../../stores/subAgentStore'
 import { AddTabPopupWindow } from '../detail/AddTabPopupWindow'
 import { DetailPanelLauncher } from '../detail/DetailPanelLauncher'
 import { FileTypeIcon } from '../ui/FileTypeIcon'
@@ -71,6 +73,11 @@ export function DetailPanel({
   const changedFiles = useConversationStore((s) => s.changedFiles)
 
   const changedFileCount = changedFiles.size
+  const runningSubagentCount = useSubAgentStore((s) =>
+    activeThreadId
+      ? (s.childrenByParent.get(activeThreadId) ?? []).filter(isSubAgentChildRunning).length
+      : 0
+  )
 
   const addButtonRef = useRef<HTMLButtonElement>(null)
   const [addTabMenu, setAddTabMenu] = useState<AddTabPopupPayload | null>(null)
@@ -181,6 +188,13 @@ export function DetailPanel({
               label: t('detailPanel.tabPlan'),
               shortcut: fmt(ACTION_SHORTCUTS.newPlan),
               enabled: true
+            }]),
+        ...(openSystemTabs.includes('subagents')
+          ? []
+          : [{
+              action: 'newSubagents' as const,
+              label: t('detailPanel.tabSubagents'),
+              enabled: true
             }])
       ]
     }
@@ -199,6 +213,11 @@ export function DetailPanel({
     plan: {
       label: t('detailPanel.tabPlan'),
       icon: <ListChecks size={16} strokeWidth={2} aria-hidden style={{ display: 'block' }} />
+    },
+    subagents: {
+      label: t('detailPanel.tabSubagents'),
+      icon: <Bot size={16} strokeWidth={2} aria-hidden style={{ display: 'block' }} />,
+      badge: runningSubagentCount > 0 ? runningSubagentCount : undefined
     }
   }
 
@@ -387,6 +406,7 @@ export function DetailPanel({
           <ChangesTab workspacePath={workspacePath} />
         )}
         {activeDetailTab.kind === 'system' && activeDetailTab.id === 'plan' && <PlanTab />}
+        {activeDetailTab.kind === 'system' && activeDetailTab.id === 'subagents' && <SubagentsTab />}
         {activeDetailTab.kind === 'viewer' && (
           <ViewerTabContainer tabId={activeDetailTab.id} />
         )}

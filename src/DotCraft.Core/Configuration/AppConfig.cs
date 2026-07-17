@@ -1141,6 +1141,16 @@ public sealed class AppConfig
         public int MaxDepth { get; set; } = 1;
 
         /// <summary>
+        /// Maximum number of open (resident) session-backed SubAgents allowed within a
+        /// root thread's subtree at once. When spawning would exceed this limit, the
+        /// oldest idle (non-running) SubAgent is auto-closed to make room. If every
+        /// resident SubAgent is still running, the spawn fails instead of evicting
+        /// active work.
+        /// </summary>
+        [ConfigField(Min = 1, Hint = "Maximum concurrent (resident) SubAgents per root thread. Oldest idle agents are auto-closed when exceeded.", Reload = ReloadBehavior.Hot, HasReload = true)]
+        public int MaxConcurrentSubAgents { get; set; } = 16;
+
+        /// <summary>
         /// Workspace-configured SubAgent roles. Entries override built-in roles by name.
         /// </summary>
         [ConfigField(Ignore = true)]

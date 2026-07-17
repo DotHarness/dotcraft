@@ -468,6 +468,8 @@ function visibleProjectThreads(threads: unknown[]): ThreadSummary[] {
     .filter(isThreadSummary)
     .filter((thread) => !isInternalThread(thread))
     .filter((thread) => thread.status?.toLowerCase() !== 'archived')
+    // Subagent threads are surfaced via the dock / Subagents tab, not the sidebar.
+    .filter((thread) => !isSubAgentThread(thread))
 }
 
 function sortThreadsByRecentActivity(threads: ThreadSummary[]): ThreadSummary[] {
@@ -1339,7 +1341,9 @@ function ProjectHeader({
         alignItems: 'center',
         gap: '6px',
         minHeight: SIDEBAR_ROW_MIN_HEIGHT,
-        margin: '2px 8px',
+        // 4px side inset matches the sidebar nav rows and thread rows so all
+        // sidebar buttons share the same width and right-edge alignment.
+        margin: '2px 4px',
         padding: '2px 6px',
         borderRadius: 'var(--sidebar-control-radius)',
         backgroundColor: hovered ? 'var(--sidebar-control-hover)' : 'transparent',

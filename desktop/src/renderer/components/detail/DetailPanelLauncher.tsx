@@ -12,7 +12,7 @@
  * thread + workspace, mirroring the add-tab menu's `canOpenWorkspaceTab` guard.
  */
 import type { CSSProperties } from 'react'
-import { FilePlus2, FolderOpen, Globe, ListChecks, SquareTerminal } from 'lucide-react'
+import { Bot, FilePlus2, FolderOpen, Globe, ListChecks, SquareTerminal } from 'lucide-react'
 import { useT } from '../../contexts/LocaleContext'
 import { ACTION_SHORTCUTS, formatShortcutParts } from '../ui/shortcutKeys'
 import type { AddTabMenuAction } from '../../../shared/addTabMenu'
@@ -76,6 +76,13 @@ export function DetailPanelLauncher({
       description: t('detailPanel.launcherPlanDesc'),
       icon: <ListChecks size={22} strokeWidth={1.75} aria-hidden style={iconStyle} />,
       shortcut: fmt(ACTION_SHORTCUTS.newPlan),
+      enabled: true
+    },
+    {
+      action: 'newSubagents',
+      title: t('detailPanel.launcherSubagentsTitle'),
+      description: t('detailPanel.launcherSubagentsDesc'),
+      icon: <Bot size={22} strokeWidth={1.75} aria-hidden style={iconStyle} />,
       enabled: true
     },
     {

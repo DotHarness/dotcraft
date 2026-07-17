@@ -628,6 +628,21 @@ describe('selectFilteredThreads', () => {
     // '   '.trim() is '' so all threads returned
     expect(getFiltered()).toHaveLength(3)
   })
+
+  it('excludes subagent threads (surfaced via the dock / Subagents tab instead)', () => {
+    useThreadStore.getState().setThreadList([
+      ...threads,
+      makeThreadSummary('sub-1', {
+        displayName: 'Hello Subagent',
+        originChannel: 'subagent',
+        source: { kind: 'subagent', subAgent: { parentThreadId: 't1', depth: 1 } }
+      })
+    ])
+    useThreadStore.getState().setSearchQuery('')
+    const ids = getFiltered().map((t) => t.id)
+    expect(ids).not.toContain('sub-1')
+    expect(ids).toEqual(['t1', 't2', 't3'])
+  })
 })
 
 describe('threadStore full CRUD lifecycle', () => {

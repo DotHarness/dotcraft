@@ -132,15 +132,17 @@ export function ThreadRowLayout({
         display: 'flex',
         alignItems: 'center',
         position: 'relative',
-        width: 'calc(100% - 20px)',
+        // Match the sidebar nav rows (New chat / Search / Plugins) so every
+        // clickable row in the sidebar shares the same 4px side inset and lines
+        // up on the right edge. See SIDEBAR_NAV_ROW_OUTER (width: calc(100% - 8px)).
+        width: 'calc(100% - 8px)',
         minHeight: SIDEBAR_ROW_MIN_HEIGHT,
-        margin: '2px 10px',
-        // Right padding is 4px (not 12) so the 24px status slot — spinner,
-        // relative time, archive/confirm buttons — ends 14px from the sidebar's
-        // inner-right edge, exactly where the ProjectHeader's 24px action buttons
-        // (new-chat / more) end. This keeps every right-side control across the
-        // project header and its thread rows on the same vertical line.
-        padding: `3px 4px 3px ${paddingLeft}px`,
+        margin: '2px 4px',
+        // Right padding is 6px so the 24px status slot — spinner, relative time,
+        // archive/confirm buttons — ends 10px from the sidebar's inner-right edge,
+        // exactly where the ProjectHeader's action buttons (new-chat / more) end,
+        // keeping every right-side control on the same vertical line.
+        padding: `3px 6px 3px ${paddingLeft}px`,
         boxSizing: 'border-box',
         borderRadius: 'var(--sidebar-control-radius)',
         backgroundColor: active ? 'var(--sidebar-control-active)' : 'transparent',

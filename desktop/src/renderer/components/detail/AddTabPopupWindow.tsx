@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { FilePlus2, FolderOpen, Globe, ListChecks, SquareTerminal } from 'lucide-react'
+import { Bot, FilePlus2, FolderOpen, Globe, ListChecks, SquareTerminal } from 'lucide-react'
 import type { AddTabMenuAction, AddTabMenuItem, AddTabPopupPayload } from '../../../shared/addTabMenu'
 
 function itemIcon(action: AddTabMenuAction): JSX.Element {
@@ -16,6 +16,9 @@ function itemIcon(action: AddTabMenuAction): JSX.Element {
   }
   if (action === 'newPlan') {
     return <ListChecks size={14} aria-hidden style={style} />
+  }
+  if (action === 'newSubagents') {
+    return <Bot size={14} aria-hidden style={style} />
   }
   return <SquareTerminal size={14} aria-hidden style={style} />
 }
