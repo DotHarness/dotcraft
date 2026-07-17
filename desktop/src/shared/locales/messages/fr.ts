@@ -3089,4 +3089,11 @@ export const MESSAGES_FR = {
   'mcpApp.sandboxed': 'Isolé',
   'mcpApp.sandboxedTooltip': 'Cette vue s’exécute dans un bac à sable isolé.',
   'mcpApp.sandboxedFrom': 'Vue isolée · {{domain}}',
+  'inlineVisualization.followUpTitle': 'Envoyer un suivi depuis cette visualisation ?',
+  'inlineVisualization.send': 'Envoyer',
+  'inlineVisualization.cancelled': 'Suivi annulé.',
+  'inlineVisualization.loading': 'Chargement de la visualisation interactive.',
+  'inlineVisualization.scrollHint': 'Cette visualisation est très haute. Faites défiler son contenu pour voir la suite.',
+  'inlineVisualization.unavailable': 'Cette visualisation est indisponible.',
+  'inlineVisualization.frameTitle': 'Visualisation interactive : {{file}}',
 } satisfies Partial<Record<MessageId, string>>

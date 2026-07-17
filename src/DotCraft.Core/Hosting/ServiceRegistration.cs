@@ -1,4 +1,5 @@
 using DotCraft.Agents;
+using DotCraft.Abstractions;
 using DotCraft.Auth.OpenAI;
 using DotCraft.Commands.Custom;
 using DotCraft.Configuration;
@@ -134,6 +135,10 @@ public static class ServiceRegistration
         services.AddSingleton<CronTools>(sp => new CronTools(sp.GetRequiredService<CronService>()));
         services.AddSingleton<IToolSource>(sp => new CronToolSource(sp.GetRequiredService<CronTools>()));
         services.AddSingleton<IToolSource>(sp => new GoalToolSource(sp.GetRequiredService<AppConfig>()));
+        services.AddSingleton<Protocol.InlineVisualizations.InlineVisualizationAssetStore>();
+        services.AddSingleton<Protocol.InlineVisualizations.InlineVisualizationRuntimeRegistry>();
+        services.AddSingleton<IThreadSystemPromptContextProvider>(sp =>
+            sp.GetRequiredService<Protocol.InlineVisualizations.InlineVisualizationRuntimeRegistry>());
 
         // Hooks
         var hooksLoader = new HooksLoader(botPath);

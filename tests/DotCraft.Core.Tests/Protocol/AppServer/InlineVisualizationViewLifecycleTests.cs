@@ -1,0 +1,132 @@
+using DotCraft.Configuration;
+using DotCraft.Protocol;
+using DotCraft.Protocol.AppServer;
+using DotCraft.Protocol.InlineVisualizations;
+using Microsoft.Extensions.AI;
+
+namespace DotCraft.Tests.Sessions.Protocol.AppServer;
+
+public sealed class InlineVisualizationViewLifecycleTests : IDisposable
+{
+    private readonly string _root = Path.Combine(
+        Path.GetTempPath(),
+        "dotcraft-inline-visualization-view-tests",
+        Guid.NewGuid().ToString("N"));
+
+    [Fact]
+    public async Task OpenMessageAndClose_UseConnectionOwnedHandle()
+    {
+        Directory.CreateDirectory(_root);
+        var thread = CreateThread();
+        var sessions = new TestableSessionService(new ThreadStore(_root));
+        await sessions.SeedThreadAsync(thread);
+        var connection = CapableConnection();
+        await using var transport = new InMemoryTransport();
+        var assets = new InlineVisualizationAssetStore();
+        var runtime = new InlineVisualizationRuntimeRegistry(assets, new AppConfig());
+        Assert.True(runtime.BindThread(thread, transport, connection));
+        var directory = runtime.TryGetAuthoringDirectory(thread.Id, out var authoringDirectory)
+            ? authoringDirectory
+            : throw new InvalidOperationException("The authoring directory was not bound.");
+        await File.WriteAllTextAsync(Path.Combine(directory, "chart.html"), "<div>chart</div>");
+
+        using var handler = new InlineVisualizationRequestHandler(sessions, connection, assets, runtime);
+        var table = new AppServerMethodTable();
+        handler.RegisterMethods(table);
+        Assert.True(table.TryGet(AppServerMethods.InlineVisualizationViewOpen, out var open));
+        var opened = Assert.IsType<InlineVisualizationViewOpenResult>(await open(
+            InMemoryTransport.BuildRequest(
+                AppServerMethods.InlineVisualizationViewOpen,
+                new { threadId = thread.Id, turnId = "turn_test", itemId = "item_agent", file = "chart.html" }),
+            CancellationToken.None));
+        Assert.Equal("<div>chart</div>", opened.Fragment);
+
+        Assert.True(table.TryGet(AppServerMethods.InlineVisualizationViewMessage, out var message));
+        var sent = Assert.IsType<InlineVisualizationViewMessageResult>(await message(
+            InMemoryTransport.BuildRequest(
+                AppServerMethods.InlineVisualizationViewMessage,
+                new { viewHandle = opened.ViewHandle, prompt = "Explain the selected point." }),
+            CancellationToken.None));
+        Assert.Equal(sent.QueuedInputId, sessions.LastStartedQueuedInput?.Id);
+        Assert.Equal("visualization", sessions.LastStartedQueuedInput?.TriggerKind);
+        Assert.Equal("chart.html", sessions.LastStartedQueuedInput?.TriggerLabel);
+        Assert.Equal("item_agent", sessions.LastStartedQueuedInput?.TriggerRefId);
+        Assert.Equal(
+            "Explain the selected point.",
+            Assert.IsType<TextContent>(Assert.Single(sessions.LastSubmittedContent)).Text);
+
+        Assert.True(table.TryGet(AppServerMethods.InlineVisualizationViewClose, out var close));
+        var closed = Assert.IsType<InlineVisualizationViewCloseResult>(await close(
+            InMemoryTransport.BuildRequest(
+                AppServerMethods.InlineVisualizationViewClose,
+                new { viewHandle = opened.ViewHandle }),
+            CancellationToken.None));
+        Assert.True(closed.Closed);
+
+        var stale = await Assert.ThrowsAsync<AppServerException>(() => message(
+            InMemoryTransport.BuildRequest(
+                AppServerMethods.InlineVisualizationViewMessage,
+                new { viewHandle = opened.ViewHandle, prompt = "retry" }),
+            CancellationToken.None));
+        Assert.Equal("stale_view", Assert.IsType<AppServerErrorData>(stale.ErrorData).Code);
+    }
+
+    private SessionThread CreateThread()
+    {
+        var now = DateTimeOffset.UtcNow;
+        var item = new SessionItem
+        {
+            Id = "item_agent",
+            TurnId = "turn_test",
+            Type = ItemType.AgentMessage,
+            Status = ItemStatus.Completed,
+            CreatedAt = now,
+            CompletedAt = now,
+            Payload = new AgentMessagePayload
+            {
+                Text = "::dotcraft-inline-vis{file=\"chart.html\"}"
+            }
+        };
+        return new SessionThread
+        {
+            Id = "thread_test",
+            WorkspacePath = _root,
+            CreatedAt = now,
+            LastActiveAt = now,
+            Turns =
+            [
+                new SessionTurn
+                {
+                    Id = "turn_test",
+                    ThreadId = "thread_test",
+                    Status = TurnStatus.Completed,
+                    StartedAt = now,
+                    CompletedAt = now,
+                    Items = [item]
+                }
+            ]
+        };
+    }
+
+    private static AppServerConnection CapableConnection()
+    {
+        var connection = new AppServerConnection();
+        Assert.True(connection.TryMarkInitialized(
+            new AppServerClientInfo { Name = "desktop", Version = "test" },
+            new AppServerClientCapabilities { InlineVisualizations = true }));
+        return connection;
+    }
+
+    public void Dispose()
+    {
+        try
+        {
+            if (Directory.Exists(_root))
+                Directory.Delete(_root, recursive: true);
+        }
+        catch
+        {
+            // SQLite may retain a pooled handle briefly on Windows; cleanup is best-effort.
+        }
+    }
+}

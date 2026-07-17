@@ -10,12 +10,44 @@
 
 ## 1. Scope
 
-This specification defines two independent enhancement paths for tool results:
+This specification defines two independent enhancement paths for tool results and one
+assistant-message presentation path:
 
 - stable MCP Apps `io.modelcontextprotocol/ui`, version `2026-01-26`, for server-provided interactive resources;
 - the trusted Desktop `ToolRendererRegistry` for local Core renderers.
+- thread-bound inline visualizations referenced from assistant Markdown.
 
 Interactive presentation is optional. Every model-visible tool result MUST retain useful model/text fallback content. This specification does not grant tools or views additional execution authority.
+
+## 2.1 Inline assistant visualizations
+
+An assistant may place an exact, standalone directive in an `AgentMessage`:
+
+```text
+::dotcraft-inline-vis{file="example-name.html"}
+```
+
+The directive remains ordinary persisted assistant text. It does not introduce a Session Item,
+delta, payload kind, or provider-history type. Capable Desktop clients replace it at the same
+message position with a sandboxed view; other clients may show the raw directive.
+
+Only a completed AgentMessage may authorize a view. The referenced file name MUST match
+`^[a-z0-9]+(?:-[a-z0-9]+)*\.html$` and occur outside fenced code. Authoring files are written
+with ordinary file tools into the thread-scoped directory declared by the active Desktop host.
+That directory is
+`<workspace>/.craft/visualizations/<threadId>/`, where `workspace` is the authoritative
+`SessionThread.WorkspacePath`; execution and worktree overrides do not change its ownership.
+The files are transient workspace resources, not Session data, and have no reload, fork,
+archive, migration, or cross-device persistence guarantee. Implementations MUST NOT fall back
+to a user-global visualization directory.
+Inline visualization does not introduce dedicated Session Items, snapshots, or metadata.
+Ordinary file-tool calls retain their existing display, persistence, trace, and provider-history
+semantics.
+
+Inline visualization views use connection-owned opaque handles. They expose only resize and a
+confirmed user follow-up bridge; they do not expose MCP tools, resources, model context, local
+files, Electron, Node, or generic IPC. The inner frame uses an opaque origin and
+`sandbox="allow-scripts"`. Desktop applies a fixed CSP and a fixed static-resource allowlist.
 
 ## 2. Result audiences
 

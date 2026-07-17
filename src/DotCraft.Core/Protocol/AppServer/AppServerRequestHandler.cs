@@ -78,6 +78,7 @@ public sealed class AppServerRequestHandler(
             services.WireNodeReplProxy,
             services.WireDynamicToolProxy,
             services.WireRuntimeAdditionalContextProvider,
+            services.InlineVisualizationRuntimeRegistry,
             services.ContextPageManager);
 
     private AppServerResponseWriter ResponseWriter => _responseWriter ??= new AppServerResponseWriter(transport);
@@ -130,6 +131,11 @@ public sealed class AppServerRequestHandler(
             sessionService as IThreadToolSnapshotService,
             sessionService as IThreadMcpRuntimeService,
             services.McpAppTransientContextStore),
+        new InlineVisualizationRequestHandler(
+            sessionService,
+            connection,
+            services.InlineVisualizationAssetStore,
+            services.InlineVisualizationRuntimeRegistry),
         new ChannelRequestHandler(channelListContributor, services.ChannelStatusProvider, WorkspaceConfig, ExternalChannelConfig, services.WorkspaceCraftPath, services.AppConfigMonitor, services.OnExternalChannelUpserted, services.OnExternalChannelRemoved, services.ExternalChannelLogProvider),
         new ProviderRequestHandler(transport, WorkspaceConfig, RuntimeConfig, services.WorkspaceCraftPath, services.AppConfigMonitor, services.OpenAIClientProvider, services.OpenAIAuthService, services.OpenAIUsageService),
         new WorkspaceRequestHandler(services.CommitMessageSuggest, services.WelcomeSuggestionService, _configSchema, services.MemoryStore, services.DreamStore, services.DreamsService, services.LspServerManager, services.AppConfigMonitor, services.WorkspaceCraftPath, services.HostWorkspacePath, services.ContextPageManager, WorkspaceConfig, RuntimeConfig),
@@ -235,6 +241,9 @@ public sealed class AppServerRequestHandler(
         AppServerMethods.McpAppViewModelContextUpdate,
         AppServerMethods.McpAppViewOpenLink,
         AppServerMethods.McpAppViewClose,
+        AppServerMethods.InlineVisualizationViewOpen,
+        AppServerMethods.InlineVisualizationViewMessage,
+        AppServerMethods.InlineVisualizationViewClose,
         AppServerMethods.PluginList,
         AppServerMethods.PluginView,
         AppServerMethods.PluginInstall,

@@ -42,6 +42,7 @@ public sealed partial class AppServerModule : ModuleBase
             provider => provider.GetRequiredService<WireDynamicToolProxy>());
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IThreadSystemPromptContextProvider, WireRuntimeAdditionalContextSystemPromptProvider>());
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IThreadSystemPromptContextProvider, DotCraft.Agents.ProfileBuilderSystemPromptProvider>());
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IThreadSystemPromptContextProvider, DotCraft.CLI.TerminalVisualizationInstructionsPromptProvider>());
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IAppServerProtocolExtension, AppBindingProtocolExtension>());
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IToolSource, AppBindingOfflineToolSource>());
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IToolSource, ManagedSocialToolSource>());

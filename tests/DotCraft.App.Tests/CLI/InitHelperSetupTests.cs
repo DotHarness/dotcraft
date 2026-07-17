@@ -53,6 +53,7 @@ public sealed class InitHelperSetupTests : IDisposable
         Assert.True(File.Exists(agentsPath));
         Assert.False(string.IsNullOrWhiteSpace(File.ReadAllText(agentsPath)));
         Assert.False(File.Exists(Path.Combine(craftPath, "USER.md")));
+        Assert.Contains("/visualizations/", File.ReadAllText(Path.Combine(craftPath, ".gitignore")), StringComparison.Ordinal);
     }
 
     [Fact]

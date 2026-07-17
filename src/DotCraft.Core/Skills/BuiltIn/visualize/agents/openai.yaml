@@ -1,0 +1,6 @@
+interface:
+  display_name: "Visualize"
+  short_description: "Create interactive visualizations and exploratory tools"
+  icon_small: "./assets/visualize-small.svg"
+  icon_large: "./assets/visualize.svg"
+  default_prompt: "Use $visualize to turn this explanation into an interactive visualization."

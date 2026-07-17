@@ -28,7 +28,8 @@ public sealed class PromptBuilder(
     IContextPageManager? contextPageManager = null,
     DreamStore? dreamStore = null,
     SubAgentWaitAgentTimeoutOptions? subAgentWaitAgentTimeoutOptions = null,
-    IReadOnlyList<IThreadSystemPromptContextProvider>? threadSystemPromptContextProviders = null)
+    IReadOnlyList<IThreadSystemPromptContextProvider>? threadSystemPromptContextProviders = null,
+    string? originChannel = null)
 {
     private readonly string _craftPath = Path.GetFullPath(craftPath);
 
@@ -172,7 +173,7 @@ Active skills shown above are already loaded; follow their instructions directly
 
         if (!string.IsNullOrWhiteSpace(threadId) && threadSystemPromptContextProviders is { Count: > 0 })
         {
-            var promptContext = new ThreadSystemPromptContext(threadId.Trim(), _workspacePath);
+            var promptContext = new ThreadSystemPromptContext(threadId.Trim(), _workspacePath, originChannel);
             foreach (var provider in threadSystemPromptContextProviders)
             {
                 var section = GetContextPage(

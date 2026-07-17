@@ -236,6 +236,7 @@ Client                              Server
 | `capabilities.backgroundTerminals` | boolean | no | Whether the client can consume `terminal/*` terminal notifications for server-managed shell processes. Default `false`. |
 | `capabilities.configChange` | boolean | no | Whether the client wants `workspace/configChanged` notifications. Default `true`. |
 | `capabilities.mcpApps` | boolean | no | Whether this connection hosts stable MCP Apps views and accepts the opaque `mcpApp/view/*` contract. Default `false`. |
+| `capabilities.inlineVisualizations` | boolean | no | Whether this connection can host assistant inline visualization views. Default `false`. |
 | `capabilities.mcpElicitation` | boolean | no | Whether the client can answer `mcpServer/elicitation/request` form and URL requests. Default `false`; servers fail the MCP request with a client-unavailable result when no capable client owns the thread. |
 | `capabilities.optOutNotificationMethods` | string[] | no | Exact notification method names to suppress for this connection. See [Section 10](#10-notification-opt-out). |
 | `capabilities.channelAdapter` | object | no | External channel adapter metadata. When present, the connection is treated as the remote backend for one unified channel runtime. See [external-channel-adapter.md](external-channel-adapter.md). |
@@ -416,6 +417,7 @@ Built-in channels do not negotiate these capabilities over `initialize`; they pr
 | `capabilities.mcpManagement` | boolean | Server supports MCP configuration management methods (`mcp/list`, `mcp/get`, `mcp/upsert`, `mcp/remove`). |
 | `capabilities.mcpRuntime` | boolean | Server supports the MCP runtime/control methods and notifications in Section 22. |
 | `capabilities.mcpApps` | boolean | Server supports the stable MCP Apps `2026-01-26` opaque View methods in Section 22.10. A client must also advertise `capabilities.mcpApps` before using them. |
+| `capabilities.inlineVisualizations` | boolean | Server supports the connection-scoped `visualization/view/*` methods. A client must also advertise this capability before using them. |
 | `capabilities.mcpServerOrigins` | boolean | Server annotates MCP config/status DTOs with `origin` and `readOnly` so clients can show plugin-bundled MCP servers as read-only runtime entries. |
 | `capabilities.externalChannelManagement` | boolean | Server supports external channel configuration and diagnostic methods (`externalChannel/list`, `externalChannel/get`, `externalChannel/upsert`, `externalChannel/remove`, `externalChannel/logs`). |
 | `capabilities.agentProfileManagement` | boolean | Server supports Agent Profile Markdown management methods (`agent/profiles/list`, `agent/profiles/read`, `agent/profiles/validate`, `agent/profiles/upsert`, `agent/profiles/remove`, `agent/profiles/refreshThread`, `agent/profiles/builderDraft/read`, `agent/profiles/builderDraft/update`). |
@@ -5358,6 +5360,39 @@ Disconnect, thread archive/delete, MCP generation replacement, binding revoke, p
 - log entry: 8 KiB and 60 entries per view per minute (handled locally by Desktop).
 
 Stable View error categories are `McpAppViewNotFound`, `McpAppViewStale`, `McpAppViewOffline`, `McpAppViewRevoked`, `McpAppUnauthorized`, `McpAppApprovalRejected`, `McpAppInputInvalid`, `McpAppTimeout`, `McpAppProtocolError`, and `McpAppResultTooLarge`.
+
+### 22.10A Inline Visualization Views
+
+These methods require both peers to advertise `inlineVisualizations = true`. They render current
+HTML fragments referenced by exact `::dotcraft-inline-vis{file="..."}` lines in a completed
+AgentMessage. They do not change the Session wire shape or persist visualization content.
+
+#### 22.10A.1 `visualization/view/open`
+
+**Direction:** client → server. Params are
+`{ "threadId": string, "turnId": string, "itemId": string, "file": string }`.
+Result is `{ "viewHandle": string, "fragment": string, "mimeType": "text/html" }`.
+
+The server reloads authoritative thread state, verifies the completed item and directive, safely
+reads the current file from
+`<SessionThread.WorkspacePath>/.craft/visualizations/<threadId>/`, and returns a connection-owned
+opaque handle bound to the source thread, turn, item, and file. Execution and worktree overrides
+do not change this workspace ownership. Paths and storage roots are never returned, and the
+server never falls back to a user-global visualization directory.
+
+#### 22.10A.2 `visualization/view/message`
+
+**Direction:** client → server. Params are `{ "viewHandle": string, "prompt": string }`; result
+is `{ "queuedInputId": string }`. The server resolves the connection-owned handle, then starts
+or queues a user turn with trigger kind `visualization`; the view cannot choose thread, identity,
+or channel.
+
+#### 22.10A.3 `visualization/view/close`
+
+**Direction:** client → server. Params are `{ "viewHandle": string }`; result is
+`{ "closed": boolean }`. Close is idempotent.
+
+Stable reason codes include `not_referenced`, `not_found`, `unsafe_path`, and `stale_view`.
 
 ### 22.11 Error Codes
 

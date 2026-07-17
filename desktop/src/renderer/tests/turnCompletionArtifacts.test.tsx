@@ -122,6 +122,23 @@ describe('turn completion artifacts', () => {
     await waitFor(() => expect(screen.getByRole('button', { name: 'Choose how to open file' })).toBeEnabled())
   })
 
+  it('does not render inline visualization HTML as a regular artifact', () => {
+    useConversationStore.setState({
+      changedFiles: new Map([
+        [
+          'visualization',
+          makeDiff('.craft/visualizations/thread-test/chart.html')
+        ],
+        ['site/index.html', makeDiff('site/index.html')]
+      ])
+    })
+
+    renderWithLocale(<TurnArtifacts turnId="turn-1" />)
+
+    expect(screen.queryByText('chart.html')).not.toBeInTheDocument()
+    expect(screen.getByText('index.html')).toBeInTheDocument()
+  })
+
   it('opens Markdown artifact card bodies in the internal file viewer', async () => {
     useConversationStore.setState({
       changedFiles: new Map([['README.md', makeDiff('README.md')]])

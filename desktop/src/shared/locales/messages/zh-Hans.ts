@@ -3175,4 +3175,11 @@ export const MESSAGES_ZH_HANS = {
   'mcpApp.sandboxed': '沙箱',
   'mcpApp.sandboxedTooltip': '此视图运行在隔离的沙箱中。',
   'mcpApp.sandboxedFrom': '沙箱视图 · {{domain}}',
+  'inlineVisualization.followUpTitle': '从此可视化发送追问？',
+  'inlineVisualization.send': '发送',
+  'inlineVisualization.cancelled': '已取消追问。',
+  'inlineVisualization.loading': '正在加载交互式可视化。',
+  'inlineVisualization.scrollHint': '此可视化内容较长，请在其中滚动查看剩余内容。',
+  'inlineVisualization.unavailable': '此可视化当前不可用。',
+  'inlineVisualization.frameTitle': '交互式可视化：{{file}}',
 } satisfies Partial<Record<MessageId, string>>

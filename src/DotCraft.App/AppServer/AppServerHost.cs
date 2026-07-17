@@ -251,6 +251,8 @@ public sealed class AppServerHost(
                 ChannelStatusProvider = runtime.ChannelStatusProvider,
                 McpClientManager = runtime.McpClientManager,
                 McpAppTransientContextStore = _services.GetService<McpAppTransientContextStore>(),
+                InlineVisualizationAssetStore = _services.GetService<DotCraft.Protocol.InlineVisualizations.InlineVisualizationAssetStore>(),
+                InlineVisualizationRuntimeRegistry = _services.GetService<DotCraft.Protocol.InlineVisualizations.InlineVisualizationRuntimeRegistry>(),
                 LspServerManager = runtime.LspServerManager,
                 BroadcastMcpStatusChanged = BroadcastMcpStatusChanged,
                 NotifyAppPrincipal = NotifyAppPrincipal,
@@ -297,7 +299,14 @@ public sealed class AppServerHost(
 
         try
         {
-            await RunLoopAsync(transport, connection, handler, runtime.WireAcpExtensionProxy, runtime.WireNodeReplProxy, runtime.WireDynamicToolProxy, _services.GetService<WireRuntimeAdditionalContextProvider>(), runtime.ContextPageManager, cancellationToken);
+            await RunLoopAsync(
+                transport, connection, handler,
+                runtime.WireAcpExtensionProxy, runtime.WireNodeReplProxy, runtime.WireDynamicToolProxy,
+                _services.GetService<WireRuntimeAdditionalContextProvider>(),
+                _services.GetService<DotCraft.Protocol.InlineVisualizations.InlineVisualizationRuntimeRegistry>(),
+                runtime.ContextPageManager,
+                runtime.SessionService as IThreadAgentRefreshService,
+                cancellationToken);
         }
         finally
         {
@@ -350,7 +359,14 @@ public sealed class AppServerHost(
 
         try
         {
-            await RunLoopAsync(transport, connection, handler, runtime.WireAcpExtensionProxy, runtime.WireNodeReplProxy, runtime.WireDynamicToolProxy, _services.GetService<WireRuntimeAdditionalContextProvider>(), runtime.ContextPageManager, cancellationToken);
+            await RunLoopAsync(
+                transport, connection, handler,
+                runtime.WireAcpExtensionProxy, runtime.WireNodeReplProxy, runtime.WireDynamicToolProxy,
+                _services.GetService<WireRuntimeAdditionalContextProvider>(),
+                _services.GetService<DotCraft.Protocol.InlineVisualizations.InlineVisualizationRuntimeRegistry>(),
+                runtime.ContextPageManager,
+                runtime.SessionService as IThreadAgentRefreshService,
+                cancellationToken);
         }
         finally
         {
@@ -505,7 +521,14 @@ public sealed class AppServerHost(
 
                         // Not a channel adapter — fall through to normal RunLoopAsync
                         // (initialize already processed, loop will handle subsequent messages)
-                        await RunLoopAsync(wsTransport, wsConnection, wsHandler, runtime.WireAcpExtensionProxy, runtime.WireNodeReplProxy, runtime.WireDynamicToolProxy, _services.GetService<WireRuntimeAdditionalContextProvider>(), runtime.ContextPageManager, hostCt);
+                        await RunLoopAsync(
+                            wsTransport, wsConnection, wsHandler,
+                            runtime.WireAcpExtensionProxy, runtime.WireNodeReplProxy, runtime.WireDynamicToolProxy,
+                            _services.GetService<WireRuntimeAdditionalContextProvider>(),
+                            _services.GetService<DotCraft.Protocol.InlineVisualizations.InlineVisualizationRuntimeRegistry>(),
+                            runtime.ContextPageManager,
+                            runtime.SessionService as IThreadAgentRefreshService,
+                            hostCt);
                         return;
                     }
 
@@ -520,7 +543,14 @@ public sealed class AppServerHost(
                     }
                 }
 
-                await RunLoopAsync(wsTransport, wsConnection, wsHandler, runtime.WireAcpExtensionProxy, runtime.WireNodeReplProxy, runtime.WireDynamicToolProxy, _services.GetService<WireRuntimeAdditionalContextProvider>(), runtime.ContextPageManager, hostCt);
+                await RunLoopAsync(
+                    wsTransport, wsConnection, wsHandler,
+                    runtime.WireAcpExtensionProxy, runtime.WireNodeReplProxy, runtime.WireDynamicToolProxy,
+                    _services.GetService<WireRuntimeAdditionalContextProvider>(),
+                    _services.GetService<DotCraft.Protocol.InlineVisualizations.InlineVisualizationRuntimeRegistry>(),
+                    runtime.ContextPageManager,
+                    runtime.SessionService as IThreadAgentRefreshService,
+                    hostCt);
             } // end try
             finally
             {
@@ -552,7 +582,9 @@ public sealed class AppServerHost(
         WireNodeReplProxy? wireNodeReplProxy,
         WireDynamicToolProxy? wireDynamicToolProxy,
         WireRuntimeAdditionalContextProvider? wireRuntimeAdditionalContextProvider,
+        DotCraft.Protocol.InlineVisualizations.InlineVisualizationRuntimeRegistry? inlineVisualizationRuntimeRegistry,
         IContextPageManager? contextPageManager,
+        IThreadAgentRefreshService? threadAgentRefreshService,
         CancellationToken ct)
     {
         while (!ct.IsCancellationRequested)
@@ -610,6 +642,15 @@ public sealed class AppServerHost(
         wireAcpProxy?.UnbindTransport(transport);
         wireNodeReplProxy?.UnbindTransport(transport);
         wireDynamicToolProxy?.UnbindTransport(transport);
+        if (inlineVisualizationRuntimeRegistry != null)
+        {
+            foreach (var threadId in inlineVisualizationRuntimeRegistry.UnbindTransport(transport))
+            {
+                contextPageManager?.ReleaseStablePage(threadId, ContextPageKeys.InlineVisualization());
+                if (threadAgentRefreshService != null)
+                    await threadAgentRefreshService.RefreshThreadAgentAsync(threadId, CancellationToken.None);
+            }
+        }
         if (wireRuntimeAdditionalContextProvider != null)
         {
             foreach (var threadId in wireRuntimeAdditionalContextProvider.UnbindTransport(transport))

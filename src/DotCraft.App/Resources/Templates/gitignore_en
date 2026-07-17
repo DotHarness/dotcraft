@@ -21,6 +21,7 @@
 /cache/
 /terminals/
 /tool-results/
+/visualizations/
 *.log
 
 # Temporary files

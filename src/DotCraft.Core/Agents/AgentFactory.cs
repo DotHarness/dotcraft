@@ -708,7 +708,8 @@ public sealed class AgentFactory : IAsyncDisposable
                     dreamStore: ctx.DreamStore,
                     subAgentWaitAgentTimeoutOptions: SubAgentWaitAgentTimeoutOptions.FromConfig(ctx.Config.SubAgent),
                     threadId: ctx.CurrentThreadId,
-                    threadSystemPromptContextProviders: ctx.ThreadSystemPromptContextProviders)
+                    threadSystemPromptContextProviders: ctx.ThreadSystemPromptContextProviders,
+                    originChannel: ctx.CurrentOriginChannel)
             ];
         }
 

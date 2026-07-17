@@ -112,6 +112,9 @@ public sealed class AppServerClientCapabilities
     /// </summary>
     public bool? McpApps { get; set; }
 
+    /// <summary>Whether the client can host assistant inline visualization views.</summary>
+    public bool? InlineVisualizations { get; set; }
+
     /// <summary>Whether the client can answer MCP form and URL elicitation requests.</summary>
     public bool? McpElicitation { get; set; }
 
@@ -406,6 +409,10 @@ public sealed class AppServerServerCapabilities
     /// <summary>Server supports the connection-scoped opaque MCP Apps View API.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public bool McpApps { get; set; }
+
+    /// <summary>Server supports connection-scoped assistant inline visualization views.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool InlineVisualizations { get; set; }
 
     /// <summary>Server can forward standards-based MCP form and URL elicitation to a capable client.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
