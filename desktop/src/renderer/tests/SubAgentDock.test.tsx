@@ -186,7 +186,7 @@ describe('SubAgentDock', () => {
                 createdAt: '2026-05-03T00:00:00.000Z',
                 lastActiveAt: '2026-05-03T00:01:00.000Z',
                 runtime: {
-                  running: false,
+                  running: true,
                   waitingOnApproval: false,
                   waitingOnPlanConfirmation: false
                 }
@@ -219,14 +219,14 @@ describe('SubAgentDock', () => {
         supportsSendInput: true,
         supportsResume: true,
         supportsClose: true,
-        status: 'completed',
-        lastToolDisplay: null,
-        currentTool: null,
+        status: 'open',
+        lastToolDisplay: 'Reading sprite atlas',
+        currentTool: 'ReadFile',
         inputTokens: 0,
         outputTokens: 0,
-        isCompleted: true,
+        isCompleted: false,
         runtime: {
-          running: false,
+          running: true,
           waitingOnApproval: false,
           waitingOnPlanConfirmation: false
         }
@@ -234,6 +234,8 @@ describe('SubAgentDock', () => {
     ])
 
     renderDock()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Expand background agents' }))
 
     expect(screen.getByText('Default child')).toBeInTheDocument()
     expect(screen.queryByText('(default)')).toBeNull()
@@ -301,13 +303,13 @@ describe('SubAgentDock', () => {
         supportsFollowupTask: true,
         supportsClose: true,
         status: 'open',
-        lastToolDisplay: null,
-        currentTool: null,
+        lastToolDisplay: 'Reading sprite atlas',
+        currentTool: 'ReadFile',
         inputTokens: 0,
         outputTokens: 0,
-        isCompleted: true,
+        isCompleted: false,
         runtime: {
-          running: false,
+          running: true,
           waitingOnApproval: false,
           waitingOnPlanConfirmation: false
         }
@@ -325,7 +327,73 @@ describe('SubAgentDock', () => {
     expect(appServerSendRequest.mock.calls.some((call) => call[0] === 'subagent/followupTask')).toBe(false)
   })
 
-  it('keeps closed, pathless, and unsupported child rows without manual controls', () => {
+  it('keeps pathless and unsupported running rows without manual controls', () => {
+    useSubAgentStore.getState().setChildren('parent-1', [
+      {
+        childThreadId: 'pathless-child',
+        parentThreadId: 'parent-1',
+        agentPath: null,
+        taskName: null,
+        nickname: 'Pathless child',
+        agentRole: null,
+        profileName: 'native',
+        runtimeType: 'native',
+        supportsSendInput: false,
+        supportsResume: false,
+        supportsSendMessage: true,
+        supportsFollowupTask: true,
+        supportsClose: true,
+        status: 'open',
+        lastToolDisplay: 'Reading sprite atlas',
+        currentTool: 'ReadFile',
+        inputTokens: 0,
+        outputTokens: 0,
+        isCompleted: false,
+        runtime: {
+          running: true,
+          waitingOnApproval: false,
+          waitingOnPlanConfirmation: false
+        }
+      },
+      {
+        childThreadId: 'unsupported-child',
+        parentThreadId: 'parent-1',
+        agentPath: '/root/unsupported_child',
+        taskName: 'unsupported_child',
+        nickname: 'Unsupported child',
+        agentRole: null,
+        profileName: 'native',
+        runtimeType: 'native',
+        supportsSendInput: false,
+        supportsResume: false,
+        supportsSendMessage: false,
+        supportsFollowupTask: false,
+        supportsClose: true,
+        status: 'open',
+        lastToolDisplay: 'Reading sprite atlas',
+        currentTool: 'ReadFile',
+        inputTokens: 0,
+        outputTokens: 0,
+        isCompleted: false,
+        runtime: {
+          running: true,
+          waitingOnApproval: false,
+          waitingOnPlanConfirmation: false
+        }
+      }
+    ])
+
+    renderDock()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Expand background agents' }))
+
+    expect(screen.queryByRole('button', { name: 'Send mailbox message to Pathless child' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Start follow-up task for Pathless child' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Send mailbox message to Unsupported child' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Start follow-up task for Unsupported child' })).not.toBeInTheDocument()
+  })
+
+  it('hides closed subagents from the dock (they live in the Subagents tab)', () => {
     useSubAgentStore.getState().setChildren('parent-1', [
       {
         childThreadId: 'closed-child',
@@ -343,68 +411,27 @@ describe('SubAgentDock', () => {
         supportsClose: true,
         status: 'closed',
         lastToolDisplay: null,
+        lastMessagePreview: null,
         currentTool: null,
         inputTokens: 0,
         outputTokens: 0,
-        isCompleted: true
-      },
-      {
-        childThreadId: 'pathless-child',
-        parentThreadId: 'parent-1',
-        agentPath: null,
-        taskName: null,
-        nickname: 'Pathless child',
-        agentRole: null,
-        profileName: 'native',
-        runtimeType: 'native',
-        supportsSendInput: false,
-        supportsResume: false,
-        supportsSendMessage: true,
-        supportsFollowupTask: true,
-        supportsClose: true,
-        status: 'open',
-        lastToolDisplay: null,
-        currentTool: null,
-        inputTokens: 0,
-        outputTokens: 0,
-        isCompleted: true
-      },
-      {
-        childThreadId: 'unsupported-child',
-        parentThreadId: 'parent-1',
-        agentPath: '/root/unsupported_child',
-        taskName: 'unsupported_child',
-        nickname: 'Unsupported child',
-        agentRole: null,
-        profileName: 'native',
-        runtimeType: 'native',
-        supportsSendInput: false,
-        supportsResume: false,
-        supportsSendMessage: false,
-        supportsFollowupTask: false,
-        supportsClose: true,
-        status: 'open',
-        lastToolDisplay: null,
-        currentTool: null,
-        inputTokens: 0,
-        outputTokens: 0,
-        isCompleted: true
+        isCompleted: true,
+        runtime: {
+          running: false,
+          waitingOnApproval: false,
+          waitingOnPlanConfirmation: false
+        }
       }
     ])
 
     renderDock()
 
-    fireEvent.click(screen.getByRole('button', { name: 'Expand background agents' }))
-
-    expect(screen.queryByRole('button', { name: 'Send mailbox message to Closed child' })).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Start follow-up task for Closed child' })).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Send mailbox message to Pathless child' })).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Start follow-up task for Pathless child' })).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Send mailbox message to Unsupported child' })).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Start follow-up task for Unsupported child' })).not.toBeInTheDocument()
+    // No running children and no queue → the dock renders nothing at all.
+    expect(screen.queryByTestId('subagent-dock')).not.toBeInTheDocument()
+    expect(screen.queryByText('Closed child')).not.toBeInTheDocument()
   })
 
-  it('keeps completed child rows visible as openable history entries', () => {
+  it('hides completed child rows from the dock (only running rows remain)', () => {
     useSubAgentStore.getState().setChildren('parent-1', [
       {
         childThreadId: 'child-1',
@@ -418,6 +445,7 @@ describe('SubAgentDock', () => {
         supportsClose: true,
         status: 'completed',
         lastToolDisplay: 'Reading sprite atlas',
+        lastMessagePreview: null,
         currentTool: null,
         inputTokens: 7,
         outputTokens: 11,
@@ -432,19 +460,12 @@ describe('SubAgentDock', () => {
 
     renderDock()
 
-    expect(screen.getByText('1 background agents')).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Open' })).not.toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: 'Expand background agents' }))
-    expect(screen.getByText('Lovelace')).toBeInTheDocument()
-    const description = screen.getByText('Completed')
-    expect(description).toBeInTheDocument()
-    expect(screen.queryByTestId('subagent-dock-running-child-1')).not.toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Open' })).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Stop all background agents' })).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Stop Lovelace' })).not.toBeInTheDocument()
+    // The only child is completed → the running-only dock renders nothing.
+    expect(screen.queryByTestId('subagent-dock')).not.toBeInTheDocument()
+    expect(screen.queryByText('Lovelace')).not.toBeInTheDocument()
   })
 
-  it('does not show open child edges as running when thread runtime is stopped', () => {
+  it('does not treat open-but-stopped child edges as running (dock hidden)', () => {
     useSubAgentStore.getState().setChildren('parent-1', [
       {
         childThreadId: 'child-1',
@@ -458,6 +479,7 @@ describe('SubAgentDock', () => {
         supportsClose: true,
         status: 'open',
         lastToolDisplay: 'Reading sprite atlas',
+        lastMessagePreview: null,
         currentTool: null,
         inputTokens: 7,
         outputTokens: 11,
@@ -472,17 +494,11 @@ describe('SubAgentDock', () => {
 
     renderDock()
 
-    expect(screen.getByText('1 background agents')).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Open' })).not.toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: 'Expand background agents' }))
-    expect(screen.getByText('Lovelace')).toBeInTheDocument()
-    expect(screen.getByText('Completed')).toBeInTheDocument()
-    expect(screen.queryByTestId('subagent-dock-running-child-1')).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Stop all background agents' })).not.toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Open' })).toBeInTheDocument()
+    // Runtime stopped → not running → nothing renders in the running-only dock.
+    expect(screen.queryByTestId('subagent-dock')).not.toBeInTheDocument()
   })
 
-  it('updates a running child to completed without hiding the dock', async () => {
+  it('hides the dock once the only running child completes', async () => {
     renderDock()
 
     expect(screen.getByText('1 running')).toBeInTheDocument()
@@ -504,15 +520,13 @@ describe('SubAgentDock', () => {
       })
     })
 
+    // With no running children left, the dock removes itself.
     await waitFor(() => {
-      expect(screen.getByText('Completed')).toBeInTheDocument()
+      expect(screen.queryByTestId('subagent-dock')).not.toBeInTheDocument()
     })
-    expect(screen.getByText('1 background agents')).toBeInTheDocument()
-    expect(screen.queryByTestId('subagent-dock-running-child-1')).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Stop all background agents' })).not.toBeInTheDocument()
   })
 
-  it('does not show a collapsed running summary when all children are completed', () => {
+  it('does not render at all when every child is completed', () => {
     useSubAgentStore.getState().setChildren('parent-1', [
       {
         childThreadId: 'child-1',
@@ -526,6 +540,7 @@ describe('SubAgentDock', () => {
         supportsClose: true,
         status: 'closed',
         lastToolDisplay: 'Reading sprite atlas',
+        lastMessagePreview: null,
         currentTool: null,
         inputTokens: 7,
         outputTokens: 11,
@@ -541,8 +556,7 @@ describe('SubAgentDock', () => {
 
     renderDock()
 
-    expect(screen.getByText('1 background agents')).toBeInTheDocument()
+    expect(screen.queryByTestId('subagent-dock')).not.toBeInTheDocument()
     expect(screen.queryByText('1 running')).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Open' })).not.toBeInTheDocument()
   })
 })

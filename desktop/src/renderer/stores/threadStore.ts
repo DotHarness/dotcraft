@@ -956,7 +956,9 @@ if (typeof window !== 'undefined') {
  * Usage: const filtered = useThreadStore(selectFilteredThreads)
  */
 export function selectFilteredThreads(state: ThreadStore): ThreadSummary[] {
-  const visible = state.threadList.filter((t) => t.status !== 'archived')
+  // Subagent threads are surfaced through the dock (running) and the Subagents
+  // detail tab (Active/Done), never as sidebar thread entries.
+  const visible = state.threadList.filter((t) => t.status !== 'archived' && !isSubAgentThread(t))
   if (!state.searchQuery.trim()) return visible
   const q = state.searchQuery.toLowerCase()
   return visible.filter((t) => (t.displayName ?? '').toLowerCase().includes(q))

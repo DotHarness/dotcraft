@@ -7,7 +7,7 @@ import { useUIStore } from '../../stores/uiStore'
 import { useConnectionStore } from '../../stores/connectionStore'
 import { useCustomCommandCatalog } from '../../hooks/useCustomCommandCatalog'
 import { useSkillsStore } from '../../stores/skillsStore'
-import { useSubAgentStore } from '../../stores/subAgentStore'
+import { isSubAgentChildRunning, useSubAgentStore } from '../../stores/subAgentStore'
 import { useThreadStore } from '../../stores/threadStore'
 import { useComposerDraftStore, threadComposerDraftHasContent } from '../../stores/composerDraftStore'
 import type { ContextUsageSnapshotWire, ContextWindowMode, Thread, ThreadGoal } from '../../types/thread'
@@ -274,7 +274,9 @@ export function InputComposer({
   const setThreadMode = useConversationStore((s) => s.setThreadMode)
   const composerPrefill = useUIStore((s) => s.composerPrefill)
   const currentGoal = useThreadStore((s) => s.goalSnapshots.get(threadId) ?? null)
-  const hasSubAgentDock = useSubAgentStore((s) => (s.childrenByParent.get(threadId)?.length ?? 0) > 0)
+  const hasSubAgentDock = useSubAgentStore(
+    (s) => (s.childrenByParent.get(threadId)?.some(isSubAgentChildRunning) ?? false)
+  )
   const visibleQueuedInputs = hasSubmitOverride ? [] : queuedInputs
   const visiblePendingMessage = hasSubmitOverride ? null : pendingMessage
   const hasBackgroundActivityDock = !hasSubmitOverride && (queuedInputs.length > 0 || hasSubAgentDock)

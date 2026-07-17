@@ -14,7 +14,8 @@ public sealed class AgentTools(
     IEnumerable<SubAgentRoleConfig>? subAgentRoles = null,
     int maxSubAgentDepth = 1,
     string? subAgentModel = null,
-    SubAgentWaitAgentTimeoutOptions? waitAgentTimeoutOptions = null)
+    SubAgentWaitAgentTimeoutOptions? waitAgentTimeoutOptions = null,
+    int maxConcurrentSubAgents = 16)
 {
     private static readonly JsonSerializerOptions ResultJsonOptions = new(JsonSerializerOptions.Web);
 
@@ -46,6 +47,7 @@ public sealed class AgentTools(
                 RoleConfigs = subAgentRoles?.ToArray(),
                 SubAgentModel = subAgentModel,
                 MaxDepth = maxSubAgentDepth,
+                MaxConcurrentSubAgents = maxConcurrentSubAgents,
                 ForkTurns = forkTurns
             },
             waitForCompletion: false,

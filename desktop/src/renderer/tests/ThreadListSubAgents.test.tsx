@@ -21,6 +21,21 @@ function makeThread(overrides: Partial<ThreadSummary> = {}): ThreadSummary {
   }
 }
 
+function makeSubAgent(id: string, parentThreadId: string, displayName: string): ThreadSummary {
+  return makeThread({
+    id,
+    displayName,
+    originChannel: 'subagent',
+    source: {
+      kind: 'subagent',
+      subAgent: {
+        parentThreadId,
+        depth: 1
+      }
+    }
+  })
+}
+
 function renderList(): void {
   render(
     <LocaleProvider>
@@ -29,7 +44,7 @@ function renderList(): void {
   )
 }
 
-describe('ThreadList subagent entries', () => {
+describe('ThreadList subagent handling', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     settingsGet.mockResolvedValue({ locale: 'en' })
@@ -44,22 +59,11 @@ describe('ThreadList subagent entries', () => {
     useThreadStore.getState().reset()
   })
 
-  it('places subagent children directly after their parent and marks them as background agents', () => {
+  it('hides subagent children from the sidebar thread list', () => {
     useThreadStore.getState().setThreadList([
       makeThread({ id: 'other-1', displayName: 'Other conversation' }),
       makeThread({ id: 'parent-1', displayName: 'Create hatch pet' }),
-      makeThread({
-        id: 'child-1',
-        displayName: 'Create hatch pet Lovelace',
-        originChannel: 'subagent',
-        source: {
-          kind: 'subagent',
-          subAgent: {
-            parentThreadId: 'parent-1',
-            depth: 1
-          }
-        }
-      })
+      makeSubAgent('child-1', 'parent-1', 'Create hatch pet Lovelace')
     ])
 
     renderList()
@@ -67,11 +71,10 @@ describe('ThreadList subagent entries', () => {
     const rows = screen.getAllByTestId(/thread-entry-/)
     expect(rows.map((row) => row.getAttribute('data-testid'))).toEqual([
       'thread-entry-other-1',
-      'thread-entry-parent-1',
-      'thread-entry-child-1'
+      'thread-entry-parent-1'
     ])
-    expect(screen.getByLabelText('Background agent')).toBeInTheDocument()
-    expect(screen.queryByLabelText('Origin channel: subagent')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('thread-entry-child-1')).not.toBeInTheDocument()
+    expect(screen.queryByLabelText('Background agent')).not.toBeInTheDocument()
   })
 
   it('does not show a pinned section when no threads are pinned', () => {
@@ -84,37 +87,23 @@ describe('ThreadList subagent entries', () => {
     expect(screen.queryByText('Pinned')).not.toBeInTheDocument()
   })
 
-  it('renders pinned threads at the top without duplicating them in time groups', () => {
+  it('renders pinned parents at the top and never lists their subagent children', () => {
     useThreadStore.getState().setThreadList([
       makeThread({ id: 'other-1', displayName: 'Other conversation' }),
       makeThread({ id: 'parent-1', displayName: 'Pinned parent' }),
-      makeThread({
-        id: 'child-1',
-        displayName: 'Pinned child',
-        originChannel: 'subagent',
-        source: {
-          kind: 'subagent',
-          subAgent: {
-            parentThreadId: 'parent-1',
-            depth: 1
-          }
-        }
-      })
+      makeSubAgent('child-1', 'parent-1', 'Pinned child')
     ])
     useThreadStore.getState().hydratePinnedThreadIds('E:\\Git\\dotcraft', ['parent-1'])
 
     renderList()
 
     expect(screen.getByText('Pinned')).toBeInTheDocument()
-    expect(screen.queryByText('Today')).not.toBeInTheDocument()
 
     const rows = screen.getAllByTestId(/thread-entry-/)
     expect(rows.map((row) => row.getAttribute('data-testid'))).toEqual([
       'thread-entry-parent-1',
-      'thread-entry-child-1',
       'thread-entry-other-1'
     ])
-    expect(screen.getAllByTestId('thread-entry-parent-1')).toHaveLength(1)
-    expect(screen.getAllByTestId('thread-entry-child-1')).toHaveLength(1)
+    expect(screen.queryByTestId('thread-entry-child-1')).not.toBeInTheDocument()
   })
 })

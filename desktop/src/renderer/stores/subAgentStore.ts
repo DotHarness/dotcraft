@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import type { SubAgentEntry } from '../types/toolCall'
 import type { ThreadRuntimeSnapshot, ThreadSummary } from '../types/thread'
+import { wireTurnToConversationTurn } from '../types/conversation'
 import { useConnectionStore } from './connectionStore'
 import { useThreadStore } from './threadStore'
 
@@ -47,6 +48,12 @@ export interface SubAgentChild {
   supportsClose: boolean
   status: string
   lastToolDisplay: string | null
+  /**
+   * Preview of the subagent's most recent agent message, used by the Subagents
+   * panel for finished subagents (running ones prefer live tool progress).
+   * Loaded lazily via {@link SubAgentStore.fetchPreviews}; null until read.
+   */
+  lastMessagePreview: string | null
   currentTool: string | null
   inputTokens: number
   outputTokens: number
@@ -66,6 +73,13 @@ interface SubAgentStoreState {
 
 interface FetchChildrenOptions {
   authoritative?: boolean
+  /**
+   * Include closed (main-agent-closed or residency-reclaimed) edges. Defaults to
+   * false so the shared loader used by the dock and notification refresh paths
+   * only surfaces active children. Only the Subagents detail tab opts in to keep
+   * closed subagents visible for read-only review.
+   */
+  includeClosed?: boolean
 }
 
 interface SetChildrenOptions {
@@ -76,6 +90,15 @@ interface SetChildrenOptions {
 interface SubAgentStoreActions {
   setChildren(parentThreadId: string, children: SubAgentChild[], options?: SetChildrenOptions): void
   fetchChildren(parentThreadId: string, options?: FetchChildrenOptions): Promise<void>
+  /**
+   * Loads a short preview of each child's most recent agent message via
+   * `thread/read`, populating {@link SubAgentChild.lastMessagePreview}. Skips
+   * children that already have a preview unless `force` is set. When
+   * `runningOnly` is set, only running children are read and they are always
+   * refreshed (ignoring the cached preview) — used by the panel's live poll so a
+   * running subagent's message keeps updating.
+   */
+  fetchPreviews(parentThreadId: string, options?: { force?: boolean; runningOnly?: boolean }): Promise<void>
   updateProgress(parentThreadId: string, entries: SubAgentEntry[]): void
   updateChildRuntime(childThreadId: string, runtime: ThreadRuntimeSnapshot): void
   setParentCollapsed(parentThreadId: string, collapsed: boolean, userInitiated?: boolean): void
@@ -115,6 +138,31 @@ function normalizeRole(source: {
     ?? normalizeText(source?.role)
 }
 
+const PREVIEW_MAX_LENGTH = 140
+
+/**
+ * Extracts a short single-line preview from the most recent agent message across
+ * the given raw turns (newest last). Returns null when no agent text is present.
+ */
+function extractLastAgentMessagePreview(rawTurns: Array<Record<string, unknown>>): string | null {
+  for (let turnIndex = rawTurns.length - 1; turnIndex >= 0; turnIndex -= 1) {
+    let turn
+    try {
+      turn = wireTurnToConversationTurn(rawTurns[turnIndex])
+    } catch {
+      continue
+    }
+    for (let itemIndex = turn.items.length - 1; itemIndex >= 0; itemIndex -= 1) {
+      const item = turn.items[itemIndex]
+      if (item.type !== 'agentMessage') continue
+      const text = item.text?.replace(/\s+/g, ' ').trim()
+      if (!text) continue
+      return text.length > PREVIEW_MAX_LENGTH ? `${text.slice(0, PREVIEW_MAX_LENGTH)}…` : text
+    }
+  }
+  return null
+}
+
 export function isTerminalSubAgentStatus(status: string | null | undefined): boolean {
   const normalized = status?.trim().toLowerCase()
   return normalized === 'closed'
@@ -124,7 +172,14 @@ export function isTerminalSubAgentStatus(status: string | null | undefined): boo
     || normalized === 'canceled'
 }
 
+/** True when the subagent's spawn edge has been closed (by CloseAgent or residency reclaim). */
+export function isSubAgentChildClosed(child: SubAgentChild): boolean {
+  return child.status.trim().toLowerCase() === 'closed'
+}
+
 export function isSubAgentChildRunning(child: SubAgentChild): boolean {
+  // A closed edge is terminal even if a stale runtime snapshot still says running.
+  if (isSubAgentChildClosed(child)) return false
   if (child.runtime?.running === true) return true
   if (child.runtime?.running === false) return false
   if (child.isPlaceholder === true) return !child.isCompleted && !isTerminalSubAgentStatus(child.status)
@@ -169,6 +224,7 @@ function childFromWire(parentThreadId: string, wire: SubAgentChildWire): SubAgen
     supportsClose: edge.supportsClose ?? source?.supportsClose ?? true,
     status,
     lastToolDisplay: null,
+    lastMessagePreview: null,
     currentTool: null,
     inputTokens: 0,
     outputTokens: 0,
@@ -201,6 +257,7 @@ function mergeExistingProgress(next: SubAgentChild, existing: SubAgentChild | un
     profileName: next.profileName ?? existing.profileName,
     runtimeType: next.runtimeType ?? existing.runtimeType,
     lastToolDisplay: existing.lastToolDisplay,
+    lastMessagePreview: existing.lastMessagePreview,
     currentTool: isCompleted ? null : existing.currentTool,
     inputTokens: existing.inputTokens,
     outputTokens: existing.outputTokens,
@@ -237,6 +294,7 @@ function createPlaceholderChild(
     supportsClose: false,
     status: isCompleted ? 'completed' : 'open',
     lastToolDisplay: display,
+    lastMessagePreview: null,
     currentTool: isCompleted ? null : progress.currentTool,
     inputTokens: progress.inputTokens,
     outputTokens: progress.outputTokens,
@@ -336,7 +394,7 @@ export const useSubAgentStore = create<SubAgentStore>((set, get) => ({
     try {
       const result = await window.api.appServer.sendRequest('subagent/children/list', {
         parentThreadId,
-        includeClosed: false,
+        includeClosed: options?.includeClosed === true,
         includeThreads: true
       }) as { data?: SubAgentChildWire[] }
       const children = (result.data ?? [])
@@ -356,6 +414,50 @@ export const useSubAgentStore = create<SubAgentStore>((set, get) => ({
         return { loadingParents }
       })
     }
+  },
+
+  async fetchPreviews(parentThreadId, options) {
+    if (!parentThreadId) return
+    const runningOnly = options?.runningOnly === true
+    // runningOnly polls always refresh (the message is still changing); the
+    // default pass only fills children that have no cached preview yet.
+    const force = options?.force === true || runningOnly
+    const children = get().childrenByParent.get(parentThreadId) ?? []
+    const targets = children.filter((child) =>
+      child.isPlaceholder !== true
+      && (!runningOnly || isSubAgentChildRunning(child))
+      && (force || child.lastMessagePreview == null)
+    )
+    if (targets.length === 0) return
+
+    const previews = new Map<string, string>()
+    await Promise.all(targets.map(async (child) => {
+      try {
+        const result = await window.api.appServer.sendRequest('thread/read', {
+          threadId: child.childThreadId,
+          includeTurns: true
+        }) as { thread?: { turns?: Array<Record<string, unknown>> } }
+        const preview = extractLastAgentMessagePreview(result.thread?.turns ?? [])
+        if (preview) previews.set(child.childThreadId, preview)
+      } catch {
+        // Best-effort preview; leave null so the row falls back to a status label.
+      }
+    }))
+    if (previews.size === 0) return
+
+    set((state) => {
+      const current = state.childrenByParent.get(parentThreadId)
+      if (!current) return state
+      const next = current.map((child) => {
+        const preview = previews.get(child.childThreadId)
+        return preview && preview !== child.lastMessagePreview
+          ? { ...child, lastMessagePreview: preview }
+          : child
+      })
+      const childrenByParent = new Map(state.childrenByParent)
+      childrenByParent.set(parentThreadId, next)
+      return { childrenByParent }
+    })
   },
 
   updateProgress(parentThreadId, entries) {

@@ -354,7 +354,7 @@ Newly created or updated skills may not affect the current prompt immediately; t
         if (hasWaitAgent)
             controls.Add($"Use `WaitAgent` to wait for a mailbox update from any live agent; it does not return content; `timeoutMs` is milliseconds, defaults to {timeoutOptions.DefaultTimeoutMs}, and must be between {timeoutOptions.MinTimeoutMs} and {timeoutOptions.MaxTimeoutMs}.");
         if (hasCloseAgent)
-            controls.Add("Use `CloseAgent` with an `agentPath` when a child thread is no longer needed; do not keep idle child agents open indefinitely.");
+            controls.Add("Close a child agent (and its open descendants) with `CloseAgent` once it is no longer needed. Completed agents stay open and count toward the concurrency limit until closed, so don't leave idle agents open.");
 
         var controlsText = controls.Count == 0
             ? "- Track spawned agent paths and manage their results explicitly with the tools currently available."

@@ -334,6 +334,119 @@ describe('InputComposer layout', () => {
     expect(dock.parentElement).toBe(overlay)
   })
 
+  it('hides the dock when the only subagents are completed', () => {
+    useConnectionStore.setState({ capabilities: { subAgentSessions: true } })
+    useSubAgentStore.getState().setChildren('thread-1', [
+      {
+        childThreadId: 'child-1',
+        parentThreadId: 'thread-1',
+        nickname: 'Lovelace',
+        agentRole: null,
+        profileName: 'native',
+        runtimeType: 'native',
+        supportsSendInput: true,
+        supportsResume: true,
+        supportsClose: true,
+        status: 'completed',
+        lastToolDisplay: null,
+        currentTool: null,
+        inputTokens: 12,
+        outputTokens: 34,
+        isCompleted: true,
+        runtime: {
+          running: false,
+          waitingOnApproval: false,
+          waitingOnPlanConfirmation: false
+        }
+      }
+    ])
+
+    renderComposer()
+
+    expect(screen.queryByTestId('subagent-dock')).not.toBeInTheDocument()
+  })
+
+  it('shows only running subagents and a View done link for completed ones', () => {
+    useConnectionStore.setState({ capabilities: { subAgentSessions: true } })
+    useSubAgentStore.getState().setChildren('thread-1', [
+      {
+        childThreadId: 'child-running',
+        parentThreadId: 'thread-1',
+        nickname: 'Lovelace',
+        agentRole: null,
+        profileName: 'native',
+        runtimeType: 'native',
+        supportsSendInput: true,
+        supportsResume: true,
+        supportsClose: true,
+        status: 'open',
+        lastToolDisplay: 'Reading sprite atlas',
+        currentTool: 'ReadFile',
+        inputTokens: 12,
+        outputTokens: 34,
+        isCompleted: false,
+        runtime: {
+          running: true,
+          waitingOnApproval: false,
+          waitingOnPlanConfirmation: false
+        }
+      },
+      {
+        childThreadId: 'child-done',
+        parentThreadId: 'thread-1',
+        nickname: 'Babbage',
+        agentRole: null,
+        profileName: 'native',
+        runtimeType: 'native',
+        supportsSendInput: true,
+        supportsResume: true,
+        supportsClose: true,
+        status: 'completed',
+        lastToolDisplay: null,
+        currentTool: null,
+        inputTokens: 5,
+        outputTokens: 9,
+        isCompleted: true,
+        runtime: {
+          running: false,
+          waitingOnApproval: false,
+          waitingOnPlanConfirmation: false
+        }
+      },
+      {
+        // A closed child (the Subagents tab requests these into shared state).
+        // The dock's "Done · N" must not count it.
+        childThreadId: 'child-closed',
+        parentThreadId: 'thread-1',
+        nickname: 'Retired',
+        agentRole: null,
+        profileName: 'native',
+        runtimeType: 'native',
+        supportsSendInput: true,
+        supportsResume: true,
+        supportsClose: true,
+        status: 'closed',
+        lastToolDisplay: null,
+        currentTool: null,
+        inputTokens: 1,
+        outputTokens: 2,
+        isCompleted: true,
+        runtime: {
+          running: false,
+          waitingOnApproval: false,
+          waitingOnPlanConfirmation: false
+        }
+      }
+    ])
+
+    renderComposer()
+
+    const dock = screen.getByTestId('subagent-dock')
+    expect(within(dock).getByText('1 background agents')).toBeInTheDocument()
+    // Only the finished-but-open child counts; the closed one is excluded.
+    expect(within(dock).getByRole('button', { name: 'Done · 1' })).toBeInTheDocument()
+  })
+
   it('renders queued messages inside the background activity dock with neutral drag handles', async () => {
     useConversationStore.setState({
       queuedInputs: [

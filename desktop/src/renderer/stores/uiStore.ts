@@ -30,7 +30,7 @@ const EXPLORER_MAX_WIDTH = 480
 /** Timeout for pending welcome turn to prevent permanent residue */
 const PENDING_WELCOME_TIMEOUT_MS = 30_000
 
-export type SystemDetailTab = 'changes' | 'plan'
+export type SystemDetailTab = 'changes' | 'plan' | 'subagents'
 export type ChangesDiffMode = 'inline' | 'split'
 
 /** @deprecated Use `ActiveDetailTab` instead. Kept for backwards compatibility. */
@@ -47,7 +47,7 @@ export type ActiveDetailTab =
   | { kind: 'launcher' }
 
 /** Canonical left-to-right order of the optional system tabs in the tab strip. */
-const SYSTEM_TAB_ORDER: readonly SystemDetailTab[] = ['changes', 'plan']
+const SYSTEM_TAB_ORDER: readonly SystemDetailTab[] = ['changes', 'plan', 'subagents']
 
 /** Insert `id` into the open system tabs list, preserving canonical order. */
 function withSystemTabOpen(open: SystemDetailTab[], id: SystemDetailTab): SystemDetailTab[] {

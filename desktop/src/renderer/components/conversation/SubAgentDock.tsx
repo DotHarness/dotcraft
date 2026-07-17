@@ -18,6 +18,7 @@ import { CSS } from '@dnd-kit/utilities'
 import { Bot, ChevronDown, CornerDownRight, ExternalLink, GripVertical, ListChecks, Pencil, Square, Trash2 } from 'lucide-react'
 import { useT } from '../../contexts/LocaleContext'
 import {
+  isSubAgentChildClosed,
   isSubAgentChildRunning,
   useSubAgentStore,
   type SubAgentChild
@@ -76,12 +77,21 @@ export function BackgroundActivityDock({
     void fetchChildren(parentThreadId)
   }, [fetchChildren, parentThreadId])
 
-  if (children.length === 0 && queuedInputs.length === 0) return null
+  // Dock is for in-flight work only: it shows running subagents (and the queue).
+  // Completed subagents live in the Subagents detail tab, reached via "View done".
+  if (runningChildren.length === 0 && queuedInputs.length === 0) return null
 
-  const hasSubAgents = children.length > 0
+  const hasSubAgents = runningChildren.length > 0
   const hasQueue = queuedInputs.length > 0
+  // Count only finished-but-open subagents. The shared store may include closed
+  // ones (the Subagents tab requests them), but the dock's "Done · N" link should
+  // ignore closed/reclaimed agents.
+  const doneCount = children.filter(
+    (child) => !isSubAgentChildRunning(child) && !isSubAgentChildClosed(child)
+  ).length
   const closeableRunning = runningChildren.filter((child) => child.supportsClose && child.agentPath)
-  const contentMaxHeight = Math.min(children.length * 62 + 8, 260)
+  const contentMaxHeight = Math.min(runningChildren.length * 62 + 8, 260)
+  const openSubagentsTab = (): void => useUIStore.getState().setActiveDetailTab('subagents')
 
   const stopAll = async (): Promise<void> => {
     try {
@@ -93,7 +103,7 @@ export function BackgroundActivityDock({
   }
   const toggleCollapsed = (): void => setParentCollapsed(parentThreadId, !collapsed)
   const title = hasSubAgents
-    ? t('subAgentDock.title', { count: children.length })
+    ? t('subAgentDock.title', { count: runningChildren.length })
     : t(queuedInputs.length === 1 ? 'composer.queueDockTitleOne' : 'composer.queueDockTitleMany', { count: queuedInputs.length })
 
   const handleDragEnd = (event: DragEndEvent): void => {
@@ -140,6 +150,19 @@ export function BackgroundActivityDock({
           </div>
         )}
         <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', flexShrink: 0 }}>
+          {doneCount > 0 && (
+            <button
+              type="button"
+              aria-label={t('subAgentDock.viewDone', { count: doneCount })}
+              onClick={(event) => {
+                event.stopPropagation()
+                openSubagentsTab()
+              }}
+              style={viewDoneButtonStyle}
+            >
+              {t('subAgentDock.viewDone', { count: doneCount })}
+            </button>
+          )}
           {closeableRunning.length > 0 && (
             <ActionTooltip label={t('subAgentDock.stopAll')} placement="top">
               <button
@@ -182,7 +205,7 @@ export function BackgroundActivityDock({
           style={rowsViewportStyle(collapsed, contentMaxHeight)}
         >
           <div style={rowsStyle}>
-            {children.map((child, index) => (
+            {runningChildren.map((child, index) => (
               <SubAgentDockRow
                 key={child.childThreadId}
                 child={child}
@@ -425,14 +448,19 @@ function SubAgentDockRow({
     <div style={rowContainerStyle}>
       <div style={rowStyle}>
         <span style={statusSlotStyle}>
-          {running ? (
-            <RunningSpinner
-              label={t('subAgentDock.running')}
-              testId={`subagent-dock-running-${child.childThreadId}`}
-            />
-          ) : (
-            <span aria-hidden style={{ width: 6, height: 6, borderRadius: 999, background: 'var(--text-dimmed)', opacity: 0.58 }} />
-          )}
+          {/* Running state is conveyed by the gradient "Running" label below, so
+              no spinner here — just a small accent dot for running rows and a
+              muted dot for finished ones, keeping the column aligned. */}
+          <span
+            aria-hidden
+            style={{
+              width: 6,
+              height: 6,
+              borderRadius: 999,
+              background: running ? color : 'var(--text-dimmed)',
+              opacity: running ? 0.9 : 0.58
+            }}
+          />
         </span>
         <span style={nameGroupStyle}>
           <ActionTooltip label={child.nickname} wrapperStyle={{ display: 'block', minWidth: 0, overflow: 'hidden', flexShrink: 1 }}>
@@ -772,4 +800,17 @@ const textButtonStyle: CSSProperties = {
   padding: '2px 4px',
   fontSize: '12px',
   cursor: 'pointer'
+}
+
+const viewDoneButtonStyle: CSSProperties = {
+  border: 'none',
+  background: 'transparent',
+  color: 'var(--text-dimmed)',
+  display: 'inline-flex',
+  alignItems: 'center',
+  padding: '2px 8px',
+  fontSize: '12px',
+  borderRadius: '6px',
+  cursor: 'pointer',
+  whiteSpace: 'nowrap'
 }
