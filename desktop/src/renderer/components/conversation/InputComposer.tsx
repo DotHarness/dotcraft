@@ -45,7 +45,7 @@ import type { InferenceSpeedWire, ModelCatalogItem } from '../../stores/modelCat
 import { useModelCatalogStore } from '../../stores/modelCatalogStore'
 import { useProvidersStore, useChatGptOAuthSummary } from '../../stores/providersStore'
 import { ChatGptUsageBadge } from './ChatGptUsageBadge'
-import { ComposerAttachmentMenu } from './ComposerAttachmentMenu'
+import { ComposerCommandTrigger } from './ComposerCommandTrigger'
 import { ContextUsageRing } from './ContextUsageRing'
 import { ApprovalPolicyPicker } from './ApprovalPolicyPicker'
 import { BackgroundActivityDock } from './SubAgentDock'
@@ -225,6 +225,7 @@ export function InputComposer({
   const [mentionDismissed, setMentionDismissed] = useState(false)
   const [slashQuery, setSlashQuery] = useState<string | null>(null)
   const [slashDismissed, setSlashDismissed] = useState(false)
+  const [commandTriggerActive, setCommandTriggerActive] = useState(false)
   const [skillQuery, setSkillQuery] = useState<string | null>(null)
   const [skillDismissed, setSkillDismissed] = useState(false)
   const [goalPopoverOpen, setGoalPopoverOpen] = useState(false)
@@ -242,6 +243,7 @@ export function InputComposer({
   const [historyCursor, setHistoryCursor] = useState<number | null>(null)
   const [mascotBounce, setMascotBounce] = useState(0)
   const richRef = useRef<RichInputAreaHandle>(null)
+  const slashOpenedByCommandTriggerRef = useRef(false)
   const sendInFlightRef = useRef(false)
   const editingQueuedInputIdRef = useRef<string | null>(null)
   const pendingModeChangeRef = useRef<Promise<unknown> | null>(null)
@@ -307,8 +309,6 @@ export function InputComposer({
   const resolvedProfileAvatar = useResolvedProfileAvatar(activeProfileId, workspacePath)
   const effectiveMascotAvatar = mascotAvatar ?? resolvedProfileAvatar
   const canUseSlashPicker = canUseCommandPicker || canUseSkillPicker || canUseThreadGoals || canUseSystemActions
-  const remoteLocalFilesUnavailable = remoteWorkspace ? t('input.remoteLocalFilesUnavailable') : undefined
-
   const showMentionPopover = atQuery !== null && !mentionDismissed && !remoteWorkspace
   const normalizedSlashQuery = slashQuery?.toLowerCase() ?? null
   const isAgentBuilderModeSlashQuery = isAgentBuilder
@@ -574,7 +574,13 @@ export function InputComposer({
 
   const handleSlashQuery = useCallback((q: string | null): void => {
     setSlashQuery(q)
-    if (q !== null) setSlashDismissed(false)
+    if (q !== null) {
+      setSlashDismissed(false)
+      if (!slashOpenedByCommandTriggerRef.current) setCommandTriggerActive(false)
+    } else {
+      slashOpenedByCommandTriggerRef.current = false
+      setCommandTriggerActive(false)
+    }
   }, [])
 
   const handleSkillQuery = useCallback((q: string | null): void => {
@@ -1404,25 +1410,6 @@ export function InputComposer({
     return (textLen > 0 || images.length > 0 || files.length > 0) && !isWaitingApproval && !isWaitingInput && !modelLoading
   }, [contentRevision, files.length, images.length, isWaitingApproval, isWaitingInput, modelLoading])
 
-  const addPickedFiles = useCallback((picked: Array<{ path: string; fileName: string }>): void => {
-    if (picked.length === 0) return
-    setFiles((prev) => mergeComposerFileAttachments(prev, picked))
-  }, [])
-
-  const pickFiles = useCallback(async (): Promise<void> => {
-    if (remoteWorkspace) {
-      addToast(t('input.remoteLocalFilesUnavailable'), 'warning')
-      return
-    }
-    try {
-      const picked = await window.api.workspace.pickFiles()
-      addPickedFiles(picked)
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err)
-      addToast(t('input.pickFilesFailed', { error: msg }), 'error')
-    }
-  }, [addPickedFiles, remoteWorkspace, t])
-
   const onSelectFile = useCallback(
     (relativePath: string): void => {
       richRef.current?.insertFileTag(relativePath)
@@ -1608,6 +1595,8 @@ export function InputComposer({
                 onSelectCommand={onSelectCommand}
                 onSelectSkill={onSelectSkill}
                 onDismiss={() => {
+                  slashOpenedByCommandTriggerRef.current = false
+                  setCommandTriggerActive(false)
                   setSlashDismissed(true)
                 }}
                 constrainToAnchor={isAgentBuilder}
@@ -1676,22 +1665,23 @@ export function InputComposer({
         }
         footerLeading={
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0, flexWrap: 'wrap' }}>
-            <ComposerAttachmentMenu
-              title={t('composer.attachFileTitle')}
-              ariaLabel={t('composer.attachFileAria')}
-              attachImageLabel={t('composer.attachImage')}
-              referenceFileLabel={t('composer.referenceFile')}
-              onAttachImages={attachImages}
-              onReferenceFiles={() => {
-                void pickFiles()
+            <ComposerCommandTrigger
+              label={t('composer.openCommands')}
+              expanded={showSlashPopover}
+              active={commandTriggerActive && showSlashPopover}
+              disabled={!canUseSlashPicker || isWaitingApproval || isWaitingInput}
+              onClick={() => {
+                if (showSlashPopover) {
+                  slashOpenedByCommandTriggerRef.current = false
+                  setCommandTriggerActive(false)
+                  setSlashDismissed(true)
+                  return
+                }
+                slashOpenedByCommandTriggerRef.current = true
+                setCommandTriggerActive(true)
+                setSlashDismissed(false)
+                richRef.current?.openSlashPicker()
               }}
-              planModeLabel={isAgentBuilder || hasProfile ? undefined : t('composer.system.plan')}
-              planModeToggleLabel={t('composer.system.plan.toggle')}
-              planModeEnabled={threadMode === 'plan'}
-              onTogglePlanMode={isAgentBuilder || hasProfile ? undefined : () => {
-                void toggleMode()
-              }}
-              attachmentDisabledReason={remoteLocalFilesUnavailable}
             />
 
             {!minimalChrome && (

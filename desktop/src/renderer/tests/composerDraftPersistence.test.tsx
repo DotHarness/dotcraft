@@ -45,7 +45,7 @@ describe('composer draft persistence across navigation', () => {
       value: {
         settings: { get: settingsGet },
         appServer: { sendRequest: appServerSendRequest },
-        workspace: { saveImageToTemp: vi.fn(), pickFiles: vi.fn(), getPathForFile: vi.fn() }
+        workspace: { saveImageToTemp: vi.fn(), getPathForFile: vi.fn() }
       }
     })
 

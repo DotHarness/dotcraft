@@ -20,7 +20,6 @@ const fileReadFile = vi.fn()
 const appServerSendRequest = vi.fn()
 const workspaceConfigGetCore = vi.fn()
 const saveImageToTemp = vi.fn()
-const pickFiles = vi.fn()
 const getPathForFile = vi.fn((file: File) => file.name === 'notes.txt' ? 'C:\\temp\\notes.txt' : '')
 const settingsGet = vi.fn()
 const shellOpenExternal = vi.fn()
@@ -311,7 +310,6 @@ describe('ConversationWelcome composer', () => {
         },
         workspace: {
           saveImageToTemp,
-          pickFiles,
           getPathForFile
         },
         shell: {
@@ -336,8 +334,8 @@ describe('ConversationWelcome composer', () => {
     expect(screen.getByRole('button', { name: 'Send message' })).toBeInTheDocument()
     expect(screen.queryByText('Attach file')).not.toBeInTheDocument()
     expect(screen.queryByRole('combobox', { name: 'Bind an app before first turn' })).toBeNull()
-    fireEvent.click(screen.getByRole('button', { name: 'Add attachment' }))
-    expect(screen.getByRole('menuitemcheckbox', { name: 'Plan mode' })).toHaveAttribute('aria-checked', 'false')
+    fireEvent.click(screen.getByRole('button', { name: 'Open commands' }))
+    expect(screen.getByRole('option', { name: /Plan mode/ })).toBeInTheDocument()
   })
 
   it('creates a thread and expands /init before queuing the first turn', async () => {
@@ -1005,19 +1003,18 @@ describe('ConversationWelcome composer', () => {
     })
   })
 
-  it('opens the compact attachment menu and still routes file references through pickFiles', async () => {
-    pickFiles.mockResolvedValue([{ path: 'C:\\temp\\brief.md', fileName: 'brief.md' }])
-
+  it('opens the slash command picker from the footer trigger without replacing draft text', async () => {
     renderWelcome()
 
-    fireEvent.click(screen.getByRole('button', { name: 'Add attachment' }))
-    expect(screen.getByRole('menuitem', { name: 'Attach image' })).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('menuitem', { name: 'Reference file' }))
+    const textbox = screen.getByRole('textbox')
+    textbox.textContent = 'Review this'
+    fireEvent.input(textbox)
+    setTextboxCaret(textbox, 'Review this'.length)
+    fireEvent.click(screen.getByRole('button', { name: 'Open commands' }))
 
-    await waitFor(() => {
-      expect(pickFiles).toHaveBeenCalled()
-      expect(screen.getByText('brief.md')).toBeInTheDocument()
-    })
+    expect(textbox).toHaveTextContent('Review this /')
+    expect(screen.getByRole('listbox')).toBeInTheDocument()
+    expect(screen.queryByRole('menuitem', { name: 'Attach image' })).toBeNull()
   })
 
   it('creates a thread and stores the pending welcome turn on first send', async () => {

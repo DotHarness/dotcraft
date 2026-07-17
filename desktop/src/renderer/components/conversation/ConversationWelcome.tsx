@@ -27,7 +27,7 @@ import { CommandSearchPopover } from './CommandSearchPopover'
 import { GoalComposePill } from './GoalComposePill'
 import { FileSearchPopover } from './FileSearchPopover'
 import { AttachmentStrip } from './AttachmentStrip'
-import { ComposerAttachmentMenu } from './ComposerAttachmentMenu'
+import { ComposerCommandTrigger } from './ComposerCommandTrigger'
 import { SparkIcon } from '../ui/AppIcons'
 import { RichInputArea, type RichInputAreaHandle } from './RichInputArea'
 import { ModelPicker, type ReasoningQuickValue } from './ModelPicker'
@@ -171,6 +171,7 @@ export function ConversationWelcome({
   const [mentionDismissed, setMentionDismissed] = useState(false)
   const [slashQuery, setSlashQuery] = useState<string | null>(null)
   const [slashDismissed, setSlashDismissed] = useState(false)
+  const [commandTriggerActive, setCommandTriggerActive] = useState(false)
   const [skillQuery, setSkillQuery] = useState<string | null>(null)
   const [skillDismissed, setSkillDismissed] = useState(false)
   const [goalComposeMode, setGoalComposeMode] = useState(false)
@@ -214,6 +215,7 @@ export function ConversationWelcome({
   const suggestionFingerprintRef = useRef<string | null>(null)
   const suggestionRequestSeqRef = useRef(0)
   const richRef = useRef<RichInputAreaHandle>(null)
+  const slashOpenedByCommandTriggerRef = useRef(false)
   useEffect(() => {
     welcomeApprovalPolicyRef.current = welcomeApprovalPolicy
   }, [welcomeApprovalPolicy])
@@ -268,7 +270,6 @@ export function ConversationWelcome({
   const resolvedProfileAvatar = useResolvedProfileAvatar(selectedProfileId ?? undefined, workspacePath)
   const canUseSystemActions = true
   const canUseSlashPicker = canUseCommandPicker || canUseSkillPicker || canUseThreadGoals || canUseSystemActions
-  const remoteLocalFilesUnavailable = remoteWorkspace ? t('input.remoteLocalFilesUnavailable') : undefined
   const normalizedSlashQuery = slashQuery?.toLowerCase() ?? null
   const isExactSystemSlashQuery = normalizedSlashQuery === 'plan' || normalizedSlashQuery === 'agent' || normalizedSlashQuery === 'init'
   const showSlashPopover = slashQuery !== null && !slashDismissed && canUseSlashPicker && !isExactSystemSlashQuery
@@ -758,7 +759,13 @@ export function ConversationWelcome({
 
   const handleSlashQuery = useCallback((q: string | null): void => {
     setSlashQuery(q)
-    if (q !== null) setSlashDismissed(false)
+    if (q !== null) {
+      setSlashDismissed(false)
+      if (!slashOpenedByCommandTriggerRef.current) setCommandTriggerActive(false)
+    } else {
+      slashOpenedByCommandTriggerRef.current = false
+      setCommandTriggerActive(false)
+    }
   }, [])
 
   const handleSkillQuery = useCallback((q: string | null): void => {
@@ -1535,25 +1542,6 @@ export function ConversationWelcome({
     setDragOver(true)
   }, [remoteWorkspace])
 
-  const addPickedFiles = useCallback((picked: Array<{ path: string; fileName: string }>): void => {
-    if (picked.length === 0) return
-    setFiles((prev) => mergeComposerFileAttachments(prev, picked))
-  }, [])
-
-  const pickFiles = useCallback(async (): Promise<void> => {
-    if (remoteWorkspace) {
-      addToast(t('input.remoteLocalFilesUnavailable'), 'warning')
-      return
-    }
-    try {
-      const picked = await window.api.workspace.pickFiles()
-      addPickedFiles(picked)
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err)
-      addToast(t('input.pickFilesFailed', { error: msg }), 'error')
-    }
-  }, [addPickedFiles, remoteWorkspace, t])
-
   const onDragLeave = useCallback((e: React.DragEvent): void => {
     e.preventDefault()
     e.stopPropagation()
@@ -1757,6 +1745,8 @@ export function ConversationWelcome({
                       onSelectCommand={onSelectCommand}
                       onSelectSkill={onSelectSkill}
                       onDismiss={() => {
+                        slashOpenedByCommandTriggerRef.current = false
+                        setCommandTriggerActive(false)
                         setSlashDismissed(true)
                       }}
                     />
@@ -1829,22 +1819,23 @@ export function ConversationWelcome({
               }
               footerLeading={
                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0, flexWrap: 'wrap' }}>
-                  <ComposerAttachmentMenu
-                    title={t('composer.attachFileTitle')}
-                    ariaLabel={t('composer.attachFileAria')}
-                    attachImageLabel={t('composer.attachImage')}
-                    referenceFileLabel={t('composer.referenceFile')}
-                    onAttachImages={attachImages}
-                    onReferenceFiles={() => {
-                      void pickFiles()
+                  <ComposerCommandTrigger
+                    label={t('composer.openCommands')}
+                    expanded={showSlashPopover}
+                    active={commandTriggerActive && showSlashPopover}
+                    disabled={!canUseSlashPicker || busy}
+                    onClick={() => {
+                      if (showSlashPopover) {
+                        slashOpenedByCommandTriggerRef.current = false
+                        setCommandTriggerActive(false)
+                        setSlashDismissed(true)
+                        return
+                      }
+                      slashOpenedByCommandTriggerRef.current = true
+                      setCommandTriggerActive(true)
+                      setSlashDismissed(false)
+                      richRef.current?.openSlashPicker()
                     }}
-                    planModeLabel={selectedProfileId ? undefined : t('composer.system.plan')}
-                    planModeToggleLabel={t('composer.system.plan.toggle')}
-                    planModeEnabled={welcomeMode === 'plan'}
-                    onTogglePlanMode={selectedProfileId ? undefined : () => {
-                      toggleWelcomeMode()
-                    }}
-                    attachmentDisabledReason={remoteLocalFilesUnavailable}
                   />
 
                   <ApprovalPolicyPicker

@@ -973,14 +973,6 @@ const api = {
       return ipcRenderer.invoke('workspace:create-local-project', params)
     },
 
-    /**
-     * Opens the native file picker and returns selected local file paths,
-     * including files outside the workspace.
-     */
-    pickFiles(): Promise<Array<{ path: string; fileName: string }>> {
-      return ipcRenderer.invoke('workspace:pick-files')
-    },
-
     getPathForFile(file: File): string {
       return webUtils.getPathForFile(file)
     },

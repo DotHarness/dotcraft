@@ -14,7 +14,6 @@ import type { ConversationTurn } from '../types/conversation'
 
 const settingsGet = vi.fn()
 const appServerSendRequest = vi.fn()
-const pickFiles = vi.fn()
 const saveImageToTemp = vi.fn()
 const getPathForFile = vi.fn((file: File) => file.name === 'notes.txt' ? 'C:\\temp\\notes.txt' : '')
 
@@ -65,7 +64,6 @@ describe('InputComposer custom command expansion', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     settingsGet.mockResolvedValue({ locale: 'en' })
-    pickFiles.mockResolvedValue([])
     saveImageToTemp.mockResolvedValue({ path: 'C:\\temp\\image.png' })
     getPathForFile.mockImplementation((file: File) => file.name === 'notes.txt' ? 'C:\\temp\\notes.txt' : '')
     appServerSendRequest.mockImplementation(async (method: string) => {
@@ -110,7 +108,7 @@ describe('InputComposer custom command expansion', () => {
       value: {
         settings: { get: settingsGet },
         appServer: { sendRequest: appServerSendRequest },
-        workspace: { saveImageToTemp, pickFiles, getPathForFile }
+        workspace: { saveImageToTemp, getPathForFile }
       }
     })
 
@@ -322,18 +320,24 @@ describe('InputComposer custom command expansion', () => {
     })
   })
 
-  it('serializes picked file attachments into fileRef parts on turn/start', async () => {
-    pickFiles.mockResolvedValue([
-      { path: 'C:\\temp\\notes.txt', fileName: 'notes.txt' }
-    ])
-
+  it('serializes dropped file attachments into fileRef parts on turn/start', async () => {
     renderWithLocale(<InputComposer threadId="thread-1" workspacePath="E:\\Git\\dotcraft" />)
 
     const textbox = screen.getByRole('textbox')
     textbox.textContent = 'Review this file'
     fireEvent.input(textbox)
-    fireEvent.click(screen.getByRole('button', { name: 'Add attachment' }))
-    fireEvent.click(screen.getByRole('menuitem', { name: 'Reference file' }))
+    const surface = textbox.closest('div[style*="border-radius: 20px"]') as HTMLElement
+    const note = new File(['notes'], 'notes.txt', { type: 'text/plain' })
+    fireEvent.drop(surface, {
+      dataTransfer: {
+        files: [note],
+        items: [{
+          kind: 'file',
+          getAsFile: () => note,
+          webkitGetAsEntry: () => ({ isDirectory: false })
+        }]
+      }
+    })
 
     expect(await screen.findByText('notes.txt')).toBeInTheDocument()
 
@@ -355,11 +359,7 @@ describe('InputComposer custom command expansion', () => {
     })
   })
 
-  it('does not open local file attachment pickers in remote mode', async () => {
-    pickFiles.mockResolvedValue([
-      { path: 'C:\\temp\\notes.txt', fileName: 'notes.txt' }
-    ])
-
+  it('opens the command picker in remote mode without exposing local attachment actions', async () => {
     renderWithLocale(
       <InputComposer
         threadId="thread-1"
@@ -373,12 +373,10 @@ describe('InputComposer custom command expansion', () => {
       expect(appServerSendRequest).toHaveBeenCalledWith('skills/list', { includeUnavailable: true })
     })
 
-    fireEvent.click(screen.getByRole('button', { name: 'Add attachment' }))
-    const referenceItem = screen.getByRole('menuitem', { name: 'Reference file' })
-    expect(referenceItem).toBeDisabled()
-    fireEvent.click(referenceItem)
+    fireEvent.click(screen.getByRole('button', { name: 'Open commands' }))
 
-    expect(pickFiles).not.toHaveBeenCalled()
+    expect(screen.getByRole('listbox')).toBeInTheDocument()
+    expect(screen.queryByRole('menuitem', { name: 'Reference file' })).toBeNull()
     expect(screen.queryByText('notes.txt')).not.toBeInTheDocument()
   })
 
@@ -1134,19 +1132,49 @@ describe('InputComposer custom command expansion', () => {
     expect(appServerSendRequest.mock.calls.some((call) => String(call[0]).startsWith('thread/goal/'))).toBe(false)
   })
 
-  it('opens a compact attachment menu with image and file actions', async () => {
+  it('opens and toggles the slash command picker without replacing draft text', async () => {
     renderWithLocale(<InputComposer threadId="thread-1" workspacePath="E:\\Git\\dotcraft" />)
 
     await waitFor(() => {
       expect(appServerSendRequest).toHaveBeenCalledWith('skills/list', { includeUnavailable: true })
     })
 
-    expect(screen.queryByText('Attach file')).not.toBeInTheDocument()
+    const textbox = screen.getByRole('textbox')
+    textbox.textContent = 'Review this'
+    setCaretToEnd(textbox)
+    fireEvent.input(textbox)
+    const trigger = screen.getByRole('button', { name: 'Open commands' })
 
-    fireEvent.click(screen.getByRole('button', { name: 'Add attachment' }))
+    fireEvent.click(trigger)
+    expect(textbox).toHaveTextContent('Review this /')
+    expect(trigger).toHaveAttribute('aria-expanded', 'true')
+    expect(trigger).toHaveAttribute('data-active', 'true')
+    expect(screen.getByRole('listbox')).toBeInTheDocument()
+    expect(screen.queryByRole('menuitem', { name: 'Attach image' })).toBeNull()
 
-    expect(screen.getByRole('menuitem', { name: 'Attach image' })).toBeInTheDocument()
-    expect(screen.getByRole('menuitem', { name: 'Reference file' })).toBeInTheDocument()
+    fireEvent.click(trigger)
+    expect(trigger).toHaveAttribute('aria-expanded', 'false')
+    expect(trigger).toHaveAttribute('data-active', 'false')
+    expect(screen.queryByRole('listbox')).toBeNull()
+
+    fireEvent.click(trigger)
+    expect(textbox).toHaveTextContent('Review this /')
+    expect(trigger).toHaveAttribute('data-active', 'true')
+    expect(screen.getByRole('listbox')).toBeInTheDocument()
+  })
+
+  it('keeps the command trigger inactive when slash input opens the picker', async () => {
+    renderWithLocale(<InputComposer threadId="thread-1" workspacePath="E:\\Git\\dotcraft" />)
+
+    const textbox = screen.getByRole('textbox')
+    textbox.textContent = '/'
+    setCaretToEnd(textbox)
+    fireEvent.input(textbox)
+
+    const trigger = screen.getByRole('button', { name: 'Open commands' })
+    expect(await screen.findByRole('listbox')).toBeInTheDocument()
+    expect(trigger).toHaveAttribute('aria-expanded', 'true')
+    expect(trigger).toHaveAttribute('data-active', 'false')
   })
 
   it('accepts mixed dropped images and files', async () => {
@@ -1184,9 +1212,6 @@ describe('InputComposer custom command expansion', () => {
   })
 
   it('queues structured pending messages while running so slash commands keep their leading slash', async () => {
-    pickFiles.mockResolvedValue([
-      { path: 'C:\\temp\\notes.txt', fileName: 'notes.txt' }
-    ])
     useConversationStore.setState({
       turnStatus: 'running',
       activeTurnId: 'turn-running'
@@ -1197,8 +1222,18 @@ describe('InputComposer custom command expansion', () => {
     const textbox = screen.getByRole('textbox')
     textbox.textContent = '/code-review'
     fireEvent.input(textbox)
-    fireEvent.click(screen.getByRole('button', { name: 'Add attachment' }))
-    fireEvent.click(screen.getByRole('menuitem', { name: 'Reference file' }))
+    const surface = textbox.closest('div[style*="border-radius: 20px"]') as HTMLElement
+    const note = new File(['notes'], 'notes.txt', { type: 'text/plain' })
+    fireEvent.drop(surface, {
+      dataTransfer: {
+        files: [note],
+        items: [{
+          kind: 'file',
+          getAsFile: () => note,
+          webkitGetAsEntry: () => ({ isDirectory: false })
+        }]
+      }
+    })
 
     expect(await screen.findByText('notes.txt')).toBeInTheDocument()
 
@@ -1220,9 +1255,6 @@ describe('InputComposer custom command expansion', () => {
   })
 
   it('shows a file-reference queue label instead of raw markers when queued text is empty', async () => {
-    pickFiles.mockResolvedValue([
-      { path: 'C:\\temp\\notes.txt', fileName: 'notes.txt' }
-    ])
     useConversationStore.setState({
       turnStatus: 'running',
       activeTurnId: 'turn-running'
@@ -1230,12 +1262,23 @@ describe('InputComposer custom command expansion', () => {
 
     renderWithLocale(<InputComposer threadId="thread-1" workspacePath="E:\\Git\\dotcraft" />)
 
-    fireEvent.click(screen.getByRole('button', { name: 'Add attachment' }))
-    fireEvent.click(screen.getByRole('menuitem', { name: 'Reference file' }))
+    const textbox = screen.getByRole('textbox')
+    const surface = textbox.closest('div[style*="border-radius: 20px"]') as HTMLElement
+    const note = new File(['notes'], 'notes.txt', { type: 'text/plain' })
+    fireEvent.drop(surface, {
+      dataTransfer: {
+        files: [note],
+        items: [{
+          kind: 'file',
+          getAsFile: () => note,
+          webkitGetAsEntry: () => ({ isDirectory: false })
+        }]
+      }
+    })
 
     expect(await screen.findByText('notes.txt')).toBeInTheDocument()
 
-    fireEvent.keyDown(screen.getByRole('textbox'), { key: 'Enter' })
+    fireEvent.keyDown(textbox, { key: 'Enter' })
 
     await waitFor(() => {
       const enqueueCall = appServerSendRequest.mock.calls.find((call) => call[0] === 'turn/enqueue')

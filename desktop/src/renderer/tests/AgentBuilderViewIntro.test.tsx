@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { LocaleProvider } from '../contexts/LocaleContext'
 import { AgentBuilderView } from '../components/agents/AgentBuilderView'
 import { useConnectionStore } from '../stores/connectionStore'
@@ -15,6 +15,19 @@ const appServerSendRequest = vi.fn()
 const appServerOnNotification = vi.fn()
 type NotificationPayload = { method: string; params?: Record<string, unknown> }
 let notificationHandlers: Array<(payload: NotificationPayload) => void> = []
+
+class ResizeObserverMock {
+  observe(): void {}
+  unobserve(): void {}
+  disconnect(): void {}
+}
+
+Object.defineProperty(globalThis, 'ResizeObserver', {
+  configurable: true,
+  writable: true,
+  value: ResizeObserverMock
+})
+
 const toolCatalog = [
   { name: 'WebSearch', description: 'Search the web', icon: '🔍' },
   { name: 'WebFetch', description: 'Fetch a URL', icon: '🌐' },
@@ -112,7 +125,6 @@ describe('AgentBuilderView intro composer', () => {
         },
         workspace: {
           saveImageToTemp: vi.fn(),
-          pickFiles: vi.fn(async () => []),
           getPathForFile: vi.fn()
         },
         file: {
@@ -169,14 +181,15 @@ describe('AgentBuilderView intro composer', () => {
 
     fireEvent.click(await screen.findByRole('button', { name: /New agent/i }))
 
-    expect(screen.getByRole('button', { name: 'Add attachment' })).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: 'Add attachment' }))
-    expect(screen.queryByRole('menuitemcheckbox', { name: 'Plan mode' })).toBeNull()
-    fireEvent.click(screen.getByRole('button', { name: 'Add attachment' }))
+    expect(screen.getByRole('button', { name: 'Open commands' })).toBeInTheDocument()
 
     expect(appServerSendRequest.mock.calls.some(([method]) => method === 'thread/start')).toBe(false)
 
     fireEvent.click(screen.getByRole('button', { name: /Select model/i }))
+    const modelMenu = screen.queryByRole('menu', { name: /Select model/i })
+    if (modelMenu) {
+      fireEvent.click(within(modelMenu).getByRole('menuitem', { name: /Model/i }))
+    }
     fireEvent.click(await screen.findByRole('option', { name: /gpt-5\.5/i }))
     await waitFor(() => {
       expect(screen.getByRole('button', { name: /Select model/i })).toHaveTextContent('gpt-5.5')
@@ -276,7 +289,7 @@ describe('AgentBuilderView intro composer', () => {
       expect(screen.getByText(/Untitled agent/i)).toBeInTheDocument()
     })
     expect(screen.getByText('How should we improve this agent?')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Add attachment' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Open commands' })).toBeInTheDocument()
     expect(appServerSendRequest.mock.calls.some(([method]) => method === 'thread/start')).toBe(false)
   })
 

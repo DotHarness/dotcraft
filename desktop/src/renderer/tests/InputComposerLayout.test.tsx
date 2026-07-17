@@ -128,17 +128,15 @@ describe('InputComposer layout', () => {
     })
   })
 
-  it('renders plan mode as an active-only label and exposes the mode switch from the attachment menu', async () => {
+  it('renders plan mode as an active-only label and exposes the mode switch from the command picker', async () => {
     renderComposer()
 
     screen.getByRole('textbox')
     expect(screen.queryByRole('button', { name: 'Agent' })).toBeNull()
     expect(screen.queryByRole('button', { name: 'Plan' })).toBeNull()
 
-    fireEvent.click(screen.getByRole('button', { name: 'Add attachment' }))
-    const planModeMenuItem = screen.getByRole('menuitemcheckbox', { name: 'Plan mode' })
-    expect(planModeMenuItem).toHaveAttribute('aria-checked', 'false')
-    fireEvent.click(planModeMenuItem)
+    fireEvent.click(screen.getByRole('button', { name: 'Open commands' }))
+    fireEvent.click(screen.getByRole('option', { name: /Plan mode/ }))
 
     await waitFor(() => {
       expect(screen.getByRole('button', { name: 'Disable plan mode' })).toBeInTheDocument()
@@ -148,9 +146,8 @@ describe('InputComposer layout', () => {
         mode: 'plan'
       })
     })
-    expect(screen.getByRole('menuitemcheckbox', { name: 'Plan mode' })).toHaveAttribute('aria-checked', 'true')
     expect(Boolean(
-      screen.getByRole('button', { name: 'Add attachment' })
+      screen.getByRole('button', { name: 'Open commands' })
         .compareDocumentPosition(screen.getByTestId('approval-policy-trigger')) & Node.DOCUMENT_POSITION_FOLLOWING
     )).toBe(true)
     expect(Boolean(
@@ -194,11 +191,12 @@ describe('InputComposer layout', () => {
 
   it('disables plan and agent mode controls in the agent builder variant', async () => {
     const onBeforeSend = vi.fn().mockResolvedValue(undefined)
+    useConnectionStore.setState({ capabilities: { commandManagement: true } })
 
     renderComposer({ variant: 'agentBuilder', minimalChrome: true, onBeforeSend })
 
-    fireEvent.click(screen.getByRole('button', { name: 'Add attachment' }))
-    expect(screen.queryByRole('menuitemcheckbox', { name: 'Plan mode' })).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'Open commands' }))
+    expect(screen.queryByRole('option', { name: /Plan mode/ })).toBeNull()
 
     const textbox = screen.getByRole('textbox')
     fireEvent.keyDown(textbox, { key: 'Tab', shiftKey: true })
@@ -246,7 +244,7 @@ describe('InputComposer layout', () => {
     expect(appServerSendRequest.mock.calls.some(([method]) => method === 'thread/mode/set')).toBe(false)
   })
 
-  it('localizes the plan mode label and attachment menu switch', async () => {
+  it('localizes the plan mode label and command trigger', async () => {
     settingsGet.mockResolvedValue({ locale: 'zh-Hans' })
     useConversationStore.setState({ threadMode: 'plan' })
 
@@ -255,8 +253,8 @@ describe('InputComposer layout', () => {
     expect(await screen.findByRole('button', { name: '关闭计划模式' })).toBeInTheDocument()
     expect(screen.getByText('计划')).toBeInTheDocument()
 
-    fireEvent.click(await screen.findByRole('button', { name: '添加附件' }))
-    expect(screen.getByRole('menuitemcheckbox', { name: '计划模式' })).toHaveAttribute('aria-checked', 'true')
+    fireEvent.click(await screen.findByRole('button', { name: '打开命令' }))
+    expect(screen.getByRole('option', { name: /计划模式/ })).toBeInTheDocument()
   })
 
   it('renders the SubAgent dock as a responsive attached accessory above the composer surface', () => {

@@ -43,6 +43,7 @@ export interface RichInputAreaHandle {
   setSelectionRange: (range: SelectionRange) => void
   clear: () => void
   focus: () => void
+  openSlashPicker: () => void
   insertFileTag: (relativePath: string) => void
   insertCommandTag: (commandName: string) => void
   insertSkillTag: (skillName: string) => void
@@ -466,6 +467,61 @@ export const RichInputArea = forwardRef(function RichInputArea(
       editorRef.current?.focus()
     }, [])
 
+    const openSlashPicker = useCallback((): void => {
+      const el = editorRef.current
+      if (!el) return
+
+      const totalLength = linearLengthOfNode(el)
+      const storedSelection = getSelectionRange() ?? { start: totalLength, end: totalLength }
+      setSelectionRange(storedSelection)
+
+      const before = textBeforeCaretForTriggers(el)
+      const existingQuery = parseSlashQuery(before)
+      if (existingQuery) {
+        onAtQuery?.(null)
+        onSlashQuery?.(existingQuery.query)
+        onSkillQuery?.(null)
+        return
+      }
+
+      const selection = window.getSelection()
+      if (!selection || selection.rangeCount === 0) return
+      const range = selection.getRangeAt(0)
+      if (!el.contains(range.startContainer) || !el.contains(range.endContainer)) return
+
+      const prefix = before.length === 0 || /\s$/.test(before) ? '/' : ' /'
+      if (getText().length - (storedSelection.end - storedSelection.start) + prefix.length > MAX_TEXT_LEN) return
+
+      range.deleteContents()
+      const triggerNode = document.createTextNode(prefix)
+      range.insertNode(triggerNode)
+      range.setStart(triggerNode, triggerNode.length)
+      range.collapse(true)
+      selection.removeAllRanges()
+      selection.addRange(range)
+
+      const caret = storedSelection.start + prefix.length
+      lastSelectionRangeRef.current = { start: caret, end: caret }
+      onSelectionChange?.({ start: caret, end: caret })
+      onAtQuery?.(null)
+      onSlashQuery?.('')
+      onSkillQuery?.(null)
+      syncEmpty()
+      adjustHeight()
+      onContentChange?.()
+    }, [
+      adjustHeight,
+      getSelectionRange,
+      getText,
+      onAtQuery,
+      onContentChange,
+      onSelectionChange,
+      onSkillQuery,
+      onSlashQuery,
+      setSelectionRange,
+      syncEmpty
+    ])
+
     const replaceQueryRangeWithRef = useCallback(
       (kind: RefType, value: string, parsed: { fullMatch: string; query: string }, trigger: '@' | '/' | '$'): void => {
         const el = editorRef.current
@@ -624,6 +680,7 @@ export const RichInputArea = forwardRef(function RichInputArea(
         setSelectionRange,
         clear,
         focus: focusEditor,
+        openSlashPicker,
         insertFileTag,
         insertCommandTag,
         insertSkillTag,
@@ -637,6 +694,7 @@ export const RichInputArea = forwardRef(function RichInputArea(
         setSelectionRange,
         clear,
         focusEditor,
+        openSlashPicker,
         insertCommandTag,
         insertFileTag,
         insertSkillTag,
