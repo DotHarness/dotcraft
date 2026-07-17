@@ -43,7 +43,9 @@ export interface RichInputAreaHandle {
   setSelectionRange: (range: SelectionRange) => void
   clear: () => void
   focus: () => void
-  openSlashPicker: () => void
+  beginCommandQuery: () => void
+  endCommandQuery: () => void
+  removeCommandQuery: () => void
   insertFileTag: (relativePath: string) => void
   insertCommandTag: (commandName: string) => void
   insertSkillTag: (skillName: string) => void
@@ -70,6 +72,7 @@ interface RichInputAreaProps {
   /** Omitted on welcome screen (no @ popover). */
   onAtQuery?: (query: string | null) => void
   onSlashQuery?: (query: string | null) => void
+  onCommandQuery?: (query: string | null) => void
   onSkillQuery?: (query: string | null) => void
   onContentChange?: () => void
   onSelectionChange?: (range: SelectionRange | null) => void
@@ -325,6 +328,7 @@ export const RichInputArea = forwardRef(function RichInputArea(
     onSubmit,
     onAtQuery,
     onSlashQuery,
+    onCommandQuery,
     onSkillQuery,
     onContentChange,
     onSelectionChange,
@@ -337,6 +341,7 @@ export const RichInputArea = forwardRef(function RichInputArea(
 ) {
     const editorRef = useRef<HTMLDivElement>(null)
     const lastSelectionRangeRef = useRef<SelectionRange | null>(null)
+    const commandQueryRangeRef = useRef<SelectionRange | null>(null)
     const compositionActiveRef = useRef(false)
     const compositionJustEndedRef = useRef(false)
     const compositionResetTimerRef = useRef<number | null>(null)
@@ -455,83 +460,95 @@ export const RichInputArea = forwardRef(function RichInputArea(
       el.innerHTML = ''
       onAtQuery?.(null)
       onSlashQuery?.(null)
+      commandQueryRangeRef.current = null
+      onCommandQuery?.(null)
       onSkillQuery?.(null)
       setShowPh(true)
       adjustHeight()
       lastSelectionRangeRef.current = { start: 0, end: 0 }
       onSelectionChange?.({ start: 0, end: 0 })
       onContentChange?.()
-    }, [adjustHeight, onAtQuery, onContentChange, onSelectionChange, onSkillQuery, onSlashQuery])
+    }, [adjustHeight, onAtQuery, onCommandQuery, onContentChange, onSelectionChange, onSkillQuery, onSlashQuery])
 
     const focusEditor = useCallback((): void => {
       editorRef.current?.focus()
     }, [])
 
-    const openSlashPicker = useCallback((): void => {
+    const endCommandQuery = useCallback((): void => {
+      commandQueryRangeRef.current = null
+      onCommandQuery?.(null)
+    }, [onCommandQuery])
+
+    const beginCommandQuery = useCallback((): void => {
       const el = editorRef.current
       if (!el) return
 
       const totalLength = linearLengthOfNode(el)
       const storedSelection = getSelectionRange() ?? { start: totalLength, end: totalLength }
-      setSelectionRange(storedSelection)
-
-      const before = textBeforeCaretForTriggers(el)
-      const existingQuery = parseSlashQuery(before)
-      if (existingQuery) {
-        onAtQuery?.(null)
-        onSlashQuery?.(existingQuery.query)
-        onSkillQuery?.(null)
-        return
-      }
-
-      const selection = window.getSelection()
-      if (!selection || selection.rangeCount === 0) return
-      const range = selection.getRangeAt(0)
-      if (!el.contains(range.startContainer) || !el.contains(range.endContainer)) return
-
-      const prefix = before.length === 0 || /\s$/.test(before) ? '/' : ' /'
-      if (getText().length - (storedSelection.end - storedSelection.start) + prefix.length > MAX_TEXT_LEN) return
-
-      range.deleteContents()
-      const triggerNode = document.createTextNode(prefix)
-      range.insertNode(triggerNode)
-      range.setStart(triggerNode, triggerNode.length)
-      range.collapse(true)
-      selection.removeAllRanges()
-      selection.addRange(range)
-
-      const caret = storedSelection.start + prefix.length
-      lastSelectionRangeRef.current = { start: caret, end: caret }
-      onSelectionChange?.({ start: caret, end: caret })
+      const caret = storedSelection.end
+      const collapsedSelection = { start: caret, end: caret }
+      commandQueryRangeRef.current = collapsedSelection
+      setSelectionRange(collapsedSelection)
       onAtQuery?.(null)
-      onSlashQuery?.('')
+      onSlashQuery?.(null)
       onSkillQuery?.(null)
-      syncEmpty()
-      adjustHeight()
-      onContentChange?.()
+      onCommandQuery?.('')
     }, [
-      adjustHeight,
       getSelectionRange,
-      getText,
       onAtQuery,
-      onContentChange,
-      onSelectionChange,
+      onCommandQuery,
       onSkillQuery,
       onSlashQuery,
-      setSelectionRange,
-      syncEmpty
+      setSelectionRange
     ])
 
-    const replaceQueryRangeWithRef = useCallback(
-      (kind: RefType, value: string, parsed: { fullMatch: string; query: string }, trigger: '@' | '/' | '$'): void => {
+    const syncCommandQuery = useCallback((): void => {
+      const activeRange = commandQueryRangeRef.current
+      const el = editorRef.current
+      if (!activeRange || !el) return
+      const selection = readSelectionRange()
+      if (!selection) {
+        endCommandQuery()
+        return
+      }
+      if (selection.start !== selection.end) {
+        if (selection.start !== activeRange.start || selection.end !== activeRange.end) {
+          endCommandQuery()
+        }
+        return
+      }
+      if (selection.end < activeRange.start) {
+        endCommandQuery()
+        return
+      }
+      const query = linearizeForTriggers(el).slice(activeRange.start, selection.end)
+      if (/\s|[/@$]/.test(query)) {
+        endCommandQuery()
+        return
+      }
+      commandQueryRangeRef.current = { start: activeRange.start, end: selection.end }
+      onCommandQuery?.(query)
+    }, [endCommandQuery, onCommandQuery, readSelectionRange])
+
+    const queryRange = useCallback(
+      (parsed: { fullMatch: string; query: string }, trigger: '@' | '/' | '$'): SelectionRange | null => {
         const el = editorRef.current
-        if (!el) return
+        if (!el) return null
         const before = textBeforeCaretForTriggers(el)
         const endLinear = before.length
         const leadingWs = parsed.fullMatch.length > 0 && parsed.fullMatch[0] !== trigger ? 1 : 0
         const startLinear = endLinear - parsed.fullMatch.length + leadingWs
-        const startLoc = walkToLinearOffset(el, startLinear)
-        const endLoc = walkToLinearOffset(el, endLinear)
+        return { start: startLinear, end: endLinear }
+      },
+      []
+    )
+
+    const replaceLinearRangeWithRef = useCallback(
+      (kind: RefType, value: string, targetRange: SelectionRange): void => {
+        const el = editorRef.current
+        if (!el) return
+        const startLoc = walkToLinearOffset(el, targetRange.start)
+        const endLoc = walkToLinearOffset(el, targetRange.end)
         if (!startLoc || !endLoc) return
         const range = document.createRange()
         try {
@@ -556,15 +573,72 @@ export const RichInputArea = forwardRef(function RichInputArea(
         const sel = window.getSelection()
         sel?.removeAllRanges()
         sel?.addRange(range)
+        commandQueryRangeRef.current = null
         onAtQuery?.(null)
         onSlashQuery?.(null)
+        onCommandQuery?.(null)
         onSkillQuery?.(null)
         syncEmpty()
         adjustHeight()
         onContentChange?.()
       },
-      [adjustHeight, onAtQuery, onContentChange, onSkillQuery, onSlashQuery, syncEmpty]
+      [adjustHeight, onAtQuery, onCommandQuery, onContentChange, onSkillQuery, onSlashQuery, syncEmpty]
     )
+
+    const replaceQueryRangeWithRef = useCallback(
+      (kind: RefType, value: string, parsed: { fullMatch: string; query: string }, trigger: '@' | '/' | '$'): void => {
+        const targetRange = queryRange(parsed, trigger)
+        if (!targetRange) return
+        replaceLinearRangeWithRef(kind, value, targetRange)
+      },
+      [queryRange, replaceLinearRangeWithRef]
+    )
+
+    const removeLinearRange = useCallback(
+      (targetRange: SelectionRange): void => {
+        const el = editorRef.current
+        if (!el) return
+        const startLoc = walkToLinearOffset(el, targetRange.start)
+        const endLoc = walkToLinearOffset(el, targetRange.end)
+        if (!startLoc || !endLoc) return
+        const range = document.createRange()
+        try {
+          range.setStart(startLoc.node, startLoc.offset)
+          range.setEnd(endLoc.node, endLoc.offset)
+          range.deleteContents()
+          range.collapse(true)
+        } catch {
+          return
+        }
+        const selection = window.getSelection()
+        selection?.removeAllRanges()
+        selection?.addRange(range)
+        commandQueryRangeRef.current = null
+        onAtQuery?.(null)
+        onSlashQuery?.(null)
+        onCommandQuery?.(null)
+        onSkillQuery?.(null)
+        syncEmpty()
+        adjustHeight()
+        captureSelectionRange()
+        onContentChange?.()
+      },
+      [adjustHeight, captureSelectionRange, onAtQuery, onCommandQuery, onContentChange, onSkillQuery, onSlashQuery, syncEmpty]
+    )
+
+    const removeCommandQuery = useCallback((): void => {
+      const activeRange = commandQueryRangeRef.current
+      if (activeRange) {
+        removeLinearRange(activeRange)
+        return
+      }
+      const el = editorRef.current
+      if (!el) return
+      const parsed = parseSlashQuery(textBeforeCaretForTriggers(el))
+      if (!parsed) return
+      const targetRange = queryRange(parsed, '/')
+      if (targetRange) removeLinearRange(targetRange)
+    }, [queryRange, removeLinearRange])
 
     const insertFileTag = useCallback(
       (relativePath: string): void => {
@@ -584,12 +658,17 @@ export const RichInputArea = forwardRef(function RichInputArea(
         if (!el) return
         const command = commandName.trim()
         if (!command.startsWith('/')) return
+        const activeRange = commandQueryRangeRef.current
+        if (activeRange) {
+          replaceLinearRangeWithRef('command', command, activeRange)
+          return
+        }
         const before = textBeforeCaretForTriggers(el)
         const parsed = parseSlashQuery(before)
         if (!parsed) return
         replaceQueryRangeWithRef('command', command, parsed, '/')
       },
-      [replaceQueryRangeWithRef]
+      [replaceLinearRangeWithRef, replaceQueryRangeWithRef]
     )
 
     const insertSkillTag = useCallback(
@@ -598,12 +677,17 @@ export const RichInputArea = forwardRef(function RichInputArea(
         if (!el) return
         const name = skillName.trim().replace(/^\/+/, '')
         if (!name) return
+        const activeRange = commandQueryRangeRef.current
+        if (activeRange) {
+          replaceLinearRangeWithRef('skill', name, activeRange)
+          return
+        }
         const before = textBeforeCaretForTriggers(el)
         const parsed = parseSkillQuery(before) ?? parseSlashQuery(before)
         if (!parsed) return
         replaceQueryRangeWithRef('skill', name, parsed, before.endsWith(`$${parsed.query}`) ? '$' : '/')
       },
-      [replaceQueryRangeWithRef]
+      [replaceLinearRangeWithRef, replaceQueryRangeWithRef]
     )
 
     const setPlainText = useCallback(
@@ -611,8 +695,10 @@ export const RichInputArea = forwardRef(function RichInputArea(
         const el = editorRef.current
         if (!el) return
         el.textContent = text
+        commandQueryRangeRef.current = null
         onAtQuery?.(null)
         onSlashQuery?.(null)
+        onCommandQuery?.(null)
         onSkillQuery?.(null)
         syncEmpty()
         adjustHeight()
@@ -626,7 +712,7 @@ export const RichInputArea = forwardRef(function RichInputArea(
         })
         onContentChange?.()
       },
-      [adjustHeight, onAtQuery, onContentChange, onSelectionChange, onSkillQuery, onSlashQuery, syncEmpty]
+      [adjustHeight, onAtQuery, onCommandQuery, onContentChange, onSelectionChange, onSkillQuery, onSlashQuery, syncEmpty]
     )
 
     const setStructuredContent = useCallback(
@@ -637,8 +723,10 @@ export const RichInputArea = forwardRef(function RichInputArea(
         if (serializeEditor(el).length > MAX_TEXT_LEN) {
           truncateEditorDomToSerializedLength(el, MAX_TEXT_LEN)
         }
+        commandQueryRangeRef.current = null
         onAtQuery?.(null)
         onSlashQuery?.(null)
+        onCommandQuery?.(null)
         onSkillQuery?.(null)
         syncEmpty()
         adjustHeight()
@@ -653,7 +741,7 @@ export const RichInputArea = forwardRef(function RichInputArea(
         })
         onContentChange?.()
       },
-      [adjustHeight, onAtQuery, onContentChange, onSelectionChange, onSkillQuery, onSlashQuery, syncEmpty]
+      [adjustHeight, onAtQuery, onCommandQuery, onContentChange, onSelectionChange, onSkillQuery, onSlashQuery, syncEmpty]
     )
 
     const setContent = useCallback(
@@ -680,7 +768,9 @@ export const RichInputArea = forwardRef(function RichInputArea(
         setSelectionRange,
         clear,
         focus: focusEditor,
-        openSlashPicker,
+        beginCommandQuery,
+        endCommandQuery,
+        removeCommandQuery,
         insertFileTag,
         insertCommandTag,
         insertSkillTag,
@@ -694,7 +784,9 @@ export const RichInputArea = forwardRef(function RichInputArea(
         setSelectionRange,
         clear,
         focusEditor,
-        openSlashPicker,
+        beginCommandQuery,
+        endCommandQuery,
+        removeCommandQuery,
         insertCommandTag,
         insertFileTag,
         insertSkillTag,
@@ -782,6 +874,7 @@ export const RichInputArea = forwardRef(function RichInputArea(
     const onInput = useCallback((): void => {
       syncEmpty()
       adjustHeight()
+      syncCommandQuery()
       emitTriggerQueries()
       captureSelectionRange()
       onContentChange?.()
@@ -790,11 +883,17 @@ export const RichInputArea = forwardRef(function RichInputArea(
         truncateEditorDomToSerializedLength(el, MAX_TEXT_LEN)
         syncEmpty()
         adjustHeight()
+        syncCommandQuery()
         emitTriggerQueries()
         captureSelectionRange()
         onContentChange?.()
       }
-    }, [adjustHeight, captureSelectionRange, emitTriggerQueries, onContentChange, syncEmpty])
+    }, [adjustHeight, captureSelectionRange, emitTriggerQueries, onContentChange, syncCommandQuery, syncEmpty])
+
+    const captureSelectionAndSyncCommandQuery = useCallback((): void => {
+      captureSelectionRange()
+      syncCommandQuery()
+    }, [captureSelectionRange, syncCommandQuery])
 
     const onKeyDown = useCallback(
       (e: ReactKeyboardEvent<HTMLDivElement>): void => {
@@ -1058,10 +1157,10 @@ export const RichInputArea = forwardRef(function RichInputArea(
           onInput={onInput}
           onClick={onEditorClick}
           onKeyDown={onKeyDown}
-          onKeyUp={captureSelectionRange}
+          onKeyUp={captureSelectionAndSyncCommandQuery}
           onCompositionStart={onCompositionStart}
           onCompositionEnd={onCompositionEnd}
-          onMouseUp={captureSelectionRange}
+          onMouseUp={captureSelectionAndSyncCommandQuery}
           onCopy={(e) => onCopyOrCut(e, false)}
           onCut={(e) => onCopyOrCut(e, true)}
           onPaste={onPaste}

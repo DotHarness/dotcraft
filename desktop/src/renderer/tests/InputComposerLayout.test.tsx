@@ -195,14 +195,23 @@ describe('InputComposer layout', () => {
 
     renderComposer({ variant: 'agentBuilder', minimalChrome: true, onBeforeSend })
 
-    fireEvent.click(screen.getByRole('button', { name: 'Open commands' }))
+    const commandTrigger = screen.getByRole('button', { name: 'Open commands' })
+    fireEvent.click(commandTrigger)
     expect(screen.queryByRole('option', { name: /Plan mode/ })).toBeNull()
 
     const textbox = screen.getByRole('textbox')
+    expect(textbox).toHaveTextContent('')
+    fireEvent.click(commandTrigger)
     fireEvent.keyDown(textbox, { key: 'Tab', shiftKey: true })
     expect(appServerSendRequest.mock.calls.some(([method]) => method === 'thread/mode/set')).toBe(false)
 
     textbox.textContent = '/plan'
+    const selection = window.getSelection()
+    const range = document.createRange()
+    range.selectNodeContents(textbox)
+    range.collapse(false)
+    selection?.removeAllRanges()
+    selection?.addRange(range)
     fireEvent.input(textbox)
     fireEvent.keyDown(textbox, { key: 'Enter', code: 'Enter' })
 

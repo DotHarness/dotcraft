@@ -242,6 +242,42 @@ describe('RichInputArea ref insertion caret placement', () => {
     // …whose immediate predecessor is the chip itself.
     expect((anchor?.previousSibling as HTMLElement | null)?.classList.contains(SKILL_REF_CLASS)).toBe(true)
   })
+
+  it('tracks visible command-trigger text and replaces only that range with a skill tag', () => {
+    const ref = createRef<RichInputAreaHandle>()
+    const onCommandQuery = vi.fn()
+
+    render(
+      <RichInputArea
+        ref={ref}
+        onSubmit={vi.fn()}
+        onCommandQuery={onCommandQuery}
+      />
+    )
+
+    act(() => {
+      ref.current?.setPlainText('Keep ')
+      ref.current?.setSelectionRange({ start: 5, end: 5 })
+      ref.current?.beginCommandQuery()
+    })
+
+    const textbox = screen.getByRole('textbox')
+    textbox.textContent = 'Keep mem'
+    act(() => {
+      ref.current?.setSelectionRange({ start: 8, end: 8 })
+    })
+    fireEvent.input(textbox)
+
+    expect(onCommandQuery).toHaveBeenLastCalledWith('mem')
+
+    act(() => {
+      ref.current?.insertSkillTag('memory')
+    })
+
+    expect(textbox).toHaveTextContent('Keep')
+    expect(textbox.querySelector(`.${SKILL_REF_CLASS}`)).not.toBeNull()
+    expect(onCommandQuery).toHaveBeenLastCalledWith(null)
+  })
 })
 
 describe('RichInputArea catalog-aware paste parsing', () => {

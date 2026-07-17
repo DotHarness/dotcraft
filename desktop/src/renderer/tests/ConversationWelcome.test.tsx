@@ -1003,7 +1003,7 @@ describe('ConversationWelcome composer', () => {
     })
   })
 
-  it('opens the slash command picker from the footer trigger without replacing draft text', async () => {
+  it('opens the command picker from the footer trigger without changing draft text', async () => {
     renderWelcome()
 
     const textbox = screen.getByRole('textbox')
@@ -1012,7 +1012,7 @@ describe('ConversationWelcome composer', () => {
     setTextboxCaret(textbox, 'Review this'.length)
     fireEvent.click(screen.getByRole('button', { name: 'Open commands' }))
 
-    expect(textbox).toHaveTextContent('Review this /')
+    expect(textbox).toHaveTextContent('Review this')
     expect(screen.getByRole('listbox')).toBeInTheDocument()
     expect(screen.queryByRole('menuitem', { name: 'Attach image' })).toBeNull()
   })

@@ -171,7 +171,7 @@ export function ConversationWelcome({
   const [mentionDismissed, setMentionDismissed] = useState(false)
   const [slashQuery, setSlashQuery] = useState<string | null>(null)
   const [slashDismissed, setSlashDismissed] = useState(false)
-  const [commandTriggerActive, setCommandTriggerActive] = useState(false)
+  const [commandQuery, setCommandQuery] = useState<string | null>(null)
   const [skillQuery, setSkillQuery] = useState<string | null>(null)
   const [skillDismissed, setSkillDismissed] = useState(false)
   const [goalComposeMode, setGoalComposeMode] = useState(false)
@@ -215,7 +215,6 @@ export function ConversationWelcome({
   const suggestionFingerprintRef = useRef<string | null>(null)
   const suggestionRequestSeqRef = useRef(0)
   const richRef = useRef<RichInputAreaHandle>(null)
-  const slashOpenedByCommandTriggerRef = useRef(false)
   useEffect(() => {
     welcomeApprovalPolicyRef.current = welcomeApprovalPolicy
   }, [welcomeApprovalPolicy])
@@ -273,6 +272,9 @@ export function ConversationWelcome({
   const normalizedSlashQuery = slashQuery?.toLowerCase() ?? null
   const isExactSystemSlashQuery = normalizedSlashQuery === 'plan' || normalizedSlashQuery === 'agent' || normalizedSlashQuery === 'init'
   const showSlashPopover = slashQuery !== null && !slashDismissed && canUseSlashPicker && !isExactSystemSlashQuery
+  const showCommandQueryPopover = commandQuery !== null && canUseSlashPicker
+  const showCommandPopover = showSlashPopover || showCommandQueryPopover
+  const commandPopoverQuery = commandQuery ?? slashQuery ?? ''
   const showSkillPopover = skillQuery !== null && !skillDismissed && canUseSkillPicker
   const { commands: customCommands, initAvailable, status: customCommandStatus } = useCustomCommandCatalog({
     enabled: canUseCommandPicker,
@@ -759,13 +761,11 @@ export function ConversationWelcome({
 
   const handleSlashQuery = useCallback((q: string | null): void => {
     setSlashQuery(q)
-    if (q !== null) {
-      setSlashDismissed(false)
-      if (!slashOpenedByCommandTriggerRef.current) setCommandTriggerActive(false)
-    } else {
-      slashOpenedByCommandTriggerRef.current = false
-      setCommandTriggerActive(false)
-    }
+    if (q !== null) setSlashDismissed(false)
+  }, [])
+
+  const handleCommandQuery = useCallback((q: string | null): void => {
+    setCommandQuery(q)
   }, [])
 
   const handleSkillQuery = useCallback((q: string | null): void => {
@@ -779,13 +779,6 @@ export function ConversationWelcome({
 
   const onSelectCommand = useCallback((commandName: string): void => {
     richRef.current?.insertCommandTag(commandName)
-  }, [])
-
-  const clearSlashSystemInput = useCallback((): void => {
-    const text = richRef.current?.getText() ?? ''
-    if (text.trim().startsWith('/')) {
-      richRef.current?.clear()
-    }
   }, [])
 
   const toggleWelcomeMode = useCallback((): void => {
@@ -1500,7 +1493,7 @@ export function ConversationWelcome({
 
   const onSelectSystemAction = useCallback((actionId: string): void => {
     setSlashDismissed(true)
-    clearSlashSystemInput()
+    richRef.current?.removeCommandQuery()
     if (actionId === 'init') {
       richRef.current?.setContent({ text: '/init', segments: [] })
       void sendFromWelcome()
@@ -1516,7 +1509,7 @@ export function ConversationWelcome({
     }
     if (actionId !== 'goal') return
     enterGoalComposeMode()
-  }, [clearSlashSystemInput, enterGoalComposeMode, sendFromWelcome, toggleWelcomeMode])
+  }, [enterGoalComposeMode, sendFromWelcome, toggleWelcomeMode])
 
   const onPasteImage = useCallback(
     (file: File): void => {
@@ -1735,8 +1728,8 @@ export function ConversationWelcome({
                       }}
                     />
                     <CommandSearchPopover
-                      query={slashQuery ?? ''}
-                      visible={showSlashPopover}
+                      query={commandPopoverQuery}
+                      visible={showCommandPopover}
                       loading={customCommandStatus === 'loading' || skillsLoading}
                       systemActions={systemActions}
                       commands={customCommands}
@@ -1745,9 +1738,8 @@ export function ConversationWelcome({
                       onSelectCommand={onSelectCommand}
                       onSelectSkill={onSelectSkill}
                       onDismiss={() => {
-                        slashOpenedByCommandTriggerRef.current = false
-                        setCommandTriggerActive(false)
-                        setSlashDismissed(true)
+                        if (commandQuery !== null) richRef.current?.endCommandQuery()
+                        else setSlashDismissed(true)
                       }}
                     />
                     <CommandSearchPopover
@@ -1775,7 +1767,7 @@ export function ConversationWelcome({
                       ref={richRef}
                       chrome="minimal"
                       disabled={busy}
-                      suppressSubmit={showMentionPopover || showSlashPopover || showSkillPopover || modelLoading}
+                      suppressSubmit={showMentionPopover || showCommandPopover || showSkillPopover || modelLoading}
                       onToggleModeShortcut={toggleWelcomeMode}
                       placeholder={
                         !isConnected
@@ -1789,6 +1781,7 @@ export function ConversationWelcome({
                       }}
                       onAtQuery={remoteWorkspace ? undefined : handleAtQuery}
                       onSlashQuery={handleSlashQuery}
+                      onCommandQuery={handleCommandQuery}
                       onSkillQuery={handleSkillQuery}
                       onContentChange={() => {
                         if (!draftHydratedRef.current && !draftHydratingRef.current) {
@@ -1821,20 +1814,17 @@ export function ConversationWelcome({
                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0, flexWrap: 'wrap' }}>
                   <ComposerCommandTrigger
                     label={t('composer.openCommands')}
-                    expanded={showSlashPopover}
-                    active={commandTriggerActive && showSlashPopover}
+                    expanded={showCommandPopover}
+                    active={showCommandQueryPopover}
                     disabled={!canUseSlashPicker || busy}
                     onClick={() => {
-                      if (showSlashPopover) {
-                        slashOpenedByCommandTriggerRef.current = false
-                        setCommandTriggerActive(false)
-                        setSlashDismissed(true)
+                      if (showCommandPopover) {
+                        if (commandQuery !== null) richRef.current?.endCommandQuery()
+                        else setSlashDismissed(true)
                         return
                       }
-                      slashOpenedByCommandTriggerRef.current = true
-                      setCommandTriggerActive(true)
                       setSlashDismissed(false)
-                      richRef.current?.openSlashPicker()
+                      richRef.current?.beginCommandQuery()
                     }}
                   />
 

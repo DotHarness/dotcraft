@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { LocaleProvider } from '../contexts/LocaleContext'
 import { InputComposer } from '../components/conversation/InputComposer'
+import { COMMAND_REF_CLASS } from '../components/conversation/richInputConstants'
 import { ConfirmDialogHost } from '../components/ui/ConfirmDialog'
 import { useConnectionStore } from '../stores/connectionStore'
 import { useConversationStore } from '../stores/conversationStore'
@@ -1132,7 +1133,7 @@ describe('InputComposer custom command expansion', () => {
     expect(appServerSendRequest.mock.calls.some((call) => String(call[0]).startsWith('thread/goal/'))).toBe(false)
   })
 
-  it('opens and toggles the slash command picker without replacing draft text', async () => {
+  it('opens and toggles the command picker without changing draft text', async () => {
     renderWithLocale(<InputComposer threadId="thread-1" workspacePath="E:\\Git\\dotcraft" />)
 
     await waitFor(() => {
@@ -1146,7 +1147,7 @@ describe('InputComposer custom command expansion', () => {
     const trigger = screen.getByRole('button', { name: 'Open commands' })
 
     fireEvent.click(trigger)
-    expect(textbox).toHaveTextContent('Review this /')
+    expect(textbox).toHaveTextContent('Review this')
     expect(trigger).toHaveAttribute('aria-expanded', 'true')
     expect(trigger).toHaveAttribute('data-active', 'true')
     expect(screen.getByRole('listbox')).toBeInTheDocument()
@@ -1158,9 +1159,82 @@ describe('InputComposer custom command expansion', () => {
     expect(screen.queryByRole('listbox')).toBeNull()
 
     fireEvent.click(trigger)
-    expect(textbox).toHaveTextContent('Review this /')
+    expect(textbox).toHaveTextContent('Review this')
     expect(trigger).toHaveAttribute('data-active', 'true')
     expect(screen.getByRole('listbox')).toBeInTheDocument()
+  })
+
+  it('uses visible text after the command trigger as the query and replaces only that range', async () => {
+    renderWithLocale(<InputComposer threadId="thread-1" workspacePath="E:\\Git\\dotcraft" />)
+
+    await waitFor(() => {
+      expect(appServerSendRequest).toHaveBeenCalledWith('command/list', {})
+    })
+
+    const textbox = screen.getByRole('textbox')
+    textbox.textContent = 'Review this '
+    setCaretToEnd(textbox)
+    fireEvent.input(textbox)
+    fireEvent.click(screen.getByRole('button', { name: 'Open commands' }))
+
+    textbox.textContent = 'Review this code'
+    setCaretToEnd(textbox)
+    fireEvent.input(textbox)
+
+    expect(textbox).toHaveTextContent('Review this code')
+    expect(await screen.findByRole('option', { name: /code-review/i })).toBeInTheDocument()
+    expect(screen.queryByRole('option', { name: /Plan mode/i })).toBeNull()
+
+    textbox.textContent = 'Review this '
+    setCaretToEnd(textbox)
+    fireEvent.input(textbox)
+    expect(screen.getByRole('option', { name: /Plan mode/i })).toBeInTheDocument()
+
+    textbox.textContent = 'Review this code'
+    setCaretToEnd(textbox)
+    fireEvent.input(textbox)
+    fireEvent.click(screen.getByRole('option', { name: /code-review/i }))
+
+    expect(textbox).toHaveTextContent('Review this')
+    expect(textbox.querySelector(`.${COMMAND_REF_CLASS}`)).not.toBeNull()
+    expect(screen.queryByRole('listbox')).toBeNull()
+  })
+
+  it('keeps a visible button query when Escape dismisses the picker', async () => {
+    renderWithLocale(<InputComposer threadId="thread-1" workspacePath="E:\\Git\\dotcraft" />)
+
+    const textbox = screen.getByRole('textbox')
+    fireEvent.click(screen.getByRole('button', { name: 'Open commands' }))
+    textbox.textContent = 'code'
+    setCaretToEnd(textbox)
+    fireEvent.input(textbox)
+    fireEvent.keyDown(window, { key: 'Escape' })
+
+    expect(textbox).toHaveTextContent('code')
+    expect(screen.queryByRole('listbox')).toBeNull()
+  })
+
+  it('removes only the visible button query before running a system action', async () => {
+    renderWithLocale(<InputComposer threadId="thread-1" workspacePath="E:\\Git\\dotcraft" />)
+
+    const textbox = screen.getByRole('textbox')
+    textbox.textContent = 'Keep this '
+    setCaretToEnd(textbox)
+    fireEvent.input(textbox)
+    fireEvent.click(screen.getByRole('button', { name: 'Open commands' }))
+    await screen.findByRole('option', { name: /Plan mode/i })
+    textbox.textContent = 'Keep this pl'
+    setCaretToEnd(textbox)
+    fireEvent.input(textbox)
+    fireEvent.click(await screen.findByRole('option', { name: /Plan mode/i }))
+
+    expect(textbox).toHaveTextContent('Keep this')
+    await waitFor(() => {
+      expect(appServerSendRequest).toHaveBeenCalledWith('thread/mode/set', {
+        threadId: 'thread-1',
+        mode: 'plan'
+      })
+    })
   })
 
   it('keeps the command trigger inactive when slash input opens the picker', async () => {

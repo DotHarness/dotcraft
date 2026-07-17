@@ -225,7 +225,7 @@ export function InputComposer({
   const [mentionDismissed, setMentionDismissed] = useState(false)
   const [slashQuery, setSlashQuery] = useState<string | null>(null)
   const [slashDismissed, setSlashDismissed] = useState(false)
-  const [commandTriggerActive, setCommandTriggerActive] = useState(false)
+  const [commandQuery, setCommandQuery] = useState<string | null>(null)
   const [skillQuery, setSkillQuery] = useState<string | null>(null)
   const [skillDismissed, setSkillDismissed] = useState(false)
   const [goalPopoverOpen, setGoalPopoverOpen] = useState(false)
@@ -243,7 +243,6 @@ export function InputComposer({
   const [historyCursor, setHistoryCursor] = useState<number | null>(null)
   const [mascotBounce, setMascotBounce] = useState(0)
   const richRef = useRef<RichInputAreaHandle>(null)
-  const slashOpenedByCommandTriggerRef = useRef(false)
   const sendInFlightRef = useRef(false)
   const editingQueuedInputIdRef = useRef<string | null>(null)
   const pendingModeChangeRef = useRef<Promise<unknown> | null>(null)
@@ -316,6 +315,9 @@ export function InputComposer({
   const isExactSystemSlashQuery = !isAgentBuilder
     && (normalizedSlashQuery === 'plan' || normalizedSlashQuery === 'agent' || normalizedSlashQuery === 'init' || normalizedSlashQuery === 'compact' || normalizedSlashQuery === 'consolidate')
   const showSlashPopover = slashQuery !== null && !slashDismissed && canUseSlashPicker && !isExactSystemSlashQuery && !isAgentBuilderModeSlashQuery
+  const showCommandQueryPopover = commandQuery !== null && canUseSlashPicker
+  const showCommandPopover = showSlashPopover || showCommandQueryPopover
+  const commandPopoverQuery = commandQuery ?? slashQuery ?? ''
   const showSkillPopover = skillQuery !== null && !skillDismissed && canUseSkillPicker
   const { commands: customCommands, initAvailable, status: customCommandStatus, reload: reloadCommands } = useCustomCommandCatalog({
     enabled: canUseCommandPicker,
@@ -512,7 +514,7 @@ export function InputComposer({
   }, [threadId, applyComposerSnapshot])
 
   const handleHistoryNavigate = useCallback((direction: 'previous' | 'next'): boolean => {
-    if (showMentionPopover || showSlashPopover || showSkillPopover || goalPopoverOpen) {
+    if (showMentionPopover || showCommandPopover || showSkillPopover || goalPopoverOpen) {
       return false
     }
     const historyCount = composerHistory.length
@@ -559,7 +561,7 @@ export function InputComposer({
     historyCursor,
     showMentionPopover,
     showSkillPopover,
-    showSlashPopover
+    showCommandPopover
   ])
 
   const handleAtQuery = useCallback((q: string | null): void => {
@@ -574,13 +576,11 @@ export function InputComposer({
 
   const handleSlashQuery = useCallback((q: string | null): void => {
     setSlashQuery(q)
-    if (q !== null) {
-      setSlashDismissed(false)
-      if (!slashOpenedByCommandTriggerRef.current) setCommandTriggerActive(false)
-    } else {
-      slashOpenedByCommandTriggerRef.current = false
-      setCommandTriggerActive(false)
-    }
+    if (q !== null) setSlashDismissed(false)
+  }, [])
+
+  const handleCommandQuery = useCallback((q: string | null): void => {
+    setCommandQuery(q)
   }, [])
 
   const handleSkillQuery = useCallback((q: string | null): void => {
@@ -1421,13 +1421,6 @@ export function InputComposer({
     richRef.current?.insertCommandTag(commandName)
   }, [])
 
-  const clearSlashSystemInput = useCallback((): void => {
-    const text = richRef.current?.getText() ?? ''
-    if (text.trim().startsWith('/')) {
-      richRef.current?.clear()
-    }
-  }, [])
-
   const applyProfile = useCallback(async (profileId: string): Promise<void> => {
     setProfilePickerOpen(false)
     try {
@@ -1467,7 +1460,7 @@ export function InputComposer({
 
   const onSelectSystemAction = useCallback((actionId: string): void => {
     setSlashDismissed(true)
-    clearSlashSystemInput()
+    richRef.current?.removeCommandQuery()
     if (actionId === 'planMode') {
       void toggleMode()
       return
@@ -1496,7 +1489,7 @@ export function InputComposer({
     } else {
       enterGoalComposeMode()
     }
-  }, [clearSlashSystemInput, currentGoal, enterGoalComposeMode, ensureCurrentGoal, compactThreadContext, consolidateThreadMemory, sendMessage, toggleMode])
+  }, [currentGoal, enterGoalComposeMode, ensureCurrentGoal, compactThreadContext, consolidateThreadMemory, sendMessage, toggleMode])
 
   const onSelectSkill = useCallback((skillName: string): void => {
     richRef.current?.insertSkillTag(skillName)
@@ -1585,8 +1578,8 @@ export function InputComposer({
                 }}
               />
               <CommandSearchPopover
-                query={slashQuery ?? ''}
-                visible={showSlashPopover}
+                query={commandPopoverQuery}
+                visible={showCommandPopover}
                 loading={customCommandStatus === 'loading' || skillsLoading}
                 systemActions={systemActions}
                 commands={customCommands}
@@ -1595,9 +1588,8 @@ export function InputComposer({
                 onSelectCommand={onSelectCommand}
                 onSelectSkill={onSelectSkill}
                 onDismiss={() => {
-                  slashOpenedByCommandTriggerRef.current = false
-                  setCommandTriggerActive(false)
-                  setSlashDismissed(true)
+                  if (commandQuery !== null) richRef.current?.endCommandQuery()
+                  else setSlashDismissed(true)
                 }}
                 constrainToAnchor={isAgentBuilder}
               />
@@ -1628,7 +1620,7 @@ export function InputComposer({
                 ref={richRef}
                 chrome="minimal"
                 disabled={isWaitingApproval || isWaitingInput}
-                suppressSubmit={showMentionPopover || showSlashPopover || showSkillPopover || modelLoading}
+                suppressSubmit={showMentionPopover || showCommandPopover || showSkillPopover || modelLoading}
                 onToggleModeShortcut={isAgentBuilder ? undefined : () => {
                   void toggleMode()
                 }}
@@ -1648,6 +1640,7 @@ export function InputComposer({
                 }}
                 onAtQuery={remoteWorkspace ? undefined : handleAtQuery}
                 onSlashQuery={handleSlashQuery}
+                onCommandQuery={handleCommandQuery}
                 onSkillQuery={handleSkillQuery}
                 onContentChange={handleComposerContentChange}
                 onFocusChange={setEditorFocused}
@@ -1667,20 +1660,17 @@ export function InputComposer({
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0, flexWrap: 'wrap' }}>
             <ComposerCommandTrigger
               label={t('composer.openCommands')}
-              expanded={showSlashPopover}
-              active={commandTriggerActive && showSlashPopover}
+              expanded={showCommandPopover}
+              active={showCommandQueryPopover}
               disabled={!canUseSlashPicker || isWaitingApproval || isWaitingInput}
               onClick={() => {
-                if (showSlashPopover) {
-                  slashOpenedByCommandTriggerRef.current = false
-                  setCommandTriggerActive(false)
-                  setSlashDismissed(true)
+                if (showCommandPopover) {
+                  if (commandQuery !== null) richRef.current?.endCommandQuery()
+                  else setSlashDismissed(true)
                   return
                 }
-                slashOpenedByCommandTriggerRef.current = true
-                setCommandTriggerActive(true)
                 setSlashDismissed(false)
-                richRef.current?.openSlashPicker()
+                richRef.current?.beginCommandQuery()
               }}
             />
 
