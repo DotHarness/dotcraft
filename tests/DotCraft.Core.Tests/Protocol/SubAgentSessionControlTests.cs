@@ -607,7 +607,10 @@ public sealed class SubAgentSessionControlTests : IDisposable
             .OrderBy(path => path, StringComparer.Ordinal)
             .ToArray();
 
-        Assert.Equal(["/root/fresh", "/root/newer"], openPaths);
+        Assert.Collection(
+            openPaths,
+            path => Assert.Equal("/root/fresh", path),
+            path => Assert.Equal("/root/newer", path));
         Assert.Equal(ThreadStatus.Archived, (await _sessionService.GetThreadAsync(older.Id)).Status);
         Assert.Equal(ThreadStatus.Active, (await _sessionService.GetThreadAsync(newer.Id)).Status);
     }

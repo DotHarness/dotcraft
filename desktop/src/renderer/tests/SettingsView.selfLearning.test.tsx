@@ -102,14 +102,14 @@ function enableProviderManagement(): void {
   })
 }
 
-function enableProviderAndSubAgentManagement(): void {
+function enableProviderAndSubAgentManagement(modelCatalogManagement = true): void {
   useConnectionStore.setState({
     status: 'connected',
     capabilities: {
       workspaceConfigManagement: true,
       memoryManagement: true,
       providerManagement: true,
-      modelCatalogManagement: true,
+      modelCatalogManagement,
       subAgentManagement: true
     }
   })
@@ -1144,6 +1144,12 @@ describe('SettingsView self-learning settings', () => {
     const defaultSendRequest = appServerSendRequest.getMockImplementation()
     const subAgentSettings = { providerModels: {} as Record<string, string> }
     appServerSendRequest.mockImplementation(async (method: string, params?: Record<string, unknown>) => {
+      if (method === 'model/list') {
+        return {
+          success: true,
+          models: [{ id: params?.providerId === 'anthropic-main' ? 'claude-sonnet-4-5' : 'deepseek-v4-pro' }]
+        }
+      }
       if (method === 'subagent/profiles/list') {
         return { profiles: [], settings: { ...subAgentSettings } }
       }
@@ -1167,11 +1173,13 @@ describe('SettingsView self-learning settings', () => {
       expect(appServerSendRequest).toHaveBeenCalledWith('subagent/settings/update', {
         providerModels: { openai: 'deepseek-v4-pro' }
       }, 20_000)
+      expect(subAgentSelect).not.toBeDisabled()
     })
   })
 
   it('restores each provider remembered native SubAgent model when switching providers', async () => {
-    enableProviderAndSubAgentManagement()
+    // Model catalog selection is covered separately; this test isolates per-provider memory.
+    enableProviderAndSubAgentManagement(false)
     const defaultSendRequest = appServerSendRequest.getMockImplementation()
     const subAgentSettings = { providerModels: {} as Record<string, string> }
     appServerSendRequest.mockImplementation(async (method: string, params?: Record<string, unknown>) => {
@@ -1191,12 +1199,14 @@ describe('SettingsView self-learning settings', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Model Providers' }))
 
     // Pick a native model for the active provider (openai).
-    const subAgentSelect = await screen.findByLabelText('SubAgent model') as HTMLSelectElement
-    fireEvent.change(subAgentSelect, { target: { value: 'deepseek-v4-pro' } })
+    const subAgentInput = await screen.findByLabelText('SubAgent model') as HTMLInputElement
+    fireEvent.change(subAgentInput, { target: { value: 'deepseek-v4-pro' } })
+    fireEvent.blur(subAgentInput)
     await waitFor(() => {
       expect(appServerSendRequest).toHaveBeenCalledWith('subagent/settings/update', {
         providerModels: { openai: 'deepseek-v4-pro' }
       }, 20_000)
+      expect(subAgentInput).not.toBeDisabled()
     })
 
     // Switch to Anthropic: it has no remembered native model, so it inherits (null) while openai is kept.
@@ -1206,16 +1216,18 @@ describe('SettingsView self-learning settings', () => {
       expect(appServerSendRequest).toHaveBeenCalledWith('subagent/settings/update', {
         providerModels: { openai: 'deepseek-v4-pro' }
       }, 20_000)
+      expect(screen.getByRole('button', { name: 'Use provider Anthropic' })).toHaveAttribute('aria-pressed', 'true')
     })
 
     // Choose a native model for Anthropic.
     await waitFor(() => {
-      const select = screen.getByLabelText('SubAgent model') as HTMLSelectElement
-      expect(select).not.toBeDisabled()
-      expect(select.value).toBe('')
+      const input = screen.getByLabelText('SubAgent model') as HTMLInputElement
+      expect(input).not.toBeDisabled()
+      expect(input.value).toBe('')
     })
-    const anthropicSubAgentSelect = screen.getByLabelText('SubAgent model') as HTMLSelectElement
-    fireEvent.change(anthropicSubAgentSelect, { target: { value: 'claude-sonnet-4-5' } })
+    const anthropicSubAgentInput = screen.getByLabelText('SubAgent model') as HTMLInputElement
+    fireEvent.change(anthropicSubAgentInput, { target: { value: 'claude-sonnet-4-5' } })
+    fireEvent.blur(anthropicSubAgentInput)
     await waitFor(() => {
       expect(appServerSendRequest).toHaveBeenCalledWith('subagent/settings/update', {
         providerModels: { openai: 'deepseek-v4-pro', 'anthropic-main': 'claude-sonnet-4-5' }
@@ -1230,7 +1242,7 @@ describe('SettingsView self-learning settings', () => {
         providerModels: { openai: 'deepseek-v4-pro', 'anthropic-main': 'claude-sonnet-4-5' }
       }, 20_000)
     })
-  })
+  }, 15_000)
 
   it('uses a select for listed workspace models and applies the model immediately', async () => {
     enableProviderManagement()

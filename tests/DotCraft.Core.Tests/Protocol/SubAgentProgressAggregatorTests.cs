@@ -60,12 +60,11 @@ public sealed class SubAgentProgressAggregatorTests : IAsyncLifetime
             _channel, ThreadId, TurnId, interval: TimeSpan.FromMilliseconds(50));
         aggregator.TrackLabel("agent-A");
 
-        // Wait enough time for at least 2 snapshots
-        await Task.Delay(180);
+        await WaitForSnapshotCountAsync(2);
 
         // Mark completed so the loop exits
         entry.IsCompleted = true;
-        await Task.Delay(100); // Let the loop detect AllCompleted
+        await WaitForSnapshotAsync(snapshot => snapshot.Entries.All(item => item.IsCompleted));
 
         List<SubAgentProgressPayload> snapshots;
         lock (_capturedPayloads)
@@ -97,15 +96,15 @@ public sealed class SubAgentProgressAggregatorTests : IAsyncLifetime
             _channel, ThreadId, TurnId, interval: TimeSpan.FromMilliseconds(50));
         aggregator.TrackLabel("agent-A");
 
-        // Let first poll happen (no tokens yet)
-        await Task.Delay(80);
+        // Observe the initial poll before publishing the final token values.
+        await WaitForSnapshotAsync(snapshot => snapshot.Entries.All(item => !item.IsCompleted));
 
         // Now write tokens and mark completed BEFORE next poll
         entry.AddTokens(500, 200);
         entry.IsCompleted = true;
 
-        // Wait for the next poll to pick up the completed state with tokens
-        await Task.Delay(120);
+        await WaitForSnapshotAsync(snapshot => snapshot.Entries.Any(item =>
+            item.IsCompleted && item.InputTokens == 500 && item.OutputTokens == 200));
 
         List<SubAgentProgressPayload> snapshots;
         lock (_capturedPayloads)
@@ -133,8 +132,7 @@ public sealed class SubAgentProgressAggregatorTests : IAsyncLifetime
             _channel, ThreadId, TurnId, interval: TimeSpan.FromMilliseconds(30));
         aggregator.TrackLabel("agent-A");
 
-        // Wait for natural exit: loop sees AllCompleted → break
-        await Task.Delay(100);
+        await WaitForSnapshotAsync(snapshot => snapshot.Entries.All(item => item.IsCompleted));
 
         int countBeforeDispose;
         lock (_capturedPayloads)
@@ -179,12 +177,13 @@ public sealed class SubAgentProgressAggregatorTests : IAsyncLifetime
         // Agent A completes first
         entryA.AddTokens(100, 50);
         entryA.IsCompleted = true;
-        await Task.Delay(80); // Let a snapshot capture A's completion
+        await WaitForSnapshotAsync(snapshot => snapshot.Entries.Any(item =>
+            item.Label == "agent-A" && item.IsCompleted));
 
         // Agent B completes later
         entryB.AddTokens(300, 150);
         entryB.IsCompleted = true;
-        await Task.Delay(120); // Let the final snapshot capture B's completion
+        await WaitForSnapshotAsync(snapshot => snapshot.Entries.All(item => item.IsCompleted));
 
         List<SubAgentProgressPayload> snapshots;
         lock (_capturedPayloads)
@@ -217,8 +216,7 @@ public sealed class SubAgentProgressAggregatorTests : IAsyncLifetime
             _channel, ThreadId, TurnId, interval: TimeSpan.FromMilliseconds(50));
         aggregator.TrackLabel("agent-A");
 
-        // Let a few snapshots occur
-        await Task.Delay(150);
+        await WaitForSnapshotCountAsync(1);
 
         // Dispose should cancel the loop and emit a final snapshot without hanging
         var disposeTask = aggregator.DisposeAsync().AsTask();
@@ -241,7 +239,7 @@ public sealed class SubAgentProgressAggregatorTests : IAsyncLifetime
 
         // TrackLabel should auto-start the loop
         aggregator.TrackLabel("agent-A");
-        await Task.Delay(80);
+        await WaitForSnapshotCountAsync(1);
 
         List<SubAgentProgressPayload> snapshots;
         lock (_capturedPayloads)
@@ -267,11 +265,9 @@ public sealed class SubAgentProgressAggregatorTests : IAsyncLifetime
 
         // First LLM call
         entry.AddTokens(100, 50);
-        await Task.Delay(60);
 
         // Second LLM call
         entry.AddTokens(200, 100);
-        await Task.Delay(60);
 
         // Third LLM call + complete
         entry.AddTokens(300, 150);
@@ -314,6 +310,36 @@ public sealed class SubAgentProgressAggregatorTests : IAsyncLifetime
         Assert.NotEmpty(snapshots);
         var e = Assert.Single(snapshots[^1].Entries);
         Assert.Equal("ReadFile", e.CurrentTool);
+    }
+
+    private async Task WaitForSnapshotCountAsync(int count)
+    {
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        while (true)
+        {
+            lock (_capturedPayloads)
+            {
+                if (_capturedPayloads.Count >= count)
+                    return;
+            }
+
+            await Task.Delay(10, timeout.Token);
+        }
+    }
+
+    private async Task WaitForSnapshotAsync(Func<SubAgentProgressPayload, bool> predicate)
+    {
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        while (true)
+        {
+            lock (_capturedPayloads)
+            {
+                if (_capturedPayloads.Any(predicate))
+                    return;
+            }
+
+            await Task.Delay(10, timeout.Token);
+        }
     }
 
 }

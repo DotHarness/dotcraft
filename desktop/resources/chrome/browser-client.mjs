@@ -1222,7 +1222,13 @@ export async function setupBrowserRuntime(options = {}) {
   globals.agent.browsers = {
     async list() {
       const existing = existingList ? await existingList() : [];
-      const items = Array.isArray(existing) ? [...existing] : [];
+      const items = Array.isArray(existing)
+        ? existing.filter((item, index, all) =>
+            !item?.id || all.findIndex((candidate) => candidate?.id === item.id) === index)
+          .map((item) => item?.id === "iab"
+            ? { ...item, name: "DotCraft Browser", type: "iab" }
+            : item)
+        : [];
       if (!items.some((item) => item?.id === "extension")) {
         items.push({ id: "extension", name: "DotCraft Chrome", type: "extension" });
       }

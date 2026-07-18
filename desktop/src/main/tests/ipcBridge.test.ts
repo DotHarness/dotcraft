@@ -1597,12 +1597,12 @@ describe('registerIpcHandlers', () => {
     const readCoreConfig = vi.spyOn(getRemoteServersManager(), 'readCoreConfig').mockResolvedValue({
       workspaceRaw: JSON.stringify({
         ProviderId: 'anthropic-main',
-        Model: 'claude-sonnet-4-5',
+        ProviderModels: { 'anthropic-main': 'claude-sonnet-4-5' },
         Permissions: { DefaultApprovalPolicy: 'autoApprove' }
       }),
       userDefaultsRaw: JSON.stringify({
         ProviderId: 'openai',
-        Model: 'gpt-5'
+        ProviderModels: { openai: 'gpt-5' }
       })
     })
 
@@ -1642,12 +1642,12 @@ describe('registerIpcHandlers', () => {
       expect(result).toMatchObject({
         workspace: {
           providerId: 'anthropic-main',
-          model: 'claude-sonnet-4-5',
+          providerModels: { 'anthropic-main': 'claude-sonnet-4-5' },
           defaultApprovalPolicy: 'autoApprove'
         },
         userDefaults: {
           providerId: 'openai',
-          model: 'gpt-5'
+          providerModels: { openai: 'gpt-5' }
         }
       })
     } finally {

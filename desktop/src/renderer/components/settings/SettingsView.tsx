@@ -1521,6 +1521,7 @@ export function SettingsView({
   const preChatGptDraftRef = useRef<{ id: string; displayName: string } | null>(null)
   const [providerEditorId, setProviderEditorId] = useState<ProviderEditorId>(null)
   const [selectedProviderId, setSelectedProviderId] = useState('')
+  const selectedProviderIdRef = useRef('')
   const [workspaceModel, setWorkspaceModel] = useState('')
   // Per-provider remembered model map (providerId → model). Used to restore the model when a
   // provider is re-selected so switching providers no longer discards earlier model choices.
@@ -1532,6 +1533,7 @@ export function SettingsView({
   const [providerModelOptions, setProviderModelOptions] = useState<string[]>([])
   const [providerModelLoading, setProviderModelLoading] = useState(false)
   const [providerModelError, setProviderModelError] = useState('')
+  const providerModelRequestSeqRef = useRef(0)
   const [workspaceManualModelDraft, setWorkspaceManualModelDraft] = useState('')
   const [applyingWorkspaceProvider, setApplyingWorkspaceProvider] = useState(false)
   const [applyingWorkspaceModel, setApplyingWorkspaceModel] = useState(false)
@@ -1540,6 +1542,7 @@ export function SettingsView({
   const [subAgentModel, setSubAgentModel] = useState('')
   const [subAgentManualModelDraft, setSubAgentManualModelDraft] = useState('')
   const [subAgentProviderModels, setSubAgentProviderModels] = useState<Record<string, string>>({})
+  const subAgentProviderModelsRef = useRef<Record<string, string>>({})
   const [applyingSubAgentModel, setApplyingSubAgentModel] = useState(false)
   const [welcomeSuggestionsEnabled, setWelcomeSuggestionsEnabled] = useState(true)
   const [applyingWelcomeSuggestions, setApplyingWelcomeSuggestions] = useState(false)
@@ -1663,6 +1666,7 @@ export function SettingsView({
     setUserDefaultCore(core.userDefaults)
     if (!keepDraftValues) {
       const resolvedProviderId = core.workspace.providerId ?? core.userDefaults.providerId ?? 'openai'
+      selectedProviderIdRef.current = resolvedProviderId
       setSelectedProviderId(resolvedProviderId)
       const resolvedModel = resolveEffectiveProviderModel(
         core.workspace.providerModels,
@@ -1756,6 +1760,7 @@ export function SettingsView({
     if (!providerManagementEnabled || !subAgentEnabled) {
       setSubAgentModel('')
       setSubAgentManualModelDraft('')
+      subAgentProviderModelsRef.current = {}
       setSubAgentProviderModels({})
       return
     }
@@ -1765,10 +1770,11 @@ export function SettingsView({
         {}
       )) as { settings?: { providerModels?: Record<string, string> | null } }
       const nextProviderModels = { ...(result.settings?.providerModels ?? {}) }
-      const activeProviderId = selectedProviderId.trim()
+      const activeProviderId = selectedProviderIdRef.current.trim()
       const model = activeProviderId ? (nextProviderModels[activeProviderId] ?? '').trim() : ''
       setSubAgentModel(model)
       setSubAgentManualModelDraft(model)
+      subAgentProviderModelsRef.current = nextProviderModels
       setSubAgentProviderModels(nextProviderModels)
     } catch {
       // Non-fatal: the native model editor simply falls back to inherit.
@@ -1776,8 +1782,10 @@ export function SettingsView({
   }
 
   async function reloadProviderModels(providerId: string): Promise<void> {
+    const requestSeq = ++providerModelRequestSeqRef.current
     if (!modelCatalogManagementEnabled) {
       setProviderModelOptions([])
+      setProviderModelLoading(false)
       return
     }
     const normalizedProviderId = providerId.trim()
@@ -1805,6 +1813,7 @@ export function SettingsView({
         errorMessage?: string
         ErrorMessage?: string
       }
+      if (requestSeq !== providerModelRequestSeqRef.current) return
       if (result.success === false) {
         setProviderModelOptions([])
         setProviderModelError(
@@ -1819,10 +1828,13 @@ export function SettingsView({
         : []
       setProviderModelOptions(models)
     } catch (err) {
+      if (requestSeq !== providerModelRequestSeqRef.current) return
       setProviderModelOptions([])
       setProviderModelError(err instanceof Error ? err.message : String(err))
     } finally {
-      setProviderModelLoading(false)
+      if (requestSeq === providerModelRequestSeqRef.current) {
+        setProviderModelLoading(false)
+      }
     }
   }
 
@@ -1927,7 +1939,12 @@ export function SettingsView({
       }
 
       await window.api.appServer.sendRequest('workspace/config/update', updatePayload, 20_000)
+      selectedProviderIdRef.current = normalized
       setSelectedProviderId(normalized)
+      if (listedModels != null) {
+        setProviderModelOptions(listedModels)
+        setProviderModelError('')
+      }
       setProviderModels(nextProviderModels)
       setWorkspaceCoreBaseline((current) => ({
         ...current,
@@ -1943,8 +1960,8 @@ export function SettingsView({
       // here must not roll back the (already persisted) main provider selection.
       if (subAgentEnabled) {
         try {
-          const nextSubModel = getProviderModel(subAgentProviderModels, normalized)
-          const nextSubProviderModels = { ...subAgentProviderModels }
+          const nextSubModel = getProviderModel(subAgentProviderModelsRef.current, normalized)
+          const nextSubProviderModels = { ...subAgentProviderModelsRef.current }
           if (nextSubModel) {
             nextSubProviderModels[normalized] = nextSubModel
           } else {
@@ -1955,6 +1972,7 @@ export function SettingsView({
           }, 20_000)
           setSubAgentModel(nextSubModel)
           setSubAgentManualModelDraft(nextSubModel)
+          subAgentProviderModelsRef.current = nextSubProviderModels
           setSubAgentProviderModels(nextSubProviderModels)
         } catch (subErr) {
           addToast(t('settings.llm.toast.saveSubAgentModelFailed', {
@@ -1963,6 +1981,7 @@ export function SettingsView({
         }
       }
     } catch (err) {
+      selectedProviderIdRef.current = previousProviderId
       setSelectedProviderId(previousProviderId)
       setWorkspaceModel(previousModel)
       setWorkspaceManualModelDraft(previousModel)
@@ -2022,8 +2041,8 @@ export function SettingsView({
     setApplyingSubAgentModel(true)
     try {
       const normalized = nextModel.trim()
-      const activeProviderId = selectedProviderId.trim()
-      const nextSubProviderModels = { ...subAgentProviderModels }
+      const activeProviderId = selectedProviderIdRef.current.trim()
+      const nextSubProviderModels = { ...subAgentProviderModelsRef.current }
       if (activeProviderId) {
         if (normalized) {
           nextSubProviderModels[activeProviderId] = normalized
@@ -2036,6 +2055,7 @@ export function SettingsView({
       }, 20_000)
       setSubAgentModel(normalized)
       setSubAgentManualModelDraft(normalized)
+      subAgentProviderModelsRef.current = nextSubProviderModels
       setSubAgentProviderModels(nextSubProviderModels)
     } catch (err) {
       setSubAgentModel(previousModel)
@@ -4136,6 +4156,7 @@ export function SettingsView({
                           }
                           onAfterMutation={() => void reloadProviders()}
                           onProviderActivated={(activatedId) => {
+                            selectedProviderIdRef.current = activatedId
                             setSelectedProviderId(activatedId)
                             setWorkspaceCoreBaseline((current) => ({ ...current, providerId: activatedId }))
                           }}

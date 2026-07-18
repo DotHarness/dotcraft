@@ -187,13 +187,13 @@ public sealed class StreamRetrySmokeTests
         await using var upstream = await TestUpstreamServer.StartAsync();
         await using var proxy = await StreamRetrySmokeFaultProxy.StartAsync(
             new Uri(upstream.Endpoint, "/v1"));
-        using var http = new HttpClient();
 
+        using (var firstHttp = new HttpClient())
         using (var cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(250)))
         {
             try
             {
-                using var first = await http.PostAsync(
+                using var first = await firstHttp.PostAsync(
                     new Uri(proxy.Endpoint, "/chat/completions"),
                     JsonContent(),
                     cts.Token);
@@ -210,7 +210,10 @@ public sealed class StreamRetrySmokeTests
             }
         }
 
-        using var second = await http.PostAsync(
+        // Use a fresh connection pool after the intentional reset. Reusing the faulted
+        // Windows HTTP connection can surface the prior reset on this independent request.
+        using var secondHttp = new HttpClient();
+        using var second = await secondHttp.PostAsync(
             new Uri(proxy.Endpoint, "/chat/completions"),
             JsonContent());
         var body = await second.Content.ReadAsStringAsync();
