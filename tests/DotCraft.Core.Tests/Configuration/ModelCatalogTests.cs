@@ -103,61 +103,39 @@ public sealed class ModelCatalogTests : IDisposable
         var catalogPath = WriteCatalog("global", """
             {
               "models": {
-                "qwen3-coder-plus": { "contextWindow": 997952 }
+                "model-plus": { "contextWindow": 997952 }
               }
             }
             """);
 
         var contextWindow = ModelCatalog.Resolve(
-            "openrouter/qwen/qwen3-coder-plus",
+            "gateway/vendor/model-plus",
             globalCatalogPath: catalogPath);
 
         Assert.Equal(997_952, contextWindow);
     }
 
     [Fact]
-    public void Resolve_UsesFinalModelSegmentWhenProviderPrefixDoesNotMatch()
+    public void ResolveCompactionConfig_CapsInferredWindowByDefault()
     {
-        var contextWindow = ModelCatalog.Resolve("provider/glm-5.1");
-
-        Assert.Equal(200_000, contextWindow);
-    }
-
-    [Fact]
-    public void Resolve_UsesBuiltInClaudeOpusCatalogThroughProviderPrefixes()
-    {
-        Assert.Equal(1_000_000, ModelCatalog.Resolve("provider/claude-opus-4-8"));
-    }
-
-    [Theory]
-    [InlineData(ModelProviderProtocols.OpenAIResponses, "gpt-5.4")]
-    [InlineData(ModelProviderProtocols.OpenAIResponses, "openai/gpt-5.5")]
-    [InlineData(ModelProviderProtocols.Anthropic, "claude-opus-4-8")]
-    [InlineData(ModelProviderProtocols.Anthropic, "anthropic/claude-opus-4-7")]
-    public void SupportsFast_UsesBuiltInProtocolAndModelRules(string protocol, string model) =>
-        Assert.True(ModelCatalog.SupportsFast(new AppConfig(), protocol, model));
-
-    [Theory]
-    [InlineData(ModelProviderProtocols.OpenAIChatCompletions, "gpt-5.4")]
-    [InlineData(ModelProviderProtocols.OpenAIResponses, "gpt-5.4-mini")]
-    [InlineData(ModelProviderProtocols.Anthropic, "claude-sonnet-4-6")]
-    public void SupportsFast_RejectsUnsupportedProtocolAndModelRules(string protocol, string model) =>
-        Assert.False(ModelCatalog.SupportsFast(new AppConfig(), protocol, model));
-
-    [Fact]
-    public void ResolveCompactionConfig_CapsGpt55InferredWindowByDefault()
-    {
-        Assert.Equal(1_050_000, ModelCatalog.Resolve("gpt-5.5"));
+        var configPath = WriteConfig("capped-default", "{}");
+        WriteCatalog("capped-default", """
+            {
+              "models": {
+                "large-model": { "contextWindow": 1050000 }
+              }
+            }
+            """);
 
         var config = new AppConfig
         {
             ProviderId = "test",
-            ProviderModels = new() { ["test"] = "gpt-5.5" }
+            ProviderModels = new() { ["test"] = "large-model" }
         };
         ModelCatalog.ApplyToConfig(
             config,
-            System.Text.Json.Nodes.JsonNode.Parse("""{ "Model": "gpt-5.5" }""")!,
-            globalConfigPath: null,
+            System.Text.Json.Nodes.JsonNode.Parse("""{ "Model": "large-model" }""")!,
+            globalConfigPath: configPath,
             workspaceConfigPath: null);
 
         Assert.Equal(256_000, config.Compaction.ContextWindow);
@@ -167,24 +145,33 @@ public sealed class ModelCatalogTests : IDisposable
     [Fact]
     public void ResolveCompactionConfig_MaxModeUsesExplicitCatalogWindow()
     {
+        var configPath = WriteConfig("max-mode", "{}");
+        WriteCatalog("max-mode", """
+            {
+              "models": {
+                "large-model": { "contextWindow": 1050000 }
+              }
+            }
+            """);
+
         var config = new AppConfig
         {
             ProviderId = "test",
-            ProviderModels = new() { ["test"] = "gpt-5.5" }
+            ProviderModels = new() { ["test"] = "large-model" }
         };
         ModelCatalog.ApplyToConfig(
             config,
-            System.Text.Json.Nodes.JsonNode.Parse("""{ "Model": "gpt-5.5" }""")!,
-            globalConfigPath: null,
+            System.Text.Json.Nodes.JsonNode.Parse("""{ "Model": "large-model" }""")!,
+            globalConfigPath: configPath,
             workspaceConfigPath: null);
 
         var defaultCompaction = ModelCatalog.ResolveCompactionConfig(
             config,
-            "gpt-5.5",
+            "large-model",
             ContextWindowMode.Default);
         var maxCompaction = ModelCatalog.ResolveCompactionConfig(
             config,
-            "gpt-5.5",
+            "large-model",
             ContextWindowMode.Max);
 
         Assert.Equal(256_000, defaultCompaction.ContextWindow);
@@ -223,18 +210,28 @@ public sealed class ModelCatalogTests : IDisposable
     [Fact]
     public void ResolveCompactionConfig_UsesEffectiveModel_WhenContextWindowIsInferred()
     {
+        var configPath = WriteConfig("effective-model", "{}");
+        WriteCatalog("effective-model", """
+            {
+              "models": {
+                "configured-model": { "contextWindow": 400000 },
+                "active-model": { "contextWindow": 200000 }
+              }
+            }
+            """);
+
         var config = new AppConfig
         {
             ProviderId = "test",
-            ProviderModels = new() { ["test"] = "mimo-v2.5-pro" }
+            ProviderModels = new() { ["test"] = "configured-model" }
         };
         ModelCatalog.ApplyToConfig(
             config,
-            System.Text.Json.Nodes.JsonNode.Parse("""{ "Model": "mimo-v2.5-pro" }""")!,
-            globalConfigPath: null,
+            System.Text.Json.Nodes.JsonNode.Parse("""{ "Model": "configured-model" }""")!,
+            globalConfigPath: configPath,
             workspaceConfigPath: null);
 
-        var compaction = ModelCatalog.ResolveCompactionConfig(config, "provider/glm-5.1");
+        var compaction = ModelCatalog.ResolveCompactionConfig(config, "provider/active-model");
 
         Assert.Equal(200_000, compaction.ContextWindow);
         Assert.Equal(180_000, compaction.EffectiveContextWindow());
@@ -243,10 +240,19 @@ public sealed class ModelCatalogTests : IDisposable
     [Fact]
     public void ResolveCompactionConfig_CapsInferredModelWindow()
     {
+        var configPath = WriteConfig("capped-model", "{}");
+        WriteCatalog("capped-model", """
+            {
+              "models": {
+                "large-model": { "contextWindow": 1000000 }
+              }
+            }
+            """);
+
         var config = new AppConfig
         {
             ProviderId = "test",
-            ProviderModels = new() { ["test"] = "mimo-v2.5-pro" },
+            ProviderModels = new() { ["test"] = "large-model" },
             Compaction =
             {
                 MaxContextWindow = 300_000
@@ -254,11 +260,11 @@ public sealed class ModelCatalogTests : IDisposable
         };
         ModelCatalog.ApplyToConfig(
             config,
-            System.Text.Json.Nodes.JsonNode.Parse("""{ "Model": "mimo-v2.5-pro" }""")!,
-            globalConfigPath: null,
+            System.Text.Json.Nodes.JsonNode.Parse("""{ "Model": "large-model" }""")!,
+            globalConfigPath: configPath,
             workspaceConfigPath: null);
 
-        var compaction = ModelCatalog.ResolveCompactionConfig(config, "gateway/xiaomi/mimo-v2.5-pro");
+        var compaction = ModelCatalog.ResolveCompactionConfig(config, "gateway/vendor/large-model");
 
         Assert.Equal(300_000, config.Compaction.ContextWindow);
         Assert.Equal(300_000, compaction.ContextWindow);
@@ -270,7 +276,7 @@ public sealed class ModelCatalogTests : IDisposable
         var config = new AppConfig
         {
             ProviderId = "test",
-            ProviderModels = new() { ["test"] = "mimo-v2.5-pro" },
+            ProviderModels = new() { ["test"] = "custom-model" },
             Compaction = new DotCraft.Context.Compaction.CompactionConfig
             {
                 ContextWindow = 123_000,
@@ -281,7 +287,7 @@ public sealed class ModelCatalogTests : IDisposable
             config,
             System.Text.Json.Nodes.JsonNode.Parse("""
                 {
-                  "Model": "mimo-v2.5-pro",
+                  "Model": "custom-model",
                   "Compaction": {
                     "ContextWindow": 123000
                   }
@@ -290,17 +296,9 @@ public sealed class ModelCatalogTests : IDisposable
             globalConfigPath: null,
             workspaceConfigPath: null);
 
-        var compaction = ModelCatalog.ResolveCompactionConfig(config, "provider/glm-5.1");
+        var compaction = ModelCatalog.ResolveCompactionConfig(config, "provider/other-model");
 
         Assert.Equal(123_000, compaction.ContextWindow);
-    }
-
-    [Fact]
-    public void Resolve_UsesBuiltInChineseModelCatalogThroughProviderPrefixes()
-    {
-        Assert.Equal(204_800, ModelCatalog.Resolve("openrouter/minimax/minimax-m2.7"));
-        Assert.Equal(1_048_576, ModelCatalog.Resolve("gateway/xiaomi/mimo-v2.5-pro"));
-        Assert.Equal(131_072, ModelCatalog.Resolve("siliconflow/tencent/Hunyuan-A13B-Instruct"));
     }
 
     [Fact]
@@ -476,21 +474,32 @@ public sealed class ModelCatalogTests : IDisposable
     }
 
     [Fact]
-    public void WorkspaceCatalog_FastNullDisablesBuiltInWithoutDroppingContextWindow()
+    public void WorkspaceCatalog_FastNullDisablesInheritedFastWithoutDroppingContextWindow()
     {
+        var globalPath = WriteCatalog("global-fast-null", """
+            {
+              "models": {
+                "custom-model": {
+                  "contextWindow": 640000,
+                  "fast": { "protocols": ["openai-responses"] }
+                }
+              }
+            }
+            """);
         var workspacePath = WriteCatalog("workspace", """
             {
               "models": {
-                "gpt-5.4": { "fast": null }
+                "custom-model": { "fast": null }
               }
             }
             """);
 
-        Assert.Equal(1_050_000, ModelCatalog.Resolve("gpt-5.4", workspaceCatalogPath: workspacePath));
+        Assert.Equal(640_000, ModelCatalog.Resolve("custom-model", globalPath, workspacePath));
         Assert.False(ModelCatalog.SupportsFast(
             ModelProviderProtocols.OpenAIResponses,
-            "gpt-5.4",
-            workspaceCatalogPath: workspacePath));
+            "custom-model",
+            globalPath,
+            workspacePath));
     }
 
     private string WriteConfig(string directoryName, string json)

@@ -12,6 +12,7 @@
     "adapters": [
       {
         "models": [
+          "claude-fable-5",
           "claude-opus-4-7",
           "claude-opus-4-8",
           "claude-sonnet-5"
@@ -181,6 +182,7 @@
           "anthropic"
         ],
         "models": [
+          "claude-fable-5",
           "claude-mythos-preview"
         ],
         "supportsDisable": false,

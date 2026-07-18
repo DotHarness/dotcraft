@@ -74,6 +74,9 @@
     "o3": {
       "contextWindow": 200000
     },
+    "claude-fable-5": {
+      "contextWindow": 1000000
+    },
     "claude-opus-4-6": {
       "contextWindow": 1000000
     },

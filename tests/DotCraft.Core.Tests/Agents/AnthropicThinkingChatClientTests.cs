@@ -9,17 +9,70 @@ using Microsoft.Extensions.AI;
 
 namespace DotCraft.Tests.Agents;
 
-public sealed class AnthropicThinkingChatClientTests
+public sealed class AnthropicThinkingChatClientTests : IDisposable
 {
+    private readonly string _root = Path.Combine(Path.GetTempPath(), $"anthropic_thinking_client_{Guid.NewGuid():N}");
+
+    public AnthropicThinkingChatClientTests()
+    {
+        Directory.CreateDirectory(_root);
+        File.WriteAllText(
+            Path.Combine(_root, ModelThinkingAdapterCatalog.FileName),
+            """
+            {
+              "anthropicThinking": {
+                "adapters": [
+                  {
+                    "models": ["test-xhigh-model"],
+                    "thinking": {
+                      "type": "adaptive",
+                      "display": "fromReasoningOutput"
+                    },
+                    "outputConfig": {
+                      "effort": "fromReasoningEffort",
+                      "effortMap": { "extraHigh": "xhigh" }
+                    }
+                  },
+                  {
+                    "models": ["test-max-model"],
+                    "thinking": {
+                      "type": "adaptive",
+                      "display": "fromReasoningOutput"
+                    },
+                    "outputConfig": {
+                      "effort": "fromReasoningEffort",
+                      "effortMap": { "extraHigh": "max" }
+                    }
+                  }
+                ]
+              }
+            }
+            """);
+    }
+
+    public void Dispose()
+    {
+        try
+        {
+            Directory.Delete(_root, recursive: true);
+        }
+        catch (IOException)
+        {
+        }
+        catch (UnauthorizedAccessException)
+        {
+        }
+    }
+
     [Fact]
-    public async Task GetResponseAsync_OpusAdapterSerializesAdaptiveThinking()
+    public async Task GetResponseAsync_ConfiguredAdapterSerializesAdaptiveThinking()
     {
         var handler = new CaptureHandler();
         var config = CreateConfig(
             enabled: true,
             effort: ReasoningEffort.High,
             output: ReasoningOutput.Full);
-        var client = CreateClient(handler, config, model: "provider/claude-opus-4-7");
+        var client = CreateClient(handler, config, model: "provider/test-xhigh-model");
 
         await client.GetResponseAsync([new ChatMessage(ChatRole.User, "hello")], new ChatOptions
         {
@@ -43,7 +96,7 @@ public sealed class AnthropicThinkingChatClientTests
             enabled: true,
             effort: ReasoningEffort.High,
             output: ReasoningOutput.Full);
-        var client = CreateBetaClient(handler, config, model: "claude-opus-4-7");
+        var client = CreateBetaClient(handler, config, model: "test-xhigh-model");
 
         await client.GetResponseAsync([new ChatMessage(ChatRole.User, "hello")], new ChatOptions
         {
@@ -65,7 +118,7 @@ public sealed class AnthropicThinkingChatClientTests
             enabled: true,
             effort: ReasoningEffort.ExtraHigh,
             output: ReasoningOutput.None);
-        var client = CreateClient(handler, config, model: "claude-opus-4-7");
+        var client = CreateClient(handler, config, model: "test-xhigh-model");
 
         await client.GetResponseAsync([new ChatMessage(ChatRole.User, "hello")], new ChatOptions
         {
@@ -79,14 +132,14 @@ public sealed class AnthropicThinkingChatClientTests
     }
 
     [Fact]
-    public async Task GetResponseAsync_Sonnet46MapsExtraHighToConfiguredMaxEffort()
+    public async Task GetResponseAsync_MapsExtraHighToConfiguredMaxEffort()
     {
         var handler = new CaptureHandler();
         var config = CreateConfig(
             enabled: true,
             effort: ReasoningEffort.ExtraHigh,
             output: ReasoningOutput.Full);
-        var client = CreateClient(handler, config, model: "claude-sonnet-4-6");
+        var client = CreateClient(handler, config, model: "test-max-model");
 
         await client.GetResponseAsync([new ChatMessage(ChatRole.User, "hello")], new ChatOptions
         {
@@ -107,8 +160,8 @@ public sealed class AnthropicThinkingChatClientTests
         var client = new AnthropicThinkingChatClient(
             new CaptureChatClient(),
             config,
-            "deepseek-v4-pro",
-            "https://api.deepseek.com/anthropic");
+            "unlisted-model",
+            "https://api.example.test/anthropic");
         var options = new ChatOptions { Reasoning = config.Reasoning.ToOptions() };
 
         var prepared = client.PrepareOptions(options);
@@ -127,8 +180,8 @@ public sealed class AnthropicThinkingChatClientTests
         var client = new AnthropicThinkingChatClient(
             new CaptureChatClient(),
             config,
-            "claude-opus-4-8",
-            "https://api.anthropic.com",
+            "test-xhigh-model",
+            "https://api.example.test/anthropic",
             useDefaultReasoning: false);
         var options = new ChatOptions();
 
@@ -176,12 +229,13 @@ public sealed class AnthropicThinkingChatClientTests
             defaultMaxOutputTokens: 64_000);
     }
 
-    private static AppConfig CreateConfig(
+    private AppConfig CreateConfig(
         bool enabled,
         ReasoningEffort effort,
         ReasoningOutput output) =>
         new()
         {
+            WorkspaceConfigPath = Path.Combine(_root, "config.json"),
             Reasoning = new AppConfig.ReasoningConfig
             {
                 Enabled = enabled,
@@ -207,7 +261,7 @@ public sealed class AnthropicThinkingChatClientTests
                         "id": "msg_thinking_test",
                         "type": "message",
                         "role": "assistant",
-                        "model": "claude-opus-4-7",
+                        "model": "test-xhigh-model",
                         "content": [{
                             "type": "text",
                             "text": "ok"

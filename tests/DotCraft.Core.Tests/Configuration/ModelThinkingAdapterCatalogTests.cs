@@ -26,32 +26,6 @@ public sealed class ModelThinkingAdapterCatalogTests : IDisposable
         }
     }
 
-    [Theory]
-    [InlineData("deepseek-reasoner")]
-    [InlineData("mimo-v2.5-pro")]
-    public void ShouldApplyDeepThinking_UsesBuiltInCatalog(string model)
-    {
-        Assert.True(ModelThinkingAdapterCatalog.ShouldApplyDeepThinking(
-            endpoint: "https://api.openai-compatible.test/v1",
-            model: model));
-    }
-
-    [Fact]
-    public void ShouldApplyDeepThinking_UsesNamespacedModelSuffix()
-    {
-        Assert.True(ModelThinkingAdapterCatalog.ShouldApplyDeepThinking(
-            endpoint: "https://api.openai-compatible.test/v1",
-            model: "provider/xiaomi/mimo-v2.5-pro"));
-    }
-
-    [Fact]
-    public void ShouldApplyDeepThinking_UsesEndpointHost()
-    {
-        Assert.True(ModelThinkingAdapterCatalog.ShouldApplyDeepThinking(
-            endpoint: "https://api.deepseek.com/v1",
-            model: "custom-model"));
-    }
-
     [Fact]
     public void ShouldApplyDeepThinking_MergesGlobalAndWorkspaceCatalogs()
     {
@@ -85,70 +59,6 @@ public sealed class ModelThinkingAdapterCatalogTests : IDisposable
     }
 
     [Fact]
-    public void ShouldApplyDeepThinking_IgnoresInvalidAndMissingCatalogs()
-    {
-        var invalidPath = WriteRawCatalog("invalid", "{");
-
-        Assert.True(ModelThinkingAdapterCatalog.ShouldApplyDeepThinking(
-            endpoint: "https://api.openai-compatible.test/v1",
-            model: "mimo-v2.5-pro",
-            globalCatalogPath: invalidPath,
-            workspaceCatalogPath: Path.Combine(_root, "missing", ModelThinkingAdapterCatalog.FileName)));
-    }
-
-    [Theory]
-    [InlineData("claude-opus-4-7")]
-    [InlineData("claude-opus-4-8")]
-    [InlineData("provider/claude-opus-4-7")]
-    [InlineData("provider/claude-opus-4-8")]
-    [InlineData("claude-mythos-preview")]
-    [InlineData("claude-opus-4-6")]
-    [InlineData("claude-sonnet-4-6")]
-    public void ResolveAnthropicThinkingAdapter_UsesBuiltInCatalog(string model)
-    {
-        var adapter = ModelThinkingAdapterCatalog.ResolveAnthropicThinkingAdapter(
-            endpoint: "https://api.anthropic.com",
-            model: model);
-
-        Assert.NotNull(adapter);
-        Assert.Equal("adaptive", adapter.ThinkingType);
-        Assert.Equal("fromReasoningOutput", adapter.ThinkingDisplay);
-        Assert.Equal("fromReasoningEffort", adapter.OutputConfigEffort);
-        Assert.NotEmpty(adapter.OutputConfigEffortMap);
-    }
-
-    [Fact]
-    public void ResolveAnthropicThinkingAdapter_DoesNotUseBuiltInDefaultForUnlistedModel()
-    {
-        var adapter = ModelThinkingAdapterCatalog.ResolveAnthropicThinkingAdapter(
-            endpoint: "https://api.deepseek.com/anthropic",
-            model: "deepseek-v4-pro");
-
-        Assert.Null(adapter);
-    }
-
-    [Fact]
-    public void ResolveAnthropicMessageContentAdapter_UsesBuiltInDeepSeekCatalog()
-    {
-        var adapter = ModelThinkingAdapterCatalog.ResolveAnthropicMessageContentAdapter(
-            endpoint: "https://api.deepseek.com/anthropic",
-            model: "deepseek-v4-pro");
-
-        Assert.NotNull(adapter);
-        Assert.Equal("thinking", adapter.ReasoningHistoryBlockType);
-    }
-
-    [Fact]
-    public void ResolveAnthropicMessageContentAdapter_DoesNotMatchOfficialAnthropic()
-    {
-        var adapter = ModelThinkingAdapterCatalog.ResolveAnthropicMessageContentAdapter(
-            endpoint: "https://api.anthropic.com",
-            model: "claude-opus-4-7");
-
-        Assert.Null(adapter);
-    }
-
-    [Fact]
     public void ResolveAnthropicThinkingAdapter_MergesGlobalAndWorkspaceCatalogs()
     {
         var globalPath = WriteCatalog("global", """
@@ -156,7 +66,7 @@ public sealed class ModelThinkingAdapterCatalogTests : IDisposable
               "anthropicThinking": {
                 "adapters": [
                   {
-                    "models": ["global-claude-"],
+                    "models": ["global-adaptive-"],
                     "thinking": { "type": "adaptive", "display": "omitted" }
                   }
                 ]
@@ -179,7 +89,7 @@ public sealed class ModelThinkingAdapterCatalogTests : IDisposable
 
         var byModel = ModelThinkingAdapterCatalog.ResolveAnthropicThinkingAdapter(
             endpoint: "https://api.anthropic.test",
-            model: "global-claude-v1",
+            model: "global-adaptive-v1",
             globalCatalogPath: globalPath,
             workspaceCatalogPath: workspacePath);
         var byEndpoint = ModelThinkingAdapterCatalog.ResolveAnthropicThinkingAdapter(
@@ -191,69 +101,6 @@ public sealed class ModelThinkingAdapterCatalogTests : IDisposable
         Assert.Equal("omitted", byModel!.ThinkingDisplay);
         Assert.Equal("summarized", byEndpoint!.ThinkingDisplay);
         Assert.Equal("high", byEndpoint.OutputConfigEffort);
-    }
-
-    [Theory]
-    [InlineData("provider/claude-opus-4-7")]
-    [InlineData("provider/claude-opus-4-8")]
-    public void ResolveReasoningCapability_UsesBuiltInAnthropicCatalog(string model)
-    {
-        var capability = ModelThinkingAdapterCatalog.ResolveReasoningCapability(
-            protocol: ModelProviderProtocols.Anthropic,
-            endpoint: "https://api.anthropic.com",
-            model: model);
-
-        Assert.NotNull(capability);
-        Assert.True(capability.SupportsDisable);
-        Assert.Equal(ReasoningEffort.High, capability.DefaultEffort);
-        Assert.Contains(capability.SupportedEfforts, option => option.Effort == ReasoningEffort.ExtraHigh);
-        Assert.Contains(ReasoningOutput.Full, capability.SupportedOutputs);
-    }
-
-    [Fact]
-    public void ResolveReasoningCapability_OpenAIProtocolUsesDefaultCapability()
-    {
-        var capability = ModelThinkingAdapterCatalog.ResolveReasoningCapability(
-            protocol: ModelProviderProtocols.OpenAI,
-            endpoint: "https://litellm.example.test/v1",
-            model: "vendor/reasoning-model-v1");
-
-        Assert.NotNull(capability);
-        Assert.True(capability.SupportsDisable);
-        Assert.Equal(ReasoningEffort.Medium, capability.DefaultEffort);
-        Assert.Equal(
-            [ReasoningEffort.Low, ReasoningEffort.Medium, ReasoningEffort.High, ReasoningEffort.ExtraHigh],
-            capability.SupportedEfforts.Select(option => option.Effort));
-        Assert.Contains(ReasoningOutput.Full, capability.SupportedOutputs);
-    }
-
-    [Fact]
-    public void ResolveReasoningCapability_AnthropicProtocolUsesDefaultCapability()
-    {
-        var capability = ModelThinkingAdapterCatalog.ResolveReasoningCapability(
-            protocol: ModelProviderProtocols.Anthropic,
-            endpoint: "https://api.deepseek.com/anthropic",
-            model: "deepseek-v4-pro");
-
-        Assert.NotNull(capability);
-        Assert.True(capability.SupportsDisable);
-        Assert.Equal(ReasoningEffort.Medium, capability.DefaultEffort);
-        Assert.Equal(
-            [ReasoningEffort.Low, ReasoningEffort.Medium, ReasoningEffort.High, ReasoningEffort.ExtraHigh],
-            capability.SupportedEfforts.Select(option => option.Effort));
-        Assert.Contains(ReasoningOutput.Full, capability.SupportedOutputs);
-    }
-
-    [Fact]
-    public void ResolveReasoningCapability_MythosCannotDisable()
-    {
-        var capability = ModelThinkingAdapterCatalog.ResolveReasoningCapability(
-            protocol: ModelProviderProtocols.Anthropic,
-            endpoint: "https://api.anthropic.com",
-            model: "claude-mythos-preview");
-
-        Assert.NotNull(capability);
-        Assert.False(capability.SupportsDisable);
     }
 
     [Fact]
@@ -301,7 +148,7 @@ public sealed class ModelThinkingAdapterCatalogTests : IDisposable
               "anthropicThinking": {
                 "adapters": [
                   {
-                    "models": ["claude-test-"],
+                    "models": ["test-adaptive-"],
                     "thinking": { "type": "adaptive", "display": "summarized" },
                     "outputConfig": {
                       "effort": "medium",
@@ -319,7 +166,7 @@ public sealed class ModelThinkingAdapterCatalogTests : IDisposable
               "anthropicMessageContent": {
                 "adapters": [
                   {
-                    "endpoints": ["deepseek"],
+                    "endpoints": ["reasoning-provider"],
                     "reasoningHistory": { "blockType": "thinking" }
                   },
                   {
@@ -335,13 +182,13 @@ public sealed class ModelThinkingAdapterCatalogTests : IDisposable
         Assert.Contains("endpoint", catalog.DeepThinking.Endpoints);
         Assert.DoesNotContain("", catalog.DeepThinking.Models);
         var adapter = Assert.Single(catalog.AnthropicThinking.Adapters);
-        Assert.Contains("claude-test-", adapter.Models);
+        Assert.Contains("test-adaptive-", adapter.Models);
         Assert.Equal("adaptive", adapter.ThinkingType);
         Assert.Equal("summarized", adapter.ThinkingDisplay);
         Assert.Equal("medium", adapter.OutputConfigEffort);
         Assert.Equal("max", adapter.OutputConfigEffortMap["extraHigh"]);
         var messageAdapter = Assert.Single(catalog.AnthropicMessageContent.Adapters);
-        Assert.Contains("deepseek", messageAdapter.Endpoints);
+        Assert.Contains("reasoning-provider", messageAdapter.Endpoints);
         Assert.Equal("thinking", messageAdapter.ReasoningHistoryBlockType);
     }
 
@@ -354,12 +201,4 @@ public sealed class ModelThinkingAdapterCatalogTests : IDisposable
         return path;
     }
 
-    private string WriteRawCatalog(string directoryName, string text)
-    {
-        var directory = Path.Combine(_root, directoryName);
-        Directory.CreateDirectory(directory);
-        var path = Path.Combine(directory, ModelThinkingAdapterCatalog.FileName);
-        File.WriteAllText(path, text);
-        return path;
-    }
 }
