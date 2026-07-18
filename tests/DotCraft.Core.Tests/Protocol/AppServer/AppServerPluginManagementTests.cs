@@ -11,11 +11,14 @@ public sealed class AppServerPluginManagementTests : IDisposable
 {
     private readonly string _tempRoot = Path.Combine(Path.GetTempPath(), $"plugin_management_{Guid.NewGuid():N}");
     private readonly string _workspaceCraftPath;
+    private readonly string _bundledPluginSourceRoot;
 
     public AppServerPluginManagementTests()
     {
         _workspaceCraftPath = Path.Combine(_tempRoot, ".craft");
         Directory.CreateDirectory(_workspaceCraftPath);
+        _bundledPluginSourceRoot = Path.Combine(_tempRoot, "bundled-plugins");
+        WriteBundledPluginFixtures(_bundledPluginSourceRoot);
     }
 
     public void Dispose()
@@ -800,7 +803,7 @@ public sealed class AppServerPluginManagementTests : IDisposable
             skillsLoader: loader,
             appConfigMonitor: new AppConfigMonitor(config),
             mcpClientManager: mcpClientManager,
-            builtInPluginSourceRoots: includeBundledRoots ? [BundledPluginSourceRoot()] : []);
+            builtInPluginSourceRoots: includeBundledRoots ? [_bundledPluginSourceRoot] : []);
     }
 
     private SkillsLoader CreateSkillsLoader(AppConfig config, bool includeBundledRoots = true)
@@ -813,7 +816,7 @@ public sealed class AppServerPluginManagementTests : IDisposable
             config,
             _tempRoot,
             _workspaceCraftPath,
-            builtInPluginSourceRoots: includeBundledRoots ? [BundledPluginSourceRoot()] : []);
+            builtInPluginSourceRoots: includeBundledRoots ? [_bundledPluginSourceRoot] : []);
         return loader;
     }
 
@@ -825,17 +828,127 @@ public sealed class AppServerPluginManagementTests : IDisposable
         AppServerTestHarness.AssertIsSuccessResponse(response);
     }
 
-    private static string BundledPluginSourceRoot()
+    private static void WriteBundledPluginFixtures(string root)
     {
-        var dir = AppContext.BaseDirectory;
-        while (!string.IsNullOrWhiteSpace(dir))
-        {
-            if (File.Exists(Path.Combine(dir, "dotcraft.sln")))
-                return Path.Combine(dir, "desktop", "resources", "plugins", "dotcraft-bundled", "plugins");
-            dir = Directory.GetParent(dir)?.FullName;
-        }
+        WriteBrowserFixture(Path.Combine(root, "browser"));
+        WriteDoctorFixture(Path.Combine(root, "dotcraft-doctor"));
+        WriteAgentTeamsFixture(Path.Combine(root, PluginIds.AgentTeams));
+    }
 
-        throw new InvalidOperationException("Could not find repository root.");
+    private static void WriteBrowserFixture(string pluginRoot)
+    {
+        Directory.CreateDirectory(Path.Combine(pluginRoot, ".craft-plugin"));
+        WriteSkillFixture(Path.Combine(pluginRoot, "skills"), "browser", "Browser", "Control a test browser");
+        File.WriteAllText(
+            Path.Combine(pluginRoot, ".craft-plugin", "plugin.json"),
+            """
+{
+  "schemaVersion": 1,
+  "id": "browser",
+  "version": "1.0.0",
+  "displayName": "Browser",
+  "description": "Test browser plugin.",
+  "capabilities": ["skill"],
+  "skills": "./skills/"
+}
+""");
+    }
+
+    private static void WriteDoctorFixture(string pluginRoot)
+    {
+        Directory.CreateDirectory(Path.Combine(pluginRoot, ".craft-plugin"));
+        var skillsRoot = Path.Combine(pluginRoot, "skills");
+        WriteSkillFixture(
+            skillsRoot,
+            "context-handoff",
+            "Context Handoff",
+            "Find failed sessions and export a clean Markdown handoff");
+        WriteSkillFixture(
+            skillsRoot,
+            "error-diagnosis",
+            "Error Diagnosis",
+            "Trace DotCraft failures through thread rollout and state DB evidence");
+        WriteSkillFixture(
+            skillsRoot,
+            "report-issue",
+            "Report Issue",
+            "Draft a public-safe GitHub issue from a diagnosis or bug report");
+        File.WriteAllText(
+            Path.Combine(pluginRoot, ".craft-plugin", "plugin.json"),
+            """
+{
+  "schemaVersion": 1,
+  "id": "dotcraft-doctor",
+  "version": "1.0.0",
+  "displayName": "DotCraft Doctor",
+  "description": "Test diagnosis plugin.",
+  "capabilities": ["skill"],
+  "skills": "./skills/"
+}
+""");
+    }
+
+    private static void WriteAgentTeamsFixture(string pluginRoot)
+    {
+        Directory.CreateDirectory(Path.Combine(pluginRoot, ".craft-plugin"));
+        Directory.CreateDirectory(Path.Combine(pluginRoot, "desktop"));
+        File.WriteAllText(Path.Combine(pluginRoot, "desktop", "team-card-board.mjs"), "export default {};");
+        File.WriteAllText(
+            Path.Combine(pluginRoot, "desktop-extensions.json"),
+            """
+{
+  "extensions": [
+    {
+      "id": "team-card-board",
+      "displayName": "Team card board",
+      "entry": "./desktop/team-card-board.mjs",
+      "surfaces": [
+        { "type": "mainView", "viewId": "teams", "label": "Team" }
+      ]
+    }
+  ]
+}
+""");
+        File.WriteAllText(
+            Path.Combine(pluginRoot, ".craft-plugin", "plugin.json"),
+            """
+{
+  "schemaVersion": 1,
+  "id": "agent-teams",
+  "version": "1.0.0",
+  "displayName": "Agent Teams",
+  "description": "Test agent teams plugin.",
+  "capabilities": ["metadata", "desktopExtension"],
+  "desktopExtensions": "./desktop-extensions.json",
+  "interface": {
+    "displayName": "Agent Teams",
+    "shortDescription": "Test agent teams",
+    "developerName": "DotCraft",
+    "category": "Testing",
+    "capabilities": ["Team"]
+  }
+}
+""");
+    }
+
+    private static void WriteSkillFixture(
+        string skillsRoot,
+        string name,
+        string displayName,
+        string shortDescription)
+    {
+        var skillRoot = Path.Combine(skillsRoot, name);
+        Directory.CreateDirectory(Path.Combine(skillRoot, "agents"));
+        File.WriteAllText(
+            Path.Combine(skillRoot, "SKILL.md"),
+            $"---\nname: {name}\ndescription: Test skill\n---\n# {displayName}");
+        File.WriteAllText(
+            Path.Combine(skillRoot, "agents", "openai.yaml"),
+            $$"""
+interface:
+  display_name: "{{displayName}}"
+  short_description: "{{shortDescription}}"
+""");
     }
 
     private void ConfigureRegistryAppRegistry(AppConfig config, bool includeBrokenEntry = false)

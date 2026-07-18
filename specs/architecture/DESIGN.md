@@ -407,8 +407,8 @@ the same interaction language:
 
 ### Interactive Tool UI
 
-App-bound tools may render an interactive UI in a sandboxed iframe (see
-[Interactive Tool UI](../protocols/tool-result-presentation.md), aligned with MCP Apps).
+MCP tools may render an interactive UI in a sandboxed iframe (see
+[Desktop MCP Apps behavior](../clients/desktop-client.md#582-mcp-apps-interactive-tool-views), aligned with MCP Apps).
 The app owns the inner UI; Desktop owns only the host frame around it.
 
 - The host frame is a single neutral surface (`--bg-secondary`, `--border-default`,

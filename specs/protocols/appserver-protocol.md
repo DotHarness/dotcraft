@@ -6,7 +6,7 @@
 | **Status** | Living |
 | **Date** | 2026-07-15 |
 | **Parent Spec** | [Session Core](../architecture/session-core.md) (Section 20) |
-| **Related Specs** | [Tool Architecture](../architecture/tools-architecture.md), [Tool Result Presentation](tool-result-presentation.md) |
+| **Related Specs** | [Tool Architecture](../architecture/tools-architecture.md), [Desktop Client](../clients/desktop-client.md) |
 
 Purpose: Define a language-neutral JSON-RPC wire protocol that exposes Session Core (`ISessionService`) and related AppServer capabilities to out-of-process clients, enabling them to create and resume threads, submit turns, stream events, participate in approval flows, and call server-level management methods through one transport-stable contract.
 

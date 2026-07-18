@@ -1,6 +1,4 @@
 import { describe, expect, it } from 'vitest'
-import { readdirSync, readFileSync } from 'node:fs'
-import { resolve } from 'node:path'
 import {
   compareAppVersions,
   getLatestWhatsNewVersion,
@@ -9,76 +7,99 @@ import {
   parseWhatsNewRelease,
   sortWhatsNewReleasesNewestFirst,
   WHATS_NEW_MEDIA_BYTES_PER_CARD_LIMIT,
-  WHATS_NEW_REMOTE_MEDIA_BASE_URL
+  WHATS_NEW_REMOTE_MEDIA_BASE_URL,
+  type WhatsNewRelease
 } from '../../shared/whatsNew'
 
-const releasesDir = resolve(__dirname, '../../../resources/whats-new/releases')
-const bundledReleaseFiles = readdirSync(releasesDir)
-  .filter((name) => name.toLowerCase().endsWith('.json'))
+function release(version: string): WhatsNewRelease {
+  return {
+    version,
+    cards: [
+      {
+        id: `release-${version}`,
+        title: { en: `Release ${version}` },
+        summary: { en: `Summary ${version}` }
+      }
+    ]
+  }
+}
 
-const bundledReleases = sortWhatsNewReleasesNewestFirst(
-  bundledReleaseFiles.map((name) => {
-    const release = parseWhatsNewRelease(JSON.parse(readFileSync(resolve(releasesDir, name), 'utf8')))
-    if (!release) {
-      throw new Error(`Bundled What's New release fixture is invalid: ${name}`)
-    }
-    return release
-  })
-)
-const WHATS_NEW_RELEASES = bundledReleases
-const LATEST_BUNDLED_VERSION = getLatestWhatsNewVersion(WHATS_NEW_RELEASES) ?? ''
+const RELEASES = sortWhatsNewReleasesNewestFirst([
+  release('0.1.6'),
+  release('0.1.10')
+])
+const LATEST_VERSION = '0.1.10'
 
 describe('whatsNew release filtering', () => {
-  it('loads the bundled JSON release configs', () => {
-    const versions = WHATS_NEW_RELEASES.map((release) => release.version)
-    const fileVersions = bundledReleaseFiles.map((name) => name.replace(/\.json$/i, ''))
-
-    expect(versions).toHaveLength(fileVersions.length)
-    expect(new Set(versions).size).toBe(versions.length)
-    expect(versions).toEqual(expect.arrayContaining(fileVersions))
-  })
-
   it('treats missing last-seen state as unseen for the current release', () => {
     expect(
-      getUnseenWhatsNewReleases(WHATS_NEW_RELEASES, LATEST_BUNDLED_VERSION, undefined)
-        .map((release) => release.version)
-    ).toContain(LATEST_BUNDLED_VERSION)
+      getUnseenWhatsNewReleases(RELEASES, LATEST_VERSION, undefined)
+        .map((item) => item.version)
+    ).toContain(LATEST_VERSION)
   })
 
   it('hides releases at or below the last seen version', () => {
-    expect(getUnseenWhatsNewReleases(WHATS_NEW_RELEASES, LATEST_BUNDLED_VERSION, LATEST_BUNDLED_VERSION)).toEqual([])
+    expect(getUnseenWhatsNewReleases(RELEASES, LATEST_VERSION, LATEST_VERSION)).toEqual([])
   })
 
   it('does not show future releases', () => {
-    expect(getWhatsNewReleasesUpTo(WHATS_NEW_RELEASES, '0.0.1')).toEqual([])
+    expect(getWhatsNewReleasesUpTo(RELEASES, '0.0.1')).toEqual([])
   })
 
   it('sorts and compares semver-like app versions numerically', () => {
     expect(compareAppVersions('0.1.10', '0.1.6')).toBeGreaterThan(0)
-    expect(getLatestWhatsNewVersion(WHATS_NEW_RELEASES)).toBe(LATEST_BUNDLED_VERSION)
+    expect(getLatestWhatsNewVersion(RELEASES)).toBe(LATEST_VERSION)
   })
 
-  it('keeps each bundled media entry inside the per-card UX budget', () => {
-    const media = WHATS_NEW_RELEASES.flatMap((release) =>
-      release.cards.map((card) => card.media).filter((entry) => entry != null)
-    )
-    expect(media.length).toBeGreaterThan(0)
-    for (const entry of media) {
-      expect(entry.sizeBytes).toBeLessThanOrEqual(WHATS_NEW_MEDIA_BYTES_PER_CARD_LIMIT)
-    }
+  it('accepts valid media metadata and normalizes the hash', () => {
+    const parsed = parseWhatsNewRelease({
+      version: '1.0.0',
+      cards: [
+        {
+          id: 'demo',
+          title: { en: 'Demo' },
+          summary: { en: 'Demo summary.' },
+          media: {
+            fileName: 'demo.gif',
+            url: `${WHATS_NEW_REMOTE_MEDIA_BASE_URL}demo.gif`,
+            sizeBytes: WHATS_NEW_MEDIA_BYTES_PER_CARD_LIMIT,
+            sha256: 'a'.repeat(64)
+          }
+        }
+      ]
+    })
+
+    expect(parsed?.cards[0].media).toMatchObject({
+      fileName: 'demo.gif',
+      sizeBytes: WHATS_NEW_MEDIA_BYTES_PER_CARD_LIMIT,
+      sha256: 'A'.repeat(64)
+    })
   })
 
-  it('uses allowlisted resources-repo GIF metadata', () => {
-    const media = WHATS_NEW_RELEASES.flatMap((release) =>
-      release.cards.map((card) => card.media).filter((entry) => entry != null)
-    )
+  it('rejects media outside the size and URL contracts', () => {
+    const makeValue = (media: Record<string, unknown>) => ({
+      version: '1.0.0',
+      cards: [
+        {
+          id: 'demo',
+          title: { en: 'Demo' },
+          summary: { en: 'Demo summary.' },
+          media: {
+            fileName: 'demo.gif',
+            url: `${WHATS_NEW_REMOTE_MEDIA_BASE_URL}demo.gif`,
+            sizeBytes: 1,
+            sha256: 'A'.repeat(64),
+            ...media
+          }
+        }
+      ]
+    })
 
-    expect(media.length).toBeGreaterThan(0)
-    for (const entry of media) {
-      expect(entry.url).toBe(`${WHATS_NEW_REMOTE_MEDIA_BASE_URL}${entry.fileName}`)
-      expect(entry.fileName).toMatch(/^[a-z0-9._-]+\.gif$/)
-      expect(entry.sizeBytes).toBeGreaterThan(0)
-      expect(entry.sha256).toMatch(/^[0-9A-F]{64}$/)
-    }
+    expect(parseWhatsNewRelease(makeValue({
+      sizeBytes: WHATS_NEW_MEDIA_BYTES_PER_CARD_LIMIT + 1
+    }))).toBeNull()
+    expect(parseWhatsNewRelease(makeValue({
+      url: 'https://example.com/demo.gif'
+    }))).toBeNull()
   })
 })

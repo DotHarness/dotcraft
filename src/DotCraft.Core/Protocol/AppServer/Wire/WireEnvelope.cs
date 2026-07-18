@@ -102,7 +102,7 @@ public sealed class AppServerClientCapabilities
     /// Whether the client can render Interactive Tool UI (MCP Apps): the host serves a tool's
     /// <c>ui://</c> resource in a sandboxed iframe and drives the <c>ui/*</c> bridge. Default false —
     /// a non-declaring client receives the text fallback, and the host does not honor <c>ui/*</c>
-    /// host methods for it. See tool-result-presentation.md §3.
+    /// host methods for it. See tools-architecture.md §13 and desktop-client.md §5.8.2.
     /// </summary>
     public bool? InteractiveToolUi { get; set; }
 

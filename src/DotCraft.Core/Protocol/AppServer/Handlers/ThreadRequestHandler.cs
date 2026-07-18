@@ -334,7 +334,7 @@ internal sealed class ThreadRequestHandler(
     {
         _ = ct;
         // widgetState is part of the Interactive Tool UI bridge; only a client that negotiated
-        // interactiveToolUi has an iframe to persist it (tool-result-presentation.md §3, §9).
+        // interactiveToolUi has an iframe to persist it (tools-architecture.md §13).
         if (!connection.SupportsInteractiveToolUi)
             throw AppServerErrors.MethodNotFound(AppServerMethods.ItemWidgetStateSet);
         var p = AppServerParams.Get<ItemWidgetStateSetParams>(msg);
