@@ -27,7 +27,7 @@ public sealed class InlineVisualizationRuntimeRegistry(
         string directory;
         try
         {
-            directory = assets.EnsureAuthoringDirectory(thread);
+            directory = assets.GetAuthoringDirectory(thread);
         }
         catch (Exception ex) when (ex is InlineVisualizationException or IOException or UnauthorizedAccessException)
         {

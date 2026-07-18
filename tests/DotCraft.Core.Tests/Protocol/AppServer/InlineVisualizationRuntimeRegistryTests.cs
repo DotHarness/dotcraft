@@ -3,6 +3,7 @@ using DotCraft.Configuration;
 using DotCraft.Protocol;
 using DotCraft.Protocol.AppServer;
 using DotCraft.Protocol.InlineVisualizations;
+using DotCraft.Tools;
 
 namespace DotCraft.Tests.Sessions.Protocol.AppServer;
 
@@ -16,7 +17,7 @@ public sealed class InlineVisualizationRuntimeRegistryTests : IDisposable
     }
 
     [Fact]
-    public void BindThread_ProvidesThreadScopedPromptAndWritableRoot()
+    public void BindThread_ProvidesThreadScopedPromptWithoutCreatingDirectory()
     {
         var assets = new InlineVisualizationAssetStore();
         var registry = new InlineVisualizationRuntimeRegistry(assets, new AppConfig());
@@ -28,10 +29,54 @@ public sealed class InlineVisualizationRuntimeRegistryTests : IDisposable
         Assert.True(registry.IsBoundTo(thread.Id, connection));
         Assert.True(registry.TryGetAuthoringDirectory(thread.Id, out var directory));
         Assert.Equal(Path.Combine(_root, ".craft", "visualizations", thread.Id), directory);
-        Assert.True(Directory.Exists(directory));
+        Assert.False(Directory.Exists(Path.Combine(_root, ".craft", "visualizations")));
+        Assert.False(Directory.Exists(directory));
         var prompt = registry.GetSystemPromptSection(new ThreadSystemPromptContext(thread.Id, thread.WorkspacePath));
         Assert.Contains(directory, prompt, StringComparison.Ordinal);
         Assert.Contains("::dotcraft-inline-vis", prompt, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task FirstAssetWrite_CreatesDirectoryAndProducesReadableFragment()
+    {
+        var assets = new InlineVisualizationAssetStore();
+        var registry = new InlineVisualizationRuntimeRegistry(assets, new AppConfig());
+        var thread = Thread("thread_a");
+        var now = DateTimeOffset.UtcNow;
+        var item = new SessionItem
+        {
+            Id = "item_agent",
+            TurnId = "turn_test",
+            Type = ItemType.AgentMessage,
+            Status = ItemStatus.Completed,
+            CreatedAt = now,
+            CompletedAt = now,
+            Payload = new AgentMessagePayload
+            {
+                Text = "::dotcraft-inline-vis{file=\"chart.html\"}"
+            }
+        };
+        var turn = new SessionTurn
+        {
+            Id = "turn_test",
+            ThreadId = thread.Id,
+            Status = TurnStatus.Completed,
+            StartedAt = now,
+            CompletedAt = now,
+            Items = [item]
+        };
+        thread.Turns.Add(turn);
+
+        Assert.True(registry.BindThread(thread, new InMemoryTransport(), CapableConnection()));
+        Assert.True(registry.TryGetAuthoringDirectory(thread.Id, out var directory));
+        Assert.False(Directory.Exists(directory));
+
+        var fileTools = new FileTools(_root, requireApprovalOutsideWorkspace: false);
+        var writeResult = await fileTools.WriteFile(Path.Combine(directory, "chart.html"), "<div>chart</div>");
+
+        Assert.StartsWith("Successfully wrote", writeResult, StringComparison.Ordinal);
+        Assert.True(Directory.Exists(directory));
+        Assert.Equal("<div>chart</div>", await assets.ReadReferencedFragmentAsync(thread, turn, item, "chart.html"));
     }
 
     [Fact]
@@ -71,6 +116,32 @@ public sealed class InlineVisualizationRuntimeRegistryTests : IDisposable
 
         Assert.False(registry.BindThread(thread, new InMemoryTransport(), CapableConnection()));
         Assert.False(registry.TryGetAuthoringDirectory(thread.Id, out _));
+    }
+
+    [Theory]
+    [InlineData(".craft")]
+    [InlineData(".craft/visualizations")]
+    [InlineData(".craft/visualizations/thread_a")]
+    public void BindThread_RejectsReparsePointsAtEveryAuthoringDirectoryLevel(string relativeLinkPath)
+    {
+        var target = Path.Combine(_root, "link-target");
+        var link = Path.Combine(_root, relativeLinkPath.Replace('/', Path.DirectorySeparatorChar));
+        Directory.CreateDirectory(target);
+        Directory.CreateDirectory(Path.GetDirectoryName(link)!);
+        try
+        {
+            Directory.CreateSymbolicLink(link, target);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or PlatformNotSupportedException)
+        {
+            return;
+        }
+        var registry = new InlineVisualizationRuntimeRegistry(new InlineVisualizationAssetStore(), new AppConfig());
+        var thread = Thread("thread_a");
+
+        Assert.False(registry.BindThread(thread, new InMemoryTransport(), CapableConnection()));
+        Assert.False(registry.TryGetAuthoringDirectory(thread.Id, out _));
+        Assert.Empty(Directory.EnumerateFileSystemEntries(target));
     }
 
     private static AppServerConnection CapableConnection()

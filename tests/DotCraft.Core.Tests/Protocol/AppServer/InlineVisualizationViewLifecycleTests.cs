@@ -2,6 +2,7 @@ using DotCraft.Configuration;
 using DotCraft.Protocol;
 using DotCraft.Protocol.AppServer;
 using DotCraft.Protocol.InlineVisualizations;
+using DotCraft.Tools;
 using Microsoft.Extensions.AI;
 
 namespace DotCraft.Tests.Sessions.Protocol.AppServer;
@@ -28,7 +29,9 @@ public sealed class InlineVisualizationViewLifecycleTests : IDisposable
         var directory = runtime.TryGetAuthoringDirectory(thread.Id, out var authoringDirectory)
             ? authoringDirectory
             : throw new InvalidOperationException("The authoring directory was not bound.");
-        await File.WriteAllTextAsync(Path.Combine(directory, "chart.html"), "<div>chart</div>");
+        var fileTools = new FileTools(_root, requireApprovalOutsideWorkspace: false);
+        var writeResult = await fileTools.WriteFile(Path.Combine(directory, "chart.html"), "<div>chart</div>");
+        Assert.StartsWith("Successfully wrote", writeResult, StringComparison.Ordinal);
 
         using var handler = new InlineVisualizationRequestHandler(sessions, connection, assets, runtime);
         var table = new AppServerMethodTable();

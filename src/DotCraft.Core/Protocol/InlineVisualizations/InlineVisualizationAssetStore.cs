@@ -14,6 +14,7 @@ public sealed partial class InlineVisualizationAssetStore
         var root = Path.GetFullPath(Path.Combine(workspace, ".craft", "visualizations"));
         var directory = Path.GetFullPath(Path.Combine(root, thread.Id));
         EnsureWithinDirectory(directory, root);
+        RejectReparsePoints(directory);
         return directory;
     }
 
@@ -104,9 +105,9 @@ public sealed partial class InlineVisualizationAssetStore
     private static void RejectReparsePoints(string directory)
     {
         DirectoryInfo? current = new(directory);
-        while (current is { Exists: true })
+        while (current != null)
         {
-            if ((current.Attributes & FileAttributes.ReparsePoint) != 0)
+            if (current.Exists && (current.Attributes & FileAttributes.ReparsePoint) != 0)
                 throw new InlineVisualizationException("unsafe_path", "The visualization directory path is unsafe.");
             current = current.Parent;
         }
