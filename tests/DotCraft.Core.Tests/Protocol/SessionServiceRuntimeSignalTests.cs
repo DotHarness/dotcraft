@@ -4,6 +4,7 @@ using DotCraft.Abstractions;
 using DotCraft.Agents;
 using DotCraft.Configuration;
 using DotCraft.Context;
+using DotCraft.Context.Compaction;
 using DotCraft.Memory;
 using DotCraft.Mcp;
 using DotCraft.Protocol;
@@ -220,6 +221,69 @@ public sealed class SessionServiceRuntimeSignalTests : IDisposable
     }
 
     [Fact]
+    public async Task SubmitInputAsync_RestoredHistoricalToolImage_NormalizesSnapshotAndProviderAnchor()
+    {
+        var imageBytes = Convert.FromBase64String(
+            "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=");
+        var proxy = new ImageNodeReplProxy(imageBytes);
+        var seedChatClient = new CapturingImageToolChatClient("node_repl__NodeReplJs");
+        var recorder = new ToolInvocationRecorderRouter();
+        var dispatcher = new ToolDispatcher(recorder: recorder);
+        var source = new NodeReplPluginToolSource(
+            new AppConfig(),
+            proxy,
+            _tempDir,
+            (_, _) => true);
+        await using var seedFactory = CreateAgentFactory(
+            seedChatClient,
+            [source],
+            toolDispatcher: dispatcher);
+        var seedService = CreateService(seedFactory, seedChatClient, useStreamingFunctionInvoker: true);
+        recorder.Bind(seedService);
+        var thread = await seedService.CreateThreadAsync(MakeIdentity());
+        await seedService.RefreshThreadAgentAsync(thread.Id);
+
+        await DrainAsync(seedService.SubmitInputAsync(
+            thread.Id,
+            [new TextContent("capture screenshot")]));
+
+        var followUpChatClient = new HistoricalImageUsageChatClient();
+        await using var followUpFactory = CreateAgentFactory(followUpChatClient);
+        var followUpService = CreateService(followUpFactory, followUpChatClient);
+        await followUpService.ResumeThreadAsync(thread.Id);
+        await followUpService.RefreshThreadAgentAsync(thread.Id);
+
+        await DrainAsync(followUpService.SubmitInputAsync(
+            thread.Id,
+            [new TextContent("continue without the old screenshot")]));
+
+        var providerResult = Assert.Single(followUpChatClient.LastMessages
+            .SelectMany(message => message.Contents)
+            .OfType<FunctionResultContent>());
+        Assert.IsType<string>(providerResult.Result);
+        Assert.DoesNotContain(
+            followUpChatClient.LastMessages.SelectMany(message => message.Contents),
+            content => content is DataContent);
+
+        var snapshot = Assert.IsType<PromptRequestSnapshot>(
+            followUpService.TryGetLastPromptRequestSnapshot(thread.Id));
+        var snapshotResult = Assert.Single(snapshot.Messages
+            .SelectMany(message => message.Contents)
+            .OfType<FunctionResultContent>());
+        Assert.IsType<string>(snapshotResult.Result);
+        Assert.Equal(
+            MessageTokenEstimator.ComputePrefixFingerprint(snapshot.Messages, snapshot.Messages.Count),
+            snapshot.MessageFingerprint);
+
+        var anchor = Assert.IsType<ContextUsageAnchor>(
+            new ThreadStore(_tempDir).LoadContextUsageAnchor(thread.Id));
+        Assert.Equal(snapshot.Messages.Count, anchor.MessageCount);
+        Assert.Equal(snapshot.MessageFingerprint, anchor.PrefixFingerprint);
+        Assert.Equal(snapshot.RequestFingerprint, anchor.RequestFingerprint);
+        Assert.Equal(snapshot.ContextUsageFingerprint, anchor.ContextUsageFingerprint);
+    }
+
+    [Fact]
     public async Task SubmitInputAsync_EmitsTurnStartedThenCompleted()
     {
         IChatClient chatClient = new FakeChatClient([new ChatResponseUpdate(ChatRole.Assistant, [new TextContent("ok")])]);
@@ -259,6 +323,10 @@ public sealed class SessionServiceRuntimeSignalTests : IDisposable
         Assert.Equal(
             [SessionThreadRuntimeSignal.TurnStarted, SessionThreadRuntimeSignal.TurnFailed],
             seen);
+        var contextUsage = svc.TryGetContextUsageSnapshot(thread.Id);
+        Assert.NotNull(contextUsage);
+        Assert.Equal("estimate", contextUsage!.Source);
+        Assert.True(contextUsage.IsEstimate);
     }
 
     [Fact]
@@ -2570,6 +2638,34 @@ public sealed class SessionServiceRuntimeSignalTests : IDisposable
                 yield return new ChatResponseUpdate(ChatRole.Assistant, [new TextContent("handled image")]);
             }
 
+            await Task.CompletedTask;
+        }
+
+        public object? GetService(Type serviceType, object? serviceKey = null) => null;
+
+        public void Dispose()
+        {
+        }
+    }
+
+    private sealed class HistoricalImageUsageChatClient : IChatClient
+    {
+        public IReadOnlyList<ChatMessage> LastMessages { get; private set; } = [];
+
+        public Task<ChatResponse> GetResponseAsync(
+            IEnumerable<ChatMessage> chatMessages,
+            ChatOptions? options = null,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(new ChatResponse([new ChatMessage(ChatRole.Assistant, [new TextContent("continued")])]));
+
+        public async IAsyncEnumerable<ChatResponseUpdate> GetStreamingResponseAsync(
+            IEnumerable<ChatMessage> chatMessages,
+            ChatOptions? options = null,
+            [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
+        {
+            LastMessages = chatMessages.ToList();
+            yield return new ChatResponseUpdate(ChatRole.Assistant, [new TextContent("continued")]);
+            yield return UsageUpdate(requestIndex: 1, input: 5_000, output: 1, cachedInput: 0);
             await Task.CompletedTask;
         }
 

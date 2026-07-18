@@ -141,6 +141,8 @@ public sealed class PartialCompactor
         if (messages.Count == 0)
             return PartialCompactAttempt.Unavailable("empty_history");
 
+        messages = ImageContentSanitizingChatClient.ReplaceToolImagesWithDescriptions(messages);
+
         var splitIndex = CalculateSplitIndex(messages, _config);
         if (splitIndex <= 0)
             return PartialCompactAttempt.Unavailable("no_summarizable_prefix");

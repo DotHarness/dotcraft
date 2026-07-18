@@ -764,7 +764,9 @@ public sealed class AgentFactory : IAsyncDisposable
                 WorkspacePath: planningContext.WorkspacePath),
             cancellationToken).ConfigureAwait(false);
         if (result.Success)
-            return result.ProviderResult ?? (object?)result.ContentItems ?? result.Content;
+            return result.ProviderResult
+                ?? (object?)(result.ContentItems is null ? null : result.ContentItems.ToList())
+                ?? result.Content;
 
         var errorCode = result.Error?.Code ?? ToolErrorCodes.ExecutionFailed;
         var message = !string.IsNullOrWhiteSpace(result.Content)

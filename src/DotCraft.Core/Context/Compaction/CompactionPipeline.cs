@@ -3,6 +3,7 @@ using System.Globalization;
 using DotCraft.Configuration;
 using DotCraft.Tracing;
 using Microsoft.Agents.AI;
+using DotCraft.Agents;
 using Microsoft.Extensions.AI;
 
 namespace DotCraft.Context.Compaction;
@@ -547,7 +548,8 @@ public sealed class CompactionPipeline
         var partialResult = partial.Result;
         var summaryMessage = new ChatMessage(ChatRole.Assistant, partialResult.FormattedSummary);
         var newHistory = new List<ChatMessage>(1 + partialResult.PreservedTail.Count) { summaryMessage };
-        newHistory.AddRange(partialResult.PreservedTail);
+        newHistory.AddRange(ImageContentSanitizingChatClient.ReplaceToolImagesWithDescriptions(
+            partialResult.PreservedTail));
 
         var afterTokens = AddRequestOverhead(
             MessageTokenEstimator.Estimate(newHistory),
@@ -624,7 +626,8 @@ public sealed class CompactionPipeline
         {
             new(ChatRole.Assistant, result.FormattedSummary)
         };
-        newHistory.AddRange(result.PreservedTail);
+        newHistory.AddRange(ImageContentSanitizingChatClient.ReplaceToolImagesWithDescriptions(
+            result.PreservedTail));
 
         var afterTokens = AddRequestOverhead(
             MessageTokenEstimator.Estimate(newHistory),

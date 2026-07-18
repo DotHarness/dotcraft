@@ -1,3 +1,5 @@
+using System.Text.Json;
+using DotCraft.Protocol;
 using DotCraft.Tools;
 using Microsoft.Extensions.AI;
 
@@ -34,12 +36,7 @@ public sealed class ImageContentSanitizingChatClient(IChatClient innerClient) : 
             : new List<ChatMessage>(messages);
 
         // Tool messages strictly after the last non-tool message belong to the current invocation round.
-        var lastNonToolIndex = -1;
-        for (var i = 0; i < list.Count; i++)
-        {
-            if (list[i].Role != ChatRole.Tool)
-                lastNonToolIndex = i;
-        }
+        var lastNonToolIndex = FindLastNonToolIndex(list);
 
         var promotedImages = new List<DataContent>();
         var result = new List<ChatMessage>(list.Count + 1);
@@ -70,7 +67,7 @@ public sealed class ImageContentSanitizingChatClient(IChatClient innerClient) : 
             {
                 if (content is FunctionResultContent frc && HasNonTextContent(frc.Result))
                 {
-                    if (isCurrentRoundTool && frc.Result is IEnumerable<AIContent> items)
+                    if (isCurrentRoundTool && TryGetResultContentItems(frc.Result, out var items))
                     {
                         var placeholderTexts = new List<string>();
                         foreach (var item in items)
@@ -127,9 +124,9 @@ public sealed class ImageContentSanitizingChatClient(IChatClient innerClient) : 
         return string.Join("\n", parts);
     }
 
-    private static bool HasNonTextContent(object? result)
+    internal static bool HasNonTextContent(object? result)
     {
-        if (result is IEnumerable<AIContent> items)
+        if (TryGetResultContentItems(result, out var items))
         {
             foreach (var item in items)
             {
@@ -146,7 +143,7 @@ public sealed class ImageContentSanitizingChatClient(IChatClient innerClient) : 
         if (result is NativeToolSearchOutput toolSearchOutput)
             return NativeToolSearchTool.FormatOutputForDisplay(toolSearchOutput);
 
-        if (result is not IEnumerable<AIContent> items)
+        if (!TryGetResultContentItems(result, out var items))
             return result?.ToString() ?? "(no output)";
 
         var parts = new List<string>();
@@ -176,5 +173,107 @@ public sealed class ImageContentSanitizingChatClient(IChatClient innerClient) : 
         }
 
         return parts.Count > 0 ? string.Join("\n", parts) : "(no output)";
+    }
+
+    internal static IReadOnlyList<ChatMessage> ReplaceToolImagesWithDescriptions(
+        IReadOnlyList<ChatMessage> messages)
+        => ReplaceToolImagesWithDescriptions(messages, preserveCurrentRoundImages: false);
+
+    internal static IReadOnlyList<ChatMessage> ReplaceHistoricalToolImagesWithDescriptions(
+        IReadOnlyList<ChatMessage> messages)
+        => ReplaceToolImagesWithDescriptions(messages, preserveCurrentRoundImages: true);
+
+    private static IReadOnlyList<ChatMessage> ReplaceToolImagesWithDescriptions(
+        IReadOnlyList<ChatMessage> messages,
+        bool preserveCurrentRoundImages)
+    {
+        var lastNonToolIndex = preserveCurrentRoundImages
+            ? FindLastNonToolIndex(messages)
+            : int.MaxValue;
+        var result = new List<ChatMessage>(messages.Count);
+        for (var messageIndex = 0; messageIndex < messages.Count; messageIndex++)
+        {
+            var message = messages[messageIndex];
+            if (preserveCurrentRoundImages
+                && message.Role == ChatRole.Tool
+                && messageIndex > lastNonToolIndex)
+            {
+                result.Add(message);
+                continue;
+            }
+
+            List<AIContent>? contents = null;
+            for (var i = 0; i < message.Contents.Count; i++)
+            {
+                if (message.Contents[i] is not FunctionResultContent frc || !HasNonTextContent(frc.Result))
+                    continue;
+
+                contents ??= new List<AIContent>(message.Contents);
+                contents[i] = new FunctionResultContent(frc.CallId, DescribeResult(frc.Result));
+            }
+
+            if (contents is null)
+            {
+                result.Add(message);
+                continue;
+            }
+
+            result.Add(new ChatMessage(message.Role, contents)
+            {
+                AuthorName = message.AuthorName,
+                MessageId = message.MessageId
+            });
+        }
+
+        return result;
+    }
+
+    private static int FindLastNonToolIndex(IReadOnlyList<ChatMessage> messages)
+    {
+        var lastNonToolIndex = -1;
+        for (var i = 0; i < messages.Count; i++)
+        {
+            if (messages[i].Role != ChatRole.Tool)
+                lastNonToolIndex = i;
+        }
+
+        return lastNonToolIndex;
+    }
+
+    internal static bool TryGetResultContentItems(
+        object? result,
+        out IReadOnlyList<AIContent> items)
+    {
+        if (result is IReadOnlyList<AIContent> readOnlyItems)
+        {
+            items = readOnlyItems;
+            return true;
+        }
+
+        if (result is IEnumerable<AIContent> enumerableItems)
+        {
+            items = enumerableItems.ToList();
+            return true;
+        }
+
+        if (result is JsonElement { ValueKind: JsonValueKind.Array } json)
+        {
+            try
+            {
+                items = json.Deserialize<List<AIContent>>(SessionPersistenceJsonOptions.Default) ?? [];
+                return true;
+            }
+            catch (JsonException)
+            {
+                // Preserve the provider-compatible scalar fallback below.
+            }
+            catch (NotSupportedException)
+            {
+                // Preserve the provider-compatible scalar fallback below.
+            }
+        }
+
+        items = [];
+        return false;
     }
 }

@@ -1,5 +1,7 @@
 using System.Text.Json;
+using DotCraft.Agents;
 using DotCraft.Context.Compaction;
+using DotCraft.Protocol;
 using Microsoft.Extensions.AI;
 
 namespace DotCraft.Tests.Context.Compaction;
@@ -79,6 +81,131 @@ public sealed class MessageTokenEstimatorTests
 
         Assert.InRange(tokens, 2_000, 20_000);
         Assert.True(tokens < imageBytes.Length / 16);
+    }
+
+    [Fact]
+    public void EstimateContent_FunctionResultImageShapes_HaveEqualBoundedCost()
+    {
+        var contents = new List<AIContent>
+        {
+            new TextContent("Screenshots captured"),
+            new DataContent(new byte[750_000], "image/png"),
+            new DataContent(new byte[1_000_000], "image/jpeg")
+        };
+        var json = JsonSerializer.SerializeToElement(contents, SessionPersistenceJsonOptions.Default);
+        var estimates = new object[] { contents, contents.ToArray(), json }
+            .Select(result => MessageTokenEstimator.EstimateContent(
+                new FunctionResultContent("call-images", result)))
+            .ToArray();
+
+        Assert.All(estimates, estimate => Assert.InRange(estimate, 4_000, 20_000));
+        Assert.All(estimates, estimate => Assert.Equal(estimates[0], estimate));
+    }
+
+    [Fact]
+    public void EstimateContent_JsonFunctionResultImage_DoesNotScaleWithBase64Payload()
+    {
+        static int Estimate(int imageBytes)
+        {
+            var contents = new List<AIContent>
+            {
+                new TextContent("Screenshot captured"),
+                new DataContent(new byte[imageBytes], "image/png")
+            };
+            var json = JsonSerializer.SerializeToElement(contents, SessionPersistenceJsonOptions.Default);
+            return MessageTokenEstimator.EstimateContent(new FunctionResultContent("call-image", json));
+        }
+
+        Assert.Equal(Estimate(1_000), Estimate(1_000_000));
+    }
+
+    [Theory]
+    [InlineData("list")]
+    [InlineData("array")]
+    [InlineData("deserialized")]
+    public void Estimate_HistoricalToolImageShapes_UsesDescriptionCost(string shape)
+    {
+        var contents = new List<AIContent>
+        {
+            new TextContent("Screenshot captured"),
+            new DataContent(new byte[1_000_000], "image/png")
+        };
+        object result = shape switch
+        {
+            "list" => contents,
+            "array" => contents.ToArray(),
+            "deserialized" => JsonSerializer.SerializeToElement(contents, SessionPersistenceJsonOptions.Default),
+            _ => throw new ArgumentOutOfRangeException(nameof(shape))
+        };
+        var messages = new List<ChatMessage>
+        {
+            new(ChatRole.Tool, [new FunctionResultContent("call-image", result)]),
+            new(ChatRole.User, "continue")
+        };
+
+        var sanitized = ImageContentSanitizingChatClient.ReplaceHistoricalToolImagesWithDescriptions(messages);
+
+        Assert.True(MessageTokenEstimator.Estimate(sanitized) + 1_000 < MessageTokenEstimator.Estimate(messages));
+    }
+
+    [Fact]
+    public void Estimate_CurrentRoundToolImage_PreservesFixedImageCost()
+    {
+        var messages = new List<ChatMessage>
+        {
+            new(ChatRole.User, "capture"),
+            new(ChatRole.Assistant, [new FunctionCallContent("call-image", "capture", new Dictionary<string, object?>())]),
+            new(ChatRole.Tool,
+            [
+                new FunctionResultContent("call-image", (IList<AIContent>)
+                [
+                    new TextContent("Screenshot captured"),
+                    new DataContent(new byte[1_000_000], "image/png")
+                ])
+            ])
+        };
+
+        var sanitized = ImageContentSanitizingChatClient.ReplaceHistoricalToolImagesWithDescriptions(messages);
+
+        Assert.Equal(MessageTokenEstimator.Estimate(messages), MessageTokenEstimator.Estimate(sanitized));
+        Assert.True(MessageTokenEstimator.Estimate(sanitized) >= 2_000);
+    }
+
+    [Fact]
+    public void EstimateContent_JsonFunctionResultNonImageData_PreservesSerializedPayloadCost()
+    {
+        static int Estimate(int dataBytes)
+        {
+            var contents = new List<AIContent>
+            {
+                new DataContent(new byte[dataBytes], "application/octet-stream")
+            };
+            var json = JsonSerializer.SerializeToElement(contents, SessionPersistenceJsonOptions.Default);
+            return MessageTokenEstimator.EstimateContent(new FunctionResultContent("call-data", json));
+        }
+
+        Assert.True(Estimate(100_000) > Estimate(1_000));
+    }
+
+    [Fact]
+    public void ComputePrefixFingerprint_JsonFunctionResultMatchesStructuredResult()
+    {
+        var contents = new List<AIContent>
+        {
+            new TextContent("Screenshot captured"),
+            new DataContent(new byte[] { 1, 2, 3 }, "image/png")
+        };
+        var structured = new ChatMessage(
+            ChatRole.Tool,
+            [new FunctionResultContent("call-image", contents)]);
+        var json = JsonSerializer.SerializeToElement(contents, SessionPersistenceJsonOptions.Default);
+        var restored = new ChatMessage(
+            ChatRole.Tool,
+            [new FunctionResultContent("call-image", json)]);
+
+        Assert.Equal(
+            MessageTokenEstimator.ComputePrefixFingerprint([structured], 1),
+            MessageTokenEstimator.ComputePrefixFingerprint([restored], 1));
     }
 
     [Fact]

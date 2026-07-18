@@ -377,6 +377,7 @@ public sealed class FullCompactor
 
     private static IReadOnlyList<ChatMessage> SanitizeForSummary(IReadOnlyList<ChatMessage> messages)
     {
+        messages = ImageContentSanitizingChatClient.ReplaceToolImagesWithDescriptions(messages);
         var result = new List<ChatMessage>(messages.Count);
         foreach (var message in messages)
         {

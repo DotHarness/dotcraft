@@ -645,6 +645,22 @@ public sealed partial class SessionService(
         return snapshot;
     }
 
+    private async Task<ContextUsageSnapshot> SaveCurrentRequestEstimateAsync(
+        string threadId,
+        long tokens,
+        CancellationToken ct = default)
+    {
+        var anchor = TryGetInMemoryContextUsageAnchor(threadId)
+            ?? persistence.LoadContextUsageAnchor(threadId);
+        return await SaveContextUsageSnapshotAsync(
+            threadId,
+            tokens,
+            anchor,
+            source: "estimate",
+            isEstimate: true,
+            ct: ct);
+    }
+
     private ContextUsageAnchor? UpdateContextUsageAnchor(string threadId, long anchorTokens)
     {
         var snapshot = TryGetLastPromptRequestSnapshot(threadId);
@@ -693,8 +709,11 @@ public sealed partial class SessionService(
             persistedSnapshot?.IsEstimate ?? false);
     }
 
-    private static IReadOnlyList<ChatMessage> PrepareProviderVisibleHistory(IReadOnlyList<ChatMessage> history) =>
-        ModelRequestHistorySanitizer.Sanitize(history);
+    private static IReadOnlyList<ChatMessage> PrepareProviderVisibleHistory(IReadOnlyList<ChatMessage> history)
+    {
+        var repairedHistory = ModelRequestHistorySanitizer.Sanitize(history);
+        return ImageContentSanitizingChatClient.ReplaceHistoricalToolImagesWithDescriptions(repairedHistory);
+    }
 
     private PreparedContextTokenEstimate PrepareContextTokenEstimate(
         string threadId,
@@ -1656,6 +1675,10 @@ public sealed partial class SessionService(
                 var compactHistory = preparedEstimate.History;
                 var compactSnapshot = preparedEstimate.RequestSnapshot;
                 var usageEstimate = preparedEstimate.Estimate;
+                await SaveCurrentRequestEstimateAsync(
+                    threadId,
+                    usageEstimate.Tokens,
+                    CancellationToken.None);
                 if (!usageEstimate.EligibleForAutoCompact)
                     return null;
 
@@ -2169,6 +2192,19 @@ public sealed partial class SessionService(
                         OpenAIResponsesCodexRequestKinds.Turn));
                 try
                 {
+                    if (!TrySnapshotInMemoryHistory(session, out var preflightHistory)
+                        || preflightHistory.Count == 0)
+                    {
+                        var preflightEstimate = PrepareContextTokenEstimate(
+                            threadId,
+                            [userMessage],
+                            tokenTracker.LastContextTokens).Estimate;
+                        await SaveCurrentRequestEstimateAsync(
+                            threadId,
+                            preflightEstimate.Tokens,
+                            ct: CancellationToken.None);
+                    }
+
                     using var preSamplingCompactionScope = PreSamplingCompactionRuntimeScope.Set(
                         new PreSamplingCompactionRuntimeContext
                         {
@@ -2179,11 +2215,22 @@ public sealed partial class SessionService(
                             EstimatedInputTokens = tokenTracker.LastInputTokens > 0
                                 ? (int)Math.Min(int.MaxValue, tokenTracker.LastInputTokens)
                                 : null,
-                            CaptureSnapshotAsync = (snapshot, _) =>
+                            CaptureSnapshotAsync = async (snapshot, _) =>
                             {
+                                var preparedEstimate = PrepareContextTokenEstimate(
+                                    threadId,
+                                    snapshot.Messages,
+                                    tokenTracker.LastContextTokens,
+                                    snapshot);
                                 if (_runtimeRegistry.TryGetRuntime(threadId, out var runtime))
-                                    runtime.LastPromptRequest = snapshot;
-                                return Task.CompletedTask;
+                                    runtime.LastPromptRequest = preparedEstimate.RequestSnapshot ?? snapshot;
+                                if (pendingCompactionCheckpoint is null)
+                                {
+                                    await SaveCurrentRequestEstimateAsync(
+                                        threadId,
+                                        preparedEstimate.Estimate.Tokens,
+                                        ct: CancellationToken.None);
+                                }
                             },
                             TryCompactWithSnapshotAsync = TryCompactBeforeSamplingAsync,
                             TryCompactAsync = (history, compactCt) => TryCompactBeforeSamplingAsync(history, null, compactCt)

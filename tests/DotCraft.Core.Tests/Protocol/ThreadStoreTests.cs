@@ -719,6 +719,73 @@ public sealed class ThreadStoreTests : IDisposable
     }
 
     [Fact]
+    public async Task RebuildAndSaveSessionFromThreadAsync_RestoresToolImageAsStructuredContent()
+    {
+        var thread = CreateThread();
+        AddTurnWithMessages(thread, "inspect", "before tool", TurnStatus.Completed);
+        var turn = thread.Turns[0];
+        turn.Items.Add(new SessionItem
+        {
+            Id = SessionIdGenerator.NewItemId(3),
+            TurnId = turn.Id,
+            Type = ItemType.ToolCall,
+            Status = ItemStatus.Completed,
+            CreatedAt = DateTimeOffset.UtcNow,
+            CompletedAt = DateTimeOffset.UtcNow,
+            Payload = new ToolCallPayload
+            {
+                ToolName = "Screenshot",
+                ProviderFlatName = "Screenshot",
+                CallId = "call-image",
+                Arguments = new JsonObject()
+            }
+        });
+        turn.Items.Add(new SessionItem
+        {
+            Id = SessionIdGenerator.NewItemId(4),
+            TurnId = turn.Id,
+            Type = ItemType.ToolResult,
+            Status = ItemStatus.Completed,
+            CreatedAt = DateTimeOffset.UtcNow,
+            CompletedAt = DateTimeOffset.UtcNow,
+            Payload = new ToolResultPayload
+            {
+                CallId = "call-image",
+                Result = "fallback",
+                Success = true,
+                ContentItems =
+                [
+                    new PluginFunctionContentItem { Type = "text", Text = "captured" },
+                    new PluginFunctionContentItem
+                    {
+                        Type = "image",
+                        MediaType = "image/png",
+                        DataBase64 = Convert.ToBase64String(new byte[] { 1, 2, 3 })
+                    }
+                ]
+            }
+        });
+        await _store.SaveThreadAsync(thread);
+
+        var agent = CreateAgent();
+        await _store.RebuildAndSaveSessionFromThreadAsync(agent, thread.Id);
+        var session = await _store.LoadOrCreateSessionAsync(agent, thread.Id);
+
+        Assert.True(session.TryGetInMemoryChatHistory(
+            out var history,
+            jsonSerializerOptions: SessionPersistenceJsonOptions.Default));
+        var functionResult = Assert.Single(
+            history.SelectMany(message => message.Contents).OfType<FunctionResultContent>());
+        var json = Assert.IsType<JsonElement>(functionResult.Result);
+        var modelContents = json.Deserialize<List<AIContent>>(SessionPersistenceJsonOptions.Default);
+        Assert.NotNull(modelContents);
+        Assert.IsType<TextContent>(modelContents![0]);
+        Assert.IsType<DataContent>(modelContents[1]);
+        Assert.DoesNotContain(modelContents, content => content is TextContent text
+            && text.Text.Contains("data:image/", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
     public async Task RebuildAndSaveSessionFromThreadAsync_ReplaysHostedImageGenerationAsAssistantContent()
     {
         var thread = CreateThread();
