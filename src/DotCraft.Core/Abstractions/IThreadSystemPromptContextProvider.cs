@@ -18,4 +18,7 @@ public interface IThreadSystemPromptContextProvider
     string? GetSystemPromptSection(ThreadSystemPromptContext context);
 }
 
-public sealed record ThreadSystemPromptContext(string ThreadId, string WorkspacePath);
+public sealed record ThreadSystemPromptContext(
+    string ThreadId,
+    string WorkspacePath,
+    string? OriginChannel = null);

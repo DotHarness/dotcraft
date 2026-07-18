@@ -102,7 +102,7 @@ public sealed class AppServerClientCapabilities
     /// Whether the client can render Interactive Tool UI (MCP Apps): the host serves a tool's
     /// <c>ui://</c> resource in a sandboxed iframe and drives the <c>ui/*</c> bridge. Default false —
     /// a non-declaring client receives the text fallback, and the host does not honor <c>ui/*</c>
-    /// host methods for it. See tool-result-presentation.md §3.
+    /// host methods for it. See tools-architecture.md §13 and desktop-client.md §5.8.2.
     /// </summary>
     public bool? InteractiveToolUi { get; set; }
 
@@ -111,6 +111,9 @@ public sealed class AppServerClientCapabilities
     /// private App Binding interactive UI capability.
     /// </summary>
     public bool? McpApps { get; set; }
+
+    /// <summary>Whether the client can host assistant inline visualization views.</summary>
+    public bool? InlineVisualizations { get; set; }
 
     /// <summary>Whether the client can answer MCP form and URL elicitation requests.</summary>
     public bool? McpElicitation { get; set; }
@@ -406,6 +409,10 @@ public sealed class AppServerServerCapabilities
     /// <summary>Server supports the connection-scoped opaque MCP Apps View API.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public bool McpApps { get; set; }
+
+    /// <summary>Server supports connection-scoped assistant inline visualization views.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool InlineVisualizations { get; set; }
 
     /// <summary>Server can forward standards-based MCP form and URL elicitation to a capable client.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]

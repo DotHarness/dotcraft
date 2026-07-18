@@ -2,15 +2,15 @@
 
 | Field | Value |
 |---|---|
-| Version | 0.2.2 |
+| Version | 0.2.3 |
 | Status | Normative |
-| Date | 2026-07-15 |
+| Date | 2026-07-18 |
 | Scope | Agent tools, authority binding, execution, session projection, and interactive presentation |
-| Related | [Session Core](session-core.md), [AppServer Protocol](../protocols/appserver-protocol.md), [App Binding](../protocols/app-binding.md), [Tool Result Presentation](../protocols/tool-result-presentation.md), [Plugin Architecture](plugin-architecture.md) |
+| Related | [Session Core](session-core.md), [AppServer Protocol](../protocols/appserver-protocol.md), [App Binding](../protocols/app-binding.md), [Desktop Client](../clients/desktop-client.md), [Plugin Architecture](plugin-architecture.md) |
 
 ## 1. Purpose
 
-This specification defines the architecture for every tool that can be made available to a DotCraft agent. It is the source of truth for shared behavior across native tool providers, MCP, Runtime Dynamic Tools, App Binding, Plugin Functions, Teams, social channels, and Desktop rendering.
+This specification defines the architecture for every tool that can be made available to a DotCraft agent. It is the source of truth for shared behavior across native tool providers, MCP, Runtime Dynamic Tools, App Binding, Plugin Functions, Teams, social channels, and client presentation boundaries.
 
 The architecture has four goals:
 
@@ -352,7 +352,7 @@ DotCraft uses the following fixed method names for the MCP runtime/control surfa
 - `mcpServer/oauthLogin/completed`;
 - `mcpServer/elicitation/request`.
 
-The `mcp/*` methods remain DotCraft's workspace configuration-management surface and MUST NOT be reused as aliases for these runtime methods. OAuth plus standard form and URL elicitation forwarding are generic MCP control-plane capabilities. Desktop MUST provide a generic interaction for those flows. MCP Apps resource rendering, AppBridge, and tool-result iframes follow the presentation contract in Section 14.
+The `mcp/*` methods remain DotCraft's workspace configuration-management surface and MUST NOT be reused as aliases for these runtime methods. OAuth plus standard form and URL elicitation forwarding are generic MCP control-plane capabilities. Desktop MUST provide a generic interaction for those flows. MCP Apps resource rendering and AppBridge follow the presentation contract in Section 13 and the client behavior contract in the [Desktop Client specification](../clients/desktop-client.md#582-mcp-apps-interactive-tool-views).
 
 Thread archive/disposal MUST close thread and binding MCP sessions. Configuration changes invalidate the next snapshot. Status output MUST distinguish workspace, thread, plugin, and binding origins.
 
@@ -366,7 +366,7 @@ MCP tool approval evaluates standard annotations such as read-only, destructive,
 
 ## 13. MCP Apps host
 
-DotCraft targets the stable MCP Apps extension `io.modelcontextprotocol/ui` dated 2026-01-26. Desktop pins the official TypeScript host package at `@modelcontextprotocol/ext-apps` version `1.7.4` and uses `AppBridge`. Core uses validated wrappers over raw MCP metadata and does not require a preview C# Apps package.
+DotCraft targets the stable MCP Apps extension `io.modelcontextprotocol/ui` dated 2026-01-26. Core uses validated wrappers over raw MCP metadata. Client package selection and View presentation behavior belong to the applicable client specification.
 
 Every DotCraft MCP session advertises support for `text/html;profile=mcp-app`. The MCP capability belongs to the session lifecycle and does not change when Desktop connects or disconnects.
 
@@ -390,29 +390,47 @@ An ordinary user Turn atomically consumes all pending contexts for its thread. A
 
 An omitted MCP Apps visibility value means model-and-app visibility. App-only tools are hidden from the model. A view may call only tools from the same MCP server that are visible to the app, and every call passes normal authority and approval.
 
-Visibility is read only from nested `_meta.ui`. An empty array means neither audience. A declaration containing an unknown visibility value is invalid and exposes the tool to neither audience. App-only tools remain in the canonical registry but are excluded from model projection. UI linkage requires an absolute `ui://` URI. The resource response MUST match that URI, use `text/html;profile=mcp-app`, and contain exactly one text document or base64 blob.
+Visibility is read only from nested `_meta.ui`. An empty array means neither audience. A declaration containing an unknown visibility value is invalid and exposes the tool to neither audience. App-only tools remain in the canonical registry but are excluded from model projection.
+
+UI linkage uses `_meta.ui.resourceUri` as the canonical declaration. `_meta["ui/resourceUri"]` is accepted only when the nested field is absent. An invalid present nested declaration fails closed and MUST NOT be replaced by the alias. The resource URI MUST be absolute and use `ui://`. The response MUST match that URI, use `text/html;profile=mcp-app`, and contain exactly one text document or base64 blob.
 
 Tool results preserve the audience contract: model `content`, view-only `structuredContent`, and host/view-only `_meta`.
 
-MCP App presentation has three distinct lifetimes. The normalized `ui://` resource association and the bounded tool result are persisted with the terminal `McpToolCall`. Availability is derived from the current tool definition, runtime, and authority whenever a client projects that item. The iframe, AppBridge connection, resource body, and opaque `viewHandle` exist only for one active View and are never persisted.
+MCP App presentation has three distinct lifetimes. The normalized `ui://` resource association and the bounded tool result are persisted with the terminal `McpToolCall`. Availability is derived from the current tool definition, runtime, and authority whenever a client projects that item. AppServer may project non-persistent `mcpApp.available = true` as advisory current availability evidence; it is not reusable authority. The View document, bridge connection, resource body, and opaque `viewHandle` exist only for one active View and are never persisted.
 
-Core/AppServer issues a new opaque `viewHandle` for every interactive View. The trusted host resolves it to immutable server/session, authority revision, `SourceToolId`, and resource URI. The iframe may send only stable MCP Apps messages, tool names/arguments allowed by its advertised capability, and the opaque handle through the host-controlled channel; it cannot select or override server id, session id, binding id, source tool id, or resource URI. Desktop and the iframe never construct an MCP source name by prefixing a canonical `ToolName`.
+Core/AppServer issues a new opaque `viewHandle` for every interactive View. The trusted host resolves it to immutable server/session, authority revision, `SourceToolId`, and resource URI. The View may send only stable MCP Apps messages, tool names/arguments allowed by its advertised capability, and the opaque handle through the host-controlled channel; it cannot select or override server id, session id, binding id, source tool id, or resource URI. Client hosts and Views never construct an MCP source name by prefixing a canonical `ToolName`.
 
-History reads and resume may advertise a new View only when the persisted association still matches the current MCP registration and current authority. Opening that item fetches the current resource and creates a new handle bound to the current MCP generation. It never restores a previous iframe, session, handle, pending context, or permission. Offline, removed, changed, or revoked associations render the generic result.
+History reads and resume may advertise a new View only when the persisted association still matches the current MCP registration and current authority. Opening that item fetches the current resource and creates a new handle bound to the current MCP generation. It never restores a previous View, handle, pending context, or permission. Offline, removed, changed, or revoked associations render the generic result. Rollback, archive, delete, runtime generation replacement, binding revoke, plugin disable, configuration replacement, disconnect, and explicit close invalidate affected live handles immediately.
 
 App-initiated `tools/call` uses the common dispatcher with App audience and a server-generated call id. It does not create a Turn, Session tool item, or provider-history entry. `ui/message` is the only view action that submits or queues a source-marked Turn.
 
 ### 13.3 Isolation
 
-Desktop MUST render untrusted resources through an isolated-origin sandbox proxy/inner iframe design. It MUST enforce resource size limits, CSP, navigation restrictions, teardown, and per-view capability scoping. A view MUST NOT gain Electron, filesystem, shell, arbitrary network, or cross-server tool access. Desktop validates declared permissions but grants none; camera, microphone, geolocation, and clipboard-write are denied. Resource `domain` metadata does not choose a real iframe origin. Safe links are limited to HTTPS, `mailto`, and explicit loopback HTTP.
+A capable View host MUST isolate untrusted resources, enforce declared and host policy, and scope every bridge operation to one live handle. A View MUST NOT gain filesystem, shell, arbitrary network, cross-server tool, host-process, or unrelated client authority. Resource `domain` metadata does not choose a real origin. Safe links are limited to HTTPS, `mailto`, and explicit loopback HTTP. Exact methods, limits, and stable errors are owned by [AppServer Protocol Section 22.10](../protocols/appserver-protocol.md#2210-mcp-apps-opaque-view-methods); Desktop sandbox and recovery behavior is owned by the [Desktop Client specification](../clients/desktop-client.md#582-mcp-apps-interactive-tool-views).
 
-## 14. Local presentation registry
+## 14. Presentation boundary
 
-Desktop maintains a local `ToolRendererRegistry` independent of MCP Apps. Only trusted Core/Desktop renderers may register; plugin and third-party registration is deferred to a separate trust and code-loading specification. Entry selection requires an ordinal `PresentationId` and matching safe Core provenance. Duplicate ids are rejected. Renderer-specific bounded options are validated by the selected renderer.
+Presentation is optional and MUST preserve useful model/text fallback content. Local renderers and assistant inline visualizations are separate presentation paths; neither grants additional tool execution authority.
 
-Remote tool descriptions, MCP `_meta`, Dynamic declarations, plugin data, or result data MUST NOT name arbitrary local code. Unknown, unavailable, invalid, or provenance-mismatched renderers fall back to the generic tool card.
+### 14.1 Trusted local renderer registry
 
-The registry contains the Core renderer families for CreatePlan, Cron, SkillManage, SkillView, all SubAgent operations, shell, WriteFile/EditFile and streaming diff, WebSearch/WebFetch, RequestUserInput, ReadFile, TodoWrite/UpdateTodos, deferred tool search, and generic fallback. Conversation cards, pinning, grouping, and labels MUST consume registry render plans and MUST NOT select a special renderer by tool name.
+A trusted local renderer registry is independent of MCP Apps. Only trusted Core/client renderers may register; plugin and third-party registration is deferred to a separate trust and code-loading specification. Entry selection requires an ordinal `PresentationId` and matching safe Core provenance. Duplicate ids are rejected. Renderer-specific bounded options are validated by the selected renderer.
+
+Remote tool descriptions, MCP `_meta`, Dynamic declarations, plugin data, tool names, arguments, and result data MUST NOT name or select arbitrary local code. Unknown, unavailable, invalid, or provenance-mismatched renderers use generic fallback presentation. Client rendering families, grouping, and interaction behavior belong to the applicable client specification.
+
+### 14.2 Assistant inline visualization boundary
+
+Inline visualization is an assistant-message presentation path, not a tool-result payload. A completed `AgentMessage` may reference a View with an exact standalone directive:
+
+```text
+::dotcraft-inline-vis{file="example-name.html"}
+```
+
+The directive remains ordinary persisted assistant text. It introduces no Session Item, delta, payload kind, snapshot, metadata record, or provider-history type. Clients without the capability retain the directive as text.
+
+Only a completed `AgentMessage` containing the directive outside fenced code may authorize a View. The file name MUST match `^[a-z0-9]+(?:-[a-z0-9]+)*\.html$`. Authoring uses ordinary file tools in `<SessionThread.WorkspacePath>/.craft/visualizations/<threadId>/`; execution and worktree overrides do not change ownership. These files are transient workspace resources with no archive, fork, migration, reload, or cross-device guarantee. Implementations MUST NOT fall back to a user-global directory. Ordinary file-tool execution, history, trace, and result semantics remain unchanged.
+
+The host issues a connection-owned opaque handle after revalidating the active connection/thread binding, completed source item, exact directive, safe file name, workspace boundary, and current file. The handle binds its source thread, Turn, Item, and file; a View cannot choose or override those identities. View follow-up starts or queues a source-marked Turn and cannot forge user or channel identity. Exact capability, method, result, and error contracts are owned by [AppServer Protocol Section 22.10A](../protocols/appserver-protocol.md#2210a-inline-visualization-views). Desktop parsing, loading, sandbox, confirmation, and fallback behavior is owned by the [Desktop Client specification](../clients/desktop-client.md#583-inline-assistant-visualizations).
 
 ## 15. App Binding boundary
 
@@ -507,7 +525,7 @@ Core, Desktop, and the .NET, TypeScript, and Python SDKs use the same canonical 
 
 ## 19. Security invariants
 
-1. A definition, iframe, remote server, or invocation argument cannot grant authority.
+1. A definition, View, remote server, or invocation argument cannot grant authority.
 2. Revocation and expiry are enforced at dispatch time, not only snapshot construction.
 3. Model content, structured client content, and host-private metadata never cross audience boundaries implicitly.
 4. Remote metadata cannot select trusted local code.
@@ -545,6 +563,7 @@ The architecture requires behavior-level coverage for:
 - Runtime Dynamic declaration replacement and disconnect behavior;
 - MCP three-state configuration and source-aware status;
 - MCP Apps visibility, approval, isolation, and one-shot model context;
+- inline visualization directive authorization, workspace isolation, transient-file semantics, and handle-scoped follow-up identity;
 - Teams role-specific native snapshots plus live `TeamsService` business validation without App Binding;
 - App Binding enable/rebind/revoke/capability-expansion state transitions;
 - managed social target injection;

@@ -9,6 +9,11 @@ namespace DotCraft.CLI;
 public sealed class CliConfig
 {
     /// <summary>
+    /// Adds compact ASCII visualization guidance to CLI-originated threads.
+    /// </summary>
+    public bool TerminalVisualizationInstructions { get; set; }
+
+    /// <summary>
     /// Optional explicit path to the <c>dotcraft</c> executable used to auto-start the local Hub.
     /// When null, defaults to the current process's executable path (<c>Environment.ProcessPath</c>).
     /// </summary>

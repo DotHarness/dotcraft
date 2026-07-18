@@ -3081,4 +3081,13 @@ export const MESSAGES_JA = {
   'mcpApp.sandboxed': 'サンドボックス',
   'mcpApp.sandboxedTooltip': 'このビューは隔離されたサンドボックスで実行されます。',
   'mcpApp.sandboxedFrom': 'サンドボックスビュー · {{domain}}',
+  'inlineVisualization.followUpTitle': 'この可視化からフォローアップを送信しますか？',
+  'inlineVisualization.send': '送信',
+  'inlineVisualization.cancelled': 'フォローアップをキャンセルしました。',
+  'inlineVisualization.loading': 'インタラクティブ可視化を読み込んでいます。',
+  'inlineVisualization.scrollHint': 'この可視化は縦に長いため、内部をスクロールして残りをご覧ください。',
+  'inlineVisualization.unavailable': 'この可視化は利用できません。',
+  'inlineVisualization.frameTitle': 'インタラクティブ可視化：{{file}}',
+  'inlineVisualization.copyImage': '画像としてコピー',
+  'inlineVisualization.copyFailed': 'この可視化を画像としてコピーできませんでした。',
 } satisfies Partial<Record<MessageId, string>>

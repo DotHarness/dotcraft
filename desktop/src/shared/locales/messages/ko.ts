@@ -3083,4 +3083,13 @@ export const MESSAGES_KO = {
   'mcpApp.sandboxed': '샌드박스',
   'mcpApp.sandboxedTooltip': '이 보기는 격리된 샌드박스에서 실행됩니다.',
   'mcpApp.sandboxedFrom': '샌드박스 보기 · {{domain}}',
+  'inlineVisualization.followUpTitle': '이 시각화에서 후속 질문을 보내시겠습니까?',
+  'inlineVisualization.send': '보내기',
+  'inlineVisualization.cancelled': '후속 질문이 취소되었습니다.',
+  'inlineVisualization.loading': '대화형 시각화를 불러오는 중입니다.',
+  'inlineVisualization.scrollHint': '시각화가 매우 깁니다. 내부를 스크롤하여 나머지 내용을 확인하세요.',
+  'inlineVisualization.unavailable': '이 시각화를 사용할 수 없습니다.',
+  'inlineVisualization.frameTitle': '대화형 시각화: {{file}}',
+  'inlineVisualization.copyImage': '이미지로 복사',
+  'inlineVisualization.copyFailed': '이 시각화를 이미지로 복사할 수 없습니다.',
 } satisfies Partial<Record<MessageId, string>>

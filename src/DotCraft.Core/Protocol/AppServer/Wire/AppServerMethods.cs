@@ -143,6 +143,9 @@ public static class AppServerMethods
     public const string McpAppViewModelContextUpdate = "mcpApp/view/modelContext/update";
     public const string McpAppViewOpenLink = "mcpApp/view/openLink";
     public const string McpAppViewClose = "mcpApp/view/close";
+    public const string InlineVisualizationViewOpen = "visualization/view/open";
+    public const string InlineVisualizationViewMessage = "visualization/view/message";
+    public const string InlineVisualizationViewClose = "visualization/view/close";
     public const string HooksList = "hooks/list";
     public const string HooksSetState = "hooks/setState";
     public const string HooksTrustPlugin = "hooks/trustPlugin";

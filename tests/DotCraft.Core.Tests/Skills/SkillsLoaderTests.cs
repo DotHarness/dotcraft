@@ -20,11 +20,12 @@ public sealed class SkillsLoaderTests : IDisposable
             .OrderBy(name => name, StringComparer.Ordinal)
             .ToArray();
 
-        Assert.Equal(["create-hooks", "cron", "heartbeat", "memory", "plugin-creator", "skill-authoring", "skill-installer"], skills);
-        Assert.True(File.Exists(Path.Combine(loader.WorkspaceSkillsPath, "cron", "agents", "openai.yaml")));
-        Assert.True(File.Exists(Path.Combine(loader.WorkspaceSkillsPath, "cron", "assets", "cron.svg")));
-        Assert.True(File.Exists(Path.Combine(loader.WorkspaceSkillsPath, "plugin-creator", "scripts", "create_basic_plugin.py")));
-        Assert.True(File.Exists(Path.Combine(loader.WorkspaceSkillsPath, "plugin-creator", "references", "plugin-json-spec.md")));
+        Assert.Equal(["create-hooks", "cron", "heartbeat", "memory", "plugin-creator", "skill-authoring", "skill-installer", "visualize"], skills);
+        var visualizeInterface = loader.GetSkillInterface("visualize");
+        Assert.NotNull(visualizeInterface);
+        Assert.Equal("Visualize", visualizeInterface.DisplayName);
+        Assert.StartsWith("data:image/svg+xml;base64,", visualizeInterface.IconSmallDataUrl, StringComparison.Ordinal);
+        Assert.StartsWith("data:image/svg+xml;base64,", visualizeInterface.IconLargeDataUrl, StringComparison.Ordinal);
     }
 
     [Fact]

@@ -27,6 +27,7 @@ import type { ConnectionSettingsDraft } from '../shared/remoteConnection'
 import type { AppLocale } from '../shared/locales'
 import type { WorkspaceProjectsPayload } from '../shared/workspaceProjects'
 import type { GitHeadInspection } from '../shared/gitHead'
+import type { InlineVisualizationCaptureRect, InlineVisualizationCaptureResult } from '../shared/inlineVisualization'
 
 export type UnsubscribeFn = () => void
 export type ConnectionMode = 'local' | 'remote'
@@ -384,6 +385,9 @@ declare global {
           x: number,
           y: number
         ): Promise<void>
+      }
+      visualization: {
+        copyImage(rect: InlineVisualizationCaptureRect): Promise<InlineVisualizationCaptureResult>
       }
       appServer: {
         sendRequest(method: string, params?: unknown, timeoutMs?: number): Promise<unknown>

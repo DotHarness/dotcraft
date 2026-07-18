@@ -59,6 +59,9 @@ internal sealed class InitializeRequestHandler(
             McpManagement = !string.IsNullOrWhiteSpace(workspaceCraftPath) && services.McpClientManager != null,
             McpRuntime = services.McpClientManager != null,
             McpApps = services.McpClientManager != null && p.Capabilities?.McpApps == true,
+            InlineVisualizations = services.InlineVisualizationAssetStore != null
+                && services.InlineVisualizationRuntimeRegistry != null
+                && p.Capabilities?.InlineVisualizations == true,
             McpElicitation = services.McpClientManager != null && p.Capabilities?.McpElicitation == true,
             McpServerOrigins = services.McpClientManager != null,
             ExternalChannelManagement = !string.IsNullOrWhiteSpace(workspaceCraftPath),

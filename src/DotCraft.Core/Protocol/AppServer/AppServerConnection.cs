@@ -65,6 +65,9 @@ public sealed class AppServerConnection
     /// <summary>True when the client declared stable MCP Apps host support.</summary>
     public bool SupportsMcpApps => _clientCapabilities?.McpApps == true;
 
+    /// <summary>True when the client declared assistant inline visualization support.</summary>
+    public bool SupportsInlineVisualizations => _clientCapabilities?.InlineVisualizations == true;
+
     // -------------------------------------------------------------------------
     // Channel adapter state (external-channel-adapter.md §5.1)
     // -------------------------------------------------------------------------

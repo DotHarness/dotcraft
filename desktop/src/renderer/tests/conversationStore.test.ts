@@ -1539,6 +1539,97 @@ describe('turn lifecycle', () => {
     expect(items[0].status).toBe('completed')
   })
 
+  it('onItemCompleted restores agent text from a nested completed payload without a delta', () => {
+    s().onTurnStarted(makeTurn())
+    s().onItemStarted({ turnId: 'turn-1', item: { id: 'item-1', type: 'agentMessage' } })
+    s().onItemCompleted({
+      turnId: 'turn-1',
+      item: {
+        id: 'item-1',
+        type: 'agentMessage',
+        payload: { text: 'Final text\n\n::dotcraft-inline-vis{file="chart.html"}' }
+      }
+    })
+
+    const items = s().turns[0].items
+    expect(items).toHaveLength(1)
+    expect(items[0]).toMatchObject({
+      id: 'item-1',
+      type: 'agentMessage',
+      status: 'completed',
+      text: 'Final text\n\n::dotcraft-inline-vis{file="chart.html"}'
+    })
+  })
+
+  it('onItemCompleted keeps streamed agent text and repairs an empty completed item', () => {
+    s().onTurnStarted(makeTurn())
+    s().onItemStarted({ turnId: 'turn-1', item: { id: 'item-1', type: 'agentMessage' } })
+    s().onAgentMessageDelta('Streamed final text')
+    s().onItemCompleted({
+      turnId: 'turn-1',
+      item: { id: 'item-1', type: 'agentMessage', payload: { text: 'Payload text' } }
+    })
+    expect(s().turns[0].items[0].text).toBe('Streamed final text')
+
+    useConversationStore.setState((state) => ({
+      turns: state.turns.map((turn) => ({
+        ...turn,
+        items: turn.items.map((item) => item.id === 'item-1' ? { ...item, text: '' } : item)
+      }))
+    }))
+    const completion = {
+      turnId: 'turn-1',
+      item: { id: 'item-1', type: 'agentMessage', payload: { text: 'Recovered text' } }
+    }
+    s().onItemCompleted(completion)
+    s().onItemCompleted(completion)
+
+    expect(s().turns[0].items).toHaveLength(1)
+    expect(s().turns[0].items[0].text).toBe('Recovered text')
+  })
+
+  it('onItemCompleted does not consume another agent item streaming buffer', () => {
+    s().onTurnStarted(makeTurn())
+    s().onItemStarted({ turnId: 'turn-1', item: { id: 'item-1', type: 'agentMessage' } })
+    s().onItemCompleted({
+      turnId: 'turn-1',
+      item: { id: 'item-1', type: 'agentMessage', payload: { text: 'First response' } }
+    })
+    s().onItemStarted({ turnId: 'turn-1', item: { id: 'item-2', type: 'agentMessage' } })
+    s().onAgentMessageDelta('Second response in progress')
+
+    s().onItemCompleted({
+      turnId: 'turn-1',
+      item: { id: 'item-1', type: 'agentMessage', payload: { text: 'First response' } }
+    })
+
+    expect(s().streamingMessage).toBe('Second response in progress')
+    expect(s().activeItemId).toBe('item-2')
+    expect(s().turns[0].items.find((item) => item.id === 'item-1')?.text).toBe('First response')
+  })
+
+  it('onTurnCompleted reconciles authoritative items without dropping local items', () => {
+    const startedAt = new Date().toISOString()
+    s().onTurnStarted(makeTurn({ startedAt }))
+    s().onItemStarted({ turnId: 'turn-1', item: { id: 'item-1', type: 'agentMessage' } })
+    s().onItemStarted({
+      turnId: 'turn-1',
+      item: { id: 'local-tool', type: 'toolCall', toolName: 'ReadFile', createdAt: startedAt }
+    })
+
+    s().onTurnCompleted(makeTurn({
+      status: 'completed',
+      startedAt,
+      items: [
+        { id: 'item-1', type: 'agentMessage', payload: { text: 'Authoritative final text' } }
+      ]
+    }))
+
+    const items = s().turns[0].items
+    expect(items.find((item) => item.id === 'item-1')?.text).toBe('Authoritative final text')
+    expect(items.some((item) => item.id === 'local-tool')).toBe(true)
+  })
+
   it('onTurnCompleted marks turn as completed and clears running state', () => {
     s().onTurnStarted(makeTurn())
     s().onTurnCompleted(makeTurn({ status: 'completed', completedAt: new Date().toISOString() }))

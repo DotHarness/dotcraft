@@ -3273,7 +3273,16 @@ export const MESSAGES_EN = {
   'mcpApp.exitFullscreen': 'Exit fullscreen',
   'mcpApp.sandboxed': 'Sandboxed',
   'mcpApp.sandboxedTooltip': 'This view runs in an isolated sandbox.',
-  'mcpApp.sandboxedFrom': 'Sandboxed view · {{domain}}'
+  'mcpApp.sandboxedFrom': 'Sandboxed view · {{domain}}',
+  'inlineVisualization.followUpTitle': 'Send a follow-up from this visualization?',
+  'inlineVisualization.send': 'Send',
+  'inlineVisualization.cancelled': 'Follow-up cancelled.',
+  'inlineVisualization.loading': 'Loading interactive visualization.',
+  'inlineVisualization.scrollHint': 'This visualization is very tall. Scroll inside it to see the remaining content.',
+  'inlineVisualization.unavailable': 'This visualization is unavailable.',
+  'inlineVisualization.frameTitle': 'Interactive visualization: {{file}}',
+  'inlineVisualization.copyImage': 'Copy as image',
+  'inlineVisualization.copyFailed': 'Could not copy this visualization as an image.'
 } as const
 
 export type MessageId = keyof typeof MESSAGES_EN

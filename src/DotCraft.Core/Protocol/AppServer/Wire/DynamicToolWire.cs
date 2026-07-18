@@ -298,7 +298,7 @@ public sealed class UiToolApprovalRequestParams
 /// link. The host enforces the scheme policy (<c>https:</c>/<c>mailto:</c>, plus the bound app's
 /// declared <c>nativeApplication.protocol</c> deep‑link scheme — M‑v) and records the open on the
 /// App Binding audit trail; the actual navigation happens in the Desktop host. Decoupled — no
-/// turn/item. See tool-result-presentation.md §7, §11.
+/// turn/item. See tools-architecture.md §13 and desktop-client.md §5.8.2.
 /// </summary>
 public sealed class UiOpenLinkParams
 {
@@ -324,7 +324,7 @@ public sealed class UiOpenLinkResult
 /// Params for <c>ui/update-model-context</c> (host → server, M‑iii): the UI pushes UI‑derived state
 /// for the model's next turn. Recorded as an App Binding context block keyed to the originating
 /// <c>dynamicToolCall</c> item (last‑write‑wins); empty/absent <see cref="Content"/> clears it.
-/// Decoupled — no turn/item. See tool-result-presentation.md §7.
+/// Decoupled — no turn/item. See tools-architecture.md §13 and desktop-client.md §5.8.2.
 /// </summary>
 public sealed class UiUpdateModelContextParams
 {

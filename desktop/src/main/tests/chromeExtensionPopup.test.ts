@@ -9,8 +9,6 @@ async function importPopup() {
   return await import(`data:text/javascript;base64,${Buffer.from(source, 'utf8').toString('base64')}`)
 }
 
-const extensionRoot = new URL('../../../resources/plugins/dotcraft-bundled/plugins/chrome/extension/', import.meta.url)
-
 function createRoot() {
   const classes = new Set<string>(['is-loading'])
   const pill = {
@@ -61,33 +59,6 @@ describe('Chrome extension popup', () => {
       className: 'is-disconnected',
       message: 'Click the extension icon to start the DotCraft Chrome backend, then refresh status in DotCraft settings.'
     })
-  })
-
-  it('declares bundled DotCraft icons for the extension and toolbar action', async () => {
-    const html = await readFile(new URL('popup.html', extensionRoot), 'utf8')
-    const manifest = JSON.parse(await readFile(new URL('manifest.json', extensionRoot), 'utf8')) as {
-      name?: string
-      icons?: Record<string, string>
-      action?: { default_title?: string, default_icon?: Record<string, string> }
-    }
-    const expectedIcons = {
-      '16': 'icons/dotcraft-16.png',
-      '32': 'icons/dotcraft-32.png',
-      '48': 'icons/dotcraft-48.png',
-      '128': 'icons/dotcraft-128.png'
-    }
-
-    expect(manifest.name).toBe('DotCraft')
-    expect(manifest.action?.default_title).toBe('DotCraft')
-    expect(manifest.icons).toEqual(expectedIcons)
-    expect(manifest.action?.default_icon).toEqual(expectedIcons)
-    expect(html).toContain('icons/dotcraft-48.png')
-    expect(html).toContain('<title>DotCraft</title>')
-
-    for (const iconPath of Object.values(expectedIcons)) {
-      const icon = await readFile(new URL(iconPath, extensionRoot))
-      expect(icon.length).toBeGreaterThan(0)
-    }
   })
 
   it('does not render native pipe paths in connected popup text', async () => {

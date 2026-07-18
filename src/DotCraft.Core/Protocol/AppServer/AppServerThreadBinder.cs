@@ -1,4 +1,5 @@
 using DotCraft.Context;
+using DotCraft.Protocol.InlineVisualizations;
 
 namespace DotCraft.Protocol.AppServer;
 
@@ -13,6 +14,7 @@ internal sealed class AppServerThreadBinder(
     WireNodeReplProxy? wireNodeReplProxy,
     WireDynamicToolProxy? wireDynamicToolProxy,
     WireRuntimeAdditionalContextProvider? wireRuntimeAdditionalContextProvider,
+    InlineVisualizationRuntimeRegistry? inlineVisualizationRuntimeRegistry,
     IContextPageManager? contextPageManager)
 {
     public void ValidateRuntimeInputs(
@@ -39,6 +41,11 @@ internal sealed class AppServerThreadBinder(
             wireAcpExtensionProxy.BindThread(thread.Id, transport, connection);
 
         var shouldRefreshAgent = false;
+        if (inlineVisualizationRuntimeRegistry?.BindThread(thread, transport, connection) == true)
+        {
+            contextPageManager?.ReleaseStablePage(thread.Id, ContextPageKeys.InlineVisualization());
+            shouldRefreshAgent = true;
+        }
         if (wireNodeReplProxy != null && connection.HasNodeRepl && connection.HasBrowserUse)
         {
             wireNodeReplProxy.BindThread(thread.Id, transport, connection);

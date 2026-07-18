@@ -389,7 +389,7 @@ export const AgentResponseBlock = memo(function AgentResponseBlock({
       renderNodes.push(...trailingNodes)
     } else {
       // Pin durable user-facing results out of the collapsed
-      // summary (tool-result-presentation M‑vii). Split the intermediate run at each
+      // summary (desktop-client.md §5.8). Split the intermediate run at each
       // pinned boundary so a pinned card never merges the tool runs on either side.
       const pinnedIndices = collectPinnedIntermediateIndices(renderableItems, lastFinalAgentMessageIndex)
       const trailingNodes = renderItemSequence(renderableItems.slice(lastFinalAgentMessageIndex))
@@ -1266,7 +1266,7 @@ function findLastPinnedCoreRendererIndexBefore(items: ConversationItem[], before
 /**
  * A completed `dynamicToolCall` whose result declares an Interactive Tool UI
  * (`ui://` resource). These are user‑actionable surfaces, not model‑log noise, so
- * they are pinned out of the collapsed turn summary (tool-result-presentation §14).
+ * they are pinned out of the collapsed turn summary (desktop-client.md §5.8).
  */
 function isInteractiveCardItem(item: ConversationItem): boolean {
   return isToolLikeItemType(item.type)

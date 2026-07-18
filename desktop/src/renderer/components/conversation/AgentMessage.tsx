@@ -5,7 +5,8 @@ import { useConnectionStore } from '../../stores/connectionStore'
 import { addToast } from '../../stores/toastStore'
 import { useTypewriterReveal } from '../../hooks/useTypewriterReveal'
 import { ContextMenu, type ContextMenuItem, type ContextMenuPosition } from '../ui/ContextMenu'
-import { MarkdownRenderer } from './MarkdownRenderer'
+import { InlineVisualizationMessage } from './InlineVisualizationMessage'
+import { stripInlineVisualizationDirectives } from './inlineVisualizationParser'
 import { MessageCopyButton } from './MessageCopyButton'
 import { ActionTooltip } from '../ui/ActionTooltip'
 import { canForkThread, canForkWorktree, runThreadFork, type ThreadForkMode } from '../../utils/threadFork'
@@ -113,7 +114,7 @@ export function AgentMessage({
     items.push({
       label: t('conversation.copyMessage'),
       onClick: () => {
-        void copyText(text)
+        void copyText(stripInlineVisualizationDirectives(text))
       }
     })
     return items
@@ -132,7 +133,7 @@ export function AgentMessage({
       }}
       onContextMenu={handleContextMenu}
     >
-      <MarkdownRenderer content={displayText} />
+      <InlineVisualizationMessage text={displayText} streaming={streaming} threadId={threadId} turnId={turnId} itemId={itemId} />
       {afterContent}
       {showFooter && (
         <div
@@ -151,7 +152,7 @@ export function AgentMessage({
           }}
         >
           <MessageCopyButton
-            getText={() => text}
+            getText={() => stripInlineVisualizationDirectives(text)}
             visible={actionsVisible && text.length > 0}
             disabled={streaming || text.length === 0}
             wrapperStyle={{

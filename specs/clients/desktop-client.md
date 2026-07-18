@@ -2,11 +2,11 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.6.0 |
+| **Version** | 0.6.1 |
 | **Status** | Living |
-| **Date** | 2026-07-16 |
+| **Date** | 2026-07-18 |
 | **Parent Spec** | [AppServer Protocol](../protocols/appserver-protocol.md) |
-| **Related Specs** | [App Binding](../protocols/app-binding.md), [Plugin Architecture](../architecture/plugin-architecture.md), [Tool Result Presentation](../protocols/tool-result-presentation.md), [Goal Design](../features/goal.md), [Remote Server Management](../features/remote-server-management.md), [Desktop DESIGN.md](../architecture/DESIGN.md) |
+| **Related Specs** | [Tool Architecture](../architecture/tools-architecture.md), [App Binding](../protocols/app-binding.md), [Plugin Architecture](../architecture/plugin-architecture.md), [Goal Design](../features/goal.md), [Remote Server Management](../features/remote-server-management.md), [Desktop DESIGN.md](../architecture/DESIGN.md) |
 
 Purpose: Define the stable user-experience behavior of **DotCraft Desktop** as a protocol client for DotCraft AppServer. This document specifies user-visible flows, interaction rules, state transitions, and recovery behavior. It does not define frontend implementation details, visual design, or framework choices.
 
@@ -25,6 +25,10 @@ Purpose: Define the stable user-experience behavior of **DotCraft Desktop** as a
     - [5.3.2 Interactive Request Restore](#532-interactive-request-restore)
     - [5.3.3 Snapshot and Realtime Reconciliation](#533-snapshot-and-realtime-reconciliation)
     - [5.3.4 Backend Verification Gate](#534-backend-verification-gate)
+  - [5.8 View Changes, Plans, and Tool Output](#58-view-changes-plans-and-tool-output)
+    - [5.8.1 Trusted Local Renderers](#581-trusted-local-renderers)
+    - [5.8.2 MCP Apps Interactive Tool Views](#582-mcp-apps-interactive-tool-views)
+    - [5.8.3 Inline Assistant Visualizations](#583-inline-assistant-visualizations)
 - [6. Secondary Flows](#6-secondary-flows)
 - [6.7 Settings Surface](#67-settings-surface)
 - [6.8 Channel Modules](#68-channel-modules)
@@ -48,7 +52,7 @@ Purpose: Define the stable user-experience behavior of **DotCraft Desktop** as a
 - How secondary surfaces such as Skills and Automations behave from the user's perspective.
 - How users discover, configure, enable, and recover Desktop-managed channel modules.
 - How trusted plugin-contributed Desktop extensions appear in Desktop surfaces.
-- How supported tool-result presentation payloads become safe conversation cards.
+- How trusted presentation descriptors and interactive View capabilities become safe conversation surfaces.
 - How Desktop-owned Runtime Dynamic Tools can manage background threads through AppServer.
 - How the client communicates failure, recovery, and availability constraints.
 - Localization, accessibility, and performance expectations at the UX level.
@@ -201,6 +205,8 @@ For secondary connections, only thread-list and runtime notifications update bac
 | `turn/failed` | The user sees that the turn ended unsuccessfully and is given a path to retry or continue. |
 | `turn/cancelled` | The running state clears and the user sees that the turn was interrupted. |
 
+`Turn.error` is the canonical user-facing Turn failure. If the same failure is also retained as an Error Item, Desktop presents it once. Distinct errors remain independently visible.
+
 While a turn is actively running, the conversation view must always show visible activity. If no live reasoning, non-stalled non-empty streaming assistant text, running tool row, approval wait row, user-input wait row, or system maintenance status row is currently visible, Desktop renders a non-persistent Thinking indicator at the active turn tail until the next visible live item appears. If non-empty assistant text is streaming but no text delta arrives for 2 seconds, Desktop treats that text stream as stalled and shows the same non-persistent Thinking indicator below the current streaming message; the indicator disappears as soon as a new text delta arrives, and the delta continues appending to the same streaming assistant message.
 
 ### 4.3 Item Events
@@ -213,7 +219,7 @@ While a turn is actively running, the conversation view must always show visible
 | `item/toolCall/argumentsDelta` | Tool argument construction streams incrementally. For known built-in tools, the client renders a bespoke running label (e.g. "Writing <path>", "Searching \"<pattern>\"", "Drafting plan...") and, where useful, a progressive preview of the parsed argument fields. For unknown tools (including MCP and module tools), the client renders a generic "Generating parameters for <toolName>..." placeholder without surfacing the raw argument JSON. |
 | `terminal/started`, `terminal/outputDelta`, `terminal/completed` | Running shell output/status is merged by `terminal.threadId + terminal.callId` into the matching `Exec` tool card in both the conversation view and the Terminal review surface. |
 | `item/commandExecution/outputDelta` | Compatibility fallback for clients or sessions that do not receive `terminal/*`; Desktop must not double-render the same shell output when both paths are present. |
-| `item/completed` | The final item output replaces or finalizes any in-progress representation. If a completed `dynamicToolCall` includes a supported Tool Result Presentation payload, the client may render a trusted local presentation card with generic fallback available. |
+| `item/completed` | The final item output replaces or finalizes any in-progress representation. A trusted presentation descriptor may select a local renderer, and an eligible terminal `mcpToolCall` may advertise a live MCP Apps View; generic fallback remains available. |
 | `item/usage/delta` | Context usage indicators refresh when the client surfaces real-time usage. Deltas accumulate for the active turn and are reconciled by the final `turn/completed.tokenUsage` snapshot. |
 
 ### 4.4 Approval Events
@@ -404,10 +410,6 @@ Before changing Desktop restore behavior for a reported restore bug, the impleme
 - Plan updates remain associated with the active thread and reflect the latest complete plan snapshot. While a `CreatePlan` tool call is still streaming its arguments, the dedicated plan surface renders a live draft (title, overview, and any fully-formed todo entries) so the user sees the plan taking shape in real time; the draft is replaced by the finalized snapshot once `plan/updated` is received.
 - Tool output remains readable in-thread and must remain distinguishable from agent conversational text.
 - Completed `RequestUserInput` tool results render as a question-to-answer list using the original question text and the user's selected option or free-form response, rather than exposing the raw response JSON.
-- App-bound tools may declare an interactive UI (`_meta.ui.resourceUri`); Desktop renders it in a sandboxed iframe with a neutral host frame, per [Interactive Tool UI](../protocols/tool-result-presentation.md).
-- The UI talks to the host over the postMessage bridge: it may `ui/open-link` (open the bound app or an `https:` URL — no tool call), call app-visible tools via `tools/call` (gated by binding scope/risk/approval + audit), `ui/message` the thread, or `ui/update-model-context`.
-- The iframe is sandboxed (CSP + permissions per `_meta.ui`); a UI-initiated `tools/call` carries no authority of its own — Desktop re-derives scope/risk/approval. `ui/open-link` is restricted to `https:` and the bound app's declared protocols.
-- Non-Desktop clients, and any failure to render, fall back to the tool result's text (`contentItems` / `structuredResult`); the interactive UI is never required for correctness.
 - Desktop declares `backgroundTerminals = true` and treats `terminal/*` notifications as its primary live shell output data. `commandExecution` remains a persisted/compatibility projection and fallback.
 - In the conversation view, shell work remains collapsed by default using the normal tool-card style. If the user expands the card, live output may be shown there while the command is still running.
 - The Terminal detail surface merges terminal snapshots and command execution history for the current thread, including in-progress commands.
@@ -415,6 +417,40 @@ Before changing Desktop restore behavior for a reported restore bug, the impleme
 - If the user switches to another thread while a command is still running, the output continues updating in the background thread state without forcing a focus change.
 - Desktop does not require interactive terminal input; shell output is read-only from the Desktop client's perspective.
 - The client may reveal related context automatically when new changes or plans appear, but the rule should be based on relevance, not on any fixed panel design.
+
+Durable user-actionable result cards and available interactive Views remain outside collapsed Turn summaries. Collapsing intermediate work must not hide an action the user still needs or a completed result intended for direct review.
+
+#### 5.8.1 Trusted Local Renderers
+
+Desktop consumes trusted `PresentationId` and Core provenance projected by the server. It does not select local code from tool names, arguments, results, MCP metadata, Dynamic declarations, or plugin payloads. Unknown, unavailable, invalid, or provenance-mismatched descriptors use the generic tool card.
+
+The local registry covers trusted renderers for plans, cron, skills, subagents, shell, file writes and streaming diffs, web operations, user input, file reads, todo updates, deferred tool search, and generic fallback. Conversation pinning, grouping, labels, and render plans consume the registry result instead of branching independently on tool names. The authority and audience contract is defined by [Tool Architecture Section 14.1](../architecture/tools-architecture.md#141-trusted-local-renderer-registry).
+
+#### 5.8.2 MCP Apps Interactive Tool Views
+
+Desktop hosts stable MCP Apps `2026-01-26` Views through the standard AppBridge initialize/initialized, ping, notification, and teardown lifecycle. Interactive UI remains optional: ineligible items, unsupported clients, offline resources, initialization failures, and revoked Views render the terminal tool result's model/text fallback.
+
+Desktop opens a View only for a terminal `mcpToolCall` whose current projection advertises availability. It calls `mcpApp/view/open`, connects AppBridge, loads the isolated sandbox proxy, delivers the validated resource after proxy readiness, waits for View initialization, and then supplies tool input and result. Each stage has a bounded wait and uses one teardown path. History and reconnect create a new View on demand; Desktop never restores a previous handle, iframe, pending context, or bridge state.
+
+The host supports inline and fullscreen modes on the same handle. Picture-in-picture and persisted widget state are not supported. Theme, locale, time zone, dimensions, display mode, and standard CSS variables are delivered through host context; size and context changes are coalesced to at most ten updates per second.
+
+The inner document runs in an opaque-origin sandbox with CSP, navigation, permission, and capability restrictions. It receives no Electron, Node, filesystem, shell, parent DOM, generic IPC, undeclared network, or cross-server authority. Declared camera, microphone, geolocation, and clipboard-write permissions remain denied. The View may use same-server app-visible tools and resources, logging, `ui/message`, and `ui/update-model-context` only through the handle-bound host bridge. Tool calls still pass server authority, policy, approval, hooks, timeout, and result limits.
+
+For `ui/open-link`, Desktop asks AppServer to validate and normalize the URL before invoking the trusted shell boundary. Offline, revoked, and closed status notifications tear down the View immediately and restore generic fallback. Host-frame appearance and fullscreen visual treatment follow [Desktop DESIGN](../architecture/DESIGN.md#interactive-tool-ui); exact methods, DTOs, limits, and errors remain defined by [AppServer Protocol Section 22.10](../protocols/appserver-protocol.md#2210-mcp-apps-opaque-view-methods).
+
+#### 5.8.3 Inline Assistant Visualizations
+
+Desktop recognizes exact standalone `::dotcraft-inline-vis{file="example-name.html"}` directives only in completed assistant messages and outside fenced code. Invalid syntax, paths, attributes, inline code, and other prefixes remain ordinary Markdown. One message may contain multiple directives; Markdown and Views retain source order. Streaming messages do not mount a possibly incomplete directive.
+
+Historical Views load only when their host enters the conversation scroll container's 320px preload range. Before that boundary, Desktop reserves a static content-shaped placeholder and sends no AppServer request. Loading begins with a single animated shape-matched skeleton and covers connection/thread runtime rebinding, `visualization/view/open`, sandbox bootstrap, and iframe readiness. Loaded Views remain mounted when scrolled away.
+
+On a new Desktop connection, the first near-viewport View for a thread resumes that thread before opening the View. Concurrent opens share one connection/thread resume. A successful `thread/start` or explicit `thread/resume` satisfies the binding; connection reset clears it. `thread/read`, subscription, and thread-list loading never eagerly resume or open visualization Views.
+
+The fragment runs in the dedicated opaque-origin sandbox and receives only readiness, coalesced resize, theme/context updates, and `window.openai.sendFollowUpMessage`. A follow-up shows a trusted Desktop confirmation with a read-only prompt; only confirmation sends the handle-bound message. Cancellation, teardown, disconnect, and stale handles reject the pending View request.
+
+Desktop may copy the current rendered View to the system clipboard as a tightly cropped image. The capture includes the current SVG, canvas, form, and interaction state with the active theme background; it excludes host actions, loading/error UI, surrounding Markdown, and other conversation content. The host action and View surface follow [Desktop DESIGN](../architecture/DESIGN.md#inline-visualization).
+
+Unmounting, switching threads, or disconnecting closes an acquired handle. A handle returned after cancellation is closed without mounting. Loading failure renders the localized unavailable fallback and Retry action; Retry repeats the on-demand open path. Exact directive authority, workspace ownership, and transient-file semantics are defined by [Tool Architecture Section 14.2](../architecture/tools-architecture.md#142-assistant-inline-visualization-boundary). Exact methods and errors remain defined by [AppServer Protocol Section 22.10A](../protocols/appserver-protocol.md#2210a-inline-visualization-views).
 
 ### 5.9 Interrupt a Running Turn
 

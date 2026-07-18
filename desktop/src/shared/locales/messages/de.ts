@@ -3091,4 +3091,13 @@ export const MESSAGES_DE = {
   'mcpApp.sandboxed': 'Sandbox',
   'mcpApp.sandboxedTooltip': 'Diese Ansicht läuft in einer isolierten Sandbox.',
   'mcpApp.sandboxedFrom': 'Sandbox-Ansicht · {{domain}}',
+  'inlineVisualization.followUpTitle': 'Eine Rückfrage aus dieser Visualisierung senden?',
+  'inlineVisualization.send': 'Senden',
+  'inlineVisualization.cancelled': 'Rückfrage abgebrochen.',
+  'inlineVisualization.loading': 'Interaktive Visualisierung wird geladen.',
+  'inlineVisualization.scrollHint': 'Diese Visualisierung ist sehr hoch. Scrollen Sie darin, um den restlichen Inhalt zu sehen.',
+  'inlineVisualization.unavailable': 'Diese Visualisierung ist nicht verfügbar.',
+  'inlineVisualization.frameTitle': 'Interaktive Visualisierung: {{file}}',
+  'inlineVisualization.copyImage': 'Als Bild kopieren',
+  'inlineVisualization.copyFailed': 'Diese Visualisierung konnte nicht als Bild kopiert werden.',
 } satisfies Partial<Record<MessageId, string>>

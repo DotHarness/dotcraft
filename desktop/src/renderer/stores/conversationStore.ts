@@ -1209,6 +1209,18 @@ function mergeRealtimeMatchedItem(
   existing: ConversationItem | undefined
 ): ConversationItem {
   if (!existing) return incoming
+  if (incoming.type === 'agentMessage' && existing.type === 'agentMessage') {
+    return {
+      ...incoming,
+      text: incoming.text || existing.text
+    }
+  }
+  if (incoming.type === 'reasoningContent' && existing.type === 'reasoningContent') {
+    return {
+      ...incoming,
+      reasoning: incoming.reasoning || existing.reasoning
+    }
+  }
   if (incoming.type === 'toolCall') {
     return mergeRealtimeToolCall(incoming, existing)
   }
@@ -2074,10 +2086,10 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
         turns: state.turns.map((t) =>
           t.id === turn.id
             ? {
-                ...t,
+                ...mergeExistingRealtimeTurn(turn, t),
                 status: 'completed' as TurnStatus,
-                completedAt: turn.completedAt,
-                tokenUsage: turn.tokenUsage,
+                completedAt: turn.completedAt ?? t.completedAt,
+                tokenUsage: turn.tokenUsage ?? t.tokenUsage,
                 subAgentEntries: state.subAgentEntries
               }
             : t
@@ -2611,53 +2623,46 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
     const state = get()
 
     if (type === 'agentMessage') {
-      const itemId = (item?.id as string) ?? ''
-      // Deduplicate: skip if this item was already completed (streaming placeholder shares the same id)
-      const alreadyCommitted = state.turns
-        .find((t) => t.id === turnId)
-        ?.items.some((i) => i.id === itemId && i.type === 'agentMessage' && i.status === 'completed')
-      if (alreadyCommitted) {
-        // Still clear streaming state even if we skip the item
-        set({ streamingMessage: '', streamingMessageLastDeltaAt: null, activeItemId: null })
-        return
-      }
-      const finalText = state.streamingMessage || ((item?.text as string) ?? (item?.content as string) ?? '')
+      const mappedItem = wireItemToConversationItem(item)
+      const itemId = mappedItem.id
       set((s) => {
         const turn = s.turns.find((t) => t.id === turnId)
         if (!turn) {
-          return { streamingMessage: '', streamingMessageLastDeltaAt: null, activeItemId: null }
+          return s.activeItemId === itemId
+            ? { streamingMessage: '', streamingMessageLastDeltaAt: null, activeItemId: null }
+            : {}
         }
-        const hasPlaceholder = turn.items.some((i) => i.id === itemId && i.type === 'agentMessage')
-        const completedAt = (item?.completedAt as string) ?? new Date().toISOString()
-        const nextItems = hasPlaceholder
+        const existingItem = turn.items.find((i) => i.id === itemId && i.type === 'agentMessage')
+        const streamingText = s.activeItemId === itemId ? s.streamingMessage : ''
+        const finalText = streamingText || mappedItem.text || existingItem?.text || ''
+        const completedAt = mappedItem.completedAt ?? existingItem?.completedAt ?? new Date().toISOString()
+        const completedItem: ConversationItem = {
+          ...existingItem,
+          ...mappedItem,
+          status: 'completed',
+          text: finalText,
+          createdAt: typeof item?.createdAt === 'string'
+            ? mappedItem.createdAt
+            : existingItem?.createdAt ?? mappedItem.createdAt,
+          completedAt
+        }
+        const nextItems = existingItem
           ? turn.items.map((i) =>
               i.id === itemId && i.type === 'agentMessage'
-                ? {
-                    ...i,
-                    status: 'completed' as const,
-                    text: finalText,
-                    completedAt
-                  }
+                ? completedItem
                 : i
             )
           : sortItemsByCreatedAt([
               ...turn.items,
-              {
-                id: itemId,
-                type: 'agentMessage' as const,
-                status: 'completed' as const,
-                text: finalText,
-                createdAt: (item?.createdAt as string) ?? new Date().toISOString(),
-                completedAt
-              }
+              completedItem
             ])
         return {
           turns: s.turns.map((t) =>
             t.id === turnId ? { ...t, items: sortItemsByCreatedAt(nextItems) } : t
           ),
-          streamingMessage: '',
-          streamingMessageLastDeltaAt: null,
-          activeItemId: null
+          ...(s.activeItemId === itemId
+            ? { streamingMessage: '', streamingMessageLastDeltaAt: null, activeItemId: null }
+            : {})
         }
       })
     } else if (type === 'reasoningContent') {

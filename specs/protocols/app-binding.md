@@ -5,7 +5,7 @@
 | Version | 2.1.0 |
 | Status | Normative |
 | Date | 2026-07-16 |
-| Related specs | [Tools architecture](../architecture/tools-architecture.md), [AppServer protocol](appserver-protocol.md), [Tool result presentation](tool-result-presentation.md), [Session Core](../architecture/session-core.md) |
+| Related specs | [Tools architecture](../architecture/tools-architecture.md), [AppServer protocol](appserver-protocol.md), [Desktop Client](../clients/desktop-client.md), [Session Core](../architecture/session-core.md) |
 
 App Binding is DotCraft's application connection and thread-authorization control plane. It does not define, attach, execute, or present tools. Ordinary application capabilities come from one binding-scoped MCP session; interactive presentation uses MCP Apps. Social-channel bindings authorize a conversation target whose operations are exposed by a managed native tool source.
 

@@ -12,6 +12,8 @@ import type {
 import { resolveTaskCompletionNotificationMode } from './settings'
 import type { GitHeadInspection } from '../shared/gitHead'
 import { sameWorkspaceProjectKey } from '../shared/workspaceProjectKey'
+import type { InlineVisualizationCaptureRect } from '../shared/inlineVisualization'
+import { copyInlineVisualizationImage } from './inlineVisualizationCapture'
 import { resolveBinaryLocation } from './AppServerManager'
 import { RemoteServersManager } from './remoteServers/remoteServersManager'
 import {
@@ -1292,6 +1294,14 @@ export function registerIpcHandlers(
     ipcMain.handle(channel, listener)
   }
   let cachedModules: DiscoveredModule[] | null = null
+
+  handleSafe('visualization:copy-image', async (event, rect: InlineVisualizationCaptureRect) => {
+    const owner = BrowserWindow.fromWebContents(event.sender)
+    if (!owner || owner.isDestroyed() || event.sender.isDestroyed()) {
+      throw new Error('The visualization window is unavailable.')
+    }
+    return copyInlineVisualizationImage(event.sender, rect)
+  })
   const configWriteQueues = new Map<string, Promise<void>>()
   const scanAndCacheModules = async (
     options?: { emitSummary?: boolean }
@@ -2799,6 +2809,7 @@ export function unregisterIpcHandlers(): void {
     ipcMain.removeHandler(channel)
   }
   ipcMain.removeHandler('appserver:send-request')
+  ipcMain.removeHandler('visualization:copy-image')
   ipcMain.removeHandler('appserver:model-list')
   ipcMain.removeHandler('appserver:workspace-config-schema')
   ipcMain.removeHandler('workspace-config:get-core')

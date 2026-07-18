@@ -164,10 +164,16 @@ function turnIncludesFile(file: FileDiff, turnId: string): boolean {
 }
 
 function toArtifact(diff: FileDiff): Artifact | null {
+  if (isInlineVisualizationPath(diff.filePath)) return null
   const ext = extensionOf(diff.filePath)
   if (ext === '.md' || ext === '.markdown') return { kind: 'markdown', diff }
   if (ext === '.html' || ext === '.htm') return { kind: 'html', diff }
   return null
+}
+
+function isInlineVisualizationPath(filePath: string): boolean {
+  const normalized = filePath.replace(/\\/g, '/').toLowerCase()
+  return /(^|\/)\.craft\/visualizations(?:\/|$)/.test(normalized)
 }
 
 function basename(filePath: string): string {

@@ -75,7 +75,7 @@ export function SkillToolCard({
           <button
             type="button"
             onClick={() => void openSkill()}
-            style={viewButton}
+            className="skill-tool-card-view-button"
             aria-label={translate(locale, 'skillTool.card.viewInSkills')}
           >
             {translate(locale, 'skillTool.card.view')}
@@ -147,16 +147,4 @@ const subtitleStyle: CSSProperties = {
   fontSize: '12px',
   lineHeight: 1.45,
   wordBreak: 'break-word'
-}
-
-const viewButton: CSSProperties = {
-  border: '1px solid var(--border-default)',
-  borderRadius: '999px',
-  padding: '2px 10px',
-  background: 'var(--bg-primary)',
-  color: 'var(--text-secondary)',
-  cursor: 'pointer',
-  fontSize: '11px',
-  lineHeight: 1.3,
-  flexShrink: 0
 }

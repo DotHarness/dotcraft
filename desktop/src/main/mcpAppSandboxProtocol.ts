@@ -5,6 +5,8 @@ import {
   MCP_APP_SANDBOX_BRIDGE_VIOLATION_METHOD,
   MCP_APP_SANDBOX_PROXY_READY_METHOD,
   MCP_APP_SANDBOX_PROXY_URL,
+  INLINE_VISUALIZATION_MAX_DOCUMENT_BYTES,
+  INLINE_VISUALIZATION_SANDBOX_RESOURCE_READY_METHOD,
   MCP_APP_SANDBOX_RESOURCE_READY_METHOD,
   MCP_APP_SANDBOX_SCHEME
 } from '../shared/mcpAppSandbox'
@@ -16,7 +18,9 @@ export const MCP_APP_SANDBOX_PROXY_HTML = `<!doctype html><html><head><meta char
   let inner = null;
   const maxBytes = ${MCP_APP_MAX_BRIDGE_MESSAGE_BYTES};
   const maxResourceBytes = ${MCP_APP_MAX_RESOURCE_BYTES};
+  const maxVisualizationDocumentBytes = ${INLINE_VISUALIZATION_MAX_DOCUMENT_BYTES};
   const resourceReadyMethod = ${JSON.stringify(MCP_APP_SANDBOX_RESOURCE_READY_METHOD)};
+  const visualizationResourceReadyMethod = ${JSON.stringify(INLINE_VISUALIZATION_SANDBOX_RESOURCE_READY_METHOD)};
   const byteLength = (value) => new TextEncoder().encode(value).byteLength;
   const withinLimit = (message) => {
     try {
@@ -26,10 +30,11 @@ export const MCP_APP_SANDBOX_PROXY_HTML = `<!doctype html><html><head><meta char
     catch { return false; }
   };
   const resourceBootstrapWithinLimit = (message) => {
-    if (!message || typeof message !== 'object' || message.method !== resourceReadyMethod) return false;
+    if (!message || typeof message !== 'object' || (message.method !== resourceReadyMethod && message.method !== visualizationResourceReadyMethod)) return false;
     const params = message.params;
     if (!params || typeof params !== 'object' || typeof params.html !== 'string') return false;
-    if (byteLength(params.html) > maxResourceBytes) return false;
+    const limit = message.method === visualizationResourceReadyMethod ? maxVisualizationDocumentBytes : maxResourceBytes;
+    if (byteLength(params.html) > limit) return false;
     return withinLimit({ ...message, params: { ...params, html: '' } });
   };
   const violate = () => {
@@ -44,7 +49,7 @@ export const MCP_APP_SANDBOX_PROXY_HTML = `<!doctype html><html><head><meta char
   window.addEventListener('message', (event) => {
     if (event.source === window.parent) {
       const message = event.data;
-      if (message && message.method === resourceReadyMethod) {
+      if (message && (message.method === resourceReadyMethod || message.method === visualizationResourceReadyMethod)) {
         if (!resourceBootstrapWithinLimit(message)) { violate(); return; }
         const params = message.params || {};
         inner = document.createElement('iframe');

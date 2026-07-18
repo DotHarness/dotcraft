@@ -563,6 +563,7 @@ function buildInitializeCapabilities(_profile: InitializeProfile): Record<string
           backgroundTerminals: true,
           configChange: true,
           mcpApps: true,
+          inlineVisualizations: true,
           appBindingVersion: 2,
           mcpElicitation: true,
           optOutNotificationMethods: [],

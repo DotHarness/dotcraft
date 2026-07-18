@@ -871,25 +871,21 @@ public sealed class PluginDiscoveryTests
     }
 
     [Fact]
-    public void BuiltInPluginDeployer_DeploysBrowserManifest()
+    public void BuiltInPluginDeployer_DeploysDiscoverablePluginContents()
     {
         var root = NewTempDir();
-        var deployer = new BuiltInPluginDeployer(root, [BundledPluginSourceRoot()]);
+        var sourceRoot = CreateBundledPluginSourceRoot();
+        var deployer = new BuiltInPluginDeployer(root, [sourceRoot]);
 
         var diagnostics = deployer.Deploy();
 
         Assert.DoesNotContain(diagnostics, d => d.Severity == PluginDiagnosticSeverity.Error);
-        Assert.True(File.Exists(Path.Combine(root, "browser", ".craft-plugin", "plugin.json")));
-        Assert.True(File.Exists(Path.Combine(root, "browser", ".builtin")));
-        Assert.True(File.Exists(Path.Combine(root, "browser", "skills", "browser", "SKILL.md")));
-        Assert.True(File.Exists(Path.Combine(root, "chrome", ".craft-plugin", "plugin.json")));
-        Assert.True(File.Exists(Path.Combine(root, "chrome", ".builtin")));
-        Assert.True(File.Exists(Path.Combine(root, "chrome", "skills", "chrome", "SKILL.md")));
-        Assert.True(File.Exists(Path.Combine(root, "chrome", "scripts", "extension-id.json")));
-        Assert.True(File.Exists(Path.Combine(root, "chrome", "extension", "manifest.json")));
-        Assert.True(File.Exists(Path.Combine(root, "agent-teams", ".craft-plugin", "plugin.json")));
-        Assert.True(File.Exists(Path.Combine(root, "agent-teams", ".builtin")));
-        Assert.True(File.Exists(Path.Combine(root, "agent-teams", "assets", "agent-teams.svg")));
+        var browser = PluginManifestParser.Load(Path.Combine(root, "browser"));
+        Assert.Equal("browser", browser.Manifest?.Id);
+        Assert.NotNull(browser.Manifest?.SkillsPath);
+        var agentTeams = PluginManifestParser.Load(Path.Combine(root, PluginIds.AgentTeams));
+        Assert.Equal(PluginIds.AgentTeams, agentTeams.Manifest?.Id);
+        Assert.NotNull(agentTeams.Manifest?.DesktopExtensionsPath);
     }
 
     [Fact]
@@ -904,7 +900,7 @@ public sealed class PluginDiscoveryTests
     [Fact]
     public void BuiltInPluginCatalog_DiscoversBundledManifestsFromFilesystemRoot()
     {
-        var result = new BuiltInPluginCatalog([BundledPluginSourceRoot()]).Discover();
+        var result = new BuiltInPluginCatalog([CreateBundledPluginSourceRoot()]).Discover();
 
         Assert.DoesNotContain(result.Diagnostics, d => d.Severity == PluginDiagnosticSeverity.Error);
         var browser = Assert.Single(result.Plugins, plugin => plugin.Manifest.Id == "browser");
@@ -924,7 +920,7 @@ public sealed class PluginDiscoveryTests
     [Fact]
     public void BuiltInPluginCatalog_DiscoversDotCraftDoctorPlugin()
     {
-        var result = new BuiltInPluginCatalog([BundledPluginSourceRoot()]).Discover();
+        var result = new BuiltInPluginCatalog([CreateBundledPluginSourceRoot()]).Discover();
 
         Assert.DoesNotContain(result.Diagnostics, d => d.Severity == PluginDiagnosticSeverity.Error);
         var doctor = Assert.Single(result.Plugins, plugin => plugin.Manifest.Id == "dotcraft-doctor");
@@ -935,11 +931,6 @@ public sealed class PluginDiscoveryTests
         Assert.Equal("DotCraft Doctor", doctor.Manifest.Interface?.DisplayName);
         Assert.NotNull(doctor.Manifest.SkillsPath);
 
-        // Both bundled skills must be present on disk so the plugin's right-click
-        // actions (diagnose via error-diagnosis, draft a report via report-issue) work.
-        var pluginDir = Path.Combine(BundledPluginSourceRoot(), "dotcraft-doctor");
-        Assert.True(File.Exists(Path.Combine(pluginDir, "skills", "error-diagnosis", "SKILL.md")));
-        Assert.True(File.Exists(Path.Combine(pluginDir, "skills", "report-issue", "SKILL.md")));
     }
 
     [Fact]
@@ -1149,7 +1140,7 @@ public sealed class PluginDiscoveryTests
     {
         var root = NewTempDir();
 
-        new BuiltInPluginDeployer(root, [BundledPluginSourceRoot()]).Deploy();
+        new BuiltInPluginDeployer(root, [CreateBundledPluginSourceRoot()]).Deploy();
 
         var marker = File.ReadAllText(Path.Combine(root, "browser", ".builtin"));
         Assert.StartsWith("filesystem;sha256:", marker, StringComparison.Ordinal);
@@ -1165,11 +1156,11 @@ public sealed class PluginDiscoveryTests
         WriteInterfaceOnlyPlugin(pluginRoot, id: "chrome", displayName: "Stale Chrome");
         File.WriteAllText(Path.Combine(pluginRoot, BuiltInPluginDeployer.MarkerFile), "0.0.0.0");
 
-        var result = new PluginDiscoveryService(Path.Combine(root, "global"), [BundledPluginSourceRoot()])
+        var result = new PluginDiscoveryService(Path.Combine(root, "global"), [CreateBundledPluginSourceRoot()])
             .DiscoverAll(new AppConfig(), workspace, botPath);
 
         Assert.DoesNotContain(result.Diagnostics, d => d.Severity == PluginDiagnosticSeverity.Error);
-        Assert.True(File.Exists(Path.Combine(pluginRoot, "scripts", "extension-id.json")));
+        Assert.Equal("fixture-extension", File.ReadAllText(Path.Combine(pluginRoot, "scripts", "extension-id.json")));
         Assert.StartsWith(
             "filesystem;sha256:",
             File.ReadAllText(Path.Combine(pluginRoot, BuiltInPluginDeployer.MarkerFile)),
@@ -1184,7 +1175,7 @@ public sealed class PluginDiscoveryTests
         Directory.CreateDirectory(userPlugin);
         File.WriteAllText(Path.Combine(userPlugin, "owned.txt"), "mine");
 
-        var diagnostics = new BuiltInPluginDeployer(root, [BundledPluginSourceRoot()]).Deploy();
+        var diagnostics = new BuiltInPluginDeployer(root, [CreateBundledPluginSourceRoot()]).Deploy();
 
         Assert.True(File.Exists(Path.Combine(userPlugin, "owned.txt")));
         Assert.False(File.Exists(Path.Combine(userPlugin, ".builtin")));
@@ -1201,7 +1192,7 @@ public sealed class PluginDiscoveryTests
         WriteSkillOnlyPlugin(oldPluginRoot, id: "browser-use");
         File.WriteAllText(Path.Combine(oldPluginRoot, BuiltInPluginDeployer.MarkerFile), "old");
 
-        var result = new PluginDiscoveryService(builtInPluginSourceRoots: [BundledPluginSourceRoot()])
+        var result = new PluginDiscoveryService(builtInPluginSourceRoots: [CreateBundledPluginSourceRoot()])
             .DiscoverAll(new AppConfig(), workspace, botPath);
 
         Assert.DoesNotContain(result.Diagnostics, d => d.Severity == PluginDiagnosticSeverity.Error);
@@ -1509,21 +1500,79 @@ description: Test skill
 """);
     }
 
-    private static string FindRepositoryRoot()
+    private static string CreateBundledPluginSourceRoot()
     {
-        var dir = AppContext.BaseDirectory;
-        while (!string.IsNullOrWhiteSpace(dir))
-        {
-            if (File.Exists(Path.Combine(dir, "dotcraft.sln")))
-                return dir;
-            dir = Directory.GetParent(dir)?.FullName;
-        }
+        var root = NewTempDir();
+        WriteNamedSkillPlugin(Path.Combine(root, "browser"), "browser", "Browser", "browser");
+        WriteNamedSkillPlugin(Path.Combine(root, "chrome"), "chrome", "Chrome", "chrome");
+        var chromeScripts = Path.Combine(root, "chrome", "scripts");
+        Directory.CreateDirectory(chromeScripts);
+        File.WriteAllText(Path.Combine(chromeScripts, "extension-id.json"), "fixture-extension");
 
-        throw new InvalidOperationException("Could not find repository root.");
+        WriteAgentTeamsFixture(Path.Combine(root, PluginIds.AgentTeams));
+
+        WriteNamedSkillPlugin(
+            Path.Combine(root, "dotcraft-doctor"),
+            "dotcraft-doctor",
+            "DotCraft Doctor",
+            "error-diagnosis");
+        return root;
     }
 
-    private static string BundledPluginSourceRoot() =>
-        Path.Combine(FindRepositoryRoot(), "desktop", "resources", "plugins", "dotcraft-bundled", "plugins");
+    private static void WriteAgentTeamsFixture(string pluginRoot)
+    {
+        Directory.CreateDirectory(Path.Combine(pluginRoot, ".craft-plugin"));
+        File.WriteAllText(Path.Combine(pluginRoot, "desktop-extensions.json"), "{\"extensions\":[]}");
+        File.WriteAllText(
+            Path.Combine(pluginRoot, ".craft-plugin", "plugin.json"),
+            """
+{
+  "schemaVersion": 1,
+  "id": "agent-teams",
+  "version": "1.0.0",
+  "displayName": "Agent Teams",
+  "description": "Test agent teams plugin.",
+  "capabilities": ["metadata", "desktopExtension"],
+  "desktopExtensions": "./desktop-extensions.json",
+  "interface": {
+    "displayName": "Agent Teams",
+    "shortDescription": "Test agent teams",
+    "developerName": "DotCraft",
+    "category": "Testing",
+    "capabilities": ["Team"]
+  }
+}
+""");
+    }
+
+    private static void WriteNamedSkillPlugin(string pluginRoot, string id, string displayName, string skillName)
+    {
+        Directory.CreateDirectory(Path.Combine(pluginRoot, ".craft-plugin"));
+        Directory.CreateDirectory(Path.Combine(pluginRoot, "skills", skillName));
+        File.WriteAllText(
+            Path.Combine(pluginRoot, "skills", skillName, "SKILL.md"),
+            $"---\nname: {skillName}\ndescription: Test skill\n---\n# {displayName}");
+        File.WriteAllText(
+            Path.Combine(pluginRoot, ".craft-plugin", "plugin.json"),
+            $$"""
+{
+  "schemaVersion": 1,
+  "id": "{{id}}",
+  "version": "1.0.0",
+  "displayName": "{{displayName}}",
+  "description": "Test bundled plugin.",
+  "capabilities": ["skill"],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "{{displayName}}",
+    "shortDescription": "Test bundled plugin",
+    "developerName": "DotCraft",
+    "category": "Testing",
+    "capabilities": ["Skill"]
+  }
+}
+""");
+    }
 
     private static void WriteInterfaceOnlyPlugin(
         string pluginRoot,

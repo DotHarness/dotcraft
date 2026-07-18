@@ -2,7 +2,7 @@
 
 | Field | Value |
 |-------|-------|
-| **Related Specs** | [Prompt Composition](../agents/prompt-composition.md), [Agent Profiles](agent-profiles.md), [Tool Architecture](../architecture/tools-architecture.md), [Session Core](../architecture/session-core.md), [AppServer Protocol](../protocols/appserver-protocol.md), [Desktop Client](../clients/desktop-client.md) |
+| **Related Specs** | [Prompt Composition](../architecture/prompt-composition.md), [Agent Profiles](agent-profiles.md), [Tool Architecture](../architecture/tools-architecture.md), [Session Core](../architecture/session-core.md), [AppServer Protocol](../protocols/appserver-protocol.md), [Desktop Client](../clients/desktop-client.md) |
 
 Purpose: define Agent Teams as a first-party plugin-native tool runtime without making Teams a DotCraft Core entity.
 
