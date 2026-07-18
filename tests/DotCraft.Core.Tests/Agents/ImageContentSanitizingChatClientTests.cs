@@ -84,6 +84,69 @@ public sealed class ImageContentSanitizingChatClientTests
             message => message.Role == ChatRole.User && message.Contents.OfType<DataContent>().Any());
     }
 
+    [Theory]
+    [MemberData(nameof(RichResultShapes))]
+    public void ReplaceHistoricalToolImagesWithDescriptions_RichResultShapes_ReplacesHistoricalImage(string shape)
+    {
+        var contents = new List<AIContent>
+        {
+            new TextContent("screenshot"),
+            new DataContent(new byte[1_000], "image/png")
+        };
+        object result = shape switch
+        {
+            "list" => contents,
+            "array" => contents.ToArray(),
+            "deserialized" => JsonSerializer.SerializeToElement(
+                contents,
+                DotCraft.Protocol.SessionPersistenceJsonOptions.Default),
+            _ => throw new ArgumentOutOfRangeException(nameof(shape))
+        };
+        var messages = CreateToolResultMessages(result).Append(
+            new ChatMessage(ChatRole.User, "continue")).ToList();
+
+        var sanitized = ImageContentSanitizingChatClient.ReplaceHistoricalToolImagesWithDescriptions(messages);
+
+        var toolResult = Assert.Single(sanitized[2].Contents.OfType<FunctionResultContent>());
+        var description = Assert.IsType<string>(toolResult.Result);
+        Assert.Contains("[Image (image/png), 1,000 bytes]", description, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ReplaceHistoricalToolImagesWithDescriptions_MixedHistory_PreservesCurrentRoundImage()
+    {
+        var historicalResult = (IList<AIContent>)
+        [
+            new TextContent("old screenshot"),
+            new DataContent(new byte[1_000], "image/png")
+        ];
+        var currentResult = (IList<AIContent>)
+        [
+            new TextContent("current screenshot"),
+            new DataContent(new byte[2_000], "image/png")
+        ];
+        var messages = CreateToolResultMessages(historicalResult).Concat(
+        [
+            new ChatMessage(ChatRole.Assistant, "handled old screenshot"),
+            new ChatMessage(ChatRole.User, "capture again"),
+            new ChatMessage(ChatRole.Assistant, (IList<AIContent>)
+            [
+                new FunctionCallContent("call-2", "ReadFile", new Dictionary<string, object?>())
+            ]),
+            new ChatMessage(ChatRole.Tool, (IList<AIContent>)
+            [
+                new FunctionResultContent("call-2", currentResult)
+            ])
+        ]).ToList();
+
+        var sanitized = ImageContentSanitizingChatClient.ReplaceHistoricalToolImagesWithDescriptions(messages);
+
+        Assert.IsType<string>(Assert.Single(sanitized[2].Contents.OfType<FunctionResultContent>()).Result);
+        Assert.Same(
+            currentResult,
+            Assert.Single(sanitized[^1].Contents.OfType<FunctionResultContent>()).Result);
+    }
+
     private static IReadOnlyList<ChatMessage> CreateToolResultMessages(DataContent image) =>
         CreateToolResultMessages((IList<AIContent>)
         [

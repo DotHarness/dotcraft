@@ -709,8 +709,11 @@ public sealed partial class SessionService(
             persistedSnapshot?.IsEstimate ?? false);
     }
 
-    private static IReadOnlyList<ChatMessage> PrepareProviderVisibleHistory(IReadOnlyList<ChatMessage> history) =>
-        ModelRequestHistorySanitizer.Sanitize(history);
+    private static IReadOnlyList<ChatMessage> PrepareProviderVisibleHistory(IReadOnlyList<ChatMessage> history)
+    {
+        var repairedHistory = ModelRequestHistorySanitizer.Sanitize(history);
+        return ImageContentSanitizingChatClient.ReplaceHistoricalToolImagesWithDescriptions(repairedHistory);
+    }
 
     private PreparedContextTokenEstimate PrepareContextTokenEstimate(
         string threadId,
@@ -2214,18 +2217,18 @@ public sealed partial class SessionService(
                                 : null,
                             CaptureSnapshotAsync = async (snapshot, _) =>
                             {
+                                var preparedEstimate = PrepareContextTokenEstimate(
+                                    threadId,
+                                    snapshot.Messages,
+                                    tokenTracker.LastContextTokens,
+                                    snapshot);
                                 if (_runtimeRegistry.TryGetRuntime(threadId, out var runtime))
-                                    runtime.LastPromptRequest = snapshot;
+                                    runtime.LastPromptRequest = preparedEstimate.RequestSnapshot ?? snapshot;
                                 if (pendingCompactionCheckpoint is null)
                                 {
-                                    var estimate = PrepareContextTokenEstimate(
-                                        threadId,
-                                        snapshot.Messages,
-                                        tokenTracker.LastContextTokens,
-                                        snapshot).Estimate;
                                     await SaveCurrentRequestEstimateAsync(
                                         threadId,
-                                        estimate.Tokens,
+                                        preparedEstimate.Estimate.Tokens,
                                         ct: CancellationToken.None);
                                 }
                             },

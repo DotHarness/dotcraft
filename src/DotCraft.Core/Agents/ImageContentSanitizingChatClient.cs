@@ -1,4 +1,5 @@
 using System.Text.Json;
+using DotCraft.Protocol;
 using DotCraft.Tools;
 using Microsoft.Extensions.AI;
 
@@ -35,12 +36,7 @@ public sealed class ImageContentSanitizingChatClient(IChatClient innerClient) : 
             : new List<ChatMessage>(messages);
 
         // Tool messages strictly after the last non-tool message belong to the current invocation round.
-        var lastNonToolIndex = -1;
-        for (var i = 0; i < list.Count; i++)
-        {
-            if (list[i].Role != ChatRole.Tool)
-                lastNonToolIndex = i;
-        }
+        var lastNonToolIndex = FindLastNonToolIndex(list);
 
         var promotedImages = new List<DataContent>();
         var result = new List<ChatMessage>(list.Count + 1);
@@ -181,10 +177,31 @@ public sealed class ImageContentSanitizingChatClient(IChatClient innerClient) : 
 
     internal static IReadOnlyList<ChatMessage> ReplaceToolImagesWithDescriptions(
         IReadOnlyList<ChatMessage> messages)
+        => ReplaceToolImagesWithDescriptions(messages, preserveCurrentRoundImages: false);
+
+    internal static IReadOnlyList<ChatMessage> ReplaceHistoricalToolImagesWithDescriptions(
+        IReadOnlyList<ChatMessage> messages)
+        => ReplaceToolImagesWithDescriptions(messages, preserveCurrentRoundImages: true);
+
+    private static IReadOnlyList<ChatMessage> ReplaceToolImagesWithDescriptions(
+        IReadOnlyList<ChatMessage> messages,
+        bool preserveCurrentRoundImages)
     {
+        var lastNonToolIndex = preserveCurrentRoundImages
+            ? FindLastNonToolIndex(messages)
+            : int.MaxValue;
         var result = new List<ChatMessage>(messages.Count);
-        foreach (var message in messages)
+        for (var messageIndex = 0; messageIndex < messages.Count; messageIndex++)
         {
+            var message = messages[messageIndex];
+            if (preserveCurrentRoundImages
+                && message.Role == ChatRole.Tool
+                && messageIndex > lastNonToolIndex)
+            {
+                result.Add(message);
+                continue;
+            }
+
             List<AIContent>? contents = null;
             for (var i = 0; i < message.Contents.Count; i++)
             {
@@ -211,6 +228,18 @@ public sealed class ImageContentSanitizingChatClient(IChatClient innerClient) : 
         return result;
     }
 
+    private static int FindLastNonToolIndex(IReadOnlyList<ChatMessage> messages)
+    {
+        var lastNonToolIndex = -1;
+        for (var i = 0; i < messages.Count; i++)
+        {
+            if (messages[i].Role != ChatRole.Tool)
+                lastNonToolIndex = i;
+        }
+
+        return lastNonToolIndex;
+    }
+
     internal static bool TryGetResultContentItems(
         object? result,
         out IReadOnlyList<AIContent> items)
@@ -231,7 +260,7 @@ public sealed class ImageContentSanitizingChatClient(IChatClient innerClient) : 
         {
             try
             {
-                items = json.Deserialize<List<AIContent>>(AIJsonUtilities.DefaultOptions) ?? [];
+                items = json.Deserialize<List<AIContent>>(SessionPersistenceJsonOptions.Default) ?? [];
                 return true;
             }
             catch (JsonException)

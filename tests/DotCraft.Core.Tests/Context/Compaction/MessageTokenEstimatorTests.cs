@@ -1,4 +1,5 @@
 using System.Text.Json;
+using DotCraft.Agents;
 using DotCraft.Context.Compaction;
 using DotCraft.Protocol;
 using Microsoft.Extensions.AI;
@@ -116,6 +117,58 @@ public sealed class MessageTokenEstimatorTests
         }
 
         Assert.Equal(Estimate(1_000), Estimate(1_000_000));
+    }
+
+    [Theory]
+    [InlineData("list")]
+    [InlineData("array")]
+    [InlineData("deserialized")]
+    public void Estimate_HistoricalToolImageShapes_UsesDescriptionCost(string shape)
+    {
+        var contents = new List<AIContent>
+        {
+            new TextContent("Screenshot captured"),
+            new DataContent(new byte[1_000_000], "image/png")
+        };
+        object result = shape switch
+        {
+            "list" => contents,
+            "array" => contents.ToArray(),
+            "deserialized" => JsonSerializer.SerializeToElement(contents, SessionPersistenceJsonOptions.Default),
+            _ => throw new ArgumentOutOfRangeException(nameof(shape))
+        };
+        var messages = new List<ChatMessage>
+        {
+            new(ChatRole.Tool, [new FunctionResultContent("call-image", result)]),
+            new(ChatRole.User, "continue")
+        };
+
+        var sanitized = ImageContentSanitizingChatClient.ReplaceHistoricalToolImagesWithDescriptions(messages);
+
+        Assert.True(MessageTokenEstimator.Estimate(sanitized) + 1_000 < MessageTokenEstimator.Estimate(messages));
+    }
+
+    [Fact]
+    public void Estimate_CurrentRoundToolImage_PreservesFixedImageCost()
+    {
+        var messages = new List<ChatMessage>
+        {
+            new(ChatRole.User, "capture"),
+            new(ChatRole.Assistant, [new FunctionCallContent("call-image", "capture", new Dictionary<string, object?>())]),
+            new(ChatRole.Tool,
+            [
+                new FunctionResultContent("call-image", (IList<AIContent>)
+                [
+                    new TextContent("Screenshot captured"),
+                    new DataContent(new byte[1_000_000], "image/png")
+                ])
+            ])
+        };
+
+        var sanitized = ImageContentSanitizingChatClient.ReplaceHistoricalToolImagesWithDescriptions(messages);
+
+        Assert.Equal(MessageTokenEstimator.Estimate(messages), MessageTokenEstimator.Estimate(sanitized));
+        Assert.True(MessageTokenEstimator.Estimate(sanitized) >= 2_000);
     }
 
     [Fact]
