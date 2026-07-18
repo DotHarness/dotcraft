@@ -171,6 +171,36 @@ describe('McpAppView', () => {
     expect(bridgeInstances[0].sendToolResult).toHaveBeenCalledTimes(1)
   })
 
+  it('delivers failed tool results with structured content and isError to the View', async () => {
+    sendRequest.mockImplementation(async (method: string) => {
+      if (method !== 'mcpApp/view/open') return {}
+      const result = openResult('view-error')
+      return {
+        ...result,
+        toolResult: {
+          content: [{ type: 'text', text: 'fallback' }],
+          structuredContent: { status: 'awaiting_user_submission' },
+          isError: true
+        }
+      }
+    })
+
+    const { container } = render(
+      <LocaleProvider><McpAppView item={{ ...item(), success: false }} threadId="thread-1" turnId="turn-1" /></LocaleProvider>
+    )
+    await waitFor(() => expect(container.querySelector('iframe')).not.toBeNull())
+    await waitFor(() => expect(bridgeInstances).toHaveLength(1))
+
+    act(() => bridgeInstances[0].onsandboxready?.())
+    act(() => bridgeInstances[0].oninitialized?.())
+
+    await waitFor(() => expect(bridgeInstances[0].sendToolResult).toHaveBeenCalledWith({
+      content: [{ type: 'text', text: 'fallback' }],
+      structuredContent: { status: 'awaiting_user_submission' },
+      isError: true
+    }))
+  })
+
   it('keeps the same iframe, bridge, and View while entering and leaving fullscreen', async () => {
     const rendered = render(<LocaleProvider><McpAppView item={item()} threadId="thread-1" turnId="turn-1" /></LocaleProvider>)
     await waitFor(() => expect(bridgeInstances).toHaveLength(1))

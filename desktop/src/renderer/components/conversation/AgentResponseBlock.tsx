@@ -1264,14 +1264,14 @@ function findLastPinnedCoreRendererIndexBefore(items: ConversationItem[], before
 }
 
 /**
- * A completed `dynamicToolCall` whose result declares an Interactive Tool UI
- * (`ui://` resource). These are user‑actionable surfaces, not model‑log noise, so
- * they are pinned out of the collapsed turn summary (desktop-client.md §5.8).
+ * A terminal MCP tool result whose current projection advertises an available
+ * MCP App. Availability is independent of tool success because failed results
+ * may still provide user-actionable UI, so these surfaces stay pinned out of
+ * the collapsed turn summary (desktop-client.md §5.8.2).
  */
 function isInteractiveCardItem(item: ConversationItem): boolean {
   return isToolLikeItemType(item.type)
     && item.status === 'completed'
-    && item.success !== false
     && hasAvailableMcpApp(item)
 }
 

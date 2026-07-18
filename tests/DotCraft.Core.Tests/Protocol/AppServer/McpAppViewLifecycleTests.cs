@@ -71,8 +71,13 @@ public sealed class McpAppViewLifecycleTests : IDisposable
         Assert.Null(wrongTurn);
     }
 
-    [Fact]
-    public async Task CompletedItemProjection_ReplayMatchesLiveMcpAppAvailability()
+    [Theory]
+    [InlineData("completed", true, false)]
+    [InlineData("failed", false, true)]
+    public async Task CompletedItemProjection_ReplayMatchesLiveMcpAppAvailability(
+        string payloadStatus,
+        bool success,
+        bool isError)
     {
         await using var manager = await CreateConnectedManagerAsync();
         var generation = Assert.NotNull(await manager.GetGenerationAsync("review"));
@@ -104,8 +109,15 @@ public sealed class McpAppViewLifecycleTests : IDisposable
                 Server = "review",
                 SourceToolId = "show",
                 CallId = "call-1",
-                Status = "completed",
-                Success = true,
+                Status = payloadStatus,
+                Success = success,
+                IsError = isError,
+                Content = new JsonArray(new JsonObject
+                {
+                    ["type"] = "text",
+                    ["text"] = "fallback"
+                }),
+                StructuredContent = new JsonObject { ["status"] = "awaiting_action" },
                 McpAppResourceUri = "ui://review/show"
             }
         };

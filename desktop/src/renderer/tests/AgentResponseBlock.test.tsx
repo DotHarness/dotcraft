@@ -11,6 +11,14 @@ import type { FileDiff } from '../types/toolCall'
 import { CORE_TOOL_PRESENTATION_IDS } from '../utils/toolRendererRegistry'
 import { withTestCorePresentation } from './testToolPresentation'
 
+vi.mock('../components/conversation/McpAppView', () => ({
+  hasAvailableMcpApp: (item: ConversationItem) =>
+    item.type === 'mcpToolCall' && item.status === 'completed' && item.mcpAppAvailable === true,
+  McpAppView: ({ item }: { item: ConversationItem }) => (
+    <div data-testid="mcp-app-view">MCP App: {item.toolName}</div>
+  )
+}))
+
 interface CoreFixturePresentation {
   presentationId: string
   options?: Record<string, unknown>
@@ -2594,6 +2602,65 @@ describe('AgentResponseBlock interactive card pinning', () => {
       toolUi: { resourceUri, prefersBorder: true, domain: toolName }
     }
   }
+
+  function makeMcpAppItem(success: boolean, available: boolean): ConversationItem {
+    return {
+      id: `mcp-app-${success ? 'success' : 'failure'}-${available ? 'available' : 'unavailable'}`,
+      type: 'mcpToolCall',
+      status: 'completed',
+      toolCallId: 'mcp-app-call',
+      toolName: 'issue_write',
+      arguments: { method: 'create' },
+      result: 'The interactive form awaits user submission.',
+      structuredResult: { status: 'awaiting_user_submission' },
+      success,
+      mcpAppAvailable: available,
+      createdAt: '2026-07-18T11:30:03.000Z'
+    }
+  }
+
+  it.each([
+    ['successful', true],
+    ['failed', false]
+  ])('pins an available MCP App for a %s tool result', (_label, success) => {
+    const turn: ConversationTurn = {
+      id: `turn-mcp-app-${success ? 'success' : 'failure'}`,
+      threadId: 'thread-1',
+      status: 'completed',
+      startedAt: '2026-07-18T11:30:00.000Z',
+      completedAt: '2026-07-18T11:30:06.000Z',
+      items: [
+        makeMcpAppItem(success, true),
+        {
+          id: 'assistant-final',
+          type: 'agentMessage',
+          status: 'completed',
+          text: 'The form is ready.',
+          createdAt: '2026-07-18T11:30:05.000Z'
+        }
+      ]
+    }
+
+    render(<LocaleProvider><AgentResponseBlock turn={turn} /></LocaleProvider>)
+
+    expect(screen.getByTestId('mcp-app-view')).toHaveTextContent('issue_write')
+  })
+
+  it('uses the generic failed tool fallback when the MCP App is unavailable', () => {
+    const turn: ConversationTurn = {
+      id: 'turn-mcp-app-unavailable',
+      threadId: 'thread-1',
+      status: 'completed',
+      startedAt: '2026-07-18T11:30:00.000Z',
+      completedAt: '2026-07-18T11:30:06.000Z',
+      items: [makeMcpAppItem(false, false)]
+    }
+
+    render(<LocaleProvider><AgentResponseBlock turn={turn} /></LocaleProvider>)
+
+    expect(screen.queryByTestId('mcp-app-view')).toBeNull()
+    expect(screen.getByText(/Failed: Called issue_write/)).toBeInTheDocument()
+  })
 
   it('does not restore a private iframe without live authority', () => {
     const turn: ConversationTurn = {
