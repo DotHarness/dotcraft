@@ -1584,6 +1584,7 @@ export const MESSAGES_ZH_HANS = {
   'toolCall.group.webUsed': '已使用网页工具 {{count}} 次',
   'toolCall.group.spawnedAgents': '已生成 {{count}} 个智能体',
   'toolCall.readFile.single': '读取 {{filename}}',
+  'toolCall.readFile.file': '已读取文件',
   'toolCall.readFile.range': '读取 {{filename}} L{{start}}-{{end}}',
   'toolCall.readFile.from': '读取 {{filename}}，从 L{{start}}',
   'toolCall.edited': '已编辑 {{filename}}',

@@ -2332,6 +2332,7 @@ export const MESSAGES_KO = {
   'toolCall.group.webUsed': '웹을 {{count}}회 사용함',
   'toolCall.group.spawnedAgents': '생성된 {{count}} 에이전트',
   'toolCall.readFile.single': '{{filename}} 읽기',
+  'toolCall.readFile.file': '파일 읽음',
   'toolCall.readFile.range': '{{filename}} L{{start}}-{{end}} 읽기',
   'toolCall.readFile.from': 'L{{start}}에서 {{filename}}을(를) 읽습니다.',
   'toolCall.edited': '{{filename}} 수정됨',

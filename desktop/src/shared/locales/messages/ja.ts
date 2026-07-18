@@ -2330,6 +2330,7 @@ export const MESSAGES_JA = {
   'toolCall.group.webUsed': 'ウェブを{{count}}回使用しました',
   'toolCall.group.spawnedAgents': '生成された {{count}} エージェント',
   'toolCall.readFile.single': '{{filename}} を読む',
+  'toolCall.readFile.file': 'ファイルを読み取りました',
   'toolCall.readFile.range': '{{filename}} L{{start}}-{{end}} を読む',
   'toolCall.readFile.from': 'L{{start}} から {{filename}} を読み取ります',
   'toolCall.edited': '{{filename}}を編集しました',

@@ -2336,6 +2336,7 @@ export const MESSAGES_FR = {
   'toolCall.group.webUsed': 'Utilisation du Web {{count}} fois',
   'toolCall.group.spawnedAgents': 'Agents {{count}} générés',
   'toolCall.readFile.single': 'Lire {{filename}}',
+  'toolCall.readFile.file': 'Fichier lu',
   'toolCall.readFile.range': 'Lire {{filename}} L{{start}}-{{end}}',
   'toolCall.readFile.from': 'Lire {{filename}} à partir de L{{start}}',
   'toolCall.edited': 'Modifié {{filename}}',

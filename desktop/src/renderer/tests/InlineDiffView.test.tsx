@@ -1,5 +1,5 @@
-import { fireEvent, render, screen } from '@testing-library/react'
-import { describe, expect, it } from 'vitest'
+import { act, fireEvent, render, screen } from '@testing-library/react'
+import { describe, expect, it, vi } from 'vitest'
 import { InlineDiffView } from '../components/conversation/InlineDiffView'
 import type { FileDiff } from '../types/toolCall'
 
@@ -70,5 +70,33 @@ describe('InlineDiffView', () => {
 
     expect(screen.queryByText('Waiting for content...')).toBeNull()
     expect(screen.queryByText('No changes')).toBeNull()
+  })
+
+  it('uses the conversation file-tool header, wrapping body, and path copy action', async () => {
+    const writeText = vi.fn(async () => undefined)
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: { writeText }
+    })
+
+    render(
+      <InlineDiffView
+        diff={baseDiff}
+        variant="embedded"
+        headerMode="compact"
+        presentation="conversation-file-tool"
+        resolvedPath="F:/workspace/src/deep/AgentTools.cs"
+      />
+    )
+
+    expect(screen.getByTestId('file-result-header')).toHaveTextContent('AgentTools.cs+1-1')
+    expect(screen.queryByText('@@ -35,2 +35,2 @@')).toBeNull()
+    expect(screen.getByTestId('inline-diff-body')).toHaveStyle({ overflowX: 'hidden' })
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Copy path' }))
+      await Promise.resolve()
+    })
+    expect(writeText).toHaveBeenCalledWith('F:/workspace/src/deep/AgentTools.cs')
   })
 })

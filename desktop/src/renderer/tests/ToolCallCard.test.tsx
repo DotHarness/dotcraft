@@ -641,7 +641,7 @@ describe('ToolCallCard shell rendering', () => {
     expect(screen.getByTestId('inline-diff-view')).toBeInTheDocument()
   })
 
-  it('renders completed file diffs embedded with compact filename and stats', async () => {
+  it('moves completed file metadata into the expanded header and colorizes collapsed stats on hover', async () => {
     const item: ConversationItem = {
       id: 'tool-edit-completed',
       type: 'toolCall',
@@ -679,14 +679,60 @@ describe('ToolCallCard shell rendering', () => {
       currentContent: 'new'
     }
     useConversationStore.setState({
+      workspacePath: 'F:/workspace',
       itemDiffs: new Map([[item.id, diff]])
     })
 
     renderWithLocale(<ToolCallCard item={item} turnId="turn-1" />)
 
-    fireEvent.click(screen.getByRole('button'))
+    const toolButton = screen.getByRole('button')
+    expect(toolButton).toHaveTextContent('Edited Target.cs+1-1')
+    const collapsedStats = screen.getByTestId('tool-row-diff-stats')
+    expect((collapsedStats.children[0] as HTMLElement).style.color).toBe('currentcolor')
+    expect((collapsedStats.children[1] as HTMLElement).style.color).toBe('currentcolor')
+
+    fireEvent.mouseEnter(toolButton)
+    expect((collapsedStats.children[0] as HTMLElement).style.color).toBe('var(--success)')
+    expect((collapsedStats.children[1] as HTMLElement).style.color).toBe('var(--error)')
+    fireEvent.click(toolButton)
 
     expect(screen.getByTestId('inline-diff-view')).toBeInTheDocument()
+    expect(toolButton).toHaveTextContent('Edited file')
+    expect(toolButton).not.toHaveTextContent('Target.cs')
+    expect(screen.getAllByText('Target.cs')).toHaveLength(1)
+    expect(screen.getByTestId('file-result-diff-stats')).toHaveTextContent('+1-1')
+    expect(screen.queryByText('@@ -1,1 +1,1 @@')).toBeNull()
+    expect(screen.getByRole('button', { name: 'Copy path' })).toBeInTheDocument()
+  })
+
+  it('uses a generic expanded Read file row with one path header and range metadata', () => {
+    const item: ConversationItem = {
+      id: 'tool-read-completed',
+      type: 'toolCall',
+      status: 'completed',
+      toolName: 'ReadFile',
+      source: { kind: 'CoreNative', sourceId: 'core-native', sourceToolId: 'ReadFile' },
+      presentation: { presentationId: 'core.read-file' },
+      toolCallId: 'read-completed-1',
+      arguments: { path: 'src/Target.cs', offset: 10, limit: 5 },
+      result: 'public sealed class Target {}',
+      success: true,
+      createdAt: new Date().toISOString()
+    }
+    useConversationStore.setState({ workspacePath: 'F:/workspace' })
+
+    renderWithLocale(<ToolCallCard item={item} turnId="turn-1" />)
+
+    const toolButton = screen.getByRole('button')
+    expect(toolButton).toHaveTextContent('Read Target.cs L10-14')
+    fireEvent.click(toolButton)
+
+    expect(toolButton).toHaveTextContent('Read file')
+    expect(toolButton).not.toHaveTextContent('Target.cs')
+    expect(screen.getAllByText('Target.cs')).toHaveLength(1)
+    expect(screen.getByTestId('file-result-header')).toHaveTextContent('Target.csL10-14')
+    expect(screen.getByText('public sealed class Target {}')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Copy path' })).toBeInTheDocument()
   })
 
   it('keeps showing the running timer for Exec after the toolCall item is completed but command execution is still in progress', () => {

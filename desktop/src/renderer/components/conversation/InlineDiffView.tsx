@@ -1,13 +1,19 @@
-import type { CSSProperties } from 'react'
+import { useEffect, useRef, useState, type CSSProperties } from 'react'
+import { Check, Copy } from 'lucide-react'
 import type { FileDiff } from '../../types/toolCall'
 import { ActionTooltip } from '../ui/ActionTooltip'
 import { useUIStore } from '../../stores/uiStore'
+import { translate, type AppLocale } from '../../../shared/locales'
+import { addToast } from '../../stores/toastStore'
 
 interface InlineDiffViewProps {
   diff: FileDiff
   streaming?: boolean
   variant?: 'standalone' | 'embedded'
   headerMode?: 'full' | 'compact'
+  presentation?: 'default' | 'conversation-file-tool'
+  resolvedPath?: string
+  locale?: AppLocale
 }
 
 function getFilename(path: string): string {
@@ -18,13 +24,17 @@ export function InlineDiffView({
   diff,
   streaming = false,
   variant = 'standalone',
-  headerMode = 'full'
+  headerMode = 'full',
+  presentation = 'default',
+  resolvedPath = diff.filePath,
+  locale = 'en'
 }: InlineDiffViewProps): JSX.Element {
   const diffMarkers = useUIStore((s) => s.diffMarkers)
   const signMode = diffMarkers === 'sign'
   const totalAdd = diff.additions
   const totalDel = diff.deletions
   const embedded = variant === 'embedded'
+  const conversationFileTool = presentation === 'conversation-file-tool'
   const displayPath = headerMode === 'compact' ? getFilename(diff.filePath) : diff.filePath
 
   return (
@@ -42,61 +52,45 @@ export function InlineDiffView({
         borderColor: embedded ? 'transparent' : 'var(--border-default)'
       }}
     >
+      <FileResultHeader
+        filePath={diff.filePath}
+        resolvedPath={resolvedPath}
+        displayPath={displayPath}
+        additions={totalAdd}
+        deletions={totalDel}
+        meta={headerMode === 'full' && diff.isNewFile ? '(new file)' : undefined}
+        copyPath={conversationFileTool}
+        inlineStats={conversationFileTool}
+        locale={locale}
+      />
+
       <div
+        data-testid="inline-diff-body"
         style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: '8px',
-          padding: '4px 8px',
-          background: 'var(--bg-tertiary)',
-          borderBottom: '1px solid var(--border-default)',
-          color: 'var(--text-secondary)',
-          fontSize: '11px'
+          maxHeight: '360px',
+          overflowY: 'auto',
+          overflowX: conversationFileTool ? 'hidden' : 'auto'
         }}
       >
-        <ActionTooltip label={diff.filePath} wrapperStyle={{ display: 'block', minWidth: 0, overflow: 'hidden', flexShrink: 1 }}>
-        <span
-          style={{
-            color: 'var(--text-primary)',
-            fontWeight: 500,
-            overflow: 'hidden',
-            textOverflow: 'ellipsis',
-            whiteSpace: 'nowrap',
-            display: 'block'
-          }}
-        >
-          {displayPath}
-        </span>
-        </ActionTooltip>
-        {headerMode === 'full' && diff.isNewFile && (
-          <span style={{ color: 'var(--text-dimmed)', flexShrink: 0 }}>(new file)</span>
-        )}
-        <span style={{ marginLeft: 'auto', display: 'flex', gap: '6px', flexShrink: 0 }}>
-          {/* No streaming spinner or label — the visibly-growing diff below is
-              the running cue; the header keeps the +/- counts only. */}
-          {totalAdd > 0 && <span style={{ color: 'var(--success)' }}>+{totalAdd}</span>}
-          {totalDel > 0 && <span style={{ color: 'var(--error)' }}>-{totalDel}</span>}
-        </span>
-      </div>
-
-      <div style={{ maxHeight: '360px', overflow: 'auto' }}>
         {diff.diffHunks.map((hunk, hunkIdx) => {
           let oldLineNum = hunk.oldStart
           let newLineNum = hunk.newStart
           return (
             <div key={hunkIdx}>
-              <div
-                style={{
-                  padding: '2px 8px',
-                  background: 'var(--bg-secondary)',
-                  color: 'var(--text-dimmed)',
-                  fontSize: '11px',
-                  userSelect: 'none',
-                  minWidth: 'max-content'
-                }}
-              >
-                @@ -{hunk.oldStart},{hunk.oldLines} +{hunk.newStart},{hunk.newLines} @@
-              </div>
+              {!conversationFileTool && (
+                <div
+                  style={{
+                    padding: '2px 8px',
+                    background: 'var(--bg-secondary)',
+                    color: 'var(--text-dimmed)',
+                    fontSize: '11px',
+                    userSelect: 'none',
+                    minWidth: 'max-content'
+                  }}
+                >
+                  @@ -{hunk.oldStart},{hunk.oldLines} +{hunk.newStart},{hunk.newLines} @@
+                </div>
+              )}
               {hunk.lines.map((line, lineIdx) => {
                 const oldNum = line.type === 'add' ? '' : String(oldLineNum)
                 const newNum = line.type === 'remove' ? '' : String(newLineNum)
@@ -107,7 +101,8 @@ export function InlineDiffView({
                     key={lineIdx}
                     style={{
                       display: 'flex',
-                      minWidth: 'max-content',
+                      alignItems: 'flex-start',
+                      minWidth: conversationFileTool ? 0 : 'max-content',
                       background:
                         line.type === 'add'
                           ? 'var(--diff-add-bg)'
@@ -122,7 +117,7 @@ export function InlineDiffView({
                           : line.type === 'remove'
                             ? 'inset 2px 0 0 var(--error)'
                             : undefined,
-                      whiteSpace: 'pre'
+                      whiteSpace: conversationFileTool ? 'pre-wrap' : 'pre'
                     }}
                   >
                     <span style={lineNumberStyle}>{oldNum}</span>
@@ -148,6 +143,10 @@ export function InlineDiffView({
                     <span
                       style={{
                         padding: '0 8px',
+                        minWidth: 0,
+                        flex: '1 1 auto',
+                        whiteSpace: conversationFileTool ? 'pre-wrap' : 'pre',
+                        overflowWrap: conversationFileTool ? 'anywhere' : undefined,
                         color:
                           line.type === 'add'
                             ? 'var(--text-primary)'
@@ -171,6 +170,130 @@ export function InlineDiffView({
           </div>
         )}
       </div>
+    </div>
+  )
+}
+
+interface FileResultHeaderProps {
+  filePath: string
+  resolvedPath?: string
+  displayPath?: string
+  additions?: number
+  deletions?: number
+  meta?: string
+  copyPath?: boolean
+  inlineStats?: boolean
+  locale?: AppLocale
+}
+
+export function FileResultHeader({
+  filePath,
+  resolvedPath = filePath,
+  displayPath = getFilename(filePath),
+  additions = 0,
+  deletions = 0,
+  meta,
+  copyPath = false,
+  inlineStats = false,
+  locale = 'en'
+}: FileResultHeaderProps): JSX.Element {
+  const [copied, setCopied] = useState(false)
+  const resetTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  useEffect(() => () => {
+    if (resetTimerRef.current != null) clearTimeout(resetTimerRef.current)
+  }, [])
+
+  async function handleCopyPath(): Promise<void> {
+    try {
+      await navigator.clipboard.writeText(resolvedPath)
+      setCopied(true)
+      addToast(translate(locale, 'toast.copied'), 'success', 2000)
+      if (resetTimerRef.current != null) clearTimeout(resetTimerRef.current)
+      resetTimerRef.current = setTimeout(() => {
+        setCopied(false)
+        resetTimerRef.current = null
+      }, 1500)
+    } catch {
+      // Ignore clipboard failures silently.
+    }
+  }
+
+  const stats = (additions > 0 || deletions > 0) ? (
+    <span
+      data-testid="file-result-diff-stats"
+      style={{
+        marginLeft: inlineStats ? 0 : 'auto',
+        display: 'inline-flex',
+        gap: '6px',
+        flexShrink: 0
+      }}
+    >
+      {additions > 0 && <span style={{ color: 'var(--success)' }}>+{additions}</span>}
+      {deletions > 0 && <span style={{ color: 'var(--error)' }}>-{deletions}</span>}
+    </span>
+  ) : null
+
+  return (
+    <div
+      data-testid="file-result-header"
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: '6px',
+        padding: '4px 8px',
+        background: 'var(--bg-tertiary)',
+        borderBottom: '1px solid var(--border-default)',
+        color: 'var(--text-secondary)',
+        fontSize: '11px'
+      }}
+    >
+      <ActionTooltip
+        label={resolvedPath}
+        wrapperStyle={{ display: 'block', minWidth: 0, overflow: 'hidden', flexShrink: 1 }}
+      >
+        <span
+          style={{
+            color: 'var(--text-primary)',
+            fontWeight: 500,
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            whiteSpace: 'nowrap',
+            display: 'block'
+          }}
+        >
+          {displayPath}
+        </span>
+      </ActionTooltip>
+      {meta && <span style={{ color: 'var(--text-dimmed)', flexShrink: 0 }}>{meta}</span>}
+      {stats}
+      {copyPath && (
+        <ActionTooltip label={translate(locale, 'viewer.copyPath')} placement="top">
+          <button
+            type="button"
+            data-testid="file-path-copy"
+            aria-label={translate(locale, 'viewer.copyPath')}
+            onClick={() => { void handleCopyPath() }}
+            style={{
+              width: '24px',
+              height: '24px',
+              margin: '-2px -4px -2px auto',
+              padding: 0,
+              border: 'none',
+              borderRadius: '6px',
+              background: 'transparent',
+              color: copied ? 'var(--success)' : 'var(--text-dimmed)',
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              flexShrink: 0,
+              cursor: 'pointer'
+            }}
+          >
+            {copied ? <Check size={13} aria-hidden /> : <Copy size={13} aria-hidden />}
+          </button>
+        </ActionTooltip>
+      )}
     </div>
   )
 }

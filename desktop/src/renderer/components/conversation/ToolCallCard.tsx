@@ -19,7 +19,7 @@ import {
   parseWebSearchResultDisplay,
   type WebSearchResultRow
 } from '../../utils/webToolDisplay'
-import { InlineDiffView } from './InlineDiffView'
+import { FileResultHeader, InlineDiffView } from './InlineDiffView'
 import { ActionTooltip } from '../ui/ActionTooltip'
 import {
   formatCollapsedToolLabel,
@@ -62,6 +62,7 @@ import {
   type RequestUserInputResultLine
 } from '../../utils/requestUserInputToolDisplay'
 import { resolveCoreToolRenderPlan, type ToolRendererFamily } from '../../utils/toolRendererRegistry'
+import { toAbsoluteWorkspacePath } from '../../utils/diffExtractor'
 
 export type ShellRuntimeScope = 'conversation' | 'review' | 'none'
 
@@ -108,14 +109,6 @@ function getFilename(path: string): string {
   return path.split(/[\\/]/).pop() ?? path
 }
 
-function formatDiffStats(diff: FileDiff | undefined): string {
-  if (!diff) return ''
-  const parts: string[] = []
-  if (diff.additions > 0) parts.push(`+${diff.additions}`)
-  if (diff.deletions > 0) parts.push(`-${diff.deletions}`)
-  return parts.join(' ')
-}
-
 function formatFileToolLabel(
   operation: unknown,
   diff: FileDiff | undefined,
@@ -127,8 +120,47 @@ function formatFileToolLabel(
   const action = operation === 'write' && diff.isNewFile
     ? translate(locale, 'toolCall.created', { filename })
     : translate(locale, 'toolCall.edited', { filename })
-  const stats = formatDiffStats(diff)
-  return stats ? `${action} ${stats}` : action
+  return action
+}
+
+function formatExpandedFileToolLabel(
+  operation: unknown,
+  diff: FileDiff | undefined,
+  locale: AppLocale
+): string {
+  return operation === 'write' && diff?.isNewFile
+    ? translate(locale, 'toolCall.createdFile')
+    : translate(locale, 'toolCall.editedFile')
+}
+
+function FileToolDiffStats({ diff, colorized }: { diff: FileDiff; colorized: boolean }): JSX.Element | null {
+  if (diff.additions <= 0 && diff.deletions <= 0) return null
+  return (
+    <span
+      data-testid="tool-row-diff-stats"
+      style={{ display: 'inline-flex', gap: '6px', flexShrink: 0, fontFamily: 'var(--font-mono)' }}
+    >
+      {diff.additions > 0 && (
+        <span style={{ color: colorized ? 'var(--success)' : 'currentColor' }}>+{diff.additions}</span>
+      )}
+      {diff.deletions > 0 && (
+        <span style={{ color: colorized ? 'var(--error)' : 'currentColor' }}>-{diff.deletions}</span>
+      )}
+    </span>
+  )
+}
+
+function formatReadRange(args: Record<string, unknown> | undefined): string | undefined {
+  const offset = toPositiveInt(args?.offset)
+  const limit = toPositiveInt(args?.limit)
+  if (offset && limit) return `L${offset}-${offset + limit - 1}`
+  if (offset) return `L${offset}+`
+  return undefined
+}
+
+function toPositiveInt(value: unknown): number | undefined {
+  const parsed = typeof value === 'number' ? value : typeof value === 'string' ? Number.parseInt(value, 10) : NaN
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : undefined
 }
 
 function hasVisibleText(value: string | undefined): boolean {
@@ -162,6 +194,7 @@ export const ToolCallCard = memo(function ToolCallCard({
   shellRuntimeScope = 'conversation'
 }: ToolCallCardProps): JSX.Element {
   const locale = useLocale()
+  const workspacePath = useConversationStore((state) => state.workspacePath)
   const threadId = useThreadStore((state) => state.activeThreadId)
   const [hovered, setHovered] = useState(false)
   const [expanded, setExpanded] = useState(false)
@@ -406,6 +439,14 @@ export const ToolCallCard = memo(function ToolCallCard({
 
   if (isRunning) {
     const runningExpanded = expanded && canExpandWhileRunning
+    const runningDisplayLabel = runningExpanded && isStreamingFileTool
+      ? formatExpandedFileToolLabel(rendererOperation, renderableStreamingFileDiff, locale)
+      : runningLabel
+    const runningFilePath = renderableStreamingFileDiff?.filePath
+      ?? streamingDisplay.parsedPreview?.path
+    const runningResolvedPath = runningFilePath && workspacePath
+      ? toAbsoluteWorkspacePath(workspacePath, runningFilePath)
+      : runningFilePath
     return (
       <div
         onMouseEnter={() => setHovered(true)}
@@ -447,17 +488,29 @@ export const ToolCallCard = memo(function ToolCallCard({
               maxWidth: '100%'
             }}
           >
-            <span
-              className="tool-running-gradient-text"
-              style={{
-                minWidth: 0,
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-                whiteSpace: 'nowrap'
-              }}
-            >
-              {runningLabel}
-            </span>
+            {runningFilePath && !runningExpanded ? (
+              <ActionTooltip
+                label={runningResolvedPath ?? runningFilePath}
+                wrapperStyle={{ minWidth: 0, overflow: 'hidden', flexShrink: 1 }}
+              >
+                <span
+                  className="tool-running-gradient-text"
+                  style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+                >
+                  {runningDisplayLabel}
+                </span>
+              </ActionTooltip>
+            ) : (
+              <span
+                className="tool-running-gradient-text"
+                style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+              >
+                {runningDisplayLabel}
+              </span>
+            )}
+            {!runningExpanded && renderableStreamingFileDiff && (
+              <FileToolDiffStats diff={renderableStreamingFileDiff} colorized={hovered} />
+            )}
             {canExpandWhileRunning && (
               <ToolCollapseChevron expanded={runningExpanded} visible={hovered || runningExpanded} />
             )}
@@ -498,6 +551,9 @@ export const ToolCallCard = memo(function ToolCallCard({
                   streaming
                   variant="embedded"
                   headerMode="compact"
+                  presentation="conversation-file-tool"
+                  resolvedPath={runningResolvedPath}
+                  locale={locale}
                 />
               ) : null
             ) : null}
@@ -536,7 +592,20 @@ export const ToolCallCard = memo(function ToolCallCard({
     && rendererPlan.options.operation === 'search'
     && parseWebSearchResultDisplay(item.result)?.kind === 'results'
   const hasInlineFileDiff = isStreamingFileTool && !!renderableFileDiff
+  const hasFlushReadFile = rendererFamily === 'readFile'
   const completedExpanded = canExpandCompleted && expanded
+  const completedDisplayLabel = completedExpanded && isStreamingFileTool
+    ? formatExpandedFileToolLabel(rendererOperation, renderableFileDiff, locale)
+    : completedExpanded && rendererFamily === 'readFile'
+      ? translate(locale, 'toolCall.readFile.file')
+      : label
+  const readFilePath = rendererFamily === 'readFile' && typeof args?.path === 'string'
+    ? args.path
+    : undefined
+  const completedFilePath = renderableFileDiff?.filePath ?? readFilePath
+  const completedResolvedPath = completedFilePath && workspacePath
+    ? toAbsoluteWorkspacePath(workspacePath, completedFilePath)
+    : completedFilePath
   const completedRowColor = hovered || completedExpanded ? 'var(--text-secondary)' : 'var(--text-dimmed)'
 
   return (
@@ -581,14 +650,28 @@ export const ToolCallCard = memo(function ToolCallCard({
             color: success ? completedRowColor : 'var(--error)'
           }}
         >
-          <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-            {success ? label : translate(locale, 'toolCall.failed', { label })}
-            {!success && hasFailurePreview && failedPreview && (
-              <span style={{ color: 'var(--error)', marginLeft: '6px' }}>
-                - {failedPreview.slice(0, 80)}{failedPreview.length > 80 ? '…' : ''}
+          {success && completedFilePath && !completedExpanded ? (
+            <ActionTooltip
+              label={completedResolvedPath ?? completedFilePath}
+              wrapperStyle={{ minWidth: 0, overflow: 'hidden', flexShrink: 1 }}
+            >
+              <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {completedDisplayLabel}
               </span>
-            )}
-          </span>
+            </ActionTooltip>
+          ) : (
+            <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {success ? completedDisplayLabel : translate(locale, 'toolCall.failed', { label })}
+              {!success && hasFailurePreview && failedPreview && (
+                <span style={{ color: 'var(--error)', marginLeft: '6px' }}>
+                  - {failedPreview.slice(0, 80)}{failedPreview.length > 80 ? '…' : ''}
+                </span>
+              )}
+            </span>
+          )}
+          {success && !completedExpanded && renderableFileDiff && (
+            <FileToolDiffStats diff={renderableFileDiff} colorized={hovered} />
+          )}
           {canExpandCompleted && (
             <ToolCollapseChevron expanded={expanded} visible={hovered || expanded} />
           )}
@@ -605,7 +688,7 @@ export const ToolCallCard = memo(function ToolCallCard({
             data-testid="tool-expanded-content"
             style={{
               background: 'var(--bg-secondary)',
-              padding: hasFlushWebSearchTable || hasInlineFileDiff ? 0 : '8px'
+              padding: hasFlushWebSearchTable || hasInlineFileDiff || hasFlushReadFile ? 0 : '8px'
             }}
           >
             <ExpandedContent
@@ -618,6 +701,7 @@ export const ToolCallCard = memo(function ToolCallCard({
               success={success}
               fileDiff={renderableFileDiff ? { diff: renderableFileDiff } : undefined}
               locale={locale}
+              workspacePath={workspacePath}
               planTodos={planTodos}
             />
           </div>
@@ -637,6 +721,7 @@ interface ExpandedContentProps {
   success: boolean
   fileDiff: { diff: FileDiff } | undefined
   locale: AppLocale
+  workspacePath?: string
   planTodos?: Array<{ id: string; content: string }>
 }
 
@@ -650,6 +735,7 @@ function ExpandedContent({
   success,
   fileDiff,
   locale,
+  workspacePath,
   planTodos
 }: ExpandedContentProps): JSX.Element {
   if (rendererFamily === 'createPlan') {
@@ -672,7 +758,44 @@ function ExpandedContent({
         diff={fileDiff.diff}
         variant="embedded"
         headerMode="compact"
+        presentation="conversation-file-tool"
+        resolvedPath={workspacePath
+          ? toAbsoluteWorkspacePath(workspacePath, fileDiff.diff.filePath)
+          : fileDiff.diff.filePath}
+        locale={locale}
       />
+    )
+  }
+
+  if (rendererFamily === 'readFile') {
+    const filePath = typeof args?.path === 'string' ? args.path : ''
+    const resultText = formatDefaultToolResultForDisplay(result)
+    const resolvedPath = filePath && workspacePath
+      ? toAbsoluteWorkspacePath(workspacePath, filePath)
+      : filePath
+    return (
+      <div className="selectable" style={{ fontFamily: 'var(--font-mono)', fontSize: '12px', lineHeight: 1.5 }}>
+        {filePath && (
+          <FileResultHeader
+            filePath={filePath}
+            resolvedPath={resolvedPath}
+            meta={formatReadRange(args)}
+            copyPath
+            inlineStats
+            locale={locale}
+          />
+        )}
+        {resultText && (
+          <div style={{ padding: '6px 8px' }}>
+            <AnsiPre
+              text={resultText}
+              truncatedLinesOver={10}
+              maxHeight={160}
+              colorWhenNoSgr={success ? 'var(--text-secondary)' : 'var(--error)'}
+            />
+          </div>
+        )}
+      </div>
     )
   }
 
