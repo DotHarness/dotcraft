@@ -40,17 +40,25 @@ internal sealed class ThreadEventBroker(string threadId)
     }
 
     /// <summary>
-    /// Publishes a thread status change event.
+    /// Publishes a live thread status change event. Status snapshots are recovered
+    /// through thread/read or thread/list and are not retained for replay.
     /// </summary>
     public void PublishThreadStatusChanged(ThreadStatus previousStatus, ThreadStatus newStatus)
     {
-        PublishThreadEvent(
-            SessionEventType.ThreadStatusChanged,
-            new ThreadStatusChangedPayload
+        Publish(
+            new SessionEvent
             {
-                PreviousStatus = previousStatus,
-                NewStatus = newStatus
-            });
+                EventId = NextEventId(),
+                EventType = SessionEventType.ThreadStatusChanged,
+                ThreadId = threadId,
+                Timestamp = DateTimeOffset.UtcNow,
+                Payload = new ThreadStatusChangedPayload
+                {
+                    PreviousStatus = previousStatus,
+                    NewStatus = newStatus
+                }
+            },
+            retainForReplay: false);
     }
 
     public void PublishTurnStarted(SessionTurn turn)
@@ -267,14 +275,19 @@ internal sealed class ThreadEventBroker(string threadId)
         IsReplay = true
     };
 
-    private void Publish(SessionEvent evt)
+    private void Publish(SessionEvent evt) => Publish(evt, retainForReplay: true);
+
+    private void Publish(SessionEvent evt, bool retainForReplay)
     {
         lock (_recentEventsLock)
         {
-            _recentEvents.Enqueue(evt);
-            while (_recentEvents.Count > ReplayBufferSize)
+            if (retainForReplay)
             {
-                _recentEvents.Dequeue();
+                _recentEvents.Enqueue(evt);
+                while (_recentEvents.Count > ReplayBufferSize)
+                {
+                    _recentEvents.Dequeue();
+                }
             }
 
             foreach (var subscriber in _subscribers.Values)

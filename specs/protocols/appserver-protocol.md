@@ -1005,11 +1005,13 @@ Subscribe the current connection to future lifecycle events for a thread. Multip
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
 | `threadId` | string | yes | Thread to observe. |
-| `replayRecent` | boolean | no | Default `false`. When `true`, the server may replay a small recent buffer for reconnect smoothing. |
+| `replayRecent` | boolean | no | Default `false`. When `true`, the server may replay a small recent buffer of turn, item, and supplemental events for reconnect smoothing. Lifecycle status changes are never replayed. |
 
 **Result**: `{}`
 
 After subscription succeeds, the server may emit future `thread/*`, `turn/*`, and `item/*` notifications for that thread even when the current connection did not originate the turn.
+
+`thread/statusChanged` is live-only and is not retained in the recent replay buffer. A reconnecting client must recover the current thread status from `thread/read` or `thread/list`; replay must not transiently reapply an obsolete archived, paused, or active state.
 
 If the subscribed thread is already paused in a `waitingApproval` or `waitingInput` turn, the server must re-deliver the unresolved interactive request to the subscribing connection using the same rules as `thread/resume`. `thread/unsubscribe` and ordinary thread switching are not dismissals; they must not resolve, reject, or answer an outstanding interactive request.
 

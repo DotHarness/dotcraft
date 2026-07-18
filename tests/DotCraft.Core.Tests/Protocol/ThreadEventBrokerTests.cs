@@ -55,6 +55,46 @@ public sealed class ThreadEventBrokerTests
     }
 
     [Fact]
+    public async Task PublishThreadStatusChanged_DeliversLiveWithoutRetainingForReplay()
+    {
+        var broker = new ThreadEventBroker("thread_001");
+        using var liveCts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+        var liveTask = CollectAsync(
+            broker.SubscribeAsync(ct: liveCts.Token),
+            expectedCount: 2,
+            liveCts);
+
+        broker.PublishThreadStatusChanged(ThreadStatus.Active, ThreadStatus.Archived);
+        broker.PublishThreadStatusChanged(ThreadStatus.Archived, ThreadStatus.Active);
+
+        var liveEvents = await liveTask;
+        Assert.Equal(2, liveEvents.Count);
+        Assert.All(liveEvents, evt => Assert.Equal(SessionEventType.ThreadStatusChanged, evt.EventType));
+        Assert.Equal(ThreadStatus.Archived, liveEvents[0].StatusChangedPayload?.NewStatus);
+        Assert.Equal(ThreadStatus.Active, liveEvents[1].StatusChangedPayload?.NewStatus);
+
+        var channel = broker.CreateTurnChannel("turn_001");
+        channel.EmitTurnCompleted(new SessionTurn
+        {
+            Id = "turn_001",
+            ThreadId = "thread_001",
+            Status = TurnStatus.Completed,
+            StartedAt = DateTimeOffset.UtcNow,
+            CompletedAt = DateTimeOffset.UtcNow
+        });
+
+        using var replayCts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+        var replayEvents = await CollectAsync(
+            broker.SubscribeAsync(replayRecent: true, ct: replayCts.Token),
+            expectedCount: 1,
+            replayCts);
+
+        var replayed = Assert.Single(replayEvents);
+        Assert.Equal(SessionEventType.TurnCompleted, replayed.EventType);
+        Assert.True(replayed.IsReplay);
+    }
+
+    [Fact]
     public async Task PublishSystemEvent_PublishesThreadScopedSystemPayload()
     {
         var broker = new ThreadEventBroker("thread_001");
