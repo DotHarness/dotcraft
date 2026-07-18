@@ -93,8 +93,11 @@ describe('InlineDiffView', () => {
     expect(screen.queryByText('@@ -35,2 +35,2 @@')).toBeNull()
     expect(screen.getByTestId('inline-diff-body')).toHaveStyle({ overflowX: 'hidden' })
 
+    const copyButton = screen.getByRole('button', { name: 'Copy path' })
+    expect(copyButton.parentElement).toHaveStyle({ marginLeft: 'auto' })
+
     await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: 'Copy path' }))
+      fireEvent.click(copyButton)
       await Promise.resolve()
     })
     expect(writeText).toHaveBeenCalledWith('F:/workspace/src/deep/AgentTools.cs')

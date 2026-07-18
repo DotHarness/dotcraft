@@ -268,7 +268,11 @@ export function FileResultHeader({
       {meta && <span style={{ color: 'var(--text-dimmed)', flexShrink: 0 }}>{meta}</span>}
       {stats}
       {copyPath && (
-        <ActionTooltip label={translate(locale, 'viewer.copyPath')} placement="top">
+        <ActionTooltip
+          label={translate(locale, 'viewer.copyPath')}
+          placement="top"
+          wrapperStyle={{ marginLeft: 'auto', flexShrink: 0 }}
+        >
           <button
             type="button"
             data-testid="file-path-copy"
@@ -277,7 +281,7 @@ export function FileResultHeader({
             style={{
               width: '24px',
               height: '24px',
-              margin: '-2px -4px -2px auto',
+              margin: '-2px -4px -2px 0',
               padding: 0,
               border: 'none',
               borderRadius: '6px',
