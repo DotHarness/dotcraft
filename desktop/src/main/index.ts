@@ -770,7 +770,7 @@ async function updateSharedSettings(partial: Partial<AppSettings>): Promise<void
   }
   if (process.platform === 'darwin' && partial.showInMenuBar !== undefined) {
     if (sharedSettings.showInMenuBar === false) {
-      stopTrayProcess()
+      await stopTrayProcess()
     } else {
       ensureTrayProcess(sharedSettings)
     }
@@ -3149,7 +3149,7 @@ app.on('before-quit', (event) => {
 
   isAppQuitting = true
   if (import.meta.env.DEV) {
-    stopTrayProcess()
+    void stopTrayProcess()
   }
   stopChromeSettingsDeepLinkServer()
   if (mainWindow && !mainWindow.isDestroyed()) {

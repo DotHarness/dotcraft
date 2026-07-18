@@ -11,7 +11,7 @@ import {
   type AppSettings,
   type RecentWorkspace
 } from './settings'
-import { getTrayLockPid, isProcessAlive, tryAcquireTrayLock, type TrayLockHandle } from './trayLock'
+import { requestTrayShutdown, tryAcquireTrayLock, type TrayLockHandle } from './trayLock'
 import { DEFAULT_LOCALE, normalizeLocale, translate, type AppLocale } from '../shared/locales'
 import { resolveDotCraftRuntimeTools } from './ripgrepRuntime'
 import { checkWorkspaceLock } from './workspaceLock'
@@ -450,7 +450,9 @@ export async function runTrayProcess(): Promise<void> {
   }
   applyTrayNativeThemeSource(settings)
 
-  const lock = tryAcquireTrayLock()
+  const lock = await tryAcquireTrayLock(undefined, {
+    onShutdown: () => app.quit()
+  })
   if (!lock) {
     app.quit()
     return
@@ -571,17 +573,8 @@ export async function runTrayProcess(): Promise<void> {
   }, REFRESH_INTERVAL_MS)
 }
 
-export function stopTrayProcess(): void {
-  const pid = getTrayLockPid()
-  if (pid == null || pid === process.pid || !isProcessAlive(pid)) {
-    return
-  }
-
-  try {
-    process.kill(pid)
-  } catch {
-    // Ignore shutdown races.
-  }
+export async function stopTrayProcess(): Promise<boolean> {
+  return await requestTrayShutdown()
 }
 
 export function ensureTrayProcess(settings: AppSettings = loadSettings()): void {

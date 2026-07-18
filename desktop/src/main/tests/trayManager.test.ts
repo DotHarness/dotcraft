@@ -24,9 +24,8 @@ const trayLockMocks = vi.hoisted(() => {
   const release = vi.fn()
   return {
     release,
-    tryAcquireTrayLock: vi.fn(() => ({ release })),
-    getTrayLockPid: vi.fn(() => null),
-    isProcessAlive: vi.fn(() => false)
+    tryAcquireTrayLock: vi.fn(async () => ({ release })),
+    requestTrayShutdown: vi.fn(async () => false)
   }
 })
 
@@ -167,9 +166,8 @@ vi.mock('fs', () => ({
 
 beforeEach(() => {
   settingsMocks.loadSettings.mockReturnValue({})
-  trayLockMocks.tryAcquireTrayLock.mockReturnValue({ release: trayLockMocks.release })
-  trayLockMocks.getTrayLockPid.mockReturnValue(null)
-  trayLockMocks.isProcessAlive.mockReturnValue(false)
+  trayLockMocks.tryAcquireTrayLock.mockResolvedValue({ release: trayLockMocks.release })
+  trayLockMocks.requestTrayShutdown.mockResolvedValue(false)
   hubClientMocks.getStatus.mockResolvedValue({})
   hubClientMocks.listAppServers.mockResolvedValue([])
   hubClientMocks.subscribeEvents.mockResolvedValue(undefined)
@@ -631,6 +629,15 @@ describe('trayManager process launches', () => {
       stdio: 'ignore',
       windowsHide: true
     })
+  })
+
+  it('stops the tray through its authenticated control endpoint', async () => {
+    trayLockMocks.requestTrayShutdown.mockResolvedValue(true)
+    const { stopTrayProcess } = await import('../trayManager')
+
+    await expect(stopTrayProcess()).resolves.toBe(true)
+
+    expect(trayLockMocks.requestTrayShutdown).toHaveBeenCalledOnce()
   })
 
   it('reuses the existing macOS Desktop window before spawning a new process', async () => {
