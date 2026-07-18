@@ -256,6 +256,35 @@ public sealed class FullCompactorTests
         AssertLegacyContextCompactionTask(client.Messages[^1]);
     }
 
+    [Fact]
+    public async Task CompactAsync_OmitsNestedToolImageFromSummaryRequest()
+    {
+        var client = new RecordingChatClient("<summary>safe summary</summary>");
+        var full = new FullCompactor(client);
+        var history = new List<ChatMessage>
+        {
+            new(ChatRole.User, "inspect"),
+            new(ChatRole.Assistant, (IList<AIContent>)[new FunctionCallContent("call-1", "Screenshot")]),
+            new(ChatRole.Tool, (IList<AIContent>)
+            [
+                new FunctionResultContent("call-1", new List<AIContent>
+                {
+                    new TextContent("captured"),
+                    new DataContent(new byte[] { 1, 2, 3 }, "image/png")
+                })
+            ])
+        };
+
+        var attempt = await full.CompactAsync(history, snapshot: null);
+
+        Assert.NotNull(attempt.Result);
+        var result = Assert.Single(
+            client.Messages.SelectMany(message => message.Contents).OfType<FunctionResultContent>());
+        var text = Assert.IsType<string>(result.Result);
+        Assert.Contains("[Image (image/png)", text, StringComparison.Ordinal);
+        Assert.DoesNotContain("data:image/", text, StringComparison.OrdinalIgnoreCase);
+    }
+
     private static void AssertLegacyContextCompactionTask(ChatMessage message)
     {
         Assert.Equal(ChatRole.User, message.Role);

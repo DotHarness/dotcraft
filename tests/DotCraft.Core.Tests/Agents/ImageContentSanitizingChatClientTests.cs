@@ -1,4 +1,5 @@
 using System.Runtime.CompilerServices;
+using System.Text.Json;
 using DotCraft.Agents;
 using Microsoft.Extensions.AI;
 using SixLabors.ImageSharp;
@@ -8,6 +9,13 @@ namespace DotCraft.Tests.Agents;
 
 public sealed class ImageContentSanitizingChatClientTests
 {
+    public static TheoryData<string> RichResultShapes => new()
+    {
+        "list",
+        "array",
+        "deserialized"
+    };
+
     [Fact]
     public async Task GetStreamingResponseAsync_ToolBmpResult_PromotesPreparedPngImage()
     {
@@ -45,7 +53,45 @@ public sealed class ImageContentSanitizingChatClientTests
         Assert.Contains(ModelImageInputPreparer.CouldNotProcessPlaceholder, text, StringComparison.Ordinal);
     }
 
+    [Theory]
+    [MemberData(nameof(RichResultShapes))]
+    public async Task GetStreamingResponseAsync_RichResultShapes_NeverSerializeImageAsText(string shape)
+    {
+        using var inner = new CapturingChatClient();
+        using var client = new ImageContentSanitizingChatClient(inner);
+        var contents = new List<AIContent>
+        {
+            new TextContent("screenshot"),
+            new DataContent(CreateBmpBytes(), "image/bmp")
+        };
+        object result = shape switch
+        {
+            "list" => contents,
+            "array" => contents.ToArray(),
+            "deserialized" => JsonSerializer.SerializeToElement(
+                contents,
+                DotCraft.Protocol.SessionPersistenceJsonOptions.Default),
+            _ => throw new ArgumentOutOfRangeException(nameof(shape))
+        };
+
+        _ = await CollectStreamingAsync(client.GetStreamingResponseAsync(CreateToolResultMessages(result)));
+
+        Assert.DoesNotContain(
+            inner.LastMessages.SelectMany(message => message.Contents).OfType<TextContent>(),
+            text => text.Text.Contains("data:image/", StringComparison.OrdinalIgnoreCase));
+        Assert.Contains(
+            inner.LastMessages,
+            message => message.Role == ChatRole.User && message.Contents.OfType<DataContent>().Any());
+    }
+
     private static IReadOnlyList<ChatMessage> CreateToolResultMessages(DataContent image) =>
+        CreateToolResultMessages((IList<AIContent>)
+        [
+            new TextContent("Image: text_object0.bmp"),
+            image
+        ]);
+
+    private static IReadOnlyList<ChatMessage> CreateToolResultMessages(object result) =>
     [
         new ChatMessage(ChatRole.User, "inspect"),
         new ChatMessage(ChatRole.Assistant, (IList<AIContent>)
@@ -59,11 +105,7 @@ public sealed class ImageContentSanitizingChatClientTests
         [
             new FunctionResultContent(
                 "call-1",
-                (IList<AIContent>)
-                [
-                    new TextContent("Image: text_object0.bmp"),
-                    image
-                ])
+                result)
         ])
     ];
 

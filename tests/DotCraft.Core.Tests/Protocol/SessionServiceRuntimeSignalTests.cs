@@ -259,6 +259,10 @@ public sealed class SessionServiceRuntimeSignalTests : IDisposable
         Assert.Equal(
             [SessionThreadRuntimeSignal.TurnStarted, SessionThreadRuntimeSignal.TurnFailed],
             seen);
+        var contextUsage = svc.TryGetContextUsageSnapshot(thread.Id);
+        Assert.NotNull(contextUsage);
+        Assert.Equal("estimate", contextUsage!.Source);
+        Assert.True(contextUsage.IsEstimate);
     }
 
     [Fact]

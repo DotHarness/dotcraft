@@ -1,6 +1,7 @@
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using DotCraft.Agents;
 using Microsoft.Extensions.AI;
 
 namespace DotCraft.Context.Compaction;
@@ -198,7 +199,7 @@ public static class MessageTokenEstimator
         if (content.Result is string text)
             return total + Utf8ByteCount(text);
 
-        if (content.Result is IEnumerable<AIContent> items)
+        if (ImageContentSanitizingChatClient.TryGetResultContentItems(content.Result, out var items))
         {
             foreach (var item in items)
                 total += EstimateContentModelVisibleBytes(item) + 1;
@@ -289,7 +290,7 @@ public static class MessageTokenEstimator
         if (value is string text)
             return text;
 
-        if (value is IEnumerable<AIContent> items)
+        if (ImageContentSanitizingChatClient.TryGetResultContentItems(value, out var items))
             return items.Select(CanonicalizeContent).ToArray();
 
         return SerializeForEstimate(value);

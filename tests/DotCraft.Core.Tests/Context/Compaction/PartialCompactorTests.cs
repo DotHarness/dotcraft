@@ -129,6 +129,45 @@ public sealed class PartialCompactorTests
     }
 
     [Fact]
+    public async Task CompactAsync_ReplacesToolImagesInPreservedTail()
+    {
+        var cfg = new CompactionConfig
+        {
+            KeepRecentMinTokens = 1,
+            KeepRecentMinGroups = 1,
+            KeepRecentMaxTokens = 100_000,
+        };
+        var partial = new PartialCompactor(new StubChatClient("<summary>important bits</summary>"), cfg);
+        var messages = new List<ChatMessage>
+        {
+            new(ChatRole.User, "old request"),
+            new(ChatRole.Assistant, "old answer"),
+            new(ChatRole.User, "inspect"),
+            new(ChatRole.Assistant, (IList<AIContent>)[new FunctionCallContent("call-1", "Screenshot")]),
+            new(ChatRole.Tool, (IList<AIContent>)
+            [
+                new FunctionResultContent("call-1", new AIContent[]
+                {
+                    new TextContent("captured"),
+                    new DataContent(new byte[] { 1, 2, 3 }, "image/png")
+                })
+            ])
+        };
+
+        var attempt = await partial.CompactAsync(messages);
+
+        Assert.NotNull(attempt.Result);
+        var toolResult = Assert.Single(
+            attempt.Result!.PreservedTail.SelectMany(message => message.Contents).OfType<FunctionResultContent>());
+        var text = Assert.IsType<string>(toolResult.Result);
+        Assert.Contains("[Image (image/png)", text, StringComparison.Ordinal);
+        Assert.DoesNotContain("data:image/", text, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains(
+            attempt.Result.PreservedTail.SelectMany(message => message.Contents).OfType<FunctionCallContent>(),
+            call => call.CallId == toolResult.CallId);
+    }
+
+    [Fact]
     public async Task CompactAsync_WithSnapshotRunsMaintenanceFork()
     {
         var cfg = new CompactionConfig

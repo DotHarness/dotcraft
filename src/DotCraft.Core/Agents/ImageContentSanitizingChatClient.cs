@@ -1,3 +1,4 @@
+using System.Text.Json;
 using DotCraft.Tools;
 using Microsoft.Extensions.AI;
 
@@ -70,7 +71,7 @@ public sealed class ImageContentSanitizingChatClient(IChatClient innerClient) : 
             {
                 if (content is FunctionResultContent frc && HasNonTextContent(frc.Result))
                 {
-                    if (isCurrentRoundTool && frc.Result is IEnumerable<AIContent> items)
+                    if (isCurrentRoundTool && TryGetResultContentItems(frc.Result, out var items))
                     {
                         var placeholderTexts = new List<string>();
                         foreach (var item in items)
@@ -127,9 +128,9 @@ public sealed class ImageContentSanitizingChatClient(IChatClient innerClient) : 
         return string.Join("\n", parts);
     }
 
-    private static bool HasNonTextContent(object? result)
+    internal static bool HasNonTextContent(object? result)
     {
-        if (result is IEnumerable<AIContent> items)
+        if (TryGetResultContentItems(result, out var items))
         {
             foreach (var item in items)
             {
@@ -146,7 +147,7 @@ public sealed class ImageContentSanitizingChatClient(IChatClient innerClient) : 
         if (result is NativeToolSearchOutput toolSearchOutput)
             return NativeToolSearchTool.FormatOutputForDisplay(toolSearchOutput);
 
-        if (result is not IEnumerable<AIContent> items)
+        if (!TryGetResultContentItems(result, out var items))
             return result?.ToString() ?? "(no output)";
 
         var parts = new List<string>();
@@ -176,5 +177,74 @@ public sealed class ImageContentSanitizingChatClient(IChatClient innerClient) : 
         }
 
         return parts.Count > 0 ? string.Join("\n", parts) : "(no output)";
+    }
+
+    internal static IReadOnlyList<ChatMessage> ReplaceToolImagesWithDescriptions(
+        IReadOnlyList<ChatMessage> messages)
+    {
+        var result = new List<ChatMessage>(messages.Count);
+        foreach (var message in messages)
+        {
+            List<AIContent>? contents = null;
+            for (var i = 0; i < message.Contents.Count; i++)
+            {
+                if (message.Contents[i] is not FunctionResultContent frc || !HasNonTextContent(frc.Result))
+                    continue;
+
+                contents ??= new List<AIContent>(message.Contents);
+                contents[i] = new FunctionResultContent(frc.CallId, DescribeResult(frc.Result));
+            }
+
+            if (contents is null)
+            {
+                result.Add(message);
+                continue;
+            }
+
+            result.Add(new ChatMessage(message.Role, contents)
+            {
+                AuthorName = message.AuthorName,
+                MessageId = message.MessageId
+            });
+        }
+
+        return result;
+    }
+
+    internal static bool TryGetResultContentItems(
+        object? result,
+        out IReadOnlyList<AIContent> items)
+    {
+        if (result is IReadOnlyList<AIContent> readOnlyItems)
+        {
+            items = readOnlyItems;
+            return true;
+        }
+
+        if (result is IEnumerable<AIContent> enumerableItems)
+        {
+            items = enumerableItems.ToList();
+            return true;
+        }
+
+        if (result is JsonElement { ValueKind: JsonValueKind.Array } json)
+        {
+            try
+            {
+                items = json.Deserialize<List<AIContent>>(AIJsonUtilities.DefaultOptions) ?? [];
+                return true;
+            }
+            catch (JsonException)
+            {
+                // Preserve the provider-compatible scalar fallback below.
+            }
+            catch (NotSupportedException)
+            {
+                // Preserve the provider-compatible scalar fallback below.
+            }
+        }
+
+        items = [];
+        return false;
     }
 }
