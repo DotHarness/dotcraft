@@ -335,9 +335,6 @@
 
   /* Code blocks & modals */
   --code-block-bg: #0d1117;
-  --code-copy-bg: rgba(255, 255, 255, 0.08);
-  --code-copy-border: rgba(255, 255, 255, 0.12);
-  --code-copy-text: rgba(255, 255, 255, 0.6);
   --on-accent: #ffffff;
   --overlay-scrim: rgba(0, 0, 0, 0.5);
 
@@ -516,9 +513,6 @@ html[data-theme="light"] {
   --shadow-level-3: 0 8px 16px -4px rgba(0, 0, 0, 0.12);
 
   --code-block-bg: #f6f8fa;
-  --code-copy-bg: color-mix(in srgb, var(--text-primary) 5%, transparent);
-  --code-copy-border: color-mix(in srgb, var(--text-primary) 12%, transparent);
-  --code-copy-text: color-mix(in srgb, var(--text-primary) 70%, transparent);
   --on-accent: #ffffff;
   --overlay-scrim: rgba(0, 0, 0, 0.35);
 

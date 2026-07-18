@@ -155,6 +155,96 @@ describe('MarkdownRenderer', () => {
     expect(codeBlock?.textContent).toContain('const x = 1')
   })
 
+  it('wraps fenced code blocks by default', () => {
+    const longToken = 'example-token-with-no-natural-breaks-abcdefghijklmnopqrstuvwxyz0123456789'
+    const { container } = renderWithLocale(`\`\`\`text\n${longToken}\n\`\`\``)
+    const codeBlock = container.querySelector('pre')
+    const wrapButton = screen.getByRole('button', { name: 'Disable word wrap' })
+
+    expect(codeBlock).toHaveStyle({
+      overflowX: 'hidden',
+      whiteSpace: 'pre-wrap',
+      overflowWrap: 'anywhere'
+    })
+    expect(wrapButton).toHaveAttribute('aria-pressed', 'true')
+  })
+
+  it('shows code block actions on hover or keyboard focus', () => {
+    renderWithLocale('```text\ncontent\n```')
+    const codeBlock = screen.getByTestId('markdown-code-block')
+    const actions = screen.getByTestId('markdown-code-actions')
+    const copyButton = screen.getByRole('button', { name: 'Copy code' })
+
+    expect(actions).toHaveStyle({ opacity: 0, pointerEvents: 'none' })
+
+    fireEvent.mouseEnter(codeBlock)
+    expect(actions).toHaveStyle({ opacity: 1, pointerEvents: 'auto' })
+
+    fireEvent.mouseLeave(codeBlock)
+    expect(actions).toHaveStyle({ opacity: 0, pointerEvents: 'none' })
+
+    fireEvent.focus(copyButton)
+    expect(actions).toHaveStyle({ opacity: 1, pointerEvents: 'auto' })
+
+    fireEvent.blur(copyButton, { relatedTarget: document.body })
+    expect(actions).toHaveStyle({ opacity: 0, pointerEvents: 'none' })
+  })
+
+  it('toggles word wrap independently for each code block', () => {
+    const content = [
+      '```text',
+      'first-long-line',
+      '```',
+      '',
+      '```text',
+      'second-long-line',
+      '```'
+    ].join('\n')
+    const { container } = renderWithLocale(content)
+    const codeBlocks = container.querySelectorAll('pre')
+    const wrapButtons = screen.getAllByRole('button', { name: 'Disable word wrap' })
+
+    fireEvent.click(wrapButtons[0])
+
+    expect(codeBlocks[0]).toHaveStyle({
+      overflowX: 'auto',
+      whiteSpace: 'pre',
+      overflowWrap: 'normal'
+    })
+    expect(codeBlocks[1]).toHaveStyle({
+      overflowX: 'hidden',
+      whiteSpace: 'pre-wrap',
+      overflowWrap: 'anywhere'
+    })
+    const enableButton = screen.getByRole('button', { name: 'Enable word wrap' })
+    expect(enableButton).toHaveAttribute('aria-pressed', 'false')
+
+    fireEvent.click(enableButton)
+
+    expect(codeBlocks[0]).toHaveStyle({
+      overflowX: 'hidden',
+      whiteSpace: 'pre-wrap',
+      overflowWrap: 'anywhere'
+    })
+    expect(screen.getAllByRole('button', { name: 'Disable word wrap' })).toHaveLength(2)
+  })
+
+  it('copies the complete code block and exposes localized icon-button feedback', async () => {
+    renderWithLocale('```text\nfirst line\nsecond line\n```')
+    const copyButton = screen.getByRole('button', { name: 'Copy code' })
+
+    act(() => copyButton.focus())
+    expect(copyButton).toHaveFocus()
+    expect(await screen.findByRole('tooltip')).toHaveTextContent('Copy code')
+
+    fireEvent.click(copyButton)
+
+    await waitFor(() => {
+      expect(clipboardWriteText).toHaveBeenCalledWith('first line\nsecond line\n')
+    })
+    expect(await screen.findByRole('button', { name: 'Code copied' })).toBeInTheDocument()
+  })
+
   it('renders a fenced mermaid block as a diagram', async () => {
     renderWithLocale('```mermaid\nflowchart TD\n  A-->B\n```')
 
@@ -200,6 +290,8 @@ describe('MarkdownRenderer', () => {
     const codeBlock = document.querySelector('pre')
     expect(codeBlock).not.toBeNull()
     expect(codeBlock?.textContent).toContain('flowchart TD')
+    expect(screen.getByRole('button', { name: 'Disable word wrap' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Copy code' })).toBeInTheDocument()
   })
 
   it('sanitizes mermaid SVG output before insertion', async () => {

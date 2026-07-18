@@ -7,7 +7,7 @@ import { extractPartialTodos } from '../../stores/conversationStore'
 import { extractPartialJsonStringValue } from '../../utils/toolCallDisplay'
 import { parsePlanMarkdown } from '../../utils/planMarkdown'
 import { MarkdownRenderer } from './MarkdownRenderer'
-import { ActionTooltip } from '../ui/ActionTooltip'
+import { CompactIconButton } from '../ui/CompactIconButton'
 import { PlanTodoStatusIcon } from '../plan/PlanTodoStatusIcon'
 
 interface CreatePlanCardProps {
@@ -94,10 +94,11 @@ export function CreatePlanCard({ item, locale }: CreatePlanCardProps): JSX.Eleme
   }
 
   const copyButton = copyContent ? (
-    <IconButton
+    <CompactIconButton
       icon={copied ? <Check size={14} aria-hidden /> : <Copy size={14} aria-hidden />}
-      ariaLabel={translate(locale, copied ? 'toolCall.plan.copiedAria' : 'toolCall.plan.copyAria')}
+      label={translate(locale, copied ? 'toolCall.plan.copiedAria' : 'toolCall.plan.copyAria')}
       active={copied}
+      activeColor="var(--success)"
       onClick={() => {
         void handleCopy()
       }}
@@ -105,9 +106,9 @@ export function CreatePlanCard({ item, locale }: CreatePlanCardProps): JSX.Eleme
   ) : null
 
   const expandButton = canExpand ? (
-    <IconButton
+    <CompactIconButton
       icon={expanded ? <ChevronUp size={14} aria-hidden /> : <ChevronDown size={14} aria-hidden />}
-      ariaLabel={translate(locale, expanded ? 'toolCall.plan.collapseAria' : 'toolCall.plan.expandAria')}
+      label={translate(locale, expanded ? 'toolCall.plan.collapseAria' : 'toolCall.plan.expandAria')}
       onClick={() => {
         setExpanded((v) => !v)
       }}
@@ -349,50 +350,4 @@ function planMarkdownFrameStyle(expanded: boolean): CSSProperties {
     maskImage: 'linear-gradient(to bottom, #000 65%, transparent)',
     WebkitMaskImage: 'linear-gradient(to bottom, #000 65%, transparent)'
   }
-}
-
-function IconButton(
-  {
-    icon,
-    ariaLabel,
-    active = false,
-    onClick
-  }: {
-    icon: JSX.Element
-    ariaLabel: string
-    active?: boolean
-    onClick: () => void
-  }
-): JSX.Element {
-  const [hovered, setHovered] = useState(false)
-  const [focused, setFocused] = useState(false)
-  const chromeVisible = hovered || focused
-  return (
-    <ActionTooltip label={ariaLabel} placement="top">
-      <button
-        type="button"
-        aria-label={ariaLabel}
-        onClick={onClick}
-        onMouseEnter={() => setHovered(true)}
-        onMouseLeave={() => setHovered(false)}
-        onFocus={() => setFocused(true)}
-        onBlur={() => setFocused(false)}
-        style={{
-          width: '24px',
-          height: '24px',
-          borderRadius: '6px',
-          border: '1px solid transparent',
-          background: chromeVisible ? 'var(--bg-tertiary)' : 'transparent',
-          color: active ? 'var(--success)' : chromeVisible ? 'var(--text-primary)' : 'var(--text-secondary)',
-          display: 'inline-flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          cursor: 'pointer',
-          transition: 'color 120ms ease, background 120ms ease'
-        }}
-      >
-        {icon}
-      </button>
-    </ActionTooltip>
-  )
 }

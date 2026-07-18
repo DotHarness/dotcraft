@@ -1,5 +1,5 @@
-import { isValidElement, memo, useMemo, useState } from 'react'
-import { Globe, Link2 } from 'lucide-react'
+import { isValidElement, memo, useEffect, useMemo, useRef, useState } from 'react'
+import { Check, Copy, Globe, Link2, WrapText } from 'lucide-react'
 import { FileTypeIcon } from '../ui/FileTypeIcon'
 import ReactMarkdown, { defaultUrlTransform } from 'react-markdown'
 import remarkGfm from 'remark-gfm'
@@ -8,10 +8,12 @@ import type { Components } from 'react-markdown'
 import { useT } from '../../contexts/LocaleContext'
 import { useConversationStore } from '../../stores/conversationStore'
 import { useThreadStore } from '../../stores/threadStore'
+import { addToast } from '../../stores/toastStore'
 import { openConversationLink } from '../../utils/conversationDeepLink'
 import { basename } from '../../utils/path'
 import { resolveConversationLink } from '../../../shared/viewer/linkResolver'
 import { ActionTooltip } from '../ui/ActionTooltip'
+import { CompactIconButton } from '../ui/CompactIconButton'
 import { ReferencePathContextMenu } from './ReferencePathContextMenu'
 import type { ContextMenuPosition } from '../ui/ContextMenu'
 import { MermaidDiagram } from './MermaidDiagram'
@@ -208,7 +210,7 @@ const baseComponents: Components = {
       )
     }
     return (
-      <code className={className} {...props}>
+      <code className={className} style={{ whiteSpace: 'inherit', overflowWrap: 'inherit' }} {...props}>
         {children}
       </code>
     )
@@ -300,58 +302,104 @@ function CodeBlock({
   return <PlainCodeBlock {...props}>{children}</PlainCodeBlock>
 }
 
-function PlainCodeBlock({ children, ...props }: React.HTMLAttributes<HTMLPreElement>): JSX.Element {
+function PlainCodeBlock({ children, style, ...props }: React.HTMLAttributes<HTMLPreElement>): JSX.Element {
+  const t = useT()
   const [copied, setCopied] = useState(false)
+  const [wordWrap, setWordWrap] = useState(true)
+  const [hovered, setHovered] = useState(false)
+  const [focusedWithin, setFocusedWithin] = useState(false)
+  const copyResetTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  function handleCopy(): void {
+  useEffect(() => {
+    return () => {
+      if (copyResetTimerRef.current != null) clearTimeout(copyResetTimerRef.current)
+    }
+  }, [])
+
+  async function handleCopy(): Promise<void> {
     const text = extractText(children)
-    navigator.clipboard.writeText(text).then(() => {
+    if (!text) return
+    try {
+      await navigator.clipboard.writeText(text)
       setCopied(true)
-      setTimeout(() => setCopied(false), 1800)
-    }).catch(() => {})
+      addToast(t('toast.copied'), 'success', 2000)
+      if (copyResetTimerRef.current != null) clearTimeout(copyResetTimerRef.current)
+      copyResetTimerRef.current = setTimeout(() => {
+        setCopied(false)
+        copyResetTimerRef.current = null
+      }, 1500)
+    } catch {
+      // Ignore clipboard failures silently.
+    }
   }
 
+  const copyLabel = t(copied ? 'markdown.codeCopied' : 'markdown.copyCode')
+  const wrapLabel = t(wordWrap ? 'markdown.disableWordWrap' : 'markdown.enableWordWrap')
+  const actionsVisible = hovered || focusedWithin
+
   return (
-    <div style={{ position: 'relative', margin: '8px 0 10px' }}>
+    <div
+      data-testid="markdown-code-block"
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      onFocusCapture={() => setFocusedWithin(true)}
+      onBlurCapture={(event) => {
+        if (!event.currentTarget.contains(event.relatedTarget)) {
+          setFocusedWithin(false)
+        }
+      }}
+      style={{ position: 'relative', minWidth: 0, maxWidth: '100%', margin: '8px 0 10px' }}
+    >
       <pre
         style={{
+          maxWidth: '100%',
+          boxSizing: 'border-box',
           backgroundColor: 'var(--code-block-bg)',
           borderRadius: '10px',
           padding: '12px 14px',
           paddingRight: '72px',
-          overflowX: 'auto',
+          overflowX: wordWrap ? 'hidden' : 'auto',
+          whiteSpace: wordWrap ? 'pre-wrap' : 'pre',
+          overflowWrap: wordWrap ? 'anywhere' : 'normal',
           fontFamily: 'var(--font-mono)',
           fontSize: 'var(--text-code-size)',
           lineHeight: 'var(--text-code-line-height)',
-          margin: 0
+          margin: 0,
+          ...style
         }}
         {...props}
       >
         {children}
       </pre>
-      <ActionTooltip
-        label="Copy code"
-        placement="top"
-        wrapperStyle={{ position: 'absolute', top: '6px', right: '8px' }}
-      >
-        <button
-          onClick={handleCopy}
-          aria-label="Copy code"
-          style={{
-          padding: '3px 8px',
-          fontSize: '11px',
-          background: copied ? 'var(--success)' : 'var(--code-copy-bg)',
-          border: '1px solid var(--code-copy-border)',
-          borderRadius: '4px',
-          color: copied ? 'var(--on-accent)' : 'var(--code-copy-text)',
-          cursor: 'pointer',
-          transition: 'background-color 150ms ease, color 150ms ease',
-          fontFamily: 'var(--font-ui)'
+      <div
+        data-testid="markdown-code-actions"
+        style={{
+          position: 'absolute',
+          top: '6px',
+          right: '8px',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '4px',
+          opacity: actionsVisible ? 1 : 0,
+          pointerEvents: actionsVisible ? 'auto' : 'none',
+          transition: 'opacity 120ms ease'
         }}
       >
-        {copied ? 'Copied!' : 'Copy'}
-        </button>
-      </ActionTooltip>
+        <CompactIconButton
+          icon={<WrapText size={14} aria-hidden />}
+          label={wrapLabel}
+          active={wordWrap}
+          aria-pressed={wordWrap}
+          onClick={() => setWordWrap((current) => !current)}
+        />
+        <CompactIconButton
+          icon={copied ? <Check size={14} aria-hidden /> : <Copy size={14} aria-hidden />}
+          label={copyLabel}
+          active={copied}
+          activeColor="var(--success)"
+          onClick={() => { void handleCopy() }}
+        />
+      </div>
     </div>
   )
 }
