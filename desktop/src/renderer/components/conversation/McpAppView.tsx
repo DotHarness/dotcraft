@@ -25,6 +25,7 @@ const MIN_HEIGHT = 120
 const MAX_HEIGHT = 720
 const MIN_WIDTH = 240
 const SIZE_UPDATE_INTERVAL_MS = 100
+const FRAME_BORDER_WIDTH = 1
 
 interface McpAppViewProps {
   item: ConversationItem
@@ -77,6 +78,18 @@ function theme(): 'light' | 'dark' {
 
 function positiveDimension(measured: number | undefined, fallback: number): number {
   return measured !== undefined && measured > 0 ? measured : fallback
+}
+
+function resolveInlineFrameWidth(
+  requestedViewportWidth: number,
+  availableWidth: number,
+  bordered: boolean
+): number {
+  const frameChromeWidth = bordered ? FRAME_BORDER_WIDTH * 2 : 0
+  return Math.min(
+    availableWidth,
+    Math.max(MIN_WIDTH, Math.ceil(requestedViewportWidth) + frameChromeWidth)
+  )
 }
 
 type HostContainerDimensions =
@@ -135,7 +148,7 @@ function McpAppViewImpl({ item, threadId, turnId }: McpAppViewProps): JSX.Elemen
   const [status, setStatus] = useState<'opening' | 'ready' | 'failed' | 'stale'>('opening')
   const [error, setError] = useState('')
   const [height, setHeight] = useState(DEFAULT_HEIGHT)
-  const [width, setWidth] = useState<number | null>(null)
+  const [frameWidth, setFrameWidth] = useState<number | null>(null)
   const [fullscreen, setFullscreen] = useState(false)
   const fullscreenRef = useRef(fullscreen)
   const logTimes = useRef<number[]>([])
@@ -145,6 +158,7 @@ function McpAppViewImpl({ item, threadId, turnId }: McpAppViewProps): JSX.Elemen
   const hostContextUpdateAt = useRef(0)
   const hostContextTimerRef = useRef<number | null>(null)
   const phaseTimeoutRef = useRef<number | null>(null)
+  const borderless = openResult?.resource.ui.prefersBorder === false
 
   fullscreenRef.current = fullscreen
 
@@ -172,7 +186,7 @@ function McpAppViewImpl({ item, threadId, turnId }: McpAppViewProps): JSX.Elemen
     setOpenResult(null)
     setError('')
     setHeight(DEFAULT_HEIGHT)
-    setWidth(null)
+    setFrameWidth(null)
     setFullscreen(false)
     if (!threadId || !item.mcpAppAvailable) {
       setStatus('stale')
@@ -275,12 +289,12 @@ function McpAppViewImpl({ item, threadId, turnId }: McpAppViewProps): JSX.Elemen
     pendingSizeRef.current = {}
     if (requested.width !== undefined) {
       const availableWidth = positiveDimension(surfaceRef.current?.clientWidth, window.innerWidth)
-      setWidth(Math.min(availableWidth, Math.max(MIN_WIDTH, Math.ceil(requested.width))))
+      setFrameWidth(resolveInlineFrameWidth(requested.width, availableWidth, !borderless))
     }
     if (requested.height !== undefined) {
       setHeight(Math.max(MIN_HEIGHT, Math.min(MAX_HEIGHT, Math.ceil(requested.height))))
     }
-  }, [])
+  }, [borderless])
 
   const handleSizeChange = useCallback(({ width: requestedWidth, height: requestedHeight }: { width?: number; height?: number }) => {
     if (fullscreenRef.current) return
@@ -542,7 +556,6 @@ function McpAppViewImpl({ item, threadId, turnId }: McpAppViewProps): JSX.Elemen
     )
   })()
 
-  const borderless = openResult?.resource.ui.prefersBorder === false
   const appName = resolveAppName(item)
   const sandboxDomain = openResult?.resource.ui.requestedDomain?.trim()
   const sandboxTooltip = sandboxDomain
@@ -568,13 +581,13 @@ function McpAppViewImpl({ item, threadId, turnId }: McpAppViewProps): JSX.Elemen
       <div
         data-mcp-app-frame={borderless ? 'borderless' : 'bordered'}
         style={{
-          border: borderless ? 'none' : '1px solid var(--border-default)',
+          border: borderless ? 'none' : `${FRAME_BORDER_WIDTH}px solid var(--border-default)`,
           borderRadius: borderless ? 0 : 8,
           overflow: 'hidden',
           background: borderless ? 'transparent' : 'var(--bg-secondary)',
           display: 'flex',
           flexDirection: 'column',
-          width: fullscreen ? '100%' : width === null ? '100%' : `${width}px`,
+          width: fullscreen ? '100%' : frameWidth === null ? '100%' : `${frameWidth}px`,
           maxWidth: '100%',
           height: fullscreen ? '100%' : undefined,
           minWidth: 0

@@ -259,6 +259,49 @@ describe('McpAppView', () => {
     expect(view.style.height).toBe('720px')
   })
 
+  it('keeps bordered flexible widths stable across repeated viewport reports', async () => {
+    const rendered = render(<LocaleProvider><McpAppView item={item()} threadId="thread-1" turnId="turn-1" /></LocaleProvider>)
+    await waitFor(() => expect(bridgeInstances).toHaveLength(1))
+    const surface = rendered.container.querySelector('[data-mcp-app-display-mode]') as HTMLDivElement
+    const frame = rendered.container.querySelector('[data-mcp-app-frame="bordered"]') as HTMLDivElement
+    Object.defineProperty(surface, 'clientWidth', { configurable: true, value: 600 })
+
+    act(() => bridgeInstances[0].onsizechange?.({ width: 598 }))
+    expect(frame.style.width).toBe('600px')
+
+    act(() => bridgeInstances[0].onsizechange?.({ width: 598 }))
+    await act(async () => { await new Promise((resolve) => window.setTimeout(resolve, 110)) })
+    expect(frame.style.width).toBe('600px')
+
+    act(() => bridgeInstances[0].onsizechange?.({ width: 500 }))
+    await act(async () => { await new Promise((resolve) => window.setTimeout(resolve, 110)) })
+    expect(frame.style.width).toBe('502px')
+
+    act(() => bridgeInstances[0].onsizechange?.({ width: 700 }))
+    await act(async () => { await new Promise((resolve) => window.setTimeout(resolve, 110)) })
+    expect(frame.style.width).toBe('600px')
+
+    act(() => bridgeInstances[0].onsizechange?.({ width: 598 }))
+    await act(async () => { await new Promise((resolve) => window.setTimeout(resolve, 110)) })
+    expect(frame.style.width).toBe('600px')
+  })
+
+  it('does not add host chrome to borderless viewport widths', async () => {
+    sendRequest.mockImplementation(async (method: string) => {
+      if (method === 'mcpApp/view/open') return openResult('view-borderless', false)
+      return {}
+    })
+    const rendered = render(<LocaleProvider><McpAppView item={item()} threadId="thread-1" turnId="turn-1" /></LocaleProvider>)
+    await waitFor(() => expect(bridgeInstances).toHaveLength(1))
+    const surface = rendered.container.querySelector('[data-mcp-app-display-mode]') as HTMLDivElement
+    const frame = rendered.container.querySelector('[data-mcp-app-frame="borderless"]') as HTMLDivElement
+    Object.defineProperty(surface, 'clientWidth', { configurable: true, value: 600 })
+
+    act(() => bridgeInstances[0].onsizechange?.({ width: 500 }))
+
+    expect(frame.style.width).toBe('500px')
+  })
+
   it('discards throttled size notifications when the rendered item changes', async () => {
     const rendered = render(<LocaleProvider><McpAppView item={item()} threadId="thread-1" turnId="turn-1" /></LocaleProvider>)
     await waitFor(() => expect(bridgeInstances).toHaveLength(1))
