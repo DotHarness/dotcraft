@@ -8,6 +8,45 @@ namespace DotCraft.Tests.Sessions.Protocol.AppServer;
 
 public sealed class AppServerEventDispatcherDisconnectTests
 {
+    [Fact]
+    public async Task RunAsync_ReplayRecent_DoesNotSendHistoricalThreadStatusChanges()
+    {
+        using var harness = new AppServerTestHarness();
+        var broker = new ThreadEventBroker("thread_001");
+        broker.PublishThreadStatusChanged(ThreadStatus.Active, ThreadStatus.Archived);
+        broker.PublishThreadStatusChanged(ThreadStatus.Archived, ThreadStatus.Active);
+        broker.CreateTurnChannel("turn_001").EmitTurnCompleted(new SessionTurn
+        {
+            Id = "turn_001",
+            ThreadId = "thread_001",
+            Status = TurnStatus.Completed,
+            StartedAt = DateTimeOffset.UtcNow,
+            CompletedAt = DateTimeOffset.UtcNow
+        });
+
+        using var replayCts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+        var replayedEvents = new List<SessionEvent>();
+        await foreach (var evt in broker.SubscribeAsync(replayRecent: true, ct: replayCts.Token))
+        {
+            replayedEvents.Add(evt);
+            break;
+        }
+
+        var transport = new CapturingTransport();
+        var dispatcher = new AppServerEventDispatcher(
+            TrackEvents(replayedEvents, []),
+            CreateReadyConnection(),
+            transport,
+            harness.Service);
+
+        await dispatcher.RunAsync();
+
+        var sent = Assert.Single(transport.Sent);
+        var json = JsonSerializer.Serialize(sent, sent.GetType());
+        Assert.Contains(AppServerMethods.TurnCompleted, json);
+        Assert.DoesNotContain(AppServerMethods.ThreadStatusChanged, json);
+    }
+
     [Theory]
     [InlineData(true, false, 0)]
     [InlineData(false, false, 1)]
