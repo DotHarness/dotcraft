@@ -13,14 +13,14 @@ public sealed class McpAppViewLifecycleTests : IDisposable
     private readonly string _tempDir = Path.Combine(Path.GetTempPath(), $"McpAppViewTests_{Guid.NewGuid():N}");
 
     [Fact]
-    public async Task Eligibility_RequiresPersistedAssociationExactTurnAndCurrentAppRegistration()
+    public async Task Eligibility_RequiresPersistedAssociationExactTurnAndCurrentRegistration()
     {
         await using var manager = await CreateConnectedManagerAsync();
         var generation = Assert.NotNull(await manager.GetGenerationAsync("review"));
         var registration = Registration(
             "review",
             "show",
-            McpAppVisibility.Model | McpAppVisibility.App,
+            McpAppVisibility.Model,
             resourceUri: "ui://review/show",
             generation);
         var snapshot = new EffectiveToolSnapshotBuilder().Build([registration], revision: 4);
@@ -84,7 +84,7 @@ public sealed class McpAppViewLifecycleTests : IDisposable
         var registration = Registration(
             "review",
             "show",
-            McpAppVisibility.Model | McpAppVisibility.App,
+            McpAppVisibility.Model,
             resourceUri: "ui://review/show",
             generation);
         var snapshot = new EffectiveToolSnapshotBuilder().Build([registration], revision: 4);
@@ -142,6 +142,67 @@ public sealed class McpAppViewLifecycleTests : IDisposable
 
         Assert.True(live?.McpApp?.Available);
         Assert.True(replay?.McpApp?.Available);
+    }
+
+    [Fact]
+    public async Task TerminalTurnProjection_DoesNotRegressLiveMcpAppAvailability()
+    {
+        await using var manager = await CreateConnectedManagerAsync();
+        var generation = Assert.NotNull(await manager.GetGenerationAsync("review"));
+        var registration = Registration(
+            "review",
+            "show",
+            McpAppVisibility.Model,
+            resourceUri: "ui://review/show",
+            generation);
+        var snapshot = new EffectiveToolSnapshotBuilder().Build([registration], revision: 4);
+        var now = DateTimeOffset.UtcNow;
+        var item = new SessionItem
+        {
+            Id = "item_001",
+            TurnId = "turn_001",
+            Type = ItemType.McpToolCall,
+            Status = ItemStatus.Completed,
+            CreatedAt = now,
+            CompletedAt = now,
+            Payload = new McpToolCallPayload
+            {
+                Namespace = registration.Definition.Name.Namespace,
+                ToolName = registration.Definition.Name.Name,
+                ProviderFlatName = snapshot.ProviderFlatNames[registration.Definition.Name],
+                ToolDefinitionId = registration.Definition.Id.ToString(),
+                RuntimeBindingId = registration.Binding.Id.Value,
+                BindingRevision = registration.Binding.Revision,
+                SnapshotRevision = snapshot.Revision,
+                McpGeneration = generation,
+                Server = "review",
+                SourceToolId = "show",
+                CallId = "call-1",
+                Status = "failed",
+                Success = false,
+                IsError = true,
+                McpAppResourceUri = "ui://review/show"
+            }
+        };
+        var turn = new SessionTurn
+        {
+            Id = item.TurnId,
+            ThreadId = "thread-1",
+            Status = TurnStatus.Completed,
+            StartedAt = now,
+            CompletedAt = now,
+            Items = [item]
+        };
+
+        var projected = await AppServerEventDispatcher.ProjectTerminalTurnAsync(
+            turn,
+            supportsToolExecutionLifecycle: true,
+            supportsMcpApps: true,
+            new SnapshotSource(snapshot),
+            new McpRuntimeService(manager),
+            CancellationToken.None);
+
+        Assert.True(Assert.Single(projected!.Items!).McpApp?.Available);
     }
 
     [Fact]
@@ -307,7 +368,7 @@ public sealed class McpAppViewLifecycleTests : IDisposable
         await using var transport = new InMemoryTransport();
         await using var manager = await CreateConnectedManagerAsync();
         var generation = Assert.NotNull(await manager.GetGenerationAsync("review"));
-        var source = Registration("review", "show", McpAppVisibility.App, resourceUri: "ui://review/show", generation);
+        var source = Registration("review", "show", McpAppVisibility.Model, resourceUri: "ui://review/show", generation);
         var appTool = Registration("review", "comment", McpAppVisibility.App, resourceUri: null, generation);
         var modelOnly = Registration("review", "private", McpAppVisibility.Model, resourceUri: null, generation);
         var otherServer = Registration("other", "foreign", McpAppVisibility.App, resourceUri: null, generation);
@@ -349,7 +410,7 @@ public sealed class McpAppViewLifecycleTests : IDisposable
         var listed = Assert.IsType<McpAppViewToolsListResult>(await list(
             InMemoryTransport.BuildRequest(AppServerMethods.McpAppViewToolsList, new { viewHandle = view.Handle }),
             CancellationToken.None));
-        Assert.Equal(["comment", "show"], listed.Tools.Select(static tool => tool.Name));
+        Assert.Equal(["comment"], listed.Tools.Select(static tool => tool.Name));
 
         Assert.True(table.TryGet(AppServerMethods.McpAppViewToolCall, out var call));
         var error = await Assert.ThrowsAsync<AppServerException>(() => call(
@@ -358,6 +419,13 @@ public sealed class McpAppViewLifecycleTests : IDisposable
                 new { viewHandle = view.Handle, tool = "foreign", arguments = new { } }),
             CancellationToken.None));
         Assert.Equal("unauthorized", Assert.IsType<AppServerErrorData>(error.ErrorData).Code);
+
+        var sourceError = await Assert.ThrowsAsync<AppServerException>(() => call(
+            InMemoryTransport.BuildRequest(
+                AppServerMethods.McpAppViewToolCall,
+                new { viewHandle = view.Handle, tool = "show", arguments = new { } }),
+            CancellationToken.None));
+        Assert.Equal("unauthorized", Assert.IsType<AppServerErrorData>(sourceError.ErrorData).Code);
 
         Assert.True(table.TryGet(AppServerMethods.McpAppViewModelContextUpdate, out var updateContext));
         _ = await updateContext(

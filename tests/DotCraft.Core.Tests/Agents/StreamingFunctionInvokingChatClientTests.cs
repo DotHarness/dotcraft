@@ -470,7 +470,7 @@ public sealed partial class StreamingFunctionInvokingChatClientTests
     }
 
     [Fact]
-    public async Task GetStreamingResponseAsync_RetriesEmptyProviderResponseAfterToolResult()
+    public async Task GetStreamingResponseAsync_CompletesWhenProviderResponseAfterToolResultIsEmpty()
     {
         var inner = new PostToolEmptyResponseFakeChatClient(emptyResponsesAfterTool: 1);
         var tool = AIFunctionFactory.Create(() => "tool ok", name: "GetStatus");
@@ -481,15 +481,17 @@ public sealed partial class StreamingFunctionInvokingChatClientTests
 
         var updates = await CollectAsync(client.GetStreamingResponseAsync([new ChatMessage(ChatRole.User, "start")]));
 
-        Assert.Equal(3, inner.Calls.Count);
+        Assert.Equal(2, inner.Calls.Count);
         Assert.Contains(updates, update => update.Contents.OfType<FunctionResultContent>().Any(result => result.CallId == "call-1"));
-        Assert.Contains(updates, update => update.Text.Contains("done", StringComparison.Ordinal));
+        Assert.DoesNotContain(updates, update => update.Text.Contains("done", StringComparison.Ordinal));
     }
 
     [Fact]
-    public async Task GetStreamingResponseAsync_ThrowsWhenPostToolEmptyProviderResponseRepeats()
+    public async Task GetStreamingResponseAsync_ThrowsWhenPostToolProviderResponseContainsError()
     {
-        var inner = new PostToolEmptyResponseFakeChatClient(emptyResponsesAfterTool: 2);
+        var inner = new PostToolEmptyResponseFakeChatClient(
+            emptyResponsesAfterTool: 0,
+            errorAfterTool: "provider failed");
         var tool = AIFunctionFactory.Create(() => "tool ok", name: "GetStatus");
         var client = new StreamingFunctionInvokingChatClient(inner)
         {
@@ -499,8 +501,8 @@ public sealed partial class StreamingFunctionInvokingChatClientTests
         var ex = await Assert.ThrowsAsync<EmptyProviderResponseException>(async () =>
             await CollectAsync(client.GetStreamingResponseAsync([new ChatMessage(ChatRole.User, "start")])));
 
-        Assert.Contains("after tool results", ex.Message, StringComparison.Ordinal);
-        Assert.Equal(3, inner.Calls.Count);
+        Assert.Contains("provider failed", ex.Message, StringComparison.Ordinal);
+        Assert.Equal(2, inner.Calls.Count);
     }
 
     [Fact]
@@ -1162,7 +1164,9 @@ public sealed partial class StreamingFunctionInvokingChatClientTests
         }
     }
 
-    private sealed class PostToolEmptyResponseFakeChatClient(int emptyResponsesAfterTool) : IChatClient
+    private sealed class PostToolEmptyResponseFakeChatClient(
+        int emptyResponsesAfterTool,
+        string? errorAfterTool = null) : IChatClient
     {
         public List<List<ChatMessage>> Calls { get; } = [];
 
@@ -1183,6 +1187,10 @@ public sealed partial class StreamingFunctionInvokingChatClientTests
                 yield return new ChatResponseUpdate(ChatRole.Assistant, [
                     new FunctionCallContent("call-1", "GetStatus", new Dictionary<string, object?>())
                 ]);
+            }
+            else if (!string.IsNullOrWhiteSpace(errorAfterTool))
+            {
+                yield return new ChatResponseUpdate(ChatRole.Assistant, [new ErrorContent(errorAfterTool)]);
             }
             else if (Calls.Count <= emptyResponsesAfterTool + 1)
             {

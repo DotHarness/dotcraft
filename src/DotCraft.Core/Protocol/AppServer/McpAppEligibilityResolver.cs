@@ -101,9 +101,7 @@ internal static class McpAppEligibilityResolver
             || registration.Definition.Id.Kind != ToolSourceKind.Mcp
             || !string.Equals(registration.Definition.Id.SourceId, payload.Server, StringComparison.Ordinal)
             || !string.Equals(registration.Definition.Id.SourceToolId.Value, payload.SourceToolId, StringComparison.Ordinal)
-            || !registration.InvocationAudiences.HasFlag(ToolInvocationAudience.App)
             || !McpAppMetadataParser.TryGetToolMetadata(registration.Definition, out var appMetadata)
-            || !appMetadata.Visibility.HasFlag(McpAppVisibility.App)
             || appMetadata.ResourceUri is null
             || Uri.Compare(
                     appMetadata.ResourceUri,

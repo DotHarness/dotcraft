@@ -1823,6 +1823,8 @@ Emitted when a turn finishes successfully.
 
 Responses truncated by the provider output token limit (for example `finish_reason = "length"` or Anthropic `max_tokens`) are not successful completions and are emitted as `turn/failed`.
 
+Terminal Turn notifications project each included item with the same current, non-persistent presentation hints as `item/completed` and `thread/read`. In particular, an eligible terminal `mcpToolCall` includes `mcpApp.available = true`; the final Turn snapshot must not regress presentation evidence emitted by the preceding item notification.
+
 **Params**:
 
 ```json
@@ -5261,7 +5263,7 @@ Successful `thread/rollback` closes that thread's active MCP App Views immediate
 
 **Direction:** client → server. Params are `{ "threadId": string, "turnId": string, "itemId": string }`.
 
-The server validates the terminal item, persisted association, current registration/binding/authority, App visibility, and current MCP runtime; reads and validates the declared resource with an independent bounded timeout; then creates a new connection-owned handle and returns:
+The server validates the terminal item, persisted association, current registration/binding/authority, matching resource declaration, and current MCP runtime; reads and validates the declared resource with an independent bounded timeout; then creates a new connection-owned handle and returns:
 
 ```json
 {
