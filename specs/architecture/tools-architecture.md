@@ -390,6 +390,8 @@ An ordinary user Turn atomically consumes all pending contexts for its thread. A
 
 An omitted MCP Apps visibility value means model-and-app visibility. App-only tools are hidden from the model. A view may call only tools from the same MCP server that are visible to the app, and every call passes normal authority and approval.
 
+Tool visibility controls invocation authority, not presentation eligibility. A terminal result may render its associated View when the persisted `ui://` association still matches the current tool definition and runtime even when the originating tool is not app-visible. Such a View may call only the same-server tools that independently grant app visibility; rendering the View does not make its originating tool app-callable.
+
 Visibility is read only from nested `_meta.ui`. An empty array means neither audience. A declaration containing an unknown visibility value is invalid and exposes the tool to neither audience. App-only tools remain in the canonical registry but are excluded from model projection.
 
 UI linkage uses `_meta.ui.resourceUri` as the canonical declaration. `_meta["ui/resourceUri"]` is accepted only when the nested field is absent. An invalid present nested declaration fails closed and MUST NOT be replaced by the alias. The resource URI MUST be absolute and use `ui://`. The response MUST match that URI, use `text/html;profile=mcp-app`, and contain exactly one text document or base64 blob.

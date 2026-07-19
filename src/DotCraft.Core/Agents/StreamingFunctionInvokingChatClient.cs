@@ -23,7 +23,7 @@ using OpenAI.Responses;
 namespace DotCraft.Agents;
 
 /// <summary>
-/// Raised when a provider streaming request completes without assistant-visible output.
+/// Raised when an initial provider streaming request completes without effective assistant output.
 /// </summary>
 public sealed class EmptyProviderResponseException(string message) : InvalidOperationException(message);
 
@@ -158,7 +158,6 @@ public sealed class StreamingFunctionInvokingChatClient(IChatClient innerClient,
         var toolMessageId = Guid.NewGuid().ToString("N");
         var hasAnyEffectiveProviderOutput = false;
         var awaitingPostToolContinuation = false;
-        var postToolEmptyResponseRetries = 0;
 
         for (var iteration = 0; ; iteration++)
         {
@@ -235,14 +234,11 @@ public sealed class StreamingFunctionInvokingChatClient(IChatClient innerClient,
             }
             if (!hasEffectiveProviderOutput && awaitingPostToolContinuation)
             {
-                if (postToolEmptyResponseRetries == 0)
-                {
-                    postToolEmptyResponseRetries++;
-                    continue;
-                }
+                if (string.IsNullOrWhiteSpace(providerErrorText))
+                    yield break;
 
                 var message = BuildEmptyProviderResponseMessage(
-                    "The model provider returned an empty streaming response after tool results were returned to the model.",
+                    "The model provider returned an error response after tool results were returned to the model.",
                     providerErrorText);
                 if (CompactionErrors.IsPromptTooLongMessage(providerErrorText))
                     throw new InvalidOperationException(message);
@@ -252,7 +248,6 @@ public sealed class StreamingFunctionInvokingChatClient(IChatClient innerClient,
 
             hasAnyEffectiveProviderOutput |= hasEffectiveProviderOutput;
             awaitingPostToolContinuation = false;
-            postToolEmptyResponseRetries = 0;
 
             var response = updates.ToChatResponse();
             (responseMessages ??= []).AddRange(response.Messages);

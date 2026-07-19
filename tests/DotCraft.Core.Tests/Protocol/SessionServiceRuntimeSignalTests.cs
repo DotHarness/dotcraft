@@ -106,6 +106,34 @@ public sealed class SessionServiceRuntimeSignalTests : IDisposable
     }
 
     [Fact]
+    public async Task SubmitInputAsync_EmptyResponseAfterToolResult_CompletesTurn()
+    {
+        var chatClient = new SingleToolCallChatClient("ProjectionRead", emitFinalResponse: false);
+        var recorder = new ToolInvocationRecorderRouter();
+        var dispatcher = new ToolDispatcher(recorder: recorder);
+        await using var agentFactory = CreateAgentFactory(
+            chatClient,
+            [new ProjectionTestToolSource()],
+            toolDispatcher: dispatcher);
+        var service = CreateService(agentFactory, chatClient, useStreamingFunctionInvoker: true);
+        recorder.Bind(service);
+        var thread = await service.CreateThreadAsync(MakeIdentity());
+        await service.RefreshThreadAgentAsync(thread.Id);
+
+        var events = await CollectAsync(service.SubmitInputAsync(thread.Id, [new TextContent("read")]));
+
+        Assert.Equal(2, chatClient.RequestCount);
+        Assert.Contains(events, evt => evt.EventType == SessionEventType.TurnCompleted);
+        Assert.DoesNotContain(events, evt => evt.EventType == SessionEventType.TurnFailed);
+        var updated = await service.GetThreadAsync(thread.Id);
+        var turn = Assert.Single(updated.Turns);
+        Assert.Equal(TurnStatus.Completed, turn.Status);
+        Assert.Single(turn.Items, item => item.Type == ItemType.ToolCall);
+        Assert.Single(turn.Items, item => item.Type == ItemType.ToolResult);
+        Assert.DoesNotContain(turn.Items, item => item.Type == ItemType.Error);
+    }
+
+    [Fact]
     public async Task CreateDefaultTools_EnabledToolsFiltersSnapshotExposure()
     {
         var chatClient = new SingleToolCallChatClient("ProjectionRead");
@@ -2676,9 +2704,11 @@ public sealed class SessionServiceRuntimeSignalTests : IDisposable
         }
     }
 
-    private sealed class SingleToolCallChatClient(string toolName) : IChatClient
+    private sealed class SingleToolCallChatClient(string toolName, bool emitFinalResponse = true) : IChatClient
     {
         private int _requestCount;
+
+        public int RequestCount => _requestCount;
 
         public Task<ChatResponse> GetResponseAsync(
             IEnumerable<ChatMessage> chatMessages,
@@ -2697,7 +2727,7 @@ public sealed class SessionServiceRuntimeSignalTests : IDisposable
                 yield return new ChatResponseUpdate(ChatRole.Assistant,
                     [new FunctionCallContent("call-projection", toolName, new Dictionary<string, object?>())]);
             }
-            else
+            else if (emitFinalResponse)
             {
                 yield return new ChatResponseUpdate(ChatRole.Assistant, [new TextContent("done")]);
             }

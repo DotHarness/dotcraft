@@ -366,9 +366,7 @@ internal sealed class McpAppRequestHandler : IAppServerDomainHandler, IDisposabl
         && registration.Definition.Id == state.DefinitionId
         && registration.Binding.Id == state.RuntimeBindingId
         && registration.Binding.Revision == state.BindingRevision
-        && registration.InvocationAudiences.HasFlag(ToolInvocationAudience.App)
         && McpAppMetadataParser.TryGetToolMetadata(registration.Definition, out var appMetadata)
-        && appMetadata.Visibility.HasFlag(McpAppVisibility.App)
         && appMetadata.ResourceUri is not null
         && Uri.Compare(
             appMetadata.ResourceUri,

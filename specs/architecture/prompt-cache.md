@@ -219,7 +219,7 @@ These rules apply to every protocol unless the protocol contract above explicitl
 | Cache-read drop after reasoning settings change | Prompt-cache diagnostics MUST include a reasoning/thinking fingerprint and classify the drop as a request-shape change instead of likely server-side routing |
 | One-shot maintenance fork writes an unneeded tail breakpoint | Fork cache shaping MUST use `readOnlyPrefix` when no tool execution is enabled, mark only the reusable prefix, and skip committing fork-local remembered breakpoints |
 | Provider sticky-routing flap (ChatGPT OAuth) | Recognised as an upstream limitation. The runtime reports observed coverage faithfully and does not retry just to chase a higher hit rate |
-| Provider returns an empty post-tool response | After at least one tool result has been returned to the model, an empty provider response is retried once. If the retry is also empty, the turn fails explicitly with `agent_empty_response` rather than completing silently |
+| Provider returns an empty post-tool response | After at least one tool result has been returned to the model, a normally completed response with no assistant content, reasoning output, or tool call ends the turn successfully without retrying or emitting `agent_empty_response`. An interrupted stream or explicit provider error still fails the turn |
 | A tool identity cannot be represented by the target provider | Request serialization fails locally with stable `invalid_provider_tool_identity` diagnostics before HTTP transport; the runtime must not send a request known to violate the provider's name/length grammar |
 
 ---
