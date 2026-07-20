@@ -718,6 +718,38 @@ kbd {
   }
 }
 
+/* Light surfaces expose the sub-pixel edges that read as crisp energy echoes
+   on dark backgrounds. Tint the echoes toward the active surface and trade
+   edge opacity for blur so Fast reads as a soft chromatic wake instead of a
+   second outline. The dark animation above remains unchanged. */
+html[data-theme="light"] [data-mascot-speed='fast'] .composer-mascot-motion {
+  --mascot-fast-light-edge-base: oklch(from var(--mascot-energy-accent)
+    clamp(0.38, calc(l + 0.12), 0.94) clamp(0.05, calc(c * 0.92), 0.28) calc(h + 8));
+  --mascot-fast-light-echo-left: color-mix(in oklab, var(--mascot-fast-light-edge-base) 58%, var(--bg-primary));
+  --mascot-fast-light-echo-right: color-mix(in oklab, var(--mascot-fast-shift-base) 54%, var(--bg-primary));
+}
+
+html[data-theme="light"] [data-mascot-speed='fast'] .composer-mascot-fast-echo {
+  animation-name: composer-mascot-fast-soft-echo-light;
+}
+
+@keyframes composer-mascot-fast-soft-echo-light {
+  0%, 100% {
+    filter:
+      drop-shadow(-1.55px 0 1.25px rgb(from var(--mascot-fast-light-echo-left) r g b / 0.3))
+      drop-shadow(-3px 0 2.8px rgb(from var(--mascot-fast-light-echo-left) r g b / 0.09))
+      drop-shadow(1.1px 0 1.35px rgb(from var(--mascot-fast-light-echo-right) r g b / 0.16))
+      drop-shadow(2.5px 0 2.8px rgb(from var(--mascot-fast-light-echo-right) r g b / 0.05));
+  }
+  50% {
+    filter:
+      drop-shadow(-1.1px 0 1.35px rgb(from var(--mascot-fast-light-echo-left) r g b / 0.16))
+      drop-shadow(-2.5px 0 2.8px rgb(from var(--mascot-fast-light-echo-left) r g b / 0.05))
+      drop-shadow(1.55px 0 1.25px rgb(from var(--mascot-fast-light-echo-right) r g b / 0.3))
+      drop-shadow(3px 0 2.8px rgb(from var(--mascot-fast-light-echo-right) r g b / 0.09));
+  }
+}
+
 [data-mascot-effort] .mascot-robot [id^='mascot-blue-'] stop {
   transition: stop-color 360ms ease;
 }
@@ -2668,6 +2700,12 @@ kbd {
       drop-shadow(-1px 0 0.25px rgb(from var(--mascot-fast-echo-left) r g b / 0.2))
       drop-shadow(1px 0 0.25px rgb(from var(--mascot-fast-echo-right) r g b / 0.14));
   }
+
+  html[data-theme="light"] [data-mascot-speed='fast'] .composer-mascot-fast-echo {
+    filter:
+      drop-shadow(-0.8px 0 1.45px rgb(from var(--mascot-fast-light-echo-left) r g b / 0.15))
+      drop-shadow(0.8px 0 1.45px rgb(from var(--mascot-fast-light-echo-right) r g b / 0.1));
+  }
 }
 
 /* ─── Inline reference chips (file / command / skill) ───
@@ -4183,6 +4221,12 @@ html[data-reduce-motion="on"] [data-mascot-speed='fast'] .composer-mascot-fast-e
   filter:
     drop-shadow(-1px 0 0.25px rgb(from var(--mascot-fast-echo-left) r g b / 0.2))
     drop-shadow(1px 0 0.25px rgb(from var(--mascot-fast-echo-right) r g b / 0.14));
+}
+
+html[data-theme="light"][data-reduce-motion="on"] [data-mascot-speed='fast'] .composer-mascot-fast-echo {
+  filter:
+    drop-shadow(-0.8px 0 1.45px rgb(from var(--mascot-fast-light-echo-left) r g b / 0.15))
+    drop-shadow(0.8px 0 1.45px rgb(from var(--mascot-fast-light-echo-right) r g b / 0.1));
 }
 
 @media (prefers-reduced-motion: reduce) {
