@@ -253,6 +253,8 @@ interface UIStore extends UIState {
   closeSystemTab(tab: SystemDetailTab, fallbackViewerId?: string | null): void
   /** Resets the detail panel to its empty state (no tabs open → launcher). */
   resetDetailTabs(): void
+  /** Reconciles the detail panel with the active thread's remembered viewer tab. */
+  syncDetailPanelForThread(activeViewerTabId: string | null): void
   /** Activates a viewer tab by its ID and makes the detail panel visible. */
   setActiveViewerTab(tabId: string, options?: DetailRevealOptions): void
   /** Closes the viewer panel and falls back to an open system tab or the launcher. */
@@ -613,7 +615,44 @@ export const useUIStore = create<UIStore & InternalState>((set, get) => ({
   },
 
   resetDetailTabs() {
-    set({ openSystemTabs: [], activeDetailTab: { kind: 'launcher' } })
+    const state = get()
+    set({
+      openSystemTabs: [],
+      activeDetailTab: { kind: 'launcher' },
+      detailPanelPreferredVisible: false,
+      ...resolveResponsivePanels(
+        state.responsiveLayout,
+        state.sidebarPreferredCollapsed,
+        false
+      )
+    })
+  },
+
+  syncDetailPanelForThread(activeViewerTabId) {
+    const state = get()
+    const hasViewerTab = activeViewerTabId != null
+    const hasSystemTab = state.openSystemTabs.length > 0
+    const detailPanelPreferredVisible = hasViewerTab || hasSystemTab
+    const activeDetailTab: ActiveDetailTab = hasViewerTab
+      ? { kind: 'viewer', id: activeViewerTabId }
+      : hasSystemTab
+        ? {
+            kind: 'system',
+            id: state.openSystemTabs.includes(state.lastActiveSystemTab)
+              ? state.lastActiveSystemTab
+              : state.openSystemTabs[state.openSystemTabs.length - 1]
+          }
+        : { kind: 'launcher' }
+
+    set({
+      activeDetailTab,
+      detailPanelPreferredVisible,
+      ...resolveResponsivePanels(
+        state.responsiveLayout,
+        state.sidebarPreferredCollapsed,
+        detailPanelPreferredVisible
+      )
+    })
   },
 
   setActiveViewerTab(tabId: string, options?: DetailRevealOptions) {

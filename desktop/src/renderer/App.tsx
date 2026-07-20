@@ -2837,21 +2837,16 @@ export function App(): JSX.Element {
     }
 
     viewerStore.onThreadSwitched(activeThreadId)
+    const threadState = activeThreadId
+      ? viewerStore.getThreadState(activeThreadId)
+      : null
+    useUIStore.getState().syncDetailPanelForThread(threadState?.activeTabId ?? null)
 
-    if (activeThreadId) {
-      const threadState = viewerStore.getThreadState(activeThreadId)
-      if (threadState.activeTabId) {
-        useUIStore.getState().setActiveViewerTab(threadState.activeTabId, { reveal: false })
-        const activeTab = threadState.tabs.find((tab) => tab.id === threadState.activeTabId)
-        const uiState = useUIStore.getState()
-        if (activeTab?.kind === 'browser' && uiState.detailPanelVisible && uiState.activeMainView === 'conversation') {
-          void window.api.workspace.viewer.browser.setActive({ tabId: activeTab.id })
-        }
-      } else {
-        const { activeDetailTab } = useUIStore.getState()
-        if (activeDetailTab.kind === 'viewer') {
-          useUIStore.getState().closeViewerTab({ reveal: false })
-        }
+    if (threadState?.activeTabId) {
+      const activeTab = threadState.tabs.find((tab) => tab.id === threadState.activeTabId)
+      const uiState = useUIStore.getState()
+      if (activeTab?.kind === 'browser' && uiState.detailPanelVisible && uiState.activeMainView === 'conversation') {
+        void window.api.workspace.viewer.browser.setActive({ tabId: activeTab.id })
       }
     }
   }, [activeThreadId])

@@ -419,11 +419,90 @@ describe('optional system tabs', () => {
     expect(ui().detailPanelVisible).toBe(true)
   })
 
-  it('resetDetailTabs clears open tabs and shows the launcher', () => {
+  it('resetDetailTabs clears open tabs and hides the launcher', () => {
     ui().setActiveDetailTab('changes')
     ui().resetDetailTabs()
     expect(ui().openSystemTabs).toEqual([])
     expect(ui().activeDetailTab).toEqual({ kind: 'launcher' })
+    expect(ui().detailPanelPreferredVisible).toBe(false)
+    expect(ui().detailPanelVisible).toBe(false)
+  })
+
+  it.each([
+    { kind: 'launcher' as const },
+    { kind: 'viewer' as const, id: 'viewer-from-previous-thread' },
+    { kind: 'system' as const, id: 'changes' as const }
+  ])('hides an empty incoming thread from a previous $kind state', (activeDetailTab) => {
+    useUIStore.setState({
+      activeDetailTab,
+      openSystemTabs: [],
+      detailPanelPreferredVisible: true,
+      detailPanelVisible: true
+    })
+
+    ui().syncDetailPanelForThread(null)
+
+    expect(ui().activeDetailTab).toEqual({ kind: 'launcher' })
+    expect(ui().detailPanelPreferredVisible).toBe(false)
+    expect(ui().detailPanelVisible).toBe(false)
+  })
+
+  it('opens and restores an incoming thread viewer tab', () => {
+    useUIStore.setState({
+      activeDetailTab: { kind: 'launcher' },
+      openSystemTabs: [],
+      detailPanelPreferredVisible: false,
+      detailPanelVisible: false
+    })
+
+    ui().syncDetailPanelForThread('viewer-thread-a')
+
+    expect(ui().activeDetailTab).toEqual({ kind: 'viewer', id: 'viewer-thread-a' })
+    expect(ui().detailPanelPreferredVisible).toBe(true)
+    expect(ui().detailPanelVisible).toBe(true)
+  })
+
+  it('restores viewer A after switching through an empty thread B', () => {
+    useUIStore.setState({ openSystemTabs: [] })
+
+    ui().syncDetailPanelForThread('viewer-thread-a')
+    ui().syncDetailPanelForThread(null)
+    expect(ui().detailPanelVisible).toBe(false)
+
+    ui().syncDetailPanelForThread('viewer-thread-a')
+    expect(ui().activeDetailTab).toEqual({ kind: 'viewer', id: 'viewer-thread-a' })
+    expect(ui().detailPanelVisible).toBe(true)
+  })
+
+  it('falls back to the last active system tab when the incoming thread has no viewer tab', () => {
+    useUIStore.setState({
+      openSystemTabs: ['changes', 'plan'],
+      lastActiveSystemTab: 'changes',
+      activeDetailTab: { kind: 'viewer', id: 'viewer-from-previous-thread' },
+      detailPanelPreferredVisible: false,
+      detailPanelVisible: false
+    })
+
+    ui().syncDetailPanelForThread(null)
+
+    expect(ui().activeDetailTab).toEqual({ kind: 'system', id: 'changes' })
+    expect(ui().detailPanelPreferredVisible).toBe(true)
+    expect(ui().detailPanelVisible).toBe(true)
+  })
+
+  it('records a remembered viewer tab while responsive layout suppresses the panel', () => {
+    useUIStore.setState({
+      openSystemTabs: [],
+      responsiveLayout: 'no-detail',
+      detailPanelPreferredVisible: false,
+      detailPanelVisible: false
+    })
+
+    ui().syncDetailPanelForThread('viewer-thread-a')
+
+    expect(ui().activeDetailTab).toEqual({ kind: 'viewer', id: 'viewer-thread-a' })
+    expect(ui().detailPanelPreferredVisible).toBe(true)
+    expect(ui().detailPanelVisible).toBe(false)
   })
 })
 
