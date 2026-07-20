@@ -19,6 +19,7 @@ interface ThreePanelProps {
 
 const CONVERSATION_MIN_WIDTH = 400
 const RESIZE_HANDLE_HIT_WIDTH = 8
+const DETAIL_PANEL_TRANSITION_MS = 200
 const MAC_SIDEBAR_TRAFFIC_LIGHT_SAFE_AREA_PX = 24
 const DRAG_REGION: CSSProperties = { WebkitAppRegion: 'drag' }
 type ResizeEdge = 'sidebar' | 'detail' | null
@@ -296,65 +297,59 @@ export function ThreePanel({ sidebar, conversation, detail }: ThreePanelProps): 
           {conversation}
         </div>
 
-        {/* Detail panel — same background as conversation so it reads as an
-            embedded extension. The T-shape divider is composed entirely of
-            parent-level overlays (below): a horizontal header line plus a
-            vertical arm and its hover/drag glow at the conversation↔detail
-            boundary. The outer container itself carries no border/shadow. */}
+        {/* Detail panel — the outer shell owns the width animation while the
+            inner surface clips content. The vertical divider, resize glow, and
+            drag handle are anchored to the shell's left edge, so they follow
+            the browser-interpolated width instead of jumping to the target
+            effectiveDetailPanelWidth before the drawer arrives. */}
         <div
+          data-testid="detail-panel-shell"
           style={{
             width: effectiveDetailPanelVisible ? `${effectiveDetailPanelWidth}px` : '0px',
             minWidth: effectiveDetailPanelVisible ? `${DETAIL_MIN_WIDTH}px` : '0px',
             flexShrink: 0,
-            overflow: 'hidden',
+            position: 'relative',
+            overflow: 'visible',
             transition:
-              resizingEdge === 'detail' ? 'none' : 'width 200ms ease-out, min-width 200ms ease-out',
+              resizingEdge === 'detail'
+                ? 'none'
+                : `width ${DETAIL_PANEL_TRANSITION_MS}ms ease-out, min-width ${DETAIL_PANEL_TRANSITION_MS}ms ease-out`,
             background: 'transparent',
             display: 'flex',
             flexDirection: 'column'
           }}
         >
-          {effectiveDetailPanelVisible && detail}
-        </div>
-
-        {effectiveDetailPanelVisible && (
-          <DragHandle
-            onDrag={handleDetailDrag}
-            onActiveChange={setDetailDividerActive}
-            onDragStateChange={handleDetailDragStateChange}
-            style={{
-              position: 'absolute',
-              top: 0,
-              bottom: 0,
-              right: `${effectiveDetailPanelWidth - RESIZE_HANDLE_HIT_WIDTH / 2}px`
-            }}
-          />
-        )}
-
-        {/* Unified header bottom line — overlays the bottom of the header row
-            so the line is continuous across the conversation column and the
-            detail panel tab bar. This is the horizontal arm of the T divider. */}
-        {effectiveDetailPanelVisible && (
           <div
-            aria-hidden
+            data-testid="detail-panel-content-clip"
             style={{
-              position: 'absolute',
-              top: 'calc(var(--chrome-header-height) - 1px)',
-              left: 0,
-              right: 0,
-              height: '1px',
-              background: 'var(--glass-border)',
-              pointerEvents: 'none',
-              zIndex: 3
+              width: '100%',
+              flex: 1,
+              minWidth: 0,
+              minHeight: 0,
+              overflow: 'hidden',
+              display: 'flex',
+              flexDirection: 'column'
             }}
-          />
-        )}
+          >
+            {effectiveDetailPanelVisible && detail}
+          </div>
 
-        {/* Conversation↔detail divider — the vertical arm of the T. Painted here
-            as a top-layer overlay (not inside the DetailPanel body) so panel
-            content such as full-bleed diff row backgrounds can never obscure it.
-            Runs from just below the header line to the bottom. */}
-        {effectiveDetailPanelVisible && (
+          {effectiveDetailPanelVisible && (
+            <DragHandle
+              onDrag={handleDetailDrag}
+              onActiveChange={setDetailDividerActive}
+              onDragStateChange={handleDetailDragStateChange}
+              style={{
+                position: 'absolute',
+                top: 0,
+                bottom: 0,
+                left: `${-RESIZE_HANDLE_HIT_WIDTH / 2}px`
+              }}
+            />
+          )}
+
+          {/* Keep the divider mounted through close so it rides the collapsing
+              shell all the way to the right edge, then becomes transparent. */}
           <div
             aria-hidden
             data-testid="detail-divider-line"
@@ -362,20 +357,20 @@ export function ThreePanel({ sidebar, conversation, detail }: ThreePanelProps): 
               position: 'absolute',
               top: 'var(--chrome-header-height)',
               bottom: 0,
-              right: `${effectiveDetailPanelWidth}px`,
+              left: 0,
               width: '1px',
               background: 'var(--glass-border)',
+              opacity: effectiveDetailPanelVisible ? 1 : 0,
+              transition: effectiveDetailPanelVisible
+                ? 'opacity 0ms linear'
+                : `opacity 0ms linear ${DETAIL_PANEL_TRANSITION_MS}ms`,
               pointerEvents: 'none',
               zIndex: 3
             }}
           />
-        )}
 
-        {/* Detail resize-divider highlight. On hover/drag a neutral vertical
-            gradient fades in over the boundary — brightest at center, fading
-            toward the top and bottom. Reuses the exact --main-surface-edge-glow
-            treatment used on the sidebar boundary so both dividers match. */}
-        {effectiveDetailPanelVisible && (
+          {/* The resize highlight shares the exact moving edge. Hover/drag
+              opacity remains independent from the panel transition. */}
           <div
             aria-hidden
             data-testid="detail-divider-glow"
@@ -383,16 +378,37 @@ export function ThreePanel({ sidebar, conversation, detail }: ThreePanelProps): 
               position: 'absolute',
               top: 'var(--chrome-header-height)',
               bottom: 0,
-              right: `${effectiveDetailPanelWidth}px`,
+              left: 0,
               width: 'var(--main-surface-edge-glow-width)',
               background: 'var(--main-surface-edge-glow)',
-              opacity: detailDividerHighlighted ? 1 : 0,
+              opacity: effectiveDetailPanelVisible && detailDividerHighlighted ? 1 : 0,
               transition: 'opacity 150ms ease',
               pointerEvents: 'none',
               zIndex: 4
             }}
           />
-        )}
+        </div>
+
+        {/* Unified header bottom line — overlays the bottom of the header row
+            so the line is continuous across the conversation column and the
+            detail panel tab bar. It remains mounted and fades with the same
+            duration as the drawer, avoiding an instant T-shape flash. */}
+        <div
+          aria-hidden
+          data-testid="detail-header-line"
+          style={{
+            position: 'absolute',
+            top: 'calc(var(--chrome-header-height) - 1px)',
+            left: 0,
+            right: 0,
+            height: '1px',
+            background: 'var(--glass-border)',
+            opacity: effectiveDetailPanelVisible ? 1 : 0,
+            transition: `opacity ${DETAIL_PANEL_TRANSITION_MS}ms ease-out`,
+            pointerEvents: 'none',
+            zIndex: 3
+          }}
+        />
       </div>
     </div>
   )

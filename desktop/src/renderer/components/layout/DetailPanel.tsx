@@ -383,10 +383,9 @@ export function DetailPanel({
       </div>
 
       {/* ── Panel body ──
-          The vertical arm of the T divider (and its hover/drag glow) is painted
-          by ThreePanel as a top-layer overlay at the conversation↔detail
-          boundary, so panel content (e.g. full-bleed diff row backgrounds) can
-          never obscure it. The body itself carries no border/shadow. */}
+          ThreePanel paints the vertical arm of the T divider after its clipped
+          content surface, keeping full-bleed rows below the moving boundary.
+          The body itself carries no border/shadow. */}
       <div
         style={{
           flex: 1,
