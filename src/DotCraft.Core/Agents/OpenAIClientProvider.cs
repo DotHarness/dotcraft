@@ -377,8 +377,6 @@ public sealed class OpenAIClientProvider
                 var trimmed = sessionKey.Trim();
                 request.Headers.TryAddWithoutValidation(OpenAIAuthConstants.SessionIdHeader, trimmed);
                 request.Headers.TryAddWithoutValidation(OpenAIAuthConstants.ThreadIdHeader, trimmed);
-                request.Headers.TryAddWithoutValidation(OpenAIAuthConstants.SessionIdCompatHeader, trimmed);
-                request.Headers.TryAddWithoutValidation(OpenAIAuthConstants.ConversationIdHeader, trimmed);
             }
 
             return;

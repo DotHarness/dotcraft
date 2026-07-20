@@ -10,7 +10,8 @@ namespace DotCraft.Agents;
 /// <summary>
 /// Pipeline policy that authenticates outgoing OpenAI SDK requests with a ChatGPT subscription
 /// access token. Each request fetches a fresh token from <see cref="IOpenAIAuthService"/>; a 401
-/// response triggers a one-shot refresh + retry.
+/// response first adopts credentials rotated by another process, then refreshes at the authority
+/// when needed. Both recovery phases have fixed retry bounds.
 /// </summary>
 internal sealed class OpenAIOAuthPipelinePolicy : PipelinePolicy
 {
@@ -61,9 +62,20 @@ internal sealed class OpenAIOAuthPipelinePolicy : PipelinePolicy
         if (message.Response?.Status != 401)
             return;
 
-        // 401 — refresh once and retry.
+        // Another process may have rotated the refresh token. Prefer its persisted credentials
+        // before contacting the authority with this process's cached refresh token.
         try
         {
+            if (_authService is OpenAIAuthManager manager &&
+                await manager.TryReloadAccessTokenAsync(ct).ConfigureAwait(false) is { } reloadedToken)
+            {
+                ApplyAuthHeaders(message, reloadedToken);
+                await ProcessNextAsync(message, pipeline, currentIndex).ConfigureAwait(false);
+                CaptureTurnState(message);
+                if (message.Response?.Status != 401)
+                    return;
+            }
+
             token = await _authService.GetAccessTokenAsync(forceRefresh: true, ct).ConfigureAwait(false);
         }
         catch (OpenAIAuthException)
@@ -98,8 +110,6 @@ internal sealed class OpenAIOAuthPipelinePolicy : PipelinePolicy
             var trimmed = sessionKey.Trim();
             message.Request.Headers.Set(OpenAIAuthConstants.SessionIdHeader, trimmed);
             message.Request.Headers.Set(OpenAIAuthConstants.ThreadIdHeader, trimmed);
-            message.Request.Headers.Set(OpenAIAuthConstants.SessionIdCompatHeader, trimmed);
-            message.Request.Headers.Set(OpenAIAuthConstants.ConversationIdHeader, trimmed);
         }
         else if (isResponsesRequest &&
                  Interlocked.Exchange(ref _missingSessionWarningLogged, 1) == 0)

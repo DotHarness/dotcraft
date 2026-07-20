@@ -65,13 +65,14 @@ public static class OpenAIAuthConstants
     public const string ThreadIdHeader = "thread-id";
 
     /// <summary>
-    /// Compatibility spelling used by some OAuth-adjacent gateways for the same value as
-    /// <see cref="SessionIdHeader"/>. DotCraft sends it only as an additional sticky-routing hint.
+    /// Session identifier key used inside the ChatGPT Responses <c>client_metadata</c> object.
+    /// It is not emitted as a direct HTTP header.
     /// </summary>
     public const string SessionIdCompatHeader = "session_id";
 
     /// <summary>
-    /// Compatibility spelling used by some OAuth-adjacent gateways for the active thread id.
+    /// Legacy compatibility header name retained for source compatibility. DotCraft no longer
+    /// emits it on ChatGPT OAuth requests.
     /// </summary>
     public const string ConversationIdHeader = "conversation_id";
 
@@ -91,7 +92,7 @@ public static class OpenAIAuthConstants
     public const string SubAgentHeader = "x-openai-subagent";
 
     /// <summary>Background refresh cadence for OAuth access tokens.</summary>
-    public static readonly TimeSpan RefreshInterval = TimeSpan.FromHours(8);
+    public static readonly TimeSpan RefreshInterval = TimeSpan.FromDays(8);
 
     /// <summary>
     /// OAuth scopes requested at authorization time. The chatgpt.com backend keys subscription
