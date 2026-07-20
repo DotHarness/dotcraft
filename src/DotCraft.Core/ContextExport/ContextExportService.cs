@@ -421,18 +421,24 @@ public sealed class ContextExportService
             return;
         }
 
+        if (mode == ContextExportToolResultMode.None)
+        {
+            sb.AppendLine($"{label}: omitted by `--tool-results none`.");
+            return;
+        }
+
+        // Redact before bounding so previews cannot retain a truncated fragment of a secret
+        // or destroy the JSON structure needed for sensitive-key detection.
+        var redacted = SafeContextProjection.RedactJson(value);
         switch (mode)
         {
-            case ContextExportToolResultMode.None:
-                sb.AppendLine($"{label}: omitted by `--tool-results none`.");
-                break;
             case ContextExportToolResultMode.Summary:
                 sb.AppendLine($"{label} preview:");
-                AppendCodeBlock(sb, string.Empty, ContextWorkspaceReader.Bound(value, Math.Max(1, previewChars)));
+                AppendCodeBlock(sb, string.Empty, ContextWorkspaceReader.Bound(redacted, Math.Max(1, previewChars)));
                 break;
             case ContextExportToolResultMode.Full:
                 sb.AppendLine($"{label}:");
-                AppendCodeBlock(sb, string.Empty, value.TrimEnd());
+                AppendCodeBlock(sb, string.Empty, redacted.TrimEnd());
                 break;
         }
     }

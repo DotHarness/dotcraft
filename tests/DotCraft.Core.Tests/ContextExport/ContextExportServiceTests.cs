@@ -134,6 +134,50 @@ public sealed class ContextExportServiceTests : IDisposable
         Assert.Contains("Compaction", result.Markdown);
     }
 
+    [Theory]
+    [InlineData(ContextExportToolResultMode.Summary)]
+    [InlineData(ContextExportToolResultMode.Full)]
+    public async Task ExportAsync_RedactsAllToolResultBodiesBeforePresentation(ContextExportToolResultMode mode)
+    {
+        var thread = CreateThread();
+        AddTurnWithSensitiveResultPaths(thread);
+        await _threadStore.SaveThreadAsync(thread);
+        await _threadStore.AppendModelHistoryAsync(
+            thread.Id,
+            [new ChatMessage(ChatRole.Tool,
+                [new FunctionResultContent("call_exact", "{\"cookie\":\"EXACT_RESULT_SECRET\",\"safe\":\"exact-visible\"}")])],
+            thread.Turns[0].Id);
+
+        var result = await new ContextExportService().ExportAsync(new ContextExportOptions
+        {
+            ThreadId = thread.Id,
+            WorkspacePath = _workspace,
+            ToolResults = mode,
+            ToolResultPreviewChars = 10_000
+        });
+
+        foreach (var secret in new[]
+                 {
+                     "COMMAND_RESULT_SECRET",
+                     "EXECUTION_RESULT_SECRET",
+                     "TOOL_RESULT_SECRET",
+                     "PLUGIN_RESULT_SECRET",
+                     "DYNAMIC_RESULT_SECRET",
+                     "EXACT_RESULT_SECRET"
+                 })
+        {
+            Assert.DoesNotContain(secret, result.Markdown);
+        }
+
+        Assert.Contains("command-visible", result.Markdown);
+        Assert.Contains("execution-visible", result.Markdown);
+        Assert.Contains("tool-visible", result.Markdown);
+        Assert.Contains("plugin-visible", result.Markdown);
+        Assert.Contains("dynamic-visible", result.Markdown);
+        Assert.Contains("exact-visible", result.Markdown);
+        Assert.Contains("[redacted]", result.Markdown);
+    }
+
     [Fact]
     public async Task ExportAsync_UsesCanonicalExactHistoryAndRedactsInternalModelMetadata()
     {
@@ -391,6 +435,107 @@ public sealed class ContextExportServiceTests : IDisposable
         });
         thread.Turns.Add(turn);
         thread.LastActiveAt = turn.CompletedAt.Value;
+    }
+
+    private static void AddTurnWithSensitiveResultPaths(SessionThread thread)
+    {
+        AddTurnWithMessages(thread, "run sensitive tools", "calling tools");
+        var turn = thread.Turns[0];
+        var now = turn.StartedAt;
+        turn.Items.AddRange(
+        [
+            new SessionItem
+            {
+                Id = SessionIdGenerator.NewItemId(10),
+                TurnId = turn.Id,
+                Type = ItemType.CommandExecution,
+                Status = ItemStatus.Completed,
+                CreatedAt = now,
+                CompletedAt = now,
+                Payload = new CommandExecutionPayload
+                {
+                    Command = "demo",
+                    WorkingDirectory = ".",
+                    Status = "completed",
+                    AggregatedOutput = "command-visible password=COMMAND_RESULT_SECRET"
+                }
+            },
+            new SessionItem
+            {
+                Id = SessionIdGenerator.NewItemId(11),
+                TurnId = turn.Id,
+                Type = ItemType.ToolExecution,
+                Status = ItemStatus.Completed,
+                CreatedAt = now,
+                CompletedAt = now,
+                Payload = new ToolExecutionPayload
+                {
+                    ToolName = "demo",
+                    CallId = "call_execution",
+                    Status = "completed",
+                    Success = true,
+                    ResultPreview = "execution-visible Authorization: Bearer EXECUTION_RESULT_SECRET"
+                }
+            },
+            new SessionItem
+            {
+                Id = SessionIdGenerator.NewItemId(12),
+                TurnId = turn.Id,
+                Type = ItemType.ToolResult,
+                Status = ItemStatus.Completed,
+                CreatedAt = now,
+                CompletedAt = now,
+                Payload = new ToolResultPayload
+                {
+                    CallId = "call_result",
+                    Success = true,
+                    Result = "{\"token\":\"TOOL_RESULT_SECRET\",\"safe\":\"tool-visible\"}"
+                }
+            },
+            new SessionItem
+            {
+                Id = SessionIdGenerator.NewItemId(13),
+                TurnId = turn.Id,
+                Type = ItemType.PluginFunctionCall,
+                Status = ItemStatus.Completed,
+                CreatedAt = now,
+                CompletedAt = now,
+                Payload = new PluginFunctionCallPayload
+                {
+                    PluginId = "plugin",
+                    FunctionName = "demo",
+                    CallId = "call_plugin",
+                    Success = true,
+                    StructuredResult = new JsonObject
+                    {
+                        ["api_key"] = "PLUGIN_RESULT_SECRET",
+                        ["safe"] = "plugin-visible"
+                    }
+                }
+            },
+            new SessionItem
+            {
+                Id = SessionIdGenerator.NewItemId(14),
+                TurnId = turn.Id,
+                Type = ItemType.DynamicToolCall,
+                Status = ItemStatus.Completed,
+                CreatedAt = now,
+                CompletedAt = now,
+                Payload = new DynamicToolCallPayload
+                {
+                    ToolName = "dynamic",
+                    ProviderFlatName = "dynamic",
+                    CallId = "call_dynamic",
+                    Status = "completed",
+                    Success = true,
+                    StructuredContent = new JsonObject
+                    {
+                        ["cookie"] = "DYNAMIC_RESULT_SECRET",
+                        ["safe"] = "dynamic-visible"
+                    }
+                }
+            }
+        ]);
     }
 
     private static void AddTurnWithToolResult(SessionThread thread, string resultText)
