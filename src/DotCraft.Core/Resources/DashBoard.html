@@ -406,6 +406,53 @@ body {
 .stat-value.warning { color: var(--warning); }
 .stat-value.info { color: var(--info); }
 
+/* Dreams status band: reuse .stat-card, add subtext + inline store id */
+.stat-sub {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-top: 4px;
+  font-variant-numeric: tabular-nums;
+}
+
+.dreams-storeid {
+  display: inline-block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--font-mono);
+  font-size: 15px;
+  font-weight: 600;
+  vertical-align: bottom;
+}
+
+.dreams-state-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  margin-right: 7px;
+  vertical-align: middle;
+  background: var(--text-muted);
+}
+.dreams-state-dot.running { background: var(--success); animation: pulse 1.5s ease-in-out infinite; }
+.dreams-state-dot.on { background: var(--success); }
+.dreams-state-dot.off { background: var(--text-muted); }
+
+.dreams-copy {
+  border: none;
+  background: none;
+  padding: 2px;
+  border-radius: 4px;
+  cursor: pointer;
+  color: var(--text-muted);
+  display: inline-flex;
+  transition: color var(--transition), background var(--transition);
+  vertical-align: middle;
+}
+.dreams-copy:hover { color: var(--text-primary); background: var(--bg-hover); }
+.dreams-copy svg { width: 13px; height: 13px; }
+
 .dreams-grid {
   display: grid;
   grid-template-columns: minmax(280px, 360px) minmax(0, 1fr);
@@ -413,25 +460,83 @@ body {
   align-items: start;
 }
 
+/* Master-detail layout: headers share a grid row so both columns' bodies
+   start at the same Y regardless of differing header heights. */
+.dreams-layout {
+  display: grid;
+  grid-template-columns: minmax(280px, 360px) minmax(0, 1fr);
+  grid-template-areas:
+    "listhead detailhead"
+    "listbody detailbody";
+  column-gap: 16px;
+  row-gap: 12px;
+  align-items: start;
+}
+.dreams-pane-head {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  justify-content: flex-start;
+}
+.dreams-pane-head--list { grid-area: listhead; }
+#dreamsDetailHead { grid-area: detailhead; }
+#dreamsRunList { grid-area: listbody; }
+#dreamsRunDetail { grid-area: detailbody; min-width: 0; }
+
+/* Filter chips */
+.dreams-filter {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin: 0;
+}
+.dreams-chip {
+  border: 1px solid var(--border);
+  background: var(--bg-card);
+  color: var(--text-secondary);
+  border-radius: 999px;
+  padding: 3px 11px;
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all var(--transition);
+}
+.dreams-chip:hover { color: var(--text-primary); background: var(--bg-hover); border-color: var(--border-active); }
+.dreams-chip.active { color: var(--text-primary); background: var(--bg-tertiary); border-color: var(--border-active); }
+.dreams-chip .dreams-chip-count { color: var(--text-muted); margin-left: 5px; }
+
 .dreams-run-list {
   display: flex;
   flex-direction: column;
   gap: 8px;
 }
 
+/* Selectable run row: neutral hover/selected, no accent fill (DESIGN.md) */
 .dreams-run-card {
+  position: relative;
   background: var(--bg-card);
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  padding: 12px 13px;
+  padding: 11px 13px;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 7px;
+  cursor: pointer;
+  text-align: left;
+  transition: background var(--transition), border-color var(--transition);
 }
-
-.dreams-run-card.active {
-  border-color: var(--accent);
-  background: var(--accent-dim);
+.dreams-run-card:hover { background: var(--bg-hover); border-color: var(--border-active); }
+.dreams-run-card.active { background: var(--bg-tertiary); border-color: var(--border-active); }
+.dreams-run-card.active::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 8px;
+  bottom: 8px;
+  width: 2px;
+  border-radius: 2px;
+  background: var(--text-secondary);
 }
 
 .dreams-run-header {
@@ -441,31 +546,71 @@ body {
   gap: 10px;
 }
 
+.dreams-run-badges { display: flex; gap: 5px; flex-wrap: wrap; align-items: center; }
+.dreams-run-time { font-size: 11px; color: var(--text-muted); white-space: nowrap; flex-shrink: 0; }
+
+.dreams-run-title {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--text-primary);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.dreams-pending-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--warning);
+  flex-shrink: 0;
+}
+
 .dreams-run-id {
   font-family: var(--font-mono);
-  font-size: 12px;
-  font-weight: 650;
-  color: var(--text-primary);
-  word-break: break-all;
-}
-
-.dreams-run-meta {
   font-size: 11px;
   color: var(--text-muted);
-  line-height: 1.5;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.dreams-detail-card {
-  background: var(--bg-card);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 14px 15px;
+.dreams-run-metrics {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  font-size: 11px;
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+.dreams-run-metrics .sep { color: var(--border-active); }
+
+/* Unframed detail section (no outer card, no nested cards) */
+.dreams-detail-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  flex-wrap: wrap;
 }
 
 .dreams-detail-title {
-  font-size: 13px;
-  font-weight: 650;
-  margin-bottom: 10px;
+  font-size: 15px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.dreams-detail-sub {
+  font-size: 11px;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  margin-top: 4px;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
 }
 
 .dreams-actions {
@@ -473,10 +618,44 @@ body {
   flex-wrap: wrap;
   gap: 8px;
   justify-content: flex-end;
+  align-items: center;
 }
 
+/* Flat metric strip: label/value pairs, no per-item border */
+.dreams-metrics {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 14px 20px;
+  padding: 14px 16px;
+  margin-bottom: 14px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+.dreams-metric-label {
+  font-size: 11px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  margin-bottom: 4px;
+}
+.dreams-metric-value {
+  font-size: 17px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.dreams-metric-value.mono {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.dreams-metric-value .add { color: var(--success); }
+.dreams-metric-value .del { color: var(--error); }
+.dreams-metric-value .muted { color: var(--text-muted); font-weight: 500; }
+
 .dreams-code {
-  max-height: 280px;
+  max-height: 320px;
   overflow: auto;
   margin: 8px 0 0;
   padding: 10px;
@@ -491,6 +670,49 @@ body {
   word-break: break-word;
 }
 
+/* Index diff lines */
+.dreams-diff-line { display: block; padding: 0 4px; border-radius: 2px; }
+.dreams-diff-line.add { color: var(--success); background: var(--success-dim); }
+.dreams-diff-line.del { color: var(--error); background: var(--error-dim); }
+.dreams-diff-line.ctx { color: var(--text-secondary); }
+.dreams-diff-legend {
+  display: flex;
+  gap: 14px;
+  font-size: 11px;
+  color: var(--text-muted);
+  margin: 2px 0 8px;
+  font-variant-numeric: tabular-nums;
+}
+.dreams-diff-legend .add { color: var(--success); }
+.dreams-diff-legend .del { color: var(--error); }
+
+.dreams-evidence-list {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.dreams-evidence-list li {
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  color: var(--text-secondary);
+  word-break: break-all;
+}
+.dreams-evidence-list button.link {
+  border: none;
+  background: none;
+  padding: 0;
+  color: var(--accent-light);
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+}
+.dreams-evidence-list button.link:hover { text-decoration: underline; }
+.dreams-kv { font-size: 12px; color: var(--text-secondary); line-height: 1.7; }
+.dreams-kv .k { color: var(--text-muted); }
+
 .dreams-details {
   margin-top: 12px;
   border-top: 1px solid var(--border);
@@ -502,11 +724,45 @@ body {
   font-size: 12px;
   color: var(--text-secondary);
   font-weight: 600;
+  list-style: none;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.dreams-details summary::-webkit-details-marker { display: none; }
+.dreams-details summary::before {
+  content: "";
+  width: 0;
+  height: 0;
+  border-left: 4px solid var(--text-muted);
+  border-top: 3.5px solid transparent;
+  border-bottom: 3.5px solid transparent;
+  transition: transform var(--transition);
+}
+.dreams-details[open] summary::before { transform: rotate(90deg); }
+.dreams-details summary .count { color: var(--text-muted); font-weight: 500; }
+
+/* Skeleton run rows reuse .skeleton shimmer */
+.dreams-skel-row {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 11px 13px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 
 @media (max-width: 980px) {
   .dreams-grid {
     grid-template-columns: 1fr;
+  }
+  .dreams-layout {
+    grid-template-columns: 1fr;
+    grid-template-areas:
+      "listhead"
+      "listbody"
+      "detailhead"
+      "detailbody";
   }
 }
 
@@ -925,6 +1181,7 @@ body {
 }
 
 .btn:hover { border-color: var(--border-active); color: var(--text-primary); background: var(--bg-hover); }
+.btn:disabled { opacity: 0.45; cursor: not-allowed; pointer-events: none; }
 
 .icon-btn,
 .logout-btn {
@@ -1075,6 +1332,11 @@ body {
   background: var(--warning-dim);
   border-color: rgba(251,191,36,0.3);
   color: var(--warning);
+}
+.message-error {
+  background: var(--error-dim);
+  border-color: color-mix(in srgb, var(--error) 30%, transparent);
+  color: var(--error);
 }
 
 /* Empty state */
@@ -1963,24 +2225,24 @@ body {
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
               Refresh
             </button>
-            <button class="btn btn-accent" onclick="runDreamsNow()">
+            <button class="btn btn-primary" id="dreamsRunNowBtn" onclick="runDreamsNow()">
               Run now
             </button>
           </div>
         </div>
         <div class="panel-body">
           <div class="stats-grid" id="dreamsStats"></div>
-          <div class="dreams-grid">
-            <section>
-              <div class="dreams-detail-title">Run history</div>
-              <div id="dreamsRunList" class="dreams-run-list">
-                <div class="empty-state">No Dreams runs.</div>
-              </div>
-            </section>
+          <div class="dreams-layout">
+            <div class="dreams-pane-head dreams-pane-head--list">
+              <div class="section-heading" style="margin-bottom:0">Run history</div>
+              <div id="dreamsFilter" class="dreams-filter"></div>
+            </div>
+            <div class="dreams-pane-head" id="dreamsDetailHead"></div>
+            <div id="dreamsRunList" class="dreams-run-list">
+              <div class="empty-state"><p>No Dreams runs yet.</p></div>
+            </div>
             <section id="dreamsRunDetail">
-              <div class="dreams-detail-card">
-                <div class="empty-state">Select a Dreams run to review.</div>
-              </div>
+              <div class="empty-state"><p>Select a Dreams run to review.</p></div>
             </section>
           </div>
         </div>
@@ -2091,6 +2353,9 @@ let dreamsStatus = null;
 let dreamsRuns = [];
 let selectedDreamRunId = null;
 let selectedDreamRunDetails = null;
+let dreamsFilter = 'all';
+let dreamsListLoading = false;
+let dreamsDetailLoading = false;
 let dashboardRuntime = {
   mode: 'interactive',
   readOnly: false,
@@ -2110,6 +2375,7 @@ function iconSvg(name, size = 16, extra = '') {
     book: '<path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M4 4.75A2.75 2.75 0 0 1 6.75 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5Z"/>',
     check: '<path d="M20 6 9 17l-5-5"/>',
     chevrons: '<path d="m8 17-5-5 5-5"/><path d="m16 17 5-5-5-5"/>',
+    copy: '<rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>',
     eye: '<path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/>',
     eyeOff: '<path d="m2 2 20 20"/><path d="M10.6 10.6A3 3 0 0 0 13.4 13.4"/><path d="M9.9 4.2A10.5 10.5 0 0 1 12 4.0c6.5 0 10 8 10 8a18 18 0 0 1-4.1 5.1"/><path d="M6.6 6.6A18 18 0 0 0 2 12s3.5 7 10 7a10.7 10.7 0 0 0 4.2-.9"/>',
     help: '<circle cx="12" cy="12" r="10"/><path d="M9.1 9a3 3 0 1 1 5.8 1c-.5 1.4-1.8 1.9-2.5 2.8-.3.4-.4.7-.4 1.2"/><path d="M12 17h.01"/>',
@@ -5092,34 +5358,118 @@ function dreamBadgeClass(value) {
   return 'badge-info';
 }
 
-function lineDiffSummary(oldText, newText) {
-  const oldLines = String(oldText || '').split(/\r?\n/);
-  const newLines = String(newText || '').split(/\r?\n/);
-  const oldSet = new Set(oldLines.filter(Boolean));
-  const newSet = new Set(newLines.filter(Boolean));
-  let additions = 0;
-  let removals = 0;
-  for (const line of newSet) if (!oldSet.has(line)) additions++;
-  for (const line of oldSet) if (!newSet.has(line)) removals++;
-  return { additions, removals };
+function dreamTriggerLabel(run) {
+  const t = String(run?.trigger || '').toLowerCase();
+  if (t === 'manual') return 'Manual';
+  if (t === 'scheduled') return 'Scheduled';
+  return t ? t.charAt(0).toUpperCase() + t.slice(1) : '';
 }
 
-function renderLineDiff(oldText, newText) {
-  const oldLines = String(oldText || '').split(/\r?\n/);
-  const newLines = String(newText || '').split(/\r?\n/);
-  const max = Math.max(oldLines.length, newLines.length);
+// Human-friendly run label, e.g. "Manual run · Jul 20, 12:48".
+function dreamFriendlyLabel(run) {
+  const trig = dreamTriggerLabel(run);
+  const prefix = trig ? `${trig} run` : 'Dream run';
+  const ts = run?.startedAt || run?.endedAt;
+  if (!ts) return prefix;
+  const d = new Date(ts);
+  if (isNaN(d.getTime())) return prefix;
+  const when = d.toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false });
+  return `${prefix} · ${when}`;
+}
+
+// Elapsed wall-clock time between start and end.
+function dreamDurationText(run) {
+  if (!run?.startedAt || !run?.endedAt) return null;
+  const ms = new Date(run.endedAt).getTime() - new Date(run.startedAt).getTime();
+  if (!isFinite(ms) || ms < 0) return null;
+  if (ms < 1000) return ms + 'ms';
+  const s = ms / 1000;
+  if (s < 60) return s.toFixed(1) + 's';
+  const m = Math.floor(s / 60);
+  const rem = Math.round(s % 60);
+  return `${m}m ${rem}s`;
+}
+
+function dreamUsageTotal(usage) {
+  if (!usage) return null;
+  const total = usage.totalTokens || 0;
+  return total ? fmtTokens(total) : null;
+}
+
+// Middle-ellipsis for long ids in constrained spaces; full value stays in title attr.
+function truncateMiddle(text, max = 30) {
+  const s = String(text || '');
+  if (s.length <= max) return s;
+  const head = Math.ceil((max - 1) / 2);
+  const tail = Math.floor((max - 1) / 2);
+  return s.slice(0, head) + '…' + s.slice(s.length - tail);
+}
+
+function dreamCopyBtn(value) {
+  if (!value) return '';
+  return `<button class="dreams-copy" title="Copy" aria-label="Copy" onclick="event.stopPropagation();dreamCopy('${encodeURIComponent(value)}')">${iconSvg('copy', 13)}</button>`;
+}
+
+function dreamCopy(enc) {
+  const value = decodeURIComponent(enc);
+  const done = () => showToast('Copied to clipboard.', 'success', 1600);
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(value).then(done).catch(() => showToast('Copy failed.', 'error'));
+    return;
+  }
+  const ta = document.createElement('textarea');
+  ta.value = value;
+  document.body.appendChild(ta);
+  ta.select();
+  try { document.execCommand('copy'); done(); } catch { showToast('Copy failed.', 'error'); }
+  ta.remove();
+}
+
+// Shared line-based diff so the +N/-M count and the rendered lines always agree.
+// Presentation-focused: matches on line content (removed block first, then the new
+// document with additions highlighted); it does not attempt full LCS alignment.
+function computeIndexDiff(oldText, newText) {
+  const split = (t) => (String(t || '').trim() ? String(t).split(/\r?\n/) : []);
+  const oldLines = split(oldText);
+  const newLines = split(newText);
+  const countOf = (arr) => {
+    const m = new Map();
+    for (const l of arr) m.set(l, (m.get(l) || 0) + 1);
+    return m;
+  };
   const rows = [];
-  for (let i = 0; i < max; i++) {
-    const oldLine = oldLines[i] ?? '';
-    const newLine = newLines[i] ?? '';
-    if (oldLine === newLine) {
-      rows.push(`<span style="display:block;color:var(--text-primary)"> ${escapeHtml(oldLine)}</span>`);
+  let additions = 0;
+  let removals = 0;
+  const newRemaining = countOf(newLines);
+  for (const line of oldLines) {
+    if ((newRemaining.get(line) || 0) > 0) {
+      newRemaining.set(line, newRemaining.get(line) - 1);
     } else {
-      if (oldLine) rows.push(`<span style="display:block;color:var(--error)">-${escapeHtml(oldLine)}</span>`);
-      if (newLine) rows.push(`<span style="display:block;color:var(--success)">+${escapeHtml(newLine)}</span>`);
+      rows.push({ type: 'del', text: line });
+      removals++;
     }
   }
-  return rows.join('') || '<span style="color:var(--text-muted)">No index changes.</span>';
+  const oldRemaining = countOf(oldLines);
+  for (const line of newLines) {
+    if ((oldRemaining.get(line) || 0) > 0) {
+      oldRemaining.set(line, oldRemaining.get(line) - 1);
+      rows.push({ type: 'ctx', text: line });
+    } else {
+      rows.push({ type: 'add', text: line });
+      additions++;
+    }
+  }
+  return { rows, additions, removals };
+}
+
+function renderIndexDiff(diff) {
+  if (!diff.rows.length || (diff.additions === 0 && diff.removals === 0)) {
+    return '<span style="color:var(--text-muted)">No index changes.</span>';
+  }
+  return diff.rows.map(r => {
+    const marker = r.type === 'add' ? '+' : r.type === 'del' ? '-' : ' ';
+    return `<span class="dreams-diff-line ${r.type}">${escapeHtml(marker + r.text)}</span>`;
+  }).join('');
 }
 
 async function probeDreams() {
@@ -5146,117 +5496,326 @@ function applyDreamsNavState() {
   if (!dreamsAvailable && currentPanel === 'dreams') switchPanel('dashboard');
 }
 
+// Relative "in 3h" text for the next scheduled eligibility check.
+function nextRunText(iso) {
+  if (!iso) return 'Not scheduled';
+  const d = new Date(iso).getTime();
+  if (isNaN(d)) return 'Not scheduled';
+  const diff = d - Date.now();
+  if (diff <= 0) return 'Due now';
+  const mins = Math.round(diff / 60000);
+  if (mins < 60) return 'in ' + mins + 'm';
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return 'in ' + hrs + 'h' + (mins % 60 ? ' ' + (mins % 60) + 'm' : '');
+  const days = Math.floor(hrs / 24);
+  return 'in ' + days + 'd' + (hrs % 24 ? ' ' + (hrs % 24) + 'h' : '');
+}
+
+// Compact interval label from a .NET TimeSpan "c" string ([d.]hh:mm:ss).
+function formatInterval(s) {
+  if (!s) return '';
+  const m = /^(?:(\d+)\.)?(\d{2}):(\d{2}):(\d{2})/.exec(String(s));
+  if (!m) return String(s);
+  const days = parseInt(m[1] || '0', 10);
+  const hrs = parseInt(m[2], 10);
+  const mins = parseInt(m[3], 10);
+  const parts = [];
+  if (days) parts.push(days + 'd');
+  if (hrs) parts.push(hrs + 'h');
+  if (mins) parts.push(mins + 'm');
+  return parts.length ? parts.join(' ') : '0m';
+}
+
+function updateDreamsRunNowBtn() {
+  const btn = document.getElementById('dreamsRunNowBtn');
+  if (!btn) return;
+  const running = !!dreamsStatus?.running;
+  const off = dreamsStatus?.enabled === false;
+  btn.disabled = running || off;
+  btn.title = running
+    ? 'A Dreams run is already in progress.'
+    : off ? 'Dreams is disabled for this workspace.' : 'Request a Dreams run now.';
+}
+
 function renderDreamsStats() {
   const statsEl = document.getElementById('dreamsStats');
   if (!statsEl) return;
-  const lastRun = dreamsStatus?.lastRun;
+  const st = dreamsStatus || {};
+  const lastRun = st.lastRun;
+  let stateDot = 'off';
+  let stateLabel = 'Disabled';
+  if (st.running) { stateDot = 'running'; stateLabel = 'Running'; }
+  else if (st.enabled) { stateDot = 'on'; stateLabel = 'Enabled'; }
+  const activeStore = st.activeDreamStoreId || '';
+  const pending = st.pendingCount || 0;
+  const lastRunTs = lastRun?.endedAt || lastRun?.startedAt;
+  const lastRunHtml = lastRun
+    ? `<span class="badge ${dreamBadgeClass(lastRun.reviewStatus || lastRun.status)}">${escapeHtml(lastRun.reviewStatus || lastRun.status)}</span>`
+    : '<span style="font-size:16px;color:var(--text-muted)">Never</span>';
   statsEl.innerHTML = `
-    <div class="stat-card"><div class="stat-label">Active Store</div><div class="stat-value accent" style="font-size:16px;word-break:break-all">${escapeHtml(dreamsStatus?.activeDreamStoreId || 'None')}</div></div>
-    <div class="stat-card"><div class="stat-label">Pending</div><div class="stat-value warning">${formatNumber(dreamsStatus?.pendingCount || 0)}</div></div>
-    <div class="stat-card"><div class="stat-label">Auto Apply</div><div class="stat-value ${dreamsStatus?.autoApply ? 'success' : ''}">${dreamsStatus?.autoApply ? 'On' : 'Off'}</div></div>
-    <div class="stat-card"><div class="stat-label">Last Run</div><div class="stat-value info" style="font-size:16px">${escapeHtml(dreamStatusLabel(lastRun))}</div></div>
+    <div class="stat-card">
+      <div class="stat-label">State</div>
+      <div class="stat-value" style="font-size:17px"><span class="dreams-state-dot ${stateDot}"></span>${stateLabel}</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Active Store</div>
+      <div class="stat-value" style="display:flex;align-items:center;gap:5px">${activeStore
+        ? `<span class="dreams-storeid" title="${escapeHtml(activeStore)}">${escapeHtml(truncateMiddle(activeStore, 26))}</span>${dreamCopyBtn(activeStore)}`
+        : '<span style="font-size:16px;color:var(--text-muted)">None</span>'}</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Pending</div>
+      <div class="stat-value ${pending > 0 ? 'warning' : ''}">${formatNumber(pending)}</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Auto Apply</div>
+      <div class="stat-value ${st.autoApply ? 'success' : ''}">${st.autoApply ? 'On' : 'Off'}</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Next Run</div>
+      <div class="stat-value" style="font-size:17px">${escapeHtml(nextRunText(st.nextRunAt))}</div>
+      ${st.interval ? `<div class="stat-sub">every ${escapeHtml(formatInterval(st.interval))}</div>` : ''}
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Last Run</div>
+      <div class="stat-value" style="font-size:17px">${lastRunHtml}</div>
+      ${lastRunTs ? `<div class="stat-sub">${escapeHtml(formatRelative(lastRunTs))}</div>` : ''}
+    </div>
   `;
+  updateDreamsRunNowBtn();
+}
+
+function filteredDreamRuns() {
+  if (dreamsFilter === 'pending') return dreamsRuns.filter(r => r.reviewStatus === 'pending');
+  if (dreamsFilter === 'applied') return dreamsRuns.filter(r => r.reviewStatus === 'applied' || r.autoApplied);
+  if (dreamsFilter === 'other') return dreamsRuns.filter(r => r.reviewStatus !== 'pending' && r.reviewStatus !== 'applied' && !r.autoApplied);
+  return dreamsRuns;
+}
+
+function setDreamsFilter(id) {
+  dreamsFilter = id;
+  renderDreamsFilter();
+  renderDreamsRunList();
+}
+
+function renderDreamsFilter() {
+  const el = document.getElementById('dreamsFilter');
+  if (!el) return;
+  if (dreamsListLoading || !dreamsRuns.length) { el.innerHTML = ''; return; }
+  const counts = {
+    all: dreamsRuns.length,
+    pending: dreamsRuns.filter(r => r.reviewStatus === 'pending').length,
+    applied: dreamsRuns.filter(r => r.reviewStatus === 'applied' || r.autoApplied).length,
+  };
+  counts.other = counts.all - counts.pending - counts.applied;
+  const chip = (id, label) => `<button class="dreams-chip ${dreamsFilter === id ? 'active' : ''}" onclick="setDreamsFilter('${id}')">${label}<span class="dreams-chip-count">${counts[id]}</span></button>`;
+  el.innerHTML = chip('all', 'All') + chip('pending', 'Pending') + chip('applied', 'Applied') + chip('other', 'Other');
+}
+
+function dreamsRunSkeleton(n = 3) {
+  let out = '';
+  for (let i = 0; i < n; i++) {
+    out += `<div class="dreams-skel-row">
+      <div class="skeleton skeleton-text" style="width:42%"></div>
+      <div class="skeleton skeleton-text" style="width:72%"></div>
+      <div class="skeleton skeleton-text" style="width:56%;margin-bottom:0"></div>
+    </div>`;
+  }
+  return out;
 }
 
 function renderDreamsRunList() {
   const listEl = document.getElementById('dreamsRunList');
   if (!listEl) return;
+  renderDreamsFilter();
+  if (dreamsListLoading) { listEl.innerHTML = dreamsRunSkeleton(); return; }
   if (!dreamsRuns.length) {
-    listEl.innerHTML = '<div class="empty-state">No Dreams runs.</div>';
+    listEl.innerHTML = '<div class="empty-state"><p>No Dreams runs yet.</p></div>';
     return;
   }
-  listEl.innerHTML = dreamsRuns.map(run => {
+  const runs = filteredDreamRuns();
+  if (!runs.length) {
+    listEl.innerHTML = '<div class="empty-state"><p>No runs match this filter.</p></div>';
+    return;
+  }
+  listEl.innerHTML = runs.map(run => {
     const selected = run.id === selectedDreamRunId;
     const runTime = run.endedAt || run.startedAt;
-    const statusBadge = `<span class="badge ${dreamBadgeClass(run.status)}">${escapeHtml(run.status)}</span>`;
-    const reviewBadge = run.reviewStatus ? `<span class="badge ${dreamBadgeClass(run.reviewStatus)}">${escapeHtml(run.reviewStatus)}</span>` : '';
-    const autoBadge = run.autoApplied ? '<span class="badge badge-success">auto</span>' : '';
+    const enc = encodeURIComponent(run.id);
+    const badges = [`<span class="badge ${dreamBadgeClass(run.status)}">${escapeHtml(run.status)}</span>`];
+    if (run.reviewStatus) badges.push(`<span class="badge ${dreamBadgeClass(run.reviewStatus)}">${escapeHtml(run.reviewStatus)}</span>`);
+    if (run.autoApplied) badges.push('<span class="badge badge-success">auto</span>');
+    const pendingDot = run.reviewStatus === 'pending' ? '<span class="dreams-pending-dot" title="Needs review"></span>' : '';
+    const metrics = [`${formatNumber(run.processedThreadCount || 0)} threads`];
+    if (run.topicFilesWritten || run.topicFilesDeleted) metrics.push(`${formatNumber(run.topicFilesWritten || 0)} topics`);
+    if (run.outputStoreId) metrics.push(truncateMiddle(run.outputStoreId, 22));
     return `
-      <article class="dreams-run-card ${selected ? 'active' : ''}">
+      <article class="dreams-run-card ${selected ? 'active' : ''}" role="button" tabindex="0" aria-pressed="${selected}"
+        onclick="selectDreamRun('${enc}')"
+        onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();selectDreamRun('${enc}');}">
         <div class="dreams-run-header">
-          <button class="btn btn-compact" onclick="selectDreamRun('${encodeURIComponent(run.id)}')">Review</button>
-          <div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end">${statusBadge}${reviewBadge}${autoBadge}</div>
+          <div class="dreams-run-badges">${badges.join('')}</div>
+          <div class="dreams-run-time">${runTime ? escapeHtml(formatRelative(runTime)) : 'Unknown'}</div>
         </div>
-        <div class="dreams-run-id">${escapeHtml(run.id)}</div>
-        <div class="dreams-run-meta">
-          ${runTime ? escapeHtml(new Date(runTime).toLocaleString()) : 'Unknown time'}<br>
-          ${formatNumber(run.processedThreadCount || 0)} threads${run.outputStoreId ? ` · ${escapeHtml(run.outputStoreId)}` : ''}
-        </div>
+        <div class="dreams-run-title">${pendingDot}${escapeHtml(dreamFriendlyLabel(run))}</div>
+        <div class="dreams-run-id" title="${escapeHtml(run.id)}">${escapeHtml(run.id)}</div>
+        <div class="dreams-run-metrics">${metrics.map(m => `<span>${escapeHtml(m)}</span>`).join('')}</div>
       </article>`;
   }).join('');
+}
+
+function dreamMetric(label, valueHtml, extraStyle) {
+  return `<div><div class="dreams-metric-label">${escapeHtml(label)}</div><div class="dreams-metric-value"${extraStyle ? ` style="${extraStyle}"` : ''}>${valueHtml}</div></div>`;
+}
+
+// Detail head and body live in separate grid cells (see .dreams-layout) so the
+// detail header aligns with the run-list header and both bodies start at the same Y.
+function setDreamsDetail(headHtml, bodyHtml) {
+  const head = document.getElementById('dreamsDetailHead');
+  const body = document.getElementById('dreamsRunDetail');
+  if (head) head.innerHTML = headHtml;
+  if (body) body.innerHTML = bodyHtml;
+}
+
+function dreamsDetailHeadSkeleton() {
+  return `<div class="skeleton skeleton-text" style="width:60%;height:18px;margin-bottom:6px"></div>
+    <div class="skeleton skeleton-text" style="width:82%;height:12px;margin-bottom:0"></div>`;
+}
+
+function dreamsDetailBodySkeleton() {
+  return `
+    <div class="dreams-metrics">
+      ${Array.from({ length: 6 }).map(() => `<div><div class="skeleton skeleton-text" style="width:60%;height:11px"></div><div class="skeleton skeleton-text" style="width:80%;height:18px;margin-bottom:0"></div></div>`).join('')}
+    </div>
+    <div class="skeleton skeleton-text" style="width:100%;height:120px;margin-bottom:0"></div>`;
 }
 
 function renderDreamsRunDetail() {
   const detailEl = document.getElementById('dreamsRunDetail');
   if (!detailEl) return;
+  if (dreamsDetailLoading) { setDreamsDetail(dreamsDetailHeadSkeleton(), dreamsDetailBodySkeleton()); return; }
   const data = selectedDreamRunDetails;
   const run = data?.run || dreamsRuns.find(r => r.id === selectedDreamRunId);
   if (!run) {
-    detailEl.innerHTML = '<div class="dreams-detail-card"><div class="empty-state">Select a Dreams run to review.</div></div>';
+    setDreamsDetail('', '<div class="empty-state"><p>Select a Dreams run to review.</p></div>');
     return;
   }
   const preview = data?.preview || null;
   const activeIndex = preview?.activeIndexMarkdown || '';
   const outputIndex = preview?.outputIndexMarkdown || '';
-  const diff = lineDiffSummary(activeIndex, outputIndex);
+  const diff = computeIndexDiff(activeIndex, outputIndex);
   const canApply = run.status === 'succeeded' && run.reviewStatus !== 'discarded' && run.reviewStatus !== 'archived';
   const canDiscard = run.reviewStatus === 'pending';
   const canCancel = run.status === 'running';
   const canArchive = run.status !== 'running' && run.reviewStatus !== 'archived';
-  const traceLink = run.threadId
-    ? `<button class="btn" onclick="openDreamTrace('${encodeURIComponent(run.threadId)}')">Open trace</button>`
+  const enc = encodeURIComponent(run.id);
+
+  // Actions: exactly one primary (Apply / Make active, neutral inversion); the rest secondary.
+  const actions = [];
+  if (run.threadId) actions.push(`<button class="btn" onclick="openDreamTrace('${encodeURIComponent(run.threadId)}')">Open trace</button>`);
+  if (canCancel) actions.push(`<button class="btn" onclick="dreamAction('${enc}','cancel')">Cancel</button>`);
+  if (canDiscard) actions.push(`<button class="btn" onclick="dreamAction('${enc}','discard')">Discard</button>`);
+  if (canArchive) actions.push(`<button class="btn" onclick="dreamAction('${enc}','archive')">Archive</button>`);
+  if (canApply) actions.push(`<button class="btn btn-primary" onclick="dreamAction('${enc}','apply')">${run.reviewStatus === 'pending' ? 'Apply pending' : 'Make active'}</button>`);
+
+  const badges = [`<span class="badge ${dreamBadgeClass(run.status)}">${escapeHtml(run.status)}</span>`];
+  if (run.reviewStatus) badges.push(`<span class="badge ${dreamBadgeClass(run.reviewStatus)}">${escapeHtml(run.reviewStatus)}</span>`);
+  if (run.autoApplied) badges.push('<span class="badge badge-success">auto-applied</span>');
+
+  const runTime = run.endedAt || run.startedAt;
+  const duration = dreamDurationText(run);
+  const usage = dreamUsageTotal(run.usage);
+
+  const metrics = [];
+  metrics.push(dreamMetric('Output Store', run.outputStoreId
+    ? `<span class="dreams-storeid" style="font-size:13px" title="${escapeHtml(run.outputStoreId)}">${escapeHtml(truncateMiddle(run.outputStoreId, 24))}</span>${dreamCopyBtn(run.outputStoreId)}`
+    : '<span class="muted">None</span>', 'display:flex;align-items:center;gap:4px'));
+  metrics.push(dreamMetric('Index Change', `<span class="add">+${diff.additions}</span> <span class="muted">/</span> <span class="del">-${diff.removals}</span>`));
+  metrics.push(dreamMetric('Threads', `${formatNumber(run.processedThreadCount || 0)}<span class="muted"> / ${formatNumber(run.candidateThreadCount || 0)}</span>`));
+  metrics.push(dreamMetric('Evidence Reads', formatNumber(run.evidenceReadCount || 0)));
+  metrics.push(dreamMetric('Evidence Searches', formatNumber(run.evidenceSearchCount || 0)));
+  metrics.push(dreamMetric('Topic Files', `<span class="add">+${formatNumber(run.topicFilesWritten || 0)}</span> <span class="muted">/</span> <span class="del">-${formatNumber(run.topicFilesDeleted || 0)}</span>`));
+  if (duration) metrics.push(dreamMetric('Duration', escapeHtml(duration)));
+  if (usage) metrics.push(dreamMetric('Tokens', escapeHtml(usage)));
+
+  const isFailed = run.status === 'failed';
+  const banner = (run.errorType || run.message)
+    ? `<div class="message ${isFailed ? 'message-error' : 'message-warning'}" style="margin-bottom:14px">${escapeHtml([run.errorType, run.message].filter(Boolean).join(': '))}</div>`
     : '';
-  detailEl.innerHTML = `
-    <div class="dreams-detail-card">
-      <div class="dreams-run-header" style="margin-bottom:12px">
-        <div>
-          <div class="dreams-detail-title">${escapeHtml(run.id)}</div>
-          <div class="dreams-run-meta">${escapeHtml(dreamStatusLabel(run))}${run.message ? ` · ${escapeHtml(run.message)}` : ''}</div>
-        </div>
-        <div class="dreams-actions">
-          ${traceLink}
-          ${canCancel ? `<button class="btn" onclick="dreamAction('${encodeURIComponent(run.id)}','cancel')">Cancel</button>` : ''}
-          ${canApply ? `<button class="btn btn-accent" onclick="dreamAction('${encodeURIComponent(run.id)}','apply')">${run.reviewStatus === 'pending' ? 'Apply pending' : 'Make active'}</button>` : ''}
-          ${canDiscard ? `<button class="btn" onclick="dreamAction('${encodeURIComponent(run.id)}','discard')">Discard</button>` : ''}
-          ${canArchive ? `<button class="btn" onclick="dreamAction('${encodeURIComponent(run.id)}','archive')">Archive</button>` : ''}
+
+  const evidenceLinks = (run.evidenceThreadIds || []).length
+    ? run.evidenceThreadIds.map(id => `<li><button class="link" onclick="openSession('${encodeURIComponent(id)}')">${escapeHtml(id)}</button></li>`).join('')
+    : '<li style="color:var(--text-muted)">No evidence threads recorded.</li>';
+  const writtenPaths = (run.writtenPaths || []).length
+    ? run.writtenPaths.map(p => `<li>${escapeHtml(p)}</li>`).join('')
+    : '<li style="color:var(--text-muted)">No paths written.</li>';
+  const usageKv = run.usage
+    ? `<div class="dreams-kv"><span class="k">Input:</span> ${formatNumber(run.usage.inputTokens || 0)} · <span class="k">Output:</span> ${formatNumber(run.usage.outputTokens || 0)} · <span class="k">Cached:</span> ${formatNumber(run.usage.cachedInputTokens || 0)} · <span class="k">Total:</span> ${formatNumber(run.usage.totalTokens || 0)}</div>`
+    : '<div class="dreams-kv" style="color:var(--text-muted)">No token usage recorded.</div>';
+  const turnIds = (run.turnIds || []).length ? run.turnIds.join(', ') : (run.turnId || 'none');
+
+  const headHtml = `
+    <div class="dreams-detail-head">
+      <div style="min-width:0">
+        <div class="dreams-detail-title">${escapeHtml(dreamFriendlyLabel(run))}${badges.join('')}</div>
+        <div class="dreams-detail-sub">
+          <span>${escapeHtml(truncateMiddle(run.id, 40))}</span>${dreamCopyBtn(run.id)}
+          ${runTime ? `· ${escapeHtml(formatRelative(runTime))}` : ''}${duration ? ` · ${escapeHtml(duration)}` : ''}
         </div>
       </div>
-      <div class="stats-grid" style="margin-bottom:12px">
-        <div class="stat-card"><div class="stat-label">Output Store</div><div class="stat-value accent" style="font-size:16px;word-break:break-all">${escapeHtml(run.outputStoreId || 'None')}</div></div>
-        <div class="stat-card"><div class="stat-label">Index Change</div><div class="stat-value success">+${diff.additions} / -${diff.removals}</div></div>
-        <div class="stat-card"><div class="stat-label">Evidence Reads</div><div class="stat-value info">${formatNumber(run.evidenceReadCount || 0)}</div></div>
-        <div class="stat-card"><div class="stat-label">Topic Files</div><div class="stat-value">${formatNumber(run.topicFilesWritten || 0)}</div></div>
-      </div>
-      ${run.errorType || run.message ? `<div class="message message-warning" style="margin-bottom:12px">${escapeHtml([run.errorType, run.message].filter(Boolean).join(': '))}</div>` : ''}
-      <details class="dreams-details" open>
-        <summary>Index diff</summary>
-        <pre class="dreams-code">${renderLineDiff(activeIndex, outputIndex)}</pre>
-      </details>
-      <details class="dreams-details">
-        <summary>Raw indexes</summary>
-        <div class="dreams-grid" style="margin-top:10px">
-          <div><div class="stat-label">Active index</div><pre class="dreams-code">${escapeHtml(activeIndex || 'No active index content.')}</pre></div>
-          <div><div class="stat-label">Output index</div><pre class="dreams-code">${escapeHtml(outputIndex || 'No output index content.')}</pre></div>
-        </div>
-      </details>
-      <details class="dreams-details">
-        <summary>Topics and manifest</summary>
-        <pre class="dreams-code">${escapeHtml([
-          `Active topics: ${(preview?.activeTopicPaths || []).join(', ') || 'none'}`,
-          `Output topics: ${(preview?.outputTopicPaths || []).join(', ') || 'none'}`,
-          `Input manifest path: ${run.inputManifestPath || 'none'}`,
-          '',
-          preview?.inputManifestMarkdown || ''
-        ].join('\n'))}</pre>
-      </details>
+      <div class="dreams-actions">${actions.join('')}</div>
     </div>`;
+
+  const bodyHtml = `
+    ${banner}
+    <div class="dreams-metrics">${metrics.join('')}</div>
+    <details class="dreams-details" open>
+      <summary>Index diff <span class="count">+${diff.additions} / -${diff.removals}</span></summary>
+      <div class="dreams-diff-legend"><span class="add">+ added</span><span class="del">- removed</span></div>
+      <pre class="dreams-code">${renderIndexDiff(diff)}</pre>
+    </details>
+    <details class="dreams-details">
+      <summary>Raw indexes</summary>
+      <div class="dreams-grid" style="margin-top:10px">
+        <div><div class="dreams-metric-label">Active index</div><pre class="dreams-code">${escapeHtml(activeIndex || 'No active index content.')}</pre></div>
+        <div><div class="dreams-metric-label">Output index</div><pre class="dreams-code">${escapeHtml(outputIndex || 'No output index content.')}</pre></div>
+      </div>
+    </details>
+    <details class="dreams-details">
+      <summary>Topics &amp; manifest <span class="count">${(preview?.outputTopicPaths || []).length} topics</span></summary>
+      <pre class="dreams-code">${escapeHtml([
+        `Active topics: ${(preview?.activeTopicPaths || []).join(', ') || 'none'}`,
+        `Output topics: ${(preview?.outputTopicPaths || []).join(', ') || 'none'}`,
+        `Input manifest path: ${run.inputManifestPath || 'none'}`,
+        '',
+        preview?.inputManifestMarkdown || ''
+      ].join('\n'))}</pre>
+    </details>
+    <details class="dreams-details">
+      <summary>Evidence &amp; trace</summary>
+      <div style="margin-top:10px">
+        <div class="dreams-metric-label">Evidence threads <span style="text-transform:none;color:var(--text-muted)">(${(run.evidenceThreadIds || []).length})</span></div>
+        <ul class="dreams-evidence-list">${evidenceLinks}</ul>
+        <div class="dreams-metric-label" style="margin-top:12px">Written paths <span style="text-transform:none;color:var(--text-muted)">(${(run.writtenPaths || []).length})</span></div>
+        <ul class="dreams-evidence-list">${writtenPaths}</ul>
+        <div class="dreams-metric-label" style="margin-top:12px">Token usage</div>
+        ${usageKv}
+        <div class="dreams-metric-label" style="margin-top:12px">Turn ids</div>
+        <div class="dreams-kv" style="font-family:var(--font-mono)">${escapeHtml(turnIds)}</div>
+      </div>
+    </details>`;
+
+  setDreamsDetail(headHtml, bodyHtml);
 }
 
 async function refreshDreams() {
   if (!dreamsAvailable) return;
+  dreamsListLoading = !dreamsRuns.length;
+  if (dreamsListLoading) renderDreamsRunList();
   dreamsStatus = await fetchJson('/dreams/status');
   const list = await fetchJson('/dreams/runs');
   dreamsRuns = Array.isArray(list?.runs) ? list.runs : [];
+  dreamsListLoading = false;
   if (selectedDreamRunId && !dreamsRuns.some(run => run.id === selectedDreamRunId)) {
     selectedDreamRunId = null;
     selectedDreamRunDetails = null;
@@ -5271,7 +5830,10 @@ async function refreshDreams() {
 }
 
 async function loadDreamRun(runId) {
+  dreamsDetailLoading = true;
+  renderDreamsRunDetail();
   const data = await fetchJson('/dreams/runs/' + encodeURIComponent(runId));
+  dreamsDetailLoading = false;
   if (data) {
     selectedDreamRunDetails = data;
     selectedDreamRunId = data.run?.id || runId;
@@ -5291,6 +5853,10 @@ function selectDreamRun(encodedRunId) {
 async function runDreamsNow() {
   if (!dashboardCapability('dreams')) return;
   if (!dreamsAvailable) return;
+  if (dreamsStatus?.running) {
+    showToast('A Dreams run is already in progress.', 'info');
+    return;
+  }
   try {
     await postJson('/dreams/run');
     showToast('Dreams run requested.', 'success');
