@@ -63,6 +63,7 @@ import {
 } from '../../utils/requestUserInputToolDisplay'
 import { resolveCoreToolRenderPlan, type ToolRendererFamily } from '../../utils/toolRendererRegistry'
 import { toAbsoluteWorkspacePath } from '../../utils/diffExtractor'
+import { FileDiffStats } from './FileDiffStats'
 
 export type ShellRuntimeScope = 'conversation' | 'review' | 'none'
 
@@ -134,19 +135,13 @@ function formatExpandedFileToolLabel(
 }
 
 function FileToolDiffStats({ diff, colorized }: { diff: FileDiff; colorized: boolean }): JSX.Element | null {
-  if (diff.additions <= 0 && diff.deletions <= 0) return null
   return (
-    <span
-      data-testid="tool-row-diff-stats"
-      style={{ display: 'inline-flex', gap: '6px', flexShrink: 0, fontFamily: 'var(--font-mono)' }}
-    >
-      {diff.additions > 0 && (
-        <span style={{ color: colorized ? 'var(--success)' : 'currentColor' }}>+{diff.additions}</span>
-      )}
-      {diff.deletions > 0 && (
-        <span style={{ color: colorized ? 'var(--error)' : 'currentColor' }}>-{diff.deletions}</span>
-      )}
-    </span>
+    <FileDiffStats
+      additions={diff.additions}
+      deletions={diff.deletions}
+      tone={colorized ? 'semantic' : 'inherit'}
+      testId="tool-row-diff-stats"
+    />
   )
 }
 

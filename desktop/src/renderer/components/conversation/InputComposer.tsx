@@ -1750,7 +1750,7 @@ export function InputComposer({
               unsupported={modelListUnsupportedEndpoint}
               modelListReady={!modelLoading && !modelListUnsupportedEndpoint && !modelCatalogError && modelOptions.length > 0}
               errorMessage={modelCatalogError ? (modelCatalogErrorMessage || t('composer.modelListError')) : null}
-              disabled={modelDisabled || isWaitingApproval || isWaitingInput || isMaintenanceActive}
+              disabled={modelDisabled || isWaitingApproval || isWaitingInput}
               onChange={onModelChange}
               onProviderChange={onProviderChange}
               allowDefaultModel={false}

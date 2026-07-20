@@ -5,6 +5,7 @@ import { ActionTooltip } from '../ui/ActionTooltip'
 import { useUIStore } from '../../stores/uiStore'
 import { translate, type AppLocale } from '../../../shared/locales'
 import { addToast } from '../../stores/toastStore'
+import { FileDiffStats } from './FileDiffStats'
 
 interface InlineDiffViewProps {
   diff: FileDiff
@@ -219,20 +220,14 @@ export function FileResultHeader({
     }
   }
 
-  const stats = (additions > 0 || deletions > 0) ? (
-    <span
-      data-testid="file-result-diff-stats"
-      style={{
-        marginLeft: inlineStats ? 0 : 'auto',
-        display: 'inline-flex',
-        gap: '6px',
-        flexShrink: 0
-      }}
-    >
-      {additions > 0 && <span style={{ color: 'var(--success)' }}>+{additions}</span>}
-      {deletions > 0 && <span style={{ color: 'var(--error)' }}>-{deletions}</span>}
-    </span>
-  ) : null
+  const stats = (
+    <FileDiffStats
+      additions={additions}
+      deletions={deletions}
+      testId="file-result-diff-stats"
+      style={{ marginLeft: inlineStats ? 0 : 'auto' }}
+    />
+  )
 
   return (
     <div

@@ -8,6 +8,7 @@ import { useConfirmDialog } from '../ui/ConfirmDialog'
 import type { FileDiff } from '../../types/toolCall'
 import { InlineDiffView } from './InlineDiffView'
 import { ActionTooltip } from '../ui/ActionTooltip'
+import { FileDiffStats } from './FileDiffStats'
 
 interface TurnCompletionSummaryProps {
   turnId: string
@@ -150,7 +151,11 @@ export const TurnCompletionSummary = memo(function TurnCompletionSummary({ turnI
                   <NewFileDot label={t('diffViewer.newFile')} />
                 )}
               </span>
-              <FileStats additions={file.additions} deletions={file.deletions} status={file.status} />
+              <FileDiffStats
+                additions={file.additions}
+                deletions={file.deletions}
+                tone={file.status === 'reverted' ? 'dimmed' : 'semantic'}
+              />
               <span style={{ color: 'var(--text-secondary)', width: '16px', display: 'inline-flex', justifyContent: 'center' }}>
                 {isExpanded ? <ChevronUp size={15} strokeWidth={1.8} /> : <ChevronDown size={15} strokeWidth={1.8} />}
               </span>
@@ -222,26 +227,6 @@ const newFileDotStyle: CSSProperties = {
   borderRadius: '999px',
   background: 'var(--success)',
   verticalAlign: 'middle'
-}
-
-interface FileStatsProps {
-  additions: number
-  deletions: number
-  status: 'written' | 'reverted'
-}
-
-function FileStats({ additions, deletions, status }: FileStatsProps): JSX.Element {
-  const dim = status === 'reverted'
-  return (
-    <span style={{ display: 'inline-flex', gap: '6px', flexShrink: 0, fontFamily: 'var(--font-mono)', fontSize: '12px' }}>
-      {additions > 0 && (
-        <span style={{ color: dim ? 'var(--text-dimmed)' : 'var(--success)' }}>+{additions}</span>
-      )}
-      {deletions > 0 && (
-        <span style={{ color: dim ? 'var(--text-dimmed)' : 'var(--error)' }}>-{deletions}</span>
-      )}
-    </span>
-  )
 }
 
 function turnIncludesFile(file: FileDiff, turnId: string): boolean {

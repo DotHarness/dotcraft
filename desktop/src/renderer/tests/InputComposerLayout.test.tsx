@@ -939,6 +939,42 @@ describe('InputComposer layout', () => {
     expect(screen.getByRole('menu', { name: 'Select model' })).toBeInTheDocument()
   })
 
+  it.each(['compacting', 'consolidating'] as const)(
+    'keeps the model picker available while thread maintenance is %s',
+    (maintenanceKind) => {
+      useConversationStore.setState({
+        turnStatus: 'idle',
+        activeTurnId: null,
+        maintenanceKind
+      })
+
+      renderComposer()
+
+      const modelButton = screen.getByRole('button', { name: 'Select model' })
+      expect(modelButton).toBeEnabled()
+
+      fireEvent.click(modelButton)
+      expect(screen.getByRole('menu', { name: 'Select model' })).toBeInTheDocument()
+    }
+  )
+
+  it.each(['waitingApproval', 'waitingInput'] as const)(
+    'keeps the model picker disabled while the turn is %s',
+    (turnStatus) => {
+      useConversationStore.setState({ turnStatus })
+
+      renderComposer()
+
+      expect(screen.getByRole('button', { name: 'Select model' })).toBeDisabled()
+    }
+  )
+
+  it('keeps the model picker disabled while model controls are unavailable', () => {
+    renderComposer({ modelDisabled: true })
+
+    expect(screen.getByRole('button', { name: 'Select model' })).toBeDisabled()
+  })
+
   it('shows the queued send action instead of stop while running with draft text', () => {
     useConversationStore.setState({
       turnStatus: 'running',
