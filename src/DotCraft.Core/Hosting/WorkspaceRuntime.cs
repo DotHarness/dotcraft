@@ -32,6 +32,7 @@ public sealed class WorkspaceRuntime : IAsyncDisposable
         WireAcpExtensionProxy wireAcpExtensionProxy,
         WireNodeReplProxy wireNodeReplProxy,
         WireDynamicToolProxy wireDynamicToolProxy,
+        ThreadStore threadStore,
         ISessionService sessionService,
         ICommitMessageSuggestService commitMessageSuggestService,
         WelcomeSuggestionService welcomeSuggestionService,
@@ -52,6 +53,8 @@ public sealed class WorkspaceRuntime : IAsyncDisposable
         public WireNodeReplProxy WireNodeReplProxy { get; } = wireNodeReplProxy;
 
         public WireDynamicToolProxy WireDynamicToolProxy { get; } = wireDynamicToolProxy;
+
+        public ThreadStore ThreadStore { get; } = threadStore;
 
         public ISessionService SessionService { get; } = sessionService;
 
@@ -409,6 +412,7 @@ public sealed class WorkspaceRuntime : IAsyncDisposable
                     wireAcpExtensionProxy,
                     wireNodeReplProxy,
                     wireDynamicToolProxy,
+                    Services.GetRequiredService<ThreadStore>(),
                     sessionService,
                     commitMessageSuggestService,
                     welcomeSuggestionService,
@@ -610,6 +614,15 @@ public sealed class WorkspaceRuntime : IAsyncDisposable
                 started.SessionService.ThreadRuntimeSignalForBroadcast = null;
                 if (started.SessionService is SessionService sessionService)
                     sessionService.SubAgentGraphChangedForBroadcast = null;
+            }
+            catch (Exception ex)
+            {
+                (errors ??= []).Add(ex);
+            }
+
+            try
+            {
+                await started.ThreadStore.FlushAndCloseAsync(ct);
             }
             catch (Exception ex)
             {

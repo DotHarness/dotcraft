@@ -29,6 +29,164 @@ ERROR_NEEDLES = (
     "失败",
 )
 
+TOOL_ITEM_TYPES = {
+    "ToolCall",
+    "PluginFunctionCall",
+    "McpToolCall",
+    "DynamicToolCall",
+    "ToolExecution",
+    "ToolResult",
+    "CommandExecution",
+}
+
+MODEL_CONTENT_KINDS = {
+    "text",
+    "reasoning",
+    "data",
+    "function_call",
+    "function_result",
+    "hosted_image_generation",
+    "image_generation_tool_call",
+    "image_generation_tool_result",
+    "tool_call_arguments_delta",
+    "error",
+    "uri",
+    "usage",
+}
+
+SENSITIVE_PROPERTY_KEYS = {
+    "additionalproperties",
+    "protecteddata",
+    "rawrepresentation",
+}
+
+
+def sanitize_diagnostic_value(value: Any) -> Any:
+    if isinstance(value, dict):
+        return {
+            key: sanitize_diagnostic_value(nested)
+            for key, nested in value.items()
+            if str(key).replace("_", "").lower() not in SENSITIVE_PROPERTY_KEYS
+        }
+    if isinstance(value, list):
+        return [sanitize_diagnostic_value(nested) for nested in value]
+    return value
+
+
+def get_turn_id(payload: Any, line_number: int) -> str:
+    if not isinstance(payload, dict):
+        return f"line:{line_number}"
+    turn = payload.get("turn")
+    if isinstance(turn, dict) and turn.get("id"):
+        return str(turn["id"])
+    return str(payload.get("turnId") or payload.get("id") or f"line:{line_number}")
+
+
+def summarize_item(
+    item: Any,
+    line_number: int,
+    timestamp: Any,
+    max_error_preview: int,
+) -> dict[str, Any] | None:
+    if not isinstance(item, dict):
+        return None
+    summary = {
+        "line": line_number,
+        "timestamp": timestamp,
+        "item_id": item.get("id"),
+        "type": item.get("type") or "(missing)",
+        "status": item.get("status"),
+        "payload_keys": sorted(
+            key
+            for key in item["payload"].keys()
+            if str(key).replace("_", "").lower() not in SENSITIVE_PROPERTY_KEYS
+        )
+        if isinstance(item.get("payload"), dict)
+        else [],
+    }
+    if summary["type"] == "Error":
+        summary["payload_preview"] = preview(item.get("payload"), max_error_preview)
+    return summary
+
+
+def summarize_model_batch(payload: Any, line_number: int, timestamp: Any) -> dict[str, Any]:
+    summary: dict[str, Any] = {
+        "line": line_number,
+        "timestamp": timestamp,
+        "turn_id": payload.get("turnId") if isinstance(payload, dict) else None,
+        "message_count": 0,
+        "schema_versions": [],
+        "content_kinds": [],
+        "rejected": False,
+    }
+    if not isinstance(payload, dict) or not isinstance(payload.get("messages"), list):
+        summary.update({"rejected": True, "rejection_reason": "malformed model batch"})
+        return summary
+
+    messages = payload["messages"]
+    schemas: set[Any] = set()
+    kinds: set[str] = set()
+    rejected = False
+    for message in messages:
+        if not isinstance(message, dict):
+            rejected = True
+            continue
+        schema = message.get("schemaVersion")
+        schemas.add(schema if isinstance(schema, (str, int)) else "(missing)")
+        if schema != 1:
+            rejected = True
+        contents = message.get("contents")
+        if not isinstance(contents, list):
+            rejected = True
+            continue
+        for content in contents:
+            if not isinstance(content, dict) or not isinstance(content.get("kind"), str):
+                rejected = True
+                kinds.add("(missing)")
+            else:
+                kinds.add(content["kind"])
+                if content["kind"] not in MODEL_CONTENT_KINDS:
+                    rejected = True
+
+    summary["message_count"] = len(messages)
+    summary["schema_versions"] = sorted(schemas, key=str)
+    summary["content_kinds"] = sorted(kinds)
+    summary["rejected"] = rejected
+    if rejected:
+        summary["rejection_reason"] = "unsupported or malformed model history message"
+    return summary
+
+
+def summarize_checkpoint(payload: Any, line_number: int, timestamp: Any) -> dict[str, Any]:
+    summary: dict[str, Any] = {
+        "line": line_number,
+        "timestamp": timestamp,
+        "covered_through_turn_id": payload.get("coveredThroughTurnId")
+        if isinstance(payload, dict)
+        else None,
+        "checkpoint_id": payload.get("checkpointId") if isinstance(payload, dict) else None,
+        "decoded": True,
+    }
+    if not isinstance(payload, dict) or not isinstance(payload.get("replacementHistory"), list):
+        summary.update({"decoded": False, "decode_error": "malformed checkpoint"})
+        return summary
+
+    replacement = payload["replacementHistory"]
+    summary["replacement_message_count"] = len(replacement)
+    if not payload.get("coveredThroughTurnId") or any(
+        not isinstance(message, dict)
+        or message.get("schemaVersion") != 1
+        or not isinstance(message.get("contents"), list)
+        or any(
+            not isinstance(content, dict)
+            or content.get("kind") not in MODEL_CONTENT_KINDS
+            for content in message.get("contents", [])
+        )
+        for message in replacement
+    ):
+        summary.update({"decoded": False, "decode_error": "unsupported checkpoint history"})
+    return summary
+
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
@@ -46,6 +204,7 @@ def parse_args() -> argparse.Namespace:
 def preview(value: Any, limit: int) -> str:
     if value is None:
         return ""
+    value = sanitize_diagnostic_value(value)
     if not isinstance(value, str):
         try:
             value = json.dumps(value, ensure_ascii=False, separators=(",", ":"))
@@ -69,6 +228,11 @@ def load_thread(path: pathlib.Path | None, max_error_preview: int) -> dict[str, 
         "item_type_counts": {},
         "turns": [],
         "errors": [],
+        "tool_items": [],
+        "terminal_items": [],
+        "model_history_batches": [],
+        "checkpoints": [],
+        "rollbacks": [],
         "error_like_lines": [],
         "parse_errors": [],
     }
@@ -78,6 +242,7 @@ def load_thread(path: pathlib.Path | None, max_error_preview: int) -> dict[str, 
     kind_counts: collections.Counter[str] = collections.Counter()
     item_type_counts: collections.Counter[str] = collections.Counter()
     active_turns: dict[str, dict[str, Any]] = {}
+    turn_items: dict[str, list[dict[str, Any]]] = {}
 
     with path.open("r", encoding="utf-8-sig") as handle:
         for line_number, raw in enumerate(handle, start=1):
@@ -89,6 +254,11 @@ def load_thread(path: pathlib.Path | None, max_error_preview: int) -> dict[str, 
                 record = json.loads(raw)
             except json.JSONDecodeError as exc:
                 result["parse_errors"].append({"line": line_number, "error": str(exc)})
+                continue
+            if not isinstance(record, dict):
+                result["parse_errors"].append(
+                    {"line": line_number, "error": "rollout record is not a JSON object"}
+                )
                 continue
 
             kind = record.get("kind") or "(missing)"
@@ -103,12 +273,12 @@ def load_thread(path: pathlib.Path | None, max_error_preview: int) -> dict[str, 
 
             if kind == "turn_started":
                 payload = record.get("turnStarted") or {}
-                turn_id = payload.get("turnId") or payload.get("id") or f"line:{line_number}"
+                turn_id = get_turn_id(payload, line_number)
                 active_turns.setdefault(turn_id, {"turn_id": turn_id})
                 active_turns[turn_id].update({"started_at": timestamp, "start_line": line_number})
             elif kind == "turn_completed":
                 payload = record.get("turnCompleted") or {}
-                turn_id = payload.get("turnId") or payload.get("id") or f"line:{line_number}"
+                turn_id = get_turn_id(payload, line_number)
                 active_turns.setdefault(turn_id, {"turn_id": turn_id})
                 active_turns[turn_id].update(
                     {
@@ -128,23 +298,91 @@ def load_thread(path: pathlib.Path | None, max_error_preview: int) -> dict[str, 
                     turn["last_item_line"] = line_number
                     turn["last_item_type"] = item_type
                     turn["last_item_id"] = item.get("id")
-                if item_type == "Error":
-                    result["errors"].append(
-                        {
-                            "line": line_number,
-                            "timestamp": timestamp,
-                            "turn_id": turn_id,
-                            "item_id": item.get("id"),
-                            "status": item.get("status"),
-                            "payload_keys": sorted((item.get("payload") or {}).keys())
-                            if isinstance(item.get("payload"), dict)
-                            else [],
-                            "payload_preview": preview(item.get("payload"), max_error_preview),
-                        }
-                    )
+                    item_summary = summarize_item(item, line_number, timestamp, max_error_preview)
+                    if item_summary:
+                        turn_items.setdefault(turn_id, []).append(item_summary)
+            elif kind == "turn_state_replaced":
+                payload = record.get("turnStateReplaced") or {}
+                turn = payload.get("turn") if isinstance(payload, dict) else None
+                turn_id = str(turn.get("id")) if isinstance(turn, dict) and turn.get("id") else None
+                if turn_id:
+                    prior = active_turns.get(turn_id, {"turn_id": turn_id})
+                    replacement = {
+                        "turn_id": turn_id,
+                        "start_line": prior.get("start_line", line_number),
+                        "started_at": turn.get("startedAt") or prior.get("started_at"),
+                        "completed_at": turn.get("completedAt"),
+                        "completed_line": line_number,
+                        "status": turn.get("status"),
+                    }
+                    active_turns[turn_id] = replacement
+                    replacement_items = []
+                    for item in turn.get("items") or []:
+                        item_summary = summarize_item(item, line_number, timestamp, max_error_preview)
+                        if item_summary:
+                            replacement_items.append(item_summary)
+                    turn_items[turn_id] = replacement_items
+                    if replacement_items:
+                        replacement["last_item_line"] = line_number
+                        replacement["last_item_type"] = replacement_items[-1]["type"]
+                        replacement["last_item_id"] = replacement_items[-1]["item_id"]
+            elif kind == "thread_rolled_back":
+                payload = record.get("threadRolledBack") or {}
+                count = payload.get("numTurns") if isinstance(payload, dict) else None
+                removed: list[str] = []
+                if isinstance(count, int) and count > 0:
+                    removed = list(active_turns)[-count:]
+                    for turn_id in removed:
+                        active_turns.pop(turn_id, None)
+                        turn_items.pop(turn_id, None)
+                result["rollbacks"].append(
+                    {"line": line_number, "timestamp": timestamp, "num_turns": count, "removed_turn_ids": removed}
+                )
+            elif kind == "model_history_messages_appended":
+                result["model_history_batches"].append(
+                    summarize_model_batch(record.get("modelHistoryMessagesAppended"), line_number, timestamp)
+                )
+            elif kind == "context_compacted":
+                result["checkpoints"].append(
+                    summarize_checkpoint(record.get("contextCompacted"), line_number, timestamp)
+                )
+
+    surviving_turn_ids = set(active_turns)
+    result["model_history_batches"] = [
+        batch
+        for batch in result["model_history_batches"]
+        if batch.get("turn_id") in surviving_turn_ids
+        or (batch.get("turn_id") is None and batch.get("rejected"))
+    ]
+    for checkpoint in result["checkpoints"]:
+        checkpoint["usable"] = bool(
+            checkpoint.get("decoded")
+            and checkpoint.get("covered_through_turn_id") in surviving_turn_ids
+        )
 
     result["kind_counts"] = dict(kind_counts.most_common())
+    surviving_items = [
+        (turn_id, item)
+        for turn_id in active_turns
+        for item in turn_items.get(turn_id, [])
+    ]
+    item_type_counts = collections.Counter(item["type"] for _, item in surviving_items)
     result["item_type_counts"] = dict(item_type_counts.most_common())
+    result["errors"] = [
+        {**item, "turn_id": turn_id}
+        for turn_id, item in surviving_items
+        if item["type"] == "Error"
+    ]
+    result["tool_items"] = [
+        {**item, "turn_id": turn_id}
+        for turn_id, item in surviving_items
+        if item["type"] in TOOL_ITEM_TYPES
+    ]
+    result["terminal_items"] = [
+        {**items[-1], "turn_id": turn_id}
+        for turn_id, items in turn_items.items()
+        if turn_id in active_turns and items
+    ]
     result["turns"] = sorted(
         active_turns.values(), key=lambda row: row.get("start_line") or row.get("completed_line") or 0
     )
@@ -256,7 +494,7 @@ def load_db(
                 "select updated_at, length(session_json) as session_json_bytes from thread_sessions where thread_id = ?",
                 (thread_id,),
             ).fetchone()
-            result["thread_session"] = dict(session_row) if session_row else None
+            result["legacy_thread_session"] = dict(session_row) if session_row else None
 
         bound_keys: list[str] = []
         if thread_id and table_exists(connection, "trace_session_bindings"):
@@ -414,16 +652,26 @@ def emit_markdown(summary: dict[str, Any]) -> None:
                     print(f"    preview: {error['payload_preview']}")
         else:
             print("- No explicit rollout `Error` items found.")
+        if thread.get("tool_items"):
+            print(f"- Surviving tool items: `{thread['tool_items']}`")
+        if thread.get("terminal_items"):
+            print(f"- Terminal items by surviving Turn: `{thread['terminal_items']}`")
+        if thread.get("rollbacks"):
+            print(f"- Rollbacks: `{thread['rollbacks']}`")
+        if thread.get("model_history_batches"):
+            print(f"- Model history batch metadata: `{thread['model_history_batches']}`")
+        if thread.get("checkpoints"):
+            print(f"- Compaction checkpoint metadata: `{thread['checkpoints']}`")
         if thread.get("parse_errors"):
             print(f"- Parse errors: `{thread['parse_errors']}`")
         print()
 
-    if db.get("context_usage") or db.get("thread_session"):
-        print("## Session State")
+    if db.get("context_usage") or db.get("legacy_thread_session"):
+        print("## Runtime And Legacy State")
         if db.get("context_usage"):
             print(f"- thread_context_usage: `{db['context_usage']}`")
-        if db.get("thread_session"):
-            print(f"- thread_sessions: `{db['thread_session']}`")
+        if db.get("legacy_thread_session"):
+            print(f"- optional legacy thread_sessions evidence: `{db['legacy_thread_session']}`")
         print()
 
     if db.get("trace_bindings") or db.get("trace_sessions") or db.get("trace_events"):

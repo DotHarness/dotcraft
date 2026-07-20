@@ -170,6 +170,7 @@ public sealed class StateRuntime
                     forked_from_id TEXT,
                     ephemeral INTEGER NOT NULL DEFAULT 0,
                     worktree_json TEXT,
+                    source_json TEXT,
                     display_name TEXT,
                     status TEXT NOT NULL,
                     created_at TEXT NOT NULL,
@@ -178,20 +179,14 @@ public sealed class StateRuntime
                     history_mode TEXT NOT NULL,
                     turn_count INTEGER NOT NULL DEFAULT 0,
                     first_user_message TEXT,
-                    metadata_json TEXT
+                    metadata_json TEXT,
+                    projected_rollout_offset INTEGER NOT NULL DEFAULT 0
                 );
 
                 CREATE INDEX IF NOT EXISTS idx_threads_updated_at ON threads(updated_at DESC, thread_id DESC);
                 CREATE INDEX IF NOT EXISTS idx_threads_workspace_identity
                     ON threads(workspace_path, user_id, channel_context, origin_channel);
                 CREATE INDEX IF NOT EXISTS idx_threads_status ON threads(status);
-
-                CREATE TABLE IF NOT EXISTS thread_sessions (
-                    thread_id TEXT PRIMARY KEY,
-                    session_json TEXT NOT NULL,
-                    updated_at TEXT NOT NULL,
-                    FOREIGN KEY(thread_id) REFERENCES threads(thread_id) ON DELETE CASCADE
-                );
 
                 CREATE TABLE IF NOT EXISTS thread_context_usage (
                     thread_id TEXT PRIMARY KEY,
@@ -450,6 +445,8 @@ public sealed class StateRuntime
             EnsureColumn(connection, "threads", "forked_from_id", "TEXT");
             EnsureColumn(connection, "threads", "ephemeral", "INTEGER NOT NULL DEFAULT 0");
             EnsureColumn(connection, "threads", "worktree_json", "TEXT");
+            EnsureColumn(connection, "threads", "source_json", "TEXT");
+            EnsureColumn(connection, "threads", "projected_rollout_offset", "INTEGER NOT NULL DEFAULT 0");
             EnsureColumn(connection, "thread_spawn_edges", "supports_send_input", "INTEGER NOT NULL DEFAULT 0");
             EnsureColumn(connection, "thread_spawn_edges", "supports_resume", "INTEGER NOT NULL DEFAULT 0");
             EnsureColumn(connection, "thread_spawn_edges", "supports_send_message", "INTEGER NOT NULL DEFAULT 0");

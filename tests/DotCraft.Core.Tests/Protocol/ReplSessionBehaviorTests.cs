@@ -352,36 +352,13 @@ public sealed class ReplSessionBehaviorTests : IDisposable
         Assert.Equal(1, index.First(e => e.Id == t1.Id).TurnCount);
     }
 
-    // -------------------------------------------------------------------------
-    // Session file (agent chat history) persistence
-    // -------------------------------------------------------------------------
-
     [Fact]
-    public async Task SessionState_NotCreated_UntilTurnCompletes()
+    public void StateDatabase_DoesNotCreateThreadSessionsTable()
     {
-        // ThreadStore only writes thread_sessions rows during SaveSessionAsync
-        // (called by SessionService after the agent finishes).
-        // Simply creating a thread should NOT produce persisted session state.
-
-        var thread = await _svc.CreateThreadAsync(_cliIdentity);
-
-        Assert.False(_store.SessionFileExists(thread.Id),
-            "thread_sessions state should not exist before any turn completes.");
-    }
-
-    [Fact]
-    public async Task SessionState_ExistsAfterPersistingSessionRow()
-    {
-        // Simulates what SessionService does after a turn: persists serialized AgentSession
-        // into the thread_sessions table.
-
-        var thread = await _svc.CreateThreadAsync(_cliIdentity);
-
-        Assert.False(_store.SessionFileExists(thread.Id));
-
-        InsertThreadSession(thread.Id, """{"chatHistory":[],"type":"chatHistory"}""");
-
-        Assert.True(_store.SessionFileExists(thread.Id));
+        using var connection = OpenStateConnection();
+        using var command = connection.CreateCommand();
+        command.CommandText = "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = 'thread_sessions'";
+        Assert.Equal(0L, (long)(command.ExecuteScalar() ?? 0L));
     }
 
     // -------------------------------------------------------------------------
@@ -443,20 +420,6 @@ public sealed class ReplSessionBehaviorTests : IDisposable
         }
 
         return turn;
-    }
-
-    private void InsertThreadSession(string threadId, string sessionJson)
-    {
-        using var connection = OpenStateConnection();
-        using var command = connection.CreateCommand();
-        command.CommandText = """
-            INSERT INTO thread_sessions(thread_id, session_json, updated_at)
-            VALUES ($thread_id, $session_json, $updated_at)
-            """;
-        command.Parameters.AddWithValue("$thread_id", threadId);
-        command.Parameters.AddWithValue("$session_json", sessionJson);
-        command.Parameters.AddWithValue("$updated_at", DateTimeOffset.UtcNow.UtcDateTime.ToString("O"));
-        command.ExecuteNonQuery();
     }
 
     private SqliteConnection OpenStateConnection()

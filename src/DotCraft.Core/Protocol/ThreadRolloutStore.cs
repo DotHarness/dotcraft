@@ -1,4 +1,3 @@
-using System.Text;
 using System.Text.Json;
 
 namespace DotCraft.Protocol;
@@ -7,15 +6,24 @@ internal sealed class ThreadRolloutStore
 {
     private readonly string _activeDir;
     private readonly string _archivedDir;
-
-    private const int AppendRetryCount = 5;
+    private readonly IRolloutWriter _writer;
+    private readonly Func<string, CancellationToken, Task>? _beforeDeleteAsync;
 
     private static readonly JsonSerializerOptions JsonOptions = SessionJsonOptions.Default;
 
     public ThreadRolloutStore(string botPath)
+        : this(botPath, beforeDeleteAsync: null)
+    {
+    }
+
+    internal ThreadRolloutStore(
+        string botPath,
+        Func<string, CancellationToken, Task>? beforeDeleteAsync)
     {
         _activeDir = Path.Combine(botPath, "threads", "active");
         _archivedDir = Path.Combine(botPath, "threads", "archived");
+        _writer = new OrderedRolloutWriter(JsonOptions);
+        _beforeDeleteAsync = beforeDeleteAsync;
         Directory.CreateDirectory(_activeDir);
         Directory.CreateDirectory(_archivedDir);
     }
@@ -80,12 +88,24 @@ internal sealed class ThreadRolloutStore
         }
     }
 
-    public async Task<string> SaveThreadAsync(SessionThread thread, SessionThread? previous, CancellationToken ct = default)
+    public IEnumerable<string> EnumerateRolloutPaths()
+    {
+        foreach (var dir in new[] { _activeDir, _archivedDir })
+        {
+            if (!Directory.Exists(dir))
+                continue;
+            foreach (var path in Directory.EnumerateFiles(dir, "*.jsonl", SearchOption.TopDirectoryOnly))
+                yield return Path.GetFullPath(path);
+        }
+    }
+
+    public async Task<RolloutAppendResult> SaveThreadAsync(SessionThread thread, SessionThread? previous, CancellationToken ct = default)
     {
         var targetPath = GetExpectedPath(thread.Id, thread.Status == ThreadStatus.Archived);
         var existingPath = ResolveExistingPath(thread.Id);
         if (existingPath != null && !string.Equals(existingPath, targetPath, StringComparison.OrdinalIgnoreCase))
         {
+            await _writer.CloseAsync(thread.Id, ct);
             existingPath = PromoteToCanonicalPath(thread.Id, thread.Status == ThreadStatus.Archived, existingPath);
         }
 
@@ -96,16 +116,16 @@ internal sealed class ThreadRolloutStore
         if (records.Count > 0)
         {
             Directory.CreateDirectory(Path.GetDirectoryName(targetPath)!);
-            var payload = string.Join(
-                Environment.NewLine,
-                records.Select(r => JsonSerializer.Serialize(r, JsonOptions))) + Environment.NewLine;
-            await AppendJsonLinesAsync(targetPath, payload, ct);
+            var receipt = await AppendRecordsAsync(thread.Id, targetPath, records, ct);
+            return new RolloutAppendResult(targetPath, receipt);
         }
 
-        return targetPath;
+        return new RolloutAppendResult(
+            targetPath,
+            new RolloutWriteReceipt(File.Exists(targetPath) ? new FileInfo(targetPath).Length : 0, 0, new Dictionary<string, long>()));
     }
 
-    public async Task<string> AppendRollbackAsync(
+    public async Task<RolloutAppendResult> AppendRollbackAsync(
         SessionThread thread,
         int numTurns,
         CancellationToken ct = default)
@@ -114,6 +134,7 @@ internal sealed class ThreadRolloutStore
         var existingPath = ResolveExistingPath(thread.Id);
         if (existingPath != null && !string.Equals(existingPath, targetPath, StringComparison.OrdinalIgnoreCase))
         {
+            await _writer.CloseAsync(thread.Id, ct);
             existingPath = PromoteToCanonicalPath(thread.Id, thread.Status == ThreadStatus.Archived, existingPath);
         }
 
@@ -133,19 +154,51 @@ internal sealed class ThreadRolloutStore
         };
 
         Directory.CreateDirectory(Path.GetDirectoryName(targetPath)!);
-        var payload = JsonSerializer.Serialize(record, JsonOptions) + Environment.NewLine;
-        await AppendJsonLinesAsync(targetPath, payload, ct);
-        return targetPath;
+        var receipt = await AppendRecordsAsync(thread.Id, targetPath, [record], ct);
+        return new RolloutAppendResult(targetPath, receipt);
     }
 
-    public async Task<string> AppendCompactionCheckpointAsync(
+    public async Task<RolloutAppendResult> AppendTurnStateAsync(
+        SessionThread thread,
+        SessionTurn turn,
+        CancellationToken ct = default)
+    {
+        var targetPath = GetExpectedPath(thread.Id, thread.Status == ThreadStatus.Archived);
+        var existingPath = ResolveExistingPath(thread.Id);
+        if (existingPath == null)
+            return await SaveThreadAsync(thread, previous: null, ct);
+        if (!string.Equals(existingPath, targetPath, StringComparison.OrdinalIgnoreCase))
+        {
+            await _writer.CloseAsync(thread.Id, ct);
+            existingPath = PromoteToCanonicalPath(thread.Id, thread.Status == ThreadStatus.Archived, existingPath);
+        }
+
+        var record = new ThreadRolloutRecord
+        {
+            Kind = "turn_state_replaced",
+            Timestamp = thread.LastActiveAt,
+            TurnStateReplaced = new TurnStateReplacedPayload
+            {
+                ThreadId = thread.Id,
+                Turn = turn,
+                ThreadStatus = thread.Status,
+                LastActiveAt = thread.LastActiveAt,
+                DisplayName = thread.DisplayName
+            }
+        };
+
+        var receipt = await AppendRecordsAsync(thread.Id, existingPath, [record], ct);
+        return new RolloutAppendResult(existingPath, receipt);
+    }
+
+    public async Task<RolloutAppendResult> AppendCompactionCheckpointAsync(
         string threadId,
         string coveredThroughTurnId,
         string trigger,
         string mode,
         long tokensBefore,
         long tokensAfter,
-        JsonElement replacementHistory,
+        IReadOnlyList<ModelHistoryMessage> replacementHistory,
         DateTimeOffset createdAt,
         CancellationToken ct = default)
     {
@@ -167,14 +220,13 @@ internal sealed class ThreadRolloutStore
                 TokensBefore = tokensBefore,
                 TokensAfter = tokensAfter,
                 CreatedAt = createdAt,
-                ReplacementHistory = replacementHistory.Clone()
+                ReplacementHistory = [.. replacementHistory]
             }
         };
 
         Directory.CreateDirectory(Path.GetDirectoryName(existingPath)!);
-        var payload = JsonSerializer.Serialize(record, JsonOptions) + Environment.NewLine;
-        await AppendJsonLinesAsync(existingPath, payload, ct);
-        return existingPath;
+        var receipt = await AppendRecordsAsync(threadId, existingPath, [record], ct);
+        return new RolloutAppendResult(existingPath, receipt);
     }
 
     public async Task<IReadOnlyList<ThreadCompactionCheckpoint>> LoadCompactionCheckpointsAsync(
@@ -217,20 +269,149 @@ internal sealed class ThreadRolloutStore
                 checkpoint.TokensBefore,
                 checkpoint.TokensAfter,
                 checkpoint.CreatedAt,
-                checkpoint.ReplacementHistory.Clone()));
+                checkpoint.ReplacementHistory));
         }
 
         return checkpoints;
     }
 
-    public void DeleteThread(string threadId)
+    public async Task<RolloutAppendResult> AppendModelHistoryAsync(
+        string threadId,
+        string turnId,
+        IReadOnlyList<ModelHistoryMessage> messages,
+        CancellationToken ct = default)
     {
+        var existingPath = ResolveExistingPath(threadId)
+            ?? throw new KeyNotFoundException($"Thread '{threadId}' not found.");
+        if (messages.Count == 0)
+            return new RolloutAppendResult(
+                existingPath,
+                new RolloutWriteReceipt(new FileInfo(existingPath).Length, 0, new Dictionary<string, long>()));
+
+        var record = new ThreadRolloutRecord
+        {
+            Kind = "model_history_messages_appended",
+            Timestamp = DateTimeOffset.UtcNow,
+            ModelHistoryMessagesAppended = new ModelHistoryMessagesAppendedPayload
+            {
+                ThreadId = threadId,
+                TurnId = turnId,
+                Messages = [.. messages]
+            }
+        };
+
+        var receipt = await AppendRecordsAsync(threadId, existingPath, [record], ct);
+        return new RolloutAppendResult(existingPath, receipt);
+    }
+
+    public async Task<RolloutAppendResult> AppendTurnCommitAsync(
+        SessionThread thread,
+        SessionTurn turn,
+        IReadOnlyList<ModelHistoryMessage> modelHistory,
+        TurnCompactionCommit? compaction,
+        CancellationToken ct = default)
+    {
+        var targetPath = GetExpectedPath(thread.Id, thread.Status == ThreadStatus.Archived);
+        var existingPath = ResolveExistingPath(thread.Id);
+        if (existingPath == null)
+        {
+            var opened = await SaveThreadAsync(thread, previous: null, ct);
+            existingPath = opened.Path;
+        }
+        if (!string.Equals(existingPath, targetPath, StringComparison.OrdinalIgnoreCase))
+        {
+            await _writer.CloseAsync(thread.Id, ct);
+            existingPath = PromoteToCanonicalPath(thread.Id, thread.Status == ThreadStatus.Archived, existingPath);
+        }
+
+        var records = new List<ThreadRolloutRecord>
+        {
+            new()
+            {
+                Kind = "turn_state_replaced",
+                Timestamp = thread.LastActiveAt,
+                TurnStateReplaced = new TurnStateReplacedPayload
+                {
+                    ThreadId = thread.Id,
+                    Turn = turn,
+                    ThreadStatus = thread.Status,
+                    LastActiveAt = thread.LastActiveAt,
+                    DisplayName = thread.DisplayName
+                }
+            }
+        };
+
+        if (compaction != null)
+        {
+            records.Add(new ThreadRolloutRecord
+            {
+                Kind = "context_compacted",
+                Timestamp = compaction.CreatedAt,
+                ContextCompacted = new ContextCompactedPayload
+                {
+                    ThreadId = thread.Id,
+                    CoveredThroughTurnId = turn.Id,
+                    CheckpointId = $"compact_{compaction.CreatedAt:yyyyMMddHHmmssfff}_{Guid.NewGuid():N}",
+                    Trigger = compaction.Trigger,
+                    Mode = compaction.Mode,
+                    TokensBefore = compaction.TokensBefore,
+                    TokensAfter = compaction.TokensAfter,
+                    CreatedAt = compaction.CreatedAt,
+                    ReplacementHistory = [.. compaction.ReplacementHistory]
+                }
+            });
+        }
+
+        if (modelHistory.Count > 0)
+        {
+            records.Add(new ThreadRolloutRecord
+            {
+                Kind = "model_history_messages_appended",
+                Timestamp = DateTimeOffset.UtcNow,
+                ModelHistoryMessagesAppended = new ModelHistoryMessagesAppendedPayload
+                {
+                    ThreadId = thread.Id,
+                    TurnId = turn.Id,
+                    Messages = [.. modelHistory]
+                }
+            });
+        }
+
+        var receipt = await AppendRecordsAsync(thread.Id, existingPath, records, ct);
+        return new RolloutAppendResult(existingPath, receipt);
+    }
+
+    public async Task<ModelHistoryReplayResult> ReplayModelHistoryAsync(
+        string threadId,
+        SessionThread thread,
+        string? excludedTurnId = null,
+        CancellationToken ct = default)
+    {
+        var path = ResolveExistingPath(threadId);
+        if (path == null)
+            return new ModelHistoryReplayResult([], HasModelHistoryRecords: false);
+
+        return await new RolloutReplayer().ReplayModelHistoryAsync(
+            path,
+            thread.Turns,
+            excludedTurnId,
+            ct);
+    }
+
+    public async Task DeleteThreadAsync(string threadId, CancellationToken ct = default)
+    {
+        await _writer.CloseAsync(threadId, ct);
+        if (_beforeDeleteAsync != null)
+            await _beforeDeleteAsync(threadId, ct);
         foreach (var path in EnumerateCandidatePaths(threadId).Distinct(StringComparer.OrdinalIgnoreCase))
         {
             if (File.Exists(path))
                 File.Delete(path);
         }
     }
+
+    public Task CloseThreadAsync(string threadId, CancellationToken ct = default) =>
+        _writer.CloseAsync(threadId, ct);
 
     public string PromoteToCanonicalPath(string threadId, bool archived, string existingPath)
     {
@@ -486,35 +667,16 @@ internal sealed class ThreadRolloutStore
         return records;
     }
 
-    private static async Task AppendJsonLinesAsync(string path, string payload, CancellationToken ct)
-    {
-        var bytes = Encoding.UTF8.GetBytes(payload);
-        for (var attempt = 0; ; attempt++)
-        {
-            try
-            {
-                await using var stream = new FileStream(
-                    path,
-                    FileMode.Append,
-                    FileAccess.Write,
-                    FileShare.Read,
-                    bufferSize: 4096,
-                    FileOptions.Asynchronous);
-                await stream.WriteAsync(bytes, ct);
-                await stream.FlushAsync(ct);
-                return;
-            }
-            catch (IOException ex) when (IsSharingViolation(ex) && attempt < AppendRetryCount)
-            {
-                await Task.Delay(TimeSpan.FromMilliseconds(20 << attempt), ct);
-            }
-        }
-    }
+    public Task ShutdownAsync(CancellationToken ct = default) => _writer.ShutdownAllAsync(ct);
 
-    private static bool IsSharingViolation(IOException ex)
+    private async Task<RolloutWriteReceipt> AppendRecordsAsync(
+        string threadId,
+        string path,
+        IReadOnlyList<ThreadRolloutRecord> records,
+        CancellationToken ct)
     {
-        var errorCode = ex.HResult & 0xFFFF;
-        return errorCode is 32 or 33;
+        await _writer.AddBatchAsync(threadId, path, records, ct);
+        return await _writer.FlushAsync(threadId, ct);
     }
 
     private static bool ThreadBaselineChanged(SessionThread previous, SessionThread current)
@@ -536,6 +698,8 @@ internal sealed class ThreadRolloutStore
         if (previous.Ephemeral != current.Ephemeral)
             return true;
         if (!JsonEquals(previous.Worktree, current.Worktree))
+            return true;
+        if (!JsonEquals(previous.Source, current.Source))
             return true;
         if (!JsonEquals(previous.Configuration, current.Configuration))
             return true;
@@ -565,6 +729,7 @@ internal sealed class ThreadRolloutStore
                 UserId = thread.UserId,
                 OriginChannel = thread.OriginChannel,
                 ChannelContext = thread.ChannelContext,
+                Source = PersistedThreadSourceCodec.Encode(thread.Source),
                 ForkedFromId = thread.ForkedFromId,
                 Ephemeral = thread.Ephemeral,
                 Worktree = thread.Worktree,
@@ -661,6 +826,7 @@ internal sealed class ThreadRolloutStore
         private readonly Dictionary<string, SessionTurn> _turns = new(StringComparer.Ordinal);
         private SessionThread? _thread;
         private int _turnSequenceHighWatermark;
+        private bool _hasCanonicalHeader;
 
         public void Apply(string line)
         {
@@ -672,13 +838,30 @@ internal sealed class ThreadRolloutStore
             {
                 record = JsonSerializer.Deserialize<ThreadRolloutRecord>(line, JsonOptions);
             }
-            catch
+            catch (JsonException ex)
             {
+                if (!_hasCanonicalHeader)
+                    throw new InvalidDataException("The canonical thread header is unreadable.", ex);
+                System.Diagnostics.Trace.TraceWarning("Skipped a malformed rollout record after the canonical thread header.");
                 return;
             }
 
             if (record == null)
+            {
+                if (!_hasCanonicalHeader)
+                    throw new InvalidDataException("The canonical thread header is empty.");
+                System.Diagnostics.Trace.TraceWarning("Skipped an empty rollout record after the canonical thread header.");
                 return;
+            }
+
+            if (record.Kind == "thread_opened" && record.ThreadOpened == null)
+                throw new InvalidDataException("A canonical thread baseline record is incomplete.");
+
+            if (!_hasCanonicalHeader
+                && (record.Kind != "thread_opened" || record.ThreadOpened == null))
+            {
+                throw new InvalidDataException("The rollout does not begin with a canonical thread header.");
+            }
 
             switch (record.Kind)
             {
@@ -689,6 +872,11 @@ internal sealed class ThreadRolloutStore
                     _thread.UserId = record.ThreadOpened.UserId;
                     _thread.OriginChannel = record.ThreadOpened.OriginChannel;
                     _thread.ChannelContext = record.ThreadOpened.ChannelContext;
+                    _thread.Source = record.ThreadOpened.Source == null
+                        ? PersistedThreadSourceCodec.InferLegacy(
+                            record.ThreadOpened.OriginChannel,
+                            record.ThreadOpened.Metadata)
+                        : PersistedThreadSourceCodec.Decode(record.ThreadOpened.Source);
                     _thread.ForkedFromId = record.ThreadOpened.ForkedFromId;
                     _thread.Ephemeral = record.ThreadOpened.Ephemeral;
                     _thread.Worktree = record.ThreadOpened.Worktree;
@@ -697,6 +885,7 @@ internal sealed class ThreadRolloutStore
                     _thread.Metadata = new Dictionary<string, string>(record.ThreadOpened.Metadata);
                     _thread.HistoryMode = record.ThreadOpened.HistoryMode;
                     _thread.Configuration = record.ThreadOpened.Configuration;
+                    _hasCanonicalHeader = true;
                     break;
 
                 case "thread_name_updated" when _thread != null && record.ThreadNameUpdated != null:
@@ -706,6 +895,20 @@ internal sealed class ThreadRolloutStore
                 case "thread_status_changed" when _thread != null && record.ThreadStatusChanged != null:
                     _thread.Status = record.ThreadStatusChanged.Status;
                     _thread.LastActiveAt = record.ThreadStatusChanged.LastActiveAt;
+                    break;
+
+                case "turn_state_replaced" when _thread != null && record.TurnStateReplaced != null:
+                    var replacement = record.TurnStateReplaced;
+                    var replacementTurn = replacement.Turn;
+                    _turnSequenceHighWatermark = Math.Max(
+                        _turnSequenceHighWatermark,
+                        SessionIdGenerator.LastTurnSequence([replacementTurn.Id]));
+                    replacementTurn.Input ??= replacementTurn.Items.FirstOrDefault(static item =>
+                        item.Type == ItemType.UserMessage);
+                    _turns[replacementTurn.Id] = replacementTurn;
+                    _thread.Status = replacement.ThreadStatus;
+                    _thread.LastActiveAt = replacement.LastActiveAt;
+                    _thread.DisplayName = replacement.DisplayName;
                     break;
 
                 case "turn_started" when _thread != null && record.TurnStarted != null:
@@ -821,6 +1024,16 @@ internal sealed class ThreadRolloutStore
     }
 }
 
+internal sealed record RolloutAppendResult(string Path, RolloutWriteReceipt Receipt);
+
+internal sealed record TurnCompactionCommit(
+    string Trigger,
+    string Mode,
+    long TokensBefore,
+    long TokensAfter,
+    DateTimeOffset CreatedAt,
+    IReadOnlyList<ModelHistoryMessage> ReplacementHistory);
+
 internal sealed class ThreadRolloutRecord
 {
     public string Kind { get; init; } = string.Empty;
@@ -843,6 +1056,10 @@ internal sealed class ThreadRolloutRecord
 
     public ContextCompactedPayload? ContextCompacted { get; init; }
 
+    public ModelHistoryMessagesAppendedPayload? ModelHistoryMessagesAppended { get; init; }
+
+    public TurnStateReplacedPayload? TurnStateReplaced { get; init; }
+
     public QueuedInputAddedPayload? QueuedInputAdded { get; init; }
 
     public QueuedInputRemovedPayload? QueuedInputRemoved { get; init; }
@@ -863,6 +1080,8 @@ internal sealed class ThreadOpenedPayload
     public string OriginChannel { get; init; } = string.Empty;
 
     public string? ChannelContext { get; init; }
+
+    public PersistedThreadSource? Source { get; init; }
 
     public string? ForkedFromId { get; init; }
 
@@ -953,7 +1172,7 @@ internal sealed class ContextCompactedPayload
 
     public DateTimeOffset CreatedAt { get; init; }
 
-    public JsonElement ReplacementHistory { get; init; }
+    public List<ModelHistoryMessage> ReplacementHistory { get; init; } = [];
 }
 
 internal sealed record ThreadCompactionCheckpoint(
@@ -965,7 +1184,29 @@ internal sealed record ThreadCompactionCheckpoint(
     long TokensBefore,
     long TokensAfter,
     DateTimeOffset CreatedAt,
-    JsonElement ReplacementHistory);
+    IReadOnlyList<ModelHistoryMessage> ReplacementHistory);
+
+internal sealed class ModelHistoryMessagesAppendedPayload
+{
+    public string ThreadId { get; init; } = string.Empty;
+
+    public string TurnId { get; init; } = string.Empty;
+
+    public List<ModelHistoryMessage> Messages { get; init; } = [];
+}
+
+internal sealed class TurnStateReplacedPayload
+{
+    public string ThreadId { get; init; } = string.Empty;
+
+    public SessionTurn Turn { get; init; } = new();
+
+    public ThreadStatus ThreadStatus { get; init; }
+
+    public DateTimeOffset LastActiveAt { get; init; }
+
+    public string? DisplayName { get; init; }
+}
 
 internal sealed class QueuedInputAddedPayload
 {

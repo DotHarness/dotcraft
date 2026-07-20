@@ -130,7 +130,7 @@ public interface ISessionService
 
     /// <summary>
     /// Resumes a Paused or previously inactive Thread.
-    /// Loads Thread state and reconstructs agent session from persistence.
+    /// Loads Thread state and reconstructs a runtime agent session from canonical rollout history.
     /// </summary>
     Task<SessionThread> ResumeThreadAsync(string threadId, CancellationToken ct = default);
 

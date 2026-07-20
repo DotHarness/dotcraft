@@ -94,6 +94,130 @@ public sealed class SubAgentThreadSource
     public bool SupportsClose { get; set; } = true;
 }
 
+internal sealed class PersistedThreadSource
+{
+    public int SchemaVersion { get; init; } = PersistedThreadSourceCodec.CurrentSchemaVersion;
+
+    public string Kind { get; init; } = ThreadSourceKinds.User;
+
+    public string? SpawnedFromThreadId { get; init; }
+
+    public PersistedSubAgentThreadSource? SubAgent { get; init; }
+}
+
+internal sealed class PersistedSubAgentThreadSource
+{
+    public string ParentThreadId { get; init; } = string.Empty;
+    public string? ParentTurnId { get; init; }
+    public string? SpawnCallId { get; init; }
+    public string RootThreadId { get; init; } = string.Empty;
+    public int Depth { get; init; }
+    public string? AgentPath { get; init; }
+    public string? TaskName { get; init; }
+    public string? AgentNickname { get; init; }
+    public string? AgentRole { get; init; }
+    public string? ProfileName { get; init; }
+    public string? RuntimeType { get; init; }
+    public bool SupportsSendInput { get; init; }
+    public bool SupportsResume { get; init; }
+    public bool SupportsSendMessage { get; init; }
+    public bool SupportsFollowupTask { get; init; }
+    public bool SupportsClose { get; init; } = true;
+}
+
+internal static class PersistedThreadSourceCodec
+{
+    public const int CurrentSchemaVersion = 1;
+
+    public static PersistedThreadSource Encode(ThreadSource source)
+    {
+        ArgumentNullException.ThrowIfNull(source);
+        return source.Kind switch
+        {
+            ThreadSourceKinds.User => new PersistedThreadSource
+            {
+                Kind = ThreadSourceKinds.User,
+                SpawnedFromThreadId = source.SpawnedFromThreadId
+            },
+            ThreadSourceKinds.SubAgent when source.SubAgent is { } subAgent => new PersistedThreadSource
+            {
+                Kind = ThreadSourceKinds.SubAgent,
+                SubAgent = new PersistedSubAgentThreadSource
+                {
+                    ParentThreadId = subAgent.ParentThreadId,
+                    ParentTurnId = subAgent.ParentTurnId,
+                    SpawnCallId = subAgent.SpawnCallId,
+                    RootThreadId = subAgent.RootThreadId,
+                    Depth = subAgent.Depth,
+                    AgentPath = subAgent.AgentPath,
+                    TaskName = subAgent.TaskName,
+                    AgentNickname = subAgent.AgentNickname,
+                    AgentRole = subAgent.AgentRole,
+                    ProfileName = subAgent.ProfileName,
+                    RuntimeType = subAgent.RuntimeType,
+                    SupportsSendInput = subAgent.SupportsSendInput,
+                    SupportsResume = subAgent.SupportsResume,
+                    SupportsSendMessage = subAgent.SupportsSendMessage,
+                    SupportsFollowupTask = subAgent.SupportsFollowupTask,
+                    SupportsClose = subAgent.SupportsClose
+                }
+            },
+            ThreadSourceKinds.SubAgent => throw new InvalidOperationException("A subagent thread source requires subagent details."),
+            _ => throw new NotSupportedException($"Unsupported thread source kind '{source.Kind}'.")
+        };
+    }
+
+    public static ThreadSource Decode(PersistedThreadSource source)
+    {
+        ArgumentNullException.ThrowIfNull(source);
+        if (source.SchemaVersion != CurrentSchemaVersion)
+            throw new NotSupportedException($"Unsupported thread source schema version '{source.SchemaVersion}'.");
+
+        return source.Kind switch
+        {
+            ThreadSourceKinds.User when source.SubAgent == null => string.IsNullOrWhiteSpace(source.SpawnedFromThreadId)
+                ? ThreadSource.User()
+                : ThreadSource.SpawnedFromThread(source.SpawnedFromThreadId),
+            ThreadSourceKinds.SubAgent when source.SubAgent is { } subAgent => ThreadSource.ForSubAgent(
+                new SubAgentThreadSource
+                {
+                    ParentThreadId = subAgent.ParentThreadId,
+                    ParentTurnId = subAgent.ParentTurnId,
+                    SpawnCallId = subAgent.SpawnCallId,
+                    RootThreadId = subAgent.RootThreadId,
+                    Depth = subAgent.Depth,
+                    AgentPath = subAgent.AgentPath,
+                    TaskName = subAgent.TaskName,
+                    AgentNickname = subAgent.AgentNickname,
+                    AgentRole = subAgent.AgentRole,
+                    ProfileName = subAgent.ProfileName,
+                    RuntimeType = subAgent.RuntimeType,
+                    SupportsSendInput = subAgent.SupportsSendInput,
+                    SupportsResume = subAgent.SupportsResume,
+                    SupportsSendMessage = subAgent.SupportsSendMessage,
+                    SupportsFollowupTask = subAgent.SupportsFollowupTask,
+                    SupportsClose = subAgent.SupportsClose
+                }),
+            ThreadSourceKinds.User => throw new InvalidOperationException("A user thread source cannot contain subagent details."),
+            ThreadSourceKinds.SubAgent => throw new InvalidOperationException("A subagent thread source requires subagent details."),
+            _ => throw new NotSupportedException($"Unsupported thread source kind '{source.Kind}'.")
+        };
+    }
+
+    public static ThreadSource InferLegacy(
+        string originChannel,
+        IReadOnlyDictionary<string, string> metadata)
+    {
+        if (string.Equals(originChannel, SubAgentThreadOrigin.ChannelName, StringComparison.OrdinalIgnoreCase))
+            return ThreadSource.ForSubAgent(new SubAgentThreadSource());
+
+        return metadata.TryGetValue("spawnedFromThreadId", out var parentThreadId)
+               && !string.IsNullOrWhiteSpace(parentThreadId)
+            ? ThreadSource.SpawnedFromThread(parentThreadId)
+            : ThreadSource.User();
+    }
+}
+
 public static class ThreadSpawnEdgeStatus
 {
     public const string Open = "open";

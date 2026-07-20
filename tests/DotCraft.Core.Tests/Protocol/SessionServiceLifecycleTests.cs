@@ -1052,7 +1052,6 @@ internal sealed class FakeSessionService : ISessionService, ISubAgentThreadLifec
         {
             _threads.Remove(id);
             _store.DeleteThread(id);
-            _store.DeleteSessionFile(id);
             ThreadDeletedForBroadcast?.Invoke(id);
         }
     }

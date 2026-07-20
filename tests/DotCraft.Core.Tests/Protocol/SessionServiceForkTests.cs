@@ -152,7 +152,6 @@ public sealed class SessionServiceForkTests : IDisposable
 
         var fork = await service.ForkThreadAsync(source.Id);
 
-        Assert.True(_store.SessionFileExists(fork.Id));
         var checkpoints = await _store.LoadCompactionCheckpointsAsync(fork.Id);
         var checkpoint = Assert.Single(checkpoints);
         Assert.Equal(fork.Id, checkpoint.ThreadId);
@@ -215,7 +214,6 @@ public sealed class SessionServiceForkTests : IDisposable
             });
 
         Assert.Empty(await _store.LoadCompactionCheckpointsAsync(fork.Id));
-        Assert.True(_store.SessionFileExists(fork.Id));
         var usage = _store.LoadContextUsageSnapshot(fork.Id);
         Assert.NotNull(usage);
         Assert.Equal("history_estimate", usage!.Source);

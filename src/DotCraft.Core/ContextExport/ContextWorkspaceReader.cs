@@ -315,6 +315,7 @@ internal sealed class ContextWorkspaceReader
     {
         private readonly Dictionary<string, SessionTurn> _turns = new(StringComparer.Ordinal);
         private SessionThread? _thread;
+        private bool _hasCanonicalHeader;
 
         public List<ContextContinuityEvent> ContinuityEvents { get; } = [];
 
@@ -330,12 +331,27 @@ internal sealed class ContextWorkspaceReader
             }
             catch (JsonException ex)
             {
+                if (!_hasCanonicalHeader)
+                    throw new InvalidDataException("The canonical thread header is unreadable.", ex);
                 warnings.Add($"Skipped corrupt rollout line {lineNumber}: {ex.Message}");
                 return;
             }
 
             if (record == null)
+            {
+                if (!_hasCanonicalHeader)
+                    throw new InvalidDataException("The canonical thread header is empty.");
                 return;
+            }
+
+            if (record.Kind == "thread_opened" && record.ThreadOpened == null)
+                throw new InvalidDataException("A canonical thread baseline record is incomplete.");
+
+            if (!_hasCanonicalHeader
+                && (record.Kind != "thread_opened" || record.ThreadOpened == null))
+            {
+                throw new InvalidDataException("The rollout does not begin with a canonical thread header.");
+            }
 
             switch (record.Kind)
             {
@@ -346,11 +362,20 @@ internal sealed class ContextWorkspaceReader
                     _thread.UserId = record.ThreadOpened.UserId;
                     _thread.OriginChannel = record.ThreadOpened.OriginChannel;
                     _thread.ChannelContext = record.ThreadOpened.ChannelContext;
+                    _thread.Source = record.ThreadOpened.Source == null
+                        ? PersistedThreadSourceCodec.InferLegacy(
+                            record.ThreadOpened.OriginChannel,
+                            record.ThreadOpened.Metadata)
+                        : PersistedThreadSourceCodec.Decode(record.ThreadOpened.Source);
+                    _thread.ForkedFromId = record.ThreadOpened.ForkedFromId;
+                    _thread.Ephemeral = record.ThreadOpened.Ephemeral;
+                    _thread.Worktree = record.ThreadOpened.Worktree;
                     _thread.CreatedAt = record.ThreadOpened.CreatedAt;
                     _thread.LastActiveAt = record.ThreadOpened.LastActiveAt;
                     _thread.Metadata = new Dictionary<string, string>(record.ThreadOpened.Metadata);
                     _thread.HistoryMode = record.ThreadOpened.HistoryMode;
                     _thread.Configuration = record.ThreadOpened.Configuration;
+                    _hasCanonicalHeader = true;
                     break;
 
                 case "thread_name_updated" when _thread != null && record.ThreadNameUpdated != null:
@@ -360,6 +385,17 @@ internal sealed class ContextWorkspaceReader
                 case "thread_status_changed" when _thread != null && record.ThreadStatusChanged != null:
                     _thread.Status = record.ThreadStatusChanged.Status;
                     _thread.LastActiveAt = record.ThreadStatusChanged.LastActiveAt;
+                    break;
+
+                case "turn_state_replaced" when _thread != null && record.TurnStateReplaced != null:
+                    var replacement = record.TurnStateReplaced;
+                    var replacementTurn = replacement.Turn;
+                    replacementTurn.Input ??= replacementTurn.Items.FirstOrDefault(static item =>
+                        item.Type == ItemType.UserMessage);
+                    _turns[replacementTurn.Id] = replacementTurn;
+                    _thread.Status = replacement.ThreadStatus;
+                    _thread.LastActiveAt = replacement.LastActiveAt;
+                    _thread.DisplayName = replacement.DisplayName;
                     break;
 
                 case "turn_started" when _thread != null && record.TurnStarted != null:
@@ -424,8 +460,7 @@ internal sealed class ContextWorkspaceReader
                         record.ContextCompacted.Mode,
                         record.ContextCompacted.TokensBefore,
                         record.ContextCompacted.TokensAfter,
-                        record.ContextCompacted.CreatedAt,
-                        record.ContextCompacted.ReplacementHistory.Clone()));
+                        record.ContextCompacted.CreatedAt));
                     break;
 
                 case "queued_input_added" when _thread != null && record.QueuedInputAdded != null:
@@ -527,8 +562,7 @@ internal sealed record ContextContinuityEvent(
     string? Mode,
     long? TokensBefore,
     long? TokensAfter,
-    DateTimeOffset? CreatedAt,
-    JsonElement? ReplacementHistory)
+    DateTimeOffset? CreatedAt)
 {
     public static ContextContinuityEvent FromRollback(
         int lineNumber,
@@ -547,7 +581,6 @@ internal sealed record ContextContinuityEvent(
             null,
             null,
             null,
-            null,
             null);
 
     public static ContextContinuityEvent FromCompaction(
@@ -560,8 +593,7 @@ internal sealed record ContextContinuityEvent(
         string mode,
         long tokensBefore,
         long tokensAfter,
-        DateTimeOffset createdAt,
-        JsonElement replacementHistory) =>
+        DateTimeOffset createdAt) =>
         new(
             ContextContinuityEventKind.Compaction,
             lineNumber,
@@ -574,8 +606,7 @@ internal sealed record ContextContinuityEvent(
             mode,
             tokensBefore,
             tokensAfter,
-            createdAt,
-            replacementHistory);
+            createdAt);
 }
 
 internal sealed record ContextThreadIndexRow(

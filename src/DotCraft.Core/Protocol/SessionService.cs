@@ -1382,6 +1382,7 @@ public sealed partial class SessionService(
             Dictionary<int, string>? streamingToolNameByIndex = null;
             Dictionary<string, SessionItem>? streamingToolCallItemsByCallId = null;
             PendingCompactionCheckpoint? pendingCompactionCheckpoint = null;
+            var persistedModelHistoryCount = 0;
 
             void FinalizeStreamingAgentMessage()
             {
@@ -1413,31 +1414,40 @@ public sealed partial class SessionService(
 
             async Task PersistCancelledTurnAsync()
             {
-                await TrySaveThreadAsync(thread);
-                if (session is not null)
-                {
-                    await TrySaveSessionAsync(agent, session, threadId);
-                    await TryAppendPendingCompactionCheckpointAsync();
-                    return;
-                }
-
-                if (!persistence.SessionFileExists(threadId))
-                    await TryRebuildAndSaveSessionAsync(agent, threadId);
+                await PersistCurrentTurnCommitAsync();
             }
 
-            async Task TryAppendPendingCompactionCheckpointAsync()
+            async Task PersistCurrentTurnCommitAsync()
             {
-                if (pendingCompactionCheckpoint is null || session is null)
-                    return;
+                IReadOnlyList<ChatMessage> modelHistory;
+                if (session != null && TrySnapshotInMemoryHistory(session, out var currentHistory))
+                {
+                    if (persistedModelHistoryCount < 0 || persistedModelHistoryCount > currentHistory.Count)
+                        throw new InvalidOperationException($"Invalid model-history prefix length for thread '{threadId}'.");
+                    modelHistory = currentHistory.Skip(persistedModelHistoryCount).ToList();
+                }
+                else
+                {
+                    modelHistory = ThreadStore.BuildModelVisibleHistoryFromTurn(turn);
+                }
 
                 var checkpoint = pendingCompactionCheckpoint;
-                pendingCompactionCheckpoint = null;
-                await TryAppendCompactionCheckpointAsync(
-                    threadId,
-                    turn.Id,
-                    session,
-                    checkpoint,
+                var compaction = checkpoint == null
+                    ? null
+                    : new TurnCompactionHistory(
+                        checkpoint.Trigger,
+                        checkpoint.Mode,
+                        checkpoint.TokensBefore,
+                        checkpoint.TokensAfter,
+                        checkpoint.ReplacementHistory ?? []);
+                await PersistTurnCommitWithMaterializationAsync(
+                    thread,
+                    turn,
+                    modelHistory,
+                    compaction,
                     CancellationToken.None);
+                pendingCompactionCheckpoint = null;
+                persistedModelHistoryCount += modelHistory.Count;
             }
 
             async Task<ChatMessage?> TryDrainTurnContextMessageAsync(CancellationToken drainCt)
@@ -1771,13 +1781,16 @@ public sealed partial class SessionService(
                         session.SetInMemoryChatHistory(
                             [.. result.Messages],
                             jsonSerializerOptions: SessionPersistenceJsonOptions.Default);
+                        if (!TrySnapshotInMemoryHistory(session, out var compactedHistory))
+                            throw new InvalidOperationException("Unable to snapshot compacted model history.");
                         pendingCompactionCheckpoint = new PendingCompactionCheckpoint(
                             "auto",
                             CompactionOutcomeToWire(status.Outcome),
                             status.ThresholdBefore.Tokens,
-                            status.ThresholdAfter.Tokens);
+                            status.ThresholdAfter.Tokens,
+                            compactedHistory);
+                        persistedModelHistoryCount = compactedHistory.Count;
                         InvalidatePromptRequestSnapshot(threadId, "auto_compaction");
-                        await TrySaveSessionAsync(agent, session, threadId);
                         var contextUsage = await SaveReplacementContextUsageSnapshotAsync(
                             threadId,
                             status.ThresholdAfter.Tokens,
@@ -1882,22 +1895,9 @@ public sealed partial class SessionService(
                     CancellationToken.None);
                 await MarkActiveGoalBlockedForTurnErrorAsync(turnKey, CancellationToken.None);
                 ThreadRuntimeSignalForBroadcast?.Invoke(threadId, SessionThreadRuntimeSignal.TurnFailed);
-                await TrySaveThreadAsync(thread);
                 if (session is not null)
-                {
-                    if (TryAppendFailedTurnTailToSession(session, turn))
-                    {
-                        await TrySaveSessionAsync(agent, session, threadId);
-                        await TryAppendPendingCompactionCheckpointAsync();
-                        return;
-                    }
-                }
-                else if (persistence.SessionFileExists(threadId))
-                {
-                    return;
-                }
-
-                await TryRebuildAndSaveSessionAsync(agent, threadId);
+                    TryAppendFailedTurnTailToSession(session, turn);
+                await PersistCurrentTurnCommitAsync();
             }
 
             try
@@ -1942,8 +1942,10 @@ public sealed partial class SessionService(
                 }
                 else
                 {
-                    session = await persistence.LoadOrCreateSessionAsync(agent, threadId, executionCt);
+                    session = await persistence.LoadOrCreateSessionAsync(agent, thread, turn.Id, executionCt);
                 }
+                if (TrySnapshotInMemoryHistory(session, out var persistedHistory))
+                    persistedModelHistoryCount = persistedHistory.Count;
 
                 // Step 5c: Append runtime context to the multimodal content list
                 var turnMode = thread.Configuration?.Mode?.Equals("plan", StringComparison.OrdinalIgnoreCase) == true
@@ -2863,18 +2865,8 @@ public sealed partial class SessionService(
                 thread.LastActiveAt = DateTimeOffset.UtcNow;
                 RecordTurnTokenUsage(thread, turn);
                 RecordTurnDurationTrace(threadId, turn);
+                await PersistCurrentTurnCommitAsync();
                 eventChannel.EmitTurnCompleted(turn);
-
-                try
-                {
-                    await PersistThreadWithMaterializationAsync(thread, CancellationToken.None);
-                    await TrySaveSessionAsync(agent, session, threadId);
-                    await TryAppendPendingCompactionCheckpointAsync();
-                }
-                catch (Exception ex)
-                {
-                    logger?.LogError(ex, "Failed to persist thread state after turn completion for thread {ThreadId}", threadId);
-                }
 
                 _ = TryScheduleMemoryConsolidation(
                     threadId,
@@ -2964,6 +2956,23 @@ public sealed partial class SessionService(
                     BuildEmptyProviderResponseMessage(threadId, session, tokenTracker, ex.Message),
                     "agent_empty_response");
             }
+            catch (RolloutPersistenceException ex)
+            {
+                logger?.LogError(ex, "Turn persistence failed for thread {ThreadId}", threadId);
+                FinalizeStreamingAgentMessage();
+                FinalizeStreamingReasoning();
+                var errorItem = CreateErrorItem(
+                    turn,
+                    NextItemSeq(),
+                    ex.Message,
+                    "persistence_error",
+                    fatal: true);
+                turn.Items.Add(errorItem);
+                eventChannel.EmitItemStarted(errorItem);
+                eventChannel.EmitItemCompleted(errorItem);
+                FailTurn(turn, eventChannel, ex.Message);
+                ThreadRuntimeSignalForBroadcast?.Invoke(threadId, SessionThreadRuntimeSignal.TurnFailed);
+            }
             catch (Exception ex)
             {
                 logger?.LogError(ex, "Turn execution failed for thread {ThreadId}", threadId);
@@ -3024,11 +3033,15 @@ public sealed partial class SessionService(
                             if (status.Success)
                             {
                                 tokenTracker?.Reset();
+                                if (!TrySnapshotInMemoryHistory(session, out var compactedHistory))
+                                    throw new InvalidOperationException("Unable to snapshot compacted model history.");
                                 pendingCompactionCheckpoint = new PendingCompactionCheckpoint(
                                     "reactive",
                                     CompactionOutcomeToWire(status.Outcome),
                                     status.ThresholdBefore.Tokens,
-                                    status.ThresholdAfter.Tokens);
+                                    status.ThresholdAfter.Tokens,
+                                    compactedHistory);
+                                persistedModelHistoryCount = compactedHistory.Count;
                                 InvalidatePromptRequestSnapshot(threadId, "reactive_compaction");
                                 var contextUsage = await SaveReplacementContextUsageSnapshotAsync(
                                     threadId,
@@ -4574,21 +4587,6 @@ public sealed partial class SessionService(
         }
     }
 
-    private async Task TrySaveThreadAsync(SessionThread thread)
-    {
-        if (IsPendingPermanentDeletion(thread.Id))
-            return;
-
-        try
-        {
-            await PersistThreadWithMaterializationAsync(thread, CancellationToken.None);
-        }
-        catch (Exception ex)
-        {
-            logger?.LogError(ex, "Failed to persist thread state for thread {ThreadId}", thread.Id);
-        }
-    }
-
     private static bool TryAppendFailedTurnTailToSession(AgentSession session, SessionTurn turn)
     {
         if (!session.TryGetInMemoryChatHistory(
@@ -4623,12 +4621,7 @@ public sealed partial class SessionService(
     {
         try
         {
-            var session = await persistence.LoadOrCreateSessionAsync(agent, threadId, ct);
-            if (TryTrimRolledBackTailFromSession(session, removedTurns))
-            {
-                await TrySaveSessionAsync(agent, session, threadId);
-                return session;
-            }
+            return await persistence.LoadOrCreateSessionAsync(agent, threadId, ct);
         }
         catch (OperationCanceledException)
         {
@@ -4639,21 +4632,7 @@ public sealed partial class SessionService(
             logger?.LogWarning(ex, "Failed to trim agent session after rollback for thread {ThreadId}", threadId);
         }
 
-        await TryRebuildAndSaveSessionAsync(agent, threadId);
-
-        try
-        {
-            return await persistence.LoadOrCreateSessionAsync(agent, threadId, ct);
-        }
-        catch (OperationCanceledException)
-        {
-            throw;
-        }
-        catch (Exception ex)
-        {
-            logger?.LogWarning(ex, "Failed to load rebuilt agent session after rollback for thread {ThreadId}", threadId);
-            return null;
-        }
+        return null;
     }
 
     private async Task SaveContextUsageFromSessionAsync(
@@ -4866,52 +4845,6 @@ public sealed partial class SessionService(
         return result;
     }
 
-    private async Task<bool> TrySaveSessionAsync(AIAgent agent, AgentSession session, string threadId)
-    {
-        if (IsPendingPermanentDeletion(threadId))
-            return false;
-
-        if (!_runtimeRegistry.TryGetThread(threadId, out var thread) || thread.HistoryMode != HistoryMode.Server)
-            return false;
-
-        try
-        {
-            await persistence.SaveSessionAsync(agent, session, threadId, ct: CancellationToken.None);
-            return true;
-        }
-        catch (Exception ex)
-        {
-            logger?.LogError(ex, "Failed to save agent session for thread {ThreadId}", threadId);
-            return false;
-        }
-    }
-
-    private async Task TryRebuildAndSaveSessionAsync(AIAgent agent, string threadId)
-    {
-        if (IsPendingPermanentDeletion(threadId))
-            return;
-
-        if (!_runtimeRegistry.TryGetThread(threadId, out var thread) || thread.HistoryMode != HistoryMode.Server)
-            return;
-
-        try
-        {
-            await persistence.RebuildAndSaveSessionFromThreadAsync(agent, threadId, CancellationToken.None);
-        }
-        catch (Exception ex)
-        {
-            logger?.LogError(ex, "Failed to rebuild agent session for thread {ThreadId}; clearing stale session.", threadId);
-            try
-            {
-                persistence.DeleteSessionFile(threadId);
-            }
-            catch (Exception deleteEx)
-            {
-                logger?.LogWarning(deleteEx, "Failed to clear stale agent session for thread {ThreadId}", threadId);
-            }
-        }
-    }
-
     private bool IsMaterialized(string threadId) =>
         _runtimeRegistry.TryGetRuntime(threadId, out var runtime) && runtime.Materialized;
 
@@ -4929,6 +4862,27 @@ public sealed partial class SessionService(
         }
 
         await persistence.SaveThreadAsync(thread, ct);
+        _runtimeRegistry.SetThread(thread).Materialized = true;
+    }
+
+    private async Task PersistTurnCommitWithMaterializationAsync(
+        SessionThread thread,
+        SessionTurn turn,
+        IReadOnlyList<ChatMessage> modelHistory,
+        TurnCompactionHistory? compaction,
+        CancellationToken ct)
+    {
+        if (IsPendingPermanentDeletion(thread.Id))
+            return;
+        if (thread.Ephemeral)
+        {
+            _runtimeRegistry.SetThread(thread).Materialized = false;
+            return;
+        }
+
+        await persistence.CommitTurnAsync(
+            new TurnPersistenceCommit(thread, turn, modelHistory, compaction),
+            ct);
         _runtimeRegistry.SetThread(thread).Materialized = true;
     }
 
@@ -4970,7 +4924,8 @@ public sealed partial class SessionService(
         string Trigger,
         string Mode,
         long TokensBefore,
-        long TokensAfter);
+        long TokensAfter,
+        IReadOnlyList<ChatMessage>? ReplacementHistory = null);
 
     private sealed class ContextCompactionFailedException(string message) : InvalidOperationException(message);
 

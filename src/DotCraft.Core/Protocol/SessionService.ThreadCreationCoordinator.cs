@@ -178,11 +178,21 @@ public sealed partial class SessionService
                     ct);
             }
 
-            if (forked.HistoryMode == HistoryMode.Server && materialization.History.Count > 0)
+            if (forked.HistoryMode == HistoryMode.Server
+                && materialization.History.Count > 0
+                && forked.Turns.Count > 0)
             {
-                await owner.EnsurePerThreadAgentIfMissingAsync(forked.Id, forked, ct);
-                var agent = owner.GetThreadAgentOrDefault(forked.Id);
-                await owner.Persistence.SaveSessionFromHistoryAsync(agent, forked.Id, materialization.History, ct);
+                if (!materialization.HasCompatibleCheckpoint)
+                {
+                    foreach (var forkTurn in forked.Turns)
+                    {
+                        await owner.Persistence.AppendModelHistoryAsync(
+                            forked.Id,
+                            ThreadStore.BuildModelVisibleHistoryFromTurn(forkTurn),
+                            forkTurn.Id,
+                            ct);
+                    }
+                }
             }
 
             await owner.SaveContextUsageSnapshotAsync(

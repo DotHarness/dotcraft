@@ -176,7 +176,6 @@ public sealed partial class SessionService
                     case CompactionOutcome.Partial:
                     {
                         tokenTracker.Reset();
-                        await owner.Persistence.SaveSessionAsync(agent, session, threadId, maintenanceCt);
                         var contextUsage = await owner.SaveReplacementContextUsageSnapshotAsync(
                             threadId,
                             status.ThresholdAfter.Tokens,
@@ -470,6 +469,7 @@ public sealed partial class SessionService
             catch (Exception ex)
             {
                 owner.Logger?.LogWarning(ex, "Failed to append compaction checkpoint for thread {ThreadId}", threadId);
+                throw;
             }
         }
 

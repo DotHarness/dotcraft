@@ -7,11 +7,11 @@ description: Diagnose DotCraft LLM, agent, tool-call, LiteLLM, provider, context
 
 ## Overview
 
-Use this skill to reconstruct what happened during a failed DotCraft turn from persisted evidence. Treat `.craft/threads/.../*.jsonl` as the canonical UI/session rollout and `.craft/state.db` as queryable metadata, serialized agent session state, trace events, bindings, usage, goals, plans, and attachments.
+Use this skill to reconstruct what happened during a failed DotCraft turn from persisted evidence. Treat `.craft/threads/.../*.jsonl` as the authority for thread, turn, item, compaction, and model-history state. Treat `.craft/state.db` as queryable projections, runtime continuity state, traces, and independent business state such as goals, plans, spawn edges, and the subagent mailbox.
 
 ## Safety Rules
 
-- Work read-only unless the user explicitly asks for a repair. Do not edit `state.db`, thread JSONL, or serialized `thread_sessions.session_json` during diagnosis.
+- Work read-only unless the user explicitly asks for a repair. Do not edit `state.db` or thread JSONL during diagnosis.
 - Avoid dumping full user or assistant content. Prefer IDs, timestamps, event kinds, item types, tool names, status, token counts, and short error previews.
 - Copy the DB and thread file to a temporary location before experimental queries if a tool might open SQLite in write mode.
 - Preserve the evidence chain: every conclusion should cite the source table, event ID, line number, timestamp, or item ID that supports it.
@@ -59,25 +59,27 @@ sqlite3 "file:D:\path\to\workspace\.craft\state.db?mode=ro" `
    - Check whether the rollout path in DB points to the file being inspected.
 
 2. **Build the rollout timeline**
-   - Group JSONL records by `kind`: `thread_opened`, `turn_started`, `item_appended`, `turn_completed`, queued-input events, and status/name changes.
-   - For `item_appended`, count item `type` values such as `UserMessage`, `AgentMessage`, `ToolCall`, `ToolExecution`, `ToolResult`, `CommandExecution`, and `Error`.
-   - Locate explicit `Error` items and their `turnId`, `itemId`, timestamp, status, and payload keys.
+   - Apply `turn_state_replaced` by Turn ID and let it replace earlier incremental state for that Turn.
+   - Apply `thread_rolled_back` before reporting Turns; ignore rolled-back tail Turns as current evidence.
+   - Count `UserMessage`, `AgentMessage`, `ToolCall`, `ToolExecution`, `ToolResult`, `CommandExecution`, and `Error` only from surviving replacement state.
+   - Summarize model-history batches only by Turn, message count, schema version, content kinds, and rejected status. Never print model payloads, ProtectedData, or AdditionalProperties.
+   - Summarize compaction checkpoints only by boundary, message count, and decode status. Never print replacement history.
 
 3. **Correlate trace storage**
    - Read `trace_session_bindings` for `root_thread_id = thread_id`. The main session often has `binding_kind = threadMain`; subagents and maintenance forks may have different session keys.
    - For each session key, inspect `trace_sessions` counters: `request_count`, `response_count`, `tool_call_count`, `error_count`, token totals, and `last_finish_reason`.
    - Query `trace_events` by `session_key` and timestamp. Prioritize events with `type = 'Error'`, tool failures, unusual finish reasons, or a failed request immediately before the rollout `Error` item.
 
-4. **Inspect context and session shape**
+4. **Inspect context and recovery shape**
    - Use `thread_context_usage` to check whether context size or message count is suspicious.
-   - Confirm `thread_sessions` has a row and recent `updated_at`; do not print the full `session_json` unless the user explicitly asks.
-   - When resume behavior is involved, compare `thread_sessions.updated_at`, `threads.updated_at`, and the last rollout `turn_completed`.
+   - Use model-history and checkpoint decode status from the rollout to assess resume behavior.
+   - Treat `thread_sessions` as optional legacy evidence only. Its absence is normal and it must not participate in freshness or persistence-mismatch decisions.
 
 5. **Classify the failure**
    - **Provider/API error**: Trace `Error` content mentions HTTP status, provider, unsupported params, rate limit, authentication, model, or payload validation.
    - **Tool error**: The last `ToolCallCompleted`, `ToolResult`, or `CommandExecution` before the failure contains an exception, non-zero exit, timeout, or malformed output.
-   - **Persistence mismatch**: DB `threads.rollout_path`, rollout file location, `thread_sessions.updated_at`, or `turn_count` disagrees with the JSONL timeline.
-   - **Context/session error**: Context usage is extreme, compaction events appear around the failure, or serialized session state is missing/stale.
+   - **Persistence mismatch**: DB `threads.rollout_path`, projected offset or `turn_count` disagrees with the JSONL timeline.
+   - **Context/session error**: Context usage is extreme, model-history records are rejected, or no valid compaction checkpoint can be decoded.
    - **Adapter/channel error**: `origin_channel`, `channel_context`, queued input events, or status transitions show the failure happened outside model execution.
 
 6. **Recommend the fix**

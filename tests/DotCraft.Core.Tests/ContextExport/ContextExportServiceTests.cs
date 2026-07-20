@@ -109,6 +109,51 @@ public sealed class ContextExportServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task ExportAsync_UsesCanonicalExactHistoryAndRedactsInternalModelMetadata()
+    {
+        const string exactText = "exact model-visible answer";
+        const string reasoningSecret = "internal reasoning secret";
+        const string protectedSecret = "protected replay secret";
+        const string extensionSecret = "provider extension secret";
+        var thread = CreateThread();
+        AddTurnWithMessages(thread, "visible request", "projected answer");
+        await _threadStore.SaveThreadAsync(thread);
+
+        var exactMessage = new ChatMessage(ChatRole.Assistant,
+        [
+            new TextReasoningContent(reasoningSecret)
+            {
+                ProtectedData = protectedSecret,
+                AdditionalProperties = new AdditionalPropertiesDictionary
+                {
+                    ["providerSecret"] = extensionSecret
+                }
+            },
+            new TextContent(exactText)
+        ])
+        {
+            AdditionalProperties = new AdditionalPropertiesDictionary
+            {
+                ["messageSecret"] = extensionSecret
+            }
+        };
+        await _threadStore.AppendModelHistoryAsync(thread.Id, [exactMessage], thread.Turns[0].Id);
+
+        var result = await new ContextExportService().ExportAsync(new ContextExportOptions
+        {
+            ThreadId = thread.Id,
+            WorkspacePath = _workspace
+        });
+
+        Assert.Contains(exactText, result.Markdown);
+        Assert.DoesNotContain("projected answer", result.Markdown.Split("## Conversation")[0]);
+        Assert.DoesNotContain(reasoningSecret, result.Markdown);
+        Assert.DoesNotContain(protectedSecret, result.Markdown);
+        Assert.DoesNotContain(extensionSecret, result.Markdown);
+        Assert.Contains("[reasoning omitted]", result.Markdown);
+    }
+
+    [Fact]
     public async Task SearchAsync_TraceEventMatch_ReturnsBoundThreadEvidence()
     {
         var thread = CreateThread();
@@ -135,6 +180,94 @@ public sealed class ContextExportServiceTests : IDisposable
         var hit = Assert.Single(result.Hits);
         Assert.Equal(thread.Id, hit.ThreadId);
         Assert.Contains(hit.Evidence, evidence => evidence.Source == "trace_events");
+    }
+
+    [Fact]
+    public async Task SearchAsync_RolloutSearch_UsesDeduplicatedDisplayableItemsAndSkipsInternalHistory()
+    {
+        const string visibleText = "VISIBLE_ROLLOUT_MARKER";
+        const string nativePartSecret = "NATIVE_PART_SECRET";
+        const string argumentSecret = "RAW_ARGUMENT_SECRET";
+        const string modelHistorySecret = "MODEL_HISTORY_ONLY_SECRET";
+        const string protectedDataSecret = "PROTECTED_DATA_SECRET";
+        const string checkpointSecret = "COMPACTION_ONLY_SECRET";
+
+        var thread = CreateThread();
+        AddTurnWithMessages(thread, visibleText, "ordinary answer");
+        var turn = thread.Turns[0];
+        var userPayload = Assert.IsType<UserMessagePayload>(turn.Input!.Payload);
+        turn.Input.Payload = userPayload with
+        {
+            NativeInputParts =
+            [
+                new SessionWireInputPart { Type = "text", Text = nativePartSecret }
+            ]
+        };
+        turn.Items.Add(new SessionItem
+        {
+            Id = SessionIdGenerator.NewItemId(3),
+            TurnId = turn.Id,
+            Type = ItemType.ToolCall,
+            Status = ItemStatus.Completed,
+            CreatedAt = DateTimeOffset.UtcNow,
+            CompletedAt = DateTimeOffset.UtcNow,
+            Payload = new ToolCallPayload
+            {
+                ToolName = "safe-search-tool",
+                ProviderFlatName = "safe-search-tool",
+                CallId = "call_safe_search",
+                Arguments = new JsonObject { ["password"] = argumentSecret }
+            }
+        });
+
+        await _threadStore.SaveThreadAsync(thread);
+        await _threadStore.SaveTurnAsync(thread, turn);
+        await _threadStore.AppendModelHistoryAsync(
+            thread.Id,
+            [
+                new ChatMessage(ChatRole.Assistant,
+                [
+                    new TextReasoningContent("internal reasoning")
+                    {
+                        ProtectedData = protectedDataSecret
+                    },
+                    new TextContent(modelHistorySecret)
+                ])
+            ],
+            turn.Id);
+        await _threadStore.AppendCompactionCheckpointAsync(
+            thread.Id,
+            turn.Id,
+            [new ChatMessage(ChatRole.Assistant, checkpointSecret)],
+            "manual",
+            "partial",
+            100,
+            50);
+
+        var visibleResult = await SearchAsync(visibleText);
+        var visibleHit = Assert.Single(visibleResult.Hits);
+        var rolloutEvidence = Assert.Single(visibleHit.Evidence, evidence => evidence.Source == "rollout");
+        Assert.Contains(visibleText, rolloutEvidence.Preview, StringComparison.Ordinal);
+        Assert.DoesNotContain(nativePartSecret, rolloutEvidence.Preview, StringComparison.Ordinal);
+        Assert.DoesNotContain(argumentSecret, rolloutEvidence.Preview, StringComparison.Ordinal);
+
+        var toolResult = await SearchAsync("safe-search-tool");
+        Assert.Single(toolResult.Hits);
+        Assert.Single(toolResult.Hits[0].Evidence, evidence => evidence.Source == "rollout");
+
+        Assert.Empty((await SearchAsync(nativePartSecret)).Hits);
+        Assert.Empty((await SearchAsync(argumentSecret)).Hits);
+        Assert.Empty((await SearchAsync(modelHistorySecret)).Hits);
+        Assert.Empty((await SearchAsync(protectedDataSecret)).Hits);
+        Assert.Empty((await SearchAsync(checkpointSecret)).Hits);
+
+        Task<ContextSearchResult> SearchAsync(string query) =>
+            new ContextSearchService().SearchAsync(new ContextSearchOptions
+            {
+                WorkspacePath = _workspace,
+                Query = query,
+                Limit = 5
+            });
     }
 
     [Fact]

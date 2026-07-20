@@ -1,4 +1,3 @@
-using System.Collections.Concurrent;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using DotCraft.Agents;
@@ -24,29 +23,48 @@ internal sealed record ForkModelHistoryMaterialization(
         !string.IsNullOrWhiteSpace(CheckpointCoveredThroughTurnId);
 }
 
+internal sealed record TurnPersistenceCommit(
+    SessionThread Thread,
+    SessionTurn Turn,
+    IReadOnlyList<ChatMessage> ModelHistory,
+    TurnCompactionHistory? Compaction);
+
+internal sealed record TurnCompactionHistory(
+    string Trigger,
+    string Mode,
+    long TokensBefore,
+    long TokensAfter,
+    IReadOnlyList<ChatMessage> ReplacementHistory);
+
 /// <summary>
 /// Manages thread persistence under the .craft directory.
-/// Canonical thread history is stored as thread JSONL under threads/active|archived while metadata and agent sessions live in SQLite.
+/// Canonical thread and model-visible history is stored as thread JSONL under threads/active|archived.
+/// SQLite contains classified durable state, continuity state, diagnostics, and rebuildable projections.
 /// </summary>
-public sealed class ThreadStore
+public sealed class ThreadStore : IAsyncDisposable
 {
     private readonly string _botPath;
     private readonly ThreadMetadataStore _metadataStore;
     private readonly ThreadRolloutStore _rolloutStore;
+    private readonly IRolloutReplayer _rolloutReplayer;
     private readonly ThreadAttachmentStore _attachmentStore;
-    private readonly ConcurrentDictionary<string, SessionThread> _threadSnapshotCache = new(StringComparer.Ordinal);
+    private readonly SemaphoreSlim _reconcileGate = new(1, 1);
 
     public ThreadStore(string botPath)
         : this(botPath, null)
     {
     }
 
-    internal ThreadStore(string botPath, StateRuntime? stateRuntime)
+    internal ThreadStore(
+        string botPath,
+        StateRuntime? stateRuntime,
+        Func<string, CancellationToken, Task>? beforeRolloutDeleteAsync = null)
     {
         _botPath = Path.GetFullPath(botPath);
         StateRuntime = stateRuntime ?? new StateRuntime(botPath);
         _metadataStore = new ThreadMetadataStore(StateRuntime);
-        _rolloutStore = new ThreadRolloutStore(botPath);
+        _rolloutStore = new ThreadRolloutStore(botPath, beforeRolloutDeleteAsync);
+        _rolloutReplayer = new RolloutReplayer();
         _attachmentStore = new ThreadAttachmentStore(StateRuntime, botPath);
     }
 
@@ -58,17 +76,10 @@ public sealed class ThreadStore
     public async Task SaveThreadAsync(SessionThread thread, CancellationToken ct = default)
     {
         using var writeLock = await ThreadRolloutWriteGate.AcquireAsync(_botPath, thread.Id, ct);
-        if (!_threadSnapshotCache.TryGetValue(thread.Id, out var previous))
-        {
-            previous = await _rolloutStore.LoadThreadAsync(thread.Id, ct);
-            if (previous != null)
-                _threadSnapshotCache[thread.Id] = CloneThreadSnapshot(previous);
-        }
+        var previous = await _rolloutStore.LoadThreadAsync(thread.Id, ct);
 
-        var rolloutPath = await _rolloutStore.SaveThreadAsync(thread, previous, ct);
-        _threadSnapshotCache[thread.Id] = CloneThreadSnapshot(thread);
-        _metadataStore.UpsertThread(thread, rolloutPath);
-        _attachmentStore.ReplaceThreadAttachments(thread);
+        var result = await _rolloutStore.SaveThreadAsync(thread, previous, ct);
+        TryUpdateThreadProjection(thread, result);
     }
 
     /// <summary>
@@ -80,10 +91,44 @@ public sealed class ThreadStore
         CancellationToken ct = default)
     {
         using var writeLock = await ThreadRolloutWriteGate.AcquireAsync(_botPath, thread.Id, ct);
-        var rolloutPath = await _rolloutStore.AppendRollbackAsync(thread, numTurns, ct);
-        _threadSnapshotCache[thread.Id] = CloneThreadSnapshot(thread);
-        _metadataStore.UpsertThread(thread, rolloutPath);
-        _attachmentStore.ReplaceThreadAttachments(thread);
+        var result = await _rolloutStore.AppendRollbackAsync(thread, numTurns, ct);
+        TryUpdateThreadProjection(thread, result);
+    }
+
+    internal async Task SaveTurnAsync(
+        SessionThread thread,
+        SessionTurn turn,
+        CancellationToken ct = default)
+    {
+        using var writeLock = await ThreadRolloutWriteGate.AcquireAsync(_botPath, thread.Id, ct);
+        var result = await _rolloutStore.AppendTurnStateAsync(thread, turn, ct);
+        TryUpdateThreadProjection(thread, result);
+    }
+
+    internal async Task CommitTurnAsync(TurnPersistenceCommit commit, CancellationToken ct = default)
+    {
+        using var writeLock = await ThreadRolloutWriteGate.AcquireAsync(_botPath, commit.Thread.Id, ct);
+        var codec = new ModelHistoryCodec();
+        var modelHistory = commit.ModelHistory
+            .Select(message => codec.Encode(message, commit.Turn.Id))
+            .ToList();
+        var compaction = commit.Compaction == null
+            ? null
+            : new TurnCompactionCommit(
+                commit.Compaction.Trigger,
+                commit.Compaction.Mode,
+                commit.Compaction.TokensBefore,
+                commit.Compaction.TokensAfter,
+                DateTimeOffset.UtcNow,
+                commit.Compaction.ReplacementHistory.Select(message => codec.Encode(message)).ToList());
+
+        var result = await _rolloutStore.AppendTurnCommitAsync(
+            commit.Thread,
+            commit.Turn,
+            modelHistory,
+            compaction,
+            ct);
+        TryUpdateThreadProjection(commit.Thread, result);
     }
 
     internal async Task AppendCompactionCheckpointAsync(
@@ -98,20 +143,20 @@ public sealed class ThreadStore
     {
         ct.ThrowIfCancellationRequested();
         using var writeLock = await ThreadRolloutWriteGate.AcquireAsync(_botPath, threadId, ct);
-        var replacementElement = JsonSerializer.SerializeToElement(
-            replacementHistory,
-            SessionPersistenceJsonOptions.Default);
+        var codec = new ModelHistoryCodec();
+        var replacementMessages = replacementHistory.Select(message => codec.Encode(message)).ToList();
 
-        await _rolloutStore.AppendCompactionCheckpointAsync(
+        var result = await _rolloutStore.AppendCompactionCheckpointAsync(
             threadId,
             coveredThroughTurnId,
             trigger,
             mode,
             tokensBefore,
             tokensAfter,
-            replacementElement,
+            replacementMessages,
             DateTimeOffset.UtcNow,
             ct);
+        TryUpdateRolloutOffsetProjection(threadId, result);
     }
 
     internal Task<IReadOnlyList<ThreadCompactionCheckpoint>> LoadCompactionCheckpointsAsync(
@@ -125,13 +170,6 @@ public sealed class ThreadStore
     public async Task<SessionThread?> LoadThreadAsync(string threadId, CancellationToken ct = default)
     {
         var thread = await _rolloutStore.LoadThreadAsync(threadId, ct);
-        if (thread == null)
-        {
-            _threadSnapshotCache.TryRemove(threadId, out _);
-            return null;
-        }
-
-        _threadSnapshotCache[threadId] = CloneThreadSnapshot(thread);
         return thread;
     }
 
@@ -141,10 +179,6 @@ public sealed class ThreadStore
     public async Task<SessionThread?> LoadThreadFromPathAsync(string path, CancellationToken ct = default)
     {
         var thread = await _rolloutStore.LoadThreadFromPathAsync(path, ct);
-        if (thread == null)
-            return null;
-
-        _threadSnapshotCache[thread.Id] = CloneThreadSnapshot(thread);
         return thread;
     }
 
@@ -154,44 +188,59 @@ public sealed class ThreadStore
     public void DeleteThread(string threadId)
     {
         using var writeLock = ThreadRolloutWriteGate.Acquire(_botPath, threadId);
-        var candidatePaths = _threadSnapshotCache.TryGetValue(threadId, out var cached)
-            ? _attachmentStore.ExtractManagedImagePaths(cached)
-            : _rolloutStore.LoadThreadAsync(threadId).GetAwaiter().GetResult() is { } loaded
-                ? _attachmentStore.ExtractManagedImagePaths(loaded)
-                : new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        _threadSnapshotCache.TryRemove(threadId, out _);
-        _attachmentStore.DeleteThreadReferencesAndCleanup(threadId, candidatePaths);
-        _rolloutStore.DeleteThread(threadId);
+        _rolloutStore.CloseThreadAsync(threadId).GetAwaiter().GetResult();
+        var candidatePaths = _rolloutStore.LoadThreadAsync(threadId).GetAwaiter().GetResult() is { } loaded
+            ? _attachmentStore.ExtractManagedImagePaths(loaded)
+            : new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var cleanupCandidates = _attachmentStore.LoadCandidatePaths(threadId, candidatePaths);
+        _rolloutStore.DeleteThreadAsync(threadId).GetAwaiter().GetResult();
         _metadataStore.DeleteThread(threadId);
+        _attachmentStore.CleanupCandidates(cleanupCandidates);
     }
 
-    /// <summary>
-    /// Deletes the persisted agent session for a thread from SQLite.
-    /// </summary>
-    public void DeleteSessionFile(string threadId) => _metadataStore.DeleteSession(threadId);
-
-    /// <summary>
-    /// Saves the agent session JSON into SQLite.
-    /// </summary>
-    public async Task SaveSessionAsync(
-        AIAgent agent,
+    internal async Task PersistModelHistoryAsync(
         AgentSession session,
         string threadId,
+        string turnId,
+        int persistedPrefixLength,
         CancellationToken ct = default)
     {
-        var serialized = await agent.SerializeSessionAsync(session, SessionPersistenceJsonOptions.Default, ct);
-        _metadataStore.SaveSessionJson(threadId, serialized.GetRawText());
+        if (!session.TryGetInMemoryChatHistory(
+                out var currentHistory,
+                jsonSerializerOptions: SessionPersistenceJsonOptions.Default))
+        {
+            return;
+        }
+
+        if (persistedPrefixLength < 0 || persistedPrefixLength > currentHistory.Count)
+        {
+            throw new InvalidOperationException($"Invalid model-history prefix length for thread '{threadId}'.");
+        }
+
+        using var writeLock = await ThreadRolloutWriteGate.AcquireAsync(_botPath, threadId, ct);
+        var codec = new ModelHistoryCodec();
+        var appended = currentHistory
+            .Skip(persistedPrefixLength)
+            .Select(message => codec.Encode(message, turnId))
+            .ToList();
+        var result = await _rolloutStore.AppendModelHistoryAsync(threadId, turnId, appended, ct);
+        TryUpdateRolloutOffsetProjection(threadId, result);
     }
 
-    internal async Task<AgentSession> SaveSessionFromHistoryAsync(
-        AIAgent agent,
+    internal async Task AppendModelHistoryAsync(
         string threadId,
         IReadOnlyList<ChatMessage> history,
+        string turnId,
         CancellationToken ct = default)
     {
-        var session = await CreateSessionWithHistoryAsync(agent, history.ToList(), ct);
-        await SaveSessionAsync(agent, session, threadId, ct);
-        return session;
+        using var writeLock = await ThreadRolloutWriteGate.AcquireAsync(_botPath, threadId, ct);
+        var codec = new ModelHistoryCodec();
+        var result = await _rolloutStore.AppendModelHistoryAsync(
+            threadId,
+            turnId,
+            history.Select(message => codec.Encode(message, turnId)).ToList(),
+            ct);
+        TryUpdateRolloutOffsetProjection(threadId, result);
     }
 
     internal async Task<ForkModelHistoryMaterialization> BuildForkModelHistoryMaterializationAsync(
@@ -239,54 +288,24 @@ public sealed class ThreadStore
     }
 
     /// <summary>
-    /// Rebuilds and saves the persisted agent session from canonical thread history.
-    /// </summary>
-    public async Task RebuildAndSaveSessionFromThreadAsync(
-        AIAgent agent,
-        string threadId,
-        CancellationToken ct = default)
-    {
-        var rebuilt = await RebuildSessionFromRolloutAsync(agent, threadId, ct);
-        await SaveSessionAsync(agent, rebuilt, threadId, ct);
-    }
-
-    /// <summary>
-    /// Loads an existing agent session from SQLite, or creates a new session when none exists.
+    /// Creates a runtime agent session and hydrates its model history from canonical rollout records.
     /// </summary>
     public async Task<AgentSession> LoadOrCreateSessionAsync(
         AIAgent agent,
         string threadId,
         CancellationToken ct = default)
     {
-        var sessionJson = _metadataStore.LoadSessionJson(threadId);
-        if (!string.IsNullOrWhiteSpace(sessionJson))
-        {
-            try
-            {
-                var element = JsonSerializer.Deserialize<JsonElement>(sessionJson, SessionPersistenceJsonOptions.Default);
-                var session = await agent.DeserializeSessionAsync(element, SessionPersistenceJsonOptions.Default, ct);
-                NormalizeSessionToolCallArguments(session);
-                return session;
-            }
-            catch (OperationCanceledException)
-            {
-                throw;
-            }
-            catch
-            {
-                // Fall back to canonical rollout history when the SQLite session is
-                // missing, malformed, or cannot be deserialized by the current agent.
-            }
-        }
-
         return await RebuildSessionFromRolloutAsync(agent, threadId, ct);
     }
 
-    /// <summary>
-    /// Returns true when a thread has a persisted server-side session in SQLite.
-    /// </summary>
-    public bool SessionFileExists(string threadId)
-        => _metadataStore.SessionExists(threadId);
+    internal async Task<AgentSession> LoadOrCreateSessionAsync(
+        AIAgent agent,
+        SessionThread thread,
+        string? excludedTurnId = null,
+        CancellationToken ct = default)
+    {
+        return await RebuildSessionFromRolloutAsync(agent, thread, excludedTurnId, ct);
+    }
 
     /// <summary>
     /// Loads the persisted context-window usage token count for a thread.
@@ -428,17 +447,90 @@ public sealed class ThreadStore
     /// Returns all persisted thread summaries from SQLite metadata, ordered by activity.
     /// Rows whose canonical rollout file is missing are omitted because callers cannot read them.
     /// </summary>
-    public Task<List<ThreadSummary>> LoadIndexAsync(CancellationToken ct = default)
+    public async Task<List<ThreadSummary>> LoadIndexAsync(CancellationToken ct = default)
     {
-        ct.ThrowIfCancellationRequested();
-        var index = _metadataStore.LoadIndex()
-            .Where(summary =>
+        await _reconcileGate.WaitAsync(ct);
+        try
+        {
+            var paths = _rolloutStore.EnumerateRolloutPaths().ToList();
+            try
             {
-                ct.ThrowIfCancellationRequested();
-                return _rolloutStore.ResolveExistingPath(summary.Id) != null;
-            })
+                var projectionStates = _metadataStore.LoadProjectionStates();
+                var unreadableThreadIds = new HashSet<string>(StringComparer.Ordinal);
+
+                foreach (var path in paths)
+                {
+                    ct.ThrowIfCancellationRequested();
+                    var length = new FileInfo(path).Length;
+                    var threadId = Path.GetFileNameWithoutExtension(path);
+                    if (projectionStates.TryGetValue(threadId, out var state)
+                        && string.Equals(Path.GetFullPath(state.RolloutPath), path, StringComparison.OrdinalIgnoreCase)
+                        && state.ProjectedRolloutOffset == length)
+                    {
+                        continue;
+                    }
+
+                    SessionThread? thread;
+                    try
+                    {
+                        thread = await _rolloutStore.LoadThreadFromPathAsync(path, ct);
+                    }
+                    catch (Exception ex) when (ex is JsonException or IOException or NotSupportedException)
+                    {
+                        unreadableThreadIds.Add(threadId);
+                        System.Diagnostics.Trace.TraceWarning(
+                            $"Unable to repair rollout '{Path.GetFileName(path)}': {ex.Message}");
+                        continue;
+                    }
+                    if (thread == null)
+                        continue;
+                    UpdateThreadProjection(thread, path, length);
+                }
+
+                return _metadataStore.LoadIndex()
+                    .Where(summary => !unreadableThreadIds.Contains(summary.Id)
+                                      && _rolloutStore.ResolveExistingPath(summary.Id) != null)
+                    .ToList();
+            }
+            catch (Exception ex) when (ex is Microsoft.Data.Sqlite.SqliteException
+                                               or InvalidOperationException
+                                               or JsonException
+                                               or NotSupportedException)
+            {
+                System.Diagnostics.Trace.TraceWarning($"Thread metadata read-repair failed; using rollout files: {ex.Message}");
+                return await LoadFilesystemIndexAsync(paths, ct);
+            }
+        }
+        finally
+        {
+            _reconcileGate.Release();
+        }
+    }
+
+    private async Task<List<ThreadSummary>> LoadFilesystemIndexAsync(
+        IReadOnlyList<string> paths,
+        CancellationToken ct)
+    {
+        var summaries = new List<ThreadSummary>();
+        foreach (var path in paths)
+        {
+            ct.ThrowIfCancellationRequested();
+            try
+            {
+                var thread = await _rolloutStore.LoadThreadFromPathAsync(path, ct);
+                if (thread != null)
+                    summaries.Add(ThreadSummary.FromThread(thread));
+            }
+            catch (Exception ex) when (ex is JsonException or IOException or InvalidOperationException or NotSupportedException)
+            {
+                System.Diagnostics.Trace.TraceWarning($"Unable to read rollout '{Path.GetFileName(path)}': {ex.Message}");
+            }
+        }
+
+        return summaries
+            .OrderByDescending(static summary => summary.LastActiveAt)
+            .ThenByDescending(static summary => summary.Id, StringComparer.Ordinal)
             .ToList();
-        return Task.FromResult(index);
     }
 
     public Task UpsertThreadSpawnEdgeAsync(ThreadSpawnEdge edge, CancellationToken ct = default)
@@ -496,11 +588,60 @@ public sealed class ThreadStore
         return Task.CompletedTask;
     }
 
-    private static SessionThread CloneThreadSnapshot(SessionThread thread)
+    public async ValueTask DisposeAsync()
     {
-        var json = JsonSerializer.SerializeToUtf8Bytes(thread, SessionJsonOptions.Default);
-        return JsonSerializer.Deserialize<SessionThread>(json, SessionJsonOptions.Default)
-            ?? throw new InvalidOperationException($"Failed to clone thread snapshot for {thread.Id}.");
+        await FlushAndCloseAsync(CancellationToken.None);
+        _reconcileGate.Dispose();
+    }
+
+    internal Task FlushAndCloseAsync(CancellationToken ct = default) => _rolloutStore.ShutdownAsync(ct);
+
+    private void TryUpdateThreadProjection(SessionThread thread, RolloutAppendResult result)
+    {
+        try
+        {
+            UpdateThreadProjection(thread, result.Path, result.Receipt.ConfirmedOffset);
+        }
+        catch (Exception ex) when (ex is Microsoft.Data.Sqlite.SqliteException or InvalidOperationException)
+        {
+            System.Diagnostics.Trace.TraceWarning(
+                $"Thread projection update failed after rollout commit for '{thread.Id}': {ex.Message}");
+        }
+    }
+
+    private void UpdateThreadProjection(SessionThread thread, string rolloutPath, long projectedRolloutOffset)
+    {
+        var previousPaths = _attachmentStore.LoadCandidatePaths(thread.Id);
+        using var connection = StateRuntime.OpenConnection();
+        using var transaction = connection.BeginTransaction();
+
+        // Establish the parent row before attachment inserts. The confirmed offset is
+        // deliberately advanced only after every attachment reference has succeeded.
+        _metadataStore.UpsertThread(connection, transaction, thread, rolloutPath, projectedRolloutOffset: 0);
+        var currentPaths = _attachmentStore.ReplaceThreadAttachments(connection, transaction, thread);
+        ThreadMetadataStore.UpdateProjectedRolloutOffset(
+            connection,
+            transaction,
+            thread.Id,
+            rolloutPath,
+            projectedRolloutOffset);
+        transaction.Commit();
+
+        _attachmentStore.CleanupCandidates(
+            previousPaths.Except(currentPaths, StringComparer.OrdinalIgnoreCase));
+    }
+
+    private void TryUpdateRolloutOffsetProjection(string threadId, RolloutAppendResult result)
+    {
+        try
+        {
+            _metadataStore.UpdateProjectedRolloutOffset(threadId, result.Path, result.Receipt.ConfirmedOffset);
+        }
+        catch (Exception ex) when (ex is Microsoft.Data.Sqlite.SqliteException or InvalidOperationException)
+        {
+            System.Diagnostics.Trace.TraceWarning(
+                $"Thread rollout offset projection failed after commit for '{threadId}': {ex.Message}");
+        }
     }
 
     private async Task<AgentSession> RebuildSessionFromRolloutAsync(
@@ -512,9 +653,36 @@ public sealed class ThreadStore
         if (thread == null)
             return await agent.CreateSessionAsync(ct);
 
-        var history =
-            await TryBuildModelVisibleHistoryFromLatestCheckpointAsync(thread, ct) ??
-            BuildModelVisibleHistoryFromTurns(thread.Turns);
+        return await RebuildSessionFromRolloutAsync(agent, thread, excludedTurnId: null, ct);
+    }
+
+    private async Task<AgentSession> RebuildSessionFromRolloutAsync(
+        AIAgent agent,
+        SessionThread thread,
+        string? excludedTurnId,
+        CancellationToken ct)
+    {
+        var rolloutPath = _rolloutStore.ResolveExistingPath(thread.Id);
+        var replayed = rolloutPath == null
+            ? new ModelHistoryReplayResult([], HasModelHistoryRecords: false)
+            : await _rolloutReplayer.ReplayModelHistoryAsync(
+                rolloutPath,
+                thread.Turns,
+                excludedTurnId,
+                ct);
+        foreach (var warning in replayed.Warnings ?? [])
+        {
+            System.Diagnostics.Trace.TraceWarning(
+                string.IsNullOrWhiteSpace(warning.TurnId)
+                    ? $"Rollout model-history replay warning ({warning.Code}): {warning.Message}"
+                    : $"Rollout model-history replay warning for turn '{warning.TurnId}' ({warning.Code}): {warning.Message}");
+        }
+        var fallbackTurns = thread.Turns
+            .Where(turn => !string.Equals(turn.Id, excludedTurnId, StringComparison.Ordinal));
+        var history = replayed.HasModelHistoryRecords
+            ? replayed.Messages.ToList()
+            : BuildModelVisibleHistoryFromTurns(fallbackTurns);
+        history = MessageGrouper.NormalizeFunctionCallArguments(history).ToList();
 
         if (history.Count == 0)
             return await agent.CreateSessionAsync(ct);
@@ -559,11 +727,8 @@ public sealed class ThreadStore
         history = [];
         try
         {
-            var restored = checkpoint.ReplacementHistory.Deserialize<List<ChatMessage>>(
-                SessionPersistenceJsonOptions.Default);
-            if (restored is null)
-                return false;
-
+            var codec = new ModelHistoryCodec();
+            var restored = checkpoint.ReplacementHistory.Select(codec.Decode).ToList();
             history = MessageGrouper.NormalizeFunctionCallArguments(restored).ToList();
             return true;
         }

@@ -1,4 +1,6 @@
 using System.Text;
+using System.Text.Json;
+using DotCraft.Protocol;
 using Microsoft.Data.Sqlite;
 
 namespace DotCraft.ContextExport;
@@ -261,32 +263,209 @@ public sealed class ContextSearchService
             if (!File.Exists(path))
                 continue;
 
+            var snippetsByItem = new Dictionary<string, RolloutItemSnippet>(StringComparer.Ordinal);
             var lineNumber = 0;
             await foreach (var line in File.ReadLinesAsync(path, ct))
             {
                 lineNumber++;
-                if (line.Contains("\"kind\":\"context_compacted\"", StringComparison.OrdinalIgnoreCase) ||
-                    line.Contains("\"kind\": \"context_compacted\"", StringComparison.OrdinalIgnoreCase))
+                ThreadRolloutRecord? record;
+                try
+                {
+                    using var document = JsonDocument.Parse(line);
+                    if (!document.RootElement.TryGetProperty("kind", out var kindElement))
+                        continue;
+
+                    var kind = kindElement.GetString();
+                    if (string.Equals(kind, "model_history_messages_appended", StringComparison.Ordinal) ||
+                        string.Equals(kind, "context_compacted", StringComparison.Ordinal) ||
+                        kind is not ("item_appended" or "turn_state_replaced"))
+                    {
+                        continue;
+                    }
+
+                    record = document.RootElement.Deserialize<ThreadRolloutRecord>(SessionJsonOptions.Default);
+                }
+                catch (Exception ex) when (ex is JsonException or NotSupportedException)
                 {
                     continue;
                 }
 
-                if (!ContainsAllTerms(line, terms))
+                if (record is null)
+                    continue;
+
+                if (record is { Kind: "item_appended", ItemAppended: { } appended })
+                {
+                    AddOrReplaceRolloutItemSnippet(
+                        snippetsByItem,
+                        appended.TurnId,
+                        appended.Item,
+                        lineNumber,
+                        record.Timestamp);
+                }
+                else if (record is { Kind: "turn_state_replaced", TurnStateReplaced: { } replacement })
+                {
+                    foreach (var item in replacement.Turn.Items)
+                    {
+                        AddOrReplaceRolloutItemSnippet(
+                            snippetsByItem,
+                            replacement.Turn.Id,
+                            item,
+                            lineNumber,
+                            record.Timestamp);
+                    }
+                }
+            }
+
+            foreach (var snippet in snippetsByItem.Values.OrderBy(static snippet => snippet.LineNumber))
+            {
+                if (!ContainsAllTerms(snippet.Text, terms))
                     continue;
 
                 var hit = GetHit(hits, threadId, rowByThreadId, null, null);
                 hit.RolloutPath ??= path;
-                hit.Score += 8 + ScoreText(line, terms);
+                hit.Score += 8 + ScoreText(snippet.Text, terms);
                 hit.AddEvidence(new ContextSearchEvidence
                 {
                     Source = "rollout",
-                    SourceId = $"{Path.GetFileName(path)}:{lineNumber}",
+                    SourceId = $"{Path.GetFileName(path)}:{snippet.LineNumber}",
+                    Timestamp = snippet.Timestamp,
                     Preview = ContextWorkspaceReader.Bound(
-                        ContextWorkspaceReader.NormalizeWhitespace(line),
+                        ContextWorkspaceReader.NormalizeWhitespace(snippet.Text),
                         Math.Max(1, options.PreviewChars))
                 });
             }
         }
+    }
+
+    private static void AddOrReplaceRolloutItemSnippet(
+        Dictionary<string, RolloutItemSnippet> snippetsByItem,
+        string turnId,
+        SessionItem item,
+        int lineNumber,
+        DateTimeOffset timestamp)
+    {
+        var text = BuildDisplayableItemText(item);
+        if (string.IsNullOrWhiteSpace(text))
+            return;
+
+        var key = $"{turnId}\0{item.Id}";
+        snippetsByItem[key] = new RolloutItemSnippet(lineNumber, timestamp, text);
+    }
+
+    private static string BuildDisplayableItemText(SessionItem item)
+    {
+        var builder = new StringBuilder();
+        AppendSearchField(builder, "type", item.Type.ToString());
+        AppendSearchField(builder, "status", item.Status.ToString());
+
+        switch (item.Type)
+        {
+            case ItemType.UserMessage when item.AsUserMessage is { } user:
+                AppendSearchField(builder, "text", user.Text);
+                AppendSearchField(builder, "sender", user.SenderName);
+                AppendSearchField(builder, "channel", user.ChannelName);
+                break;
+            case ItemType.AgentMessage when item.AsAgentMessage is { } agent:
+                AppendSearchField(builder, "text", agent.Text);
+                break;
+            case ItemType.ReasoningContent:
+                // Reasoning is intentionally omitted from searchable/exportable handoff content.
+                return string.Empty;
+            case ItemType.CommandExecution when item.AsCommandExecution is { } command:
+                AppendSearchField(builder, "command", command.Command);
+                AppendSearchField(builder, "working_directory", command.WorkingDirectory);
+                AppendSearchField(builder, "execution_status", command.Status);
+                AppendSearchField(builder, "output", command.AggregatedOutput);
+                break;
+            case ItemType.ToolExecution when item.AsToolExecution is { } execution:
+                AppendSearchField(builder, "tool", execution.ToolName);
+                AppendSearchField(builder, "execution_status", execution.Status);
+                AppendSearchField(builder, "result", execution.ResultPreview);
+                AppendSearchField(builder, "error", execution.ErrorMessage);
+                break;
+            case ItemType.ImageGeneration when item.AsImageGeneration is { } image:
+                AppendSearchField(builder, "generation_status", image.Status);
+                AppendSearchField(builder, "prompt", image.RevisedPrompt);
+                break;
+            case ItemType.ToolCall when item.AsToolCall is { } toolCall:
+                AppendSearchField(builder, "namespace", toolCall.Namespace);
+                AppendSearchField(builder, "tool", toolCall.ToolName);
+                break;
+            case ItemType.PluginFunctionCall when item.AsPluginFunctionCall is { } pluginCall:
+                AppendSearchField(builder, "plugin", pluginCall.PluginId);
+                AppendSearchField(builder, "namespace", pluginCall.Namespace);
+                AppendSearchField(builder, "function", pluginCall.FunctionName);
+                AppendSearchField(builder, "error_code", pluginCall.ErrorCode);
+                AppendSearchField(builder, "error", pluginCall.ErrorMessage);
+                break;
+            case ItemType.McpToolCall when item.AsMcpToolCall is { } mcpCall:
+                AppendSearchField(builder, "server", mcpCall.Server);
+                AppendSearchField(builder, "namespace", mcpCall.Namespace);
+                AppendSearchField(builder, "tool", mcpCall.ToolName);
+                AppendSearchField(builder, "execution_status", mcpCall.Status);
+                AppendSearchField(builder, "error_code", mcpCall.ErrorCode);
+                AppendSearchField(builder, "error", mcpCall.ErrorMessage);
+                break;
+            case ItemType.DynamicToolCall when item.AsDynamicToolCall is { } dynamicCall:
+                AppendSearchField(builder, "namespace", dynamicCall.Namespace);
+                AppendSearchField(builder, "tool", dynamicCall.ToolName);
+                AppendSearchField(builder, "execution_status", dynamicCall.Status);
+                AppendSearchField(builder, "error_code", dynamicCall.ErrorCode);
+                AppendSearchField(builder, "error", dynamicCall.ErrorMessage);
+                break;
+            case ItemType.ToolResult when item.AsToolResult is { } result:
+                AppendSearchField(builder, "namespace", result.Namespace);
+                AppendSearchField(builder, "tool", result.ToolName);
+                AppendSearchField(builder, "result", result.Result);
+                AppendSearchField(builder, "error_code", result.ErrorCode);
+                AppendSearchField(builder, "error", result.ErrorMessage);
+                break;
+            case ItemType.ApprovalRequest when item.AsApprovalRequest is { } approval:
+                AppendSearchField(builder, "approval_type", approval.ApprovalType);
+                AppendSearchField(builder, "operation", approval.Operation);
+                AppendSearchField(builder, "target", approval.Target);
+                AppendSearchField(builder, "reason", approval.Reason);
+                break;
+            case ItemType.ApprovalResponse when item.AsApprovalResponse is { } response:
+                AppendSearchField(builder, "decision", response.Decision.ToString());
+                break;
+            case ItemType.UserInputRequest when item.AsUserInputRequest is { } request:
+                foreach (var question in request.Questions)
+                {
+                    AppendSearchField(builder, "question_header", question.Header);
+                    AppendSearchField(builder, "question", question.Question);
+                    foreach (var option in question.Options)
+                    {
+                        AppendSearchField(builder, "option", option.Label);
+                        AppendSearchField(builder, "option_description", option.Description);
+                    }
+                }
+                break;
+            case ItemType.UserInputResponse:
+                // Responses may contain answers to secret questions.
+                return string.Empty;
+            case ItemType.Error when item.AsError is { } error:
+                AppendSearchField(builder, "error_code", error.Code);
+                AppendSearchField(builder, "error", error.Message);
+                break;
+            case ItemType.SystemNotice when item.AsSystemNotice is { } notice:
+                AppendSearchField(builder, "notice", notice.Kind);
+                AppendSearchField(builder, "trigger", notice.Trigger);
+                AppendSearchField(builder, "mode", notice.Mode);
+                break;
+        }
+
+        return builder.ToString();
+    }
+
+    private static void AppendSearchField(StringBuilder builder, string name, string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+            return;
+
+        if (builder.Length > 0)
+            builder.Append(' ');
+        builder.Append(name).Append('=').Append(value);
     }
 
     private static IReadOnlyDictionary<string, string?> LoadTraceBindings(
@@ -512,6 +691,11 @@ public sealed class ContextSearchService
                 yield return (Path.GetFileNameWithoutExtension(file), file);
         }
     }
+
+    private sealed record RolloutItemSnippet(
+        int LineNumber,
+        DateTimeOffset Timestamp,
+        string Text);
 
     private sealed class HitBuilder
     {

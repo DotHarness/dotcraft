@@ -1,39 +1,23 @@
 using System.Security.Cryptography;
 using System.Text;
 using DotCraft.State;
+using Microsoft.Data.Sqlite;
 
 namespace DotCraft.Protocol;
 
 internal sealed class ThreadAttachmentStore(StateRuntime stateRuntime, string botPath)
 {
-    private static readonly TimeSpan DraftAttachmentTtl = TimeSpan.FromHours(24);
     private readonly string _attachmentsImageDir = Path.Combine(botPath, "attachments", "images");
 
-    public void RebuildFromThreads(IEnumerable<SessionThread> threads)
+    public IReadOnlySet<string> ReplaceThreadAttachments(
+        SqliteConnection connection,
+        SqliteTransaction transaction,
+        SessionThread thread)
     {
-        using var connection = stateRuntime.OpenConnection();
-        using (var delete = connection.CreateCommand())
-        {
-            delete.CommandText = "DELETE FROM thread_attachments";
-            delete.ExecuteNonQuery();
-        }
-
-        foreach (var thread in threads)
-            ReplaceThreadAttachments(thread, cleanupRemoved: false);
-
-        CleanupUnreferencedAttachments(DraftAttachmentTtl);
-    }
-
-    public void ReplaceThreadAttachments(SessionThread thread, bool cleanupRemoved = true)
-    {
-        var previousPaths = cleanupRemoved
-            ? LoadPathsForThread(thread.Id)
-            : [];
         var refs = ExtractReferences(thread).ToList();
-
-        using var connection = stateRuntime.OpenConnection();
         using (var delete = connection.CreateCommand())
         {
+            delete.Transaction = transaction;
             delete.CommandText = "DELETE FROM thread_attachments WHERE thread_id = $thread_id";
             delete.Parameters.AddWithValue("$thread_id", thread.Id);
             delete.ExecuteNonQuery();
@@ -42,6 +26,7 @@ internal sealed class ThreadAttachmentStore(StateRuntime stateRuntime, string bo
         foreach (var reference in refs)
         {
             using var insert = connection.CreateCommand();
+            insert.Transaction = transaction;
             insert.CommandText = """
                 INSERT INTO thread_attachments(
                     ref_id,
@@ -80,24 +65,22 @@ internal sealed class ThreadAttachmentStore(StateRuntime stateRuntime, string bo
             insert.ExecuteNonQuery();
         }
 
-        if (cleanupRemoved)
-            CleanupUnreferencedPaths(previousPaths.Except(refs.Select(r => r.Path), StringComparer.OrdinalIgnoreCase));
+        return refs.Select(static reference => reference.Path)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
     }
 
-    public void DeleteThreadReferencesAndCleanup(string threadId, IEnumerable<string>? additionalCandidatePaths = null)
+    public IReadOnlySet<string> LoadCandidatePaths(
+        string threadId,
+        IEnumerable<string>? additionalCandidatePaths = null)
     {
         var candidatePaths = LoadPathsForThread(threadId);
         if (additionalCandidatePaths != null)
             candidatePaths.UnionWith(additionalCandidatePaths.Where(IsManagedImagePath));
-
-        using var connection = stateRuntime.OpenConnection();
-        using var delete = connection.CreateCommand();
-        delete.CommandText = "DELETE FROM thread_attachments WHERE thread_id = $thread_id";
-        delete.Parameters.AddWithValue("$thread_id", threadId);
-        delete.ExecuteNonQuery();
-
-        CleanupUnreferencedPaths(candidatePaths);
+        return candidatePaths;
     }
+
+    public void CleanupCandidates(IEnumerable<string> candidatePaths) =>
+        CleanupUnreferencedPaths(candidatePaths);
 
     public void CleanupUnreferencedAttachments(TimeSpan minAge)
     {

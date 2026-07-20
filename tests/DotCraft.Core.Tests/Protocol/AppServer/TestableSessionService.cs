@@ -743,7 +743,6 @@ internal sealed class TestableSessionService : ISessionService, IThreadAgentRefr
         {
             _cache.Remove(id);
             _store.DeleteThread(id);
-            _store.DeleteSessionFile(id);
             ThreadDeletedForBroadcast?.Invoke(id);
         }
     }

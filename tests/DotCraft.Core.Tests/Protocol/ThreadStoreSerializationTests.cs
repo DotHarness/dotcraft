@@ -10,36 +10,24 @@ namespace DotCraft.Tests.Sessions.Protocol;
 public sealed class ThreadStoreSerializationTests
 {
     [Fact]
-    public async Task AgentSession_RoundTrip_RestoresFunctionResultAsJsonArrayWithoutFlatteningImage()
+    public void ModelHistory_RoundTrip_RestoresFunctionResultAsOwnedContentsWithoutFlatteningImage()
     {
-        using var client = new PassiveChatClient();
-        var agent = client.AsAIAgent(new ChatClientAgentOptions());
-        var session = await agent.CreateSessionAsync();
-        session.SetInMemoryChatHistory(
-        [
-            new ChatMessage(ChatRole.Tool, (IList<AIContent>)
+        var message = new ChatMessage(ChatRole.Tool, (IList<AIContent>)
             [
                 new FunctionResultContent("call-1", new List<AIContent>
                 {
                     new TextContent("screenshot"),
                     new DataContent(new byte[250_000], "image/png")
                 })
-            ])
-        ], jsonSerializerOptions: SessionPersistenceJsonOptions.Default);
+            ]);
+        var codec = new ModelHistoryCodec();
+        var serialized = JsonSerializer.Serialize(codec.Encode(message), SessionJsonOptions.Default);
+        var restored = codec.Decode(JsonSerializer.Deserialize<ModelHistoryMessage>(serialized, SessionJsonOptions.Default)!);
 
-        var serialized = await agent.SerializeSessionAsync(session, SessionPersistenceJsonOptions.Default);
-        var restored = await agent.DeserializeSessionAsync(serialized, SessionPersistenceJsonOptions.Default);
-
-        Assert.True(restored.TryGetInMemoryChatHistory(
-            out var history,
-            jsonSerializerOptions: SessionPersistenceJsonOptions.Default));
-        var toolResult = Assert.Single(Assert.Single(history).Contents.OfType<FunctionResultContent>());
-        var jsonResult = Assert.IsType<JsonElement>(toolResult.Result);
-        Assert.Equal(JsonValueKind.Array, jsonResult.ValueKind);
-        var restoredContents = jsonResult.Deserialize<List<AIContent>>(SessionPersistenceJsonOptions.Default);
-        Assert.NotNull(restoredContents);
-        Assert.IsType<DataContent>(restoredContents![1]);
-        var restoredEstimate = MessageTokenEstimator.Estimate(history.ToList());
+        var toolResult = Assert.Single(restored.Contents.OfType<FunctionResultContent>());
+        var restoredContents = Assert.IsAssignableFrom<IList<AIContent>>(toolResult.Result);
+        Assert.IsType<DataContent>(restoredContents[1]);
+        var restoredEstimate = MessageTokenEstimator.Estimate([restored]);
         Assert.InRange(restoredEstimate, 2_000, 20_000);
     }
 
@@ -153,25 +141,4 @@ public sealed class ThreadStoreSerializationTests
         public string Name { get; init; } = string.Empty;
     }
 
-    private sealed class PassiveChatClient : IChatClient
-    {
-        public Task<ChatResponse> GetResponseAsync(
-            IEnumerable<ChatMessage> chatMessages,
-            ChatOptions? options = null,
-            CancellationToken cancellationToken = default) =>
-            Task.FromResult(new ChatResponse([new ChatMessage(ChatRole.Assistant, "ok")]));
-
-        public IAsyncEnumerable<ChatResponseUpdate> GetStreamingResponseAsync(
-            IEnumerable<ChatMessage> chatMessages,
-            ChatOptions? options = null,
-            CancellationToken cancellationToken = default) =>
-            AsyncEnumerable.Empty<ChatResponseUpdate>();
-
-        public object? GetService(Type serviceType, object? serviceKey = null) =>
-            serviceType.IsInstanceOfType(this) ? this : null;
-
-        public void Dispose()
-        {
-        }
-    }
 }

@@ -32,8 +32,19 @@ public sealed class ContextExportService
             throw new KeyNotFoundException($"Thread '{options.ThreadId}' was not found in the selected workspace.");
 
         var warnings = loaded.Warnings.ToList();
+        var replay = await new RolloutReplayer().ReplayModelHistoryAsync(
+            loaded.RolloutPath,
+            loaded.Thread.Turns,
+            excludedTurnId: null,
+            ct).ConfigureAwait(false);
+        foreach (var warning in replay.Warnings ?? [])
+        {
+            warnings.Add(string.IsNullOrWhiteSpace(warning.TurnId)
+                ? $"Model history warning ({warning.Code}): {warning.Message}"
+                : $"Model history warning for turn '{warning.TurnId}' ({warning.Code}): {warning.Message}");
+        }
         var memory = _reader.LoadMemory(loaded.Paths, options.History, options.HistoryTailChars);
-        var markdown = BuildMarkdown(loaded, memory, options, warnings);
+        var markdown = BuildMarkdown(loaded, memory, replay, options, warnings);
 
         return new ContextExportResult
         {
@@ -47,6 +58,7 @@ public sealed class ContextExportService
     private static string BuildMarkdown(
         ContextLoadedThread loaded,
         ContextWorkspaceMemory memory,
+        ModelHistoryReplayResult modelHistory,
         ContextExportOptions options,
         List<string> warnings)
     {
@@ -84,7 +96,7 @@ public sealed class ContextExportService
 
         AppendMemory(sb, memory, options);
         AppendContinuity(sb, loaded.ContinuityEvents);
-        AppendCurrentContext(sb, loaded, options, warnings);
+        AppendCurrentContext(sb, modelHistory, options);
         AppendConversation(sb, thread, options);
 
         if (warnings.Count > 0)
@@ -170,90 +182,24 @@ public sealed class ContextExportService
 
     private static void AppendCurrentContext(
         StringBuilder sb,
-        ContextLoadedThread loaded,
-        ContextExportOptions options,
-        List<string> warnings)
+        ModelHistoryReplayResult replay,
+        ContextExportOptions options)
     {
         sb.AppendLine("## Current Model-Visible Context");
-        var history = BuildCurrentContextHistory(loaded, warnings);
-        sb.AppendLine(history.Description);
+        sb.AppendLine(replay.HasModelHistoryRecords
+            ? $"Recovered with canonical model-history replay; {replay.RejectedRecords} record(s) rejected and {(replay.FallbackTurnIds?.Count ?? 0)} turn(s) reconstructed from visible items."
+            : "No exact model-history records were found; reconstructed context from surviving visible turns.");
         sb.AppendLine();
 
-        if (history.Messages.Count == 0)
+        if (replay.Messages.Count == 0)
         {
             sb.AppendLine("(empty)");
             sb.AppendLine();
             return;
         }
 
-        AppendChatMessages(sb, history.Messages, options);
+        AppendChatMessages(sb, replay.Messages, options);
         sb.AppendLine();
-    }
-
-    private static CurrentContextHistory BuildCurrentContextHistory(
-        ContextLoadedThread loaded,
-        List<string> warnings)
-    {
-        var orderedTurns = loaded.Thread.Turns
-            .OrderBy(t => t.StartedAt)
-            .ThenBy(t => t.Id, StringComparer.Ordinal)
-            .ToList();
-
-        var checkpoints = loaded.ContinuityEvents
-            .Where(e => e.Kind == ContextContinuityEventKind.Compaction)
-            .ToList();
-
-        for (var i = checkpoints.Count - 1; i >= 0; i--)
-        {
-            var checkpoint = checkpoints[i];
-            var coveredTurnIndex = orderedTurns.FindIndex(turn =>
-                string.Equals(turn.Id, checkpoint.CoveredThroughTurnId, StringComparison.Ordinal));
-            if (coveredTurnIndex < 0)
-            {
-                warnings.Add($"Ignored compaction checkpoint '{checkpoint.CheckpointId}' because its covered turn is not present in surviving rollout history.");
-                continue;
-            }
-
-            if (!checkpoint.ReplacementHistory.HasValue)
-            {
-                warnings.Add($"Ignored compaction checkpoint '{checkpoint.CheckpointId}' because it has no replacement history.");
-                continue;
-            }
-
-            try
-            {
-                var messages = checkpoint.ReplacementHistory.Value.Deserialize<List<ChatMessage>>(
-                    SessionPersistenceJsonOptions.Default);
-                if (messages == null)
-                {
-                    warnings.Add($"Ignored compaction checkpoint '{checkpoint.CheckpointId}' because replacement history was empty.");
-                    continue;
-                }
-
-                for (var turnIndex = coveredTurnIndex + 1; turnIndex < orderedTurns.Count; turnIndex++)
-                    messages.AddRange(ThreadStore.BuildModelVisibleHistoryFromTurn(orderedTurns[turnIndex]));
-
-                var description =
-                    $"Recovered from latest surviving compaction checkpoint `{checkpoint.CheckpointId}` (covered through `{checkpoint.CoveredThroughTurnId}`), plus {orderedTurns.Count - coveredTurnIndex - 1} later turn(s).";
-                return new CurrentContextHistory(description, messages);
-            }
-            catch (JsonException ex)
-            {
-                warnings.Add($"Ignored compaction checkpoint '{checkpoint.CheckpointId}' because replacement history could not be decoded: {ex.Message}");
-            }
-            catch (NotSupportedException ex)
-            {
-                warnings.Add($"Ignored compaction checkpoint '{checkpoint.CheckpointId}' because replacement history could not be decoded: {ex.Message}");
-            }
-        }
-
-        var fallback = new List<ChatMessage>();
-        foreach (var turn in orderedTurns)
-            fallback.AddRange(ThreadStore.BuildModelVisibleHistoryFromTurn(turn));
-
-        return new CurrentContextHistory(
-            "No usable compaction checkpoint survived; reconstructed context from surviving rollout turns.",
-            fallback);
     }
 
     private static void AppendConversation(
@@ -530,7 +476,7 @@ public sealed class ContextExportService
                     continue;
                 }
 
-                AppendJsonPayload(sb, content);
+                sb.AppendLine($"[{content.GetType().Name} payload omitted]");
             }
 
             sb.AppendLine();
@@ -615,5 +561,4 @@ public sealed class ContextExportService
         sb.AppendLine(fence);
     }
 
-    private sealed record CurrentContextHistory(string Description, List<ChatMessage> Messages);
 }
