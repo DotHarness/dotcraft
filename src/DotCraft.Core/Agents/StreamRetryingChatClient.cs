@@ -181,11 +181,12 @@ internal sealed class StreamRetryingChatClient(
             switch (content)
             {
                 case UsageContent:
+                case FunctionResultContent:
+                case ErrorContent:
                     continue;
                 case TextContent { Text.Length: > 0 }:
                 case TextReasoningContent { Text.Length: > 0 }:
                 case FunctionCallContent:
-                case FunctionResultContent:
                 case ToolCallArgumentsDeltaContent:
                     return true;
                 case TextContent:

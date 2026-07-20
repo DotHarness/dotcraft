@@ -2,9 +2,9 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.1.1 |
+| **Version** | 0.1.2 |
 | **Status** | Living |
-| **Date** | 2026-07-15 |
+| **Date** | 2026-07-20 |
 | **Parent Specs** | [Session Core](session-core.md), [AppServer Protocol](../protocols/appserver-protocol.md), [OpenAI Subscription Auth](openai-subscription-auth.md) |
 
 Purpose: define the per-protocol contract DotCraft must satisfy for the provider's prompt cache to hit, and the empirical hit-rate envelope each protocol is expected to deliver. This is a design document — it constrains what the runtime emits on the wire, not how it builds the request internally.
@@ -13,7 +13,7 @@ Purpose: define the per-protocol contract DotCraft must satisfy for the provider
 
 ## 1. Concepts
 
-Prompt cache exists because providers can skip prefill compute for tokens that match a previously seen prefix. DotCraft cares about two metrics:
+Prompt cache exists because providers can skip prefill compute for tokens that match a stored prefix. DotCraft cares about two metrics:
 
 - **Coverage** — `cached_input_tokens / input_tokens` per call.
 - **Stability** — whether the same nominal workload reliably produces the same coverage. Unstable cache turns "cheap turn" into a lottery.
@@ -63,7 +63,7 @@ The wire body emitted on every Responses request:
   "stream": true,
   "include": ["reasoning.encrypted_content"],
   "prompt_cache_key": "<thread_id>",
-  "reasoning": { /* optional */ },
+  "reasoning": { /* effort and summary fields are optional */ },
   "parallel_tool_calls": <optional bool>,
   "max_output_tokens": <optional int>
 }
@@ -71,8 +71,9 @@ The wire body emitted on every Responses request:
 
 Invariants the runtime must uphold:
 
-- **`prompt_cache_key` equals the active thread id** across every request issued on that thread, including maintenance forks and session-backed subagent turns scoped to the parent thread. Isolated legacy/function-style subagent runtimes that execute outside the parent thread may use a deterministic derived identity because they are separate provider conversations; they must not overwrite the parent thread's remembered cache breakpoints.
+- **`prompt_cache_key` equals the active thread id** across every request issued on that thread, including maintenance forks and session-backed subagent turns scoped to the parent thread. Isolated subagent runtimes outside the parent provider conversation may use a deterministic derived identity because they are separate provider conversations; they must not overwrite the parent thread's remembered cache breakpoints.
 - **`store=false`**. The backend MUST be treated as stateless; conversation state lives in DotCraft. Reasoning items round-trip through `include: ["reasoning.encrypted_content"]`.
+- **`reasoning` is always an object**. Effort and summary fields are present only when configured, but the object itself remains part of the stable request shape.
 - **Input is rebuilt deterministically each turn**. Reasoning items keep their original `encrypted_content` blob byte-for-byte. Re-encrypting or stripping them breaks prefix equality.
 - **Namespaced tools keep their provider-visible namespace shape**. Runtime tools with a namespace are serialized as Responses `namespace` tool definitions that wrap local child `function` definitions. The namespace is the canonical `ToolName.namespace`; a child definition's name is only `ToolName.name`, never a flattened `namespace__name`. Namespaced `function_call` input items retain that same namespace and local name. Matching `function_call_output` input items are correlated by `call_id` and must not include `namespace`; prompt-cache request-shape hashes must reflect only the legal provider-visible request shape so flat and namespaced tools cannot share the same tool-schema hash.
 - **Native tool search returns the same composite definitions used by direct projection**. A deferred result describes one namespace once and returns its children under their local names. Discovery and activation are keyed by the full canonical `ToolName`, so equal child names in different namespaces remain independent. The local search tool itself is the top-level canonical `tool_search` function.
@@ -82,13 +83,13 @@ Invariants the runtime must uphold:
 
 ### 2.3 `openai-responses` — ChatGPT OAuth path
 
-Same wire body as 2.2 except that the OAuth transport omits the top-level `max_output_tokens`
-field. That field is an API-key Responses parameter; on this backend path it is treated as a local
-DotCraft budget only, with compaction summary length still enforced after the provider returns. The
-upstream HTTP Responses baseline uses the body-level `prompt_cache_key` together with the
-hyphenated `session-id` / `thread-id` headers. DotCraft sends those baseline hints and a small set
-of additional sticky-routing hints for the
-`chatgpt.com/backend-api/codex/responses` path:
+The [OpenAI Subscription Auth specification](openai-subscription-auth.md#responses-request-contract)
+owns the complete OAuth Responses wire contract. The request body follows §2.2 and omits the
+top-level `max_output_tokens` field. That value remains a local DotCraft budget, with compaction
+summary length enforced after the provider returns.
+
+Prompt-cache routing uses these fields on
+`chatgpt.com/backend-api/codex/responses`:
 
 | Hint | Location | Value |
 |------|----------|-------|
@@ -96,10 +97,10 @@ of additional sticky-routing hints for the
 | `chatgpt-account-id` | HTTP header | ChatGPT account id, resolved from the signed-in token/account store before runtime config |
 | `originator` | HTTP header | Fixed identifier the backend recognises (see [openai-subscription-auth](openai-subscription-auth.md)) |
 | `x-codex-installation-id` | HTTP header **and** request body `client_metadata` | Per-machine UUID v4, stable across processes and accounts |
-| `session-id` | HTTP header | Active thread id; upstream HTTP baseline |
-| `thread-id` | HTTP header | Active thread id; upstream HTTP baseline |
-| `session_id` | HTTP header | Active thread id; DotCraft compatibility header for gateways/clients that key on snake_case |
-| `conversation_id` | HTTP header | Active thread id; DotCraft compatibility header for gateways/clients that key on snake_case |
+| `session-id` | HTTP header | Active thread id |
+| `thread-id` | HTTP header | Active thread id |
+| `session_id` | Request body `client_metadata` | Active thread id |
+| `thread_id` | Request body `client_metadata` | Active thread id |
 | `x-codex-window-id` | HTTP header and request body `client_metadata` | Stable internal context-window id for the active thread |
 | `x-codex-turn-metadata` | HTTP header and request body `client_metadata` | Canonical provider metadata JSON envelope for Responses routing |
 | `x-codex-turn-state` | HTTP header | Provider-returned state replayed only within the same logical turn |
@@ -111,14 +112,15 @@ chatgpt-account-id  ⊂  x-codex-installation-id  ⊂  session/thread headers
     account                install / machine             thread / conversation
 ```
 
-Finer-grained signals let the load balancer park thread-scoped traffic on the cache shard that already holds the prefix. Coarser signals fall back when the LB cannot honour the finer one. All hints are sent on every request because each costs nothing.
+Finer-grained signals let the load balancer park thread-scoped traffic on the cache shard that
+already holds the prefix. Coarser signals remain available when the load balancer cannot honour a
+finer signal. Optional runtime values are omitted when their scope is unavailable.
 
 If the request carries caller-provided `client_metadata`, DotCraft preserves unrelated keys but
 treats provider-reserved keys as authoritative runtime state. A mismatched reserved value is
 overwritten to match the active OAuth/runtime context; otherwise the header/body pair could route
 the same request under split identities. The body-level `x-codex-turn-metadata` string is the
-canonical metadata envelope. Flat `client_metadata` keys and HTTP headers are compatibility
-projections of the same values.
+canonical metadata envelope. Flat `client_metadata` keys expose the same routing identities.
 
 Provider metadata and same-turn `x-codex-turn-state` are routing/runtime metadata. They are
 not model-visible prompt content and MUST NOT be considered part of DotCraft's prompt-prefix
@@ -133,14 +135,9 @@ Backend-specific thresholds — the public OpenAI thresholds do **not** apply he
 - 14 000 – 30 000 tokens: partial coverage, growing with prefix size and routing stickiness.
 - Above 30 000 tokens with all routing hints set: up to ~75% coverage on a single call; aggregate session coverage tops out around 50% because the LB occasionally re-routes mid-thread.
 
-**Empirical envelope on the `prompt-cache-baseline` heavy workload (six LLM calls, 7–30k input each):**
-
-| Configuration | Aggregate hit rate |
-|---------------|-------------------|
-| `prompt_cache_key` only | ~14% |
-| `prompt_cache_key` + `session_id` | ~38% (legacy isolated experiment) |
-| `prompt_cache_key` + `session-id` + `thread-id` + installation id | ~49% (pre-compat baseline) |
-| Current default: pre-compat baseline + `session_id` + `conversation_id` + provider metadata/state parity | Pending live-token A/B |
+**Empirical envelope:** the `prompt-cache-baseline` heavy workload targets an aggregate hit rate of
+at least 35%. Backend routing may vary between runs, so the measurement contract in §5 evaluates
+aggregate coverage and per-call evidence together.
 
 ### 2.4 `anthropic`
 
@@ -201,7 +198,7 @@ These rules apply to every protocol unless the protocol contract above explicitl
 3. **Tool order is part of the prefix.** Tools must be enumerated in a stable order across requests on the same thread. Re-sorting tools (alphabetically, by category, etc.) between turns is a cache-break.
 4. **Reasoning items round-trip verbatim.** When a model emits a reasoning item with `encrypted_content`, the next request must pass that exact blob back. Decrypting and re-encrypting, dropping the field, or normalising whitespace inside it all break the cache.
 5. **Reasoning configuration is part of the cache key.** Provider-visible thinking / reasoning settings must be treated as a cache-key dimension for diagnostics. A change in reasoning effort, reasoning output visibility, or provider thinking mode can explain a cache read drop even when messages and tools are unchanged.
-6. **Thread id is the cache identity.** Wherever a provider exposes a cache key (`prompt_cache_key`, `session-id`, `thread-id`, `session_id`, `conversation_id`, etc.), it MUST be populated from the active thread id for the main conversation, maintenance forks, session-backed subagent turns scoped to the parent, and reactive recovery paths. Different threads MUST NOT share a cache key. Isolated legacy/function-style subagent runtimes that are not part of the parent thread's provider conversation may use their own thread id or a deterministic derived key such as `parent:sub:<task>`; that derived identity is a separate provider conversation and MUST NOT replace the parent thread's provider-visible cache identity or internal breakpoint state.
+6. **Thread id is the cache identity.** Provider-visible cache keys and routing identities (`prompt_cache_key`, `session-id`, `thread-id`, and body-level `client_metadata.session_id` / `client_metadata.thread_id`) MUST use the active thread id for the main conversation, maintenance forks, session-backed subagent turns scoped to the parent, and reactive recovery paths. Different threads MUST NOT share a cache key. Isolated subagent runtimes outside the parent provider conversation may use their own thread id or a deterministic derived key such as `parent:sub:<task>`; that identity is a separate provider conversation and MUST NOT replace the parent thread's provider-visible cache identity or internal breakpoint state.
 7. **One canonical body per request.** Wire bodies must not contain duplicate top-level JSON keys. Downstream policies and inspectors are allowed to assume the body parses cleanly into a flat object.
 8. **Internal cache state may be narrower than provider identity.** DotCraft may track remembered prompt-cache breakpoints under an internal state key such as `thread:<id>:maintenance:<kind>:<run>` so maintenance forks and the main conversation do not overwrite each other's breakpoint history. One-shot maintenance forks may use that state key in `readOnlyPrefix` mode without committing new remembered breakpoints. This internal state key MUST NOT replace provider-visible cache identity; Responses `prompt_cache_key`, OAuth session/thread headers, and trace session ownership still use the active thread id.
 9. **Tool identity shape is cache state.** Canonical namespace/name pairs, flat aliases, namespace grouping, and child ordering come from the immutable Turn snapshot. Provider adapters must not re-sanitize names, derive namespaces from runtime source names, or enumerate collision groups in discovery order. History replay uses persisted canonical tuples for namespace-capable providers and persisted flat aliases for flat-only providers.
@@ -246,7 +243,7 @@ Each protocol's envelope is a calibration baseline, not a contract. Provider rou
 
 ## 6. Future work
 
-- Verify each routing header in isolation against the ChatGPT backend to learn which of installation id / `session-id` / `thread-id` / `session_id` / `conversation_id` / `x-codex-window-id` / `x-codex-turn-state` carries the most weight. Today they are all sent when available because each costs little and turn-state is replayed only when the provider establishes it.
+- Verify each routing signal in isolation against the ChatGPT backend to measure the effect of installation id, `session-id`, `thread-id`, `x-codex-window-id`, `x-codex-turn-state`, and body-level `client_metadata` identities.
 - Run opt-in A/B profiles for the alternate User-Agent profile and explicit `OpenAI-Beta` values, measuring cache coverage, 401/403 rate, first-token latency, and rate-limit headers before considering any default change.
 - Surface per-call cache coverage in the desktop dashboard so drift from the expected pattern is visible without trace-database inspection.
 - Audit cache-marker placement on the anthropic protocol: the current marks cover system prompt and snapshot prefix; additional marks on large stable always-loaded tool definitions or the first user instruction block may raise the envelope.

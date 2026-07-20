@@ -106,14 +106,14 @@ internal static class ResponsesToolSearchMapper
         if (includeReasoning)
         {
             // Always emit include=reasoning.encrypted_content so reasoning items round-trip across
-            // turns when store=false. ReasoningOptions only ships when the caller configured it.
+            // turns when store=false. ChatGPT also expects a reasoning object even when no effort
+            // or summary preference is configured.
             // IncludedProperties serializes to $.include on its own; do not also Patch.Set the
             // same path or the wire body ends up with duplicate keys that downstream JSON parsers
             // (e.g. JsonNode.Parse in the ChatGPT metadata pipeline policy) reject.
             responseOptions.IncludedProperties.Add(IncludedResponseProperty.ReasoningEncryptedContent);
             reasoningOptions = CreateReasoningOptions(options?.Reasoning);
-            if (reasoningOptions is { } reasoning)
-                responseOptions.ReasoningOptions = reasoning;
+            responseOptions.ReasoningOptions = reasoningOptions;
         }
 
 #pragma warning disable SCME0001
@@ -364,7 +364,29 @@ internal static class ResponsesToolSearchMapper
         if (input.Count == 0 && !string.IsNullOrWhiteSpace(options?.Instructions))
             input.Add(CreateMessageItem(ChatRole.User, "Continue."));
 
+        SanitizeResponseItemIds(input);
         return input;
+    }
+
+    private static void SanitizeResponseItemIds(JsonArray input)
+    {
+        foreach (var item in input.OfType<JsonObject>())
+        {
+            if (!item.TryGetPropertyValue("id", out var idNode))
+                continue;
+
+            var id = idNode is JsonValue value && value.TryGetValue<string>(out var text)
+                ? text
+                : null;
+            if (id is null || !IsPrefixedResponseItemId(id))
+                item.Remove("id");
+        }
+    }
+
+    private static bool IsPrefixedResponseItemId(string id)
+    {
+        var separator = id.IndexOf('_');
+        return separator > 0 && separator < id.Length - 1;
     }
 
     private static string? BuildInstructions(IEnumerable<ChatMessage> messages, ChatOptions? options)
@@ -501,28 +523,22 @@ internal static class ResponsesToolSearchMapper
             ["tools"] = tools
         };
 
-    private static ResponseReasoningOptions? CreateReasoningOptions(ReasoningOptions? reasoning)
+    private static ResponseReasoningOptions CreateReasoningOptions(ReasoningOptions? reasoning)
     {
-        if (reasoning == null)
-            return null;
-
         var options = new ResponseReasoningOptions();
-        var hasValue = false;
-        if (reasoning.Effort is { } effort)
+        if (reasoning?.Effort is { } effort)
         {
             options.ReasoningEffortLevel = new ResponseReasoningEffortLevel(NormalizeReasoningEffortToken(effort));
-            hasValue = true;
         }
 
-        if (reasoning.Output is { } output && output != ReasoningOutput.None)
+        if (reasoning?.Output is { } output && output != ReasoningOutput.None)
         {
             options.ReasoningSummaryVerbosity = output == ReasoningOutput.Full
                 ? ResponseReasoningSummaryVerbosity.Detailed
                 : ResponseReasoningSummaryVerbosity.Auto;
-            hasValue = true;
         }
 
-        return hasValue ? options : null;
+        return options;
     }
 
     private static PromptCacheRequestShapeSnapshot CreatePromptCacheRequestShapeSnapshot(
@@ -734,7 +750,7 @@ internal static class ResponsesToolSearchMapper
         var item = new JsonObject
         {
             ["type"] = HostedImageGenerationContent.ToolName + "_call",
-            ["id"] = string.IsNullOrWhiteSpace(content.Id) ? Guid.NewGuid().ToString("N") : content.Id,
+            ["id"] = string.IsNullOrWhiteSpace(content.Id) ? $"ig_{Guid.NewGuid():N}" : content.Id,
             ["status"] = string.IsNullOrWhiteSpace(content.Status) ? "completed" : content.Status
         };
 

@@ -147,6 +147,31 @@ public sealed class StreamRetryingChatClientTests
     }
 
     [Fact]
+    public async Task GetStreamingResponseAsync_RetriesAfterToolResultAndProviderErrorContent()
+    {
+        var failedUpdates = new ChatResponseUpdate(ChatRole.Tool, [
+            new FunctionResultContent("call-1", "tool result"),
+            new ErrorContent("server_error") { ErrorCode = "server_error" }
+        ]);
+        var inner = new SequenceChatClient(
+            _ => StreamThenThrow(
+                [failedUpdates],
+                new HttpRequestException("server error", null, HttpStatusCode.InternalServerError)),
+            _ => Stream([new ChatResponseUpdate(ChatRole.Assistant, "ok")]));
+        var client = new StreamRetryingChatClient(inner, Options(maxRetries: 1));
+
+        var updates = await CollectAsync(client.GetStreamingResponseAsync([
+            new ChatMessage(ChatRole.Tool, [new FunctionResultContent("call-1", "tool result")])
+        ]));
+
+        Assert.Equal(2, inner.Calls);
+        Assert.DoesNotContain(updates.SelectMany(update => update.Contents),
+            content => content is FunctionResultContent or ErrorContent);
+        Assert.Equal("ok", string.Concat(updates.SelectMany(update => update.Contents)
+            .OfType<TextContent>().Select(text => text.Text)));
+    }
+
+    [Fact]
     public async Task GetStreamingResponseAsync_PreservesNonVisibleUpdateOrderBeforeFirstVisibleUpdate()
     {
         var metadata = new ChatResponseUpdate { Role = ChatRole.Assistant };

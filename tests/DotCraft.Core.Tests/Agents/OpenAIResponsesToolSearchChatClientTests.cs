@@ -514,6 +514,47 @@ public sealed class OpenAIResponsesToolSearchChatClientTests
     }
 
     [Fact]
+    public void CreateResponseOptions_RemovesUnprefixedHostedImageItemId()
+    {
+        using var document = JsonDocument.Parse(CreateRequestJson(
+            "gpt-test",
+            [
+                new ChatMessage(ChatRole.Assistant, [
+                    new HostedImageGenerationContent
+                    {
+                        Id = "legacyid",
+                        Status = "completed",
+                        ImageBytes = CreateImageBytes("image/png")
+                    }
+                ])
+            ],
+            new ChatOptions()));
+
+        var item = Assert.Single(document.RootElement.GetProperty("input").EnumerateArray());
+        Assert.False(item.TryGetProperty("id", out _));
+    }
+
+    [Fact]
+    public void CreateResponseOptions_GeneratesPrefixedHostedImageItemId()
+    {
+        using var document = JsonDocument.Parse(CreateRequestJson(
+            "gpt-test",
+            [
+                new ChatMessage(ChatRole.Assistant, [
+                    new HostedImageGenerationContent
+                    {
+                        Status = "completed",
+                        ImageBytes = CreateImageBytes("image/png")
+                    }
+                ])
+            ],
+            new ChatOptions()));
+
+        var item = Assert.Single(document.RootElement.GetProperty("input").EnumerateArray());
+        Assert.StartsWith("ig_", item.GetProperty("id").GetString(), StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void CreateResponseOptions_LeavesFlatFunctionToolDefinitionUnchanged()
     {
         var tool = new TestFunction("imagegen", "Generate an image.");
@@ -601,6 +642,19 @@ public sealed class OpenAIResponsesToolSearchChatClientTests
         {
             TracingChatClient.CurrentSessionKey = previous;
         }
+    }
+
+    [Fact]
+    public void CreateResponseOptions_EmitsEmptyReasoningObjectWhenUnconfigured()
+    {
+        using var document = JsonDocument.Parse(CreateRequestJson(
+            "gpt-test",
+            [new ChatMessage(ChatRole.User, "think")],
+            new ChatOptions()));
+
+        var reasoning = document.RootElement.GetProperty("reasoning");
+        Assert.Equal(JsonValueKind.Object, reasoning.ValueKind);
+        Assert.Empty(reasoning.EnumerateObject());
     }
 
     [Fact]

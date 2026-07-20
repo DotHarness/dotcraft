@@ -71,7 +71,7 @@ public sealed class OpenAIAuthManagerTests : IDisposable
                 AccessToken = "old-access",
                 RefreshToken = "refresh-1"
             },
-            LastRefresh = DateTimeOffset.UtcNow.AddHours(-9)
+            LastRefresh = DateTimeOffset.UtcNow.AddDays(-9)
         });
 
         var handler = new RecordingHandler(_ => new HttpResponseMessage(HttpStatusCode.OK)
@@ -112,6 +112,128 @@ public sealed class OpenAIAuthManagerTests : IDisposable
         Assert.Equal(OpenAIAuthFailureReason.RefreshTokenExpired, ex.Reason);
     }
 
+    [Theory]
+    [InlineData("{ \"error\": { \"code\": \"refresh_token_reused\" } }", OpenAIAuthFailureReason.RefreshTokenReused)]
+    [InlineData("{ \"code\": \"refresh_token_invalidated\" }", OpenAIAuthFailureReason.RefreshTokenRevoked)]
+    public async Task RefreshKnownBadRequestMapsToPermanentReason(
+        string responseBody,
+        OpenAIAuthFailureReason expectedReason)
+    {
+        var store = new OpenAITokenStore(_tempDir);
+        store.Save(new AuthDotJson
+        {
+            Tokens = new OpenAITokenSet { IdToken = "id", AccessToken = "a", RefreshToken = "r" },
+            LastRefresh = DateTimeOffset.UtcNow
+        });
+
+        var handler = new RecordingHandler(_ => new HttpResponseMessage(HttpStatusCode.BadRequest)
+        {
+            Content = new StringContent(responseBody, System.Text.Encoding.UTF8, "application/json")
+        });
+        var manager = new OpenAIAuthManager(store, new HttpClient(handler));
+
+        var exception = await Assert.ThrowsAsync<OpenAIAuthException>(() =>
+            manager.GetAccessTokenAsync(forceRefresh: true, CancellationToken.None));
+
+        Assert.Equal(expectedReason, exception.Reason);
+        Assert.Single(handler.Requests);
+    }
+
+    [Fact]
+    public async Task ForcedRefreshUsesRotatedCredentialsFromDiskWithoutAuthorityRequest()
+    {
+        var store = new OpenAITokenStore(_tempDir);
+        store.Save(new AuthDotJson
+        {
+            Tokens = new OpenAITokenSet
+            {
+                IdToken = "id-1",
+                AccessToken = "access-1",
+                RefreshToken = "refresh-1",
+                AccountId = "acct-1"
+            },
+            LastRefresh = DateTimeOffset.UtcNow
+        });
+        var handler = new RecordingHandler();
+        var manager = new OpenAIAuthManager(store, new HttpClient(handler));
+
+        store.Save(new AuthDotJson
+        {
+            Tokens = new OpenAITokenSet
+            {
+                IdToken = "id-2",
+                AccessToken = "access-2",
+                RefreshToken = "refresh-2",
+                AccountId = "acct-1"
+            },
+            LastRefresh = DateTimeOffset.UtcNow
+        });
+
+        var token = await manager.GetAccessTokenAsync(forceRefresh: true, CancellationToken.None);
+
+        Assert.Equal("access-2", token);
+        Assert.Empty(handler.Requests);
+    }
+
+    [Fact]
+    public async Task PermanentRefreshFailureAdoptsCredentialsRotatedDuringAuthorityRequest()
+    {
+        var store = new OpenAITokenStore(_tempDir);
+        store.Save(CreateAuth("access-1", "refresh-1"));
+        var handler = new RecordingHandler(_ =>
+        {
+            store.Save(CreateAuth("access-2", "refresh-2"));
+            return new HttpResponseMessage(HttpStatusCode.BadRequest)
+            {
+                Content = new StringContent(
+                    "{ \"error\": { \"code\": \"refresh_token_reused\" } }",
+                    System.Text.Encoding.UTF8,
+                    "application/json")
+            };
+        });
+        var manager = new OpenAIAuthManager(store, new HttpClient(handler));
+
+        var token = await manager.GetAccessTokenAsync(forceRefresh: true, CancellationToken.None);
+
+        Assert.Equal("access-2", token);
+        Assert.Single(handler.Requests);
+
+        static AuthDotJson CreateAuth(string accessToken, string refreshToken) => new()
+        {
+            Tokens = new OpenAITokenSet
+            {
+                IdToken = "id",
+                AccessToken = accessToken,
+                RefreshToken = refreshToken,
+                AccountId = "acct-1"
+            },
+            LastRefresh = DateTimeOffset.UtcNow
+        };
+    }
+
+    [Fact]
+    public async Task AccessTokenWithoutExpirationDoesNotRefreshAtEightHours()
+    {
+        var store = new OpenAITokenStore(_tempDir);
+        store.Save(new AuthDotJson
+        {
+            Tokens = new OpenAITokenSet
+            {
+                IdToken = "id",
+                AccessToken = "opaque-access-token",
+                RefreshToken = "refresh-1"
+            },
+            LastRefresh = DateTimeOffset.UtcNow.AddHours(-9)
+        });
+        var handler = new RecordingHandler();
+        var manager = new OpenAIAuthManager(store, new HttpClient(handler));
+
+        var token = await manager.GetAccessTokenAsync(forceRefresh: false, CancellationToken.None);
+
+        Assert.Equal("opaque-access-token", token);
+        Assert.Empty(handler.Requests);
+    }
+
     [Fact]
     public async Task LogoutDeletesAuthJsonEvenWhenRevokeFails()
     {
@@ -133,7 +255,7 @@ public sealed class OpenAIAuthManagerTests : IDisposable
     public async Task RefreshPersistsRotatedRefreshTokenAndUpdatesLastRefresh()
     {
         var store = new OpenAITokenStore(_tempDir);
-        var initialRefresh = DateTimeOffset.UtcNow.AddHours(-9);
+        var initialRefresh = DateTimeOffset.UtcNow.AddDays(-9);
         store.Save(new AuthDotJson
         {
             Tokens = new OpenAITokenSet { IdToken = "id", AccessToken = "old", RefreshToken = "refresh-1" },

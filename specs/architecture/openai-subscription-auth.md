@@ -29,10 +29,36 @@ OAuth 2.0 Authorization Code Flow with PKCE (S256).
 | `originator` query / header | `codex_cli_rs` |
 | Redirect URI | `http://localhost:1455/auth/callback`, fallback `1457` |
 | Refresh grant | `grant_type=refresh_token` (JSON body) |
-| Refresh cadence | every 8 hours; on-demand on HTTP 401 |
+| Refresh cadence | before expiry, after 8 days without refresh, or on demand after HTTP 401 |
 
 The authorize URL additionally carries `id_token_add_organizations=true` and
 `codex_cli_simplified_flow=true`, both required by the upstream backend.
+
+## Credential refresh lifecycle
+
+Token access is serialized within each process. A normal token read refreshes credentials when any
+of these conditions is true:
+
+- `last_refresh` is absent;
+- `last_refresh` is at least 8 days old;
+- the access-token JWT expires within 5 minutes.
+
+A forced token read first reloads `auth.json` while holding the process auth lock. If the stored
+token bundle changed and belongs to the same ChatGPT account, DotCraft adopts it without contacting
+the token endpoint. A missing token bundle, a missing refresh token, or a known account-id mismatch
+terminates recovery with `OpenAIAuthFailureReason.NotSignedIn`.
+
+When authority refresh is required, DotCraft sends the configured refresh grant and persists the
+result atomically. An omitted `id_token`, `access_token`, or `refresh_token` retains the
+corresponding current value. A returned `id_token` may update the stored account id. A successful
+refresh sets `last_refresh` to the current time.
+
+Refresh failures use the error code from `error.code`, a string `error`, or top-level `code`.
+`refresh_token_expired`, `refresh_token_reused`, and `refresh_token_invalidated` are permanent
+failures for every HTTP status. An unclassified HTTP 401 is also permanent. Before surfacing a
+permanent failure, DotCraft reloads `auth.json` once more so a same-account token rotation completed
+during the authority request can satisfy the operation. Other HTTP failures and transport failures
+produce `OpenAIAuthFailureReason.Network` and leave the current token bundle available.
 
 ## On-disk credential layout
 
@@ -80,16 +106,14 @@ preserves the installation id.
 
 | Auth method | Base URL | Path | Auth header | Extra headers |
 |---|---|---|---|---|
-| API key (existing) | `https://api.openai.com/v1` | `/responses`, `/chat/completions`, `/models` | `Authorization: Bearer <api-key>` | — |
-| ChatGPT OAuth | `https://chatgpt.com/backend-api/codex` | `/responses` | `Authorization: Bearer <access_token>` | `chatgpt-account-id: <account_id>`, `originator: codex_cli_rs`, `x-codex-installation-id: <uuid>`, `session-id: <thread_id>`, `thread-id: <thread_id>`, `session_id: <thread_id>`, `conversation_id: <thread_id>`, `x-codex-window-id: <window_id>`, `x-codex-turn-metadata: <json>`, `x-codex-turn-state: <state>` when established in the same logical turn |
+| API key | `https://api.openai.com/v1` | `/responses`, `/chat/completions`, `/models` | `Authorization: Bearer <api-key>` | — |
+| ChatGPT OAuth | `https://chatgpt.com/backend-api/codex` | `/responses` | `Authorization: Bearer <access_token>` | `chatgpt-account-id: <account_id>`, `originator: codex_cli_rs`, `x-codex-installation-id: <uuid>`, `session-id: <thread_id>`, `thread-id: <thread_id>`, `x-codex-window-id: <window_id>`, `x-codex-turn-metadata: <json>`, `x-codex-turn-state: <state>` when established in the same logical turn |
 | ChatGPT OAuth | `https://chatgpt.com/backend-api/codex` | `/models` | `Authorization: Bearer <access_token>` | `chatgpt-account-id: <account_id>`, `originator: codex_cli_rs` |
 
-For HTTP Responses, the upstream HTTP client baseline is the hyphenated
-`session-id` / `thread-id` pair plus the body-level `prompt_cache_key`. DotCraft populates those
-headers per request from the active `TracingChatClient.CurrentSessionKey` (the DotCraft thread id).
-It also emits `session_id` and `conversation_id` as compatibility sticky-routing hints for gateways
-and clients that key on the snake_case spellings; these are DotCraft compatibility headers, not
-treated as required baseline headers.
+For HTTP Responses, DotCraft sends the `session-id` / `thread-id` pair plus the body-level
+`prompt_cache_key`. All three values come from the active `TracingChatClient.CurrentSessionKey`
+(the DotCraft thread id). `session_id` and `thread_id` are body-level `client_metadata` keys, not
+direct HTTP headers.
 
 Each thread/session header gives the ChatGPT backend's prompt-cache shards a finer-grained anchor
 than `chatgpt-account-id` alone so that requests on the same thread tend to land on the cache node
@@ -102,8 +126,8 @@ value is stale and differs from the signed-in token account, DotCraft logs a war
 the token/account-store value for request routing.
 
 On the ChatGPT OAuth path, outgoing `/responses` request bodies are additionally augmented with
-a `client_metadata` map carrying provider-compatible request metadata. `x-codex-turn-metadata` is the
-canonical metadata envelope for the Responses API; flat fields remain as compatibility projections:
+a `client_metadata` map carrying request metadata. `x-codex-turn-metadata` is the canonical metadata
+envelope for the Responses API, and flat fields expose the routing identities used by the provider:
 
 ```json
 {
@@ -123,21 +147,54 @@ URIs whose path ends in `/responses`. Other caller-provided `client_metadata` en
 preserved, but provider-reserved keys are authoritative runtime state. Caller-provided values for
 `x-codex-installation-id`, `session_id`, `thread_id`, `turn_id`, `x-codex-window-id`, and
 `x-codex-turn-metadata` are overwritten when they differ from DotCraft's active runtime context so
-the header and body do not split sticky-routing identity.
+the header and body use one sticky-routing identity.
+
+## Responses request contract
+
+Every OAuth `/responses` request uses `store=false`, includes
+`reasoning.encrypted_content`, and contains a `reasoning` object. The object may be empty or carry
+the configured effort and summary fields. `prompt_cache_key` is the active DotCraft thread id.
+Installation, window, Turn, parent-thread, subagent, and same-Turn provider state are projected only
+when the corresponding runtime values exist.
+
+Outbound response item IDs are included only when they contain a non-empty prefix and suffix
+separated by `_`. DotCraft omits invalid item IDs without changing `call_id`. Locally generated
+image-generation items use `ig_<uuid>`.
 
 The OAuth `/responses` transport omits the top-level `max_output_tokens` request field even when a
 caller sets `ChatOptions.MaxOutputTokens`, because this backend path rejects that parameter. The
 value remains available to DotCraft runtime code as a local budget, and compaction summaries still
-enforce `SummaryMaxOutputTokens` after the response is received. API-key Responses clients are not
-affected by this OAuth-only compatibility rule.
+enforce `SummaryMaxOutputTokens` after the response is received. API-key Responses requests may
+send the field.
 
 `x-codex-turn-state` is request-scoped provider state. DotCraft never fabricates it. The OAuth
 pipeline captures the first non-empty `x-codex-turn-state` response header observed during a
 logical Session Core turn and replays that value on subsequent `/responses` requests in the same
-turn, including the one-shot 401 retry path. The stored value is discarded when the logical turn's
-runtime scope ends and is not persisted to thread history, trace events, or the next user turn.
+turn, including every bounded 401 recovery attempt. The stored value is discarded when the logical
+turn's runtime scope ends and is not persisted to thread history, trace events, or the next user
+turn.
 
-### Experimental ChatGPT OAuth compatibility switches
+## HTTP 401 recovery
+
+OAuth SDK `/responses` requests use a bounded recovery sequence:
+
+1. Send the request with the current access token.
+2. On HTTP 401, reload `auth.json`. If a same-account token bundle changed, reapply all request
+   headers and retry with that access token.
+3. If no token changed, or the disk-token retry also returns HTTP 401, perform a forced token read.
+   This reloads disk state again and contacts the token endpoint only when no newer token is
+   available. Reapply all request headers and retry once.
+4. Return the final provider response. No request can enter another 401 recovery cycle.
+
+The sequence sends at most three provider requests. Each attempt captures response
+`x-codex-turn-state`, and subsequent attempts replay the state within the same logical Turn.
+Authentication recovery failures preserve the most recent provider HTTP 401 for the caller.
+
+The direct `/models`, usage, and image-edit clients send at most two provider requests. After the
+initial HTTP 401 they perform one forced token read, which adopts a same-account disk rotation or
+refreshes at the authority, then retry once.
+
+### Optional ChatGPT OAuth request profiles
 
 DotCraft defaults to its normal `DotCraft/<version>` User-Agent and does not send `OpenAI-Beta`.
 Two opt-in environment variables allow controlled A/B testing against the ChatGPT OAuth path:
@@ -192,10 +249,10 @@ should not edit them by hand.
 
 | Component | File | Responsibility |
 |---|---|---|
-| Auth manager | `src/DotCraft.Core/Auth/OpenAI/OpenAIAuthManager.cs` | Login, refresh, logout, status; thread-safe; raises `LoggedIn` / `LoggedOut` events |
+| Auth manager | `src/DotCraft.Core/Auth/OpenAI/OpenAIAuthManager.cs` | Login, same-account disk reload, authority refresh, token rotation, logout, and status; thread-safe; raises `LoggedIn` / `LoggedOut` events |
 | Token store | `src/DotCraft.Core/Auth/OpenAI/OpenAITokenStore.cs` | Reads/writes `auth.json` with locked-down permissions |
 | Installation id provider | `src/DotCraft.Core/Auth/OpenAI/OpenAIInstallationIdProvider.cs` | Resolves and persists the `~/.craft/installation_id` UUID v4 |
-| Auth pipeline policy | `src/DotCraft.Core/Agents/OpenAIOAuthPipelinePolicy.cs` | Sets OAuth auth headers, resolves account id from auth service before config, adds Responses sticky headers and provider turn/window headers, captures and replays same-turn `x-codex-turn-state`, applies opt-in experimental headers, refreshes on HTTP 401 |
+| Auth pipeline policy | `src/DotCraft.Core/Agents/OpenAIOAuthPipelinePolicy.cs` | Sets OAuth auth headers, resolves account id from auth service before config, adds Responses sticky headers and provider turn/window headers, captures and replays same-turn `x-codex-turn-state`, applies opt-in request profiles, and runs bounded HTTP 401 recovery |
 | Responses metadata policy | `src/DotCraft.Core/Agents/OpenAIResponsesClientMetadataPipelinePolicy.cs` | Adds/normalizes provider-compatible `client_metadata` into outgoing `/responses` request bodies on OAuth clients |
 | Provider resolver | `src/DotCraft.Core/Configuration/ModelProviderRuntime.cs` | Forces `chatgpt.com/backend-api/codex` endpoint + `openai-responses` protocol in OAuth mode |
 | Binding helper | `src/DotCraft.Core/Auth/OpenAI/OpenAIAuthBindingPersistence.cs` | Shared CLI/AppServer helper that writes `AuthMethod` / `ChatGptAccountId` into the global config |
@@ -293,8 +350,8 @@ Composer footer:
 
 | Source | Symptom | DotCraft behaviour |
 |---|---|---|
-| 401 from `chatgpt.com/backend-api/codex/responses` | Token expired | Pipeline policy calls `ForceRefresh`, retries once |
-| `refresh_token_expired` / `_reused` / `_invalidated` from token endpoint | Refresh token permanently invalid | `OpenAIAuthException` with explicit reason; user must re-login |
+| 401 from `chatgpt.com/backend-api/codex/responses` | Access token rejected | Pipeline policy tries a same-account disk rotation, then authority refresh, with at most two retries |
+| `refresh_token_expired` / `_reused` / `_invalidated` from token endpoint | Refresh token permanently invalid and no newer same-account credentials exist | `OpenAIAuthException` with explicit reason; user must re-login |
 | Network error during refresh | Transient | Caller sees `OpenAIAuthFailureReason.Network`; old access token is left in place |
 | User cancels browser flow | Loopback returns no `code` | `OpenAIAuthException(Unknown, "Sign-in was not completed")` |
 

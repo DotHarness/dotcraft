@@ -181,6 +181,9 @@ public sealed class OpenAIAuthManager : IOpenAIAuthService
                 throw new OpenAIAuthException(OpenAIAuthFailureReason.NotSignedIn,
                     "Not signed in to ChatGPT. Run `dotcraft auth openai login` or use the Desktop settings.");
 
+            if (forceRefresh && ReloadCachedCredentialsIfChangedLocked())
+                return _cached!.Tokens!.AccessToken;
+
             var shouldRefresh = forceRefresh || NeedsRefresh(_cached);
             if (shouldRefresh)
             {
@@ -193,6 +196,50 @@ public sealed class OpenAIAuthManager : IOpenAIAuthService
         {
             _gate.Release();
         }
+    }
+
+    internal async Task<string?> TryReloadAccessTokenAsync(CancellationToken cancellationToken)
+    {
+        await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            return ReloadCachedCredentialsIfChangedLocked()
+                ? _cached!.Tokens!.AccessToken
+                : null;
+        }
+        finally
+        {
+            _gate.Release();
+        }
+    }
+
+    private bool ReloadCachedCredentialsIfChangedLocked()
+    {
+        var stored = _store.Load();
+        if (stored?.Tokens is null)
+        {
+            throw new OpenAIAuthException(
+                OpenAIAuthFailureReason.NotSignedIn,
+                "ChatGPT credentials are no longer available. Please sign in again.");
+        }
+
+        var cachedAccountId = GetAccountId(_cached);
+        var storedAccountId = GetAccountId(stored);
+        if (!string.IsNullOrEmpty(cachedAccountId) &&
+            !string.IsNullOrEmpty(storedAccountId) &&
+            !string.Equals(cachedAccountId, storedAccountId, StringComparison.Ordinal))
+        {
+            throw new OpenAIAuthException(
+                OpenAIAuthFailureReason.NotSignedIn,
+                "The signed-in ChatGPT account changed. Please retry the request.");
+        }
+
+        var changed = _cached?.Tokens is null ||
+            !string.Equals(_cached.Tokens.AccessToken, stored.Tokens.AccessToken, StringComparison.Ordinal) ||
+            !string.Equals(_cached.Tokens.RefreshToken, stored.Tokens.RefreshToken, StringComparison.Ordinal) ||
+            !string.Equals(_cached.Tokens.IdToken, stored.Tokens.IdToken, StringComparison.Ordinal);
+        _cached = stored;
+        return changed;
     }
 
     private async Task RefreshLockedAsync(CancellationToken cancellationToken)
@@ -267,9 +314,13 @@ public sealed class OpenAIAuthManager : IOpenAIAuthService
             }
 
             var body = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
-            if (response.StatusCode == HttpStatusCode.Unauthorized)
+            var reason = ClassifyRefreshFailure(body);
+            if (response.StatusCode == HttpStatusCode.Unauthorized ||
+                reason != OpenAIAuthFailureReason.Unknown)
             {
-                var reason = ClassifyRefreshFailure(body);
+                if (ReloadCachedCredentialsIfChangedLocked())
+                    return;
+
                 _logger.LogWarning("OpenAI refresh failed permanently: {Status} {Body}", response.StatusCode, body);
                 throw new OpenAIAuthException(reason,
                     "ChatGPT credentials are no longer valid. Please sign in again.");
@@ -325,6 +376,12 @@ public sealed class OpenAIAuthManager : IOpenAIAuthService
                     code = errorElement.GetString();
                 }
             }
+            if (code is null &&
+                doc.RootElement.TryGetProperty("code", out var topLevelCode) &&
+                topLevelCode.ValueKind == JsonValueKind.String)
+            {
+                code = topLevelCode.GetString();
+            }
             return code?.ToLowerInvariant() switch
             {
                 "refresh_token_expired" => OpenAIAuthFailureReason.RefreshTokenExpired,
@@ -336,6 +393,24 @@ public sealed class OpenAIAuthManager : IOpenAIAuthService
         catch (JsonException)
         {
             return OpenAIAuthFailureReason.Unknown;
+        }
+    }
+
+    private static string? GetAccountId(AuthDotJson? auth)
+    {
+        if (auth?.Tokens is null)
+            return null;
+
+        if (!string.IsNullOrWhiteSpace(auth.Tokens.AccountId))
+            return auth.Tokens.AccountId;
+
+        try
+        {
+            return JwtClaimsReader.Parse(auth.Tokens.IdToken).AccountId;
+        }
+        catch (Exception ex) when (ex is FormatException or JsonException)
+        {
+            return null;
         }
     }
 

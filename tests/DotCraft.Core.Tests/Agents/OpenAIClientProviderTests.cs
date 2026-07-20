@@ -248,8 +248,8 @@ public sealed class OpenAIClientProviderTests : IDisposable
             Assert.Equal(installationId, request.Headers[OpenAIAuthConstants.InstallationIdHeader]);
             Assert.Equal(sessionKey, request.Headers[OpenAIAuthConstants.SessionIdHeader]);
             Assert.Equal(sessionKey, request.Headers[OpenAIAuthConstants.ThreadIdHeader]);
-            Assert.Equal(sessionKey, request.Headers[OpenAIAuthConstants.SessionIdCompatHeader]);
-            Assert.Equal(sessionKey, request.Headers[OpenAIAuthConstants.ConversationIdHeader]);
+            Assert.False(request.Headers.ContainsKey(OpenAIAuthConstants.SessionIdCompatHeader));
+            Assert.False(request.Headers.ContainsKey(OpenAIAuthConstants.ConversationIdHeader));
             Assert.Equal(windowId, request.Headers[OpenAIAuthConstants.WindowIdHeader]);
             Assert.True(request.Headers.ContainsKey(OpenAIAuthConstants.TurnMetadataHeader));
             Assert.False(request.Headers.ContainsKey(OpenAIAuthConstants.TurnStateHeader));
@@ -326,8 +326,8 @@ public sealed class OpenAIClientProviderTests : IDisposable
                 Assert.Equal(installationId, request.Headers[OpenAIAuthConstants.InstallationIdHeader]);
                 Assert.Equal(sessionKey, request.Headers[OpenAIAuthConstants.SessionIdHeader]);
                 Assert.Equal(sessionKey, request.Headers[OpenAIAuthConstants.ThreadIdHeader]);
-                Assert.Equal(sessionKey, request.Headers[OpenAIAuthConstants.SessionIdCompatHeader]);
-                Assert.Equal(sessionKey, request.Headers[OpenAIAuthConstants.ConversationIdHeader]);
+                Assert.False(request.Headers.ContainsKey(OpenAIAuthConstants.SessionIdCompatHeader));
+                Assert.False(request.Headers.ContainsKey(OpenAIAuthConstants.ConversationIdHeader));
                 Assert.Equal(windowId, request.Headers[OpenAIAuthConstants.WindowIdHeader]);
                 Assert.Equal("state-existing", request.Headers[OpenAIAuthConstants.TurnStateHeader]);
             }
@@ -337,6 +337,44 @@ public sealed class OpenAIClientProviderTests : IDisposable
             TracingChatClient.CurrentSessionKey = null;
             TracingChatClient.ClearActiveSession(sessionKey);
         }
+    }
+
+    [Fact]
+    public async Task ChatGptOAuthResponsesReloadsRotatedDiskTokenAfterUnauthorized()
+    {
+        const string installationId = "11111111-1111-4111-8111-111111111111";
+        var authDir = Path.Combine(Path.GetTempPath(), "dotcraft-oauth-auth-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(authDir);
+        _tempRoots.Add(authDir);
+        var store = new OpenAITokenStore(authDir);
+        store.Save(CreateAuth("access-token", "refresh-1"));
+        var auth = new OpenAIAuthManager(store, new HttpClient(new UnexpectedHttpHandler()));
+
+        await using var server = RecordingHttpServer.Start(
+            JsonResponse("{}", HttpStatusCode.Unauthorized),
+            JsonResponse(SuccessfulResponseJson));
+        var provider = CreateOAuthProvider(installationId, auth);
+        store.Save(CreateAuth("rotated-token", "refresh-2"));
+
+        await provider.GetOpenAIClient(OAuthRuntime($"{server.Endpoint}/backend-api/codex"))
+            .GetResponsesClient()
+            .CreateResponseAsync(CreateNonStreamingResponseOptions("gpt-test", "retry"));
+
+        Assert.Equal(2, server.Requests.Count);
+        Assert.Equal("Bearer access-token", server.Requests[0].Headers["Authorization"]);
+        Assert.Equal("Bearer rotated-token", server.Requests[1].Headers["Authorization"]);
+
+        static AuthDotJson CreateAuth(string accessToken, string refreshToken) => new()
+        {
+            Tokens = new OpenAITokenSet
+            {
+                IdToken = "id-token",
+                AccessToken = accessToken,
+                RefreshToken = refreshToken,
+                AccountId = "acct-token"
+            },
+            LastRefresh = DateTimeOffset.UtcNow
+        };
     }
 
     [Fact]
@@ -474,7 +512,7 @@ public sealed class OpenAIClientProviderTests : IDisposable
 
     private OpenAIClientProvider CreateOAuthProvider(
         string installationId,
-        FakeOpenAIAuthService auth)
+        IOpenAIAuthService auth)
     {
         var tempDir = Path.Combine(Path.GetTempPath(), "dotcraft-oauth-provider-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(tempDir);
@@ -729,6 +767,14 @@ public sealed class OpenAIClientProviderTests : IDisposable
         }
 
         public string? GetAccountId() => accountId;
+    }
+
+    private sealed class UnexpectedHttpHandler : HttpMessageHandler
+    {
+        protected override Task<HttpResponseMessage> SendAsync(
+            HttpRequestMessage request,
+            CancellationToken cancellationToken) =>
+            throw new InvalidOperationException("The OAuth authority should not be contacted.");
     }
 
     private sealed class RecordingHttpServer : IAsyncDisposable
