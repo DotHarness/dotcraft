@@ -860,6 +860,18 @@ must not mutate the source thread.
 - At most one thread maintenance operation may be active on a Thread at any time.
 - A Thread may have Turns from different channels (cross-channel resume). Each Turn records which channel originated it.
 
+### 5.1.1 Thread-Owned Runtime Artifacts
+
+Session Core distinguishes canonical thread history from thread-owned runtime artifacts. Artifacts are not a second source of conversation authority, but their ownership and cleanup are part of the thread lifecycle:
+
+- Background terminal metadata and output logs are owned by the originating Thread. A terminal session is identified by its persisted terminal metadata and remains addressable after process completion until its owner is permanently deleted or retention removes the artifact.
+- Oversized tool-result spill files are owned by the originating Thread. The model-visible message contains a bounded preview and a workspace-relative reference; the complete spill file remains independent of the preview and is not reconstructed from the rollout.
+- Archive is not deletion. `Active → Archived` stops or invalidates active terminal processes for the archived thread, but preserves completed/lost terminal metadata, output logs, and tool-result spill files so historical inspection, context export, and tool-result reads continue to work.
+- Permanent deletion is deletion of the complete owned subtree. It stops or invalidates active terminal processes, removes terminal metadata/output and tool-result spill artifacts for the thread and all descendant SubAgent threads, then removes the thread's durable state. Cleanup is idempotent and may be retried independently when an individual filesystem operation fails.
+- Parent lifecycle operations apply to the complete SubAgent subtree. A child artifact must not survive permanent deletion of its owning parent solely because the child is not visible in the default thread list.
+- Compaction may replace or clear model-visible tool-result content, but must not delete a spill file while a current rollout or retained historical view may reference it. Spill cleanup is a retention/orphan-maintenance concern, not a compaction side effect.
+- Graceful process shutdown stops active terminal processes, flushes terminal metadata/rollout writers, and releases handles. It does not delete archived history or persistent terminal/tool-result artifacts merely because the process exits. A later startup pass marks persisted `running` terminals as `lost` before retention processing.
+
 ### 5.2 Turn Lifecycle
 
 ```
@@ -1422,6 +1434,31 @@ Per-thread plans are stored in SQLite `thread_plans`. Plans follow the thread li
 
 Workspace-managed local images referenced by persisted `localImage` input parts are indexed in SQLite `thread_attachments`. The image file is an independent asset: rollout stores its reference but cannot reconstruct its bytes. The file remains available for history rendering while at least one active or archived thread references it. Permanent thread deletion removes that thread's references and best-effort deletes now-unreferenced managed files. Unsent draft images that never enter thread history are cleaned as unreferenced attachments after the configured TTL.
 
+#### 9.3.0 Thread Artifact Storage and Maintenance
+
+The current artifact layout is workspace-relative and thread-owned:
+
+```text
+.craft/
+├── terminals/{canonicalThreadDirectory}/
+│   ├── {terminalSessionId}.json   # terminal metadata
+│   └── {terminalSessionId}.log    # complete terminal output
+└── tool-results/{canonicalThreadDirectory}/
+    └── {stableToolCallArtifact}.txt
+```
+
+The canonical thread directory name is the same for all thread-owned artifact stores: a safe current Thread ID may remain readable; an ID containing invalid filename characters uses the current `thread-{sha256(threadId)}` form. Runtime code must resolve the final path under the workspace's `.craft/terminals` or `.craft/tool-results` root and must not read or migrate older replacement-based sanitized directories.
+
+Artifact rules:
+
+- A terminal output log is complete persistent output. UI/API previews may impose independent character, line, or width bounds and must not be interpreted as permission to truncate or delete the log.
+- A tool-result spill filename is stable for the originating tool call (prefer the persisted tool call ID; otherwise use a deterministic current-protocol artifact key). Reprocessing or replaying the same call must be idempotent: an existing matching file is a valid result and must not create a second random spill file or overwrite a different call's file.
+- A spill file is referenced from a bounded model-visible preview. The full file is retained through archive and compaction unless permanent deletion or a retention janitor can prove that the owning thread and all current rollout references are gone.
+- The terminal `OutputRetentionDays` setting governs completed and lost terminal artifact retention. Running terminals are never removed by TTL cleanup. Tool-result retention may share the workspace retention policy, but cleanup must be conservative when reference status cannot be established.
+- Startup and long-lived-process maintenance may run a throttled janitor. It must use a workspace/process lock or equivalent coordination, avoid deleting active owners, continue after individual failures, and report a retryable maintenance result. A marker may suppress duplicate scans but must not suppress a later retry after an incomplete scan.
+- Thread deletion is the authoritative synchronous cleanup path; janitor cleanup is best effort and must not be required to make a deleted Thread unavailable. If database deletion succeeds while filesystem cleanup fails, the failure is observable and the orphan remains eligible for a later janitor retry.
+- Normal process shutdown is not an artifact retention boundary. Shutdown cleanup handles active processes and open streams; it does not remove persistent terminal logs or tool-result spill files.
+
 `model_history_messages_appended` atomically stores one Turn-local ordered batch of versioned `ModelHistoryMessage` values. Each message carries `schemaVersion`, `turnId`, role, optional message identity/author/timestamp, and ordered contents. DotCraft's `kind` field is the content discriminator; rollout does not depend on the Framework polymorphic `$type` envelope or on the JSON property shape of any Framework CLR content type. Framework values exist only at the codec boundary: encoding reads their semantic fields into DotCraft-owned DTOs, and decoding explicitly constructs new runtime values from those DTOs.
 
 Every model-history content value has the shape `{ kind, payload }`. The version 1 payload union is owned by DotCraft and contains only the following durable fields, plus content-level `additionalProperties`:
@@ -1633,6 +1670,12 @@ Cross-channel resume works for channels that share the same identity shape:
 - **CLI ↔ ACP** share `UserId = "local"` and `ChannelContext = null`, so they naturally share one thread pool.
 - **QQ**, **WeCom**, and **Feishu** remain isolated by social conversation `ChannelContext`, while multiple users in the same group/chat share that conversation's thread.
 
+### 11.3 Artifact Maintenance Status
+
+The current implementation exposes explicit terminal artifact operations for stop-only thread cleanup, permanent thread-directory deletion, and retention cleanup. Construction of the background terminal service performs a best-effort startup retention pass using `Tools.Shell.Background.OutputRetentionDays`; normal service disposal remains stop-only. The current host registration does not yet provide a separate long-lived periodic janitor for tool-result spill directories, so tool-result permanent deletion and any future TTL/orphan scan must remain explicit maintenance work rather than an assumed background service behavior.
+
+The lifecycle contract in Section 5.1.1 and storage contract in Section 9.3.0 are normative even where a host has not yet wired every maintenance trigger. Implementations must not introduce legacy sanitized-directory discovery or delete tool-result spill files during compaction to compensate for a missing janitor.
+
 ## 12. Failure Model
 
 ### 12.1 Failure Classes
@@ -1724,6 +1767,11 @@ All failures surface as:
 - `ResumeThread` on Archived thread fails
 - `SubmitInput` on Paused thread fails
 - `SubmitInput` on Archived thread fails
+- Archiving a thread stops active terminals but preserves completed/lost terminal artifacts and tool-result spill files
+- Permanent deletion removes terminal and tool-result artifacts for the complete SubAgent subtree
+- Permanent deletion remains successful and retryable when one artifact deletion fails, with an observable cleanup warning
+- Graceful shutdown stops active terminals without deleting persistent artifacts
+- Startup retention marks stale running terminals as lost before removing only eligible completed/lost artifacts
 
 #### Turn Lifecycle
 
@@ -1758,6 +1806,10 @@ All failures surface as:
 - Unknown canonical source schemas fail explicitly
 - Thread index updated on create, resume, pause, archive
 - Thread and attachment projections rebuilt from files when missing without changing SQLite business authority
+- Tool-result spill writes are stable and idempotent for the same tool call identity
+- Canonical artifact directory naming does not collide for distinct invalid Thread IDs and remains contained under the artifact root
+- Terminal retention does not remove running sessions and is safe to repeat after a partial failure
+- Thread artifact deletion is idempotent for terminals and tool-result spill directories
 
 ### 13.3 Adapter Conformance Tests (Per-Channel)
 

@@ -1,3 +1,4 @@
+using System.Security.Cryptography;
 using System.Text;
 using DotCraft.Agents;
 
@@ -54,7 +55,8 @@ public static class ToolResultProcessor
         int maxResultChars,
         string workspacePath,
         string? sessionId,
-        int previewLines)
+        int previewLines,
+        string? callId = null)
     {
         var text = ToStringForLimit(rawResult);
         if (IsEffectivelyEmpty(text))
@@ -66,7 +68,7 @@ public static class ToolResultProcessor
         if (text.Length <= maxResultChars)
             return rawResult;
 
-        var relativePath = SpillToDisk(text, workspacePath, sessionId, toolName);
+        var relativePath = SpillToDisk(text, workspacePath, sessionId, toolName, callId);
         return BuildPreview(text, previewLines, relativePath, maxResultChars);
     }
 
@@ -77,15 +79,38 @@ public static class ToolResultProcessor
         string text,
         string workspacePath,
         string? sessionId,
-        string toolName)
+        string toolName,
+        string? callId = null)
     {
-        var spillDir = GetSpillDirectory(workspacePath, sessionId);
+        var spillDir = ThreadArtifactPathResolver.GetToolResultsThreadDirectory(workspacePath, sessionId);
         Directory.CreateDirectory(spillDir);
-        var fileName = $"{toolName}_{Guid.NewGuid():N}.txt";
-        var absolutePath = Path.Combine(spillDir, fileName);
-        File.WriteAllText(absolutePath, text, Encoding.UTF8);
-        return GetSpillRelativePath(sessionId, fileName);
+        var fileName = $"{SafeFileSegment(toolName)}_{GetStableCallSegment(callId, text)}.txt";
+        var absolutePath = ThreadArtifactPathResolver.GetToolResultPath(workspacePath, sessionId, fileName);
+
+        try
+        {
+            using var stream = new FileStream(
+                absolutePath,
+                FileMode.CreateNew,
+                FileAccess.Write,
+                FileShare.Read,
+                bufferSize: 64 * 1024,
+                options: FileOptions.SequentialScan);
+            using var writer = new StreamWriter(stream, new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
+            writer.Write(text);
+        }
+        catch (IOException) when (File.Exists(absolutePath))
+        {
+            // A retry or concurrent invocation for the same call-id has already persisted this result.
+            // Never overwrite it: the deterministic path is the idempotency key.
+        }
+
+        return ThreadArtifactPathResolver.GetToolResultRelativePath(sessionId, fileName);
     }
+
+    /// <summary>Deletes the current-protocol tool-result directory for a thread.</summary>
+    public static ArtifactCleanupResult CleanupThreadArtifacts(string workspacePath, string? sessionId)
+        => ThreadArtifactPathResolver.DeleteToolResultsThreadDirectory(workspacePath, sessionId);
 
     /// <summary>
     /// Builds a head + tail preview with a reference to the spill file path.
@@ -171,23 +196,25 @@ public static class ToolResultProcessor
         tailText = tailText[^tailLen..];
     }
 
-    private static string GetSpillDirectory(string workspacePath, string? sessionId)
+    private static string SafeFileSegment(string value)
     {
-        var safeSession = SanitizeSessionSegment(sessionId);
-        return Path.Combine(workspacePath, ".craft", "tool-results", safeSession);
+        if (string.IsNullOrWhiteSpace(value))
+            return "tool";
+
+        var trimmed = value.Trim();
+        if (trimmed is not "." and not ".." && trimmed.IndexOfAny(Path.GetInvalidFileNameChars()) < 0)
+            return trimmed;
+
+        return "tool-" + Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(trimmed))).ToLowerInvariant();
     }
 
-    private static string GetSpillRelativePath(string? sessionId, string fileName)
+    private static string GetStableCallSegment(string? callId, string text)
     {
-        var safeSession = SanitizeSessionSegment(sessionId);
-        return Path.Combine(".craft", "tool-results", safeSession, fileName).Replace('\\', '/');
-    }
+        var value = string.IsNullOrWhiteSpace(callId) ? null : callId.Trim();
+        if (value is not null && value is not "." and not ".." && value.IndexOfAny(Path.GetInvalidFileNameChars()) < 0)
+            return value;
 
-    private static string SanitizeSessionSegment(string? sessionId)
-    {
-        var s = string.IsNullOrWhiteSpace(sessionId) ? "_unsession" : sessionId!;
-        foreach (var c in Path.GetInvalidFileNameChars())
-            s = s.Replace(c, '_');
-        return s;
+        var hashInput = value is null ? text : value;
+        return "call-" + Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(hashInput))).ToLowerInvariant();
     }
 }

@@ -2,9 +2,9 @@ using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Text;
 using System.Text.Json;
-using System.Text.RegularExpressions;
 using System.Threading.Channels;
 using DotCraft.Configuration;
+using DotCraft.Tools;
 using Microsoft.Extensions.Logging;
 
 namespace DotCraft.Tools.BackgroundTerminals;
@@ -121,7 +121,22 @@ public interface IBackgroundTerminalService
 
     Task<BackgroundTerminalSnapshot> StopAsync(string sessionId, CancellationToken ct = default);
 
+    /// <summary>
+    /// Stops active terminals for a thread without deleting persisted artifacts.
+    /// </summary>
     Task<IReadOnlyList<BackgroundTerminalSnapshot>> CleanThreadAsync(string threadId, CancellationToken ct = default);
+
+    /// <summary>
+    /// Permanently removes all terminal artifacts for a thread after stopping active terminals.
+    /// This operation is idempotent and best effort.
+    /// </summary>
+    Task<IReadOnlyList<string>> DeleteThreadArtifactsAsync(string threadId, CancellationToken ct = default);
+
+    /// <summary>
+    /// Removes completed terminal artifacts older than the configured retention period.
+    /// Running terminals are never removed.
+    /// </summary>
+    Task<int> CleanupExpiredArtifactsAsync(CancellationToken ct = default);
 }
 
 /// <summary>
@@ -140,8 +155,10 @@ public sealed class BackgroundTerminalService : IBackgroundTerminalService, IAsy
     private readonly string _terminalRoot;
     private readonly AppConfig.ShellBackgroundConfig _config;
     private readonly ILogger<BackgroundTerminalService>? _logger;
+    private readonly Timer _retentionTimer;
     private readonly ConcurrentDictionary<string, ActiveTerminal> _active = new(StringComparer.Ordinal);
     private readonly ConcurrentDictionary<string, BackgroundTerminalMetadata> _metadata = new(StringComparer.Ordinal);
+    private int _cleanupRunning;
 
     public BackgroundTerminalService(
         string craftPath,
@@ -153,6 +170,12 @@ public sealed class BackgroundTerminalService : IBackgroundTerminalService, IAsy
         _logger = logger;
         Directory.CreateDirectory(_terminalRoot);
         LoadMetadataAndMarkLost();
+        CleanupExpiredArtifactsOnStartup();
+        _retentionTimer = new Timer(
+            static state => ((BackgroundTerminalService)state!).RunRetentionCleanup(),
+            this,
+            TimeSpan.FromHours(24),
+            TimeSpan.FromHours(24));
     }
 
     public event Action<BackgroundTerminalEvent>? TerminalEvent;
@@ -169,8 +192,7 @@ public sealed class BackgroundTerminalService : IBackgroundTerminalService, IAsy
         EnforceSessionLimits(request.ThreadId);
 
         var sessionId = "term_" + Guid.NewGuid().ToString("N")[..12];
-        var threadId = SanitizePathSegment(request.ThreadId);
-        var sessionDir = Path.Combine(_terminalRoot, threadId);
+        var sessionDir = GetThreadDirectory(request.ThreadId);
         Directory.CreateDirectory(sessionDir);
         var outputPath = Path.Combine(sessionDir, sessionId + OutputExtension);
         var metadataPath = Path.Combine(sessionDir, sessionId + MetadataExtension);
@@ -178,6 +200,13 @@ public sealed class BackgroundTerminalService : IBackgroundTerminalService, IAsy
         var psi = CreateStartInfo(request);
         var process = Process.Start(psi)
             ?? throw new InvalidOperationException("Failed to start process.");
+
+        // Materialize the output artifact even when the command produces no bytes. This keeps
+        // terminal ownership and archive/delete lifecycle observable for empty-output commands.
+        Directory.CreateDirectory(sessionDir);
+        using (File.Create(outputPath))
+        {
+        }
 
         var terminal = new ActiveTerminal(
             sessionId,
@@ -318,8 +347,49 @@ public sealed class BackgroundTerminalService : IBackgroundTerminalService, IAsy
         return snapshots;
     }
 
+    public async Task<IReadOnlyList<string>> DeleteThreadArtifactsAsync(
+        string threadId,
+        CancellationToken ct = default)
+    {
+        await CleanThreadAsync(threadId, ct).ConfigureAwait(false);
+
+        var failures = new List<string>();
+        var threadDirectory = GetThreadDirectory(threadId);
+        try
+        {
+            if (Directory.Exists(threadDirectory))
+                Directory.Delete(threadDirectory, recursive: true);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            failures.Add(threadDirectory);
+            _logger?.LogWarning(ex, "Failed to delete background terminal artifacts for thread {ThreadId}.", threadId);
+        }
+
+        foreach (var metadata in _metadata.Values.Where(m => string.Equals(m.ThreadId, threadId, StringComparison.Ordinal)).ToArray())
+            _metadata.TryRemove(metadata.SessionId, out _);
+
+        return failures;
+    }
+
+    public Task<int> CleanupExpiredArtifactsAsync(CancellationToken ct = default)
+    {
+        if (Interlocked.Exchange(ref _cleanupRunning, 1) != 0)
+            return Task.FromResult(0);
+
+        try
+        {
+            return Task.FromResult(CleanupExpiredArtifactsCore(ct));
+        }
+        finally
+        {
+            Volatile.Write(ref _cleanupRunning, 0);
+        }
+    }
+
     public async ValueTask DisposeAsync()
     {
+        _retentionTimer.Dispose();
         foreach (var active in _active.Values.ToArray())
         {
             try
@@ -478,6 +548,98 @@ public sealed class BackgroundTerminalService : IBackgroundTerminalService, IAsy
         return metadata.ToSnapshot(limited, original, truncated);
     }
 
+    private void CleanupExpiredArtifactsOnStartup()
+    {
+        RunRetentionCleanup("startup");
+    }
+
+    private void RunRetentionCleanup(string reason = "scheduled")
+    {
+        if (Interlocked.Exchange(ref _cleanupRunning, 1) != 0)
+            return;
+
+        try
+        {
+            CleanupExpiredArtifactsCore(CancellationToken.None);
+        }
+        catch (Exception ex)
+        {
+            _logger?.LogWarning(ex, "Failed to clean expired background terminal artifacts during {Reason} maintenance.", reason);
+        }
+        finally
+        {
+            Volatile.Write(ref _cleanupRunning, 0);
+        }
+    }
+
+    private int CleanupExpiredArtifactsCore(CancellationToken ct)
+    {
+        var retentionDays = Math.Max(0, _config.OutputRetentionDays);
+        var cutoff = DateTimeOffset.UtcNow.AddDays(-retentionDays);
+        var removed = 0;
+
+        foreach (var metadata in _metadata.Values.ToArray())
+        {
+            ct.ThrowIfCancellationRequested();
+            if (_active.ContainsKey(metadata.SessionId)
+                || string.Equals(metadata.Status, BackgroundTerminalStatus.Running, StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            var completedAt = metadata.CompletedAt ?? metadata.StartedAt;
+            if (completedAt > cutoff)
+                continue;
+
+            var directory = GetThreadDirectory(metadata.ThreadId);
+            var deletedAny = false;
+            var metadataPath = Path.Combine(directory, metadata.SessionId + MetadataExtension);
+            var outputPath = Path.Combine(directory, metadata.SessionId + OutputExtension);
+            deletedAny |= TryDeleteArtifact(metadataPath, metadata.SessionId);
+            deletedAny |= TryDeleteArtifact(outputPath, metadata.SessionId);
+            var artifactsRemain = File.Exists(metadataPath) || File.Exists(outputPath);
+            if (deletedAny && !artifactsRemain)
+                removed++;
+
+            if (!artifactsRemain)
+            {
+                _metadata.TryRemove(metadata.SessionId, out _);
+                TryDeleteEmptyDirectory(directory);
+            }
+        }
+
+        return removed;
+    }
+
+    private bool TryDeleteArtifact(string path, string sessionId)
+    {
+        try
+        {
+            if (!File.Exists(path))
+                return false;
+            File.Delete(path);
+            return true;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            _logger?.LogWarning(ex, "Failed to delete background terminal artifact {Path} for session {SessionId}.", path, sessionId);
+            return false;
+        }
+    }
+
+    private void TryDeleteEmptyDirectory(string path)
+    {
+        try
+        {
+            if (Directory.Exists(path) && !Directory.EnumerateFileSystemEntries(path).Any())
+                Directory.Delete(path);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            _logger?.LogWarning(ex, "Failed to remove empty background terminal directory {Path}.", path);
+        }
+    }
+
     private void LoadMetadataAndMarkLost()
     {
         if (!Directory.Exists(_terminalRoot))
@@ -569,11 +731,23 @@ public sealed class BackgroundTerminalService : IBackgroundTerminalService, IAsy
         return ($"... (truncated, {output.Length - maxOutputChars} earlier chars){Environment.NewLine}{truncated}", output.Length, true);
     }
 
-    private static string SanitizePathSegment(string value)
+    internal string GetThreadDirectory(string threadId)
     {
-        var normalized = string.IsNullOrWhiteSpace(value) ? "workspace" : value.Trim();
-        return Regex.Replace(normalized, @"[^A-Za-z0-9_.-]", "_");
+        var segment = string.IsNullOrWhiteSpace(threadId)
+            ? "workspace"
+            : ThreadArtifactPathResolver.GetCanonicalThreadSegment(threadId);
+        var path = Path.GetFullPath(Path.Combine(_terminalRoot, segment));
+        var root = Path.GetFullPath(_terminalRoot).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)
+                   + Path.DirectorySeparatorChar;
+        if (!path.StartsWith(root, StringComparison.OrdinalIgnoreCase))
+            throw new InvalidOperationException("Background terminal path escaped its artifact root.");
+        return path;
     }
+
+    internal static string GetCanonicalThreadDirectoryName(string value) =>
+        string.IsNullOrWhiteSpace(value)
+            ? "workspace"
+            : ThreadArtifactPathResolver.GetCanonicalThreadSegment(value);
 
     private sealed class ActiveTerminal
     {

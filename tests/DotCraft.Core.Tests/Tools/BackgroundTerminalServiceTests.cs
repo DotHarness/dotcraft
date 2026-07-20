@@ -243,6 +243,67 @@ public sealed class BackgroundTerminalServiceTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task CleanThreadAsync_StopsActiveTerminalButPreservesArtifacts()
+    {
+        var started = await Service.StartAsync(new BackgroundTerminalStartRequest
+        {
+            ThreadId = "thread_archive",
+            Command = SleepCommand(),
+            WorkingDirectory = _tempDir,
+            RunInBackground = true,
+            YieldTimeMs = 100,
+            MaxOutputChars = 1000
+        });
+
+        await WaitForFileAsync(Path.ChangeExtension(started.OutputPath, ".json"));
+        await Service.CleanThreadAsync("thread_archive");
+
+        Assert.True(File.Exists(Path.ChangeExtension(started.OutputPath, ".json")));
+    }
+
+    [Fact]
+    public async Task DeleteThreadArtifactsAsync_StopsAndRemovesCurrentThreadDirectory()
+    {
+        var started = await Service.StartAsync(new BackgroundTerminalStartRequest
+        {
+            ThreadId = "thread:with-invalid-path",
+            Command = EchoCommand("delete-me"),
+            WorkingDirectory = _tempDir,
+            MaxOutputChars = 1000
+        });
+
+        var failures = await Service.DeleteThreadArtifactsAsync("thread:with-invalid-path");
+
+        Assert.Empty(failures);
+        Assert.False(File.Exists(started.OutputPath));
+        Assert.Empty(await Service.ListAsync("thread:with-invalid-path"));
+        Assert.Equal(
+            "thread-" + Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes("thread:with-invalid-path"))).ToLowerInvariant(),
+            BackgroundTerminalService.GetCanonicalThreadDirectoryName("thread:with-invalid-path"));
+    }
+
+    [Fact]
+    public async Task CleanupExpiredArtifactsAsync_DoesNotRemoveActiveTerminal()
+    {
+        var started = await Service.StartAsync(new BackgroundTerminalStartRequest
+        {
+            ThreadId = "thread_retention",
+            Command = SleepCommand(),
+            WorkingDirectory = _tempDir,
+            RunInBackground = true,
+            YieldTimeMs = 100,
+            MaxOutputChars = 1000
+        });
+
+        await WaitForFileAsync(Path.ChangeExtension(started.OutputPath, ".json"));
+        var removed = await Service.CleanupExpiredArtifactsAsync();
+
+        Assert.Equal(0, removed);
+        Assert.True(File.Exists(Path.ChangeExtension(started.OutputPath, ".json")));
+        await Service.StopAsync(started.SessionId);
+    }
+
+    [Fact]
     public async Task Constructor_MarksPersistedRunningSessionsAsLost()
     {
         var started = await Service.StartAsync(new BackgroundTerminalStartRequest
@@ -296,6 +357,15 @@ public sealed class BackgroundTerminalServiceTests : IAsyncLifetime
         OperatingSystem.IsWindows()
             ? $"Write-Output {QuotePowerShell(text)}; Start-Sleep -Seconds 5"
             : $"echo {QuoteBash(text)}; sleep 5";
+
+    private static async Task WaitForFileAsync(string path)
+    {
+        var deadline = DateTimeOffset.UtcNow.AddSeconds(5);
+        while (!File.Exists(path) && DateTimeOffset.UtcNow < deadline)
+            await Task.Delay(20);
+
+        Assert.True(File.Exists(path), $"Expected artifact file to be created: {path}");
+    }
 
     private static async Task<string> ReadUntilContainsAsync(
         string path,
