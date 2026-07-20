@@ -51,6 +51,11 @@ internal sealed class ContextWorkspaceReader
         var thread = replay.Build();
         if (thread == null)
             return null;
+        if (!string.Equals(thread.Id, threadId, StringComparison.Ordinal))
+        {
+            warnings.Add($"Rollout header thread id does not match requested thread '{threadId}'.");
+            return null;
+        }
 
         return new ContextLoadedThread(
             paths,
@@ -126,9 +131,16 @@ internal sealed class ContextWorkspaceReader
                 if (!MatchesStatusFilter(storedStatus, status))
                     continue;
 
+                var storedRolloutPath = ResolveStoredPath(paths.CraftPath, reader.GetString(1));
+                if (storedRolloutPath == null)
+                {
+                    warnings.Add($"Ignoring rollout path outside craft directory for thread '{reader.GetString(0)}'.");
+                    continue;
+                }
+
                 rows.Add(new ContextThreadIndexRow(
                     ThreadId: reader.GetString(0),
-                    RolloutPath: ResolveStoredPath(paths.CraftPath, reader.GetString(1)),
+                    RolloutPath: storedRolloutPath,
                     WorkspacePath: reader.GetString(2),
                     OriginChannel: reader.GetString(3),
                     ChannelContext: reader.IsDBNull(4) ? null : reader.GetString(4),
@@ -173,7 +185,9 @@ internal sealed class ContextWorkspaceReader
 
     public static string TakeTail(string value, int maxChars)
     {
-        if (maxChars <= 0 || string.IsNullOrEmpty(value) || value.Length <= maxChars)
+        if (maxChars <= 0 || string.IsNullOrEmpty(value))
+            return string.Empty;
+        if (value.Length <= maxChars)
             return value;
 
         return value[^maxChars..].TrimStart();
@@ -212,8 +226,6 @@ internal sealed class ContextWorkspaceReader
         return value[..maxChars].TrimEnd() + " ...";
     }
 
-    public static string MakeSafe(string key) => string.Concat(key.Split(Path.GetInvalidFileNameChars()));
-
     private string? TryResolveRolloutPath(
         ContextWorkspacePaths paths,
         string threadId,
@@ -234,7 +246,9 @@ internal sealed class ContextWorkspaceReader
                     if (File.Exists(resolved))
                         return resolved;
 
-                    warnings.Add($"Thread metadata points to a missing rollout file: {resolved}");
+                    warnings.Add(resolved == null
+                        ? "Thread metadata points to a rollout path outside the craft directory."
+                        : $"Thread metadata points to a missing rollout file: {resolved}");
                 }
             }
             catch (Exception ex) when (ex is SqliteException or InvalidOperationException)
@@ -243,13 +257,7 @@ internal sealed class ContextWorkspaceReader
             }
         }
 
-        var safe = MakeSafe(threadId);
-        var active = Path.Combine(paths.CraftPath, "threads", "active", $"{safe}.jsonl");
-        if (File.Exists(active))
-            return active;
-
-        var archived = Path.Combine(paths.CraftPath, "threads", "archived", $"{safe}.jsonl");
-        return File.Exists(archived) ? archived : null;
+        return null;
     }
 
     private static SqliteConnection OpenReadOnlyConnection(string dbPath)
@@ -271,12 +279,35 @@ internal sealed class ContextWorkspaceReader
         return connection;
     }
 
-    private static string ResolveStoredPath(string craftPath, string storedPath)
+    private static string? ResolveStoredPath(string craftPath, string storedPath)
     {
-        if (Path.IsPathRooted(storedPath))
-            return Path.GetFullPath(storedPath);
+        if (string.IsNullOrWhiteSpace(storedPath))
+            return null;
 
-        return Path.GetFullPath(Path.Combine(craftPath, storedPath));
+        string resolved;
+        try
+        {
+            resolved = Path.GetFullPath(
+                Path.IsPathRooted(storedPath)
+                    ? storedPath
+                    : Path.Combine(craftPath, storedPath));
+        }
+        catch (ArgumentException)
+        {
+            return null;
+        }
+        catch (NotSupportedException)
+        {
+            return null;
+        }
+
+        var root = Path.GetFullPath(craftPath)
+            .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)
+            + Path.DirectorySeparatorChar;
+        var comparison = OperatingSystem.IsWindows()
+            ? StringComparison.OrdinalIgnoreCase
+            : StringComparison.Ordinal;
+        return resolved.StartsWith(root, comparison) ? resolved : null;
     }
 
     private static bool MatchesStatusFilter(string storedStatus, ContextSearchStatusFilter filter)

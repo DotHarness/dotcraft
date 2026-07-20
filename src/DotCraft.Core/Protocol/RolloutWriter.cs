@@ -165,7 +165,7 @@ internal sealed class OrderedRolloutWriter : IRolloutWriter
             try
             {
                 foreach (var record in records)
-                    await _channel.Writer.WriteAsync(new AddRecordCommand(path, record), CancellationToken.None);
+                    await _channel.Writer.WriteAsync(new AddRecordCommand(path, record), ct);
             }
             finally
             {

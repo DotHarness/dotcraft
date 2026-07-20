@@ -74,6 +74,7 @@ public sealed class StateRuntime
     /// </summary>
     public void CheckpointWalTruncate()
     {
+        EnsureWritable();
         using var connection = OpenConnection();
         CheckpointWalTruncate(connection);
     }
@@ -87,6 +88,7 @@ public sealed class StateRuntime
         double minFreelistRatio = DefaultCompactFreelistRatio,
         int minFreelistPages = DefaultCompactMinFreelistPages)
     {
+        EnsureWritable();
         using var connection = OpenConnection();
         var pageCount = ReadPragmaLong(connection, "page_count");
         var freelistCount = ReadPragmaLong(connection, "freelist_count");
@@ -121,6 +123,7 @@ public sealed class StateRuntime
 
     public void SetInfo(string key, string value)
     {
+        EnsureWritable();
         using var connection = OpenConnection();
         using var command = connection.CreateCommand();
         command.CommandText = """
@@ -131,6 +134,12 @@ public sealed class StateRuntime
         command.Parameters.AddWithValue("$key", key);
         command.Parameters.AddWithValue("$value", value);
         command.ExecuteNonQuery();
+    }
+
+    private void EnsureWritable()
+    {
+        if (_readOnly)
+            throw new InvalidOperationException("This state runtime is read-only.");
     }
 
     private void EnsureInitialized()

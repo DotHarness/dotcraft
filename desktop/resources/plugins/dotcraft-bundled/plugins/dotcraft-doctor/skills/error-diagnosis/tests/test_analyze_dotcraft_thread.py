@@ -196,6 +196,100 @@ class ThreadAnalyzerTests(unittest.TestCase):
         self.assertNotIn("legacy_thread_session", result)
         self.assertNotIn("open_error", result)
 
+    def test_malformed_payload_types_are_recorded_and_following_records_are_processed(self) -> None:
+        result = self.analyze(
+            [
+                record("turn_completed", "turnCompleted", []),
+                record("item_appended", "itemAppended", {"item": "not-an-object"}),
+                record("turn_started", "turnStarted", {"turn": {"id": "turn_1"}}),
+            ]
+        )
+
+        self.assertEqual(["turn_1"], [turn["turn_id"] for turn in result["turns"]])
+        self.assertGreaterEqual(len(result["parse_errors"]), 2)
+        self.assertNotIn("AttributeError", json.dumps(result))
+
+    def test_invalid_utf8_is_reported_without_traceback(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            path = pathlib.Path(directory) / "thread_fixture.jsonl"
+            path.write_bytes(b'{"kind":"turn_started"}\n' + bytes([0xFF]))
+
+            result = ANALYZER.load_thread(path, 100)
+
+        self.assertIn("read_error", result)
+        self.assertIn("Unicode", result["read_error"])
+
+    def test_sensitive_values_are_redacted_from_diagnostic_result(self) -> None:
+        secret = "sk-test-secret-value"
+        result = self.analyze(
+            [
+                record("turn_started", "turnStarted", {"turn": {"id": "turn_1"}}),
+                record(
+                    "item_appended",
+                    "itemAppended",
+                    {
+                        "turnId": "turn_1",
+                        "item": item(
+                            "error",
+                            "turn_1",
+                            "Error",
+                            {
+                                "token": secret,
+                                "message": f"Authorization: Bearer {secret}",
+                            },
+                        ),
+                    },
+                ),
+            ]
+        )
+
+        serialized = json.dumps(result)
+        self.assertNotIn(secret, serialized)
+        self.assertIn("[REDACTED]", serialized)
+
+    def test_sqlite_missing_columns_degrades_to_safe_partial_result(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            path = pathlib.Path(directory) / "state.db"
+            connection = sqlite3.connect(path)
+            try:
+                connection.execute("create table trace_events (session_key text, type text)")
+                connection.execute(
+                    "insert into trace_events(session_key, type) values ('session_1', 'Error')"
+                )
+                connection.commit()
+            finally:
+                connection.close()
+
+            result = ANALYZER.load_db(path, "thread_1", ["session_1"], 100)
+
+        self.assertNotIn("open_error", result)
+        self.assertIn("trace_events", result)
+        self.assertEqual(1, result["trace_events"]["session_1"]["type_counts"][0]["count"])
+        self.assertEqual(1, len(result["trace_events"]["session_1"]["error_like_events"]))
+        self.assertEqual("", result["trace_events"]["session_1"]["error_like_events"][0]["content_preview"])
+
+    def test_invalid_event_json_is_not_echoed(self) -> None:
+        secret = "raw-secret-event-json"
+        with tempfile.TemporaryDirectory() as directory:
+            path = pathlib.Path(directory) / "state.db"
+            connection = sqlite3.connect(path)
+            try:
+                connection.execute(
+                    "create table trace_events (id integer, session_key text, type text, event_json text)"
+                )
+                connection.execute(
+                    "insert into trace_events values (1, 'session_1', 'Error', ?)",
+                    (secret,),
+                )
+                connection.commit()
+            finally:
+                connection.close()
+
+            result = ANALYZER.load_db(path, "thread_1", ["session_1"], 100)
+
+        self.assertNotIn(secret, json.dumps(result))
+        self.assertTrue(any(w["code"] == "invalid_event_json" for w in result["warnings"]))
+
 
 if __name__ == "__main__":
     unittest.main()

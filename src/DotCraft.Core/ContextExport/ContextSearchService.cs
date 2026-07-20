@@ -78,9 +78,7 @@ public sealed class ContextSearchService
                 row.ThreadId,
                 row.DisplayName,
                 row.FirstUserMessage,
-                row.OriginChannel,
-                row.ChannelContext,
-                row.MetadataJson);
+                 row.OriginChannel);
             var score = ScoreText(haystack, terms);
             if (row.ThreadId.Contains(string.Join(' ', terms), StringComparison.OrdinalIgnoreCase))
                 score += 80;
@@ -116,7 +114,6 @@ public sealed class ContextSearchService
             var expression = """
                 lower(coalesce(session_key, '') || ' ' ||
                       coalesce(last_finish_reason, '') || ' ' ||
-                      coalesce(final_system_prompt, '') || ' ' ||
                       coalesce(tool_names_json, ''))
                 """;
             AddTermParameters(command, terms);
@@ -147,7 +144,7 @@ public sealed class ContextSearchService
                 var preview = BuildTraceSessionPreview(
                     sessionKey,
                     reader.IsDBNull(2) ? null : reader.GetString(2),
-                    reader.IsDBNull(3) ? null : reader.GetString(3),
+                    null,
                     reader.IsDBNull(4) ? null : reader.GetString(4),
                     reader.GetInt32(5),
                     reader.GetInt32(6),
@@ -465,7 +462,7 @@ public sealed class ContextSearchService
 
         if (builder.Length > 0)
             builder.Append(' ');
-        builder.Append(name).Append('=').Append(value);
+        builder.Append(name).Append('=').Append(SafeContextProjection.RedactText(value));
     }
 
     private static IReadOnlyDictionary<string, string?> LoadTraceBindings(
@@ -504,9 +501,7 @@ public sealed class ContextSearchService
             builder.Append($" finish={finishReason}");
         builder.Append($" errors={errorCount} tools={toolCallCount} compactions={compactionCount}");
         if (!string.IsNullOrWhiteSpace(toolNamesJson))
-            builder.Append($" tools_json={toolNamesJson}");
-        if (!string.IsNullOrWhiteSpace(finalSystemPrompt))
-            builder.Append($" prompt={finalSystemPrompt}");
+            builder.Append($" tools={SafeContextProjection.RedactText(toolNamesJson)}");
         return builder.ToString();
     }
 
@@ -525,8 +520,6 @@ public sealed class ContextSearchService
             builder.Append($" model={modelId}");
         if (!string.IsNullOrWhiteSpace(finishReason))
             builder.Append($" finish={finishReason}");
-        builder.Append(' ');
-        builder.Append(eventJson);
         return builder.ToString();
     }
 

@@ -1380,10 +1380,12 @@ Thread data is stored under the workspace's `.craft/` directory:
 .craft/
 ├── threads/
 │   ├── active/
-│   │   ├── {threadId}.jsonl     # Canonical rollout history for active threads
+│   │   ├── {threadId}.jsonl     # Canonical rollout history when threadId is a safe file name
+│   │   ├── thread-{sha256(threadId)}.jsonl # Canonical name when threadId contains invalid file-name characters
 │   │   └── ...
 │   ├── archived/
-│   │   ├── {threadId}.jsonl     # Canonical rollout history for archived threads
+│   │   ├── {threadId}.jsonl     # Canonical rollout history when threadId is a safe file name
+│   │   ├── thread-{sha256(threadId)}.jsonl # Canonical name when threadId contains invalid file-name characters
 │   │   └── ...
 ├── state.db                     # Classified SQLite state, projections, diagnostics, usage
 ├── attachments/images/          # Workspace-managed local image blobs referenced by thread history
@@ -1410,7 +1412,7 @@ Session Core reconstructs a `SessionThread` by replaying the rollout file in ord
 
 `thread_opened.source` is a DotCraft-owned versioned union rather than the serialized CLR shape of the public `ThreadSource` type. New records use `schemaVersion = 1`. The user variant stores `kind` and optional `spawnedFromThreadId`. The subagent variant additionally stores parent thread id, root thread id, parent turn id, parent call id, depth, path, task, nickname, role, profile, runtime, and all send, resume, message, follow-up, and close capabilities. A source change is a baseline change and appends a new `thread_opened` record. Replay uses the latest baseline.
 
-Rollouts written before source persistence may use the existing limited inference from origin metadata. An unknown source schema version or a structurally invalid canonical source is a thread identity safety error and stops thread replay; it must not be downgraded to an ordinary user thread.
+Every current rollout begins with a canonical `thread_opened` record containing the versioned source union. An unknown source schema version or a structurally invalid canonical source is a thread identity safety error and stops thread replay; it must not be downgraded to an ordinary user thread.
 
 ### 9.3 Model-History Storage and Runtime Sessions
 
@@ -1450,7 +1452,6 @@ Session Core manages the mapping:
 
 - **Append**: Every successful mutation of server-managed model history appends the corresponding model-history records to the same thread rollout before the mutation is considered durable.
 - **Load**: Resume creates an empty Framework session and injects the history produced by rollout replay. It never calls `DeserializeSessionAsync` for persisted state.
-- **Legacy fallback**: A rollout without model-history records may be projected from surviving `SessionItem` records. This compatibility path is intentionally lossy and applies only to histories created before model-history records existed.
 - **Fork**: A persistent fork writes its materialized model history into the fork rollout. It does not create a separate Framework session blob.
 
 The domain history and exact model history are intentionally distinct durable representations. `turn_state_replaced` preserves client-visible Turn and Item lifecycle state. `model_history_messages_appended` preserves the exact provider-facing message sequence. Neither representation is required to losslessly derive the other, and arbitrary model metadata must not be copied into client-visible Items merely to remove duplicate text.
@@ -1469,7 +1470,7 @@ Records leave the pending suffix only after their complete JSONL lines have been
 
 ### 9.3.2 Bounded Model-History Replay
 
-A shared, read-only replayer is the canonical selector for runtime hydration and current-context export. It receives a rollout path, ordered surviving Turns, and an optional excluded current Turn. For ordinary uncompressed JSONL, it scans backward in bounded blocks. It accumulates the surviving suffix and stops at the newest decodable `context_compacted` record whose covered Turn still survives. The reconstructed history is the checkpoint replacement followed by later model-history messages in physical rollout order, including later messages associated with the covered Turn itself.
+A shared, read-only replayer is the canonical selector for runtime hydration and current-context export. It receives a rollout path, ordered surviving Turns, an optional excluded current Turn, and the expected Thread id. The rollout path must resolve under the workspace's `.craft/threads/{active,archived}` roots, and the canonical `thread_opened` identity plus every model-history/checkpoint payload must match the expected Thread id. For ordinary uncompressed JSONL, it scans backward in bounded blocks. It accumulates the surviving suffix and stops at the newest decodable `context_compacted` record whose covered Turn still survives. The reconstructed history is the checkpoint replacement followed by later model-history messages in physical rollout order, including later messages associated with the covered Turn itself.
 
 Ordinary malformed JSONL lines, rollout records, model batches, and model contents are rejected individually. Replay skips them, increments a rejected-record count, emits a structured warning without protected or extension payloads, and continues recovering other Turns. If a rejected record can be associated with a Turn, that Turn is marked exact-history-incomplete and its entire model-visible contribution is rebuilt from Session Items; valid exact batches from the same Turn must not be mixed with that fallback. Other Turns continue using exact history.
 
@@ -1481,9 +1482,9 @@ The replay result contains ordered messages, warnings, rejected-record count, fa
 
 Rollout diagnostics measure record count and serialized bytes by record kind, flush duration and outcome, and resume bytes, decoded-record count, and rejected-record count. Metric dimensions must remain low-cardinality and must not contain thread ids, message contents, `ProtectedData`, or arbitrary `AdditionalProperties`.
 
-Context search treats exact model-history and compaction replacement records as internal recovery state. It must not index or preview `model_history_messages_appended`, `context_compacted`, `ProtectedData`, or arbitrary `AdditionalProperties`. Searchable rollout evidence is extracted from explicitly displayable domain fields rather than raw JSONL lines, and a domain value duplicated in model history contributes only one rollout match.
+Context search treats exact model-history and compaction replacement records as internal recovery state. It must not index or preview `model_history_messages_appended`, `context_compacted`, `ProtectedData`, arbitrary `AdditionalProperties`, system prompts, raw trace event JSON, channel context, or tool arguments/results. Searchable rollout evidence is extracted from explicitly displayable domain fields rather than raw JSONL lines, and a domain value duplicated in model history contributes only one rollout match. Tool arguments and result payloads are omitted or replaced with `[redacted]` at the presentation boundary.
 
-Diagnostic readers apply the same domain replay semantics as Session Core: later `turn_state_replaced` records replace the same Turn, rollback removes the visible tail, and only surviving terminal Items contribute errors and tool summaries. Exact model batches may expose counts, Turn ids, schema versions, content kinds, and rejection status, but never model payloads, `ProtectedData`, or extension properties. Compaction diagnostics expose only checkpoint boundaries and decode status. A legacy `thread_sessions` table is optional evidence and never participates in freshness or persistence-consistency decisions.
+Diagnostic readers apply the same domain replay semantics as Session Core: later `turn_state_replaced` records replace the same Turn, rollback removes the visible tail, and only surviving terminal Items contribute errors and tool summaries. Exact model batches may expose counts, Turn ids, schema versions, content kinds, and rejection status, but never model payloads, `ProtectedData`, or extension properties. Compaction diagnostics expose only checkpoint boundaries and decode status. The current schema has no `thread_sessions` table; diagnostic readers must not read or infer data from that retired shape.
 
 Current-context handoff uses the canonical shared model-history replayer. Its Markdown presentation excludes reasoning, `ProtectedData`, `AdditionalProperties`, and internal provider metadata, and propagates sanitized replay warnings through the existing export warning surface.
 
@@ -1493,7 +1494,7 @@ Thread discovery uses a filesystem-first read-repair pass followed by the SQLite
 
 Each metadata row records the confirmed rollout byte offset from the flush that produced it. Discovery enumerates active and archived rollout files and compares their paths and lengths with SQLite. Matching rows require no rollout-body read. A missing row, changed path, shortened file, or mismatched offset causes only that rollout to be replayed and its projection rebuilt before the list is returned. Concurrent initial discovery shares one reconciliation operation.
 
-If SQLite listing or repair is unavailable, discovery falls back to summaries derived from filesystem rollouts instead of hiding canonical threads. Rows whose rollout files are absent are omitted but are not destructively deleted by read-repair. SQLite projections never participate in model-history reconstruction.
+If SQLite listing or repair is unavailable, discovery reports the metadata read failure; it does not infer or migrate legacy rollout paths. Rows whose current canonical rollout files are absent are omitted but are not destructively deleted by read-repair. SQLite projections never participate in model-history reconstruction.
 
 ### 9.4.1 Persistence Authority Classification
 

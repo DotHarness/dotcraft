@@ -3,6 +3,7 @@ using DotCraft.ContextExport;
 using DotCraft.Protocol;
 using DotCraft.State;
 using DotCraft.Tracing;
+using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.AI;
 
 namespace DotCraft.Tests.ContextExport;
@@ -29,6 +30,31 @@ public sealed class ContextExportServiceTests : IDisposable
     {
         try { Directory.Delete(_root, recursive: true); }
         catch { /* best-effort cleanup */ }
+    }
+
+    [Fact]
+    public async Task ExportAsync_RejectsRolloutPathOutsideCraftDirectory()
+    {
+        var thread = CreateThread();
+        AddTurnWithMessages(thread, "request", "answer");
+        await _threadStore.SaveThreadAsync(thread);
+
+        var statePath = Path.Combine(_craft, "state.db");
+        await using (var connection = new SqliteConnection($"Data Source={statePath}"))
+        {
+            await connection.OpenAsync();
+            await using var command = connection.CreateCommand();
+            command.CommandText = "UPDATE threads SET rollout_path = $path WHERE thread_id = $threadId";
+            command.Parameters.AddWithValue("$path", Path.Combine(_root, "outside.jsonl"));
+            command.Parameters.AddWithValue("$threadId", thread.Id);
+            await command.ExecuteNonQueryAsync();
+        }
+
+        await Assert.ThrowsAsync<KeyNotFoundException>(() => new ContextExportService().ExportAsync(new ContextExportOptions
+        {
+            ThreadId = thread.Id,
+            WorkspacePath = _workspace
+        }));
     }
 
     [Fact]

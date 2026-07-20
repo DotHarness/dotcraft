@@ -36,7 +36,8 @@ public sealed class ContextExportService
             loaded.RolloutPath,
             loaded.Thread.Turns,
             excludedTurnId: null,
-            ct).ConfigureAwait(false);
+            ct,
+            options.ThreadId.Trim()).ConfigureAwait(false);
         foreach (var warning in replay.Warnings ?? [])
         {
             warnings.Add(string.IsNullOrWhiteSpace(warning.TurnId)
@@ -83,7 +84,8 @@ public sealed class ContextExportService
         AppendMetadata(sb, "Created At", thread.CreatedAt.ToString("O"));
         AppendMetadata(sb, "Last Active At", thread.LastActiveAt.ToString("O"));
         AppendMetadata(sb, "Origin Channel", thread.OriginChannel);
-        AppendMetadata(sb, "Channel Context", thread.ChannelContext ?? "(none)");
+        if (options.Profile == ContextExportProfile.Transcript)
+            AppendMetadata(sb, "Channel Context", SafeContextProjection.RedactText(thread.ChannelContext ?? "(none)"));
         AppendMetadata(sb, "History Mode", thread.HistoryMode.ToString());
         AppendMetadata(sb, "Turn Count", thread.Turns.Count.ToString());
         if (thread.Metadata.Count > 0)
@@ -293,7 +295,12 @@ public sealed class ContextExportService
                 AppendMetadata(sb, "Tool", toolCall.ToolName);
                 AppendMetadata(sb, "Call Id", toolCall.CallId);
                 if (toolCall.Arguments != null)
-                    AppendCodeBlock(sb, "json", toolCall.Arguments.ToJsonString(new JsonSerializerOptions(JsonSerializerOptions.Web) { WriteIndented = true }));
+                {
+                    var arguments = options.ToolResults == ContextExportToolResultMode.None
+                        ? "[redacted]"
+                        : SafeContextProjection.RedactJson(toolCall.Arguments.ToJsonString(new JsonSerializerOptions(JsonSerializerOptions.Web) { WriteIndented = true }));
+                    AppendCodeBlock(sb, "json", arguments);
+                }
                 break;
 
             case ItemType.PluginFunctionCall when item.AsPluginFunctionCall is { } pluginCall:
@@ -303,7 +310,12 @@ public sealed class ContextExportService
                 AppendMetadata(sb, "Call Id", pluginCall.CallId);
                 AppendMetadata(sb, "Success", pluginCall.Success.ToString());
                 if (pluginCall.Arguments != null)
-                    AppendCodeBlock(sb, "json", pluginCall.Arguments.ToJsonString(new JsonSerializerOptions(JsonSerializerOptions.Web) { WriteIndented = true }));
+                {
+                    var arguments = options.ToolResults == ContextExportToolResultMode.None
+                        ? "[redacted]"
+                        : SafeContextProjection.RedactJson(pluginCall.Arguments.ToJsonString(new JsonSerializerOptions(JsonSerializerOptions.Web) { WriteIndented = true }));
+                    AppendCodeBlock(sb, "json", arguments);
+                }
                 AppendStructuredResult(sb, pluginCall.StructuredResult, pluginCall.ErrorCode, pluginCall.ErrorMessage, options);
                 break;
 
@@ -315,7 +327,12 @@ public sealed class ContextExportService
                 if (dynamicCall.Success.HasValue)
                     AppendMetadata(sb, "Success", dynamicCall.Success.Value.ToString());
                 if (dynamicCall.Arguments != null)
-                    AppendCodeBlock(sb, "json", dynamicCall.Arguments.ToJsonString(new JsonSerializerOptions(JsonSerializerOptions.Web) { WriteIndented = true }));
+                {
+                    var arguments = options.ToolResults == ContextExportToolResultMode.None
+                        ? "[redacted]"
+                        : SafeContextProjection.RedactJson(dynamicCall.Arguments.ToJsonString(new JsonSerializerOptions(JsonSerializerOptions.Web) { WriteIndented = true }));
+                    AppendCodeBlock(sb, "json", arguments);
+                }
                 AppendStructuredResult(sb, dynamicCall.StructuredContent, dynamicCall.ErrorCode, dynamicCall.ErrorMessage, options);
                 break;
 
@@ -490,12 +507,12 @@ public sealed class ContextExportService
             return "{}";
 
         if (propertyValue is string text)
-            return text;
+            return SafeContextProjection.RedactText(text);
 
-        return JsonSerializer.Serialize(
+        return SafeContextProjection.RedactJson(JsonSerializer.Serialize(
             propertyValue,
             propertyValue.GetType(),
-            new JsonSerializerOptions(JsonSerializerOptions.Web) { WriteIndented = true });
+            new JsonSerializerOptions(JsonSerializerOptions.Web) { WriteIndented = true }));
     }
 
     private static string? GetPropertyValue(object value, string propertyName)

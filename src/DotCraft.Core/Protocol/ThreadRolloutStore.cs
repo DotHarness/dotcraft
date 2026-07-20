@@ -1,3 +1,5 @@
+using System.Security.Cryptography;
+using System.Text;
 using System.Text.Json;
 
 namespace DotCraft.Protocol;
@@ -30,27 +32,37 @@ internal sealed class ThreadRolloutStore
 
     public string GetExpectedPath(string threadId, bool archived)
     {
-        var safe = MakeSafe(threadId);
-        return Path.Combine(archived ? _archivedDir : _activeDir, $"{safe}.jsonl");
+        ArgumentException.ThrowIfNullOrWhiteSpace(threadId);
+        var fileName = BuildFileName(threadId);
+        return Path.Combine(archived ? _archivedDir : _activeDir, fileName);
     }
 
     public string? ResolveExistingPath(string threadId)
     {
-        var active = GetExpectedPath(threadId, archived: false);
-        if (File.Exists(active))
-            return active;
+        foreach (var archived in new[] { false, true })
+        {
+            var path = GetExpectedPath(threadId, archived);
+            if (File.Exists(path))
+                return path;
+        }
 
-        var archived = GetExpectedPath(threadId, archived: true);
-        return File.Exists(archived) ? archived : null;
+        return null;
     }
 
     public async Task<SessionThread?> LoadThreadAsync(string threadId, CancellationToken ct = default)
     {
-        var path = ResolveExistingPath(threadId);
-        if (path == null)
-            return null;
+        foreach (var archived in new[] { false, true })
+        {
+            var path = GetExpectedPath(threadId, archived);
+            if (!File.Exists(path))
+                continue;
 
-        return await LoadThreadFromPathAsync(path, ct);
+            var thread = await LoadThreadFromPathAsync(path, ct);
+            if (thread != null && string.Equals(thread.Id, threadId, StringComparison.Ordinal))
+                return thread;
+        }
+
+        return null;
     }
 
     public async Task<SessionThread?> LoadThreadFromPathAsync(string path, CancellationToken ct = default)
@@ -106,7 +118,7 @@ internal sealed class ThreadRolloutStore
         if (existingPath != null && !string.Equals(existingPath, targetPath, StringComparison.OrdinalIgnoreCase))
         {
             await _writer.CloseAsync(thread.Id, ct);
-            existingPath = PromoteToCanonicalPath(thread.Id, thread.Status == ThreadStatus.Archived, existingPath);
+            existingPath = MoveToTargetPath(thread.Id, thread.Status == ThreadStatus.Archived, existingPath);
         }
 
         var records = BuildRecords(previous, thread);
@@ -135,7 +147,7 @@ internal sealed class ThreadRolloutStore
         if (existingPath != null && !string.Equals(existingPath, targetPath, StringComparison.OrdinalIgnoreCase))
         {
             await _writer.CloseAsync(thread.Id, ct);
-            existingPath = PromoteToCanonicalPath(thread.Id, thread.Status == ThreadStatus.Archived, existingPath);
+            existingPath = MoveToTargetPath(thread.Id, thread.Status == ThreadStatus.Archived, existingPath);
         }
 
         if (existingPath == null && !File.Exists(targetPath))
@@ -170,9 +182,8 @@ internal sealed class ThreadRolloutStore
         if (!string.Equals(existingPath, targetPath, StringComparison.OrdinalIgnoreCase))
         {
             await _writer.CloseAsync(thread.Id, ct);
-            existingPath = PromoteToCanonicalPath(thread.Id, thread.Status == ThreadStatus.Archived, existingPath);
+            existingPath = MoveToTargetPath(thread.Id, thread.Status == ThreadStatus.Archived, existingPath);
         }
-
         var record = new ThreadRolloutRecord
         {
             Kind = "turn_state_replaced",
@@ -321,9 +332,8 @@ internal sealed class ThreadRolloutStore
         if (!string.Equals(existingPath, targetPath, StringComparison.OrdinalIgnoreCase))
         {
             await _writer.CloseAsync(thread.Id, ct);
-            existingPath = PromoteToCanonicalPath(thread.Id, thread.Status == ThreadStatus.Archived, existingPath);
+            existingPath = MoveToTargetPath(thread.Id, thread.Status == ThreadStatus.Archived, existingPath);
         }
-
         var records = new List<ThreadRolloutRecord>
         {
             new()
@@ -395,7 +405,8 @@ internal sealed class ThreadRolloutStore
             path,
             thread.Turns,
             excludedTurnId,
-            ct);
+            ct,
+            threadId);
     }
 
     public async Task DeleteThreadAsync(string threadId, CancellationToken ct = default)
@@ -403,8 +414,9 @@ internal sealed class ThreadRolloutStore
         await _writer.CloseAsync(threadId, ct);
         if (_beforeDeleteAsync != null)
             await _beforeDeleteAsync(threadId, ct);
-        foreach (var path in EnumerateCandidatePaths(threadId).Distinct(StringComparer.OrdinalIgnoreCase))
+        foreach (var archived in new[] { false, true })
         {
+            var path = GetExpectedPath(threadId, archived);
             if (File.Exists(path))
                 File.Delete(path);
         }
@@ -413,7 +425,7 @@ internal sealed class ThreadRolloutStore
     public Task CloseThreadAsync(string threadId, CancellationToken ct = default) =>
         _writer.CloseAsync(threadId, ct);
 
-    public string PromoteToCanonicalPath(string threadId, bool archived, string existingPath)
+    private string MoveToTargetPath(string threadId, bool archived, string existingPath)
     {
         var targetPath = GetExpectedPath(threadId, archived);
         if (string.Equals(existingPath, targetPath, StringComparison.OrdinalIgnoreCase))
@@ -422,10 +434,8 @@ internal sealed class ThreadRolloutStore
         Directory.CreateDirectory(Path.GetDirectoryName(targetPath)!);
         if (File.Exists(targetPath))
             File.Delete(targetPath);
-
         if (File.Exists(existingPath))
             File.Move(existingPath, targetPath);
-
         return targetPath;
     }
 
@@ -468,10 +478,15 @@ internal sealed class ThreadRolloutStore
         return true;
     }
 
-    private IEnumerable<string> EnumerateCandidatePaths(string threadId)
+    internal static string BuildFileName(string threadId)
     {
-        yield return GetExpectedPath(threadId, archived: false);
-        yield return GetExpectedPath(threadId, archived: true);
+        ArgumentException.ThrowIfNullOrWhiteSpace(threadId);
+        var safeName = string.Concat(threadId.Split(Path.GetInvalidFileNameChars()));
+        if (string.Equals(safeName, threadId, StringComparison.Ordinal))
+            return $"{safeName}.jsonl";
+
+        var hash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(threadId))).ToLowerInvariant();
+        return $"thread-{hash}.jsonl";
     }
 
     private static List<ThreadRolloutRecord> BuildRecords(SessionThread? previous, SessionThread current)
@@ -1004,8 +1019,6 @@ internal sealed class ThreadRolloutStore
             return _thread;
         }
     }
-
-    private static string MakeSafe(string key) => string.Concat(key.Split(Path.GetInvalidFileNameChars()));
 
     private static void ApplyRollback(Dictionary<string, SessionTurn> turns, int numTurns)
     {

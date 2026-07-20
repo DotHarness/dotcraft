@@ -669,7 +669,8 @@ public sealed class ThreadStore : IAsyncDisposable
                 rolloutPath,
                 thread.Turns,
                 excludedTurnId,
-                ct);
+                ct,
+                thread.Id);
         foreach (var warning in replayed.Warnings ?? [])
         {
             System.Diagnostics.Trace.TraceWarning(

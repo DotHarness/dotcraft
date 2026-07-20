@@ -17,7 +17,8 @@ internal interface IRolloutReplayer
         string rolloutPath,
         IReadOnlyList<SessionTurn> survivingTurns,
         string? excludedTurnId = null,
-        CancellationToken ct = default);
+        CancellationToken ct = default,
+        string? expectedThreadId = null);
 }
 
 #pragma warning disable MEAI001 // Persist the complete runtime usage contract, including preview counters.
@@ -56,17 +57,40 @@ internal sealed class ModelHistoryCodec : IModelHistoryCodec
     public ChatMessage Decode(ModelHistoryMessage message)
     {
         ArgumentNullException.ThrowIfNull(message);
-        if (message.SchemaVersion != CurrentSchemaVersion)
-            throw new NotSupportedException($"Unsupported model history schema version '{message.SchemaVersion}'.");
 
-        var decoded = new ChatMessage(new ChatRole(message.Role), message.Contents.Select(DecodeContent).ToList())
+        try
         {
-            MessageId = message.MessageId,
-            AuthorName = message.AuthorName,
-            CreatedAt = message.CreatedAt,
-            AdditionalProperties = DeserializeAdditionalProperties(message.AdditionalProperties)
-        };
-        return decoded;
+            ValidateMessage(message);
+            if (message.SchemaVersion != CurrentSchemaVersion)
+                throw new NotSupportedException($"Unsupported model history schema version '{message.SchemaVersion}'.");
+
+            var decoded = new ChatMessage(new ChatRole(message.Role), message.Contents!.Select(DecodeContent).ToList())
+            {
+                MessageId = message.MessageId,
+                AuthorName = message.AuthorName,
+                CreatedAt = message.CreatedAt,
+                AdditionalProperties = DeserializeAdditionalProperties(message.AdditionalProperties)
+            };
+            return decoded;
+        }
+        catch (JsonException)
+        {
+            throw;
+        }
+        catch (Exception ex) when (ex is FormatException or NotSupportedException or ArgumentException or InvalidOperationException or NullReferenceException)
+        {
+            throw new JsonException("Model history message contains invalid persisted content.", ex);
+        }
+    }
+
+    private static void ValidateMessage(ModelHistoryMessage message)
+    {
+        if (string.IsNullOrWhiteSpace(message.Role))
+            throw new JsonException("Model history message is missing its role.");
+        if (message.Contents is null)
+            throw new JsonException("Model history message is missing its contents.");
+        if (message.Contents.Any(static content => content is null))
+            throw new JsonException("Model history message contains a null content entry.");
     }
 
     private static ModelHistoryContent EncodeContent(AIContent content)
@@ -182,6 +206,14 @@ internal sealed class ModelHistoryCodec : IModelHistoryCodec
 
     private static AIContent DecodeContent(ModelHistoryContent content)
     {
+        ArgumentNullException.ThrowIfNull(content);
+        if (string.IsNullOrWhiteSpace(content.Kind))
+            throw new JsonException("Model history content is missing its kind.");
+        if (content.Payload.ValueKind is JsonValueKind.Undefined or JsonValueKind.Null)
+            throw new JsonException($"Model history content '{content.Kind}' is missing its payload.");
+        if (content.Payload.ValueKind != JsonValueKind.Object)
+            throw new JsonException($"Model history content '{content.Kind}' payload must be an object.");
+
         return content.Kind switch
         {
             "text" => DecodeText(content),
@@ -379,6 +411,7 @@ internal sealed class ModelHistoryCodec : IModelHistoryCodec
 
     private static object? DecodeFunctionResult(PersistedFunctionResult result)
     {
+        ArgumentNullException.ThrowIfNull(result);
         if (result.SchemaVersion != CurrentResultSchemaVersion)
             throw new NotSupportedException($"Unsupported function result schema version '{result.SchemaVersion}'.");
 
@@ -386,7 +419,10 @@ internal sealed class ModelHistoryCodec : IModelHistoryCodec
         {
             "json" when result.Json is { } json => DeserializeJsonValue(json),
             "json" => throw new JsonException("Model history JSON result is missing its value."),
-            "contents" when result.Contents is not null => result.Contents.Select(DecodeContent).ToList(),
+            "contents" when result.Contents is not null && !result.Contents.Any(static content => content is null)
+                => result.Contents.Select(DecodeContent).ToList(),
+            "contents" when result.Contents is not null
+                => throw new JsonException("Model history content result contains a null content entry."),
             "contents" => throw new JsonException("Model history content result is missing contents."),
             _ => throw new NotSupportedException($"Unsupported function result kind '{result.Kind}'.")
         };

@@ -54,6 +54,27 @@ public sealed class ThreadStoreTests : IDisposable
     }
 
     [Fact]
+    public async Task RolloutPaths_ForSanitizedNameCollisions_AreDistinct()
+    {
+        var first = CreateThread();
+        first.Id = "a:b";
+        var second = CreateThread();
+        second.Id = "ab";
+
+        await _store.SaveThreadAsync(first);
+        await _store.SaveThreadAsync(second);
+
+        var rolloutStore = new ThreadRolloutStore(_root);
+        var firstPath = rolloutStore.GetExpectedPath(first.Id, archived: false);
+        var secondPath = rolloutStore.GetExpectedPath(second.Id, archived: false);
+        Assert.NotEqual(firstPath, secondPath);
+        Assert.True(File.Exists(firstPath));
+        Assert.True(File.Exists(secondPath));
+        Assert.Equal(first.Id, (await _store.LoadThreadAsync(first.Id))?.Id);
+        Assert.Equal(second.Id, (await _store.LoadThreadAsync(second.Id))?.Id);
+    }
+
+    [Fact]
     public async Task SaveThread_CompleteSubAgentSource_RoundTripsThroughRolloutAndIndex()
     {
         var thread = CreateThread();
@@ -1859,6 +1880,51 @@ public sealed class ThreadStoreTests : IDisposable
     }
 
     [Fact]
+    public async Task ReplayModelHistory_CrossThreadBatchFallsBackToCanonicalTurn()
+    {
+        var thread = CreateThread();
+        AddTurnWithMessages(thread, "projected request", "projected answer");
+        await _store.SaveThreadAsync(thread);
+        var path = GetCanonicalPath(thread.Id, archived: false);
+        var foreignBatch = new
+        {
+            kind = "model_history_messages_appended",
+            timestamp = DateTimeOffset.UtcNow,
+            modelHistoryMessagesAppended = new
+            {
+                threadId = "different-thread",
+                turnId = thread.Turns[0].Id,
+                messages = new[]
+                {
+                    new
+                    {
+                        schemaVersion = 1,
+                        turnId = thread.Turns[0].Id,
+                        role = "assistant",
+                        contents = new[]
+                        {
+                            new { kind = "text", payload = new { text = "foreign answer" } }
+                        }
+                    }
+                }
+            }
+        };
+        await File.AppendAllTextAsync(
+            path,
+            JsonSerializer.Serialize(foreignBatch, SessionJsonOptions.Default) + Environment.NewLine);
+
+        var replay = await new RolloutReplayer().ReplayModelHistoryAsync(
+            path,
+            thread.Turns,
+            expectedThreadId: thread.Id);
+
+        Assert.Equal(["projected request", "projected answer"], replay.Messages.Select(static message => message.Text));
+        Assert.Contains(replay.Warnings!, warning =>
+            warning.Code == "cross_thread_record" && warning.TurnId == thread.Turns[0].Id);
+        Assert.Contains(thread.Turns[0].Id, Assert.IsAssignableFrom<IReadOnlySet<string>>(replay.FallbackTurnIds));
+    }
+
+    [Fact]
     public async Task ReplayModelHistory_MalformedOrdinaryLineReportsWarningAndContinues()
     {
         var thread = CreateThread();
@@ -1876,6 +1942,62 @@ public sealed class ThreadStoreTests : IDisposable
         Assert.Equal(["exact request", "exact answer"], replay.Messages.Select(static message => message.Text));
         Assert.Equal(1, replay.RejectedRecords);
         Assert.Contains(replay.Warnings!, warning => warning.Code == "malformed_json");
+    }
+
+    [Fact]
+    public async Task ReplayModelHistory_NullMessagesFallsBackWholeTurnAndContinues()
+    {
+        var thread = CreateThread();
+        AddTurnWithMessages(thread, "projected request", "projected answer");
+        await _store.SaveThreadAsync(thread);
+        var path = GetCanonicalPath(thread.Id, archived: false);
+        var invalidBatch = new
+        {
+            kind = "model_history_messages_appended",
+            timestamp = DateTimeOffset.UtcNow,
+            modelHistoryMessagesAppended = new
+            {
+                threadId = thread.Id,
+                turnId = thread.Turns[0].Id,
+                messages = (object?)null
+            }
+        };
+        await File.AppendAllTextAsync(path, JsonSerializer.Serialize(invalidBatch, SessionJsonOptions.Default) + Environment.NewLine);
+
+        var replay = await new RolloutReplayer().ReplayModelHistoryAsync(path, thread.Turns);
+
+        Assert.Equal(["projected request", "projected answer"], replay.Messages.Select(static message => message.Text));
+        Assert.Equal(1, replay.RejectedRecords);
+        Assert.Contains(thread.Turns[0].Id, replay.FallbackTurnIds!);
+        Assert.Contains(replay.Warnings!, warning => warning.Code == "invalid_model_batch");
+    }
+
+    [Fact]
+    public async Task ReplayModelHistory_InconsistentEnvelopeFallsBackWholeTurn()
+    {
+        var thread = CreateThread();
+        AddTurnWithMessages(thread, "projected request", "projected answer");
+        await _store.SaveThreadAsync(thread);
+        var path = GetCanonicalPath(thread.Id, archived: false);
+        var inconsistentRecord = new
+        {
+            kind = "model_history_messages_appended",
+            timestamp = DateTimeOffset.UtcNow,
+            contextCompacted = new
+            {
+                threadId = thread.Id,
+                coveredThroughTurnId = thread.Turns[0].Id,
+                replacementHistory = Array.Empty<object>()
+            }
+        };
+        await File.AppendAllTextAsync(path, JsonSerializer.Serialize(inconsistentRecord, SessionJsonOptions.Default) + Environment.NewLine);
+
+        var replay = await new RolloutReplayer().ReplayModelHistoryAsync(path, thread.Turns);
+
+        Assert.Equal(["projected request", "projected answer"], replay.Messages.Select(static message => message.Text));
+        Assert.Equal(1, replay.RejectedRecords);
+        Assert.Contains(thread.Turns[0].Id, replay.FallbackTurnIds!);
+        Assert.Contains(replay.Warnings!, warning => warning.Code == "malformed_record");
     }
 
     [Fact]

@@ -111,6 +111,64 @@ public sealed class ModelHistoryTests : IDisposable
     }
 
     [Fact]
+    public void Codec_RejectsNullCollectionsAndInvalidUriAsJsonException()
+    {
+        var codec = new ModelHistoryCodec();
+
+        var nullContents = new ModelHistoryMessage
+        {
+            Role = ChatRole.Assistant.Value,
+            Contents = null!
+        };
+        Assert.Throws<JsonException>(() => codec.Decode(nullContents));
+
+        var invalidUri = new ModelHistoryMessage
+        {
+            Role = ChatRole.Assistant.Value,
+            Contents =
+            [
+                new ModelHistoryContent
+                {
+                    Kind = "uri",
+                    Payload = JsonSerializer.SerializeToElement(new
+                    {
+                        uri = "not a valid absolute uri",
+                        mediaType = "text/plain",
+                        additionalProperties = (object?)null
+                    }, JsonSerializerOptions.Web)
+                }
+            ]
+        };
+        Assert.Throws<JsonException>(() => codec.Decode(invalidUri));
+    }
+
+    [Fact]
+    public void Codec_RejectsNullContentEntriesAndMissingPayloadAsJsonException()
+    {
+        var codec = new ModelHistoryCodec();
+        var nullEntry = new ModelHistoryMessage
+        {
+            Role = ChatRole.Assistant.Value,
+            Contents = [null!]
+        };
+        Assert.Throws<JsonException>(() => codec.Decode(nullEntry));
+
+        var missingPayload = new ModelHistoryMessage
+        {
+            Role = ChatRole.Assistant.Value,
+            Contents =
+            [
+                new ModelHistoryContent
+                {
+                    Kind = "text",
+                    Payload = default
+                }
+            ]
+        };
+        Assert.Throws<JsonException>(() => codec.Decode(missingPayload));
+    }
+
+    [Fact]
     public void Codec_RejectsConflictingStrongToolIdentityAndAdditionalProperties()
     {
         var payload = new PersistedFunctionCallContent
