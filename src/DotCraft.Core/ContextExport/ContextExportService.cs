@@ -88,12 +88,6 @@ public sealed class ContextExportService
             AppendMetadata(sb, "Channel Context", SafeContextProjection.RedactText(thread.ChannelContext ?? "(none)"));
         AppendMetadata(sb, "History Mode", thread.HistoryMode.ToString());
         AppendMetadata(sb, "Turn Count", thread.Turns.Count.ToString());
-        if (thread.Metadata.Count > 0)
-        {
-            sb.AppendLine("- Metadata:");
-            foreach (var (key, value) in thread.Metadata.OrderBy(kv => kv.Key, StringComparer.Ordinal))
-                sb.AppendLine($"  - `{EscapeInline(key)}`: {EscapeInline(value)}");
-        }
         sb.AppendLine();
 
         AppendMemory(sb, memory, options);

@@ -1523,7 +1523,7 @@ Context search treats exact model-history and compaction replacement records as 
 
 Diagnostic readers apply the same domain replay semantics as Session Core: later `turn_state_replaced` records replace the same Turn, rollback removes the visible tail, and only surviving terminal Items contribute errors and tool summaries. Exact model batches may expose counts, Turn ids, schema versions, content kinds, and rejection status, but never model payloads, `ProtectedData`, or extension properties. Compaction diagnostics expose only checkpoint boundaries and decode status. The current schema has no `thread_sessions` table; diagnostic readers must not read or infer data from that retired shape.
 
-Current-context handoff uses the canonical shared model-history replayer. Its Markdown presentation excludes reasoning, `ProtectedData`, `AdditionalProperties`, and internal provider metadata, and propagates sanitized replay warnings through the existing export warning surface.
+Current-context handoff uses the canonical shared model-history replayer. Its Markdown presentation excludes reasoning, `ProtectedData`, `AdditionalProperties`, internal provider metadata, and the free-form `SessionThread.Metadata` dictionary. Thread metadata may contain channel credentials, external CLI session identifiers, private paths, or future extension values and therefore is not eligible for blacklist-based redaction. Export uses an explicit allowlist of strong thread fields such as display name, status, timestamps, origin channel, history mode, and Turn count, and propagates sanitized replay warnings through the existing export warning surface.
 
 ### 9.4 Thread Discovery
 

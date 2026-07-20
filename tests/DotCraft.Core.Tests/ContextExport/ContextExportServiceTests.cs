@@ -179,6 +179,34 @@ public sealed class ContextExportServiceTests : IDisposable
         Assert.Contains("[reasoning omitted]", result.Markdown);
     }
 
+    [Theory]
+    [InlineData(ContextExportProfile.Handoff)]
+    [InlineData(ContextExportProfile.Transcript)]
+    public async Task ExportAsync_OmitsFreeFormThreadMetadata(ContextExportProfile profile)
+    {
+        var thread = CreateThread();
+        thread.Metadata["api_key"] = "METADATA_API_KEY_SECRET";
+        thread.Metadata["authorization"] = "Bearer METADATA_BEARER_SECRET";
+        thread.Metadata["nested"] = "{\"token\":\"METADATA_JSON_SECRET\"}";
+        thread.Metadata["dotcraft.externalCliSessions"] =
+            "[{\"sessionId\":\"METADATA_CLI_SESSION_SECRET\",\"workingDirectory\":\"C:/private\"}]";
+        thread.Metadata["ordinary"] = "METADATA_ORDINARY_VALUE";
+        AddTurnWithMessages(thread, "visible request", "visible answer");
+        await _threadStore.SaveThreadAsync(thread);
+
+        var result = await new ContextExportService().ExportAsync(new ContextExportOptions
+        {
+            ThreadId = thread.Id,
+            WorkspacePath = _workspace,
+            Profile = profile
+        });
+
+        Assert.Contains("visible request", result.Markdown);
+        Assert.DoesNotContain("METADATA_", result.Markdown);
+        Assert.DoesNotContain("dotcraft.externalCliSessions", result.Markdown);
+        Assert.DoesNotContain("- Metadata:", result.Markdown);
+    }
+
     [Fact]
     public async Task SearchAsync_TraceEventMatch_ReturnsBoundThreadEvidence()
     {
