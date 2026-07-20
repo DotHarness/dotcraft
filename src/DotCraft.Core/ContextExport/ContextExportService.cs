@@ -10,6 +10,7 @@ namespace DotCraft.ContextExport;
 /// </summary>
 public sealed class ContextExportService
 {
+    private const string RequestUserInputToolName = "RequestUserInput";
     private readonly ContextWorkspaceReader _reader = new();
 
     /// <summary>
@@ -224,8 +225,13 @@ public sealed class ContextExportService
                 AppendMetadata(sb, "Tokens", $"{turn.TokenUsage.InputTokens} input, {turn.TokenUsage.OutputTokens} output, {turn.TokenUsage.TotalTokens} total");
             sb.AppendLine();
 
+            var requestUserInputCallIds = turn.Items
+                .Select(item => item.AsToolCall)
+                .Where(toolCall => toolCall != null && IsRequestUserInput(toolCall.ToolName))
+                .Select(toolCall => toolCall!.CallId)
+                .ToHashSet(StringComparer.Ordinal);
             foreach (var item in turn.Items.OrderBy(i => i.CreatedAt).ThenBy(i => i.Id, StringComparer.Ordinal))
-                AppendItem(sb, item, options);
+                AppendItem(sb, item, options, requestUserInputCallIds);
 
             sb.AppendLine();
         }
@@ -234,7 +240,8 @@ public sealed class ContextExportService
     private static void AppendItem(
         StringBuilder sb,
         SessionItem item,
-        ContextExportOptions options)
+        ContextExportOptions options,
+        IReadOnlySet<string> requestUserInputCallIds)
     {
         var timestamp = item.CompletedAt ?? item.CreatedAt;
         sb.AppendLine($"#### {FormatItemType(item.Type)} `{item.Id}` ({item.Status}, {timestamp:O})");
@@ -271,7 +278,12 @@ public sealed class ContextExportService
                 if (!string.IsNullOrWhiteSpace(toolExecution.ErrorMessage))
                     AppendMetadata(sb, "Error", toolExecution.ErrorMessage!);
                 if (!string.IsNullOrWhiteSpace(toolExecution.ResultPreview))
-                    AppendResult(sb, toolExecution.ResultPreview!, options.ToolResults, options.ToolResultPreviewChars, "Tool execution preview");
+                {
+                    if (IsRequestUserInput(toolExecution.ToolName))
+                        AppendUserInputResponseOmitted(sb, "Tool execution preview");
+                    else
+                        AppendResult(sb, toolExecution.ResultPreview!, options.ToolResults, options.ToolResultPreviewChars, "Tool execution preview");
+                }
                 break;
 
             case ItemType.ImageGeneration when item.AsImageGeneration is { } imageGeneration:
@@ -333,7 +345,10 @@ public sealed class ContextExportService
             case ItemType.ToolResult when item.AsToolResult is { } toolResult:
                 AppendMetadata(sb, "Call Id", toolResult.CallId);
                 AppendMetadata(sb, "Success", toolResult.Success.ToString());
-                AppendResult(sb, toolResult.Result, options.ToolResults, options.ToolResultPreviewChars, "Tool result");
+                if (IsRequestUserInput(toolResult.ToolName) || requestUserInputCallIds.Contains(toolResult.CallId))
+                    AppendUserInputResponseOmitted(sb, "Tool result");
+                else
+                    AppendResult(sb, toolResult.Result, options.ToolResults, options.ToolResultPreviewChars, "Tool result");
                 break;
 
             case ItemType.ApprovalRequest when item.AsApprovalRequest is { } approvalRequest:
@@ -358,7 +373,7 @@ public sealed class ContextExportService
 
             case ItemType.UserInputResponse when item.AsUserInputResponse is { } inputResponse:
                 AppendMetadata(sb, "Request Id", inputResponse.RequestId);
-                AppendJsonPayload(sb, inputResponse.Response);
+                AppendUserInputResponseOmitted(sb, "Response");
                 break;
 
             case ItemType.SystemNotice when item.AsSystemNotice is { } notice:
@@ -448,6 +463,14 @@ public sealed class ContextExportService
         IReadOnlyList<ChatMessage> messages,
         ContextExportOptions options)
     {
+        var requestUserInputCallIds = messages
+            .SelectMany(message => message.Contents)
+            .OfType<FunctionCallContent>()
+            .Where(content => IsRequestUserInput(GetPropertyValue(content, "Name")))
+            .Select(content => GetPropertyValue(content, "CallId"))
+            .Where(callId => !string.IsNullOrWhiteSpace(callId))
+            .ToHashSet(StringComparer.Ordinal);
+
         for (var i = 0; i < messages.Count; i++)
         {
             var message = messages[i];
@@ -483,13 +506,21 @@ public sealed class ContextExportService
 
                 if (content is FunctionResultContent)
                 {
-                    sb.AppendLine($"Tool result (`{GetPropertyValue(content, "CallId") ?? "unknown"}`):");
-                    AppendResult(
-                        sb,
-                        SerializeProperty(content, "Result"),
-                        options.ToolResults,
-                        options.ToolResultPreviewChars,
-                        "Tool result");
+                    var callId = GetPropertyValue(content, "CallId");
+                    sb.AppendLine($"Tool result (`{callId ?? "unknown"}`):");
+                    if (callId != null && requestUserInputCallIds.Contains(callId))
+                    {
+                        AppendUserInputResponseOmitted(sb, "Tool result");
+                    }
+                    else
+                    {
+                        AppendResult(
+                            sb,
+                            SerializeProperty(content, "Result"),
+                            options.ToolResults,
+                            options.ToolResultPreviewChars,
+                            "Tool result");
+                    }
                     continue;
                 }
 
@@ -499,6 +530,12 @@ public sealed class ContextExportService
             sb.AppendLine();
         }
     }
+
+    private static bool IsRequestUserInput(string? toolName) =>
+        string.Equals(toolName, RequestUserInputToolName, StringComparison.Ordinal);
+
+    private static void AppendUserInputResponseOmitted(StringBuilder sb, string label) =>
+        sb.AppendLine($"{label}: omitted because user-input answers may contain secrets.");
 
     private static string SerializeProperty(object value, string propertyName)
     {

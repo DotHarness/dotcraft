@@ -81,7 +81,7 @@ Markdown 导出包含：
 - 当前模型可见上下文：从最新可用 compaction checkpoint 加 surviving tail turns 重建。
 - 会话记录：从 canonical rollout JSONL replay 后仍然存活的 turns。
 
-Reasoning content 不会导出。工具调用会保留。工具和命令结果遵循 `--tool-results`。
+Reasoning content 不会导出。工具调用会保留。工具和命令结果遵循 `--tool-results`。`RequestUserInput` 的回答正文始终省略，包括 full 导出；问题文本和关联 ID 仍会保留。
 
 ## Rollback 与 Compaction
 

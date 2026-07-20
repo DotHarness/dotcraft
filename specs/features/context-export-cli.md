@@ -96,6 +96,7 @@ Rollout files may be read for top candidates to add short evidence snippets and 
 - `--tool-results none` must omit tool output bodies while preserving tool names, call ids, success flags, and timestamps where available.
 - `--tool-results summary` must produce bounded previews only.
 - Full tool output is opt-in through `--tool-results full`.
+- `RequestUserInput` answer bodies must always be omitted from current model-visible context and conversation output, regardless of `--tool-results`; question text and request or call ids may remain for continuity.
 - Search results must favor evidence metadata and short previews over dumping raw user, assistant, or tool content.
 
 ## 7. Doctor Skill Integration
@@ -114,6 +115,7 @@ The built-in Doctor plugin should provide a skill that teaches agents to:
 - Export includes `MEMORY.md` and HISTORY tail by default.
 - Export applies rollback records and excludes removed turns.
 - Export recognizes surviving compaction checkpoints and later tail turns.
+- Export omits `RequestUserInput` answer bodies from every rendered history projection.
 - Search returns ranked thread hits from DB evidence without a running AppServer.
 - Search JSON output is stable enough for skills and scripts.
 - Missing workspace, missing state DB, missing thread, corrupt rollout lines, and invalid arguments produce clear non-zero CLI failures or warnings.

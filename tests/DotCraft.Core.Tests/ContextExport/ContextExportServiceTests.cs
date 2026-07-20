@@ -178,6 +178,165 @@ public sealed class ContextExportServiceTests : IDisposable
         Assert.Contains("[redacted]", result.Markdown);
     }
 
+    [Theory]
+    [InlineData(ContextExportToolResultMode.Summary)]
+    [InlineData(ContextExportToolResultMode.Full)]
+    public async Task ExportAsync_OmitsRequestUserInputAnswersFromEveryProjection(ContextExportToolResultMode mode)
+    {
+        var thread = CreateThread();
+        AddTurnWithMessages(thread, "collect deployment details", "asking for input");
+        var turn = thread.Turns[0];
+        var now = turn.StartedAt;
+        turn.Items.AddRange(
+        [
+            new SessionItem
+            {
+                Id = SessionIdGenerator.NewItemId(10),
+                TurnId = turn.Id,
+                Type = ItemType.ToolCall,
+                Status = ItemStatus.Completed,
+                CreatedAt = now.AddMilliseconds(200),
+                CompletedAt = now.AddMilliseconds(200),
+                Payload = new ToolCallPayload
+                {
+                    ToolName = "RequestUserInput",
+                    ProviderFlatName = "RequestUserInput",
+                    CallId = "call_user_input",
+                    Arguments = new JsonObject { ["questionCount"] = 2 }
+                }
+            },
+            new SessionItem
+            {
+                Id = SessionIdGenerator.NewItemId(11),
+                TurnId = turn.Id,
+                Type = ItemType.UserInputRequest,
+                Status = ItemStatus.Completed,
+                CreatedAt = now.AddMilliseconds(300),
+                CompletedAt = now.AddMilliseconds(300),
+                Payload = new UserInputRequestPayload
+                {
+                    RequestId = "request_export_input",
+                    Questions =
+                    [
+                        new RequestUserInputQuestion
+                        {
+                            Id = "one_time_code",
+                            Header = "Code",
+                            Question = "Enter the one-time code",
+                            IsSecret = true
+                        },
+                        new RequestUserInputQuestion
+                        {
+                            Id = "deployment_region",
+                            Header = "Region",
+                            Question = "Choose the deployment region"
+                        }
+                    ]
+                }
+            },
+            new SessionItem
+            {
+                Id = SessionIdGenerator.NewItemId(12),
+                TurnId = turn.Id,
+                Type = ItemType.UserInputResponse,
+                Status = ItemStatus.Completed,
+                CreatedAt = now.AddMilliseconds(400),
+                CompletedAt = now.AddMilliseconds(400),
+                Payload = new UserInputResponsePayload
+                {
+                    RequestId = "request_export_input",
+                    Response = new RequestUserInputResponse
+                    {
+                        Answers = new Dictionary<string, RequestUserInputAnswer>(StringComparer.Ordinal)
+                        {
+                            ["one_time_code"] = new() { Answers = ["SESSION_SECRET_ANSWER"] },
+                            ["deployment_region"] = new() { Answers = ["SESSION_NORMAL_ANSWER"] }
+                        }
+                    }
+                }
+            },
+            new SessionItem
+            {
+                Id = SessionIdGenerator.NewItemId(13),
+                TurnId = turn.Id,
+                Type = ItemType.ToolResult,
+                Status = ItemStatus.Completed,
+                CreatedAt = now.AddMilliseconds(500),
+                CompletedAt = now.AddMilliseconds(500),
+                Payload = new ToolResultPayload
+                {
+                    CallId = "call_user_input",
+                    ProviderFlatName = "RequestUserInput",
+                    Success = true,
+                    Result = "{\"answers\":{\"one_time_code\":{\"answers\":[\"TOOL_SECRET_ANSWER\"]},\"deployment_region\":{\"answers\":[\"TOOL_NORMAL_ANSWER\"]}}}"
+                }
+            },
+            new SessionItem
+            {
+                Id = SessionIdGenerator.NewItemId(14),
+                TurnId = turn.Id,
+                Type = ItemType.ToolResult,
+                Status = ItemStatus.Completed,
+                CreatedAt = now.AddMilliseconds(600),
+                CompletedAt = now.AddMilliseconds(600),
+                Payload = new ToolResultPayload
+                {
+                    CallId = "call_unrelated",
+                    ProviderFlatName = "ReadFile",
+                    ToolName = "ReadFile",
+                    Success = true,
+                    Result = "conversation-unrelated-visible"
+                }
+            }
+        ]);
+        await _threadStore.SaveThreadAsync(thread);
+        await _threadStore.AppendModelHistoryAsync(
+            thread.Id,
+            [
+                new ChatMessage(ChatRole.Assistant,
+                [
+                    new FunctionCallContent("call_exact_input", "RequestUserInput", new Dictionary<string, object?>()),
+                    new FunctionCallContent("call_exact_unrelated", "ReadFile", new Dictionary<string, object?>())
+                ]),
+                new ChatMessage(ChatRole.Tool,
+                [
+                    new FunctionResultContent(
+                        "call_exact_input",
+                        "{\"answers\":{\"one_time_code\":{\"answers\":[\"HISTORY_SECRET_ANSWER\"]},\"deployment_region\":{\"answers\":[\"HISTORY_NORMAL_ANSWER\"]}}}"),
+                    new FunctionResultContent("call_exact_unrelated", "history-unrelated-visible")
+                ])
+            ],
+            turn.Id);
+
+        var result = await new ContextExportService().ExportAsync(new ContextExportOptions
+        {
+            ThreadId = thread.Id,
+            WorkspacePath = _workspace,
+            ToolResults = mode,
+            ToolResultPreviewChars = 10_000
+        });
+
+        foreach (var answer in new[]
+                 {
+                     "SESSION_SECRET_ANSWER",
+                     "SESSION_NORMAL_ANSWER",
+                     "TOOL_SECRET_ANSWER",
+                     "TOOL_NORMAL_ANSWER",
+                     "HISTORY_SECRET_ANSWER",
+                     "HISTORY_NORMAL_ANSWER"
+                 })
+        {
+            Assert.DoesNotContain(answer, result.Markdown);
+        }
+
+        Assert.Contains("request_export_input", result.Markdown);
+        Assert.Contains("Enter the one-time code", result.Markdown);
+        Assert.Contains("Choose the deployment region", result.Markdown);
+        Assert.Contains("omitted because user-input answers may contain secrets", result.Markdown);
+        Assert.Contains("conversation-unrelated-visible", result.Markdown);
+        Assert.Contains("history-unrelated-visible", result.Markdown);
+    }
+
     [Fact]
     public async Task ExportAsync_UsesCanonicalExactHistoryAndRedactsInternalModelMetadata()
     {
