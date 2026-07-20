@@ -1063,7 +1063,6 @@ public sealed class StateBackedStoreTests : IDisposable
         var thread = CreateThread();
         await threadStore.SaveThreadAsync(thread);
 
-        InsertThreadSession(thread.Id);
         InsertThreadContextUsage(thread.Id);
         tokenUsageStore.Record(CreateUsageRecord(thread.Id, thread.Id));
         tokenUsageStore.Record(CreateUsageRecord(thread.Id, $"{thread.Id}:sub:child1"));
@@ -1086,7 +1085,6 @@ public sealed class StateBackedStoreTests : IDisposable
         await persistence.DeleteThreadCascadeAsync(thread.Id);
 
         Assert.Null(await threadStore.LoadThreadAsync(thread.Id));
-        Assert.False(persistence.SessionFileExists(thread.Id));
         Assert.Null(traceStore.GetSession(thread.Id));
         Assert.Null(traceStore.GetSession($"{thread.Id}:sub:child1"));
         Assert.Equal("unbound", traceStore.DescribeSessionDeletion(thread.Id).BindingKind);
@@ -1102,7 +1100,6 @@ public sealed class StateBackedStoreTests : IDisposable
         eventCommand.CommandText = "SELECT COUNT(*) FROM trace_events WHERE session_key LIKE $session_key";
         eventCommand.Parameters.AddWithValue("$session_key", $"{thread.Id}%");
         Assert.Equal(0L, (long)(eventCommand.ExecuteScalar() ?? 0L));
-        Assert.Equal(0L, CountRows("thread_sessions", $"thread_id = '{thread.Id}'"));
         Assert.Equal(0L, CountRows("thread_context_usage", $"thread_id = '{thread.Id}'"));
         Assert.Equal(0L, CountRows("trace_session_bindings", $"root_thread_id = '{thread.Id}'"));
         Assert.Equal(0L, CountRows("dashboard_usage_records", $"thread_id = '{thread.Id}' OR session_key = '{thread.Id}' OR session_key = '{thread.Id}:sub:child1'"));
@@ -1253,20 +1250,6 @@ public sealed class StateBackedStoreTests : IDisposable
 
         Assert.True(compacted);
         Assert.True(ReadPragmaLong("freelist_count") <= beforeFreelist);
-    }
-
-    private void InsertThreadSession(string threadId)
-    {
-        using var connection = _stateRuntime.OpenConnection();
-        using var command = connection.CreateCommand();
-        command.CommandText = """
-            INSERT INTO thread_sessions(thread_id, session_json, updated_at)
-            VALUES ($thread_id, $session_json, $updated_at)
-            """;
-        command.Parameters.AddWithValue("$thread_id", threadId);
-        command.Parameters.AddWithValue("$session_json", "{}");
-        command.Parameters.AddWithValue("$updated_at", DateTimeOffset.UtcNow.UtcDateTime.ToString("O"));
-        command.ExecuteNonQuery();
     }
 
     private void InsertThreadContextUsage(string threadId)

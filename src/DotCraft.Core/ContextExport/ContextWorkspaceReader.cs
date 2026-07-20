@@ -51,6 +51,11 @@ internal sealed class ContextWorkspaceReader
         var thread = replay.Build();
         if (thread == null)
             return null;
+        if (!string.Equals(thread.Id, threadId, StringComparison.Ordinal))
+        {
+            warnings.Add($"Rollout header thread id does not match requested thread '{threadId}'.");
+            return null;
+        }
 
         return new ContextLoadedThread(
             paths,
@@ -126,9 +131,16 @@ internal sealed class ContextWorkspaceReader
                 if (!MatchesStatusFilter(storedStatus, status))
                     continue;
 
+                var storedRolloutPath = ResolveStoredPath(paths.CraftPath, reader.GetString(1));
+                if (storedRolloutPath == null)
+                {
+                    warnings.Add($"Ignoring rollout path outside craft directory for thread '{reader.GetString(0)}'.");
+                    continue;
+                }
+
                 rows.Add(new ContextThreadIndexRow(
                     ThreadId: reader.GetString(0),
-                    RolloutPath: ResolveStoredPath(paths.CraftPath, reader.GetString(1)),
+                    RolloutPath: storedRolloutPath,
                     WorkspacePath: reader.GetString(2),
                     OriginChannel: reader.GetString(3),
                     ChannelContext: reader.IsDBNull(4) ? null : reader.GetString(4),
@@ -173,7 +185,9 @@ internal sealed class ContextWorkspaceReader
 
     public static string TakeTail(string value, int maxChars)
     {
-        if (maxChars <= 0 || string.IsNullOrEmpty(value) || value.Length <= maxChars)
+        if (maxChars <= 0 || string.IsNullOrEmpty(value))
+            return string.Empty;
+        if (value.Length <= maxChars)
             return value;
 
         return value[^maxChars..].TrimStart();
@@ -212,8 +226,6 @@ internal sealed class ContextWorkspaceReader
         return value[..maxChars].TrimEnd() + " ...";
     }
 
-    public static string MakeSafe(string key) => string.Concat(key.Split(Path.GetInvalidFileNameChars()));
-
     private string? TryResolveRolloutPath(
         ContextWorkspacePaths paths,
         string threadId,
@@ -234,7 +246,9 @@ internal sealed class ContextWorkspaceReader
                     if (File.Exists(resolved))
                         return resolved;
 
-                    warnings.Add($"Thread metadata points to a missing rollout file: {resolved}");
+                    warnings.Add(resolved == null
+                        ? "Thread metadata points to a rollout path outside the craft directory."
+                        : $"Thread metadata points to a missing rollout file: {resolved}");
                 }
             }
             catch (Exception ex) when (ex is SqliteException or InvalidOperationException)
@@ -243,13 +257,7 @@ internal sealed class ContextWorkspaceReader
             }
         }
 
-        var safe = MakeSafe(threadId);
-        var active = Path.Combine(paths.CraftPath, "threads", "active", $"{safe}.jsonl");
-        if (File.Exists(active))
-            return active;
-
-        var archived = Path.Combine(paths.CraftPath, "threads", "archived", $"{safe}.jsonl");
-        return File.Exists(archived) ? archived : null;
+        return null;
     }
 
     private static SqliteConnection OpenReadOnlyConnection(string dbPath)
@@ -271,12 +279,35 @@ internal sealed class ContextWorkspaceReader
         return connection;
     }
 
-    private static string ResolveStoredPath(string craftPath, string storedPath)
+    private static string? ResolveStoredPath(string craftPath, string storedPath)
     {
-        if (Path.IsPathRooted(storedPath))
-            return Path.GetFullPath(storedPath);
+        if (string.IsNullOrWhiteSpace(storedPath))
+            return null;
 
-        return Path.GetFullPath(Path.Combine(craftPath, storedPath));
+        string resolved;
+        try
+        {
+            resolved = Path.GetFullPath(
+                Path.IsPathRooted(storedPath)
+                    ? storedPath
+                    : Path.Combine(craftPath, storedPath));
+        }
+        catch (ArgumentException)
+        {
+            return null;
+        }
+        catch (NotSupportedException)
+        {
+            return null;
+        }
+
+        var root = Path.GetFullPath(craftPath)
+            .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)
+            + Path.DirectorySeparatorChar;
+        var comparison = OperatingSystem.IsWindows()
+            ? StringComparison.OrdinalIgnoreCase
+            : StringComparison.Ordinal;
+        return resolved.StartsWith(root, comparison) ? resolved : null;
     }
 
     private static bool MatchesStatusFilter(string storedStatus, ContextSearchStatusFilter filter)
@@ -315,6 +346,7 @@ internal sealed class ContextWorkspaceReader
     {
         private readonly Dictionary<string, SessionTurn> _turns = new(StringComparer.Ordinal);
         private SessionThread? _thread;
+        private bool _hasCanonicalHeader;
 
         public List<ContextContinuityEvent> ContinuityEvents { get; } = [];
 
@@ -330,12 +362,27 @@ internal sealed class ContextWorkspaceReader
             }
             catch (JsonException ex)
             {
+                if (!_hasCanonicalHeader)
+                    throw new InvalidDataException("The canonical thread header is unreadable.", ex);
                 warnings.Add($"Skipped corrupt rollout line {lineNumber}: {ex.Message}");
                 return;
             }
 
             if (record == null)
+            {
+                if (!_hasCanonicalHeader)
+                    throw new InvalidDataException("The canonical thread header is empty.");
                 return;
+            }
+
+            if (record.Kind == "thread_opened" && record.ThreadOpened == null)
+                throw new InvalidDataException("A canonical thread baseline record is incomplete.");
+
+            if (!_hasCanonicalHeader
+                && (record.Kind != "thread_opened" || record.ThreadOpened == null))
+            {
+                throw new InvalidDataException("The rollout does not begin with a canonical thread header.");
+            }
 
             switch (record.Kind)
             {
@@ -346,11 +393,20 @@ internal sealed class ContextWorkspaceReader
                     _thread.UserId = record.ThreadOpened.UserId;
                     _thread.OriginChannel = record.ThreadOpened.OriginChannel;
                     _thread.ChannelContext = record.ThreadOpened.ChannelContext;
+                    _thread.Source = record.ThreadOpened.Source == null
+                        ? PersistedThreadSourceCodec.InferLegacy(
+                            record.ThreadOpened.OriginChannel,
+                            record.ThreadOpened.Metadata)
+                        : PersistedThreadSourceCodec.Decode(record.ThreadOpened.Source);
+                    _thread.ForkedFromId = record.ThreadOpened.ForkedFromId;
+                    _thread.Ephemeral = record.ThreadOpened.Ephemeral;
+                    _thread.Worktree = record.ThreadOpened.Worktree;
                     _thread.CreatedAt = record.ThreadOpened.CreatedAt;
                     _thread.LastActiveAt = record.ThreadOpened.LastActiveAt;
                     _thread.Metadata = new Dictionary<string, string>(record.ThreadOpened.Metadata);
                     _thread.HistoryMode = record.ThreadOpened.HistoryMode;
                     _thread.Configuration = record.ThreadOpened.Configuration;
+                    _hasCanonicalHeader = true;
                     break;
 
                 case "thread_name_updated" when _thread != null && record.ThreadNameUpdated != null:
@@ -360,6 +416,17 @@ internal sealed class ContextWorkspaceReader
                 case "thread_status_changed" when _thread != null && record.ThreadStatusChanged != null:
                     _thread.Status = record.ThreadStatusChanged.Status;
                     _thread.LastActiveAt = record.ThreadStatusChanged.LastActiveAt;
+                    break;
+
+                case "turn_state_replaced" when _thread != null && record.TurnStateReplaced != null:
+                    var replacement = record.TurnStateReplaced;
+                    var replacementTurn = replacement.Turn;
+                    replacementTurn.Input ??= replacementTurn.Items.FirstOrDefault(static item =>
+                        item.Type == ItemType.UserMessage);
+                    _turns[replacementTurn.Id] = replacementTurn;
+                    _thread.Status = replacement.ThreadStatus;
+                    _thread.LastActiveAt = replacement.LastActiveAt;
+                    _thread.DisplayName = replacement.DisplayName;
                     break;
 
                 case "turn_started" when _thread != null && record.TurnStarted != null:
@@ -424,8 +491,7 @@ internal sealed class ContextWorkspaceReader
                         record.ContextCompacted.Mode,
                         record.ContextCompacted.TokensBefore,
                         record.ContextCompacted.TokensAfter,
-                        record.ContextCompacted.CreatedAt,
-                        record.ContextCompacted.ReplacementHistory.Clone()));
+                        record.ContextCompacted.CreatedAt));
                     break;
 
                 case "queued_input_added" when _thread != null && record.QueuedInputAdded != null:
@@ -527,8 +593,7 @@ internal sealed record ContextContinuityEvent(
     string? Mode,
     long? TokensBefore,
     long? TokensAfter,
-    DateTimeOffset? CreatedAt,
-    JsonElement? ReplacementHistory)
+    DateTimeOffset? CreatedAt)
 {
     public static ContextContinuityEvent FromRollback(
         int lineNumber,
@@ -547,7 +612,6 @@ internal sealed record ContextContinuityEvent(
             null,
             null,
             null,
-            null,
             null);
 
     public static ContextContinuityEvent FromCompaction(
@@ -560,8 +624,7 @@ internal sealed record ContextContinuityEvent(
         string mode,
         long tokensBefore,
         long tokensAfter,
-        DateTimeOffset createdAt,
-        JsonElement replacementHistory) =>
+        DateTimeOffset createdAt) =>
         new(
             ContextContinuityEventKind.Compaction,
             lineNumber,
@@ -574,8 +637,7 @@ internal sealed record ContextContinuityEvent(
             mode,
             tokensBefore,
             tokensAfter,
-            createdAt,
-            replacementHistory);
+            createdAt);
 }
 
 internal sealed record ContextThreadIndexRow(

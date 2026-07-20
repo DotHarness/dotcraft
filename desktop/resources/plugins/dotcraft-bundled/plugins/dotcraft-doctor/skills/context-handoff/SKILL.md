@@ -55,7 +55,9 @@ dotcraft context export --thread thread_20260601_ab12cd --profile transcript --t
 ## What The Export Handles
 
 - Surviving rollout turns after rollback are exported; rolled-back tail turns are not treated as current context.
-- Compaction checkpoints are listed as continuity events. The latest surviving checkpoint is used to reconstruct current model-visible context when it can be decoded.
+- Current model context uses the same canonical rollout replay as runtime hydration: the latest decodable surviving checkpoint plus valid tail model history, with whole-Turn UI fallback when an exact batch is rejected.
+- Compaction checkpoints are listed as continuity events. Malformed checkpoints are skipped while replay continues toward an earlier valid checkpoint.
+- Replay warnings identify rejected records and fallback Turns without exposing reasoning, ProtectedData, AdditionalProperties, or internal provider metadata.
 - `MEMORY.md` is included, and `HISTORY.md` follows the selected `--history` mode.
 - Reasoning content is omitted. Tool calls are kept, and tool results follow `--tool-results`.
 

@@ -283,5 +283,13 @@ public sealed class ShellToolsCommandExecutionTests : IDisposable
             string threadId,
             CancellationToken ct = default) =>
             throw new NotSupportedException();
+
+        public Task<IReadOnlyList<string>> DeleteThreadArtifactsAsync(
+            string threadId,
+            CancellationToken ct = default) =>
+            throw new NotSupportedException();
+
+        public Task<int> CleanupExpiredArtifactsAsync(CancellationToken ct = default) =>
+            throw new NotSupportedException();
     }
 }

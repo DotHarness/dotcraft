@@ -1,0 +1,121 @@
+{
+  "schemaVersion": 1,
+  "turnId": "turn_fixture",
+  "role": "assistant",
+  "messageId": "message_fixture",
+  "authorName": "assistant_fixture",
+  "createdAt": "2026-01-02T03:04:05+00:00",
+  "additionalProperties": {
+    "messageMeta": { "array": [1, true, null, { "name": "value" }] },
+    "nullable": null
+  },
+  "contents": [
+    {
+      "kind": "text",
+      "payload": {
+        "text": "hello",
+        "additionalProperties": { "textMeta": { "array": [1, true, null, { "name": "value" }] } }
+      }
+    },
+    {
+      "kind": "reasoning",
+      "payload": { "text": "thinking", "protectedData": "protected", "additionalProperties": null }
+    },
+    {
+      "kind": "data",
+      "payload": { "base64Data": "AQID", "mediaType": "image/png", "name": "sample.png", "additionalProperties": null }
+    },
+    {
+      "kind": "function_call",
+      "payload": {
+        "callId": "call_1",
+        "name": "read_file",
+        "arguments": { "path": "sample.txt", "line": 7 },
+        "informationalOnly": true,
+        "namespace": "tools",
+        "providerFlatName": "tools--read_file",
+        "additionalProperties": {
+          "openai.responses.function_call.namespace": "tools",
+          "namespace": "tools",
+          "dotcraft.tool.provider_flat_name": "tools--read_file",
+          "extension": { "array": [1, true, null, { "name": "value" }] }
+        }
+      }
+    },
+    {
+      "kind": "function_result",
+      "payload": {
+        "callId": "call_1",
+        "result": { "schemaVersion": 1, "kind": "json", "json": { "ok": true, "count": 2 }, "contents": null },
+        "additionalProperties": null
+      }
+    },
+    {
+      "kind": "function_result",
+      "payload": {
+        "callId": "call_2",
+        "result": {
+          "schemaVersion": 1,
+          "kind": "contents",
+          "json": null,
+          "contents": [
+            { "kind": "text", "payload": { "text": "nested result", "additionalProperties": null } },
+            { "kind": "data", "payload": { "base64Data": "CQg=", "mediaType": "text/plain", "name": "nested.txt", "additionalProperties": null } }
+          ]
+        },
+        "additionalProperties": null
+      }
+    },
+    {
+      "kind": "hosted_image_generation",
+      "payload": {
+        "id": "image_1",
+        "status": "completed",
+        "revisedPrompt": "synthetic prompt",
+        "imageBase64": "BAUG",
+        "mediaType": "image/png",
+        "errorMessage": null,
+        "additionalProperties": null
+      }
+    },
+    {
+      "kind": "image_generation_tool_call",
+      "payload": { "callId": "image_call", "additionalProperties": null }
+    },
+    {
+      "kind": "image_generation_tool_result",
+      "payload": {
+        "callId": "image_call",
+        "outputs": [
+          { "kind": "text", "payload": { "text": "generated", "additionalProperties": null } },
+          { "kind": "uri", "payload": { "uri": "https://example.invalid/image.png", "mediaType": "image/png", "additionalProperties": null } }
+        ],
+        "additionalProperties": null
+      }
+    },
+    {
+      "kind": "error",
+      "payload": { "message": "recoverable", "errorCode": "sample_error", "details": "synthetic details", "additionalProperties": null }
+    },
+    {
+      "kind": "uri",
+      "payload": { "uri": "https://example.invalid/document.txt", "mediaType": "text/plain", "additionalProperties": null }
+    },
+    {
+      "kind": "usage",
+      "payload": {
+        "inputTokenCount": 10,
+        "outputTokenCount": 5,
+        "totalTokenCount": 15,
+        "cachedInputTokenCount": 2,
+        "reasoningTokenCount": 1,
+        "inputAudioTokenCount": 0,
+        "inputTextTokenCount": 10,
+        "outputAudioTokenCount": 0,
+        "outputTextTokenCount": 5,
+        "additionalCounts": { "acceptedPredictionTokens": 3 },
+        "additionalProperties": null
+      }
+    }
+  ]
+}

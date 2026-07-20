@@ -36,6 +36,12 @@ public sealed class SessionPersistenceService(
     public Task SaveThreadAsync(SessionThread thread, CancellationToken ct = default)
         => threadStore.SaveThreadAsync(thread, ct);
 
+    internal Task SaveTurnAsync(SessionThread thread, SessionTurn turn, CancellationToken ct = default)
+        => threadStore.SaveTurnAsync(thread, turn, ct);
+
+    internal Task CommitTurnAsync(TurnPersistenceCommit commit, CancellationToken ct = default)
+        => threadStore.CommitTurnAsync(commit, ct);
+
     internal StateRuntime StateRuntime => _stateRuntime;
 
     public Task<SessionThread?> LoadThreadAsync(string threadId, CancellationToken ct = default)
@@ -47,19 +53,20 @@ public sealed class SessionPersistenceService(
     public Task<List<ThreadSummary>> LoadIndexAsync(CancellationToken ct = default)
         => threadStore.LoadIndexAsync(ct);
 
-    public Task SaveSessionAsync(
-        AIAgent agent,
+    internal Task PersistModelHistoryAsync(
         AgentSession session,
         string threadId,
+        string turnId,
+        int persistedPrefixLength,
         CancellationToken ct = default)
-        => threadStore.SaveSessionAsync(agent, session, threadId, ct);
+        => threadStore.PersistModelHistoryAsync(session, threadId, turnId, persistedPrefixLength, ct);
 
-    internal Task<AgentSession> SaveSessionFromHistoryAsync(
-        AIAgent agent,
+    internal Task AppendModelHistoryAsync(
         string threadId,
         IReadOnlyList<ChatMessage> history,
+        string turnId,
         CancellationToken ct = default)
-        => threadStore.SaveSessionFromHistoryAsync(agent, threadId, history, ct);
+        => threadStore.AppendModelHistoryAsync(threadId, history, turnId, ct);
 
     internal Task<ForkModelHistoryMaterialization> BuildForkModelHistoryMaterializationAsync(
         SessionThread source,
@@ -67,17 +74,18 @@ public sealed class SessionPersistenceService(
         CancellationToken ct = default)
         => threadStore.BuildForkModelHistoryMaterializationAsync(source, forked, ct);
 
-    public Task RebuildAndSaveSessionFromThreadAsync(
-        AIAgent agent,
-        string threadId,
-        CancellationToken ct = default)
-        => threadStore.RebuildAndSaveSessionFromThreadAsync(agent, threadId, ct);
-
     public Task<AgentSession> LoadOrCreateSessionAsync(
         AIAgent agent,
         string threadId,
         CancellationToken ct = default)
         => threadStore.LoadOrCreateSessionAsync(agent, threadId, ct);
+
+    internal Task<AgentSession> LoadOrCreateSessionAsync(
+        AIAgent agent,
+        SessionThread thread,
+        string? excludedTurnId,
+        CancellationToken ct = default)
+        => threadStore.LoadOrCreateSessionAsync(agent, thread, excludedTurnId, ct);
 
     public Task RollbackThreadAsync(SessionThread thread, int numTurns, CancellationToken ct = default)
         => threadStore.RollbackThreadAsync(thread, numTurns, ct);
@@ -103,12 +111,6 @@ public sealed class SessionPersistenceService(
             tokensBefore,
             tokensAfter,
             ct);
-
-    public void DeleteSessionFile(string threadId)
-        => threadStore.DeleteSessionFile(threadId);
-
-    public bool SessionFileExists(string threadId)
-        => threadStore.SessionFileExists(threadId);
 
     public long? LoadContextUsageTokens(string threadId)
         => threadStore.LoadContextUsageTokens(threadId);
@@ -236,7 +238,6 @@ public sealed class SessionPersistenceService(
             _traceStore.ClearSession(sessionKey);
 
         threadStore.DeleteThread(threadId);
-        threadStore.DeleteSessionFile(threadId);
         DeleteUsageRecords([threadId], sessionKeys);
         return Task.CompletedTask;
     }

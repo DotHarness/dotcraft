@@ -1,6 +1,7 @@
 using System.Text.Json;
 using DotCraft.Context.Compaction;
 using DotCraft.State;
+using Microsoft.Data.Sqlite;
 
 namespace DotCraft.Protocol;
 
@@ -11,14 +12,19 @@ public sealed record ContextUsagePersistenceSnapshot(long Tokens, string? Source
 
 internal sealed class ThreadMetadataStore(StateRuntime stateRuntime)
 {
-    public void UpsertThread(SessionThread thread, string rolloutPath)
+    public void UpsertThread(
+        SqliteConnection connection,
+        SqliteTransaction transaction,
+        SessionThread thread,
+        string rolloutPath,
+        long projectedRolloutOffset)
     {
         var summary = ThreadSummary.FromThread(thread);
         var firstUserMessage = ExtractFirstUserMessage(thread);
         var archivedAt = thread.Status == ThreadStatus.Archived ? thread.LastActiveAt : (DateTimeOffset?)null;
 
-        using var connection = stateRuntime.OpenConnection();
         using var command = connection.CreateCommand();
+        command.Transaction = transaction;
         command.CommandText = """
             INSERT INTO threads (
                 thread_id,
@@ -30,6 +36,7 @@ internal sealed class ThreadMetadataStore(StateRuntime stateRuntime)
                 forked_from_id,
                 ephemeral,
                 worktree_json,
+                source_json,
                 display_name,
                 status,
                 created_at,
@@ -38,7 +45,8 @@ internal sealed class ThreadMetadataStore(StateRuntime stateRuntime)
                 history_mode,
                 turn_count,
                 first_user_message,
-                metadata_json
+                metadata_json,
+                projected_rollout_offset
             ) VALUES (
                 $thread_id,
                 $rollout_path,
@@ -49,6 +57,7 @@ internal sealed class ThreadMetadataStore(StateRuntime stateRuntime)
                 $forked_from_id,
                 $ephemeral,
                 $worktree_json,
+                $source_json,
                 $display_name,
                 $status,
                 $created_at,
@@ -57,7 +66,8 @@ internal sealed class ThreadMetadataStore(StateRuntime stateRuntime)
                 $history_mode,
                 $turn_count,
                 $first_user_message,
-                $metadata_json
+                $metadata_json,
+                $projected_rollout_offset
             )
             ON CONFLICT(thread_id) DO UPDATE SET
                 rollout_path = excluded.rollout_path,
@@ -68,6 +78,7 @@ internal sealed class ThreadMetadataStore(StateRuntime stateRuntime)
                 forked_from_id = excluded.forked_from_id,
                 ephemeral = excluded.ephemeral,
                 worktree_json = excluded.worktree_json,
+                source_json = excluded.source_json,
                 display_name = excluded.display_name,
                 status = excluded.status,
                 created_at = excluded.created_at,
@@ -76,7 +87,8 @@ internal sealed class ThreadMetadataStore(StateRuntime stateRuntime)
                 history_mode = excluded.history_mode,
                 turn_count = excluded.turn_count,
                 first_user_message = excluded.first_user_message,
-                metadata_json = excluded.metadata_json
+                metadata_json = excluded.metadata_json,
+                projected_rollout_offset = excluded.projected_rollout_offset
             """;
         command.Parameters.AddWithValue("$thread_id", thread.Id);
         command.Parameters.AddWithValue("$rollout_path", rolloutPath);
@@ -91,6 +103,11 @@ internal sealed class ThreadMetadataStore(StateRuntime stateRuntime)
             summary.Worktree == null
                 ? DBNull.Value
                 : JsonSerializer.Serialize(summary.Worktree));
+        command.Parameters.AddWithValue(
+            "$source_json",
+            JsonSerializer.Serialize(
+                PersistedThreadSourceCodec.Encode(summary.Source),
+                SessionPersistenceJsonOptions.Default));
         command.Parameters.AddWithValue("$display_name", (object?)summary.DisplayName ?? DBNull.Value);
         command.Parameters.AddWithValue("$status", summary.Status.ToString());
         command.Parameters.AddWithValue("$created_at", summary.CreatedAt.UtcDateTime.ToString("O"));
@@ -100,7 +117,53 @@ internal sealed class ThreadMetadataStore(StateRuntime stateRuntime)
         command.Parameters.AddWithValue("$turn_count", summary.TurnCount);
         command.Parameters.AddWithValue("$first_user_message", (object?)firstUserMessage ?? DBNull.Value);
         command.Parameters.AddWithValue("$metadata_json", JsonSerializer.Serialize(summary.Metadata));
+        command.Parameters.AddWithValue("$projected_rollout_offset", projectedRolloutOffset);
         command.ExecuteNonQuery();
+    }
+
+    public void UpdateProjectedRolloutOffset(string threadId, string rolloutPath, long projectedRolloutOffset)
+    {
+        using var connection = stateRuntime.OpenConnection();
+        using var transaction = connection.BeginTransaction();
+        UpdateProjectedRolloutOffset(connection, transaction, threadId, rolloutPath, projectedRolloutOffset);
+        transaction.Commit();
+    }
+
+    public static void UpdateProjectedRolloutOffset(
+        SqliteConnection connection,
+        SqliteTransaction transaction,
+        string threadId,
+        string rolloutPath,
+        long projectedRolloutOffset)
+    {
+        using var command = connection.CreateCommand();
+        command.Transaction = transaction;
+        command.CommandText = """
+            UPDATE threads
+            SET rollout_path = $rollout_path,
+                projected_rollout_offset = $projected_rollout_offset
+            WHERE thread_id = $thread_id
+            """;
+        command.Parameters.AddWithValue("$thread_id", threadId);
+        command.Parameters.AddWithValue("$rollout_path", rolloutPath);
+        command.Parameters.AddWithValue("$projected_rollout_offset", projectedRolloutOffset);
+        command.ExecuteNonQuery();
+    }
+
+    public Dictionary<string, ThreadProjectionState> LoadProjectionStates()
+    {
+        var states = new Dictionary<string, ThreadProjectionState>(StringComparer.Ordinal);
+        using var connection = stateRuntime.OpenConnection();
+        using var command = connection.CreateCommand();
+        command.CommandText = "SELECT thread_id, rollout_path, projected_rollout_offset FROM threads";
+        using var reader = command.ExecuteReader();
+        while (reader.Read())
+        {
+            states[reader.GetString(0)] = new ThreadProjectionState(
+                reader.GetString(1),
+                reader.IsDBNull(2) ? 0 : reader.GetInt64(2));
+        }
+        return states;
     }
 
     public List<ThreadSummary> LoadIndex()
@@ -123,7 +186,8 @@ internal sealed class ThreadMetadataStore(StateRuntime stateRuntime)
                 metadata_json,
                 forked_from_id,
                 ephemeral,
-                worktree_json
+                worktree_json,
+                source_json
             FROM threads
             ORDER BY updated_at DESC, thread_id DESC
             """;
@@ -131,6 +195,9 @@ internal sealed class ThreadMetadataStore(StateRuntime stateRuntime)
         while (reader.Read())
         {
             var originChannel = reader.GetString(3);
+            var metadata = reader.IsDBNull(10)
+                ? new Dictionary<string, string>()
+                : ParseMetadata(reader.GetString(10));
             list.Add(new ThreadSummary
             {
                 Id = reader.GetString(0),
@@ -139,16 +206,18 @@ internal sealed class ThreadMetadataStore(StateRuntime stateRuntime)
                 OriginChannel = originChannel,
                 ChannelContext = reader.IsDBNull(4) ? null : reader.GetString(4),
                 DisplayName = reader.IsDBNull(5) ? null : reader.GetString(5),
-                Source = string.Equals(originChannel, SubAgentThreadOrigin.ChannelName, StringComparison.OrdinalIgnoreCase)
-                    ? ThreadSource.ForSubAgent(new SubAgentThreadSource())
-                    : ThreadSource.User(),
+                Source = reader.IsDBNull(14)
+                    ? PersistedThreadSourceCodec.InferLegacy(originChannel, metadata)
+                    : PersistedThreadSourceCodec.Decode(
+                        JsonSerializer.Deserialize<PersistedThreadSource>(
+                            reader.GetString(14),
+                            SessionPersistenceJsonOptions.Default)
+                        ?? throw new JsonException("Thread source projection decoded to null.")),
                 Status = Enum.TryParse<ThreadStatus>(reader.GetString(6), out var status) ? status : ThreadStatus.Active,
                 CreatedAt = DateTimeOffset.Parse(reader.GetString(7)),
                 LastActiveAt = DateTimeOffset.Parse(reader.GetString(8)),
                 TurnCount = reader.GetInt32(9),
-                Metadata = reader.IsDBNull(10)
-                    ? []
-                    : ParseMetadata(reader.GetString(10)),
+                Metadata = metadata,
                 ForkedFromId = reader.IsDBNull(11) ? null : reader.GetString(11),
                 Ephemeral = !reader.IsDBNull(12) && reader.GetInt32(12) != 0,
                 Worktree = reader.IsDBNull(13) ? null : ParseWorktree(reader.GetString(13))
@@ -491,50 +560,6 @@ internal sealed class ThreadMetadataStore(StateRuntime stateRuntime)
             CreatedAt = DateTimeOffset.Parse(reader.GetString(6)),
             DeliveredAt = reader.IsDBNull(7) ? null : DateTimeOffset.Parse(reader.GetString(7))
         };
-
-    public void SaveSessionJson(string threadId, string sessionJson)
-    {
-        using var connection = stateRuntime.OpenConnection();
-        using var command = connection.CreateCommand();
-        command.CommandText = """
-            INSERT INTO thread_sessions(thread_id, session_json, updated_at)
-            VALUES ($thread_id, $session_json, $updated_at)
-            ON CONFLICT(thread_id) DO UPDATE SET
-                session_json = excluded.session_json,
-                updated_at = excluded.updated_at
-            """;
-        command.Parameters.AddWithValue("$thread_id", threadId);
-        command.Parameters.AddWithValue("$session_json", sessionJson);
-        command.Parameters.AddWithValue("$updated_at", DateTimeOffset.UtcNow.UtcDateTime.ToString("O"));
-        command.ExecuteNonQuery();
-    }
-
-    public string? LoadSessionJson(string threadId)
-    {
-        using var connection = stateRuntime.OpenConnection();
-        using var command = connection.CreateCommand();
-        command.CommandText = "SELECT session_json FROM thread_sessions WHERE thread_id = $thread_id LIMIT 1";
-        command.Parameters.AddWithValue("$thread_id", threadId);
-        return command.ExecuteScalar() as string;
-    }
-
-    public bool SessionExists(string threadId)
-    {
-        using var connection = stateRuntime.OpenConnection();
-        using var command = connection.CreateCommand();
-        command.CommandText = "SELECT 1 FROM thread_sessions WHERE thread_id = $thread_id LIMIT 1";
-        command.Parameters.AddWithValue("$thread_id", threadId);
-        return command.ExecuteScalar() != null;
-    }
-
-    public void DeleteSession(string threadId)
-    {
-        using var connection = stateRuntime.OpenConnection();
-        using var command = connection.CreateCommand();
-        command.CommandText = "DELETE FROM thread_sessions WHERE thread_id = $thread_id";
-        command.Parameters.AddWithValue("$thread_id", threadId);
-        command.ExecuteNonQuery();
-    }
 
     public ThreadGoal? LoadThreadGoal(string threadId)
     {
@@ -1006,5 +1031,7 @@ internal sealed class ThreadMetadataStore(StateRuntime stateRuntime)
         || usage.LlmCallCount > 0
         || usage.TotalTokens > 0;
 }
+
+internal sealed record ThreadProjectionState(string RolloutPath, long ProjectedRolloutOffset);
 
 internal sealed record ThreadRolloutLocation(string ThreadId, string RolloutPath, ThreadStatus Status);

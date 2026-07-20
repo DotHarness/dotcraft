@@ -378,7 +378,9 @@ public sealed class SessionServiceRuntimeSignalTests : IDisposable
         var failedThread = await firstService.GetThreadAsync(thread.Id);
         var failedTurn = failedThread.Turns.Last();
         Assert.Equal(TurnStatus.Failed, failedTurn.Status);
-        Assert.True(new ThreadStore(_tempDir).SessionFileExists(thread.Id));
+        var rollout = await File.ReadAllTextAsync(
+            Path.Combine(_tempDir, "threads", "active", $"{thread.Id}.jsonl"));
+        Assert.Contains("model_history_messages_appended", rollout, StringComparison.Ordinal);
 
         var secondChatClient = new RecordingChatClient("second answer");
         await using var secondFactory = CreateAgentFactory(secondChatClient);
@@ -2085,13 +2087,14 @@ public sealed class SessionServiceRuntimeSignalTests : IDisposable
         var rolledBackTurnService = CreateService(rolledBackTurnFactory, rolledBackTurnChatClient);
         await rolledBackTurnService.ResumeThreadAsync(thread.Id);
         await DrainAsync(rolledBackTurnService.SubmitInputAsync(thread.Id, [new TextContent("rolled back request")]));
-        await SaveSyntheticSessionAsync(
+        await new ThreadStore(_tempDir).AppendCompactionCheckpointAsync(
             thread.Id,
-            [
-                new ChatMessage(ChatRole.Assistant, "<summary>legacy compacted context</summary>"),
-                new ChatMessage(ChatRole.User, "rolled back request"),
-                new ChatMessage(ChatRole.Assistant, "rolled back answer")
-            ]);
+            thread.Turns[0].Id,
+            [new ChatMessage(ChatRole.Assistant, "<summary>legacy compacted context</summary>")],
+            "manual",
+            "partial",
+            1_000,
+            100);
 
         var rollbackChatClient = new RecordingChatClient("unused");
         await using var rollbackFactory = CreateAgentFactory(rollbackChatClient);
@@ -2137,7 +2140,6 @@ public sealed class SessionServiceRuntimeSignalTests : IDisposable
         var compactResult = await compactService.CompactThreadAsync(thread.Id);
         Assert.Equal("partial", compactResult.Outcome);
 
-        DeleteSessionRow(thread.Id);
 
         var followUpChatClient = new RecordingChatClient("follow answer");
         await using var followUpFactory = CreateAgentFactory(followUpChatClient);
@@ -2185,7 +2187,9 @@ public sealed class SessionServiceRuntimeSignalTests : IDisposable
 
         var store = new ThreadStore(_tempDir);
         Assert.NotNull(await store.LoadThreadAsync(thread.Id));
-        Assert.True(store.SessionFileExists(thread.Id));
+        var rollout = await File.ReadAllTextAsync(
+            Path.Combine(_tempDir, "threads", "active", $"{thread.Id}.jsonl"));
+        Assert.Contains("model_history_messages_appended", rollout, StringComparison.Ordinal);
         Assert.True(ThreadRowExists(thread.Id));
     }
 
@@ -2220,7 +2224,6 @@ public sealed class SessionServiceRuntimeSignalTests : IDisposable
         var thread = await firstService.CreateThreadAsync(MakeIdentity());
 
         await DrainAsync(firstService.SubmitInputAsync(thread.Id, [new TextContent("hello")]));
-        DeleteSessionRow(thread.Id);
 
         var secondChatClient = new RecordingChatClient("second answer");
         await using var secondFactory = CreateAgentFactory(secondChatClient);
@@ -2453,23 +2456,6 @@ public sealed class SessionServiceRuntimeSignalTests : IDisposable
         config.Compaction.KeepRecentMinGroups = 1;
         config.Compaction.KeepRecentMaxTokens = 500;
         config.Compaction.MicrocompactEnabled = false;
-    }
-
-    private void DeleteSessionRow(string threadId)
-    {
-        using var connection = OpenStateConnection();
-        using var command = connection.CreateCommand();
-        command.CommandText = "DELETE FROM thread_sessions WHERE thread_id = $thread_id";
-        command.Parameters.AddWithValue("$thread_id", threadId);
-        command.ExecuteNonQuery();
-    }
-
-    private async Task SaveSyntheticSessionAsync(string threadId, IReadOnlyList<ChatMessage> history)
-    {
-        var agent = new RecordingChatClient("unused").AsAIAgent(new ChatClientAgentOptions());
-        var session = await agent.CreateSessionAsync();
-        session.SetInMemoryChatHistory([.. history], jsonSerializerOptions: SessionPersistenceJsonOptions.Default);
-        await new ThreadStore(_tempDir).SaveSessionAsync(agent, session, threadId);
     }
 
     private SqliteConnection OpenStateConnection()

@@ -1,4 +1,3 @@
-using System.Reflection;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using DotCraft.Agents;
@@ -55,23 +54,224 @@ public sealed class ThreadStoreTests : IDisposable
     }
 
     [Fact]
-    public void CloneThreadSnapshot_DeepCopiesWithSerializedShape()
+    public async Task RolloutPaths_ForSanitizedNameCollisions_AreDistinct()
+    {
+        var first = CreateThread();
+        first.Id = "a:b";
+        var second = CreateThread();
+        second.Id = "ab";
+
+        await _store.SaveThreadAsync(first);
+        await _store.SaveThreadAsync(second);
+
+        var rolloutStore = new ThreadRolloutStore(_root);
+        var firstPath = rolloutStore.GetExpectedPath(first.Id, archived: false);
+        var secondPath = rolloutStore.GetExpectedPath(second.Id, archived: false);
+        Assert.NotEqual(firstPath, secondPath);
+        Assert.True(File.Exists(firstPath));
+        Assert.True(File.Exists(secondPath));
+        Assert.Equal(first.Id, (await _store.LoadThreadAsync(first.Id))?.Id);
+        Assert.Equal(second.Id, (await _store.LoadThreadAsync(second.Id))?.Id);
+    }
+
+    [Fact]
+    public async Task SaveThread_CompleteSubAgentSource_RoundTripsThroughRolloutAndIndex()
     {
         var thread = CreateThread();
-        thread.Metadata["custom"] = "before";
-        AddTurnWithMessages(thread, "hello", "reply");
+        thread.OriginChannel = SubAgentThreadOrigin.ChannelName;
+        thread.Source = ThreadSource.ForSubAgent(new SubAgentThreadSource
+        {
+            ParentThreadId = "thread_parent",
+            ParentTurnId = "turn_parent",
+            SpawnCallId = "call_spawn",
+            RootThreadId = "thread_root",
+            Depth = 3,
+            AgentPath = "root/reviewer",
+            TaskName = "review",
+            AgentNickname = "reviewer",
+            AgentRole = "critic",
+            ProfileName = "strict",
+            RuntimeType = "process",
+            SupportsSendInput = true,
+            SupportsResume = true,
+            SupportsSendMessage = true,
+            SupportsFollowupTask = true,
+            SupportsClose = false
+        });
 
-        var clone = CloneThreadSnapshotForTest(thread);
+        await _store.SaveThreadAsync(thread);
 
+        var loaded = Assert.IsType<SessionThread>(await _store.LoadThreadAsync(thread.Id));
         Assert.Equal(
-            JsonSerializer.Serialize(thread, SessionJsonOptions.Default),
-            JsonSerializer.Serialize(clone, SessionJsonOptions.Default));
+            JsonSerializer.Serialize(thread.Source, SessionJsonOptions.Default),
+            JsonSerializer.Serialize(loaded.Source, SessionJsonOptions.Default));
+        var summary = Assert.Single(await _store.LoadIndexAsync(), item => item.Id == thread.Id);
+        Assert.Equal(
+            JsonSerializer.Serialize(thread.Source, SessionJsonOptions.Default),
+            JsonSerializer.Serialize(summary.Source, SessionJsonOptions.Default));
+    }
 
-        clone.Metadata["custom"] = "after";
-        clone.Turns[0].Items[0].Payload = new UserMessagePayload { Text = "changed" };
+    [Fact]
+    public async Task SaveThread_SpawnedUserSource_RoundTrips()
+    {
+        var thread = CreateThread();
+        thread.Source = ThreadSource.SpawnedFromThread("thread_parent");
 
-        Assert.Equal("before", thread.Metadata["custom"]);
-        Assert.Equal("hello", Assert.IsType<UserMessagePayload>(thread.Turns[0].Items[0].Payload).Text);
+        await _store.SaveThreadAsync(thread);
+
+        var loaded = Assert.IsType<SessionThread>(await _store.LoadThreadAsync(thread.Id));
+        Assert.Equal(ThreadSourceKinds.User, loaded.Source.Kind);
+        Assert.Equal("thread_parent", loaded.Source.SpawnedFromThreadId);
+        Assert.Null(loaded.Source.SubAgent);
+    }
+
+    [Fact]
+    public async Task SaveThread_WhenSourceChanges_AppendsNewCanonicalBaseline()
+    {
+        var thread = CreateThread();
+        await _store.SaveThreadAsync(thread);
+        thread.Source = ThreadSource.SpawnedFromThread("thread_parent");
+
+        await _store.SaveThreadAsync(thread);
+
+        var records = await File.ReadAllLinesAsync(GetCanonicalPath(thread.Id, archived: false));
+        Assert.Equal(2, records.Count(line => line.Contains("\"kind\":\"thread_opened\"", StringComparison.Ordinal)));
+        var loaded = Assert.IsType<SessionThread>(await _store.LoadThreadAsync(thread.Id));
+        Assert.Equal("thread_parent", loaded.Source.SpawnedFromThreadId);
+    }
+
+    [Fact]
+    public async Task LoadThread_UnknownSourceSchema_FailsExplicitly()
+    {
+        var thread = CreateThread();
+        await _store.SaveThreadAsync(thread);
+        var path = GetCanonicalPath(thread.Id, archived: false);
+        var lines = await File.ReadAllLinesAsync(path);
+        var header = JsonNode.Parse(lines[0])!.AsObject();
+        header["threadOpened"]!["source"]!["schemaVersion"] = 99;
+        lines[0] = header.ToJsonString(SessionJsonOptions.Default);
+        await File.WriteAllLinesAsync(path, lines);
+
+        await Assert.ThrowsAsync<NotSupportedException>(() => new ThreadStore(_root).LoadThreadAsync(thread.Id));
+    }
+
+    [Fact]
+    public async Task Projection_WhenAttachmentUpdateFails_DoesNotAdvanceOffsetAndRepairsLater()
+    {
+        var thread = CreateThread();
+        AddTurnWithMessages(thread, "request", "answer");
+        await _store.SaveThreadAsync(thread);
+        var path = GetCanonicalPath(thread.Id, archived: false);
+        long confirmedBefore;
+        using (var connection = OpenStateConnection())
+        {
+            using var read = connection.CreateCommand();
+            read.CommandText = "SELECT projected_rollout_offset FROM threads WHERE thread_id = $id";
+            read.Parameters.AddWithValue("$id", thread.Id);
+            confirmedBefore = (long)read.ExecuteScalar()!;
+
+            using var trigger = connection.CreateCommand();
+            trigger.CommandText = """
+                CREATE TRIGGER fail_thread_attachment_projection
+                BEFORE INSERT ON thread_attachments
+                BEGIN
+                    SELECT RAISE(ABORT, 'injected attachment projection failure');
+                END;
+                """;
+            trigger.ExecuteNonQuery();
+        }
+
+        var imageDir = Path.Combine(_root, "attachments", "images");
+        Directory.CreateDirectory(imageDir);
+        var imagePath = Path.Combine(imageDir, "projection.png");
+        await File.WriteAllBytesAsync(imagePath, [1, 2, 3]);
+        var user = Assert.IsType<UserMessagePayload>(thread.Turns[0].Input!.Payload);
+        thread.Turns[0].Input!.Payload = user with
+        {
+            MaterializedInputParts = [new SessionWireInputPart { Type = "localImage", Path = imagePath }]
+        };
+        await _store.SaveThreadAsync(thread);
+
+        using (var connection = OpenStateConnection())
+        {
+            using var read = connection.CreateCommand();
+            read.CommandText = "SELECT projected_rollout_offset FROM threads WHERE thread_id = $id";
+            read.Parameters.AddWithValue("$id", thread.Id);
+            Assert.Equal(confirmedBefore, (long)read.ExecuteScalar()!);
+
+            using var drop = connection.CreateCommand();
+            drop.CommandText = "DROP TRIGGER fail_thread_attachment_projection";
+            drop.ExecuteNonQuery();
+        }
+
+        await _store.LoadIndexAsync();
+
+        using (var connection = OpenStateConnection())
+        {
+            using var read = connection.CreateCommand();
+            read.CommandText = """
+                SELECT projected_rollout_offset,
+                       (SELECT COUNT(*) FROM thread_attachments WHERE thread_id = $id)
+                FROM threads
+                WHERE thread_id = $id
+                """;
+            read.Parameters.AddWithValue("$id", thread.Id);
+            using var reader = read.ExecuteReader();
+            Assert.True(reader.Read());
+            Assert.Equal(new FileInfo(path).Length, reader.GetInt64(0));
+            Assert.Equal(1, reader.GetInt64(1));
+        }
+    }
+
+    [Fact]
+    public async Task LoadIndex_ReadRepair_DoesNotOverwriteAuthoritativeGoal()
+    {
+        var thread = CreateThread();
+        await _store.SaveThreadAsync(thread);
+        var goal = NewGoal(ThreadGoalStatus.Active) with { ThreadId = thread.Id };
+        await _store.UpsertThreadGoalAsync(goal);
+        var path = GetCanonicalPath(thread.Id, archived: false);
+        await File.AppendAllTextAsync(path, "{}" + Environment.NewLine);
+
+        await _store.LoadIndexAsync();
+
+        var restored = await _store.GetThreadGoalAsync(thread.Id);
+        Assert.NotNull(restored);
+        Assert.Equal(goal.GoalId, restored.GoalId);
+        Assert.Equal(goal.Objective, restored.Objective);
+    }
+
+    [Fact]
+    public async Task DeleteThread_WhenRolloutDeleteFails_PreservesDatabaseStateAndAttachments()
+    {
+        var thread = CreateThread();
+        AddTurnWithMessages(thread, "request", "answer");
+        var imageDir = Path.Combine(_root, "attachments", "images");
+        Directory.CreateDirectory(imageDir);
+        var imagePath = Path.Combine(imageDir, "preserved.png");
+        await File.WriteAllBytesAsync(imagePath, [1, 2, 3]);
+        var user = Assert.IsType<UserMessagePayload>(thread.Turns[0].Input!.Payload);
+        thread.Turns[0].Input!.Payload = user with
+        {
+            MaterializedInputParts = [new SessionWireInputPart { Type = "localImage", Path = imagePath }]
+        };
+        await _store.SaveThreadAsync(thread);
+        var goal = NewGoal(ThreadGoalStatus.Active) with { ThreadId = thread.Id };
+        await _store.UpsertThreadGoalAsync(goal);
+        var rolloutPath = GetCanonicalPath(thread.Id, archived: false);
+        var failingStore = new ThreadStore(
+            _root,
+            _store.StateRuntime,
+            (_, _) => throw new IOException("injected rollout delete failure"));
+
+        var error = Assert.Throws<IOException>(() => failingStore.DeleteThread(thread.Id));
+
+        Assert.Contains("injected rollout delete failure", error.Message);
+        Assert.True(File.Exists(rolloutPath));
+        Assert.True(File.Exists(imagePath));
+        Assert.NotNull(await _store.GetThreadGoalAsync(thread.Id));
+        Assert.Contains(await _store.LoadIndexAsync(), summary => summary.Id == thread.Id);
+        await failingStore.DisposeAsync();
     }
 
     [Fact]
@@ -654,7 +854,7 @@ public sealed class ThreadStoreTests : IDisposable
     }
 
     [Fact]
-    public async Task RebuildAndSaveSessionFromThreadAsync_IncludesPairedToolCallAndResult()
+    public async Task LoadOrCreateSessionAsync_IncludesPairedToolCallAndResult()
     {
         var thread = CreateThread();
         AddTurnWithMessages(thread, "hello", "before tool", TurnStatus.Failed);
@@ -705,7 +905,6 @@ public sealed class ThreadStoreTests : IDisposable
         await _store.SaveThreadAsync(thread);
 
         var agent = CreateAgent();
-        await _store.RebuildAndSaveSessionFromThreadAsync(agent, thread.Id);
         var session = await _store.LoadOrCreateSessionAsync(agent, thread.Id);
 
         Assert.Equal(
@@ -719,7 +918,7 @@ public sealed class ThreadStoreTests : IDisposable
     }
 
     [Fact]
-    public async Task RebuildAndSaveSessionFromThreadAsync_RestoresToolImageAsStructuredContent()
+    public async Task LoadOrCreateSessionAsync_RestoresToolImageAsStructuredContent()
     {
         var thread = CreateThread();
         AddTurnWithMessages(thread, "inspect", "before tool", TurnStatus.Completed);
@@ -768,7 +967,6 @@ public sealed class ThreadStoreTests : IDisposable
         await _store.SaveThreadAsync(thread);
 
         var agent = CreateAgent();
-        await _store.RebuildAndSaveSessionFromThreadAsync(agent, thread.Id);
         var session = await _store.LoadOrCreateSessionAsync(agent, thread.Id);
 
         Assert.True(session.TryGetInMemoryChatHistory(
@@ -776,8 +974,12 @@ public sealed class ThreadStoreTests : IDisposable
             jsonSerializerOptions: SessionPersistenceJsonOptions.Default));
         var functionResult = Assert.Single(
             history.SelectMany(message => message.Contents).OfType<FunctionResultContent>());
-        var json = Assert.IsType<JsonElement>(functionResult.Result);
-        var modelContents = json.Deserialize<List<AIContent>>(SessionPersistenceJsonOptions.Default);
+        var modelContents = functionResult.Result switch
+        {
+            IList<AIContent> contents => contents.ToList(),
+            JsonElement json => json.Deserialize<List<AIContent>>(SessionPersistenceJsonOptions.Default),
+            _ => null
+        };
         Assert.NotNull(modelContents);
         Assert.IsType<TextContent>(modelContents![0]);
         Assert.IsType<DataContent>(modelContents[1]);
@@ -786,7 +988,7 @@ public sealed class ThreadStoreTests : IDisposable
     }
 
     [Fact]
-    public async Task RebuildAndSaveSessionFromThreadAsync_ReplaysHostedImageGenerationAsAssistantContent()
+    public async Task LoadOrCreateSessionAsync_ReplaysHostedImageGenerationAsAssistantContent()
     {
         var thread = CreateThread();
         AddTurnWithMessages(thread, "hello", "before image", TurnStatus.Completed);
@@ -835,7 +1037,6 @@ public sealed class ThreadStoreTests : IDisposable
         await _store.SaveThreadAsync(thread);
 
         var agent = CreateAgent();
-        await _store.RebuildAndSaveSessionFromThreadAsync(agent, thread.Id);
         var session = await _store.LoadOrCreateSessionAsync(agent, thread.Id);
 
         Assert.True(session.TryGetInMemoryChatHistory(
@@ -854,7 +1055,7 @@ public sealed class ThreadStoreTests : IDisposable
     }
 
     [Fact]
-    public async Task RebuildAndSaveSessionFromThreadAsync_ReplaysImageGenerationItemAsAssistantContent()
+    public async Task LoadOrCreateSessionAsync_ReplaysImageGenerationItemAsAssistantContent()
     {
         var thread = CreateThread();
         AddTurnWithMessages(thread, "hello", "before image", TurnStatus.Completed);
@@ -880,7 +1081,6 @@ public sealed class ThreadStoreTests : IDisposable
         await _store.SaveThreadAsync(thread);
 
         var agent = CreateAgent();
-        await _store.RebuildAndSaveSessionFromThreadAsync(agent, thread.Id);
         var session = await _store.LoadOrCreateSessionAsync(agent, thread.Id);
 
         Assert.True(session.TryGetInMemoryChatHistory(
@@ -899,7 +1099,7 @@ public sealed class ThreadStoreTests : IDisposable
     }
 
     [Fact]
-    public async Task RebuildAndSaveSessionFromThreadAsync_SubAgentMailboxUserItem_ReplaysAsUserMessage()
+    public async Task LoadOrCreateSessionAsync_SubAgentMailboxUserItem_ReplaysAsUserMessage()
     {
         var thread = CreateThread();
         AddTurnWithMessages(thread, "hello", "before mailbox", TurnStatus.Completed);
@@ -923,7 +1123,6 @@ public sealed class ThreadStoreTests : IDisposable
         await _store.SaveThreadAsync(thread);
 
         var agent = CreateAgent();
-        await _store.RebuildAndSaveSessionFromThreadAsync(agent, thread.Id);
         var session = await _store.LoadOrCreateSessionAsync(agent, thread.Id);
 
         Assert.Equal(
@@ -936,7 +1135,7 @@ public sealed class ThreadStoreTests : IDisposable
     }
 
     [Fact]
-    public async Task RebuildAndSaveSessionFromThreadAsync_EmptyToolArgumentsBecomeEmptyDictionary()
+    public async Task LoadOrCreateSessionAsync_EmptyToolArgumentsBecomeEmptyDictionary()
     {
         var thread = CreateThread();
         AddTurnWithMessages(thread, "hello", "before tool", TurnStatus.Failed);
@@ -975,7 +1174,6 @@ public sealed class ThreadStoreTests : IDisposable
         await _store.SaveThreadAsync(thread);
 
         var agent = CreateAgent();
-        await _store.RebuildAndSaveSessionFromThreadAsync(agent, thread.Id);
         var session = await _store.LoadOrCreateSessionAsync(agent, thread.Id);
 
         Assert.True(session.TryGetInMemoryChatHistory(
@@ -990,7 +1188,7 @@ public sealed class ThreadStoreTests : IDisposable
     }
 
     [Fact]
-    public async Task RebuildAndSaveSessionFromThreadAsync_MergesReasoningTextAndToolCallIntoOneAssistantMessage()
+    public async Task LoadOrCreateSessionAsync_MergesReasoningTextAndToolCallIntoOneAssistantMessage()
     {
         var thread = CreateThread();
         AddTurnWithMessages(thread, "hello", "I will inspect.");
@@ -1039,7 +1237,6 @@ public sealed class ThreadStoreTests : IDisposable
         await _store.SaveThreadAsync(thread);
 
         var agent = CreateAgent();
-        await _store.RebuildAndSaveSessionFromThreadAsync(agent, thread.Id);
         var session = await new ThreadStore(_root).LoadOrCreateSessionAsync(agent, thread.Id);
 
         Assert.Equal(
@@ -1134,7 +1331,7 @@ public sealed class ThreadStoreTests : IDisposable
     }
 
     [Fact]
-    public async Task RebuildAndSaveSessionFromThreadAsync_SkipsDanglingToolPairs()
+    public async Task LoadOrCreateSessionAsync_SkipsDanglingToolPairs()
     {
         var thread = CreateThread();
         AddTurnWithMessages(thread, "hello", "before", TurnStatus.Failed);
@@ -1173,7 +1370,6 @@ public sealed class ThreadStoreTests : IDisposable
         await _store.SaveThreadAsync(thread);
 
         var agent = CreateAgent();
-        await _store.RebuildAndSaveSessionFromThreadAsync(agent, thread.Id);
         var session = await _store.LoadOrCreateSessionAsync(agent, thread.Id);
 
         Assert.Equal(["user:hello", "assistant:before"], FormatHistoryWithContents(session));
@@ -1397,15 +1593,64 @@ public sealed class ThreadStoreTests : IDisposable
     }
 
     [Fact]
-    public async Task LoadIndex_IgnoresThreadSessionsStoredInDb()
+    public async Task LoadIndex_WhenProjectionRowIsMissing_RepairsFromRolloutImmediately()
     {
         var thread = CreateThread();
+        thread.DisplayName = "Recovered thread";
+        AddTurnWithMessages(thread, "first request", "answer");
         await _store.SaveThreadAsync(thread);
-        InsertThreadSession(thread.Id, """{"chatHistory":[],"type":"chatHistory"}""");
+        var path = GetCanonicalPath(thread.Id, archived: false);
 
-        var index = await _store.LoadIndexAsync();
-        Assert.Single(index);
-        Assert.Equal(thread.Id, index[0].Id);
+        using (var connection = OpenStateConnection())
+        using (var command = connection.CreateCommand())
+        {
+            command.CommandText = "DELETE FROM threads WHERE thread_id = $thread_id";
+            command.Parameters.AddWithValue("$thread_id", thread.Id);
+            command.ExecuteNonQuery();
+        }
+
+        var summary = Assert.Single(await _store.LoadIndexAsync());
+        Assert.Equal(thread.Id, summary.Id);
+        Assert.Equal("Recovered thread", summary.DisplayName);
+        Assert.Equal(1, summary.TurnCount);
+
+        using var repairedConnection = OpenStateConnection();
+        using var repairedCommand = repairedConnection.CreateCommand();
+        repairedCommand.CommandText = "SELECT projected_rollout_offset FROM threads WHERE thread_id = $thread_id";
+        repairedCommand.Parameters.AddWithValue("$thread_id", thread.Id);
+        Assert.Equal(new FileInfo(path).Length, (long)repairedCommand.ExecuteScalar()!);
+    }
+
+    [Fact]
+    public async Task LoadIndex_WhenProjectionOffsetIsStale_RebuildsLatestMetadata()
+    {
+        var thread = CreateThread();
+        thread.DisplayName = "Latest name";
+        AddTurnWithMessages(thread, "first request", "answer");
+        await _store.SaveThreadAsync(thread);
+        var path = GetCanonicalPath(thread.Id, archived: false);
+
+        using (var connection = OpenStateConnection())
+        using (var command = connection.CreateCommand())
+        {
+            command.CommandText = """
+                UPDATE threads
+                SET display_name = 'stale name', turn_count = 0, projected_rollout_offset = 0
+                WHERE thread_id = $thread_id
+                """;
+            command.Parameters.AddWithValue("$thread_id", thread.Id);
+            command.ExecuteNonQuery();
+        }
+
+        var summary = Assert.Single(await _store.LoadIndexAsync());
+        Assert.Equal("Latest name", summary.DisplayName);
+        Assert.Equal(1, summary.TurnCount);
+
+        using var repairedConnection = OpenStateConnection();
+        using var repairedCommand = repairedConnection.CreateCommand();
+        repairedCommand.CommandText = "SELECT projected_rollout_offset FROM threads WHERE thread_id = $thread_id";
+        repairedCommand.Parameters.AddWithValue("$thread_id", thread.Id);
+        Assert.Equal(new FileInfo(path).Length, (long)repairedCommand.ExecuteScalar()!);
     }
 
     [Fact]
@@ -1422,24 +1667,6 @@ public sealed class ThreadStoreTests : IDisposable
 
         Assert.Equal(
             ["user:hello", "assistant:world"],
-            await ExtractHistoryAsync(agent, session));
-    }
-
-    [Fact]
-    public async Task LoadOrCreateSessionAsync_WhenSessionRowIsInvalid_FallsBackToRolloutHistory()
-    {
-        var thread = CreateThread();
-        AddTurnWithMessages(thread, "Need context", "Here is the context.");
-        await _store.SaveThreadAsync(thread);
-        InsertInvalidThreadSession(thread.Id, "{not valid json");
-
-        var store = new ThreadStore(_root);
-        var agent = CreateAgent();
-
-        var session = await store.LoadOrCreateSessionAsync(agent, thread.Id);
-
-        Assert.Equal(
-            ["user:Need context", "assistant:Here is the context."],
             await ExtractHistoryAsync(agent, session));
     }
 
@@ -1504,6 +1731,369 @@ public sealed class ThreadStoreTests : IDisposable
         Assert.Equal(
             ["assistant:compacted summary", "user:recent request", "assistant:recent answer"],
             await ExtractHistoryAsync(CreateAgent(), session));
+    }
+
+    [Fact]
+    public async Task ReplayModelHistory_WithLargeCoveredPrefix_ReadsOnlyCheckpointTail()
+    {
+        var thread = CreateThread();
+        AddTurnWithMessages(thread, "old request", new string('x', 512 * 1024));
+        AddTurnWithMessages(thread, "recent request", "recent projected answer");
+        await _store.SaveThreadAsync(thread);
+        await _store.AppendCompactionCheckpointAsync(
+            thread.Id,
+            thread.Turns[0].Id,
+            [new ChatMessage(ChatRole.Assistant, "compacted summary")],
+            "manual",
+            "partial",
+            1000,
+            100);
+        await _store.AppendModelHistoryAsync(
+            thread.Id,
+            [new ChatMessage(ChatRole.User, "recent exact request"), new ChatMessage(ChatRole.Assistant, "recent exact answer")],
+            thread.Turns[1].Id);
+
+        var replay = await new ThreadRolloutStore(_root).ReplayModelHistoryAsync(thread.Id, thread);
+        var pathLength = new FileInfo(GetCanonicalPath(thread.Id, archived: false)).Length;
+
+        Assert.Equal(
+            ["compacted summary", "recent exact request", "recent exact answer"],
+            replay.Messages.Select(static message => message.Text));
+        Assert.True(replay.BytesRead < pathLength / 2, $"Expected bounded tail scan, read {replay.BytesRead} of {pathLength} bytes.");
+        Assert.InRange(replay.RecordsDecoded, 2, 3);
+    }
+
+    [Fact]
+    public async Task ReplayModelHistory_InvalidBatchFallsBackWholeTurnAndPreservesOtherExactTurns()
+    {
+        var thread = CreateThread();
+        AddTurnWithMessages(thread, "projected first request", "projected first answer");
+        AddTurnWithMessages(thread, "projected second request", "projected second answer");
+        await _store.SaveThreadAsync(thread);
+        await _store.AppendModelHistoryAsync(
+            thread.Id,
+            [new ChatMessage(ChatRole.User, "exact first request"), new ChatMessage(ChatRole.Assistant, "exact first answer")],
+            thread.Turns[0].Id);
+        await _store.AppendModelHistoryAsync(
+            thread.Id,
+            [new ChatMessage(ChatRole.User, "exact second request"), new ChatMessage(ChatRole.Assistant, "exact second answer")],
+            thread.Turns[1].Id);
+
+        var invalidBatch = new
+        {
+            kind = "model_history_messages_appended",
+            timestamp = DateTimeOffset.UtcNow,
+            modelHistoryMessagesAppended = new
+            {
+                threadId = thread.Id,
+                turnId = thread.Turns[0].Id,
+                messages = new[]
+                {
+                    new { schemaVersion = 99, turnId = thread.Turns[0].Id, role = "assistant", contents = Array.Empty<object>() }
+                }
+            }
+        };
+        var path = GetCanonicalPath(thread.Id, archived: false);
+        await File.AppendAllTextAsync(path, JsonSerializer.Serialize(invalidBatch, SessionJsonOptions.Default) + Environment.NewLine);
+
+        var replay = await new RolloutReplayer().ReplayModelHistoryAsync(path, thread.Turns);
+
+        Assert.Equal(
+            ["projected first request", "projected first answer", "exact second request", "exact second answer"],
+            replay.Messages.Select(static message => message.Text));
+        Assert.Equal(1, replay.RejectedRecords);
+        Assert.Contains(thread.Turns[0].Id, Assert.IsAssignableFrom<IReadOnlySet<string>>(replay.FallbackTurnIds));
+        Assert.DoesNotContain(thread.Turns[1].Id, replay.FallbackTurnIds!);
+        Assert.Contains(replay.Warnings!, warning =>
+            warning.Code == "invalid_model_batch" && warning.TurnId == thread.Turns[0].Id);
+    }
+
+    [Fact]
+    public async Task ReplayModelHistory_ConflictingToolIdentityFallsBackWholeTurn()
+    {
+        var thread = CreateThread();
+        AddTurnWithMessages(thread, "projected first request", "projected first answer");
+        AddTurnWithMessages(thread, "projected second request", "projected second answer");
+        await _store.SaveThreadAsync(thread);
+        await _store.AppendModelHistoryAsync(
+            thread.Id,
+            [new ChatMessage(ChatRole.User, "exact first request")],
+            thread.Turns[0].Id);
+        await _store.AppendModelHistoryAsync(
+            thread.Id,
+            [new ChatMessage(ChatRole.User, "exact second request")],
+            thread.Turns[1].Id);
+
+        var conflictingBatch = new
+        {
+            kind = "model_history_messages_appended",
+            timestamp = DateTimeOffset.UtcNow,
+            modelHistoryMessagesAppended = new
+            {
+                threadId = thread.Id,
+                turnId = thread.Turns[0].Id,
+                messages = new[]
+                {
+                    new
+                    {
+                        schemaVersion = 1,
+                        turnId = thread.Turns[0].Id,
+                        role = "assistant",
+                        contents = new[]
+                        {
+                            new
+                            {
+                                kind = "function_call",
+                                payload = new
+                                {
+                                    callId = "call_conflict",
+                                    name = "read_file",
+                                    arguments = new { path = "sample.txt" },
+                                    informationalOnly = false,
+                                    @namespace = "tools",
+                                    providerFlatName = (string?)null,
+                                    additionalProperties = new Dictionary<string, object?>
+                                    {
+                                        ["openai.responses.function_call.namespace"] = "different"
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        };
+        var path = GetCanonicalPath(thread.Id, archived: false);
+        await File.AppendAllTextAsync(
+            path,
+            JsonSerializer.Serialize(conflictingBatch, SessionJsonOptions.Default) + Environment.NewLine);
+
+        var replay = await new RolloutReplayer().ReplayModelHistoryAsync(path, thread.Turns);
+
+        Assert.Equal(
+            ["projected first request", "projected first answer", "exact second request"],
+            replay.Messages.Select(static message => message.Text));
+        Assert.Equal(1, replay.RejectedRecords);
+        Assert.Contains(thread.Turns[0].Id, Assert.IsAssignableFrom<IReadOnlySet<string>>(replay.FallbackTurnIds));
+        Assert.Contains(replay.Warnings!, warning =>
+            warning.Code == "invalid_model_batch" && warning.TurnId == thread.Turns[0].Id);
+    }
+
+    [Fact]
+    public async Task ReplayModelHistory_CrossThreadBatchFallsBackToCanonicalTurn()
+    {
+        var thread = CreateThread();
+        AddTurnWithMessages(thread, "projected request", "projected answer");
+        await _store.SaveThreadAsync(thread);
+        var path = GetCanonicalPath(thread.Id, archived: false);
+        var foreignBatch = new
+        {
+            kind = "model_history_messages_appended",
+            timestamp = DateTimeOffset.UtcNow,
+            modelHistoryMessagesAppended = new
+            {
+                threadId = "different-thread",
+                turnId = thread.Turns[0].Id,
+                messages = new[]
+                {
+                    new
+                    {
+                        schemaVersion = 1,
+                        turnId = thread.Turns[0].Id,
+                        role = "assistant",
+                        contents = new[]
+                        {
+                            new { kind = "text", payload = new { text = "foreign answer" } }
+                        }
+                    }
+                }
+            }
+        };
+        await File.AppendAllTextAsync(
+            path,
+            JsonSerializer.Serialize(foreignBatch, SessionJsonOptions.Default) + Environment.NewLine);
+
+        var replay = await new RolloutReplayer().ReplayModelHistoryAsync(
+            path,
+            thread.Turns,
+            expectedThreadId: thread.Id);
+
+        Assert.Equal(["projected request", "projected answer"], replay.Messages.Select(static message => message.Text));
+        Assert.Contains(replay.Warnings!, warning =>
+            warning.Code == "cross_thread_record" && warning.TurnId == thread.Turns[0].Id);
+        Assert.Contains(thread.Turns[0].Id, Assert.IsAssignableFrom<IReadOnlySet<string>>(replay.FallbackTurnIds));
+    }
+
+    [Fact]
+    public async Task ReplayModelHistory_MalformedOrdinaryLineReportsWarningAndContinues()
+    {
+        var thread = CreateThread();
+        AddTurnWithMessages(thread, "projected request", "projected answer");
+        await _store.SaveThreadAsync(thread);
+        await _store.AppendModelHistoryAsync(
+            thread.Id,
+            [new ChatMessage(ChatRole.User, "exact request"), new ChatMessage(ChatRole.Assistant, "exact answer")],
+            thread.Turns[0].Id);
+        var path = GetCanonicalPath(thread.Id, archived: false);
+        await File.AppendAllTextAsync(path, "{ invalid json" + Environment.NewLine);
+
+        var replay = await new RolloutReplayer().ReplayModelHistoryAsync(path, thread.Turns);
+
+        Assert.Equal(["exact request", "exact answer"], replay.Messages.Select(static message => message.Text));
+        Assert.Equal(1, replay.RejectedRecords);
+        Assert.Contains(replay.Warnings!, warning => warning.Code == "malformed_json");
+    }
+
+    [Fact]
+    public async Task ReplayModelHistory_NullMessagesFallsBackWholeTurnAndContinues()
+    {
+        var thread = CreateThread();
+        AddTurnWithMessages(thread, "projected request", "projected answer");
+        await _store.SaveThreadAsync(thread);
+        var path = GetCanonicalPath(thread.Id, archived: false);
+        var invalidBatch = new
+        {
+            kind = "model_history_messages_appended",
+            timestamp = DateTimeOffset.UtcNow,
+            modelHistoryMessagesAppended = new
+            {
+                threadId = thread.Id,
+                turnId = thread.Turns[0].Id,
+                messages = (object?)null
+            }
+        };
+        await File.AppendAllTextAsync(path, JsonSerializer.Serialize(invalidBatch, SessionJsonOptions.Default) + Environment.NewLine);
+
+        var replay = await new RolloutReplayer().ReplayModelHistoryAsync(path, thread.Turns);
+
+        Assert.Equal(["projected request", "projected answer"], replay.Messages.Select(static message => message.Text));
+        Assert.Equal(1, replay.RejectedRecords);
+        Assert.Contains(thread.Turns[0].Id, replay.FallbackTurnIds!);
+        Assert.Contains(replay.Warnings!, warning => warning.Code == "invalid_model_batch");
+    }
+
+    [Fact]
+    public async Task ReplayModelHistory_InconsistentEnvelopeFallsBackWholeTurn()
+    {
+        var thread = CreateThread();
+        AddTurnWithMessages(thread, "projected request", "projected answer");
+        await _store.SaveThreadAsync(thread);
+        var path = GetCanonicalPath(thread.Id, archived: false);
+        var inconsistentRecord = new
+        {
+            kind = "model_history_messages_appended",
+            timestamp = DateTimeOffset.UtcNow,
+            contextCompacted = new
+            {
+                threadId = thread.Id,
+                coveredThroughTurnId = thread.Turns[0].Id,
+                replacementHistory = Array.Empty<object>()
+            }
+        };
+        await File.AppendAllTextAsync(path, JsonSerializer.Serialize(inconsistentRecord, SessionJsonOptions.Default) + Environment.NewLine);
+
+        var replay = await new RolloutReplayer().ReplayModelHistoryAsync(path, thread.Turns);
+
+        Assert.Equal(["projected request", "projected answer"], replay.Messages.Select(static message => message.Text));
+        Assert.Equal(1, replay.RejectedRecords);
+        Assert.Contains(thread.Turns[0].Id, replay.FallbackTurnIds!);
+        Assert.Contains(replay.Warnings!, warning => warning.Code == "malformed_record");
+    }
+
+    [Fact]
+    public async Task LoadOrCreateSessionAsync_WhenCoveredTurnHasPostCheckpointSuffix_AppendsThatSuffix()
+    {
+        var thread = CreateThread();
+        AddTurnWithMessages(thread, "raw request", "raw answer");
+        await _store.SaveThreadAsync(thread);
+        await _store.AppendCompactionCheckpointAsync(
+            thread.Id,
+            thread.Turns[0].Id,
+            [new ChatMessage(ChatRole.Assistant, "compacted summary")],
+            "auto",
+            "partial",
+            1000,
+            100);
+        await _store.AppendModelHistoryAsync(
+            thread.Id,
+            [new ChatMessage(ChatRole.Assistant, "same-turn suffix")],
+            thread.Turns[0].Id);
+
+        var session = await new ThreadStore(_root).LoadOrCreateSessionAsync(CreateAgent(), thread.Id);
+
+        Assert.Equal(
+            ["assistant:compacted summary", "assistant:same-turn suffix"],
+            await ExtractHistoryAsync(CreateAgent(), session));
+    }
+
+    [Fact]
+    public async Task LoadOrCreateSessionAsync_WhenNewestCheckpointSchemaIsUnsupported_UsesOlderCheckpoint()
+    {
+        var thread = CreateThread();
+        AddTurnWithMessages(thread, "seed", "answer");
+        await _store.SaveThreadAsync(thread);
+        await _store.AppendCompactionCheckpointAsync(
+            thread.Id,
+            thread.Turns[0].Id,
+            [new ChatMessage(ChatRole.Assistant, "older valid summary")],
+            "manual",
+            "partial",
+            1000,
+            100);
+        var unsupportedCheckpoint = new
+        {
+            kind = "context_compacted",
+            timestamp = DateTimeOffset.UtcNow,
+            contextCompacted = new
+            {
+                threadId = thread.Id,
+                coveredThroughTurnId = thread.Turns[0].Id,
+                checkpointId = "unsupported_checkpoint",
+                trigger = "manual",
+                mode = "partial",
+                tokensBefore = 1000,
+                tokensAfter = 100,
+                createdAt = DateTimeOffset.UtcNow,
+                replacementHistory = new[]
+                {
+                    new
+                    {
+                        schemaVersion = 2,
+                        role = "assistant",
+                        contents = Array.Empty<object>()
+                    }
+                }
+            }
+        };
+        await File.AppendAllTextAsync(
+            GetCanonicalPath(thread.Id, archived: false),
+            JsonSerializer.Serialize(unsupportedCheckpoint, SessionJsonOptions.Default) + Environment.NewLine);
+
+        var session = await new ThreadStore(_root).LoadOrCreateSessionAsync(CreateAgent(), thread.Id);
+
+        Assert.Equal(
+            ["assistant:older valid summary"],
+            await ExtractHistoryAsync(CreateAgent(), session));
+    }
+
+    [Fact]
+    public async Task SaveTurnAsync_AppendsSingleAtomicReplacement_AndColdReplayUsesIt()
+    {
+        var thread = CreateThread();
+        await _store.SaveThreadAsync(thread);
+        AddTurnWithMessages(thread, "atomic request", "atomic answer");
+        var turn = Assert.Single(thread.Turns);
+        thread.LastActiveAt = turn.CompletedAt ?? turn.StartedAt;
+
+        await _store.SaveTurnAsync(thread, turn);
+
+        var records = File.ReadAllLines(GetCanonicalPath(thread.Id, archived: false));
+        Assert.Single(records, line => line.Contains("\"kind\":\"turn_state_replaced\"", StringComparison.Ordinal));
+        var loaded = await new ThreadStore(_root).LoadThreadAsync(thread.Id);
+        var loadedTurn = Assert.Single(Assert.IsType<SessionThread>(loaded).Turns);
+        Assert.Equal(TurnStatus.Completed, loadedTurn.Status);
+        Assert.Equal("atomic request", loadedTurn.Input?.AsUserMessage?.Text);
+        Assert.Equal("atomic answer", loadedTurn.Items.Last().AsAgentMessage?.Text);
     }
 
     [Fact]
@@ -1616,18 +2206,6 @@ public sealed class ThreadStoreTests : IDisposable
             "partial",
             10_000,
             100);
-        var agent = CreateAgent();
-        await _store.SaveSessionFromHistoryAsync(
-            agent,
-            thread.Id,
-            [
-                .. replacementHistory,
-                new ChatMessage(ChatRole.User, "after compact"),
-                new ChatMessage(ChatRole.Assistant, "after answer")
-            ]);
-        Assert.True(_store.SessionFileExists(thread.Id));
-        _store.DeleteSessionFile(thread.Id);
-
         var session = await new ThreadStore(_root).LoadOrCreateSessionAsync(CreateAgent(), thread.Id);
 
         Assert.Equal(
@@ -1777,11 +2355,8 @@ public sealed class ThreadStoreTests : IDisposable
 
     private static SessionThread CloneThreadSnapshotForTest(SessionThread thread)
     {
-        var method = typeof(ThreadStore).GetMethod(
-            "CloneThreadSnapshot",
-            BindingFlags.NonPublic | BindingFlags.Static);
-        Assert.NotNull(method);
-        return (SessionThread)method.Invoke(null, [thread])!;
+        var json = JsonSerializer.Serialize(thread, SessionJsonOptions.Default);
+        return JsonSerializer.Deserialize<SessionThread>(json, SessionJsonOptions.Default)!;
     }
 
     private static AIAgent CreateAgent()
@@ -1893,37 +2468,6 @@ public sealed class ThreadStoreTests : IDisposable
 
     private string GetCanonicalPath(string threadId, bool archived)
         => Path.Combine(_root, "threads", archived ? "archived" : "active", $"{threadId}.jsonl");
-
-    private void InsertThreadSession(string threadId, string sessionJson)
-    {
-        using var connection = OpenStateConnection();
-        using var command = connection.CreateCommand();
-        command.CommandText = """
-            INSERT INTO thread_sessions(thread_id, session_json, updated_at)
-            VALUES ($thread_id, $session_json, $updated_at)
-            """;
-        command.Parameters.AddWithValue("$thread_id", threadId);
-        command.Parameters.AddWithValue("$session_json", sessionJson);
-        command.Parameters.AddWithValue("$updated_at", DateTimeOffset.UtcNow.UtcDateTime.ToString("O"));
-        command.ExecuteNonQuery();
-    }
-
-    private void InsertInvalidThreadSession(string threadId, string sessionJson)
-    {
-        using var connection = OpenStateConnection();
-        using var command = connection.CreateCommand();
-        command.CommandText = """
-            INSERT INTO thread_sessions(thread_id, session_json, updated_at)
-            VALUES ($thread_id, $session_json, $updated_at)
-            ON CONFLICT(thread_id) DO UPDATE SET
-                session_json = excluded.session_json,
-                updated_at = excluded.updated_at
-            """;
-        command.Parameters.AddWithValue("$thread_id", threadId);
-        command.Parameters.AddWithValue("$session_json", sessionJson);
-        command.Parameters.AddWithValue("$updated_at", DateTimeOffset.UtcNow.UtcDateTime.ToString("O"));
-        command.ExecuteNonQuery();
-    }
 
     private SqliteConnection OpenStateConnection()
     {

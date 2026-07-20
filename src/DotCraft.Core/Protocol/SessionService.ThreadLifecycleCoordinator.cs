@@ -1,4 +1,6 @@
 using DotCraft.Abstractions;
+using DotCraft.Tools;
+using Microsoft.Extensions.Logging;
 
 namespace DotCraft.Protocol;
 
@@ -218,10 +220,12 @@ public sealed partial class SessionService
         private async Task DeleteCoreAsync(string threadId, CancellationToken ct)
         {
             var ephemeral = false;
+            string? workspacePath = null;
             if (owner._runtimeRegistry.TryGetRuntime(threadId, out var runtime))
             {
                 var thread = runtime.Thread;
                 ephemeral = thread.Ephemeral;
+                workspacePath = thread.WorkspacePath;
                 foreach (var turn in thread.Turns.Where(t => t.Status is TurnStatus.Running or TurnStatus.WaitingApproval or TurnStatus.WaitingInput))
                 {
                     if (runtime.TryRemoveTurn(turn.Id, out var turnRuntime))
@@ -230,6 +234,31 @@ public sealed partial class SessionService
                             await turnRuntime.Cancellation.CancelAsync();
                         turnRuntime.Dispose();
                     }
+                }
+            }
+
+            if (workspacePath is null)
+            {
+                var persisted = await owner.Persistence.LoadThreadAsync(threadId, ct);
+                if (persisted is not null)
+                {
+                    ephemeral = persisted.Ephemeral;
+                    workspacePath = persisted.WorkspacePath;
+                }
+            }
+
+            if (owner.BackgroundTerminalService != null)
+                await owner.BackgroundTerminalService.DeleteThreadArtifactsAsync(threadId, ct);
+
+            if (!string.IsNullOrWhiteSpace(workspacePath))
+            {
+                var cleanup = ToolResultProcessor.CleanupThreadArtifacts(workspacePath, threadId);
+                if (cleanup.Errors > 0)
+                {
+                    owner.Logger?.LogWarning(
+                        "Failed to delete {Count} tool-result artifact directories for thread {ThreadId}; cleanup will be retried.",
+                        cleanup.Errors,
+                        threadId);
                 }
             }
 
@@ -243,8 +272,6 @@ public sealed partial class SessionService
             owner.InvalidatePromptRequestSnapshot(threadId, "thread_deleted");
             owner.ClearContextUsageAnchor(threadId);
             owner.ForgetContextPages(threadId);
-            if (owner.BackgroundTerminalService != null)
-                await owner.BackgroundTerminalService.CleanThreadAsync(threadId, ct);
 
             owner.ThreadDeletedForBroadcast?.Invoke(threadId);
         }

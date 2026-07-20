@@ -7,12 +7,12 @@ using Microsoft.Extensions.AI;
 namespace DotCraft.Protocol;
 
 /// <summary>
-/// JSON serialization options used for persisting agent session files.
+/// JSON serialization options shared by model-history persistence and runtime history injection.
 /// </summary>
 public static class SessionPersistenceJsonOptions
 {
     /// <summary>
-    /// Canonical options for thread session save/load paths.
+    /// Canonical options for model-history codec and Framework StateBag history values.
     /// </summary>
     public static readonly JsonSerializerOptions Default = BuildOptions();
 

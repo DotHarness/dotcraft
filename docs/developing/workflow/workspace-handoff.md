@@ -81,7 +81,7 @@ The Markdown export includes:
 - Current model-visible context: reconstructed from the latest usable compaction checkpoint plus surviving tail turns.
 - Conversation: surviving turns replayed from canonical rollout JSONL.
 
-Reasoning content is omitted. Tool calls are kept. Tool and command results follow `--tool-results`.
+Reasoning content is omitted. Tool calls are kept. Tool and command results follow `--tool-results`. `RequestUserInput` answer bodies are always omitted, including from full exports; question text and correlation IDs remain.
 
 ## Rollback And Compaction
 

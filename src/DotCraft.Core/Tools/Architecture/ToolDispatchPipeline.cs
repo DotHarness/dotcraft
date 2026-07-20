@@ -191,7 +191,8 @@ internal sealed class DefaultToolResultNormalizer(
                     limit,
                     workspacePath,
                     context.ThreadId,
-                    spillPreviewLines)!;
+                    spillPreviewLines,
+                    context.CallId)!;
             result = new ToolExecutionResult(
                 result.Success,
                 normalizedContent,

@@ -56,7 +56,7 @@ public class ToolResultProcessorTests
 
             var spillDir = Path.Combine(workspace, ".craft", "tool-results", "thread-1");
             Assert.True(Directory.Exists(spillDir));
-            var files = Directory.GetFiles(spillDir, "GrepFiles_*.txt");
+            var files = Directory.GetFiles(spillDir, "GrepFiles_call-*.txt");
             Assert.Single(files);
             Assert.Equal(text, File.ReadAllText(files[0]));
         }
@@ -82,7 +82,7 @@ public class ToolResultProcessorTests
             Assert.True(r.Length <= limit + 200, $"Preview length {r.Length} should not far exceed limit + footer.");
 
             var spillDir = Path.Combine(workspace, ".craft", "tool-results", "s1");
-            var files = Directory.GetFiles(spillDir, "Exec_*.txt");
+            var files = Directory.GetFiles(spillDir, "Exec_call-*.txt");
             Assert.Single(files);
             Assert.Equal(text, File.ReadAllText(files[0]));
         }
@@ -149,6 +149,59 @@ public class ToolResultProcessorTests
         var expectedTail = string.Join("\n", new[] { longLine, longLine });
         Assert.Equal(expectedHead, headPart);
         Assert.Equal(expectedTail, tailPart);
+    }
+
+    [Fact]
+    public void SpillToDisk_WithCallId_IsDeterministicAndIdempotent()
+    {
+        var workspace = Path.Combine(Path.GetTempPath(), "dotcraft-trp-idempotent-" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            var text = string.Join("\\n", Enumerable.Range(0, 100).Select(i => $"line-{i}"));
+            var first = ToolResultProcessor.SpillToDisk(text, workspace, "thread/one", "GrepFiles", "call/one");
+            var second = ToolResultProcessor.SpillToDisk(text, workspace, "thread/one", "GrepFiles", "call/one");
+
+            Assert.Equal(first, second);
+            var directory = Path.Combine(workspace, ".craft", "tool-results", ThreadArtifactPathResolver.GetCanonicalThreadSegment("thread/one"));
+            var files = Directory.GetFiles(directory);
+            Assert.Single(files);
+            Assert.Equal(text, File.ReadAllText(files[0]));
+        }
+        finally
+        {
+            try { Directory.Delete(workspace, recursive: true); } catch { /* ignore */ }
+        }
+    }
+
+    [Fact]
+    public void CanonicalThreadSegment_DoesNotCollideForSanitizedIds()
+    {
+        var first = ThreadArtifactPathResolver.GetCanonicalThreadSegment("a/b");
+        var second = ThreadArtifactPathResolver.GetCanonicalThreadSegment("a\\b");
+
+        Assert.StartsWith("thread-", first, StringComparison.Ordinal);
+        Assert.StartsWith("thread-", second, StringComparison.Ordinal);
+        Assert.NotEqual(first, second);
+    }
+
+    [Fact]
+    public void CleanupThreadArtifacts_IsIdempotent()
+    {
+        var workspace = Path.Combine(Path.GetTempPath(), "dotcraft-trp-cleanup-" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            _ = ToolResultProcessor.SpillToDisk("large output", workspace, "thread-cleanup", "Exec", "call-cleanup");
+            var first = ToolResultProcessor.CleanupThreadArtifacts(workspace, "thread-cleanup");
+            var second = ToolResultProcessor.CleanupThreadArtifacts(workspace, "thread-cleanup");
+
+            Assert.Equal(1, first.DirectoriesDeleted);
+            Assert.Equal(0, first.Errors);
+            Assert.Equal(ArtifactCleanupResult.Empty, second);
+        }
+        finally
+        {
+            try { Directory.Delete(workspace, recursive: true); } catch { /* ignore */ }
+        }
     }
 
     [Fact]

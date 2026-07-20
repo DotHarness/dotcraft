@@ -191,8 +191,6 @@ public sealed class SessionServiceManualCompactionTests : IDisposable
             secondCompactRequest);
 
         var store = new ThreadStore(_tempDir);
-        Assert.True(store.SessionFileExists(fork.Id));
-        store.DeleteSessionFile(fork.Id);
         var session = await store.LoadOrCreateSessionAsync(CreateAgent(), fork.Id);
         var restored = FormatHistory(session);
         Assert.Contains(restored, text => text.Contains("fork compacted history", StringComparison.Ordinal));
