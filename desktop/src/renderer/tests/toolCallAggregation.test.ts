@@ -207,19 +207,39 @@ describe('aggregateToolCalls', () => {
     }
   })
 
-  it('groups consecutive settled SubAgent control calls', () => {
+  it('keeps non-narrative SubAgent control calls out of aggregation', () => {
     const items = [
       makeItem(SUBAGENT_MESSAGE, 'SendMessage', '1', { result: '{"status":"sent"}', success: true }),
-      makeItem(SUBAGENT_FOLLOWUP, 'FollowupTask', '2', { result: '{"status":"running"}', success: true }),
+      makeItem(SUBAGENT_WAIT, 'WaitAgent', '2', { result: '{"status":"timeout"}', success: true }),
       makeItem(SUBAGENT_LIST, 'ListAgents', '3', { result: '{"data":[]}', success: true })
+    ]
+    const result = aggregateToolCalls(items)
+    expect(result).toHaveLength(3)
+    expect(result.every((entry) => entry.kind === 'single')).toBe(true)
+  })
+
+  it('groups consecutive settled FollowupTask calls', () => {
+    const items = [
+      makeItem(SUBAGENT_FOLLOWUP, 'FollowupTask', '1', { result: '{"status":"running"}', success: true }),
+      makeItem(SUBAGENT_FOLLOWUP, 'FollowupTask', '2', { result: '{"status":"running"}', success: true })
     ]
     const result = aggregateToolCalls(items)
     expect(result).toHaveLength(1)
     expect(result[0].kind).toBe('group')
     if (result[0].kind === 'group') {
       expect(result[0].category).toBe('subagent')
-      expect(result[0].items.map((item) => item.toolName)).toEqual(['SendMessage', 'FollowupTask', 'ListAgents'])
+      expect(result[0].items.map((item) => item.toolName)).toEqual(['FollowupTask', 'FollowupTask'])
     }
+  })
+
+  it('does not combine SpawnAgent and FollowupTask calls', () => {
+    const items = [
+      makeItem(SUBAGENT_SPAWN, 'SpawnAgent', '1', { result: '{"status":"running"}', success: true }),
+      makeItem(SUBAGENT_FOLLOWUP, 'FollowupTask', '2', { result: '{"status":"running"}', success: true })
+    ]
+    const result = aggregateToolCalls(items)
+    expect(result).toHaveLength(2)
+    expect(result.every((entry) => entry.kind === 'single')).toBe(true)
   })
 
   it('keeps running SpawnAgent calls as individual cards', () => {

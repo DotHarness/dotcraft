@@ -32,7 +32,11 @@ import { formatToolGroupLabel } from '../../utils/toolGroupLabel'
 import { resolveCoreToolRenderPlan } from '../../utils/toolRendererRegistry'
 import { TurnCollapsedSummary } from './TurnCollapsedSummary'
 import { translate, type AppLocale } from '../../../shared/locales'
-import { formatSubAgentMeta, getSubAgentAccent } from '../../utils/subAgentPresentation'
+import {
+  formatSubAgentMeta,
+  getSubAgentAccent,
+  getSubAgentIdentitySeed
+} from '../../utils/subAgentPresentation'
 import type { StreamRetrySignal } from '../../stores/conversationStore'
 import type { SubAgentEntry } from '../../types/toolCall'
 
@@ -1011,7 +1015,7 @@ function GroupedToolCallRow({
       </button>
       {expanded && (
         category === 'subagent'
-          ? <SpawnAgentGroupItems items={items} locale={locale} turnId={turnId} turnRunning={turnRunning} shellRuntimeScope={shellRuntimeScope} />
+          ? <SubAgentActionGroupItems items={items} locale={locale} turnId={turnId} turnRunning={turnRunning} shellRuntimeScope={shellRuntimeScope} />
           : (
             <div style={{ paddingLeft: '16px' }}>
               {items.map((item) => (
@@ -1024,15 +1028,16 @@ function GroupedToolCallRow({
   )
 }
 
-interface SpawnAgentGroupDisplay {
+interface SubAgentActionGroupDisplay {
   id: string
+  operation: 'spawn' | 'followupTask'
   name: string
   meta: string
   prompt: string
   accentColor: string
 }
 
-function SpawnAgentGroupItems({
+function SubAgentActionGroupItems({
   items,
   locale,
   turnId,
@@ -1046,8 +1051,8 @@ function SpawnAgentGroupItems({
   shellRuntimeScope: ShellRuntimeScope
 }): JSX.Element {
   const displays = items
-    .map((item) => getSpawnAgentGroupDisplay(item, locale))
-    .filter((display): display is SpawnAgentGroupDisplay => display != null)
+    .map((item) => getSubAgentActionGroupDisplay(item, locale))
+    .filter((display): display is SubAgentActionGroupDisplay => display != null)
 
   if (displays.length === 0) {
     return (
@@ -1081,16 +1086,22 @@ function SpawnAgentGroupItems({
 
 function renderGroupedSubAgentTitle(
   locale: AppLocale,
-  display: SpawnAgentGroupDisplay
+  display: SubAgentActionGroupDisplay
 ): JSX.Element {
-  const template = translate(locale, 'toolCall.subAgent.spawnedFromPrompt', {
+  const templateKey = display.operation === 'spawn'
+    ? 'toolCall.subAgent.spawnedFromPrompt'
+    : 'toolCall.subAgent.updatedFromPrompt'
+  const titleKey = display.operation === 'spawn'
+    ? 'toolCall.subAgent.spawned'
+    : 'toolCall.subAgent.followedUp'
+  const template = translate(locale, templateKey, {
     name: '__DOTCRAFT_SUB_AGENT_NAME__'
   })
   const parts = template.split('__DOTCRAFT_SUB_AGENT_NAME__')
   if (parts.length === 1) {
     return (
       <span>
-        {renderSubAgentTitle(locale, 'toolCall.subAgent.spawned', display.name, display.accentColor)}
+        {renderSubAgentTitle(locale, titleKey, display.name, display.accentColor)}
         {display.meta && <span style={spawnAgentMetaStyle}>({display.meta})</span>}
       </span>
     )
@@ -1113,20 +1124,20 @@ function renderGroupedSubAgentTitle(
   )
 }
 
-function getSpawnAgentGroupDisplay(
+function getSubAgentActionGroupDisplay(
   item: ConversationItem,
   locale: AppLocale
-): SpawnAgentGroupDisplay | null {
+): SubAgentActionGroupDisplay | null {
   const plan = resolveCoreToolRenderPlan(item)
-  if (plan?.family !== 'subagent' || plan.options.operation !== 'spawn') return null
+  const operation = plan?.options.operation
+  if (plan?.family !== 'subagent' || (operation !== 'spawn' && operation !== 'followupTask')) return null
   const parsed = parseJsonObject(item.result)
   const args = item.arguments
+  const agentPath = getString(parsed, 'agentPath') ?? getString(args, 'target')
   const childThreadId = getString(parsed, 'childThreadId')
     ?? getString(parsed, 'agentId')
-    ?? getString(parsed, 'agentPath')
     ?? getString(args, 'childThreadId')
     ?? getString(args, 'agentId')
-    ?? getString(args, 'target')
   const name = getString(parsed, 'agentNickname')
     ?? getString(parsed, 'nickname')
     ?? getString(parsed, 'taskName')
@@ -1146,10 +1157,11 @@ function getSpawnAgentGroupDisplay(
 
   return {
     id: item.id,
+    operation,
     name,
     meta,
     prompt: truncateGroupedPrompt(prompt, 180),
-    accentColor: getSubAgentAccent(childThreadId ?? name)
+    accentColor: getSubAgentAccent(getSubAgentIdentitySeed({ agentPath, childThreadId, nickname: name }))
   }
 }
 
@@ -1222,10 +1234,23 @@ function isGroupedItemFailed(item: ConversationItem): boolean {
   // individual card — ToolCallCard forces success via `isShellTool`. Keep the
   // aggregated row consistent so an exec exit code / failure doesn't redden it.
   if (resolveCoreToolRenderPlan(item)?.successOverride === true) return false
+  return isToolExecutionFailure(item)
+}
+
+function isToolExecutionFailure(item: ConversationItem): boolean {
   const executionFailed = item.executionStatus === 'failed'
     || item.executionStatus === 'cancelled'
     || (item.exitCode != null && item.exitCode !== 0)
-  return item.success === false || executionFailed
+  if (item.success === false || executionFailed) return true
+
+  const parsedResult = parseJsonObject(item.result)
+  const resultStatus = getString(parsedResult, 'status')?.toLowerCase()
+  if (resultStatus === 'timeout') return false
+  return resultStatus === 'failed'
+    || resultStatus === 'error'
+    || resultStatus === 'cancelled'
+    || resultStatus === 'canceled'
+    || getString(parsedResult, 'error') != null
 }
 
 function findLastAgentMessageIndex(items: ConversationItem[]): number {
@@ -1331,6 +1356,13 @@ function isDefaultRenderableItem(item: ConversationItem): boolean {
   // Successful CreateThread / SendMessageToThread calls render as a dedicated card
   // before the agent footer (TurnThreadActions), so suppress their inline tool row.
   if (isThreadActionToolItem(item) && parseThreadToolAction(item) != null) return false
+  const plan = resolveCoreToolRenderPlan(item)
+  if (plan?.family === 'subagent') {
+    const operation = plan.options.operation
+    if (operation !== 'spawn' && operation !== 'followupTask' && !isToolExecutionFailure(item)) {
+      return false
+    }
+  }
   return (
     (item.type !== 'userMessage' || item.deliveryMode === 'guidance')
     && item.type !== 'toolResult'

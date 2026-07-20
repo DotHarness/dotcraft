@@ -100,6 +100,10 @@ export function formatToolGroupLabel(
   }
 
   if (category === 'subagent') {
+    const operation = resolveCoreToolRenderPlan(items[0])?.options.operation
+    if (operation === 'followupTask') {
+      return translate(locale, 'toolCall.group.updatedAgents', { count })
+    }
     return translate(locale, 'toolCall.group.spawnedAgents', { count })
   }
 

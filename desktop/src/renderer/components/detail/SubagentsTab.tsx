@@ -10,7 +10,7 @@ import {
 import { useThreadStore } from '../../stores/threadStore'
 import { useUIStore } from '../../stores/uiStore'
 import { ActionTooltip } from '../ui/ActionTooltip'
-import { formatSubAgentMeta, getSubAgentAccent } from '../../utils/subAgentPresentation'
+import { formatSubAgentMeta, getSubAgentAccent, getSubAgentIdentitySeed } from '../../utils/subAgentPresentation'
 import { formatRelativeTime } from '../../utils/relativeTime'
 
 const EMPTY_CHILDREN: SubAgentChild[] = []
@@ -139,7 +139,7 @@ function SubagentRow({ child }: { child: SubAgentChild }): JSX.Element {
   const t = useT()
   const locale = useLocale()
   const running = isSubAgentChildRunning(child)
-  const color = getSubAgentAccent(child.childThreadId || child.nickname)
+  const color = getSubAgentAccent(getSubAgentIdentitySeed(child))
   const meta = formatSubAgentMeta({
     agentRole: child.agentRole,
     profileName: child.profileName,

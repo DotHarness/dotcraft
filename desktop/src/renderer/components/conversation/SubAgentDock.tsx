@@ -29,7 +29,7 @@ import { addToast } from '../../stores/toastStore'
 import type { QueuedTurnInput } from '../../types/conversation'
 import { RunningSpinner } from '../ui/RunningSpinner'
 import { ActionTooltip } from '../ui/ActionTooltip'
-import { getSubAgentAccent } from '../../utils/subAgentPresentation'
+import { getSubAgentAccent, getSubAgentIdentitySeed } from '../../utils/subAgentPresentation'
 
 interface SubAgentDockProps {
   parentThreadId: string
@@ -210,7 +210,7 @@ export function BackgroundActivityDock({
                 key={child.childThreadId}
                 child={child}
                 parentThreadId={parentThreadId}
-                color={getSubAgentAccent(child.childThreadId || child.nickname || String(index))}
+                color={getSubAgentAccent(getSubAgentIdentitySeed(child) ?? String(index))}
                 onRefresh={() => { void fetchChildren(parentThreadId, { authoritative: true }) }}
               />
             ))}

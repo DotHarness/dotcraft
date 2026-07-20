@@ -38,6 +38,10 @@ const SUBAGENT_SPAWN: CoreFixturePresentation = {
   presentationId: CORE_TOOL_PRESENTATION_IDS.subagent,
   options: { operation: 'spawn' }
 }
+const SUBAGENT_FOLLOWUP: CoreFixturePresentation = {
+  presentationId: CORE_TOOL_PRESENTATION_IDS.subagent,
+  options: { operation: 'followupTask' }
+}
 
 const TEST_IMAGE_BASE64 = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=='
 
@@ -435,7 +439,76 @@ describe('AgentResponseBlock subagent transcript rendering', () => {
     expect(screen.queryByText(/childThreadId/)).toBeNull()
   })
 
-  it('keeps WaitAgent in running state after toolCall completion while waiting for toolResult', () => {
+  it('renders a single FollowupTask as an ungrouped Updated agent row', () => {
+    const item = makeToolCallItem(
+      'followup-1',
+      'followup-call-1',
+      'FollowupTask',
+      '2026-05-03T09:59:00.000Z',
+      SUBAGENT_FOLLOWUP
+    )
+    item.arguments = { target: '/root/reviewer', message: 'Check the updated tests' }
+    item.result = JSON.stringify({
+      agentPath: '/root/reviewer',
+      agentNickname: 'Reviewer',
+      agentRole: 'explorer',
+      status: 'running'
+    })
+
+    const text = renderBlock({
+      id: 'turn-single-followup',
+      threadId: 'thread-1',
+      status: 'completed',
+      startedAt: '2026-05-03T09:58:00.000Z',
+      items: [item]
+    })
+
+    expect(text).toContain('Updated Reviewer')
+    expect(text).not.toContain('Updated 1 agents')
+  })
+
+  it('groups consecutive FollowupTask calls as an expanded Updated agents list', () => {
+    const items = ['Reviewer', 'Researcher'].map((name, index) => {
+      const item = makeToolCallItem(
+        `followup-${index}`,
+        `followup-call-${index}`,
+        'FollowupTask',
+        `2026-05-03T10:00:0${index}.000Z`,
+        SUBAGENT_FOLLOWUP
+      )
+      item.arguments = {
+        target: `/root/${name.toLowerCase()}`,
+        message: `Update ${name} instructions`
+      }
+      item.result = JSON.stringify({
+        agentPath: `/root/${name.toLowerCase()}`,
+        agentNickname: name,
+        agentRole: 'explorer',
+        status: 'running'
+      })
+      return item
+    })
+
+    render(
+      <LocaleProvider>
+        <AgentResponseBlock turn={{
+          id: 'turn-followup-group',
+          threadId: 'thread-1',
+          status: 'completed',
+          startedAt: '2026-05-03T10:00:00.000Z',
+          items
+        }} />
+      </LocaleProvider>
+    )
+
+    expect(screen.getByText('Updated 2 agents')).toBeInTheDocument()
+    expect(screen.getByText('Reviewer')).toBeInTheDocument()
+    expect(screen.getByText('Researcher')).toBeInTheDocument()
+    expect(screen.getByText('Update Reviewer instructions')).toBeInTheDocument()
+    expect(screen.getByText('Update Researcher instructions')).toBeInTheDocument()
+  })
+
+  it('hides a pending WaitAgent row from the transcript', () => {
     const turn: ConversationTurn = {
       id: 'turn-wait-running',
       threadId: 'thread-1',
@@ -462,10 +535,11 @@ describe('AgentResponseBlock subagent transcript rendering', () => {
       </LocaleProvider>
     )
 
-    expect(container.querySelector('.tool-running-gradient-text')).toBeInTheDocument()
+    expect(container.querySelector('.tool-running-gradient-text')).toBeNull()
+    expect(container.textContent).not.toContain('Waiting for')
   })
 
-  it('does not keep historical WaitAgent calls running when toolResult is missing', () => {
+  it('hides historical WaitAgent calls when toolResult is missing', () => {
     const turn: ConversationTurn = {
       id: 'turn-wait-history',
       threadId: 'thread-1',
@@ -493,6 +567,41 @@ describe('AgentResponseBlock subagent transcript rendering', () => {
     )
 
     expect(container.querySelector('.tool-running-gradient-text')).toBeNull()
+    expect(container.textContent).not.toContain('Wait')
+  })
+
+  it('hides normal SubAgent controls but preserves real failures', () => {
+    const hiddenWait = makeToolCallItem('wait', 'wait-call', 'WaitAgent', '2026-05-03T10:00:01.000Z', {
+      presentationId: CORE_TOOL_PRESENTATION_IDS.subagent,
+      options: { operation: 'wait' }
+    })
+    hiddenWait.result = JSON.stringify({ status: 'timeout', timedOut: true })
+
+    const hiddenMessage = makeToolCallItem('message', 'message-call', 'SendMessage', '2026-05-03T10:00:02.000Z', {
+      presentationId: CORE_TOOL_PRESENTATION_IDS.subagent,
+      options: { operation: 'sendMessage' }
+    })
+    hiddenMessage.result = JSON.stringify({ status: 'sent', agentNickname: 'Reviewer' })
+
+    const failedClose = makeToolCallItem('close', 'close-call', 'CloseAgent', '2026-05-03T10:00:03.000Z', {
+      presentationId: CORE_TOOL_PRESENTATION_IDS.subagent,
+      options: { operation: 'close' }
+    })
+    failedClose.success = false
+    failedClose.arguments = { target: '/root/reviewer' }
+    failedClose.result = JSON.stringify({ status: 'failed', agentNickname: 'Reviewer', error: 'Close failed' })
+
+    const text = renderBlock({
+      id: 'turn-hidden-controls',
+      threadId: 'thread-1',
+      status: 'completed',
+      startedAt: '2026-05-03T10:00:00.000Z',
+      items: [hiddenWait, hiddenMessage, failedClose]
+    })
+
+    expect(text).not.toContain('Wait timed out')
+    expect(text).not.toContain('Sent message')
+    expect(text).toContain('Reviewer failed')
   })
 
   it('renders pluginFunctionCall items in the tool run', () => {

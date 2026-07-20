@@ -12,7 +12,15 @@ interface ToolItemLiveContext {
 }
 
 function getGroupCategory(item: ConversationItem): ToolGroupCategory | null {
-  return resolveCoreToolRenderPlan(item)?.groupCategory ?? null
+  const plan = resolveCoreToolRenderPlan(item)
+  if (plan?.groupCategory !== 'subagent') return plan?.groupCategory ?? null
+  return plan.options.operation === 'spawn' || plan.options.operation === 'followupTask'
+    ? 'subagent'
+    : null
+}
+
+function getSubAgentGroupOperation(item: ConversationItem): unknown {
+  return resolveCoreToolRenderPlan(item)?.options.operation
 }
 
 function isToolCallAwaitingResult(item: ConversationItem): boolean {
@@ -59,6 +67,7 @@ export function aggregateToolCalls(
   while (i < items.length) {
     const item = items[i]
     const category = getGroupCategory(item)
+    const subAgentOperation = category === 'subagent' ? getSubAgentGroupOperation(item) : null
 
     if (category == null) {
       result.push({ kind: 'single', item })
@@ -73,6 +82,7 @@ export function aggregateToolCalls(
       const next = items[i + 1]
       const nextCategory = getGroupCategory(next)
       if (nextCategory !== category) break
+      if (category === 'subagent' && getSubAgentGroupOperation(next) !== subAgentOperation) break
       run.push(next)
       i++
     }

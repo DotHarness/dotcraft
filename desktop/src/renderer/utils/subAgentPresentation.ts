@@ -6,6 +6,12 @@ interface SubAgentMetaInput {
   runtimeType?: string | null
 }
 
+interface SubAgentIdentityInput {
+  agentPath?: string | null
+  childThreadId?: string | null
+  nickname?: string | null
+}
+
 function normalizeText(value: string | null | undefined): string | null {
   const text = value?.trim()
   return text ? text : null
@@ -60,4 +66,14 @@ export function getSubAgentAccent(seed?: string | null): string {
     hash = ((hash << 5) - hash + normalized.charCodeAt(i)) | 0
   }
   return SUB_AGENT_ACCENTS[Math.abs(hash) % SUB_AGENT_ACCENTS.length]
+}
+
+export function getSubAgentIdentitySeed({
+  agentPath,
+  childThreadId,
+  nickname
+}: SubAgentIdentityInput): string | null {
+  return normalizeText(agentPath)
+    ?? normalizeText(childThreadId)
+    ?? normalizeText(nickname)
 }
