@@ -2,6 +2,8 @@ import type { ChannelConnectionState } from './ChannelCard'
 import { useT } from '../../contexts/LocaleContext'
 import { useState } from 'react'
 import { Eye, EyeOff } from 'lucide-react'
+import { Button } from '../ui/Button'
+import { IconButton } from '../ui/IconButton'
 
 // ─── Shared style helpers ────────────────────────────────────────────────────
 
@@ -153,51 +155,14 @@ interface FormActionsProps {
 export function FormActions({ saving, onSave }: FormActionsProps): JSX.Element {
   const t = useT()
   return (
-    <button
-      type="button"
+    <Button
+      variant="primary"
       onClick={onSave}
-      disabled={saving}
-      style={{
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        gap: '8px',
-        width: '100%',
-        height: '38px',
-        border: 'none',
-        borderRadius: '8px',
-        backgroundColor: saving ? 'var(--border-active)' : 'var(--text-primary)',
-        color: saving ? 'var(--text-secondary)' : 'var(--bg-primary)',
-        fontSize: '13px',
-        fontWeight: 600,
-        cursor: saving ? 'default' : 'pointer',
-        transition: 'background-color 120ms ease',
-        marginTop: '4px'
-      }}
-      onMouseEnter={(e) => {
-        if (!saving) {
-          ;(e.currentTarget as HTMLButtonElement).style.backgroundColor = 'color-mix(in srgb, var(--text-primary) 88%, var(--bg-primary))'
-        }
-      }}
-      onMouseLeave={(e) => {
-        if (!saving) {
-          ;(e.currentTarget as HTMLButtonElement).style.backgroundColor = 'var(--text-primary)'
-        }
-      }}
+      loading={saving}
+      style={{ width: '100%', marginTop: '4px' }}
     >
-      {saving && (
-        <svg
-          width="14"
-          height="14"
-          viewBox="0 0 14 14"
-          style={{ animation: 'spin 0.8s linear infinite' }}
-          aria-hidden
-        >
-          <circle cx="7" cy="7" r="5" fill="none" stroke="currentColor" strokeWidth="2" strokeDasharray="20" strokeDashoffset="10" />
-        </svg>
-      )}
       {saving ? t('channels.saving') : t('channels.save')}
-    </button>
+    </Button>
   )
 }
 
@@ -248,9 +213,9 @@ export function SecretInput({
           ...style
         }}
       />
-      <button
-        type="button"
-        aria-label={visible ? t('common.hideSecret') : t('common.showSecret')}
+      <IconButton
+        size={24}
+        label={visible ? t('common.hideSecret') : t('common.showSecret')}
         aria-pressed={visible}
         disabled={disabled}
         onClick={() => setVisible((current) => !current)}
@@ -259,25 +224,10 @@ export function SecretInput({
           right: '8px',
           top: '50%',
           transform: 'translateY(-50%)',
-          border: 'none',
-          background: 'transparent',
-          color: 'var(--text-secondary)',
-          display: 'inline-flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          cursor: disabled ? 'not-allowed' : 'pointer',
-          opacity: disabled ? 0.45 : 0.85,
-          transition: 'opacity 120ms ease'
+          borderRadius: 4
         }}
-        onMouseEnter={(event) => {
-          if (!disabled) event.currentTarget.style.opacity = '1'
-        }}
-        onMouseLeave={(event) => {
-          event.currentTarget.style.opacity = disabled ? '0.45' : '0.85'
-        }}
-      >
-        {visible ? <EyeOff size={14} strokeWidth={1.5} aria-hidden /> : <Eye size={14} strokeWidth={1.5} aria-hidden />}
-      </button>
+        icon={visible ? <EyeOff size={14} strokeWidth={1.5} aria-hidden /> : <Eye size={14} strokeWidth={1.5} aria-hidden />}
+      />
     </div>
   )
 }

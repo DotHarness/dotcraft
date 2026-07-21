@@ -3,7 +3,7 @@ import { Check, Copy } from 'lucide-react'
 import type { MermaidConfig, RenderResult } from 'mermaid'
 import { THEME_CHANGED_EVENT, resolveThemeMode, type ThemeMode } from '../../../shared/theme'
 import { useT } from '../../contexts/LocaleContext'
-import { ActionTooltip } from '../ui/ActionTooltip'
+import { IconButton } from '../ui/IconButton'
 import { sanitizeMermaidSvg } from './mermaidSanitize'
 
 interface MermaidDiagramProps {
@@ -128,19 +128,16 @@ export function MermaidDiagram({ source, fallback }: MermaidDiagramProps): JSX.E
   return (
     <div style={diagramFrameStyle}>
       <div style={toolbarStyle}>
-        <ActionTooltip
-          label={copied ? t('markdown.mermaid.copiedSource') : t('markdown.mermaid.copySource')}
-          placement="top"
-        >
-          <button
-            type="button"
-            aria-label={copied ? t('markdown.mermaid.copiedSource') : t('markdown.mermaid.copySource')}
+          <IconButton
+            size={28}
+            bordered
+            label={copied ? t('markdown.mermaid.copiedSource') : t('markdown.mermaid.copySource')}
+            tooltipLabel={copied ? t('markdown.mermaid.copiedSource') : t('markdown.mermaid.copySource')}
+            tooltipPlacement="top"
             onClick={() => { void handleCopySource() }}
-            style={copyButtonStyle(copied)}
-          >
-            {copied ? <Check size={14} aria-hidden /> : <Copy size={14} aria-hidden />}
-          </button>
-        </ActionTooltip>
+            style={{ borderRadius: 7, color: copied ? 'var(--success)' : undefined }}
+            icon={copied ? <Check size={14} aria-hidden /> : <Copy size={14} aria-hidden />}
+          />
       </div>
 
       {renderState.status === 'loading' ? (
@@ -502,23 +499,6 @@ const toolbarStyle: CSSProperties = {
   top: '6px',
   right: '8px',
   zIndex: 1
-}
-
-function copyButtonStyle(copied: boolean): CSSProperties {
-  return {
-    width: '28px',
-    height: '28px',
-    borderRadius: '7px',
-    border: '1px solid var(--border-default)',
-    background: copied ? 'var(--success)' : 'var(--bg-secondary)',
-    color: copied ? 'var(--on-accent)' : 'var(--text-secondary)',
-    display: 'inline-flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 0,
-    cursor: 'pointer',
-    transition: 'background-color 140ms ease, color 140ms ease, border-color 140ms ease'
-  }
 }
 
 const diagramViewportStyle: CSSProperties = {

@@ -3860,7 +3860,7 @@ html[data-theme="light"] [data-mascot-speed='fast'] .composer-mascot-fast-echo {
 /* ─── Shared action button (see specs/architecture/DESIGN.md → Actions) ───
    One component for every text/icon action so intent (variant) and size are
    chosen by prop instead of being re-derived per call site. The 1px border is
-   always present in the box model and only the `secondary` variant paints it
+   always present in the box model and only the `outline` variant paints it
    visibly, so switching a button between filled and ghost never shifts height
    or alignment — this is the "border-reserved" borderless treatment. */
 .dc-button {
@@ -3918,6 +3918,17 @@ html[data-theme="light"] [data-mascot-speed='fast'] .composer-mascot-fast-echo {
   height: var(--button-height-sm);
   padding: 0;
   border-radius: 6px;
+}
+
+.dc-button[data-size="prominent"] {
+  height: 38px;
+  padding: 0 18px;
+  border-radius: 999px;
+}
+
+/* Plugin-package install actions use the compact catalog pill treatment. */
+.dc-plugin-install-button[data-size="sm"] {
+  border-radius: 999px;
 }
 
 /* ── Variants (intent → action hierarchy) ── */
@@ -4012,6 +4023,12 @@ html[data-theme="light"] [data-mascot-speed='fast'] .composer-mascot-fast-echo {
   color: var(--text-primary);
 }
 
+/* Menu/popover open state stays neutral; `active` remains reserved for selection. */
+.dc-icon-button[aria-expanded="true"] {
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+}
+
 .dc-icon-button:focus-visible {
   outline: 2px solid color-mix(in srgb, var(--accent) 72%, transparent);
   outline-offset: 2px;
@@ -4034,10 +4051,138 @@ html[data-theme="light"] [data-mascot-speed='fast'] .composer-mascot-fast-echo {
   color: var(--accent);
 }
 
+.dc-icon-button[data-tone="danger"] {
+  color: var(--error);
+}
+
+.dc-icon-button[data-tone="danger"]:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--error) 12%, transparent);
+  color: var(--error);
+}
+
 .dc-icon-button:disabled {
   color: var(--text-dimmed);
   cursor: default;
   opacity: 0.65;
+}
+
+/* Shared compact status + menu trigger. */
+.dc-status-menu-button {
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  height: var(--button-height);
+  padding: 0 10px;
+  border: 1px solid var(--border-default);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--text-primary) 6%, transparent);
+  color: var(--text-primary);
+  font: inherit;
+  font-size: 12px;
+  line-height: 1;
+  cursor: pointer;
+  transition: background-color 120ms ease, border-color 120ms ease, color 120ms ease;
+}
+
+.dc-status-menu-button:hover:not(:disabled),
+.dc-status-menu-button[data-open="true"] {
+  background: color-mix(in srgb, var(--text-primary) 11%, transparent);
+  border-color: var(--border-active);
+}
+
+.dc-status-menu-button:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--accent) 72%, transparent);
+  outline-offset: 2px;
+}
+
+.dc-status-menu-button:disabled {
+  cursor: default;
+  opacity: 0.55;
+}
+
+.dc-status-menu-button__dot {
+  width: 6px;
+  height: 6px;
+  flex: 0 0 6px;
+  border-radius: 999px;
+  background: var(--text-dimmed);
+}
+
+.dc-status-menu-button[data-tone="success"] .dc-status-menu-button__dot { background: var(--success); }
+.dc-status-menu-button[data-tone="warning"] .dc-status-menu-button__dot { background: var(--warning); }
+.dc-status-menu-button[data-tone="error"] .dc-status-menu-button__dot { background: var(--error); }
+
+/* Shared Apps picker shell and row layout for Welcome and existing threads. */
+.dc-app-bindings-picker {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.dc-app-bindings-picker__trigger {
+  gap: 5px;
+  border-radius: 6px;
+}
+
+.dc-app-bindings-picker[data-placement="welcome"] .dc-app-bindings-picker__trigger {
+  border-radius: 7px;
+}
+
+.dc-app-bindings-picker__count {
+  min-width: 15px;
+  height: 15px;
+  margin-left: -4px;
+  border-radius: 999px;
+  background: var(--accent);
+  color: var(--on-accent);
+  font-size: 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.dc-app-bindings-picker__popover {
+  position: absolute;
+  top: 34px;
+  right: 0;
+  z-index: 40;
+  width: 360px;
+  max-width: calc(100vw - 32px);
+  box-sizing: border-box;
+  border: 1px solid var(--border-default);
+  border-radius: 8px;
+  background: var(--bg-secondary);
+  box-shadow: var(--shadow-level-3);
+  padding: 10px;
+}
+
+.dc-app-bindings-picker[data-placement="welcome"] .dc-app-bindings-picker__popover { top: 36px; }
+.dc-app-bindings-picker__title { display: block; margin-bottom: 8px; font-size: 13px; color: var(--text-primary); }
+.dc-app-bindings-picker__list { display: flex; flex-direction: column; gap: 8px; }
+.dc-app-bindings-picker__empty { color: var(--text-secondary); font-size: 12px; padding: 8px; }
+.dc-app-bindings-picker__error { display: flex; align-items: center; justify-content: space-between; gap: 8px; color: var(--error); font-size: 12px; padding: 0 0 8px; }
+
+.dc-app-binding-row {
+  display: grid;
+  grid-template-columns: 30px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 9px;
+  border: 1px solid var(--border-default);
+  border-radius: 8px;
+  padding: 9px;
+}
+
+.dc-app-binding-row__main { min-width: 0; }
+.dc-app-binding-row__title { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; color: var(--text-primary); }
+.dc-app-binding-row__subtitle { margin-top: 3px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-secondary); font-size: 11px; }
+.dc-app-binding-row__action { display: flex; align-items: center; justify-content: flex-end; gap: 6px; flex-wrap: wrap; }
+.dc-app-binding-row__details { grid-column: 2 / -1; padding-top: 4px; min-width: 0; }
+
+@media (max-width: 520px) {
+  .dc-app-binding-row { grid-template-columns: 30px minmax(0, 1fr); }
+  .dc-app-binding-row__action,
+  .dc-app-binding-row__details { grid-column: 2; justify-content: flex-start; }
 }
 
 /* Shared text input for simple dialogs (commit message, thread goal, …): a
@@ -4352,28 +4497,7 @@ input.dc-plain-number {
   z-index: 4;
   top: 4px;
   right: 0;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 24px;
-  height: 24px;
-  padding: 0;
-  border: 0;
   border-radius: 6px;
-  background: transparent;
-  color: var(--text-secondary);
-  cursor: pointer;
-  transition: opacity 120ms ease, color 120ms ease, background-color 120ms ease;
-}
-
-.inline-visualization-copy-button:hover:not(:disabled) {
-  background: var(--bg-tertiary);
-  color: var(--text-primary);
-}
-
-.inline-visualization-copy-button:disabled {
-  color: var(--text-dimmed);
-  cursor: default;
 }
 
 /* ─── Accessibility: global focus-visible outline ─── */

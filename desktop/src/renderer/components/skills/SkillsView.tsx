@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from 'react'
-import { Check, ChevronLeft, Download, Ellipsis, ExternalLink, Plus, Settings, Sparkles } from 'lucide-react'
+import { useEffect, useMemo, useState, type ReactNode } from 'react'
+import { Check, Download, Ellipsis, ExternalLink, Plus, Settings, Sparkles } from 'lucide-react'
 import { useT } from '../../contexts/LocaleContext'
 import { useSkillsStore, type SkillEntry } from '../../stores/skillsStore'
 import { useSkillMarketStore, type SkillMarketProviderFilter } from '../../stores/skillMarketStore'
@@ -19,17 +19,20 @@ import { MarkdownRenderer } from '../conversation/MarkdownRenderer'
 import { useConfirmDialog } from '../ui/ConfirmDialog'
 import { useUIStore } from '../../stores/uiStore'
 import type { ThreadSummary } from '../../types/thread'
-import { CatalogFilterMenu, CatalogHoverButton, CatalogSearchBox, styles as catalogStyles } from '../catalog/CatalogSurface'
+import { CatalogBreadcrumb, CatalogFilterMenu, CatalogSearchBox, CatalogTopBar, styles as catalogStyles } from '../catalog/CatalogSurface'
 import { SkeletonCatalogGrid, SkeletonList } from '../ui/Skeleton'
+import { Button } from '../ui/Button'
+import { IconButton } from '../ui/IconButton'
 
 type ViewMode = 'browse' | 'manage'
 export type SourceFilter = 'all' | 'system' | 'personal' | 'market'
 
 interface SkillsViewProps {
   onManage?: () => void
+  topNavigation?: ReactNode
 }
 
-export function SkillsView({ onManage }: SkillsViewProps = {}): JSX.Element {
+export function SkillsView({ onManage, topNavigation }: SkillsViewProps = {}): JSX.Element {
   const t = useT()
   const confirm = useConfirmDialog()
   const {
@@ -285,24 +288,26 @@ export function SkillsView({ onManage }: SkillsViewProps = {}): JSX.Element {
 
   return (
     <div style={page}>
+      <CatalogTopBar
+        navigation={topNavigation}
+        actions={(
+          <>
+            <Button variant="secondary" onClick={() => onManage ? onManage() : setMode('manage')} iconLeft={<Settings size={14} aria-hidden />}>
+              {t('skills.manage')}
+            </Button>
+              <IconButton
+                label={t('skills.moreActions')}
+                tooltipLabel={t('skills.moreActions')}
+                tooltipPlacement="bottom"
+                aria-haspopup="menu"
+                aria-expanded={menuPosition != null}
+                onClick={(event) => setMenuPosition({ x: event.clientX, y: event.clientY })}
+                icon={<Ellipsis size={16} aria-hidden />}
+              />
+          </>
+        )}
+      />
       <header style={browseHeader}>
-        <div style={topActions}>
-          <CatalogHoverButton type="button" onClick={() => onManage ? onManage() : setMode('manage')} baseStyle={manageButton}>
-            <Settings size={14} aria-hidden />
-            <span style={manageButtonLabel}>{t('skills.manage')}</span>
-          </CatalogHoverButton>
-          <ActionTooltip label={t('skills.moreActions')} placement="bottom">
-            <CatalogHoverButton
-              type="button"
-              aria-label={t('skills.moreActions')}
-              onClick={(event) => setMenuPosition({ x: event.clientX, y: event.clientY })}
-              baseStyle={iconButton}
-            >
-              <Ellipsis size={16} aria-hidden />
-            </CatalogHoverButton>
-          </ActionTooltip>
-        </div>
-
         <h1 style={heroTitle}>{t('skills.heroTitle')}</h1>
         <div style={searchRow}>
           <CatalogSearchBox
@@ -467,15 +472,16 @@ function SkillsManageView({
 
   return (
     <div style={page}>
+      <CatalogTopBar
+        navigation={(
+          <CatalogBreadcrumb
+            parentLabel={t('skills.pageTitle')}
+            currentLabel={t('skills.manage')}
+            onBack={onBack}
+          />
+        )}
+      />
       <header style={manageHeader}>
-        <div style={breadcrumb}>
-          <CatalogHoverButton type="button" onClick={onBack} baseStyle={breadcrumbButton}>
-            <ChevronLeft size={14} aria-hidden />
-            {t('skills.pageTitle')}
-          </CatalogHoverButton>
-          <span style={breadcrumbSep}>›</span>
-          <span style={breadcrumbCurrent}>{t('skills.manage')}</span>
-        </div>
         <SkillsManageToolbar
           allSkills={allSkills}
           query={query}
@@ -933,7 +939,6 @@ function stripYamlFrontmatter(s: string): string {
 
 const page: React.CSSProperties = catalogStyles.page
 const browseHeader: React.CSSProperties = catalogStyles.browseHeader
-const topActions: React.CSSProperties = catalogStyles.topActions
 const heroTitle: React.CSSProperties = catalogStyles.heroTitle
 const searchRow: React.CSSProperties = catalogStyles.searchRow
 const browseMain: React.CSSProperties = catalogStyles.browseMain
@@ -975,17 +980,7 @@ function marketAction(skill: MarketSkillSummary, rowActive: boolean): React.CSSP
   }
 }
 
-const manageButton: React.CSSProperties = catalogStyles.manageButton
-const manageButtonLabel: React.CSSProperties = {
-  lineHeight: 1,
-  transform: 'translateY(-1px)'
-}
-const iconButton: React.CSSProperties = catalogStyles.iconButton
 const manageHeader: React.CSSProperties = catalogStyles.manageHeader
-const breadcrumb: React.CSSProperties = catalogStyles.breadcrumb
-const breadcrumbButton: React.CSSProperties = catalogStyles.breadcrumbButton
-const breadcrumbSep: React.CSSProperties = catalogStyles.breadcrumbSep
-const breadcrumbCurrent: React.CSSProperties = catalogStyles.breadcrumbCurrent
 const manageToolbar: React.CSSProperties = catalogStyles.manageToolbar
 const chip: React.CSSProperties = catalogStyles.chip
 const chipActive: React.CSSProperties = catalogStyles.chipActive

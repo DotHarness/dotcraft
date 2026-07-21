@@ -1,4 +1,4 @@
-import type { ButtonHTMLAttributes, JSX, ReactNode } from 'react'
+import { forwardRef, type ButtonHTMLAttributes, type JSX, type ReactNode } from 'react'
 import { Loader2 } from 'lucide-react'
 
 /**
@@ -14,7 +14,7 @@ import { Loader2 } from 'lucide-react'
 export type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'danger' | 'accent' | 'outline'
 
 /** Size families map to the shared control band (32px) plus compact / square options. */
-export type ButtonSize = 'default' | 'sm' | 'icon' | 'iconSm'
+export type ButtonSize = 'default' | 'sm' | 'icon' | 'iconSm' | 'prominent'
 
 export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: ButtonVariant
@@ -28,10 +28,10 @@ export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 /**
  * Shared action button. Every text/icon action should route through this component so intent
  * and size are chosen by prop rather than re-derived per call site. The 1px border is always
- * present in the box model (`.dc-button`) and only `secondary` paints it visibly, so switching a
- * button between filled and ghost never shifts height or alignment.
+ * present in the box model (`.dc-button`), but only the `outline` variant paints the reserved
+ * neutral frame, so switching between filled and ghost never shifts height or alignment.
  */
-export function Button({
+export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button({
   variant = 'secondary',
   size = 'default',
   iconLeft,
@@ -41,7 +41,7 @@ export function Button({
   className,
   children,
   ...props
-}: ButtonProps): JSX.Element {
+}: ButtonProps, ref): JSX.Element {
   const isDisabled = disabled || loading
   const isIcon = size === 'icon' || size === 'iconSm'
   const spinner = (
@@ -51,6 +51,7 @@ export function Button({
   )
   return (
     <button
+      ref={ref}
       type={type}
       data-variant={variant}
       data-size={size}
@@ -68,4 +69,4 @@ export function Button({
       {loading && isIcon ? null : children}
     </button>
   )
-}
+})

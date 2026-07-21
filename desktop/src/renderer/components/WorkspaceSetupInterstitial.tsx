@@ -2,6 +2,7 @@ import type { Ref } from 'react'
 import { useT } from '../contexts/LocaleContext'
 import { ArrowRight, Folder } from 'lucide-react'
 import { DotCraftFullLogo } from './ui/DotCraftLogo'
+import { Button } from './ui/Button'
 
 interface WorkspaceSetupInterstitialProps {
   workspacePath: string
@@ -119,52 +120,24 @@ export function WorkspaceSetupInterstitial({
             width: 'min(300px, 100%)'
           }}
         >
-          <button
-            type="button"
+          <Button
+            size="prominent"
+            variant="primary"
             onClick={onStart}
-            disabled={isOpening}
-            style={{
-              width: '100%',
-              display: 'inline-flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: '10px',
-              padding: '12px 24px',
-              border: '1px solid var(--text-primary)',
-              borderRadius: '8px',
-              background: 'var(--text-primary)',
-              color: 'var(--bg-primary)',
-              fontSize: 'var(--type-body-size)',
-              lineHeight: 'var(--type-body-line-height)',
-              fontWeight: 'var(--type-ui-emphasis-weight)',
-              cursor: isOpening ? 'default' : 'pointer',
-              opacity: isOpening ? 0.76 : 1,
-              transition: 'background-color 120ms ease, opacity 120ms ease'
-            }}
+            loading={isOpening}
+            style={{ width: '100%' }}
           >
             {t('setupInterstitial.start')}
             <ArrowRight size={18} strokeWidth={2.2} aria-hidden="true" />
-          </button>
-          <button
-            type="button"
+          </Button>
+          <Button
+            variant="secondary"
             onClick={onChooseDifferentWorkspace}
             disabled={isOpening}
-            style={{
-              width: '100%',
-              padding: '11px 18px',
-              borderRadius: '8px',
-              border: '1px solid var(--border-default)',
-              background: 'transparent',
-              color: 'var(--text-primary)',
-              fontSize: 'var(--type-body-size)',
-              lineHeight: 'var(--type-body-line-height)',
-              cursor: isOpening ? 'default' : 'pointer',
-              opacity: isOpening ? 0.58 : 1,
-              transition: 'border-color 120ms ease, background-color 120ms ease, opacity 120ms ease'
-            }}
+            style={{ width: '100%' }}
           >
             {t('setupInterstitial.chooseDifferent')}
-          </button>
+          </Button>
         </div>
       </div>
     </div>

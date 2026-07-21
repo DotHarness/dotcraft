@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState, type CSSProperties, type ReactNode } 
 import { createPortal } from 'react-dom'
 import { X, ZoomIn, ZoomOut } from 'lucide-react'
 import { useT } from '../../contexts/LocaleContext'
-import { ActionTooltip } from '../ui/ActionTooltip'
+import { IconButton } from '../ui/IconButton'
 
 interface ImageLightboxProps {
   src: string
@@ -65,19 +65,20 @@ export function ImageLightbox({ src, alt = '', onClose }: ImageLightboxProps): J
       onClick={onClose}
       style={overlayStyle}
     >
-      <ActionTooltip label={t('common.close')} placement="bottom" wrapperStyle={closeButtonWrapperStyle}>
-        <button
-          type="button"
+      <IconButton
+          size={40}
+          bordered
+          label={t('common.close')}
+          tooltipLabel={t('common.close')}
+          tooltipPlacement="bottom"
+          tooltipWrapperStyle={closeButtonWrapperStyle}
           onClick={(event) => {
             event.stopPropagation()
             onClose()
           }}
-          aria-label={t('common.close')}
           style={closeButtonStyle}
-        >
-          <X size={20} strokeWidth={2} aria-hidden />
-        </button>
-      </ActionTooltip>
+          icon={<X size={20} strokeWidth={2} aria-hidden />}
+      />
 
       <div style={imageViewportStyle}>
         <img
@@ -137,21 +138,16 @@ function ZoomControlButton({
   children: ReactNode
 }): JSX.Element {
   return (
-    <ActionTooltip label={label} placement="top">
-      <button
-        type="button"
+      <IconButton
+        size={34}
+        label={label}
+        tooltipLabel={label}
+        tooltipPlacement="top"
         onClick={onClick}
         disabled={disabled}
-        aria-label={label}
-        style={{
-          ...zoomButtonStyle,
-          opacity: disabled ? 0.45 : 1,
-          cursor: disabled ? 'default' : 'pointer'
-        }}
-      >
-        {children}
-      </button>
-    </ActionTooltip>
+        style={{ borderRadius: '50%' }}
+        icon={children}
+      />
   )
 }
 
@@ -189,17 +185,8 @@ const imageStyle: CSSProperties = {
 }
 
 const closeButtonStyle: CSSProperties = {
-  width: 40,
-  height: 40,
   borderRadius: '50%',
-  border: '1px solid var(--glass-border)',
-  background: 'var(--bg-elevated)',
   color: 'var(--text-primary)',
-  display: 'inline-flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  padding: 0,
-  cursor: 'pointer',
   boxShadow: 'var(--shadow-overlay)'
 }
 
@@ -227,19 +214,6 @@ const zoomControlsStyle: CSSProperties = {
   boxShadow: 'var(--shadow-overlay)',
   zIndex: 2,
   cursor: 'default'
-}
-
-const zoomButtonStyle: CSSProperties = {
-  width: 34,
-  height: 34,
-  borderRadius: '50%',
-  border: 'none',
-  background: 'var(--bg-tertiary)',
-  color: 'var(--text-primary)',
-  display: 'inline-flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  padding: 0
 }
 
 const zoomLabelStyle: CSSProperties = {

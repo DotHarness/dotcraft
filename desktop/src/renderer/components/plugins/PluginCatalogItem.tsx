@@ -3,6 +3,7 @@ import { Check, MessageCircle, Plus } from 'lucide-react'
 import type { PluginEntry } from '../../stores/pluginStore'
 import { styles as catalogStyles } from '../catalog/CatalogSurface'
 import { ActionTooltip } from '../ui/ActionTooltip'
+import { PluginInstallButton } from './PluginInstallButton'
 
 export function PluginCatalogItem({
   plugin,
@@ -68,16 +69,15 @@ export function PluginCatalogItem({
             </button>
           </ActionTooltip>
         ) : showInstall ? (
-          <button
-            type="button"
+          <PluginInstallButton
             onClick={(event) => {
               event.stopPropagation()
               onInstall?.()
             }}
-            style={installAction(active)}
+            style={{ backgroundColor: actionBackground(active) }}
           >
             {installLabel}
-          </button>
+          </PluginInstallButton>
         ) : plugin.installed && plugin.enabled ? (
           <Check size={16} aria-hidden />
         ) : (
@@ -138,24 +138,6 @@ function tryAction(rowActive: boolean): CSSProperties {
     padding: '0 9px',
     border: 'none',
     borderRadius: 8,
-    backgroundColor: actionBackground(rowActive),
-    color: 'var(--text-primary)',
-    fontSize: 12,
-    lineHeight: 1,
-    whiteSpace: 'nowrap',
-    cursor: 'pointer',
-    transition: 'background-color 120ms ease'
-  }
-}
-
-function installAction(rowActive: boolean): CSSProperties {
-  return {
-    display: 'inline-flex',
-    alignItems: 'center',
-    height: 28,
-    padding: '0 10px',
-    border: 'none',
-    borderRadius: 999,
     backgroundColor: actionBackground(rowActive),
     color: 'var(--text-primary)',
     fontSize: 12,

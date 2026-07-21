@@ -1,5 +1,6 @@
 import type { CSSProperties, ReactNode } from 'react'
 import { X } from 'lucide-react'
+import { IconButton } from './IconButton'
 
 interface ModalHeaderProps {
   /**
@@ -41,22 +42,12 @@ export function ModalHeader({
       <div style={topRowStyle}>
         <span style={badgeStyle}>{icon}</span>
         {onClose && (
-          <button
-            type="button"
-            aria-label={closeLabel}
+          <IconButton
+            icon={<X size={16} aria-hidden />}
+            label={closeLabel ?? 'Close'}
+            size={30}
             onClick={onClose}
-            style={closeStyle}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.backgroundColor = 'var(--bg-tertiary)'
-              e.currentTarget.style.color = 'var(--text-primary)'
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.backgroundColor = 'transparent'
-              e.currentTarget.style.color = 'var(--text-secondary)'
-            }}
-          >
-            <X size={16} aria-hidden />
-          </button>
+          />
         )}
       </div>
       <h2 id={titleId} style={titleStyle}>
@@ -90,21 +81,6 @@ const badgeStyle: CSSProperties = {
   borderRadius: '9px',
   background: 'var(--bg-tertiary)',
   color: 'var(--text-secondary)'
-}
-
-const closeStyle: CSSProperties = {
-  width: '30px',
-  height: '30px',
-  flexShrink: 0,
-  borderRadius: '8px',
-  border: 'none',
-  background: 'transparent',
-  color: 'var(--text-secondary)',
-  cursor: 'pointer',
-  display: 'inline-flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  transition: 'background-color 100ms ease, color 100ms ease'
 }
 
 const titleStyle: CSSProperties = {

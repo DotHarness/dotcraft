@@ -10,7 +10,7 @@ import { useEffect, useRef, useState, type CSSProperties } from 'react'
 import { createPortal } from 'react-dom'
 import { FileSearch } from 'lucide-react'
 import { useT } from '../../contexts/LocaleContext'
-import { ActionTooltip } from '../ui/ActionTooltip'
+import { IconButton } from '../ui/IconButton'
 import { ACTION_SHORTCUTS } from '../ui/shortcutKeys'
 import { QuickOpenContent } from './QuickOpenContent'
 
@@ -61,39 +61,21 @@ export function JumpToFileButton(): JSX.Element {
 
   return (
     <>
-      <ActionTooltip label={label} shortcut={ACTION_SHORTCUTS.quickOpen} placement="bottom">
-        <button
-          ref={buttonRef}
-          type="button"
-          aria-label={label}
-          aria-haspopup="dialog"
-          aria-expanded={open}
-          onClick={toggleOpen}
-          style={{ ...iconButtonStyle, background: open ? 'var(--bg-tertiary)' : 'transparent' }}
-          onMouseEnter={(e) => { if (!open) (e.currentTarget as HTMLButtonElement).style.background = 'var(--bg-tertiary)' }}
-          onMouseLeave={(e) => { if (!open) (e.currentTarget as HTMLButtonElement).style.background = 'transparent' }}
-        >
-          <FileSearch size={16} aria-hidden style={{ display: 'block' }} />
-        </button>
-      </ActionTooltip>
+      <IconButton
+        ref={buttonRef}
+        size={28}
+        label={label}
+        tooltipLabel={label}
+        tooltipPlacement="bottom"
+        shortcut={ACTION_SHORTCUTS.quickOpen}
+        aria-haspopup="dialog"
+        aria-expanded={open}
+        onClick={toggleOpen}
+        icon={<FileSearch size={16} aria-hidden style={{ display: 'block' }} />}
+      />
       {popover}
     </>
   )
-}
-
-const iconButtonStyle: CSSProperties = {
-  display: 'inline-flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  width: '28px',
-  height: '28px',
-  padding: 0,
-  border: 'none',
-  borderRadius: '6px',
-  color: 'var(--text-secondary)',
-  cursor: 'pointer',
-  flexShrink: 0,
-  transition: 'background-color 100ms ease'
 }
 
 const popoverStyle: CSSProperties = {

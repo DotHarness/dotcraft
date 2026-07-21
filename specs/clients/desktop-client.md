@@ -2,7 +2,7 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.6.1 |
+| **Version** | 0.9.0 |
 | **Status** | Living |
 | **Date** | 2026-07-18 |
 | **Parent Spec** | [AppServer Protocol](../protocols/appserver-protocol.md) |
@@ -589,9 +589,10 @@ The sidebar Plugins entry opens a two-level surface with `Plugins` and `Skills` 
 
 Required behavior:
 
-- Users can browse discovered and installable plugins, inspect plugin details, see included tools and skills, install or remove managed built-in plugins, and enable or disable installed plugins.
+- Users can browse discovered and installable plugins, inspect plugin details, see included tools and skills, install or uninstall managed built-in plugins, and enable or disable installed plugins. Plugin package Install actions use the same compact pill treatment in browse, manage, and detail surfaces; native-app installation remains an ordinary app-row action.
+- Browse tabs and Manage breadcrumbs share the same top navigation band and left edge so moving between catalog levels does not shift the primary navigation anchor.
 - Desktop launches AppServer with `DOTCRAFT_BUILTIN_PLUGIN_ROOTS` pointing at its bundled plugin resources. If that environment is absent, uninstalled built-in plugins are not shown as installable catalog entries.
-- Plugin installation, removal, and enablement refresh both plugin and skill state because plugin-contained skills are controlled by the plugin lifecycle.
+- Plugin installation, uninstallation, and enablement refresh both plugin and skill state because plugin-contained skills are controlled by the plugin lifecycle.
 - Browser is the built-in reference plugin. It shows the `NodeReplJs` tool and the `browser` skill in its included content.
 - Users can enter a Skills view if the server exposes skills capabilities.
 - Users can browse installed skills.
@@ -603,7 +604,45 @@ Required behavior:
 - If a skill is unavailable because server-side requirements are unmet, the client explains that the skill exists but is currently unusable.
 - If plugin or skills capability is absent, the corresponding tab or action is hidden or disabled with a clear reason.
 
-### 6.1.1 Desktop Extensions
+#### 6.1.1 Plugin app connection and conversation binding
+
+Desktop presents app-principal connection and thread binding as two separate
+user workflows even though both are backed by App Binding version 2:
+
+- A plugin detail's Apps section manages workspace-level app connection only.
+  Its row exposes Install, Connect, Connecting, Reconnect, or a `Connected`
+  status menu. The connected menu contains Reconnect and Disconnect. Disconnect
+  confirms before revoking the app principal because that operation also
+  revokes the app's thread bindings.
+- Welcome and conversation-header Apps pickers list only installed, enabled
+  apps that are ready for binding. Apps requiring an external connection must
+  be connected; managed apps that require no external connection are ready
+  immediately. Installation, connection, reconnect, and setup remain exclusive
+  to plugin detail.
+- Both pickers use a switch without a connection-status badge. Before a thread
+  exists, the switch only stages `WelcomeDraft.appIds`; it never creates an
+  empty thread or invokes connection or revoke methods. The staged list,
+  including an explicitly empty selection, is restored with the workspace
+  welcome draft. After the first message creates the thread, Desktop enables
+  and awaits each staged binding before submitting that message.
+- In an existing conversation, switching on starts the existing binding
+  request. Switching off directly cancels a pending request or revokes the
+  current thread binding without changing workspace-level connection. Failed
+  operations leave the server-controlled switch state unchanged and surface an
+  error.
+- Capability expansion remains an explicit Review action in the conversation
+  picker alongside the switch. Accept and Reject call the existing
+  capability-confirmation method; the decision is never hidden inside an
+  overflow menu.
+- App and binding notifications drive ordinary status refresh. Per-row manual
+  refresh commands are absent; a Retry action is shown only after a load or
+  recovery failure.
+- Plugin detail keeps Try in chat as the direct primary action. Manage and
+  Uninstall are grouped under its overflow menu. Manage opens the installed-plugin
+  management surface with a clearable query prefilled for the current plugin;
+  the browse query is independent.
+
+### 6.1.2 Desktop Extensions
 
 Installed and enabled plugins may contribute trusted Desktop extensions through plugin metadata. Desktop must derive extension entry points from AppServer plugin discovery results instead of hardcoding plugin ids in the client.
 

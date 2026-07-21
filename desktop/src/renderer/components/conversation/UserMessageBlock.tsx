@@ -18,6 +18,7 @@ import { addToast } from '../../stores/toastStore'
 import { ActionTooltip } from '../ui/ActionTooltip'
 import { ReferencePathContextMenu } from './ReferencePathContextMenu'
 import type { ContextMenuPosition } from '../ui/ContextMenu'
+import { Button } from '../ui/Button'
 
 const imageDataUrlCache = new Map<string, string>()
 
@@ -266,41 +267,22 @@ export function UserMessageBlock({
                   gap: '8px'
                 }}
               >
-                <button
-                  type="button"
+                <Button
+                  variant="secondary"
                   onClick={onCancelEdit}
                   disabled={editSubmitting}
-                  style={{
-                    height: 32,
-                    padding: '0 12px',
-                    borderRadius: 16,
-                    border: '1px solid var(--border-default)',
-                    background: 'var(--bg-secondary)',
-                    color: 'var(--text-secondary)',
-                    cursor: editSubmitting ? 'default' : 'pointer',
-                    opacity: editSubmitting ? 0.7 : 1
-                  }}
                 >
                   {t('common.cancel')}
-                </button>
-                <button
-                  type="button"
+                </Button>
+                <Button
+                  variant="primary"
                   onClick={onSubmitEdit}
                   disabled={editSubmitDisabled}
+                  loading={editSubmitting}
                   aria-label={t('conversation.editSend')}
-                  style={{
-                    height: 32,
-                    padding: '0 14px',
-                    borderRadius: 16,
-                    border: '1px solid transparent',
-                    background: editSubmitDisabled ? 'var(--bg-tertiary)' : 'var(--text-primary)',
-                    color: editSubmitDisabled ? 'var(--text-dimmed)' : 'var(--bg-primary)',
-                    cursor: editSubmitDisabled ? 'not-allowed' : 'pointer',
-                    fontWeight: 600
-                  }}
                 >
                   {editSubmitting ? t('conversation.editSending') : t('conversation.editSend')}
-                </button>
+                </Button>
               </div>
             </>
           ) : (

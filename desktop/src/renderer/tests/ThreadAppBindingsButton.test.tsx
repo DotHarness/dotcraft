@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { LocaleProvider } from '../contexts/LocaleContext'
 import { ThreadAppBindingsButton } from '../components/conversation/ThreadAppBindingsButton'
 import { useAppBindingStore } from '../stores/appBindingStore'
@@ -120,6 +120,11 @@ describe('ThreadAppBindingsButton', () => {
           bindings: [threadBinding()]
         }
       }
+      if (method === 'app/list') {
+        return {
+          apps: [appInfo({ bindingSummary: threadBinding() })]
+        }
+      }
       return {}
     })
     Object.defineProperty(window, 'api', {
@@ -133,9 +138,10 @@ describe('ThreadAppBindingsButton', () => {
         }
       }
     })
+    ;(window as Window & { __confirmDialog?: () => Promise<boolean> }).__confirmDialog = vi.fn().mockResolvedValue(true)
   })
 
-  it('keeps header button chrome and shows logo/name/status without scope text', async () => {
+  it('keeps header button chrome and shows a checked switch without status or scope text', async () => {
     const { container } = render(
       <LocaleProvider>
         <ThreadAppBindingsButton threadId="thread-1" />
@@ -150,9 +156,12 @@ describe('ThreadAppBindingsButton', () => {
     fireEvent.click(button)
 
     expect(await screen.findByText('Workflow App')).toBeInTheDocument()
-    expect(screen.getByText('Bound')).toBeInTheDocument()
+    expect(screen.getByRole('switch', { name: 'Use Workflow App in this chat' })).toHaveAttribute('aria-checked', 'true')
+    expect(screen.queryByRole('button', { name: 'Added' })).not.toBeInTheDocument()
     expect(screen.queryByText('board.read, board.manage')).toBeNull()
     expect(container.querySelector('img[src^="data:image/svg+xml"]')).not.toBeNull()
+    expect(button).not.toHaveAttribute('data-bordered')
+    expect(container.querySelector('.dc-app-bindings-picker__count')).toBeNull()
     await waitFor(() => {
       expect(sendRequest).toHaveBeenCalledWith('app/list', expect.objectContaining({
         threadId: 'thread-1',
@@ -178,8 +187,8 @@ describe('ThreadAppBindingsButton', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Apps' }))
 
     expect(await screen.findByText('Workflow App')).toBeInTheDocument()
-    expect(screen.getByText('Authorized')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Bind thread' })).toBeInTheDocument()
+    expect(screen.getByRole('switch', { name: 'Use Workflow App in this chat' })).toHaveAttribute('aria-checked', 'false')
+    expect(screen.queryByRole('button', { name: 'Add' })).not.toBeInTheDocument()
     await waitFor(() => {
       expect(sendRequest).toHaveBeenCalledWith('app/list', {
         includeCatalog: true,
@@ -220,7 +229,7 @@ describe('ThreadAppBindingsButton', () => {
     )
 
     fireEvent.click(await screen.findByRole('button', { name: 'Apps' }))
-    fireEvent.click(await screen.findByRole('button', { name: 'Bind thread' }))
+    fireEvent.click(await screen.findByRole('switch', { name: 'Use Workflow App in this chat' }))
 
     await waitFor(() => {
       expect(sendRequest).toHaveBeenCalledWith('thread/appBindings/enable', {
@@ -231,29 +240,12 @@ describe('ThreadAppBindingsButton', () => {
     })
   })
 
-  it('connects an unconnected app without auto-binding the existing thread', async () => {
-    let connected = false
+  it('hides unconnected apps instead of offering connection or setup actions', async () => {
     sendRequest.mockImplementation(async (method: string) => {
       if (method === 'thread/appBindings/refresh') return { bindings: [] }
       if (method === 'thread/appBindings/list') return { bindings: [] }
       if (method === 'app/list') {
-        return {
-          apps: [
-            appInfo({
-              connectionState: connected ? 'connected' : 'notConnected'
-            })
-          ]
-        }
-      }
-      if (method === 'app/connection/start') {
-        connected = true
-        return {
-          connectionRequestId: 'connection-1',
-          appId: 'com.example.workflow',
-          state: 'connecting',
-          expiresAt: '2026-05-18T00:00:00Z',
-          handoff: { mode: 'customProtocol', uri: 'workflow://dotcraft/connect?request=connection-1' }
-        }
+        return { apps: [appInfo({ connectionState: 'notConnected' })] }
       }
       return {}
     })
@@ -265,50 +257,30 @@ describe('ThreadAppBindingsButton', () => {
     )
 
     fireEvent.click(await screen.findByRole('button', { name: 'Apps' }))
-    expect(await screen.findByRole('button', { name: 'Connect' })).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: 'Connect' }))
-
     await waitFor(() => {
-      expect(shellOpenAppHandoff).toHaveBeenCalledWith('workflow://dotcraft/connect?request=connection-1')
-      expect(screen.getByRole('button', { name: 'Bind thread' })).toBeInTheDocument()
+      expect(sendRequest).toHaveBeenCalledWith('app/list', expect.objectContaining({
+        threadId: 'thread-1',
+        surface: 'threadBinding'
+      }))
+      expect(screen.getByText('No connected apps available.')).toBeInTheDocument()
     })
+    expect(screen.queryByText('Workflow App')).not.toBeInTheDocument()
+    expect(screen.queryByRole('switch')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Set up' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Connect' })).not.toBeInTheDocument()
+    expect(sendRequest).not.toHaveBeenCalledWith('app/connection/start', expect.anything())
     expect(sendRequest).not.toHaveBeenCalledWith('app/binding/request/create', expect.anything())
   })
 
-  it('shows offline thread bindings as open-app-to-use without connected copy', async () => {
+  it('directly revokes an existing binding when its switch is turned off', async () => {
+    let bound = true
     sendRequest.mockImplementation(async (method: string) => {
-      if (method === 'thread/appBindings/refresh') return { bindings: [{ bindingId: 'binding-1', state: 'offline', attachedToolCount: 0 }] }
-      if (method === 'thread/appBindings/list') return { bindings: [threadBinding('offline')] }
-      if (method === 'app/connection/start') {
-        return {
-          connectionRequestId: 'connection-1',
-          appId: 'com.example.workflow',
-          state: 'connecting',
-          expiresAt: '2026-05-18T00:00:00Z',
-          handoff: { mode: 'customProtocol', uri: 'workflow://dotcraft/connect?request=connection-1' }
-        }
-      }
-      if (method === 'app/list') {
-        return {
-          apps: [
-            {
-              appId: 'com.example.workflow',
-              toolNamespace: 'workflow',
-              displayName: 'Workflow App',
-              developerName: 'Example Labs',
-              description: 'Board tools',
-              pluginId: 'workflow',
-              installed: true,
-              enabled: true,
-              catalogVisible: true,
-              connectionState: 'connected',
-              nativeApp: { displayName: 'Workflow App', protocol: 'workflow', status: 'installed' },
-              handoffModes: [],
-              scopes: [],
-              toolCatalog: []
-            }
-          ]
-        }
+      if (method === 'thread/appBindings/refresh') return { bindings: bound ? [{ bindingId: 'binding-1', state: 'active', attachedToolCount: 1 }] : [] }
+      if (method === 'thread/appBindings/list') return { bindings: bound ? [threadBinding('active')] : [] }
+      if (method === 'app/list') return { apps: [appInfo()] }
+      if (method === 'thread/appBindings/revoke') {
+        bound = false
+        return {}
       }
       return {}
     })
@@ -320,45 +292,62 @@ describe('ThreadAppBindingsButton', () => {
     )
 
     fireEvent.click(await screen.findByRole('button', { name: 'Apps' }))
+    const switchControl = await screen.findByRole('switch', { name: 'Use Workflow App in this chat' })
+    expect(switchControl).toHaveAttribute('aria-checked', 'true')
+    fireEvent.click(switchControl)
 
     await waitFor(() => {
-      expect(screen.getByRole('button', { name: 'Open app' })).toBeInTheDocument()
-    })
-    expect(screen.queryByText('Offline')).not.toBeInTheDocument()
-    expect(screen.queryByText('Connected')).not.toBeInTheDocument()
-
-    fireEvent.click(screen.getByRole('button', { name: 'Open app' }))
-
-    await waitFor(() => {
-      expect(shellOpenAppHandoff).toHaveBeenCalledWith('workflow://dotcraft/connect?request=connection-1')
-      expect(sendRequest).toHaveBeenCalledWith('app/connection/start', {
-        appId: 'com.example.workflow',
-        handoffMode: undefined
-      })
-      expect(sendRequest).toHaveBeenCalledWith('thread/appBindings/list', {
+      expect(sendRequest).toHaveBeenCalledWith('thread/appBindings/revoke', {
         threadId: 'thread-1',
-        includeRevoked: false
+        bindingId: 'binding-1',
+        reason: undefined
       })
+      expect(switchControl).toHaveAttribute('aria-checked', 'false')
+    })
+    expect((window as Window & { __confirmDialog?: ReturnType<typeof vi.fn> }).__confirmDialog).not.toHaveBeenCalled()
+  })
+
+  it('keeps the switch checked when direct revoke fails', async () => {
+    sendRequest.mockImplementation(async (method: string) => {
+      if (method === 'thread/appBindings/refresh') return { bindings: [{ bindingId: 'binding-1', state: 'active', attachedToolCount: 1 }] }
+      if (method === 'thread/appBindings/list') return { bindings: [threadBinding('active')] }
+      if (method === 'app/list') return { apps: [appInfo()] }
+      if (method === 'thread/appBindings/revoke') throw new Error('Revoke failed')
+      return {}
+    })
+
+    render(
+      <LocaleProvider>
+        <ThreadAppBindingsButton threadId="thread-1" />
+      </LocaleProvider>
+    )
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Apps' }))
+    const switchControl = await screen.findByRole('switch', { name: 'Use Workflow App in this chat' })
+    fireEvent.click(switchControl)
+
+    await waitFor(() => {
+      expect(sendRequest).toHaveBeenCalledWith('thread/appBindings/revoke', {
+        threadId: 'thread-1',
+        bindingId: 'binding-1',
+        reason: undefined
+      })
+      expect(switchControl).toHaveAttribute('aria-checked', 'true')
+      expect(useToastStore.getState().toasts.some((toast) => toast.message === 'Revoke failed')).toBe(true)
     })
   })
 
-  it('does not render an external open action for managed bindings', async () => {
+  it('shows managed apps that require no external connection even when not connected', async () => {
     sendRequest.mockImplementation(async (method: string) => {
-      if (method === 'thread/appBindings/refresh') return { bindings: [{ bindingId: 'binding-1', state: 'offline', attachedToolCount: 1 }] }
-      if (method === 'thread/appBindings/list') {
-        return {
-          bindings: [
-            {
-              ...threadBinding('offline'),
-              appId: 'com.example.managed',
-              displayName: 'Managed Workflow',
-              managed: true,
-              requiresExternalConnection: false,
-              attachedToolCount: 1
-            }
-          ]
-        }
-      }
+      if (method === 'thread/appBindings/refresh') return { bindings: [] }
+      if (method === 'thread/appBindings/list') return { bindings: [] }
+      if (method === 'app/list') return { apps: [appInfo({
+        appId: 'com.example.managed',
+        displayName: 'Managed Workflow',
+        managed: true,
+        requiresExternalConnection: false,
+        connectionState: 'notConnected'
+      })] }
       return {}
     })
 
@@ -371,10 +360,11 @@ describe('ThreadAppBindingsButton', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Apps' }))
 
     expect(await screen.findByText('Managed Workflow')).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Open app' })).toBeNull()
+    expect(screen.getByRole('switch', { name: 'Use Managed Workflow in this chat' })).toHaveAttribute('aria-checked', 'false')
+    expect(screen.queryByRole('button', { name: 'Set up' })).not.toBeInTheDocument()
   })
 
-  it('starts a social binding request and keeps bind instructions visible while pending', async () => {
+  it('starts a social binding request and cancels it directly when switched off', async () => {
     let bindingState: string | null = null
     sendRequest.mockImplementation(async (method: string) => {
       if (method === 'thread/appBindings/refresh') return { bindings: bindingState ? [socialBinding(bindingState)] : [] }
@@ -415,7 +405,7 @@ describe('ThreadAppBindingsButton', () => {
     )
 
     fireEvent.click(await screen.findByRole('button', { name: 'Apps' }))
-    fireEvent.click(await screen.findByRole('button', { name: 'Bind thread' }))
+    fireEvent.click(await screen.findByRole('switch', { name: 'Use QQ in this chat' }))
 
     await waitFor(() => {
       expect(sendRequest).toHaveBeenCalledWith('thread/socialBindings/request/create', {
@@ -423,27 +413,27 @@ describe('ThreadAppBindingsButton', () => {
         channelName: 'qq'
       })
     })
-    expect(await screen.findByText('Pending')).toBeInTheDocument()
+    expect(await screen.findByRole('switch', { name: 'Use QQ in this chat' })).toHaveAttribute('aria-checked', 'true')
     expect(screen.getByText('Send /bind 482913 in the QQ conversation to bind it to this thread.')).toBeInTheDocument()
     expect(useToastStore.getState().toasts.some((toast) => toast.message.includes('/bind 482913'))).toBe(false)
-    expect(screen.getAllByRole('button', { name: 'Refresh' })).toHaveLength(1)
+    expect(screen.queryByRole('button', { name: 'Refresh' })).not.toBeInTheDocument()
     expect(sendRequest).not.toHaveBeenCalledWith('thread/appBindings/refresh', {
       threadId: 'thread-1',
       bindingId: 'bind-req-social-1'
     })
-    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
+    expect(screen.queryByRole('button', { name: 'Cancel' })).not.toBeInTheDocument()
+    expect(shellOpenAppHandoff).not.toHaveBeenCalled()
+
+    fireEvent.click(screen.getByRole('switch', { name: 'Use QQ in this chat' }))
     await waitFor(() => {
       expect(sendRequest).toHaveBeenCalledWith('thread/appBindings/revoke', {
         threadId: 'thread-1',
         bindingId: 'binding-social-1',
         reason: undefined
       })
+      expect(screen.getByRole('switch', { name: 'Use QQ in this chat' })).toHaveAttribute('aria-checked', 'false')
+      expect(screen.queryByText('Send /bind 482913 in the QQ conversation to bind it to this thread.')).toBeNull()
     })
-    await waitFor(() => {
-      expect(useToastStore.getState().toasts.some((toast) => toast.message === 'App binding request canceled')).toBe(true)
-    })
-    expect(useToastStore.getState().toasts.some((toast) => toast.message === 'App binding revoked')).toBe(false)
-    expect(shellOpenAppHandoff).not.toHaveBeenCalled()
   })
 
   it('clears social bind instructions when the pending request disappears on refresh', async () => {
@@ -478,15 +468,18 @@ describe('ThreadAppBindingsButton', () => {
     )
 
     fireEvent.click(await screen.findByRole('button', { name: 'Apps' }))
-    fireEvent.click(await screen.findByRole('button', { name: 'Bind thread' }))
+    fireEvent.click(await screen.findByRole('switch', { name: 'Use QQ in this chat' }))
     expect(await screen.findByText('Send /bind 482913 in the QQ conversation to bind it to this thread.')).toBeInTheDocument()
 
     binding = null
-    fireEvent.click(screen.getByRole('button', { name: 'Refresh' }))
+    await act(async () => {
+      await useAppBindingStore.getState().refreshThreadBindings('thread-1')
+      await useAppBindingStore.getState().fetchApps('thread-1', false, 'threadBinding')
+    })
 
     await waitFor(() => {
       expect(screen.queryByText('Send /bind 482913 in the QQ conversation to bind it to this thread.')).toBeNull()
-      expect(screen.getByRole('button', { name: 'Bind thread' })).toBeInTheDocument()
+      expect(screen.getByRole('switch', { name: 'Use QQ in this chat' })).toHaveAttribute('aria-checked', 'false')
     })
   })
 
@@ -526,15 +519,15 @@ describe('ThreadAppBindingsButton', () => {
     )
 
     fireEvent.click(await screen.findByRole('button', { name: 'Apps' }))
-    fireEvent.click(await screen.findByRole('button', { name: 'Bind thread' }))
+    fireEvent.click(await screen.findByRole('switch', { name: 'Use QQ in this chat' }))
 
     await waitFor(() => {
-      expect(screen.getByText('Pending')).toBeInTheDocument()
+      expect(screen.getByRole('switch', { name: 'Use QQ in this chat' })).toHaveAttribute('aria-checked', 'true')
       expect(screen.queryByText('Send /bind 482913 in the QQ conversation to bind it to this thread.')).toBeNull()
     })
   })
 
-  it('hides offline social channels without thread bindings', async () => {
+  it('shows ready social apps without setup even when they require no external connection', async () => {
     sendRequest.mockImplementation(async (method: string) => {
       if (method === 'thread/appBindings/refresh') return { bindings: [] }
       if (method === 'thread/appBindings/list') return { bindings: [] }
@@ -551,23 +544,24 @@ describe('ThreadAppBindingsButton', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Apps' }))
 
     await waitFor(() => {
-      expect(screen.getByText('No apps bound')).toBeInTheDocument()
-      expect(screen.queryByText('QQ')).toBeNull()
+      expect(screen.getByText('QQ')).toBeInTheDocument()
+      expect(screen.getByRole('switch', { name: 'Use QQ in this chat' })).toHaveAttribute('aria-checked', 'false')
     })
-    expect(screen.queryByText('Not connected')).toBeNull()
-    expect(screen.queryByRole('button', { name: 'Bind thread' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Add' })).toBeNull()
     expect(screen.queryByRole('button', { name: 'Connect' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Set up' })).toBeNull()
   })
 
-  it('does not show a disconnected active social binding as bound', async () => {
-    const disconnectedBinding = { ...socialBinding('active'), connectionState: 'notConnected' }
+  it('hides a disconnected external app even when a thread binding still exists', async () => {
+    const disconnectedBinding = { ...threadBinding('active'), connectionState: 'notConnected' }
     sendRequest.mockImplementation(async (method: string) => {
       if (method === 'thread/appBindings/refresh') return { bindings: [disconnectedBinding] }
       if (method === 'thread/appBindings/list') return { bindings: [disconnectedBinding] }
       if (method === 'app/list') {
         return {
           apps: [
-            socialAppInfo({
+            appInfo({
+              requiresExternalConnection: true,
               connectionState: 'notConnected',
               bindingSummary: disconnectedBinding
             })
@@ -586,18 +580,22 @@ describe('ThreadAppBindingsButton', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Apps' }))
 
     await waitFor(() => {
-      expect(screen.getByLabelText('QQ')).toBeInTheDocument()
-      expect(document.body.textContent).toContain('Not connected')
-      expect(document.body.textContent).not.toContain('Bound')
+      expect(screen.getByText('No connected apps available.')).toBeInTheDocument()
+      expect(screen.queryByText('Workflow App')).not.toBeInTheDocument()
+      expect(screen.queryByRole('switch')).not.toBeInTheDocument()
     })
   })
 
-  it('shows the active social target and can refresh or revoke it', async () => {
+  it('shows the active social target and revokes it directly from the switch', async () => {
+    let bound = true
     sendRequest.mockImplementation(async (method: string) => {
-      if (method === 'thread/appBindings/refresh') return { bindings: [socialBinding('active')] }
-      if (method === 'thread/appBindings/list') return { bindings: [socialBinding('active')] }
-      if (method === 'app/list') return { apps: [socialAppInfo({ bindingSummary: socialBinding('active') })] }
-      if (method === 'thread/appBindings/revoke') return {}
+      if (method === 'thread/appBindings/refresh') return { bindings: bound ? [socialBinding('active')] : [] }
+      if (method === 'thread/appBindings/list') return { bindings: bound ? [socialBinding('active')] : [] }
+      if (method === 'app/list') return { apps: [socialAppInfo({ bindingSummary: bound ? socialBinding('active') : undefined })] }
+      if (method === 'thread/appBindings/revoke') {
+        bound = false
+        return {}
+      }
       return {}
     })
 
@@ -613,21 +611,49 @@ describe('ThreadAppBindingsButton', () => {
       expect(screen.getByText('QQ group 123456').textContent).toBe('QQ group 123456')
     })
 
-    const refreshButtons = screen.getAllByRole('button', { name: 'Refresh' })
-    fireEvent.click(refreshButtons[refreshButtons.length - 1])
-    await waitFor(() => {
-      expect(sendRequest).toHaveBeenCalledWith('thread/appBindings/list', {
-        threadId: 'thread-1',
-        includeRevoked: false
-      })
-    })
-
-    fireEvent.click(screen.getByRole('button', { name: 'Revoke' }))
+    expect(screen.queryByRole('button', { name: 'Refresh' })).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('switch', { name: 'Use QQ in this chat' }))
     await waitFor(() => {
       expect(sendRequest).toHaveBeenCalledWith('thread/appBindings/revoke', {
         threadId: 'thread-1',
         bindingId: 'binding-social-1',
         reason: undefined
+      })
+      expect(screen.getByRole('switch', { name: 'Use QQ in this chat' })).toHaveAttribute('aria-checked', 'false')
+    })
+  })
+
+  it('reviews and accepts a capability expansion through the existing confirmation endpoint', async () => {
+    const reviewBinding = {
+      ...threadBinding('needsConfirmation'),
+      candidateCapabilityRevision: 3,
+      pendingChanges: [{ kind: 'added', tool: 'workflow.DeleteCard', detail: 'Delete cards' }]
+    }
+    sendRequest.mockImplementation(async (method: string) => {
+      if (method === 'thread/appBindings/refresh') return { bindings: [reviewBinding] }
+      if (method === 'thread/appBindings/list') return { bindings: [reviewBinding] }
+      if (method === 'app/list') return { apps: [appInfo({ bindingSummary: reviewBinding })] }
+      return {}
+    })
+
+    render(
+      <LocaleProvider>
+        <ThreadAppBindingsButton threadId="thread-1" />
+      </LocaleProvider>
+    )
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Apps' }))
+    await waitFor(() => expect(sendRequest).toHaveBeenCalledWith('app/list', expect.anything()))
+    fireEvent.click(screen.getByRole('button', { name: 'Review' }))
+    expect(await screen.findByText('Delete cards')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Accept capabilities' }))
+
+    await waitFor(() => {
+      expect(sendRequest).toHaveBeenCalledWith('thread/appBindings/confirmCapabilities', {
+        threadId: 'thread-1',
+        bindingId: 'binding-1',
+        candidateRevision: 3,
+        decision: 'accept'
       })
     })
   })

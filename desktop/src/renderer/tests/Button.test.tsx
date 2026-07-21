@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import { Button } from '../components/ui/Button'
+import { IconButton } from '../components/ui/IconButton'
 
 describe('Button', () => {
   it('applies variant and size as data attributes on a .dc-button', () => {
@@ -17,6 +18,11 @@ describe('Button', () => {
     const button = screen.getByRole('button', { name: 'Manage' })
     expect(button).toHaveAttribute('data-variant', 'secondary')
     expect(button).toHaveAttribute('data-size', 'default')
+  })
+
+  it('exposes the prominent size for a single high-emphasis CTA', () => {
+    render(<Button size="prominent" variant="primary">Install</Button>)
+    expect(screen.getByRole('button', { name: 'Install' })).toHaveAttribute('data-size', 'prominent')
   })
 
   it('renders a leading icon before the label for text sizes', () => {
@@ -48,5 +54,37 @@ describe('Button', () => {
     expect(button).toHaveClass('extra')
     button.click()
     expect(onClick).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('IconButton', () => {
+  it('forwards refs and exposes danger and expanded states', () => {
+    const ref = { current: null as HTMLButtonElement | null }
+    render(
+      <IconButton
+        ref={ref}
+        label="Delete item"
+        icon={<svg />}
+        tone="danger"
+        aria-expanded="true"
+      />
+    )
+    const button = screen.getByRole('button', { name: 'Delete item' })
+    expect(ref.current).toBe(button)
+    expect(button).toHaveClass('dc-icon-button')
+    expect(button).toHaveAttribute('data-tone', 'danger')
+    expect(button).toHaveAttribute('aria-expanded', 'true')
+  })
+
+  it('merges caller classes without dropping shared icon-button behavior', () => {
+    render(<IconButton label="Copy" icon={<svg />} className="inline-action" />)
+    expect(screen.getByRole('button', { name: 'Copy' })).toHaveClass('dc-icon-button', 'inline-action')
+  })
+
+  it('keeps disabled and bordered semantics on the shared control', () => {
+    render(<IconButton label="Apps" icon={<svg />} bordered disabled />)
+    const button = screen.getByRole('button', { name: 'Apps' })
+    expect(button).toBeDisabled()
+    expect(button).toHaveAttribute('data-bordered', 'true')
   })
 })

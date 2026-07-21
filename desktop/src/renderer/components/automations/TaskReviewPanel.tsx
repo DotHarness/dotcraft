@@ -17,6 +17,8 @@ import { ActionTooltip } from '../ui/ActionTooltip'
 import { ConfirmDialog } from '../ui/ConfirmDialog'
 import { WorktreeHandoffDialog } from '../conversation/WorktreeHandoffDialog'
 import { ArrowRightLeft, ExternalLink, GitBranch, RefreshCcw, Trash2 } from 'lucide-react'
+import { Button } from '../ui/Button'
+import { IconButton } from '../ui/IconButton'
 
 function ApprovalPolicyBadge({
   policy,
@@ -206,17 +208,13 @@ function WorktreeReviewSection({ task }: { task: AutomationTask }): JSX.Element 
             <GitBranch size={14} aria-hidden />
             <span>{t('auto.review.worktreeHeading')}</span>
           </div>
-          <ActionTooltip label={t('auto.review.worktreeRefresh')}>
-            <button
-              type="button"
-              disabled={!provisioned || loading}
-              onClick={() => void refresh()}
-              style={smallIconButtonStyle(!provisioned || loading)}
-              aria-label={t('auto.review.worktreeRefresh')}
-            >
-              <RefreshCcw size={13} aria-hidden />
-            </button>
-          </ActionTooltip>
+          <IconButton
+            label={t('auto.review.worktreeRefresh')}
+            disabled={!provisioned || loading}
+            onClick={() => void refresh()}
+            size={28}
+            icon={<RefreshCcw size={13} aria-hidden />}
+          />
         </div>
 
         {!provisioned ? (
@@ -245,37 +243,38 @@ function WorktreeReviewSection({ task }: { task: AutomationTask }): JSX.Element 
             )}
             {error && <p style={worktreeErrorStyle}>{error}</p>}
             <div style={worktreeActionsStyle}>
-              <button
-                type="button"
+              <Button
+                size="sm"
+                variant="ghost"
                 onClick={() => void openThread()}
-                style={secondaryActionButtonStyle}
               >
                 <ExternalLink size={13} aria-hidden />
                 <span>{t('auto.review.openThread')}</span>
-              </button>
+              </Button>
               <ActionTooltip label={t('auto.review.handoffToLocal')} disabledReason={disableHandoffReason}>
-                <button
-                  type="button"
+                <Button
+                  size="sm"
+                  variant="primary"
                   disabled={!canHandoff}
                   onClick={() => void startHandoff()}
-                  style={actionButtonStyle(!canHandoff)}
                 >
                   <ArrowRightLeft size={13} aria-hidden />
                   <span>{t('auto.review.handoffToLocal')}</span>
-                </button>
+                </Button>
               </ActionTooltip>
-              <button
-                type="button"
+              <Button
+                size="sm"
+                variant="danger"
                 disabled={!provisioned || busy}
                 onClick={() => {
                   if (hasUnreviewedWork) setConfirmDiscard(true)
                   else void discard()
                 }}
-                style={dangerActionButtonStyle(!provisioned || busy)}
+                loading={busy}
               >
                 <Trash2 size={13} aria-hidden />
                 <span>{busy ? t('auto.deleting') : t('auto.review.discardWorktree')}</span>
-              </button>
+              </Button>
             </div>
           </div>
         )}
@@ -811,53 +810,4 @@ const worktreeActionsStyle: CSSProperties = {
   alignItems: 'center',
   gap: '6px',
   flexWrap: 'wrap'
-}
-
-const secondaryActionButtonStyle: CSSProperties = {
-  display: 'inline-flex',
-  alignItems: 'center',
-  gap: '5px',
-  minHeight: '28px',
-  padding: '4px 9px',
-  borderRadius: '6px',
-  border: '1px solid var(--border-default)',
-  backgroundColor: 'transparent',
-  color: 'var(--text-secondary)',
-  fontSize: '11px',
-  fontWeight: 600,
-  cursor: 'pointer'
-}
-
-function actionButtonStyle(disabled: boolean): CSSProperties {
-  return {
-    ...secondaryActionButtonStyle,
-    color: disabled ? 'var(--text-dimmed)' : 'var(--text-secondary)',
-    cursor: disabled ? 'default' : 'pointer',
-    opacity: disabled ? 0.58 : 1
-  }
-}
-
-function dangerActionButtonStyle(disabled: boolean): CSSProperties {
-  return {
-    ...secondaryActionButtonStyle,
-    color: disabled ? 'var(--text-dimmed)' : 'var(--error)',
-    cursor: disabled ? 'default' : 'pointer',
-    opacity: disabled ? 0.58 : 1
-  }
-}
-
-function smallIconButtonStyle(disabled: boolean): CSSProperties {
-  return {
-    width: '26px',
-    height: '26px',
-    borderRadius: '6px',
-    border: '1px solid var(--border-default)',
-    backgroundColor: 'transparent',
-    color: disabled ? 'var(--text-dimmed)' : 'var(--text-secondary)',
-    display: 'inline-flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    cursor: disabled ? 'default' : 'pointer',
-    opacity: disabled ? 0.58 : 1
-  }
 }

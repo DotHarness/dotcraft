@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom'
 import { FolderOpen, FolderPlus } from 'lucide-react'
 import { useT } from '../../contexts/LocaleContext'
 import { addToast } from '../../stores/toastStore'
+import { Button } from '../ui/Button'
 
 /**
  * Shared "Add new project" flow used by both the composer project selector and
@@ -213,29 +214,20 @@ function NameProjectDialog({
           style={inputStyle}
         />
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '20px' }}>
-          <button
-            type="button"
+          <Button
+            variant="secondary"
             onClick={onCancel}
             disabled={busy}
-            style={{ ...dialogButtonStyle, background: 'var(--bg-tertiary)', color: 'var(--text-primary)' }}
           >
             {t('addProject.cancel')}
-          </button>
-          <button
-            type="button"
+          </Button>
+          <Button
+            variant="primary"
             onClick={onConfirm}
             disabled={!canConfirm}
-            style={{
-              ...dialogButtonStyle,
-              background: 'var(--text-primary)',
-              color: 'var(--bg-primary)',
-              fontWeight: 600,
-              opacity: canConfirm ? 1 : 0.55,
-              cursor: canConfirm ? 'pointer' : 'default'
-            }}
           >
             {t('addProject.save')}
-          </button>
+          </Button>
         </div>
       </div>
     </div>,
@@ -274,14 +266,4 @@ const inputStyle: CSSProperties = {
   fontSize: '13px',
   outline: 'none',
   boxSizing: 'border-box'
-}
-
-const dialogButtonStyle: CSSProperties = {
-  minWidth: '88px',
-  height: '40px',
-  border: 'none',
-  borderRadius: '8px',
-  padding: '0 16px',
-  font: 'inherit',
-  cursor: 'pointer'
 }

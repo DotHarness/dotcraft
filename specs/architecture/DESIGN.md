@@ -1,5 +1,5 @@
 ---
-version: "0.5.0"
+version: "0.8.2"
 name: "DotCraft Desktop"
 description: "Quiet operational desktop UI for repeated agent work."
 sourceTokens: "desktop/src/renderer/styles/tokens.css"
@@ -177,6 +177,10 @@ while preserving the same sizing, weight, and spacing scale.
 Desktop surfaces should favor dense but organized operational layouts.
 
 - Keep common workflows ergonomic for repeated use.
+- Catalog browse, manage, and detail surfaces use one 48px top control band: navigation
+  (tabs or breadcrumb) stays left, page-level management actions stay right, and
+  both sides share the same vertical center. Do not position catalog actions in
+  the hero/header below this band or compensate with negative offsets.
 - Use stable dimensions for fixed-format controls such as boards, rows,
   toolbars, icon buttons, counters, tabs, and menus.
 - Constrain content with explicit grid, flex, min/max, or aspect-ratio rules so
@@ -302,8 +306,11 @@ A taller, more prominent action is allowed as a deliberate exception, not the
 default. A standalone, high-emphasis call to action — the single primary button
 in a focused setup or install dialog, or a lone full-width confirm — may use a
 larger pill: a `~38px` height with `999px` radius to read as the one clear next
-step. This is the only case where an action button takes the pill (`999px`)
-shape; ordinary repeated or in-row actions stay at the `32px` / `8px` standard.
+step. A compact plugin-package Install action is the other pill exception: it
+uses the `28px` compact control height and a `999px` radius consistently across
+plugin browse, manage, and detail surfaces. Native-app installation and other
+row actions keep the ordinary radius. Outside these two cases, repeated or
+in-row actions stay at the `32px` / `8px` standard.
 When a prominent pill shares a row with other buttons, raise the others to the
 same height so the row still aligns.
 
@@ -317,7 +324,8 @@ prop and the footprint with the `size` prop:
   `danger` (frameless semantic fill, paired with explicit Delete/Remove/Stop copy),
   `accent` (restrained brand, never the default create/save/manage), `outline` (the
   one bordered variant — only for special / important framed actions).
-- `size`: `default` (the `32px` control band), `sm`, `icon`, `iconSm`.
+- `size`: `default` (the `32px` control band), `sm`, `icon`, `iconSm`,
+  `prominent` (the standalone `38px` pill CTA).
 
 Buttons are frameless by default. Every variant keeps a `1px` border in the box
 model but only `outline` paints it visibly, so switching a button between fills and
@@ -335,10 +343,54 @@ default, matching the frameless action language:
 - `var(--text-secondary)` icon color, with a neutral hover fill
   (`var(--bg-tertiary)` + `var(--text-primary)`);
 - `active` marks a selected/toggled state with a subtle accent tint.
+- `aria-expanded="true"` marks an open menu or popover with a neutral fill; opening
+  ordinary chrome is not a selected accent state.
+- destructive icon-only actions use the shared danger tone rather than a locally
+  painted red border.
+
+Viewer chrome may use compact `16px`, `24px`, or `28px` icon-button footprints
+when required by an existing tab slot or toolbar. The shared hover, focus,
+disabled, open, and danger treatments still apply at those sizes.
+
+Compound triggers that combine a principal action or status with a menu may keep
+a persistent neutral outline. Open-target split controls and workspace connection
+status menus are reference cases: the group paints one outer outline, its segments
+do not each paint a frame, and any internal divider must not double the border.
+Compact thread-header Apps triggers remain frameless and omit connection counts.
 
 A visible neutral frame (`bordered`: `var(--bg-secondary)` +
 `1px solid var(--border-default)`) is opt-in and reserved for special or important
 icon controls. Modal close buttons stay borderless with neutral hover feedback.
+
+### Status Menu Buttons
+
+A compact status menu button combines a current-state label with an overflow
+menu when a repeated row would otherwise expose several competing actions. It
+is a state affordance, not a second primary action:
+
+- the trigger is a 32px-high neutral control with a small semantic status dot,
+  concise label, trailing chevron, and a persistent `1px
+  solid var(--border-default)` outline;
+- hover and open states may strengthen the neutral fill and border together,
+  but the frame never becomes an accent border;
+- stable states such as connected or active may use a success dot, while
+  unavailable or failed states use warning or error only in the dot and label;
+- clicking the trigger opens the ordinary shared menu treatment; destructive
+  commands remain explicit danger menu items and require confirmation when
+  they revoke durable authority or delete data;
+- a required next step such as Install, Connect, Add, or Review remains a
+  direct shared `Button` instead of being hidden in the status menu;
+- loading states disable the control and use one in-control progress signal;
+- the trigger exposes `aria-haspopup`, `aria-expanded`, keyboard open/close,
+  and restores focus after the menu closes.
+
+The visible frame is a deliberate exception to the frameless ordinary-button
+rule because the trigger combines status and menu responsibilities. Use the
+shared `StatusMenuButton` rather than composing a badge, chevron, and positioned
+menu per feature. Workspace-level app connection rows are the reference
+treatment: `Connected` combines principal status with Reconnect and Disconnect.
+Conversation app selection uses a `PillSwitch` instead because it is a
+reversible on/off choice rather than a status menu.
 
 ### Dialog Headers
 
@@ -361,6 +413,17 @@ Use the shared header rather than re-implementing per dialog.
 The badge stays neutral by default. A semantic tint (success/warning/error) is
 allowed only when the dialog's whole purpose is that state, following the
 semantic-color rules; ordinary dialogs keep the neutral badge.
+
+Transient choice dialogs may omit a visible Cancel button when backdrop click
+and Escape both dismiss safely and no operation is running. This applies to
+short-lived destination and branch/changelist choices. Destructive
+confirmations, long forms, edit modes, and running/error recovery flows retain
+an explicit Cancel or Close action.
+
+Workspace onboarding keeps its dedicated circular step navigation and selection
+cards. Those controls express progress or choice, not ordinary button hierarchy;
+only regular actions such as Start, Change folder, Login, and Retry use the shared
+Button variants.
 
 ### Menus, Popovers, and Pickers
 

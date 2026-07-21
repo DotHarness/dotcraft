@@ -3,6 +3,7 @@ import { useT } from '../../contexts/LocaleContext'
 import type { ChannelConnectionState } from './ChannelCard'
 import { FieldCard, FormActions, StatusPill, formStyles } from './FormShared'
 import { ToggleSwitch } from './ToggleSwitch'
+import { Button } from '../ui/Button'
 
 export interface ExternalChannelConfigWire {
   name: string
@@ -233,25 +234,17 @@ export function ExternalChannelConfigForm({
           <FormActions saving={saving} onSave={onSave} />
         </div>
         {onDelete && !isNew && (
-          <button
-            type="button"
+          <Button
+            variant="danger"
             onClick={onDelete}
-            disabled={deleting}
+            loading={deleting}
             style={{
               width: 120,
-              height: 38,
-              borderRadius: 8,
-              border: '1px solid var(--border-default)',
-              background: deleting ? 'var(--bg-tertiary)' : 'transparent',
-              color: 'var(--danger)',
-              fontSize: 13,
-              fontWeight: 600,
-              cursor: deleting ? 'default' : 'pointer',
               marginTop: 4
             }}
           >
             {deleting ? t('channels.saving') : t('channels.external.delete')}
-          </button>
+          </Button>
         )}
       </div>
     </div>

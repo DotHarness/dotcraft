@@ -5,6 +5,8 @@ import { INLINE_VISUALIZATION_SANDBOX_RESOURCE_READY_METHOD, MCP_APP_SANDBOX_PRO
 import { THEME_CHANGED_EVENT } from '../../../shared/theme'
 import { addToast } from '../../stores/toastStore'
 import { Skeleton } from '../ui/Skeleton'
+import { Button } from '../ui/Button'
+import { IconButton } from '../ui/IconButton'
 import { useConfirmDialog } from '../ui/ConfirmDialog'
 import { buildInlineVisualizationDocument, INLINE_VISUALIZATION_MAX_HEIGHT, INLINE_VISUALIZATION_MIN_HEIGHT, type InlineVisualizationThemeTokens } from './inlineVisualizationSecurity'
 
@@ -192,16 +194,16 @@ export function InlineVisualizationFrame({ threadId, turnId, itemId, file }: Pro
     return (
       <div role="status" style={fallbackStyle}>
         <span>{t('inlineVisualization.unavailable')}</span>
-        <button
-          type="button"
-          style={retryButtonStyle}
+        <Button
+          size="sm"
+          variant="secondary"
           onClick={() => {
             setStatus('loading')
             setLoadAttempt(attempt => attempt + 1)
           }}
         >
           {t('common.retry')}
-        </button>
+        </Button>
       </div>
     )
   }
@@ -219,17 +221,17 @@ export function InlineVisualizationFrame({ threadId, turnId, itemId, file }: Pro
       {status === 'loading' && <div role="status" aria-live="polite"><span style={visuallyHiddenStyle}>{t('inlineVisualization.loading')}</span><Skeleton width="100%" height={180} radius={8} /></div>}
       <iframe ref={iframeRef} title={t('inlineVisualization.frameTitle', { file })} sandbox="allow-scripts" referrerPolicy="no-referrer" allow="" style={{ ...iframeStyle, height, display: status === 'ready' ? 'block' : 'none' }} />
       {status === 'ready' && (
-        <button
-          type="button"
+        <IconButton
+          size={24}
           className="inline-visualization-copy-button"
-          aria-label={t('inlineVisualization.copyImage')}
-          title={t('inlineVisualization.copyImage')}
+          label={t('inlineVisualization.copyImage')}
+          tooltipLabel={t('inlineVisualization.copyImage')}
+          tooltipPlacement="top"
           disabled={copying}
           onClick={() => { void copyAsImage() }}
           style={{ opacity: coarsePointer || actionsVisible ? 1 : 0, pointerEvents: coarsePointer || actionsVisible ? 'auto' : 'none' }}
-        >
-          <Copy size={14} aria-hidden />
-        </button>
+          icon={<Copy size={14} aria-hidden />}
+        />
       )}
       {overflowed && <div role="status" style={overflowHintStyle}>{t('inlineVisualization.scrollHint')}</div>}
     </div>
@@ -240,7 +242,6 @@ const containerStyle: CSSProperties = { position: 'relative', width: '100%', min
 const iframeStyle: CSSProperties = { width: '100%', border: 0, background: 'transparent', overflow: 'hidden' }
 const idlePlaceholderStyle: CSSProperties = { width: '100%', height: 180, borderRadius: 8, background: 'var(--bg-tertiary)', opacity: 0.55 }
 const fallbackStyle: CSSProperties = { display: 'flex', minHeight: 44, margin: '8px 0', padding: '8px 10px 8px 12px', alignItems: 'center', justifyContent: 'space-between', gap: 12, borderRadius: 8, background: 'var(--bg-secondary)', color: 'var(--text-secondary)', fontSize: 12 }
-const retryButtonStyle: CSSProperties = { minHeight: 28, padding: '0 10px', border: '1px solid var(--border-default)', borderRadius: 8, color: 'var(--text-primary)', background: 'transparent', fontSize: 12 }
 const overflowHintStyle: CSSProperties = { marginTop: '4px', color: 'var(--text-secondary)', fontSize: '11px' }
 const visuallyHiddenStyle: CSSProperties = { position: 'absolute', width: 1, height: 1, padding: 0, margin: -1, overflow: 'hidden', clip: 'rect(0,0,0,0)', whiteSpace: 'nowrap', border: 0 }
 

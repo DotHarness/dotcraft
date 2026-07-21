@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Download, ExternalLink, Search } from 'lucide-react'
+import { Download, ExternalLink, Search, X } from 'lucide-react'
 import { useT } from '../../contexts/LocaleContext'
 import {
   useSkillMarketStore,
@@ -10,6 +10,8 @@ import { addToast } from '../../stores/toastStore'
 import { MarkdownRenderer } from '../conversation/MarkdownRenderer'
 import { useConfirmDialog } from '../ui/ConfirmDialog'
 import { Skeleton } from '../ui/Skeleton'
+import { Button } from '../ui/Button'
+import { IconButton } from '../ui/IconButton'
 
 interface SkillMarketplaceViewProps {
   onInstalled: () => Promise<void>
@@ -268,9 +270,7 @@ function MarketSkillDetailDialog({
             </div>
             <p style={modalSubtitle}>{skill.description || skill.slug}</p>
           </div>
-          <button type="button" onClick={onClose} style={iconCloseBtn} aria-label={t('skillDetail.close')}>
-            ×
-          </button>
+          <IconButton onClick={onClose} label={t('skillDetail.close')} icon={<X size={16} aria-hidden />} />
         </header>
 
         <div style={metaRow}>
@@ -293,21 +293,20 @@ function MarketSkillDetailDialog({
         </div>
 
         <footer style={modalFooter}>
-          <button
-            type="button"
+          <Button
+            variant="ghost"
             onClick={() => {
               if (skill.sourceUrl) void window.api.shell.openExternal(skill.sourceUrl)
             }}
             disabled={!skill.sourceUrl}
-            style={!skill.sourceUrl ? disabledSecondaryBtn : secondaryBtn}
           >
             <ExternalLink size={14} aria-hidden="true" />
             {t('skillMarket.openSource')}
-          </button>
-          <button type="button" onClick={onInstall} disabled={installing || loading} style={installing || loading ? disabledPrimaryBtn : primaryBtn}>
+          </Button>
+          <Button variant="primary" onClick={onInstall} disabled={installing || loading} loading={installing}>
             <Download size={14} aria-hidden="true" />
             {installing ? t('skillMarket.installing') : installLabel}
-          </button>
+          </Button>
         </footer>
       </div>
     </div>
@@ -607,49 +606,4 @@ const modalFooter: React.CSSProperties = {
   alignItems: 'center',
   gap: '8px',
   flexWrap: 'wrap'
-}
-
-const secondaryBtn: React.CSSProperties = {
-  display: 'inline-flex',
-  alignItems: 'center',
-  gap: '6px',
-  padding: '7px 12px',
-  fontSize: '13px',
-  borderRadius: '6px',
-  border: '1px solid var(--border-default)',
-  backgroundColor: 'var(--bg-tertiary)',
-  color: 'var(--text-primary)',
-  cursor: 'pointer'
-}
-
-const primaryBtn: React.CSSProperties = {
-  ...secondaryBtn,
-  backgroundColor: 'var(--accent)',
-  borderColor: 'var(--accent)',
-  color: 'var(--on-accent)'
-}
-
-const disabledSecondaryBtn: React.CSSProperties = {
-  ...secondaryBtn,
-  opacity: 0.55,
-  cursor: 'not-allowed'
-}
-
-const disabledPrimaryBtn: React.CSSProperties = {
-  ...primaryBtn,
-  opacity: 0.65,
-  cursor: 'not-allowed'
-}
-
-const iconCloseBtn: React.CSSProperties = {
-  width: '32px',
-  height: '32px',
-  fontSize: '22px',
-  lineHeight: 1,
-  borderRadius: '6px',
-  border: 'none',
-  backgroundColor: 'transparent',
-  color: 'var(--text-secondary)',
-  cursor: 'pointer',
-  flexShrink: 0
 }

@@ -1,7 +1,8 @@
 import type { ButtonHTMLAttributes, CSSProperties, ReactNode } from 'react'
-import { ChevronDown, Search } from 'lucide-react'
+import { ChevronDown, ChevronLeft, Search } from 'lucide-react'
 import { useState } from 'react'
 import { ContextMenu, type ContextMenuPosition } from '../ui/ContextMenu'
+import { Button } from '../ui/Button'
 
 export interface CatalogFilterOption<T extends string> {
   value: T
@@ -53,16 +54,18 @@ export function CatalogHoverButton({
 export function CatalogTabs<T extends string>({
   value,
   items,
-  onChange
+  onChange,
+  inTopBar = false
 }: {
   value: T
   items: Array<{ value: T; label: string }>
   onChange: (value: T) => void
+  inTopBar?: boolean
 }): JSX.Element {
   const [hovered, setHovered] = useState<T | null>(null)
 
   return (
-    <div style={styles.tabs}>
+    <div style={inTopBar ? styles.tabsInTopBar : styles.tabs}>
       {items.map((item) => (
         <button
           key={item.value}
@@ -77,6 +80,48 @@ export function CatalogTabs<T extends string>({
           {item.label}
         </button>
       ))}
+    </div>
+  )
+}
+
+export function CatalogTopBar({
+  navigation,
+  actions
+}: {
+  navigation?: ReactNode
+  actions?: ReactNode
+}): JSX.Element {
+  return (
+    <div style={styles.topBar}>
+      <div style={styles.topBarNavigation}>{navigation}</div>
+      {actions ? <div style={styles.topBarActions}>{actions}</div> : null}
+    </div>
+  )
+}
+
+export function CatalogBreadcrumb({
+  parentLabel,
+  currentLabel,
+  onBack
+}: {
+  parentLabel: string
+  currentLabel: string
+  onBack: () => void
+}): JSX.Element {
+  return (
+    <div style={styles.breadcrumb}>
+      <Button
+        type="button"
+        size="sm"
+        variant="ghost"
+        onClick={onBack}
+        style={styles.catalogBreadcrumbButton}
+        iconLeft={<ChevronLeft size={14} aria-hidden />}
+      >
+        {parentLabel}
+      </Button>
+      <span style={styles.breadcrumbSep} aria-hidden>›</span>
+      <span style={styles.breadcrumbCurrent}>{currentLabel}</span>
     </div>
   )
 }
@@ -235,6 +280,35 @@ export const styles = {
     boxSizing: 'border-box',
     flexShrink: 0
   },
+  tabsInTopBar: {
+    display: 'flex',
+    gap: '4px',
+    height: '100%',
+    alignItems: 'center',
+    flexShrink: 0
+  },
+  topBar: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: '12px',
+    height: '48px',
+    padding: '8px 12px',
+    boxSizing: 'border-box',
+    flexShrink: 0
+  },
+  topBarNavigation: {
+    display: 'flex',
+    alignItems: 'center',
+    alignSelf: 'stretch',
+    minWidth: 0
+  },
+  topBarActions: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '8px',
+    flexShrink: 0
+  },
   tab: {
     border: 'none',
     borderRadius: '8px',
@@ -256,18 +330,9 @@ export const styles = {
     lineHeight: 1.2
   },
   browseHeader: {
-    position: 'relative',
     flexShrink: 0,
     padding: '28px 64px 16px',
     borderBottom: '1px solid var(--border-subtle)'
-  },
-  topActions: {
-    position: 'absolute',
-    top: '16px',
-    right: '24px',
-    display: 'flex',
-    gap: '8px',
-    alignItems: 'center'
   },
   heroTitle: {
     margin: '0 0 24px',
@@ -397,37 +462,9 @@ export const styles = {
     fontSize: '11px',
     whiteSpace: 'nowrap'
   },
-  manageButton: {
-    display: 'inline-flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: '6px',
-    height: '32px',
-    padding: '0 12px',
-    borderRadius: '8px',
-    border: '1px solid var(--border-default)',
-    backgroundColor: 'var(--bg-secondary)',
-    color: 'var(--text-primary)',
-    fontSize: '13px',
-    boxSizing: 'border-box',
-    cursor: 'pointer'
-  },
-  iconButton: {
-    width: '32px',
-    height: '32px',
-    borderRadius: '8px',
-    border: '1px solid var(--border-default)',
-    backgroundColor: 'var(--bg-secondary)',
-    color: 'var(--text-secondary)',
-    display: 'inline-flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    boxSizing: 'border-box',
-    cursor: 'pointer'
-  },
   manageHeader: {
     flexShrink: 0,
-    padding: '14px 64px 12px',
+    padding: '24px 64px 12px',
     borderBottom: '1px solid var(--border-subtle)'
   },
   breadcrumb: {
@@ -448,6 +485,10 @@ export const styles = {
     padding: 0,
     fontSize: '13px'
   },
+  catalogBreadcrumbButton: {
+    height: 28,
+    padding: '0 8px 0 4px'
+  },
   breadcrumbSep: {
     color: 'var(--text-dimmed)'
   },
@@ -456,7 +497,7 @@ export const styles = {
     fontWeight: 700
   },
   manageToolbar: {
-    margin: '34px auto 0',
+    margin: '0 auto',
     maxWidth: '730px',
     display: 'flex',
     alignItems: 'center',

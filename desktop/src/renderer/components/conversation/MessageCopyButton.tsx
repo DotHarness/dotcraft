@@ -2,7 +2,7 @@ import { useState, type CSSProperties } from 'react'
 import { Check, Copy } from 'lucide-react'
 import { useT } from '../../contexts/LocaleContext'
 import { addToast } from '../../stores/toastStore'
-import { ActionTooltip } from '../ui/ActionTooltip'
+import { IconButton } from '../ui/IconButton'
 
 interface MessageCopyButtonProps {
   getText: () => string
@@ -25,8 +25,6 @@ export function MessageCopyButton({
 }: MessageCopyButtonProps): JSX.Element | null {
   const t = useT()
   const [copied, setCopied] = useState(false)
-  const [buttonHovered, setButtonHovered] = useState(false)
-  const [buttonFocused, setButtonFocused] = useState(false)
 
   if (disabled) return null
 
@@ -44,7 +42,6 @@ export function MessageCopyButton({
   }
 
   const label = ariaLabel ?? t('conversation.copyMessage')
-  const buttonChromeVisible = buttonHovered || buttonFocused
   const defaultWrapperStyle: CSSProperties = {
     position: 'absolute',
     right: '8px',
@@ -55,37 +52,20 @@ export function MessageCopyButton({
   }
 
   return (
-    <ActionTooltip
-      label={label}
-      placement="top"
-      wrapperStyle={{ ...defaultWrapperStyle, ...wrapperStyle }}
-    >
-      <button
-        type="button"
+      <IconButton
+        size={24}
+        label={label}
+        tooltipLabel={label}
+        tooltipPlacement="top"
+        tooltipWrapperStyle={{ ...defaultWrapperStyle, ...wrapperStyle }}
         onClick={() => {
           void handleCopy()
         }}
-        aria-label={label}
-        onMouseEnter={() => setButtonHovered(true)}
-        onMouseLeave={() => setButtonHovered(false)}
-        onFocus={() => setButtonFocused(true)}
-        onBlur={() => setButtonFocused(false)}
         style={{
-          width: '24px',
-          height: '24px',
           borderRadius: '6px',
-          border: '1px solid transparent',
-          background: buttonChromeVisible ? 'var(--bg-tertiary)' : 'transparent',
-          color: copied ? 'var(--success)' : buttonChromeVisible ? 'var(--text-primary)' : 'var(--text-secondary)',
-          display: 'inline-flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          cursor: 'pointer',
-          transition: 'opacity 120ms ease, color 120ms ease, background 120ms ease, border-color 120ms ease'
+          color: copied ? 'var(--success)' : undefined
         }}
-      >
-        {copied ? <Check size={14} aria-hidden /> : <Copy size={14} aria-hidden />}
-      </button>
-    </ActionTooltip>
+        icon={copied ? <Check size={14} aria-hidden /> : <Copy size={14} aria-hidden />}
+      />
   )
 }

@@ -5,6 +5,7 @@ import {
   type AutomationTemplate
 } from '../../stores/automationsStore'
 import { ActionTooltip } from '../ui/ActionTooltip'
+import { Button } from '../ui/Button'
 
 interface Props {
   onSelect(template: AutomationTemplate): void
@@ -372,24 +373,17 @@ function TemplateCard({
             {t('auto.gallery.my.deleteConfirm')}
           </span>
           <div style={{ display: 'flex', gap: '6px' }}>
-            <button
-              type="button"
+            <Button
+              size="sm"
+              variant="secondary"
               onClick={() => setConfirmDelete(false)}
               disabled={deleting}
-              style={{
-                padding: '4px 10px',
-                borderRadius: '6px',
-                border: '1px solid var(--border-default)',
-                backgroundColor: 'transparent',
-                color: 'var(--text-secondary)',
-                fontSize: '11px',
-                cursor: deleting ? 'default' : 'pointer'
-              }}
             >
               {t('common.cancel')}
-            </button>
-            <button
-              type="button"
+            </Button>
+            <Button
+              size="sm"
+              variant="danger"
               onClick={async () => {
                 if (!onDelete) return
                 setDeleting(true)
@@ -401,20 +395,10 @@ function TemplateCard({
                 }
               }}
               disabled={deleting}
-              style={{
-                padding: '4px 10px',
-                borderRadius: '6px',
-                border: 'none',
-                backgroundColor: 'var(--error)',
-                color: '#fff',
-                fontSize: '11px',
-                fontWeight: 600,
-                cursor: deleting ? 'default' : 'pointer',
-                opacity: deleting ? 0.7 : 1
-              }}
+              loading={deleting}
             >
               {deleting ? t('auto.newTemplate.deleting') : t('auto.newTemplate.deleteConfirmBtn')}
-            </button>
+            </Button>
           </div>
         </div>
       )}

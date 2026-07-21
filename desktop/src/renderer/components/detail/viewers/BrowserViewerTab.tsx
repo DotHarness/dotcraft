@@ -11,7 +11,7 @@ import { useT } from '../../../contexts/LocaleContext'
 import { useViewerTabStore } from '../../../stores/viewerTabStore'
 import { useConversationStore } from '../../../stores/conversationStore'
 import { useUIStore } from '../../../stores/uiStore'
-import { ActionTooltip } from '../../ui/ActionTooltip'
+import { IconButton } from '../../ui/IconButton'
 
 interface BrowserViewerTabProps {
   tabId: string
@@ -388,35 +388,16 @@ function ToolbarButton({
   children: ReactNode
 }): JSX.Element {
   return (
-    <ActionTooltip label={title} disabledReason={disabled ? title : undefined} placement="bottom">
-      <button
-        type="button"
-        aria-label={title}
-        onClick={onClick}
-        disabled={disabled}
-        style={{
-          width: '24px',
-          height: '24px',
-          border: 'none',
-          borderRadius: '4px',
-          background: 'transparent',
-          color: disabled ? 'var(--text-disabled)' : 'var(--text-secondary)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          cursor: disabled ? 'default' : 'pointer',
-          padding: 0
-        }}
-        onMouseEnter={(e) => {
-          if (disabled) return
-          ;(e.currentTarget as HTMLButtonElement).style.backgroundColor = 'var(--bg-hover)'
-        }}
-        onMouseLeave={(e) => {
-          ;(e.currentTarget as HTMLButtonElement).style.backgroundColor = 'transparent'
-        }}
-      >
-        {children}
-      </button>
-    </ActionTooltip>
+    <IconButton
+      size={24}
+      label={title}
+      tooltipLabel={title}
+      tooltipPlacement="bottom"
+      disabledReason={disabled ? title : undefined}
+      onClick={onClick}
+      disabled={disabled}
+      style={{ borderRadius: 4 }}
+      icon={children}
+    />
   )
 }

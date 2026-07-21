@@ -18,6 +18,7 @@ import { ToggleSwitch } from './channels/ToggleSwitch'
 import { SettingsSelect } from './settings/ui/SettingsSelect'
 import { ProviderProtocolIcon } from './settings/panels/ProviderProtocolIcon'
 import { ActionTooltip } from './ui/ActionTooltip'
+import { Button } from './ui/Button'
 import { BootstrapImportSourceIcon } from './setup/BootstrapImportSourceIcon'
 import { centeredLaunchLogoRect, elementToLaunchLogoRect, type LaunchLogoRect } from './WorkspaceLaunchTransition'
 import {
@@ -938,23 +939,14 @@ function WelcomeStep({
             {workspacePath}
           </div>
         </div>
-        <button
-          type="button"
+        <Button
+          size="sm"
+          variant="secondary"
           onClick={onChooseDifferentWorkspace}
-          style={{
-            flexShrink: 0,
-            padding: '8px 12px',
-            borderRadius: '8px',
-            border: '1px solid var(--border-default)',
-            background: 'var(--bg-secondary)',
-            color: 'var(--text-primary)',
-            fontSize: '12px',
-            fontWeight: 600,
-            cursor: 'pointer'
-          }}
+          style={{ flexShrink: 0 }}
         >
           {t('setupWizard.workspacePath.change')}
-        </button>
+        </Button>
       </div>
       <div
         style={{
@@ -1491,9 +1483,9 @@ function ModelField({
         />
       )}
       {modelLoadState === 'auth-required' && (
-        <button type="button" onClick={onLoginChatGpt} disabled={chatGptLoginPending} style={{ marginTop: '8px' }}>
+        <Button variant="primary" onClick={onLoginChatGpt} loading={chatGptLoginPending} style={{ marginTop: '8px' }}>
           {chatGptLoginPending ? t('settings.llm.authMethod.signInPending') : t('setupWizard.authMethod.chatgpt')}
-        </button>
+        </Button>
       )}
       {(modelLoadState === 'unsupported' || modelLoadState === 'missing-key' || modelLoadState === 'error') && (
         <div style={{ marginTop: '6px', fontSize: '12px', color: 'var(--text-dimmed)' }}>
@@ -1501,9 +1493,9 @@ function ModelField({
         </div>
       )}
       {modelLoadState === 'error' && (
-        <button type="button" onClick={onRetry} style={{ marginTop: '8px' }}>
+        <Button size="sm" variant="secondary" onClick={onRetry} style={{ marginTop: '8px' }}>
           {t('common.retry')}
-        </button>
+        </Button>
       )}
     </div>
   )

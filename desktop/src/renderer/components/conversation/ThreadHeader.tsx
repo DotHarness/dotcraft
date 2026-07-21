@@ -16,6 +16,7 @@ import { ActionTooltip } from '../ui/ActionTooltip'
 import { ACTION_SHORTCUTS } from '../ui/shortcutKeys'
 import { ThreadAppBindingsButton } from './ThreadAppBindingsButton'
 import { ContextMenu, type ContextMenuPosition } from '../ui/ContextMenu'
+import { IconButton } from '../ui/IconButton'
 import { isSubAgentThread } from '../../utils/subAgentThreads'
 import { canForkThread, canForkWorktree, runThreadFork } from '../../utils/threadFork'
 
@@ -410,27 +411,19 @@ export function ThreadHeader({
               </h1>
             </ActionTooltip>
 
-            <ActionTooltip label={t('threadHeader.moreActions')} placement="bottom">
-              <button
-                type="button"
-                aria-label={t('threadHeader.moreActions')}
+            <IconButton
+                size={28}
+                label={t('threadHeader.moreActions')}
+                tooltipPlacement="bottom"
+                tooltipLabel={t('threadHeader.moreActions')}
+                icon={<MoreHorizontal size={16} aria-hidden />}
+                aria-haspopup="menu"
+                aria-expanded={menuPosition != null}
                 onClick={(event) => {
                   const rect = event.currentTarget.getBoundingClientRect()
                   setMenuPosition({ x: rect.left, y: rect.bottom + 4 })
                 }}
-                style={iconButtonStyle}
-                onMouseEnter={(e) => {
-                  ;(e.currentTarget as HTMLButtonElement).style.backgroundColor = 'var(--bg-tertiary)'
-                  ;(e.currentTarget as HTMLButtonElement).style.color = 'var(--text-primary)'
-                }}
-                onMouseLeave={(e) => {
-                  ;(e.currentTarget as HTMLButtonElement).style.backgroundColor = 'transparent'
-                  ;(e.currentTarget as HTMLButtonElement).style.color = 'var(--text-secondary)'
-                }}
-              >
-                <MoreHorizontal size={16} aria-hidden />
-              </button>
-            </ActionTooltip>
+              />
           </div>
         )}
 
@@ -439,9 +432,11 @@ export function ThreadHeader({
 
         <ThreadAppBindingsButton threadId={threadId} />
 
-        {/* Commit / Perforce prepare button */}
-        <ActionTooltip
+        {/* Commit / Perforce prepare action */}
+        <IconButton
+          size={28}
           label={isPerforceWorkspace ? t('threadHeader.prepareChangelistTitle') : t('threadHeader.commitTitle')}
+          tooltipLabel={isPerforceWorkspace ? t('threadHeader.prepareChangelistTitle') : t('threadHeader.commitTitle')}
           disabledReason={
             isPerforceWorkspace
               ? (!canPreparePerforce
@@ -455,52 +450,29 @@ export function ThreadHeader({
                   ? t('threadHeader.noCommitTitle')
                   : undefined
           }
-          placement="bottom"
-        >
-          <button
-            onClick={() => {
-              if (isPerforceWorkspace) {
-                if (canPreparePerforce) setPrepareOpen(true)
-              }
-              else setCommitOpen(true)
-            }}
-            disabled={isPerforceWorkspace ? !canPreparePerforce || !hasWrittenFiles : remoteWorkspace || !hasWrittenFiles}
-            style={{
-              ...headerButtonStyle,
-              opacity: (isPerforceWorkspace ? canPreparePerforce && hasWrittenFiles : !remoteWorkspace && hasWrittenFiles) ? 1 : 0.4,
-              cursor: (isPerforceWorkspace ? canPreparePerforce && hasWrittenFiles : !remoteWorkspace && hasWrittenFiles) ? 'pointer' : 'default'
-            }}
-            aria-label={isPerforceWorkspace ? t('threadHeader.prepareChangelistTitle') : t('threadHeader.commitTitle')}
-          >
-            <CommitIcon size={13} />
-            {isPerforceWorkspace ? t('threadHeader.prepareChangelist') : t('threadHeader.commit')}
-          </button>
-        </ActionTooltip>
+          tooltipPlacement="bottom"
+          onClick={() => {
+            if (isPerforceWorkspace) {
+              if (canPreparePerforce) setPrepareOpen(true)
+            }
+            else setCommitOpen(true)
+          }}
+          disabled={isPerforceWorkspace ? !canPreparePerforce || !hasWrittenFiles : remoteWorkspace || !hasWrittenFiles}
+          icon={<CommitIcon size={14} />}
+        />
 
         {/* Panel toggle — only visible when panel is hidden (open-panel action).
             Closing is handled by the panel's own rightmost button. */}
         {!detailPanelPreferredVisible && (
-          <ActionTooltip
+          <IconButton
+            size={28}
             label={t('threadHeader.panelToggleShowLabel')}
+            tooltipLabel={t('threadHeader.panelToggleShowLabel')}
             shortcut={ACTION_SHORTCUTS.toggleDetailPanel}
-            placement="bottom"
-          >
-            <button
-              onClick={toggleDetailPanel}
-              aria-label={t('threadHeader.panelToggleShowLabel')}
-              style={iconButtonStyle}
-              onMouseEnter={(e) => {
-                ;(e.currentTarget as HTMLButtonElement).style.backgroundColor = 'var(--bg-tertiary)'
-                ;(e.currentTarget as HTMLButtonElement).style.color = 'var(--text-primary)'
-              }}
-              onMouseLeave={(e) => {
-                ;(e.currentTarget as HTMLButtonElement).style.backgroundColor = 'transparent'
-                ;(e.currentTarget as HTMLButtonElement).style.color = 'var(--text-secondary)'
-              }}
-            >
-              <PanelRightOpen size={16} aria-hidden />
-            </button>
-          </ActionTooltip>
+            tooltipPlacement="bottom"
+            onClick={toggleDetailPanel}
+            icon={<PanelRightOpen size={16} aria-hidden />}
+          />
         )}
       </div>
 
@@ -585,39 +557,4 @@ export function ThreadHeader({
       )}
     </>
   )
-}
-
-const headerButtonStyle: React.CSSProperties = {
-  padding: '4px 10px',
-  display: 'inline-flex',
-  alignItems: 'center',
-  gap: '6px',
-  fontSize: '12px',
-  fontWeight: 500,
-  color: 'var(--text-secondary)',
-  backgroundColor: 'transparent',
-  border: '1px solid var(--border-default)',
-  borderRadius: '6px',
-  cursor: 'pointer',
-  flexShrink: 0,
-  transition: 'background-color 100ms ease, color 100ms ease'
-}
-
-// Shared ghost icon-button style used for the panel toggle on both sides
-// (conversation header and detail panel tab bar): no border, transparent bg,
-// hover-only highlight.
-const iconButtonStyle: React.CSSProperties = {
-  width: '28px',
-  height: '28px',
-  display: 'inline-flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  padding: 0,
-  border: 'none',
-  borderRadius: '6px',
-  backgroundColor: 'transparent',
-  color: 'var(--text-secondary)',
-  cursor: 'pointer',
-  flexShrink: 0,
-  transition: 'background-color 100ms ease, color 100ms ease'
 }

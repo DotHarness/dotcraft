@@ -1,10 +1,12 @@
-import { useEffect, useRef, type CSSProperties } from 'react'
+import { useEffect, type CSSProperties } from 'react'
 import { createPortal } from 'react-dom'
 import { AlertCircle, CheckCircle2, Download, ExternalLink, LoaderCircle, X } from 'lucide-react'
 
 import type { AppUpdateState } from '../../../shared/appUpdate'
 import { useT } from '../../contexts/LocaleContext'
 import { MarkdownRenderer } from '../conversation/MarkdownRenderer'
+import { Button } from '../ui/Button'
+import { IconButton } from '../ui/IconButton'
 
 interface AppUpdateDialogProps {
   state: AppUpdateState
@@ -18,7 +20,6 @@ export function AppUpdateDialog({
   onDownload
 }: AppUpdateDialogProps): JSX.Element {
   const t = useT()
-  const closeButtonRef = useRef<HTMLButtonElement | null>(null)
   const update = state.update
   const downloading = state.status === 'downloading'
   const downloaded = state.status === 'downloaded'
@@ -27,7 +28,6 @@ export function AppUpdateDialog({
   const progress = state.progress
 
   useEffect(() => {
-    closeButtonRef.current?.focus()
     const handleKeyDown = (event: KeyboardEvent): void => {
       if (event.key === 'Escape' && canClose) {
         event.preventDefault()
@@ -73,20 +73,12 @@ export function AppUpdateDialog({
               {t('update.title')}
             </h2>
           </div>
-          <button
-            ref={closeButtonRef}
-            type="button"
-            aria-label={t('update.closeAria')}
+          <IconButton
+            label={t('update.closeAria')}
+            icon={<X size={18} strokeWidth={2} aria-hidden="true" />}
             onClick={onClose}
             disabled={!canClose}
-            style={{
-              ...iconButtonStyle,
-              opacity: canClose ? 1 : 0.5,
-              cursor: canClose ? 'pointer' : 'default'
-            }}
-          >
-            <X size={18} strokeWidth={2} aria-hidden="true" />
-          </button>
+          />
         </header>
 
         <div style={contentStyle}>
@@ -111,16 +103,16 @@ export function AppUpdateDialog({
               </div>
 
               {update.htmlUrl && (
-                <button
-                  type="button"
+                <Button
+                  variant="ghost"
+                  size="sm"
                   onClick={() => {
                     void window.api.shell.openExternal(update.htmlUrl as string)
                   }}
-                  style={linkButtonStyle}
                 >
                   <ExternalLink size={14} strokeWidth={2} aria-hidden="true" />
                   {t('update.viewRelease')}
-                </button>
+                </Button>
               )}
             </>
           ) : (
@@ -163,26 +155,25 @@ export function AppUpdateDialog({
         </div>
 
         <footer style={footerStyle}>
-          <button
-            type="button"
+          <Button
+            variant="secondary"
             onClick={onClose}
             disabled={!canClose}
-            style={secondaryButtonStyle(!canClose)}
           >
             {t('update.cancel')}
-          </button>
-          <button
-            type="button"
+          </Button>
+          <Button
+            variant="primary"
             onClick={onDownload}
             disabled={!update || downloading || downloaded}
-            style={primaryButtonStyle(!update || downloading || downloaded)}
+            loading={downloading}
           >
             {downloading
               ? t('update.downloading')
               : state.status === 'error'
                 ? t('update.retry')
                 : t('update.download')}
-          </button>
+          </Button>
         </footer>
       </section>
     </div>
@@ -253,19 +244,6 @@ const titleStyle: CSSProperties = {
   fontWeight: 680
 }
 
-const iconButtonStyle: CSSProperties = {
-  width: 32,
-  height: 32,
-  flexShrink: 0,
-  display: 'inline-flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  border: '1px solid var(--border-subtle)',
-  borderRadius: 6,
-  background: 'var(--bg-secondary)',
-  color: 'var(--text-secondary)'
-}
-
 const contentStyle: CSSProperties = {
   padding: '16px 22px 20px',
   overflowY: 'auto'
@@ -302,21 +280,6 @@ const releaseNotesBodyStyle: CSSProperties = {
   fontSize: 'var(--type-secondary-size)',
   lineHeight: 'var(--type-secondary-line-height)',
   overflowWrap: 'anywhere'
-}
-
-const linkButtonStyle: CSSProperties = {
-  display: 'inline-flex',
-  alignItems: 'center',
-  gap: 6,
-  marginTop: 12,
-  padding: '5px 8px',
-  border: '1px solid var(--border-subtle)',
-  borderRadius: 6,
-  background: 'transparent',
-  color: 'var(--text-secondary)',
-  fontSize: 'var(--type-secondary-size)',
-  lineHeight: 'var(--type-secondary-line-height)',
-  cursor: 'pointer'
 }
 
 const progressWrapStyle: CSSProperties = {
@@ -381,38 +344,6 @@ const footerStyle: CSSProperties = {
   gap: 8,
   padding: '14px 22px',
   borderTop: '1px solid var(--border-subtle)'
-}
-
-function secondaryButtonStyle(disabled: boolean): CSSProperties {
-  return {
-    minWidth: 84,
-    padding: '7px 12px',
-    border: '1px solid var(--button-secondary-border, var(--border-default))',
-    borderRadius: 6,
-    background: 'var(--button-secondary-bg, var(--bg-tertiary))',
-    color: 'var(--button-secondary-text, var(--text-primary))',
-    fontSize: 'var(--type-ui-size)',
-    lineHeight: 'var(--type-ui-line-height)',
-    fontWeight: 'var(--type-ui-weight)',
-    cursor: disabled ? 'default' : 'pointer',
-    opacity: disabled ? 0.55 : 1
-  }
-}
-
-function primaryButtonStyle(disabled: boolean): CSSProperties {
-  return {
-    minWidth: 112,
-    padding: '7px 12px',
-    border: '1px solid var(--text-primary)',
-    borderRadius: 6,
-    background: 'var(--text-primary)',
-    color: 'var(--bg-primary)',
-    fontSize: 'var(--type-ui-size)',
-    lineHeight: 'var(--type-ui-line-height)',
-    fontWeight: 680,
-    cursor: disabled ? 'default' : 'pointer',
-    opacity: disabled ? 0.6 : 1
-  }
 }
 
 const spinStyle: CSSProperties = {

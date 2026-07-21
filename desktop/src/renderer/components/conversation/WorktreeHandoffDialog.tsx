@@ -5,6 +5,8 @@ import { useT } from '../../contexts/LocaleContext'
 import { useThreadStore } from '../../stores/threadStore'
 import { addToast } from '../../stores/toastStore'
 import type { Thread } from '../../types/thread'
+import { Button } from '../ui/Button'
+import { IconButton } from '../ui/IconButton'
 
 type HandoffMode = 'local' | 'worktree'
 type DialogPhase = 'confirm' | 'running' | 'success' | 'error'
@@ -315,14 +317,13 @@ export function WorktreeHandoffDialog({
       }}
     >
       <div style={modalStyle} onMouseDown={(event) => event.stopPropagation()}>
-        <button
-          type="button"
-          aria-label={t('workspaceFooter.close')}
-          style={closeButtonStyle}
+        <IconButton
+          icon={<X size={17} strokeWidth={2} aria-hidden />}
+          label={t('workspaceFooter.close')}
+          size={30}
+          style={closeButtonPositionStyle}
           onClick={handleClose}
-        >
-          <X size={17} strokeWidth={2} aria-hidden />
-        </button>
+        />
         <div style={phase === 'success' ? successIconShellStyle : iconShellStyle}>
           {phase === 'success' ? (
             <Check size={28} strokeWidth={2.2} aria-hidden />
@@ -376,29 +377,27 @@ export function WorktreeHandoffDialog({
               <div role="status" style={noticeStyle}>{disabledReason}</div>
             )}
 
-            <button
-              type="button"
+            <Button
+              variant="primary"
+              size="prominent"
               disabled={handoffDisabled}
-              style={{
-                ...primaryButtonStyle,
-                opacity: handoffDisabled ? 0.55 : 1,
-                cursor: handoffDisabled ? 'default' : 'pointer'
-              }}
+              style={{ width: '100%' }}
               onClick={() => { void startHandoff() }}
             >
               {t('workspaceFooter.handOff')}
-            </button>
+            </Button>
           </>
         )}
 
         {phase === 'error' && (
-          <button
-            type="button"
-            style={secondaryButtonStyle}
+          <Button
+            variant="secondary"
+            size="prominent"
+            style={{ width: '100%' }}
             onClick={onClose}
           >
             {t('workspaceFooter.close')}
-          </button>
+          </Button>
         )}
       </div>
     </div>,
@@ -449,7 +448,7 @@ const modalStyle: CSSProperties = {
   boxShadow: 'var(--shadow-level-3)'
 }
 
-const closeButtonStyle: CSSProperties = {
+const closeButtonPositionStyle: CSSProperties = {
   position: 'absolute',
   top: '16px',
   right: '16px',
@@ -515,30 +514,6 @@ const inputStyle: CSSProperties = {
   padding: '0 14px',
   font: 'inherit',
   outline: 'none'
-}
-
-const primaryButtonStyle: CSSProperties = {
-  width: '100%',
-  height: '52px',
-  marginTop: '26px',
-  border: 'none',
-  borderRadius: '8px',
-  background: 'var(--text-primary)',
-  color: 'var(--bg-primary)',
-  font: 'inherit',
-  fontWeight: 700
-}
-
-const secondaryButtonStyle: CSSProperties = {
-  width: '100%',
-  height: '44px',
-  marginTop: '16px',
-  border: 'none',
-  borderRadius: '8px',
-  background: 'var(--bg-tertiary)',
-  color: 'var(--text-primary)',
-  font: 'inherit',
-  cursor: 'pointer'
 }
 
 const stepsStyle: CSSProperties = {

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type CSSProperties } from 'react'
 import { Check, Copy } from 'lucide-react'
 import type { FileDiff } from '../../types/toolCall'
 import { ActionTooltip } from '../ui/ActionTooltip'
+import { IconButton } from '../ui/IconButton'
 import { useUIStore } from '../../stores/uiStore'
 import { translate, type AppLocale } from '../../../shared/locales'
 import { addToast } from '../../stores/toastStore'
@@ -263,35 +264,21 @@ export function FileResultHeader({
       {meta && <span style={{ color: 'var(--text-dimmed)', flexShrink: 0 }}>{meta}</span>}
       {stats}
       {copyPath && (
-        <ActionTooltip
-          label={translate(locale, 'viewer.copyPath')}
-          placement="top"
-          wrapperStyle={{ marginLeft: 'auto', flexShrink: 0 }}
-        >
-          <button
-            type="button"
+          <IconButton
+            size={24}
             data-testid="file-path-copy"
-            aria-label={translate(locale, 'viewer.copyPath')}
+            label={translate(locale, 'viewer.copyPath')}
+            tooltipLabel={translate(locale, 'viewer.copyPath')}
+            tooltipPlacement="top"
+            tooltipWrapperStyle={{ marginLeft: 'auto', flexShrink: 0 }}
             onClick={() => { void handleCopyPath() }}
             style={{
-              width: '24px',
-              height: '24px',
               margin: '-2px -4px -2px 0',
-              padding: 0,
-              border: 'none',
               borderRadius: '6px',
-              background: 'transparent',
-              color: copied ? 'var(--success)' : 'var(--text-dimmed)',
-              display: 'inline-flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              flexShrink: 0,
-              cursor: 'pointer'
+              color: copied ? 'var(--success)' : 'var(--text-dimmed)'
             }}
-          >
-            {copied ? <Check size={13} aria-hidden /> : <Copy size={13} aria-hidden />}
-          </button>
-        </ActionTooltip>
+            icon={copied ? <Check size={13} aria-hidden /> : <Copy size={13} aria-hidden />}
+          />
       )}
     </div>
   )

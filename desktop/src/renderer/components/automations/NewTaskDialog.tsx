@@ -15,6 +15,7 @@ import { PillSwitch } from '../ui/PillSwitch'
 import { MenuOption, PillDropdown } from '../ui/PillDropdown'
 import { PolicyDropdown, TargetDropdown, WorkspaceModeDropdown } from './TaskDropdowns'
 import { AgentProfileDropdown } from './AgentProfileDropdown'
+import { Button } from '../ui/Button'
 
 type DialogTab = 'task' | 'template'
 
@@ -314,22 +315,13 @@ export function NewTaskDialog({
               {dialogTitle}
             </div>
             {tab === 'task' && !isEditingTemplate && (
-              <button
-                type="button"
+              <Button
+                size="sm"
+                variant="ghost"
                 onClick={() => setShowTemplates(true)}
-                style={{
-                  padding: '5px 12px',
-                  borderRadius: '6px',
-                  border: '1px solid var(--border-default)',
-                  backgroundColor: 'transparent',
-                  color: 'var(--text-secondary)',
-                  fontSize: '12px',
-                  fontWeight: 500,
-                  cursor: 'pointer'
-                }}
               >
                 {t('auto.newTask.useTemplate')}
-              </button>
+              </Button>
             )}
           </div>
 
@@ -730,21 +722,12 @@ export function NewTaskDialog({
           >
             <div style={{ display: 'flex', gap: '8px' }}>
               {isEditingTemplate && !tplDeleteConfirm && (
-                <button
-                  type="button"
+                <Button
+                  variant="danger"
                   onClick={() => setTplDeleteConfirm(true)}
-                  style={{
-                    padding: '6px 14px',
-                    borderRadius: '6px',
-                    border: '1px solid color-mix(in srgb, var(--error) 40%, transparent)',
-                    backgroundColor: 'transparent',
-                    color: 'var(--error)',
-                    fontSize: '13px',
-                    cursor: 'pointer'
-                  }}
                 >
                   {t('auto.newTemplate.delete')}
-                </button>
+                </Button>
               )}
               {isEditingTemplate && tplDeleteConfirm && (
                 <>
@@ -757,83 +740,57 @@ export function NewTaskDialog({
                   >
                     {t('auto.newTemplate.deleteConfirm')}
                   </span>
-                  <button
-                    type="button"
+                  <Button
+                    size="sm"
+                    variant="secondary"
                     onClick={() => setTplDeleteConfirm(false)}
                     disabled={tplDeleting}
-                    style={{
-                      padding: '6px 12px',
-                      borderRadius: '6px',
-                      border: '1px solid var(--border-default)',
-                      backgroundColor: 'transparent',
-                      color: 'var(--text-secondary)',
-                      fontSize: '12px',
-                      cursor: tplDeleting ? 'default' : 'pointer'
-                    }}
                   >
                     {t('common.cancel')}
-                  </button>
-                  <button
-                    type="button"
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="danger"
                     onClick={() => void handleDeleteTemplate()}
                     disabled={tplDeleting}
-                    style={{
-                      padding: '6px 12px',
-                      borderRadius: '6px',
-                      border: 'none',
-                      backgroundColor: 'var(--error)',
-                      color: '#fff',
-                      fontSize: '12px',
-                      fontWeight: 600,
-                      cursor: tplDeleting ? 'default' : 'pointer',
-                      opacity: tplDeleting ? 0.7 : 1
-                    }}
+                    loading={tplDeleting}
                   >
                     {tplDeleting
                       ? t('auto.newTemplate.deleting')
                       : t('auto.newTemplate.deleteConfirmBtn')}
-                  </button>
+                  </Button>
                 </>
               )}
             </div>
             <div style={{ display: 'flex', gap: '8px' }}>
-              <button
-                type="button"
+              <Button
+                variant="secondary"
                 onClick={onClose}
-                style={{
-                  padding: '6px 14px',
-                  borderRadius: '6px',
-                  border: '1px solid var(--border-default)',
-                  backgroundColor: 'transparent',
-                  color: 'var(--text-secondary)',
-                  fontSize: '13px',
-                  cursor: 'pointer'
-                }}
               >
                 {t('common.cancel')}
-              </button>
+              </Button>
               {tab === 'task' ? (
-                <button
-                  type="button"
+                <Button
+                  variant="primary"
                   onClick={() => void handleSubmitTask()}
                   disabled={!canSubmitTask}
-                  style={primaryBtnStyle(canSubmitTask, submitting)}
+                  loading={submitting}
                 >
                   {submitting ? t('auto.newTask.creating') : t('auto.newTask.create')}
-                </button>
+                </Button>
               ) : (
-                <button
-                  type="button"
+                <Button
+                  variant="primary"
                   onClick={() => void handleSubmitTemplate()}
                   disabled={!canSubmitTemplate}
-                  style={primaryBtnStyle(canSubmitTemplate, submitting)}
+                  loading={submitting}
                 >
                   {submitting
                     ? t('auto.newTemplate.saving')
                     : isEditingTemplate
                       ? t('auto.newTemplate.saveChanges')
                       : t('auto.newTemplate.save')}
-                </button>
+                </Button>
               )}
             </div>
           </div>
@@ -872,20 +829,6 @@ const advancedLabelStyle: CSSProperties = {
   color: 'var(--text-secondary)',
   textTransform: 'uppercase',
   letterSpacing: '0.04em'
-}
-
-function primaryBtnStyle(enabled: boolean, busy: boolean): CSSProperties {
-  return {
-    padding: '6px 14px',
-    borderRadius: '6px',
-    border: 'none',
-    backgroundColor: enabled ? 'var(--text-primary)' : 'var(--bg-tertiary)',
-    color: enabled ? 'var(--bg-primary)' : 'var(--text-tertiary)',
-    fontSize: '13px',
-    fontWeight: 600,
-    cursor: enabled ? 'pointer' : 'default',
-    opacity: busy ? 0.7 : 1
-  }
 }
 
 function TabButton({

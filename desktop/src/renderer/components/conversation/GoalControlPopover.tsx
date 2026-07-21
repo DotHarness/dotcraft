@@ -5,6 +5,7 @@ import { CheckCircle2, Pause, Play, RotateCcw, Target, Trash2 } from 'lucide-rea
 import { useT } from '../../contexts/LocaleContext'
 import { ActionTooltip } from '../ui/ActionTooltip'
 import { ModalHeader } from '../ui/ModalHeader'
+import { Button } from '../ui/Button'
 import type { ThreadGoal } from '../../types/thread'
 import { formatGoalUsage } from '../../utils/threadGoal'
 
@@ -168,22 +169,17 @@ export function GoalControlPopover({
           />
           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
             {goal && (
-              <button type="button" onClick={() => setEditing(false)} disabled={busy} style={secondaryButtonStyle}>
+              <Button onClick={() => setEditing(false)} disabled={busy} variant="secondary">
                 {t('goal.action.cancel')}
-              </button>
+              </Button>
             )}
-            <button
-              type="button"
+            <Button
+              variant="primary"
               onClick={() => { void submitObjective() }}
               disabled={!canSubmit}
-              style={{
-                ...primaryButtonStyle,
-                opacity: canSubmit ? 1 : 0.55,
-                cursor: canSubmit ? 'pointer' : 'default'
-              }}
             >
               {setLabel}
-            </button>
+            </Button>
           </div>
         </div>
       )}
@@ -207,27 +203,15 @@ function GoalButton({
   onClick: () => Promise<boolean> | void
 }): JSX.Element {
   return (
-    <button
-      type="button"
+    <Button
+      variant={danger ? 'danger' : 'secondary'}
+      size="sm"
+      iconLeft={icon}
       disabled={disabled}
       onClick={() => { void onClick() }}
-      style={{
-        display: 'inline-flex',
-        alignItems: 'center',
-        gap: 6,
-        border: '1px solid var(--border-default)',
-        borderRadius: 8,
-        background: 'var(--bg-tertiary)',
-        color: danger ? 'var(--error)' : 'var(--text-secondary)',
-        cursor: disabled ? 'default' : 'pointer',
-        opacity: disabled ? 0.55 : 1,
-        fontSize: 12,
-        padding: '5px 8px'
-      }}
     >
-      {icon}
       {label}
-    </button>
+    </Button>
   )
 }
 
@@ -246,25 +230,4 @@ function statusDotStyle(status: ThreadGoal['status']): CSSProperties {
     background: color,
     flexShrink: 0
   }
-}
-
-const secondaryButtonStyle: CSSProperties = {
-  border: 'none',
-  borderRadius: 8,
-  background: 'var(--bg-tertiary)',
-  color: 'var(--text-primary)',
-  cursor: 'pointer',
-  fontSize: 13,
-  padding: '7px 12px'
-}
-
-const primaryButtonStyle: CSSProperties = {
-  border: '1px solid var(--text-primary)',
-  borderRadius: 8,
-  background: 'var(--text-primary)',
-  color: 'var(--bg-primary)',
-  cursor: 'pointer',
-  fontSize: 13,
-  fontWeight: 600,
-  padding: '7px 12px'
 }

@@ -62,10 +62,6 @@ export function ForkChoiceDialog({ onChoose, onCancel }: ForkChoiceDialogProps):
             onClick={() => onChoose('worktree')}
           />
         </div>
-
-        <button type="button" onClick={onCancel} style={cancelStyle}>
-          {t('common.cancel')}
-        </button>
       </div>
     </div>
   )
@@ -176,16 +172,4 @@ const optionTitleStyle: CSSProperties = {
 const optionSubtitleStyle: CSSProperties = {
   fontSize: '12px',
   color: 'var(--text-secondary)'
-}
-
-const cancelStyle: CSSProperties = {
-  marginTop: '14px',
-  width: '100%',
-  padding: '8px',
-  borderRadius: '8px',
-  border: '1px solid var(--border-default)',
-  background: 'transparent',
-  color: 'var(--text-primary)',
-  fontSize: '13px',
-  cursor: 'pointer'
 }
