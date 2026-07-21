@@ -1,6 +1,6 @@
 # 服务器部署
 
-DotCraft 可以在 Linux 主机上以无头 AppServer 方式运行。推荐的服务器路径是 `deploy/docker` 中的 Docker Compose 部署，它会打包：
+DotCraft 可以在 Linux 主机上以无头 AppServer 方式运行。推荐的服务器路径是 `docker` 中的 Docker Compose 部署，它会打包：
 
 - 自包含的 `dotcraft` AppServer 二进制
 - Node.js 和 TypeScript 渠道模块（`telegram`、`feishu`、`qq`、`wecom`、`weixin`）
@@ -9,13 +9,13 @@ DotCraft 可以在 Linux 主机上以无头 AppServer 方式运行。推荐的�
 ## Docker Compose 快速开始
 
 ```bash
-cd deploy/docker
+cd docker
 cp .env.example .env
 # 编辑 .env
 docker compose up -d
 ```
 
-该栈会在 `deploy/docker/workspace` 下创建工作区。默认情况下，Compose 只把主要服务端点发布到服务器本机回环地址：
+该栈会在 `docker/workspace` 下创建工作区。默认情况下，Compose 只把主要服务端点发布到服务器本机回环地址：
 
 - AppServer：`ws://127.0.0.1:9100/ws`
 - Dashboard：`http://127.0.0.1:8080/dashboard`
@@ -33,7 +33,7 @@ Desktop 可以通过系统 SSH 客户端连接这个 Compose 栈。它会复用 
 1. 确认服务器上的栈已经启动：
 
    ```bash
-   cd /opt/dotcraft/deploy/docker
+   cd /opt/dotcraft/docker
    docker compose up -d
    ```
 
@@ -47,7 +47,7 @@ Desktop 可以通过系统 SSH 客户端连接这个 Compose 栈。它会复用 
 4. **SSH target** 填 `user@host`，或填 SSH config alias，例如 `dotcraft-prod`。
 5. **Identity file override** 默认留空，除非你确实需要强制指定某个 key。留空时 SSH 会按你的正常配置、agent 和默认 key 工作。
 6. 点击 **Test SSH**。成功后添加 stack：
-   - **Deployment folder**：服务器上包含 Compose 文件的目录，例如 `/opt/dotcraft/deploy/docker`
+   - **Deployment folder**：服务器上包含 Compose 文件的目录，例如 `/opt/dotcraft/docker`
    - **Data folder**：留空，使用 stack 的 `workspace` 目录
    - **AppServer port**：`9100`
    - **Dashboard port**：`8080`

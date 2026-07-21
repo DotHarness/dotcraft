@@ -2834,7 +2834,7 @@ export const MESSAGES_EN = {
   'settings.servers.stack.name': 'Name',
   'settings.servers.stack.namePlaceholder': 'prod',
   'settings.servers.stack.deploymentFolder': 'Deployment folder',
-  'settings.servers.stack.deploymentPlaceholder': '~/dotcraft/deploy/docker',
+  'settings.servers.stack.deploymentPlaceholder': '~/dotcraft/docker',
   'settings.servers.stack.deploymentHint': 'The folder on the server where this DotCraft instance is deployed.',
   'settings.servers.stack.dataFolder': 'Data folder',
   'settings.servers.stack.dataPlaceholder': "Defaults to the instance's data folder",

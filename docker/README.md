@@ -12,8 +12,8 @@ docker compose up -d
 
 For SSH setup, channel configuration, sandbox options, and production guidance, see the complete deployment guide:
 
-- [Server deployment](../../docs/features/self-hosted/server-deployment.md)
-- [服务器部署](../../docs/zh/features/self-hosted/server-deployment.md)
+- [Server deployment](../docs/features/self-hosted/server-deployment.md)
+- [服务器部署](../docs/zh/features/self-hosted/server-deployment.md)
 
 ## Build the image locally
 

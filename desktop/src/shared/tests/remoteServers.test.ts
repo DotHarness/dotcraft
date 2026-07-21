@@ -38,7 +38,7 @@ function counterIds(): (prefix: 'h' | 's') => string {
 const stack: RemoteStack = {
   id: 's_1',
   name: 'prod',
-  composeDir: '~/sample-stack/deploy/docker',
+  composeDir: '~/sample-stack/docker',
   appServerPort: 9100,
   dashboardPort: 8080,
   sandboxProfile: false
@@ -86,7 +86,7 @@ describe('shell quoting', () => {
   })
 
   it('derives the workspace dir from composeDir by default', () => {
-    expect(effectiveWorkspaceDir(stack)).toBe('~/sample-stack/deploy/docker/workspace')
+    expect(effectiveWorkspaceDir(stack)).toBe('~/sample-stack/docker/workspace')
     expect(effectiveWorkspaceDir({ ...stack, workspaceDir: '/data/ws' })).toBe('/data/ws')
   })
 
@@ -104,7 +104,7 @@ describe('normalizeRemoteHosts', () => {
           name: 'Cloud',
           sshTarget: 'user@cloud',
           stacks: [
-            { name: 'prod', composeDir: '~/sample-stack/deploy/docker' },
+            { name: 'prod', composeDir: '~/sample-stack/docker' },
             { name: 'bad', composeDir: 'relative' }, // dropped: invalid path
             { id: 's_x', name: 'sandbox', composeDir: '/srv/sb', sandboxProfile: true, appServerPort: 70000 }
           ]
@@ -183,7 +183,7 @@ describe('compose command builders', () => {
     expect(cmd).toContain('LOCK_BEGIN')
     expect(cmd).toContain('.craft/appserver.lock')
     expect(cmd).toContain('ps -a --format json')
-    expect(cmd).toContain("~/'sample-stack/deploy/docker'")
+    expect(cmd).toContain("~/'sample-stack/docker'")
   })
 
   it('core config read command only reads stack workspace and user config paths', () => {
@@ -306,12 +306,12 @@ describe('parseDiscoverStacksOutput', () => {
         Labels: {
           'com.docker.compose.project': 'deploy',
           'com.docker.compose.service': 'dotcraft',
-          'com.docker.compose.project.working_dir': '/srv/sample/demo-stack/deploy',
-          'com.docker.compose.project.config_files': '/srv/sample/demo-stack/deploy/docker-compose.yml'
+          'com.docker.compose.project.working_dir': '/srv/sample/demo-stack/docker',
+          'com.docker.compose.project.config_files': '/srv/sample/demo-stack/docker/docker-compose.yml'
         },
         Env: ['DOTCRAFT_PROVIDER=openai']
       },
-      Mounts: [{ Source: '/srv/sample/demo-stack/deploy/workspace', Destination: '/workspace' }],
+      Mounts: [{ Source: '/srv/sample/demo-stack/docker/workspace', Destination: '/workspace' }],
       NetworkSettings: {
         Ports: {
           '9100/tcp': [{ HostIp: '127.0.0.1', HostPort: '9100' }],
@@ -325,7 +325,7 @@ describe('parseDiscoverStacksOutput', () => {
         Labels: {
           'com.docker.compose.project': 'deploy',
           'com.docker.compose.service': 'opensandbox',
-          'com.docker.compose.project.working_dir': '/srv/sample/demo-stack/deploy'
+          'com.docker.compose.project.working_dir': '/srv/sample/demo-stack/docker'
         }
       }
     }
@@ -337,8 +337,8 @@ describe('parseDiscoverStacksOutput', () => {
     expect(stacks).toHaveLength(1)
     expect(stacks[0]).toMatchObject({
       name: 'demo-stack',
-      composeDir: '/srv/sample/demo-stack/deploy',
-      workspaceDir: '/srv/sample/demo-stack/deploy/workspace',
+      composeDir: '/srv/sample/demo-stack/docker',
+      workspaceDir: '/srv/sample/demo-stack/docker/workspace',
       appServerWorkspacePath: '/workspace',
       projectName: 'deploy',
       appServerPort: 9100,

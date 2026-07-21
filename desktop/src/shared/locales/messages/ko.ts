@@ -899,7 +899,7 @@ export const MESSAGES_KO = {
   'settings.servers.stack.name': '이름',
   'settings.servers.stack.namePlaceholder': 'prod',
   'settings.servers.stack.deploymentFolder': '배포 폴더',
-  'settings.servers.stack.deploymentPlaceholder': '~/dotcraft/deploy/docker',
+  'settings.servers.stack.deploymentPlaceholder': '~/dotcraft/docker',
   'settings.servers.stack.deploymentHint': '이 DotCraft 인스턴스가 배포된 서버의 폴더입니다.',
   'settings.servers.stack.dataFolder': '데이터 폴더',
   'settings.servers.stack.dataPlaceholder': '기본값은 인스턴스의 데이터 폴더',

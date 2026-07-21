@@ -69,7 +69,7 @@ const stackHost: RemoteHost = {
     {
       id: 'stack_1',
       name: 'QQBot',
-      composeDir: '~/sample-stack/deploy/docker',
+      composeDir: '~/sample-stack/docker',
       appServerPort: 9100,
       dashboardPort: 8080,
       sandboxProfile: false

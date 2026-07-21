@@ -898,7 +898,7 @@ export const MESSAGES_DE = {
   'settings.servers.stack.name': 'Name',
   'settings.servers.stack.namePlaceholder': 'prod',
   'settings.servers.stack.deploymentFolder': 'Deployment-Ordner',
-  'settings.servers.stack.deploymentPlaceholder': '~/dotcraft/deploy/docker',
+  'settings.servers.stack.deploymentPlaceholder': '~/dotcraft/docker',
   'settings.servers.stack.deploymentHint': 'Der Ordner auf dem Server, in dem diese DotCraft Instanz bereitgestellt ist.',
   'settings.servers.stack.dataFolder': 'Datenordner',
   'settings.servers.stack.dataPlaceholder': 'Standardmäßig der Datenordner der Instanz',

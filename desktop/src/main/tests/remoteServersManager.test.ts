@@ -8,7 +8,7 @@ const host: RemoteHost = { id: 'h1', name: 'Cloud', sshTarget: 'user@cloud', sta
 const stack: RemoteStack = {
   id: 's1',
   name: 'prod',
-  composeDir: '~/sample-stack/deploy/docker',
+  composeDir: '~/sample-stack/docker',
   appServerPort: 9100,
   dashboardPort: 8080,
   sandboxProfile: false

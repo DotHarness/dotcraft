@@ -2744,7 +2744,7 @@ export const MESSAGES_ZH_HANS = {
   'settings.servers.stack.name': '名称',
   'settings.servers.stack.namePlaceholder': 'prod',
   'settings.servers.stack.deploymentFolder': '部署目录',
-  'settings.servers.stack.deploymentPlaceholder': '~/dotcraft/deploy/docker',
+  'settings.servers.stack.deploymentPlaceholder': '~/dotcraft/docker',
   'settings.servers.stack.deploymentHint': '服务器上此 DotCraft 实例的部署目录。',
   'settings.servers.stack.dataFolder': '数据目录',
   'settings.servers.stack.dataPlaceholder': '默认使用实例的数据目录',

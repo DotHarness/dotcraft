@@ -49,9 +49,9 @@ COPY --from=channels-build /src/sdk/typescript/packages/channel-weixin/manifest.
 COPY --from=channels-build /src/sdk/typescript/packages/channel-weixin/package.json /opt/dotcraft/modules/channel-weixin/package.json
 COPY --from=channels-build /src/sdk/typescript/packages/channel-weixin/dist /opt/dotcraft/modules/channel-weixin/dist
 
-COPY deploy/docker/entrypoint.sh /opt/dotcraft/entrypoint.sh
-COPY deploy/docker/render-config.mjs /opt/dotcraft/render-config.mjs
-COPY deploy/docker/opensandbox-entrypoint.sh /opt/dotcraft/opensandbox-entrypoint.sh
+COPY docker/entrypoint.sh /opt/dotcraft/entrypoint.sh
+COPY docker/render-config.mjs /opt/dotcraft/render-config.mjs
+COPY docker/opensandbox-entrypoint.sh /opt/dotcraft/opensandbox-entrypoint.sh
 
 RUN chmod +x /opt/dotcraft/bin/dotcraft /opt/dotcraft/entrypoint.sh /opt/dotcraft/opensandbox-entrypoint.sh
 

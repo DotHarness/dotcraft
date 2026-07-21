@@ -1,6 +1,6 @@
 # Server Deployment
 
-DotCraft can run as a headless AppServer on a Linux host. The recommended server path is the Docker Compose deployment in `deploy/docker`, which bundles:
+DotCraft can run as a headless AppServer on a Linux host. The recommended server path is the Docker Compose deployment in `docker`, which bundles:
 
 - the self-contained `dotcraft` AppServer binary
 - Node.js and the TypeScript channel modules (`telegram`, `feishu`, `qq`, `wecom`, `weixin`)
@@ -9,13 +9,13 @@ DotCraft can run as a headless AppServer on a Linux host. The recommended server
 ## Docker Compose Quick Start
 
 ```bash
-cd deploy/docker
+cd docker
 cp .env.example .env
 # edit .env
 docker compose up -d
 ```
 
-The stack creates a workspace under `deploy/docker/workspace`. By default, Compose publishes the main service endpoints only on the server's loopback interface:
+The stack creates a workspace under `docker/workspace`. By default, Compose publishes the main service endpoints only on the server's loopback interface:
 
 - AppServer: `ws://127.0.0.1:9100/ws`
 - Dashboard: `http://127.0.0.1:8080/dashboard`
@@ -33,7 +33,7 @@ Desktop can connect to this Compose stack through your system SSH client. It reu
 1. Make sure the stack is running on the server:
 
    ```bash
-   cd /opt/dotcraft/deploy/docker
+   cd /opt/dotcraft/docker
    docker compose up -d
    ```
 
@@ -47,7 +47,7 @@ Desktop can connect to this Compose stack through your system SSH client. It reu
 4. Set **SSH target** to `user@host` or an SSH config alias such as `dotcraft-prod`.
 5. Leave **Identity file override** empty unless you need to force a specific key. The default path is usually best because it lets SSH use your normal config, agent, and default keys.
 6. Click **Test SSH**. After it succeeds, add a stack:
-   - **Deployment folder**: the server directory containing the Compose file, for example `/opt/dotcraft/deploy/docker`
+   - **Deployment folder**: the server directory containing the Compose file, for example `/opt/dotcraft/docker`
    - **Data folder**: leave blank to use the stack's `workspace` folder
    - **AppServer port**: `9100`
    - **Dashboard port**: `8080`

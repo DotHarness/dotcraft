@@ -38,3 +38,7 @@ desktop/e2e/screenshots/
 
 # Generated desktop web demo bundle (built from docs/demo)
 docs/public/demo/
+
+# Local Docker deployment state
+/docker/.env
+/docker/workspace/

@@ -898,7 +898,7 @@ export const MESSAGES_FR = {
   'settings.servers.stack.name': 'Nom',
   'settings.servers.stack.namePlaceholder': 'prod',
   'settings.servers.stack.deploymentFolder': 'Dossier de déploiement',
-  'settings.servers.stack.deploymentPlaceholder': '~/dotcraft/deploy/docker',
+  'settings.servers.stack.deploymentPlaceholder': '~/dotcraft/docker',
   'settings.servers.stack.deploymentHint': 'Le dossier du serveur où cette instance DotCraft est déployée.',
   'settings.servers.stack.dataFolder': 'Dossier de données',
   'settings.servers.stack.dataPlaceholder': 'Utilise par défaut le dossier de données de l\'instance',

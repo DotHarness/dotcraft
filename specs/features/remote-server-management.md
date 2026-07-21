@@ -26,7 +26,7 @@ Purpose: Define a Desktop-owned visual manager for remote DotCraft Docker stacks
 
 ### 1.2 What This Spec Does Not Define
 
-- A generic Docker UI or machine-operations panel. This feature only manages deployments that follow the DotCraft `deploy/docker` layout.
+- A generic Docker UI or machine-operations panel. This feature only manages deployments that follow the DotCraft `docker` layout.
 - Arbitrary remote shell execution. The renderer can never submit free-form commands; only fixed, parameterized operations run remotely.
 - Changes to AppServer Protocol or Hub Protocol. Remote stacks are reached through the existing `ws://` remote-connection path.
 - Auto-update, scheduled update, or agent-based pull deployment. The first version supports manual one-click update only.
@@ -36,7 +36,7 @@ Purpose: Define a Desktop-owned visual manager for remote DotCraft Docker stacks
 
 ## 2. Design Principles
 
-1. **DotCraft-shaped, not Docker-generic.** Every operation assumes the `deploy/docker` Compose layout from the deployment docs: a `dotcraft` service, an optional `opensandbox` profile, a mounted `./workspace`, a rendered `.env`, and a generated `workspace/.craft/appserver.token`.
+1. **DotCraft-shaped, not Docker-generic.** Every operation assumes the `docker` Compose layout from the deployment docs: a `dotcraft` service, an optional `opensandbox` profile, a mounted `./workspace`, a rendered `.env`, and a generated `workspace/.craft/appserver.token`.
 2. **SSH-first.** Use the system `ssh` executable rather than bundling an SSH library, so the feature inherits `~/.ssh/config`, `ProxyJump`, `ssh-agent`, hardware keys, and editor-style host aliases for free.
 3. **Fixed allow-list.** Remote commands are a closed set of parameterized operations. The renderer chooses an operation and a target stack; it never supplies a command string.
 4. **No protocol changes.** Reuse the existing remote AppServer connection contract from [Desktop Client §3.1.1](../clients/desktop-client.md). Tunnels make a remote endpoint look like a local `127.0.0.1` endpoint to the existing probe/connect path.
@@ -51,7 +51,7 @@ Purpose: Define a Desktop-owned visual manager for remote DotCraft Docker stacks
 ```text
 DotCraft Desktop
   -> system ssh / ssh config / ssh-agent
-  -> remote deploy/docker directory
+  -> remote docker directory
   -> docker compose status/logs/pull/up/restart
   -> local SSH tunnels for AppServer and Dashboard
   -> existing Desktop remote AppServer connection flow
@@ -81,8 +81,8 @@ Saved servers live in Desktop client settings (not workspace config), because th
     {
       "id": "s_01J...",
       "name": "prod",
-      "composeDir": "~/dotcraft/deploy/docker", // dir containing compose file + .env
-      "workspaceDir": "~/dotcraft/deploy/docker/workspace", // optional; defaults to <composeDir>/workspace
+      "composeDir": "~/dotcraft/docker", // dir containing compose file + .env
+      "workspaceDir": "~/dotcraft/docker/workspace", // optional; defaults to <composeDir>/workspace
       "appServerWorkspacePath": "/workspace", // optional; path seen by AppServer inside the stack
       "projectName": "dotcraft",   // optional; docker compose -p
       "appServerPort": 9100,        // remote AppServer port inside the stack
@@ -119,7 +119,7 @@ Exposed to the renderer via the existing preload bridge (`window.api.*`) and han
 | `remoteHosts.delete` | `{ id }` | `{ ok }` (also tears down any tunnels for its stacks) |
 | `remoteHosts.test` | `{ id }` or draft | `SshTestResult { reachable, latencyMs?, dockerOk?, composeOk?, errorCode?, message }` |
 
-`remoteHosts.test` validates SSH reachability and, on success, probes for `docker` and `docker compose`. It may optionally return **discovered stacks** (candidate `deploy/docker` directories) to support the add-server discovery step (§9.5).
+`remoteHosts.test` validates SSH reachability and, on success, probes for `docker` and `docker compose`. It may optionally return **discovered stacks** (candidate `docker` directories) to support the add-server discovery step (§9.5).
 
 ### 5.2 Stack management
 
@@ -270,7 +270,7 @@ Per the visual spec's "at most one primary action per decision area," each stack
 These are the v1 defaults; they are intended to be revisited in design review and as the implementation matures.
 
 1. **Update detection.** v1 does not show a proactive "update available" pill. **Update** is always available in the overflow, and the result reports `recreated` vs `already up to date` after the pull. Proactive detection (registry digest compare) is deferred.
-2. **Stack discovery.** The add-server flow includes an optional two-step **Test & discover** that imports detected `deploy/docker` stacks, degrading gracefully to manual stack entry.
+2. **Stack discovery.** The add-server flow includes an optional two-step **Test & discover** that imports detected `docker` stacks, degrading gracefully to manual stack entry.
 3. **Connections source of truth.** The Connections group shows a read-only "Connected via Servers" banner while a Servers stack is active (§9.8).
 4. **Action density.** Only Open / Dashboard / Logs sit on the stack card face; Update and lifecycle live in the overflow until state promotes them.
 
@@ -300,7 +300,7 @@ These are the v1 defaults; they are intended to be revisited in design review an
 
 ### 11.4 Manual validation
 
-- A local Linux VM or test server with `deploy/docker`.
+- A local Linux VM or test server with `docker`.
 - One stack without sandbox; one stack with the sandbox profile.
 - AppServer and Dashboard reachable only through the SSH tunnel.
 - Update from an older image/tag to latest, verifying volumes (`./workspace`, `.craft/`) survive.
@@ -312,7 +312,7 @@ These are the v1 defaults; they are intended to be revisited in design review an
 - First version supports manual one-click update only, not auto-update or scheduled updates.
 - Remote servers already have Docker Engine and Docker Compose v2 installed.
 - The SSH user can run Docker commands without interactive sudo.
-- DotCraft Docker stacks follow the current `deploy/docker` layout.
+- DotCraft Docker stacks follow the current `docker` layout.
 - No AppServer Protocol or Hub Protocol changes are required.
 - Portainer/Edge Agent and Watchtower remain reference patterns, not dependencies; they are useful prior art for later agent-based management, but the first version stays SSH-first. See [Docker SSH access](https://docs.docker.com/engine/security/protect-access/), [Portainer Edge Agent](https://docs.portainer.io/admin/environments/add/docker/edge), and [Watchtower](https://containrrr.dev/watchtower/introduction/).
 

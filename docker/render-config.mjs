@@ -64,6 +64,15 @@ function objectAt(root, key) {
   return root[key];
 }
 
+function setProviderModel(config, providerId, model) {
+  if (!providerId || !model) return;
+  const providerModels = objectAt(config, "ProviderModels");
+  const existingKey = Object.keys(providerModels).find(
+    (key) => key.toLowerCase() === providerId.toLowerCase(),
+  );
+  providerModels[existingKey ?? providerId] = model;
+}
+
 function setIfMissing(target, key, value) {
   if (value === undefined || value === null || value === "") return;
   if (target[key] === undefined || target[key] === null || target[key] === "") {
@@ -96,21 +105,23 @@ async function renderGlobalConfig() {
   const filePath = path.join(userCraftDir, "config.json");
   const config = await readJson(filePath);
 
-  const providerId = first(env.DOTCRAFT_PROVIDER, first(env.DOTCRAFT_PROVIDER_ID, ""));
+  const configuredProviderId = first(env.DOTCRAFT_PROVIDER, first(env.DOTCRAFT_PROVIDER_ID, ""));
+  const providerId = first(configuredProviderId, trim(config.ProviderId));
   const model = first(env.DOTCRAFT_MODEL, "");
   const apiKey = first(env.DOTCRAFT_API_KEY, "");
 
-  if (providerId) {
-    config.ProviderId = providerId;
-    if (model) config.Model = model;
+  if (configuredProviderId) {
+    config.ProviderId = configuredProviderId;
 
     const providers = objectAt(config, "Providers");
-    const provider = objectAt(providers, providerId);
-    provider.DisplayName = first(env.DOTCRAFT_PROVIDER_DISPLAY_NAME, providerId);
+    const provider = objectAt(providers, configuredProviderId);
+    provider.DisplayName = first(env.DOTCRAFT_PROVIDER_DISPLAY_NAME, configuredProviderId);
     provider.Protocol = first(env.DOTCRAFT_PROVIDER_PROTOCOL, "openai-chat-completions");
     if (apiKey) provider.ApiKey = "$DOTCRAFT_API_KEY";
     if (trim(env.DOTCRAFT_PROVIDER_ENDPOINT)) provider.EndPoint = trim(env.DOTCRAFT_PROVIDER_ENDPOINT);
   }
+
+  setProviderModel(config, providerId, model);
 
   await writeJson(filePath, config);
 }
@@ -118,12 +129,14 @@ async function renderGlobalConfig() {
 async function renderWorkspaceConfig(enabledChannels) {
   const filePath = path.join(craftDir, "config.json");
   const config = await readJson(filePath);
+  const configuredProviderId = first(env.DOTCRAFT_PROVIDER, first(env.DOTCRAFT_PROVIDER_ID, ""));
+  const providerId = first(configuredProviderId, trim(config.ProviderId));
 
   setIfMissing(config, "Language", first(env.DOTCRAFT_LANGUAGE, "English"));
-  if (trim(env.DOTCRAFT_PROVIDER) || trim(env.DOTCRAFT_PROVIDER_ID)) {
-    config.ProviderId = first(env.DOTCRAFT_PROVIDER, env.DOTCRAFT_PROVIDER_ID);
+  if (configuredProviderId) {
+    config.ProviderId = configuredProviderId;
   }
-  if (trim(env.DOTCRAFT_MODEL)) config.Model = trim(env.DOTCRAFT_MODEL);
+  setProviderModel(config, providerId, trim(env.DOTCRAFT_MODEL));
 
   config.AppServer = {
     ...(isObject(config.AppServer) ? config.AppServer : {}),

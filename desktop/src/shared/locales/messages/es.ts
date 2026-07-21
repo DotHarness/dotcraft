@@ -897,7 +897,7 @@ export const MESSAGES_ES = {
   'settings.servers.stack.name': 'Nombre',
   'settings.servers.stack.namePlaceholder': 'prod',
   'settings.servers.stack.deploymentFolder': 'Carpeta de despliegue',
-  'settings.servers.stack.deploymentPlaceholder': '~/dotcraft/deploy/docker',
+  'settings.servers.stack.deploymentPlaceholder': '~/dotcraft/docker',
   'settings.servers.stack.deploymentHint': 'La carpeta del servidor donde está desplegada esta instancia de DotCraft.',
   'settings.servers.stack.dataFolder': 'Carpeta de datos',
   'settings.servers.stack.dataPlaceholder': 'Usa por defecto la carpeta de datos de la instancia',

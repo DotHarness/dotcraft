@@ -3,8 +3,8 @@ services:
     image: ghcr.io/dotharness/dotcraft:latest
     # To build from a source checkout instead of pulling GHCR:
     # build:
-    #   context: ../..
-    #   dockerfile: deploy/docker/Dockerfile
+    #   context: ..
+    #   dockerfile: docker/Dockerfile
     env_file:
       - .env
     environment:

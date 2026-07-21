@@ -895,7 +895,7 @@ export const MESSAGES_JA = {
   'settings.servers.stack.name': '名前',
   'settings.servers.stack.namePlaceholder': 'prod',
   'settings.servers.stack.deploymentFolder': 'デプロイフォルダー',
-  'settings.servers.stack.deploymentPlaceholder': '~/dotcraft/deploy/docker',
+  'settings.servers.stack.deploymentPlaceholder': '~/dotcraft/docker',
   'settings.servers.stack.deploymentHint': 'この DotCraft インスタンスがデプロイされているサーバー上のフォルダーです。',
   'settings.servers.stack.dataFolder': 'データフォルダー',
   'settings.servers.stack.dataPlaceholder': '既定ではインスタンスのデータフォルダーを使用',

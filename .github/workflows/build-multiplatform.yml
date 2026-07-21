@@ -19,6 +19,14 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v6
 
+    - name: Setup Node.js
+      uses: actions/setup-node@v6
+      with:
+        node-version: '22'
+
+    - name: Test Docker configuration rendering
+      run: node --test docker/render-config.test.mjs
+
     - name: Setup .NET
       uses: actions/setup-dotnet@v5
       with:
