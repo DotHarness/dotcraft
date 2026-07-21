@@ -139,6 +139,11 @@
   --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.22);
   --shadow-md: 0 8px 22px rgba(0, 0, 0, 0.26);
   --shadow-lg: 0 18px 48px rgba(0, 0, 0, 0.32);
+
+  /* Shared action-button sizing (see specs/architecture/DESIGN.md → Actions).
+     One standard so buttons, selects, and icon buttons share a control band. */
+  --button-height: 32px;
+  --button-height-sm: 28px;
   --dotcraft-logo-shadow:
     drop-shadow(0 0 18px color-mix(in srgb, var(--accent) 30%, transparent))
     drop-shadow(0 0 14px color-mix(in srgb, var(--warning) 14%, transparent));
@@ -3694,7 +3699,7 @@ html[data-theme="light"] [data-mascot-speed='fast'] .composer-mascot-fast-echo {
 /* ─── Shared select (field default, optional frameless trigger) ─── */
 .dc-settings-select {
   width: 100%;
-  min-height: 35px;
+  min-height: var(--button-height);
   box-sizing: border-box;
   display: inline-flex;
   align-items: center;
@@ -3850,6 +3855,189 @@ html[data-theme="light"] [data-mascot-speed='fast'] .composer-mascot-fast-echo {
   justify-content: center;
   flex-shrink: 0;
   color: var(--text-primary);
+}
+
+/* ─── Shared action button (see specs/architecture/DESIGN.md → Actions) ───
+   One component for every text/icon action so intent (variant) and size are
+   chosen by prop instead of being re-derived per call site. The 1px border is
+   always present in the box model and only the `secondary` variant paints it
+   visibly, so switching a button between filled and ghost never shifts height
+   or alignment — this is the "border-reserved" borderless treatment. */
+.dc-button {
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: var(--button-height);
+  padding: 0 12px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-primary);
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1;
+  white-space: nowrap;
+  user-select: none;
+  cursor: pointer;
+  transition:
+    background-color 120ms ease,
+    border-color 120ms ease,
+    color 120ms ease,
+    opacity 120ms ease;
+}
+
+.dc-button:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--accent) 72%, transparent);
+  outline-offset: 2px;
+}
+
+.dc-button:disabled,
+.dc-button[data-disabled="true"] {
+  cursor: default;
+  opacity: 0.5;
+}
+
+/* ── Sizes ── */
+.dc-button[data-size="sm"] {
+  height: var(--button-height-sm);
+  padding: 0 10px;
+  border-radius: 6px;
+  font-size: 12px;
+}
+
+.dc-button[data-size="icon"] {
+  width: var(--button-height);
+  padding: 0;
+}
+
+.dc-button[data-size="iconSm"] {
+  width: var(--button-height-sm);
+  height: var(--button-height-sm);
+  padding: 0;
+  border-radius: 6px;
+}
+
+/* ── Variants (intent → action hierarchy) ── */
+.dc-button[data-variant="primary"] {
+  background: var(--text-primary);
+  border-color: var(--text-primary);
+  color: var(--bg-primary);
+  font-weight: 600;
+}
+.dc-button[data-variant="primary"]:hover:not(:disabled):not([data-disabled="true"]) {
+  background: color-mix(in srgb, var(--text-primary) 88%, var(--bg-primary));
+  border-color: color-mix(in srgb, var(--text-primary) 88%, var(--bg-primary));
+}
+
+/* Frameless subtle fill; the border stays transparent (reserved in the box model). */
+.dc-button[data-variant="secondary"] {
+  background: color-mix(in srgb, var(--text-primary) 6%, transparent);
+  border-color: transparent;
+  color: var(--text-primary);
+}
+.dc-button[data-variant="secondary"]:hover:not(:disabled):not([data-disabled="true"]) {
+  background: color-mix(in srgb, var(--text-primary) 11%, transparent);
+}
+
+.dc-button[data-variant="ghost"] {
+  background: transparent;
+  color: var(--text-secondary);
+}
+.dc-button[data-variant="ghost"]:hover:not(:disabled):not([data-disabled="true"]) {
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+}
+
+/* Frameless semantic fill (red tint + red text), no visible border. */
+.dc-button[data-variant="danger"] {
+  background: color-mix(in srgb, var(--error) 10%, transparent);
+  border-color: transparent;
+  color: var(--error);
+}
+.dc-button[data-variant="danger"]:hover:not(:disabled):not([data-disabled="true"]) {
+  background: color-mix(in srgb, var(--error) 18%, transparent);
+}
+
+/* The one bordered variant — reserve for special / important framed actions. */
+.dc-button[data-variant="outline"] {
+  background: var(--bg-secondary);
+  border-color: var(--border-default);
+  color: var(--text-primary);
+}
+.dc-button[data-variant="outline"]:hover:not(:disabled):not([data-disabled="true"]) {
+  background: var(--bg-tertiary);
+  border-color: var(--border-active);
+}
+
+/* Restrained brand accent; not the default primary for ordinary actions. */
+.dc-button[data-variant="accent"] {
+  background: transparent;
+  color: var(--accent);
+}
+.dc-button[data-variant="accent"]:hover:not(:disabled):not([data-disabled="true"]) {
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+}
+
+.dc-button__icon,
+.dc-button__spinner {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+/* ─── Shared icon button (see specs/architecture/DESIGN.md → Icon Buttons) ───
+   Frameless by default: transparent surface with a reserved 1px transparent border,
+   neutral hover fill. The `bordered` opt-in paints a visible frame for special /
+   important controls; `active` marks a selected/toggled state. Sizing is inline
+   (dynamic size); color/border/hover/active/disabled live here. */
+.dc-icon-button {
+  box-sizing: border-box;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  outline: none;
+  transition:
+    background-color 120ms ease,
+    border-color 120ms ease,
+    color 120ms ease;
+}
+
+.dc-icon-button:hover:not(:disabled) {
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+}
+
+.dc-icon-button:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--accent) 72%, transparent);
+  outline-offset: 2px;
+}
+
+/* Opt-in visible frame — reserve for special / important icon controls. */
+.dc-icon-button[data-bordered] {
+  background: var(--bg-secondary);
+  border-color: var(--border-default);
+}
+.dc-icon-button[data-bordered]:hover:not(:disabled) {
+  background: var(--bg-tertiary);
+  border-color: var(--border-active);
+}
+
+/* Selected / toggled state. */
+.dc-icon-button[data-active] {
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  border-color: transparent;
+  color: var(--accent);
+}
+
+.dc-icon-button:disabled {
+  color: var(--text-dimmed);
+  cursor: default;
+  opacity: 0.65;
 }
 
 /* Shared text input for simple dialogs (commit message, thread goal, …): a

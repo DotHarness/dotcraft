@@ -26,16 +26,14 @@ import { AgentIcon } from './AgentIcon'
 import { SettingsBreadcrumb } from '../../SettingsBreadcrumb'
 import {
   actionBarStyle,
-  dangerButtonStyle,
   inputStyle,
   monoTextAreaStyle,
   noticeStyle,
   pageDescriptionStyle,
   pageHeadingStyle,
-  pageStyle,
-  primaryButtonStyle,
-  secondaryButtonStyle
+  pageStyle
 } from './styles'
+import { Button } from '../../../ui/Button'
 import {
   buildCustomWriteWire,
   createCustomEditorState,
@@ -511,15 +509,11 @@ export function CustomProfileEditor({
         title={t('settings.subAgents.custom.advancedTitle')}
         description={t('settings.subAgents.custom.advancedDescription')}
         headerAction={
-          <button
-            type="button"
-            onClick={() => setShowAdvanced((prev) => !prev)}
-            style={secondaryButtonStyle()}
-          >
+          <Button onClick={() => setShowAdvanced((prev) => !prev)}>
             {showAdvanced
               ? t('settings.subAgents.custom.advancedToggleHide')
               : t('settings.subAgents.custom.advancedToggleShow')}
-          </button>
+          </Button>
         }
       >
         {showAdvanced && (
@@ -648,23 +642,21 @@ export function CustomProfileEditor({
 
       <div style={actionBarStyle()}>
         {mode === 'edit' && profile && onDelete && (
-          <button
-            type="button"
+          <Button
+            variant="danger"
             onClick={handleDelete}
-            style={dangerButtonStyle(deleting)}
             disabled={deleting || saving}
           >
             {deleting ? t('settings.subAgents.deleting') : t('settings.subAgents.delete')}
-          </button>
+          </Button>
         )}
-        <button
-          type="button"
+        <Button
+          variant="primary"
           onClick={handleSubmit}
-          style={primaryButtonStyle(saving || deleting)}
           disabled={saving || deleting}
         >
           {saving ? t('settings.subAgents.saving') : t('settings.subAgents.save')}
-        </button>
+        </Button>
       </div>
     </div>
   )

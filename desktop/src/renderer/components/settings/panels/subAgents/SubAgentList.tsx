@@ -7,7 +7,8 @@ import { PillSwitch } from '../../../ui/PillSwitch'
 import { Skeleton } from '../../../ui/Skeleton'
 import { AgentIcon } from './AgentIcon'
 import { PRESET_PROFILE_NAMES, type SubAgentProfileEntryWire } from './wire'
-import { pillBadgeStyle, primaryButtonStyle } from './styles'
+import { pillBadgeStyle } from './styles'
+import { Button } from '../../../ui/Button'
 
 interface SubAgentListProps {
   profiles: SubAgentProfileEntryWire[]
@@ -105,14 +106,13 @@ export function SubAgentList({
                 {t('settings.subAgents.list.addCustomAgentHint')}
               </div>
             </div>
-            <button
-              type="button"
+            <Button
+              variant="primary"
               onClick={onAddCustom}
-              style={primaryButtonStyle(false)}
+              iconLeft={<Plus size={14} aria-hidden />}
             >
-              <Plus size={14} aria-hidden />
               {t('settings.subAgents.list.addCustomAgent')}
-            </button>
+            </Button>
           </div>
         </div>
       </SettingsGroup>

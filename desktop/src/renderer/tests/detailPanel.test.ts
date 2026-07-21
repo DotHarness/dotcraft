@@ -43,6 +43,7 @@ beforeEach(() => {
     sidebarPreferredCollapsed: false,
     sidebarCollapsed: false,
     detailPanelPreferredVisible: true,
+    detailPanelPreferredVisibleByThread: {},
     selectedChangedFile: null,
     autoShowTriggeredForTurn: null,
     autoShowPlanForItem: null,
@@ -367,11 +368,18 @@ describe('optional system tabs', () => {
     expect(ui().activeDetailTab).toEqual({ kind: 'launcher' })
   })
 
-  it('closeViewerTab auto-hides the panel when closing the last tab (no launcher)', () => {
-    useUIStore.setState({ detailPanelPreferredVisible: true, detailPanelVisible: true, responsiveLayout: 'full' })
+  it('closeViewerTab auto-hides the panel and saves false when closing the last tab', () => {
+    useThreadStore.setState({ activeThreadId: 'thread-a' })
+    useUIStore.setState({
+      detailPanelPreferredVisibleByThread: { 'thread-a': true },
+      detailPanelPreferredVisible: true,
+      detailPanelVisible: true,
+      responsiveLayout: 'full'
+    })
     ui().setActiveViewerTab('vtab-1')
     ui().closeViewerTab()
     expect(ui().activeDetailTab).toEqual({ kind: 'launcher' })
+    expect(ui().detailPanelPreferredVisibleByThread['thread-a']).toBe(false)
     expect(ui().detailPanelPreferredVisible).toBe(false)
     expect(ui().detailPanelVisible).toBe(false)
   })
@@ -386,9 +394,8 @@ describe('optional system tabs', () => {
     expect(ui().detailPanelVisible).toBe(true)
   })
 
-  it('closeViewerTab({ reveal: false }) still hides the panel when it empties (thread switch)', () => {
-    // Mirrors App.tsx's thread-switch sync: switching to a thread with no tabs must
-    // close the panel rather than auto-open it onto the launcher/welcome page.
+  it('closeViewerTab({ reveal: false }) still hides the panel when it empties', () => {
+    // Internal tab synchronization must not leave an empty launcher visible.
     useUIStore.setState({
       detailPanelPreferredVisible: true,
       detailPanelVisible: true,
@@ -424,6 +431,7 @@ describe('optional system tabs', () => {
     ui().resetDetailTabs()
     expect(ui().openSystemTabs).toEqual([])
     expect(ui().activeDetailTab).toEqual({ kind: 'launcher' })
+    expect(ui().detailPanelPreferredVisibleByThread).toEqual({})
     expect(ui().detailPanelPreferredVisible).toBe(false)
     expect(ui().detailPanelVisible).toBe(false)
   })
@@ -440,69 +448,136 @@ describe('optional system tabs', () => {
       detailPanelVisible: true
     })
 
-    ui().syncDetailPanelForThread(null)
+    ui().syncDetailPanelForThread('thread-empty', null)
 
     expect(ui().activeDetailTab).toEqual({ kind: 'launcher' })
     expect(ui().detailPanelPreferredVisible).toBe(false)
     expect(ui().detailPanelVisible).toBe(false)
   })
 
-  it('opens and restores an incoming thread viewer tab', () => {
+  it('keeps an unremembered incoming thread hidden even when it has a viewer tab', () => {
     useUIStore.setState({
       activeDetailTab: { kind: 'launcher' },
       openSystemTabs: [],
+      detailPanelPreferredVisibleByThread: {},
+      detailPanelPreferredVisible: true,
+      detailPanelVisible: true
+    })
+
+    ui().syncDetailPanelForThread('thread-a', 'viewer-thread-a')
+
+    expect(ui().activeDetailTab).toEqual({ kind: 'viewer', id: 'viewer-thread-a' })
+    expect(ui().detailPanelPreferredVisible).toBe(false)
+    expect(ui().detailPanelVisible).toBe(false)
+  })
+
+  it('opens and restores a viewer tab for a thread saved as visible', () => {
+    useUIStore.setState({
+      activeDetailTab: { kind: 'launcher' },
+      openSystemTabs: [],
+      detailPanelPreferredVisibleByThread: { 'thread-a': true },
       detailPanelPreferredVisible: false,
       detailPanelVisible: false
     })
 
-    ui().syncDetailPanelForThread('viewer-thread-a')
+    ui().syncDetailPanelForThread('thread-a', 'viewer-thread-a')
 
     expect(ui().activeDetailTab).toEqual({ kind: 'viewer', id: 'viewer-thread-a' })
     expect(ui().detailPanelPreferredVisible).toBe(true)
     expect(ui().detailPanelVisible).toBe(true)
   })
 
-  it('restores viewer A after switching through an empty thread B', () => {
-    useUIStore.setState({ openSystemTabs: [] })
+  it('keeps a saved-visible thread hidden when it has no tabs', () => {
+    useUIStore.setState({
+      openSystemTabs: [],
+      detailPanelPreferredVisibleByThread: { 'thread-a': true }
+    })
 
-    ui().syncDetailPanelForThread('viewer-thread-a')
-    ui().syncDetailPanelForThread(null)
+    ui().syncDetailPanelForThread('thread-a', null)
+
+    expect(ui().detailPanelPreferredVisibleByThread['thread-a']).toBe(true)
+    expect(ui().activeDetailTab).toEqual({ kind: 'launcher' })
+    expect(ui().detailPanelPreferredVisible).toBe(false)
     expect(ui().detailPanelVisible).toBe(false)
-
-    ui().syncDetailPanelForThread('viewer-thread-a')
-    expect(ui().activeDetailTab).toEqual({ kind: 'viewer', id: 'viewer-thread-a' })
-    expect(ui().detailPanelVisible).toBe(true)
   })
 
-  it('falls back to the last active system tab when the incoming thread has no viewer tab', () => {
+  it('keeps A hidden after switching through visible B', () => {
+    useThreadStore.setState({ activeThreadId: 'thread-a' })
+    useUIStore.setState({
+      openSystemTabs: [],
+      detailPanelPreferredVisibleByThread: { 'thread-a': true, 'thread-b': true },
+      detailPanelPreferredVisible: true,
+      detailPanelVisible: true
+    })
+
+    ui().toggleDetailPanel()
+    expect(ui().detailPanelPreferredVisibleByThread['thread-a']).toBe(false)
+
+    useThreadStore.setState({ activeThreadId: 'thread-b' })
+    ui().syncDetailPanelForThread('thread-b', 'viewer-thread-b')
+    expect(ui().detailPanelVisible).toBe(true)
+
+    useThreadStore.setState({ activeThreadId: 'thread-a' })
+    ui().syncDetailPanelForThread('thread-a', 'viewer-thread-a')
+    expect(ui().activeDetailTab).toEqual({ kind: 'viewer', id: 'viewer-thread-a' })
+    expect(ui().detailPanelPreferredVisible).toBe(false)
+    expect(ui().detailPanelVisible).toBe(false)
+  })
+
+  it('restores the last active system tab only for a thread saved as visible', () => {
     useUIStore.setState({
       openSystemTabs: ['changes', 'plan'],
       lastActiveSystemTab: 'changes',
       activeDetailTab: { kind: 'viewer', id: 'viewer-from-previous-thread' },
+      detailPanelPreferredVisibleByThread: { 'thread-a': true },
       detailPanelPreferredVisible: false,
       detailPanelVisible: false
     })
 
-    ui().syncDetailPanelForThread(null)
+    ui().syncDetailPanelForThread('thread-a', null)
 
     expect(ui().activeDetailTab).toEqual({ kind: 'system', id: 'changes' })
     expect(ui().detailPanelPreferredVisible).toBe(true)
     expect(ui().detailPanelVisible).toBe(true)
   })
 
-  it('records a remembered viewer tab while responsive layout suppresses the panel', () => {
+  it('records automatic and manual visibility changes for the active thread', () => {
+    useThreadStore.setState({ activeThreadId: 'thread-a' })
+    useUIStore.setState({
+      detailPanelPreferredVisibleByThread: {},
+      detailPanelPreferredVisible: false,
+      detailPanelVisible: false,
+      autoShowReasons: new Set()
+    })
+
+    expect(ui().maybeAutoShowForReason('turn:one')).toBe(true)
+    expect(ui().detailPanelPreferredVisibleByThread['thread-a']).toBe(true)
+
+    ui().toggleDetailPanel()
+    expect(ui().detailPanelPreferredVisibleByThread['thread-a']).toBe(false)
+
+    ui().setActiveDetailTab('plan')
+    expect(ui().detailPanelPreferredVisibleByThread['thread-a']).toBe(true)
+  })
+
+  it('preserves saved visibility while responsive layout suppresses the panel', () => {
     useUIStore.setState({
       openSystemTabs: [],
       responsiveLayout: 'no-detail',
+      detailPanelPreferredVisibleByThread: { 'thread-a': true },
       detailPanelPreferredVisible: false,
       detailPanelVisible: false
     })
 
-    ui().syncDetailPanelForThread('viewer-thread-a')
+    ui().syncDetailPanelForThread('thread-a', 'viewer-thread-a')
 
     expect(ui().activeDetailTab).toEqual({ kind: 'viewer', id: 'viewer-thread-a' })
+    expect(ui().detailPanelPreferredVisibleByThread['thread-a']).toBe(true)
     expect(ui().detailPanelPreferredVisible).toBe(true)
     expect(ui().detailPanelVisible).toBe(false)
+
+    ui().setResponsiveLayout('full')
+    expect(ui().detailPanelVisible).toBe(true)
   })
 })
 

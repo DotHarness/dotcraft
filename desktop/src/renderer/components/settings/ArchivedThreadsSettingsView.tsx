@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, type CSSProperties, type JSX } from 'react'
+import { useCallback, useEffect, useState, type JSX } from 'react'
 import { Trash2 } from 'lucide-react'
 import { useLocale, useT } from '../../contexts/LocaleContext'
 import { addToast } from '../../stores/toastStore'
@@ -13,29 +13,11 @@ import { ActionTooltip } from '../ui/ActionTooltip'
 import { SettingsGroup, SettingsRow } from './SettingsGroup'
 import { SettingsPanelShell } from './SettingsPanelShell'
 import { Skeleton } from '../ui/Skeleton'
+import { Button } from '../ui/Button'
 
 interface ArchivedThreadsSettingsViewProps {
   workspacePath?: string
   onThreadListRefreshRequested?: () => void
-}
-
-function actionButtonStyle(disabled = false): CSSProperties {
-  return {
-    height: '32px',
-    padding: '0 12px',
-    boxSizing: 'border-box',
-    display: 'inline-flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: '8px',
-    border: '1px solid var(--border-default)',
-    background: 'transparent',
-    color: 'var(--text-primary)',
-    fontSize: '13px',
-    fontWeight: 600,
-    cursor: disabled ? 'default' : 'pointer',
-    opacity: disabled ? 0.7 : 1
-  }
 }
 
 export function ArchivedThreadsSettingsView({
@@ -201,20 +183,15 @@ export function ArchivedThreadsSettingsView({
         title={t('settings.group.conversations')}
         headerAction={
         !loading && !error ? (
-          <button
-            type="button"
+          <Button
+            variant="danger"
             onClick={() => {
               void confirmDeleteAll()
             }}
             disabled={threads.length === 0 || deletingAll}
-            style={{
-              ...actionButtonStyle(threads.length === 0 || deletingAll),
-              borderColor: 'color-mix(in srgb, var(--error) 46%, transparent)',
-              color: 'var(--error)'
-            }}
           >
             {deletingAll ? t('archivedThreads.deletingAll') : t('archivedThreads.deleteAll')}
-          </button>
+          </Button>
         ) : undefined
       }
       >
@@ -290,44 +267,30 @@ export function ArchivedThreadsSettingsView({
               }
               control={
                 <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
-                  <button
-                    type="button"
+                  <Button
                     onClick={() => {
                       void handleRestore(thread.id)
                     }}
                     disabled={restoring || deleting}
-                    style={actionButtonStyle(restoring || deleting)}
                   >
                     {restoring ? t('archivedThreads.restoring') : t('archivedThreads.restore')}
-                  </button>
+                  </Button>
                   <ActionTooltip
                     label={t('archivedThreads.delete')}
                     disabledReason={restoring || deleting ? t('archivedThreads.delete') : undefined}
                     placement="top"
                   >
-                    <button
-                      type="button"
+                    <Button
+                      variant="danger"
+                      size="icon"
                       onClick={() => {
                         void confirmDeleteThread(thread.id)
                       }}
                       disabled={restoring || deleting}
                       aria-label={t('archivedThreads.delete')}
-                      style={{
-                      width: '32px',
-                      height: '32px',
-                      borderRadius: '8px',
-                      border: '1px solid color-mix(in srgb, var(--error) 46%, transparent)',
-                      background: 'transparent',
-                      color: 'var(--error)',
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      cursor: restoring || deleting ? 'default' : 'pointer',
-                      opacity: restoring || deleting ? 0.7 : 1
-                    }}
-                  >
-                    <Trash2 size={14} strokeWidth={2} aria-hidden />
-                    </button>
+                    >
+                      <Trash2 size={14} strokeWidth={2} aria-hidden />
+                    </Button>
                   </ActionTooltip>
                 </div>
               }

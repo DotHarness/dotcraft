@@ -38,6 +38,7 @@ import { ArchivedThreadsSettingsView } from './ArchivedThreadsSettingsView'
 import { ActionTooltip } from '../ui/ActionTooltip'
 import { ExtensionsIcon, FolderIcon, OpenInBrowserIcon, RefreshIcon, WrenchIcon } from '../ui/AppIcons'
 import { IconButton } from '../ui/IconButton'
+import { Button } from '../ui/Button'
 import { InputWithAction } from '../ui/InputWithAction'
 import { SelectionCard, ResolvedPill } from '../ui/SelectionCard'
 import { PillSwitch } from '../ui/PillSwitch'
@@ -852,91 +853,6 @@ function normalizeBrowserUseDomainInput(input: string): string | null {
   }
 }
 
-function secondaryButtonStyle(disabled = false): CSSProperties {
-  return {
-    padding: '8px 14px',
-    border: '1px solid var(--border-default)',
-    borderRadius: '8px',
-    background: 'transparent',
-    color: 'var(--text-primary)',
-    fontSize: '13px',
-    fontWeight: 500,
-    cursor: disabled ? 'default' : 'pointer',
-    opacity: disabled ? 0.7 : 1
-  }
-}
-
-function primaryButtonStyle(disabled = false): CSSProperties {
-  return {
-    padding: '8px 14px',
-    border: '1px solid var(--text-primary)',
-    borderRadius: '8px',
-    background: 'var(--text-primary)',
-    color: 'var(--bg-primary)',
-    fontSize: '13px',
-    fontWeight: 600,
-    cursor: disabled ? 'default' : 'pointer',
-    opacity: disabled ? 0.7 : 1
-  }
-}
-
-function primaryIconButtonStyle(disabled = false): CSSProperties {
-  return {
-    ...primaryButtonStyle(disabled),
-    display: 'inline-flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: '6px',
-    height: '32px',
-    padding: '0 12px',
-    boxSizing: 'border-box',
-    lineHeight: 1
-  }
-}
-
-const primaryIconButtonLabelStyle: CSSProperties = {
-  lineHeight: 1,
-  transform: 'translateY(-1px)'
-}
-
-function secondaryActionButtonStyle(disabled = false): CSSProperties {
-  return {
-    display: 'inline-flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: '8px',
-    minHeight: '34px',
-    padding: '0 14px',
-    border: '1px solid var(--border-default)',
-    borderRadius: '8px',
-    background: 'var(--bg-tertiary)',
-    color: 'var(--text-primary)',
-    fontSize: '13px',
-    fontWeight: 600,
-    lineHeight: 1,
-    cursor: disabled ? 'default' : 'pointer',
-    opacity: disabled ? 0.7 : 1,
-    whiteSpace: 'nowrap',
-    flexShrink: 0
-  }
-}
-
-function destructiveIconButtonStyle(disabled = false): CSSProperties {
-  return {
-    width: '28px',
-    height: '28px',
-    borderRadius: '6px',
-    border: '1px solid color-mix(in srgb, var(--error) 46%, transparent)',
-    background: 'transparent',
-    color: 'var(--error)',
-    display: 'inline-flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    cursor: disabled ? 'default' : 'pointer',
-    opacity: disabled ? 0.7 : 1
-  }
-}
-
 function chromeActionToolbarStyle(): CSSProperties {
   return {
     display: 'flex',
@@ -1341,21 +1257,13 @@ function ChatGptOAuthPanel({
           >
             {authorizeUrl}
           </div>
-          <button
-            type="button"
+          <Button
+            size="sm"
             onClick={() => void handleCopyUrl()}
-            style={{
-              alignSelf: 'flex-start',
-              padding: '4px 10px',
-              borderRadius: '6px',
-              border: '1px solid var(--border-default)',
-              background: 'var(--bg-primary)',
-              fontSize: '12px',
-              cursor: 'pointer'
-            }}
+            style={{ alignSelf: 'flex-start' }}
           >
             {t('settings.llm.authMethod.copyUrl')}
-          </button>
+          </Button>
         </div>
       )}
 
@@ -1366,44 +1274,24 @@ function ChatGptOAuthPanel({
       )}
 
       <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-        <button
-          type="button"
+        <Button
+          variant="primary"
           onClick={() => void handleSignIn()}
           disabled={pending}
-          style={{
-            padding: '6px 14px',
-            borderRadius: '8px',
-            border: '1px solid var(--text-primary)',
-            background: pending ? 'var(--bg-secondary)' : 'var(--text-primary)',
-            color: pending ? 'var(--text-secondary)' : 'var(--bg-primary)',
-            fontSize: '13px',
-            fontWeight: 600,
-            cursor: pending ? 'not-allowed' : 'pointer'
-          }}
         >
           {pending
             ? t('settings.llm.authMethod.signInPending')
             : signedIn
               ? t('settings.llm.authMethod.signIn')
               : t('settings.llm.authMethod.signIn')}
-        </button>
+        </Button>
         {signedIn && (
-          <button
-            type="button"
+          <Button
             onClick={() => void handleSignOut()}
             disabled={pending}
-            style={{
-              padding: '6px 14px',
-              borderRadius: '8px',
-              border: '1px solid var(--border-default)',
-              background: 'var(--bg-secondary)',
-              color: 'var(--text-primary)',
-              fontSize: '13px',
-              cursor: pending ? 'not-allowed' : 'pointer'
-            }}
           >
             {t('settings.llm.authMethod.signOut')}
-          </button>
+          </Button>
         )}
       </div>
     </div>
@@ -3617,15 +3505,14 @@ export function SettingsView({
                   }
                   action={
                     providerEditorId === null ? (
-                      <button
-                        type="button"
+                      <Button
+                        variant="primary"
                         onClick={startCreateProvider}
                         disabled={!providerManagementEnabled}
-                        style={primaryIconButtonStyle(!providerManagementEnabled)}
+                        iconLeft={<Plus size={14} aria-hidden="true" />}
                       >
-                        <Plus size={14} aria-hidden="true" />
-                        <span style={primaryIconButtonLabelStyle}>{t('settings.llm.addProvider')}</span>
-                      </button>
+                        {t('settings.llm.addProvider')}
+                      </Button>
                     ) : undefined
                   }
                 >
@@ -3666,7 +3553,7 @@ export function SettingsView({
                                     color: 'var(--text-dimmed)',
                                     display: 'flex',
                                     alignItems: 'center',
-                                    minHeight: 35
+                                    minHeight: 'var(--button-height)'
                                   }}
                                 >
                                   {t('settings.llm.modelLoading')}
@@ -3718,7 +3605,6 @@ export function SettingsView({
                                 icon={<RefreshIcon size={15} />}
                                 label={t('settings.llm.refreshModels')}
                                 tooltipLabel={t('settings.llm.refreshModels')}
-                                size={35}
                                 disabled={providerModelLoading || !selectedProviderId}
                                 onClick={() => void reloadProviderModels(selectedProviderId)}
                               />
@@ -3757,7 +3643,7 @@ export function SettingsView({
                                     color: 'var(--text-dimmed)',
                                     display: 'flex',
                                     alignItems: 'center',
-                                    minHeight: 35
+                                    minHeight: 'var(--button-height)'
                                   }}
                                 >
                                   {t('settings.llm.modelLoading')}
@@ -4251,18 +4137,13 @@ export function SettingsView({
                     <div style={providerFooterStyle()}>
                       <div style={{ flex: '1 1 260px', minWidth: 0, display: 'flex', alignItems: 'center', gap: '12px' }}>
                         {canDeleteProviderInEditor && providerEditorProvider && (
-                          <button
-                            type="button"
+                          <Button
+                            variant="danger"
                             onClick={() => void handleProviderDelete(providerEditorProvider)}
                             disabled={deletingProvider || savingProvider}
-                            style={{
-                              ...secondaryButtonStyle(deletingProvider || savingProvider),
-                              color: 'var(--error, #f85149)',
-                              borderColor: 'rgba(248,81,73,0.45)'
-                            }}
                           >
                             {deletingProvider ? t('settings.llm.deletingProvider') : t('settings.llm.deleteProvider')}
-                          </button>
+                          </Button>
                         )}
                         {(() => {
                           if (testingProvider) {
@@ -4304,42 +4185,29 @@ export function SettingsView({
                         })()}
                       </div>
                       <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                        <button
-                          type="button"
+                        <Button
                           onClick={() => void handleProviderTest()}
                           disabled={testingProvider || !providerManagementEnabled}
-                          style={{
-                            ...secondaryButtonStyle(testingProvider || !providerManagementEnabled),
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: '8px'
-                          }}
+                          iconLeft={<TestTube2 size={14} aria-hidden="true" />}
                         >
-                          <TestTube2 size={14} aria-hidden="true" />
                           {testingProvider ? t('settings.llm.testingProvider') : t('settings.llm.testProvider')}
-                        </button>
+                        </Button>
                         {/* In NEW + ChatGPT-OAuth mode, the Sign In button inside ChatGptOAuthPanel
                             is the commit action (it calls BindProviderToOAuth on the backend), so
                             a redundant Save here would either no-op or fail with "already exists". */}
                         {!(providerEditorIsNew && providerDraft.authMethod === 'chatgptOAuth') && (
-                          <button
-                            type="button"
+                          <Button
+                            variant="primary"
                             onClick={() => void handleProviderSave()}
                             disabled={savingProvider || !providerManagementEnabled}
-                            style={{
-                              ...primaryButtonStyle(savingProvider || !providerManagementEnabled),
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              gap: '8px'
-                            }}
+                            iconLeft={<ListChecks size={14} aria-hidden="true" />}
                           >
-                            <ListChecks size={14} aria-hidden="true" />
                             {savingProvider
                               ? t('settings.llm.savingProvider')
                               : providerEditorIsNew
                                 ? t('settings.llm.createProvider')
                                 : t('settings.llm.updateProvider')}
-                          </button>
+                          </Button>
                         )}
                       </div>
                     </div>
@@ -4437,21 +4305,15 @@ export function SettingsView({
                         label={t('settings.personalization.resetMemory')}
                         description={t('settings.personalization.resetMemoryHint')}
                         control={
-                          <button
-                            type="button"
+                          <Button
+                            variant="danger"
                             disabled={resettingMemory}
                             onClick={() => void handleResetMemory()}
-                            style={{
-                              ...secondaryButtonStyle(resettingMemory),
-                              color: '#f85149',
-                              borderColor: 'rgba(248,81,73,0.45)',
-                              background: resettingMemory ? 'rgba(248,81,73,0.08)' : 'transparent'
-                            }}
                           >
                             {resettingMemory
                               ? t('settings.personalization.resettingMemory')
                               : t('settings.personalization.resetMemoryButton')}
-                          </button>
+                          </Button>
                         }
                       />
                     )}
@@ -4462,23 +4324,19 @@ export function SettingsView({
                     title={t('settings.personalization.group.dreams')}
                     headerAction={
                       <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
-                        <button
-                          type="button"
+                        <Button
                           onClick={() => setActiveSettingsTab('dreams')}
-                          style={secondaryButtonStyle(false)}
                         >
                           {t('settings.personalization.dreamsManage')}
-                        </button>
-                        <button
-                          type="button"
+                        </Button>
+                        <Button
                           disabled={dreamsRunDisabled}
                           onClick={() => void handleRunDreamsNow()}
-                          style={secondaryButtonStyle(dreamsRunDisabled)}
                         >
                           {runningDreams || dreamsStatus?.running === true
                             ? t('settings.personalization.dreamsRunning')
                             : t('settings.personalization.dreamsRunNow')}
-                        </button>
+                        </Button>
                       </div>
                     }
                   >
@@ -4572,21 +4430,17 @@ export function SettingsView({
                   title={t('settings.dreams.overview')}
                   headerAction={
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
-                      <button
-                        type="button"
+                      <Button
                         onClick={() => setActiveSettingsTab('personalization')}
-                        style={secondaryButtonStyle(false)}
                       >
                         {t('settings.dreams.backToPersonalization')}
-                      </button>
-                      <button
-                        type="button"
+                      </Button>
+                      <Button
                         disabled={dreamRunsLoading}
                         onClick={() => void reloadDreamRuns()}
-                        style={secondaryButtonStyle(dreamRunsLoading)}
                       >
                         {t('settings.dreams.refresh')}
-                      </button>
+                      </Button>
                     </div>
                   }
                 >
@@ -4679,14 +4533,12 @@ export function SettingsView({
                               <ActionTooltip
                                 label={dashboardUrl ? t('settings.dreams.openReview') : t('settings.dreams.dashboardUnavailable')}
                               >
-                                <button
-                                  type="button"
+                                <Button
                                   disabled={!dashboardUrl}
                                   onClick={() => void openDreamReview(run.id)}
-                                  style={secondaryButtonStyle(!dashboardUrl)}
                                 >
                                   {t('settings.dreams.openReview')}
-                                </button>
+                                </Button>
                               </ActionTooltip>
                             </div>
                           </div>
@@ -4865,8 +4717,7 @@ export function SettingsView({
                         ? 'settings.pendingChanges.connectionRemote'
                         : 'settings.pendingChanges.connection')}
                       control={
-                        <button
-                          type="button"
+                        <Button
                           onClick={() => {
                             if (!baselineConnection) return
                             setBinarySource(baselineConnection.binarySource)
@@ -4878,10 +4729,9 @@ export function SettingsView({
                             setRemoteToken(baselineConnection.remoteToken)
                           }}
                           disabled={restartingAppServer || saving}
-                          style={secondaryActionButtonStyle(restartingAppServer || saving)}
                         >
                           {t('settings.llm.revert')}
-                        </button>
+                        </Button>
                       }
                     />
                   )}
@@ -4918,14 +4768,12 @@ export function SettingsView({
                     label={t('settings.browserUse.cookies')}
                     description={t('settings.browserUse.cookiesHint')}
                     control={
-                      <button
-                        type="button"
+                      <Button
                         onClick={() => void handleClearBrowserUseCookies()}
                         disabled={clearingBrowserCookies}
-                        style={secondaryActionButtonStyle(clearingBrowserCookies)}
                       >
                         {clearingBrowserCookies ? t('settings.saving') : t('settings.browserUse.clearCookies')}
-                      </button>
+                      </Button>
                     }
                   />
                 </SettingsGroup>
@@ -4956,9 +4804,9 @@ export function SettingsView({
                       title={t('settings.browserUse.blockedDomains')}
                       description={t('settings.browserUse.blockedDomainsHint')}
                       headerAction={
-                        <button type="button" onClick={() => openBrowserUseDomainDialog('blocked')} style={secondaryActionButtonStyle(false)}>
+                        <Button onClick={() => openBrowserUseDomainDialog('blocked')}>
                           {t('settings.browserUse.add')}
-                        </button>
+                        </Button>
                       }
                     >
                       {browserUseBlockedDomains.length === 0 ? (
@@ -4973,14 +4821,14 @@ export function SettingsView({
                           label={domain}
                           control={
                             <ActionTooltip label={t('settings.browserUse.remove')} placement="top">
-                              <button
-                                type="button"
+                              <Button
+                                variant="danger"
+                                size="icon"
                                 onClick={() => void handleRemoveBrowserUseDomain('blocked', domain)}
                                 aria-label={t('settings.browserUse.remove')}
-                                style={destructiveIconButtonStyle(false)}
                               >
                                 <Trash2 size={14} strokeWidth={2} aria-hidden />
-                              </button>
+                              </Button>
                             </ActionTooltip>
                           }
                         />
@@ -4991,9 +4839,9 @@ export function SettingsView({
                       title={t('settings.browserUse.allowedDomains')}
                       description={t('settings.browserUse.allowedDomainsHint')}
                       headerAction={
-                        <button type="button" onClick={() => openBrowserUseDomainDialog('allowed')} style={secondaryActionButtonStyle(false)}>
+                        <Button onClick={() => openBrowserUseDomainDialog('allowed')}>
                           {t('settings.browserUse.add')}
-                        </button>
+                        </Button>
                       }
                     >
                       {browserUseAllowedDomains.length === 0 ? (
@@ -5008,14 +4856,14 @@ export function SettingsView({
                           label={domain}
                           control={
                             <ActionTooltip label={t('settings.browserUse.remove')} placement="top">
-                              <button
-                                type="button"
+                              <Button
+                                variant="danger"
+                                size="icon"
                                 onClick={() => void handleRemoveBrowserUseDomain('allowed', domain)}
                                 aria-label={t('settings.browserUse.remove')}
-                                style={destructiveIconButtonStyle(false)}
                               >
                                 <Trash2 size={14} strokeWidth={2} aria-hidden />
-                              </button>
+                              </Button>
                             </ActionTooltip>
                           }
                         />
@@ -5082,9 +4930,9 @@ export function SettingsView({
                             </div>
                           </div>
                           <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
-                            <button type="button" onClick={() => setChromeDetailOpen(true)} style={secondaryActionButtonStyle(false)}>
+                            <Button onClick={() => setChromeDetailOpen(true)}>
                               {t('settings.chrome.manage')}
-                            </button>
+                            </Button>
                             <PillSwitch
                               checked={chromePlugin.enabled}
                               disabled={chromeToggling}
@@ -5304,10 +5152,13 @@ export function SettingsView({
                   !mcpEnabled
                     ? undefined
                     : editingServerName === null ? (
-                      <button type="button" onClick={() => startMcpDraft()} style={primaryIconButtonStyle(false)}>
-                        <Plus size={14} aria-hidden="true" />
-                        <span style={primaryIconButtonLabelStyle}>{t('settings.mcp.addServer')}</span>
-                      </button>
+                      <Button
+                        variant="primary"
+                        onClick={() => startMcpDraft()}
+                        iconLeft={<Plus size={14} aria-hidden="true" />}
+                      >
+                        {t('settings.mcp.addServer')}
+                      </Button>
                     ) : undefined
                 }
                 headerChildren={
@@ -5443,33 +5294,29 @@ export function SettingsView({
                             </div>
                             <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
                             {status?.authStatus === 'notLoggedIn' && (
-                              <button
-                                type="button"
+                              <Button
                                 disabled={authenticatingMcpName === server.name}
                                 onClick={(event) => {
                                   event.stopPropagation()
                                   void handleMcpOAuthLogin(server)
                                 }}
-                                style={secondaryButtonStyle(false)}
                               >
                                 {authenticatingMcpName === server.name
                                   ? t('settings.mcp.authenticating')
                                   : status.failureReason === 'reauthenticationRequired'
                                     ? t('settings.mcp.reauthenticate')
                                     : t('settings.mcp.authenticate')}
-                              </button>
+                              </Button>
                             )}
                             {isPluginManaged ? (
-                              <button
-                                type="button"
+                              <Button
                                 onClick={(event) => {
                                   event.stopPropagation()
                                   void handleViewPluginMcp(server)
                                 }}
-                                style={secondaryButtonStyle(false)}
                               >
                                 {t('settings.mcp.viewPlugin')}
-                              </button>
+                              </Button>
                             ) : (
                               <span
                                 onClick={(event) => event.stopPropagation()}
@@ -5698,43 +5545,35 @@ export function SettingsView({
                     <div style={{ display: 'flex', justifyContent: 'space-between', gap: '12px' }}>
                       <div>
                         {editingServerName !== '__new__' && (
-                          <button
-                            type="button"
+                          <Button
+                            variant="danger"
                             onClick={() => {
                               void handleMcpDelete()
                             }}
                             disabled={deletingMcp || savingMcp}
-                            style={{
-                              ...secondaryButtonStyle(deletingMcp || savingMcp),
-                              color: '#f85149',
-                              borderColor: 'rgba(248,81,73,0.45)'
-                            }}
                           >
                             {deletingMcp ? t('settings.mcp.deleting') : t('settings.mcp.delete')}
-                          </button>
+                          </Button>
                         )}
                       </div>
                       <div style={{ display: 'flex', gap: '8px' }}>
-                        <button
-                          type="button"
+                        <Button
                           onClick={() => {
                             void handleMcpTest()
                           }}
                           disabled={testingMcp || savingMcp}
-                          style={secondaryButtonStyle(testingMcp || savingMcp)}
                         >
                           {testingMcp ? t('settings.mcp.testing') : t('settings.mcp.test')}
-                        </button>
-                        <button
-                          type="button"
+                        </Button>
+                        <Button
+                          variant="primary"
                           onClick={() => {
                             void handleMcpSave()
                           }}
                           disabled={savingMcp || deletingMcp}
-                          style={primaryButtonStyle(savingMcp || deletingMcp)}
                         >
                           {savingMcp ? t('settings.mcp.saving') : t('settings.mcp.save')}
-                        </button>
+                        </Button>
                       </div>
                     </div>
                   </div>
@@ -5814,12 +5653,12 @@ export function SettingsView({
               </div>
             )}
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', marginTop: '18px' }}>
-              <button type="button" onClick={() => setBrowserUseDomainTarget(null)} style={secondaryButtonStyle(false)}>
+              <Button onClick={() => setBrowserUseDomainTarget(null)}>
                 {t('settings.browserUse.cancel')}
-              </button>
-              <button type="button" onClick={() => void handleAddBrowserUseDomain()} style={primaryButtonStyle(false)}>
+              </Button>
+              <Button variant="primary" onClick={() => void handleAddBrowserUseDomain()}>
                 {t('settings.browserUse.add')}
-              </button>
+              </Button>
             </div>
           </div>
         </div>

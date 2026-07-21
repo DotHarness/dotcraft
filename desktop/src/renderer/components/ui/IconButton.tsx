@@ -7,6 +7,8 @@ interface IconButtonProps extends Omit<ButtonHTMLAttributes<HTMLButtonElement>, 
   label: string
   size?: number
   active?: boolean
+  /** Paint a visible neutral border. Reserve for special / important framed controls. */
+  bordered?: boolean
   tooltipLabel?: string
   shortcut?: ShortcutSpec
   tooltipPlacement?: 'top' | 'bottom' | 'left' | 'right'
@@ -18,6 +20,7 @@ export function IconButton({
   label,
   size = 32,
   active = false,
+  bordered = false,
   disabled = false,
   style,
   tooltipLabel,
@@ -31,8 +34,11 @@ export function IconButton({
       type="button"
       aria-label={label}
       disabled={disabled}
+      className="dc-icon-button"
+      data-active={active || undefined}
+      data-bordered={bordered || undefined}
       style={{
-        ...iconButtonStyle(size, active, disabled),
+        ...iconButtonSizeStyle(size),
         ...style
       }}
       {...props}
@@ -55,23 +61,19 @@ export function IconButton({
   )
 }
 
-function iconButtonStyle(size: number, active: boolean, disabled: boolean): CSSProperties {
+// Sizing/layout only. Color, border, hover, active, and disabled states live in the
+// shared `.dc-icon-button` class (tokens.css) so frameless icon buttons get real hover
+// feedback and stay consistent app-wide.
+function iconButtonSizeStyle(size: number): CSSProperties {
   return {
     width: `${size}px`,
     height: `${size}px`,
     minWidth: `${size}px`,
-    borderRadius: active ? '10px' : '9px',
-    border: active ? '1px solid color-mix(in srgb, var(--accent) 55%, transparent)' : '1px solid var(--border-default)',
-    background: active ? 'color-mix(in srgb, var(--accent) 14%, var(--bg-secondary))' : 'var(--bg-secondary)',
-    color: disabled ? 'var(--text-dimmed)' : active ? 'var(--accent)' : 'var(--text-secondary)',
+    borderRadius: '8px',
     display: 'inline-flex',
     alignItems: 'center',
     justifyContent: 'center',
-    cursor: disabled ? 'default' : 'pointer',
-    transition: 'background-color 120ms ease, border-color 120ms ease, color 120ms ease, transform 120ms ease',
-    opacity: disabled ? 0.65 : 1,
     padding: 0,
-    outline: 'none',
     flexShrink: 0
   }
 }

@@ -114,8 +114,10 @@ export interface UIState {
   sidebarPreferredCollapsed: boolean
   sidebarCollapsed: boolean
   sidebarWidth: number
-  /** User preference for whether the detail panel is visible when width allows it. */
+  /** User preference for whether the active thread's detail panel is visible when width allows it. */
   detailPanelPreferredVisible: boolean
+  /** Per-thread detail panel visibility intent for the current renderer session. */
+  detailPanelPreferredVisibleByThread: Record<string, boolean>
   detailPanelVisible: boolean
   /** User preference for detail panel width as a share of the main work surface. */
   detailPanelWidthRatio: number
@@ -253,8 +255,8 @@ interface UIStore extends UIState {
   closeSystemTab(tab: SystemDetailTab, fallbackViewerId?: string | null): void
   /** Resets the detail panel to its empty state (no tabs open → launcher). */
   resetDetailTabs(): void
-  /** Reconciles the detail panel with the active thread's remembered viewer tab. */
-  syncDetailPanelForThread(activeViewerTabId: string | null): void
+  /** Reconciles the detail panel with the incoming thread's saved visibility and viewer tab. */
+  syncDetailPanelForThread(threadId: string | null, activeViewerTabId: string | null): void
   /** Activates a viewer tab by its ID and makes the detail panel visible. */
   setActiveViewerTab(tabId: string, options?: DetailRevealOptions): void
   /** Closes the viewer panel and falls back to an open system tab or the launcher. */
@@ -379,6 +381,15 @@ export function resolveResponsivePanels(
   }
 }
 
+function withActiveThreadDetailVisibility(
+  current: Record<string, boolean>,
+  visible: boolean
+): Record<string, boolean> {
+  const threadId = useThreadStore.getState().activeThreadId
+  if (!threadId || current[threadId] === visible) return current
+  return { ...current, [threadId]: visible }
+}
+
 function normalizeWorkspaceDraftKey(path: string | null | undefined): string {
   return (path ?? '').trim().replace(/\\/g, '/').replace(/\/+$/u, '').toLowerCase()
 }
@@ -404,6 +415,7 @@ export const useUIStore = create<UIStore & InternalState>((set, get) => ({
   sidebarCollapsed: false,
   sidebarWidth: SIDEBAR_DEFAULT_WIDTH,
   detailPanelPreferredVisible: false,
+  detailPanelPreferredVisibleByThread: {},
   detailPanelVisible: false,
   detailPanelWidthRatio: DETAIL_DEFAULT_WIDTH_RATIO,
   detailPanelWidth: DETAIL_DEFAULT_WIDTH,
@@ -506,6 +518,10 @@ export const useUIStore = create<UIStore & InternalState>((set, get) => ({
       const detailPanelPreferredVisible = !state.detailPanelPreferredVisible
       return {
         detailPanelPreferredVisible,
+        detailPanelPreferredVisibleByThread: withActiveThreadDetailVisibility(
+          state.detailPanelPreferredVisibleByThread,
+          detailPanelPreferredVisible
+        ),
         ...resolveResponsivePanels(
           state.responsiveLayout,
           state.sidebarPreferredCollapsed,
@@ -518,6 +534,10 @@ export const useUIStore = create<UIStore & InternalState>((set, get) => ({
   setDetailPanelVisible(visible: boolean) {
     set((state) => ({
       detailPanelPreferredVisible: visible,
+      detailPanelPreferredVisibleByThread: withActiveThreadDetailVisibility(
+        state.detailPanelPreferredVisibleByThread,
+        visible
+      ),
       ...resolveResponsivePanels(
         state.responsiveLayout,
         state.sidebarPreferredCollapsed,
@@ -571,6 +591,9 @@ export const useUIStore = create<UIStore & InternalState>((set, get) => ({
       openSystemTabs: withSystemTabOpen(state.openSystemTabs, tab),
       lastActiveSystemTab: tab,
       detailPanelPreferredVisible,
+      detailPanelPreferredVisibleByThread: options?.reveal === false
+        ? state.detailPanelPreferredVisibleByThread
+        : withActiveThreadDetailVisibility(state.detailPanelPreferredVisibleByThread, true),
       ...resolveResponsivePanels(
         state.responsiveLayout,
         state.sidebarPreferredCollapsed,
@@ -603,6 +626,10 @@ export const useUIStore = create<UIStore & InternalState>((set, get) => ({
         openSystemTabs,
         activeDetailTab: nextActive,
         detailPanelPreferredVisible: false,
+        detailPanelPreferredVisibleByThread: withActiveThreadDetailVisibility(
+          state.detailPanelPreferredVisibleByThread,
+          false
+        ),
         ...resolveResponsivePanels(
           state.responsiveLayout,
           state.sidebarPreferredCollapsed,
@@ -620,6 +647,7 @@ export const useUIStore = create<UIStore & InternalState>((set, get) => ({
       openSystemTabs: [],
       activeDetailTab: { kind: 'launcher' },
       detailPanelPreferredVisible: false,
+      detailPanelPreferredVisibleByThread: {},
       ...resolveResponsivePanels(
         state.responsiveLayout,
         state.sidebarPreferredCollapsed,
@@ -628,11 +656,13 @@ export const useUIStore = create<UIStore & InternalState>((set, get) => ({
     })
   },
 
-  syncDetailPanelForThread(activeViewerTabId) {
+  syncDetailPanelForThread(threadId, activeViewerTabId) {
     const state = get()
     const hasViewerTab = activeViewerTabId != null
     const hasSystemTab = state.openSystemTabs.length > 0
-    const detailPanelPreferredVisible = hasViewerTab || hasSystemTab
+    const savedVisible = threadId != null
+      && state.detailPanelPreferredVisibleByThread[threadId] === true
+    const detailPanelPreferredVisible = savedVisible && (hasViewerTab || hasSystemTab)
     const activeDetailTab: ActiveDetailTab = hasViewerTab
       ? { kind: 'viewer', id: activeViewerTabId }
       : hasSystemTab
@@ -663,6 +693,9 @@ export const useUIStore = create<UIStore & InternalState>((set, get) => ({
     set({
       activeDetailTab: { kind: 'viewer', id: tabId },
       detailPanelPreferredVisible,
+      detailPanelPreferredVisibleByThread: options?.reveal === false
+        ? state.detailPanelPreferredVisibleByThread
+        : withActiveThreadDetailVisibility(state.detailPanelPreferredVisibleByThread, true),
       ...resolveResponsivePanels(
         state.responsiveLayout,
         state.sidebarPreferredCollapsed,
@@ -681,11 +714,9 @@ export const useUIStore = create<UIStore & InternalState>((set, get) => ({
       ? { kind: 'launcher' }
       : { kind: 'system', id: open.includes(state.lastActiveSystemTab) ? state.lastActiveSystemTab : open[open.length - 1] }
     // Closing the last tab empties the panel — auto-hide it instead of leaving the
-    // launcher (welcome) state on screen, so the welcome page only appears when the
-    // user manually opens an empty panel. This also covers the thread-switch sync
-    // (closeViewerTab({ reveal: false })): switching to a thread with no tabs closes
-    // the panel rather than auto-opening it onto the launcher. A remaining system
-    // tab keeps the panel visible (honoring an explicit reveal:false).
+    // launcher (welcome) state on screen, so the welcome page only appears when
+    // the user manually opens an empty panel. A remaining system tab keeps the
+    // panel visible while honoring an explicit reveal:false.
     const detailPanelPreferredVisible = fallsBackToLauncher
       ? false
       : options?.reveal === false
@@ -694,6 +725,9 @@ export const useUIStore = create<UIStore & InternalState>((set, get) => ({
     set({
       activeDetailTab: nextActive,
       detailPanelPreferredVisible,
+      detailPanelPreferredVisibleByThread: fallsBackToLauncher
+        ? withActiveThreadDetailVisibility(state.detailPanelPreferredVisibleByThread, false)
+        : state.detailPanelPreferredVisibleByThread,
       ...resolveResponsivePanels(
         state.responsiveLayout,
         state.sidebarPreferredCollapsed,
@@ -761,6 +795,10 @@ export const useUIStore = create<UIStore & InternalState>((set, get) => ({
       lastActiveSystemTab: 'changes',
       selectedChangedFile: filePath,
       detailPanelPreferredVisible,
+      detailPanelPreferredVisibleByThread: withActiveThreadDetailVisibility(
+        state.detailPanelPreferredVisibleByThread,
+        true
+      ),
       ...resolveResponsivePanels(
         state.responsiveLayout,
         state.sidebarPreferredCollapsed,
@@ -788,6 +826,10 @@ export const useUIStore = create<UIStore & InternalState>((set, get) => ({
     set({
       autoShowReasons,
       detailPanelPreferredVisible,
+      detailPanelPreferredVisibleByThread: withActiveThreadDetailVisibility(
+        state.detailPanelPreferredVisibleByThread,
+        true
+      ),
       ...resolveResponsivePanels(
         state.responsiveLayout,
         state.sidebarPreferredCollapsed,

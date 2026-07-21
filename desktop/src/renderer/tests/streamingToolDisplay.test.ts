@@ -53,6 +53,20 @@ describe('extractPartialJsonStringValue', () => {
       .toBe('hel')
   })
 
+  it('decodes Unicode escapes, including surrogate pairs', () => {
+    const slash = String.fromCharCode(92)
+    const json = `{"content":"${slash}u4fee${slash}u590d ${slash}ud83d${slash}ude80"}`
+
+    expect(extractPartialJsonStringValue(json, 'content')).toBe('修复 🚀')
+  })
+
+  it('preserves an incomplete Unicode escape until more input arrives', () => {
+    const slash = String.fromCharCode(92)
+    const json = `{"content":"${slash}u65`
+
+    expect(extractPartialJsonStringValue(json, 'content')).toBe(`${slash}u65`)
+  })
+
   it('returns null when key is missing', () => {
     expect(extractPartialJsonStringValue('{"path":"a"}', 'content')).toBeNull()
   })

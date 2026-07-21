@@ -6,6 +6,7 @@ import { useUsageStore, type UsageSummaryWire } from '../../stores/usageStore'
 import { ActionTooltip } from '../ui/ActionTooltip'
 import { RefreshIcon } from '../ui/AppIcons'
 import { IconButton } from '../ui/IconButton'
+import { Button } from '../ui/Button'
 import { RunningSpinner } from '../ui/RunningSpinner'
 import { SettingsGroup, SettingsRow } from './SettingsGroup'
 
@@ -77,9 +78,9 @@ export function UsageOverview(): JSX.Element | null {
             <div style={{ ...dimmedTextStyle, color: 'var(--error)' }}>
               {t('settings.usage.loadError')}
             </div>
-            <button type="button" style={linkButtonStyle} onClick={() => void handleRefresh()}>
+            <Button variant="secondary" size="sm" onClick={() => void handleRefresh()} style={{ alignSelf: 'flex-start' }}>
               {t('settings.usage.retry')}
-            </button>
+            </Button>
           </div>
         </SettingsRow>
       ) : isEmpty ? (
@@ -219,15 +220,4 @@ const dimmedTextStyle: CSSProperties = {
   fontSize: '12px',
   color: 'var(--text-dimmed)',
   lineHeight: 1.5
-}
-
-const linkButtonStyle: CSSProperties = {
-  alignSelf: 'flex-start',
-  border: '1px solid var(--border-default)',
-  background: 'var(--bg-secondary)',
-  color: 'var(--text-secondary)',
-  borderRadius: '8px',
-  padding: '4px 12px',
-  fontSize: '12px',
-  cursor: 'pointer'
 }

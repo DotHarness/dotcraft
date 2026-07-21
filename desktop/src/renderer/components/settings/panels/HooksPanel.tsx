@@ -19,6 +19,7 @@ import { addToast } from '../../../stores/toastStore'
 import type { MessageKey } from '../../../../shared/locales'
 import { PluginIcon, pluginTitle } from '../../plugins/PluginCatalogItem'
 import { IconButton } from '../../ui/IconButton'
+import { Button } from '../../ui/Button'
 import { PillSwitch } from '../../ui/PillSwitch'
 import { SettingsBreadcrumb } from '../SettingsBreadcrumb'
 import { SettingsDescriptionWithLearnMore } from '../SettingsLearnMoreLink'
@@ -298,18 +299,9 @@ function PluginTrustOverview({
   const trustStatus = pluginTrustStatus(summary.hooks)
   const needsTrust = trustStatus === 'untrusted' || trustStatus === 'modified'
   const control = needsTrust ? (
-    <button
-      type="button"
-      onClick={onTrustPlugin}
-      disabled={updating}
-      style={{
-        ...trustActionStyle,
-        opacity: updating ? 0.65 : 1,
-        cursor: updating ? 'default' : 'pointer'
-      }}
-    >
+    <Button variant="primary" onClick={onTrustPlugin} disabled={updating}>
       {t('settings.hooks.pluginTrust.action')}
-    </button>
+    </Button>
   ) : (
     <span style={trustBadgeStyle('trusted')}>
       {trustIcon('trusted')}
@@ -438,9 +430,9 @@ function HookRow({
           {hook.statusMessage && <DetailGridRow label={t('settings.hooks.field.status')} value={hook.statusMessage} />}
           {!readOnlyActions && !trusted && (
             <div style={trustActionRowStyle}>
-              <button type="button" onClick={onTrustHook} disabled={updating} style={trustActionStyle}>
+              <Button variant="primary" onClick={onTrustHook} disabled={updating}>
                 {hook.trustStatus === 'modified' ? t('settings.hooks.trustAgain') : t('settings.hooks.trust')}
-              </button>
+              </Button>
             </div>
           )}
         </div>
@@ -752,16 +744,4 @@ const trustActionRowStyle: CSSProperties = {
   display: 'flex',
   justifyContent: 'flex-start',
   paddingTop: 4
-}
-
-const trustActionStyle: CSSProperties = {
-  minHeight: 30,
-  border: '1px solid var(--text-primary)',
-  borderRadius: 7,
-  background: 'var(--text-primary)',
-  color: 'var(--bg-primary)',
-  padding: '0 12px',
-  fontSize: 12,
-  fontWeight: 600,
-  cursor: 'pointer'
 }

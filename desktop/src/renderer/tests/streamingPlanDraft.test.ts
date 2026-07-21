@@ -89,17 +89,18 @@ describe('selectStreamingPlanDraft', () => {
       }
     ])
 
+    const slash = String.fromCharCode(92)
     store.onToolCallArgumentsDelta({
       turnId: 'turn-1',
       itemId: 'item-plan-2',
-      delta: '{"plan":"# X","todos":[{"id":"t1","content":"do A","status":"pending"},{"id":"t2","content":"do B",',
+      delta: `{"plan":"# X","todos":[{"id":"t1","content":"${slash}u4fee${slash}u590d${slash}u6d41${slash}u5f0f${slash}u8ba1${slash}u5212","status":"pending"},{"id":"t2","content":"do B",`,
       toolName: 'CreatePlan',
       callId: 'call-2'
     })
 
     const draft = selectStreamingPlanDraft(useConversationStore.getState())
     expect(draft?.todos).toHaveLength(1)
-    expect(draft?.todos[0]).toEqual({ id: 't1', content: 'do A', status: 'pending' })
+    expect(draft?.todos[0]).toEqual({ id: 't1', content: '修复流式计划', status: 'pending' })
   })
 
   it('stops returning a draft once the tool call completes', () => {

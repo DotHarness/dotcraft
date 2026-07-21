@@ -99,10 +99,12 @@ describe('PlanTab', () => {
       }
     ])
 
+    const slash = String.fromCharCode(92)
+    const escapedTodo = `${slash}u8fd0${slash}u884c${slash}u6d4b${slash}u8bd5`
     store.onToolCallArgumentsDelta({
       turnId: 'turn-1',
       itemId: 'item-plan-3',
-      delta: '{"plan":"# 实时计划","todos":[{"id":"verify","content":"Run tests","status":"pending"}]}',
+      delta: `{"plan":"# 实时计划","todos":[{"id":"verify","content":"${escapedTodo}","status":"pending"}]}`,
       toolName: 'CreatePlan',
       callId: 'call-3'
     })
@@ -112,7 +114,8 @@ describe('PlanTab', () => {
     // Partial-streaming state: real content, no spinner, no visible label.
     expect(screen.queryByText('Drafting plan…')).toBeNull()
     expect(screen.getByText('实时计划')).toBeInTheDocument()
-    expect(screen.getByText('Run tests')).toBeInTheDocument()
+    expect(screen.getByText('运行测试')).toBeInTheDocument()
+    expect(screen.queryByText(escapedTodo)).toBeNull()
     expect(container.querySelector('[data-plan-todo-status="pending"]')).toBeInTheDocument()
   })
 
