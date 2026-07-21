@@ -6,7 +6,7 @@
 | **Status** | Draft |
 | **Date** | 2026-06-01 |
 | **Related Specs** | [Desktop Client](../clients/desktop-client.md), [Desktop DESIGN.md](../architecture/DESIGN.md), [AppServer Protocol](../protocols/appserver-protocol.md), [Hub Architecture](../architecture/hub-architecture.md) |
-| **Reference** | [deploy/docker/README_ZH.md](../../deploy/docker/README_ZH.md), [deploy/docker/README.md](../../deploy/docker/README.md) |
+| **Reference** | [Server deployment](../../docs/features/self-hosted/server-deployment.md), [服务器部署](../../docs/zh/features/self-hosted/server-deployment.md) |
 
 Purpose: Define a Desktop-owned visual manager for remote DotCraft Docker stacks over SSH. Desktop manages multiple servers, and multiple DotCraft Compose stacks per server, using the system `ssh` client and a fixed allow-list of `docker compose` operations. It connects Desktop to a remote AppServer and Dashboard through local SSH tunnels, reusing the existing remote-connection path without changing AppServer Protocol or Hub Protocol.
 

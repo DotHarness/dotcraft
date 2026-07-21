@@ -136,6 +136,8 @@ WECOM_ROBOT_AES_KEY=
 
 如果渠道网关不在同一台服务器上，只显式发布需要的渠道端口，例如在 `.env` 中设置 `QQ_PUBLISH_HOST=0.0.0.0`，并使用强随机渠道访问 token。
 
+微信需要交互式扫码登录。启用后打开 `workspace/.craft/tmp/channel-weixin-standard/qr.png` 并扫描二维码。
+
 ## 可选沙箱
 
 沙箱默认关闭。普通的 `docker compose up -d` 不会挂载宿主机 Docker socket。
@@ -147,6 +149,15 @@ SANDBOX_ENABLED=true docker compose --profile sandbox up -d
 ```
 
 这会用同一个镜像启动第二个服务，并挂载 `/var/run/docker.sock`。DotCraft 配置会把 `Tools.Sandbox.Domain` 指向 `opensandbox:5880`。
+
+## 本地构建镜像
+
+Compose 默认拉取 `ghcr.io/dotharness/dotcraft:latest`。如果要从源码构建，请取消 `dotcraft` 服务下 `build:` 配置的注释，然后运行：
+
+```bash
+docker compose build dotcraft
+docker compose up -d
+```
 
 ## 生产环境注意事项
 
@@ -160,4 +171,3 @@ SANDBOX_ENABLED=true docker compose --profile sandbox up -d
 - [Channels 与 Bots](../entry-points/channels)
 - [安全与沙箱](./security)
 - [可观测性](./observability)
-- Docker 快速开始见 `deploy/docker/README_ZH.md`

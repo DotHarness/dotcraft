@@ -136,6 +136,8 @@ Advanced fields stay in the mounted channel files, for example `workspace/.craft
 
 If a channel gateway runs outside the server, publish only the required channel port explicitly in `.env`, for example `QQ_PUBLISH_HOST=0.0.0.0`, and keep the channel access token strong.
 
+Weixin requires an interactive QR login. After enabling it, open `workspace/.craft/tmp/channel-weixin-standard/qr.png` and scan the code.
+
 ## Optional Sandbox
 
 Sandbox is off by default. Plain `docker compose up -d` does not mount the host Docker socket.
@@ -147,6 +149,15 @@ SANDBOX_ENABLED=true docker compose --profile sandbox up -d
 ```
 
 This starts a second service from the same image and mounts `/var/run/docker.sock`. DotCraft config points `Tools.Sandbox.Domain` to `opensandbox:5880`.
+
+## Build the image locally
+
+The Compose file pulls `ghcr.io/dotharness/dotcraft:latest` by default. To build from a source checkout, uncomment the `build:` section under the `dotcraft` service, then run:
+
+```bash
+docker compose build dotcraft
+docker compose up -d
+```
 
 ## Production Notes
 
@@ -160,4 +171,3 @@ This starts a second service from the same image and mounts `/var/run/docker.soc
 - [Channels & Bots](../entry-points/channels)
 - [Security & Sandbox](./security)
 - [Observability](./observability)
-- Docker quickstart in `deploy/docker/README.md`
