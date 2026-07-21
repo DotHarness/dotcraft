@@ -97,6 +97,18 @@ export function extractPartialJsonStringValue(json: string, key: string): string
         case '\\': out += '\\'; break
         case '"': out += '"'; break
         case '/': out += '/'; break
+        case 'u': {
+          const codeUnit = json.slice(i + 1, i + 5)
+          if (/^[0-9a-fA-F]{4}$/.test(codeUnit)) {
+            out += String.fromCharCode(Number.parseInt(codeUnit, 16))
+            i += 4
+          } else {
+            // Preserve incomplete or invalid escapes until the stream supplies
+            // enough input to decode them safely on a later render.
+            out += '\\u'
+          }
+          break
+        }
         default: out += '\\' + ch; break
       }
       escaped = false

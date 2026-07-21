@@ -18,11 +18,9 @@ import {
   pageDescriptionStyle,
   pageHeadingStyle,
   pageStyle,
-  pillBadgeStyle,
-  primaryButtonStyle,
-  secondaryButtonStyle,
-  dangerButtonStyle
+  pillBadgeStyle
 } from './styles'
+import { Button } from '../../../ui/Button'
 import {
   buildPresetOverrideWire,
   createPresetOverrideState,
@@ -244,22 +242,17 @@ export function PresetProfileDetail({
 
       {!showCustomize ? (
         <div style={actionBarStyle()}>
-          <button
-            type="button"
-            onClick={() => setShowCustomize(true)}
-            style={secondaryButtonStyle()}
-          >
+          <Button onClick={() => setShowCustomize(true)}>
             {t('settings.subAgents.preset.customize')}
-          </button>
+          </Button>
           {profile.hasWorkspaceOverride && (
-            <button
-              type="button"
+            <Button
+              variant="danger"
               onClick={handleRestore}
-              style={dangerButtonStyle(restoring)}
               disabled={restoring}
             >
               {restoring ? t('settings.subAgents.deleting') : t('settings.subAgents.preset.restoreDefaults')}
-            </button>
+            </Button>
           )}
         </div>
       ) : (
@@ -312,8 +305,7 @@ export function PresetProfileDetail({
           {errorMessage && <div style={noticeStyle('error')}>{errorMessage}</div>}
 
           <div style={{ ...actionBarStyle(), padding: '12px 16px' }}>
-            <button
-              type="button"
+            <Button
               onClick={() => {
                 setShowCustomize(false)
                 setErrorMessage(null)
@@ -322,31 +314,28 @@ export function PresetProfileDetail({
                 setTimeoutValue(initial.timeout)
                 setExtraArgRows(normalizeValueRows(initial.extraArgs))
               }}
-              style={secondaryButtonStyle(saving)}
               disabled={saving}
             >
               {t('settings.subAgents.cancel')}
-            </button>
+            </Button>
             {profile.hasWorkspaceOverride && (
-              <button
-                type="button"
+              <Button
+                variant="danger"
                 onClick={handleRestore}
-                style={dangerButtonStyle(restoring)}
                 disabled={restoring}
               >
                 {restoring
                   ? t('settings.subAgents.deleting')
                   : t('settings.subAgents.preset.restoreDefaults')}
-              </button>
+              </Button>
             )}
-            <button
-              type="button"
+            <Button
+              variant="primary"
               onClick={handleSave}
-              style={primaryButtonStyle(!canSubmit)}
               disabled={!canSubmit}
             >
               {saving ? t('settings.subAgents.saving') : t('settings.subAgents.preset.saveOverride')}
-            </button>
+            </Button>
           </div>
         </SettingsGroup>
       )}

@@ -267,11 +267,15 @@ Primary actions use neutral inversion:
 }
 ```
 
-Secondary actions use neutral filled or bordered controls:
+Action buttons are frameless by default. Secondary actions use a neutral frameless
+fill:
 
-- border: `var(--border-default)`;
-- background: `var(--bg-secondary)` or transparent for low-density surfaces;
-- text: `var(--text-primary)` or `var(--text-secondary)` by priority.
+- background: a subtle `--text-primary` tint (~6%, hover ~11%);
+- border: transparent (reserved in the box model, not painted);
+- text: `var(--text-primary)`.
+
+A visible border is reserved for the `outline` variant and used only for special or
+important framed actions — it is not the default for ordinary controls.
 
 Ordinary management actions, including `Manage`, `Configure`, `Refresh`, and
 repeated row controls, are secondary actions unless they are the one immediate
@@ -282,8 +286,9 @@ Tertiary actions are transparent text/icon controls with neutral hover feedback.
 Use them for inline affordances, low-frequency commands, and compact toolbars.
 
 Destructive actions must use explicit copy such as Delete, Remove, Discard, or
-Stop. Use `--error` for the danger affordance, but keep surrounding chrome
-neutral and require confirmation where appropriate.
+Stop. The danger affordance is a frameless `--error` fill (~10% tint, hover ~18%)
+with `--error` text — not a bordered outline. Keep surrounding chrome neutral and
+require confirmation where appropriate.
 
 Text action buttons use a shared size so controls line up across panels,
 toolbars, rows, and dialogs:
@@ -302,18 +307,38 @@ shape; ordinary repeated or in-row actions stay at the `32px` / `8px` standard.
 When a prominent pill shares a row with other buttons, raise the others to the
 same height so the row still aligns.
 
+These action rules are implemented by the shared `Button` component and its
+`.dc-button` styles. Route new text and icon actions through it instead of
+re-deriving inline button styles. Choose the action hierarchy with the `variant`
+prop and the footprint with the `size` prop:
+
+- `variant`: `primary` (neutral inversion, the one immediate action), `secondary`
+  (frameless neutral fill, the common action), `ghost` (transparent tertiary),
+  `danger` (frameless semantic fill, paired with explicit Delete/Remove/Stop copy),
+  `accent` (restrained brand, never the default create/save/manage), `outline` (the
+  one bordered variant — only for special / important framed actions).
+- `size`: `default` (the `32px` control band), `sm`, `icon`, `iconSm`.
+
+Buttons are frameless by default. Every variant keeps a `1px` border in the box
+model but only `outline` paints it visibly, so switching a button between fills and
+frames never shifts height or alignment — the "border-reserved" treatment. Heights
+come from `--button-height` / `--button-height-sm` so buttons, selects, and icon
+buttons share one control band.
+
 ### Icon Buttons
 
-Toolbar icon buttons generally use a 32px square treatment:
+Icon buttons (the shared `IconButton`, styled by `.dc-icon-button`) are frameless by
+default, matching the frameless action language:
 
-- 32px width and height;
-- 8px radius for toolbar/catalog controls;
-- `1px solid var(--border-default)`;
-- `var(--bg-secondary)` background;
-- `var(--text-secondary)` icon color.
+- 32px width and height; 8px radius for toolbar/catalog controls;
+- transparent surface with a reserved `1px` transparent border;
+- `var(--text-secondary)` icon color, with a neutral hover fill
+  (`var(--bg-tertiary)` + `var(--text-primary)`);
+- `active` marks a selected/toggled state with a subtle accent tint.
 
-Modal close buttons are the main exception. They should be borderless,
-transparent icon buttons with neutral hover feedback.
+A visible neutral frame (`bordered`: `var(--bg-secondary)` +
+`1px solid var(--border-default)`) is opt-in and reserved for special or important
+icon controls. Modal close buttons stay borderless with neutral hover feedback.
 
 ### Dialog Headers
 
@@ -493,6 +518,10 @@ Do:
 - Read this file and inspect nearby Desktop components before changing styling.
 - Use tokens and existing style constants before adding new local styles.
 - Decide the action hierarchy before choosing a button treatment.
+- Route text and icon actions through the shared `Button` component and its
+  variants rather than hand-rolling per-call inline button styles.
+- Keep action and icon buttons frameless by default; reserve a visible border for
+  the `outline` variant / `bordered` icon buttons in special or important cases.
 - Keep every view's main visual language neutral unless this file assigns a
   stronger role.
 - Test or inspect light and dark themes when changing colors, contrast, or
@@ -507,6 +536,8 @@ Don't:
   migration step.
 - Use brand blue, accent borders, decorative gradients, or glow rings for
   ordinary actions.
+- Add a visible border to ordinary buttons; frameless is the default and borders
+  are reserved for `outline` / `bordered` special cases.
 - Add page-specific palettes to feature views.
 - Put cards inside decorative cards.
 - Add visible borders to ordinary menu rows, picker options, or sidebar rows.
@@ -518,6 +549,10 @@ Review checklist:
 
 - No new raw colors were introduced without a documented exception.
 - Ordinary primary actions use neutral inversion, not accent blue.
+- Actions use the shared `Button` component / variants; no new one-off inline
+  button styles, and buttons in a row share one height via `--button-height`.
+- Action and icon buttons are frameless by default; any visible border uses the
+  `outline` variant / `bordered` icon button for a special or important case.
 - Each surface has at most one immediate primary action.
 - Semantic colors are used only for status, risk, or validation.
 - Provider/channel colors remain small identity accents.

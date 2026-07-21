@@ -1,4 +1,5 @@
 import type { CSSProperties, Dispatch, JSX, SetStateAction } from 'react'
+import { Button } from '../../ui/Button'
 
 export interface ValueRow {
   id: string
@@ -88,14 +89,14 @@ export function EditableValueList({
             placeholder={placeholder}
             style={inputStyle(true)}
           />
-          <button type="button" onClick={() => removeRow(row.id)} style={secondaryButtonStyle()}>
+          <Button onClick={() => removeRow(row.id)}>
             {removeLabel}
-          </button>
+          </Button>
         </div>
       ))}
-      <button type="button" onClick={addRow} style={secondaryButtonStyle()}>
+      <Button onClick={addRow}>
         {addLabel}
-      </button>
+      </Button>
     </div>
   )
 }
@@ -151,14 +152,14 @@ export function EditableKeyValueList({
             placeholder={valuePlaceholder}
             style={inputStyle(true)}
           />
-          <button type="button" onClick={() => removeRow(row.id)} style={secondaryButtonStyle()}>
+          <Button onClick={() => removeRow(row.id)}>
             {removeLabel}
-          </button>
+          </Button>
         </div>
       ))}
-      <button type="button" onClick={addRow} style={secondaryButtonStyle()}>
+      <Button onClick={addRow}>
         {addLabel}
-      </button>
+      </Button>
     </div>
   )
 }
@@ -175,18 +176,5 @@ function inputStyle(mono = false): CSSProperties {
     color: 'var(--text-primary)',
     outline: 'none',
     fontFamily: mono ? 'var(--font-mono)' : undefined
-  }
-}
-
-function secondaryButtonStyle(): CSSProperties {
-  return {
-    padding: '8px 14px',
-    border: '1px solid var(--border-default)',
-    borderRadius: '8px',
-    background: 'transparent',
-    color: 'var(--text-primary)',
-    fontSize: '13px',
-    fontWeight: 500,
-    cursor: 'pointer'
   }
 }

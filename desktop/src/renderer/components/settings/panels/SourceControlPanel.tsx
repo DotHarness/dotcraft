@@ -9,6 +9,7 @@ import { SettingsGroup, SettingsRow } from '../SettingsGroup'
 import { SegmentedControl } from '../ui/SegmentedControl'
 import { SettingsSelect } from '../ui/SettingsSelect'
 import { PillSwitch } from '../../ui/PillSwitch'
+import { Button } from '../../ui/Button'
 
 // ─── Wire types (mirror src/DotCraft.Core/Protocol/AppServer/Wire/SourceControlWire.cs) ───
 
@@ -536,14 +537,12 @@ export function SourceControlPanel({ workspacePath }: SourceControlPanelProps): 
           {isPerforce && (
             <SettingsGroup title={t('settings.sourceControl.test.title')}>
               <SettingsRow>
-                <button
-                  type="button"
+                <Button
                   onClick={() => void handleTest()}
                   disabled={testing}
-                  style={secondaryButtonStyle(testing)}
                 >
                   {testing ? t('settings.sourceControl.action.testing') : t('settings.sourceControl.action.test')}
-                </button>
+                </Button>
               </SettingsRow>
               {testResult && (
                 <SettingsRow>
@@ -566,14 +565,14 @@ export function SourceControlPanel({ workspacePath }: SourceControlPanelProps): 
                 {t('settings.sourceControl.action.saved')}
               </span>
             )}
-            <button type="button" onClick={handleDiscard} disabled={!dirty || saving} style={secondaryButtonStyle(!dirty || saving)}>
+            <Button onClick={handleDiscard} disabled={!dirty || saving}>
               {t('settings.sourceControl.action.discard')}
-            </button>
-            <button type="button" onClick={() => void handleSave()} disabled={saving} style={primaryButtonStyle(saving)}>
+            </Button>
+            <Button variant="primary" onClick={() => void handleSave()} disabled={saving}>
               {isPerforce && testConnected
                 ? t('settings.sourceControl.action.save')
                 : t('settings.sourceControl.action.saveGeneric')}
-            </button>
+            </Button>
           </div>
         </>
       )}
@@ -720,9 +719,9 @@ function TestResultView({
         </ul>
       )}
 
-      <button type="button" onClick={onToggleDetails} style={linkButtonStyle}>
+      <Button variant="ghost" size="sm" onClick={onToggleDetails} style={{ alignSelf: 'flex-start' }}>
         {showDetails ? t('settings.sourceControl.test.hideDetails') : t('settings.sourceControl.test.showDetails')}
-      </button>
+      </Button>
 
       {showDetails && (
         <dl style={detailGridStyle}>
@@ -795,37 +794,6 @@ const inputStyle: CSSProperties = {
   outline: 'none'
 }
 
-function primaryButtonStyle(disabled: boolean): CSSProperties {
-  return {
-    display: 'inline-flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: '6px',
-    padding: '8px 14px',
-    border: 'none',
-    borderRadius: '8px',
-    backgroundColor: disabled ? 'var(--bg-tertiary)' : 'var(--text-primary)',
-    color: disabled ? 'var(--text-tertiary)' : 'var(--bg-primary)',
-    fontSize: '13px',
-    fontWeight: 600,
-    cursor: disabled ? 'default' : 'pointer'
-  }
-}
-
-function secondaryButtonStyle(disabled: boolean): CSSProperties {
-  return {
-    padding: '8px 14px',
-    border: '1px solid var(--border-default)',
-    borderRadius: '8px',
-    background: 'transparent',
-    color: 'var(--text-primary)',
-    fontSize: '13px',
-    fontWeight: 500,
-    cursor: disabled ? 'default' : 'pointer',
-    opacity: disabled ? 0.6 : 1
-  }
-}
-
 function noticeStyle(tone: 'error' | 'info' | 'warning' | 'success'): CSSProperties {
   const palette =
     tone === 'error'
@@ -851,16 +819,6 @@ const footerStyle: CSSProperties = {
   alignItems: 'center',
   gap: '10px',
   flexWrap: 'wrap'
-}
-
-const linkButtonStyle: CSSProperties = {
-  alignSelf: 'flex-start',
-  background: 'none',
-  border: 'none',
-  padding: 0,
-  fontSize: '12px',
-  color: 'var(--accent, #3b82f6)',
-  cursor: 'pointer'
 }
 
 const diagListStyle: CSSProperties = {

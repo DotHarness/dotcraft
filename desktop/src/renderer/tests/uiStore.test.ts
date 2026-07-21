@@ -236,10 +236,12 @@ describe('uiStore pending welcome turn', () => {
 
 describe('uiStore responsive panel preferences', () => {
   beforeEach(() => {
+    useThreadStore.setState({ activeThreadId: 'thread-a' })
     useUIStore.setState({
       sidebarPreferredCollapsed: false,
       sidebarCollapsed: false,
       detailPanelPreferredVisible: true,
+      detailPanelPreferredVisibleByThread: { 'thread-a': true },
       detailPanelVisible: true,
       detailPanelWidth: DETAIL_DEFAULT_WIDTH,
       detailPanelWidthRatio: DETAIL_DEFAULT_WIDTH_RATIO,
@@ -255,6 +257,7 @@ describe('uiStore responsive panel preferences', () => {
     useUIStore.getState().setDetailPanelVisible(false)
 
     expect(useUIStore.getState().detailPanelPreferredVisible).toBe(false)
+    expect(useUIStore.getState().detailPanelPreferredVisibleByThread['thread-a']).toBe(false)
     expect(useUIStore.getState().detailPanelVisible).toBe(false)
 
     useUIStore.getState().setResponsiveLayout('full')
@@ -325,6 +328,7 @@ describe('uiStore responsive panel preferences', () => {
     expect(useUIStore.getState().activeDetailTab).toEqual({ kind: 'system', id: 'plan' })
     expect(useUIStore.getState().lastActiveSystemTab).toBe('plan')
     expect(useUIStore.getState().detailPanelPreferredVisible).toBe(false)
+    expect(useUIStore.getState().detailPanelPreferredVisibleByThread['thread-a']).toBe(false)
     expect(useUIStore.getState().detailPanelVisible).toBe(false)
   })
 
@@ -335,6 +339,7 @@ describe('uiStore responsive panel preferences', () => {
 
     expect(useUIStore.getState().activeDetailTab).toEqual({ kind: 'viewer', id: 'vtab-hidden' })
     expect(useUIStore.getState().detailPanelPreferredVisible).toBe(false)
+    expect(useUIStore.getState().detailPanelPreferredVisibleByThread['thread-a']).toBe(false)
     expect(useUIStore.getState().detailPanelVisible).toBe(false)
   })
 
@@ -344,6 +349,7 @@ describe('uiStore responsive panel preferences', () => {
     useUIStore.getState().setActiveDetailTab('plan')
 
     expect(useUIStore.getState().detailPanelPreferredVisible).toBe(true)
+    expect(useUIStore.getState().detailPanelPreferredVisibleByThread['thread-a']).toBe(true)
     expect(useUIStore.getState().detailPanelVisible).toBe(true)
   })
 })

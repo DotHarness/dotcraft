@@ -50,6 +50,8 @@ describe('CreatePlanCard', () => {
   })
 
   it('streams todo items from the partial preview while CreatePlan runs', () => {
+    const slash = String.fromCharCode(92)
+    const escapedTodo = `${slash}u7b2c${slash}u4e00${slash}u4e2a${slash}u4efb${slash}u52a1`
     const item: ConversationItem = {
       id: 'plan-streaming-todos',
       type: 'toolCall',
@@ -57,7 +59,7 @@ describe('CreatePlanCard', () => {
       toolName: 'CreatePlan',
       toolCallId: 'call-stream-todos',
       argumentsPreview:
-        '{"plan":"# Streaming Plan\\n\\n## Summary\\n\\nDraft","todos":[{"id":"t1","content":"First task","status":"pending"},{"id":"t2","content":"Second task",',
+        `{"plan":"# Streaming Plan\\n\\n## Summary\\n\\nDraft","todos":[{"id":"t1","content":"${escapedTodo}","status":"pending"},{"id":"t2","content":"Second task",`,
       createdAt: new Date().toISOString()
     }
 
@@ -67,7 +69,8 @@ describe('CreatePlanCard', () => {
 
     // The closed todo object renders; the still-streaming one waits for its
     // closing brace, matching the Detail Panel's line-by-line behavior.
-    expect(screen.getByText('First task')).toBeInTheDocument()
+    expect(screen.getByText('第一个任务')).toBeInTheDocument()
+    expect(screen.queryByText(escapedTodo)).toBeNull()
     expect(screen.queryByText('Second task')).toBeNull()
   })
 

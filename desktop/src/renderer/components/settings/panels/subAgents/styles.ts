@@ -45,68 +45,6 @@ export function monoTextAreaStyle(): CSSProperties {
   }
 }
 
-export function primaryButtonStyle(disabled = false): CSSProperties {
-  return {
-    display: 'inline-flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: '6px',
-    height: '32px',
-    padding: '0 14px',
-    boxSizing: 'border-box',
-    lineHeight: 1,
-    border: 'none',
-    borderRadius: '8px',
-    backgroundColor: disabled ? 'var(--bg-tertiary)' : 'var(--text-primary)',
-    color: disabled ? 'var(--text-tertiary)' : 'var(--bg-primary)',
-    fontSize: '13px',
-    fontWeight: 600,
-    cursor: disabled ? 'default' : 'pointer'
-  }
-}
-
-export function secondaryButtonStyle(disabled = false): CSSProperties {
-  return {
-    display: 'inline-flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: '6px',
-    height: '32px',
-    padding: '0 14px',
-    boxSizing: 'border-box',
-    lineHeight: 1,
-    border: '1px solid var(--border-default)',
-    borderRadius: '8px',
-    background: 'transparent',
-    color: 'var(--text-primary)',
-    fontSize: '13px',
-    fontWeight: 500,
-    cursor: disabled ? 'default' : 'pointer',
-    opacity: disabled ? 0.7 : 1
-  }
-}
-
-export function dangerButtonStyle(disabled = false): CSSProperties {
-  return {
-    display: 'inline-flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: '6px',
-    height: '32px',
-    padding: '0 14px',
-    boxSizing: 'border-box',
-    lineHeight: 1,
-    border: '1px solid color-mix(in srgb, var(--error, #ff453a) 45%, var(--border-default))',
-    borderRadius: '8px',
-    background: 'transparent',
-    color: 'var(--error, #ff453a)',
-    fontSize: '13px',
-    fontWeight: 500,
-    cursor: disabled ? 'default' : 'pointer',
-    opacity: disabled ? 0.6 : 1
-  }
-}
-
 export function pillBadgeStyle(tone: 'neutral' | 'accent' | 'warning' | 'success'): CSSProperties {
   const { bg, fg } = pillPalette(tone)
   return {

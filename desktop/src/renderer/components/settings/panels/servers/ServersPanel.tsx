@@ -23,6 +23,8 @@ import {
 import { SettingsPanelShell } from '../../SettingsPanelShell'
 import { SettingsDescriptionWithLearnMore } from '../../SettingsLearnMoreLink'
 import { SettingsGroup, SettingsRow } from '../../SettingsGroup'
+import { Button } from '../../../ui/Button'
+import { IconButton } from '../../../ui/IconButton'
 import { useConfirmDialog } from '../../../ui/ConfirmDialog'
 import { useT } from '../../../../contexts/LocaleContext'
 import { useRemoteServersStore } from '../../../../stores/remoteServersStore'
@@ -227,9 +229,9 @@ function ServerFormPage({ host, onBack, onSaved }: ServerFormProps): JSX.Element
       title={editing ? t('settings.servers.form.editTitle') : t('settings.servers.form.addTitle')}
       description={t('settings.servers.form.description')}
       action={
-        <button type="button" onClick={onBack} style={s.btn}>
-          <ArrowLeft size={15} /> {t('settings.servers.back')}
-        </button>
+        <Button onClick={onBack} iconLeft={<ArrowLeft size={15} />}>
+          {t('settings.servers.back')}
+        </Button>
       }
     >
       <SettingsGroup title={t('settings.servers.form.identity')} flush>
@@ -317,9 +319,9 @@ function ServerFormPage({ host, onBack, onSaved }: ServerFormProps): JSX.Element
             <div style={s.fieldHint}>{authHint}</div>
           </div>
           {identityFile.trim() && (
-            <button type="button" style={{ ...s.btn, alignSelf: 'flex-start' }} onClick={() => setIdentityFile('')}>
+            <Button style={{ alignSelf: 'flex-start' }} onClick={() => setIdentityFile('')}>
               {t('settings.servers.auth.useSshConfig')}
-            </button>
+            </Button>
           )}
         </div>
 
@@ -359,17 +361,20 @@ function ServerFormPage({ host, onBack, onSaved }: ServerFormProps): JSX.Element
       )}
 
       <div style={s.formActions}>
-        <button style={s.btn} onClick={handleTest} disabled={!sshTarget.trim() || testing}>
-          {testing ? <Loader2 size={15} className="animate-spin-custom" /> : <RefreshCw size={15} />}
+        <Button
+          onClick={handleTest}
+          disabled={!sshTarget.trim() || testing}
+          iconLeft={testing ? <Loader2 size={15} className="animate-spin-custom" /> : <RefreshCw size={15} />}
+        >
           {t('settings.servers.test.button')}
-        </button>
+        </Button>
         <span style={{ flex: 1 }} />
-        <button style={s.btn} onClick={onBack}>
+        <Button onClick={onBack}>
           {t('settings.servers.cancel')}
-        </button>
-        <button style={{ ...s.btnPrimary, opacity: canSave ? 1 : 0.5 }} onClick={handleSave} disabled={!canSave}>
+        </Button>
+        <Button variant="primary" onClick={handleSave} disabled={!canSave}>
           {editing ? t('settings.servers.save') : t('settings.servers.addServer')}
-        </button>
+        </Button>
       </div>
     </SettingsPanelShell>
   )
@@ -463,9 +468,9 @@ function StackFormPage({
       title={editing ? t('settings.servers.stack.editTitle') : t('settings.servers.stack.addTitle')}
       description={t('settings.servers.stack.description', { server: host.name })}
       action={
-        <button type="button" onClick={onBack} style={s.btn}>
-          <ArrowLeft size={15} /> {t('settings.servers.back')}
-        </button>
+        <Button onClick={onBack} iconLeft={<ArrowLeft size={15} />}>
+          {t('settings.servers.back')}
+        </Button>
       }
     >
       <SettingsGroup title={t('settings.servers.stack.deployment')} flush>
@@ -475,10 +480,13 @@ function StackFormPage({
               <div style={{ fontSize: 12.5, fontWeight: 600 }}>{t('settings.servers.stack.discoverTitle')}</div>
               <div style={s.fieldHint}>{t('settings.servers.stack.discoverHint')}</div>
             </div>
-            <button type="button" style={s.btn} disabled={discovering} onClick={handleDiscover}>
-              {discovering ? <Loader2 size={15} className="animate-spin-custom" /> : <Search size={15} />}
+            <Button
+              disabled={discovering}
+              onClick={handleDiscover}
+              iconLeft={discovering ? <Loader2 size={15} className="animate-spin-custom" /> : <Search size={15} />}
+            >
               {t('settings.servers.stack.discover')}
-            </button>
+            </Button>
           </div>
 
           {discoveredStacks.length > 0 && (
@@ -619,12 +627,12 @@ function StackFormPage({
 
       <div style={s.formActions}>
         <span style={{ flex: 1 }} />
-        <button style={s.btn} onClick={onBack}>
+        <Button onClick={onBack}>
           {t('settings.servers.cancel')}
-        </button>
-        <button style={{ ...s.btnPrimary, opacity: canSave ? 1 : 0.5 }} onClick={handleSave} disabled={!canSave}>
+        </Button>
+        <Button variant="primary" onClick={handleSave} disabled={!canSave}>
           {editing ? t('settings.servers.save') : t('settings.servers.stack.addButton')}
-        </button>
+        </Button>
       </div>
     </SettingsPanelShell>
   )
@@ -730,14 +738,15 @@ function StackCard({
           <span style={{ color: 'var(--text-secondary)', fontSize: 12 }}>{appVersion}</span>
         )}
         <div style={{ position: 'relative' }}>
-          <button
+          <Button
+            variant="ghost"
+            size="icon"
             aria-label={t('settings.servers.stack.more')}
-            style={{ ...s.iconBtnGhost, opacity: operationBusy ? 0.55 : 1, cursor: operationBusy ? 'default' : 'pointer' }}
             disabled={operationBusy}
             onClick={() => setMenuOpen((v) => !v)}
           >
             <MoreHorizontal size={16} />
-          </button>
+          </Button>
           {menuOpen && (
             <>
               <div style={{ position: 'fixed', inset: 0, zIndex: 19 }} onClick={() => setMenuOpen(false)} />
@@ -820,33 +829,36 @@ function StackCard({
 
       <div style={s.stackActions}>
         {active ? (
-          <button
-            style={{ ...s.btnDanger, ...s.btnSm, opacity: operationBusy ? 0.6 : 1, cursor: operationBusy ? 'default' : 'pointer' }}
+          <Button
+            variant="danger"
+            size="sm"
             disabled={operationBusy}
             onClick={() => store.disconnect(host.id, stack.id)}
           >
             {t('settings.servers.stack.disconnect')}
-          </button>
+          </Button>
         ) : (
-          <button
-            style={{ ...s.btnPrimary, ...s.btnSm, opacity: operationBusy ? 0.6 : 1, cursor: operationBusy ? 'default' : 'pointer' }}
+          <Button
+            variant="primary"
+            size="sm"
             disabled={operationBusy}
             onClick={() => store.openInDesktop(host.id, stack.id)}
+            iconLeft={connectBusy ? <Loader2 size={14} className="animate-spin-custom" /> : undefined}
           >
-            {connectBusy ? <Loader2 size={14} className="animate-spin-custom" /> : null}
             {t('settings.servers.stack.openInDesktop')}
-          </button>
+          </Button>
         )}
-        <button
-          style={{ ...s.btn, ...s.btnSm, opacity: operationBusy ? 0.6 : 1, cursor: operationBusy ? 'default' : 'pointer' }}
+        <Button
+          size="sm"
           disabled={operationBusy}
           onClick={() => store.openDashboard(host.id, stack.id)}
+          iconLeft={<ExternalLink size={14} />}
         >
-          <ExternalLink size={14} /> {t('settings.servers.stack.dashboard')}
-        </button>
-        <button style={{ ...s.btn, ...s.btnSm }} onClick={toggleLogs}>
-          <Terminal size={14} /> {t('settings.servers.stack.logs')}
-        </button>
+          {t('settings.servers.stack.dashboard')}
+        </Button>
+        <Button size="sm" onClick={toggleLogs} iconLeft={<Terminal size={14} />}>
+          {t('settings.servers.stack.logs')}
+        </Button>
       </div>
 
       {logsOpen && (
@@ -930,9 +942,12 @@ function ServerDetail({
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
-        <button aria-label={t('settings.servers.back')} style={{ ...s.iconBtn, marginTop: 2 }} onClick={onBack}>
-          <ArrowLeft size={16} />
-        </button>
+        <IconButton
+          icon={<ArrowLeft size={16} />}
+          label={t('settings.servers.back')}
+          onClick={onBack}
+          style={{ marginTop: 2 }}
+        />
         <div>
           <div style={{ fontSize: 19, fontWeight: 650 }}>{host.name}</div>
           <div style={{ marginTop: 4, color: 'var(--text-secondary)', fontSize: 12.5, fontFamily: 'var(--font-mono)' }}>
@@ -945,16 +960,21 @@ function ServerDetail({
               <StatusText tone={reach.tone}>{reach.label}</StatusText>
             </span>
           )}
-          <button style={s.btn} disabled={testing} onClick={handleTestSsh}>
-            {testing ? <Loader2 size={15} className="animate-spin-custom" /> : <RefreshCw size={15} />}
+          <Button
+            disabled={testing}
+            onClick={handleTestSsh}
+            iconLeft={testing ? <Loader2 size={15} className="animate-spin-custom" /> : <RefreshCw size={15} />}
+          >
             {t('settings.servers.test.button')}
-          </button>
-          <button style={s.iconBtn} aria-label={t('settings.servers.detail.editAria')} onClick={onEditServer}>
-            <Pencil size={16} />
-          </button>
-          <button
-            style={s.iconBtn}
-            aria-label={t('settings.servers.detail.removeAria')}
+          </Button>
+          <IconButton
+            icon={<Pencil size={16} />}
+            label={t('settings.servers.detail.editAria')}
+            onClick={onEditServer}
+          />
+          <IconButton
+            icon={<Trash2 size={16} />}
+            label={t('settings.servers.detail.removeAria')}
             onClick={async () => {
               const ok = await confirm({
                 title: t('settings.servers.confirm.removeServerTitle', { name: host.name }),
@@ -967,17 +987,15 @@ function ServerDetail({
                 onBack()
               }
             }}
-          >
-            <Trash2 size={16} />
-          </button>
+          />
         </div>
       </div>
 
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <h3 style={{ margin: 0, fontSize: 13, fontWeight: 600 }}>{t('settings.servers.detail.stacks')}</h3>
-        <button style={{ ...s.btn, ...s.btnSm }} onClick={onAddStack}>
-          <Plus size={14} /> {t('settings.servers.stack.addButton')}
-        </button>
+        <Button size="sm" onClick={onAddStack} iconLeft={<Plus size={14} />}>
+          {t('settings.servers.stack.addButton')}
+        </Button>
       </div>
 
       {unreachable ? (
@@ -991,9 +1009,9 @@ function ServerDetail({
               {result?.message ?? t('settings.servers.detail.sshFailed')}
             </div>
             <div style={{ marginTop: 10 }}>
-              <button style={{ ...s.btn, ...s.btnSm }} disabled={testing} onClick={handleTestSsh}>
-                <RefreshCw size={14} /> {t('settings.servers.test.button')}
-              </button>
+              <Button size="sm" disabled={testing} onClick={handleTestSsh} iconLeft={<RefreshCw size={14} />}>
+                {t('settings.servers.test.button')}
+              </Button>
             </div>
           </div>
         </div>
@@ -1003,9 +1021,9 @@ function ServerDetail({
           <div style={{ maxWidth: '42ch', color: 'var(--text-secondary)', fontSize: 12.5 }}>
             {t('settings.servers.detail.emptyHint')}
           </div>
-          <button style={{ ...s.btnPrimary, marginTop: 12 }} onClick={onAddStack}>
-            <Plus size={15} /> {t('settings.servers.stack.addButton')}
-          </button>
+          <Button variant="primary" onClick={onAddStack} iconLeft={<Plus size={15} />} style={{ marginTop: 12 }}>
+            {t('settings.servers.stack.addButton')}
+          </Button>
         </div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -1054,9 +1072,9 @@ function ServerList({
         <div style={{ maxWidth: '44ch', color: 'var(--text-secondary)', fontSize: 12.5 }}>
           {t('settings.servers.list.emptyHint')}
         </div>
-        <button style={{ ...s.btnPrimary, marginTop: 14 }} onClick={onAdd}>
-          <Plus size={15} /> {t('settings.servers.addServer')}
-        </button>
+        <Button variant="primary" onClick={onAdd} iconLeft={<Plus size={15} />} style={{ marginTop: 14 }}>
+          {t('settings.servers.addServer')}
+        </Button>
       </div>
     )
   }
@@ -1242,9 +1260,9 @@ export function ServersPanel(): JSX.Element {
       }
       action={
         store.hosts.length > 0 ? (
-          <button style={s.btnPrimary} onClick={() => setServerForm({ kind: 'addServer' })}>
-            <Plus size={15} /> {t('settings.servers.addServer')}
-          </button>
+          <Button variant="primary" onClick={() => setServerForm({ kind: 'addServer' })} iconLeft={<Plus size={15} />}>
+            {t('settings.servers.addServer')}
+          </Button>
         ) : undefined
       }
     >
@@ -1254,9 +1272,9 @@ export function ServersPanel(): JSX.Element {
             <AlertTriangle size={18} />
           </span>
           <div style={{ flex: 1, fontSize: 12.5, color: 'var(--text-secondary)' }}>{store.error}</div>
-          <button style={s.iconBtnGhost} aria-label={t('settings.servers.error.dismiss')} onClick={() => store.clearError()}>
+          <Button variant="ghost" size="icon" aria-label={t('settings.servers.error.dismiss')} onClick={() => store.clearError()}>
             <X size={16} />
-          </button>
+          </Button>
         </div>
       )}
       <ServerList

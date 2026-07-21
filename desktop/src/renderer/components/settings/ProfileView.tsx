@@ -5,6 +5,7 @@ import { useT } from '../../contexts/LocaleContext'
 import { useConnectionStore } from '../../stores/connectionStore'
 import { useProfileStore, type UsageDayWire } from '../../stores/profileStore'
 import { ActionTooltip } from '../ui/ActionTooltip'
+import { Button } from '../ui/Button'
 import { Skeleton } from '../ui/Skeleton'
 import { SettingsPageHeader } from './SettingsPageHeader'
 import { TokenActivityHeatmap, type HeatmapMode } from './profile/TokenActivityHeatmap'
@@ -58,10 +59,9 @@ export function ProfileView(): JSX.Element {
   }, [capable, fetchTimeseries, fetchInsights])
 
   const editAction = editing ? undefined : (
-    <button type="button" style={editActionStyle} onClick={() => setEditing(true)}>
-      <Pencil size={14} />
+    <Button variant="ghost" iconLeft={<Pencil size={14} />} onClick={() => setEditing(true)}>
       {githubUsername ? t('settings.profile.edit') : t('settings.profile.linkGithub')}
-    </button>
+    </Button>
   )
 
   return (
@@ -138,9 +138,9 @@ function ActivityBody({
     return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
         <div style={{ ...dimmedTextStyle, color: 'var(--error)' }}>{t('settings.usage.loadError')}</div>
-        <button type="button" style={linkButtonStyle} onClick={onRetry}>
+        <Button variant="secondary" size="sm" onClick={onRetry}>
           {t('settings.usage.retry')}
-        </button>
+        </Button>
       </div>
     )
   }
@@ -273,12 +273,12 @@ function ProfileHeader({
               }}
               style={inputStyle}
             />
-            <button type="button" style={linkButtonStyle} onClick={commit}>
+            <Button variant="primary" size="sm" onClick={commit}>
               {t('settings.profile.save')}
-            </button>
-            <button type="button" style={ghostButtonStyle} onClick={onClose}>
+            </Button>
+            <Button variant="ghost" size="sm" onClick={onClose}>
               {t('common.cancel')}
-            </button>
+            </Button>
           </div>
         ) : handle && githubUsername ? (
           <ActionTooltip label={`github.com/${githubUsername}`} placement="bottom">
@@ -577,38 +577,6 @@ const dimmedTextStyle: CSSProperties = {
   fontSize: '12px',
   color: 'var(--text-dimmed)',
   lineHeight: 1.5
-}
-
-const linkButtonStyle: CSSProperties = {
-  border: '1px solid var(--border-default)',
-  background: 'var(--bg-secondary)',
-  color: 'var(--text-secondary)',
-  borderRadius: '8px',
-  padding: '4px 12px',
-  fontSize: '12px',
-  cursor: 'pointer'
-}
-
-const ghostButtonStyle: CSSProperties = {
-  border: 'none',
-  background: 'transparent',
-  color: 'var(--text-dimmed)',
-  borderRadius: '8px',
-  padding: '4px 8px',
-  fontSize: '12px',
-  cursor: 'pointer'
-}
-
-const editActionStyle: CSSProperties = {
-  display: 'inline-flex',
-  alignItems: 'center',
-  gap: '6px',
-  border: 'none',
-  background: 'transparent',
-  color: 'var(--text-secondary)',
-  fontSize: '13px',
-  cursor: 'pointer',
-  padding: '4px 6px'
 }
 
 const handleLinkStyle: CSSProperties = {

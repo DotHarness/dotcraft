@@ -1,9 +1,9 @@
 import type { CSSProperties } from 'react'
 
 /**
- * Token-based styles for the Servers surface. Mirrors the approved design
- * prototype (dotcraft-design/desktop/remote-servers). Neutral-first; semantic
- * color only on status dots/badges per specs/architecture/DESIGN.md.
+ * Token-based styles for the Servers surface. Mirrors the approved remote-server
+ * design. Neutral-first; semantic color only on status dots/badges per the
+ * desktop design specification.
  */
 
 export type StatusTone = 'success' | 'warning' | 'error' | 'info' | 'neutral'
@@ -79,68 +79,6 @@ export const serverRowIcon: CSSProperties = {
   background: 'var(--bg-tertiary)',
   color: 'var(--text-secondary)',
   flexShrink: 0
-}
-
-export const btnPrimary: CSSProperties = {
-  display: 'inline-flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  gap: 6,
-  height: 32,
-  padding: '0 12px',
-  borderRadius: 8,
-  fontSize: 13,
-  fontWeight: 600,
-  cursor: 'pointer',
-  whiteSpace: 'nowrap',
-  border: '1px solid var(--text-primary)',
-  background: 'var(--text-primary)',
-  color: 'var(--bg-primary)'
-}
-
-export const btn: CSSProperties = {
-  display: 'inline-flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  gap: 6,
-  height: 32,
-  padding: '0 12px',
-  borderRadius: 8,
-  fontSize: 13,
-  fontWeight: 600,
-  cursor: 'pointer',
-  whiteSpace: 'nowrap',
-  border: '1px solid var(--border-default)',
-  background: 'var(--bg-tertiary)',
-  color: 'var(--text-primary)'
-}
-
-export const btnSm: CSSProperties = { height: 28, padding: '0 10px', fontSize: 12 }
-
-export const btnDanger: CSSProperties = {
-  ...btn,
-  border: '1px solid color-mix(in srgb, var(--error) 55%, var(--border-default))',
-  background: 'transparent',
-  color: 'var(--error)'
-}
-
-export const iconBtn: CSSProperties = {
-  display: 'inline-flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  width: 30,
-  height: 30,
-  borderRadius: 8,
-  border: '1px solid var(--border-default)',
-  background: 'var(--bg-tertiary)',
-  color: 'var(--text-secondary)',
-  cursor: 'pointer'
-}
-
-export const iconBtnGhost: CSSProperties = {
-  ...iconBtn,
-  border: '1px solid transparent',
-  background: 'transparent'
 }
 
 export const stackCard: CSSProperties = {

@@ -33,6 +33,7 @@ import {
   extractStreamingFilePath
 } from '../utils/streamingDiff'
 import { parsePlanMarkdown } from '../utils/planMarkdown'
+import { extractPartialJsonStringValue } from '../utils/toolCallDisplay'
 import {
   createShellRuntimeBuffer,
   mergeShellRuntimeUpdates,
@@ -1698,66 +1699,6 @@ function latestCompactedNotice(turns: ConversationTurn[]): {
     }
   }
   return null
-}
-
-function extractPartialJsonStringValue(json: string, key: string): string | null {
-  const keyPattern = `"${key}"`
-  const keyIndex = json.indexOf(keyPattern)
-  if (keyIndex < 0) return null
-  const colonIndex = json.indexOf(':', keyIndex + keyPattern.length)
-  if (colonIndex < 0) return null
-  const quoteIndex = json.indexOf('"', colonIndex + 1)
-  if (quoteIndex < 0) return null
-
-  let escaped = false
-  let out = ''
-  for (let i = quoteIndex + 1; i < json.length; i += 1) {
-    const ch = json[i]
-    if (escaped) {
-      switch (ch) {
-        case 'n':
-          out += '\n'
-          break
-        case 'r':
-          out += '\r'
-          break
-        case 't':
-          out += '\t'
-          break
-        case 'b':
-          out += '\b'
-          break
-        case 'f':
-          out += '\f'
-          break
-        case '\\':
-          out += '\\'
-          break
-        case '"':
-          out += '"'
-          break
-        case '/':
-          out += '/'
-          break
-        default:
-          // Keep unknown escapes as-is so partial streams remain readable.
-          out += '\\' + ch
-          break
-      }
-      escaped = false
-      continue
-    }
-    if (ch === '\\') {
-      escaped = true
-      continue
-    }
-    if (ch === '"') {
-      return out
-    }
-    out += ch
-  }
-
-  return out
 }
 
 function appendStreamingArgumentsPreview(

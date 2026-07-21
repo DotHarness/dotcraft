@@ -2840,7 +2840,10 @@ export function App(): JSX.Element {
     const threadState = activeThreadId
       ? viewerStore.getThreadState(activeThreadId)
       : null
-    useUIStore.getState().syncDetailPanelForThread(threadState?.activeTabId ?? null)
+    useUIStore.getState().syncDetailPanelForThread(
+      activeThreadId,
+      threadState?.activeTabId ?? null
+    )
 
     if (threadState?.activeTabId) {
       const activeTab = threadState.tabs.find((tab) => tab.id === threadState.activeTabId)
