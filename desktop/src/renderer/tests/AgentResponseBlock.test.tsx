@@ -570,12 +570,20 @@ describe('AgentResponseBlock subagent transcript rendering', () => {
     expect(container.textContent).not.toContain('Wait')
   })
 
-  it('hides normal SubAgent controls but preserves real failures', () => {
+  it('hides WaitAgent failures and normal SubAgent controls but preserves targeted failures', () => {
     const hiddenWait = makeToolCallItem('wait', 'wait-call', 'WaitAgent', '2026-05-03T10:00:01.000Z', {
       presentationId: CORE_TOOL_PRESENTATION_IDS.subagent,
       options: { operation: 'wait' }
     })
     hiddenWait.result = JSON.stringify({ status: 'timeout', timedOut: true })
+
+    const hiddenFailedWait = makeToolCallItem('failed-wait', 'failed-wait-call', 'WaitAgent', '2026-05-03T10:00:01.500Z', {
+      presentationId: CORE_TOOL_PRESENTATION_IDS.subagent,
+      options: { operation: 'wait' }
+    })
+    hiddenFailedWait.success = false
+    hiddenFailedWait.arguments = { timeoutMs: 1000 }
+    hiddenFailedWait.result = 'timeoutMs must be at least 15000. (Parameter \'timeoutMs\')'
 
     const hiddenMessage = makeToolCallItem('message', 'message-call', 'SendMessage', '2026-05-03T10:00:02.000Z', {
       presentationId: CORE_TOOL_PRESENTATION_IDS.subagent,
@@ -596,10 +604,12 @@ describe('AgentResponseBlock subagent transcript rendering', () => {
       threadId: 'thread-1',
       status: 'completed',
       startedAt: '2026-05-03T10:00:00.000Z',
-      items: [hiddenWait, hiddenMessage, failedClose]
+      items: [hiddenWait, hiddenFailedWait, hiddenMessage, failedClose]
     })
 
     expect(text).not.toContain('Wait timed out')
+    expect(text).not.toContain('agent failed')
+    expect(text).not.toContain('timeoutMs must be at least 15000')
     expect(text).not.toContain('Sent message')
     expect(text).toContain('Reviewer failed')
   })

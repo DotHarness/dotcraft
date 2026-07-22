@@ -1359,6 +1359,7 @@ function isDefaultRenderableItem(item: ConversationItem): boolean {
   const plan = resolveCoreToolRenderPlan(item)
   if (plan?.family === 'subagent') {
     const operation = plan.options.operation
+    if (operation === 'wait') return false
     if (operation !== 'spawn' && operation !== 'followupTask' && !isToolExecutionFailure(item)) {
       return false
     }
