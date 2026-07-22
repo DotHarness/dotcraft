@@ -31,21 +31,33 @@ colors:
 typography:
   ui:
     fontFamily: "var(--font-ui)"
-    fontSize: "13px"
+    fontSize: "var(--type-ui-size)"
     fontWeight: 400
-    lineHeight: 1.35
+    lineHeight: "var(--type-ui-line-height)"
     letterSpacing: "0"
   ui-small:
     fontFamily: "var(--font-ui)"
-    fontSize: "12px"
+    fontSize: "var(--type-secondary-size)"
     fontWeight: 400
-    lineHeight: 1.35
+    lineHeight: "var(--type-secondary-line-height)"
+    letterSpacing: "0"
+  ui-hint:
+    fontFamily: "var(--font-ui)"
+    fontSize: "var(--type-hint-size)"
+    fontWeight: 400
+    lineHeight: "var(--type-hint-line-height)"
     letterSpacing: "0"
   panel-heading:
     fontFamily: "var(--font-ui)"
-    fontSize: "15px"
+    fontSize: "var(--type-heading-size)"
     fontWeight: 600
-    lineHeight: 1.35
+    lineHeight: "var(--type-heading-line-height)"
+    letterSpacing: "0"
+  page-heading:
+    fontFamily: "var(--font-ui)"
+    fontSize: "var(--type-page-title-size)"
+    fontWeight: 600
+    lineHeight: "var(--type-page-title-line-height)"
     letterSpacing: "0"
 spacing:
   xs: "4px"
@@ -168,9 +180,44 @@ Desktop typography is compact and readable:
 - letter spacing is `0` unless a specific technical label style documents a
   different value.
 
+### The type scale
+
+Sizes come from the `--type-*` tokens in `tokens.css`. Do not write a raw `px`
+font size in a component: a literal cannot be retuned by context, and every
+literal is a new tier nobody agreed to.
+
+| Token | Size / leading | Use |
+| --- | --- | --- |
+| `--type-title` | 28 / 34 | entry surfaces only |
+| `--type-page-title` | 18 / 23 | panel page heading |
+| `--type-heading` | 15 / 20 | card and group heading |
+| `--type-body` | 14 / 21 | conversation and document body |
+| `--type-ui` | 13 / 18 | ordinary UI text, row labels, inputs |
+| `--type-secondary` | 12 / 16 | supporting text; use `--type-secondary-prose-line-height` (18) when it wraps |
+| `--type-hint` | 11 / 16 | supporting text nested under an already-labelled control |
+
+Size expresses nesting depth, colour expresses role. Copy that describes a
+control is `--text-secondary` at whichever size its depth calls for; only
+incidental metadata (version strings, timestamps) drops to `--text-dimmed`.
+Pairing the smallest size with the dimmest colour is what makes small text
+unreadable, so do not do both at once.
+
+The text colour ramp is `--text-primary` → `--text-secondary` → `--text-dimmed`
+→ `--text-disabled`. `--text-tertiary` is an alias of `--text-dimmed`, not a
+fifth step.
+
+### Retuning the scale by context
+
+A surface may override the `--type-*` tokens for the subtree it owns instead of
+changing components. `.dc-settings-surface` uses this to lift the two smallest
+tiers one step under `:lang(zh|ja|ko)`, because CJK glyphs carry far more strokes
+per em than Latin. Lift tiers in pairs so the gap between them survives, and keep
+the override scoped — a global lift reflows fixed-height rows in the composer and
+sidebar.
+
 UI fonts are system-first and must not require bundled web fonts. `--font-ui`,
 `--font-body`, and `--font-sans` may switch by document language for CJK locales
-while preserving the same sizing, weight, and spacing scale.
+while preserving the same weight and spacing scale.
 
 ## Layout
 

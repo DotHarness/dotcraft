@@ -1,6 +1,7 @@
 import type { CSSProperties, JSX } from 'react'
 import type { MessageKey } from '../../../../shared/locales'
 import type { SkillUsageWire } from '../../../stores/profileStore'
+import { settingsPlaceholderStyle } from '../settingsTypography'
 
 type TFn = (key: MessageKey | string, vars?: Record<string, string | number>) => string
 
@@ -48,11 +49,7 @@ const headingStyle: CSSProperties = {
   color: 'var(--text-primary)'
 }
 
-const emptyStyle: CSSProperties = {
-  fontSize: '12px',
-  color: 'var(--text-dimmed)',
-  lineHeight: 1.5
-}
+const emptyStyle: CSSProperties = settingsPlaceholderStyle()
 
 const rowStyle: CSSProperties = {
   display: 'flex',

@@ -169,7 +169,7 @@ function inputStyle(mono = false): CSSProperties {
     width: '100%',
     boxSizing: 'border-box',
     padding: '8px 10px',
-    fontSize: '13px',
+    fontSize: 'var(--type-ui-size)',
     borderRadius: '8px',
     border: '1px solid var(--border-default)',
     background: 'var(--bg-primary)',

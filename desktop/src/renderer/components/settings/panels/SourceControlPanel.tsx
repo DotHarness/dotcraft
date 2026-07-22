@@ -6,6 +6,7 @@ import type { MessageKey } from '../../../../shared/locales'
 import { normalizeWorkspaceConfigChangedPayload } from '../../../utils/workspaceConfigChanged'
 import { SettingsPanelShell } from '../SettingsPanelShell'
 import { SettingsGroup, SettingsRow } from '../SettingsGroup'
+import { settingsDescriptionStyle, settingsPlaceholderStyle } from '../settingsTypography'
 import { SegmentedControl } from '../ui/SegmentedControl'
 import { SettingsSelect } from '../ui/SettingsSelect'
 import { PillSwitch } from '../../ui/PillSwitch'
@@ -368,7 +369,7 @@ export function SourceControlPanel({ workspacePath }: SourceControlPanelProps): 
     >
       {loading && (
         <SettingsGroup flush>
-          <div style={{ fontSize: '13px', color: 'var(--text-dimmed)' }}>{t('settings.sourceControl.loading')}</div>
+          <div style={settingsPlaceholderStyle()}>{t('settings.sourceControl.loading')}</div>
         </SettingsGroup>
       )}
 
@@ -394,14 +395,14 @@ export function SourceControlPanel({ workspacePath }: SourceControlPanelProps): 
             </SettingsRow>
             {provider === 'git' && (
               <SettingsRow>
-                <div style={{ fontSize: '12px', color: 'var(--text-dimmed)' }}>
+                <div style={settingsDescriptionStyle(false)}>
                   {t('settings.sourceControl.git.description')}
                 </div>
               </SettingsRow>
             )}
             {provider === 'none' && (
               <SettingsRow>
-                <div style={{ fontSize: '12px', color: 'var(--text-dimmed)' }}>
+                <div style={settingsDescriptionStyle(false)}>
                   {t('settings.sourceControl.none.description')}
                 </div>
               </SettingsRow>
@@ -786,7 +787,7 @@ const inputStyle: CSSProperties = {
   width: '100%',
   boxSizing: 'border-box',
   padding: '8px 10px',
-  fontSize: '13px',
+  fontSize: 'var(--type-ui-size)',
   borderRadius: '8px',
   border: '1px solid var(--border-default)',
   background: 'var(--bg-primary)',

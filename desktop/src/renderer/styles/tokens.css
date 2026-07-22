@@ -98,7 +98,10 @@
   --composer-footer-highlight: var(--text-primary);
   --composer-control-text: color-mix(in srgb, var(--text-primary) 78%, var(--bg-primary));
   --composer-control-muted: color-mix(in srgb, var(--text-primary) 52%, var(--bg-primary));
-  --text-tertiary: color-mix(in srgb, var(--text-primary) 42%, var(--bg-primary));
+  /* Alias, not a separate step: the text ramp is primary → secondary → dimmed →
+     disabled. Keep --text-tertiary pointing at --text-dimmed so themes only ever
+     tune one value. */
+  --text-tertiary: var(--text-dimmed);
   --text-disabled: color-mix(in srgb, var(--text-primary) 30%, var(--bg-primary));
 
   /* Borders */
@@ -297,6 +300,23 @@
   --type-secondary-size: 12px;
   --type-secondary-line-height: 16px;
   --type-secondary-weight: 400;
+  /* Looser leading for the 12px secondary tier when the copy wraps (settings and
+     card descriptions). The compact 16px pairing above stays for single-line
+     chips, footers, and list metadata. */
+  --type-secondary-prose-line-height: 18px;
+  /* Hint tier: the smallest UI text. Row-level descriptions, footnotes, and
+     metadata that sits under an already-labelled control. */
+  --type-hint-size: 11px;
+  --type-hint-line-height: 16px;
+  --type-hint-weight: 400;
+  /* Card / group headings inside panels. */
+  --type-heading-size: 15px;
+  --type-heading-line-height: 20px;
+  --type-heading-weight: 600;
+  /* Page headings inside panels (below --type-title, which is entry-surface scale). */
+  --type-page-title-size: 18px;
+  --type-page-title-line-height: 23px;
+  --type-page-title-weight: 600;
   --conversation-font-size: 14px;
   --conversation-line-height: 1.5;
   --conversation-font-weight: 400;
@@ -402,7 +422,7 @@ html[data-theme="light"] {
   --text-primary: #1a1c1f;
   --text-secondary: color-mix(in srgb, var(--text-primary) 70%, var(--bg-primary));
   --text-dimmed: color-mix(in srgb, var(--text-primary) 50%, var(--bg-primary));
-  --text-tertiary: color-mix(in srgb, var(--text-primary) 50%, var(--bg-primary));
+  --text-tertiary: var(--text-dimmed);
   --text-disabled: color-mix(in srgb, var(--text-primary) 38%, var(--bg-primary));
   --composer-placeholder: color-mix(in srgb, var(--text-primary) 62%, var(--bg-primary));
   --composer-footer-text: var(--text-secondary);
@@ -556,6 +576,27 @@ html[data-theme="light"] {
   --font-ui: var(--font-sans-ko);
   --font-body: var(--font-sans-ko);
   --font-sans: var(--font-sans-ko);
+}
+
+/* CJK density lift.
+   Han/Kana/Hangul glyphs carry far more strokes per em than Latin, so the two
+   smallest tiers stop being comfortably readable at Latin sizes. Lift the whole
+   pair one step (hint 11→12, secondary 12→13) so the size gap between them is
+   preserved rather than collapsed.
+
+   Scoped to the settings surface on purpose: that is where the two tiers stack
+   inside one card and the difference is legible as hierarchy. Composer, sidebar,
+   and list chrome keep the Latin scale because they have fixed-height rows that
+   a global lift would reflow. Widen the selector only alongside a check of those
+   layouts. */
+:root:lang(zh) .dc-settings-surface,
+:root:lang(ja) .dc-settings-surface,
+:root:lang(ko) .dc-settings-surface {
+  --type-hint-size: 12px;
+  --type-hint-line-height: 17px;
+  --type-secondary-size: 13px;
+  --type-secondary-line-height: 17px;
+  --type-secondary-prose-line-height: 19px;
 }
 
 /* ─── Base Styles ─── */

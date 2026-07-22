@@ -1,5 +1,7 @@
 import type { CSSProperties, JSX, ReactNode } from 'react'
 
+import { settingsDescriptionStyle, settingsPageTitleStyle } from './settingsTypography'
+
 interface SettingsPageHeaderProps {
   title: ReactNode
   description?: ReactNode
@@ -22,7 +24,7 @@ export function SettingsPageHeader({
         {/* On sub-pages the breadcrumb's current segment is the heading, so it
             replaces the title row instead of stacking above a duplicate. */}
         {breadcrumb ?? <div style={settingsPageTitleStyle()}>{title}</div>}
-        {description && <div style={settingsPageDescriptionStyle()}>{description}</div>}
+        {description && <div style={settingsDescriptionStyle()}>{description}</div>}
         {children}
       </div>
       {action && <div style={settingsPageHeaderActionStyle()}>{action}</div>}
@@ -48,23 +50,5 @@ export function settingsPageHeaderTextStyle(): CSSProperties {
 export function settingsPageHeaderActionStyle(): CSSProperties {
   return {
     flexShrink: 0
-  }
-}
-
-export function settingsPageTitleStyle(): CSSProperties {
-  return {
-    fontSize: '18px',
-    fontWeight: 600,
-    color: 'var(--text-primary)',
-    lineHeight: 1.25
-  }
-}
-
-export function settingsPageDescriptionStyle(): CSSProperties {
-  return {
-    fontSize: '12px',
-    color: 'var(--text-dimmed)',
-    lineHeight: 1.5,
-    marginTop: '4px'
   }
 }
