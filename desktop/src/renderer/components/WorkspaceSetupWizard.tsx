@@ -1419,6 +1419,7 @@ function CustomProviderForm({
         <input
           id="setup-provider-timeout"
           type="number"
+          className="dc-plain-number"
           min={1}
           value={timeoutDraft}
           onChange={(e) => onTimeoutChange(e.target.value)}

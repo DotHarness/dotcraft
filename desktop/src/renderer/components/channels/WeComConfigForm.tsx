@@ -98,6 +98,7 @@ export function WeComConfigForm({
             <label style={formStyles.label}>{t('channels.wecom.port')}</label>
             <input
               type="number"
+              className="dc-plain-number"
               value={String(value.Port)}
               onChange={(e) =>
                 onChange({ ...value, Port: Number.parseInt(e.target.value || '0', 10) || 0 })

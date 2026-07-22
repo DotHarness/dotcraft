@@ -29,6 +29,25 @@ describe('SettingsSelect', () => {
     expect(screen.queryByRole('listbox', { name: 'Mode' })).not.toBeInTheDocument()
   })
 
+  it('keeps the menu open when a value change is rejected', () => {
+    render(
+      <SettingsSelect
+        ariaLabel="Mode"
+        value="standard"
+        onValueChange={() => false}
+        options={[
+          { value: 'standard', label: 'Standard' },
+          { value: 'fast', label: 'Fast' }
+        ]}
+      />
+    )
+
+    fireEvent.click(screen.getByRole('combobox', { name: 'Mode' }))
+    fireEvent.click(screen.getByRole('option', { name: 'Fast' }))
+
+    expect(screen.getByRole('listbox', { name: 'Mode' })).toBeInTheDocument()
+  })
+
   it('supports keyboard navigation', () => {
     const onValueChange = vi.fn()
 

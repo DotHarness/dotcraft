@@ -484,6 +484,7 @@ export function CustomProfileEditor({
         >
           <input
             type="number"
+            className="dc-plain-number"
             min={1}
             value={state.timeout}
             onChange={(event) => updateState('timeout', event.target.value)}
@@ -497,6 +498,7 @@ export function CustomProfileEditor({
         >
           <input
             type="number"
+            className="dc-plain-number"
             min={1}
             value={state.maxOutputBytes}
             onChange={(event) => updateState('maxOutputBytes', event.target.value)}

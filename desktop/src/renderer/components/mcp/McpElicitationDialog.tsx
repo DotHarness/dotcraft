@@ -2,6 +2,9 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { translate } from '../../../shared/locales'
 import { useLocale } from '../../contexts/LocaleContext'
+import { Button } from '../ui/Button'
+import { Checkbox } from '../ui/Checkbox'
+import { Select } from '../ui/Select'
 
 export interface McpElicitationRequest {
   bridgeId: string
@@ -76,56 +79,67 @@ export function McpElicitationDialog({ request, onRespond }: Props): JSX.Element
           safeUrl == null ? (
             <p role="alert" style={errorStyle}>{translate(locale, 'mcp.elicitation.unsupported')}</p>
           ) : (
-            <button type="button" style={linkButtonStyle} onClick={() => void window.api.shell.openExternal(safeUrl)}>
-              {translate(locale, 'mcp.elicitation.openUrl')}
-            </button>
+            <Button
+              variant="outline"
+              style={{ width: '100%', justifyContent: 'flex-start', overflow: 'hidden' }}
+              onClick={() => void window.api.shell.openExternal(safeUrl)}
+            >
+              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {translate(locale, 'mcp.elicitation.openUrl')}
+              </span>
+            </Button>
           )
         ) : fields == null ? (
           <p role="alert" style={errorStyle}>{translate(locale, 'mcp.elicitation.unsupported')}</p>
         ) : (
           <div style={{ display: 'grid', gap: 12 }}>
             {fields.map((field) => (
-              <label key={field.name} style={{ display: 'grid', gap: 5, color: 'var(--text-primary)', fontSize: 12 }}>
+              <div key={field.name} style={{ display: 'grid', gap: 5, color: 'var(--text-primary)', fontSize: 12 }}>
                 <span>{field.title}{field.required ? ' *' : ''}</span>
                 {field.type === 'boolean' ? (
-                  <input
-                    type="checkbox"
+                  <Checkbox
                     checked={Boolean(values[field.name])}
-                    onChange={(event) => setValues((current) => ({ ...current, [field.name]: event.target.checked }))}
+                    ariaLabel={field.title}
+                    onChange={(checked) => setValues((current) => ({ ...current, [field.name]: checked }))}
                   />
                 ) : field.type === 'array' && field.options ? (
-                  <span style={{ display: 'grid', gap: 6 }}>
+                  <span style={{ display: 'grid', gap: 8 }}>
                     {field.options.map((option) => {
                       const selected = Array.isArray(values[field.name]) ? values[field.name] as string[] : []
                       return (
-                        <span key={option.value} style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
-                          <input
-                            type="checkbox"
-                            checked={selected.includes(option.value)}
-                            onChange={(event) => setValues((current) => ({
-                              ...current,
-                              [field.name]: event.target.checked
-                                ? [...selected, option.value]
-                                : selected.filter((value) => value !== option.value)
-                            }))}
-                          />
-                          <span>{option.label}</span>
-                        </span>
+                        <Checkbox
+                          key={option.value}
+                          checked={selected.includes(option.value)}
+                          label={option.label}
+                          onChange={(checked) => setValues((current) => ({
+                            ...current,
+                            [field.name]: checked
+                              ? [...selected, option.value]
+                              : selected.filter((value) => value !== option.value)
+                          }))}
+                        />
                       )
                     })}
                   </span>
                 ) : field.options ? (
-                  <select
+                  <Select
                     value={String(values[field.name] ?? '')}
+                    ariaLabel={field.title}
                     style={inputStyle}
-                    onChange={(event) => setValues((current) => ({ ...current, [field.name]: coerceValue(field, event.target.value) }))}
-                  >
-                    {!field.required && <option value="" />}
-                    {field.options.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-                  </select>
+                    onValueChange={(nextValue) => setValues((current) => ({
+                      ...current,
+                      [field.name]: coerceValue(field, nextValue)
+                    }))}
+                    options={[
+                      ...(!field.required ? [{ value: '', label: '' }] : []),
+                      ...field.options
+                    ]}
+                  />
                 ) : (
                   <input
                     type={field.type === 'string' ? 'text' : 'number'}
+                    className={field.type === 'string' ? undefined : 'dc-plain-number'}
+                    aria-label={field.title}
                     value={String(values[field.name] ?? '')}
                     minLength={field.minLength}
                     maxLength={field.maxLength}
@@ -137,29 +151,28 @@ export function McpElicitationDialog({ request, onRespond }: Props): JSX.Element
                   />
                 )}
                 {field.description && <span style={{ color: 'var(--text-secondary)', fontSize: 11 }}>{field.description}</span>}
-              </label>
+              </div>
             ))}
           </div>
         )}
 
         <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 20 }}>
-          <button ref={cancelRef} type="button" style={secondaryButtonStyle} onClick={() => onRespond({ action: 'cancel' })}>
+          <Button ref={cancelRef} variant="ghost" onClick={() => onRespond({ action: 'cancel' })}>
             {translate(locale, 'mcp.elicitation.cancel')}
-          </button>
-          <button type="button" style={secondaryButtonStyle} onClick={() => onRespond({ action: 'decline' })}>
+          </Button>
+          <Button variant="secondary" onClick={() => onRespond({ action: 'decline' })}>
             {translate(locale, 'mcp.elicitation.decline')}
-          </button>
-          <button
-            type="button"
+          </Button>
+          <Button
+            variant="primary"
             disabled={!valid}
-            style={{ ...primaryButtonStyle, opacity: valid ? 1 : 0.5 }}
             onClick={() => onRespond({
               action: 'accept',
               ...(request.mode === 'form' && fields != null ? { content: acceptedContent(fields, values) } : {})
             })}
           >
             {translate(locale, 'mcp.elicitation.accept')}
-          </button>
+          </Button>
         </div>
       </div>
     </div>
@@ -358,7 +371,4 @@ const dialogStyle = { width: 440, maxWidth: 'calc(100vw - 40px)', maxHeight: 'ca
 const titleStyle = { margin: 0, color: 'var(--text-primary)', fontSize: 15, fontWeight: 600 } as const
 const messageStyle = { margin: '8px 0 18px', color: 'var(--text-secondary)', fontSize: 13, lineHeight: 1.5, whiteSpace: 'pre-wrap' } as const
 const errorStyle = { color: 'var(--error)', fontSize: 12 } as const
-const inputStyle = { width: '100%', boxSizing: 'border-box', border: '1px solid var(--border-default)', borderRadius: 6, padding: '7px 9px', background: 'var(--bg-primary)', color: 'var(--text-primary)' } as const
-const secondaryButtonStyle = { padding: '7px 13px', border: '1px solid var(--border-default)', borderRadius: 6, background: 'transparent', color: 'var(--text-primary)', cursor: 'pointer' } as const
-const primaryButtonStyle = { padding: '7px 13px', border: '1px solid var(--text-primary)', borderRadius: 6, background: 'var(--text-primary)', color: 'var(--bg-primary)', cursor: 'pointer' } as const
-const linkButtonStyle = { ...secondaryButtonStyle, width: '100%', textAlign: 'left', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } as const
+const inputStyle = { width: '100%', boxSizing: 'border-box', border: '1px solid var(--border-default)', borderRadius: 8, padding: '7px 9px', background: 'var(--bg-primary)', color: 'var(--text-primary)' } as const

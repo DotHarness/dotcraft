@@ -4104,6 +4104,7 @@ export function SettingsView({
                           <input
                             id="settings-provider-timeout"
                             type="number"
+                            className="dc-plain-number"
                             min={1}
                             value={providerDraft.networkTimeoutSeconds}
                             onChange={(e) => setProviderDraft((draft) => ({ ...draft, networkTimeoutSeconds: e.target.value }))}

@@ -294,6 +294,7 @@ export function PresetProfileDetail({
           >
             <input
               type="number"
+              className="dc-plain-number"
               min={1}
               value={timeoutValue}
               onChange={(event) => setTimeoutValue(event.target.value)}

@@ -16,6 +16,7 @@ import { MenuOption, PillDropdown } from '../ui/PillDropdown'
 import { PolicyDropdown, TargetDropdown, WorkspaceModeDropdown } from './TaskDropdowns'
 import { AgentProfileDropdown } from './AgentProfileDropdown'
 import { Button } from '../ui/Button'
+import { Combobox } from '../ui/Combobox'
 
 type DialogTab = 'task' | 'template'
 
@@ -523,28 +524,16 @@ export function NewTaskDialog({
 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                   <label style={advancedLabelStyle}>{t('auto.newTemplate.field.category')}</label>
-                  <input
-                    type="text"
-                    list="automation-template-categories"
+                  <Combobox
                     value={tplCategory}
-                    onChange={(e) => setTplCategory(e.target.value)}
-                    maxLength={48}
+                    onValueChange={(nextCategory) => setTplCategory(nextCategory.slice(0, 48))}
+                    ariaLabel={t('auto.newTemplate.field.category')}
                     placeholder={t('auto.newTemplate.field.categoryPlaceholder')}
-                    style={{
-                      padding: '8px 10px',
-                      borderRadius: '6px',
-                      border: '1px solid var(--border-default)',
-                      backgroundColor: 'var(--bg-secondary)',
-                      color: 'var(--text-primary)',
-                      fontSize: '12px',
-                      outline: 'none'
-                    }}
+                    options={categoryOptions.map((category) => ({
+                      value: category,
+                      label: category
+                    }))}
                   />
-                  <datalist id="automation-template-categories">
-                    {categoryOptions.map((c) => (
-                      <option key={c} value={c} />
-                    ))}
-                  </datalist>
                 </div>
 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>

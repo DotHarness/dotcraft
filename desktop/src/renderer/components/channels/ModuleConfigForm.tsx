@@ -8,6 +8,7 @@ import { ToggleSwitch } from './ToggleSwitch'
 import { FolderIcon } from '../ui/AppIcons'
 import { IconButton } from '../ui/IconButton'
 import { Button } from '../ui/Button'
+import { Select } from '../ui/Select'
 
 interface ModuleConfigFormProps {
   module: DiscoveredModule
@@ -223,24 +224,18 @@ export function ModuleConfigForm({
       return (
         <div key={descriptor.key} style={formStyles.fieldGroup}>
           <label style={formStyles.label}>{`${displayLabel}${requiredSuffix}`}</label>
-          <select
+          <Select
             value={typeof value === 'string' ? value : ''}
-            onChange={(event) => {
-              onChange(applyValueChange(config, descriptor.key, event.target.value))
+            onValueChange={(nextValue) => {
+              onChange(applyValueChange(config, descriptor.key, nextValue))
             }}
-            onFocus={formStyles.inputFocus}
-            onBlur={formStyles.inputBlur}
-            style={formStyles.input}
-          >
-            <option value="" disabled={descriptor.required}>
-              {placeholderLabel}
-            </option>
-            {enumValues.map((item) => (
-              <option key={item} value={item}>
-                {item}
-              </option>
-            ))}
-          </select>
+            ariaLabel={displayLabel}
+            options={[
+              { value: '', label: placeholderLabel, disabled: descriptor.required },
+              ...enumValues.map((item) => ({ value: item, label: item }))
+            ]}
+            style={{ ...formStyles.input, display: 'flex' }}
+          />
           {!!description && (
             <div style={{ marginTop: '6px', fontSize: '12px', color: 'var(--text-dimmed)' }}>
               {description}
@@ -325,6 +320,7 @@ export function ModuleConfigForm({
           <label style={formStyles.label}>{`${displayLabel}${requiredSuffix}`}</label>
           <input
             type="number"
+            className="dc-plain-number"
             value={typeof value === 'number' && Number.isFinite(value) ? String(value) : ''}
             placeholder={placeholder}
             onChange={(event) => {
@@ -487,25 +483,22 @@ export function ModuleConfigForm({
         <FieldCard>
           <div style={formStyles.fieldGroup}>
             <label style={formStyles.label}>{t('channels.modules.variant.active')}</label>
-            <select
+            <Select
               value={module.moduleId}
               disabled={variantSwitching}
-              onChange={(event) => {
-                onVariantChange?.(event.target.value)
+              onValueChange={(moduleId) => {
+                onVariantChange?.(moduleId)
               }}
-              onFocus={formStyles.inputFocus}
-              onBlur={formStyles.inputBlur}
-              style={formStyles.input}
-            >
-              {variantModules.map((variant) => (
-                <option key={variant.moduleId} value={variant.moduleId}>
-                  {t('channels.modules.variant.option', {
-                    name: resolveModuleDisplayName(variant, locale),
-                    variant: variant.variant
-                  })}
-                </option>
-              ))}
-            </select>
+              ariaLabel={t('channels.modules.variant.active')}
+              options={variantModules.map((variant) => ({
+                value: variant.moduleId,
+                label: t('channels.modules.variant.option', {
+                  name: resolveModuleDisplayName(variant, locale),
+                  variant: variant.variant
+                })
+              }))}
+              style={{ ...formStyles.input, display: 'flex' }}
+            />
           </div>
         </FieldCard>
       )}

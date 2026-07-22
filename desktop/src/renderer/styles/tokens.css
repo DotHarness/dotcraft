@@ -3857,6 +3857,161 @@ html[data-theme="light"] [data-mascot-speed='fast'] .composer-mascot-fast-echo {
   color: var(--text-primary);
 }
 
+/* ─── Shared checkbox ─── */
+.dc-checkbox {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+  color: var(--text-primary);
+  cursor: pointer;
+}
+
+.dc-checkbox[data-disabled="true"] {
+  cursor: default;
+  opacity: 0.62;
+}
+
+.dc-checkbox__input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: 0;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.dc-checkbox__control {
+  width: 17px;
+  height: 17px;
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  border: 1px solid var(--border-active);
+  border-radius: 5px;
+  background: var(--bg-primary);
+  color: var(--on-accent);
+  transition: background-color 120ms ease, border-color 120ms ease, box-shadow 120ms ease;
+}
+
+.dc-checkbox:hover:not([data-disabled="true"]) .dc-checkbox__control {
+  border-color: var(--text-secondary);
+  background: var(--bg-tertiary);
+}
+
+.dc-checkbox__input:checked + .dc-checkbox__control {
+  border-color: var(--accent);
+  background: var(--accent);
+}
+
+.dc-checkbox__input:focus-visible + .dc-checkbox__control {
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 38%, transparent);
+}
+
+.dc-checkbox__label {
+  min-width: 0;
+  line-height: 1.4;
+}
+
+/* ─── Shared editable combobox ─── */
+.dc-combobox {
+  width: 100%;
+  min-height: var(--button-height);
+  box-sizing: border-box;
+  display: flex;
+  align-items: stretch;
+  border: 1px solid var(--border-default);
+  border-radius: 8px;
+  background: var(--bg-primary);
+  transition: border-color 120ms ease, box-shadow 120ms ease, opacity 120ms ease;
+}
+
+.dc-combobox:hover:not([data-disabled="true"]) {
+  border-color: var(--border-active);
+}
+
+.dc-combobox:focus-within,
+.dc-combobox[data-open="true"] {
+  border-color: var(--border-active);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 18%, transparent);
+}
+
+.dc-combobox[data-disabled="true"] {
+  opacity: 0.62;
+}
+
+.dc-combobox__input {
+  min-width: 0;
+  flex: 1;
+  border: 0;
+  outline: 0;
+  padding: 7px 4px 7px 10px;
+  background: transparent;
+  color: var(--text-primary);
+  font: inherit;
+  font-size: 13px;
+}
+
+.dc-combobox__input::placeholder {
+  color: var(--text-dimmed);
+}
+
+.dc-combobox__toggle {
+  width: 32px;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-secondary);
+  cursor: text;
+}
+
+.dc-combobox:hover:not([data-disabled="true"]) .dc-combobox__toggle {
+  color: var(--text-primary);
+}
+
+.dc-combobox[data-open="true"] .dc-combobox__toggle svg {
+  transform: rotate(180deg);
+}
+
+.dc-combobox__toggle svg {
+  transition: transform 120ms ease;
+}
+
+.dc-combobox-menu {
+  position: fixed;
+  z-index: 10001;
+  padding: 5px;
+  border: none;
+  border-radius: 10px;
+  background: var(--glass-surface-strong);
+  box-shadow: var(--glass-shadow-soft);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.dc-combobox-option {
+  min-height: 34px;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  padding: 7px 8px;
+  border-radius: 7px;
+  color: var(--text-primary);
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.25;
+  cursor: pointer;
+  user-select: none;
+}
+
+.dc-combobox-option[data-active="true"] {
+  background: var(--bg-tertiary);
+}
+
 /* ─── Shared action button (see specs/architecture/DESIGN.md → Actions) ───
    One component for every text/icon action so intent (variant) and size are
    chosen by prop instead of being re-derived per call site. The 1px border is
@@ -4214,8 +4369,8 @@ html[data-theme="light"] [data-mascot-speed='fast'] .composer-mascot-fast-echo {
   outline: none;
 }
 
-/* Numeric inputs inside custom popovers hide the native spin buttons so they
-   read as the same quiet control family as the surrounding pickers. */
+/* Desktop-owned numeric inputs hide Chromium spin buttons so they read as the
+   same quiet control family as surrounding fields while retaining keyboard steps. */
 input.dc-plain-number::-webkit-outer-spin-button,
 input.dc-plain-number::-webkit-inner-spin-button {
   -webkit-appearance: none;

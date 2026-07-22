@@ -478,6 +478,13 @@ columns stay legible.
 Validation combines copy, border/icon treatment, and semantic tokens. Error or
 warning color identifies the issue without taking over the form.
 
+Visible select controls, checkboxes, and editable suggestion fields in Desktop-owned
+UI use the shared `Select`, `Checkbox`, and `Combobox` components so their menus,
+focus treatment, disabled state, and keyboard behavior remain consistent. A native
+form control may remain only when it is visually hidden and supplies semantics, or
+when it deliberately opens a platform picker such as the system color chooser.
+Third-party content rendered in sandboxed views is outside this rule.
+
 ### Selection Rows
 
 Compact selectors, menu items, picker options, sidebar thread rows,

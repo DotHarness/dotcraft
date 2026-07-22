@@ -125,10 +125,14 @@ describe('ModuleConfigForm localization', () => {
     expect(screen.getByText('选择接入的服务环境：飞书或 Lark。')).toBeInTheDocument()
     expect(screen.getByText('下载目录')).toBeInTheDocument()
     expect(screen.getByText('Fallback description')).toBeInTheDocument()
-    const select = screen.getByDisplayValue('feishu') as HTMLSelectElement
-    expect(select.tagName).toBe('SELECT')
-    expect([...select.options].map((option) => option.value)).toEqual(['', 'feishu', 'lark'])
-    expect([...select.options].map((option) => option.text)).toEqual(['', 'feishu', 'lark'])
+    const select = screen.getByRole('combobox', { name: '服务平台' })
+    expect(select.tagName).toBe('BUTTON')
+
+    fireEvent.click(select)
+
+    const options = screen.getAllByRole('option')
+    expect(options.map((option) => option.textContent)).toEqual(['', 'feishu', 'lark'])
+    expect(options[1]).toHaveAttribute('aria-selected', 'true')
   })
 
   it('prefers channel-provided english localization over base labels', async () => {

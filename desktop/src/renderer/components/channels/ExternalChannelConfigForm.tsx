@@ -3,6 +3,7 @@ import { useT } from '../../contexts/LocaleContext'
 import type { ChannelConnectionState } from './ChannelCard'
 import { FieldCard, FormActions, StatusPill, formStyles } from './FormShared'
 import { ToggleSwitch } from './ToggleSwitch'
+import { Select } from '../ui/Select'
 import { Button } from '../ui/Button'
 
 export interface ExternalChannelConfigWire {
@@ -140,10 +141,9 @@ export function ExternalChannelConfigForm({
         <FieldCard>
           <div style={formStyles.fieldGroup}>
             <label style={formStyles.label}>{t('channels.transport')}</label>
-            <select
+            <Select<ExternalChannelConfigWire['transport']>
               value={value.transport}
-              onChange={(e) => {
-                const nextTransport = e.target.value as ExternalChannelConfigWire['transport']
+              onValueChange={(nextTransport) => {
                 const nextHasProcessLauncher =
                   nextTransport === 'subprocess' || nextTransport === 'managedWebsocket'
                 onChange({
@@ -155,14 +155,14 @@ export function ExternalChannelConfigForm({
                   env: nextHasProcessLauncher ? value.env ?? {} : null
                 })
               }}
-              style={formStyles.input}
-              onFocus={formStyles.inputFocus as never}
-              onBlur={formStyles.inputBlur as never}
-            >
-              <option value="subprocess">Subprocess</option>
-              <option value="managedWebsocket">Managed WebSocket</option>
-              <option value="websocket">WebSocket</option>
-            </select>
+              ariaLabel={t('channels.transport')}
+              options={[
+                { value: 'subprocess', label: 'Subprocess' },
+                { value: 'managedWebsocket', label: 'Managed WebSocket' },
+                { value: 'websocket', label: 'WebSocket' }
+              ]}
+              style={{ ...formStyles.input, display: 'flex' }}
+            />
           </div>
 
           {hasProcessLauncher ? (
