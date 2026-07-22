@@ -22,8 +22,11 @@ import {
   CatalogCompactGrid,
   CatalogSection,
   CatalogTabs,
+  CatalogTopBar,
   styles as catalogStyles
 } from '../catalog/CatalogSurface'
+import { Button } from '../ui/Button'
+import { IconButton } from '../ui/IconButton'
 
 function SkeletonCard(): JSX.Element {
   return (
@@ -186,44 +189,47 @@ export function AutomationsView(): JSX.Element {
 
   return (
     <div style={page}>
-      {showTabBar && (
-        <CatalogTabs
-          value={activePanel}
-          onChange={(next) => {
-            if (next === 'tasks' && hasTasks) setAutomationsTab('tasks')
-            if (next === 'cron' && hasCron) setAutomationsTab('cron')
-          }}
-          items={[
-            { value: 'tasks', label: t('auto.tabTasks') },
-            { value: 'cron', label: t('auto.tabCron') }
-          ]}
-        />
-      )}
+      <CatalogTopBar
+        navigation={showTabBar ? (
+          <CatalogTabs
+            inTopBar
+            value={activePanel}
+            onChange={(next) => {
+              if (next === 'tasks' && hasTasks) setAutomationsTab('tasks')
+              if (next === 'cron' && hasCron) setAutomationsTab('cron')
+            }}
+            items={[
+              { value: 'tasks', label: t('auto.tabTasks') },
+              { value: 'cron', label: t('auto.tabCron') }
+            ]}
+          />
+        ) : undefined}
+        actions={(
+          <>
+            {activePanel === 'tasks' && (
+              <Button
+                variant="primary"
+                aria-label={t('auto.createTask')}
+                onClick={() => openNewTask()}
+                iconLeft={<Plus size={14} aria-hidden />}
+              >
+                {t('auto.newTaskButtonLabel')}
+              </Button>
+            )}
+              <IconButton
+                label={t('auto.moreActions')}
+                tooltipLabel={t('auto.moreActions')}
+                tooltipPlacement="bottom"
+                aria-haspopup="menu"
+                aria-expanded={menuPosition != null}
+                onClick={(event) => setMenuPosition({ x: event.clientX, y: event.clientY })}
+                icon={<Ellipsis size={16} aria-hidden />}
+              />
+          </>
+        )}
+      />
 
       <header style={browseHeader}>
-        <div style={topActions}>
-          {activePanel === 'tasks' && (
-            <button
-              type="button"
-              aria-label={t('auto.createTask')}
-              onClick={() => openNewTask()}
-              style={primaryCreateButton}
-            >
-              <Plus size={14} aria-hidden />
-              <span style={primaryActionLabel}>{t('auto.newTaskButtonLabel')}</span>
-            </button>
-          )}
-          <ActionTooltip label={t('auto.moreActions')} placement="bottom">
-            <button
-              type="button"
-              aria-label={t('auto.moreActions')}
-              onClick={(event) => setMenuPosition({ x: event.clientX, y: event.clientY })}
-              style={iconButton}
-            >
-              <Ellipsis size={16} aria-hidden />
-            </button>
-          </ActionTooltip>
-        </div>
         <h1 style={heroTitle}>{t('auto.viewTitle')}</h1>
       </header>
 
@@ -530,24 +536,9 @@ function RetryState({ message, onRetry }: { message: string; onRetry(): void }):
 
 const page: CSSProperties = catalogStyles.page
 const browseHeader: CSSProperties = catalogStyles.browseHeader
-const topActions: CSSProperties = catalogStyles.topActions
 const heroTitle: CSSProperties = catalogStyles.heroTitle
 const browseMain: CSSProperties = catalogStyles.browseMain
-const iconButton: CSSProperties = catalogStyles.iconButton
 const emptyText: CSSProperties = catalogStyles.emptyText
-
-const primaryCreateButton: CSSProperties = {
-  ...catalogStyles.manageButton,
-  borderColor: 'var(--text-primary)',
-  backgroundColor: 'var(--text-primary)',
-  color: 'var(--bg-primary)',
-  fontWeight: 600
-}
-
-const primaryActionLabel: CSSProperties = {
-  lineHeight: 1,
-  transform: 'translateY(-1px)'
-}
 
 const listConstrained: CSSProperties = {
   maxWidth: '760px',

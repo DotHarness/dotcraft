@@ -450,7 +450,7 @@ describe('PluginsView local plugin visibility', () => {
     expect(screen.queryByText('Connected Apps')).not.toBeInTheDocument()
   })
 
-  it('shows app settings with authorization and offline thread availability on plugin details', async () => {
+  it('shows only workspace connection state on plugin details', async () => {
     const installedWorkflowApp = { ...workflowPlugin, installed: true, enabled: true, installable: false }
     useConnectionStore.getState().setStatus({
       status: 'connected',
@@ -460,6 +460,7 @@ describe('PluginsView local plugin visibility', () => {
       }
     })
     useThreadStore.getState().setActiveThreadId('thread-1')
+    shellGetProtocolHandlerName.mockResolvedValue('Workflow App')
     appServerSendRequest.mockImplementation(async (method: string) => {
       if (method === 'plugin/list') return { plugins: [installedWorkflowApp], diagnostics: [] }
       if (method === 'plugin/view') return { plugin: installedWorkflowApp }
@@ -486,13 +487,19 @@ describe('PluginsView local plugin visibility', () => {
     fireEvent.click(await screen.findByText('Workflow App'))
 
     expect(await screen.findByText('App Settings')).toBeInTheDocument()
-    expect(screen.getByText('Authorized')).toBeInTheDocument()
-    expect(screen.getByText('Offline')).toBeInTheDocument()
-    expect(screen.getByText('Last approved capabilities')).toBeInTheDocument()
-    expect(screen.getByText('workflow.ReadBoard')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Open app' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Connected' })).toBeInTheDocument()
+    expect(screen.queryByText('Offline')).not.toBeInTheDocument()
+    expect(screen.queryByText('Last approved capabilities')).not.toBeInTheDocument()
+    expect(screen.queryByText('workflow.ReadBoard')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Open app' })).not.toBeInTheDocument()
     expect(screen.queryByText('Connected Apps')).not.toBeInTheDocument()
-    expect(screen.queryByText('Connected')).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Connected' }))
+    fireEvent.click(await screen.findByRole('menuitem', { name: 'Disconnect' }))
+    await waitFor(() => {
+      expect(appServerSendRequest).toHaveBeenCalledWith('app/connection/revoke', { appId: 'com.example.workflow' })
+      expect(confirmDialog).toHaveBeenCalledWith(expect.objectContaining({ danger: true }))
+    })
   })
 
   it('shows the fixed category set including Productivity', async () => {
@@ -592,13 +599,42 @@ describe('PluginsView local plugin visibility', () => {
     renderPluginsView()
 
     fireEvent.click(await screen.findByText('External Process Echo'))
-    fireEvent.click(await screen.findByRole('button', { name: 'Remove from DotCraft' }))
+    await screen.findByRole('heading', { name: 'External Process Echo' })
+    expect(screen.queryByRole('button', { name: 'Uninstall' })).not.toBeInTheDocument()
+    fireEvent.click(await screen.findByRole('button', { name: 'More actions' }))
+    fireEvent.click(await screen.findByRole('menuitem', { name: 'Uninstall' }))
 
     await waitFor(() => {
       expect(confirmDialog).toHaveBeenCalledWith(expect.objectContaining({ danger: true }))
       expect(appServerSendRequest).toHaveBeenCalledWith('plugin/remove', { id: 'external-process-echo' })
     })
-    expect(screen.queryByRole('button', { name: 'Remove from DotCraft' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Uninstall' })).not.toBeInTheDocument()
+  })
+
+  it('opens Manage with an isolated plugin filter and restores it after returning from details', async () => {
+    appServerSendRequest.mockImplementation(async (method: string, params?: { id?: string }) => {
+      if (method === 'plugin/list') return { plugins: [browserUsePlugin, localPlugin], diagnostics: [] }
+      if (method === 'plugin/view') return { plugin: params?.id === localPlugin.id ? localPlugin : browserUsePlugin }
+      return {}
+    })
+
+    renderPluginsView()
+    fireEvent.click(await screen.findByText('External Process Echo'))
+    await screen.findByRole('heading', { name: 'External Process Echo' })
+    fireEvent.click(screen.getByRole('button', { name: 'More actions' }))
+    fireEvent.click(await screen.findByRole('menuitem', { name: 'Manage' }))
+
+    const search = await screen.findByPlaceholderText('Search installed plugins')
+    expect(search).toHaveValue('External Process Echo')
+    expect(screen.queryByText('Browser')).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByText('External Process Echo'))
+    await screen.findByRole('heading', { name: 'External Process Echo' })
+    fireEvent.click(screen.getByRole('button', { name: 'Plugins' }))
+    expect(await screen.findByPlaceholderText('Search installed plugins')).toHaveValue('External Process Echo')
+
+    fireEvent.change(screen.getByPlaceholderText('Search installed plugins'), { target: { value: '' } })
+    expect(await screen.findByText('Browser')).toBeInTheDocument()
   })
 
   it('hides remove for installed plugins that are not removable', async () => {
@@ -614,7 +650,7 @@ describe('PluginsView local plugin visibility', () => {
     fireEvent.click(await screen.findByText('External Process Echo'))
 
     expect(await screen.findByRole('button', { name: 'Try in chat' })).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Remove from DotCraft' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Uninstall' })).not.toBeInTheDocument()
   })
 
   it('opens plugin detail links in the external browser', async () => {
@@ -731,7 +767,9 @@ describe('PluginsView local plugin visibility', () => {
 
     renderPluginsView()
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Install' }))
+    const installButton = await screen.findByRole('button', { name: 'Install' })
+    expect(installButton).toHaveClass('dc-plugin-install-button')
+    fireEvent.click(installButton)
 
     expect(await screen.findByRole('heading', { name: 'Install Workflow App' })).toBeInTheDocument()
     expect((await screen.findAllByText('Workflow App')).length).toBeGreaterThan(0)

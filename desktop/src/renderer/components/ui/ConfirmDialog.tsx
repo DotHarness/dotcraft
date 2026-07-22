@@ -1,5 +1,6 @@
 import { useEffect, useCallback, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
+import { Button } from './Button'
 
 export interface ConfirmDialogOptions {
   title: string
@@ -93,37 +94,20 @@ export function ConfirmDialog({
           {message}
         </p>
         <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
-          <button
+          <Button
             ref={cancelButtonRef}
             onClick={onCancel}
-            style={{
-              padding: '7px 16px',
-              border: '1px solid var(--border-default)',
-              borderRadius: '6px',
-              backgroundColor: 'transparent',
-              color: 'var(--text-primary)',
-              fontSize: '13px',
-              cursor: 'pointer'
-            }}
+            variant="secondary"
           >
             {cancelLabel}
-          </button>
-          <button
+          </Button>
+          <Button
             onClick={onConfirm}
             autoFocus={false}
-            style={{
-              padding: '7px 16px',
-              border: danger ? '1px solid var(--error)' : '1px solid var(--text-primary)',
-              borderRadius: '6px',
-              backgroundColor: danger ? 'var(--error)' : 'var(--text-primary)',
-              color: danger ? 'var(--on-accent)' : 'var(--bg-primary)',
-              fontSize: '13px',
-              fontWeight: 500,
-              cursor: 'pointer'
-            }}
+            variant={danger ? 'danger' : 'primary'}
           >
             {confirmLabel}
-          </button>
+          </Button>
         </div>
       </div>
     </div>

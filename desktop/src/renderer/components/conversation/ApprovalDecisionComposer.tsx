@@ -7,6 +7,7 @@ import type { ApprovalDecision, ApprovalType } from '../../types/conversation'
 import { ComposerShell, DECISION_MASCOT } from './ComposerShell'
 import { ConversationColumn } from './ConversationColumn'
 import { ComposerChoiceRow } from './ComposerChoiceRow'
+import { Button } from '../ui/Button'
 import {
   DEFAULT_COMPOSER_MASCOT_EFFECT_STATE,
   type ComposerMascotEffectState
@@ -261,27 +262,26 @@ export function ApprovalDecisionComposer({
           footerAction={(
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
               {showFooterReject && (
-                <button
-                  type="button"
+                <Button
+                  variant="ghost"
+                  size="sm"
                   onClick={() => {
                     void sendDecision(declineValue)
                   }}
                   disabled={locked}
                   aria-label={t('approval.rejectShortcutAria')}
-                  style={rejectButtonStyle(locked)}
                 >
                   <span>{declineOption?.label ?? t('approval.option.decline.label')}</span>
                   <span style={kbdChipStyle}>Esc</span>
-                </button>
+                </Button>
               )}
-              <button
-                type="button"
+              <Button
+                variant="primary"
                 onClick={submitSelected}
                 disabled={locked}
-                style={submitButtonStyle(locked)}
               >
                 {selectedOption.label}
-              </button>
+              </Button>
             </div>
           )}
         />
@@ -391,36 +391,6 @@ function detailValueStyle(mono: boolean): CSSProperties {
     // Long approval details (operation, target, and reason) must not push the decision
     // options off-screen; each value gets a small local scroll area when needed.
     whiteSpace: mono ? 'pre-wrap' : 'normal'
-  }
-}
-
-function rejectButtonStyle(disabled: boolean): CSSProperties {
-  return {
-    display: 'inline-flex',
-    alignItems: 'center',
-    gap: '6px',
-    border: 'none',
-    background: 'transparent',
-    color: 'var(--text-dimmed)',
-    fontSize: '12px',
-    cursor: disabled ? 'default' : 'pointer',
-    opacity: disabled ? 0.6 : 1,
-    padding: 0
-  }
-}
-
-function submitButtonStyle(disabled: boolean): CSSProperties {
-  return {
-    height: '32px',
-    borderRadius: '999px',
-    border: '1px solid var(--border-default)',
-    padding: '0 14px',
-    background: 'var(--bg-primary)',
-    color: 'var(--text-primary)',
-    cursor: disabled ? 'default' : 'pointer',
-    opacity: disabled ? 0.68 : 1,
-    fontSize: '12px',
-    fontWeight: 600
   }
 }
 

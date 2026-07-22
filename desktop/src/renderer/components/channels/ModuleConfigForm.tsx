@@ -7,6 +7,7 @@ import { FieldCard, FormActions, SecretInput, StatusPill, formStyles } from './F
 import { ToggleSwitch } from './ToggleSwitch'
 import { FolderIcon } from '../ui/AppIcons'
 import { IconButton } from '../ui/IconButton'
+import { Button } from '../ui/Button'
 
 interface ModuleConfigFormProps {
   module: DiscoveredModule
@@ -570,39 +571,22 @@ export function ModuleConfigForm({
             </pre>
           )}
           <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
-            <button
-              type="button"
+            <Button
+              size="sm"
+              variant="secondary"
               onClick={onLoadLogs}
-              style={{
-                border: '1px solid var(--border-default)',
-                background: 'transparent',
-                color: 'var(--text-primary)',
-                borderRadius: '6px',
-                padding: '4px 10px',
-                fontSize: '12px',
-                fontWeight: 600,
-                cursor: 'pointer'
-              }}
+              loading={logsLoading}
             >
               {logsLoading ? t('channels.modules.logs.loading') : t('channels.modules.logs.view')}
-            </button>
+            </Button>
             {localControlsAvailable && (
-              <button
-                type="button"
+              <Button
+                size="sm"
+                variant="primary"
                 onClick={onStart}
-                style={{
-                  border: '1px solid var(--error, #ff453a)',
-                  background: 'transparent',
-                  color: 'var(--error, #ff453a)',
-                  borderRadius: '6px',
-                  padding: '4px 10px',
-                  fontSize: '12px',
-                  fontWeight: 600,
-                  cursor: 'pointer'
-                }}
               >
                 {t('channels.modules.restart')}
-              </button>
+              </Button>
             )}
           </div>
         </div>
@@ -719,22 +703,13 @@ export function ModuleConfigForm({
                 <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--error, #ff453a)' }}>
                   {t('channels.modules.qr.error')}
                 </div>
-                <button
-                  type="button"
+                <Button
+                  size="sm"
+                  variant="primary"
                   onClick={onStart}
-                  style={{
-                    border: '1px solid var(--border-default)',
-                    borderRadius: '6px',
-                    background: 'transparent',
-                    color: 'var(--text-primary)',
-                    padding: '6px 12px',
-                    cursor: 'pointer',
-                    fontSize: '12px',
-                    fontWeight: 600
-                  }}
                 >
                   {t('channels.modules.qr.retry')}
-                </button>
+                </Button>
               </>
             )}
           </div>
@@ -745,23 +720,16 @@ export function ModuleConfigForm({
         {basicDescriptors.map((descriptor) => renderDescriptorField(descriptor))}
         {advancedDescriptors.length > 0 && (
           <div style={{ marginTop: basicDescriptors.length > 0 ? '2px' : 0 }}>
-            <button
-              type="button"
+            <Button
+              size="sm"
+              variant="ghost"
               onClick={() => setShowAdvanced((prev) => !prev)}
-              style={{
-                border: 'none',
-                background: 'transparent',
-                padding: 0,
-                color: 'var(--text-secondary)',
-                cursor: 'pointer',
-                fontSize: '12px',
-                fontWeight: 600
-              }}
+              style={{ paddingInline: 0 }}
             >
               {showAdvanced
                 ? t('channels.modules.hideAdvanced')
                 : t('channels.modules.showAdvanced', { count: advancedDescriptors.length })}
-            </button>
+            </Button>
           </div>
         )}
         {showAdvanced && advancedDescriptors.map((descriptor) => renderDescriptorField(descriptor))}

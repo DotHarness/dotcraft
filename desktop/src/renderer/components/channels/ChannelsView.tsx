@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react'
-import { ChevronLeft, Ellipsis, Plus } from 'lucide-react'
+import { Ellipsis, Plus } from 'lucide-react'
 import { addToast } from '../../stores/toastStore'
 import { useLocale, useT } from '../../contexts/LocaleContext'
 import type { AppLocale, LocalizedTextMap } from '../../../shared/locales'
@@ -13,13 +13,16 @@ import {
 } from './ExternalChannelConfigForm'
 import {
   CatalogCompactGrid,
+  CatalogBreadcrumb,
   CatalogSearchBox,
   CatalogSection,
+  CatalogTopBar,
   styles as catalogStyles
 } from '../catalog/CatalogSurface'
-import { ActionTooltip } from '../ui/ActionTooltip'
 import { ContextMenu, type ContextMenuPosition } from '../ui/ContextMenu'
 import { SkeletonCatalogGrid } from '../ui/Skeleton'
+import { Button } from '../ui/Button'
+import { IconButton } from '../ui/IconButton'
 import { StatusPill } from './FormShared'
 import { isPersistedEmbeddedModuleChannelEnabled } from '../../../shared/channelModulePersistence'
 import type {
@@ -1258,30 +1261,32 @@ export function ChannelsView(): JSX.Element {
 
   return (
     <div style={page}>
+      <CatalogTopBar
+        actions={(
+          <>
+            {externalManagementEnabled && (
+              <Button
+                variant="primary"
+                aria-label={t('channels.external.add')}
+                onClick={openNewExternalChannel}
+                iconLeft={<Plus size={14} aria-hidden />}
+              >
+                {t('channels.external.add')}
+              </Button>
+            )}
+              <IconButton
+                label={t('channels.moreActions')}
+                tooltipLabel={t('channels.moreActions')}
+                tooltipPlacement="bottom"
+                aria-haspopup="menu"
+                aria-expanded={menuPosition != null}
+                onClick={(event) => setMenuPosition({ x: event.clientX, y: event.clientY })}
+                icon={<Ellipsis size={16} aria-hidden />}
+              />
+          </>
+        )}
+      />
       <header style={browseHeader}>
-        <div style={topActions}>
-          {externalManagementEnabled && (
-            <button
-              type="button"
-              aria-label={t('channels.external.add')}
-              onClick={openNewExternalChannel}
-              style={primaryAddButton}
-            >
-              <Plus size={14} aria-hidden />
-              <span style={primaryActionLabel}>{t('channels.external.add')}</span>
-            </button>
-          )}
-          <ActionTooltip label={t('channels.moreActions')} placement="bottom">
-            <button
-              type="button"
-              aria-label={t('channels.moreActions')}
-              onClick={(event) => setMenuPosition({ x: event.clientX, y: event.clientY })}
-              style={iconButton}
-            >
-              <Ellipsis size={16} aria-hidden />
-            </button>
-          </ActionTooltip>
-        </div>
         <h1 style={heroTitle}>{t('channels.heroTitle')}</h1>
         <div style={searchRow}>
           <CatalogSearchBox
@@ -1466,34 +1471,40 @@ function ChannelDetailPage({
   const t = useT()
   return (
     <div style={detailPage}>
+      <CatalogTopBar
+        navigation={(
+          <CatalogBreadcrumb
+            parentLabel={t('channels.title')}
+            currentLabel={title}
+            onBack={onBack}
+          />
+        )}
+      />
       <main style={detailMain}>
-        <button type="button" onClick={onBack} style={backButton}>
-          <ChevronLeft size={15} aria-hidden />
-          {t('channels.title')}
-        </button>
+        <div style={detailMainContent}>
+          <header style={detailHeader}>
+            <div style={detailIdentity}>
+              <ChannelIcon logoPath={logoPath} title={title} />
+              <div style={{ minWidth: 0 }}>
+                <h1 style={detailTitle}>{title}</h1>
+                <p style={detailSubtitle}>{subtitle}</p>
+              </div>
+            </div>
+            <StatusPill status={status} label={statusLabel} />
+          </header>
 
-        <header style={detailHeader}>
-          <div style={detailIdentity}>
-            <ChannelIcon logoPath={logoPath} title={title} />
-            <div style={{ minWidth: 0 }}>
-              <h1 style={detailTitle}>{title}</h1>
-              <p style={detailSubtitle}>{subtitle}</p>
+          <div style={previewCard}>
+            <div style={previewBubble}>
+              <ChannelIcon logoPath={logoPath} title={title} />
+              <strong style={previewName}>{title}</strong>
+              <span style={previewText}>{previewPrompt}</span>
             </div>
           </div>
-          <StatusPill status={status} label={statusLabel} />
-        </header>
 
-        <div style={previewCard}>
-          <div style={previewBubble}>
-            <ChannelIcon logoPath={logoPath} title={title} />
-            <strong style={previewName}>{title}</strong>
-            <span style={previewText}>{previewPrompt}</span>
-          </div>
+          <p style={detailDescription}>{description}</p>
+
+          {children}
         </div>
-
-        <p style={detailDescription}>{description}</p>
-
-        {children}
       </main>
     </div>
   )
@@ -1522,7 +1533,6 @@ function ChannelInfoGrid({
 
 const page: CSSProperties = catalogStyles.page
 const browseHeader: CSSProperties = catalogStyles.browseHeader
-const topActions: CSSProperties = catalogStyles.topActions
 const heroTitle: CSSProperties = catalogStyles.heroTitle
 const searchRow: CSSProperties = catalogStyles.searchRow
 const browseMain: CSSProperties = catalogStyles.browseMain
@@ -1530,21 +1540,7 @@ const compactItem: CSSProperties = catalogStyles.compactItem
 const rowTitle: CSSProperties = catalogStyles.rowTitle
 const rowTitleLine: CSSProperties = catalogStyles.rowTitleLine
 const rowDesc: CSSProperties = catalogStyles.rowDesc
-const iconButton: CSSProperties = catalogStyles.iconButton
 const emptyText: CSSProperties = catalogStyles.emptyText
-
-const primaryAddButton: CSSProperties = {
-  ...catalogStyles.manageButton,
-  borderColor: 'var(--text-primary)',
-  backgroundColor: 'var(--text-primary)',
-  color: 'var(--bg-primary)',
-  fontWeight: 600
-}
-
-const primaryActionLabel: CSSProperties = {
-  lineHeight: 1,
-  transform: 'translateY(-1px)'
-}
 
 const contentShell: CSSProperties = {
   flex: 1,
@@ -1626,27 +1622,20 @@ const statusLabelStyle: CSSProperties = {
 
 const detailPage: CSSProperties = {
   ...catalogStyles.page,
-  overflow: 'auto'
+  overflow: 'hidden'
 }
 
 const detailMain: CSSProperties = {
+  flex: 1,
+  minHeight: 0,
+  overflow: 'auto',
+  width: '100%'
+}
+
+const detailMainContent: CSSProperties = {
   width: 'min(760px, calc(100vw - 56px))',
   margin: '0 auto',
   padding: '58px 0 56px'
-}
-
-const backButton: CSSProperties = {
-  display: 'inline-flex',
-  alignItems: 'center',
-  gap: 4,
-  height: 30,
-  padding: '0 8px 0 2px',
-  marginBottom: 24,
-  border: 0,
-  background: 'transparent',
-  color: 'var(--text-secondary)',
-  fontSize: 13,
-  cursor: 'pointer'
 }
 
 const detailHeader: CSSProperties = {

@@ -88,6 +88,8 @@ export interface WelcomeDraft {
   speed?: InferenceSpeedWire
   contextWindow?: ContextWindowConfigurationWire
   approvalPolicy?: Extract<ApprovalPolicyWire, 'default' | 'prompt' | 'autoApprove'>
+  /** Undefined uses automatic defaults; an empty array is an explicit no-app choice. */
+  appIds?: string[]
   updatedAt: number
 }
 
@@ -400,7 +402,8 @@ function cloneWelcomeDraft(draft: WelcomeDraft): WelcomeDraft {
     images: [...draft.images],
     files: draft.files ? [...draft.files] : [],
     segments: draft.segments ? [...draft.segments] : undefined,
-    contextWindow: draft.contextWindow ? { ...draft.contextWindow } : undefined
+    contextWindow: draft.contextWindow ? { ...draft.contextWindow } : undefined,
+    appIds: draft.appIds ? [...draft.appIds] : draft.appIds
   }
 }
 
@@ -988,6 +991,7 @@ export const useUIStore = create<UIStore & InternalState>((set, get) => ({
       files: draft.files ? [...draft.files] : [],
       segments: draft.segments ? [...draft.segments] : undefined,
       contextWindow: draft.contextWindow ? { ...draft.contextWindow } : undefined,
+      appIds: draft.appIds ? [...draft.appIds] : draft.appIds,
       selectionStart: draft.selectionStart,
       selectionEnd: draft.selectionEnd,
       updatedAt: Date.now()

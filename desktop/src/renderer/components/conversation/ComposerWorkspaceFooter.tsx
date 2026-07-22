@@ -15,6 +15,7 @@ import { isDefaultChatWorkspacePathCandidate } from '../../../shared/defaultChat
 import { normalizeWorkspaceProjectKey } from '../../../shared/workspaceProjectKey'
 import { WorktreeHandoffDialog } from './WorktreeHandoffDialog'
 import { AddProjectMenuOptions, useAddProjectFlow } from '../projects/AddProject'
+import { Button } from '../ui/Button'
 
 export type ComposerWorkspaceMode = 'local' | 'worktree'
 
@@ -1024,7 +1025,6 @@ export function ComposerWorkspaceFooter({
     </>
   )
 }
-
 function WorkspaceFooterPill({
   children,
   disabled,
@@ -1055,7 +1055,6 @@ function WorkspaceFooterPill({
     </button>
   )
 }
-
 function FooterMenuButton({
   children,
   icon,
@@ -1089,7 +1088,6 @@ function FooterMenuButton({
     </button>
   )
 }
-
 function WorkspaceMenuItem({
   label,
   icon,
@@ -1114,7 +1112,6 @@ function WorkspaceMenuItem({
     </FooterMenuButton>
   )
 }
-
 function CreateBranchDialog({
   value,
   busy,
@@ -1193,28 +1190,18 @@ function CreateBranchDialog({
         </label>
         {error && <div style={{ marginTop: '8px', color: 'var(--error)', fontSize: '12px' }}>{error}</div>}
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '20px' }}>
-          <button type="button" onClick={onCancel} style={{ ...dialogButtonStyle, background: 'var(--bg-tertiary)', color: 'var(--text-primary)' }}>
-            {t('workspaceFooter.close')}
-          </button>
-          <button
-            type="button"
+          <Button
+            variant="primary"
             disabled={Boolean(error) || busy}
             onClick={onConfirm}
-            style={{
-              ...dialogButtonStyle,
-              background: 'var(--text-primary)',
-              color: 'var(--bg-primary)',
-              opacity: Boolean(error) || busy ? 0.55 : 1
-            }}
           >
             {confirmLabel}
-          </button>
+          </Button>
         </div>
       </div>
     </div>
   )
 }
-
 function CreateChangelistDialog({
   value,
   busy,
@@ -1292,34 +1279,15 @@ function CreateChangelistDialog({
           />
         </label>
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '20px' }}>
-          <button type="button" onClick={onCancel} style={{ ...dialogButtonStyle, background: 'var(--bg-tertiary)', color: 'var(--text-primary)' }}>
-            {t('workspaceFooter.close')}
-          </button>
-          <button
-            type="button"
+          <Button
+            variant="primary"
             disabled={busy}
             onClick={onConfirm}
-            style={{
-              ...dialogButtonStyle,
-              background: 'var(--text-primary)',
-              color: 'var(--bg-primary)',
-              opacity: busy ? 0.55 : 1
-            }}
           >
             {t('workspaceFooter.create')}
-          </button>
+          </Button>
         </div>
       </div>
     </div>
   )
-}
-
-const dialogButtonStyle: CSSProperties = {
-  minWidth: '88px',
-  height: '40px',
-  border: 'none',
-  borderRadius: '8px',
-  padding: '0 16px',
-  font: 'inherit',
-  cursor: 'pointer'
 }

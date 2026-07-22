@@ -128,6 +128,14 @@ describe('ThreadHeader', () => {
     })
   })
 
+  it('renders the source-control action as a frameless icon button', async () => {
+    renderHeader()
+
+    const commitButton = await screen.findByRole('button', { name: 'Commit file changes to git' })
+    expect(commitButton).toHaveTextContent('')
+    expect(commitButton).not.toHaveAttribute('data-bordered')
+  })
+
   it('opens the Fork submenu from the header menu when fork is available', async () => {
     useConnectionStore.setState({
       status: 'connected',

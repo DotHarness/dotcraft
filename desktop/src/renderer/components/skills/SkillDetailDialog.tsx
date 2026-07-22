@@ -12,6 +12,8 @@ import { PillSwitch } from '../ui/PillSwitch'
 import { CatalogHoverButton } from '../catalog/CatalogSurface'
 import { SkillAvatar } from './SkillAvatar'
 import { VariantBadge } from './VariantBadge'
+import { Button } from '../ui/Button'
+import { IconButton } from '../ui/IconButton'
 
 interface SkillDetailDialogProps {
   skill: SkillEntry
@@ -62,11 +64,7 @@ export function SkillDetailDialog({
         style={modalPanel}
         onClick={(event) => event.stopPropagation()}
       >
-        <ActionTooltip label={t('common.close')}>
-          <CatalogHoverButton type="button" aria-label={t('common.close')} baseStyle={closeButton} onClick={onClose}>
-            <X size={16} strokeWidth={2} />
-          </CatalogHoverButton>
-        </ActionTooltip>
+        <IconButton label={t('common.close')} icon={<X size={16} strokeWidth={2} />} style={closeButton} onClick={onClose} />
 
         <header style={header}>
           <SkillAvatar
@@ -119,16 +117,16 @@ export function SkillDetailDialog({
 
         <footer style={footer}>
           {onUninstall ? (
-            <button type="button" style={uninstallButton} onClick={onUninstall}>
+            <Button type="button" variant="danger" onClick={onUninstall}>
               {t('skillDetail.uninstall')}
-            </button>
+            </Button>
           ) : (
             <span style={statusText}>{skill.enabled ? t('skillCard.on') : t('skillCard.disabledBadge')}</span>
           )}
-          <button type="button" style={tryButton} onClick={onTryInChat}>
+          <Button type="button" variant="primary" onClick={onTryInChat}>
             <MessageCircle size={15} strokeWidth={2} />
             {t('skillDetail.tryInChat')}
-          </button>
+          </Button>
         </footer>
 
         {menuPosition ? (
@@ -294,36 +292,4 @@ const statusText: React.CSSProperties = {
   minWidth: 0,
   fontSize: 13,
   color: 'var(--text-tertiary)',
-}
-
-const tryButton: React.CSSProperties = {
-  height: 32,
-  padding: '0 12px',
-  border: 'none',
-  borderRadius: 10,
-  display: 'inline-flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  gap: 7,
-  background: 'var(--button-secondary-bg)',
-  color: 'var(--text-primary)',
-  fontSize: 13,
-  cursor: 'pointer',
-  whiteSpace: 'nowrap',
-}
-
-const uninstallButton: React.CSSProperties = {
-  height: 32,
-  padding: '0 12px',
-  border: 'none',
-  borderRadius: 10,
-  display: 'inline-flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  background: 'color-mix(in srgb, var(--error) 16%, transparent)',
-  color: 'var(--error)',
-  fontSize: 13,
-  fontWeight: 600,
-  cursor: 'pointer',
-  whiteSpace: 'nowrap',
 }

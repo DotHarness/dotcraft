@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNod
 import { useT } from '../../contexts/LocaleContext'
 import { ChevronDownIcon } from '../ui/AppIcons'
 import { ActionTooltip } from '../ui/ActionTooltip'
+import { Button } from '../ui/Button'
 import {
   EDITOR_ICON_SIZE,
   listEditorsCached,
@@ -32,6 +33,7 @@ export function OpenTargetButton({
 }: OpenTargetButtonProps): JSX.Element {
   const t = useT()
   const wrapRef = useRef<HTMLDivElement>(null)
+  const menuButtonRef = useRef<HTMLButtonElement>(null)
   const [open, setOpen] = useState(false)
   const [loading, setLoading] = useState(false)
   const [editors, setEditors] = useState<EditorInfo[]>([])
@@ -91,6 +93,7 @@ export function OpenTargetButton({
       if (event.key === 'Escape') {
         event.preventDefault()
         setOpen(false)
+        window.setTimeout(() => menuButtonRef.current?.focus(), 0)
         return
       }
       if (orderedEditors.length === 0) return
@@ -133,6 +136,7 @@ export function OpenTargetButton({
     } catch {
       // Keep silent to avoid interrupting regular conversation flow.
     }
+    window.setTimeout(() => menuButtonRef.current?.focus(), 0)
   }
 
   async function handleLaunch(id: EditorId): Promise<void> {
@@ -151,8 +155,10 @@ export function OpenTargetButton({
           disabledReason={loading ? t('quickOpen.loading') : undefined}
           placement={tooltipPlacement}
         >
-          <button
+          <Button
             type="button"
+            size="sm"
+            variant="ghost"
             style={{
               ...openButtonStyle,
               borderRight: '1px solid var(--border-default)',
@@ -176,15 +182,18 @@ export function OpenTargetButton({
                 {primaryButtonLabel ?? t('threadHeader.open')}
               </span>
             )}
-          </button>
+          </Button>
         </ActionTooltip>
         <ActionTooltip
           label={menuAriaLabel}
           disabledReason={loading ? t('quickOpen.loading') : undefined}
           placement={tooltipPlacement}
         >
-          <button
+          <Button
+            ref={menuButtonRef}
             type="button"
+            size="sm"
+            variant="ghost"
             aria-label={menuAriaLabel}
             aria-haspopup="menu"
             aria-expanded={open}
@@ -206,7 +215,7 @@ export function OpenTargetButton({
             }}
           >
             <ChevronDownIcon size={13} />
-          </button>
+          </Button>
         </ActionTooltip>
       </div>
 
@@ -290,8 +299,9 @@ export function OpenTargetButton({
 
 const splitWrapStyle: CSSProperties = {
   display: 'inline-flex',
+  border: '1px solid var(--border-default)',
   borderRadius: '6px',
-  overflow: 'hidden'
+  background: 'var(--bg-secondary)'
 }
 
 const openButtonStyle: CSSProperties = {
@@ -299,12 +309,12 @@ const openButtonStyle: CSSProperties = {
   alignItems: 'center',
   gap: '6px',
   padding: '4px 10px',
-  minHeight: '28px',
+  height: '26px',
   fontSize: '12px',
   fontWeight: 500,
   color: 'var(--text-secondary)',
   backgroundColor: 'transparent',
-  border: '1px solid var(--border-default)',
+  border: 'none',
   borderRadius: '6px',
   cursor: 'pointer',
   flexShrink: 0,

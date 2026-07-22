@@ -185,6 +185,7 @@ describe('ConversationWelcome composer', () => {
       composerPrefill: null,
       pendingWelcomeTurn: null,
       welcomeDraft: null,
+      welcomeDraftsByWorkspace: {},
       _pendingWelcomeTimer: null
     })
 
@@ -771,7 +772,7 @@ describe('ConversationWelcome composer', () => {
     expect(fileReadFile).not.toHaveBeenCalled()
   })
 
-  it('shows connected welcome apps as enabled switches and preserves manual disable', async () => {
+  it('stages connected welcome apps with a switch and restores an explicit empty selection', async () => {
     useConnectionStore.setState({
       status: 'connected',
       capabilities: {
@@ -809,22 +810,73 @@ describe('ConversationWelcome composer', () => {
       return {}
     })
 
-    renderWelcome()
+    const firstMount = renderWelcome()
 
     fireEvent.click(await screen.findByRole('button', { name: 'Apps' }))
-    const appSwitch = await screen.findByRole('switch', { name: 'Use Workflow App for the first turn' })
-    expect(appSwitch).toHaveAttribute('aria-checked', 'true')
-    expect(screen.getByText('Authorized')).toBeInTheDocument()
-    expect(screen.queryByText('Connected')).not.toBeInTheDocument()
+    const switchControl = await screen.findByRole('switch', { name: 'Use Workflow App for the first turn' })
+    expect(switchControl).toHaveAttribute('aria-checked', 'true')
+    fireEvent.click(switchControl)
 
-    fireEvent.click(appSwitch)
-    expect(appSwitch).toHaveAttribute('aria-checked', 'false')
-    fireEvent.click(screen.getByRole('button', { name: 'Refresh' }))
+    expect(switchControl).toHaveAttribute('aria-checked', 'false')
+    expect(screen.queryByText('Authorized')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Added' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Add' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Connect' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Refresh' })).not.toBeInTheDocument()
+    expect(appServerSendRequest).not.toHaveBeenCalledWith('app/connection/start', expect.anything())
+    expect(appServerSendRequest).not.toHaveBeenCalledWith('thread/appBindings/revoke', expect.anything())
+    await waitFor(() => expect(useUIStore.getState().welcomeDraft?.appIds).toEqual([]))
 
-    await waitFor(() => {
-      expect(screen.getByRole('switch', { name: 'Use Workflow App for the first turn' }))
-        .toHaveAttribute('aria-checked', 'false')
+    firstMount.unmount()
+    renderWelcome()
+    fireEvent.click(await screen.findByRole('button', { name: 'Apps' }))
+    expect(await screen.findByRole('switch', { name: 'Use Workflow App for the first turn' })).toHaveAttribute('aria-checked', 'false')
+  })
+
+  it('hides unconnected welcome apps instead of offering connection or setup actions', async () => {
+    useConnectionStore.setState({
+      status: 'connected',
+      capabilities: {
+        commandManagement: true,
+        skillsManagement: true,
+        appBindingVersion: 2,
+        extensions: { welcomeSuggestions: true }
+      }
     })
+    appServerSendRequest.mockImplementation(async (method: string) => {
+      if (method === 'command/list') return { commands: [] }
+      if (method === 'skills/list') return { skills: [] }
+      if (method === 'welcome/suggestions') return { source: 'none', items: [], fingerprint: 'none' }
+      if (method === 'app/list') {
+        return {
+          apps: [{
+            appId: 'com.example.workflow',
+            toolNamespace: 'workflow',
+            displayName: 'Workflow App',
+            developerName: 'Example Labs',
+            description: 'Board tools',
+            pluginId: 'workflow',
+            installed: true,
+            enabled: true,
+            catalogVisible: true,
+            connectionState: 'notConnected',
+            nativeApp: { displayName: 'Workflow App', protocol: 'workflow', status: 'installed' },
+            scopes: [],
+            toolCatalog: []
+          }]
+        }
+      }
+      if (method === 'plugin/list') return { plugins: [] }
+      return {}
+    })
+
+    renderWelcome()
+    fireEvent.click(await screen.findByRole('button', { name: 'Apps' }))
+    expect(await screen.findByText('No connected apps available.')).toBeInTheDocument()
+    expect(screen.queryByText('Workflow App')).not.toBeInTheDocument()
+    expect(screen.queryByRole('switch')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Set up' })).not.toBeInTheDocument()
+    expect(appServerSendRequest).not.toHaveBeenCalledWith('app/connection/start', expect.anything())
   })
 
   it('handles /goal on the welcome screen by queuing the objective as the first turn', async () => {
@@ -1290,8 +1342,7 @@ describe('ConversationWelcome composer', () => {
     renderWelcome()
 
     fireEvent.click(await screen.findByRole('button', { name: 'Apps' }))
-    const appSwitch = await screen.findByRole('switch', { name: 'Use Workflow App for the first turn' })
-    expect(appSwitch).toHaveAttribute('aria-checked', 'true')
+    expect(await screen.findByRole('switch', { name: 'Use Workflow App for the first turn' })).toHaveAttribute('aria-checked', 'true')
 
     const textbox = await screen.findByRole('textbox')
     textbox.textContent = 'List my Workflow App board items'

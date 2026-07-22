@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ComponentType, type CSSProperties } from 'react'
-import { BookText, Bot, Bug, ExternalLink, FileText, Link2, ListChecks, RefreshCw, Sparkles, Target } from 'lucide-react'
+import { BookText, Bot, Bug, FileText, Link2, ListChecks, Sparkles, Target } from 'lucide-react'
 import { useLocale, useT } from '../../contexts/LocaleContext'
 import { useConnectionStore } from '../../stores/connectionStore'
 import { useModelCatalogStore, type InferenceSpeedWire, type ReasoningEffortWire, type ReasoningOutputWire } from '../../stores/modelCatalogStore'
@@ -8,7 +8,7 @@ import { useThreadStore } from '../../stores/threadStore'
 import { usePerforceChangelistStore } from '../../stores/perforceChangelistStore'
 import { useUIStore } from '../../stores/uiStore'
 import { useSkillsStore } from '../../stores/skillsStore'
-import { useAppBindingStore, type AppHandoff, type AppInfo } from '../../stores/appBindingStore'
+import { useAppBindingStore, type AppInfo } from '../../stores/appBindingStore'
 import { addToast } from '../../stores/toastStore'
 import { useCustomCommandCatalog } from '../../hooks/useCustomCommandCatalog'
 import type { ComposerFileAttachment, ImageAttachment, ThreadMode } from '../../types/conversation'
@@ -46,10 +46,12 @@ import { ComposerWorkspaceFooter, type ComposerWorkspaceMode } from './ComposerW
 import { ProfilePickerPopover } from './ProfilePickerPopover'
 import { useResolvedProfileAvatar } from '../../stores/agentProfileAvatarStore'
 import { ActionTooltip } from '../ui/ActionTooltip'
-import { PillSwitch } from '../ui/PillSwitch'
 import { Skeleton } from '../ui/Skeleton'
+import { PillSwitch } from '../ui/PillSwitch'
 import { ACTION_SHORTCUTS } from '../ui/shortcutKeys'
 import type { WorkspaceConfigChangedPayload } from '../../utils/workspaceConfigChanged'
+import { openAppHandoff } from '../plugins/AppBindingPanel'
+import { AppBindingPickerRow, AppBindingsPicker, isAppReadyForBindingPicker } from './AppBindingsPicker'
 import {
   configObjectFromWorkspaceCore,
   resolveConcreteApprovalPolicyFromConfig,
@@ -243,14 +245,13 @@ export function ConversationWelcome({
   const clearWelcomeDraft = useUIStore((s) => s.clearWelcomeDraft)
   const setWelcomeDraftWorkspace = useUIStore((s) => s.setWelcomeDraftWorkspace)
   const appBindingApps = useAppBindingStore((s) => s.apps)
+  const appBindingAppsLoading = useAppBindingStore((s) => s.appsSurface === 'welcome' && s.appsLoading)
+  const appBindingAppsError = useAppBindingStore((s) => s.appsSurface === 'welcome' ? s.appsError : null)
   const fetchAppBindings = useAppBindingStore((s) => s.fetchApps)
-  const startAppConnection = useAppBindingStore((s) => s.startConnection)
   const createAppBindingRequest = useAppBindingStore((s) => s.createBindingRequest)
-  const waitForAppConnection = useAppBindingStore((s) => s.waitForConnection)
   const waitForThreadAppBinding = useAppBindingStore((s) => s.waitForThreadBinding)
   const [welcomeAppIds, setWelcomeAppIds] = useState<string[]>([])
-  const [welcomeAppUserDisabledIds, setWelcomeAppUserDisabledIds] = useState<Set<string>>(() => new Set())
-  const [welcomeAppBusyId, setWelcomeAppBusyId] = useState<string | null>(null)
+  const [welcomeAppSelectionTouched, setWelcomeAppSelectionTouched] = useState(false)
 
   const isConnected = connectionStatus === 'connected'
   const openingWorkspace = connectionStatus === 'connecting'
@@ -378,7 +379,7 @@ export function ConversationWelcome({
 
   const welcomeApps = useMemo(
     () => appBindingApps
-      .filter((app) => app.installed && app.enabled)
+      .filter(isAppReadyForBindingPicker)
       .sort((a, b) => a.displayName.localeCompare(b.displayName)),
     [appBindingApps]
   )
@@ -386,67 +387,31 @@ export function ConversationWelcome({
   useEffect(() => {
     setWelcomeAppIds((current) => {
       const appsById = new Map(welcomeApps.map((app) => [app.appId, app]))
-      const selected = new Set(
-        current.filter((appId) => {
-          const app = appsById.get(appId)
-          return app?.connectionState === 'connected'
-            && !welcomeAppUserDisabledIds.has(appId)
-        })
-      )
-      for (const app of welcomeApps) {
-        if (app.connectionState === 'connected'
-          && app.requiresExternalConnection !== false
-          && app.managed !== true
-          && !welcomeAppUserDisabledIds.has(app.appId)) {
-          selected.add(app.appId)
-        }
-      }
-      const next = welcomeApps
-        .filter((app) => selected.has(app.appId))
-        .map((app) => app.appId)
+      const next = welcomeAppSelectionTouched
+        ? current.filter((appId) => {
+            const app = appsById.get(appId)
+            return app != null
+          })
+        : welcomeApps
+            .filter((app) => app.connectionState === 'connected'
+              && app.requiresExternalConnection !== false
+              && app.managed !== true)
+            .map((app) => app.appId)
       return sameStringArray(current, next) ? current : next
     })
-  }, [welcomeAppUserDisabledIds, welcomeApps])
+  }, [welcomeAppSelectionTouched, welcomeApps])
 
   const toggleWelcomeApp = useCallback((appId: string, selected: boolean): void => {
-    setWelcomeAppUserDisabledIds((current) => {
-      const next = new Set(current)
-      if (selected) next.delete(appId)
-      else next.add(appId)
-      return next
-    })
+    setWelcomeAppSelectionTouched(true)
     setWelcomeAppIds((current) => {
       if (selected) return current.includes(appId) ? current : [...current, appId]
       return current.filter((candidate) => candidate !== appId)
     })
   }, [])
 
-  const handleWelcomeAppRefresh = useCallback(async (): Promise<void> => {
+  const retryWelcomeApps = useCallback(async (): Promise<void> => {
     await fetchAppBindings(null, true, 'welcome')
   }, [fetchAppBindings])
-
-  const handleWelcomeNativeInstall = useCallback(async (app: AppInfo): Promise<void> => {
-    const url = app.nativeApp?.installUrl || app.releasePage || app.downloadUrl
-    if (!url) throw new Error(t('appBinding.nativeInstallMissing'))
-    await window.api.shell.openExternal(url)
-  }, [t])
-
-  const handleWelcomeAppConnect = useCallback(async (app: AppInfo): Promise<void> => {
-    if (welcomeAppBusyId != null) return
-    setWelcomeAppBusyId(app.appId)
-    try {
-      const result = await startAppConnection(app.appId)
-      await openWelcomeAppHandoff(result.handoff, t)
-      addToast(t('appBinding.connectStarted'), 'info')
-      await waitForAppConnection(app.appId)
-      toggleWelcomeApp(app.appId, true)
-      addToast(t('appBinding.connection.connected'), 'success')
-    } catch (err) {
-      addToast(err instanceof Error ? err.message : String(err), 'error')
-    } finally {
-      setWelcomeAppBusyId(null)
-    }
-  }, [startAppConnection, t, toggleWelcomeApp, waitForAppConnection, welcomeAppBusyId])
 
   const startWelcomeAppBindings = useCallback(async (threadId: string): Promise<void> => {
     if (welcomeAppIds.length === 0) return
@@ -465,7 +430,7 @@ export function ConversationWelcome({
         appId: selectedApp.appId,
         source: 'welcome'
       })
-      if (result.handoff?.uri) await openWelcomeAppHandoff(result.handoff, t)
+      if (result.handoff?.uri) await openAppHandoff(result.handoff, t)
       if (result.state !== 'active') addToast(t('appBinding.bindingStarted'), 'info')
       await waitForThreadAppBinding({
         threadId,
@@ -876,6 +841,10 @@ export function ConversationWelcome({
     )
     setReasoningConfig(readReasoningObject(welcomeDraft.reasoning) ?? DEFAULT_REASONING_CONFIG)
     if (welcomeDraft.speed != null) setSpeedValue(welcomeDraft.speed === 'fast' ? 'fast' : 'standard')
+    if (Array.isArray(welcomeDraft.appIds)) {
+      setWelcomeAppIds([...welcomeDraft.appIds])
+      setWelcomeAppSelectionTouched(true)
+    }
     setContentRevision((n) => n + 1)
     draftHydratedRef.current = true
   }, [canUseCommandPicker, customCommandStatus, skillCatalogReady])
@@ -1018,6 +987,7 @@ export function ConversationWelcome({
       || welcomeApprovalPolicyDirty
       || hasCustomReasoning
       || welcomeContextExplicit
+      || welcomeAppSelectionTouched
     const fallbackCaret = text.length
 
     if (!hasText && !hasImages && !hasFiles && !hasCustomSettings) {
@@ -1038,9 +1008,10 @@ export function ConversationWelcome({
       reasoning: reasoningConfig,
       speed: speedValue,
       contextWindow: buildWelcomeContextWindowConfig(),
-      approvalPolicy: welcomeApprovalPolicy
+      approvalPolicy: welcomeApprovalPolicy,
+      appIds: welcomeAppSelectionTouched ? [...welcomeAppIds] : undefined
     }, draftProjectKey)
-  }, [buildWelcomeContextWindowConfig, clearWelcomeDraft, draftProjectKey, files, images, modelName, providerId, reasoningConfig, setWelcomeDraft, speedValue, welcomeApprovalPolicy, welcomeApprovalPolicyDirty, welcomeContextExplicit, welcomeMode])
+  }, [buildWelcomeContextWindowConfig, clearWelcomeDraft, draftProjectKey, files, images, modelName, providerId, reasoningConfig, setWelcomeDraft, speedValue, welcomeAppIds, welcomeAppSelectionTouched, welcomeApprovalPolicy, welcomeApprovalPolicyDirty, welcomeContextExplicit, welcomeMode])
 
   useEffect(() => {
     if (!draftHydratedRef.current) return
@@ -1050,7 +1021,7 @@ export function ConversationWelcome({
     return () => {
       clearTimeout(timer)
     }
-  }, [contentRevision, files, flushWelcomeDraft, images, modelName, reasoningConfig, speedValue, welcomeApprovalPolicy, welcomeApprovalPolicyDirty, welcomeContextExplicit, welcomeContextMode, welcomeMode])
+  }, [contentRevision, files, flushWelcomeDraft, images, modelName, reasoningConfig, speedValue, welcomeAppIds, welcomeAppSelectionTouched, welcomeApprovalPolicy, welcomeApprovalPolicyDirty, welcomeContextExplicit, welcomeContextMode, welcomeMode])
 
   useEffect(() => {
     return () => {
@@ -1617,12 +1588,11 @@ export function ConversationWelcome({
           <WelcomeAppBindingsButton
             apps={welcomeApps}
             selectedAppIds={welcomeAppIds}
-            busyAppId={welcomeAppBusyId}
             disabled={starting}
-            onRefresh={handleWelcomeAppRefresh}
+            loading={appBindingAppsLoading}
+            error={appBindingAppsError}
+            onRetry={retryWelcomeApps}
             onToggleApp={toggleWelcomeApp}
-            onConnect={handleWelcomeAppConnect}
-            onInstallNative={handleWelcomeNativeInstall}
           />
         </div>
       )}
@@ -2095,150 +2065,56 @@ function WelcomeSuggestionSkeletonList(): JSX.Element {
 function WelcomeAppBindingsButton({
   apps,
   selectedAppIds,
-  busyAppId,
   disabled,
-  onRefresh,
+  loading,
+  error,
+  onRetry,
   onToggleApp,
-  onConnect,
-  onInstallNative
 }: {
   apps: AppInfo[]
   selectedAppIds: string[]
-  busyAppId: string | null
   disabled: boolean
-  onRefresh: () => Promise<void>
+  loading: boolean
+  error: string | null
+  onRetry: () => Promise<void>
   onToggleApp: (appId: string, selected: boolean) => void
-  onConnect: (app: AppInfo) => Promise<void>
-  onInstallNative: (app: AppInfo) => Promise<void>
 }): JSX.Element {
   const t = useT()
   const [open, setOpen] = useState(false)
-  const rootRef = useRef<HTMLDivElement>(null)
-
-  useEffect(() => {
-    if (!open) return
-    const handlePointerDown = (event: PointerEvent): void => {
-      if (rootRef.current?.contains(event.target as Node)) return
-      setOpen(false)
-    }
-    const handleKeyDown = (event: KeyboardEvent): void => {
-      if (event.key === 'Escape') setOpen(false)
-    }
-    window.addEventListener('pointerdown', handlePointerDown)
-    window.addEventListener('keydown', handleKeyDown)
-    return () => {
-      window.removeEventListener('pointerdown', handlePointerDown)
-      window.removeEventListener('keydown', handleKeyDown)
-    }
-  }, [open])
-
-  async function runAction(action: () => Promise<void>): Promise<void> {
-    if (busyAppId != null) return
-    try {
-      await action()
-    } catch (err) {
-      addToast(err instanceof Error ? err.message : String(err), 'error')
-    }
-  }
 
   return (
-    <div ref={rootRef} style={welcomeAppButtonRoot}>
-      <ActionTooltip label={t('appBinding.title')} placement="bottom">
-        <button
-          type="button"
-          aria-label={t('appBinding.title')}
-          style={welcomeAppHeaderButton}
-          disabled={disabled}
-          onClick={() => {
-            setOpen((value) => {
-              const next = !value
-              if (next) void onRefresh()
-              return next
-            })
-          }}
-        >
-          <Link2 size={15} aria-hidden />
-          {selectedAppIds.length > 0 && <span style={welcomeAppCountBadge}>{selectedAppIds.length}</span>}
-        </button>
-      </ActionTooltip>
-      {open && (
-        <div style={welcomeAppPopover} role="dialog" aria-label={t('appBinding.title')}>
-          <div style={welcomeAppPopoverHeader}>
-            <strong style={welcomeAppPopoverTitle}>{t('appBinding.title')}</strong>
-            <button
-              type="button"
-              style={welcomeAppIconButton}
-              aria-label={t('appBinding.refresh')}
-              disabled={busyAppId != null}
-              onClick={() => { void runAction(onRefresh) }}
-            >
-              <RefreshCw size={13} aria-hidden />
-            </button>
-          </div>
-          {apps.length === 0 ? (
-            <div style={welcomeAppMuted}>{t('appBinding.welcomeEmpty')}</div>
-          ) : (
-            <div style={welcomeAppList}>
-              {apps.map((app) => {
-                const connected = app.connectionState === 'connected'
-                const nativeMissing = app.nativeApp?.status === 'missing'
-                const checked = selectedAppIds.includes(app.appId)
-                const rowBusy = busyAppId === app.appId
-                return (
-                  <div key={app.appId} style={welcomeAppRow}>
-                    <AppLogo app={app} />
-                    <div style={welcomeAppMain}>
-                      <div style={welcomeAppTitleRow}>
-                        <strong style={welcomeAppTitle}>{app.displayName}</strong>
-                        <span style={welcomeStatePill(connected)}>
-                          {welcomeConnectionStateLabel(app.connectionState, t)}
-                        </span>
-                      </div>
-                      {!connected && (
-                        <span style={welcomeAppNativeHint}>
-                          {nativeMissing ? t('appBinding.native.missing') : t('appBinding.handoffOpening')}
-                        </span>
-                      )}
-                    </div>
-                    <div style={welcomeAppActions}>
-                      {connected ? (
-                        <PillSwitch
-                          checked={checked}
-                          onChange={(nextChecked) => onToggleApp(app.appId, nextChecked)}
-                          size="sm"
-                          disabled={disabled || busyAppId != null}
-                          aria-label={t('appBinding.welcomeUseApp', { name: app.displayName })}
-                        />
-                      ) : nativeMissing ? (
-                        <button
-                          type="button"
-                          style={welcomeAppSecondaryButton}
-                          disabled={disabled || busyAppId != null}
-                          onClick={() => { void runAction(() => onInstallNative(app)) }}
-                        >
-                          <ExternalLink size={13} aria-hidden />
-                          {t('appBinding.installNative')}
-                        </button>
-                      ) : !connected ? (
-                        <button
-                          type="button"
-                          style={welcomeAppPrimaryButton}
-                          disabled={disabled || busyAppId != null}
-                          onClick={() => { void onConnect(app) }}
-                        >
-                          <Link2 size={13} aria-hidden />
-                          {rowBusy ? t('appBinding.connection.connecting') : t('appBinding.connect')}
-                        </button>
-                      ) : null}
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
-          )}
-        </div>
-      )}
-    </div>
+    <AppBindingsPicker
+      open={open}
+      onOpenChange={setOpen}
+      activeCount={selectedAppIds.length}
+      disabled={disabled}
+      loading={loading}
+      error={error}
+      empty={apps.length === 0}
+      emptyLabel={t('appBinding.welcomeEmpty')}
+      onRetry={() => { void onRetry() }}
+      placement="welcome"
+    >
+      {apps.map((app) => {
+        const selected = selectedAppIds.includes(app.appId)
+        return (
+          <AppBindingPickerRow
+            key={app.appId}
+            icon={<AppLogo app={app} />}
+            title={app.displayName}
+            action={(
+              <PillSwitch
+                checked={selected}
+                onChange={(checked) => onToggleApp(app.appId, checked)}
+                size="sm"
+                disabled={disabled}
+                aria-label={t('appBinding.welcomeUseApp', { name: app.displayName })}
+              />
+            )}
+          />
+        )
+      })}
+    </AppBindingsPicker>
   )
 }
 
@@ -2251,58 +2127,9 @@ function AppLogo({ app }: { app: AppInfo }): JSX.Element {
   )
 }
 
-function welcomeConnectionStateLabel(state: string, t: ReturnType<typeof useT>): string {
-  if (state === 'connected') return t('appBinding.connection.connected')
-  if (state === 'connecting') return t('appBinding.connection.connecting')
-  if (state === 'needsAuth') return t('appBinding.connection.needsAuth')
-  if (state === 'error') return t('appBinding.connection.error')
-  return t('appBinding.connection.notConnected')
-}
-
 const welcomeAppButtonSlot: CSSProperties = { position: 'absolute', top: 12, right: 16, zIndex: 8 }
-const welcomeAppButtonRoot: CSSProperties = { position: 'relative' }
-const welcomeAppHeaderButton: CSSProperties = {
-  height: 30,
-  minWidth: 30,
-  padding: '0 9px',
-  border: '1px solid var(--border-default)',
-  borderRadius: 7,
-  background: 'var(--bg-secondary)',
-  color: 'var(--text-secondary)',
-  cursor: 'pointer',
-  display: 'inline-flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  gap: 5
-}
-const welcomeAppCountBadge: CSSProperties = { minWidth: 15, height: 15, borderRadius: 999, background: 'var(--accent)', color: 'var(--on-accent)', fontSize: 10, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', marginLeft: -4 }
-const welcomeAppPopover: CSSProperties = { position: 'absolute', top: 36, right: 0, zIndex: 40, width: 360, maxWidth: 'calc(100vw - 32px)', border: '1px solid var(--border-default)', borderRadius: 8, background: 'var(--bg-secondary)', boxShadow: 'var(--shadow-level-3)', padding: 10 }
-const welcomeAppPopoverHeader: CSSProperties = { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 8 }
-const welcomeAppPopoverTitle: CSSProperties = { fontSize: 13, color: 'var(--text-primary)' }
-const welcomeAppIconButton: CSSProperties = { width: 28, height: 28, border: 'none', borderRadius: 7, background: 'var(--bg-tertiary)', color: 'var(--text-secondary)', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: 0 }
-const welcomeAppMuted: CSSProperties = { color: 'var(--text-secondary)', fontSize: 12, padding: 8 }
-const welcomeAppList: CSSProperties = { display: 'flex', flexDirection: 'column', gap: 8 }
-const welcomeAppRow: CSSProperties = { display: 'grid', gridTemplateColumns: '30px minmax(0, 1fr) auto', alignItems: 'center', gap: 9, border: '1px solid var(--border-default)', borderRadius: 8, padding: 9 }
-const welcomeAppMain: CSSProperties = { minWidth: 0 }
-const welcomeAppTitleRow: CSSProperties = { display: 'flex', alignItems: 'center', gap: 7, minWidth: 0, flexWrap: 'wrap' }
-const welcomeAppTitle: CSSProperties = { fontSize: 12, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }
 const welcomeAppLogoImg: CSSProperties = { width: 30, height: 30, borderRadius: 7, objectFit: 'cover', background: 'var(--bg-tertiary)', border: '1px solid var(--border-default)' }
 const welcomeAppLogoFallback: CSSProperties = { width: 30, height: 30, borderRadius: 7, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg-tertiary)', border: '1px solid var(--border-default)', color: 'var(--text-secondary)' }
-const welcomeAppNativeHint: CSSProperties = { display: 'block', marginTop: 5, fontSize: 11, color: 'var(--text-tertiary)' }
-const welcomeAppActions: CSSProperties = { display: 'flex', justifyContent: 'flex-end', alignItems: 'center' }
-const welcomeAppBaseButton: CSSProperties = { border: 'none', borderRadius: 8, padding: '7px 10px', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 600, whiteSpace: 'nowrap' }
-const welcomeAppPrimaryButton: CSSProperties = { ...welcomeAppBaseButton, background: '#050505', color: '#fff' }
-const welcomeAppSecondaryButton: CSSProperties = { ...welcomeAppBaseButton, background: 'var(--bg-tertiary)', color: 'var(--text-primary)' }
-
-function welcomeStatePill(good: boolean): CSSProperties {
-  return {
-    borderRadius: 999,
-    padding: '2px 6px',
-    fontSize: 10,
-    background: good ? 'rgba(22, 163, 74, 0.12)' : 'var(--bg-tertiary)',
-    color: good ? 'var(--success, #15803d)' : 'var(--text-secondary)'
-  }
-}
 
 function parseWelcomeSystemSlashCommand(text: string): { kind: 'agent' | 'plan' } | null {
   const trimmed = text.trim().toLowerCase()
@@ -2314,22 +2141,6 @@ function parseWelcomeSystemSlashCommand(text: string): { kind: 'agent' | 'plan' 
 function sameStringArray(left: string[], right: string[]): boolean {
   if (left.length !== right.length) return false
   return left.every((value, index) => value === right[index])
-}
-
-async function openWelcomeAppHandoff(
-  handoff: AppHandoff,
-  t: ReturnType<typeof useT>
-): Promise<void> {
-  if (!handoff.uri) {
-    addToast(t('appBinding.handoffReady'), 'info')
-    return
-  }
-
-  try {
-    await (window.api.shell.openAppHandoff ?? window.api.shell.openExternal)(handoff.uri)
-  } catch {
-    addToast(t('appBinding.handoffReady'), 'info')
-  }
 }
 
 async function deleteUnusedWelcomeThread(threadId: string): Promise<void> {

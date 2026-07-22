@@ -315,6 +315,18 @@ describe('ComposerWorkspaceFooter', () => {
     })
   })
 
+  it('dismisses the create branch dialog without rendering a cancel button', async () => {
+    renderFooter(makeThread(), 'local')
+
+    fireEvent.click(await screen.findByRole('button', { name: 'main' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Create and checkout new branch...' }))
+
+    expect(await screen.findByRole('dialog')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Close' })).not.toBeInTheDocument()
+    fireEvent.keyDown(document, { key: 'Escape' })
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+  })
+
   it('shows a Perforce changelist selector and updates the thread target', async () => {
     const thread = makeThread()
     useConnectionStore.setState({
@@ -421,6 +433,7 @@ describe('ComposerWorkspaceFooter', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'default' }))
     fireEvent.click(screen.getByRole('button', { name: 'Create changelist...' }))
+    expect(screen.queryByRole('button', { name: 'Close' })).not.toBeInTheDocument()
     fireEvent.change(screen.getByLabelText('Changelist description'), {
       target: { value: 'New work' }
     })

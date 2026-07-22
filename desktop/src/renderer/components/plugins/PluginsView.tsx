@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { CSSProperties, MouseEvent } from 'react'
-import { Anchor, Box, ChevronLeft, Code2, Ellipsis, ExternalLink, FolderInput, Link, MessageCircle, Plus, Server, Settings, Trash2, Wrench } from 'lucide-react'
+import { Anchor, Box, Code2, Ellipsis, ExternalLink, FolderInput, Link, MessageCircle, Plus, Server, Settings, Trash2, Wrench } from 'lucide-react'
 import { useT } from '../../contexts/LocaleContext'
 import { usePluginStore, type PluginDiagnosticEntry, type PluginEntry } from '../../stores/pluginStore'
 import { useConnectionStore } from '../../stores/connectionStore'
@@ -14,8 +14,10 @@ import { SkillsManageList, SkillsView, filterLocalSkills } from '../skills/Skill
 import {
   CatalogHoverButton,
   CatalogFilterMenu,
+  CatalogBreadcrumb,
   CatalogSearchBox,
   CatalogTabs,
+  CatalogTopBar,
   styles as catalogStyles
 } from '../catalog/CatalogSurface'
 import { ActionTooltip } from '../ui/ActionTooltip'
@@ -26,6 +28,9 @@ import { PluginInstallDialog } from './PluginInstallDialog'
 import { AppBindingPanel } from './AppBindingPanel'
 import { getPluginContentSummaries, type PluginContentType } from '../../utils/pluginContentSummaries'
 import { SkeletonCatalogGrid, SkeletonList } from '../ui/Skeleton'
+import { Button } from '../ui/Button'
+import { IconButton } from '../ui/IconButton'
+import { PluginInstallButton } from './PluginInstallButton'
 
 type Surface = PluginCatalogSurface
 type PluginMode = 'browse' | 'manage'
@@ -74,7 +79,8 @@ export function PluginsView(): JSX.Element {
   const surface = useUIStore((s) => s.pluginCatalogSurface)
   const setSurface = useUIStore((s) => s.setPluginCatalogSurface)
   const [mode, setMode] = useState<PluginMode>('browse')
-  const [query, setQuery] = useState('')
+  const [browseQuery, setBrowseQuery] = useState('')
+  const [managePluginQuery, setManagePluginQuery] = useState('')
   const [skillManageQuery, setSkillManageQuery] = useState('')
   const [publisherFilter, setPublisherFilter] = useState<PublisherFilter>('all')
   const [categoryFilter, setCategoryFilter] = useState<CategoryFilter>('all')
@@ -115,10 +121,13 @@ export function PluginsView(): JSX.Element {
   }, [fetchSkills, mode])
 
   const browsePlugins = useMemo(
-    () => filterPlugins(plugins, query, publisherFilter, categoryFilter),
-    [plugins, query, publisherFilter, categoryFilter]
+    () => filterPlugins(plugins, browseQuery, publisherFilter, categoryFilter),
+    [plugins, browseQuery, publisherFilter, categoryFilter]
   )
-  const managePlugins = useMemo(() => filterPlugins(plugins, query, 'all', 'all'), [plugins, query])
+  const managePlugins = useMemo(
+    () => filterPlugins(plugins, managePluginQuery, 'all', 'all'),
+    [managePluginQuery, plugins]
+  )
   const manageSkills = useMemo(
     () => filterLocalSkills(skills, skillManageQuery, 'all'),
     [skills, skillManageQuery]
@@ -178,12 +187,10 @@ export function PluginsView(): JSX.Element {
 
   if (surface === 'skills' && mode !== 'manage') {
     return (
-      <div style={page}>
-        <SurfaceTabs value={surface} onChange={setSurface} />
-        <div style={{ flex: 1, minHeight: 0 }}>
-          <SkillsView onManage={() => setMode('manage')} />
-        </div>
-      </div>
+      <SkillsView
+        topNavigation={<SurfaceTabs value={surface} onChange={setSurface} />}
+        onManage={() => setMode('manage')}
+      />
     )
   }
 
@@ -195,16 +202,21 @@ export function PluginsView(): JSX.Element {
           loading={detailLoading}
           saved={savedPluginId === selectedPlugin.id}
           onBack={() => clearSelection()}
+          onManage={() => {
+            setManagePluginQuery(pluginTitle(selectedPlugin))
+            setMode('manage')
+            clearSelection()
+          }}
           onInstall={() => setInstallTarget(selectedPlugin)}
           onRemove={async () => {
             const pluginName = pluginTitle(selectedPlugin)
             const ok = await confirm({
-              title: t('plugins.removeConfirm.title', { name: pluginName }),
-              message: t('plugins.removeConfirm.message', {
+              title: t('plugins.uninstallConfirm.title', { name: pluginName }),
+              message: t('plugins.uninstallConfirm.message', {
                 name: pluginName,
                 path: selectedPlugin.rootPath || `.craft/plugins/${selectedPlugin.id}`
               }),
-              confirmLabel: t('plugins.removeFromDotCraft'),
+              confirmLabel: t('plugins.uninstall'),
               cancelLabel: t('common.cancel'),
               danger: true
             })
@@ -214,9 +226,9 @@ export function PluginsView(): JSX.Element {
               await removePlugin(selectedPlugin.id)
               await fetchPlugins()
               await fetchSkills()
-              addToast(t('plugins.removeSuccess'), 'success')
+              addToast(t('plugins.uninstallSuccess'), 'success')
             } catch {
-              addToast(t('plugins.removeFailed'), 'error')
+              addToast(t('plugins.uninstallFailed'), 'error')
             }
           }}
           onToggle={async (enabled) => {
@@ -255,24 +267,25 @@ export function PluginsView(): JSX.Element {
     return (
       <>
         <div style={page}>
+          <CatalogTopBar
+            navigation={(
+              <CatalogBreadcrumb
+                parentLabel={surface === 'plugins' ? t('plugins.pageTitle') : t('skills.pageTitle')}
+                currentLabel={t('plugins.manage')}
+                onBack={() => setMode('browse')}
+              />
+            )}
+          />
           <header style={manageHeader}>
-            <div style={breadcrumb}>
-              <CatalogHoverButton type="button" onClick={() => setMode('browse')} baseStyle={breadcrumbButton}>
-                <ChevronLeft size={14} aria-hidden />
-                {surface === 'plugins' ? t('plugins.pageTitle') : t('skills.pageTitle')}
-              </CatalogHoverButton>
-              <span style={breadcrumbSep}>›</span>
-              <span style={breadcrumbCurrent}>{t('plugins.manage')}</span>
-            </div>
             {surface === 'plugins' ? (
               <PluginsManageToolbar
                 surface={surface}
                 plugins={plugins}
                 skillsCount={skills.length}
-                query={query}
+                query={managePluginQuery}
                 savedPluginId={savedPluginId}
                 onSurfaceChange={setSurface}
-                onQueryChange={setQuery}
+                onQueryChange={setManagePluginQuery}
               />
             ) : (
               <ManageSkillsToolbar
@@ -328,27 +341,29 @@ export function PluginsView(): JSX.Element {
 
   return (
     <div style={page}>
-      <SurfaceTabs value={surface} onChange={setSurface} />
+      <CatalogTopBar
+        navigation={<SurfaceTabs value={surface} onChange={setSurface} />}
+        actions={(
+          <>
+            <Button variant="secondary" onClick={() => { setManagePluginQuery(''); setMode('manage') }} iconLeft={<Settings size={14} aria-hidden />}>
+              {t('plugins.manage')}
+            </Button>
+              <IconButton
+                label={t('plugins.moreActions')}
+                tooltipLabel={t('plugins.moreActions')}
+                tooltipPlacement="bottom"
+                aria-haspopup="menu"
+                aria-expanded={menuPosition != null}
+                onClick={(event) => setMenuPosition({ x: event.clientX, y: event.clientY })}
+                icon={<Ellipsis size={16} aria-hidden />}
+              />
+          </>
+        )}
+      />
       <header style={browseHeader}>
-        <div style={topActions}>
-          <CatalogHoverButton type="button" onClick={() => setMode('manage')} baseStyle={manageButton}>
-            <Settings size={14} aria-hidden />
-            <span style={manageButtonLabel}>{t('plugins.manage')}</span>
-          </CatalogHoverButton>
-          <ActionTooltip label={t('plugins.moreActions')} placement="bottom">
-            <CatalogHoverButton
-              type="button"
-              aria-label={t('plugins.moreActions')}
-              onClick={(event) => setMenuPosition({ x: event.clientX, y: event.clientY })}
-              baseStyle={iconButton}
-            >
-              <Ellipsis size={16} aria-hidden />
-            </CatalogHoverButton>
-          </ActionTooltip>
-        </div>
         <h1 style={heroTitle}>{t('plugins.heroTitle')}</h1>
         <div style={searchRow}>
-          <CatalogSearchBox value={query} placeholder={t('plugins.searchPlaceholder')} onChange={setQuery} />
+          <CatalogSearchBox value={browseQuery} placeholder={t('plugins.searchPlaceholder')} onChange={setBrowseQuery} />
           <CatalogFilterMenu
             value={publisherFilter}
             ariaLabel={t('plugins.filter.publisher.label')}
@@ -597,6 +612,7 @@ function SurfaceTabs({ value, onChange }: { value: Surface; onChange: (value: Su
   const t = useT()
   return (
     <CatalogTabs
+      inTopBar
       value={value}
       onChange={onChange}
       items={[
@@ -640,7 +656,7 @@ function PluginManageItem({
         {plugin.installed ? (
           <PillSwitch checked={plugin.enabled} onChange={onToggle} size="sm" aria-label={`${pluginTitle(plugin)} enabled`} />
         ) : (
-          <button type="button" onClick={onInstall} style={installMiniButton(active)}>{t('plugins.install')}</button>
+          <PluginInstallButton onClick={onInstall}>{t('plugins.install')}</PluginInstallButton>
         )}
       </span>
     </div>
@@ -652,6 +668,7 @@ function PluginDetailView({
   loading,
   saved,
   onBack,
+  onManage,
   onInstall,
   onRemove,
   onToggle,
@@ -663,6 +680,7 @@ function PluginDetailView({
   loading: boolean
   saved: boolean
   onBack: () => void
+  onManage: () => void
   onInstall: () => void
   onRemove: () => void
   onToggle: (enabled: boolean) => void
@@ -671,6 +689,7 @@ function PluginDetailView({
   onTryInChat: () => void
 }): JSX.Element {
   const t = useT()
+  const [detailMenuPosition, setDetailMenuPosition] = useState<ContextMenuPosition | null>(null)
   const info = plugin.interface
   const shouldOfferLspEnable = plugin.installed
     && plugin.enabled
@@ -678,15 +697,15 @@ function PluginDetailView({
   const contents = getPluginContentSummaries(plugin, t)
   return (
     <div style={page}>
-      <div style={detailBreadcrumbBar}>
-        <div style={breadcrumb}>
-          <CatalogHoverButton type="button" onClick={onBack} baseStyle={detailBreadcrumbButton}>
-            {t('plugins.pageTitle')}
-          </CatalogHoverButton>
-          <span style={breadcrumbSep}>›</span>
-          <span style={breadcrumbCurrent}>{pluginTitle(plugin)}</span>
-        </div>
-      </div>
+      <CatalogTopBar
+        navigation={(
+          <CatalogBreadcrumb
+            parentLabel={t('plugins.pageTitle')}
+            currentLabel={pluginTitle(plugin)}
+            onBack={onBack}
+          />
+        )}
+      />
       <header style={detailHeader}>
         <div style={detailIconRow}>
           <PluginIcon plugin={plugin} size={64} />
@@ -702,22 +721,25 @@ function PluginDetailView({
               <Link size={15} aria-hidden />
             </a>
           </ActionTooltip>
-          {plugin.installed && plugin.removable && (
-            <button type="button" style={secondaryDetailButton} onClick={onRemove}>
-              <Trash2 size={14} aria-hidden />
-              {t('plugins.removeFromDotCraft')}
-            </button>
+          {plugin.installed && (
+            <IconButton
+              icon={<Ellipsis size={16} aria-hidden />}
+              label={t('plugins.moreActions')}
+              onClick={(event) => {
+                event.stopPropagation()
+                const rect = event.currentTarget.getBoundingClientRect()
+                setDetailMenuPosition({ x: rect.right - 200, y: rect.bottom + 4 })
+              }}
+            />
           )}
           {plugin.installed ? (
-            <button type="button" style={tryButton} disabled={!plugin.enabled} onClick={onTryInChat}>
-              <MessageCircle size={14} aria-hidden />
+            <Button variant="primary" disabled={!plugin.enabled} onClick={onTryInChat} iconLeft={<MessageCircle size={14} />}>
               {t('plugins.tryInChat')}
-            </button>
+            </Button>
           ) : (
-            <button type="button" style={tryButton} onClick={onInstall}>
-              <Plus size={14} aria-hidden />
-              {t('plugins.detail.add')}
-            </button>
+            <PluginInstallButton variant="primary" onClick={onInstall} iconLeft={<Plus size={14} />}>
+              {t('plugins.install')}
+            </PluginInstallButton>
           )}
         </div>
         <h1 style={detailTitle}>{pluginTitle(plugin)}</h1>
@@ -763,10 +785,9 @@ function PluginDetailView({
           {shouldOfferLspEnable && (
             <div style={lspEnablePanel} role="status">
               <span style={rowDesc}>{t('plugins.lsp.enablePrompt')}</span>
-              <button type="button" style={secondaryDetailButton} disabled={enablingLsp} onClick={onEnableLsp}>
-                <Code2 size={14} aria-hidden />
+              <Button disabled={enablingLsp} onClick={onEnableLsp} iconLeft={<Code2 size={14} />}>
                 {enablingLsp ? t('plugins.lsp.enabling') : t('plugins.lsp.enable')}
-              </button>
+              </Button>
             </div>
           )}
           <section style={detailSection}>
@@ -788,6 +809,27 @@ function PluginDetailView({
           )}
         </div>
       </main>
+      {detailMenuPosition && (
+        <ContextMenu
+          position={detailMenuPosition}
+          onClose={() => setDetailMenuPosition(null)}
+          items={[
+            {
+              label: t('plugins.manage'),
+              icon: <Settings size={14} />,
+              onClick: onManage
+            },
+            ...(plugin.removable
+              ? [{
+                  label: t('plugins.uninstall'),
+                  icon: <Trash2 size={14} />,
+                  danger: true,
+                  onClick: onRemove
+                }]
+              : [])
+          ]}
+        />
+      )}
     </div>
   )
 }
@@ -1046,7 +1088,6 @@ function PluginDiagnosticsBanner({ diagnostics }: { diagnostics: PluginDiagnosti
 
 const page: CSSProperties = catalogStyles.page
 const browseHeader: CSSProperties = catalogStyles.browseHeader
-const topActions: CSSProperties = catalogStyles.topActions
 const heroTitle: CSSProperties = catalogStyles.heroTitle
 const searchRow: CSSProperties = catalogStyles.searchRow
 const browseMain: CSSProperties = catalogStyles.browseMain
@@ -1055,17 +1096,7 @@ const compactGrid: CSSProperties = catalogStyles.compactGrid
 const compactItem: CSSProperties = catalogStyles.compactItem
 const rowTitle: CSSProperties = catalogStyles.rowTitle
 const rowDesc: CSSProperties = catalogStyles.rowDesc
-const manageButton: CSSProperties = catalogStyles.manageButton
-const manageButtonLabel: CSSProperties = {
-  lineHeight: 1,
-  transform: 'translateY(-1px)'
-}
-const iconButton: CSSProperties = catalogStyles.iconButton
 const manageHeader: CSSProperties = catalogStyles.manageHeader
-const breadcrumb: CSSProperties = catalogStyles.breadcrumb
-const breadcrumbButton: CSSProperties = catalogStyles.breadcrumbButton
-const breadcrumbSep: CSSProperties = catalogStyles.breadcrumbSep
-const breadcrumbCurrent: CSSProperties = catalogStyles.breadcrumbCurrent
 const manageToolbar: CSSProperties = catalogStyles.manageToolbar
 const manageSurfaceTabs: CSSProperties = { display: 'flex', alignItems: 'center', gap: '8px' }
 const manageSurfaceTab: CSSProperties = {
@@ -1106,41 +1137,14 @@ const manageActionSlot: CSSProperties = {
   alignItems: 'center',
   justifyContent: 'center'
 }
-function installMiniButton(rowActive: boolean): CSSProperties {
-  return {
-    border: 'none',
-    borderRadius: 999,
-    background: rowActive
-      ? 'color-mix(in srgb, var(--text-primary) 9%, var(--bg-tertiary))'
-      : 'var(--bg-tertiary)',
-    color: 'var(--text-primary)',
-    padding: '6px 11px',
-    fontSize: 12,
-    cursor: 'pointer',
-    transition: 'background-color 120ms ease'
-  }
-}
 const pluginText: CSSProperties = { display: 'flex', flexDirection: 'column', minWidth: 0, flex: 1 }
 const detailMain: CSSProperties = { flex: 1, minHeight: 0, overflow: 'auto', width: '100%' }
 const detailContent: CSSProperties = { width: 'min(760px, calc(100% - 48px))', margin: '0 auto', padding: '0 0 48px' }
 const detailHeader: CSSProperties = { width: 'min(760px, calc(100% - 48px))', margin: '22px auto 28px' }
-const detailBreadcrumbBar: CSSProperties = { display: 'flex', alignItems: 'center', height: 40, padding: '8px 12px 4px', flexShrink: 0 }
-// Detail back-crumb mirrors a catalog tab's metrics: the bar shares the tab row's
-// padding/height, and matching the tab's inner padding + radius lands the leading
-// "Plugins" word at the same x and gives it the same rounded hover pill as the
-// Plugins/Skills tab on the list, so list → detail reads as one continuous control.
-const detailBreadcrumbButton: CSSProperties = {
-  ...catalogStyles.breadcrumbButton,
-  padding: '6px 10px',
-  borderRadius: '8px',
-  lineHeight: 1.2
-}
 const detailIconRow: CSSProperties = { display: 'flex', alignItems: 'flex-start', gap: 12 }
 const detailTitle: CSSProperties = { margin: '20px 0 6px', fontSize: 28, fontWeight: 600 }
 const detailSubtitle: CSSProperties = { margin: 0, color: 'var(--text-secondary)', fontSize: 15 }
 const detailIconButton: CSSProperties = { width: 32, height: 32, borderRadius: 8, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-secondary)', textDecoration: 'none' }
-const secondaryDetailButton: CSSProperties = { border: 'none', borderRadius: 8, background: 'var(--bg-tertiary)', color: 'var(--text-primary)', padding: '8px 12px', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6 }
-const tryButton: CSSProperties = { border: 'none', borderRadius: 8, background: 'var(--text-primary)', color: 'var(--bg-primary)', fontWeight: 600, padding: '8px 12px', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6 }
 const promptPreview: CSSProperties = { minHeight: 132, borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'linear-gradient(120deg, #b6cdf5, #d9cef7 58%, #f3f0fb)', padding: '18px 24px', boxSizing: 'border-box' }
 const promptBubble: CSSProperties = { display: 'inline-flex', alignItems: 'center', flexWrap: 'wrap', columnGap: 7, rowGap: 4, maxWidth: '80%', border: '1px solid rgba(0,0,0,0.12)', borderRadius: 13, background: 'rgba(255,255,255,0.82)', color: '#111', padding: '8px 12px', fontSize: 13, lineHeight: 1.35 }
 const promptBubblePrefix: CSSProperties = { display: 'inline-flex', alignItems: 'center', gap: 7, flex: '0 1 auto', minWidth: 0, maxWidth: '100%', whiteSpace: 'nowrap' }
@@ -1161,7 +1165,6 @@ const infoLabel: CSSProperties = { color: 'var(--text-secondary)', fontSize: 13,
 const infoValue: CSSProperties = { fontSize: 13, padding: '18px 16px' }
 const plainLink: CSSProperties = { color: 'var(--accent)', display: 'inline-flex' }
 const detailToggleRow: CSSProperties = { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 24, padding: '12px 4px', fontSize: 13 }
-const iconToolbarButton: CSSProperties = { width: 32, height: 32, border: 'none', borderRadius: 8, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg-tertiary)', color: 'var(--text-secondary)', cursor: 'pointer' }
 const diagnosticsPanel: CSSProperties = { border: '1px solid var(--border-default)', borderRadius: 8, background: 'var(--bg-secondary)', padding: '12px 14px', margin: '0 0 24px' }
 const diagnosticsTitle: CSSProperties = { display: 'block', fontSize: 13, marginBottom: 8, color: 'var(--text-primary)' }
 const diagnosticsList: CSSProperties = { display: 'flex', flexDirection: 'column', gap: 7 }

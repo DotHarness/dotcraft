@@ -100,9 +100,10 @@ describe('InlineVisualizationFrame actions', () => {
     })
 
     const copyButton = await screen.findByRole('button', { name: 'Copy as image' })
-    fireEvent.mouseEnter(copyButton.parentElement!)
+    const host = copyButton.closest('[aria-busy]') as HTMLElement
+    fireEvent.mouseEnter(host)
     expect(copyButton).toHaveClass('inline-visualization-copy-button')
-    expect(copyButton.parentElement).toHaveStyle({ paddingRight: '32px' })
+    expect(host).toHaveStyle({ paddingRight: '32px' })
     expect(copyButton).not.toHaveAttribute('aria-haspopup')
     expect(screen.queryByRole('menu')).not.toBeInTheDocument()
     Object.defineProperty(frame, 'getBoundingClientRect', {

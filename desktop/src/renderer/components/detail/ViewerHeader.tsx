@@ -15,6 +15,7 @@ import { FileTypeIcon } from '../ui/FileTypeIcon'
 import { OpenTargetButton } from '../conversation/OpenTargetButton'
 import { ActionTooltip } from '../ui/ActionTooltip'
 import { ViewerActionsMenu } from './ViewerActionsMenu'
+import { IconButton } from '../ui/IconButton'
 
 interface ViewerHeaderProps {
   absolutePath: string
@@ -109,28 +110,18 @@ export function ViewerHeader({
           showPrimaryLabel
         />
 
-        <ActionTooltip
+        <IconButton
+          size={28}
           label={explorerVisible ? t('viewer.closeExplorer') : t('viewer.openExplorer')}
-          placement="bottom"
-        >
-          <button
-            type="button"
-            aria-label={explorerVisible ? t('viewer.closeExplorer') : t('viewer.openExplorer')}
-            aria-pressed={explorerVisible}
-            onClick={toggleExplorer}
-            style={{
-              ...iconButtonStyle,
-              color: explorerVisible ? 'var(--text-primary)' : 'var(--text-secondary)',
-              background: explorerVisible ? 'var(--bg-tertiary)' : 'transparent'
-            }}
-            onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = 'var(--bg-tertiary)' }}
-            onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = explorerVisible ? 'var(--bg-tertiary)' : 'transparent' }}
-          >
-            {explorerVisible
+          tooltipLabel={explorerVisible ? t('viewer.closeExplorer') : t('viewer.openExplorer')}
+          tooltipPlacement="bottom"
+          aria-pressed={explorerVisible}
+          active={explorerVisible}
+          onClick={toggleExplorer}
+          icon={explorerVisible
               ? <FolderOpen size={16} aria-hidden style={{ display: 'block' }} />
               : <Folder size={16} aria-hidden style={{ display: 'block' }} />}
-          </button>
-        </ActionTooltip>
+        />
       </div>
     </div>
   )
@@ -194,18 +185,4 @@ const actionsStyle: CSSProperties = {
   alignItems: 'center',
   gap: '4px',
   flexShrink: 0
-}
-
-const iconButtonStyle: CSSProperties = {
-  display: 'inline-flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  width: '28px',
-  height: '28px',
-  padding: 0,
-  border: 'none',
-  borderRadius: '6px',
-  cursor: 'pointer',
-  flexShrink: 0,
-  transition: 'background-color 100ms ease, color 100ms ease'
 }

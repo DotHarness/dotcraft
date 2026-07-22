@@ -5,6 +5,7 @@ import { useLocale } from '../../contexts/LocaleContext'
 import type { ConversationItem } from '../../types/conversation'
 import { translate } from '../../../shared/locales'
 import { Skeleton } from '../ui/Skeleton'
+import { IconButton } from '../ui/IconButton'
 import { THEME_CHANGED_EVENT } from '../../../shared/theme'
 import {
   MCP_APP_SANDBOX_BRIDGE_VIOLATION_METHOD,
@@ -616,14 +617,15 @@ function McpAppViewImpl({ item, threadId, turnId }: McpAppViewProps): JSX.Elemen
                 <ShieldCheck size={12} />
                 {translate(locale, 'mcpApp.sandboxed')}
               </span>
-              <button
-                type="button"
-                aria-label={fullscreen ? translate(locale, 'mcpApp.exitFullscreen') : translate(locale, 'mcpApp.fullscreen')}
+              <IconButton
+                size={24}
+                label={fullscreen ? translate(locale, 'mcpApp.exitFullscreen') : translate(locale, 'mcpApp.fullscreen')}
+                tooltipLabel={fullscreen ? translate(locale, 'mcpApp.exitFullscreen') : translate(locale, 'mcpApp.fullscreen')}
+                tooltipPlacement="top"
                 onClick={() => setFullscreen((value) => !value)}
-                style={{ border: 0, background: 'transparent', color: 'inherit', cursor: 'pointer', padding: 4, borderRadius: 6, display: 'grid', placeItems: 'center' }}
-              >
-                {fullscreen ? <Minimize2 size={15} /> : <Maximize2 size={15} />}
-              </button>
+                style={{ color: 'inherit', borderRadius: 6 }}
+                icon={fullscreen ? <Minimize2 size={15} /> : <Maximize2 size={15} />}
+              />
             </span>
           )}
         </div>

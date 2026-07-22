@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
+import { useEffect, useMemo, useState, type CSSProperties } from 'react'
 import { createPortal } from 'react-dom'
 import {
   ChevronLeft,
@@ -18,6 +18,8 @@ import {
 } from '../../../shared/whatsNew'
 import { useLocale, useT } from '../../contexts/LocaleContext'
 import { Skeleton } from '../ui/Skeleton'
+import { Button } from '../ui/Button'
+import { IconButton } from '../ui/IconButton'
 
 interface WhatsNewDialogProps {
   releases: WhatsNewRelease[]
@@ -32,7 +34,6 @@ export function WhatsNewDialog({
 }: WhatsNewDialogProps): JSX.Element {
   const t = useT()
   const locale = useLocale()
-  const closeButtonRef = useRef<HTMLButtonElement | null>(null)
   const releaseKey = useMemo(
     () => releases.map((release) => `${release.version}:${release.cards.map((card) => card.id).join(',')}`).join('|'),
     [releases]
@@ -51,7 +52,6 @@ export function WhatsNewDialog({
   }, [releaseKey])
 
   useEffect(() => {
-    closeButtonRef.current?.focus()
     const handleKeyDown = (event: KeyboardEvent): void => {
       if (event.key === 'Escape') {
         event.preventDefault()
@@ -87,16 +87,12 @@ export function WhatsNewDialog({
               {t('whatsNew.title')}
             </h2>
           </div>
-          <button
-            ref={closeButtonRef}
+          <IconButton
             className="whats-new-close-button"
-            type="button"
-            aria-label={t('whatsNew.closeAria')}
+            label={t('whatsNew.closeAria')}
+            icon={<X size={18} strokeWidth={2} aria-hidden="true" />}
             onClick={onClose}
-            style={iconButtonStyle}
-          >
-            <X size={18} strokeWidth={2} aria-hidden="true" />
-          </button>
+          />
         </header>
 
         <div style={contentStyle}>
@@ -129,33 +125,32 @@ export function WhatsNewDialog({
         <footer style={footerStyle}>
           <div style={footerNavStyle}>
             {olderRelease && (
-              <button
-                type="button"
+              <Button
+                variant="ghost"
+                size="sm"
                 onClick={() => setActiveIndex((index) => index + 1)}
-                style={navButtonStyle}
               >
                 <ChevronLeft size={14} strokeWidth={2} aria-hidden="true" />
                 <span>{t('whatsNew.showOlder', { version: olderRelease.version })}</span>
-              </button>
+              </Button>
             )}
             {newerRelease && (
-              <button
-                type="button"
+              <Button
+                variant="ghost"
+                size="sm"
                 onClick={() => setActiveIndex((index) => index - 1)}
-                style={navButtonStyle}
               >
                 <span>{t('whatsNew.showNewer', { version: newerRelease.version })}</span>
                 <ChevronRight size={14} strokeWidth={2} aria-hidden="true" />
-              </button>
+              </Button>
             )}
           </div>
-          <button
-            type="button"
+          <Button
+            variant="primary"
             onClick={onClose}
-            style={primaryButtonStyle}
           >
             {t('whatsNew.close')}
-          </button>
+          </Button>
         </footer>
       </section>
     </div>
@@ -242,16 +237,16 @@ function WhatsNewCardView({
         <h4 style={cardTitleStyle}>{title}</h4>
         <p style={cardSummaryStyle}>{summary}</p>
         {card.docsUrl && (
-          <button
-            type="button"
+          <Button
+            variant="ghost"
+            size="sm"
             onClick={() => {
               void window.api.shell.openExternal(card.docsUrl as string)
             }}
-            style={docsButtonStyle}
           >
             <ExternalLink size={14} strokeWidth={2} aria-hidden="true" />
             {t('whatsNew.docs')}
-          </button>
+          </Button>
         )}
       </div>
     </article>
@@ -306,21 +301,6 @@ const titleStyle: CSSProperties = {
   fontSize: 22,
   lineHeight: '30px',
   fontWeight: 680
-}
-
-const iconButtonStyle: CSSProperties = {
-  width: 32,
-  height: 32,
-  flexShrink: 0,
-  display: 'inline-flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  border: 'none',
-  borderRadius: 6,
-  background: 'var(--whats-new-close-bg, transparent)',
-  color: 'var(--whats-new-close-text, var(--text-secondary))',
-  transition: 'background-color 120ms ease, color 120ms ease',
-  cursor: 'pointer'
 }
 
 const contentStyle: CSSProperties = {
@@ -386,22 +366,6 @@ const cardSummaryStyle: CSSProperties = {
   overflowWrap: 'anywhere'
 }
 
-const docsButtonStyle: CSSProperties = {
-  alignSelf: 'flex-start',
-  display: 'inline-flex',
-  alignItems: 'center',
-  gap: 6,
-  marginTop: 4,
-  padding: '5px 8px',
-  border: '1px solid var(--border-subtle)',
-  borderRadius: 6,
-  background: 'transparent',
-  color: 'var(--text-secondary)',
-  fontSize: 'var(--type-secondary-size)',
-  lineHeight: 'var(--type-secondary-line-height)',
-  cursor: 'pointer'
-}
-
 const emptyStyle: CSSProperties = {
   minHeight: 220,
   display: 'flex',
@@ -441,35 +405,4 @@ const footerNavStyle: CSSProperties = {
   display: 'flex',
   alignItems: 'center',
   gap: 8
-}
-
-const navButtonStyle: CSSProperties = {
-  display: 'inline-flex',
-  alignItems: 'center',
-  gap: 6,
-  padding: '6px 10px',
-  border: '1px solid var(--border-subtle)',
-  borderRadius: 6,
-  background: 'transparent',
-  color: 'var(--text-secondary)',
-  fontSize: 'var(--type-secondary-size)',
-  lineHeight: 'var(--type-secondary-line-height)',
-  fontWeight: 600,
-  cursor: 'pointer'
-}
-
-const primaryButtonStyle: CSSProperties = {
-  display: 'inline-flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  height: '32px',
-  padding: '0 12px',
-  border: '1px solid var(--text-primary)',
-  borderRadius: '8px',
-  backgroundColor: 'var(--text-primary)',
-  color: 'var(--bg-primary)',
-  fontSize: '13px',
-  fontWeight: 600,
-  boxSizing: 'border-box',
-  cursor: 'pointer'
 }

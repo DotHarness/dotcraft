@@ -4,6 +4,7 @@ import { ChevronDown, ChevronRight, GitBranch, GitCommitHorizontal } from 'lucid
 import { useT } from '../../contexts/LocaleContext'
 import { useConversationStore } from '../../stores/conversationStore'
 import { ModalHeader } from '../ui/ModalHeader'
+import { Button } from '../ui/Button'
 
 interface CommitDialogProps {
   workspacePath: string
@@ -225,27 +226,13 @@ export function CommitDialog({ workspacePath, onCommit, onClose }: CommitDialogP
         />
 
         <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '16px' }}>
-          <button
-            type="button"
+          <Button
+            variant="primary"
             onClick={handleSubmit}
             disabled={!hasFiles}
-            style={{
-              padding: '8px 18px',
-              border: '1px solid var(--text-primary)',
-              borderRadius: '9px',
-              backgroundColor: 'var(--text-primary)',
-              color: 'var(--bg-primary)',
-              fontSize: '13px',
-              fontWeight: 600,
-              display: 'inline-flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              cursor: hasFiles ? 'pointer' : 'default',
-              opacity: hasFiles ? 1 : 0.5
-            }}
           >
             {t('commit.button')}
-          </button>
+          </Button>
         </div>
       </div>
     </div>

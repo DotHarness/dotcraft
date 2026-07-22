@@ -1,6 +1,7 @@
 import type { CSSProperties, JSX } from 'react'
 import { CornerDownLeft } from 'lucide-react'
 import { ActionTooltip } from '../ui/ActionTooltip'
+import { Button } from '../ui/Button'
 import type { ShortcutSpec } from '../ui/shortcutKeys'
 
 interface DecisionDismissButtonProps {
@@ -60,16 +61,16 @@ export function DecisionDismissButton({
   disabled = false
 }: DecisionDismissButtonProps): JSX.Element {
   const button = (
-    <button
-      type="button"
+    <Button
+      variant="ghost"
+      size="sm"
       onClick={onClick}
       aria-label={ariaLabel ?? label}
       disabled={disabled}
-      style={decisionDismissButtonStyle(disabled)}
     >
       <span>{label}</span>
       <span style={decisionKbdChipStyle}>Esc</span>
-    </button>
+    </Button>
   )
 
   if (!shortcut) return button
@@ -87,50 +88,15 @@ export function DecisionSubmitButton({
   disabled = false
 }: DecisionSubmitButtonProps): JSX.Element {
   return (
-    <button
-      type="button"
+    <Button
+      variant="primary"
       onClick={onClick}
       disabled={disabled}
-      style={decisionSubmitButtonStyle(disabled)}
     >
       <span>{label}</span>
       <CornerDownLeft size={14} strokeWidth={1.9} aria-hidden="true" />
-    </button>
+    </Button>
   )
-}
-
-function decisionDismissButtonStyle(disabled: boolean): CSSProperties {
-  return {
-    display: 'inline-flex',
-    alignItems: 'center',
-    gap: '6px',
-    border: 'none',
-    background: 'transparent',
-    color: 'var(--text-dimmed)',
-    fontSize: '12px',
-    cursor: disabled ? 'default' : 'pointer',
-    opacity: disabled ? 0.6 : 1,
-    padding: 0
-  }
-}
-
-function decisionSubmitButtonStyle(disabled: boolean): CSSProperties {
-  return {
-    height: '32px',
-    display: 'inline-flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: '7px',
-    borderRadius: '999px',
-    border: '1px solid var(--text-primary)',
-    padding: '0 14px',
-    background: 'var(--text-primary)',
-    color: 'var(--bg-primary)',
-    cursor: disabled ? 'default' : 'pointer',
-    opacity: disabled ? 0.68 : 1,
-    fontSize: '12px',
-    fontWeight: 600
-  }
 }
 
 const decisionKbdChipStyle: CSSProperties = {

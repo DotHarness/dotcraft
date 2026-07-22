@@ -5,6 +5,7 @@ import { useT } from '../../contexts/LocaleContext'
 import { useConversationStore } from '../../stores/conversationStore'
 import { changelistLabel, type PerforceChangelistEntry } from '../../stores/perforceChangelistStore'
 import { ModalHeader } from '../ui/ModalHeader'
+import { Button } from '../ui/Button'
 import { Select, type SelectOption } from '../ui/Select'
 import { toRelativePath } from './CommitDialog'
 
@@ -223,27 +224,13 @@ export function PerforcePrepareDialog({
         />
 
         <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '16px' }}>
-          <button
-            type="button"
+          <Button
+            variant="primary"
             onClick={handleSubmit}
             disabled={!hasFiles}
-            style={{
-              padding: '8px 18px',
-              border: '1px solid var(--text-primary)',
-              borderRadius: '9px',
-              backgroundColor: 'var(--text-primary)',
-              color: 'var(--bg-primary)',
-              fontSize: '13px',
-              fontWeight: 600,
-              display: 'inline-flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              cursor: hasFiles ? 'pointer' : 'default',
-              opacity: hasFiles ? 1 : 0.5
-            }}
           >
             {t('perforcePrepare.button')}
-          </button>
+          </Button>
         </div>
       </div>
     </div>

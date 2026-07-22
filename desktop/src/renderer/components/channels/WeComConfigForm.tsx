@@ -3,6 +3,9 @@ import type { WeComChannelConfig } from './useChannelConfig'
 import { ToggleSwitch } from './ToggleSwitch'
 import type { ChannelConnectionState } from './ChannelCard'
 import { formStyles, StatusPill, FieldCard, FormActions, SecretInput } from './FormShared'
+import { Button } from '../ui/Button'
+import { IconButton } from '../ui/IconButton'
+import { Trash2 } from 'lucide-react'
 
 interface WeComConfigFormProps {
   value: WeComChannelConfig
@@ -169,43 +172,29 @@ export function WeComConfigForm({
                     style={formStyles.input}
                   />
                 </div>
-                <button
-                  type="button"
+                <IconButton
+                  size={28}
+                  label={t('channels.wecom.removeRobot')}
+                  tooltipLabel={t('channels.wecom.removeRobot')}
+                  tooltipPlacement="left"
+                  tone="danger"
                   onClick={() =>
                     onChange({ ...value, Robots: value.Robots.filter((_, i) => i !== index) })
                   }
-                  style={{
-                    padding: '4px 10px',
-                    border: '1px solid var(--border-default)',
-                    borderRadius: '6px',
-                    backgroundColor: 'transparent',
-                    color: 'var(--text-secondary)',
-                    cursor: 'pointer',
-                    fontSize: '12px'
-                  }}
-                >
-                  {t('channels.wecom.removeRobot')}
-                </button>
+                  icon={<Trash2 size={14} aria-hidden />}
+                />
               </div>
             ))}
           </div>
-          <button
-            type="button"
+          <Button
+            size="sm"
+            variant="secondary"
             onClick={() =>
               onChange({ ...value, Robots: [...value.Robots, { Path: '', Token: '', AesKey: '' }] })
             }
-            style={{
-              padding: '6px 12px',
-              border: '1px solid var(--border-default)',
-              borderRadius: '6px',
-              backgroundColor: 'transparent',
-              color: 'var(--text-primary)',
-              cursor: 'pointer',
-              fontSize: '12px'
-            }}
           >
             {t('channels.wecom.addRobot')}
-          </button>
+          </Button>
         </FieldCard>
       </div>
 

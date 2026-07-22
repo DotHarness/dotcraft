@@ -146,4 +146,20 @@ describe('OpenWorkspaceButton', () => {
     expect(screen.queryByRole('menu')).not.toBeInTheDocument()
     expect(shellLaunchEditor).not.toHaveBeenCalled()
   })
+
+  it('closes the dropdown with Escape and restores focus to its trigger', async () => {
+    renderButton()
+
+    const trigger = await screen.findByRole('button', { name: 'Choose how to open workspace' })
+    await waitFor(() => expect(trigger).toBeEnabled())
+    fireEvent.click(trigger)
+    expect(await screen.findByRole('menu')).toBeInTheDocument()
+
+    fireEvent.keyDown(window, { key: 'Escape' })
+
+    await waitFor(() => {
+      expect(screen.queryByRole('menu')).not.toBeInTheDocument()
+      expect(trigger).toHaveFocus()
+    })
+  })
 })

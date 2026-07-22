@@ -30,11 +30,13 @@ import {
   resolveAgentBuilderChatWidth,
   resolveMaxAgentBuilderChatWidth
 } from '../../utils/agentBuilderLayout'
-import { CatalogCompactGrid, CatalogHoverButton, CatalogSearchBox, CatalogSection, styles as catalogStyles } from '../catalog/CatalogSurface'
+import { CatalogCompactGrid, CatalogHoverButton, CatalogSearchBox, CatalogSection, CatalogTopBar, styles as catalogStyles } from '../catalog/CatalogSurface'
 import { ContextMenu, type ContextMenuPosition } from '../ui/ContextMenu'
 import { SettingsGroup, SettingsRow } from '../settings/SettingsGroup'
 import { SettingsSelect } from '../settings/ui/SettingsSelect'
 import { PillSwitch } from '../ui/PillSwitch'
+import { Button } from '../ui/Button'
+import { IconButton } from '../ui/IconButton'
 import { RobotAvatar } from './RobotAvatar'
 import { AGENT_BUILDER_AVATAR, randomAvatar, resolveProfileAvatar, type AvatarSpec } from './agentAvatar'
 import { useAgentProfileAvatarStore } from '../../stores/agentProfileAvatarStore'
@@ -209,15 +211,6 @@ function markerContentEnd(target: HTMLElement): number {
     return maxEnd > 0 ? Math.min(end, maxEnd) : end
   }
   return target.getBoundingClientRect().width
-}
-
-// Neutral-inverted primary "+ Add" button, matching the Channels/Plugins catalog header.
-const primaryAddButton: CSSProperties = {
-  ...catalogStyles.manageButton,
-  borderColor: 'var(--text-primary)',
-  backgroundColor: 'var(--text-primary)',
-  color: 'var(--bg-primary)',
-  fontWeight: 600
 }
 
 const galleryAvatar: CSSProperties = { flex: '0 0 auto', display: 'inline-flex' }
@@ -853,16 +846,25 @@ export function AgentBuilderView(): JSX.Element {
 
   return (
     <div style={catalogStyles.page}>
+      <CatalogTopBar
+        actions={(
+          <>
+            <Button variant="primary" onClick={() => setRoute({ name: 'intro' })} iconLeft={<Plus size={14} aria-hidden />}>
+              New agent
+            </Button>
+            <IconButton
+              label="More actions"
+              tooltipLabel="More actions"
+              tooltipPlacement="bottom"
+              aria-haspopup="menu"
+              aria-expanded={menuPos != null}
+              onClick={(e) => setMenuPos({ x: e.clientX, y: e.clientY })}
+              icon={<MoreHorizontal size={16} aria-hidden />}
+            />
+          </>
+        )}
+      />
       <header style={catalogStyles.browseHeader}>
-        <div style={catalogStyles.topActions}>
-          <button type="button" style={primaryAddButton} onClick={() => setRoute({ name: 'intro' })}>
-            <Plus size={14} aria-hidden />
-            <span style={{ lineHeight: 1, transform: 'translateY(-1px)' }}>New agent</span>
-          </button>
-          <button type="button" style={catalogStyles.iconButton} aria-label="More actions" onClick={(e) => setMenuPos({ x: e.clientX, y: e.clientY })}>
-            <MoreHorizontal size={16} aria-hidden />
-          </button>
-        </div>
         <h1 style={catalogStyles.heroTitle}>Build your agents with DotCraft</h1>
         <div style={catalogStyles.searchRow}>
           <CatalogSearchBox value={query} placeholder="Search agents" onChange={setQuery} />

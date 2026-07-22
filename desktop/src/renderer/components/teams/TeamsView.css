@@ -1416,38 +1416,6 @@ html[data-theme="light"] .teams-card-game {
   margin-top: 18px;
 }
 
-.teams-mission-create-actions button {
-  min-height: 32px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 7px;
-  padding: 0 14px;
-  border: 1px solid var(--team-rail-field-border);
-  border-radius: 8px;
-  background: var(--team-rail-action-bg);
-  color: var(--team-rail-ink);
-  font-size: 13px;
-  line-height: 1;
-  font-weight: 650;
-  cursor: pointer;
-}
-
-.teams-mission-create-actions button[type="submit"] {
-  border-color: var(--text-primary);
-  background: var(--text-primary);
-  color: var(--bg-primary);
-  font-weight: 850;
-}
-
-.teams-mission-create-actions button:disabled {
-  opacity: .56;
-  cursor: not-allowed;
-  border-color: var(--team-rail-field-border);
-  background: var(--team-rail-action-bg);
-  color: var(--team-rail-muted);
-}
-
 .teams-rail-stats {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));

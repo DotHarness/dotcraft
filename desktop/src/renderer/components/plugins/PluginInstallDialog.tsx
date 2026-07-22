@@ -8,6 +8,8 @@ import { addToast } from '../../stores/toastStore'
 import { PluginIcon, pluginSubtitle, pluginTitle } from './PluginCatalogItem'
 import { openAppHandoff } from './AppBindingPanel'
 import { getPluginContentSummaries, type PluginContentType } from '../../utils/pluginContentSummaries'
+import { Button } from '../ui/Button'
+import { IconButton } from '../ui/IconButton'
 
 type NativeStatus = 'installed' | 'missing' | 'unknown'
 type SetupStage = 'pluginInstall' | 'nativeAppRequired' | 'nativeAppPending' | 'appConnect' | 'handoffOpened' | 'complete'
@@ -186,9 +188,7 @@ export function PluginInstallDialog({
       if (event.target === event.currentTarget) onClose()
     }}>
       <div style={dialogCard} onMouseDown={(event) => event.stopPropagation()}>
-        <button type="button" aria-label={t('common.close')} onClick={onClose} style={closeButton}>
-          <X size={16} aria-hidden />
-        </button>
+        <IconButton label={t('common.close')} onClick={onClose} style={closeButton} icon={<X size={16} aria-hidden />} />
         <div style={logoRow}>
           <span style={brandLogo}><img src={dotharLogoUrl} alt="" style={logoImg} /></span>
           <span style={dotTrail}>•••</span>
@@ -217,9 +217,9 @@ export function PluginInstallDialog({
         </div>
 
         {setupStage.stage === 'pluginInstall' ? (
-          <button type="button" onClick={() => { void onInstall() }} disabled={installing} style={installPrimaryButton}>
+          <Button size="prominent" variant="primary" onClick={() => { void onInstall() }} disabled={installing} loading={installing} style={{ width: '100%' }}>
             {installing ? t('plugins.installing') : t('plugins.installDialog.addToDotCraft')}
-          </button>
+          </Button>
         ) : (
           <CurrentSetupStage
             stage={setupStage.stage}
@@ -299,10 +299,10 @@ function CurrentSetupStage({
           title={t('plugins.installDialog.completeStep')}
           status={t('plugins.installDialog.allAppsConnected')}
         />
-        <button type="button" onClick={onClose} style={completeCloseButton}>
+        <Button size="prominent" variant="primary" onClick={onClose} style={{ width: '100%' }}>
           <Check size={13} aria-hidden />
           {t('common.close')}
-        </button>
+        </Button>
       </>
     )
   }
@@ -535,6 +535,4 @@ const appSetupActions: CSSProperties = { display: 'inline-flex', flexWrap: 'wrap
 const appSetupIconImg: CSSProperties = { width: 36, height: 36, borderRadius: 8, objectFit: 'contain', flex: '0 0 auto' }
 const appSetupIconFallback: CSSProperties = { width: 36, height: 36, borderRadius: 8, background: 'var(--bg-tertiary)', color: 'var(--text-secondary)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flex: '0 0 auto' }
 const primaryButton: CSSProperties = { minHeight: 38, border: 'none', borderRadius: 999, backgroundColor: 'var(--text-primary)', color: 'var(--bg-primary)', fontSize: 13, fontWeight: 700, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '0 16px' }
-const installPrimaryButton: CSSProperties = { ...primaryButton, width: '100%' }
-const completeCloseButton: CSSProperties = { ...installPrimaryButton, marginTop: 12 }
 const secondaryButton: CSSProperties = { minHeight: 38, border: 'none', borderRadius: 8, backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-primary)', fontSize: 12, fontWeight: 650, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '0 12px' }

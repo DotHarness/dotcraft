@@ -22,6 +22,7 @@ import {
 import { ActionTooltip } from '../ui/ActionTooltip'
 import { ACTION_SHORTCUTS, formatShortcutParts, type ShortcutSpec } from '../ui/shortcutKeys'
 import { performAddTabAction } from '../../utils/detailTabActions'
+import { IconButton } from '../ui/IconButton'
 
 interface DetailPanelProps {
   workspacePath?: string
@@ -307,29 +308,19 @@ export function DetailPanel({
         })}
 
         {/* Add tab (+) button */}
-        <ActionTooltip label={t('detailPanel.addTab')} placement="bottom" wrapperStyle={{ height: '100%' }}>
-          <button
+        <div style={{ display: 'flex', alignItems: 'center', height: '100%' }}>
+          <IconButton
             ref={addButtonRef}
+            size={28}
+            label={t('detailPanel.addTab')}
+            tooltipLabel={t('detailPanel.addTab')}
+            tooltipPlacement="bottom"
             onClick={() => {
               void handleOpenAddTabMenu()
             }}
-            aria-label={t('detailPanel.addTab')}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              height: '100%',
-              padding: '0 6px',
-              border: 'none',
-              background: 'transparent',
-              color: 'var(--text-secondary)',
-              cursor: 'pointer',
-              flexShrink: 0
-            }}
-        >
-            <Plus size={14} aria-hidden style={{ display: 'block' }} />
-          </button>
-        </ActionTooltip>
+            icon={<Plus size={14} aria-hidden style={{ display: 'block' }} />}
+          />
+        </div>
 
         <AddTabPopupWindow
           payload={addTabMenu}
@@ -342,44 +333,16 @@ export function DetailPanel({
         <div style={{ flex: 1 }} />
 
         {/* Close panel button — ghost icon, mirrors ThreadHeader's open-panel button */}
-        <ActionTooltip
+        <IconButton
+          size={28}
           label={t('detailPanel.closeAria')}
+          tooltipLabel={t('detailPanel.closeAria')}
           shortcut={ACTION_SHORTCUTS.toggleDetailPanel}
-          placement="bottom"
-          wrapperStyle={{ alignSelf: 'center' }}
-        >
-          <button
-            onClick={toggleDetailPanel}
-            aria-label={t('detailPanel.closeAria')}
-            style={{
-              alignSelf: 'center',
-              width: '28px',
-              height: '28px',
-              display: 'inline-flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              padding: 0,
-              border: 'none',
-              borderRadius: '6px',
-              backgroundColor: 'transparent',
-              color: 'var(--text-secondary)',
-              cursor: 'pointer',
-              flexShrink: 0,
-              marginRight: '4px',
-              transition: 'background-color 100ms ease, color 100ms ease'
-            }}
-            onMouseEnter={(e) => {
-              ;(e.currentTarget as HTMLButtonElement).style.backgroundColor = 'var(--bg-tertiary)'
-              ;(e.currentTarget as HTMLButtonElement).style.color = 'var(--text-primary)'
-            }}
-            onMouseLeave={(e) => {
-              ;(e.currentTarget as HTMLButtonElement).style.backgroundColor = 'transparent'
-              ;(e.currentTarget as HTMLButtonElement).style.color = 'var(--text-secondary)'
-            }}
-        >
-            <PanelRightClose size={16} aria-hidden />
-          </button>
-        </ActionTooltip>
+          tooltipPlacement="bottom"
+          onClick={toggleDetailPanel}
+          style={{ marginRight: '4px' }}
+          icon={<PanelRightClose size={16} aria-hidden />}
+        />
       </div>
 
       {/* ── Panel body ──
@@ -484,23 +447,17 @@ function DetailPanelTab({
     >
       <span style={tabLeadingSlotStyle}>
         {hovered ? (
-          <button
-            type="button"
+          <IconButton
+            size={16}
             aria-label={closeLabel}
+            label={closeLabel}
             onClick={(e) => {
               e.stopPropagation()
               onClose()
             }}
             style={tabCloseButtonStyle}
-            onMouseEnter={(e) => {
-              ;(e.currentTarget as HTMLButtonElement).style.backgroundColor = 'var(--bg-hover)'
-            }}
-            onMouseLeave={(e) => {
-              ;(e.currentTarget as HTMLButtonElement).style.backgroundColor = 'transparent'
-            }}
-          >
-            <X size={12} aria-hidden style={{ display: 'block' }} />
-          </button>
+            icon={<X size={12} aria-hidden style={{ display: 'block' }} />}
+          />
         ) : icon}
       </span>
       {label !== undefined && (
@@ -549,17 +506,7 @@ const tabLeadingSlotStyle: CSSProperties = {
 }
 
 const tabCloseButtonStyle: CSSProperties = {
-  width: '16px',
-  height: '16px',
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  border: 'none',
   borderRadius: '3px',
-  background: 'transparent',
-  color: 'var(--text-secondary)',
-  cursor: 'pointer',
-  padding: 0
 }
 
 const LazyViewerTab = lazy(() => import('../detail/ViewerTab').then((m) => ({ default: m.ViewerTab })))

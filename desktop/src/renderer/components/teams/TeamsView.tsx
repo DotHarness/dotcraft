@@ -6,6 +6,7 @@ import { translate, type AppLocale } from '../../../shared/locales'
 import { useThreadStore } from '../../stores/threadStore'
 import { useUIStore } from '../../stores/uiStore'
 import { useConfirmDialog } from '../ui/ConfirmDialog'
+import { Button } from '../ui/Button'
 import { ArchivePile, BoardCardView, DiscardPile, HistoryMissionCard, Metric } from './TeamsView.cards'
 import {
   HISTORY_PAGE_SIZE,
@@ -1845,13 +1846,13 @@ export function TeamsView(): JSX.Element {
               </div>
             ) : null}
             <div className="teams-mission-create-actions">
-              <button type="button" onClick={cancelMissionCreate} disabled={creating}>
+              <Button variant="secondary" onClick={cancelMissionCreate} disabled={creating}>
                 {translate(locale, 'common.cancel')}
-              </button>
-              <button type="submit" disabled={draftActionDisabled}>
-                {creating || loading ? <Loader2 className="teams-card-loading" size={15} strokeWidth={2} aria-hidden /> : <Plus size={15} strokeWidth={2} aria-hidden />}
+              </Button>
+              <Button type="submit" variant="primary" disabled={draftActionDisabled} loading={creating || loading}>
+                {creating || loading ? null : <Plus size={15} strokeWidth={2} aria-hidden />}
                 <span>{draftActionLabel}</span>
-              </button>
+              </Button>
             </div>
           </form>
         </div>
