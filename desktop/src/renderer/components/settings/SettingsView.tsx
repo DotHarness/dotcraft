@@ -45,6 +45,14 @@ import { PillSwitch } from '../ui/PillSwitch'
 import { ToggleSwitch } from '../channels/ToggleSwitch'
 import { useConfirmDialog } from '../ui/ConfirmDialog'
 import { SettingsGroup, SettingsRow } from './SettingsGroup'
+import {
+  SETTINGS_SURFACE_CLASS,
+  settingsDescriptionStyle,
+  settingsErrorTextStyle,
+  settingsHintStyle,
+  settingsMetaTextStyle,
+  settingsPlaceholderStyle
+} from './settingsTypography'
 import { SettingsDescriptionWithLearnMore } from './SettingsLearnMoreLink'
 import { SettingsPanelShell } from './SettingsPanelShell'
 import { SourceControlPanel } from './panels/SourceControlPanel'
@@ -808,20 +816,18 @@ function settingsContentContainerStyle(): CSSProperties {
 function sectionLabelStyle(): CSSProperties {
   return {
     display: 'block',
-    fontSize: '12px',
+    fontSize: 'var(--type-secondary-size)',
+    lineHeight: 'var(--type-secondary-line-height)',
     fontWeight: 600,
     color: 'var(--text-secondary)',
     marginBottom: '6px'
   }
 }
 
+/** Hint under a form control. Same tier as a SettingsRow description, with the
+    larger offset an input needs. */
 function fieldHintStyle(): CSSProperties {
-  return {
-    fontSize: '12px',
-    color: 'var(--text-dimmed)',
-    lineHeight: 1.5,
-    marginTop: '6px'
-  }
+  return { ...settingsHintStyle(false), marginTop: '6px' }
 }
 
 function inputStyle(mono = false): CSSProperties {
@@ -3354,7 +3360,7 @@ export function SettingsView({
       }}
     >
       <main style={settingsMainStyle()}>
-        <div style={settingsContentContainerStyle()}>
+        <div className={SETTINGS_SURFACE_CLASS} style={settingsContentContainerStyle()}>
             {activeSettingsTab === 'profile' && (
               <ProfilePanel>
                 <ProfileView />
@@ -3369,7 +3375,17 @@ export function SettingsView({
                 title={t('settings.tab.general')}
                 description={t('settings.general.description')}
               >
-                <SettingsGroup title={t('settings.group.application')}>
+                <SettingsGroup
+                  title={t('settings.group.application')}
+                  // The app name is redundant inside its own settings window, and a
+                  // version is card metadata rather than a setting — it belongs in the
+                  // header slot, not in a row that reads like something you can change.
+                  headerAction={
+                    <span style={settingsMetaTextStyle()}>
+                      {t('settings.version')} {version}
+                    </span>
+                  }
+                >
                   <SettingsRow
                     label={t('settings.language')}
                     htmlFor="settings-language"
@@ -3404,12 +3420,6 @@ export function SettingsView({
                       }
                     />
                   )}
-
-                  <SettingsRow>
-                    <div style={{ fontSize: '12px', color: 'var(--text-dimmed)' }}>
-                      DotCraft {t('settings.version')} {version}
-                    </div>
-                  </SettingsRow>
                 </SettingsGroup>
 
                 <SettingsGroup title={t('settings.notifications.title')}>
@@ -3611,13 +3621,7 @@ export function SettingsView({
                             </div>
                           </div>
                         {providerModelError && (
-                          <div
-                            style={{
-                              fontSize: '11px',
-                              color: 'var(--warning, #d29922)',
-                              lineHeight: 1.5
-                            }}
-                          >
+                          <div style={{ ...settingsHintStyle(false), color: 'var(--warning, #d29922)' }}>
                             {providerModelError}
                           </div>
                         )}
@@ -3717,7 +3721,7 @@ export function SettingsView({
                             <div style={{ fontSize: '14px', color: 'var(--text-primary)', marginBottom: '6px' }}>
                               {t('settings.llm.emptyProvidersTitle')}
                             </div>
-                            <div style={{ fontSize: '12px', color: 'var(--text-dimmed)' }}>
+                            <div style={settingsPlaceholderStyle()}>
                               {t('settings.llm.emptyProvidersHint')}
                             </div>
                           </div>
@@ -3866,7 +3870,7 @@ export function SettingsView({
                               }}
                               placeholder="anthropic"
                             />
-                            <div style={{ fontSize: '11px', color: 'var(--text-dimmed)', lineHeight: 1.5, marginTop: '6px' }}>
+                            <div style={{ ...settingsHintStyle(false), marginTop: '6px' }}>
                               {providerDraft.authMethod === 'chatgptOAuth'
                                 ? t('settings.llm.field.lockedForChatGpt')
                                 : providerEditorIsNew
@@ -3897,7 +3901,7 @@ export function SettingsView({
                               placeholder="Anthropic"
                             />
                             {providerDraft.authMethod === 'chatgptOAuth' && (
-                              <div style={{ fontSize: '11px', color: 'var(--text-dimmed)', lineHeight: 1.5, marginTop: '6px' }}>
+                              <div style={{ ...settingsHintStyle(false), marginTop: '6px' }}>
                                 {t('settings.llm.field.lockedForChatGpt')}
                               </div>
                             )}
@@ -3983,7 +3987,7 @@ export function SettingsView({
                             <div style={{ fontWeight: 600, fontSize: '13px', color: 'var(--text-primary)' }}>
                               {t('settings.llm.authMethod.apiKey')}
                             </div>
-                            <div style={{ marginTop: '4px', fontSize: '12px', color: 'var(--text-secondary)' }}>
+                            <div style={settingsDescriptionStyle()}>
                               {t('settings.llm.authMethod.apiKeyDescription')}
                             </div>
                           </button>
@@ -4022,7 +4026,7 @@ export function SettingsView({
                             <div style={{ fontWeight: 600, fontSize: '13px', color: 'var(--text-primary)' }}>
                               {t('settings.llm.authMethod.chatgpt')}
                             </div>
-                            <div style={{ marginTop: '4px', fontSize: '12px', color: 'var(--text-secondary)' }}>
+                            <div style={settingsDescriptionStyle()}>
                               {t('settings.llm.authMethod.chatgptDescription')}
                             </div>
                           </button>
@@ -4063,7 +4067,7 @@ export function SettingsView({
                               placeholder={t('settings.llm.field.apiKeyPlaceholder')}
                             />
                             {providerEditorProvider?.hasApiKey === true && providerDraft.apiKey === '********' && (
-                              <div style={{ fontSize: '11px', color: 'var(--text-dimmed)', lineHeight: 1.5, marginTop: '6px' }}>
+                              <div style={{ ...settingsHintStyle(false), marginTop: '6px' }}>
                                 {t('settings.llm.field.apiKeyKeepHint')}
                               </div>
                             )}
@@ -4084,7 +4088,7 @@ export function SettingsView({
                               style={inputStyle(true)}
                               placeholder={defaultProviderEndpoint(providerDraft.protocol)}
                             />
-                            <div style={{ fontSize: '11px', color: 'var(--text-dimmed)', lineHeight: 1.5, marginTop: '6px' }}>
+                            <div style={{ ...settingsHintStyle(false), marginTop: '6px' }}>
                               {providerDraft.protocol === ANTHROPIC_PROTOCOL
                                 ? t('settings.llm.field.endpointAnthropicHint')
                                 : t('settings.llm.field.endpointOpenAiHint')}
@@ -4470,11 +4474,11 @@ export function SettingsView({
                 <SettingsGroup title={t('settings.dreams.runs')} flush>
                   <div style={{ display: 'flex', flexDirection: 'column' }}>
                     {dreamRunsLoading && dreamRuns.length === 0 ? (
-                      <div style={{ fontSize: '12px', color: 'var(--text-dimmed)' }}>
+                      <div style={settingsPlaceholderStyle()}>
                         {t('settings.dreams.loading')}
                       </div>
                     ) : dreamRuns.length === 0 ? (
-                      <div style={{ fontSize: '12px', color: 'var(--text-dimmed)' }}>
+                      <div style={settingsPlaceholderStyle()}>
                         {t('settings.dreams.empty')}
                       </div>
                     ) : (
@@ -4518,14 +4522,14 @@ export function SettingsView({
                                   </span>
                                 )}
                               </div>
-                              <div style={{ marginTop: '4px', fontSize: '11px', color: 'var(--text-dimmed)' }}>
+                              <div style={settingsMetaTextStyle(true)}>
                                 {runTime ? new Date(runTime).toLocaleString() : t('settings.personalization.dreamsStatus.unknownTime')}
                                 {' · '}
                                 {t('settings.dreams.threadCount', { count: run.processedThreadCount })}
                                 {run.outputStoreId ? ` · ${run.outputStoreId}` : ''}
                               </div>
                               {run.message && (
-                                <div style={{ marginTop: '4px', fontSize: '11px', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
+                                <div style={settingsHintStyle()}>
                                   {run.message}
                                 </div>
                               )}
@@ -4619,7 +4623,7 @@ export function SettingsView({
                         style={inputStyle(true)}
                       />
                       {remoteConnectionValidation && !remoteConnectionValidation.ok && (
-                        <div style={{ fontSize: '11px', color: 'var(--error)', marginTop: '6px' }}>
+                        <div style={{ ...settingsErrorTextStyle(false), marginTop: '6px' }}>
                           {t(REMOTE_URL_ERROR_KEYS[remoteConnectionValidation.code])}
                         </div>
                       )}
@@ -4705,7 +4709,7 @@ export function SettingsView({
                         )
                       })}
                       {resolvingBinary && (
-                        <div style={{ fontSize: '11px', color: 'var(--text-dimmed)', lineHeight: 1.5 }}>
+                        <div style={settingsHintStyle(false)}>
                           {t('settings.binaryResolving')}
                         </div>
                       )}
@@ -4812,7 +4816,7 @@ export function SettingsView({
                     >
                       {browserUseBlockedDomains.length === 0 ? (
                         <SettingsRow>
-                          <div style={{ width: '100%', textAlign: 'center', fontSize: '12px', color: 'var(--text-dimmed)' }}>
+                          <div style={{ ...settingsPlaceholderStyle(), width: '100%', textAlign: 'center' }}>
                             {t('settings.browserUse.noBlockedDomains')}
                           </div>
                         </SettingsRow>
@@ -4847,7 +4851,7 @@ export function SettingsView({
                     >
                       {browserUseAllowedDomains.length === 0 ? (
                         <SettingsRow>
-                          <div style={{ width: '100%', textAlign: 'center', fontSize: '12px', color: 'var(--text-dimmed)' }}>
+                          <div style={{ ...settingsPlaceholderStyle(), width: '100%', textAlign: 'center' }}>
                             {t('settings.browserUse.noAllowedDomains')}
                           </div>
                         </SettingsRow>
@@ -5110,7 +5114,7 @@ export function SettingsView({
                   }
                 >
                   <SettingsRow>
-                    <div style={{ fontSize: '12px', color: 'var(--text-dimmed)' }}>
+                    <div style={settingsPlaceholderStyle()}>
                       {dashboardUrl ? dashboardUrl : t('settings.usage.dashboardUnavailable')}
                     </div>
                   </SettingsRow>
@@ -5206,7 +5210,7 @@ export function SettingsView({
                         <div style={{ fontSize: '14px', color: 'var(--text-primary)', marginBottom: '6px' }}>
                           {t('settings.mcp.empty.title')}
                         </div>
-                        <div style={{ fontSize: '12px', color: 'var(--text-dimmed)' }}>
+                        <div style={settingsPlaceholderStyle()}>
                           {t('settings.mcp.empty.hint')}
                         </div>
                         </SettingsRow>
@@ -5531,12 +5535,12 @@ export function SettingsView({
                           {mcpTestResult.success ? t('settings.mcp.testSuccess') : t('settings.mcp.testFailed')}
                         </div>
                         {typeof mcpTestResult.toolCount === 'number' && (
-                          <div style={{ fontSize: '12px', color: 'var(--text-dimmed)', marginTop: '4px' }}>
+                          <div style={{ ...settingsPlaceholderStyle(), marginTop: '4px' }}>
                             {t('settings.mcp.toolsDiscovered', { count: mcpTestResult.toolCount })}
                           </div>
                         )}
                         {mcpTestResult.errorMessage && (
-                          <div style={{ fontSize: '12px', color: 'var(--text-dimmed)', marginTop: '4px' }}>
+                          <div style={{ ...settingsPlaceholderStyle(), marginTop: '4px' }}>
                             {mcpTestResult.errorMessage}
                           </div>
                         )}

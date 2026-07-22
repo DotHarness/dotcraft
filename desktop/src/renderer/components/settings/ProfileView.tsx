@@ -8,6 +8,7 @@ import { ActionTooltip } from '../ui/ActionTooltip'
 import { Button } from '../ui/Button'
 import { Skeleton } from '../ui/Skeleton'
 import { SettingsPageHeader } from './SettingsPageHeader'
+import { settingsMetaTextStyle, settingsPlaceholderStyle } from './settingsTypography'
 import { TokenActivityHeatmap, type HeatmapMode } from './profile/TokenActivityHeatmap'
 import { ActivityInsights } from './profile/ActivityInsights'
 import { MostUsedSkills } from './profile/MostUsedSkills'
@@ -415,7 +416,7 @@ function StatStrip({
               {card.value}
             </div>
           )}
-          <div style={{ fontSize: '11px', color: 'var(--text-dimmed)' }}>{t(card.label)}</div>
+          <div style={settingsMetaTextStyle()}>{t(card.label)}</div>
         </div>
       ))}
     </div>
@@ -573,11 +574,7 @@ const insightsGridStyle: CSSProperties = {
   alignItems: 'start'
 }
 
-const dimmedTextStyle: CSSProperties = {
-  fontSize: '12px',
-  color: 'var(--text-dimmed)',
-  lineHeight: 1.5
-}
+const dimmedTextStyle: CSSProperties = settingsPlaceholderStyle()
 
 const handleLinkStyle: CSSProperties = {
   border: 'none',

@@ -1,5 +1,5 @@
 import type { ButtonHTMLAttributes, CSSProperties, ReactNode } from 'react'
-import { ChevronDown, ChevronLeft, Search } from 'lucide-react'
+import { ChevronDown, ChevronLeft, ChevronRight, Search } from 'lucide-react'
 import { useState } from 'react'
 import { ContextMenu, type ContextMenuPosition } from '../ui/ContextMenu'
 import { Button } from '../ui/Button'
@@ -120,9 +120,26 @@ export function CatalogBreadcrumb({
       >
         {parentLabel}
       </Button>
-      <span style={styles.breadcrumbSep} aria-hidden>›</span>
+      <BreadcrumbSeparator />
       <span style={styles.breadcrumbCurrent}>{currentLabel}</span>
     </div>
+  )
+}
+
+/**
+ * Breadcrumb `parent › current` divider.
+ *
+ * Deliberately the same lucide chevron at the same size as the back button's
+ * ChevronLeft, so both read as one icon family. The previous `›` was U+203A — a
+ * quotation mark, not a chevron: it rendered from `--font-ui`, which DotCraft
+ * swaps per locale, so its shape and width changed between Latin and CJK. The
+ * separator is de-emphasised by colour (`--text-dimmed`), not by stroke weight.
+ */
+export function BreadcrumbSeparator(): JSX.Element {
+  return (
+    <span style={styles.breadcrumbSep} aria-hidden>
+      <ChevronRight size={14} />
+    </span>
   )
 }
 
@@ -490,6 +507,9 @@ export const styles = {
     padding: '0 8px 0 4px'
   },
   breadcrumbSep: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    flexShrink: 0,
     color: 'var(--text-dimmed)'
   },
   breadcrumbCurrent: {

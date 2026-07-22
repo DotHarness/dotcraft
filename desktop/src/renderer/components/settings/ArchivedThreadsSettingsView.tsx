@@ -11,6 +11,7 @@ import { ContextMenu, type ContextMenuPosition } from '../ui/ContextMenu'
 import { useConfirmDialog } from '../ui/ConfirmDialog'
 import { ActionTooltip } from '../ui/ActionTooltip'
 import { SettingsGroup, SettingsRow } from './SettingsGroup'
+import { settingsPlaceholderStyle } from './settingsTypography'
 import { SettingsPanelShell } from './SettingsPanelShell'
 import { Skeleton } from '../ui/Skeleton'
 import { Button } from '../ui/Button'
@@ -211,7 +212,7 @@ export function ArchivedThreadsSettingsView({
 
       {!loading && error && (
         <SettingsRow>
-          <div style={{ fontSize: '13px', color: '#f85149' }}>
+          <div style={{ ...settingsPlaceholderStyle(), color: 'var(--error)' }}>
             {t('archivedThreads.loadFailed', { error })}
           </div>
         </SettingsRow>
@@ -219,7 +220,7 @@ export function ArchivedThreadsSettingsView({
 
       {!loading && !error && threads.length === 0 && (
         <SettingsRow>
-          <div style={{ fontSize: '13px', color: 'var(--text-dimmed)' }}>{t('archivedThreads.empty')}</div>
+          <div style={settingsPlaceholderStyle()}>{t('archivedThreads.empty')}</div>
         </SettingsRow>
       )}
 

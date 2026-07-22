@@ -50,13 +50,28 @@ export function setupDownloadButton(): void {
 
   const detected = detectPlatform()
 
+  // transitions-dev menu dropdown: `.is-open` grows the menu from its trigger;
+  // close swaps to `.is-closing` for the softer exit, cleaned up after
+  // --dropdown-close-dur so the next open starts from the rest scale.
+  const closeMs =
+    parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--dropdown-close-dur')) || 150
+
   const openMenu = (): void => {
     menu.hidden = false
+    menu.classList.remove('is-closing')
+    // Paint the hidden rest state first so the open transition plays.
+    requestAnimationFrame(() => menu.classList.add('is-open'))
     toggle.setAttribute('aria-expanded', 'true')
     root.classList.add('dc-download--open')
   }
   const closeMenu = (): void => {
-    menu.hidden = true
+    if (!menu.classList.contains('is-open')) return
+    menu.classList.remove('is-open')
+    menu.classList.add('is-closing')
+    window.setTimeout(() => {
+      menu.classList.remove('is-closing')
+      menu.hidden = true
+    }, closeMs)
     toggle.setAttribute('aria-expanded', 'false')
     root.classList.remove('dc-download--open')
   }
@@ -93,7 +108,7 @@ export function setupDownloadButton(): void {
     }
     toggle.addEventListener('click', (event) => {
       event.stopPropagation()
-      menu.hidden ? openMenu() : closeMenu()
+      menu.classList.contains('is-open') ? closeMenu() : openMenu()
     })
     document.addEventListener('click', (event) => {
       if (!root.contains(event.target as Node)) closeMenu()

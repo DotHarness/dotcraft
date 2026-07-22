@@ -1,6 +1,6 @@
 import type { CSSProperties, JSX } from 'react'
 import { useT } from '../../contexts/LocaleContext'
-import { CatalogHoverButton, styles as catalogStyles } from '../catalog/CatalogSurface'
+import { BreadcrumbSeparator, CatalogHoverButton, styles as catalogStyles } from '../catalog/CatalogSurface'
 
 interface SettingsBreadcrumbProps {
   /** Label of the list page the back button returns to. */
@@ -31,7 +31,7 @@ export function SettingsBreadcrumb({ parentLabel, currentLabel, onBack, disabled
       >
         {parentLabel}
       </CatalogHoverButton>
-      <span style={catalogStyles.breadcrumbSep}>›</span>
+      <BreadcrumbSeparator />
       <span style={catalogStyles.breadcrumbCurrent}>{currentLabel}</span>
     </div>
   )

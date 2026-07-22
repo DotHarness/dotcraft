@@ -1,8 +1,8 @@
 import type { CSSProperties } from 'react'
 import {
-  settingsPageDescriptionStyle,
+  settingsDescriptionStyle,
   settingsPageTitleStyle
-} from '../../SettingsPageHeader'
+} from '../../settingsTypography'
 
 export function pageStyle(): CSSProperties {
   return {
@@ -17,7 +17,7 @@ export function pageHeadingStyle(): CSSProperties {
 }
 
 export function pageDescriptionStyle(): CSSProperties {
-  return settingsPageDescriptionStyle()
+  return settingsDescriptionStyle()
 }
 
 export function inputStyle(mono = false): CSSProperties {
@@ -25,7 +25,7 @@ export function inputStyle(mono = false): CSSProperties {
     width: '100%',
     boxSizing: 'border-box',
     padding: '8px 10px',
-    fontSize: '13px',
+    fontSize: 'var(--type-ui-size)',
     borderRadius: '8px',
     border: '1px solid var(--border-default)',
     background: 'var(--bg-primary)',
@@ -69,10 +69,10 @@ export function noticeStyle(tone: 'error' | 'info' | 'warning'): CSSProperties {
   return {
     padding: '10px 12px',
     borderRadius: '10px',
-    fontSize: '12px',
+    fontSize: 'var(--type-secondary-size)',
+    lineHeight: 'var(--type-secondary-prose-line-height)',
     background: palette.bg,
-    color: palette.fg,
-    lineHeight: 1.5
+    color: palette.fg
   }
 }
 

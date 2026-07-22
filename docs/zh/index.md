@@ -1,7 +1,7 @@
 ---
 layout: page
 title: DotCraft
-description: 最适合您项目的 AI Agent，所有能力尽在工作区内。
+description: 住进项目里的 AI Agent——而不是某一个应用里。
 aside: false
 sidebar: false
 editLink: false
@@ -10,305 +10,207 @@ lastUpdated: false
 
 <div class="dc-home">
   <section class="dc-hero">
+    <div class="dc-hero__field" aria-hidden="true"><span></span><span></span><span></span></div>
     <div class="dc-hero__inner">
-      <div class="dc-hero__content">
-        <h1>DotCraft</h1>
-        <p class="dc-hero__tagline"><span class="dc-hero__accent">AI Agent</span> 住进你的项目。</p>
-        <p class="dc-hero__lead">
-          DotCraft 把 Desktop、CLI、IDE、聊天机器人、API 和自动化都连到同一个项目上下文，让对话、计划、记忆和工具持续流动，而不是困在某一个应用里。
+      <div class="dc-hero__copy t-stagger">
+        <p class="dc-hero__eyebrow t-stagger-line t-stagger-line--1">项目级 Agent 运行时</p>
+        <h1 class="t-stagger-line t-stagger-line--2">让 AI Agent 住进<em>项目</em>里。</h1>
+        <p class="dc-hero__contrast t-stagger-line t-stagger-line--3">而不是某一个应用里。</p>
+        <p class="dc-hero__lead t-stagger-line t-stagger-line--4">
+          Desktop、CLI、IDE、社交渠道和你自己的应用共享同一个工作区，项目的上下文随你同行。
         </p>
-        <div class="dc-route-list" aria-label="DotCraft 入口">
-          <span>Desktop</span>
-          <span>CLI</span>
-          <span>IDE</span>
-          <span>Bots</span>
-          <span>API</span>
-          <span>Automations</span>
-        </div>
-        <div class="dc-actions">
-          <a class="dc-button dc-button--primary" href="./getting-started">开始使用</a>
-          <div class="dc-download" data-download data-download-lang="zh">
-            <a class="dc-button dc-download__main" href="https://github.com/DotHarness/dotcraft/releases" data-download-main>下载 Release</a>
-            <button class="dc-button dc-download__toggle" type="button" aria-haspopup="true" aria-expanded="false" aria-label="选择平台" data-download-toggle>
-              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
-            </button>
-            <div class="dc-download__menu" role="menu" hidden data-download-menu></div>
+        <div class="dc-hero__cta t-stagger-line t-stagger-line--5">
+          <div class="dc-actions">
+            <a class="dc-button dc-button--primary" href="./getting-started">开始使用</a>
+            <div class="dc-download" data-download data-download-lang="zh">
+              <a class="dc-button dc-download__main" href="https://github.com/DotHarness/dotcraft/releases" data-download-main>下载 Release</a>
+              <button class="dc-button dc-download__toggle" type="button" aria-haspopup="true" aria-expanded="false" aria-label="选择平台" data-download-toggle>
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+              </button>
+              <div class="dc-download__menu t-dropdown" role="menu" data-origin="top-left" hidden data-download-menu></div>
+            </div>
           </div>
+          <p class="dc-hero__meta">开源 · 可自托管 · Apache-2.0</p>
         </div>
       </div>
+      <figure class="dc-hero__media">
+        <div class="dc-hero__mascot" aria-hidden="true">
+          <img src="/dotcraft-logo.svg" alt="" />
+        </div>
+        <div class="dc-demo" data-demo-lang="zh">
+          <img src="https://cdn.jsdelivr.net/gh/DotHarness/resources@master/dotcraft/desktop_banner.png" alt="DotCraft Desktop 预览" />
+        </div>
+      </figure>
     </div>
-    <figure class="dc-hero__media">
-      <div class="dc-demo" data-demo-lang="zh">
-        <img src="https://cdn.jsdelivr.net/gh/DotHarness/resources@master/dotcraft/desktop_banner.png" alt="DotCraft Desktop 预览" />
-      </div>
-      <div class="dc-hero__stage" aria-hidden="true">
-        <div class="dc-stage-mascot" data-mascot="leader" style="--duration: 42s; --delay: -3s;">
-          <div class="dc-stage-mascot__body">
-            <div class="dc-stage-mascot__sprite">
-              <img src="/team-leader.svg" alt="Leader" />
-            </div>
-            <div class="dc-stage-bubble" data-phrase="0">这轮先排个计划。</div>
-            <div class="dc-stage-bubble" data-phrase="1">谁来认领？</div>
-            <div class="dc-stage-bubble" data-phrase="2">任务已派发。</div>
-          </div>
-        </div>
-        <div class="dc-stage-mascot" data-mascot="explorer" style="--duration: 46s; --delay: -28s;">
-          <div class="dc-stage-mascot__body">
-            <div class="dc-stage-mascot__sprite">
-              <img src="/team-explorer.svg" alt="Explorer" />
-            </div>
-            <div class="dc-stage-bubble" data-phrase="0">在读这个仓库。</div>
-            <div class="dc-stage-bubble" data-phrase="1">找到了。</div>
-            <div class="dc-stage-bubble" data-phrase="2">我再往下挖挖。</div>
-          </div>
-        </div>
-        <div class="dc-stage-mascot" data-mascot="builder" style="--duration: 38s; --delay: -15s;">
-          <div class="dc-stage-mascot__body">
-            <div class="dc-stage-mascot__sprite">
-              <img src="/team-builder.svg" alt="Builder" />
-            </div>
-            <div class="dc-stage-bubble" data-phrase="0">这就去做。</div>
-            <div class="dc-stage-bubble" data-phrase="1">重构中。</div>
-            <div class="dc-stage-bubble" data-phrase="2">修复马上提交。</div>
-          </div>
-        </div>
-        <div class="dc-stage-mascot" data-mascot="reviewer" style="--duration: 44s; --delay: -9s;">
-          <div class="dc-stage-mascot__body">
-            <div class="dc-stage-mascot__sprite">
-              <img src="/team-reviewer.svg" alt="Reviewer" />
-            </div>
-            <div class="dc-stage-bubble" data-phrase="0">Diff 没问题。</div>
-            <div class="dc-stage-bubble" data-phrase="1">两个小问题。</div>
-            <div class="dc-stage-bubble" data-phrase="2">通过。</div>
-          </div>
-        </div>
-        <div class="dc-stage-mascot" data-mascot="operator" style="--duration: 40s; --delay: -33s;">
-          <div class="dc-stage-mascot__body">
-            <div class="dc-stage-mascot__sprite">
-              <img src="/team-operator.svg" alt="Operator" />
-            </div>
-            <div class="dc-stage-bubble" data-phrase="0">正在跑测试。</div>
-            <div class="dc-stage-bubble" data-phrase="1">队列清空了。</div>
-            <div class="dc-stage-bubble" data-phrase="2">状态：全绿。</div>
-          </div>
-        </div>
-      </div>
-    </figure>
   </section>
 
-  <section class="dc-section dc-section--quiet dc-section--reel">
-    <div class="dc-section__inner">
-      <div class="dc-section__header">
-        <h2>功能一览</h2>
-        <p class="dc-section__text">
-          DotCraft 给项目带来的几样能力，每一样都归到同一个工作区里。
-        </p>
+  <section id="features" class="dc-stories">
+    <article class="dc-story">
+      <div class="dc-story__inner dc-reveal">
+        <div class="dc-story__copy">
+          <p class="dc-story__eyebrow">一个项目，一个运行时</p>
+          <h2>项目就是工作区。</h2>
+          <p>
+            对话、记忆、Agent、技能、插件和自动化都留在项目里。无论从 Desktop、CLI、社交渠道还是接入的应用打开，都能在同一份上下文中继续。
+          </p>
+          <div class="dc-story__links">
+            <a class="dc-link" href="./features/project-first">项目优先的工作区 <span aria-hidden="true">→</span></a>
+          </div>
+        </div>
+        <figure class="dc-story__media">
+          <img src="https://cdn.jsdelivr.net/gh/DotHarness/resources@master/dotcraft/whats-new/multi-workspace.gif" alt="在 DotCraft Desktop 中切换项目工作区" loading="lazy" />
+        </figure>
       </div>
-      <div class="dc-reel">
-        <a class="dc-reel-card" href="./features/agent-system/agent-profiles">
-          <span class="dc-reel-card__media">
-            <img src="https://cdn.jsdelivr.net/gh/DotHarness/resources@master/dotcraft/whats-new/agent-profile.gif" alt="" loading="lazy" />
-          </span>
-          <span class="dc-reel-card__body">
-            <small>智能体</small>
-            <strong>个性化智能体</strong>
-            <span>在会话、Teams 和自动化任务中使用你定制好的个性化智能体。</span>
-          </span>
-        </a>
-        <a class="dc-reel-card" href="./features/agent-system/agent-profiles#agent-builder">
-          <span class="dc-reel-card__media">
-            <img src="https://cdn.jsdelivr.net/gh/DotHarness/resources@master/dotcraft/whats-new/agent-builder.gif" alt="" loading="lazy" />
-          </span>
-          <span class="dc-reel-card__body">
-            <small>智能体</small>
-            <strong>Agent Builder</strong>
-            <span>用对话就能定制你的智能体，不用手改配置文件。</span>
-          </span>
-        </a>
-        <a class="dc-reel-card" href="./features/project-first">
-          <span class="dc-reel-card__media">
-            <img src="https://cdn.jsdelivr.net/gh/DotHarness/resources@master/dotcraft/whats-new/multi-workspace.gif" alt="" loading="lazy" />
-          </span>
-          <span class="dc-reel-card__body">
-            <small>工作区</small>
-            <strong>多工作区</strong>
-            <span>在一个窗口里打开多个项目，随时一键切换。</span>
-          </span>
-        </a>
-        <a class="dc-reel-card" href="./developing/integrations/desktop-extensions">
-          <span class="dc-reel-card__media">
-            <img src="https://cdn.jsdelivr.net/gh/DotHarness/resources@master/dotcraft/whats-new/desktop-extensions.gif" alt="" loading="lazy" />
-          </span>
-          <span class="dc-reel-card__body">
-            <small>扩展</small>
-            <strong>Desktop 扩展</strong>
-            <span>插件可以在 Desktop 内嵌入完整界面——看板、仪表盘、各种工具。</span>
-          </span>
-        </a>
-        <a class="dc-reel-card" href="./features/agent-system/teams">
-          <span class="dc-reel-card__media">
-            <img src="https://cdn.jsdelivr.net/gh/DotHarness/resources@master/dotcraft/whats-new/teams.gif" alt="" loading="lazy" />
-          </span>
-          <span class="dc-reel-card__body">
-            <small>多智能体</small>
-            <strong>Teams</strong>
-            <span>多个 Agent 共用一个工作区，按 Explorer / Builder / Reviewer / Operator 分工协作。</span>
-          </span>
-        </a>
-        <a class="dc-reel-card" href="./features/entry-points/channels">
-          <span class="dc-reel-card__media">
-            <img src="https://cdn.jsdelivr.net/gh/DotHarness/resources@master/dotcraft/whats-new/channels.gif" alt="" loading="lazy" />
-          </span>
-          <span class="dc-reel-card__body">
-            <small>随处可达</small>
-            <strong>群聊机器人</strong>
-            <span>Telegram、微信、飞书、QQ、企业微信——每个平台上都是同一个 Agent。</span>
-          </span>
-        </a>
+    </article>
+    <article class="dc-story dc-story--flip">
+      <div class="dc-story__inner dc-reveal">
+        <div class="dc-story__copy">
+          <p class="dc-story__eyebrow">Agent 与团队</p>
+          <h2>一个 Agent 独当一面，或一支团队协同作战。</h2>
+          <p>
+            Agent Profile 让 Agent 可复用——指令、模型、工具与权限一次定义；Agent Teams 把复杂工作拆给各有所长的成员，Goals 让长期任务持续推进。
+          </p>
+          <div class="dc-story__links">
+            <a class="dc-link" href="./features/agent-system/agent-profiles">Agent Profiles <span aria-hidden="true">→</span></a>
+            <a class="dc-link" href="./features/agent-system/teams">Teams <span aria-hidden="true">→</span></a>
+            <a class="dc-link" href="./features/agent-system/automations">自动化 <span aria-hidden="true">→</span></a>
+          </div>
+          <div class="dc-story__team" aria-hidden="true">
+            <figure><img src="/team-leader.svg" alt="" /><figcaption>领队</figcaption></figure>
+            <figure><img src="/team-explorer.svg" alt="" /><figcaption>探索</figcaption></figure>
+            <figure><img src="/team-builder.svg" alt="" /><figcaption>构建</figcaption></figure>
+            <figure><img src="/team-reviewer.svg" alt="" /><figcaption>评审</figcaption></figure>
+            <figure><img src="/team-operator.svg" alt="" /><figcaption>运维</figcaption></figure>
+          </div>
+        </div>
+        <figure class="dc-story__media">
+          <img src="https://cdn.jsdelivr.net/gh/DotHarness/resources@master/dotcraft/whats-new/agent-builder.gif" alt="通过对话定制一个专属 Agent" loading="lazy" />
+        </figure>
+      </div>
+    </article>
+    <article class="dc-story">
+      <div class="dc-story__inner dc-reveal">
+        <div class="dc-story__copy">
+          <p class="dc-story__eyebrow">为应用而生</p>
+          <h2>把运行时带进你自己的产品。</h2>
+          <p>
+            通过 API、App Binding，或 TypeScript、.NET、Python SDK 接入。应用保留自己的数据与流程，DotCraft 负责对话、工具、审批、记忆和追踪。
+          </p>
+          <div class="dc-story__links">
+            <a class="dc-link" href="./developing/integrations/app-binding">App Binding <span aria-hidden="true">→</span></a>
+            <a class="dc-link" href="./developing/sdks/">SDK <span aria-hidden="true">→</span></a>
+          </div>
+        </div>
+        <figure class="dc-story__media">
+          <img src="https://cdn.jsdelivr.net/gh/DotHarness/resources@master/dotcraft/whats-new/desktop-extensions.gif" alt="Oratorio 项目看板作为完整视图嵌入 DotCraft Desktop" loading="lazy" />
+        </figure>
+      </div>
+    </article>
+    <article class="dc-story dc-story--flip">
+      <div class="dc-story__inner dc-reveal">
+        <div class="dc-story__copy">
+          <p class="dc-story__eyebrow">离开桌面之后</p>
+          <h2>窗口关上，工作仍在继续。</h2>
+          <p>
+            自动化按计划运行，后台渠道保持连接，Channel Handoff 让正在进行的对话无缝转到 Telegram、微信、飞书等渠道——不必从头再来。
+          </p>
+          <div class="dc-story__links">
+            <a class="dc-link" href="./features/entry-points/channels">渠道与机器人 <span aria-hidden="true">→</span></a>
+            <a class="dc-link" href="./features/agent-system/automations">定时任务 <span aria-hidden="true">→</span></a>
+          </div>
+        </div>
+        <figure class="dc-story__media">
+          <img src="https://cdn.jsdelivr.net/gh/DotHarness/resources@master/dotcraft/whats-new/channels.gif" alt="DotCraft 在后台保持社交渠道连接" loading="lazy" />
+        </figure>
+      </div>
+    </article>
+  </section>
+
+  <section class="dc-thesis">
+    <div class="dc-thesis__inner dc-reveal">
+      <p class="dc-thesis__kicker">为什么选 DotCraft</p>
+      <p class="dc-thesis__quote"><em>项目</em>——而不是客户端——才是 Agent 状态与执行的单位。</p>
+      <p class="dc-thesis__note">
+        多数 AI 编程工具都在优化一位开发者与一个客户端之间的循环。DotCraft 关注更底下的那一层：一个属于项目、被所有客户端与应用共享的持久运行时。
+      </p>
+      <div class="dc-loops">
+        <div class="dc-loop">
+          <span>01</span>
+          <h3>对话</h3>
+          <p>持久的会话、审批与排队输入——从任何客户端继续，不必重来。</p>
+        </div>
+        <div class="dc-loop">
+          <span>02</span>
+          <h3>工作</h3>
+          <p>Goals、自动化、Agent Teams 与隔离的 worktree，让长任务在人的掌控下持续推进。</p>
+        </div>
+        <div class="dc-loop">
+          <span>03</span>
+          <h3>记忆</h3>
+          <p>可审阅的项目记忆与历史，把有用的上下文带进未来的对话。</p>
+        </div>
       </div>
     </div>
   </section>
 
-  <section id="features" class="dc-section">
-    <div class="dc-section__inner">
+  <section class="dc-start">
+    <div class="dc-start__inner dc-reveal">
       <div class="dc-section__header">
-        <h2>为什么选 DotCraft</h2>
+        <h2>五分钟开始</h2>
         <p class="dc-section__text">
-          AI Agent 住进你的项目，而不是某个聊天框。记忆、技能、会话和自动化都留在项目里，每个入口连上的都是同一个 Agent。
+          打开一个真实的项目文件夹，接入一个模型提供商，然后提一个具体的需求。
         </p>
       </div>
-      <div class="dc-grid">
-        <a class="dc-feature dc-feature--workspace" href="./features/project-first">
-          <span class="dc-feature__icon">
-            <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"/></svg>
-          </span>
-          <h3>项目就是工作区</h3>
-          <p>会话、记忆、技能、自动化和设置都跟着项目走。换个入口打开，还是同一个 Agent、同一份上下文。</p>
-          <span class="dc-feature__arrow" aria-hidden="true">
-            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
-          </span>
-        </a>
-        <a class="dc-feature dc-feature--memory" href="./features/agent-system/memory">
-          <span class="dc-feature__icon">
-            <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 18V5"/><path d="M15 13a4.17 4.17 0 0 1-3-4 4.17 4.17 0 0 1-3 4"/><path d="M17.598 6.5A3 3 0 1 0 12 5a3 3 0 1 0-5.598 1.5"/><path d="M17.997 5.125a4 4 0 0 1 2.526 5.77"/><path d="M18 18a4 4 0 0 0 2-7.464"/><path d="M19.967 17.483A4 4 0 1 1 12 18a4 4 0 1 1-7.967-.517"/><path d="M6 18a4 4 0 0 1-2-7.464"/><path d="M6.003 5.125a4 4 0 0 0-2.526 5.77"/></svg>
-          </span>
-          <h3>越用越懂你的项目</h3>
-          <p>每次会话结束，Dreams 都会在后台回顾一遍，把值得记住的写成草稿，你审阅通过才生效。所有记忆都是项目里的 Markdown，随时可读、可改、可回退。</p>
-          <span class="dc-feature__arrow" aria-hidden="true">
-            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
-          </span>
-        </a>
-        <a class="dc-feature dc-feature--runtime" href="./features/entry-points/">
-          <span class="dc-feature__icon">
-            <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="16" y="16" width="6" height="6" rx="1"/><rect x="2" y="16" width="6" height="6" rx="1"/><rect x="9" y="2" width="6" height="6" rx="1"/><path d="M5 16v-3a1 1 0 0 1 1-1h12a1 1 0 0 1 1 1v3"/><path d="M12 12V8"/></svg>
-          </span>
-          <h3>一个 Agent，处处可达</h3>
-          <p>Desktop、IDE、群聊机器人和 SDK/API 客户端共用同一个会话核心。在电脑上开的会话，换设备、换平台都能接着聊。</p>
-          <span class="dc-feature__arrow" aria-hidden="true">
-            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
-          </span>
-        </a>
-      </div>
-    </div>
-  </section>
-
-  <section class="dc-section dc-section--quiet">
-    <div class="dc-section__inner">
-      <div class="dc-section__header">
-        <h2>一个工作区，多种使用方式</h2>
-        <p class="dc-section__text">
-          图形化管理、用代码驱动，或让它按计划自动运行——每个入口背后都是同一份会话、记忆和项目。
-        </p>
-      </div>
-      <div class="dc-preview">
-        <input class="dc-preview__radio" type="radio" name="dc-preview" id="dcp-1" checked />
-        <input class="dc-preview__radio" type="radio" name="dc-preview" id="dcp-2" />
-        <input class="dc-preview__radio" type="radio" name="dc-preview" id="dcp-3" />
-        <div class="dc-preview__list">
-          <label class="dc-preview__row" for="dcp-1">
-            <span class="dc-preview__head">
-              <span class="dc-preview__title">图形化管理会话、Diff、计划与自动化</span>
-              <span class="dc-preview__chev" aria-hidden="true"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg></span>
-            </span>
-            <span class="dc-preview__body">
-              <span class="dc-preview__body-inner">
-                <span class="dc-preview__text">Desktop 是推荐的第一入口。下载、选工作区、配模型，5 分钟就能跑通；之后再按需使用 CLI、IDE、自动化和群聊机器人。</span>
-                <span class="dc-preview__actions">
-                  <a class="dc-button dc-button--primary" href="./getting-started">5 分钟快速开始</a>
-                  <a class="dc-button" href="./features/entry-points/desktop">Desktop 指南</a>
-                </span>
-              </span>
-            </span>
-          </label>
-          <label class="dc-preview__row" for="dcp-2">
-            <span class="dc-preview__head">
-              <span class="dc-preview__title">给开发者的协议与 SDK</span>
-              <span class="dc-preview__chev" aria-hidden="true"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg></span>
-            </span>
-            <span class="dc-preview__body">
-              <span class="dc-preview__body-inner">
-                <span class="dc-preview__text">AppServer 通过 JSON-RPC 对外开放 DotCraft，任何语言都能写客户端、做远程部署、构建机器人或自动化。TypeScript、.NET 与 Python SDK 开箱即用。</span>
-                <span class="dc-preview__actions">
-                  <a class="dc-button dc-button--primary" href="./developing/lifecycle/appserver">AppServer</a>
-                  <a class="dc-button" href="./developing/sdks/">SDK</a>
-                </span>
-              </span>
-            </span>
-          </label>
-          <label class="dc-preview__row" for="dcp-3">
-            <span class="dc-preview__head">
-              <span class="dc-preview__title">把 Agent 工作流放进任务管线</span>
-              <span class="dc-preview__chev" aria-hidden="true"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg></span>
-            </span>
-            <span class="dc-preview__body">
-              <span class="dc-preview__body-inner">
-                <span class="dc-preview__text">本地任务、Cron、Goals 在工作区内提供调度、线程绑定、活动展示和长期目标推进能力——让 Agent 也能值班。</span>
-                <span class="dc-preview__actions">
-                  <a class="dc-button dc-button--primary" href="./features/agent-system/automations">查看 Automations</a>
-                  <a class="dc-button" href="./features/self-hosted/observability">可观测性</a>
-                </span>
-              </span>
-            </span>
-          </label>
+      <div class="dc-start__grid">
+        <div class="dc-start__col">
+          <h3>Desktop</h3>
+          <p>下载、选择工作区、配置模型——推荐的第一入口。</p>
+          <div class="dc-actions">
+            <a class="dc-button dc-button--primary" href="https://github.com/DotHarness/dotcraft/releases">下载 Desktop</a>
+            <a class="dc-button" href="./getting-started">快速开始</a>
+          </div>
         </div>
-        <div class="dc-preview__stage">
-          <figure class="dc-preview__panel" data-panel="dcp-1">
-            <img src="https://github.com/DotHarness/resources/raw/master/dotcraft/desktop.png" alt="DotCraft Desktop 图形化管理会话、Diff 与计划" loading="lazy" />
-          </figure>
-          <figure class="dc-preview__panel" data-panel="dcp-2">
-            <div class="dc-codeframe">
-              <div class="dc-codeframe__bar">
-                <span class="dc-codeframe__dot"></span>
-                <span class="dc-codeframe__dot"></span>
-                <span class="dc-codeframe__dot"></span>
-                <span class="dc-codeframe__name">quickstart.ts</span>
+        <div class="dc-start__col">
+          <h3>CLI</h3>
+          <p>一行命令安装；<code>dotcraft exec</code> 直接运行一次性项目任务。</p>
+          <div class="dc-start__cmds">
+            <div class="dc-cmd">
+              <div class="dc-cmd__head">
+                <span>macOS / Linux</span>
+                <button class="dc-cmd__copy" type="button" data-copy aria-label="复制安装命令">
+                  <span class="t-icon-swap" data-state="a">
+                    <span class="t-icon" data-icon="a"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="14" height="14" x="8" y="8" rx="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg></span>
+                    <span class="t-icon" data-icon="b"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg></span>
+                  </span>
+                </button>
               </div>
-              <pre class="dc-codeframe__code"><code>import { connect } from "@dotcraft/sdk"
-// 通过 AppServer 协议连接到工作区
-const dc = await connect({ workspace: "./my-project" })
-const run = await dc.threads.prompt("main", "Summarize today's diffs")
-for await (const event of run.events) {
-  console.log(event.type, event.text)
-}</code></pre>
+              <code>curl -fsSL https://www.dotcraft.net/install.sh | bash</code>
             </div>
-          </figure>
-          <figure class="dc-preview__panel" data-panel="dcp-3">
-            <img src="https://github.com/DotHarness/resources/raw/master/dotcraft/desktop_automations.png" alt="DotCraft 自动化面板" loading="lazy" />
-          </figure>
+            <div class="dc-cmd">
+              <div class="dc-cmd__head">
+                <span>Windows</span>
+                <button class="dc-cmd__copy" type="button" data-copy aria-label="复制安装命令">
+                  <span class="t-icon-swap" data-state="a">
+                    <span class="t-icon" data-icon="a"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="14" height="14" x="8" y="8" rx="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg></span>
+                    <span class="t-icon" data-icon="b"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg></span>
+                  </span>
+                </button>
+              </div>
+              <code>irm https://www.dotcraft.net/install.ps1 | iex</code>
+            </div>
+          </div>
         </div>
       </div>
     </div>
   </section>
 
   <section class="dc-section dc-section--cta dc-section--final">
-    <div class="dc-section__inner">
-      <div class="dc-cta">
-        <h2>把项目接回 Agent</h2>
-        <p>从下载到第一次仓库理解请求，5 分钟跑通；同一个工作区随后能延展到你想接的任何入口。</p>
-        <div class="dc-actions">
-          <a class="dc-button dc-button--primary" href="./getting-started">开始使用</a>
-          <a class="dc-button" href="https://github.com/DotHarness/dotcraft">在 GitHub 上 Star</a>
-        </div>
+    <div class="dc-cta dc-reveal">
+      <h2>准备好把项目接回家了吗？</h2>
+      <p>从下载到第一个理解你仓库的会话只要五分钟——之后加入的每个入口，都通向同一个工作区。</p>
+      <div class="dc-actions">
+        <a class="dc-button dc-button--primary" href="./getting-started">开始使用</a>
+        <a class="dc-button" href="https://github.com/DotHarness/dotcraft">GitHub 加星</a>
       </div>
     </div>
   </section>

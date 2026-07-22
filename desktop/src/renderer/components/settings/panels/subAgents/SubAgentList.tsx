@@ -3,6 +3,7 @@ import { Plus } from 'lucide-react'
 import { useT } from '../../../../contexts/LocaleContext'
 import type { MessageKey } from '../../../../../shared/locales'
 import { SettingsGroup } from '../../SettingsGroup'
+import { settingsHintStyle, settingsLabelStyle, settingsPlaceholderStyle } from '../../settingsTypography'
 import { PillSwitch } from '../../../ui/PillSwitch'
 import { Skeleton } from '../../../ui/Skeleton'
 import { AgentIcon } from './AgentIcon'
@@ -99,10 +100,10 @@ export function SubAgentList({
             }}
           >
             <div style={{ minWidth: 0 }}>
-              <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-primary)' }}>
+              <div style={settingsLabelStyle()}>
                 {t('settings.subAgents.list.addCustomAgent')}
               </div>
-              <div style={{ fontSize: '12px', color: 'var(--text-dimmed)', marginTop: '2px' }}>
+              <div style={subtitleStyle()}>
                 {t('settings.subAgents.list.addCustomAgentHint')}
               </div>
             </div>
@@ -250,20 +251,14 @@ function titleStyle(): CSSProperties {
 }
 
 function subtitleStyle(): CSSProperties {
-  return {
-    fontSize: '12px',
-    color: 'var(--text-dimmed)',
-    marginTop: '2px',
-    lineHeight: 1.5
-  }
+  return { ...settingsHintStyle(false), marginTop: '2px' }
 }
 
 function emptyNoticeStyle(): CSSProperties {
   return {
+    ...settingsPlaceholderStyle(),
     padding: '12px 14px',
     borderRadius: '10px',
-    border: '1px dashed var(--border-default)',
-    color: 'var(--text-dimmed)',
-    fontSize: '12px'
+    border: '1px dashed var(--border-default)'
   }
 }

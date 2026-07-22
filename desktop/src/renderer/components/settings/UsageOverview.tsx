@@ -8,6 +8,7 @@ import { RefreshIcon } from '../ui/AppIcons'
 import { IconButton } from '../ui/IconButton'
 import { Button } from '../ui/Button'
 import { RunningSpinner } from '../ui/RunningSpinner'
+import { settingsLabelStyle, settingsMetaTextStyle, settingsPlaceholderStyle } from './settingsTypography'
 import { SettingsGroup, SettingsRow } from './SettingsGroup'
 
 /**
@@ -139,7 +140,7 @@ function StatGrid({ summary, t }: { summary: UsageSummaryWire; t: TFn }): JSX.El
               {stat.value}
             </div>
           </ActionTooltip>
-          <div style={{ fontSize: '11px', color: 'var(--text-dimmed)' }}>{t(stat.label)}</div>
+          <div style={settingsMetaTextStyle()}>{t(stat.label)}</div>
         </div>
       ))}
     </div>
@@ -160,7 +161,7 @@ function TokenBreakdown({ summary, t }: { summary: UsageSummaryWire; t: TFn }): 
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-      <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-primary)' }}>
+      <div style={settingsLabelStyle()}>
         {t('settings.usage.breakdownTitle')}
       </div>
       <div
@@ -195,7 +196,7 @@ function TokenBreakdown({ summary, t }: { summary: UsageSummaryWire; t: TFn }): 
         ))}
       </div>
       {summary.totalReasoningOutputTokens > 0 && (
-        <div style={{ fontSize: '11px', color: 'var(--text-dimmed)' }}>
+        <div style={settingsMetaTextStyle()}>
           {t('settings.usage.breakdown.reasoningNote', { count: formatCompact(summary.totalReasoningOutputTokens) })}
         </div>
       )}
@@ -216,8 +217,4 @@ function formatPercent(ratio: number): string {
   return `${(ratio * 100).toFixed(1)}%`
 }
 
-const dimmedTextStyle: CSSProperties = {
-  fontSize: '12px',
-  color: 'var(--text-dimmed)',
-  lineHeight: 1.5
-}
+const dimmedTextStyle: CSSProperties = settingsPlaceholderStyle()

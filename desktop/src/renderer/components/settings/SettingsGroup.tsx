@@ -1,5 +1,12 @@
 import type { CSSProperties, JSX, MouseEvent, ReactNode } from 'react'
 
+import {
+  settingsDescriptionStyle,
+  settingsHeadingStyle,
+  settingsHintStyle,
+  settingsLabelStyle
+} from './settingsTypography'
+
 interface SettingsGroupProps {
   title?: string
   description?: ReactNode
@@ -30,23 +37,8 @@ export function SettingsGroup({
       {(title || description || headerAction) && (
         <header style={headerStyle()}>
           <div style={{ flex: 1, minWidth: 0 }}>
-            {title && (
-              <div style={{ fontSize: '15px', fontWeight: 600, color: 'var(--text-primary)' }}>
-                {title}
-              </div>
-            )}
-            {description && (
-              <div
-                style={{
-                  fontSize: '12px',
-                  color: 'var(--text-dimmed)',
-                  lineHeight: 1.5,
-                  marginTop: '4px'
-                }}
-              >
-                {description}
-              </div>
-            )}
+            {title && <div style={settingsHeadingStyle()}>{title}</div>}
+            {description && <div style={settingsDescriptionStyle()}>{description}</div>}
           </div>
           {headerAction && <div style={{ flexShrink: 0 }}>{headerAction}</div>}
         </header>
@@ -106,30 +98,11 @@ export function SettingsRow({
         {(label || description) && (
           <div>
             {label && (
-              <label
-                htmlFor={htmlFor}
-                style={{
-                  display: 'block',
-                  fontSize: '13px',
-                  fontWeight: 600,
-                  color: 'var(--text-primary)'
-                }}
-              >
+              <label htmlFor={htmlFor} style={settingsLabelStyle()}>
                 {label}
               </label>
             )}
-            {description && (
-              <div
-                style={{
-                  fontSize: '11px',
-                  color: 'var(--text-dimmed)',
-                  lineHeight: 1.5,
-                  marginTop: '4px'
-                }}
-              >
-                {description}
-              </div>
-            )}
+            {description && <div style={settingsHintStyle()}>{description}</div>}
           </div>
         )}
         {control}
@@ -142,30 +115,11 @@ export function SettingsRow({
     <div className="dc-settings-row" onContextMenu={onContextMenu} style={{ ...rowStyle(), alignItems: align, ...style }}>
       <div style={{ flex: 1, minWidth: 0 }}>
         {label && (
-          <label
-            htmlFor={htmlFor}
-            style={{
-              display: 'block',
-              fontSize: '13px',
-              fontWeight: 600,
-              color: 'var(--text-primary)'
-            }}
-          >
+          <label htmlFor={htmlFor} style={settingsLabelStyle()}>
             {label}
           </label>
         )}
-        {description && (
-          <div
-            style={{
-              fontSize: '11px',
-              color: 'var(--text-dimmed)',
-              lineHeight: 1.5,
-              marginTop: '4px'
-            }}
-          >
-            {description}
-          </div>
-        )}
+        {description && <div style={settingsHintStyle()}>{description}</div>}
       </div>
       {control !== undefined && <div style={{ flexShrink: 0, minWidth: controlMinWidth }}>{control}</div>}
     </div>
