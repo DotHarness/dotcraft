@@ -105,6 +105,8 @@ public static class AppServerErrors
     public const int WorktreeHandoffConflictCode = -32090;
     public const int AgentProfileConflictCode = -32091;
     public const int AppSurfaceUnavailableCode = -32092;
+    public const int MarketplaceSourceInvalidCode = -32093;
+    public const int MarketplaceFetchFailedCode = -32094;
     // ── Automation-specific codes (-32050 to -32059) ──
 
     public const int TaskNotFoundCode = -32051;
@@ -187,6 +189,30 @@ public static class AppServerErrors
 
     public static AppServerException SkillNotFound(string name) =>
         Create(SkillNotFoundCode, "SkillNotFound", "errors.skillNotFound", $"Skill not found: {name}", new { name });
+
+    /// <summary>
+    /// Maps a marketplace failure onto the JSON-RPC error that matches its stable code, keeping
+    /// the code in the error data so clients can localize without parsing the message.
+    /// </summary>
+    public static AppServerException Marketplace(string code, string fallbackText, string? marketplaceName = null)
+    {
+        var jsonRpcCode = Plugins.Marketplaces.MarketplaceErrorCodes.IsRequestRejection(code)
+            ? MarketplaceSourceInvalidCode
+            : MarketplaceFetchFailedCode;
+        return Create(
+            jsonRpcCode,
+            code,
+            $"errors.marketplace.{ToMessageKeySuffix(code)}",
+            fallbackText,
+            marketplaceName == null ? null : new { marketplaceName });
+    }
+
+    private static string ToMessageKeySuffix(string code)
+    {
+        const string prefix = "Marketplace";
+        var suffix = code.StartsWith(prefix, StringComparison.Ordinal) ? code[prefix.Length..] : code;
+        return suffix.Length == 0 ? "failed" : $"{char.ToLowerInvariant(suffix[0])}{suffix[1..]}";
+    }
 
     public static AppServerException CommandNotFound(string command) =>
         Create(CommandNotFoundCode, "CommandNotFound", "errors.commandNotFound", $"Command not found: {command}", new { command });

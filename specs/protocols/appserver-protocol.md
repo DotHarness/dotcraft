@@ -359,6 +359,7 @@ Built-in channels do not negotiate these capabilities over `initialize`; they pr
     "heartbeatManagement": true,
     "skillsManagement": true,
     "pluginManagement": true,
+    "pluginMarketplaces": true,
     "skillVariants": true,
     "runtimeAdditionalContext": true,
     "gitWorktrees": true,
@@ -404,6 +405,7 @@ Built-in channels do not negotiate these capabilities over `initialize`; they pr
 | `capabilities.heartbeatManagement` | boolean | Server supports heartbeat management methods (`heartbeat/trigger`). Absent or `false` when the heartbeat service is not configured. |
 | `capabilities.skillsManagement` | boolean | Server supports skills management methods (`skills/list`, `skills/read`, `skills/view`, `skills/restoreOriginal`, `skills/setEnabled`, `skills/uninstall`). |
 | `capabilities.pluginManagement` | boolean | Server supports plugin management methods (`plugin/list`, `plugin/view`, `plugin/install`, `plugin/remove`, `plugin/setEnabled`). |
+| `capabilities.pluginMarketplaces` | boolean | Server supports user-managed plugin marketplace sources (`marketplace/add`, `marketplace/remove`, `marketplace/refresh`) and returns marketplace grouping metadata on `plugin/list`. |
 | `capabilities.hooksManagement` | boolean | Server supports hook discovery and user-state methods (`hooks/list`, `hooks/setState`, `hooks/trustPlugin`). |
 | `capabilities.skillVariants` | boolean | Server has skill variants enabled for the current runtime. Clients may use effective skill views and restore source-skill behavior (`skills/view`, `skills/restoreOriginal`) without exposing variant internals. |
 | `capabilities.toolCatalog` | boolean | Server supports the built-in tool catalog method (`tool/list`). Always `true` for servers built on this protocol version; the catalog is derived from server reflection and has no workspace dependency. |
@@ -4275,7 +4277,9 @@ Clients must check `capabilities.pluginManagement` before calling any `plugin/*`
 
 #### `plugin/list`
 
-Returns discovered plugins, including disabled installed plugins and installable catalog plugins when requested. Catalog plugins may come from Desktop-bundled built-ins or configured plugin registries.
+Returns discovered plugins, including disabled installed plugins and installable catalog plugins when requested. Catalog plugins may come from Desktop-bundled built-ins or configured plugin marketplaces.
+
+When the server advertises `capabilities.pluginMarketplaces`, the result also carries the configured marketplaces so clients can group the catalog by source.
 
 **Direction**: client → server (request)
 
@@ -4324,9 +4328,42 @@ Returns discovered plugins, including disabled installed plugins and installable
       ]
     }
   ],
+  "marketplaces": [
+    {
+      "name": "example-marketplace",
+      "displayName": "Example Plugins",
+      "sourceType": "git",
+      "source": "https://example.com/team/plugins.git",
+      "ref": "main",
+      "sparsePaths": ["plugins/example"],
+      "root": "/home/user/.craft/marketplaces/example-marketplace",
+      "lastUpdated": "2026-07-22T00:00:00Z",
+      "revision": "0000000000000000000000000000000000000000",
+      "removable": true,
+      "pluginIds": ["example-plugin"]
+    }
+  ],
   "diagnostics": []
 }
 ```
+
+`MarketplaceInfo` fields:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `name` | string | Marketplace identity, read from the marketplace document. |
+| `displayName` | string? | Optional display name from the marketplace document `interface`. |
+| `sourceType` | `"git" \| "local" \| "archive"` | Marketplace source kind. |
+| `source` | string | Resolved source value: repository URL, local directory, or archive URL. |
+| `ref` | string? | Configured reference for git sources. |
+| `sparsePaths` | string[] | Configured sparse paths for git sources; empty otherwise. |
+| `root` | string? | Materialized or in-place marketplace root when one is available on disk. |
+| `lastUpdated` | string? | UTC timestamp of the last successful add or refresh. |
+| `revision` | string? | Resolved source revision when the source kind provides one. |
+| `removable` | boolean | False for the host-provided default marketplace, which is controlled by configuration rather than by `marketplace/remove`. |
+| `pluginIds` | string[] | Plugin ids contributed by this marketplace, in marketplace order. |
+
+Each `PluginInfo` contributed by a marketplace carries `marketplaceName` so clients can group entries without re-resolving sources. Built-in and workspace-local plugins omit it.
 
 #### `plugin/view`
 
@@ -4448,17 +4485,112 @@ Enables or disables an installed plugin for the workspace.
 
 `plugin/setEnabled` does not install a built-in catalog entry. If the plugin is not installed, the server rejects the request. On success, the server persists `Plugins.DisabledPlugins`, refreshes plugin-contributed skill sources, reconciles effective MCP/LSP/hooks runtime state, and emits `workspace/configChanged` with `source: "plugin/setEnabled"` and `regions: ["plugins", "skills", "mcp", "lsp", "hooks"]`.
 
-### 18.9 Error Codes
+### 18.10 Marketplace Management Methods
+
+Clients must check `capabilities.pluginMarketplaces` before calling any `marketplace/*` method. These methods manage the plugin marketplace sources available to the user. Source kinds, accepted source syntax, fetch requirements, and security boundaries are defined in [Plugin Registry](../architecture/plugin-registry.md).
+
+Marketplace sources are recorded in user-global configuration and are therefore available in every workspace. Adding a marketplace never installs a plugin: its entries become installable catalog items, and installation stays per workspace through `plugin/install`.
+
+These methods are the only place a marketplace fetch happens. Plugin discovery reads materialized roots and cached snapshots that already exist on disk and never triggers a version control fetch.
+
+#### `marketplace/add`
+
+Adds a plugin marketplace from a repository source or a local directory.
+
+**Direction**: client → server (request)
+
+**Params**:
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `source` | string | yes | Repository shorthand, repository URL, or local directory path. |
+| `ref` | string? | no | Reference to check out. Valid only for repository sources; overrides a reference embedded in `source`. |
+| `sparsePaths` | string[]? | no | Repository-relative paths to check out. Valid only for repository sources. |
+| `marketplacePath` | string? | no | Marketplace document path inside the source. Defaults to `.craft/plugins/marketplace.json`. |
+
+**Result**:
+
+```json
+{
+  "marketplace": { "name": "example-marketplace", "sourceType": "git" },
+  "alreadyAdded": false
+}
+```
+
+`marketplace` is a `MarketplaceInfo` as returned by `plugin/list`. `alreadyAdded` is true when a configured marketplace already matches the same source kind, source, reference, and sparse paths and its root still contains a valid marketplace document; in that case the server records the entry and returns without fetching.
+
+The server parses the source, fetches it into a staging directory when the source kind requires materialization, validates the marketplace document, reads the marketplace name from that document rather than from client input, atomically replaces the installed root, records the entry in user-global configuration, and refreshes plugin discovery. On success it emits `workspace/configChanged` with `source: "marketplace/add"` and `regions: ["plugins"]`.
+
+Nothing is written when the request fails.
+
+#### `marketplace/remove`
+
+Removes a configured marketplace.
+
+**Params**:
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `name` | string | yes | Marketplace name. |
+
+**Result**: `{ "name": "example-marketplace", "removedRoot": "/home/user/.craft/marketplaces/example-marketplace" }`
+
+`removedRoot` is present only when a materialized root was deleted. The server deletes the configuration entry and, for materialized source kinds, the installed root. Local marketplaces are unlinked without touching the user's directory.
+
+Removal does not uninstall plugins already installed into a workspace: those are workspace-owned copies under `.craft/plugins/<id>` and remain until removed with `plugin/remove`. The host-provided default marketplace is not removable; it is controlled with `Plugins.DisableDefaultPluginRegistry`.
+
+On success the server emits `workspace/configChanged` with `source: "marketplace/remove"` and `regions: ["plugins"]`.
+
+#### `marketplace/refresh`
+
+Re-fetches one marketplace, or every configured marketplace when `name` is omitted.
+
+**Params**:
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `name` | string? | no | Marketplace name. When omitted, every configured marketplace is refreshed. |
+
+**Result**:
+
+```json
+{
+  "marketplaces": [{ "name": "example-marketplace", "sourceType": "git" }],
+  "errors": [{ "name": "other-marketplace", "code": "MarketplaceRefNotFound", "message": "..." }]
+}
+```
+
+A failure for one marketplace is reported in `errors` and does not fail the others. The request itself fails only when a named marketplace does not exist. On success the server emits `workspace/configChanged` with `source: "marketplace/refresh"` and `regions: ["plugins"]`.
+
+### 18.11 Error Codes
 
 | Code | Constant | When |
 |------|----------|------|
 | `-32040` | `SkillNotFound` | The requested skill name does not exist in any source (workspace, user, or builtin). |
+| `-32093` | `MarketplaceSourceInvalid` | The marketplace source, reference, sparse paths, or resolved marketplace document is not acceptable. |
+| `-32094` | `MarketplaceFetchFailed` | The marketplace could not be fetched or materialized. |
 
-### 18.10 Capability Advertisement
+Marketplace errors carry structured error data with a stable `code`, a `messageKey`, and English `fallbackText` so clients can localize the failure. Marketplace `code` values are:
+
+| `code` | Meaning |
+|--------|---------|
+| `MarketplaceSourceInvalid` | Source is empty, malformed, uses an unsupported scheme, carries embedded credentials, or declares a reference or sparse paths on a non-repository source. |
+| `MarketplaceNameConflict` | The marketplace name is already configured from a different source. |
+| `MarketplaceNotFound` | The named marketplace is not configured. |
+| `MarketplaceNotRemovable` | The named marketplace is host-provided and cannot be removed. |
+| `MarketplaceDocumentMissing` | The source has no valid marketplace document at the resolved path. |
+| `MarketplaceVersionControlUnavailable` | No usable version control executable is available on the host. |
+| `MarketplaceRefNotFound` | The requested reference does not exist in the source. |
+| `MarketplaceAuthenticationFailed` | The source requires credentials that are not available non-interactively. |
+| `MarketplaceFetchTimeout` | The fetch exceeded its time budget. |
+| `MarketplaceFetchFailed` | The fetch or the installed-root replacement failed for another reason. |
+
+### 18.12 Capability Advertisement
 
 Clients must check `capabilities.skillsManagement` before calling any `skills/*` method.
 Clients should additionally check `capabilities.skillVariants` before offering variant-dependent UX such as restoring the original skill. `skills/view` may still be available as a source-only effective view when this capability is absent or false.
 Clients must check `capabilities.pluginManagement` before calling any `plugin/*` method.
+Clients must check `capabilities.pluginMarketplaces` before calling any `marketplace/*` method or relying on `plugin/list.marketplaces`.
 
 ---
 
@@ -6359,7 +6491,7 @@ Server notification emitted after a successful workspace configuration write.
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `source` | string | RPC method that triggered the mutation (`provider/create`, `provider/update`, `provider/delete`, `workspace/config/update`, `memory/reset`, `skills/setEnabled`, `skills/uninstall`, `plugin/install`, `plugin/remove`, `plugin/setEnabled`, `mcp/upsert`, `mcp/remove`, `hooks/setState`, `hooks/trustPlugin`, `externalChannel/upsert`, `externalChannel/remove`, `subagent/settings/update`, `subagent/profiles/setEnabled`, `subagent/profiles/upsert`, `subagent/profiles/remove`). |
+| `source` | string | RPC method that triggered the mutation (`provider/create`, `provider/update`, `provider/delete`, `workspace/config/update`, `memory/reset`, `skills/setEnabled`, `skills/uninstall`, `plugin/install`, `plugin/remove`, `plugin/setEnabled`, `marketplace/add`, `marketplace/remove`, `marketplace/refresh`, `mcp/upsert`, `mcp/remove`, `hooks/setState`, `hooks/trustPlugin`, `externalChannel/upsert`, `externalChannel/remove`, `subagent/settings/update`, `subagent/profiles/setEnabled`, `subagent/profiles/upsert`, `subagent/profiles/remove`). |
 | `regions` | string[] | Coarse region tags describing what changed. |
 | `changedAt` | string (ISO-8601) | Server-side UTC timestamp when the change event was emitted. |
 
@@ -6375,7 +6507,7 @@ Current `regions` taxonomy:
 | `workspace.contextWindow` | `workspace/config/update` |
 | `welcomeSuggestions` | `workspace/config/update` |
 | `skills` | `skills/setEnabled`, `skills/uninstall`, `plugin/install`, `plugin/remove`, `plugin/setEnabled`, `workspace/config/update` |
-| `plugins` | `plugin/install`, `plugin/remove`, `plugin/setEnabled` |
+| `plugins` | `plugin/install`, `plugin/remove`, `plugin/setEnabled`, `marketplace/add`, `marketplace/remove`, `marketplace/refresh` |
 | `memory` | `workspace/config/update`, `memory/reset` |
 | `workspace.defaultApprovalPolicy` | `workspace/config/update` |
 | `lsp` | `workspace/config/update`, `plugin/install`, `plugin/remove`, `plugin/setEnabled` |

@@ -361,6 +361,15 @@ in-row actions stay at the `32px` / `8px` standard.
 When a prominent pill shares a row with other buttons, raise the others to the
 same height so the row still aligns.
 
+Catalog top bars run one control band of their own: `28px` height with a `10px`
+radius, shorter and rounder than the standard band. Every control in that bar —
+text actions, icon actions, and compound triggers — takes it, so the row reads as
+one strip and the band does not change as the user moves between catalog surfaces.
+This is the only sanctioned alternative band; elsewhere the `32px` / `8px` standard
+holds. Catalog top bars prefer icon-only actions with tooltips for repeated
+management commands such as Refresh and Manage, keeping the labelled action for the
+one principal command.
+
 These action rules are implemented by the shared `Button` component and its
 `.dc-button` styles. Route new text and icon actions through it instead of
 re-deriving inline button styles. Choose the action hierarchy with the `variant`
@@ -372,7 +381,7 @@ prop and the footprint with the `size` prop:
   `accent` (restrained brand, never the default create/save/manage), `outline` (the
   one bordered variant — only for special / important framed actions).
 - `size`: `default` (the `32px` control band), `sm`, `icon`, `iconSm`,
-  `prominent` (the standalone `38px` pill CTA).
+  `prominent` (the standalone `38px` pill CTA), `toolbar` (the catalog top-bar band).
 
 Buttons are frameless by default. Every variant keeps a `1px` border in the box
 model but only `outline` paints it visibly, so switching a button between fills and
@@ -396,14 +405,30 @@ default, matching the frameless action language:
   painted red border.
 
 Viewer chrome may use compact `16px`, `24px`, or `28px` icon-button footprints
-when required by an existing tab slot or toolbar. The shared hover, focus,
-disabled, open, and danger treatments still apply at those sizes.
+when required by an existing tab slot or toolbar, and catalog top bars use the
+`28px` / `10px` toolbar band. The shared hover, focus, disabled, open, and danger
+treatments still apply at those sizes.
 
-Compound triggers that combine a principal action or status with a menu may keep
-a persistent neutral outline. Open-target split controls and workspace connection
-status menus are reference cases: the group paints one outer outline, its segments
-do not each paint a frame, and any internal divider must not double the border.
-Compact thread-header Apps triggers remain frameless and omit connection counts.
+Compound triggers combine a principal action with a menu of related commands. Both
+segments share one intent and one size; the group clips the outer corners while each
+segment drops the radius and border on the edge they meet, so the pair reads as a
+single control.
+
+Two treatments exist, chosen by how much emphasis the principal action carries:
+
+- Outlined compound triggers keep a persistent neutral outline around the group and
+  separate the segments with a single hairline. The segments do not each paint a
+  frame, and that divider must not double the outline. Open-target split controls and
+  workspace connection status menus are the reference cases.
+- Filled compound triggers paint no outline and no divider: both segments carry the
+  same fill and meet flush, and hover lightens only the hovered segment, which is what
+  makes the seam appear. The catalog create control is the reference case, using the
+  `primary` neutral inversion. Its menu glyph sits at reduced opacity so the chevron
+  reads as an affordance rather than a second action.
+
+A compound trigger takes the height of whichever control band it sits in, so the row
+still reads as one band. Compact thread-header Apps triggers remain frameless and
+omit connection counts.
 
 A visible neutral frame (`bordered`: `var(--bg-secondary)` +
 `1px solid var(--border-default)`) is opt-in and reserved for special or important

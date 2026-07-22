@@ -30,7 +30,7 @@ import {
   resolveAgentBuilderChatWidth,
   resolveMaxAgentBuilderChatWidth
 } from '../../utils/agentBuilderLayout'
-import { CatalogCompactGrid, CatalogHoverButton, CatalogSearchBox, CatalogSection, CatalogTopBar, styles as catalogStyles } from '../catalog/CatalogSurface'
+import { CatalogCompactGrid, CatalogHoverButton, CatalogSearchBox, CatalogSection, CatalogTopBar, CATALOG_TOOLBAR_CONTROL_RADIUS, CATALOG_TOOLBAR_CONTROL_SIZE, styles as catalogStyles } from '../catalog/CatalogSurface'
 import { ContextMenu, type ContextMenuPosition } from '../ui/ContextMenu'
 import { SettingsGroup, SettingsRow } from '../settings/SettingsGroup'
 import { SettingsSelect } from '../settings/ui/SettingsSelect'
@@ -849,17 +849,19 @@ export function AgentBuilderView(): JSX.Element {
       <CatalogTopBar
         actions={(
           <>
-            <Button variant="primary" onClick={() => setRoute({ name: 'intro' })} iconLeft={<Plus size={14} aria-hidden />}>
+            <Button variant="primary" size="toolbar" onClick={() => setRoute({ name: 'intro' })} iconLeft={<Plus size={14} aria-hidden />}>
               New agent
             </Button>
             <IconButton
               label="More actions"
               tooltipLabel="More actions"
               tooltipPlacement="bottom"
+              size={CATALOG_TOOLBAR_CONTROL_SIZE}
+              radius={CATALOG_TOOLBAR_CONTROL_RADIUS}
               aria-haspopup="menu"
               aria-expanded={menuPos != null}
               onClick={(e) => setMenuPos({ x: e.clientX, y: e.clientY })}
-              icon={<MoreHorizontal size={16} aria-hidden />}
+              icon={<MoreHorizontal size={15} aria-hidden />}
             />
           </>
         )}

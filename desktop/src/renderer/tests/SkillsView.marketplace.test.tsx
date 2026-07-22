@@ -476,13 +476,12 @@ describe('SkillsView marketplace browse and manage modes', () => {
     expect(screen.queryByPlaceholderText('Search skills or install from Marketplace')).not.toBeInTheDocument()
   })
 
-  it('refreshes from the more actions menu', async () => {
+  it('refreshes from the toolbar refresh action', async () => {
     renderView()
     expect(await screen.findByText('Memory')).toBeInTheDocument()
     const initialCalls = appServerSendRequest.mock.calls.length
 
-    fireEvent.click(screen.getByRole('button', { name: 'More actions' }))
-    fireEvent.click(await screen.findByRole('menuitem', { name: 'Refresh' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Refresh' }))
 
     await waitFor(() => {
       expect(appServerSendRequest.mock.calls.length).toBeGreaterThan(initialCalls)

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
-import { Check, Download, Ellipsis, ExternalLink, Plus, Settings, Sparkles } from 'lucide-react'
+import { Check, Download, ExternalLink, Plus, Settings, Sparkles } from 'lucide-react'
 import { useT } from '../../contexts/LocaleContext'
 import { useSkillsStore, type SkillEntry } from '../../stores/skillsStore'
 import { useSkillMarketStore, type SkillMarketProviderFilter } from '../../stores/skillMarketStore'
@@ -12,17 +12,14 @@ import { SkillDetailDialog } from './SkillDetailDialog'
 import { VariantBadge } from './VariantBadge'
 import { PillSwitch } from '../ui/PillSwitch'
 import { ActionTooltip } from '../ui/ActionTooltip'
-import { ContextMenu, type ContextMenuPosition } from '../ui/ContextMenu'
 import { RefreshIcon } from '../ui/AppIcons'
 import { addToast } from '../../stores/toastStore'
 import { MarkdownRenderer } from '../conversation/MarkdownRenderer'
 import { useConfirmDialog } from '../ui/ConfirmDialog'
 import { useUIStore } from '../../stores/uiStore'
 import type { ThreadSummary } from '../../types/thread'
-import { CatalogBreadcrumb, CatalogFilterMenu, CatalogSearchBox, CatalogTopBar, styles as catalogStyles } from '../catalog/CatalogSurface'
+import { CatalogBreadcrumb, CatalogFilterMenu, CatalogSearchBox, CatalogToolbarIconButton, CatalogTopBar, styles as catalogStyles } from '../catalog/CatalogSurface'
 import { SkeletonCatalogGrid, SkeletonList } from '../ui/Skeleton'
-import { Button } from '../ui/Button'
-import { IconButton } from '../ui/IconButton'
 
 type ViewMode = 'browse' | 'manage'
 export type SourceFilter = 'all' | 'system' | 'personal' | 'market'
@@ -72,7 +69,6 @@ export function SkillsView({ onManage, topNavigation }: SkillsViewProps = {}): J
   const [mode, setMode] = useState<ViewMode>('browse')
   const [query, setQuery] = useState('')
   const [sourceFilter, setSourceFilter] = useState<SourceFilter>('all')
-  const [menuPosition, setMenuPosition] = useState<ContextMenuPosition | null>(null)
   const [savedSkillName, setSavedSkillName] = useState<string | null>(null)
   const [selfLearningEnabled, setSelfLearningEnabled] = useState(true)
 
@@ -292,18 +288,16 @@ export function SkillsView({ onManage, topNavigation }: SkillsViewProps = {}): J
         navigation={topNavigation}
         actions={(
           <>
-            <Button variant="secondary" onClick={() => onManage ? onManage() : setMode('manage')} iconLeft={<Settings size={14} aria-hidden />}>
-              {t('skills.manage')}
-            </Button>
-              <IconButton
-                label={t('skills.moreActions')}
-                tooltipLabel={t('skills.moreActions')}
-                tooltipPlacement="bottom"
-                aria-haspopup="menu"
-                aria-expanded={menuPosition != null}
-                onClick={(event) => setMenuPosition({ x: event.clientX, y: event.clientY })}
-                icon={<Ellipsis size={16} aria-hidden />}
-              />
+            <CatalogToolbarIconButton
+              label={t('skills.refresh')}
+              onClick={() => void handleRefresh()}
+              icon={<RefreshIcon size={15} />}
+            />
+            <CatalogToolbarIconButton
+              label={t('skills.manage')}
+              onClick={() => onManage ? onManage() : setMode('manage')}
+              icon={<Settings size={15} aria-hidden />}
+            />
           </>
         )}
       />
@@ -371,20 +365,6 @@ export function SkillsView({ onManage, topNavigation }: SkillsViewProps = {}): J
           <p style={emptyText}>{t('skills.empty')}</p>
         )}
       </main>
-
-      {menuPosition && (
-        <ContextMenu
-          position={menuPosition}
-          onClose={() => setMenuPosition(null)}
-          items={[
-            {
-              label: t('skills.refresh'),
-              icon: <RefreshIcon size={14} />,
-              onClick: () => void handleRefresh()
-            }
-          ]}
-        />
-      )}
 
       {selected && (
         <SkillDetailDialog

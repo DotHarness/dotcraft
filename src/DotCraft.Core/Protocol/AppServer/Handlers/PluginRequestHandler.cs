@@ -5,6 +5,7 @@ using DotCraft.Hooks;
 using DotCraft.Lsp;
 using DotCraft.Mcp;
 using DotCraft.Plugins;
+using DotCraft.Plugins.Marketplaces;
 using DotCraft.Skills;
 
 namespace DotCraft.Protocol.AppServer;
@@ -35,6 +36,9 @@ internal sealed class PluginRequestHandler(
         table.Map(AppServerMethods.PluginInstallLocal, HandlePluginInstallLocalAsync);
         table.Map(AppServerMethods.PluginRemove, HandlePluginRemoveAsync);
         table.Map(AppServerMethods.PluginSetEnabled, HandlePluginSetEnabledAsync);
+        table.Map(AppServerMethods.MarketplaceAdd, HandleMarketplaceAddAsync);
+        table.Map(AppServerMethods.MarketplaceRemove, HandleMarketplaceRemoveAsync);
+        table.Map(AppServerMethods.MarketplaceRefresh, HandleMarketplaceRefreshAsync);
     }
 
     private Task<object?> HandlePluginListAsync(AppServerIncomingMessage msg, CancellationToken ct)
@@ -58,9 +62,166 @@ internal sealed class PluginRequestHandler(
         return Task.FromResult<object?>(new PluginListResult
         {
             Plugins = plugins,
+            Marketplaces = BuildMarketplaceList(discovery),
             Diagnostics = diagnostics.Select(MapPluginDiagnosticToWire).ToList()
         });
     }
+
+    private async Task<object?> HandleMarketplaceAddAsync(AppServerIncomingMessage msg, CancellationToken ct)
+    {
+        RequireMarketplaceSupport(AppServerMethods.MarketplaceAdd);
+        var p = AppServerParams.Get<MarketplaceAddParams>(msg);
+
+        var result = await RunMarketplaceOperationAsync(
+            () => CreateMarketplaceManager().AddAsync(
+                new MarketplaceAddRequest(p.Source, p.Ref, p.SparsePaths, p.MarketplacePath),
+                ct)).ConfigureAwait(false);
+
+        var discovery = NotifyMarketplaceChanged(AppServerMethods.MarketplaceAdd);
+        return new MarketplaceAddResult
+        {
+            Marketplace = MapMarketplaceToWire(result.Marketplace, discovery),
+            AlreadyAdded = result.AlreadyAdded
+        };
+    }
+
+    private Task<object?> HandleMarketplaceRemoveAsync(AppServerIncomingMessage msg, CancellationToken ct)
+    {
+        _ = ct;
+        RequireMarketplaceSupport(AppServerMethods.MarketplaceRemove);
+        var p = AppServerParams.Get<MarketplaceRemoveParams>(msg);
+        if (string.IsNullOrWhiteSpace(p.Name))
+            throw AppServerErrors.InvalidParams("'name' is required.");
+
+        MarketplaceRemoveOutcome removed;
+        try
+        {
+            removed = CreateMarketplaceManager().Remove(p.Name);
+        }
+        catch (MarketplaceException ex)
+        {
+            throw AppServerErrors.Marketplace(ex.Code, ex.Message, p.Name);
+        }
+
+        NotifyMarketplaceChanged(AppServerMethods.MarketplaceRemove);
+        return Task.FromResult<object?>(new MarketplaceRemoveResult
+        {
+            Name = removed.Name,
+            RemovedRoot = removed.RemovedRoot
+        });
+    }
+
+    private async Task<object?> HandleMarketplaceRefreshAsync(AppServerIncomingMessage msg, CancellationToken ct)
+    {
+        RequireMarketplaceSupport(AppServerMethods.MarketplaceRefresh);
+        var p = AppServerParams.Get<MarketplaceRefreshParams>(msg);
+
+        var result = await RunMarketplaceOperationAsync(
+            () => CreateMarketplaceManager().RefreshAsync(p.Name, ct)).ConfigureAwait(false);
+
+        var discovery = NotifyMarketplaceChanged(AppServerMethods.MarketplaceRefresh);
+        return new MarketplaceRefreshResult
+        {
+            Marketplaces = result.Marketplaces.Select(entry => MapMarketplaceToWire(entry, discovery)).ToList(),
+            Errors = result.Errors
+                .Select(failure => new MarketplaceFailureWire
+                {
+                    Name = failure.Name,
+                    Code = failure.Code,
+                    Message = failure.Message
+                })
+                .ToList()
+        };
+    }
+
+    private void RequireMarketplaceSupport(string method)
+    {
+        if (string.IsNullOrEmpty(workspaceCraftPath))
+            throw AppServerErrors.MethodNotFound(method);
+    }
+
+    private static async Task<T> RunMarketplaceOperationAsync<T>(Func<Task<T>> operation)
+    {
+        try
+        {
+            return await operation().ConfigureAwait(false);
+        }
+        catch (MarketplaceException ex)
+        {
+            throw AppServerErrors.Marketplace(ex.Code, ex.Message);
+        }
+    }
+
+    private MarketplaceManager CreateMarketplaceManager()
+    {
+        var configPath = workspaceConfig.PersonalConfigPath;
+        return new MarketplaceManager(Path.GetDirectoryName(configPath), configPath);
+    }
+
+    // Adding, refreshing, or removing a marketplace changes which plugins are installable but
+    // installs nothing, so only the plugin catalog is invalidated.
+    private PluginDiscoveryResult NotifyMarketplaceChanged(string source)
+    {
+        SyncConfiguredMarketplaces();
+        var discovery = RefreshPluginRuntime();
+        appConfigMonitor?.NotifyChanged(source, [ConfigChangeRegions.Plugins]);
+        return discovery;
+    }
+
+    // Marketplace sources live in the user-global config file, which the in-memory snapshot
+    // does not reflect until the next reload. After a marketplace mutation the snapshot is
+    // brought to what a reload would produce, keeping the ordinary precedence rule that a
+    // workspace-declared list wins over the global one.
+    private void SyncConfiguredMarketplaces()
+    {
+        var current = appConfigMonitor?.Current;
+        if (current == null || string.IsNullOrEmpty(workspaceCraftPath))
+            return;
+
+        var workspaceEntries = PluginsConfigPersistence.ReadPluginRegistries(
+            Path.Combine(workspaceCraftPath, "config.json"));
+        current.Plugins.PluginRegistries = workspaceEntries.Count > 0
+            ? [.. workspaceEntries]
+            : [.. PluginsConfigPersistence.ReadPluginRegistries(workspaceConfig.PersonalConfigPath)];
+    }
+
+    private List<MarketplaceInfoWire> BuildMarketplaceList(PluginDiscoveryResult discovery)
+    {
+        if (string.IsNullOrEmpty(workspaceCraftPath))
+            return [];
+
+        try
+        {
+            return CreateMarketplaceManager()
+                .List()
+                .Select(entry => MapMarketplaceToWire(entry, discovery))
+                .ToList();
+        }
+        catch (MarketplaceException)
+        {
+            return [];
+        }
+    }
+
+    private static MarketplaceInfoWire MapMarketplaceToWire(MarketplaceEntry entry, PluginDiscoveryResult discovery) =>
+        new()
+        {
+            Name = entry.Name,
+            DisplayName = entry.DisplayName,
+            SourceType = entry.Kind.ToString().ToLowerInvariant(),
+            Source = entry.Source,
+            Ref = entry.Ref,
+            SparsePaths = [.. entry.SparsePaths],
+            Root = entry.Root,
+            LastUpdated = entry.LastUpdated,
+            Revision = entry.Revision,
+            Removable = entry.Removable,
+            PluginIds = discovery.Plugins
+                .Where(plugin => string.Equals(plugin.MarketplaceName, entry.Name, StringComparison.OrdinalIgnoreCase))
+                .Select(plugin => plugin.Manifest.Id)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList()
+        };
 
     private Task<object?> HandlePluginViewAsync(AppServerIncomingMessage msg, CancellationToken ct)
     {
@@ -610,6 +771,7 @@ internal sealed class PluginRequestHandler(
             Removable = plugin.Removable,
             Source = plugin.SourceKind.ToString().ToLowerInvariant(),
             RootPath = manifest.RootPath,
+            MarketplaceName = plugin.MarketplaceName,
             Interface = MapPluginInterfaceToWire(manifest.Interface),
             Functions = [],
             Skills = MapPluginSkillsToWire(plugin),

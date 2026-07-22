@@ -100,6 +100,28 @@ export interface PluginHookInfo {
   eventName: string
 }
 
+export type MarketplaceSourceType = 'git' | 'local' | 'archive'
+
+export interface MarketplaceEntry {
+  name: string
+  displayName?: string | null
+  sourceType: MarketplaceSourceType
+  source: string
+  ref?: string | null
+  sparsePaths: string[]
+  root?: string | null
+  lastUpdated?: string | null
+  revision?: string | null
+  removable: boolean
+  pluginIds: string[]
+}
+
+export interface MarketplaceFailure {
+  name: string
+  code: string
+  message: string
+}
+
 export interface PluginEntry {
   id: string
   displayName: string
@@ -111,6 +133,7 @@ export interface PluginEntry {
   removable: boolean
   source: string
   rootPath: string
+  marketplaceName?: string | null
   interface?: PluginInterface | null
   functions: PluginFunctionInfo[]
   skills: PluginSkillInfo[]
@@ -130,8 +153,20 @@ export interface PluginDiagnosticEntry {
   path?: string | null
 }
 
+export interface MarketplaceAddInput {
+  source: string
+  ref?: string
+  sparsePaths?: string[]
+}
+
+export interface MarketplaceAddOutcome {
+  marketplace: MarketplaceEntry
+  alreadyAdded: boolean
+}
+
 interface PluginState {
   plugins: PluginEntry[]
+  marketplaces: MarketplaceEntry[]
   diagnostics: PluginDiagnosticEntry[]
   loading: boolean
   error: string | null
@@ -146,10 +181,14 @@ interface PluginState {
   installLocalPlugin(path: string): Promise<PluginEntry | undefined>
   removePlugin(id: string): Promise<void>
   togglePluginEnabled(id: string, enabled: boolean): Promise<void>
+  addMarketplace(input: MarketplaceAddInput): Promise<MarketplaceAddOutcome>
+  removeMarketplace(name: string): Promise<void>
+  refreshMarketplace(name?: string): Promise<MarketplaceFailure[]>
 }
 
 export const usePluginStore = create<PluginState>((set, get) => ({
   plugins: [],
+  marketplaces: [],
   diagnostics: [],
   loading: false,
   error: null,
@@ -162,11 +201,16 @@ export const usePluginStore = create<PluginState>((set, get) => ({
     try {
       const result = (await window.api.appServer.sendRequest('plugin/list', {
         includeDisabled: true
-      })) as { plugins?: PluginEntry[]; diagnostics?: PluginDiagnosticEntry[] }
+      })) as {
+        plugins?: PluginEntry[]
+        marketplaces?: MarketplaceEntry[]
+        diagnostics?: PluginDiagnosticEntry[]
+      }
       const plugins = (result.plugins ?? []).map(normalizePlugin)
       const diagnostics = result.diagnostics ?? []
       set((state) => ({
         plugins,
+        marketplaces: (result.marketplaces ?? []).map(normalizeMarketplace),
         diagnostics,
         selectedPlugin: state.selectedPluginId
           ? plugins.find((plugin) => plugin.id === state.selectedPluginId) ?? null
@@ -275,8 +319,46 @@ export const usePluginStore = create<PluginState>((set, get) => ({
       console.error('plugin/setEnabled failed:', e)
       throw e
     }
+  },
+
+  // Marketplace mutations change which plugins are installable, so each one re-reads the
+  // catalog to keep the browse surface and its marketplace grouping in step.
+  async addMarketplace(input: MarketplaceAddInput) {
+    const result = (await window.api.appServer.sendRequest('marketplace/add', {
+      source: input.source,
+      ...(input.ref ? { ref: input.ref } : {}),
+      ...(input.sparsePaths && input.sparsePaths.length > 0 ? { sparsePaths: input.sparsePaths } : {})
+    })) as { marketplace?: MarketplaceEntry; alreadyAdded?: boolean }
+    await get().fetchPlugins()
+    return {
+      marketplace: normalizeMarketplace(result.marketplace ?? ({} as MarketplaceEntry)),
+      alreadyAdded: result.alreadyAdded === true
+    }
+  },
+
+  async removeMarketplace(name: string) {
+    await window.api.appServer.sendRequest('marketplace/remove', { name })
+    await get().fetchPlugins()
+  },
+
+  async refreshMarketplace(name?: string) {
+    const result = (await window.api.appServer.sendRequest(
+      'marketplace/refresh',
+      name ? { name } : {}
+    )) as { errors?: MarketplaceFailure[] }
+    await get().fetchPlugins()
+    return result.errors ?? []
   }
 }))
+
+function normalizeMarketplace(marketplace: MarketplaceEntry): MarketplaceEntry {
+  return {
+    ...marketplace,
+    sparsePaths: marketplace.sparsePaths ?? [],
+    pluginIds: marketplace.pluginIds ?? [],
+    removable: marketplace.removable !== false
+  }
+}
 
 function normalizePlugin(plugin: PluginEntry): PluginEntry {
   return {

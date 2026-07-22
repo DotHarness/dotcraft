@@ -604,7 +604,45 @@ Required behavior:
 - If a skill is unavailable because server-side requirements are unmet, the client explains that the skill exists but is currently unusable.
 - If plugin or skills capability is absent, the corresponding tab or action is hidden or disabled with a clear reason.
 
-#### 6.1.1 Plugin app connection and conversation binding
+#### 6.1.1 Plugin creation and marketplace sources
+
+The plugin browse top bar carries icon-only Refresh and Manage actions plus one
+compound Create control, which is the bar's only labelled action. The Create
+control follows the filled compound-trigger treatment: both segments carry the
+neutral inversion, meet flush without a divider, and sit in the catalog toolbar
+band. Its principal segment starts a plugin authoring conversation; its menu
+gathers every way of getting a plugin into the workspace — authoring one, adding a
+marketplace, and installing from a local folder — so the surface needs no separate
+overflow menu. When only one of those is available the control collapses to a plain
+button. The Skills browse top bar carries the same icon-only Refresh and Manage
+actions.
+
+Required behavior:
+
+- The principal segment stages a welcome draft that mentions the plugin
+  authoring skill together with a localized starting prompt, then navigates to a
+  new conversation. When that skill is unavailable, the draft degrades to plain
+  text rather than staging a mention that cannot resolve.
+- Adding a marketplace collects a source, an optional reference, and optional
+  sparse paths, and may instead point at a local directory. Fetch failures are
+  reported inline in the dialog so the user can correct the input, not as a
+  transient notification.
+- After a marketplace is added, the client shows the resolved source, reference,
+  and revision so the user can confirm what was fetched.
+- Marketplaces are presented at the same level as plugins rather than in a
+  separate management area: browse groups catalog entries by their marketplace,
+  and each group exposes refresh and remove for that source. Manage rows show the
+  originating marketplace alongside the existing source column.
+- Removing a marketplace does not remove plugins already installed into a
+  workspace. The client says so before confirming.
+- Marketplace controls are hidden when `capabilities.pluginMarketplaces` is
+  absent, and marketplace add and local-directory selection are unavailable for
+  remote workspaces.
+- The catalog does not re-read itself on window focus. It loads when the surface
+  opens, after any mutation the client performs, and when the user asks for it with
+  the toolbar Refresh action; nothing else re-reads it behind the user's back.
+
+#### 6.1.2 Plugin app connection and conversation binding
 
 Desktop presents app-principal connection and thread binding as two separate
 user workflows even though both are backed by App Binding version 2:
@@ -642,7 +680,7 @@ user workflows even though both are backed by App Binding version 2:
   management surface with a clearable query prefilled for the current plugin;
   the browse query is independent.
 
-### 6.1.2 Desktop Extensions
+#### 6.1.3 Desktop Extensions
 
 Installed and enabled plugins may contribute trusted Desktop extensions through plugin metadata. Desktop must derive extension entry points from AppServer plugin discovery results instead of hardcoding plugin ids in the client.
 

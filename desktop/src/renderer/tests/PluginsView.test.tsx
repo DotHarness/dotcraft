@@ -369,8 +369,8 @@ describe('PluginsView local plugin visibility', () => {
     renderPluginsView()
     await screen.findByText('Browser')
 
-    fireEvent.click(screen.getByRole('button', { name: 'More actions' }))
-    fireEvent.click(await screen.findByText('Install from disk'))
+    fireEvent.click(screen.getByRole('button', { name: 'More create options' }))
+    fireEvent.click(await screen.findByRole('menuitem', { name: 'Install from disk' }))
 
     await waitFor(() => {
       expect(workspacePickFolder).toHaveBeenCalledWith({ title: 'Select plugin folder' })
@@ -385,8 +385,8 @@ describe('PluginsView local plugin visibility', () => {
     renderPluginsView()
     await screen.findByText('Browser')
 
-    fireEvent.click(screen.getByRole('button', { name: 'More actions' }))
-    fireEvent.click(await screen.findByText('Install from disk'))
+    fireEvent.click(screen.getByRole('button', { name: 'More create options' }))
+    fireEvent.click(await screen.findByRole('menuitem', { name: 'Install from disk' }))
 
     await waitFor(() => expect(workspacePickFolder).toHaveBeenCalled())
     expect(appServerSendRequest).not.toHaveBeenCalledWith('plugin/installLocal', expect.anything())
@@ -394,15 +394,19 @@ describe('PluginsView local plugin visibility', () => {
 
   it('hides install from disk for remote workspaces', async () => {
     useConversationStore.setState({ remoteWorkspaceActive: true })
+    useConnectionStore.getState().setStatus({
+      status: 'connected',
+      capabilities: { pluginManagement: true, pluginMarketplaces: true }
+    })
     appServerSendRequest.mockResolvedValue({ plugins: [browserUsePlugin], diagnostics: [] })
 
     renderPluginsView()
     await screen.findByText('Browser')
 
-    fireEvent.click(screen.getByRole('button', { name: 'More actions' }))
+    fireEvent.click(screen.getByRole('button', { name: 'More create options' }))
 
-    expect(await screen.findByText('Refresh')).toBeInTheDocument()
-    expect(screen.queryByText('Install from disk')).not.toBeInTheDocument()
+    expect(await screen.findByRole('menuitem', { name: 'Create plugin' })).toBeInTheDocument()
+    expect(screen.queryByRole('menuitem', { name: 'Install from disk' })).not.toBeInTheDocument()
     expect(workspacePickFolder).not.toHaveBeenCalled()
     expect(appServerSendRequest).not.toHaveBeenCalledWith('plugin/installLocal', expect.anything())
   })
@@ -543,25 +547,21 @@ describe('PluginsView local plugin visibility', () => {
     expect(usePluginStore.getState().diagnostics).toHaveLength(1)
   })
 
-  it('refreshes plugins when the window regains focus', async () => {
-    appServerSendRequest
-      .mockResolvedValueOnce({ plugins: [browserUsePlugin], diagnostics: [] })
-      .mockResolvedValueOnce({ plugins: [browserUsePlugin, localPlugin], diagnostics: [] })
+  it('does not refetch plugins when the window regains focus', async () => {
+    appServerSendRequest.mockResolvedValue({ plugins: [browserUsePlugin], diagnostics: [] })
 
     renderPluginsView()
 
     expect(await screen.findByText('Browser')).toBeInTheDocument()
-    expect(screen.queryByText('External Process Echo')).not.toBeInTheDocument()
+    const initialCalls = appServerSendRequest.mock.calls.length
 
     fireEvent.focus(window)
 
-    await waitFor(() => {
-      expect(appServerSendRequest).toHaveBeenCalledTimes(2)
-    })
-    expect(await screen.findByText('External Process Echo')).toBeInTheDocument()
+    await new Promise((resolve) => setTimeout(resolve, 50))
+    expect(appServerSendRequest.mock.calls.length).toBe(initialCalls)
   })
 
-  it('refreshes plugins from the more actions menu', async () => {
+  it('refreshes plugins from the toolbar refresh action', async () => {
     appServerSendRequest.mockResolvedValue({
       plugins: [browserUsePlugin],
       diagnostics: []
@@ -570,11 +570,9 @@ describe('PluginsView local plugin visibility', () => {
     renderPluginsView()
 
     expect(await screen.findByText('Browser')).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Refresh' })).not.toBeInTheDocument()
     const initialCalls = appServerSendRequest.mock.calls.length
 
-    fireEvent.click(screen.getByRole('button', { name: 'More actions' }))
-    fireEvent.click(await screen.findByRole('menuitem', { name: 'Refresh' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Refresh' }))
 
     await waitFor(() => {
       expect(appServerSendRequest.mock.calls.length).toBeGreaterThan(initialCalls)

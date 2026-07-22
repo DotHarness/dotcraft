@@ -14,6 +14,8 @@ public sealed class PluginListResult
 {
     public List<PluginInfoWire> Plugins { get; set; } = [];
 
+    public List<MarketplaceInfoWire> Marketplaces { get; set; } = [];
+
     public List<PluginDiagnosticWire> Diagnostics { get; set; } = [];
 }
 
@@ -89,6 +91,10 @@ public sealed class PluginInfoWire
     public string Source { get; set; } = string.Empty;
 
     public string RootPath { get; set; } = string.Empty;
+
+    /// <summary>Marketplace this catalog entry came from; absent for bundled and workspace plugins.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? MarketplaceName { get; set; }
 
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public PluginInterfaceWire? Interface { get; set; }
@@ -357,4 +363,95 @@ public sealed class PluginDiagnosticWire
 
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? Path { get; set; }
+}
+
+// ───── marketplace/* ─────
+
+public sealed class MarketplaceInfoWire
+{
+    public string Name { get; set; } = string.Empty;
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? DisplayName { get; set; }
+
+    /// <summary>Source kind: git, local, or archive.</summary>
+    public string SourceType { get; set; } = string.Empty;
+
+    public string Source { get; set; } = string.Empty;
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Ref { get; set; }
+
+    public List<string> SparsePaths { get; set; } = [];
+
+    /// <summary>Materialized or in-place marketplace root when one is available on disk.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Root { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? LastUpdated { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Revision { get; set; }
+
+    public bool Removable { get; set; } = true;
+
+    public List<string> PluginIds { get; set; } = [];
+}
+
+public sealed class MarketplaceAddParams
+{
+    /// <summary>Repository shorthand, repository URL, or local directory path.</summary>
+    public string Source { get; set; } = string.Empty;
+
+    /// <summary>Reference to check out; repository sources only.</summary>
+    public string? Ref { get; set; }
+
+    /// <summary>Repository-relative paths to check out; repository sources only.</summary>
+    public List<string>? SparsePaths { get; set; }
+
+    /// <summary>Marketplace document path inside the source.</summary>
+    public string? MarketplacePath { get; set; }
+}
+
+public sealed class MarketplaceAddResult
+{
+    public MarketplaceInfoWire Marketplace { get; set; } = new();
+
+    public bool AlreadyAdded { get; set; }
+}
+
+public sealed class MarketplaceRemoveParams
+{
+    public string Name { get; set; } = string.Empty;
+}
+
+public sealed class MarketplaceRemoveResult
+{
+    public string Name { get; set; } = string.Empty;
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? RemovedRoot { get; set; }
+}
+
+public sealed class MarketplaceRefreshParams
+{
+    /// <summary>Marketplace name; when omitted, every configured marketplace is refreshed.</summary>
+    public string? Name { get; set; }
+}
+
+public sealed class MarketplaceRefreshResult
+{
+    public List<MarketplaceInfoWire> Marketplaces { get; set; } = [];
+
+    public List<MarketplaceFailureWire> Errors { get; set; } = [];
+}
+
+public sealed class MarketplaceFailureWire
+{
+    public string Name { get; set; } = string.Empty;
+
+    public string Code { get; set; } = string.Empty;
+
+    public string Message { get; set; } = string.Empty;
 }

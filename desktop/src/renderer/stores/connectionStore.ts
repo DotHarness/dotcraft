@@ -23,6 +23,7 @@ export interface ServerCapabilities {
   skillsManagement?: boolean
   toolCatalog?: boolean
   pluginManagement?: boolean
+  pluginMarketplaces?: boolean
   skillVariants?: boolean
   commandManagement?: boolean
   modelCatalogManagement?: boolean

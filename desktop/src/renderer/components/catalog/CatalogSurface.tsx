@@ -1,8 +1,45 @@
-import type { ButtonHTMLAttributes, CSSProperties, ReactNode } from 'react'
+import type { ButtonHTMLAttributes, CSSProperties, MouseEvent, ReactNode } from 'react'
 import { ChevronDown, ChevronLeft, ChevronRight, Search } from 'lucide-react'
 import { useState } from 'react'
 import { ContextMenu, type ContextMenuPosition } from '../ui/ContextMenu'
 import { Button } from '../ui/Button'
+import { IconButton } from '../ui/IconButton'
+
+/**
+ * Catalog top bars run one control band of their own — shorter and rounder than the
+ * ordinary 32px/8px band — shared by every control in the bar so the row reads as one
+ * strip. See the Catalog Toolbar Band section in specs/architecture/DESIGN.md.
+ */
+export const CATALOG_TOOLBAR_CONTROL_SIZE = 28
+export const CATALOG_TOOLBAR_CONTROL_RADIUS = 10
+
+/** Icon-only action sized for the catalog toolbar band. The label doubles as its tooltip. */
+export function CatalogToolbarIconButton({
+  label,
+  icon,
+  onClick,
+  disabled,
+  ...props
+}: {
+  label: string
+  icon: ReactNode
+  onClick: (event: MouseEvent<HTMLButtonElement>) => void
+  disabled?: boolean
+} & Omit<ButtonHTMLAttributes<HTMLButtonElement>, 'onClick' | 'children'>): JSX.Element {
+  return (
+    <IconButton
+      label={label}
+      tooltipLabel={label}
+      tooltipPlacement="bottom"
+      size={CATALOG_TOOLBAR_CONTROL_SIZE}
+      radius={CATALOG_TOOLBAR_CONTROL_RADIUS}
+      icon={icon}
+      onClick={onClick}
+      disabled={disabled}
+      {...props}
+    />
+  )
+}
 
 export interface CatalogFilterOption<T extends string> {
   value: T

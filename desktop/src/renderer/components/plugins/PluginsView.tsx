@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { CSSProperties, MouseEvent } from 'react'
-import { Anchor, Box, Code2, Ellipsis, ExternalLink, FolderInput, Link, MessageCircle, Plus, Server, Settings, Trash2, Wrench } from 'lucide-react'
+import { Anchor, AtSign, Box, Code2, Ellipsis, ExternalLink, FolderInput, Link, MessageCircle, Plus, Server, Settings, Store, Trash2, Wrench } from 'lucide-react'
 import { useT } from '../../contexts/LocaleContext'
-import { usePluginStore, type PluginDiagnosticEntry, type PluginEntry } from '../../stores/pluginStore'
+import { usePluginStore, type MarketplaceEntry, type PluginDiagnosticEntry, type PluginEntry } from '../../stores/pluginStore'
 import { useConnectionStore } from '../../stores/connectionStore'
 import { useConversationStore } from '../../stores/conversationStore'
 import { useSkillsStore } from '../../stores/skillsStore'
@@ -17,6 +17,7 @@ import {
   CatalogBreadcrumb,
   CatalogSearchBox,
   CatalogTabs,
+  CatalogToolbarIconButton,
   CatalogTopBar,
   styles as catalogStyles
 } from '../catalog/CatalogSurface'
@@ -30,13 +31,16 @@ import { getPluginContentSummaries, type PluginContentType } from '../../utils/p
 import { SkeletonCatalogGrid, SkeletonList } from '../ui/Skeleton'
 import { Button } from '../ui/Button'
 import { IconButton } from '../ui/IconButton'
+import { SplitButton, type SplitButtonItem } from '../ui/SplitButton'
 import { PluginInstallButton } from './PluginInstallButton'
+import { AddMarketplaceDialog } from './AddMarketplaceDialog'
 
 type Surface = PluginCatalogSurface
 type PluginMode = 'browse' | 'manage'
 type PublisherFilter = 'dotcraft' | 'all'
 type CategoryFilter = string
 const DOTCRAFT_PLUGIN_FALLBACK_URL = 'https://github.com/DotHarness/dotcraft'
+const PLUGIN_CREATOR_SKILL = 'plugin-creator'
 const FIXED_PLUGIN_CATEGORIES = [
   'coding',
   'design',
@@ -53,9 +57,11 @@ export function PluginsView(): JSX.Element {
   const confirm = useConfirmDialog()
   const capabilities = useConnectionStore((s) => s.capabilities)
   const pluginManagement = capabilities?.pluginManagement === true
+  const pluginMarketplaces = capabilities?.pluginMarketplaces === true
   const remoteWorkspaceActive = useConversationStore((s) => s.remoteWorkspaceActive)
   const {
     plugins,
+    marketplaces,
     diagnostics,
     loading,
     error,
@@ -67,7 +73,9 @@ export function PluginsView(): JSX.Element {
     installPlugin,
     installLocalPlugin,
     removePlugin,
-    togglePluginEnabled
+    togglePluginEnabled,
+    removeMarketplace,
+    refreshMarketplace
   } = usePluginStore()
   const {
     skills,
@@ -89,19 +97,10 @@ export function PluginsView(): JSX.Element {
   const [installTarget, setInstallTarget] = useState<PluginEntry | null>(null)
   const [installingId, setInstallingId] = useState<string | null>(null)
   const [enablingLspId, setEnablingLspId] = useState<string | null>(null)
-  const [menuPosition, setMenuPosition] = useState<ContextMenuPosition | null>(null)
+  const [addMarketplaceOpen, setAddMarketplaceOpen] = useState(false)
 
   useEffect(() => {
     if (pluginManagement) void fetchPlugins()
-  }, [fetchPlugins, pluginManagement])
-
-  useEffect(() => {
-    if (!pluginManagement) return
-    const handleFocus = (): void => {
-      void fetchPlugins()
-    }
-    window.addEventListener('focus', handleFocus)
-    return () => window.removeEventListener('focus', handleFocus)
   }, [fetchPlugins, pluginManagement])
 
   useEffect(() => {
@@ -134,7 +133,10 @@ export function PluginsView(): JSX.Element {
   )
   const visibleDiagnostics = useMemo(() => filterVisibleDiagnostics(diagnostics), [diagnostics])
   const categoryOptions = useMemo(() => buildCategoryOptions(plugins, t), [plugins, t])
-  const sections = useMemo(() => buildSections(browsePlugins, categoryFilter, t), [browsePlugins, categoryFilter, t])
+  const sections = useMemo(
+    () => buildSections(browsePlugins, categoryFilter, t, marketplaces),
+    [browsePlugins, categoryFilter, marketplaces, t]
+  )
   const installDialog = installTarget ? (
     <PluginInstallDialog
       plugin={installTarget}
@@ -161,6 +163,72 @@ export function PluginsView(): JSX.Element {
     />
   ) : null
 
+  // Stage a plugin authoring conversation. The skill mention is only staged when the skill
+  // actually resolves, so the composer never shows a chip that cannot be resolved. The skill
+  // list is only fetched when it has not been loaded yet, keeping browse free of an eager call.
+  async function handleCreatePlugin(): Promise<void> {
+    let available = skills
+    if (available.length === 0) {
+      try {
+        await fetchSkills()
+        available = useSkillsStore.getState().skills
+      } catch {
+        available = []
+      }
+    }
+
+    const hasCreatorSkill = available.some((skill) => skill.name === PLUGIN_CREATOR_SKILL)
+    const prompt = t('plugins.create.prompt')
+    const text = hasCreatorSkill ? `$${PLUGIN_CREATOR_SKILL} ${prompt}` : prompt
+    const ui = useUIStore.getState()
+    const existing = ui.welcomeDraft
+    ui.setWelcomeDraft({
+      text,
+      segments: hasCreatorSkill ? [{ type: 'skill', skillName: PLUGIN_CREATOR_SKILL }] : [],
+      selectionStart: text.length,
+      selectionEnd: text.length,
+      images: [],
+      files: [],
+      mode: existing?.mode ?? 'agent',
+      model: existing?.model || 'Default',
+      approvalPolicy: existing?.approvalPolicy ?? 'default'
+    })
+    ui.goToNewChat()
+  }
+
+  async function handleRefreshMarketplace(marketplace: MarketplaceEntry): Promise<void> {
+    try {
+      const errors = await refreshMarketplace(marketplace.name)
+      const failure = errors.find((entry) => entry.name === marketplace.name)
+      if (failure) {
+        addToast(failure.message, 'error')
+        return
+      }
+      addToast(t('plugins.marketplace.refreshSuccess'), 'success')
+    } catch (err) {
+      addToast(err instanceof Error ? err.message : t('plugins.marketplace.refreshFailed'), 'error')
+    }
+  }
+
+  async function handleRemoveMarketplace(marketplace: MarketplaceEntry): Promise<void> {
+    const name = marketplaceTitle(marketplace)
+    const ok = await confirm({
+      title: t('plugins.marketplace.removeConfirm.title', { name }),
+      message: t('plugins.marketplace.removeConfirm.message', { name }),
+      confirmLabel: t('plugins.marketplace.remove'),
+      cancelLabel: t('common.cancel'),
+      danger: true
+    })
+    if (!ok) return
+
+    try {
+      await removeMarketplace(marketplace.name)
+      addToast(t('plugins.marketplace.removeSuccess'), 'success')
+    } catch (err) {
+      addToast(err instanceof Error ? err.message : t('plugins.marketplace.removeFailed'), 'error')
+    }
+  }
+
   // Install a plugin from a local folder the user points at. The backend validates the
   // folder (a valid `.craft-plugin/plugin.json`) before copying anything; on failure it
   // returns the reason, which we surface in the toast. This makes it possible to add
@@ -184,6 +252,33 @@ export function PluginsView(): JSX.Element {
       addToast(detail || t('plugins.installLocal.failed'), 'error')
     }
   }
+
+  // Every way of getting a plugin into the workspace lives in one menu. The first entry
+  // is also the principal action, so a single available entry degrades to a plain button.
+  const createActions: SplitButtonItem[] = [
+    {
+      key: 'create-plugin',
+      label: t('plugins.create.plugin'),
+      icon: <AtSign size={14} aria-hidden />,
+      onClick: () => void handleCreatePlugin()
+    },
+    ...(pluginMarketplaces
+      ? [{
+          key: 'add-marketplace',
+          label: t('plugins.marketplace.add.menu'),
+          icon: <Store size={14} aria-hidden />,
+          onClick: () => setAddMarketplaceOpen(true)
+        }]
+      : []),
+    ...(!remoteWorkspaceActive
+      ? [{
+          key: 'install-local',
+          label: t('plugins.installLocal.menu'),
+          icon: <FolderInput size={14} aria-hidden />,
+          onClick: () => void handleInstallFromDisk()
+        }]
+      : [])
+  ]
 
   if (surface === 'skills' && mode !== 'manage') {
     return (
@@ -345,18 +440,28 @@ export function PluginsView(): JSX.Element {
         navigation={<SurfaceTabs value={surface} onChange={setSurface} />}
         actions={(
           <>
-            <Button variant="secondary" onClick={() => { setManagePluginQuery(''); setMode('manage') }} iconLeft={<Settings size={14} aria-hidden />}>
-              {t('plugins.manage')}
-            </Button>
-              <IconButton
-                label={t('plugins.moreActions')}
-                tooltipLabel={t('plugins.moreActions')}
-                tooltipPlacement="bottom"
-                aria-haspopup="menu"
-                aria-expanded={menuPosition != null}
-                onClick={(event) => setMenuPosition({ x: event.clientX, y: event.clientY })}
-                icon={<Ellipsis size={16} aria-hidden />}
+            <CatalogToolbarIconButton
+              label={t('plugins.refresh')}
+              onClick={() => void fetchPlugins()}
+              icon={<RefreshIcon size={15} />}
+            />
+            <CatalogToolbarIconButton
+              label={t('plugins.manage')}
+              onClick={() => { setManagePluginQuery(''); setMode('manage') }}
+              icon={<Settings size={15} aria-hidden />}
+            />
+            {createActions.length > 1 ? (
+              <SplitButton
+                label={t('plugins.create.button')}
+                menuLabel={t('plugins.create.menuLabel')}
+                onClick={createActions[0].onClick}
+                items={createActions}
               />
+            ) : (
+              <Button variant="primary" size="toolbar" onClick={createActions[0].onClick}>
+                {t('plugins.create.button')}
+              </Button>
+            )}
           </>
         )}
       />
@@ -388,7 +493,15 @@ export function PluginsView(): JSX.Element {
         <PluginDiagnosticsBanner diagnostics={visibleDiagnostics} />
         {sections.map((section) => (
           <section key={section.key} style={{ marginBottom: '34px' }}>
-            <h2 style={sectionTitle}>{section.title}</h2>
+            {section.marketplace ? (
+              <MarketplaceSectionHeader
+                marketplace={section.marketplace}
+                onRefresh={() => void handleRefreshMarketplace(section.marketplace!)}
+                onRemove={() => void handleRemoveMarketplace(section.marketplace!)}
+              />
+            ) : (
+              <h2 style={sectionTitle}>{section.title}</h2>
+            )}
             <div style={compactGrid}>
               {section.plugins.map((plugin) => (
                 <PluginCatalogItem
@@ -406,29 +519,83 @@ export function PluginsView(): JSX.Element {
         ))}
         {!loading && !error && browsePlugins.length === 0 && <p style={emptyText}>{t('plugins.empty')}</p>}
       </main>
-      {menuPosition && (
-        <ContextMenu
-          position={menuPosition}
-          onClose={() => setMenuPosition(null)}
-          items={[
-            ...(!remoteWorkspaceActive
-              ? [{
-                  label: t('plugins.installLocal.menu'),
-                  icon: <FolderInput size={14} />,
-                  onClick: () => void handleInstallFromDisk()
-                }]
-              : []),
-            {
-              label: t('plugins.refresh'),
-              icon: <RefreshIcon size={14} />,
-              onClick: () => void fetchPlugins()
-            }
-          ]}
+      {addMarketplaceOpen && (
+        <AddMarketplaceDialog
+          allowLocalFolder={!remoteWorkspaceActive}
+          onClose={() => setAddMarketplaceOpen(false)}
+          onAdded={(marketplace, alreadyAdded) => {
+            setAddMarketplaceOpen(false)
+            addToast(
+              alreadyAdded
+                ? t('plugins.marketplace.add.alreadyAdded', { name: marketplaceTitle(marketplace) })
+                : t('plugins.marketplace.add.success', { name: marketplaceTitle(marketplace) }),
+              'success'
+            )
+          }}
         />
       )}
       {installDialog}
     </div>
   )
+}
+
+function MarketplaceSectionHeader({
+  marketplace,
+  onRefresh,
+  onRemove
+}: {
+  marketplace: MarketplaceEntry
+  onRefresh: () => void
+  onRemove: () => void
+}): JSX.Element {
+  const t = useT()
+  const [position, setPosition] = useState<ContextMenuPosition | null>(null)
+
+  return (
+    <div style={marketplaceHeaderRow}>
+      <h2 style={{ ...sectionTitle, margin: 0 }}>{marketplaceTitle(marketplace)}</h2>
+      <span style={marketplaceSourceLabel} title={marketplace.source}>{marketplace.source}</span>
+      <div style={{ flex: 1 }} />
+      {marketplace.removable && (
+        <IconButton
+          label={t('plugins.marketplace.actions')}
+          tooltipLabel={t('plugins.marketplace.actions')}
+          tooltipPlacement="bottom"
+          aria-haspopup="menu"
+          aria-expanded={position != null}
+          size={28}
+          onClick={(event) => {
+            const rect = event.currentTarget.getBoundingClientRect()
+            setPosition({ x: rect.right - 200, y: rect.bottom + 4 })
+          }}
+          icon={<Ellipsis size={15} aria-hidden />}
+        />
+      )}
+      {position && (
+        <ContextMenu
+          position={position}
+          onClose={() => setPosition(null)}
+          items={[
+            {
+              label: t('plugins.marketplace.refresh'),
+              icon: <RefreshIcon size={14} />,
+              onClick: onRefresh
+            },
+            {
+              label: t('plugins.marketplace.remove'),
+              icon: <Trash2 size={14} />,
+              danger: true,
+              onClick: onRemove
+            }
+          ]}
+        />
+      )}
+    </div>
+  )
+}
+
+export function marketplaceTitle(marketplace: MarketplaceEntry): string {
+  return marketplace.displayName?.trim() || marketplace.name
 }
 
 function PluginsManageToolbar({
@@ -651,7 +818,9 @@ function PluginManageItem({
           <span style={rowDesc}>{pluginSubtitle(plugin)}</span>
         </span>
       </button>
-      <span style={manageSource}>{pluginSourceLabel(plugin)}</span>
+      <span style={manageSource} title={plugin.marketplaceName ?? undefined}>
+        {plugin.marketplaceName || pluginSourceLabel(plugin)}
+      </span>
       <span style={manageActionSlot}>
         {plugin.installed ? (
           <PillSwitch checked={plugin.enabled} onChange={onToggle} size="sm" aria-label={`${pluginTitle(plugin)} enabled`} />
@@ -934,11 +1103,20 @@ function buildCategoryOptions(plugins: PluginEntry[], t: ReturnType<typeof useT>
   ]
 }
 
+interface PluginSection {
+  key: string
+  title: string
+  plugins: PluginEntry[]
+  /** Present when the section groups a marketplace, which owns refresh and remove. */
+  marketplace?: MarketplaceEntry
+}
+
 function buildSections(
   plugins: PluginEntry[],
   categoryFilter: CategoryFilter,
-  t: ReturnType<typeof useT>
-): Array<{ key: string; title: string; plugins: PluginEntry[] }> {
+  t: ReturnType<typeof useT>,
+  marketplaces: MarketplaceEntry[]
+): PluginSection[] {
   if (categoryFilter === 'featured') {
     return plugins.length > 0 ? [{ key: 'featured', title: t('plugins.section.featured'), plugins }] : []
   }
@@ -949,9 +1127,25 @@ function buildSections(
 
   const local = plugins.filter(isLocalInstalledPlugin)
   const seen = new Set(local.map((plugin) => plugin.id))
-  const sections: Array<{ key: string; title: string; plugins: PluginEntry[] }> = []
+  const sections: PluginSection[] = []
   if (local.length > 0) {
     sections.push({ key: 'local', title: t('plugins.section.local'), plugins: local })
+  }
+
+  // Marketplaces are presented at the same level as the rest of the catalog: one group per
+  // configured source, ahead of the generic featured/category grouping.
+  for (const marketplace of marketplaces) {
+    const owned = plugins.filter(
+      (plugin) => !seen.has(plugin.id) && plugin.marketplaceName === marketplace.name
+    )
+    if (owned.length === 0) continue
+    sections.push({
+      key: `marketplace:${marketplace.name}`,
+      title: marketplace.displayName?.trim() || marketplace.name,
+      plugins: owned,
+      marketplace
+    })
+    for (const plugin of owned) seen.add(plugin.id)
   }
 
   const featured = plugins.filter((plugin) => isFeaturedPlugin(plugin) && !seen.has(plugin.id))
@@ -1126,7 +1320,31 @@ function interactiveManageRow(active: boolean): CSSProperties {
 }
 
 const manageItemMain: CSSProperties = { ...compactItem, flex: 1, padding: 0, height: 'auto' }
-const manageSource: CSSProperties = { width: '86px', flexShrink: 0, color: 'var(--text-secondary)', fontSize: '13px', textAlign: 'left' }
+const manageSource: CSSProperties = {
+  width: '86px',
+  flexShrink: 0,
+  color: 'var(--text-secondary)',
+  fontSize: '13px',
+  textAlign: 'left',
+  overflow: 'hidden',
+  textOverflow: 'ellipsis',
+  whiteSpace: 'nowrap'
+}
+const marketplaceHeaderRow: CSSProperties = {
+  display: 'flex',
+  alignItems: 'baseline',
+  gap: '10px',
+  marginBottom: '12px'
+}
+const marketplaceSourceLabel: CSSProperties = {
+  minWidth: 0,
+  maxWidth: '46%',
+  color: 'var(--text-tertiary)',
+  fontSize: '12px',
+  overflow: 'hidden',
+  textOverflow: 'ellipsis',
+  whiteSpace: 'nowrap'
+}
 // Fixed-width, centered slot for the trailing control so the Install button and the
 // PillSwitch share one column: this keeps the developer column at a constant x across
 // installed/uninstalled rows and centers both controls on the same vertical line.

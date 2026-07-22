@@ -17,6 +17,8 @@ import {
   CatalogSearchBox,
   CatalogSection,
   CatalogTopBar,
+  CATALOG_TOOLBAR_CONTROL_RADIUS,
+  CATALOG_TOOLBAR_CONTROL_SIZE,
   styles as catalogStyles
 } from '../catalog/CatalogSurface'
 import { ContextMenu, type ContextMenuPosition } from '../ui/ContextMenu'
@@ -1267,6 +1269,7 @@ export function ChannelsView(): JSX.Element {
             {externalManagementEnabled && (
               <Button
                 variant="primary"
+                size="toolbar"
                 aria-label={t('channels.external.add')}
                 onClick={openNewExternalChannel}
                 iconLeft={<Plus size={14} aria-hidden />}
@@ -1278,10 +1281,12 @@ export function ChannelsView(): JSX.Element {
                 label={t('channels.moreActions')}
                 tooltipLabel={t('channels.moreActions')}
                 tooltipPlacement="bottom"
+                size={CATALOG_TOOLBAR_CONTROL_SIZE}
+                radius={CATALOG_TOOLBAR_CONTROL_RADIUS}
                 aria-haspopup="menu"
                 aria-expanded={menuPosition != null}
                 onClick={(event) => setMenuPosition({ x: event.clientX, y: event.clientY })}
-                icon={<Ellipsis size={16} aria-hidden />}
+                icon={<Ellipsis size={15} aria-hidden />}
               />
           </>
         )}

@@ -13,8 +13,12 @@ import { Loader2 } from 'lucide-react'
  */
 export type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'danger' | 'accent' | 'outline'
 
-/** Size families map to the shared control band (32px) plus compact / square options. */
-export type ButtonSize = 'default' | 'sm' | 'icon' | 'iconSm' | 'prominent'
+/**
+ * Size families map to the shared control band (32px) plus compact / square options.
+ * `toolbar` is the catalog top-bar band: shorter and rounder than the standard band,
+ * shared by every control in that bar.
+ */
+export type ButtonSize = 'default' | 'sm' | 'icon' | 'iconSm' | 'prominent' | 'toolbar'
 
 export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: ButtonVariant

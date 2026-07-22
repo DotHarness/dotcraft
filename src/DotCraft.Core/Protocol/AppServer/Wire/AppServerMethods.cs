@@ -278,6 +278,11 @@ public static class AppServerMethods
     public const string PluginRemove = "plugin/remove";
     public const string PluginSetEnabled = "plugin/setEnabled";
 
+    // Client → Server requests (marketplace management)
+    public const string MarketplaceAdd = "marketplace/add";
+    public const string MarketplaceRemove = "marketplace/remove";
+    public const string MarketplaceRefresh = "marketplace/refresh";
+
     // Client → Server requests (command management, spec Section 19)
     public const string CommandList = "command/list";
     public const string CommandExecute = "command/execute";

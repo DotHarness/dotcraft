@@ -147,6 +147,9 @@
      One standard so buttons, selects, and icon buttons share a control band. */
   --button-height: 32px;
   --button-height-sm: 28px;
+  /* Catalog top bars run their own shorter, rounder control band. */
+  --toolbar-control-height: 28px;
+  --toolbar-control-radius: 10px;
   --dotcraft-logo-shadow:
     drop-shadow(0 0 18px color-mix(in srgb, var(--accent) 30%, transparent))
     drop-shadow(0 0 14px color-mix(in srgb, var(--warning) 14%, transparent));
@@ -4102,6 +4105,15 @@ html[data-theme="light"] [data-mascot-speed='fast'] .composer-mascot-fast-echo {
   padding: 0 10px;
   border-radius: 6px;
   font-size: 12px;
+}
+
+/* Catalog top bars run one control band of their own: shorter and rounder than the
+   ordinary 32px/8px band, shared by every control in the bar so the row reads as one
+   strip. See the Catalog Toolbar Band section in specs/architecture/DESIGN.md. */
+.dc-button[data-size="toolbar"] {
+  height: var(--toolbar-control-height);
+  padding: 0 8px;
+  border-radius: var(--toolbar-control-radius);
 }
 
 .dc-button[data-size="icon"] {
