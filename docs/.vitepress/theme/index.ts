@@ -1,8 +1,10 @@
 import DefaultTheme from 'vitepress/theme'
 import type { EnhanceAppContext } from 'vitepress'
+import './motion.css'
 import './custom.css'
 import { setupDemoEmbed } from './demoEmbed'
 import { setupDownloadButton } from './downloadButton'
+import { setupHomeMotion } from './homeMotion'
 
 export default {
   extends: DefaultTheme,
@@ -12,6 +14,7 @@ export default {
     const enhance = (): void => {
       setupDemoEmbed()
       setupDownloadButton()
+      setupHomeMotion()
     }
 
     // The page component can mount after enhanceApp, so retry until the hero
