@@ -374,7 +374,8 @@ export function formatCollapsedToolLabel(
 
   if (isShellToolName(toolName)) {
     const cmd = (args?.command as string | undefined) ?? toolName
-    const short = cmd.length > 40 ? cmd.slice(0, 40) + '…' : cmd
+    const firstLine = cmd.split(/\r?\n/, 1)[0] ?? cmd
+    const short = firstLine.length > 40 ? firstLine.slice(0, 40) + '…' : firstLine
     return translate(locale, 'toolCall.ran', { cmd: short })
   }
 
@@ -418,6 +419,8 @@ export interface StreamingParsedPreview {
   path?: string | null
   /** File content / newText preview for WriteFile / EditFile. */
   content?: string | null
+  /** Partial command preview for Exec. */
+  command?: string | null
   /** Partial CreatePlan draft, populated progressively while streaming. */
   planDraft?: {
     title?: string | null
@@ -535,7 +538,8 @@ export function getStreamingToolDisplay(
         return {
           label: translate(locale, 'toolCall.streaming.runningCommand', {
             command: truncateChars(firstLine, 80)
-          })
+          }),
+          parsedPreview: { command }
         }
       }
       return { label: translate(locale, 'toolCall.streaming.runningGeneric') }

@@ -2387,6 +2387,8 @@ export const MESSAGES_ES = {
   'toolCall.writingGeneric': 'Escribiendo archivo...',
   'toolCall.editingGeneric': 'Editando archivo...',
   'toolCall.ran': 'Corrió {{cmd}}',
+  'toolCall.runningCommand': 'Ejecutando comando',
+  'toolCall.ranCommand': 'Comando ejecutado',
   'toolCall.called': 'Llamado {{toolName}}',
   'toolCall.calling': 'llamando',
   'toolCall.failed': 'Error: {{label}}',

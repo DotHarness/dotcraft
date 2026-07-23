@@ -1690,6 +1690,8 @@ export const MESSAGES_EN = {
   'toolCall.writingGeneric': 'Writing file...',
   'toolCall.editingGeneric': 'Editing file...',
   'toolCall.ran': 'Ran {{cmd}}',
+  'toolCall.runningCommand': 'Running command',
+  'toolCall.ranCommand': 'Ran command',
   'toolCall.called': 'Called {{toolName}}',
   'toolCall.calling': 'Calling',
   'toolCall.failed': 'Failed: {{label}}',

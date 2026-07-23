@@ -4216,6 +4216,22 @@ html[data-theme="light"] [data-mascot-speed='fast'] .composer-mascot-fast-echo {
   color: var(--text-primary);
 }
 
+/* Sidebar icon actions share IconButton behavior but use the sidebar's quieter state ramp. */
+.dc-icon-button.dc-sidebar-icon-button {
+  color: var(--text-dimmed);
+}
+
+.dc-icon-button.dc-sidebar-icon-button:hover:not(:disabled),
+.dc-icon-button.dc-sidebar-icon-button[aria-expanded="true"] {
+  background: var(--sidebar-control-hover);
+  color: var(--text-primary);
+}
+
+.dc-icon-button.dc-sidebar-icon-button[data-active] {
+  background: var(--sidebar-control-active);
+  color: var(--accent);
+}
+
 /* Menu/popover open state stays neutral; `active` remains reserved for selection. */
 .dc-icon-button[aria-expanded="true"] {
   background: var(--bg-tertiary);
@@ -4253,10 +4269,58 @@ html[data-theme="light"] [data-mascot-speed='fast'] .composer-mascot-fast-echo {
   color: var(--error);
 }
 
+/* Thread List rows own the hover/active surface. Their compact child actions stay
+   backgroundless and communicate hover, focus, open, and pressed state through the
+   icon foreground only. */
+.dc-icon-button.dc-thread-list-icon-button {
+  background: transparent;
+  border-color: transparent;
+  color: var(--text-dimmed);
+}
+
+.dc-icon-button.dc-thread-list-icon-button:hover:not(:disabled),
+.dc-icon-button.dc-thread-list-icon-button:focus-visible,
+.dc-icon-button.dc-thread-list-icon-button[aria-expanded="true"],
+.dc-icon-button.dc-thread-list-icon-button[aria-pressed="true"],
+.dc-icon-button.dc-thread-list-icon-button[data-active] {
+  background: transparent;
+  border-color: transparent;
+  color: var(--text-primary);
+}
+
 .dc-icon-button:disabled {
   color: var(--text-dimmed);
   cursor: default;
   opacity: 0.65;
+}
+
+/* High-contrast neutral close affordance over attachment media thumbnails. */
+.dc-icon-button.dc-attachment-image-remove {
+  background: var(--text-primary);
+  border-color: transparent;
+  color: var(--bg-primary);
+}
+
+.dc-icon-button.dc-attachment-image-remove:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--text-primary) 88%, var(--bg-primary));
+  border-color: transparent;
+  color: var(--bg-primary);
+}
+
+.dc-attachment-file-link {
+  background: transparent;
+  color: inherit;
+  transition: background-color 120ms ease, color 120ms ease;
+}
+
+.dc-attachment-file-link:hover:not(:disabled) {
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+}
+
+.dc-attachment-file-link:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--accent) 72%, transparent);
+  outline-offset: 1px;
 }
 
 /* Shared compact status + menu trigger. */
@@ -4678,26 +4742,6 @@ input.dc-plain-number {
   height: 1px;
   margin: 3px 11px;
   background: var(--border-default);
-}
-
-.sidebar-entry-details-pin {
-  width: 24px;
-  height: 24px;
-  padding: 0;
-  border: none;
-  border-radius: var(--sidebar-icon-control-radius);
-  background: transparent;
-  color: var(--text-dimmed);
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-}
-
-.sidebar-entry-details-pin:hover,
-.sidebar-entry-details-pin:focus-visible {
-  background: var(--sidebar-control-hover);
-  color: var(--text-primary);
 }
 
 @keyframes sidebar-entry-details-in {

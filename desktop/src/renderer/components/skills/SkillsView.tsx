@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
-import { Check, Download, ExternalLink, Plus, Settings, Sparkles } from 'lucide-react'
+import { Check, Download, ExternalLink, Plus, Settings, Sparkles, X } from 'lucide-react'
 import { useT } from '../../contexts/LocaleContext'
 import { useSkillsStore, type SkillEntry } from '../../stores/skillsStore'
 import { useSkillMarketStore, type SkillMarketProviderFilter } from '../../stores/skillMarketStore'
@@ -21,6 +21,7 @@ import { useUIStore } from '../../stores/uiStore'
 import type { ThreadSummary } from '../../types/thread'
 import { CatalogBreadcrumb, CatalogFilterMenu, CatalogSearchBox, CatalogToolbarIconButton, CatalogTopBar, styles as catalogStyles } from '../catalog/CatalogSurface'
 import { SkeletonCatalogGrid, SkeletonList } from '../ui/Skeleton'
+import { IconButton } from '../ui/IconButton'
 
 type ViewMode = 'browse' | 'manage'
 export type SourceFilter = 'all' | 'system' | 'personal' | 'market'
@@ -760,7 +761,15 @@ function MarketSkillDetailDialog({
             <h2 id="skill-market-detail-title" style={modalTitle}>{skill.name}</h2>
             <p style={modalSubtitle}>{skill.description || skill.slug}</p>
           </div>
-          <button type="button" onClick={onClose} style={iconCloseBtn} aria-label={t('skillDetail.close')}>×</button>
+          <IconButton
+            icon={<X size={18} aria-hidden />}
+            label={t('skillDetail.close')}
+            tooltipLabel={t('skillDetail.close')}
+            tooltipPlacement="bottom"
+            size={32}
+            radius={6}
+            onClick={onClose}
+          />
         </header>
         <div style={metaRow}>
           <Meta label={t('skillMarket.provider')} value={providerLabel(skill.provider)} />
@@ -1118,17 +1127,4 @@ const disabledPrimaryBtn: React.CSSProperties = {
   ...primaryBtn,
   opacity: 0.65,
   cursor: 'not-allowed'
-}
-
-const iconCloseBtn: React.CSSProperties = {
-  width: '32px',
-  height: '32px',
-  fontSize: '22px',
-  lineHeight: 1,
-  borderRadius: '6px',
-  border: 'none',
-  backgroundColor: 'transparent',
-  color: 'var(--text-secondary)',
-  cursor: 'pointer',
-  flexShrink: 0
 }

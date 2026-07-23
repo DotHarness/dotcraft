@@ -14,7 +14,6 @@ import { TaskReviewPanel } from './TaskReviewPanel'
 import { CronJobCard } from './CronJobCard'
 import { CronReviewPanel } from './CronReviewPanel'
 import { useReviewPanelStore } from '../../stores/reviewPanelStore'
-import { ActionTooltip } from '../ui/ActionTooltip'
 import { RefreshIcon } from '../ui/AppIcons'
 import { ContextMenu, type ContextMenuPosition } from '../ui/ContextMenu'
 import { ConfirmDialog } from '../ui/ConfirmDialog'
@@ -448,23 +447,26 @@ function TemplateCard({
         </button>
 
         {template.isUser && (
-          <ActionTooltip label={t('auto.moreActions')} placement="top">
-            <button
-              type="button"
-              aria-label={t('auto.moreActions')}
-              onClick={(event) => {
-                event.stopPropagation()
-                const rect = event.currentTarget.getBoundingClientRect()
-                setMenuPosition({ x: rect.left, y: rect.bottom + 6 })
-              }}
-              style={{
-                ...smallIconButton,
-                opacity: hovered || menuPosition ? 1 : 0
-              }}
-            >
-              <Ellipsis size={15} aria-hidden />
-            </button>
-          </ActionTooltip>
+          <IconButton
+            icon={<Ellipsis size={15} aria-hidden />}
+            label={t('auto.moreActions')}
+            tooltipLabel={t('auto.moreActions')}
+            tooltipPlacement="top"
+            size={28}
+            radius={8}
+            bordered
+            aria-expanded={menuPosition != null}
+            onClick={(event) => {
+              event.stopPropagation()
+              const rect = event.currentTarget.getBoundingClientRect()
+              setMenuPosition({ x: rect.left, y: rect.bottom + 6 })
+            }}
+            style={{
+              ...smallIconButtonPosition,
+              opacity: hovered || menuPosition ? 1 : 0,
+              pointerEvents: hovered || menuPosition ? 'auto' : 'none'
+            }}
+          />
         )}
       </div>
 
@@ -662,21 +664,10 @@ const templateIcon: CSSProperties = {
   fontSize: '19px'
 }
 
-const smallIconButton: CSSProperties = {
+const smallIconButtonPosition: CSSProperties = {
   position: 'absolute',
   top: '8px',
   right: '8px',
-  width: '28px',
-  height: '28px',
-  borderRadius: '8px',
-  border: '1px solid var(--border-default)',
-  backgroundColor: 'var(--bg-primary)',
-  color: 'var(--text-secondary)',
-  display: 'inline-flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  cursor: 'pointer',
-  padding: 0,
   transition: 'opacity 0.15s'
 }
 

@@ -15,6 +15,16 @@ describe('getStreamingToolDisplay', () => {
     expect(display.parsedPreview?.content).toBe('let x')
   })
 
+  it('extracts the Exec command while arguments stream', () => {
+    const display = getStreamingToolDisplay(
+      'Exec',
+      '{"command":"npm run build',
+      'en'
+    )
+    expect(display.label).toBe('Running: npm run build')
+    expect(display.parsedPreview?.command).toBe('npm run build')
+  })
+
   it('extracts CreatePlan draft preview while arguments stream', () => {
     const display = getStreamingToolDisplay(
       'CreatePlan',

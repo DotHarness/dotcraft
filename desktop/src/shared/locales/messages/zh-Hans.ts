@@ -1636,6 +1636,8 @@ export const MESSAGES_ZH_HANS = {
   'toolCall.writingGeneric': '正在写入文件...',
   'toolCall.editingGeneric': '正在编辑文件...',
   'toolCall.ran': '已运行 {{cmd}}',
+  'toolCall.runningCommand': '正在运行命令',
+  'toolCall.ranCommand': '已运行命令',
   'toolCall.called': '调用了 {{toolName}}',
   'toolCall.calling': '正在调用',
   'toolCall.failed': '失败：{{label}}',

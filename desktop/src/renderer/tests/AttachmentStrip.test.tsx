@@ -100,4 +100,34 @@ describe('AttachmentStrip', () => {
       expect.objectContaining({ absolutePath: 'C:/temp/notes.txt', contentClass: 'text' })
     ]))
   })
+
+  it('uses neutral remove controls for pending image and file attachments', () => {
+    const onRemoveImage = vi.fn()
+    const onRemoveFile = vi.fn()
+    renderWithLocale(
+      <AttachmentStrip
+        images={[{
+          tempPath: 'photo.png',
+          dataUrl: 'data:image/png;base64,AA==',
+          fileName: 'photo.png',
+          mimeType: 'image/png'
+        }]}
+        files={[{ path: 'notes.txt', fileName: 'notes.txt' }]}
+        onRemoveImage={onRemoveImage}
+        onRemoveFile={onRemoveFile}
+      />
+    )
+
+    const removeImage = screen.getByRole('button', { name: 'Remove image' })
+    const removeFile = screen.getByRole('button', { name: 'Remove file' })
+    expect(removeImage).toHaveAttribute('data-tone', 'neutral')
+    expect(removeImage).toHaveClass('dc-attachment-image-remove')
+    expect(removeFile).toHaveAttribute('data-tone', 'neutral')
+
+    fireEvent.click(removeImage)
+    fireEvent.click(removeFile)
+
+    expect(onRemoveImage).toHaveBeenCalledWith(0)
+    expect(onRemoveFile).toHaveBeenCalledWith(0)
+  })
 })

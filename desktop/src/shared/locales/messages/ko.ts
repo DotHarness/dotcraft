@@ -2384,6 +2384,8 @@ export const MESSAGES_KO = {
   'toolCall.writingGeneric': '파일을 쓰는 중...',
   'toolCall.editingGeneric': '파일 수정 중...',
   'toolCall.ran': '{{cmd}}을(를) 실행했습니다.',
+  'toolCall.runningCommand': '명령 실행 중',
+  'toolCall.ranCommand': '명령 실행됨',
   'toolCall.called': '{{toolName}}이라고 함',
   'toolCall.calling': '전화',
   'toolCall.failed': '실패: {{label}}',

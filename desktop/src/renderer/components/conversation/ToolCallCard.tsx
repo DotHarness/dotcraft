@@ -84,10 +84,16 @@ function formatRunningToolLabel(
   args: Record<string, unknown> | undefined,
   locale: AppLocale,
   streamingLabel: string,
+  shellCommand?: string,
   planTodos?: Array<{ id: string; content: string }>
 ): string {
-  if (rendererFamily === 'shell' && args) {
-    return formatCollapsedToolLabel(toolName, args, locale, { planTodos })
+  if (rendererFamily === 'shell') {
+    const firstLine = shellCommand?.split(/\r?\n/, 1)[0]
+    return firstLine
+      ? translate(locale, 'toolCall.streaming.runningCommand', {
+        command: firstLine.length > 80 ? `${firstLine.slice(0, 80)}…` : firstLine
+      })
+      : translate(locale, 'toolCall.runningCommand')
   }
   if (rendererFamily === 'cron' && args) {
     return formatCronRunningLabel(args, locale)
@@ -186,6 +192,16 @@ function hasRenderableDiff(diff: FileDiff | undefined): boolean {
   return (diff?.diffHunks.length ?? 0) > 0
 }
 
+function resolveShellCommand(
+  itemCommand: string | undefined,
+  args: Record<string, unknown> | undefined,
+  streamedCommand: string | null | undefined
+): string | undefined {
+  const finalArgumentCommand = typeof args?.command === 'string' ? args.command : undefined
+  return [itemCommand, finalArgumentCommand, streamedCommand]
+    .find((value) => typeof value === 'string' && value.trim().length > 0)
+}
+
 export const ToolCallCard = memo(function ToolCallCard({
   item,
   turnId,
@@ -217,6 +233,12 @@ export const ToolCallCard = memo(function ToolCallCard({
   const streamingDisplay = rendererPlan
     ? getStreamingToolDisplay(toolName, item.argumentsPreview ?? null, locale)
     : { label: translate(locale, 'toolCall.streaming.genericExternal', { toolName }) }
+  const shellCommand = isShellTool
+    ? resolveShellCommand(item.command, args, streamingDisplay.parsedPreview?.command)
+    : undefined
+  const shellDisplayArgs = isShellTool && shellCommand
+    ? { ...args, command: shellCommand }
+    : args
   const isRunning = isToolItemLive(item, { turnRunning })
   const toolResult = item.result ?? item.errorMessage ?? item.resultPreview
   const conversationShellRuntime = useConversationStore((state) =>
@@ -309,9 +331,10 @@ export const ToolCallCard = memo(function ToolCallCard({
     ?? formatRunningToolLabel(
       rendererFamily,
       toolName,
-      hasFinalArgs ? args : undefined,
+      hasFinalArgs ? shellDisplayArgs : undefined,
       locale,
       streamingDisplay.label,
+      shellCommand,
       planTodos
     )
   const runningLabel = isStreamingFileTool
@@ -440,6 +463,8 @@ export const ToolCallCard = memo(function ToolCallCard({
     const runningExpanded = expanded && canExpandWhileRunning
     const runningDisplayLabel = runningExpanded && isStreamingFileTool
       ? formatExpandedFileToolLabel(rendererOperation, renderableStreamingFileDiff, locale)
+      : runningExpanded && isShellTool
+        ? translate(locale, 'toolCall.runningCommand')
       : runningLabel
     const runningFilePath = renderableStreamingFileDiff?.filePath
       ?? streamingDisplay.parsedPreview?.path
@@ -536,11 +561,12 @@ export const ToolCallCard = memo(function ToolCallCard({
                 rendererFamily={rendererFamily}
                 rendererOptions={rendererPlan?.options}
                 toolName={toolName}
-                args={args}
+                args={shellDisplayArgs}
                 result={shellOutput}
                 success
                 fileDiff={undefined}
                 locale={locale}
+                shellCommand={shellCommand}
                 planTodos={planTodos}
               />
             ) : isStreamingFileTool ? (
@@ -570,8 +596,10 @@ export const ToolCallCard = memo(function ToolCallCard({
       ? formatSkillManageLabel(args, item.result, locale)
       : isSkillViewTool
         ? formatSkillViewLabel(args, locale)
+        : isShellTool && !shellCommand
+          ? translate(locale, 'toolCall.ranCommand')
         : rendererPlan
-          ? formatCollapsedToolLabel(toolName, args, locale, { planTodos })
+          ? formatCollapsedToolLabel(toolName, shellDisplayArgs, locale, { planTodos })
           : translate(locale, 'toolCall.called', { toolName }))
   const label = isStreamingFileTool
     ? formatFileToolLabel(rendererOperation, fileDiff, fallbackLabel, locale)
@@ -595,6 +623,8 @@ export const ToolCallCard = memo(function ToolCallCard({
   const completedExpanded = canExpandCompleted && expanded
   const completedDisplayLabel = completedExpanded && isStreamingFileTool
     ? formatExpandedFileToolLabel(rendererOperation, renderableFileDiff, locale)
+    : completedExpanded && isShellTool
+      ? translate(locale, 'toolCall.ranCommand')
     : completedExpanded && rendererFamily === 'readFile'
       ? translate(locale, 'toolCall.readFile.file')
       : label
@@ -695,12 +725,13 @@ export const ToolCallCard = memo(function ToolCallCard({
               rendererFamily={rendererFamily}
               rendererOptions={rendererPlan?.options}
               toolName={toolName}
-              args={args}
+              args={shellDisplayArgs}
               result={isShellTool ? shellOutput : toolResult}
               success={success}
               fileDiff={renderableFileDiff ? { diff: renderableFileDiff } : undefined}
               locale={locale}
               workspacePath={workspacePath}
+              shellCommand={shellCommand}
               planTodos={planTodos}
             />
           </div>
@@ -721,6 +752,7 @@ interface ExpandedContentProps {
   fileDiff: { diff: FileDiff } | undefined
   locale: AppLocale
   workspacePath?: string
+  shellCommand?: string
   planTodos?: Array<{ id: string; content: string }>
 }
 
@@ -735,6 +767,7 @@ function ExpandedContent({
   fileDiff,
   locale,
   workspacePath,
+  shellCommand,
   planTodos
 }: ExpandedContentProps): JSX.Element {
   if (rendererFamily === 'createPlan') {
@@ -864,15 +897,27 @@ function ExpandedContent({
   }
 
   if (rendererFamily === 'shell') {
-    const command = (args?.command as string | undefined) ?? toolName
     const output = result ?? ''
 
     return (
       <div className="selectable" style={{ fontFamily: 'var(--font-mono)', fontSize: '12px', lineHeight: '1.5', color: 'var(--text-secondary)' }}>
-        <div style={{ color: 'var(--text-dimmed)', marginBottom: '6px' }}>
-          <span style={{ color: 'var(--text-dimmed)' }}>$ </span>
-          <span style={{ color: 'var(--text-primary)' }}>{command}</span>
-        </div>
+        {shellCommand && (
+          <div
+            data-testid="shell-command"
+            style={{
+              display: 'grid',
+              gridTemplateColumns: '12px minmax(0, 1fr)',
+              gap: '4px',
+              color: 'var(--text-dimmed)',
+              marginBottom: '6px'
+            }}
+          >
+            <span aria-hidden style={{ color: 'var(--text-dimmed)' }}>$</span>
+            <span style={{ color: 'var(--text-primary)', whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>
+              {shellCommand}
+            </span>
+          </div>
+        )}
         {output ? (
           <AnsiPre
             text={output}

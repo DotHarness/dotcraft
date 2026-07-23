@@ -6,6 +6,7 @@ import { useThreadStore } from '../../stores/threadStore'
 import { useUIStore, type ChangesDiffMode } from '../../stores/uiStore'
 import { useFileChangeActions } from '../../hooks/useFileChangeActions'
 import { ActionTooltip } from '../ui/ActionTooltip'
+import { IconButton } from '../ui/IconButton'
 import type { FileDiff } from '../../types/toolCall'
 import { DiffViewer } from './DiffViewer'
 import { ChangesActionsMenu } from './ChangesActionsMenu'
@@ -356,39 +357,40 @@ function FileDiffSection({
             </span>
           )}
         </span>
-        <ActionTooltip label={t('changesFile.openFolder')} placement="bottom">
-          <button
-            type="button"
-            aria-label={t('changesFile.openFolder')}
-            onClick={(event) => {
-              event.stopPropagation()
-              void openParentFolder()
-            }}
-            style={{
-              ...iconButtonStyle,
-              opacity: active ? 1 : 0
-            }}
-          >
-            <FolderOpen size={14} strokeWidth={1.8} aria-hidden />
-          </button>
-        </ActionTooltip>
-        <ActionTooltip label={isReverted ? t('changesFile.reapplyTitle') : t('changesFile.revertTitle')} placement="bottom">
-          <button
-            type="button"
-            aria-label={isReverted ? t('changesFile.reapplyTitle') : t('changesFile.revertTitle')}
-            onClick={(event) => {
-              event.stopPropagation()
-              if (isReverted) onReapply()
-              else onRevert()
-            }}
-            style={{
-              ...iconButtonStyle,
-              opacity: active ? 1 : 0
-            }}
-          >
-            <Undo2 size={14} strokeWidth={1.8} aria-hidden />
-          </button>
-        </ActionTooltip>
+        <IconButton
+          icon={<FolderOpen size={14} strokeWidth={1.8} aria-hidden />}
+          label={t('changesFile.openFolder')}
+          tooltipLabel={t('changesFile.openFolder')}
+          tooltipPlacement="bottom"
+          size={24}
+          radius={5}
+          onClick={(event) => {
+            event.stopPropagation()
+            void openParentFolder()
+          }}
+          style={{
+            opacity: active ? 1 : 0,
+            pointerEvents: active ? 'auto' : 'none'
+          }}
+        />
+        <IconButton
+          icon={<Undo2 size={14} strokeWidth={1.8} aria-hidden />}
+          label={isReverted ? t('changesFile.reapplyTitle') : t('changesFile.revertTitle')}
+          tooltipLabel={isReverted ? t('changesFile.reapplyTitle') : t('changesFile.revertTitle')}
+          tooltipPlacement="bottom"
+          size={24}
+          radius={5}
+          tone={isReverted ? 'neutral' : 'danger'}
+          onClick={(event) => {
+            event.stopPropagation()
+            if (isReverted) onReapply()
+            else onRevert()
+          }}
+          style={{
+            opacity: active ? 1 : 0,
+            pointerEvents: active ? 'auto' : 'none'
+          }}
+        />
         <FileStats additions={file.additions} deletions={file.deletions} dim={isReverted} />
         <span style={{ color: 'var(--text-secondary)', width: '16px', display: 'inline-flex', justifyContent: 'center' }}>
           {expanded ? <ChevronUp size={15} strokeWidth={1.8} /> : <ChevronDown size={15} strokeWidth={1.8} />}
@@ -513,22 +515,6 @@ const actionsClusterStyle: CSSProperties = {
   alignItems: 'center',
   gap: '4px',
   flexShrink: 0
-}
-
-const iconButtonStyle: CSSProperties = {
-  width: '24px',
-  height: '24px',
-  display: 'inline-flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  padding: 0,
-  borderRadius: '5px',
-  border: 'none',
-  background: 'transparent',
-  color: 'var(--text-secondary)',
-  cursor: 'pointer',
-  flexShrink: 0,
-  transition: 'opacity 100ms ease, background-color 100ms ease, color 100ms ease'
 }
 
 /** Borderless 28×28 header action button, matching `ViewerHeader`. */

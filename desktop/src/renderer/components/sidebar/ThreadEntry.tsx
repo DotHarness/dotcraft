@@ -18,6 +18,7 @@ import { useAutomationsStore } from '../../stores/automationsStore'
 import { useDragDropStore } from '../../stores/dragDropStore'
 import { addToast } from '../../stores/toastStore'
 import { ActionTooltip } from '../ui/ActionTooltip'
+import { IconButton } from '../ui/IconButton'
 import { getSubAgentDepth, isSubAgentThread } from '../../utils/subAgentThreads'
 import { canForkThread, canForkWorktree, runThreadFork } from '../../utils/threadFork'
 import { useWorkspaceProjectsStore } from '../../stores/workspaceProjectsStore'
@@ -389,45 +390,26 @@ export function ThreadEntry({ thread }: ThreadEntryProps): JSX.Element {
                   flexShrink: 0
                 }}
               >
-                <ActionTooltip
+                <IconButton
+                  icon={<PinIcon filled={isPinned} />}
                   label={isPinned ? t('threadEntry.unpin') : t('threadEntry.pin')}
-                  placement="right"
-                >
-                  <button
-                    type="button"
-                    aria-label={isPinned ? t('threadEntry.unpin') : t('threadEntry.pin')}
-                    aria-pressed={isPinned}
-                    data-testid={`thread-pin-${thread.id}`}
-                    onClick={handleTogglePinned}
-                    onFocus={() => setPinButtonFocused(true)}
-                    onBlur={() => setPinButtonFocused(false)}
-                    style={{
-                      width: '22px',
-                      height: '22px',
-                      padding: 0,
-                      border: 'none',
-                      backgroundColor: 'transparent',
-                      color: isPinned ? 'var(--text-secondary)' : 'var(--text-dimmed)',
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      cursor: showPinAction ? 'pointer' : 'default',
-                      opacity: showPinAction ? 1 : 0,
-                      pointerEvents: showPinAction ? 'auto' : 'none',
-                      transition: 'opacity 120ms ease, color 120ms ease'
-                    }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.color = 'var(--text-primary)'
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.color = isPinned
-                        ? 'var(--text-secondary)'
-                        : 'var(--text-dimmed)'
-                    }}
-                  >
-                    <PinIcon filled={isPinned} />
-                  </button>
-                </ActionTooltip>
+                  tooltipLabel={isPinned ? t('threadEntry.unpin') : t('threadEntry.pin')}
+                  tooltipPlacement="right"
+                  size={22}
+                  radius={6}
+                  className="dc-thread-list-icon-button"
+                  aria-pressed={isPinned}
+                  data-testid={`thread-pin-${thread.id}`}
+                  onClick={handleTogglePinned}
+                  onFocus={() => setPinButtonFocused(true)}
+                  onBlur={() => setPinButtonFocused(false)}
+                  style={{
+                    cursor: showPinAction ? 'pointer' : 'default',
+                    opacity: showPinAction ? 1 : 0,
+                    pointerEvents: showPinAction ? 'auto' : 'none',
+                    transition: 'opacity 120ms ease, color 120ms ease'
+                  }}
+                />
               </span>
             )}
             {showOriginBadge && (
@@ -638,51 +620,32 @@ export function ThreadEntry({ thread }: ThreadEntryProps): JSX.Element {
         }
         statusExtra={
           !isSubAgent ? (
-            <ActionTooltip label={t('threadEntry.archive')} placement="right">
-              <button
-                className="dotcraft-sidebar-control-radius"
-                type="button"
-                aria-label={t('threadEntry.archive')}
-                onClick={(e) => {
-                  e.stopPropagation()
-                  void performArchiveThread()
-                }}
-                onFocus={() => setArchiveButtonFocused(true)}
-                style={{
-                  width: '24px',
-                  height: '24px',
-                  padding: 0,
-                  border: 'none',
-                  borderRadius: 'var(--sidebar-icon-control-radius)',
-                  backgroundColor: 'transparent',
-                  color: isActive ? 'var(--text-secondary)' : 'var(--text-dimmed)',
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  cursor: showArchiveAction ? 'pointer' : 'default',
-                  position: 'absolute',
-                  right: 0,
-                  top: '50%',
-                  transform: 'translateY(-50%)',
-                  opacity: showArchiveAction ? 1 : 0,
-                  pointerEvents: showArchiveAction ? 'auto' : 'none',
-                  transition: 'opacity 120ms ease, background-color 120ms ease, color 120ms ease',
-                  zIndex: 2
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.backgroundColor = 'var(--sidebar-control-hover)'
-                  e.currentTarget.style.color = 'var(--error)'
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.backgroundColor = 'transparent'
-                  e.currentTarget.style.color = isActive
-                    ? 'var(--text-secondary)'
-                    : 'var(--text-dimmed)'
-                }}
-              >
-                <Archive size={14} strokeWidth={2} aria-hidden="true" />
-              </button>
-            </ActionTooltip>
+            <IconButton
+              icon={<Archive size={14} strokeWidth={2} aria-hidden="true" />}
+              label={t('threadEntry.archive')}
+              tooltipLabel={t('threadEntry.archive')}
+              tooltipPlacement="right"
+              size={24}
+              radius={8}
+              className="dc-thread-list-icon-button"
+              onClick={(e) => {
+                e.stopPropagation()
+                void performArchiveThread()
+              }}
+              onFocus={() => setArchiveButtonFocused(true)}
+              style={{
+                borderRadius: 'var(--sidebar-icon-control-radius)',
+                cursor: showArchiveAction ? 'pointer' : 'default',
+                position: 'absolute',
+                right: 0,
+                top: '50%',
+                transform: 'translateY(-50%)',
+                opacity: showArchiveAction ? 1 : 0,
+                pointerEvents: showArchiveAction ? 'auto' : 'none',
+                transition: 'opacity 120ms ease, color 120ms ease',
+                zIndex: 2
+              }}
+            />
           ) : undefined
         }
       />

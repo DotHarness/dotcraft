@@ -4,6 +4,7 @@ import { ChevronRight, MoreHorizontal } from 'lucide-react'
 import { stripWorkspaceLockedIpcPrefix } from '../../../shared/workspaceSwitchErrors'
 import { useT } from '../../contexts/LocaleContext'
 import { ActionTooltip } from '../ui/ActionTooltip'
+import { IconButton } from '../ui/IconButton'
 import { useConfirmDialog } from '../ui/ConfirmDialog'
 
 /** Extracts a clean user-facing message from a workspace switch error. */
@@ -69,7 +70,6 @@ interface WorkspaceOptionsMenuProps {
   workspacePath: string
   localWorkspacePath?: string
   localActionsDisabled?: boolean
-  buttonStyle?: CSSProperties
   onOpenChange?: (open: boolean) => void
 }
 
@@ -77,7 +77,6 @@ export function WorkspaceOptionsMenu({
   workspacePath,
   localWorkspacePath,
   localActionsDisabled = false,
-  buttonStyle,
   onOpenChange
 }: WorkspaceOptionsMenuProps): JSX.Element {
   const t = useT()
@@ -186,34 +185,22 @@ export function WorkspaceOptionsMenu({
         alignItems: 'center'
       }}
     >
-      <ActionTooltip label={t('workspaceHeader.optionsAria')} placement="bottom">
-      <button
+      <IconButton
+        icon={<MoreHorizontal size={16} aria-hidden />}
+        label={t('workspaceHeader.optionsAria')}
+        tooltipLabel={t('workspaceHeader.optionsAria')}
+        tooltipPlacement="bottom"
+        size={24}
+        radius={4}
+        className="dc-thread-list-icon-button"
+        aria-expanded={open}
         onClick={(e) => {
           e.stopPropagation()
           if (!open) updateMenuPosition()
           updateOpen(!open)
           if (open) setShowRecents(false)
         }}
-        aria-label={t('workspaceHeader.optionsAria')}
-        style={{
-          ...workspaceOptionsButtonStyle,
-          ...buttonStyle,
-          color: open ? 'var(--text-primary)' : (buttonStyle?.color ?? 'var(--text-dimmed)')
-        }}
-        onMouseEnter={(e) => {
-          ;(e.currentTarget as HTMLButtonElement).style.color = 'var(--text-primary)'
-          ;(e.currentTarget as HTMLButtonElement).style.backgroundColor = 'var(--sidebar-control-hover)'
-        }}
-        onMouseLeave={(e) => {
-          if (!open) {
-            ;(e.currentTarget as HTMLButtonElement).style.color = 'var(--text-dimmed)'
-          }
-          ;(e.currentTarget as HTMLButtonElement).style.backgroundColor = 'transparent'
-        }}
-      >
-        <MoreHorizontal size={16} aria-hidden />
-      </button>
-      </ActionTooltip>
+      />
 
       {open && menuPosition && typeof document !== 'undefined' && createPortal(
         <div
@@ -375,21 +362,6 @@ export function WorkspaceOptionsMenu({
       )}
     </div>
   )
-}
-
-const workspaceOptionsButtonStyle: CSSProperties = {
-  flexShrink: 0,
-  background: 'transparent',
-  border: 'none',
-  color: 'var(--text-dimmed)',
-  cursor: 'pointer',
-  padding: '2px 4px',
-  borderRadius: '4px',
-  fontSize: 'var(--type-ui-size)',
-  lineHeight: 'var(--type-ui-line-height)',
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'center'
 }
 
 interface DropdownItemProps {

@@ -1,9 +1,11 @@
 import { useEffect, useRef, useState } from 'react'
+import { X } from 'lucide-react'
 import { useT } from '../../contexts/LocaleContext'
 import { wireTurnToConversationTurn } from '../../types/conversation'
 import type { ConversationTurn } from '../../types/conversation'
 import { useCronStore, type CronJobWire } from '../../stores/cronStore'
 import { AgentResponseBlock } from '../conversation/AgentResponseBlock'
+import { IconButton } from '../ui/IconButton'
 
 /**
  * Read-only review of a cron execution thread (thread/read by lastThreadId).
@@ -111,25 +113,15 @@ export function CronReviewPanel(): JSX.Element {
               : '—'}
           </div>
         </div>
-        <button
-          type="button"
-          aria-label={t('auto.review.panelCloseAria')}
+        <IconButton
+          icon={<X size={16} aria-hidden />}
+          label={t('auto.review.panelCloseAria')}
+          tooltipLabel={t('auto.review.panelCloseAria')}
+          tooltipPlacement="bottom"
+          size={28}
+          radius={6}
           onClick={() => selectCronJob(null)}
-          style={{
-            flexShrink: 0,
-            width: '28px',
-            height: '28px',
-            border: 'none',
-            borderRadius: '6px',
-            backgroundColor: 'transparent',
-            color: 'var(--text-secondary)',
-            fontSize: '18px',
-            lineHeight: 1,
-            cursor: 'pointer'
-          }}
-        >
-          ×
-        </button>
+        />
       </div>
 
       {loading && (

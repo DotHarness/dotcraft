@@ -16,7 +16,7 @@ import { addToast } from '../../stores/toastStore'
 import { ActionTooltip } from '../ui/ActionTooltip'
 import { ConfirmDialog } from '../ui/ConfirmDialog'
 import { WorktreeHandoffDialog } from '../conversation/WorktreeHandoffDialog'
-import { ArrowRightLeft, ExternalLink, GitBranch, RefreshCcw, Trash2 } from 'lucide-react'
+import { ArrowRightLeft, ExternalLink, GitBranch, RefreshCcw, Trash2, X } from 'lucide-react'
 import { Button } from '../ui/Button'
 import { IconButton } from '../ui/IconButton'
 
@@ -504,25 +504,15 @@ export function TaskReviewPanel(): JSX.Element {
             {displayTask && <ApprovalPolicyBadge policy={displayTask.approvalPolicy} t={t} />}
           </div>
         </div>
-        <button
-          type="button"
-          aria-label={t('auto.review.panelCloseAria')}
+        <IconButton
+          icon={<X size={16} aria-hidden />}
+          label={t('auto.review.panelCloseAria')}
+          tooltipLabel={t('auto.review.panelCloseAria')}
+          tooltipPlacement="bottom"
+          size={28}
+          radius={6}
           onClick={() => closeReviewPanel()}
-          style={{
-            flexShrink: 0,
-            width: '28px',
-            height: '28px',
-            border: 'none',
-            borderRadius: '6px',
-            backgroundColor: 'transparent',
-            color: 'var(--text-secondary)',
-            fontSize: '18px',
-            lineHeight: 1,
-            cursor: 'pointer'
-          }}
-        >
-          ×
-        </button>
+        />
       </div>
 
       {loading && (

@@ -2391,6 +2391,8 @@ export const MESSAGES_DE = {
   'toolCall.writingGeneric': 'Datei schreiben...',
   'toolCall.editingGeneric': 'Datei wird bearbeitet...',
   'toolCall.ran': 'Lief {{cmd}}',
+  'toolCall.runningCommand': 'Befehl wird ausgeführt',
+  'toolCall.ranCommand': 'Befehl ausgeführt',
   'toolCall.called': 'Genannt {{toolName}}',
   'toolCall.calling': 'Rufen',
   'toolCall.failed': 'Fehlgeschlagen: {{label}}',

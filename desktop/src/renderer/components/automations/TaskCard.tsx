@@ -13,7 +13,7 @@ import { useDragDropStore } from '../../stores/dragDropStore'
 import { useThreadStore } from '../../stores/threadStore'
 import { ConfirmDialog } from '../ui/ConfirmDialog'
 import { ContextMenu, type ContextMenuPosition } from '../ui/ContextMenu'
-import { ActionTooltip } from '../ui/ActionTooltip'
+import { IconButton } from '../ui/IconButton'
 import { StatusBadge } from './StatusBadge'
 import { addToast } from '../../stores/toastStore'
 
@@ -255,42 +255,40 @@ export function TaskCard({ task }: { task: AutomationTask }): JSX.Element {
           gap: '6px'
         }}
       >
-        <ActionTooltip
+        <IconButton
+          icon={<Play size={14} aria-hidden fill="currentColor" />}
           label={runningNow ? t('auto.runningNow') : t('auto.runNow')}
+          tooltipLabel={runningNow ? t('auto.runningNow') : t('auto.runNow')}
+          tooltipPlacement="top"
           disabledReason={
             task.status === 'running'
               ? t('auto.runNowAlreadyRunning')
               : undefined
           }
-          placement="top"
-        >
-          <button
-            type="button"
-            disabled={!runnable || runningNow}
-            onClick={(e) => {
-              e.stopPropagation()
-              void handleRunNow()
-            }}
-            style={iconButtonStyle(!runnable || runningNow)}
-            aria-label={runningNow ? t('auto.runningNow') : t('auto.runNow')}
-          >
-            <Play size={14} aria-hidden fill="currentColor" />
-          </button>
-        </ActionTooltip>
-        <ActionTooltip label={t('auto.moreActions')} placement="top">
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation()
-              const rect = e.currentTarget.getBoundingClientRect()
-              setMenuPosition({ x: rect.left, y: rect.bottom + 6 })
-            }}
-            style={iconButtonStyle(false)}
-            aria-label={t('auto.moreActions')}
-          >
-            <Ellipsis size={16} aria-hidden />
-          </button>
-        </ActionTooltip>
+          size={30}
+          radius={8}
+          bordered
+          disabled={!runnable || runningNow}
+          onClick={(e) => {
+            e.stopPropagation()
+            void handleRunNow()
+          }}
+        />
+        <IconButton
+          icon={<Ellipsis size={16} aria-hidden />}
+          label={t('auto.moreActions')}
+          tooltipLabel={t('auto.moreActions')}
+          tooltipPlacement="top"
+          size={30}
+          radius={8}
+          bordered
+          aria-expanded={menuPosition != null}
+          onClick={(e) => {
+            e.stopPropagation()
+            const rect = e.currentTarget.getBoundingClientRect()
+            setMenuPosition({ x: rect.left, y: rect.bottom + 6 })
+          }}
+        />
       </div>
     </div>
 
@@ -331,21 +329,4 @@ export function TaskCard({ task }: { task: AutomationTask }): JSX.Element {
     )}
     </>
   )
-}
-
-function iconButtonStyle(disabled: boolean): React.CSSProperties {
-  return {
-    width: '30px',
-    height: '30px',
-    display: 'inline-flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: '8px',
-    border: '1px solid var(--border-default)',
-    backgroundColor: 'transparent',
-    color: disabled ? 'var(--text-dimmed)' : 'var(--text-secondary)',
-    cursor: disabled ? 'default' : 'pointer',
-    opacity: disabled ? 0.6 : 1,
-    padding: 0
-  }
 }

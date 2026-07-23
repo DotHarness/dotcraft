@@ -4,8 +4,8 @@ import {
   useAutomationsStore,
   type AutomationTemplate
 } from '../../stores/automationsStore'
-import { ActionTooltip } from '../ui/ActionTooltip'
 import { Button } from '../ui/Button'
+import { IconButton } from '../ui/IconButton'
 
 interface Props {
   onSelect(template: AutomationTemplate): void
@@ -313,34 +313,37 @@ function TemplateCard({
           }}
         >
           {onEdit && (
-            <ActionTooltip label={t('auto.gallery.my.edit')} placement="top">
-            <button
-              type="button"
+            <IconButton
+              icon="✎"
+              label={t('auto.gallery.my.edit')}
+              tooltipLabel={t('auto.gallery.my.edit')}
+              tooltipPlacement="top"
+              size={24}
+              radius={6}
+              bordered
               onClick={(e) => {
                 e.stopPropagation()
                 onEdit(template)
               }}
-              aria-label={t('auto.gallery.my.edit')}
-              style={iconBtnStyle}
-            >
-              ✎
-            </button>
-            </ActionTooltip>
+              style={{ fontSize: '13px' }}
+            />
           )}
           {onDelete && (
-            <ActionTooltip label={t('auto.gallery.my.delete')} placement="top">
-            <button
-              type="button"
+            <IconButton
+              icon="🗑"
+              label={t('auto.gallery.my.delete')}
+              tooltipLabel={t('auto.gallery.my.delete')}
+              tooltipPlacement="top"
+              size={24}
+              radius={6}
+              bordered
+              tone="danger"
               onClick={(e) => {
                 e.stopPropagation()
                 setConfirmDelete(true)
               }}
-              aria-label={t('auto.gallery.my.delete')}
-              style={{ ...iconBtnStyle, color: 'var(--error)' }}
-            >
-              🗑
-            </button>
-            </ActionTooltip>
+              style={{ fontSize: '13px' }}
+            />
           )}
         </div>
       )}
@@ -404,19 +407,4 @@ function TemplateCard({
       )}
     </div>
   )
-}
-
-const iconBtnStyle: React.CSSProperties = {
-  width: '24px',
-  height: '24px',
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  borderRadius: '6px',
-  border: '1px solid var(--border-default)',
-  backgroundColor: 'var(--bg-primary)',
-  color: 'var(--text-secondary)',
-  fontSize: '13px',
-  cursor: 'pointer',
-  padding: 0
 }

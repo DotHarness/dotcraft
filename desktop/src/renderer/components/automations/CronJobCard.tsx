@@ -9,7 +9,7 @@ import { useLocale, useT } from '../../contexts/LocaleContext'
 import { ConfirmDialog } from '../ui/ConfirmDialog'
 import { formatNextRun } from '../../utils/cronNextRunDisplay'
 import { ContextMenu, type ContextMenuPosition } from '../ui/ContextMenu'
-import { ActionTooltip } from '../ui/ActionTooltip'
+import { IconButton } from '../ui/IconButton'
 import { addToast } from '../../stores/toastStore'
 
 function formatSchedule(job: CronJobWire): string {
@@ -228,34 +228,35 @@ export function CronJobCard({ job }: { job: CronJobWire }): JSX.Element {
             gap: '6px'
           }}
         >
-          <ActionTooltip label={runningNow ? t('cron.runningNow') : t('cron.runNow')} placement="top">
-            <button
-              type="button"
-              disabled={runningNow}
-              onClick={(e) => {
-                e.stopPropagation()
-                void handleRunNow()
-              }}
-              style={iconButtonStyle(runningNow)}
-              aria-label={runningNow ? t('cron.runningNow') : t('cron.runNow')}
-            >
-              <Play size={14} aria-hidden fill="currentColor" />
-            </button>
-          </ActionTooltip>
-          <ActionTooltip label={t('cron.moreActions')} placement="top">
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation()
-                const rect = e.currentTarget.getBoundingClientRect()
-                setMenuPosition({ x: rect.left, y: rect.bottom + 6 })
-              }}
-              style={iconButtonStyle(false)}
-              aria-label={t('cron.moreActions')}
-            >
-              <Ellipsis size={16} aria-hidden />
-            </button>
-          </ActionTooltip>
+          <IconButton
+            icon={<Play size={14} aria-hidden fill="currentColor" />}
+            label={runningNow ? t('cron.runningNow') : t('cron.runNow')}
+            tooltipLabel={runningNow ? t('cron.runningNow') : t('cron.runNow')}
+            tooltipPlacement="top"
+            size={30}
+            radius={8}
+            bordered
+            disabled={runningNow}
+            onClick={(e) => {
+              e.stopPropagation()
+              void handleRunNow()
+            }}
+          />
+          <IconButton
+            icon={<Ellipsis size={16} aria-hidden />}
+            label={t('cron.moreActions')}
+            tooltipLabel={t('cron.moreActions')}
+            tooltipPlacement="top"
+            size={30}
+            radius={8}
+            bordered
+            aria-expanded={menuPosition != null}
+            onClick={(e) => {
+              e.stopPropagation()
+              const rect = e.currentTarget.getBoundingClientRect()
+              setMenuPosition({ x: rect.left, y: rect.bottom + 6 })
+            }}
+          />
         </div>
       </div>
 
@@ -301,21 +302,4 @@ export function CronJobCard({ job }: { job: CronJobWire }): JSX.Element {
       )}
     </>
   )
-}
-
-function iconButtonStyle(disabled: boolean): React.CSSProperties {
-  return {
-    width: '30px',
-    height: '30px',
-    display: 'inline-flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: '8px',
-    border: '1px solid var(--border-default)',
-    backgroundColor: 'transparent',
-    color: disabled ? 'var(--text-dimmed)' : 'var(--text-secondary)',
-    cursor: disabled ? 'default' : 'pointer',
-    opacity: disabled ? 0.6 : 1,
-    padding: 0
-  }
 }

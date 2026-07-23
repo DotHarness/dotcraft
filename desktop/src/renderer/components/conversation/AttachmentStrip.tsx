@@ -6,6 +6,7 @@ import { useThreadStore } from '../../stores/threadStore'
 import { useT } from '../../contexts/LocaleContext'
 import { openConversationLink } from '../../utils/conversationDeepLink'
 import { ActionTooltip } from '../ui/ActionTooltip'
+import { IconButton } from '../ui/IconButton'
 import { ImageLightbox } from './ImageLightbox'
 
 interface AttachmentStripProps {
@@ -30,22 +31,6 @@ const chipStyle = {
   color: 'var(--text-secondary)',
   backdropFilter: 'var(--glass-blur-soft)',
   WebkitBackdropFilter: 'var(--glass-blur-soft)'
-} as const
-
-const removeButtonStyle = {
-  width: 16,
-  height: 16,
-  borderRadius: '50%',
-  border: '1px solid var(--glass-border)',
-  background: 'var(--glass-surface-soft)',
-  color: 'var(--text-secondary)',
-  cursor: 'pointer',
-  padding: 0,
-  lineHeight: 1,
-  flexShrink: 0,
-  display: 'inline-flex',
-  alignItems: 'center',
-  justifyContent: 'center'
 } as const
 
 const railStyle = {
@@ -91,21 +76,6 @@ const imageThumbnailStyle = {
   width: '100%',
   height: '100%',
   objectFit: 'cover'
-} as const
-
-const imageRemoveButtonStyle = {
-  width: 22,
-  height: 22,
-  borderRadius: '50%',
-  border: '1px solid var(--glass-border)',
-  background: 'var(--bg-elevated)',
-  color: 'var(--text-primary)',
-  display: 'inline-flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  padding: 0,
-  cursor: 'pointer',
-  boxShadow: 'var(--shadow-overlay)'
 } as const
 
 const imageRemoveButtonWrapperStyle = {
@@ -158,16 +128,18 @@ export function AttachmentStrip({
                     <img src={img.dataUrl} alt="" style={imageThumbnailStyle} />
                   </button>
                 </ActionTooltip>
-                <ActionTooltip label={removeImageLabel} placement="top" wrapperStyle={imageRemoveButtonWrapperStyle}>
-                  <button
-                    type="button"
-                    aria-label={removeImageLabel}
-                    onClick={() => { onRemoveImage(idx) }}
-                    style={imageRemoveButtonStyle}
-                  >
-                    <X size={14} strokeWidth={2.4} aria-hidden />
-                  </button>
-                </ActionTooltip>
+                <IconButton
+                  icon={<X size={14} strokeWidth={2.4} aria-hidden />}
+                  label={removeImageLabel}
+                  tooltipLabel={removeImageLabel}
+                  tooltipPlacement="top"
+                  tooltipWrapperStyle={imageRemoveButtonWrapperStyle}
+                  size={22}
+                  radius={11}
+                  className="dc-attachment-image-remove"
+                  onClick={() => { onRemoveImage(idx) }}
+                  style={{ boxShadow: 'var(--shadow-overlay)' }}
+                />
               </div>
             ))}
           </div>
@@ -196,15 +168,16 @@ export function AttachmentStrip({
                     }}
                     disabled={!canOpenFileAttachment}
                     aria-label={t('conversation.openFileRefAria', { file: file.fileName })}
+                    className="dc-attachment-file-link"
                     style={{
                       display: 'inline-flex',
                       alignItems: 'center',
                       gap: '6px',
                       minWidth: 0,
-                      padding: 0,
+                      padding: '2px 4px',
+                      margin: '-2px -4px',
                       border: 'none',
-                      background: 'transparent',
-                      color: 'inherit',
+                      borderRadius: '4px',
                       cursor: canOpenFileAttachment ? 'pointer' : 'default',
                       font: 'inherit'
                     }}
@@ -221,16 +194,15 @@ export function AttachmentStrip({
                       {file.fileName}
                     </span>
                   </button>
-                  <ActionTooltip label={removeFileLabel} placement="top">
-                    <button
-                      type="button"
-                      onClick={() => { onRemoveFile(idx) }}
-                      aria-label={removeFileLabel}
-                      style={removeButtonStyle}
-                    >
-                      <X size={11} strokeWidth={2.4} aria-hidden />
-                    </button>
-                  </ActionTooltip>
+                  <IconButton
+                    icon={<X size={11} strokeWidth={2.4} aria-hidden />}
+                    label={removeFileLabel}
+                    tooltipLabel={removeFileLabel}
+                    tooltipPlacement="top"
+                    size={16}
+                    radius={8}
+                    onClick={() => { onRemoveFile(idx) }}
+                  />
                 </div>
               </ActionTooltip>
             ))}

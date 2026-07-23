@@ -2382,6 +2382,8 @@ export const MESSAGES_JA = {
   'toolCall.writingGeneric': 'ファイルを書き込み中...',
   'toolCall.editingGeneric': 'ファイルを編集中...',
   'toolCall.ran': 'ラン{{cmd}}',
+  'toolCall.runningCommand': 'コマンドを実行中',
+  'toolCall.ranCommand': 'コマンドを実行しました',
   'toolCall.called': '{{toolName}} と呼ばれます',
   'toolCall.calling': '電話をかける',
   'toolCall.failed': '失敗しました: {{label}}',

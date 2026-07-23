@@ -416,6 +416,18 @@ when required by an existing tab slot or toolbar, and catalog top bars use the
 `28px` / `10px` toolbar band. The shared hover, focus, disabled, open, and danger
 treatments still apply at those sizes.
 
+Thread List icon actions use a denser, foreground-only exception to the default
+surface hover. The parent thread or project row owns the hover and current-state
+surface; compact actions inside that row, plus the options and create actions in
+its section headers, stay transparent at rest, hover, focus, open, and pressed
+states. Their icon moves from a quiet foreground to the primary foreground, while
+`focus-visible` keeps the shared outline and the hit target remains stable. This
+prevents a second rounded surface from appearing inside an already highlighted
+row. Pin state may also use its filled icon to communicate selection without an
+active background. Archive remains neutral in this context because archived
+threads are recoverable; reserve danger color for irreversible or genuinely
+hazardous actions.
+
 Compound triggers combine a principal action with a menu of related commands. Both
 segments share one intent and one size; the group clips the outer corners while each
 segment drops the radius and border on the edge they meet, so the pair reads as a

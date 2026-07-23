@@ -402,10 +402,95 @@ describe('ToolCallCard shell rendering', () => {
     expect(document.querySelector('pre')).toBeNull()
     expect(document.querySelector('.animate-spin-custom')).toBeNull()
     expectDisclosureInsideTitleGroup(container)
+    expect(screen.getByRole('button')).toHaveTextContent('Running: npm test')
 
     fireEvent.click(screen.getByRole('button'))
 
+    expect(screen.getByRole('button')).toHaveTextContent('Running command')
+    expect(screen.getByTestId('shell-command')).toHaveTextContent('$npm test')
     expect(document.querySelector('pre')).toBeInTheDocument()
+  })
+
+  it('uses the commandExecution command when final Exec arguments are missing', () => {
+    const item: ConversationItem = {
+      id: 'tool-command-execution-only',
+      type: 'toolCall',
+      status: 'started',
+      toolName: 'Exec',
+      source: { kind: 'CoreNative', sourceId: 'core-native', sourceToolId: 'Exec' },
+      presentation: { presentationId: 'core.shell' },
+      toolCallId: 'exec-command-execution-only',
+      arguments: {},
+      argumentsPreview: '{"command":"stale preview',
+      command: 'npm run build',
+      aggregatedOutput: 'building\n',
+      executionStatus: 'inProgress',
+      createdAt: new Date().toISOString()
+    }
+
+    renderWithLocale(<ToolCallCard item={item} turnId="turn-1" />)
+
+    const toolButton = screen.getByRole('button')
+    expect(toolButton).toHaveTextContent('Running: npm run build')
+    fireEvent.click(toolButton)
+
+    expect(toolButton).toHaveTextContent('Running command')
+    expect(screen.getByTestId('shell-command')).toHaveTextContent('$npm run build')
+    expect(screen.queryByText('$ Exec')).not.toBeInTheDocument()
+  })
+
+  it('shows a generic shell label and omits the command prompt when no command is available', () => {
+    const item: ConversationItem = {
+      id: 'tool-command-missing',
+      type: 'toolCall',
+      status: 'completed',
+      toolName: 'Exec',
+      source: { kind: 'CoreNative', sourceId: 'core-native', sourceToolId: 'Exec' },
+      presentation: { presentationId: 'core.shell' },
+      toolCallId: 'exec-command-missing',
+      aggregatedOutput: 'output without command metadata',
+      result: 'output without command metadata',
+      success: true,
+      createdAt: new Date().toISOString()
+    }
+
+    renderWithLocale(<ToolCallCard item={item} turnId="turn-1" />)
+
+    const toolButton = screen.getByRole('button')
+    expect(toolButton).toHaveTextContent('Ran command')
+    expect(toolButton).not.toHaveTextContent('Exec')
+    fireEvent.click(toolButton)
+
+    expect(screen.queryByTestId('shell-command')).not.toBeInTheDocument()
+    expect(screen.getByText('output without command metadata')).toBeInTheDocument()
+  })
+
+  it('uses a generic completed header and preserves multiline commands in the body', () => {
+    const item: ConversationItem = {
+      id: 'tool-multiline-command',
+      type: 'toolCall',
+      status: 'completed',
+      toolName: 'Exec',
+      source: { kind: 'CoreNative', sourceId: 'core-native', sourceToolId: 'Exec' },
+      presentation: { presentationId: 'core.shell' },
+      toolCallId: 'exec-multiline-command',
+      arguments: { command: 'npm run lint &&\nnpm run build' },
+      result: 'done',
+      success: true,
+      createdAt: new Date().toISOString()
+    }
+
+    renderWithLocale(<ToolCallCard item={item} turnId="turn-1" />)
+
+    const toolButton = screen.getByRole('button')
+    expect(toolButton).toHaveTextContent('Ran npm run lint &&')
+    expect(toolButton).not.toHaveTextContent('npm run build')
+    fireEvent.click(toolButton)
+
+    expect(toolButton).toHaveTextContent('Ran command')
+    const command = screen.getByTestId('shell-command')
+    expect(command).toHaveTextContent('$npm run lint && npm run build')
+    expect(command.lastElementChild).toHaveStyle({ whiteSpace: 'pre-wrap' })
   })
 
   it('renders ANSI shell output without raw escape markers', () => {
@@ -782,7 +867,7 @@ describe('ToolCallCard shell rendering', () => {
     vi.useRealTimers()
   })
 
-  it('shows Ran + command while shell is running (same style as completed, not Calling Exec)', () => {
+  it('shows Running + command while shell is running', () => {
     const item: ConversationItem = {
       id: 'tool-ran',
       type: 'toolCall',
@@ -799,6 +884,7 @@ describe('ToolCallCard shell rendering', () => {
     renderWithLocale(<ToolCallCard item={item} turnId="turn-1" />)
 
     expect(document.querySelector('.tool-running-gradient-text')).toBeInTheDocument()
+    expect(screen.getByRole('button')).toHaveTextContent('Running: echo hello')
   })
 
   it('renders isolated live shell output while the running timer continues advancing', () => {

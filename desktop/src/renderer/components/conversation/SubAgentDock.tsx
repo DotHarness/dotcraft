@@ -29,6 +29,8 @@ import { addToast } from '../../stores/toastStore'
 import type { QueuedTurnInput } from '../../types/conversation'
 import { RunningSpinner } from '../ui/RunningSpinner'
 import { ActionTooltip } from '../ui/ActionTooltip'
+import { Button } from '../ui/Button'
+import { IconButton } from '../ui/IconButton'
 import { getSubAgentAccent, getSubAgentIdentitySeed } from '../../utils/subAgentPresentation'
 
 interface SubAgentDockProps {
@@ -151,32 +153,33 @@ export function BackgroundActivityDock({
         )}
         <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', flexShrink: 0 }}>
           {doneCount > 0 && (
-            <button
-              type="button"
+            <Button
+              variant="ghost"
+              size="sm"
               aria-label={t('subAgentDock.viewDone', { count: doneCount })}
               onClick={(event) => {
                 event.stopPropagation()
                 openSubagentsTab()
               }}
-              style={viewDoneButtonStyle}
+              style={compactTextButtonStyle}
             >
               {t('subAgentDock.viewDone', { count: doneCount })}
-            </button>
+            </Button>
           )}
           {closeableRunning.length > 0 && (
-            <ActionTooltip label={t('subAgentDock.stopAll')} placement="top">
-              <button
-                type="button"
-                aria-label={t('subAgentDock.stopAll')}
-                onClick={(event) => {
-                  event.stopPropagation()
-                  void stopAll()
-                }}
-                style={iconButtonStyle}
-              >
-                <Square size={12} fill="currentColor" aria-hidden="true" />
-              </button>
-            </ActionTooltip>
+            <IconButton
+              icon={<Square size={12} fill="currentColor" aria-hidden="true" />}
+              label={t('subAgentDock.stopAll')}
+              tooltipLabel={t('subAgentDock.stopAll')}
+              tooltipPlacement="top"
+              size={24}
+              radius={6}
+              tone="danger"
+              onClick={(event) => {
+                event.stopPropagation()
+                void stopAll()
+              }}
+            />
           )}
         </span>
       </div>
@@ -362,50 +365,42 @@ function QueuedInputDockRow({
         label={isGuidancePending ? t('composer.queueGuidancePending') : t('composer.queueGuide')}
         placement="top"
       >
-        <button
-          type="button"
+        <Button
+          variant="ghost"
+          size="sm"
+          iconLeft={<CornerDownRight size={13} strokeWidth={1.9} />}
           onClick={() => onSteer?.(item.id)}
           disabled={isGuidancePending || !onSteer}
           aria-label={isGuidancePending ? t('composer.queueGuidancePending') : t('composer.queueGuide')}
-          style={{
-            ...queuedSteerButtonStyle,
-            opacity: isGuidancePending ? 0.55 : 1,
-            cursor: isGuidancePending || !onSteer ? 'default' : 'pointer'
-          }}
+          style={compactQueueGuideButtonStyle}
         >
-          <CornerDownRight size={13} strokeWidth={1.9} aria-hidden style={{ flexShrink: 0 }} />
-          <span>{isGuidancePending ? t('composer.queueGuidancePending') : t('composer.queueGuide')}</span>
-        </button>
+          {isGuidancePending ? t('composer.queueGuidancePending') : t('composer.queueGuide')}
+        </Button>
       </ActionTooltip>
-      <ActionTooltip label={t('composer.queueRemove')} placement="top">
-        <button
-          type="button"
-          onClick={() => onRemove?.(item.id)}
-          disabled={!onRemove}
-          aria-label={t('composer.queueRemove')}
-          style={queuedIconButtonStyle}
-        >
-          <Trash2 size={14} strokeWidth={1.8} aria-hidden />
-        </button>
-      </ActionTooltip>
-      <ActionTooltip label={t('composer.queueEdit')} placement="top">
-        <button
-          type="button"
-          onClick={() => onEdit?.(item.id)}
-          disabled={!canEdit || editing}
-          aria-label={t('composer.queueEdit')}
-          aria-busy={editing}
-          style={{
-            ...queuedIconButtonStyle,
-            opacity: canEdit ? 1 : 0.55,
-            cursor: canEdit && !editing ? 'pointer' : 'default'
-          }}
-        >
-          {editing
-            ? <RunningSpinner size={12} borderWidth={1.8} testId={`queued-editing-${item.id}`} />
-            : <Pencil size={14} strokeWidth={1.8} aria-hidden />}
-        </button>
-      </ActionTooltip>
+      <IconButton
+        icon={<Trash2 size={14} strokeWidth={1.8} aria-hidden />}
+        label={t('composer.queueRemove')}
+        tooltipLabel={t('composer.queueRemove')}
+        tooltipPlacement="top"
+        size={24}
+        radius={5}
+        tone="danger"
+        onClick={() => onRemove?.(item.id)}
+        disabled={!onRemove}
+      />
+      <IconButton
+        icon={editing
+          ? <RunningSpinner size={12} borderWidth={1.8} testId={`queued-editing-${item.id}`} />
+          : <Pencil size={14} strokeWidth={1.8} aria-hidden />}
+        label={t('composer.queueEdit')}
+        tooltipLabel={t('composer.queueEdit')}
+        tooltipPlacement="top"
+        size={24}
+        radius={5}
+        onClick={() => onEdit?.(item.id)}
+        disabled={!canEdit || editing}
+        aria-busy={editing}
+      />
     </div>
   )
 }
@@ -477,24 +472,29 @@ function SubAgentDockRow({
           </span>
         </ActionTooltip>
         {canOpen ? (
-          <button type="button" onClick={openThread} style={textButtonStyle}>
-            <ExternalLink size={12} aria-hidden="true" />
-            <span>{t('subAgentDock.open')}</span>
-          </button>
+          <Button
+            variant="ghost"
+            size="sm"
+            iconLeft={<ExternalLink size={12} />}
+            onClick={openThread}
+            style={compactTextButtonStyle}
+          >
+            {t('subAgentDock.open')}
+          </Button>
         ) : (
           <span aria-hidden style={{ width: 1 }} />
         )}
         {child.supportsClose && child.agentPath && running && canOpen && (
-          <ActionTooltip label={t('subAgentDock.stop')} placement="top">
-            <button
-              type="button"
-              aria-label={t('subAgentDock.stopAria', { name: child.nickname })}
-              onClick={() => { void stop() }}
-              style={iconButtonStyle}
-            >
-              <Square size={11} fill="currentColor" aria-hidden="true" />
-            </button>
-          </ActionTooltip>
+          <IconButton
+            icon={<Square size={11} fill="currentColor" aria-hidden="true" />}
+            label={t('subAgentDock.stopAria', { name: child.nickname })}
+            tooltipLabel={t('subAgentDock.stop')}
+            tooltipPlacement="top"
+            size={24}
+            radius={6}
+            tone="danger"
+            onClick={() => { void stop() }}
+          />
         )}
       </div>
     </div>
@@ -672,33 +672,11 @@ const queueLabelStyle: CSSProperties = {
   textOverflow: 'ellipsis'
 }
 
-const queuedSteerButtonStyle: CSSProperties = {
-  border: 'none',
-  background: 'transparent',
-  color: 'var(--text-dimmed)',
-  cursor: 'pointer',
-  display: 'inline-flex',
-  alignItems: 'center',
-  gap: '4px',
-  fontSize: '12px',
-  minHeight: '24px',
-  padding: '2px 4px',
-  borderRadius: '5px'
-}
-
-const queuedIconButtonStyle: CSSProperties = {
-  width: '24px',
+const compactQueueGuideButtonStyle: CSSProperties = {
   height: '24px',
-  border: 'none',
-  background: 'transparent',
-  color: 'var(--text-dimmed)',
-  cursor: 'pointer',
-  display: 'inline-flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  padding: 0,
-  borderRadius: '5px',
-  flexShrink: 0
+  minHeight: '24px',
+  padding: '0 4px',
+  borderRadius: '5px'
 }
 
 function rowsViewportStyle(collapsed: boolean, maxHeight: number): CSSProperties {
@@ -776,41 +754,10 @@ const descriptionStyle: CSSProperties = {
   color: 'var(--text-secondary)'
 }
 
-const iconButtonStyle: CSSProperties = {
-  width: 24,
-  height: 24,
-  padding: 0,
-  border: 'none',
-  borderRadius: 6,
-  background: 'transparent',
-  color: 'var(--text-dimmed)',
-  display: 'inline-flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  cursor: 'pointer'
-}
-
-const textButtonStyle: CSSProperties = {
-  border: 'none',
-  background: 'transparent',
-  color: 'var(--text-dimmed)',
-  display: 'inline-flex',
-  alignItems: 'center',
-  gap: '4px',
-  padding: '2px 4px',
-  fontSize: '12px',
-  cursor: 'pointer'
-}
-
-const viewDoneButtonStyle: CSSProperties = {
-  border: 'none',
-  background: 'transparent',
-  color: 'var(--text-dimmed)',
-  display: 'inline-flex',
-  alignItems: 'center',
-  padding: '2px 8px',
-  fontSize: '12px',
+const compactTextButtonStyle: CSSProperties = {
+  height: '24px',
+  minHeight: '24px',
+  padding: '0 8px',
   borderRadius: '6px',
-  cursor: 'pointer',
   whiteSpace: 'nowrap'
 }

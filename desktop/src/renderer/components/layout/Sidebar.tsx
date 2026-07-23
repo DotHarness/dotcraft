@@ -28,6 +28,7 @@ import {
 import { SettingsIcon } from '../ui/AppIcons'
 import { Bot, MessageSquare, Puzzle, SquareKanban, SquarePen, UsersRound } from 'lucide-react'
 import { ActionTooltip } from '../ui/ActionTooltip'
+import { IconButton } from '../ui/IconButton'
 import { ACTION_SHORTCUTS } from '../ui/shortcutKeys'
 
 interface SidebarProps {
@@ -338,9 +339,12 @@ function CollapsedSidebar(): JSX.Element {
       }}
     >
       {/* New thread icon */}
-      <ActionTooltip
+      <IconButton
+        icon={<SquarePen size={16} strokeWidth={1.8} aria-hidden="true" />}
         label={t('sidebar.newThreadLabel')}
+        tooltipLabel={t('sidebar.newThreadLabel')}
         shortcut={status === 'connected' ? ACTION_SHORTCUTS.newThread : undefined}
+        tooltipPlacement="right"
         disabledReason={
           status !== 'connected'
             ? t('connection.statusTitle', {
@@ -348,92 +352,65 @@ function CollapsedSidebar(): JSX.Element {
             })
             : undefined
         }
-        placement="right"
-      >
-        <button
-          onClick={handleNewThread}
-          disabled={status !== 'connected'}
-          style={{
-            ...iconButtonStyle,
-            backgroundColor: 'transparent',
-            color: status === 'connected' ? 'var(--text-secondary)' : 'var(--text-tertiary)',
-            fontSize: '18px',
-            lineHeight: 'var(--type-ui-line-height)',
-            fontWeight: 'var(--type-ui-emphasis-weight)',
-            opacity: status !== 'connected' ? 0.5 : 1
-          }}
-          aria-label={t('sidebar.newThreadLabel')}
-        >
-          <SquarePen size={16} strokeWidth={1.8} aria-hidden="true" />
-        </button>
-      </ActionTooltip>
+        size={32}
+        radius={8}
+        className="dc-sidebar-icon-button"
+        onClick={handleNewThread}
+        disabled={status !== 'connected'}
+      />
 
-      <CollapsedNavTooltip label={t('sidebar.channels')}>
-        <button
-          type="button"
-          onClick={() => setActiveMainView('channels')}
-          style={{
-            ...iconButtonStyle,
-            backgroundColor: activeMainView === 'channels' ? 'var(--sidebar-control-active)' : 'transparent',
-            color: activeMainView === 'channels' ? 'var(--accent)' : 'var(--text-secondary)'
-          }}
-          aria-label={t('sidebar.channels')}
-        >
-          <ChannelsIcon />
-        </button>
-      </CollapsedNavTooltip>
+      <IconButton
+        icon={<ChannelsIcon />}
+        label={t('sidebar.channels')}
+        tooltipLabel={t('sidebar.channels')}
+        tooltipPlacement="right"
+        size={32}
+        radius={8}
+        className="dc-sidebar-icon-button"
+        active={activeMainView === 'channels'}
+        onClick={() => setActiveMainView('channels')}
+      />
       {desktopMainViews.map((entry) => {
         const label = resolveLocalizedText(entry.localizedLabel, entry.label, locale) ?? entry.label
         return (
-        <CollapsedNavTooltip key={entry.viewKey} label={label}>
-          <button
-            type="button"
-            onClick={() => setActiveMainView(entry.viewKey)}
-            style={{
-              ...iconButtonStyle,
-              backgroundColor: activeMainView === entry.viewKey ? 'var(--sidebar-control-active)' : 'transparent',
-              color: activeMainView === entry.viewKey ? 'var(--accent)' : 'var(--text-secondary)'
-            }}
-            aria-label={label}
-          >
-            <ExtensionIcon icon={entry.icon} />
-          </button>
-        </CollapsedNavTooltip>
+        <IconButton
+          key={entry.viewKey}
+          icon={<ExtensionIcon icon={entry.icon} />}
+          label={label}
+          tooltipLabel={label}
+          tooltipPlacement="right"
+          size={32}
+          radius={8}
+          className="dc-sidebar-icon-button"
+          active={activeMainView === entry.viewKey}
+          onClick={() => setActiveMainView(entry.viewKey)}
+        />
         )
       })}
-      <CollapsedNavTooltip
+      <IconButton
+        icon={<AutomationsIcon />}
         label={t('sidebar.automations')}
+        tooltipLabel={t('sidebar.automations')}
+        tooltipPlacement="right"
         disabledReason={!collapsedAutomationsAvailable ? t('sidebar.automationsDisabled') : undefined}
-      >
-        <button
-          type="button"
-          onClick={collapsedAutomationsAvailable ? () => setActiveMainView('automations') : undefined}
-          disabled={!collapsedAutomationsAvailable}
-          style={{
-            ...iconButtonStyle,
-            backgroundColor: activeMainView === 'automations' ? 'var(--sidebar-control-active)' : 'transparent',
-            color: activeMainView === 'automations' ? 'var(--accent)' : 'var(--text-secondary)',
-            opacity: collapsedAutomationsAvailable ? 1 : 0.4
-          }}
-          aria-label={t('sidebar.automations')}
-        >
-          <AutomationsIcon />
-        </button>
-      </CollapsedNavTooltip>
-      <CollapsedNavTooltip label={t('sidebar.skills')}>
-        <button
-          type="button"
-          onClick={() => setActiveMainView('skills')}
-          style={{
-            ...iconButtonStyle,
-            backgroundColor: activeMainView === 'skills' ? 'var(--sidebar-control-active)' : 'transparent',
-            color: activeMainView === 'skills' ? 'var(--accent)' : 'var(--text-secondary)'
-          }}
-          aria-label={t('sidebar.skills')}
-        >
-          <SkillsIcon />
-        </button>
-      </CollapsedNavTooltip>
+        size={32}
+        radius={8}
+        className="dc-sidebar-icon-button"
+        active={activeMainView === 'automations'}
+        onClick={collapsedAutomationsAvailable ? () => setActiveMainView('automations') : undefined}
+        disabled={!collapsedAutomationsAvailable}
+      />
+      <IconButton
+        icon={<SkillsIcon />}
+        label={t('sidebar.skills')}
+        tooltipLabel={t('sidebar.skills')}
+        tooltipPlacement="right"
+        size={32}
+        radius={8}
+        className="dc-sidebar-icon-button"
+        active={activeMainView === 'skills'}
+        onClick={() => setActiveMainView('skills')}
+      />
 
       {/* Projects rail (folder icons) — one per project, foreground marked with an
           accent ring; falls back to recent-thread dots. Scrolls when crowded and
@@ -463,25 +440,26 @@ function CollapsedSidebar(): JSX.Element {
                 )
                 const label = project.name || project.path
                 return (
-                  <ActionTooltip key={projectIdentity(project)} label={label} placement="right">
-                    <button
-                      type="button"
-                      onClick={() => void handleProjectClick(project, isForeground)}
-                      aria-label={label}
-                      aria-current={isForeground ? 'true' : undefined}
-                      style={{
-                        ...iconButtonStyle,
-                        backgroundColor: isForeground ? 'var(--sidebar-control-active)' : 'transparent'
-                      }}
-                    >
+                  <IconButton
+                    key={projectIdentity(project)}
+                    icon={(
                       <ProjectGlyph
                         project={project}
                         collapsed={!isForeground}
                         cold={isColdProject(project)}
                         active={isForeground}
                       />
-                    </button>
-                  </ActionTooltip>
+                    )}
+                    label={label}
+                    tooltipLabel={label}
+                    tooltipPlacement="right"
+                    size={32}
+                    radius={8}
+                    className="dc-sidebar-icon-button"
+                    active={isForeground}
+                    aria-current={isForeground ? 'true' : undefined}
+                    onClick={() => void handleProjectClick(project, isForeground)}
+                  />
                 )
               })}
               {chat && (() => {
@@ -491,21 +469,19 @@ function CollapsedSidebar(): JSX.Element {
                   foregroundWorkspacePath
                 )
                 return (
-                  <ActionTooltip key={projectIdentity(chat)} label={t('chatsRail.title')} placement="right">
-                    <button
-                      type="button"
-                      onClick={() => void handleChatClick(isForeground)}
-                      aria-label={t('chatsRail.title')}
-                      aria-current={isForeground ? 'true' : undefined}
-                      style={{
-                        ...iconButtonStyle,
-                        backgroundColor: isForeground ? 'var(--sidebar-control-active)' : 'transparent',
-                        color: isForeground ? 'var(--accent)' : 'var(--text-secondary)'
-                      }}
-                    >
-                      <MessageSquare size={16} strokeWidth={1.8} aria-hidden />
-                    </button>
-                  </ActionTooltip>
+                  <IconButton
+                    key={projectIdentity(chat)}
+                    icon={<MessageSquare size={16} strokeWidth={1.8} aria-hidden />}
+                    label={t('chatsRail.title')}
+                    tooltipLabel={t('chatsRail.title')}
+                    tooltipPlacement="right"
+                    size={32}
+                    radius={8}
+                    className="dc-sidebar-icon-button"
+                    active={isForeground}
+                    aria-current={isForeground ? 'true' : undefined}
+                    onClick={() => void handleChatClick(isForeground)}
+                  />
                 )
               })()}
             </>
@@ -513,46 +489,43 @@ function CollapsedSidebar(): JSX.Element {
           : recentThreads.map((thread) => {
               const letter = (thread.displayName ?? 'N')[0].toUpperCase()
               return (
-                <ActionTooltip
+                <IconButton
                   key={thread.id}
+                  icon={letter}
                   label={thread.displayName ?? t('sidebar.newConversation')}
-                  placement="right"
-                >
-                  <button
-                    onClick={() => {
-                      setActiveThreadId(thread.id)
-                      setActiveMainView('conversation')
-                    }}
-                    style={{
-                      ...iconButtonStyle,
-                      fontSize: 'var(--type-secondary-size)',
-                      lineHeight: 'var(--type-secondary-line-height)',
-                      fontWeight: 'var(--type-ui-emphasis-weight)',
-                      backgroundColor: 'var(--sidebar-control-active)'
-                    }}
-                    aria-label={thread.displayName ?? t('sidebar.newConversation')}
-                  >
-                    {letter}
-                  </button>
-                </ActionTooltip>
+                  tooltipLabel={thread.displayName ?? t('sidebar.newConversation')}
+                  tooltipPlacement="right"
+                  size={32}
+                  radius={8}
+                  className="dc-sidebar-icon-button"
+                  onClick={() => {
+                    setActiveThreadId(thread.id)
+                    setActiveMainView('conversation')
+                  }}
+                  style={{
+                    fontSize: 'var(--type-secondary-size)',
+                    lineHeight: 'var(--type-secondary-line-height)',
+                    fontWeight: 'var(--type-ui-emphasis-weight)',
+                    backgroundColor: 'var(--sidebar-control-active)'
+                  }}
+                />
               )
             })}
       </div>
 
       {/* Settings icon button */}
-      <ActionTooltip label={t('sidebar.openSettingsAria')} shortcut={ACTION_SHORTCUTS.settings} placement="right">
-        <button
-          onClick={() => setActiveMainView('settings')}
-          aria-label={t('sidebar.openSettingsAria')}
-          style={{
-            ...iconButtonStyle,
-            backgroundColor: activeMainView === 'settings' ? 'var(--sidebar-control-active)' : 'transparent',
-            color: activeMainView === 'settings' ? 'var(--accent)' : 'var(--text-secondary)'
-          }}
-        >
-          <SettingsIcon />
-        </button>
-      </ActionTooltip>
+      <IconButton
+        icon={<SettingsIcon />}
+        label={t('sidebar.openSettingsAria')}
+        tooltipLabel={t('sidebar.openSettingsAria')}
+        shortcut={ACTION_SHORTCUTS.settings}
+        tooltipPlacement="right"
+        size={32}
+        radius={8}
+        className="dc-sidebar-icon-button"
+        active={activeMainView === 'settings'}
+        onClick={() => setActiveMainView('settings')}
+      />
 
       {/* Connection status dot — only when the projects rail (which carries its own
           per-project status dots) is not shown. */}
@@ -578,35 +551,4 @@ function CollapsedSidebar(): JSX.Element {
       )}
     </div>
   )
-}
-
-function CollapsedNavTooltip({
-  label,
-  disabledReason,
-  children
-}: {
-  label: string
-  disabledReason?: string
-  children: JSX.Element
-}): JSX.Element {
-  return (
-    <ActionTooltip label={label} disabledReason={disabledReason} placement="right">
-      {children}
-    </ActionTooltip>
-  )
-}
-
-const iconButtonStyle: React.CSSProperties = {
-  width: '32px',
-  height: '32px',
-  borderRadius: 'var(--sidebar-icon-control-radius)',
-  backgroundColor: 'transparent',
-  border: 'none',
-  color: 'var(--text-secondary)',
-  cursor: 'pointer',
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  fontSize: 'var(--type-ui-size)',
-  lineHeight: 'var(--type-ui-line-height)'
 }

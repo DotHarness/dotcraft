@@ -33,6 +33,7 @@ import { isInternalThread } from '../../utils/internalThreads'
 import { Skeleton } from '../ui/Skeleton'
 import { RunningSpinner } from '../ui/RunningSpinner'
 import { ActionTooltip } from '../ui/ActionTooltip'
+import { IconButton } from '../ui/IconButton'
 import { useLocale } from '../../contexts/LocaleContext'
 import { formatRelativeTime } from '../../utils/relativeTime'
 import type { WorkspaceProjectSummary, WorkspaceProjectState } from '../../../shared/workspaceProjects'
@@ -758,23 +759,21 @@ function ProjectsSectionHeader({
             workspacePath={workspacePath}
             localWorkspacePath={localWorkspacePath}
             localActionsDisabled={localActionsDisabled}
-            buttonStyle={projectIconButtonStyle}
             onOpenChange={setWorkspaceMenuOpen}
           />
         )}
-        <ActionTooltip label={t('projectsRail.addProject')}>
-          <button
-            ref={addButtonRef}
-            type="button"
-            aria-label={t('projectsRail.addProject')}
-            aria-haspopup="menu"
-            aria-expanded={addMenuOpen}
-            onClick={() => setAddMenuOpen((open) => !open)}
-            style={projectIconButtonStyle}
-          >
-            <FolderPlus size={15} aria-hidden />
-          </button>
-        </ActionTooltip>
+        <IconButton
+          ref={addButtonRef}
+          icon={<FolderPlus size={15} aria-hidden />}
+          label={t('projectsRail.addProject')}
+          tooltipLabel={t('projectsRail.addProject')}
+          size={24}
+          radius={6}
+          className="dc-thread-list-icon-button"
+          aria-haspopup="menu"
+          aria-expanded={addMenuOpen}
+          onClick={() => setAddMenuOpen((open) => !open)}
+        />
       </div>
       {addMenuOpen && addMenuPosition && typeof document !== 'undefined' && createPortal(
         <div
@@ -949,16 +948,15 @@ function ChatsSectionHeader({
           transition: 'opacity 120ms ease'
         }}
       >
-        <ActionTooltip label={t('sidebar.newThreadLabel')}>
-          <button
-            type="button"
-            aria-label={t('sidebar.newThreadLabel')}
-            onClick={onNewChat}
-            style={projectIconButtonStyle}
-          >
-            <SquarePen size={15} aria-hidden />
-          </button>
-        </ActionTooltip>
+        <IconButton
+          icon={<SquarePen size={15} aria-hidden />}
+          label={t('sidebar.newThreadLabel')}
+          tooltipLabel={t('sidebar.newThreadLabel')}
+          size={24}
+          radius={6}
+          className="dc-thread-list-icon-button"
+          onClick={onNewChat}
+        />
       </div>
     </div>
   )
@@ -1159,15 +1157,16 @@ function ProjectHeader({
     <>
       <div className="sidebar-entry-details-header">
         <span className="sidebar-entry-details-title" title={label}>{label}</span>
-        <button
-          type="button"
-          className="sidebar-entry-details-pin"
-          aria-label={project.pinned ? t('projectsRail.unpinProject') : t('projectsRail.pinProject')}
+        <IconButton
+          icon={<Pin size={14} fill={project.pinned ? 'currentColor' : 'none'} aria-hidden />}
+          label={project.pinned ? t('projectsRail.unpinProject') : t('projectsRail.pinProject')}
+          size={24}
+          radius={8}
+          className="dc-thread-list-icon-button"
           aria-pressed={project.pinned === true}
+          style={{ borderRadius: 'var(--sidebar-icon-control-radius)' }}
           onClick={() => { void toggleProjectPinned() }}
-        >
-          <Pin size={14} fill={project.pinned ? 'currentColor' : 'none'} aria-hidden />
-        </button>
+        />
       </div>
       {project.state === 'connecting' ? (
         <div className="sidebar-entry-details-row" aria-busy="true" aria-label={t('projectsRail.loadingDetails')}>
@@ -1382,29 +1381,28 @@ function ProjectHeader({
       >
         {showActions ? (
           <>
-            <ActionTooltip label={t('projectsRail.newChat')}>
-              <button
-                type="button"
-                aria-label={t('projectsRail.newChat')}
-                onClick={() => { void newChat() }}
-                style={projectIconButtonStyle}
-              >
-                <SquarePen size={14} aria-hidden />
-              </button>
-            </ActionTooltip>
-            <ActionTooltip label={t('projectsRail.moreActions')}>
-              <button
-                type="button"
-                aria-label={t('projectsRail.moreActions')}
-                onClick={() => {
-                  if (!menuOpen) updateProjectMenuPosition()
-                  setMenuOpen((open) => !open)
-                }}
-                style={projectIconButtonStyle}
-              >
-                <MoreHorizontal size={15} aria-hidden />
-              </button>
-            </ActionTooltip>
+            <IconButton
+              icon={<SquarePen size={14} aria-hidden />}
+              label={t('projectsRail.newChat')}
+              tooltipLabel={t('projectsRail.newChat')}
+              size={24}
+              radius={6}
+              className="dc-thread-list-icon-button"
+              onClick={() => { void newChat() }}
+            />
+            <IconButton
+              icon={<MoreHorizontal size={15} aria-hidden />}
+              label={t('projectsRail.moreActions')}
+              tooltipLabel={t('projectsRail.moreActions')}
+              size={24}
+              radius={6}
+              className="dc-thread-list-icon-button"
+              aria-expanded={menuOpen}
+              onClick={() => {
+                if (!menuOpen) updateProjectMenuPosition()
+                setMenuOpen((open) => !open)
+              }}
+            />
             {showErrorIndicator && <ProjectErrorIndicator label={errorLabel} />}
           </>
         ) : showErrorIndicator ? (
@@ -1829,48 +1827,29 @@ function ReadonlyThreadRow({
               style={readonlyLeadingSlotStyle}
             >
               {supportsLocalActions ? (
-                <ActionTooltip
+                <IconButton
+                  icon={<PinIcon filled={isPinned} />}
                   label={isPinned ? t('threadEntry.unpin') : t('threadEntry.pin')}
-                  placement="right"
-                >
-                  <button
-                    type="button"
-                    aria-label={isPinned ? t('threadEntry.unpin') : t('threadEntry.pin')}
-                    aria-pressed={isPinned}
-                    data-testid={`project-thread-pin-${rowProjectKey}-${thread.id}`}
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      toggleWorkspacePin(project.path, thread.id, project.pinnedThreadIds ?? [])
-                    }}
-                    onFocus={() => setPinButtonFocused(true)}
-                    onBlur={() => setPinButtonFocused(false)}
-                    style={{
-                      width: '22px',
-                      height: '22px',
-                      padding: 0,
-                      border: 'none',
-                      backgroundColor: 'transparent',
-                      color: isPinned ? 'var(--text-secondary)' : 'var(--text-dimmed)',
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      cursor: showPinAction ? 'pointer' : 'default',
-                      opacity: showPinAction ? 1 : 0,
-                      pointerEvents: showPinAction ? 'auto' : 'none',
-                      transition: 'opacity 120ms ease, color 120ms ease'
-                    }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.color = 'var(--text-primary)'
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.color = isPinned
-                        ? 'var(--text-secondary)'
-                        : 'var(--text-dimmed)'
-                    }}
-                  >
-                    <PinIcon filled={isPinned} />
-                  </button>
-                </ActionTooltip>
+                  tooltipLabel={isPinned ? t('threadEntry.unpin') : t('threadEntry.pin')}
+                  tooltipPlacement="right"
+                  size={22}
+                  radius={6}
+                  className="dc-thread-list-icon-button"
+                  aria-pressed={isPinned}
+                  data-testid={`project-thread-pin-${rowProjectKey}-${thread.id}`}
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    toggleWorkspacePin(project.path, thread.id, project.pinnedThreadIds ?? [])
+                  }}
+                  onFocus={() => setPinButtonFocused(true)}
+                  onBlur={() => setPinButtonFocused(false)}
+                  style={{
+                    cursor: showPinAction ? 'pointer' : 'default',
+                    opacity: showPinAction ? 1 : 0,
+                    pointerEvents: showPinAction ? 'auto' : 'none',
+                    transition: 'opacity 120ms ease, color 120ms ease'
+                  }}
+                />
               ) : (
                 pinned && (
                   <ReadonlyPinnedIcon
@@ -1891,51 +1870,34 @@ function ReadonlyThreadRow({
         status={statusContent}
         statusExtra={
           supportsLocalActions ? (
-            <ActionTooltip label={t('threadEntry.archive')} placement="right">
-              <button
-                className="dotcraft-sidebar-control-radius"
-                type="button"
-                aria-label={t('threadEntry.archive')}
-                data-testid={`project-thread-archive-${rowProjectKey}-${thread.id}`}
-                onClick={(e) => {
-                  e.stopPropagation()
-                  void archiveWorkspaceThread(project.path, thread.id)
-                }}
-                onFocus={() => setArchiveButtonFocused(true)}
-                onBlur={() => setArchiveButtonFocused(false)}
-                style={{
-                  width: '24px',
-                  height: '24px',
-                  padding: 0,
-                  border: 'none',
-                  borderRadius: 'var(--sidebar-icon-control-radius)',
-                  backgroundColor: 'transparent',
-                  color: 'var(--text-dimmed)',
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  cursor: showArchiveAction ? 'pointer' : 'default',
-                  position: 'absolute',
-                  right: 0,
-                  top: '50%',
-                  transform: 'translateY(-50%)',
-                  opacity: showArchiveAction ? 1 : 0,
-                  pointerEvents: showArchiveAction ? 'auto' : 'none',
-                  transition: 'opacity 120ms ease, background-color 120ms ease, color 120ms ease',
-                  zIndex: 2
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.backgroundColor = 'var(--sidebar-control-hover)'
-                  e.currentTarget.style.color = 'var(--error)'
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.backgroundColor = 'transparent'
-                  e.currentTarget.style.color = 'var(--text-dimmed)'
-                }}
-              >
-                <Archive size={14} strokeWidth={2} aria-hidden="true" />
-              </button>
-            </ActionTooltip>
+            <IconButton
+              icon={<Archive size={14} strokeWidth={2} aria-hidden="true" />}
+              label={t('threadEntry.archive')}
+              tooltipLabel={t('threadEntry.archive')}
+              tooltipPlacement="right"
+              size={24}
+              radius={8}
+              className="dc-thread-list-icon-button"
+              data-testid={`project-thread-archive-${rowProjectKey}-${thread.id}`}
+              onClick={(e) => {
+                e.stopPropagation()
+                void archiveWorkspaceThread(project.path, thread.id)
+              }}
+              onFocus={() => setArchiveButtonFocused(true)}
+              onBlur={() => setArchiveButtonFocused(false)}
+              style={{
+                borderRadius: 'var(--sidebar-icon-control-radius)',
+                cursor: showArchiveAction ? 'pointer' : 'default',
+                position: 'absolute',
+                right: 0,
+                top: '50%',
+                transform: 'translateY(-50%)',
+                opacity: showArchiveAction ? 1 : 0,
+                pointerEvents: showArchiveAction ? 'auto' : 'none',
+                transition: 'opacity 120ms ease, color 120ms ease',
+                zIndex: 2
+              }}
+            />
           ) : undefined
         }
         containerStyle={{ cursor: 'pointer', textAlign: 'left' }}
@@ -2074,20 +2036,6 @@ function partitionPinnedThreads(
     pinnedThreads,
     unpinnedThreads: threads.filter((thread) => !included.has(thread.id))
   }
-}
-
-const projectIconButtonStyle: CSSProperties = {
-  width: '24px',
-  height: '24px',
-  padding: 0,
-  border: 'none',
-  borderRadius: 'var(--sidebar-icon-control-radius)',
-  backgroundColor: 'transparent',
-  color: 'var(--text-dimmed)',
-  display: 'inline-flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  cursor: 'pointer'
 }
 
 // Non-hover status indicators (spinner / waiting dot / error icon) sit in the

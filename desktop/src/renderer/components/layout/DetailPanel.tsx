@@ -339,6 +339,7 @@ export function DetailPanel({
           tooltipLabel={t('detailPanel.closeAria')}
           shortcut={ACTION_SHORTCUTS.toggleDetailPanel}
           tooltipPlacement="bottom"
+          tooltipWrapperStyle={{ alignSelf: 'center' }}
           onClick={toggleDetailPanel}
           style={{ marginRight: '4px' }}
           icon={<PanelRightClose size={16} aria-hidden />}
