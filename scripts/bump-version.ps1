@@ -112,6 +112,44 @@ function Update-NpmLockRootAndWorkspace {
     Write-Utf8NoBomFile -Path $Path -Content $content
 }
 
+function Update-NpmLockWorkspaceVersion {
+    param(
+        [Parameter(Mandatory = $true)][string]$Path,
+        [Parameter(Mandatory = $true)][string]$WorkspacePath,
+        [Parameter(Mandatory = $true)][string]$NewVersion
+    )
+
+    Assert-Exists -Path $Path
+    $content = [System.IO.File]::ReadAllText($Path)
+    $pattern = '("' + [System.Text.RegularExpressions.Regex]::Escape($WorkspacePath) + '"\s*:\s*\{\s*"name"\s*:\s*"[^"]+"\s*,\s*"version"\s*:\s*")[^"]+(")'
+    $content = Replace-Regex -Content $content -Pattern $pattern -Replacement ('${1}' + $NewVersion + '${2}') -Singleline
+    Write-Utf8NoBomFile -Path $Path -Content $content
+}
+
+# A lock file names every package it owns, so a version left behind anywhere in one
+# means a target was missed. This is what let the workspace entries sit at a stale
+# version through several releases while the workspace package.json files moved on.
+function Assert-NpmLockVersionsSynced {
+    param(
+        [Parameter(Mandatory = $true)][string]$Path,
+        [Parameter(Mandatory = $true)][string]$NewVersion
+    )
+
+    $content = [System.IO.File]::ReadAllText($Path)
+    $pattern = '"name"\s*:\s*"(@dotcraft/[^"]+|dotcraft-desktop)"\s*,\s*"version"\s*:\s*"([^"]+)"'
+    $stale = New-Object System.Collections.Generic.List[string]
+
+    foreach ($match in [System.Text.RegularExpressions.Regex]::Matches($content, $pattern)) {
+        if ($match.Groups[2].Value -ne $NewVersion) {
+            $stale.Add("$($match.Groups[1].Value) is still $($match.Groups[2].Value)") | Out-Null
+        }
+    }
+
+    if ($stale.Count -gt 0) {
+        throw "$Path was not fully updated: $($stale -join '; ')"
+    }
+}
+
 function Update-NpmLockLinkedSdkVersion {
     param(
         [Parameter(Mandatory = $true)][string]$Path,
@@ -150,6 +188,21 @@ $targets = @(
     @{ Type = "packageJson"; Path = "sdk/typescript/packages/channel-wecom/package.json" }
 )
 
+# The lock file carries one entry per workspace beside its root entry. That list is
+# derived from the workspace package.json targets above rather than repeated, so a
+# new channel package cannot be added to one place and forgotten in the other.
+$sdkWorkspaces = @(
+    $targets |
+        Where-Object { $_.Type -eq "packageJson" -and $_.Path -like "sdk/typescript/packages/*/package.json" } |
+        ForEach-Object { ($_.Path -replace "^sdk/typescript/", "") -replace "/package\.json$", "" }
+)
+
+foreach ($target in $targets) {
+    if ($target.Type -eq "npmLock" -and $target.Path -eq "sdk/typescript/package-lock.json") {
+        $target.Workspaces = $sdkWorkspaces
+    }
+}
+
 $updatedFiles = New-Object System.Collections.Generic.List[string]
 
 foreach ($target in $targets) {
@@ -172,9 +225,15 @@ foreach ($target in $targets) {
         }
         "npmLock" {
             Update-NpmLockRootAndWorkspace -Path $absolutePath -RootName $target.Name -NewVersion $Version
+            if ($target.ContainsKey("Workspaces")) {
+                foreach ($workspace in $target.Workspaces) {
+                    Update-NpmLockWorkspaceVersion -Path $absolutePath -WorkspacePath $workspace -NewVersion $Version
+                }
+            }
             if ($target.ContainsKey("UpdateLinkedSdk") -and $target.UpdateLinkedSdk) {
                 Update-NpmLockLinkedSdkVersion -Path $absolutePath -NewVersion $Version
             }
+            Assert-NpmLockVersionsSynced -Path $absolutePath -NewVersion $Version
         }
         default {
             throw "Unknown target type: $($target.Type)"
