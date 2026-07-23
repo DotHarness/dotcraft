@@ -4,6 +4,7 @@ import { translate } from '../../../shared/locales'
 import { useLocale } from '../../contexts/LocaleContext'
 import { Button } from '../ui/Button'
 import { Checkbox } from '../ui/Checkbox'
+import { Input } from '../ui/Input'
 import { Select } from '../ui/Select'
 
 export interface McpElicitationRequest {
@@ -125,7 +126,6 @@ export function McpElicitationDialog({ request, onRespond }: Props): JSX.Element
                   <Select
                     value={String(values[field.name] ?? '')}
                     ariaLabel={field.title}
-                    style={inputStyle}
                     onValueChange={(nextValue) => setValues((current) => ({
                       ...current,
                       [field.name]: coerceValue(field, nextValue)
@@ -136,7 +136,7 @@ export function McpElicitationDialog({ request, onRespond }: Props): JSX.Element
                     ]}
                   />
                 ) : (
-                  <input
+                  <Input
                     type={field.type === 'string' ? 'text' : 'number'}
                     className={field.type === 'string' ? undefined : 'dc-plain-number'}
                     aria-label={field.title}
@@ -146,7 +146,6 @@ export function McpElicitationDialog({ request, onRespond }: Props): JSX.Element
                     min={field.minimum}
                     max={field.maximum}
                     required={field.required}
-                    style={inputStyle}
                     onChange={(event) => setValues((current) => ({ ...current, [field.name]: coerceValue(field, event.target.value) }))}
                   />
                 )}
@@ -371,4 +370,3 @@ const dialogStyle = { width: 440, maxWidth: 'calc(100vw - 40px)', maxHeight: 'ca
 const titleStyle = { margin: 0, color: 'var(--text-primary)', fontSize: 15, fontWeight: 600 } as const
 const messageStyle = { margin: '8px 0 18px', color: 'var(--text-secondary)', fontSize: 13, lineHeight: 1.5, whiteSpace: 'pre-wrap' } as const
 const errorStyle = { color: 'var(--error)', fontSize: 12 } as const
-const inputStyle = { width: '100%', boxSizing: 'border-box', border: '1px solid var(--border-default)', borderRadius: 8, padding: '7px 9px', background: 'var(--bg-primary)', color: 'var(--text-primary)' } as const

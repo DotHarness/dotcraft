@@ -32,6 +32,12 @@ venv
 tmp
 *.tmp.md
 
+# Channel modules staged for packaging, rebuilt from sdk/typescript/packages by
+# build.bat. Dev resolves the SDK packages directly, so these exist only between a
+# build and the electron-builder run. Their dist/ output was already ignored, which
+# left the tracked manifests useless on their own and free to drift.
+desktop/resources/modules/
+
 # E2E test artifacts
 desktop/e2e/screenshots/
 /sdk/typescript/packages/channel-weixin/data

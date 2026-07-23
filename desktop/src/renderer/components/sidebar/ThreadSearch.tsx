@@ -4,6 +4,7 @@ import { Monitor, Search } from 'lucide-react'
 import { useT } from '../../contexts/LocaleContext'
 import { useThreadStore } from '../../stores/threadStore'
 import { useUIStore } from '../../stores/uiStore'
+import { Input } from '../ui/Input'
 import type { ThreadSummary } from '../../types/thread'
 import { isSubAgentThread } from '../../utils/subAgentThreads'
 import { ShortcutBadge } from '../ui/ShortcutBadge'
@@ -193,23 +194,19 @@ function ThreadSearchDialog({ workspaceName, onClose }: ThreadSearchDialogProps)
           padding: '16px 8px 10px'
         }}
       >
-        <input
+        <Input
+          bare
           ref={inputRef}
           value={query}
           onChange={(event) => setQuery(event.currentTarget.value)}
           placeholder={t('threadSearchDialog.placeholder')}
           aria-label={t('threadSearchDialog.placeholder')}
           style={{
-            width: '100%',
             height: '30px',
-            border: 'none',
-            outline: 'none',
             background: 'transparent',
-            color: 'var(--text-primary)',
             fontSize: 'var(--type-body-size)',
             lineHeight: 'var(--type-body-line-height)',
-            padding: '0 12px',
-            boxSizing: 'border-box'
+            padding: '0 12px'
           }}
         />
 

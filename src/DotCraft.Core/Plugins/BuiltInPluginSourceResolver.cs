@@ -5,7 +5,8 @@ namespace DotCraft.Plugins;
 internal sealed record BuiltInPluginSource(
     PluginManifest Manifest,
     string PluginRoot,
-    string ContainerRoot);
+    string ContainerRoot,
+    string? MarketplaceName = null);
 
 internal static class BuiltInPluginSourceResolver
 {
@@ -14,7 +15,8 @@ internal static class BuiltInPluginSourceResolver
     public static IReadOnlyList<BuiltInPluginSource> Discover(
         IReadOnlyList<string>? sourceRoots,
         List<PluginDiagnostic> diagnostics,
-        AppConfig.PluginsConfig? pluginsConfig = null)
+        AppConfig.PluginsConfig? pluginsConfig = null,
+        string? craftHome = null)
     {
         var roots = sourceRoots ?? ResolveEnvironmentRoots();
         var sources = new List<BuiltInPluginSource>();
@@ -71,13 +73,13 @@ internal static class BuiltInPluginSourceResolver
             }
         }
 
-        foreach (var registryPlugin in PluginSourceRegistryCatalog.Discover(pluginsConfig, diagnostics))
+        foreach (var registryPlugin in PluginSourceRegistryCatalog.Discover(pluginsConfig, diagnostics, craftHome))
         {
             if (!seenPluginIds.Add(registryPlugin.Manifest.Id))
             {
                 diagnostics.Add(PluginDiagnostic.Warning(
                     "DuplicateBuiltInPluginId",
-                    $"Registry plugin '{registryPlugin.Manifest.Id}' was skipped because a higher-priority source already provided it.",
+                    $"Marketplace plugin '{registryPlugin.Manifest.Id}' was skipped because a higher-priority source already provided it.",
                     registryPlugin.Manifest.Id,
                     path: registryPlugin.PluginRoot));
                 continue;

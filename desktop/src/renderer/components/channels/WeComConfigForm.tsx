@@ -3,6 +3,7 @@ import type { WeComChannelConfig } from './useChannelConfig'
 import { ToggleSwitch } from './ToggleSwitch'
 import type { ChannelConnectionState } from './ChannelCard'
 import { formStyles, StatusPill, FieldCard, FormActions, SecretInput } from './FormShared'
+import { Input } from '../ui/Input'
 import { Button } from '../ui/Button'
 import { IconButton } from '../ui/IconButton'
 import { Trash2 } from 'lucide-react'
@@ -85,27 +86,20 @@ export function WeComConfigForm({
           </div>
           <div style={formStyles.fieldGroup}>
             <label style={formStyles.label}>{t('channels.wecom.host')}</label>
-            <input
-              type="text"
+            <Input
               value={value.Host}
               onChange={(e) => onChange({ ...value, Host: e.target.value })}
-              style={formStyles.input}
-              onFocus={formStyles.inputFocus}
-              onBlur={formStyles.inputBlur}
             />
           </div>
           <div style={{ ...formStyles.fieldGroup, marginBottom: 0 }}>
             <label style={formStyles.label}>{t('channels.wecom.port')}</label>
-            <input
+            <Input
               type="number"
               className="dc-plain-number"
               value={String(value.Port)}
               onChange={(e) =>
                 onChange({ ...value, Port: Number.parseInt(e.target.value || '0', 10) || 0 })
               }
-              style={formStyles.input}
-              onFocus={formStyles.inputFocus}
-              onBlur={formStyles.inputBlur}
             />
           </div>
         </FieldCard>
@@ -135,8 +129,7 @@ export function WeComConfigForm({
                 <div
                   style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '8px', marginBottom: '8px' }}
                 >
-                  <input
-                    type="text"
+                  <Input
                     value={robot.Path}
                     placeholder={t('channels.wecom.robotPath')}
                     onChange={(e) => {
@@ -144,9 +137,6 @@ export function WeComConfigForm({
                       next[index] = { ...next[index], Path: e.target.value }
                       onChange({ ...value, Robots: next })
                     }}
-                    style={formStyles.input}
-                    onFocus={formStyles.inputFocus}
-                    onBlur={formStyles.inputBlur}
                   />
                   <SecretInput
                     value={robot.Token}
@@ -156,9 +146,6 @@ export function WeComConfigForm({
                       next[index] = { ...next[index], Token: nextValue }
                       onChange({ ...value, Robots: next })
                     }}
-                    onFocus={formStyles.inputFocus}
-                    onBlur={formStyles.inputBlur}
-                    style={formStyles.input}
                   />
                   <SecretInput
                     value={robot.AesKey}
@@ -168,9 +155,6 @@ export function WeComConfigForm({
                       next[index] = { ...next[index], AesKey: nextValue }
                       onChange({ ...value, Robots: next })
                     }}
-                    onFocus={formStyles.inputFocus}
-                    onBlur={formStyles.inputBlur}
-                    style={formStyles.input}
                   />
                 </div>
                 <IconButton

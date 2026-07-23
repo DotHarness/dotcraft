@@ -1,8 +1,46 @@
-import type { ButtonHTMLAttributes, CSSProperties, ReactNode } from 'react'
+import type { ButtonHTMLAttributes, CSSProperties, MouseEvent, ReactNode } from 'react'
 import { ChevronDown, ChevronLeft, ChevronRight, Search } from 'lucide-react'
 import { useState } from 'react'
 import { ContextMenu, type ContextMenuPosition } from '../ui/ContextMenu'
 import { Button } from '../ui/Button'
+import { IconButton } from '../ui/IconButton'
+import { Input } from '../ui/Input'
+
+/**
+ * Catalog top bars run one control band of their own — shorter and rounder than the
+ * ordinary 32px/8px band — shared by every control in the bar so the row reads as one
+ * strip. See the Catalog Toolbar Band section in specs/architecture/DESIGN.md.
+ */
+export const CATALOG_TOOLBAR_CONTROL_SIZE = 28
+export const CATALOG_TOOLBAR_CONTROL_RADIUS = 10
+
+/** Icon-only action sized for the catalog toolbar band. The label doubles as its tooltip. */
+export function CatalogToolbarIconButton({
+  label,
+  icon,
+  onClick,
+  disabled,
+  ...props
+}: {
+  label: string
+  icon: ReactNode
+  onClick: (event: MouseEvent<HTMLButtonElement>) => void
+  disabled?: boolean
+} & Omit<ButtonHTMLAttributes<HTMLButtonElement>, 'onClick' | 'children'>): JSX.Element {
+  return (
+    <IconButton
+      label={label}
+      tooltipLabel={label}
+      tooltipPlacement="bottom"
+      size={CATALOG_TOOLBAR_CONTROL_SIZE}
+      radius={CATALOG_TOOLBAR_CONTROL_RADIUS}
+      icon={icon}
+      onClick={onClick}
+      disabled={disabled}
+      {...props}
+    />
+  )
+}
 
 export interface CatalogFilterOption<T extends string> {
   value: T
@@ -157,8 +195,8 @@ export function CatalogSearchBox({
   return (
     <div style={{ ...styles.searchBox, ...style }}>
       <Search size={15} aria-hidden />
-      <input
-        type="text"
+      <Input
+        bare
         value={value}
         placeholder={placeholder}
         onChange={(event) => onChange(event.target.value)}
@@ -346,10 +384,13 @@ export const styles = {
     fontSize: '13px',
     lineHeight: 1.2
   },
+  // No bottom rule: the hero and its search band already float in ~44px of air
+  // above the first group, so a divider here only draws a frame the page does not
+  // need. A catalog header earns a rule only when it sits tight against a list —
+  // see `manageHeader`.
   browseHeader: {
     flexShrink: 0,
-    padding: '28px 64px 16px',
-    borderBottom: '1px solid var(--border-subtle)'
+    padding: '28px 64px 16px'
   },
   heroTitle: {
     margin: '0 0 24px',
@@ -413,11 +454,12 @@ export const styles = {
     overflow: 'auto',
     padding: '28px 64px 48px'
   },
+  // Groups are separated by the 34px between them and by the heading's own weight,
+  // not by a rule. A rule above the first group would be a frame edge rather than a
+  // separator, and one above the others is redundant with that gap.
   sectionTitle: {
     maxWidth: '760px',
     margin: '0 auto 12px',
-    paddingTop: '4px',
-    borderTop: '1px solid var(--border-subtle)',
     fontSize: '16px',
     lineHeight: 1.3,
     fontWeight: 700,

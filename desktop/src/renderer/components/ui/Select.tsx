@@ -267,6 +267,9 @@ export function Select<T extends string = string>({
               role="option"
               aria-selected={selected}
               aria-disabled={option.disabled || undefined}
+              // Keeps the underlying value observable in the DOM, the way a native
+              // <option value> was, since the trigger only renders the label.
+              data-value={option.value}
               data-active={active || undefined}
               data-disabled={option.disabled || undefined}
               className="dc-settings-select-option"

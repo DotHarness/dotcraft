@@ -340,8 +340,10 @@ The `Plugins` config section contains:
 - `PluginRoots`: additional local plugin roots or plugin container directories. Relative paths resolve against the workspace root.
 - `EnabledPlugins`: plugin ids explicitly enabled for the workspace.
 - `DisabledPlugins`: plugin ids explicitly disabled for the workspace. Disabled entries override enabled/default entries.
-- `PluginRegistries`: additional plugin registry sources. Each source declares an HTTPS snapshot `url` or local path and may override the marketplace path.
-- `DisableDefaultPluginRegistry`: disables the host-provided default official plugin registry.
+- `PluginRegistries`: additional plugin marketplace sources. Each source declares its kind, source value, optional reference and sparse paths, and may override the marketplace path. Source kinds and the add/refresh/remove lifecycle are defined in [Plugin Registry](plugin-registry.md).
+- `DisableDefaultPluginRegistry`: disables the host-provided default official plugin marketplace.
+
+Marketplace sources are recorded in user-global configuration so one added source is available in every workspace. Plugin installation stays per workspace: installing a marketplace plugin copies it into that workspace's `.craft/plugins/<pluginId>`.
 
 Installed built-in plugins and local manifest plugins are enabled by default unless disabled. Built-ins that are visible only through the catalog are installable but not enabled and do not contribute tools or skills to agent context.
 

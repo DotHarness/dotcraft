@@ -3,6 +3,7 @@ import { Clock } from 'lucide-react'
 import { useLocale, useT } from '../../contexts/LocaleContext'
 import type { AutomationSchedule } from '../../stores/automationsStore'
 import { MenuHeading, MenuOption, PillDropdown } from '../ui/PillDropdown'
+import { Input } from '../ui/Input'
 
 /**
  * Schedule control for the New Task dialog: a compact pill that opens a recurrence
@@ -132,7 +133,7 @@ export function SchedulePicker({ value, onChange }: Props): JSX.Element {
 
           {preset === 'custom' && (
             <div style={detailRowStyle}>
-              <input
+              <Input
                 type="number"
                 min={1}
                 className="dc-plain-number"
@@ -143,7 +144,7 @@ export function SchedulePicker({ value, onChange }: Props): JSX.Element {
                   setCustomMinutes(n)
                   onChange({ kind: 'every', everyMs: n * 60_000 })
                 }}
-                style={{ ...fieldInputStyle, width: '72px' }}
+                style={{ height: '28px', padding: '0 8px', fontSize: '12px', width: '72px' }}
               />
               <span style={detailLabelStyle}>{t('auto.newTask.minutesShort')}</span>
             </div>
@@ -210,7 +211,8 @@ function TimeField({
   return (
     <div style={{ display: 'inline-flex', flexDirection: 'column', minWidth: 0 }}>
       <div style={{ display: 'inline-flex', alignItems: 'center', ...fieldInputStyle, padding: '0 6px 0 8px' }}>
-        <input
+        <Input
+          bare
           value={text}
           onChange={(e) => setText(e.target.value)}
           onFocus={(e) => {
@@ -235,11 +237,8 @@ function TimeField({
           aria-label={t('auto.newTask.time')}
           style={{
             width: '54px',
-            border: 'none',
             background: 'transparent',
-            color: 'var(--text-primary)',
             fontSize: '12px',
-            outline: 'none',
             fontVariantNumeric: 'tabular-nums'
           }}
         />

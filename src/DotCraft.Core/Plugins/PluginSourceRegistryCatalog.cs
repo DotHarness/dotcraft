@@ -1,89 +1,105 @@
 using System.IO.Compression;
 using System.Security.Cryptography;
 using System.Text;
-using System.Text.Json;
-using System.Text.Json.Serialization;
 using DotCraft.Configuration;
+using DotCraft.Plugins.Marketplaces;
 
 namespace DotCraft.Plugins;
 
 internal sealed record PluginRegistrySource(
     string Name,
+    MarketplaceSourceKind Kind,
     string Url,
     string MarketplacePath,
     bool IsDefault);
 
+/// <summary>
+/// Discovers installable plugins from configured marketplaces.
+/// Reads materialized roots and cached snapshots only; a repository fetch happens exclusively
+/// through the explicit marketplace add and refresh operations.
+/// </summary>
 internal static class PluginSourceRegistryCatalog
 {
     public const string DefaultRegistryUrlEnvironmentVariableName = "DOTCRAFT_DEFAULT_PLUGIN_REGISTRY_URL";
     public const string AdditionalRegistriesEnvironmentVariableName = "DOTCRAFT_PLUGIN_REGISTRIES";
-    public const string DefaultMarketplacePath = ".craft/plugins/marketplace.json";
+    public const string DefaultMarketplacePath = MarketplaceDocumentLoader.DefaultMarketplacePath;
 
     private static readonly TimeSpan RefreshInterval = TimeSpan.FromHours(6);
     private static readonly TimeSpan DownloadTimeout = TimeSpan.FromSeconds(2);
-    private static readonly JsonSerializerOptions JsonOptions = new()
-    {
-        PropertyNameCaseInsensitive = true,
-        ReadCommentHandling = JsonCommentHandling.Skip,
-        AllowTrailingCommas = true
-    };
 
     public static IReadOnlyList<BuiltInPluginSource> Discover(
         AppConfig.PluginsConfig? pluginsConfig,
-        List<PluginDiagnostic> diagnostics)
+        List<PluginDiagnostic> diagnostics,
+        string? craftHome = null)
     {
         var sources = ResolveSources(pluginsConfig, diagnostics);
         if (sources.Count == 0)
             return [];
 
+        var resolvedCraftHome = string.IsNullOrWhiteSpace(craftHome)
+            ? MarketplacePaths.DefaultCraftHome()
+            : Path.GetFullPath(craftHome);
+
         var plugins = new List<BuiltInPluginSource>();
         foreach (var source in sources)
         {
-            var snapshotRoot = ResolveSnapshotRoot(source, diagnostics);
+            var snapshotRoot = ResolveSnapshotRoot(source, diagnostics, resolvedCraftHome);
             if (snapshotRoot == null)
                 continue;
 
-            var registryRoot = ResolveRegistryRoot(snapshotRoot, source.MarketplacePath, diagnostics, source);
+            var registryRoot = MarketplaceDocumentLoader.ResolveRoot(snapshotRoot, source.MarketplacePath);
             if (registryRoot == null)
-                continue;
-
-            var marketplacePath = Path.GetFullPath(Path.Combine(registryRoot, NormalizeRelativePath(source.MarketplacePath)));
-            PluginRegistryDocument? document;
-            try
             {
-                document = JsonSerializer.Deserialize<PluginRegistryDocument>(
-                    File.ReadAllText(marketplacePath),
-                    JsonOptions);
+                diagnostics.Add(PluginDiagnostic.Warning(
+                    "PluginRegistryMarketplaceMissing",
+                    $"Plugin marketplace '{source.Name}' does not contain '{source.MarketplacePath}'.",
+                    path: snapshotRoot));
+                continue;
             }
-            catch (JsonException ex)
+
+            var marketplacePath = Path.GetFullPath(Path.Combine(
+                registryRoot,
+                MarketplaceDocumentLoader.NormalizeRelativePath(source.MarketplacePath)));
+            var document = MarketplaceDocumentLoader.TryLoad(marketplacePath, out var loadError);
+            if (document == null)
             {
                 diagnostics.Add(PluginDiagnostic.Error(
                     "InvalidPluginRegistryMarketplaceJson",
-                    $"Failed to parse plugin registry marketplace JSON: {ex.Message}",
-                    path: marketplacePath));
-                continue;
-            }
-            catch (IOException ex)
-            {
-                diagnostics.Add(PluginDiagnostic.Error(
-                    "PluginRegistryMarketplaceReadFailed",
-                    $"Failed to read plugin registry marketplace: {ex.Message}",
+                    loadError,
                     path: marketplacePath));
                 continue;
             }
 
-            if (document?.Plugins is not { Count: > 0 })
+            if (document.Plugins.Count == 0)
                 continue;
 
+            var marketplaceName = string.IsNullOrWhiteSpace(document.Name) ? source.Name : document.Name!.Trim();
             foreach (var entry in document.Plugins)
             {
-                var plugin = BuildPluginSource(source, registryRoot, marketplacePath, entry, diagnostics);
+                var plugin = BuildPluginSource(marketplaceName, registryRoot, marketplacePath, entry, diagnostics);
                 if (plugin != null)
                     plugins.Add(plugin);
             }
         }
 
         return plugins;
+    }
+
+    /// <summary>
+    /// Drops the freshness marker for an archive source so the next discovery pass re-downloads it.
+    /// </summary>
+    public static void InvalidateArchiveCache(string url, string marketplacePath)
+    {
+        var markerPath = Path.Combine(CacheRootFor(url, marketplacePath), "updatedAt.txt");
+        try
+        {
+            if (File.Exists(markerPath))
+                File.Delete(markerPath);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            // A stale marker only delays the next refresh; it is not worth failing the request.
+        }
     }
 
     private static IReadOnlyList<PluginRegistrySource> ResolveSources(
@@ -97,6 +113,7 @@ internal static class PluginSourceRegistryCatalog
         {
             sources.Add(new PluginRegistrySource(
                 "DotCraft Official Plugins",
+                MarketplaceSourceKind.Archive,
                 defaultUrl.Trim(),
                 DefaultMarketplacePath,
                 IsDefault: true));
@@ -109,6 +126,7 @@ internal static class PluginSourceRegistryCatalog
             {
                 sources.Add(new PluginRegistrySource(
                     url,
+                    MarketplaceSourceKind.Archive,
                     url,
                     DefaultMarketplacePath,
                     IsDefault: false));
@@ -123,13 +141,32 @@ internal static class PluginSourceRegistryCatalog
                 {
                     diagnostics.Add(PluginDiagnostic.Warning(
                         "PluginRegistryUrlMissing",
-                        "Plugin registry source was skipped because url is missing."));
+                        "Plugin marketplace source was skipped because url is missing."));
+                    continue;
+                }
+
+                MarketplaceSource source;
+                try
+                {
+                    source = MarketplaceSourceParser.FromConfigured(
+                        configured.SourceType,
+                        configured.Url,
+                        configured.Ref,
+                        configured.SparsePaths);
+                }
+                catch (MarketplaceException ex)
+                {
+                    diagnostics.Add(PluginDiagnostic.Warning(
+                        "InvalidPluginRegistrySource",
+                        $"Plugin marketplace source was skipped: {ex.Message}",
+                        path: configured.Url));
                     continue;
                 }
 
                 sources.Add(new PluginRegistrySource(
                     NormalizeOptional(configured.Name) ?? configured.Url.Trim(),
-                    configured.Url.Trim(),
+                    source.Kind,
+                    source.Value,
                     NormalizeOptional(configured.MarketplacePath) ?? DefaultMarketplacePath,
                     IsDefault: false));
             }
@@ -139,10 +176,10 @@ internal static class PluginSourceRegistryCatalog
     }
 
     private static BuiltInPluginSource? BuildPluginSource(
-        PluginRegistrySource source,
+        string marketplaceName,
         string registryRoot,
         string marketplacePath,
-        PluginRegistryEntry entry,
+        MarketplaceDocumentEntry entry,
         List<PluginDiagnostic> diagnostics)
     {
         var name = NormalizeOptional(entry.Name);
@@ -150,7 +187,7 @@ internal static class PluginSourceRegistryCatalog
         {
             diagnostics.Add(PluginDiagnostic.Error(
                 "InvalidPluginRegistryEntryName",
-                "Plugin registry entry name is invalid.",
+                "Plugin marketplace entry name is invalid.",
                 name,
                 path: marketplacePath));
             return null;
@@ -162,7 +199,7 @@ internal static class PluginSourceRegistryCatalog
         {
             diagnostics.Add(PluginDiagnostic.Error(
                 "InvalidPluginRegistryEntrySource",
-                "Plugin registry entry source.source must be local.",
+                "Plugin marketplace entry source.source must be local.",
                 pluginId,
                 path: marketplacePath));
             return null;
@@ -173,7 +210,7 @@ internal static class PluginSourceRegistryCatalog
         {
             diagnostics.Add(PluginDiagnostic.Error(
                 "InvalidPluginRegistryEntryPath",
-                "Plugin registry entry source.path is required.",
+                "Plugin marketplace entry source.path is required.",
                 pluginId,
                 path: marketplacePath));
             return null;
@@ -184,7 +221,7 @@ internal static class PluginSourceRegistryCatalog
         {
             diagnostics.Add(PluginDiagnostic.Error(
                 "InvalidPluginRegistryEntryPath",
-                $"Plugin registry entry source.path is invalid: {pathError}",
+                $"Plugin marketplace entry source.path is invalid: {pathError}",
                 pluginId,
                 path: marketplacePath));
             return null;
@@ -194,7 +231,7 @@ internal static class PluginSourceRegistryCatalog
         {
             diagnostics.Add(PluginDiagnostic.Warning(
                 "PluginRegistryEntryNotAvailable",
-                $"Plugin registry entry '{pluginId}' was skipped because it is not available for installation.",
+                $"Plugin marketplace entry '{pluginId}' was skipped because it is not available for installation.",
                 pluginId,
                 path: marketplacePath));
             return null;
@@ -205,7 +242,7 @@ internal static class PluginSourceRegistryCatalog
         {
             diagnostics.Add(PluginDiagnostic.Error(
                 "InvalidPluginRegistryEntryPath",
-                "Plugin registry entry source.path must stay within the registry snapshot.",
+                "Plugin marketplace entry source.path must stay within the marketplace root.",
                 pluginId,
                 path: marketplacePath));
             return null;
@@ -215,7 +252,7 @@ internal static class PluginSourceRegistryCatalog
         {
             diagnostics.Add(PluginDiagnostic.Error(
                 "PluginRegistryPluginMissing",
-                $"Plugin registry entry '{pluginId}' points to a missing plugin directory.",
+                $"Plugin marketplace entry '{pluginId}' points to a missing plugin directory.",
                 pluginId,
                 path: pluginRoot));
             return null;
@@ -230,37 +267,90 @@ internal static class PluginSourceRegistryCatalog
         {
             diagnostics.Add(PluginDiagnostic.Error(
                 "PluginRegistryManifestIdMismatch",
-                $"Plugin registry entry name '{pluginId}' does not match plugin manifest id '{parse.Manifest.Id}'.",
+                $"Plugin marketplace entry name '{pluginId}' does not match plugin manifest id '{parse.Manifest.Id}'.",
                 pluginId,
                 path: parse.Manifest.ManifestPath));
             return null;
         }
 
-        return new BuiltInPluginSource(parse.Manifest, pluginRoot, registryRoot);
+        return new BuiltInPluginSource(parse.Manifest, pluginRoot, registryRoot, marketplaceName);
     }
 
     private static string? ResolveSnapshotRoot(
         PluginRegistrySource source,
-        List<PluginDiagnostic> diagnostics)
+        List<PluginDiagnostic> diagnostics,
+        string craftHome)
     {
+        if (source.Kind == MarketplaceSourceKind.Git)
+            return ResolveMaterializedRoot(source, diagnostics, craftHome);
+
         if (Directory.Exists(source.Url))
             return Path.GetFullPath(source.Url);
 
-        if (File.Exists(source.Url))
-            return ExtractArchiveToCache(source, File.ReadAllBytes(source.Url), diagnostics, isRefresh: true)
-                   ?? ResolveCachedSnapshot(source, diagnostics, warnWhenMissing: false);
+        if (source.Kind == MarketplaceSourceKind.Local)
+        {
+            if (!File.Exists(source.Url))
+            {
+                diagnostics.Add(PluginDiagnostic.Warning(
+                    "PluginRegistrySourceMissing",
+                    $"Plugin marketplace '{source.Name}' is not available on this machine.",
+                    path: source.Url));
+                return null;
+            }
 
+            return ExtractArchiveToCache(source, File.ReadAllBytes(source.Url), diagnostics)
+                   ?? ResolveCachedSnapshot(source);
+        }
+
+        return ResolveArchiveSnapshotRoot(source, diagnostics);
+    }
+
+    // Repository marketplaces are materialized by the explicit add and refresh operations.
+    // Discovery reads whatever is already on disk and never starts a fetch of its own.
+    private static string? ResolveMaterializedRoot(
+        PluginRegistrySource source,
+        List<PluginDiagnostic> diagnostics,
+        string craftHome)
+    {
+        string root;
+        try
+        {
+            root = MarketplaceStore.ResolveRoot(craftHome, source.Name);
+        }
+        catch (MarketplaceException ex)
+        {
+            diagnostics.Add(PluginDiagnostic.Warning(
+                "InvalidPluginRegistrySource",
+                ex.Message,
+                path: source.Url));
+            return null;
+        }
+
+        if (Directory.Exists(root))
+            return root;
+
+        diagnostics.Add(PluginDiagnostic.Warning(
+            "PluginRegistrySnapshotMissing",
+            $"Plugin marketplace '{source.Name}' has not been fetched yet; refresh it to install its plugins.",
+            path: root));
+        return null;
+    }
+
+    private static string? ResolveArchiveSnapshotRoot(
+        PluginRegistrySource source,
+        List<PluginDiagnostic> diagnostics)
+    {
         if (!Uri.TryCreate(source.Url, UriKind.Absolute, out var uri)
             || !string.Equals(uri.Scheme, Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase))
         {
             diagnostics.Add(PluginDiagnostic.Warning(
                 "InvalidPluginRegistrySourceUrl",
-                $"Plugin registry source '{source.Name}' must be an HTTPS archive URL or a local archive/directory path.",
+                $"Plugin marketplace '{source.Name}' must be an HTTPS archive URL or a local archive/directory path.",
                 path: source.Url));
             return null;
         }
 
-        var cacheRoot = CacheRootFor(source);
+        var cacheRoot = CacheRootFor(source.Url, source.MarketplacePath);
         var snapshotRoot = Path.Combine(cacheRoot, "snapshot");
         if (Directory.Exists(snapshotRoot) && !ShouldRefresh(cacheRoot))
             return snapshotRoot;
@@ -274,22 +364,21 @@ internal static class PluginSourceRegistryCatalog
             {
                 diagnostics.Add(PluginDiagnostic.Warning(
                     "PluginRegistryDownloadFailed",
-                    $"Plugin registry source '{source.Name}' download failed with HTTP {(int)response.StatusCode}.",
+                    $"Plugin marketplace '{source.Name}' download failed with HTTP {(int)response.StatusCode}.",
                     path: source.Url));
-                return ResolveCachedSnapshot(source, diagnostics, warnWhenMissing: false);
+                return ResolveCachedSnapshot(source);
             }
 
             var bytes = response.Content.ReadAsByteArrayAsync().GetAwaiter().GetResult();
-            return ExtractArchiveToCache(source, bytes, diagnostics, isRefresh: true)
-                   ?? ResolveCachedSnapshot(source, diagnostics, warnWhenMissing: false);
+            return ExtractArchiveToCache(source, bytes, diagnostics) ?? ResolveCachedSnapshot(source);
         }
         catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or InvalidOperationException)
         {
             diagnostics.Add(PluginDiagnostic.Warning(
                 "PluginRegistryDownloadFailed",
-                $"Plugin registry source '{source.Name}' download failed: {ex.Message}",
+                $"Plugin marketplace '{source.Name}' download failed: {ex.Message}",
                 path: source.Url));
-            return ResolveCachedSnapshot(source, diagnostics, warnWhenMissing: false);
+            return ResolveCachedSnapshot(source);
         }
     }
 
@@ -302,33 +391,18 @@ internal static class PluginSourceRegistryCatalog
         return DateTimeOffset.UtcNow - updatedAt > RefreshInterval;
     }
 
-    private static string? ResolveCachedSnapshot(
-        PluginRegistrySource source,
-        List<PluginDiagnostic> diagnostics,
-        bool warnWhenMissing)
+    private static string? ResolveCachedSnapshot(PluginRegistrySource source)
     {
-        var snapshotRoot = Path.Combine(CacheRootFor(source), "snapshot");
-        if (Directory.Exists(snapshotRoot))
-            return snapshotRoot;
-
-        if (warnWhenMissing)
-        {
-            diagnostics.Add(PluginDiagnostic.Warning(
-                "PluginRegistryCacheMissing",
-                $"Plugin registry source '{source.Name}' has no cached snapshot.",
-                path: source.Url));
-        }
-
-        return null;
+        var snapshotRoot = Path.Combine(CacheRootFor(source.Url, source.MarketplacePath), "snapshot");
+        return Directory.Exists(snapshotRoot) ? snapshotRoot : null;
     }
 
     private static string? ExtractArchiveToCache(
         PluginRegistrySource source,
         byte[] bytes,
-        List<PluginDiagnostic> diagnostics,
-        bool isRefresh)
+        List<PluginDiagnostic> diagnostics)
     {
-        var cacheRoot = CacheRootFor(source);
+        var cacheRoot = CacheRootFor(source.Url, source.MarketplacePath);
         var parent = Path.GetDirectoryName(cacheRoot)!;
         var tempRoot = Path.Combine(parent, $".{Path.GetFileName(cacheRoot)}.{Guid.NewGuid():N}.tmp");
         var tempSnapshot = Path.Combine(tempRoot, "snapshot");
@@ -343,7 +417,7 @@ internal static class PluginSourceRegistryCatalog
 
                 var destination = Path.GetFullPath(Path.Combine(tempSnapshot, entry.FullName));
                 if (!IsPathWithin(destination, tempSnapshot))
-                    throw new InvalidDataException($"Zip entry '{entry.FullName}' escapes the registry snapshot root.");
+                    throw new InvalidDataException($"Zip entry '{entry.FullName}' escapes the marketplace snapshot root.");
 
                 if (entry.FullName.EndsWith("/", StringComparison.Ordinal)
                     || entry.FullName.EndsWith("\\", StringComparison.Ordinal))
@@ -366,8 +440,8 @@ internal static class PluginSourceRegistryCatalog
         catch (Exception ex) when (ex is IOException or InvalidDataException or UnauthorizedAccessException)
         {
             diagnostics.Add(PluginDiagnostic.Warning(
-                isRefresh ? "PluginRegistryExtractFailed" : "PluginRegistryCacheRefreshFailed",
-                $"Plugin registry source '{source.Name}' archive could not be extracted: {ex.Message}",
+                "PluginRegistryExtractFailed",
+                $"Plugin marketplace '{source.Name}' archive could not be extracted: {ex.Message}",
                 path: source.Url));
             return null;
         }
@@ -378,69 +452,11 @@ internal static class PluginSourceRegistryCatalog
         }
     }
 
-    private static string? ResolveRegistryRoot(
-        string snapshotRoot,
-        string marketplacePath,
-        List<PluginDiagnostic> diagnostics,
-        PluginRegistrySource source)
+    private static string CacheRootFor(string url, string marketplacePath)
     {
-        if (!IsSafeRelativePath(marketplacePath))
-        {
-            diagnostics.Add(PluginDiagnostic.Warning(
-                "InvalidPluginRegistryMarketplacePath",
-                $"Plugin registry source '{source.Name}' marketplace path must be relative and stay within the registry snapshot.",
-                path: marketplacePath));
-            return null;
-        }
-
-        var relativeMarketplacePath = NormalizeRelativePath(marketplacePath);
-        var direct = Path.Combine(snapshotRoot, relativeMarketplacePath);
-        if (File.Exists(direct))
-            return Path.GetFullPath(snapshotRoot);
-
-        var children = Directory.GetDirectories(snapshotRoot);
-        if (children.Length == 1)
-        {
-            var nested = Path.Combine(children[0], relativeMarketplacePath);
-            if (File.Exists(nested))
-                return Path.GetFullPath(children[0]);
-        }
-
-        diagnostics.Add(PluginDiagnostic.Warning(
-            "PluginRegistryMarketplaceMissing",
-            $"Plugin registry source '{source.Name}' does not contain marketplace '{marketplacePath}'.",
-            path: snapshotRoot));
-        return null;
-    }
-
-    private static string CacheRootFor(PluginRegistrySource source)
-    {
-        var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
-        if (string.IsNullOrWhiteSpace(home))
-            home = Path.GetTempPath();
         var key = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(
-            source.Url + "\n" + source.MarketplacePath))).ToLowerInvariant();
-        return Path.Combine(home, ".craft", "cache", "plugin-registries", key);
-    }
-
-    private static string NormalizeRelativePath(string path)
-    {
-        var normalized = path.Replace('\\', '/').Trim();
-        if (normalized.StartsWith("./", StringComparison.Ordinal))
-            normalized = normalized[2..];
-        return normalized.Replace('/', Path.DirectorySeparatorChar);
-    }
-
-    private static bool IsSafeRelativePath(string path)
-    {
-        var normalized = path.Replace('\\', '/').Trim();
-        if (normalized.StartsWith("./", StringComparison.Ordinal))
-            normalized = normalized[2..];
-        if (string.IsNullOrWhiteSpace(normalized) || Path.IsPathRooted(normalized))
-            return false;
-        return normalized
-            .Split('/', StringSplitOptions.RemoveEmptyEntries)
-            .All(segment => segment != "..");
+            url + "\n" + marketplacePath))).ToLowerInvariant();
+        return Path.Combine(MarketplacePaths.DefaultCraftHome(), "cache", "plugin-registries", key);
     }
 
     private static string? ResolveRegistryRelativePath(string path, out string error)
@@ -477,45 +493,5 @@ internal static class PluginSourceRegistryCatalog
     {
         var trimmed = value?.Trim();
         return string.IsNullOrEmpty(trimmed) ? null : trimmed;
-    }
-
-    private sealed class PluginRegistryDocument
-    {
-        public string? Name { get; set; }
-
-        [JsonPropertyName("interface")]
-        public PluginRegistryInterface? Interface { get; set; }
-
-        public List<PluginRegistryEntry> Plugins { get; set; } = [];
-    }
-
-    private sealed class PluginRegistryInterface
-    {
-        public string? DisplayName { get; set; }
-    }
-
-    private sealed class PluginRegistryEntry
-    {
-        public string? Name { get; set; }
-
-        public PluginRegistryEntrySource? Source { get; set; }
-
-        public PluginRegistryEntryPolicy? Policy { get; set; }
-
-        public string? Category { get; set; }
-    }
-
-    private sealed class PluginRegistryEntrySource
-    {
-        public string? Source { get; set; }
-
-        public string? Path { get; set; }
-    }
-
-    private sealed class PluginRegistryEntryPolicy
-    {
-        public string? Installation { get; set; }
-
-        public string? Authentication { get; set; }
     }
 }

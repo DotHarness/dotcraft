@@ -6,6 +6,7 @@ import { useT } from '../../contexts/LocaleContext'
 import { ActionTooltip } from '../ui/ActionTooltip'
 import { ModalHeader } from '../ui/ModalHeader'
 import { Button } from '../ui/Button'
+import { Textarea } from '../ui/Input'
 import type { ThreadGoal } from '../../types/thread'
 import { formatGoalUsage } from '../../utils/threadGoal'
 
@@ -158,9 +159,9 @@ export function GoalControlPopover({
         </>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          <textarea
+          <Textarea
             ref={inputRef}
-            className="dc-dialog-input"
+            frameless
             value={objective}
             onChange={(e) => setObjective(e.target.value)}
             placeholder={t('goal.objective.placeholder')}

@@ -1,15 +1,13 @@
 import { useEffect, useState } from 'react'
-import { Ellipsis, MessageCircle, X } from 'lucide-react'
+import { Ellipsis, MessageCircle } from 'lucide-react'
 import { useT } from '../../contexts/LocaleContext'
 import { addToast } from '../../stores/toastStore'
 import { useConversationStore } from '../../stores/conversationStore'
 import type { SkillEntry } from '../../stores/skillsStore'
 import { dirname } from '../../utils/path'
 import { MarkdownRenderer } from '../conversation/MarkdownRenderer'
-import { ActionTooltip } from '../ui/ActionTooltip'
 import { ContextMenu, type ContextMenuPosition } from '../ui/ContextMenu'
-import { PillSwitch } from '../ui/PillSwitch'
-import { CatalogHoverButton } from '../catalog/CatalogSurface'
+import { ModalHeader } from '../ui/ModalHeader'
 import { SkillAvatar } from './SkillAvatar'
 import { VariantBadge } from './VariantBadge'
 import { Button } from '../ui/Button'
@@ -20,11 +18,9 @@ interface SkillDetailDialogProps {
   markdownBody: string
   loading: boolean
   onClose: () => void
-  onToggleEnabled: (enabled: boolean) => void
   onTryInChat: () => void
   onRestoreOriginal?: () => void
   onUninstall?: () => void
-  showToggle?: boolean
 }
 
 export function SkillDetailDialog({
@@ -32,11 +28,9 @@ export function SkillDetailDialog({
   markdownBody,
   loading,
   onClose,
-  onToggleEnabled,
   onTryInChat,
   onRestoreOriginal,
   onUninstall,
-  showToggle = true,
 }: SkillDetailDialogProps) {
   const t = useT()
   const remoteWorkspaceActive = useConversationStore((s) => s.remoteWorkspaceActive)
@@ -64,48 +58,40 @@ export function SkillDetailDialog({
         style={modalPanel}
         onClick={(event) => event.stopPropagation()}
       >
-        <IconButton label={t('common.close')} icon={<X size={16} strokeWidth={2} />} style={closeButton} onClick={onClose} />
-
-        <header style={header}>
-          <SkillAvatar
-            name={skill.name}
-            displayName={displayName}
-            iconDataUrl={skill.iconSmallDataUrl ?? skill.iconLargeDataUrl}
-            size={44}
-          />
-          <div style={headerCopy}>
-            <div style={titleRow}>
-              <h2 id="skill-detail-title" style={title}>
-                {displayName}
-              </h2>
-              {skill.hasVariant ? <VariantBadge /> : null}
-            </div>
-            <p style={description}>{shortDescription}</p>
-          </div>
-          <div style={headerActions}>
-            {showToggle ? (
-              <PillSwitch
-                checked={skill.enabled}
-                onChange={onToggleEnabled}
-                aria-label={t('skillCard.toggleLabel', { name: displayName })}
-                size="sm"
-              />
-            ) : null}
-            <ActionTooltip label={t('skillDetail.moreActions')}>
-              <CatalogHoverButton
-                type="button"
-                aria-label={t('skillDetail.moreActions')}
-                baseStyle={iconButton}
-                onClick={(event) => {
-                  const rect = event.currentTarget.getBoundingClientRect()
-                  setMenuPosition({ x: rect.right - 160, y: rect.bottom + 6 })
-                }}
-              >
-                <Ellipsis size={16} strokeWidth={2} />
-              </CatalogHoverButton>
-            </ActionTooltip>
-          </div>
-        </header>
+        {/* The skill's own artwork is already a badge, so it replaces the neutral
+            one rather than nesting inside it. See DESIGN.md Dialog Headers. */}
+        <ModalHeader
+          icon={
+            <SkillAvatar
+              name={skill.name}
+              displayName={displayName}
+              iconDataUrl={skill.iconSmallDataUrl ?? skill.iconLargeDataUrl}
+              size={36}
+            />
+          }
+          badgedIcon={false}
+          title={displayName}
+          titleAdornment={skill.hasVariant ? <VariantBadge /> : null}
+          titleId="skill-detail-title"
+          description={shortDescription}
+          onClose={onClose}
+          closeLabel={t('common.close')}
+          actions={
+            <IconButton
+              icon={<Ellipsis size={16} aria-hidden />}
+              label={t('skillDetail.moreActions')}
+              tooltipLabel={t('skillDetail.moreActions')}
+              size={30}
+              aria-haspopup="menu"
+              aria-expanded={menuPosition != null}
+              onClick={(event) => {
+                const rect = event.currentTarget.getBoundingClientRect()
+                setMenuPosition({ x: rect.right - 160, y: rect.bottom + 6 })
+              }}
+            />
+          }
+          style={{ marginBottom: 0 }}
+        />
 
         <div style={bodyFrame} data-testid="skill-detail-scroll-body">
           {loading ? (
@@ -115,13 +101,12 @@ export function SkillDetailDialog({
           )}
         </div>
 
-        <footer style={footer}>
-          {onUninstall ? (
+        {/* Enabling a skill lives in the manage list, so the preview carries none of it. */}
+        <footer style={footerStyle(onUninstall != null)}>
+          {onUninstall && (
             <Button type="button" variant="danger" onClick={onUninstall}>
               {t('skillDetail.uninstall')}
             </Button>
-          ) : (
-            <span style={statusText}>{skill.enabled ? t('skillCard.on') : t('skillCard.disabledBadge')}</span>
           )}
           <Button type="button" variant="primary" onClick={onTryInChat}>
             <MessageCircle size={15} strokeWidth={2} />
@@ -179,91 +164,13 @@ const modalPanel: React.CSSProperties = {
   display: 'flex',
   flexDirection: 'column',
   gap: 16,
-  padding: '30px 20px 20px',
+  padding: '20px',
   borderRadius: 18,
   border: '1px solid transparent',
   background: 'var(--bg-secondary)',
   boxShadow: '0 24px 80px rgba(0, 0, 0, 0.48)',
   color: 'var(--text-primary)',
   overflow: 'hidden',
-}
-
-const closeButton: React.CSSProperties = {
-  position: 'absolute',
-  top: 16,
-  right: 16,
-  width: 28,
-  height: 28,
-  border: 'none',
-  borderRadius: 8,
-  display: 'inline-flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  background: 'transparent',
-  color: 'var(--text-secondary)',
-  cursor: 'pointer',
-}
-
-const header: React.CSSProperties = {
-  display: 'grid',
-  gridTemplateColumns: '44px minmax(0, 1fr) auto',
-  alignItems: 'start',
-  gap: 14,
-  paddingRight: 26,
-}
-
-const headerCopy: React.CSSProperties = {
-  minWidth: 0,
-  paddingTop: 2,
-}
-
-const titleRow: React.CSSProperties = {
-  display: 'flex',
-  alignItems: 'center',
-  gap: 8,
-  minWidth: 0,
-}
-
-const title: React.CSSProperties = {
-  margin: 0,
-  fontSize: 21,
-  lineHeight: 1.25,
-  fontWeight: 700,
-  color: 'var(--text-primary)',
-  overflow: 'hidden',
-  textOverflow: 'ellipsis',
-  whiteSpace: 'nowrap',
-}
-
-const description: React.CSSProperties = {
-  margin: '8px 0 0',
-  fontSize: 14,
-  lineHeight: 1.45,
-  color: 'var(--text-secondary)',
-  overflow: 'hidden',
-  display: '-webkit-box',
-  WebkitLineClamp: 2,
-  WebkitBoxOrient: 'vertical',
-}
-
-const headerActions: React.CSSProperties = {
-  display: 'inline-flex',
-  alignItems: 'center',
-  gap: 8,
-  paddingTop: 24,
-}
-
-const iconButton: React.CSSProperties = {
-  width: 32,
-  height: 32,
-  borderRadius: 10,
-  border: '1px solid var(--border-primary)',
-  display: 'inline-flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  background: 'transparent',
-  color: 'var(--text-secondary)',
-  cursor: 'pointer',
 }
 
 const bodyFrame: React.CSSProperties = {
@@ -281,15 +188,13 @@ const loadingText: React.CSSProperties = {
   fontSize: 13,
 }
 
-const footer: React.CSSProperties = {
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'space-between',
-  gap: 12,
-}
-
-const statusText: React.CSSProperties = {
-  minWidth: 0,
-  fontSize: 13,
-  color: 'var(--text-tertiary)',
+// Without a destructive action on the left there is nothing to space apart, so the
+// single action sits where every dialog's principal action sits.
+function footerStyle(hasLeadingAction: boolean): React.CSSProperties {
+  return {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: hasLeadingAction ? 'space-between' : 'flex-end',
+    gap: 12,
+  }
 }

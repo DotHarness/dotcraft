@@ -23,7 +23,8 @@ public sealed record DiscoveredPlugin(
     bool Enabled,
     bool Installed = true,
     bool Installable = false,
-    bool Removable = false);
+    bool Removable = false,
+    string? MarketplaceName = null);
 
 /// <summary>
 /// Result of a plugin discovery pass.
@@ -37,7 +38,8 @@ public sealed record PluginDiscoveryResult(
 /// </summary>
 public sealed class PluginDiscoveryService(
     string? userGlobalPluginsPath = null,
-    IReadOnlyList<string>? builtInPluginSourceRoots = null)
+    IReadOnlyList<string>? builtInPluginSourceRoots = null,
+    string? craftHome = null)
 {
     private const string RemovedBrowserUsePluginId = "browser-use";
 
@@ -113,7 +115,7 @@ public sealed class PluginDiscoveryService(
                 Removable: removable));
         }
 
-        var builtInDiscovery = new BuiltInPluginCatalog(builtInPluginSourceRoots, config.Plugins).Discover();
+        var builtInDiscovery = new BuiltInPluginCatalog(builtInPluginSourceRoots, config.Plugins, craftHome).Discover();
         diagnostics.AddRange(builtInDiscovery.Diagnostics);
         foreach (var builtIn in builtInDiscovery.Plugins)
         {

@@ -1,4 +1,5 @@
 import { ChevronDown } from 'lucide-react'
+import { Input } from './Input'
 import {
   useCallback,
   useEffect,
@@ -191,10 +192,10 @@ export function Combobox({
           setOpen(true)
         }}
       >
-        <input
+        <Input
           ref={inputRef}
+          bare
           id={id}
-          type="text"
           role="combobox"
           value={value}
           disabled={disabled}
@@ -211,7 +212,7 @@ export function Combobox({
             setOpen(true)
           }}
           onKeyDown={handleKeyDown}
-          className="dc-combobox__input"
+          style={{ flex: 1, minWidth: 0, padding: '7px 4px 7px 10px' }}
         />
         <span className="dc-combobox__toggle" aria-hidden="true">
           <ChevronDown size={15} strokeWidth={1.8} />

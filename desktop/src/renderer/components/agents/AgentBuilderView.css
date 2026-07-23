@@ -52,11 +52,11 @@
 .agent-builder-id-name { border: 1px solid transparent; border-radius: 8px; padding: 3px 7px; margin-left: -7px; font: inherit; font-size: 22px; font-weight: 700; letter-spacing: -0.01em; color: var(--text-primary); background: transparent; outline: none; }
 .agent-builder-field-anchor > .agent-builder-id-name, .agent-builder-field-anchor > .agent-builder-id-desc { width: 100%; }
 .agent-builder-id-name:hover { border-color: var(--border-default); }
-.agent-builder-id-name:focus { border-color: var(--border-active); background: var(--bg-secondary); }
+.agent-builder-id-name:focus { border-color: var(--accent); background: var(--bg-secondary); }
 .agent-builder-id-name.is-empty { color: var(--text-dimmed); }
 .agent-builder-id-desc { border: 1px solid transparent; border-radius: 8px; padding: 4px 7px; margin-left: -7px; font: inherit; font-size: 13.5px; color: var(--text-secondary); background: transparent; outline: none; }
 .agent-builder-id-desc:hover { border-color: var(--border-default); }
-.agent-builder-id-desc:focus { border-color: var(--border-active); background: var(--bg-secondary); }
+.agent-builder-id-desc:focus { border-color: var(--accent); background: var(--bg-secondary); }
 .agent-builder-note { margin-top: 8px; font-size: 11.5px; color: var(--text-dimmed); }
 .agent-builder-divider { height: 1px; background: var(--border-default); margin: 20px 0 0; }
 
@@ -82,7 +82,7 @@
 /* add popover (rendered in a portal at document.body) */
 .agent-builder-addmenu { position: fixed; z-index: 1000; display: flex; flex-direction: column; max-height: 320px; padding: 6px; border: 1px solid var(--border-default); border-radius: 12px; background: var(--bg-elevated); box-shadow: var(--shadow-lg); }
 .agent-builder-addmenu-search { display: flex; align-items: center; gap: 7px; padding: 6px 8px; color: var(--text-dimmed); border-bottom: 1px solid color-mix(in srgb, var(--border-default) 70%, transparent); margin-bottom: 4px; }
-.agent-builder-addmenu-search input { flex: 1; min-width: 0; border: 0; outline: 0; background: transparent; color: var(--text-primary); font: inherit; font-size: 13px; }
+.agent-builder-addmenu-search .dc-field { flex: 1; min-width: 0; font: inherit; font-size: 13px; }
 .agent-builder-addmenu-list { flex: 1 1 auto; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 1px; }
 .agent-builder-addmenu-empty { padding: 10px; text-align: center; font-size: 12px; color: var(--text-dimmed); }
 .agent-builder-addmenu-opt { display: flex; align-items: center; gap: 9px; width: 100%; padding: 7px 9px; border: 0; border-radius: 8px; background: transparent; color: inherit; cursor: pointer; text-align: left; }
@@ -95,7 +95,7 @@
 .agent-builder-field-anchor-instructions { width: 100%; }
 .agent-builder-instr { width: 100%; min-height: 118px; border: 1px solid transparent; border-radius: 10px; background: transparent; padding: 10px 12px; margin-left: -12px; box-sizing: border-box; resize: none; overflow: hidden; color: var(--text-primary); font: inherit; font-size: 14px; line-height: 1.8; outline: none; }
 .agent-builder-instr:hover { border-color: var(--border-default); }
-.agent-builder-instr:focus { border-color: var(--border-active); background: var(--bg-secondary); }
+.agent-builder-instr:focus { border-color: var(--accent); background: var(--bg-secondary); }
 .agent-builder-instr::placeholder { color: var(--text-dimmed); }
 .agent-builder-instr-preview { width: 100%; min-height: 118px; border: 1px solid transparent; border-radius: 10px; background: transparent; padding: 10px 12px; margin-left: -12px; box-sizing: border-box; color: var(--text-primary); font-size: 14px; line-height: 1.8; }
 .agent-builder-instr-preview .markdown-body { font-size: 14px; line-height: 1.8; }

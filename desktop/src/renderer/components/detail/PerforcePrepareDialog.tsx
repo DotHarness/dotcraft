@@ -6,6 +6,7 @@ import { useConversationStore } from '../../stores/conversationStore'
 import { changelistLabel, type PerforceChangelistEntry } from '../../stores/perforceChangelistStore'
 import { ModalHeader } from '../ui/ModalHeader'
 import { Button } from '../ui/Button'
+import { Textarea } from '../ui/Input'
 import { Select, type SelectOption } from '../ui/Select'
 import { toRelativePath } from './CommitDialog'
 
@@ -208,9 +209,9 @@ export function PerforcePrepareDialog({
           {t('perforcePrepare.descriptionLabel')}
         </div>
 
-        <textarea
+        <Textarea
           ref={descriptionRef}
-          className="dc-dialog-input"
+          frameless
           value={description}
           onChange={(e) => setDescription(e.target.value)}
           onKeyDown={(e) => {

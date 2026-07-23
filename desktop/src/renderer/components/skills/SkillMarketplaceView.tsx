@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Download, ExternalLink, Search, X } from 'lucide-react'
 import { useT } from '../../contexts/LocaleContext'
+import { Input } from '../ui/Input'
 import {
   useSkillMarketStore,
   type SkillMarketProviderFilter
@@ -81,8 +82,8 @@ export function SkillMarketplaceView({ onInstalled }: SkillMarketplaceViewProps)
       >
         <div style={searchWrap}>
           <Search size={15} aria-hidden="true" />
-          <input
-            type="text"
+          <Input
+            bare
             placeholder={t('skillMarket.searchPlaceholder')}
             value={query}
             onChange={(event) => setQuery(event.target.value)}

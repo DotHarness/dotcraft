@@ -17,6 +17,7 @@ import { ACTION_SHORTCUTS } from '../ui/shortcutKeys'
 import { ThreadAppBindingsButton } from './ThreadAppBindingsButton'
 import { ContextMenu, type ContextMenuPosition } from '../ui/ContextMenu'
 import { IconButton } from '../ui/IconButton'
+import { Input } from '../ui/Input'
 import { isSubAgentThread } from '../../utils/subAgentThreads'
 import { canForkThread, canForkWorktree, runThreadFork } from '../../utils/threadFork'
 
@@ -313,7 +314,7 @@ export function ThreadHeader({
       >
         {/* Thread name — double-click to rename */}
         {renaming ? (
-          <input
+          <Input
             ref={renameInputRef}
             value={renameValue}
             onChange={(e) => setRenameValue(e.target.value)}
@@ -322,15 +323,12 @@ export function ThreadHeader({
             aria-label={t('threadHeader.renameAria')}
             style={{
               flex: 1,
+              height: 'auto',
               fontSize: '14px',
               fontWeight: 600,
-              color: 'var(--text-primary)',
               background: 'var(--bg-secondary)',
-              border: '1px solid var(--border-active)',
               borderRadius: '4px',
-              padding: '2px 6px',
-              outline: 'none',
-              fontFamily: 'inherit'
+              padding: '2px 6px'
             }}
           />
         ) : (

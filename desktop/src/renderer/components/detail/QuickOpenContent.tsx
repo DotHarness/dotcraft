@@ -26,6 +26,7 @@ import { useViewerTabStore } from '../../stores/viewerTabStore'
 import { useConversationStore } from '../../stores/conversationStore'
 import { Search, AlertCircle } from 'lucide-react'
 import { FileTypeIcon } from '../ui/FileTypeIcon'
+import { Input } from '../ui/Input'
 
 const MAX_FILE_LIST = 500
 const MAX_RESULTS = 50
@@ -263,9 +264,8 @@ export function QuickOpenContent({
     <>
       <div style={searchRowStyle}>
         <Search size={16} aria-hidden style={{ color: 'var(--text-secondary)', flexShrink: 0 }} />
-        <input
+        <Input
           ref={inputRef}
-          type="text"
           value={query}
           onChange={handleInputChange}
           onKeyDown={handleKeyDown}
@@ -273,7 +273,8 @@ export function QuickOpenContent({
           aria-label={inputLabel}
           aria-autocomplete="list"
           aria-controls="quick-open-list"
-          style={inputStyle}
+          bare
+          style={{ flex: 1, minWidth: 0, fontSize: '14px', caretColor: 'var(--accent)' }}
         />
       </div>
 
@@ -370,17 +371,6 @@ const searchRowStyle: CSSProperties = {
   gap: '8px',
   padding: '10px 12px',
   borderBottom: '1px solid var(--glass-border)'
-}
-
-const inputStyle: CSSProperties = {
-  flex: 1,
-  minWidth: 0,
-  border: 'none',
-  outline: 'none',
-  background: 'transparent',
-  color: 'var(--text-primary)',
-  fontSize: '14px',
-  caretColor: 'var(--accent)'
 }
 
 const statusStyle: CSSProperties = {

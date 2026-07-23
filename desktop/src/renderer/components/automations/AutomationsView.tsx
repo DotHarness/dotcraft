@@ -23,6 +23,8 @@ import {
   CatalogSection,
   CatalogTabs,
   CatalogTopBar,
+  CATALOG_TOOLBAR_CONTROL_RADIUS,
+  CATALOG_TOOLBAR_CONTROL_SIZE,
   styles as catalogStyles
 } from '../catalog/CatalogSurface'
 import { Button } from '../ui/Button'
@@ -209,6 +211,7 @@ export function AutomationsView(): JSX.Element {
             {activePanel === 'tasks' && (
               <Button
                 variant="primary"
+                size="toolbar"
                 aria-label={t('auto.createTask')}
                 onClick={() => openNewTask()}
                 iconLeft={<Plus size={14} aria-hidden />}
@@ -220,6 +223,8 @@ export function AutomationsView(): JSX.Element {
                 label={t('auto.moreActions')}
                 tooltipLabel={t('auto.moreActions')}
                 tooltipPlacement="bottom"
+                size={CATALOG_TOOLBAR_CONTROL_SIZE}
+                radius={CATALOG_TOOLBAR_CONTROL_RADIUS}
                 aria-haspopup="menu"
                 aria-expanded={menuPosition != null}
                 onClick={(event) => setMenuPosition({ x: event.clientX, y: event.clientY })}

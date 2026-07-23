@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import { useT } from '../../contexts/LocaleContext'
 import { useThreadStore } from '../../stores/threadStore'
+import { Input } from '../ui/Input'
 import type { ThreadSummary } from '../../types/thread'
 
 interface Props {
@@ -65,21 +66,16 @@ export function ThreadPickerOverlay({ onSelect, onClose }: Props): JSX.Element {
           {t('auto.newTask.threadPickerTitle')}
         </div>
         <div style={{ padding: '10px 16px', borderBottom: '1px solid var(--border-default)' }}>
-          <input
+          <Input
             autoFocus
-            type="text"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder={t('auto.newTask.threadPickerSearch')}
             style={{
-              width: '100%',
-              padding: '7px 10px',
+              padding: '0 10px',
               borderRadius: '6px',
-              border: '1px solid var(--border-default)',
               backgroundColor: 'var(--bg-secondary)',
-              color: 'var(--text-primary)',
-              fontSize: '13px',
-              outline: 'none'
+              fontSize: '13px'
             }}
           />
         </div>

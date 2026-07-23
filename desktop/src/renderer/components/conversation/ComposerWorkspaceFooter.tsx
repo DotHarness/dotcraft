@@ -4,6 +4,7 @@ import { createPortal } from 'react-dom'
 import { ArrowRightLeft, Check, ChevronDown, ChevronRight, Cloud, Folder, FolderPlus, GitBranch, Laptop, ListChecks, Plus, Search, Server } from 'lucide-react'
 import { useT } from '../../contexts/LocaleContext'
 import { useConnectionStore } from '../../stores/connectionStore'
+import { Input, Textarea } from '../ui/Input'
 import { normalizeGitPathKey, useGitStore, type GitBranchListSnapshot } from '../../stores/gitStore'
 import { changelistLabel, usePerforceChangelistStore, type PerforceChangelistEntry, type PerforceChangelistSnapshot } from '../../stores/perforceChangelistStore'
 import { useSourceControlStore } from '../../stores/sourceControlStore'
@@ -712,17 +713,15 @@ export function ComposerWorkspaceFooter({
                 color: 'var(--text-dimmed)'
               }}>
                 <Search size={14} strokeWidth={1.8} aria-hidden />
-                <input
+                <Input
+                  bare
                   value={projectQuery}
                   onChange={(e) => setProjectQuery(e.target.value)}
                   placeholder={t('workspaceFooter.searchProjects')}
                   style={{
                     flex: 1,
                     minWidth: 0,
-                    border: 'none',
-                    outline: 'none',
                     background: 'transparent',
-                    color: 'var(--text-primary)',
                     font: 'inherit'
                   }}
                 />
@@ -861,17 +860,15 @@ export function ComposerWorkspaceFooter({
               color: 'var(--text-dimmed)'
             }}>
               <Search size={14} strokeWidth={1.8} aria-hidden />
-              <input
+              <Input
+                bare
                 value={branchQuery}
                 onChange={(e) => setBranchQuery(e.target.value)}
                 placeholder={t('workspaceFooter.searchBranches')}
                 style={{
                   flex: 1,
                   minWidth: 0,
-                  border: 'none',
-                  outline: 'none',
                   background: 'transparent',
-                  color: 'var(--text-primary)',
                   font: 'inherit'
                 }}
               />
@@ -955,17 +952,15 @@ export function ComposerWorkspaceFooter({
                 color: 'var(--text-dimmed)'
               }}>
                 <Search size={14} strokeWidth={1.8} aria-hidden />
-                <input
+                <Input
+                  bare
                   value={changelistQuery}
                   onChange={(e) => setChangelistQuery(e.target.value)}
                   placeholder={t('workspaceFooter.searchChangelists')}
                   style={{
                     flex: 1,
                     minWidth: 0,
-                    border: 'none',
-                    outline: 'none',
                     background: 'transparent',
-                    color: 'var(--text-primary)',
                     font: 'inherit'
                   }}
                 />
@@ -1172,19 +1167,17 @@ function CreateBranchDialog({
         <h2 style={{ margin: '0 0 16px', fontSize: '18px', color: 'var(--text-primary)' }}>{title}</h2>
         <label style={{ display: 'grid', gap: '8px', color: 'var(--text-primary)', fontSize: '13px', fontWeight: 600 }}>
           {t('workspaceFooter.branchName')}
-          <input
+          <Input
+            frameless
             value={value}
             autoFocus
             onChange={(e) => onChange(e.target.value)}
             style={{
               height: '42px',
               borderRadius: '8px',
-              border: 'none',
               background: 'var(--bg-tertiary)',
-              color: 'var(--text-primary)',
               padding: '0 12px',
-              font: 'inherit',
-              outline: 'none'
+              font: 'inherit'
             }}
           />
         </label>
@@ -1260,21 +1253,18 @@ function CreateChangelistDialog({
         </h2>
         <label style={{ display: 'grid', gap: '8px', color: 'var(--text-primary)', fontSize: '13px', fontWeight: 600 }}>
           {t('workspaceFooter.changelistDescription')}
-          <textarea
+          <Textarea
+            frameless
             value={value}
             autoFocus
             rows={4}
             onChange={(e) => onChange(e.target.value)}
             style={{
               minHeight: '96px',
-              resize: 'vertical',
               borderRadius: '8px',
-              border: 'none',
               background: 'var(--bg-tertiary)',
-              color: 'var(--text-primary)',
               padding: '10px 12px',
-              font: 'inherit',
-              outline: 'none'
+              font: 'inherit'
             }}
           />
         </label>

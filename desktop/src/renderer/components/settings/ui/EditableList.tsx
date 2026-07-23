@@ -1,5 +1,6 @@
-import type { CSSProperties, Dispatch, JSX, SetStateAction } from 'react'
+import type { Dispatch, JSX, SetStateAction } from 'react'
 import { Button } from '../../ui/Button'
+import { Input } from '../../ui/Input'
 
 export interface ValueRow {
   id: string
@@ -82,12 +83,11 @@ export function EditableValueList({
     <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
       {rows.map((row) => (
         <div key={row.id} style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: '8px' }}>
-          <input
-            type="text"
+          <Input
+            mono
             value={row.value}
             onChange={(e) => updateRow(row.id, e.target.value)}
             placeholder={placeholder}
-            style={inputStyle(true)}
           />
           <Button onClick={() => removeRow(row.id)}>
             {removeLabel}
@@ -138,19 +138,17 @@ export function EditableKeyValueList({
     <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
       {rows.map((row) => (
         <div key={row.id} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr auto', gap: '8px' }}>
-          <input
-            type="text"
+          <Input
+            mono
             value={row.key}
             onChange={(e) => updateRow(row.id, e.target.value, row.value)}
             placeholder={keyPlaceholder}
-            style={inputStyle(true)}
           />
-          <input
-            type="text"
+          <Input
+            mono
             value={row.value}
             onChange={(e) => updateRow(row.id, row.key, e.target.value)}
             placeholder={valuePlaceholder}
-            style={inputStyle(true)}
           />
           <Button onClick={() => removeRow(row.id)}>
             {removeLabel}
@@ -162,19 +160,4 @@ export function EditableKeyValueList({
       </Button>
     </div>
   )
-}
-
-function inputStyle(mono = false): CSSProperties {
-  return {
-    width: '100%',
-    boxSizing: 'border-box',
-    padding: '8px 10px',
-    fontSize: 'var(--type-ui-size)',
-    borderRadius: '8px',
-    border: '1px solid var(--border-default)',
-    background: 'var(--bg-primary)',
-    color: 'var(--text-primary)',
-    outline: 'none',
-    fontFamily: mono ? 'var(--font-mono)' : undefined
-  }
 }

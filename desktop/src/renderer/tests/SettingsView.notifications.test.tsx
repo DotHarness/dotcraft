@@ -1,9 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { render, screen, waitFor } from '@testing-library/react'
 import { LocaleProvider } from '../contexts/LocaleContext'
 import { SettingsView } from '../components/settings/SettingsView'
 import { useConnectionStore } from '../stores/connectionStore'
 import { usePendingRestartStore } from '../stores/pendingRestartStore'
+import { chooseValueIn } from './selectHarness'
 
 const settingsGet = vi.fn()
 const settingsSet = vi.fn()
@@ -88,7 +89,7 @@ describe('SettingsView notification settings', () => {
     const select = await screen.findByRole('combobox', { name: 'Task completion notifications' })
     expect(select).toHaveValue('whenUnfocused')
 
-    fireEvent.change(select, { target: { value: 'never' } })
+    await chooseValueIn(select, 'never')
 
     await waitFor(() => {
       expect(settingsSet).toHaveBeenCalledWith({

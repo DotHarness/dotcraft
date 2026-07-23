@@ -10,6 +10,7 @@ import { settingsDescriptionStyle, settingsPlaceholderStyle } from '../settingsT
 import { SegmentedControl } from '../ui/SegmentedControl'
 import { SettingsSelect } from '../ui/SettingsSelect'
 import { PillSwitch } from '../../ui/PillSwitch'
+import { Input } from '../../ui/Input'
 import { Button } from '../../ui/Button'
 
 // ─── Wire types (mirror src/DotCraft.Core/Protocol/AppServer/Wire/SourceControlWire.cs) ───
@@ -487,8 +488,7 @@ export function SourceControlPanel({ workspacePath }: SourceControlPanelProps): 
               <SettingsRow
                 label={t('settings.sourceControl.perforce.timeout')}
                 control={
-                  <input
-                    type="text"
+                  <Input
                     inputMode="numeric"
                     aria-label={t('settings.sourceControl.perforce.timeout')}
                     value={form.timeoutSeconds === 0 ? '' : String(form.timeoutSeconds)}
@@ -499,7 +499,7 @@ export function SourceControlPanel({ workspacePath }: SourceControlPanelProps): 
                     onBlur={() => {
                       if (form.timeoutSeconds < 1) updateForm('timeoutSeconds', 30)
                     }}
-                    style={{ ...inputStyle, width: '96px' }}
+                    style={{ width: '96px' }}
                   />
                 }
               />
@@ -666,15 +666,13 @@ function TextField({
       htmlFor={id}
       orientation="block"
       control={
-        <input
+        <Input
           id={id}
-          type="text"
           value={value}
           placeholder={placeholder}
           onChange={(e) => onChange(e.target.value)}
           autoComplete="off"
           spellCheck={false}
-          style={inputStyle}
         />
       }
     />
@@ -781,18 +779,6 @@ const cardCheckStyle: CSSProperties = {
   right: '8px',
   color: 'var(--accent)',
   display: 'inline-flex'
-}
-
-const inputStyle: CSSProperties = {
-  width: '100%',
-  boxSizing: 'border-box',
-  padding: '8px 10px',
-  fontSize: 'var(--type-ui-size)',
-  borderRadius: '8px',
-  border: '1px solid var(--border-default)',
-  background: 'var(--bg-primary)',
-  color: 'var(--text-primary)',
-  outline: 'none'
 }
 
 function noticeStyle(tone: 'error' | 'info' | 'warning' | 'success'): CSSProperties {

@@ -4,24 +4,9 @@ import { useState } from 'react'
 import { Eye, EyeOff } from 'lucide-react'
 import { Button } from '../ui/Button'
 import { IconButton } from '../ui/IconButton'
+import { Input } from '../ui/Input'
 
 // ─── Shared style helpers ────────────────────────────────────────────────────
-
-function inputFocusHandler(
-  e: React.FocusEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>
-): void {
-  const el = e.currentTarget
-  el.style.borderColor = 'var(--accent)'
-  el.style.boxShadow = '0 0 0 2px rgba(74,127,165,0.15)'
-}
-
-function inputBlurHandler(
-  e: React.FocusEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>
-): void {
-  const el = e.currentTarget
-  el.style.borderColor = 'var(--border-default)'
-  el.style.boxShadow = 'none'
-}
 
 export const formStyles = {
   header: {
@@ -52,26 +37,9 @@ export const formStyles = {
     marginBottom: '6px'
   } as React.CSSProperties,
 
-  input: {
-    width: '100%',
-    boxSizing: 'border-box',
-    height: '36px',
-    padding: '0 10px',
-    fontSize: '13px',
-    borderRadius: '6px',
-    border: '1px solid var(--border-default)',
-    background: 'var(--bg-primary)',
-    color: 'var(--text-primary)',
-    outline: 'none',
-    transition: 'border-color 120ms ease, box-shadow 120ms ease'
-  } as React.CSSProperties,
-
   fieldGroup: {
     marginBottom: '14px'
-  } as React.CSSProperties,
-
-  inputFocus: inputFocusHandler,
-  inputBlur: inputBlurHandler
+  } as React.CSSProperties
 }
 
 // ─── StatusPill ──────────────────────────────────────────────────────────────
@@ -172,13 +140,8 @@ interface SecretInputProps {
   ariaLabel?: string
   disabled?: boolean
   onChange: (value: string) => void
-  onFocus?: (
-    e: React.FocusEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>
-  ) => void
-  onBlur?: (
-    e: React.FocusEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>
-  ) => void
-  style?: React.CSSProperties
+  /** Monospace value — for keys, tokens, and other literal secrets. */
+  mono?: boolean
 }
 
 export function SecretInput({
@@ -187,31 +150,22 @@ export function SecretInput({
   ariaLabel,
   disabled = false,
   onChange,
-  onFocus,
-  onBlur,
-  style
+  mono = false
 }: SecretInputProps): JSX.Element {
   const t = useT()
   const [visible, setVisible] = useState(false)
 
   return (
     <div style={{ position: 'relative' }}>
-      <input
+      <Input
         type={visible ? 'text' : 'password'}
         value={value}
         placeholder={placeholder}
         aria-label={ariaLabel}
         disabled={disabled}
+        mono={mono}
         onChange={(event) => onChange(event.target.value)}
-        onFocus={onFocus}
-        onBlur={onBlur}
-        style={{
-          ...formStyles.input,
-          paddingRight: '36px',
-          opacity: disabled ? 0.65 : 1,
-          cursor: disabled ? 'not-allowed' : 'text',
-          ...style
-        }}
+        style={{ paddingRight: '36px' }}
       />
       <IconButton
         size={24}

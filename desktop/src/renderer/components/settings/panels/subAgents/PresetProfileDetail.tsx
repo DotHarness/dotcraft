@@ -13,7 +13,6 @@ import { AgentIcon } from './AgentIcon'
 import { SettingsBreadcrumb } from '../../SettingsBreadcrumb'
 import {
   actionBarStyle,
-  inputStyle,
   noticeStyle,
   pageDescriptionStyle,
   pageHeadingStyle,
@@ -21,6 +20,7 @@ import {
   pillBadgeStyle
 } from './styles'
 import { Button } from '../../../ui/Button'
+import { Input } from '../../../ui/Input'
 import {
   buildPresetOverrideWire,
   createPresetOverrideState,
@@ -267,12 +267,11 @@ export function PresetProfileDetail({
             })}
             orientation="block"
           >
-            <input
-              type="text"
+            <Input
               value={bin}
               onChange={(event) => setBin(event.target.value)}
               placeholder={builtIn.bin ?? ''}
-              style={inputStyle(true)}
+              mono
               data-testid="subagent-preset-bin-input"
             />
           </SettingsRow>
@@ -292,13 +291,13 @@ export function PresetProfileDetail({
             description={t('settings.subAgents.preset.overrideTimeoutHint')}
             orientation="block"
           >
-            <input
+            <Input
               type="number"
               className="dc-plain-number"
               min={1}
               value={timeoutValue}
               onChange={(event) => setTimeoutValue(event.target.value)}
-              style={{ ...inputStyle(), width: '160px' }}
+              style={{ width: '160px' }}
               data-testid="subagent-preset-timeout-input"
             />
           </SettingsRow>

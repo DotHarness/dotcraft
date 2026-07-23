@@ -9,6 +9,7 @@
 import { useMemo, useState, type CSSProperties } from 'react'
 import { Search } from 'lucide-react'
 import { useT } from '../../contexts/LocaleContext'
+import { Input } from '../ui/Input'
 import { FileTypeIcon } from '../ui/FileTypeIcon'
 import { ActionTooltip } from '../ui/ActionTooltip'
 import { ReferencePathContextMenu } from '../conversation/ReferencePathContextMenu'
@@ -54,8 +55,8 @@ export function ChangesFileList({
       <div style={toolbarStyle}>
         <div style={searchWrapStyle}>
           <Search size={13} aria-hidden style={{ color: 'var(--text-secondary)', flexShrink: 0 }} />
-          <input
-            type="text"
+          <Input
+            bare
             value={filter}
             onChange={(e) => setFilter(e.target.value)}
             placeholder={t('viewer.explorerFilter')}

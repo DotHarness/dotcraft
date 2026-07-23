@@ -334,6 +334,13 @@ public sealed class AppServerServerCapabilities
     public bool PluginManagement { get; set; }
 
     /// <summary>
+    /// Server supports user-managed plugin marketplace sources (marketplace/add, marketplace/remove,
+    /// marketplace/refresh) and returns marketplace grouping metadata on plugin/list.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool PluginMarketplaces { get; set; }
+
+    /// <summary>
     /// Server has skill variants enabled for effective skill views and restoring source skills from workspace adaptations.
     /// </summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]

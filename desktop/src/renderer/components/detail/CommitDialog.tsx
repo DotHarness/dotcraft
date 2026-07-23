@@ -5,6 +5,7 @@ import { useT } from '../../contexts/LocaleContext'
 import { useConversationStore } from '../../stores/conversationStore'
 import { ModalHeader } from '../ui/ModalHeader'
 import { Button } from '../ui/Button'
+import { Textarea } from '../ui/Input'
 
 interface CommitDialogProps {
   workspacePath: string
@@ -210,9 +211,9 @@ export function CommitDialog({ workspacePath, onCommit, onClose }: CommitDialogP
           {t('commit.messageLabel')}
         </div>
 
-        <textarea
+        <Textarea
           ref={messageRef}
-          className="dc-dialog-input"
+          frameless
           value={message}
           onChange={(e) => setMessage(e.target.value)}
           onKeyDown={(e) => {

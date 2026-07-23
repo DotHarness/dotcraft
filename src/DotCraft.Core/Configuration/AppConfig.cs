@@ -969,19 +969,47 @@ public sealed class AppConfig
     public sealed class PluginRegistryConfig
     {
         /// <summary>
-        /// Optional display or diagnostic name for this registry source.
+        /// Marketplace identity, read from the marketplace document rather than from user input.
+        /// Legacy entries may carry a display or diagnostic name instead.
         /// </summary>
         public string? Name { get; set; }
 
         /// <summary>
-        /// HTTPS archive URL or local archive/directory path for this registry source.
+        /// Source kind: <c>git</c>, <c>local</c>, or <c>archive</c>. When omitted, the source value
+        /// is resolved with the legacy rule: an existing directory or archive file is treated as a
+        /// local snapshot and any other value is treated as an archive URL.
+        /// </summary>
+        public string? SourceType { get; set; }
+
+        /// <summary>
+        /// Repository URL, local directory path, or archive URL for this marketplace source.
         /// </summary>
         public string? Url { get; set; }
 
         /// <summary>
-        /// Marketplace JSON path inside the registry snapshot.
+        /// Reference to check out. Applies to repository sources only.
+        /// </summary>
+        public string? Ref { get; set; }
+
+        /// <summary>
+        /// Repository-relative paths to check out. Applies to repository sources only.
+        /// </summary>
+        public List<string> SparsePaths { get; set; } = [];
+
+        /// <summary>
+        /// Marketplace document path inside the marketplace root.
         /// </summary>
         public string? MarketplacePath { get; set; }
+
+        /// <summary>
+        /// UTC timestamp of the last successful add or refresh.
+        /// </summary>
+        public string? LastUpdated { get; set; }
+
+        /// <summary>
+        /// Resolved source revision recorded at the last successful fetch, when the source kind provides one.
+        /// </summary>
+        public string? LastRevision { get; set; }
     }
 
     [ConfigSection("Tools.ResultLimits", DisplayName = "Tools > Result limits", Order = 24)]

@@ -2,6 +2,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type { KeyboardEvent, MutableRefObject, PointerEvent, WheelEvent } from 'react'
 import { Archive, ChevronLeft, ChevronRight, ExternalLink, Loader2, Plus, XCircle } from 'lucide-react'
 import { useLocale } from '../../contexts/LocaleContext'
+import { Input, Textarea } from '../ui/Input'
 import { translate, type AppLocale } from '../../../shared/locales'
 import { useThreadStore } from '../../stores/threadStore'
 import { useUIStore } from '../../stores/uiStore'
@@ -1820,7 +1821,7 @@ export function TeamsView(): JSX.Element {
             <p>{translate(locale, 'teams.missionCreateOverlayDescription')}</p>
             <div className="teams-rail-field">
               <label htmlFor="teams-mission-create-title-input">{translate(locale, 'teams.missionTitlePlaceholder')}</label>
-              <input
+              <Input
                 id="teams-mission-create-title-input"
                 value={title}
                 onChange={(event) => setTitle(event.target.value)}
@@ -1831,7 +1832,7 @@ export function TeamsView(): JSX.Element {
             </div>
             <div className="teams-rail-field">
               <label htmlFor="teams-mission-create-prompt-input">{translate(locale, 'teams.missionPromptPlaceholder')}</label>
-              <textarea
+              <Textarea
                 id="teams-mission-create-prompt-input"
                 value={prompt}
                 onChange={(event) => setPrompt(event.target.value)}

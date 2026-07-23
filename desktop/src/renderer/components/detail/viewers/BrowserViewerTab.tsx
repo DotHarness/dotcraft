@@ -12,6 +12,7 @@ import { useViewerTabStore } from '../../../stores/viewerTabStore'
 import { useConversationStore } from '../../../stores/conversationStore'
 import { useUIStore } from '../../../stores/uiStore'
 import { IconButton } from '../../ui/IconButton'
+import { Input } from '../../ui/Input'
 
 interface BrowserViewerTabProps {
   tabId: string
@@ -235,7 +236,7 @@ export function BrowserViewerTab({ tabId }: BrowserViewerTabProps): JSX.Element 
             : <RotateCw size={14} aria-hidden style={{ display: 'block' }} />}
         </ToolbarButton>
         <form onSubmit={onSubmit} style={{ flex: 1, minWidth: 0 }}>
-          <input
+          <Input
             value={urlInput}
             onFocus={() => setEditingAddress(true)}
             onBlur={() => setEditingAddress(false)}
@@ -252,12 +253,9 @@ export function BrowserViewerTab({ tabId }: BrowserViewerTabProps): JSX.Element 
             autoCapitalize="off"
             autoCorrect="off"
             style={{
-              width: '100%',
               height: '26px',
-              border: '1px solid var(--border-default)',
               borderRadius: '4px',
               background: 'var(--bg-tertiary)',
-              color: 'var(--text-primary)',
               fontSize: '12px',
               padding: '0 8px',
               outline: 'none'

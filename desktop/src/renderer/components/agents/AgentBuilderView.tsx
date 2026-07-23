@@ -18,6 +18,7 @@ import { useModelCatalogStore } from '../../stores/modelCatalogStore'
 import { useConversationStore } from '../../stores/conversationStore'
 import { useUIStore } from '../../stores/uiStore'
 import { useLocale, useT } from '../../contexts/LocaleContext'
+import { Input } from '../ui/Input'
 import { ConversationPanel } from '../layout/ConversationPanel'
 import { DragHandle } from '../layout/DragHandle'
 import { InputComposer, type InputComposerSubmitPayload } from '../conversation/InputComposer'
@@ -30,7 +31,7 @@ import {
   resolveAgentBuilderChatWidth,
   resolveMaxAgentBuilderChatWidth
 } from '../../utils/agentBuilderLayout'
-import { CatalogCompactGrid, CatalogHoverButton, CatalogSearchBox, CatalogSection, CatalogTopBar, styles as catalogStyles } from '../catalog/CatalogSurface'
+import { CatalogCompactGrid, CatalogHoverButton, CatalogSearchBox, CatalogSection, CatalogTopBar, CATALOG_TOOLBAR_CONTROL_RADIUS, CATALOG_TOOLBAR_CONTROL_SIZE, styles as catalogStyles } from '../catalog/CatalogSurface'
 import { ContextMenu, type ContextMenuPosition } from '../ui/ContextMenu'
 import { SettingsGroup, SettingsRow } from '../settings/SettingsGroup'
 import { SettingsSelect } from '../settings/ui/SettingsSelect'
@@ -849,17 +850,19 @@ export function AgentBuilderView(): JSX.Element {
       <CatalogTopBar
         actions={(
           <>
-            <Button variant="primary" onClick={() => setRoute({ name: 'intro' })} iconLeft={<Plus size={14} aria-hidden />}>
+            <Button variant="primary" size="toolbar" onClick={() => setRoute({ name: 'intro' })} iconLeft={<Plus size={14} aria-hidden />}>
               New agent
             </Button>
             <IconButton
               label="More actions"
               tooltipLabel="More actions"
               tooltipPlacement="bottom"
+              size={CATALOG_TOOLBAR_CONTROL_SIZE}
+              radius={CATALOG_TOOLBAR_CONTROL_RADIUS}
               aria-haspopup="menu"
               aria-expanded={menuPos != null}
               onClick={(e) => setMenuPos({ x: e.clientX, y: e.clientY })}
-              icon={<MoreHorizontal size={16} aria-hidden />}
+              icon={<MoreHorizontal size={15} aria-hidden />}
             />
           </>
         )}
@@ -1660,7 +1663,7 @@ function CatalogAddPopover({
     <div ref={menuRef} className="agent-builder-addmenu" style={{ top: pos.top, left: pos.left, width: pos.width }} role="listbox">
       <div className="agent-builder-addmenu-search">
         <Search size={13} />
-        <input autoFocus value={query} placeholder="Search…" onChange={(e) => setQuery(e.target.value)} />
+        <Input bare autoFocus value={query} placeholder="Search…" onChange={(e) => setQuery(e.target.value)} />
       </div>
       <div className="agent-builder-addmenu-list">
         {filtered.length === 0 ? (

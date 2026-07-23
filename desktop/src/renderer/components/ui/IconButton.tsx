@@ -6,6 +6,8 @@ export interface IconButtonProps extends Omit<ButtonHTMLAttributes<HTMLButtonEle
   icon: ReactNode
   label: string
   size?: number
+  /** Corner radius in px. Defaults to the standard 8px control-band radius. */
+  radius?: number
   active?: boolean
   /** Semantic treatment for destructive icon-only actions. */
   tone?: 'neutral' | 'danger'
@@ -22,6 +24,7 @@ export const IconButton = forwardRef<HTMLButtonElement, IconButtonProps>(functio
   icon,
   label,
   size = 32,
+  radius = 8,
   active = false,
   tone = 'neutral',
   bordered = false,
@@ -46,7 +49,7 @@ export const IconButton = forwardRef<HTMLButtonElement, IconButtonProps>(functio
       data-bordered={bordered || undefined}
       data-tone={tone}
       style={{
-        ...iconButtonSizeStyle(size),
+        ...iconButtonSizeStyle(size, radius),
         ...style
       }}
       {...props}
@@ -73,12 +76,12 @@ export const IconButton = forwardRef<HTMLButtonElement, IconButtonProps>(functio
 // Sizing/layout only. Color, border, hover, active, and disabled states live in the
 // shared `.dc-icon-button` class (tokens.css) so frameless icon buttons get real hover
 // feedback and stay consistent app-wide.
-function iconButtonSizeStyle(size: number): CSSProperties {
+function iconButtonSizeStyle(size: number, radius: number): CSSProperties {
   return {
     width: `${size}px`,
     height: `${size}px`,
     minWidth: `${size}px`,
-    borderRadius: '8px',
+    borderRadius: `${radius}px`,
     display: 'inline-flex',
     alignItems: 'center',
     justifyContent: 'center',

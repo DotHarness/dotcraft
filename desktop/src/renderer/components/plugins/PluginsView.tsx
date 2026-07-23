@@ -1,22 +1,27 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { CSSProperties, MouseEvent } from 'react'
-import { Anchor, Box, Code2, Ellipsis, ExternalLink, FolderInput, Link, MessageCircle, Plus, Server, Settings, Trash2, Wrench } from 'lucide-react'
+import { Anchor, AtSign, Box, Code2, Ellipsis, ExternalLink, FolderInput, Link, MessageCircle, Plus, Server, Settings, Store, Trash2, Wrench } from 'lucide-react'
 import { useT } from '../../contexts/LocaleContext'
-import { usePluginStore, type PluginDiagnosticEntry, type PluginEntry } from '../../stores/pluginStore'
+import { usePluginStore, type MarketplaceEntry, type PluginDiagnosticEntry, type PluginEntry } from '../../stores/pluginStore'
 import { useConnectionStore } from '../../stores/connectionStore'
 import { useConversationStore } from '../../stores/conversationStore'
 import { useSkillsStore } from '../../stores/skillsStore'
 import { useUIStore, type PluginCatalogSurface } from '../../stores/uiStore'
 import { addToast } from '../../stores/toastStore'
+import { stringifyComposerDraftSegments } from '../conversation/richInputSerialization'
+import type { ComposerDraftSegment } from '../../types/composerDraft'
 import { PillSwitch } from '../ui/PillSwitch'
 import { useConfirmDialog } from '../ui/ConfirmDialog'
-import { SkillsManageList, SkillsView, filterLocalSkills } from '../skills/SkillsView'
+import { SkillsManageList, SkillsView, filterLocalSkills, stripYamlFrontmatter } from '../skills/SkillsView'
+import { SkillDetailDialog } from '../skills/SkillDetailDialog'
+import { stageSkillTryInChat } from '../skills/skillDraft'
 import {
   CatalogHoverButton,
   CatalogFilterMenu,
   CatalogBreadcrumb,
   CatalogSearchBox,
   CatalogTabs,
+  CatalogToolbarIconButton,
   CatalogTopBar,
   styles as catalogStyles
 } from '../catalog/CatalogSurface'
@@ -30,13 +35,22 @@ import { getPluginContentSummaries, type PluginContentType } from '../../utils/p
 import { SkeletonCatalogGrid, SkeletonList } from '../ui/Skeleton'
 import { Button } from '../ui/Button'
 import { IconButton } from '../ui/IconButton'
+import { SplitButton, type SplitButtonItem } from '../ui/SplitButton'
 import { PluginInstallButton } from './PluginInstallButton'
+import { AddMarketplaceDialog } from './AddMarketplaceDialog'
 
 type Surface = PluginCatalogSurface
 type PluginMode = 'browse' | 'manage'
-type PublisherFilter = 'dotcraft' | 'all'
+/**
+ * The browse listing's grouping selector. `marketplaces` is not a publisher but a
+ * delivery route: it narrows to marketplace-sourced entries and groups them by
+ * their source, which is where refresh and remove live. See the Plugin creation
+ * and marketplace sources section in specs/clients/desktop-client.md.
+ */
+type PublisherFilter = 'dotcraft' | 'all' | 'marketplaces'
 type CategoryFilter = string
 const DOTCRAFT_PLUGIN_FALLBACK_URL = 'https://github.com/DotHarness/dotcraft'
+const PLUGIN_CREATOR_SKILL = 'plugin-creator'
 const FIXED_PLUGIN_CATEGORIES = [
   'coding',
   'design',
@@ -53,9 +67,11 @@ export function PluginsView(): JSX.Element {
   const confirm = useConfirmDialog()
   const capabilities = useConnectionStore((s) => s.capabilities)
   const pluginManagement = capabilities?.pluginManagement === true
+  const pluginMarketplaces = capabilities?.pluginMarketplaces === true
   const remoteWorkspaceActive = useConversationStore((s) => s.remoteWorkspaceActive)
   const {
     plugins,
+    marketplaces,
     diagnostics,
     loading,
     error,
@@ -67,12 +83,19 @@ export function PluginsView(): JSX.Element {
     installPlugin,
     installLocalPlugin,
     removePlugin,
-    togglePluginEnabled
+    togglePluginEnabled,
+    removeMarketplace,
+    refreshMarketplace
   } = usePluginStore()
   const {
     skills,
     loading: skillsLoading,
     error: skillsError,
+    selectedSkillName,
+    skillContent,
+    contentLoading: skillContentLoading,
+    selectSkill,
+    clearSelection: clearSkillSelection,
     fetchSkills,
     toggleSkillEnabled
   } = useSkillsStore()
@@ -89,19 +112,10 @@ export function PluginsView(): JSX.Element {
   const [installTarget, setInstallTarget] = useState<PluginEntry | null>(null)
   const [installingId, setInstallingId] = useState<string | null>(null)
   const [enablingLspId, setEnablingLspId] = useState<string | null>(null)
-  const [menuPosition, setMenuPosition] = useState<ContextMenuPosition | null>(null)
+  const [addMarketplaceOpen, setAddMarketplaceOpen] = useState(false)
 
   useEffect(() => {
     if (pluginManagement) void fetchPlugins()
-  }, [fetchPlugins, pluginManagement])
-
-  useEffect(() => {
-    if (!pluginManagement) return
-    const handleFocus = (): void => {
-      void fetchPlugins()
-    }
-    window.addEventListener('focus', handleFocus)
-    return () => window.removeEventListener('focus', handleFocus)
   }, [fetchPlugins, pluginManagement])
 
   useEffect(() => {
@@ -120,6 +134,12 @@ export function PluginsView(): JSX.Element {
     if (mode === 'manage') void fetchSkills()
   }, [fetchSkills, mode])
 
+  // Removing the last marketplace leaves the marketplace mode with nothing to show,
+  // so the listing returns to the unfiltered view rather than looking empty.
+  useEffect(() => {
+    if (publisherFilter === 'marketplaces' && marketplaces.length === 0) setPublisherFilter('all')
+  }, [marketplaces.length, publisherFilter])
+
   const browsePlugins = useMemo(
     () => filterPlugins(plugins, browseQuery, publisherFilter, categoryFilter),
     [plugins, browseQuery, publisherFilter, categoryFilter]
@@ -133,8 +153,15 @@ export function PluginsView(): JSX.Element {
     [skills, skillManageQuery]
   )
   const visibleDiagnostics = useMemo(() => filterVisibleDiagnostics(diagnostics), [diagnostics])
+  const selectedSkill = selectedSkillName
+    ? skills.find((skill) => skill.name === selectedSkillName) ?? null
+    : null
+  const selectedSkillBody = skillContent != null ? stripYamlFrontmatter(skillContent) : ''
   const categoryOptions = useMemo(() => buildCategoryOptions(plugins, t), [plugins, t])
-  const sections = useMemo(() => buildSections(browsePlugins, categoryFilter, t), [browsePlugins, categoryFilter, t])
+  const sections = useMemo(
+    () => buildSections(browsePlugins, categoryFilter, publisherFilter, t, marketplaces),
+    [browsePlugins, categoryFilter, marketplaces, publisherFilter, t]
+  )
   const installDialog = installTarget ? (
     <PluginInstallDialog
       plugin={installTarget}
@@ -161,6 +188,93 @@ export function PluginsView(): JSX.Element {
     />
   ) : null
 
+  // Stage a plugin authoring conversation. The skill mention is only staged when the skill
+  // actually resolves, so the composer never shows a chip that cannot be resolved. The skill
+  // list is only fetched when it has not been loaded yet, keeping browse free of an eager call.
+  async function handleCreatePlugin(): Promise<void> {
+    let available = skills
+    if (available.length === 0) {
+      try {
+        await fetchSkills()
+        available = useSkillsStore.getState().skills
+      } catch {
+        available = []
+      }
+    }
+
+    const hasCreatorSkill = available.some((skill) => skill.name === PLUGIN_CREATOR_SKILL)
+    const prompt = t('plugins.create.prompt')
+    // The segment list is the composer's content model and the plain text is only its
+    // serialization, so the prompt has to be a segment of its own — text passed beside a
+    // lone skill segment is dropped. Deriving the text from the segments keeps the two
+    // from drifting apart.
+    const segments: ComposerDraftSegment[] = hasCreatorSkill
+      ? [{ type: 'skill', skillName: PLUGIN_CREATOR_SKILL }, { type: 'text', value: ` ${prompt}` }]
+      : [{ type: 'text', value: prompt }]
+    const text = stringifyComposerDraftSegments(segments)
+    const ui = useUIStore.getState()
+    const existing = ui.welcomeDraft
+    ui.setWelcomeDraft({
+      text,
+      segments,
+      selectionStart: text.length,
+      selectionEnd: text.length,
+      images: [],
+      files: [],
+      mode: existing?.mode ?? 'agent',
+      model: existing?.model || 'Default',
+      approvalPolicy: existing?.approvalPolicy ?? 'default'
+    })
+    ui.goToNewChat()
+  }
+
+  // Browse never loads the skill list, so it is fetched on demand the first time a
+  // plugin's contents list is used to open one.
+  async function handleOpenSkill(name: string): Promise<void> {
+    if (useSkillsStore.getState().skills.length === 0) {
+      try {
+        await fetchSkills()
+      } catch {
+        addToast(t('skills.updateFailed'), 'error')
+        return
+      }
+    }
+    await selectSkill(name)
+  }
+
+  async function handleRefreshMarketplace(marketplace: MarketplaceEntry): Promise<void> {
+    try {
+      const errors = await refreshMarketplace(marketplace.name)
+      const failure = errors.find((entry) => entry.name === marketplace.name)
+      if (failure) {
+        addToast(failure.message, 'error')
+        return
+      }
+      addToast(t('plugins.marketplace.refreshSuccess'), 'success')
+    } catch (err) {
+      addToast(err instanceof Error ? err.message : t('plugins.marketplace.refreshFailed'), 'error')
+    }
+  }
+
+  async function handleRemoveMarketplace(marketplace: MarketplaceEntry): Promise<void> {
+    const name = marketplaceTitle(marketplace)
+    const ok = await confirm({
+      title: t('plugins.marketplace.removeConfirm.title', { name }),
+      message: t('plugins.marketplace.removeConfirm.message', { name }),
+      confirmLabel: t('plugins.marketplace.remove'),
+      cancelLabel: t('common.cancel'),
+      danger: true
+    })
+    if (!ok) return
+
+    try {
+      await removeMarketplace(marketplace.name)
+      addToast(t('plugins.marketplace.removeSuccess'), 'success')
+    } catch (err) {
+      addToast(err instanceof Error ? err.message : t('plugins.marketplace.removeFailed'), 'error')
+    }
+  }
+
   // Install a plugin from a local folder the user points at. The backend validates the
   // folder (a valid `.craft-plugin/plugin.json`) before copying anything; on failure it
   // returns the reason, which we surface in the toast. This makes it possible to add
@@ -184,6 +298,33 @@ export function PluginsView(): JSX.Element {
       addToast(detail || t('plugins.installLocal.failed'), 'error')
     }
   }
+
+  // Every way of getting a plugin into the workspace lives in one menu. The first entry
+  // is also the principal action, so a single available entry degrades to a plain button.
+  const createActions: SplitButtonItem[] = [
+    {
+      key: 'create-plugin',
+      label: t('plugins.create.plugin'),
+      icon: <AtSign size={14} aria-hidden />,
+      onClick: () => void handleCreatePlugin()
+    },
+    ...(pluginMarketplaces
+      ? [{
+          key: 'add-marketplace',
+          label: t('plugins.marketplace.add.menu'),
+          icon: <Store size={14} aria-hidden />,
+          onClick: () => setAddMarketplaceOpen(true)
+        }]
+      : []),
+    ...(!remoteWorkspaceActive
+      ? [{
+          key: 'install-local',
+          label: t('plugins.installLocal.menu'),
+          icon: <FolderInput size={14} aria-hidden />,
+          onClick: () => void handleInstallFromDisk()
+        }]
+      : [])
+  ]
 
   if (surface === 'skills' && mode !== 'manage') {
     return (
@@ -231,16 +372,6 @@ export function PluginsView(): JSX.Element {
               addToast(t('plugins.uninstallFailed'), 'error')
             }
           }}
-          onToggle={async (enabled) => {
-            try {
-              await togglePluginEnabled(selectedPlugin.id, enabled)
-              await selectPlugin(selectedPlugin.id)
-              await fetchSkills()
-              setSavedPluginId(selectedPlugin.id)
-            } catch {
-              addToast(t('plugins.updateFailed'), 'error')
-            }
-          }}
           enablingLsp={enablingLspId === selectedPlugin.id}
           onEnableLsp={async () => {
             try {
@@ -257,7 +388,20 @@ export function PluginsView(): JSX.Element {
             }
           }}
           onTryInChat={() => tryPluginInChat(selectedPlugin)}
+          onOpenSkill={(name) => void handleOpenSkill(name)}
         />
+        {selectedSkill && (
+          <SkillDetailDialog
+            skill={selectedSkill}
+            markdownBody={selectedSkillBody}
+            loading={skillContentLoading}
+            onClose={() => clearSkillSelection()}
+            onTryInChat={() => {
+              clearSkillSelection()
+              stageSkillTryInChat(selectedSkill)
+            }}
+          />
+        )}
         {installDialog}
       </>
     )
@@ -345,18 +489,28 @@ export function PluginsView(): JSX.Element {
         navigation={<SurfaceTabs value={surface} onChange={setSurface} />}
         actions={(
           <>
-            <Button variant="secondary" onClick={() => { setManagePluginQuery(''); setMode('manage') }} iconLeft={<Settings size={14} aria-hidden />}>
-              {t('plugins.manage')}
-            </Button>
-              <IconButton
-                label={t('plugins.moreActions')}
-                tooltipLabel={t('plugins.moreActions')}
-                tooltipPlacement="bottom"
-                aria-haspopup="menu"
-                aria-expanded={menuPosition != null}
-                onClick={(event) => setMenuPosition({ x: event.clientX, y: event.clientY })}
-                icon={<Ellipsis size={16} aria-hidden />}
+            <CatalogToolbarIconButton
+              label={t('plugins.refresh')}
+              onClick={() => void fetchPlugins()}
+              icon={<RefreshIcon size={15} />}
+            />
+            <CatalogToolbarIconButton
+              label={t('plugins.manage')}
+              onClick={() => { setManagePluginQuery(''); setMode('manage') }}
+              icon={<Settings size={15} aria-hidden />}
+            />
+            {createActions.length > 1 ? (
+              <SplitButton
+                label={t('plugins.create.button')}
+                menuLabel={t('plugins.create.menuLabel')}
+                onClick={createActions[0].onClick}
+                items={createActions}
               />
+            ) : (
+              <Button variant="primary" size="toolbar" onClick={createActions[0].onClick}>
+                {t('plugins.create.button')}
+              </Button>
+            )}
           </>
         )}
       />
@@ -370,7 +524,10 @@ export function PluginsView(): JSX.Element {
             onChange={setPublisherFilter}
             options={[
               { value: 'dotcraft', label: t('plugins.filter.publisher.dotcraft') },
-              { value: 'all', label: t('plugins.filter.publisher.all') }
+              { value: 'all', label: t('plugins.filter.publisher.all') },
+              ...(pluginMarketplaces && marketplaces.length > 0
+                ? [{ value: 'marketplaces' as const, label: t('plugins.filter.publisher.marketplaces') }]
+                : [])
             ]}
           />
           <CatalogFilterMenu
@@ -388,7 +545,15 @@ export function PluginsView(): JSX.Element {
         <PluginDiagnosticsBanner diagnostics={visibleDiagnostics} />
         {sections.map((section) => (
           <section key={section.key} style={{ marginBottom: '34px' }}>
-            <h2 style={sectionTitle}>{section.title}</h2>
+            {section.marketplace ? (
+              <MarketplaceSectionHeader
+                marketplace={section.marketplace}
+                onRefresh={() => void handleRefreshMarketplace(section.marketplace!)}
+                onRemove={() => void handleRemoveMarketplace(section.marketplace!)}
+              />
+            ) : (
+              <h2 style={sectionTitle}>{section.title}</h2>
+            )}
             <div style={compactGrid}>
               {section.plugins.map((plugin) => (
                 <PluginCatalogItem
@@ -406,29 +571,100 @@ export function PluginsView(): JSX.Element {
         ))}
         {!loading && !error && browsePlugins.length === 0 && <p style={emptyText}>{t('plugins.empty')}</p>}
       </main>
-      {menuPosition && (
-        <ContextMenu
-          position={menuPosition}
-          onClose={() => setMenuPosition(null)}
-          items={[
-            ...(!remoteWorkspaceActive
-              ? [{
-                  label: t('plugins.installLocal.menu'),
-                  icon: <FolderInput size={14} />,
-                  onClick: () => void handleInstallFromDisk()
-                }]
-              : []),
-            {
-              label: t('plugins.refresh'),
-              icon: <RefreshIcon size={14} />,
-              onClick: () => void fetchPlugins()
-            }
-          ]}
+      {addMarketplaceOpen && (
+        <AddMarketplaceDialog
+          allowLocalFolder={!remoteWorkspaceActive}
+          onClose={() => setAddMarketplaceOpen(false)}
+          onAdded={(marketplace, alreadyAdded) => {
+            setAddMarketplaceOpen(false)
+            addToast(
+              alreadyAdded
+                ? t('plugins.marketplace.add.alreadyAdded', { name: marketplaceTitle(marketplace) })
+                : t('plugins.marketplace.add.success', { name: marketplaceTitle(marketplace) }),
+              'success'
+            )
+          }}
         />
       )}
       {installDialog}
     </div>
   )
+}
+
+function MarketplaceSectionHeader({
+  marketplace,
+  onRefresh,
+  onRemove
+}: {
+  marketplace: MarketplaceEntry
+  onRefresh: () => void
+  onRemove: () => void
+}): JSX.Element {
+  const t = useT()
+  const [position, setPosition] = useState<ContextMenuPosition | null>(null)
+  const [hovered, setHovered] = useState(false)
+  const [actionFocused, setActionFocused] = useState(false)
+
+  // Revealed by opacity rather than by mounting, so the row does not shift as the
+  // pointer crosses it, and on keyboard focus too, or the actions are pointer-only.
+  // See Selection Rows in specs/architecture/DESIGN.md.
+  const actionsVisible = hovered || actionFocused || position != null
+
+  return (
+    <div
+      style={marketplaceHeaderRow}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+    >
+      {/* The source identifies the group without earning a place in the layout. */}
+      <ActionTooltip label={marketplace.source} placement="bottom" multiline>
+        <h2 style={marketplaceHeaderTitle}>{marketplaceTitle(marketplace)}</h2>
+      </ActionTooltip>
+      <div style={{ flex: 1 }} />
+      {marketplace.removable && (
+        <span style={revealedActionStyle(actionsVisible)}>
+          <IconButton
+            label={t('plugins.marketplace.actions')}
+            tooltipLabel={t('plugins.marketplace.actions')}
+            tooltipPlacement="bottom"
+            aria-haspopup="menu"
+            aria-expanded={position != null}
+            size={28}
+            onFocus={() => setActionFocused(true)}
+            onBlur={() => setActionFocused(false)}
+            onClick={(event) => {
+              const rect = event.currentTarget.getBoundingClientRect()
+              setPosition({ x: rect.right - 200, y: rect.bottom + 4 })
+            }}
+            icon={<Ellipsis size={15} aria-hidden />}
+          />
+        </span>
+      )}
+      {position && (
+        <ContextMenu
+          position={position}
+          onClose={() => setPosition(null)}
+          items={[
+            {
+              label: t('plugins.marketplace.refresh'),
+              icon: <RefreshIcon size={14} />,
+              onClick: onRefresh
+            },
+            {
+              label: t('plugins.marketplace.remove'),
+              icon: <Trash2 size={14} />,
+              danger: true,
+              onClick: onRemove
+            }
+          ]}
+        />
+      )}
+    </div>
+  )
+}
+
+export function marketplaceTitle(marketplace: MarketplaceEntry): string {
+  return marketplace.displayName?.trim() || marketplace.name
 }
 
 function PluginsManageToolbar({
@@ -651,7 +887,9 @@ function PluginManageItem({
           <span style={rowDesc}>{pluginSubtitle(plugin)}</span>
         </span>
       </button>
-      <span style={manageSource}>{pluginSourceLabel(plugin)}</span>
+      <span style={manageSource} title={plugin.marketplaceName ?? undefined}>
+        {plugin.marketplaceName || pluginSourceLabel(plugin)}
+      </span>
       <span style={manageActionSlot}>
         {plugin.installed ? (
           <PillSwitch checked={plugin.enabled} onChange={onToggle} size="sm" aria-label={`${pluginTitle(plugin)} enabled`} />
@@ -671,10 +909,10 @@ function PluginDetailView({
   onManage,
   onInstall,
   onRemove,
-  onToggle,
   enablingLsp,
   onEnableLsp,
-  onTryInChat
+  onTryInChat,
+  onOpenSkill
 }: {
   plugin: PluginEntry
   loading: boolean
@@ -683,10 +921,10 @@ function PluginDetailView({
   onManage: () => void
   onInstall: () => void
   onRemove: () => void
-  onToggle: (enabled: boolean) => void
   enablingLsp: boolean
   onEnableLsp: () => void
   onTryInChat: () => void
+  onOpenSkill: (skillName: string) => void
 }): JSX.Element {
   const t = useT()
   const [detailMenuPosition, setDetailMenuPosition] = useState<ContextMenuPosition | null>(null)
@@ -763,20 +1001,37 @@ function PluginDetailView({
             <h2 style={detailSectionTitle}>{t('plugins.detail.contents')}</h2>
             {contents.length > 0 ? (
               <div style={contentList}>
-                {contents.map((item) => (
-                  <div key={item.key} style={contentItem}>
-                    <span style={contentIcon}>
-                      <PluginContentIcon type={item.type} size={16} />
-                    </span>
-                    <span style={pluginText}>
-                      <span style={contentTitleLine}>
-                        <strong style={rowTitle}>{item.title}</strong>
-                        <span style={contentKind}>{item.kind}</span>
+                {contents.map((item) => {
+                  const body = (
+                    <>
+                      <span style={contentIcon}>
+                        <PluginContentIcon type={item.type} size={16} />
                       </span>
-                      <span style={rowDesc}>{item.description}</span>
-                    </span>
-                  </div>
-                ))}
+                      <span style={pluginText}>
+                        <span style={contentTitleLine}>
+                          <strong style={rowTitle}>{item.title}</strong>
+                          <span style={contentKind}>{item.kind}</span>
+                        </span>
+                        <span style={rowDesc}>{item.description}</span>
+                      </span>
+                    </>
+                  )
+                  // Only a skill has a document to preview; the other kinds are
+                  // descriptions of runtime wiring with nothing to open.
+                  if (item.skillName == null) {
+                    return <div key={item.key} style={contentItem}>{body}</div>
+                  }
+                  return (
+                    <CatalogHoverButton
+                      key={item.key}
+                      type="button"
+                      baseStyle={contentItemButton}
+                      onClick={() => onOpenSkill(item.skillName!)}
+                    >
+                      {body}
+                    </CatalogHoverButton>
+                  )
+                })}
               </div>
             ) : (
               <p style={emptyText}>{t('plugins.detail.noContents')}</p>
@@ -801,12 +1056,6 @@ function PluginDetailView({
               <InfoLinkRow label={t('plugins.detail.terms')} href={info?.termsOfServiceUrl} />
             </div>
           </section>
-          {plugin.installed && (
-            <div style={detailToggleRow}>
-              <span>{plugin.enabled ? t('plugins.enabled') : t('plugins.disabled')}</span>
-              <PillSwitch checked={plugin.enabled} onChange={onToggle} aria-label={`${pluginTitle(plugin)} enabled`} />
-            </div>
-          )}
         </div>
       </main>
       {detailMenuPosition && (
@@ -902,6 +1151,7 @@ function filterPlugins(
   const q = query.trim().toLowerCase()
   return plugins.filter((plugin) => {
     if (publisherFilter === 'dotcraft' && !isDotHarnessPlugin(plugin)) return false
+    if (publisherFilter === 'marketplaces' && !plugin.marketplaceName) return false
     if (categoryFilter === 'featured' && !isFeaturedPlugin(plugin)) return false
     if (categoryFilter !== 'all' && categoryFilter !== 'featured' && pluginCategoryKey(plugin) !== categoryFilter) return false
     if (!q) return true
@@ -934,11 +1184,39 @@ function buildCategoryOptions(plugins: PluginEntry[], t: ReturnType<typeof useT>
   ]
 }
 
+interface PluginSection {
+  key: string
+  title: string
+  plugins: PluginEntry[]
+  /** Present when the section groups a marketplace, which owns refresh and remove. */
+  marketplace?: MarketplaceEntry
+}
+
 function buildSections(
   plugins: PluginEntry[],
   categoryFilter: CategoryFilter,
-  t: ReturnType<typeof useT>
-): Array<{ key: string; title: string; plugins: PluginEntry[] }> {
+  publisherFilter: PublisherFilter,
+  t: ReturnType<typeof useT>,
+  marketplaces: MarketplaceEntry[]
+): PluginSection[] {
+  // Grouping by marketplace is the one mode that asks "where did this come from",
+  // so it answers only that: no installed-state group, and the category filter
+  // still narrows what each group contains.
+  if (publisherFilter === 'marketplaces') {
+    const sections: PluginSection[] = []
+    for (const marketplace of marketplaces) {
+      const owned = plugins.filter((plugin) => plugin.marketplaceName === marketplace.name)
+      if (owned.length === 0) continue
+      sections.push({
+        key: `marketplace:${marketplace.name}`,
+        title: marketplaceTitle(marketplace),
+        plugins: owned,
+        marketplace
+      })
+    }
+    return sections
+  }
+
   if (categoryFilter === 'featured') {
     return plugins.length > 0 ? [{ key: 'featured', title: t('plugins.section.featured'), plugins }] : []
   }
@@ -949,7 +1227,7 @@ function buildSections(
 
   const local = plugins.filter(isLocalInstalledPlugin)
   const seen = new Set(local.map((plugin) => plugin.id))
-  const sections: Array<{ key: string; title: string; plugins: PluginEntry[] }> = []
+  const sections: PluginSection[] = []
   if (local.length > 0) {
     sections.push({ key: 'local', title: t('plugins.section.local'), plugins: local })
   }
@@ -1126,7 +1404,48 @@ function interactiveManageRow(active: boolean): CSSProperties {
 }
 
 const manageItemMain: CSSProperties = { ...compactItem, flex: 1, padding: 0, height: 'auto' }
-const manageSource: CSSProperties = { width: '86px', flexShrink: 0, color: 'var(--text-secondary)', fontSize: '13px', textAlign: 'left' }
+const manageSource: CSSProperties = {
+  width: '86px',
+  flexShrink: 0,
+  color: 'var(--text-secondary)',
+  fontSize: '13px',
+  textAlign: 'left',
+  overflow: 'hidden',
+  textOverflow: 'ellipsis',
+  whiteSpace: 'nowrap'
+}
+// A section title carries the section's column geometry, not just its type: the
+// 760px width and `0 auto` centering are what line a heading up with the grid
+// beneath it. Splitting the two lets the header row take the column while the
+// heading keeps the type, instead of the row spanning the full main padding.
+const { maxWidth: sectionColumnWidth, margin: sectionColumnMargin,
+  ...sectionTitleType } = sectionTitle
+
+const marketplaceHeaderRow: CSSProperties = {
+  maxWidth: sectionColumnWidth,
+  margin: sectionColumnMargin,
+  display: 'flex',
+  alignItems: 'center',
+  gap: '10px'
+}
+// `minWidth: 0` lets a long marketplace name truncate instead of pushing the row
+// wider than its column; a flex item defaults to its content's minimum width.
+const marketplaceHeaderTitle: CSSProperties = {
+  ...sectionTitleType,
+  margin: 0,
+  minWidth: 0,
+  overflow: 'hidden',
+  textOverflow: 'ellipsis',
+  whiteSpace: 'nowrap'
+}
+function revealedActionStyle(visible: boolean): CSSProperties {
+  return {
+    display: 'inline-flex',
+    opacity: visible ? 1 : 0,
+    pointerEvents: visible ? 'auto' : 'none',
+    transition: 'opacity 120ms ease'
+  }
+}
 // Fixed-width, centered slot for the trailing control so the Install button and the
 // PillSwitch share one column: this keeps the developer column at a constant x across
 // installed/uninstalled rows and centers both controls on the same vertical line.
@@ -1151,20 +1470,43 @@ const promptBubblePrefix: CSSProperties = { display: 'inline-flex', alignItems: 
 const promptBubbleTitle: CSSProperties = { minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }
 const promptBubbleText: CSSProperties = { flex: '1 1 180px', minWidth: 0, whiteSpace: 'normal', overflowWrap: 'anywhere' }
 const longDescription: CSSProperties = { margin: '54px 8px 40px', lineHeight: 1.55, fontSize: 14, color: 'var(--text-primary)' }
+// Detail sections are frameless: a section is marked by a rule under its heading,
+// not by a box around its rows, so stacked groups read as one column instead of a
+// stack of cards. See the Detail Sections part of DESIGN.md.
 const detailSection: CSSProperties = { marginTop: 28 }
-const detailSectionTitle: CSSProperties = { margin: '0 0 12px', fontSize: 15, fontWeight: 600 }
-const contentList: CSSProperties = { border: '1px solid var(--border-default)', borderRadius: 8, padding: 10 }
+const detailSectionTitle: CSSProperties = {
+  margin: '0 0 8px',
+  paddingBottom: 8,
+  borderBottom: '1px solid var(--border-subtle)',
+  fontSize: 15,
+  fontWeight: 600
+}
+const contentList: CSSProperties = { display: 'flex', flexDirection: 'column' }
 const contentItem: CSSProperties = { display: 'flex', alignItems: 'center', gap: 12, padding: '8px 0' }
+// An openable row keeps the same rhythm as a static one, so the list does not
+// change shape; the hover fill is what marks it as reachable.
+const contentItemButton: CSSProperties = {
+  ...contentItem,
+  width: 'calc(100% + 16px)',
+  marginInline: -8,
+  padding: '8px',
+  border: 'none',
+  borderRadius: 8,
+  background: 'transparent',
+  color: 'inherit',
+  font: 'inherit',
+  textAlign: 'left',
+  cursor: 'pointer'
+}
 const contentIcon: CSSProperties = { width: 38, height: 38, borderRadius: 19, border: '1px solid var(--border-default)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-secondary)' }
 const contentTitleLine: CSSProperties = { display: 'inline-flex', alignItems: 'baseline', gap: 5, minWidth: 0 }
 const contentKind: CSSProperties = { fontWeight: 400, color: 'var(--text-secondary)' }
 const lspEnablePanel: CSSProperties = { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, border: '1px solid var(--border-default)', borderRadius: 8, background: 'var(--bg-secondary)', padding: '12px 14px', marginTop: 16 }
-const infoTable: CSSProperties = { border: '1px solid var(--border-default)', borderRadius: 8, overflow: 'hidden' }
-const infoRow: CSSProperties = { display: 'grid', gridTemplateColumns: '180px 1fr', minHeight: 54, borderBottom: '1px solid var(--border-default)' }
-const infoLabel: CSSProperties = { color: 'var(--text-secondary)', fontSize: 13, padding: '18px 16px' }
-const infoValue: CSSProperties = { fontSize: 13, padding: '18px 16px' }
+const infoTable: CSSProperties = { display: 'flex', flexDirection: 'column' }
+const infoRow: CSSProperties = { display: 'grid', gridTemplateColumns: '180px 1fr', alignItems: 'center', minHeight: 32 }
+const infoLabel: CSSProperties = { color: 'var(--text-secondary)', fontSize: 13, padding: '6px 0' }
+const infoValue: CSSProperties = { fontSize: 13, padding: '6px 0' }
 const plainLink: CSSProperties = { color: 'var(--accent)', display: 'inline-flex' }
-const detailToggleRow: CSSProperties = { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 24, padding: '12px 4px', fontSize: 13 }
 const diagnosticsPanel: CSSProperties = { border: '1px solid var(--border-default)', borderRadius: 8, background: 'var(--bg-secondary)', padding: '12px 14px', margin: '0 0 24px' }
 const diagnosticsTitle: CSSProperties = { display: 'block', fontSize: 13, marginBottom: 8, color: 'var(--text-primary)' }
 const diagnosticsList: CSSProperties = { display: 'flex', flexDirection: 'column', gap: 7 }

@@ -9,6 +9,7 @@ import {
 } from 'react'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { useT } from '../../contexts/LocaleContext'
+import { Input } from '../ui/Input'
 import type { PendingUserInputRequest } from '../../stores/conversationStore'
 import { useConversationStore } from '../../stores/conversationStore'
 import { addToast } from '../../stores/toastStore'
@@ -376,8 +377,9 @@ function OtherRow({
     >
       <span style={composerChoiceNumberStyle('decision')}>{index + 1}.</span>
       <div style={{ flex: '1 1 auto', minWidth: 0 }}>
-        <input
+        <Input
           ref={inputRef}
+          bare
           type={secret ? 'password' : 'text'}
           value={value}
           onFocus={onSelect}

@@ -6,9 +6,18 @@ interface ModalHeaderProps {
   /**
    * Identity glyph for the dialog (e.g. a lucide icon). Rendered inside the
    * neutral badge, so it should be an unsized/18px icon — the badge owns the box.
+   * With `badgedIcon={false}` it is rendered as-is and must supply its own box.
    */
   icon: ReactNode
+  /**
+   * Set false when the subject has its own product artwork — a skill or plugin
+   * avatar is already a badge, and nesting it inside the neutral one reads as two
+   * boxes. It must match the badge's footprint. See DESIGN.md Dialog Headers.
+   */
+  badgedIcon?: boolean
   title: string
+  /** Badge or marker shown beside the title, e.g. a variant marker. */
+  titleAdornment?: ReactNode
   /** id applied to the title, so the dialog can point aria-labelledby at it. */
   titleId?: string
   /** Optional one or two line supporting copy under the title. */
@@ -16,6 +25,8 @@ interface ModalHeaderProps {
   /** When provided, renders a borderless close button in the top-right. */
   onClose?: () => void
   closeLabel?: string
+  /** Extra controls for the badge row, placed before the close button. */
+  actions?: ReactNode
   /** Merged onto the header container (e.g. to tune the gap before the body). */
   style?: CSSProperties
 }
@@ -30,29 +41,38 @@ interface ModalHeaderProps {
  */
 export function ModalHeader({
   icon,
+  badgedIcon = true,
   title,
+  titleAdornment,
   titleId,
   description,
   onClose,
   closeLabel,
+  actions,
   style
 }: ModalHeaderProps): JSX.Element {
   return (
     <div style={{ ...containerStyle, ...style }}>
       <div style={topRowStyle}>
-        <span style={badgeStyle}>{icon}</span>
-        {onClose && (
-          <IconButton
-            icon={<X size={16} aria-hidden />}
-            label={closeLabel ?? 'Close'}
-            size={30}
-            onClick={onClose}
-          />
-        )}
+        {badgedIcon ? <span style={badgeStyle}>{icon}</span> : icon}
+        <span style={actionRowStyle}>
+          {actions}
+          {onClose && (
+            <IconButton
+              icon={<X size={16} aria-hidden />}
+              label={closeLabel ?? 'Close'}
+              size={30}
+              onClick={onClose}
+            />
+          )}
+        </span>
       </div>
-      <h2 id={titleId} style={titleStyle}>
-        {title}
-      </h2>
+      <div style={titleRowStyle}>
+        <h2 id={titleId} style={titleStyle}>
+          {title}
+        </h2>
+        {titleAdornment}
+      </div>
       {description != null && description !== '' && <p style={descriptionStyle}>{description}</p>}
     </div>
   )
@@ -71,6 +91,13 @@ const topRowStyle: CSSProperties = {
   marginBottom: '12px'
 }
 
+const actionRowStyle: CSSProperties = {
+  display: 'inline-flex',
+  alignItems: 'center',
+  gap: '4px',
+  flexShrink: 0
+}
+
 const badgeStyle: CSSProperties = {
   display: 'inline-flex',
   alignItems: 'center',
@@ -83,8 +110,19 @@ const badgeStyle: CSSProperties = {
   color: 'var(--text-secondary)'
 }
 
+const titleRowStyle: CSSProperties = {
+  display: 'flex',
+  alignItems: 'center',
+  gap: '8px',
+  minWidth: 0
+}
+
 const titleStyle: CSSProperties = {
   margin: 0,
+  minWidth: 0,
+  overflow: 'hidden',
+  textOverflow: 'ellipsis',
+  whiteSpace: 'nowrap',
   fontSize: '15px',
   fontWeight: 600,
   lineHeight: 1.3,
