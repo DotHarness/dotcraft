@@ -54,7 +54,7 @@ lastUpdated: false
             Conversations, memory, agents, skills, plugins, and Automations stay with the project. Open it from Desktop, CLI, a social channel, or a connected application — and continue from the same context.
           </p>
           <div class="dc-story__links">
-            <a class="dc-link" href="./features/project-first">Project-first workspaces <span aria-hidden="true">→</span></a>
+            <a class="dc-link" href="./features/project-workspace">Project Workspace <span aria-hidden="true">→</span></a>
           </div>
         </div>
         <figure class="dc-story__media">

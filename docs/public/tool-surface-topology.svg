@@ -10,6 +10,11 @@
     .mono { fill: #1F2937; font-size: 15px; font-family: "Cascadia Mono", ui-monospace, SFMono-Regular, Menlo, monospace; }
     .muted { fill: #667085; font-size: 13px; }
   </style>
+  <defs>
+    <marker id="arrow" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto">
+      <path d="M2 2L10 6L2 10" fill="none" stroke="#A8B4C6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+    </marker>
+  </defs>
 
   <rect width="1440" height="1040" fill="#F8FAF7"/>
   <text x="72" y="86" class="title">DotCraft tool surface topology</text>
@@ -107,10 +112,10 @@
     <text x="282" y="124" class="mono">Dashboard traces</text>
   </g>
 
-  <path d="M468 290H512" stroke="#A8B4C6" stroke-width="2" stroke-linecap="round"/><path d="M502 282L512 290L502 298" stroke="#A8B4C6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-  <path d="M918 290H962" stroke="#A8B4C6" stroke-width="2" stroke-linecap="round"/><path d="M952 282L962 290L952 298" stroke="#A8B4C6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-  <path d="M270 416V464" stroke="#A8B4C6" stroke-width="2" stroke-linecap="round"/><path d="M262 454L270 464L278 454" stroke="#A8B4C6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-  <path d="M468 600H512" stroke="#A8B4C6" stroke-width="2" stroke-linecap="round"/><path d="M502 592L512 600L502 608" stroke="#A8B4C6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-  <path d="M918 600H962" stroke="#A8B4C6" stroke-width="2" stroke-linecap="round"/><path d="M952 592L962 600L952 608" stroke="#A8B4C6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-  <path d="M720 724V792" stroke="#A8B4C6" stroke-width="2" stroke-linecap="round"/><path d="M712 782L720 792L728 782" stroke="#A8B4C6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M468 290H514" stroke="#A8B4C6" stroke-width="2" stroke-linecap="round" marker-end="url(#arrow)"/>
+  <path d="M918 290H964" stroke="#A8B4C6" stroke-width="2" stroke-linecap="round" marker-end="url(#arrow)"/>
+  <path d="M270 416V466" stroke="#A8B4C6" stroke-width="2" stroke-linecap="round" marker-end="url(#arrow)"/>
+  <path d="M468 600H514" stroke="#A8B4C6" stroke-width="2" stroke-linecap="round" marker-end="url(#arrow)"/>
+  <path d="M918 600H964" stroke="#A8B4C6" stroke-width="2" stroke-linecap="round" marker-end="url(#arrow)"/>
+  <path d="M720 724V794" stroke="#A8B4C6" stroke-width="2" stroke-linecap="round" marker-end="url(#arrow)"/>
 </svg>

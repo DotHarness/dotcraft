@@ -13,7 +13,7 @@ There are two collaboration modes:
 
 This page focuses on the handoff document flow. For live clients, see [Unified Session Core](../architecture/session-core) and [AppServer Mode](../lifecycle/appserver).
 
-## What To Share
+## What to share
 
 A good external-agent handoff usually includes:
 
@@ -22,9 +22,9 @@ A good external-agent handoff usually includes:
 - The concrete task you want the external agent to do next.
 - Any privacy constraints, such as whether tool outputs or memory history may be included.
 
-Do not share provider credentials, global `~/.craft/config.json`, or raw state databases unless you explicitly trust the receiver and need forensic debugging. The Markdown export is the safer default because it is curated and has redaction controls.
+Do not share provider credentials, global `~/.craft/config.json`, or raw state databases unless you explicitly trust the receiver and need forensic debugging. A Markdown export is easier to limit and review than raw state, but it is not automatically safe to share. Minimize it with `--tool-results` and `--history`, then inspect it manually.
 
-## Find The Right Thread
+## Find the right thread
 
 When you know only a symptom, error, tool name, model id, or partial user request, search the workspace first:
 
@@ -34,13 +34,15 @@ dotcraft context search --query "provider timeout gpt-5.3" --workspace "D:\path\
 
 Search reads the workspace state DB first, including thread metadata, trace session bindings, trace session counters, and trace events. It then adds short rollout snippets for candidates. Results include an export command when the matching thread has a rollout file.
 
+Search does not index internal exact-model-history or compaction-checkpoint payloads. Treat its snippets as discovery aids, then export the selected thread for the replayed conversation.
+
 Use `--json` when another script or tool should consume the result:
 
 ```bash
 dotcraft context search --query "thread_20260601" --workspace "D:\path\to\project" --json
 ```
 
-## Export A Handoff
+## Export a handoff
 
 Once you have a thread id:
 
@@ -62,7 +64,7 @@ For a stricter handoff:
 dotcraft context export --thread thread_20260601_ab12cd --tool-results none --history tail --output handoff.md
 ```
 
-For a full audit transcript:
+For the most detailed transcript:
 
 ```bash
 dotcraft context export --thread thread_20260601_ab12cd --profile transcript --tool-results full --history full --output transcript.md
@@ -70,7 +72,10 @@ dotcraft context export --thread thread_20260601_ab12cd --profile transcript --t
 
 If `--output` is omitted, Markdown is written to stdout.
 
-## What The Export Contains
+> [!NOTE]
+> `--tool-results full` removes only the exporter's preview-length cap for tool-result content already present in the session record. It does not retrieve original artifacts that were spilled to `.craft/tool-results/`, so the export may still contain only the recorded preview or reference.
+
+## What the export contains
 
 The Markdown export includes:
 
@@ -81,9 +86,11 @@ The Markdown export includes:
 - Current model-visible context: reconstructed from the latest usable compaction checkpoint plus surviving tail turns.
 - Conversation: surviving turns replayed from canonical rollout JSONL.
 
-Reasoning content is omitted. Tool calls are kept. Tool and command results follow `--tool-results`. `RequestUserInput` answer bodies are always omitted, including from full exports; question text and correlation IDs remain.
+The exporter redacts recognized sensitive keys in tool arguments and results, plus a limited set of sensitive text patterns. It does not scan every field as a secret: conversation messages, workspace memory, error text, and other free-form content may appear unchanged. Review every export before sharing it.
 
-## Rollback And Compaction
+Reasoning content, free-form thread metadata, and internal provider or session payloads are omitted. Tool calls are kept, while tool and command results follow `--tool-results`. `RequestUserInput` answer bodies are always omitted, including from full exports; question text and correlation IDs remain.
+
+## Rollback and compaction
 
 DotCraft does not treat rollout JSONL as a naive append-only transcript during export. It replays the canonical events:
 
@@ -94,7 +101,7 @@ DotCraft does not treat rollout JSONL as a naive append-only transcript during e
 
 This matters because another coding agent needs the context that DotCraft would actually continue from, not stale turns that were already rolled back.
 
-## Handoff Checklist
+## Handoff checklist
 
 Before sending context to another coding agent:
 
@@ -104,9 +111,10 @@ Before sending context to another coding agent:
 4. Mention continuity warnings, especially rollback or ignored compaction checkpoints.
 5. Tell the external agent what to do next and which files it may modify.
 
-## Related
+## Related docs
 
-- [Project Workspace](../../features/project-first)
+- [Project Workspace](../../features/project-workspace)
 - [Unified Session Core](../architecture/session-core)
+- [Session persistence](../architecture/session-persistence)
 - [Observability](../../features/self-hosted/observability)
 - [AppServer Mode](../lifecycle/appserver)

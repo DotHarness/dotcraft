@@ -92,7 +92,7 @@ Dashboard 的 Approvals 页面记录每一次需要审批的工具调用：
 
 ## 相关文档
 
-- [项目级工作区](../project-first)
+- [项目工作区](../project-workspace)
 - [安全与沙箱](./security)
 - [Dashboard API](../../developing/protocols/dashboard-api)
 - [设置生效层级](../../developing/lifecycle/settings-lifecycle)

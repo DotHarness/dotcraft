@@ -100,6 +100,7 @@
   --dc-radius-sm: 6px;
   --dc-radius-md: 8px;
   --dc-radius-lg: 12px;
+  --dc-media-radius: var(--dc-radius-lg);
 }
 
 .dark {
@@ -140,8 +141,23 @@
   --dc-shadow-lg: 0 18px 48px rgba(0, 0, 0, 0.4);
 }
 
-.VPNavBarTitle .logo {
+/* Content media shares one outer radius. Decorative product art stays unframed;
+ * sidebar and control icons are inline SVGs, so this rule never reaches them. */
+.vp-doc img:not(.dc-media-plain) {
+  border-radius: var(--dc-media-radius);
+}
+
+.vp-doc img.dc-media-plain,
+.vp-doc .dc-media-plain img,
+.VPNavBarTitle .logo,
+.vp-doc .dc-hero__mascot img,
+.vp-doc .dc-story__team img {
   border-radius: 0;
+}
+
+/* Lift the icon to align its visual weight with the unchanged wordmark. */
+.VPNavBarTitle .logo {
+  transform: translateY(-2px);
 }
 
 /* ─── Top navbar: subtle glass blur + soft border (Desktop-aligned) ─── */
@@ -164,6 +180,18 @@
 
 .VPNavBar .divider {
   display: none;
+}
+
+/* Keep the global footer to one compact copyright row. The license is already
+ * stated in the homepage hero and remains available in the repository. */
+.VPFooter {
+  padding: 16px 24px !important;
+}
+
+@media (min-width: 768px) {
+  .VPFooter {
+    padding: 16px 32px !important;
+  }
 }
 
 /* Polished search button */
@@ -201,6 +229,84 @@
   border-color: color-mix(in srgb, var(--dc-accent) 35%, transparent) !important;
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--dc-accent) 16%, transparent) !important;
   background: var(--vp-c-bg-alt) !important;
+}
+
+/* On the desktop homepage, the hero owns the top-of-page canvas. The navbar
+ * starts as transparent chrome over that field, then crossfades to one
+ * near-solid theme surface after the user begins scrolling. Keep the surface
+ * on `.VPNav` only so nested VitePress layers do not compound their opacity. */
+@media (min-width: 960px) {
+  html.dc-home-active .VPNav,
+  html.dc-home-active .VPNavBar,
+  html.dc-home-active .VPNavBar .content,
+  html.dc-home-active .VPNavBar .content-body {
+    transition:
+      background-color 260ms var(--ease-smooth-out),
+      border-color 260ms var(--ease-smooth-out),
+      -webkit-backdrop-filter 260ms var(--ease-smooth-out),
+      backdrop-filter 260ms var(--ease-smooth-out);
+  }
+
+  html.dc-home-active .VPNav,
+  html.dc-home-active .VPNavBar,
+  html.dc-home-active .VPNavBar .content,
+  html.dc-home-active .VPNavBar .content-body {
+    background: transparent !important;
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+
+  html.dc-home-active .VPNavBar .content-body {
+    border-bottom-color: transparent;
+  }
+
+  html.dc-home-active.dc-home-nav-solid .VPNav {
+    background: color-mix(in srgb, var(--dc-shell) 94%, transparent) !important;
+    -webkit-backdrop-filter: blur(10px) saturate(1.03);
+    backdrop-filter: blur(10px) saturate(1.03);
+  }
+
+  html.dc-home-active.dc-home-nav-solid .VPNavBar .content-body {
+    border-bottom-color: var(--vp-c-divider);
+  }
+
+  html.dc-home-active:not(.dc-home-nav-solid) .DocSearch-Button {
+    border-color: transparent !important;
+    background: transparent !important;
+    box-shadow: none !important;
+  }
+
+  html.dc-home-active:not(.dc-home-nav-solid) .DocSearch-Button:hover,
+  html.dc-home-active:not(.dc-home-nav-solid) .DocSearch-Button:focus {
+    border-color: color-mix(in srgb, var(--dc-accent) 24%, transparent) !important;
+    background: color-mix(in srgb, var(--dc-surface) 68%, transparent) !important;
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--dc-accent) 12%, transparent) !important;
+  }
+
+  html.dc-home-active:not(.dc-home-nav-solid) .VPSwitchAppearance {
+    border-color: transparent !important;
+    background-color: transparent !important;
+  }
+
+  html.dc-home-active .VPNavBar :is(.translations, .appearance, .social-links)::before {
+    transition: opacity 260ms var(--ease-smooth-out);
+  }
+
+  html.dc-home-active:not(.dc-home-nav-solid) .VPNavBar :is(.translations, .appearance, .social-links)::before {
+    opacity: 0;
+  }
+}
+
+@media (min-width: 960px) and (prefers-reduced-motion: reduce) {
+  html.dc-home-active .VPNav,
+  html.dc-home-active .VPNavBar,
+  html.dc-home-active .VPNavBar .content,
+  html.dc-home-active .VPNavBar .content-body,
+  html.dc-home-active .DocSearch-Button,
+  html.dc-home-active .VPSwitchAppearance,
+  html.dc-home-active .VPNavBar :is(.translations, .appearance, .social-links)::before {
+    transition: none !important;
+  }
 }
 
 /* ─── Sidebar: OpenHuman-style icons + uppercase group labels ─── */
@@ -588,7 +694,7 @@ div.VPSidebarItem.is-active > .item {
   width: 100vw;
   margin: -32px calc(50% - 50vw) 0;
   overflow-x: hidden;
-  background: var(--dc-surface);
+  background: var(--dc-shell);
 }
 
 /* The 100vw breakout includes the scrollbar width; clip the page container so
@@ -606,11 +712,11 @@ div.VPSidebarItem.is-active > .item {
 .dc-hero {
   position: relative;
   padding: 96px 24px 108px;
-  overflow: hidden;
+  overflow: visible;
   background:
     radial-gradient(900px 520px at 6% 28%, color-mix(in srgb, #ffffff 55%, transparent) 0%, transparent 70%),
     radial-gradient(1100px 680px at 90% 74%, color-mix(in srgb, var(--dc-grad-1) 9%, transparent) 0%, transparent 66%),
-    linear-gradient(180deg, color-mix(in srgb, var(--dc-accent) 7%, #fdfdfd) 0%, color-mix(in srgb, var(--dc-accent) 3%, var(--dc-surface)) 62%, var(--dc-surface) 100%);
+    linear-gradient(180deg, color-mix(in srgb, var(--dc-accent) 7%, #fdfdfd) 0%, color-mix(in srgb, var(--dc-accent) 3%, var(--dc-shell)) 62%, var(--dc-shell) 100%);
 }
 
 .dark .dc-hero {
@@ -620,12 +726,25 @@ div.VPSidebarItem.is-active > .item {
     linear-gradient(180deg, color-mix(in srgb, var(--dc-grad-1) 8%, var(--dc-shell)) 0%, var(--dc-shell) 68%);
 }
 
+@media (min-width: 960px) {
+  .dc-home {
+    margin-top: calc(-1 * var(--vp-nav-height));
+  }
+
+  .dc-hero {
+    /* Pulling the hero under the fixed navbar moves its top up by 32px.
+     * Compensate here so all visible hero content stays at its current y. */
+    padding-top: calc(var(--vp-nav-height) + 64px);
+  }
+}
+
 /* Layered project field — three receding outlined panels behind the product
  * card, echoing the banner's stacked-projects backdrop. Decorative only. */
 .dc-hero__field {
   position: absolute;
   inset: 0;
   z-index: 0;
+  overflow: hidden;
   pointer-events: none;
 }
 
@@ -753,7 +872,7 @@ div.VPSidebarItem.is-active > .item {
 .dc-hero__mascot {
   position: absolute;
   z-index: 0;
-  top: -46px;
+  top: -56px;
   right: 44px;
   width: 76px;
   pointer-events: none;
@@ -762,7 +881,7 @@ div.VPSidebarItem.is-active > .item {
 }
 
 .dc-hero__media:hover .dc-hero__mascot {
-  transform: translateY(-9px);
+  transform: translateY(-6px);
 }
 
 .dc-hero__mascot img {
@@ -940,7 +1059,7 @@ div.VPSidebarItem.is-active > .item {
 
 .dc-section {
   padding: 104px 24px;
-  background: var(--dc-surface);
+  background: var(--dc-shell);
 }
 
 .dc-section--final {
@@ -1002,7 +1121,7 @@ div.VPSidebarItem.is-active > .item {
 
 .dc-stories {
   padding: 96px 24px 48px;
-  background: var(--dc-surface);
+  background: var(--dc-shell);
 }
 
 .dc-story + .dc-story {
@@ -1069,7 +1188,7 @@ div.VPSidebarItem.is-active > .item {
   display: block;
   width: 100%;
   height: auto;
-  border-radius: 14px;
+  border-radius: var(--dc-media-radius);
   border: 1px solid var(--dc-line);
   background: var(--dc-surface);
   box-shadow:
@@ -1206,7 +1325,7 @@ div.VPSidebarItem.is-active > .item {
 
 .dc-start {
   padding: 112px 24px;
-  background: var(--dc-surface);
+  background: var(--dc-shell);
 }
 
 .dc-start__inner {
@@ -1265,7 +1384,7 @@ div.VPSidebarItem.is-active > .item {
   padding: 10px 12px 12px 14px;
   border: 1px solid var(--dc-line);
   border-radius: 10px;
-  background: var(--dc-shell);
+  background: var(--dc-surface);
 }
 
 .dc-cmd__head {
@@ -1338,14 +1457,14 @@ div.VPSidebarItem.is-active > .item {
   padding: 128px 24px 136px;
   background:
     radial-gradient(820px 420px at 50% 120%, color-mix(in srgb, var(--dc-grad-1) 11%, transparent) 0%, transparent 66%),
-    linear-gradient(0deg, color-mix(in srgb, var(--dc-accent) 6%, var(--dc-surface)) 0%, var(--dc-surface) 72%);
+    linear-gradient(0deg, color-mix(in srgb, var(--dc-accent) 6%, var(--dc-shell)) 0%, var(--dc-shell) 72%);
   border-bottom: 0;
 }
 
 .dark .dc-section--cta {
   background:
     radial-gradient(820px 420px at 50% 120%, color-mix(in srgb, var(--dc-grad-1) 16%, transparent) 0%, transparent 66%),
-    var(--dc-surface);
+    var(--dc-shell);
 }
 
 .dc-cta {
@@ -1434,9 +1553,13 @@ div.VPSidebarItem.is-active > .item {
   }
 
   .dc-hero__mascot {
-    top: -40px;
+    top: -48px;
     right: 24px;
     width: 64px;
+  }
+
+  .dc-hero__media:hover .dc-hero__mascot {
+    transform: translateY(-4px);
   }
 
   .dc-button {
@@ -1509,6 +1632,11 @@ div.VPSidebarItem.is-active > .item {
 
   .dc-download__toggle {
     flex: 0 0 auto;
+  }
+
+  .dc-download__menu {
+    right: 0;
+    left: auto;
   }
 }
 
@@ -1599,7 +1727,7 @@ div.VPSidebarItem.is-active > .item {
   z-index: 1;
   aspect-ratio: 1280 / 800;
   overflow: hidden;
-  border-radius: 16px;
+  border-radius: var(--dc-media-radius);
   border: 1px solid color-mix(in srgb, #60749e 22%, transparent);
   background: var(--dc-surface);
   box-shadow:

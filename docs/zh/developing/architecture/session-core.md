@@ -24,7 +24,7 @@ DotCraft 不为每个客户端维护一套独立的 Agent 流程。**Unified Ses
 
 - **Hub** 在本机为每个工作区启动一个 AppServer。Desktop 和 CLI 默认走这条路，所以同一个项目目录无论从哪个入口打开，都连到同一个进程。
 - **AppServer** 把 ISessionService 投影成 JSON-RPC（[完整协议](../protocols/appserver-protocol)），任何语言都可以做客户端。
-- **Workspace `.craft/`** 是持久化层：Thread 写到 `threads/`，Session 元信息写到 `sessions/`，Dreams 写到 `dreams/`，重启后任何入口都能恢复。
+- **Workspace `.craft/`** 会把权威线程记录保存在 `threads/`，把分类状态和投影保存在 `state.db`，并独立保存大型工具结果、附件等引用文件。存储权威和恢复模型见[会话持久化](./session-persistence)。
 
 ## 审批与人在环路
 
@@ -54,7 +54,7 @@ Session Core 把"工具调用是否允许执行"独立成审批事件，让前�
 - 自动化任务在 Cron 里跑出一半遇到审批，Desktop 收到通知接力批准或修改。
 - 微信收到用户提问，机器人回复后，研发人员可在 Desktop 的同一 Thread 看历史并接手。
 
-## Hub vs AppServer 的分工
+## Hub 与 AppServer 的分工
 
 DotCraft 在本机有两层协调：
 
@@ -77,8 +77,10 @@ DotCraft 在本机有两层协调：
 | 想接入新 IDE / 编辑器 | 阅读 [ACP 模式](../../features/entry-points/editors) |
 | 想自定义协议层客户端 | 阅读 [AppServer 协议](../protocols/appserver-protocol) |
 
-## 相关入口
+## 相关文档
 
-- [入口总览](../../features/entry-points/) — 现成入口对比与决策表
-- [可观测性](../../features/self-hosted/observability) — 在 Dashboard 看 Trace、审批、调用
-- [AppServer 模式](../lifecycle/appserver) — 远程 / 多客户端 / 自定义集成
+- [会话持久化](./session-persistence)
+- [入口总览](../../features/entry-points/)
+- [可观测性](../../features/self-hosted/observability)
+- [AppServer 模式](../lifecycle/appserver)
+- [AppServer 协议](../protocols/appserver-protocol)

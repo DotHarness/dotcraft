@@ -1,112 +1,75 @@
-<svg width="1440" height="980" viewBox="0 0 1440 980" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title desc">
-  <title id="title">DotCraft workspace topology</title>
-  <desc id="desc">A grouped diagram showing how entry points share one project workspace and the persistent state under the .craft directory.</desc>
+<svg width="1280" height="760" viewBox="0 0 1280 760" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title desc">
+  <title id="title">A DotCraft project workspace</title>
+  <desc id="desc">Desktop, CLI, editors, and automations open one project folder. The folder contains project files and DotCraft context. Git shares tracked files, while a complete session backup stops AppServer and copies the whole folder for restore at the same absolute path.</desc>
   <style>
-    text { font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; letter-spacing: 0; }
-    .title { fill: #17203A; font-size: 42px; font-weight: 760; }
-    .subtitle { fill: #667085; font-size: 18px; }
-    .cardTitle { font-size: 24px; font-weight: 760; }
-    .label { font-size: 14px; font-weight: 720; }
-    .body { fill: #1F2937; font-size: 15px; }
-    .mono { fill: #1F2937; font-size: 15px; font-family: "Cascadia Mono", ui-monospace, SFMono-Regular, Menlo, monospace; }
-    .muted { fill: #667085; font-size: 13px; }
+    text { font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+    .title { fill: #17203A; font-size: 38px; font-weight: 760; }
+    .subtitle { fill: #667085; font-size: 17px; }
+    .cardTitle { fill: #17203A; font-size: 22px; font-weight: 740; }
+    .label { fill: #344054; font-size: 15px; font-weight: 690; }
+    .body { fill: #475467; font-size: 14px; }
+    .small { fill: #667085; font-size: 13px; }
+    .mono { fill: #344054; font-size: 14px; font-family: "Cascadia Mono", ui-monospace, SFMono-Regular, Menlo, monospace; }
   </style>
+  <defs>
+    <marker id="arrow" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto">
+      <path d="M2 2L10 6L2 10" fill="none" stroke="#98A2B3" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+    </marker>
+  </defs>
 
-  <rect width="1440" height="980" fill="#F8FAF7"/>
-  <text x="72" y="86" class="title">DotCraft workspace topology</text>
-  <text x="72" y="123" class="subtitle">Every entry point reads the same project root and persists shared Agent state under .craft/.</text>
+  <rect width="1280" height="760" fill="#F8FAF7"/>
+  <text x="64" y="72" class="title">One project, one shared workspace</text>
+  <text x="64" y="105" class="subtitle">Every DotCraft entry point opens the same project folder and works from the same project context.</text>
 
-  <g transform="translate(72 158)">
-    <rect x="0" y="0" width="1296" height="108" rx="8" fill="#FFFFFF" stroke="#D9E0EA"/>
-    <text x="28" y="34" fill="#17203A" font-size="17" font-weight="760">Entry points</text>
-    <g transform="translate(28 52)">
-      <rect x="0" y="0" width="128" height="34" rx="8" fill="#E9F5F0"/><text x="64" y="22" text-anchor="middle" fill="#247A57" font-size="14" font-weight="720">Desktop</text>
-      <rect x="146" y="0" width="96" height="34" rx="8" fill="#E9F5F0"/><text x="194" y="22" text-anchor="middle" fill="#247A57" font-size="14" font-weight="720">CLI</text>
-      <rect x="260" y="0" width="156" height="34" rx="8" fill="#E9F5F0"/><text x="338" y="22" text-anchor="middle" fill="#247A57" font-size="14" font-weight="720">IDE / ACP</text>
-      <rect x="434" y="0" width="172" height="34" rx="8" fill="#E9F5F0"/><text x="520" y="22" text-anchor="middle" fill="#247A57" font-size="14" font-weight="720">Channels / Bots</text>
-      <rect x="624" y="0" width="146" height="34" rx="8" fill="#E9F5F0"/><text x="697" y="22" text-anchor="middle" fill="#247A57" font-size="14" font-weight="720">Automations</text>
-      <rect x="788" y="0" width="104" height="34" rx="8" fill="#E9F5F0"/><text x="840" y="22" text-anchor="middle" fill="#247A57" font-size="14" font-weight="720">SDKs</text>
+  <g transform="translate(64 146)">
+    <rect width="1152" height="80" rx="10" fill="#FFFFFF" stroke="#D9E0EA"/>
+    <text x="24" y="31" class="small">ENTRY POINTS</text>
+    <g transform="translate(24 42)">
+      <rect width="122" height="28" rx="14" fill="#E9F5F0"/><text x="61" y="19" text-anchor="middle" fill="#247A57" font-size="13" font-weight="700">Desktop</text>
+      <rect x="136" width="86" height="28" rx="14" fill="#E9F5F0"/><text x="179" y="19" text-anchor="middle" fill="#247A57" font-size="13" font-weight="700">CLI</text>
+      <rect x="236" width="146" height="28" rx="14" fill="#E9F5F0"/><text x="309" y="19" text-anchor="middle" fill="#247A57" font-size="13" font-weight="700">Editor</text>
+      <rect x="396" width="154" height="28" rx="14" fill="#E9F5F0"/><text x="473" y="19" text-anchor="middle" fill="#247A57" font-size="13" font-weight="700">Channels</text>
+      <rect x="564" width="154" height="28" rx="14" fill="#E9F5F0"/><text x="641" y="19" text-anchor="middle" fill="#247A57" font-size="13" font-weight="700">Automations</text>
     </g>
-    <path d="M952 68H1048" stroke="#A8B4C6" stroke-width="2" stroke-linecap="round"/>
-    <path d="M1038 60L1048 68L1038 76" stroke="#A8B4C6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-    <g transform="translate(1080 30)">
-      <rect x="0" y="0" width="176" height="54" rx="8" fill="#EAF0FF"/>
-      <text x="88" y="23" text-anchor="middle" fill="#3659D4" font-size="15" font-weight="760">Project root</text>
-      <text x="88" y="42" text-anchor="middle" fill="#52607A" font-size="12">one workspace</text>
+    <path d="M766 54H912" stroke="#98A2B3" stroke-width="2" marker-end="url(#arrow)"/>
+    <rect x="920" y="16" width="208" height="48" rx="8" fill="#EAF0FF"/>
+    <text x="1024" y="37" text-anchor="middle" fill="#3659D4" font-size="15" font-weight="730">Project folder</text>
+    <text x="1024" y="55" text-anchor="middle" class="small">the workspace you open</text>
+  </g>
+
+  <g transform="translate(64 266)">
+    <rect width="1152" height="276" rx="12" fill="#FFFFFF" stroke="#C2CEF7" stroke-width="2"/>
+    <text x="24" y="38" class="cardTitle">Project folder</text>
+
+    <g transform="translate(24 60)">
+      <rect width="528" height="188" rx="10" fill="#EAF0FF"/>
+      <text x="22" y="34" fill="#23305F" font-size="18" font-weight="730">Project files</text>
+      <text x="22" y="64" class="mono">code/ · docs/ · tests/ · README.md</text>
+      <text x="22" y="105" class="body">The files your team builds and reviews.</text>
+      <text x="22" y="142" class="small">DotCraft works beside the project files.</text>
+    </g>
+
+    <g transform="translate(576 60)">
+      <rect width="552" height="188" rx="10" fill="#E9F5F0"/>
+      <text x="22" y="34" fill="#153E33" font-size="18" font-weight="730">DotCraft context</text>
+      <text x="22" y="64" class="mono">.craft/</text>
+      <text x="22" y="99" class="label">Instructions · memory · skills · plugins</text>
+      <text x="22" y="128" class="label">Workspace settings · conversations · supporting files</text>
+      <text x="22" y="162" class="small">Project-specific context stays with the project.</text>
     </g>
   </g>
 
-  <g transform="translate(72 306)">
-    <rect x="0" y="0" width="396" height="244" rx="8" fill="#EAF0FF" stroke="#C2CEF7"/>
-    <text x="28" y="44" class="cardTitle" fill="#23305F">Project files</text>
-    <line x1="28" y1="64" x2="368" y2="64" stroke="#C2CEF7"/>
-    <text x="28" y="96" class="label" fill="#4459B8">User-owned repository</text>
-    <text x="28" y="122" class="mono">code/</text>
-    <text x="28" y="146" class="mono">docs/</text>
-    <text x="28" y="170" class="mono">tests/</text>
-    <text x="28" y="194" class="mono">README.md</text>
-    <text x="28" y="224" class="muted">DotCraft works beside the project, not above it.</text>
+  <g transform="translate(64 582)">
+    <rect width="552" height="126" rx="10" fill="#FFF1E6" stroke="#F3C9A4"/>
+    <text x="22" y="34" fill="#623314" font-size="18" font-weight="730">Share with Git</text>
+    <text x="22" y="64" class="body">Share only the files you review and track.</text>
+    <text x="22" y="91" class="small">Ignored local data is not part of the clone.</text>
   </g>
 
-  <g transform="translate(522 306)">
-    <rect x="0" y="0" width="396" height="244" rx="8" fill="#E9F5F0" stroke="#B7DED0"/>
-    <text x="28" y="44" class="cardTitle" fill="#153E33">Bootstrap identity</text>
-    <line x1="28" y1="64" x2="368" y2="64" stroke="#B7DED0"/>
-    <text x="28" y="96" class="label" fill="#2E6B56">Loaded into every session</text>
-    <text x="28" y="122" class="mono">.craft/AGENTS.md</text>
-    <text x="28" y="146" class="mono">.craft/SOUL.md</text>
-    <text x="28" y="224" class="muted">Role, tone, and project rules.</text>
-  </g>
-
-  <g transform="translate(972 306)">
-    <rect x="0" y="0" width="396" height="244" rx="8" fill="#FFF1E6" stroke="#F3C9A4"/>
-    <text x="28" y="44" class="cardTitle" fill="#623314">Sessions</text>
-    <line x1="28" y1="64" x2="368" y2="64" stroke="#F3C9A4"/>
-    <text x="28" y="96" class="label" fill="#A85C21">Thread and turn history</text>
-    <text x="28" y="122" class="mono">.craft/threads/active/</text>
-    <text x="28" y="146" class="mono">.craft/threads/archived/</text>
-    <text x="28" y="170" class="mono">.craft/sessions/</text>
-    <text x="28" y="194" class="mono">.craft/state.db</text>
-    <text x="28" y="224" class="muted">Desktop, ACP, channels, and SDKs resume here.</text>
-  </g>
-
-  <g transform="translate(72 594)">
-    <rect x="0" y="0" width="396" height="252" rx="8" fill="#F1EBFA" stroke="#D7C5EF"/>
-    <text x="28" y="44" class="cardTitle" fill="#39205F">Memory and Dreams</text>
-    <line x1="28" y1="64" x2="368" y2="64" stroke="#D7C5EF"/>
-    <text x="28" y="96" class="label" fill="#7653A8">Long-lived context</text>
-    <text x="28" y="122" class="mono">.craft/MEMORY.md</text>
-    <text x="28" y="146" class="mono">.craft/HISTORY.md</text>
-    <text x="28" y="170" class="mono">.craft/dreams/</text>
-    <text x="28" y="222" class="muted">Readable by humans, maintained by Agent flows.</text>
-  </g>
-
-  <g transform="translate(522 594)">
-    <rect x="0" y="0" width="396" height="252" rx="8" fill="#E8F4FA" stroke="#BBDCEE"/>
-    <text x="28" y="44" class="cardTitle" fill="#15384B">Capabilities</text>
-    <line x1="28" y1="64" x2="368" y2="64" stroke="#BBDCEE"/>
-    <text x="28" y="96" class="label" fill="#2B7599">Reusable project abilities</text>
-    <text x="28" y="122" class="mono">.craft/skills/</text>
-    <text x="28" y="146" class="mono">.craft/plugins/</text>
-    <text x="28" y="170" class="mono">commands and MCP config</text>
-    <text x="28" y="222" class="muted">Shared workflows travel with the workspace.</text>
-  </g>
-
-  <g transform="translate(972 594)">
-    <rect x="0" y="0" width="396" height="252" rx="8" fill="#F3F4EA" stroke="#D9DEC0"/>
-    <text x="28" y="44" class="cardTitle" fill="#3F431E">Config and policy</text>
-    <line x1="28" y1="64" x2="368" y2="64" stroke="#D9DEC0"/>
-    <text x="28" y="96" class="label" fill="#727934">Workspace-specific overrides</text>
-    <text x="28" y="122" class="mono">.craft/config.json</text>
-    <text x="28" y="146" class="mono">ProviderId / Model</text>
-    <text x="28" y="170" class="mono">entry switches</text>
-    <text x="28" y="194" class="mono">security and approvals</text>
-    <text x="28" y="222" class="muted">Global secrets stay in ~/.craft/config.json.</text>
-  </g>
-
-  <g transform="translate(72 884)">
-    <rect x="0" y="0" width="1296" height="48" rx="8" fill="#FFFFFF" stroke="#D9E0EA"/>
-    <text x="24" y="30" fill="#475467" font-size="14">Result:</text>
-    <text x="84" y="30" fill="#17203A" font-size="14" font-weight="720">sync or restore the project directory, and the Agent state comes with it.</text>
+  <g transform="translate(664 582)">
+    <rect width="552" height="126" rx="10" fill="#F1EBFA" stroke="#D7C5EF"/>
+    <text x="22" y="34" fill="#39205F" font-size="18" font-weight="730">Back up the complete workspace</text>
+    <text x="22" y="64" class="body">Stop every DotCraft process using this workspace, then copy the folder.</text>
+    <text x="22" y="91" class="small">Restore the folder to the same absolute path.</text>
   </g>
 </svg>

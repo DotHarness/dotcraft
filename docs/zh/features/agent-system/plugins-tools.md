@@ -1,153 +1,85 @@
 # 插件与工具
 
-工具就是 Agent 真正能做的事——读文件、跑命令、搜网页。DotCraft 的工具来自三处：**内置工具**（文件、Shell、Web、搜索、Plan、Todo 等，DotCraft 自带）、**插件**（你或第三方打包的额外工具和 skills），以及 **MCP servers**。开哪些，由你决定。
+插件和工具让 DotCraft 可以编辑文件、运行命令、连接外部服务，并执行可复用的工作流。
 
-![DotCraft tool surface topology](/tool-surface-topology.svg)
+## 能力来自哪里
 
-## 内置工具
-
-DotCraft 默认提供一组通用工具，覆盖大多数 coding agent 需求：
-
-| 类别 | 代表工具 | 控制方式 |
-|---|---|---|
-| 文件 | `ReadFile` / `WriteFile` / `EditFile` / `GrepFiles` / `FindFiles` | 工作区边界与安全策略 |
-| Shell | `Exec` | 审批策略、超时和沙箱 |
-| Web | `WebSearch` / `WebFetch` | 网络与抓取限制 |
-| LSP | 内置 LSP 工具 | 可选 LSP 工具设置 |
-| 图片 | 按描述生成图片、基于参考图编辑图片 | 支持的模型服务与图片生成设置 |
-| Plan / Todo | `CreatePlan` / `UpdateTodos` / `TodoWrite` | 由 SubAgent role 策略控制 |
-
-`ReadFile` 读取文本文件，并把支持的图片作为视觉输入返回。PDF 和其他二进制文件会被拒绝并返回提示信息，不会被解码为文本。
-
-当当前模型服务支持图片能力时，Agent 可以根据你的描述生成图片，也可以基于你提供的参考图继续调整。生成结果会直接出现在会话里，方便你查看、下载，或继续作为下一步的参考图使用。
-
-工具开关、allow-list、Web 限制、LSP 设置和生图设置见 [配置完整参考](../../developing/configuration#tools-security-与-sandbox)。
-
-## 安装与使用插件
-
-DotCraft 插件用来把可复用的工作区能力打包成可安装扩展，一个插件可以提供：
-
-| 内容 | 说明 |
+| 来源 | 提供的能力 |
 |---|---|
-| Dynamic tool | Agent 可调用的工具，可由本地 stdio 进程执行 |
-| Skill | 随插件分发的 plugin-contained skill，启用时进入 skill 列表 |
-| Desktop extension | 受信任的本地 UI bundle，可向 Desktop 增加 sidebar main view 等界面 |
-| Lifecycle hook | 在你检查并信任后，于生命周期时机运行的脚本 hook |
-| 元数据 | 名称、描述、开发者、分类、图标、默认 prompt、相关链接 |
+| **内置工具** | 文件编辑、Shell、Web、搜索、规划等核心操作 |
+| **插件** | 打包分发的 skills、tools、apps、面板和生命周期 hooks |
+| **MCP servers** | 由本地进程或远程服务提供的 tools |
 
-插件内置的 skill 跟随插件生命周期：启用插件时可用，禁用或移除插件后不再进入 Agent 上下文。
-Desktop extension 也跟随插件生命周期：只有插件安装并启用后，Desktop 才会加载它的本地 bundle。
-插件内置 hooks 会在插件启用时被发现，然后在 **Settings -> Hooks** 中管理。信任前它们不会运行。参见 [生命周期 Hooks](./hooks)。
+Agent 使用这些能力时，DotCraft 仍会执行工作区边界、审批和安全设置。
 
-### Desktop 扩展
+## 安装插件
 
-有些插件还会带一个 **Desktop 扩展**——一个直接在 Desktop 内打开的面板，而不只是添加工具。比如 Oratorio 插件，就把它的看板作为一个完整视图嵌进来，可从侧边栏打开。
+1. 在 DotCraft Desktop 中打开 **Plugins / 插件**。
+2. 搜索或浏览插件目录。
+3. 打开插件，检查发布者、能力和相关链接。
+4. 点击 **Install / 安装**。
+5. 检查确认信息，然后点击 **Add to DotCraft / 添加到 DotCraft**。
+6. 按安装对话框提示完成所需的 App 配置。
+7. 点击 **Try in chat / 在对话中试用**，或新建对话并描述你的任务。
 
-![Oratorio Desktop 扩展](https://github.com/DotHarness/resources/raw/master/dotcraft/whats-new/desktop-extensions.gif)
+如需从其他目录安装插件，请阅读[插件市场](./plugin-marketplaces)。
 
-扩展能做什么、如何开发，见 [Desktop 扩展](../../developing/integrations/desktop-extensions)。
+## 管理已安装插件
 
-### 在 Desktop 中安装
+打开 **Plugins / 插件**，然后点击 **Manage / 管理**。
 
-![Plugin page](https://github.com/DotHarness/resources/raw/master/dotcraft/plugins.png)
+- 禁用插件会保留安装文件，但 Agent 不再使用其中的能力。
+- 需要再次使用时，重新启用即可。
+- 打开插件并点击 **Uninstall / 卸载**，可以从当前工作区移除插件。
 
-1. 打开 DotCraft
-2. 进入 **Plugins / 插件** 页面
-3. 搜索或浏览插件，打开详情页
-4. 点击 **Install / 安装**
-5. 安装完成后可点 **Try in chat / 在对话中试用**，或在新对话中直接描述你想完成的任务
+如果插件带有 App，**App Settings / 应用设置** 管理账号连接；会话中的 App 选择器决定当前会话能否使用它。详见 [Connected Apps](./connected-apps)。
 
-### 启用、禁用与移除
+## 从本地安装
 
-| 操作 | 含义 |
-|---|---|
-| 安装 | 将插件加入当前工作区可用能力 |
-| 启用 / 禁用 | 保留插件文件，控制是否进入 Agent 上下文 |
-| 移除 | 从当前工作区移除插件；对 `.craft/plugins/<plugin-id>` 下的本地插件，会删除对应目录 |
+开发插件或收到插件文件夹时，可以直接从磁盘安装：
 
-插件管理页可批量启用或禁用已安装插件。
+此选项仅适用于本地工作区。
 
-### 安装本地插件
+1. 打开 **Plugins / 插件**。
+2. 打开 **Create / 创建** 旁的菜单，然后选择 **Install from disk / 从磁盘安装**。
+3. 选择插件文件夹。
+4. 检查插件，然后通过 **Try in chat / 在对话中试用** 完成验证。
 
-开发或测试本地插件时，有两种方式：
-
-```text
-.craft/plugins/<plugin-id>/.craft-plugin/plugin.json
-```
-
-把 plugin root 复制到当前工作区 `.craft/plugins/<plugin-id>/` 后，打开 Plugins 页面点击 **Refresh / 刷新**。这种安装可以在 Desktop 的插件详情页移除，移除时会删除该插件目录。
-
-也可以让 DotCraft 直接读取你正在维护的外部目录。Desktop 不会主动删除外部 plugin roots；需要移除时请从配置中移除对应 root 或在文件系统中自行管理。完整字段见 [配置完整参考](../../developing/configuration#plugins-mcp-与-lsp)。
-
-### 验证插件
-
-1. 在 Plugins 页面点击 **Refresh / 刷新**
-2. 搜索插件名称或 ID
-3. 打开详情页确认 tools、skills 和链接信息
-4. 如果插件没有出现，查看页面上的 diagnostics 提示，通常包含 manifest 路径和错误原因
+DotCraft 会把插件复制到当前工作区。卸载时会删除这份已安装副本。
 
 ## 创建插件
 
-最快方式是让内置 `$plugin-creator` 先搭好结构，再补充说明、工具逻辑和验证步骤。
-
-如果只是给当前项目补充一段工作流，优先创建普通 skill。需要把 skills、dynamic tools、hooks、图标和安装页信息一起打包分发时，再创建 plugin。
-
-### 用 plugin creator 起步
-
-在对话中直接描述你想要的插件：
+从内置的 `$plugin-creator` skill 开始：
 
 ```text
-$plugin-creator 创建一个名为 External Process Echo 的插件，包含一个 skill 和一个外部进程 tool。
+$plugin-creator 创建一个插件，用来打包我的项目审查工作流。
 ```
 
-也可以把运行方式、语言和验证方式一起说清楚：
+这个 skill 会创建插件结构，并引导你完成本地测试。需要分发可复用能力时使用插件；只服务于一个项目的工作流，优先使用普通 skill。
 
-```text
-$plugin-creator 创建一个本地插件，用 Python 进程提供 EchoText dynamic tool，并生成安装验证说明。
-```
+市场打包和分发方式见[插件市场](../../developing/integrations/plugin-market)。
 
-`plugin-creator` 会生成插件目录和 manifest、plugin-contained skill、可选 MCP 配置、可选 [hooks](./hooks)，以及可选 Desktop extension。生成后通常只需要：
+## 连接 MCP server
 
-1. 替换占位文案和示例内容
-2. 实现或调整 tool 进程逻辑
-3. 把插件安装到本地并在 Plugins 页面刷新验证
+打开 **Settings → MCP Servers**，然后添加一种连接：
 
-### 一个插件能贡献什么
+- **STDIO**：通过本地命令启动 server。
+- **Streamable HTTP**：连接远程 MCP endpoint。
 
-一个插件可以打包以下内容的任意组合，全部由一份 manifest 驱动：
+Token 和其他 secret 应通过环境变量提供。正式使用前，先点击 **Test connection** 检查连接。
 
-- **Dynamic tools** —— Agent 可调用的工具，可选由本地进程支撑。
-- **Skills** —— 插件启用时即加入 skill 列表。
-- **Desktop extension** —— 本地 UI bundle，向 Desktop 添加自己的界面（例如 sidebar 视图），并可通过受控的宿主桥读取（在获得授权时写入）其 App 的数据。
-- **Lifecycle hooks** —— 在用户信任插件当前 hooks 后，于会话、prompt、工具或 turn 时机运行脚本。
+完整 MCP 字段见[配置](../../developing/configuration#plugins-mcp-与-lsp)。
 
-让 `plugin-creator` 生成 manifest 和配套文件；生成的 manifest 就是你后续调整或分发时的工作参考。Dynamic tool 与 Desktop extension 背后的底层契约——manifest 字段、tool schema、宿主桥、写入授权——见 [构建 App](../../developing/integrations/build-an-app) 与 [App Binding](../../developing/integrations/app-binding)。Hook 行为和信任机制见 [生命周期 Hooks](./hooks)。
+## 安装前检查信任边界
 
-## MCP Servers
+只安装你信任的插件，只连接你信任的 server。安装前检查发布者、所需能力、来源链接和账号权限。
 
-除了内置工具和插件 dynamic tool，DotCraft 也支持通过 MCP 协议接入外部工具。在 Desktop 中打开 **Settings -> MCP Servers**，即可为当前 workspace 添加 MCP server，而不必手写 JSON。
-
-- **STDIO** 会启动本地命令，并暴露该 MCP server 提供的 tools。
-- **Streamable HTTP** 会连接 HTTP MCP endpoint，通常以 `/mcp` 结尾。
-- **Secrets** 应来自环境变量。Token 请优先使用 bearer-token env var 或 environment-backed headers，不要把 secret value 直接写进 literal headers。
-- **Test connection** 会检查连通性，并显示 DotCraft 在会话中使用该 server 前发现了多少 tools。
-
-MCP server 注册、延迟加载选项和完整字段列表见 [配置完整参考](../../developing/configuration#plugins-mcp-与-lsp)。
-
-## 安全与信任
-
-安装插件会把新的 tools 和 skills 加入工作区能力范围。启用带 `process` backend 的插件后，DotCraft 可以启动插件 manifest 中声明的本地 stdio 进程来执行 dynamic tools。**只安装和启用你信任来源、代码和依赖的插件**。
-
-- 插件 tool 调用仍会经过 DotCraft 的会话、审批和工具调用记录。
-- 插件 hooks 在 **Settings -> Hooks** 中对插件当前 hooks 完成信任前不会运行；hook 命令修改后需要重新信任。
-- Desktop extension bundle 会作为受信任本地 UI 代码运行在 Desktop renderer 中。Descriptor 声明的 host 能力仍由 Desktop main process 强制执行；extension v1 不是不可信代码沙箱。
-- 插件详情中的网站、隐私政策和服务条款链接用于帮助你确认插件来源和行为边界。
-- 黑名单、工作区边界、沙箱等限制对插件 tools 同样生效。详见 [安全与沙箱](../self-hosted/security)。
+插件可能启动本地进程、连接远程服务、添加 hooks，或加载 Desktop 面板。相关调用仍会经过 DotCraft 的审批与工作区安全设置。插件 hooks 在你通过 **Settings → Hooks** 检查并信任前不会运行。
 
 ## 相关文档
 
-- [Skills 与自学习](./skills) — Skill 与 Plugin 的关系
-- [生命周期 Hooks](./hooks) — 插件分发的生命周期脚本
-- [Desktop 扩展](../../developing/integrations/desktop-extensions) — 在 Desktop 内嵌入自有界面的插件
-- [构建 App](../../developing/integrations/build-an-app) — manifest 字段、tool schema 与 Desktop extension 开发
-- [安全与沙箱](../self-hosted/security) — 工具能力的全局约束
+- [插件市场](./plugin-marketplaces)
+- [Connected Apps](./connected-apps)
+- [生命周期 Hooks](./hooks)
+- [安全与沙箱](../self-hosted/security)
+- [构建 App](../../developing/integrations/build-an-app)

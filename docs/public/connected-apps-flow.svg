@@ -1,0 +1,74 @@
+<svg width="1200" height="560" viewBox="0 0 1200 560" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title desc">
+  <title id="title">Connected Apps flow</title>
+  <desc id="desc">Connect an app once in App Settings, then choose whether each conversation may use it.</desc>
+  <defs>
+    <marker id="arrow" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto">
+      <path d="M2 2L10 6L2 10" fill="none" stroke="#8090A6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+    </marker>
+  </defs>
+  <style>
+    text { font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+    .eyebrow { fill: #667085; font-size: 15px; font-weight: 700; letter-spacing: 0.04em; }
+    .title { fill: #17203A; font-size: 25px; font-weight: 760; }
+    .body { fill: #475467; font-size: 16px; }
+    .label { fill: #23305F; font-size: 16px; font-weight: 700; }
+    .small { fill: #667085; font-size: 14px; }
+  </style>
+
+  <rect width="1200" height="560" fill="#F8FAF7"/>
+
+  <g transform="translate(70 95)">
+    <rect width="390" height="330" rx="16" fill="#EAF0FF" stroke="#C2CEF7" stroke-width="2"/>
+    <text x="32" y="46" class="eyebrow">CURRENT WORKSPACE</text>
+    <text x="32" y="82" class="title">App Settings</text>
+    <text x="32" y="112" class="body">Connect the account once</text>
+
+    <g transform="translate(32 152)">
+      <rect width="326" height="88" rx="12" fill="#FFFFFF" stroke="#D8E0F5"/>
+      <rect x="18" y="20" width="48" height="48" rx="12" fill="#4A7FA5"/>
+      <path d="M34 44H50M42 36V52" stroke="#FFFFFF" stroke-width="3" stroke-linecap="round"/>
+      <text x="84" y="38" class="label">Project app</text>
+      <text x="84" y="63" class="small">Connected</text>
+    </g>
+
+    <g transform="translate(32 260)">
+      <rect width="150" height="42" rx="10" fill="#315E7A"/>
+      <text x="75" y="27" text-anchor="middle" fill="#FFFFFF" font-size="15" font-weight="700">Connected</text>
+    </g>
+  </g>
+
+  <path d="M460 260H545" stroke="#8090A6" stroke-width="2" stroke-linecap="round"/>
+  <path d="M545 260C590 260 590 170 647 170" stroke="#8090A6" stroke-width="2" stroke-linecap="round" marker-end="url(#arrow)"/>
+  <path d="M545 260C590 260 590 390 647 390" stroke="#8090A6" stroke-width="2" stroke-linecap="round" marker-end="url(#arrow)"/>
+
+  <g transform="translate(655 75)">
+    <rect width="475" height="190" rx="16" fill="#E9F5F0" stroke="#B7DED0" stroke-width="2"/>
+    <text x="30" y="44" class="eyebrow">NEW CONVERSATION</text>
+    <text x="30" y="80" class="title">Apps</text>
+    <text x="30" y="110" class="body">Choose before the first message</text>
+    <g transform="translate(30 132)">
+      <rect width="415" height="40" rx="10" fill="#FFFFFF" stroke="#C9E4DA"/>
+      <text x="16" y="26" class="label">Project app</text>
+      <rect x="351" y="8" width="48" height="24" rx="12" fill="#2E8B67"/>
+      <circle cx="387" cy="20" r="9" fill="#FFFFFF"/>
+    </g>
+  </g>
+
+  <g transform="translate(655 295)">
+    <rect width="475" height="190" rx="16" fill="#FFFFFF" stroke="#D9E0EA" stroke-width="2"/>
+    <text x="30" y="44" class="eyebrow">EXISTING CONVERSATION</text>
+    <text x="30" y="80" class="title">Apps</text>
+    <text x="30" y="110" class="body">Change access for this conversation</text>
+    <g transform="translate(30 132)">
+      <rect width="415" height="40" rx="10" fill="#F8FAFC" stroke="#E3E8EF"/>
+      <text x="16" y="26" class="label">Project app</text>
+      <rect x="351" y="8" width="48" height="24" rx="12" fill="#E4E7EC"/>
+      <circle cx="363" cy="20" r="9" fill="#FFFFFF"/>
+    </g>
+  </g>
+
+  <g transform="translate(70 470)">
+    <rect width="390" height="54" rx="12" fill="#FFF4E8" stroke="#F3C9A4"/>
+    <text x="20" y="33" fill="#8A4B1F" font-size="15" font-weight="700">Disconnect affects every conversation</text>
+  </g>
+</svg>

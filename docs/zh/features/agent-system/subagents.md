@@ -76,9 +76,16 @@ DotCraft 会把 role instructions 传给外部 CLI，但无法强制拦截外部
 | 需要强工具隔离 | 优先 `native` + allow/deny list + sandbox |
 | 需要团队固定委派行为 | 在工作区配置中定义 role |
 
+## 对话生命周期
+
+当原生 SubAgent 拥有独立保存的对话时，DotCraft 会把它作为主对话的子对话保留。重启后，它与主对话的关系、角色、运行时选择和工具限制仍然有效。
+
+归档主对话时，DotCraft 也会归档其中已保存的 SubAgent 对话。恢复主对话时，只会恢复之前仍处于打开状态的子对话；你明确关闭过的子对话会继续保持归档。永久删除主对话时，其中已保存的子对话也会被删除。DotCraft 随后会尝试清理配套文件；清理失败时可以重试。
+
 ## 相关文档
 
-- [项目级工作区](../project-first)
+- [项目工作区](../project-workspace)
 - [安全与沙箱](../self-hosted/security) — 用工作区边界和沙箱限制 SubAgent 行为
 - [可观测性](../self-hosted/observability) — 在 Dashboard 看 SubAgent 调用与审批
 - [配置完整参考](../../developing/configuration#subagent-与-external-cli-profiles)
+- [会话持久化](../../developing/architecture/session-persistence)

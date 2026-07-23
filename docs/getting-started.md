@@ -143,7 +143,7 @@ If unsure, put providers globally and let the workspace override only `ProviderI
 | Goal | Next step |
 |------|-----------|
 | Work visually with sessions and diffs | [Desktop](./features/entry-points/desktop) |
-| Run a one-shot terminal or CI task | [Use `dotcraft exec`](#4-run-the-first-session) |
+| Run a one-shot terminal or CI task | [Use `dotcraft exec`](#_4-run-the-first-session) |
 | Share a workspace across remote or multiple clients | [AppServer Mode](./developing/lifecycle/appserver) |
 | Connect an IDE or editor | [IDE / Editors (ACP)](./features/entry-points/editors) |
 | Build bots or external adapters | [Channels & Bots](./features/entry-points/channels) |

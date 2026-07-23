@@ -121,5 +121,5 @@ Skills 页面右上角 **管理** 是批量启用/禁用入口：
 ## 相关文档
 
 - [Plugins 与工具](./plugins-tools) — 用插件分发 skills + tools 的能力包
-- [项目级工作区](../project-first) — `.craft/skills/` 在整体目录中的位置
+- [项目工作区](../project-workspace) — `.craft/skills/` 在整体目录中的位置
 - [Spec-Driven Development](../../developing/workflow/spec-driven-development) — `dotcraft-dev` 与 `harness-workflow` 如何划分产品规则与共享工作流

@@ -68,12 +68,12 @@
     <text x="24" y="110" class="muted">TypeScript, .NET, Python, raw protocol.</text>
   </g>
 
-  <path d="M382 271H490" stroke="#A8B4C6" stroke-width="2" marker-end="url(#arrow)"/>
-  <path d="M382 463H490" stroke="#A8B4C6" stroke-width="2" marker-end="url(#arrow)"/>
-  <path d="M382 655H490" stroke="#A8B4C6" stroke-width="2" marker-end="url(#arrow)"/>
-  <path d="M1058 271H950" stroke="#A8B4C6" stroke-width="2" marker-end="url(#arrow)"/>
-  <path d="M1058 463H950" stroke="#A8B4C6" stroke-width="2" marker-end="url(#arrow)"/>
-  <path d="M1058 655H950" stroke="#A8B4C6" stroke-width="2" marker-end="url(#arrow)"/>
+  <path d="M382 271H482" stroke="#A8B4C6" stroke-width="2" marker-end="url(#arrow)"/>
+  <path d="M382 463H430C458 463 458 420 482 420" stroke="#A8B4C6" stroke-width="2" fill="none" marker-end="url(#arrow)"/>
+  <path d="M382 655H482" stroke="#A8B4C6" stroke-width="2" marker-end="url(#arrow)"/>
+  <path d="M1058 271H958" stroke="#A8B4C6" stroke-width="2" marker-end="url(#arrow)"/>
+  <path d="M1058 463H1010C982 463 982 420 958 420" stroke="#A8B4C6" stroke-width="2" fill="none" marker-end="url(#arrow)"/>
+  <path d="M1058 655H958" stroke="#A8B4C6" stroke-width="2" marker-end="url(#arrow)"/>
 
   <g transform="translate(490 546)">
     <rect x="0" y="0" width="460" height="150" rx="8" fill="#FFFFFF" stroke="#D9E0EA"/>
@@ -81,5 +81,5 @@
     <text x="32" y="84" class="mono">Thread / Turn / Item</text>
     <text x="32" y="112" class="muted">Execution, approvals, and streaming events are shared.</text>
   </g>
-  <path d="M720 458V546" stroke="#A8B4C6" stroke-width="2" marker-end="url(#arrow)"/>
+  <path d="M720 458V538" stroke="#A8B4C6" stroke-width="2" marker-end="url(#arrow)"/>
 </svg>

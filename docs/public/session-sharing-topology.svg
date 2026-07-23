@@ -75,12 +75,12 @@
     <text x="28" y="44" class="cardTitle" fill="#39205F">.craft state</text>
     <line x1="28" y1="64" x2="214" y2="64" stroke="#D7C5EF"/>
     <text x="28" y="100" class="mono">threads/</text>
-    <text x="28" y="130" class="mono">sessions/</text>
-    <text x="28" y="160" class="mono">state.db</text>
-    <text x="28" y="190" class="mono">memory/</text>
-    <text x="28" y="220" class="mono">dreams/</text>
-    <text x="28" y="250" class="mono">skills/</text>
-    <text x="28" y="280" class="mono">plugins/</text>
+    <text x="28" y="130" class="mono">state.db</text>
+    <text x="28" y="160" class="mono">tool-results/</text>
+    <text x="28" y="190" class="mono">attachments/</text>
+    <text x="28" y="220" class="mono">memory/</text>
+    <text x="28" y="250" class="mono">dreams/</text>
+    <text x="28" y="280" class="mono">skills/ + plugins/</text>
     <text x="28" y="350" class="muted">Restart clients and resume</text>
     <text x="28" y="372" class="muted">from the same state.</text>
   </g>

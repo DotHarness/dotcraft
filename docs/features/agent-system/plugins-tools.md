@@ -1,153 +1,85 @@
-# Plugins & Tools
+# Plugins and tools
 
-Tools are what the agent can actually do — read a file, run a command, search the web. DotCraft draws them from three places: **built-in tools** (file, shell, web, search, plan, todo — shipped with DotCraft), **plugins** (extra tools and skills you or others package up), and **MCP servers**. You decide which ones are on.
+Plugins and tools let DotCraft work with files, run commands, connect to services, and follow reusable workflows.
 
-![DotCraft tool surface topology](/tool-surface-topology.svg)
+## Where capabilities come from
 
-## Built-in Tools
-
-DotCraft ships a default toolbelt that covers most coding agent needs:
-
-| Category | Representative tools | Controlled by |
-|---|---|---|
-| File | `ReadFile` / `WriteFile` / `EditFile` / `GrepFiles` / `FindFiles` | Workspace boundary and security policy |
-| Shell | `Exec` | Approval policy, timeout, and sandbox |
-| Web | `WebSearch` / `WebFetch` | Network and fetch limits |
-| LSP | Built-in LSP tools | Optional LSP tool settings |
-| Images | Prompt-based image creation and reference image editing | Supported model services and image generation settings |
-| Plan / Todo | `CreatePlan` / `UpdateTodos` / `TodoWrite` | Subagent role policies |
-
-`ReadFile` reads text files and returns supported images as vision input. PDF and other binary files are rejected with a guidance message instead of being decoded as text.
-
-When the current model service supports image creation, the agent can generate images from your description or refine images using references you provide. Results appear directly in the conversation, so you can review them, download them, or use them as references in the next step.
-
-Tool switches, allow-lists, web limits, LSP settings, and image generation settings are listed in the [Configuration Reference](../../developing/configuration#tools-security-and-sandbox).
-
-## Install & Use Plugins
-
-A DotCraft plugin packages reusable workspace capabilities into an installable extension. A plugin can ship:
-
-| Content | Description |
+| Source | What it adds |
 |---|---|
-| Dynamic tool | Agent-callable tool, optionally executed by a local stdio process |
-| Skill | Plugin-contained skill that joins the skill list when the plugin is enabled |
-| Desktop extension | Trusted local UI bundle that contributes Desktop surfaces such as a sidebar main view |
-| Lifecycle hook | Script hook that runs at lifecycle moments after you review and trust it |
-| Metadata | Name, description, developer, category, icon, default prompt, related links |
+| **Built-in tools** | File editing, shell commands, web access, search, planning, and other core actions |
+| **Plugins** | Packaged skills, tools, apps, panels, and lifecycle hooks |
+| **MCP servers** | Tools provided by a local process or remote service |
 
-Plugin-bundled skills follow plugin lifecycle: available when the plugin is enabled, hidden when disabled or removed.
-Desktop extensions follow the same lifecycle: Desktop loads their local bundles only after the plugin is installed and enabled.
-Plugin-bundled hooks are discovered when the plugin is enabled, then managed from **Settings -> Hooks**. They do not run until you trust them. See [Lifecycle Hooks](./hooks).
+DotCraft applies workspace boundaries, approvals, and security settings when the agent uses these capabilities.
 
-### Desktop Extensions
+## Install a plugin
 
-Some plugins ship a **Desktop extension** — a panel that opens right inside Desktop instead of only adding tools. The Oratorio plugin, for example, embeds its board as a full view you can open from the sidebar.
+1. Open **Plugins** in DotCraft Desktop.
+2. Search or browse the catalog.
+3. Open a plugin to review its publisher, capabilities, and links.
+4. Select **Install**.
+5. Review the confirmation, then select **Add to DotCraft**.
+6. Complete any app setup shown in the installation dialog.
+7. Select **Try in chat**, or start a conversation and describe your task.
 
-![Oratorio Desktop extension](https://github.com/DotHarness/resources/raw/master/dotcraft/whats-new/desktop-extensions.gif)
+To add plugins from another catalog, see [Plugin marketplaces](./plugin-marketplaces).
 
-For what an extension can do and how to build one, see [Desktop Extensions](../../developing/integrations/desktop-extensions).
+## Manage installed plugins
 
-### Install in Desktop
+Open **Plugins**, then select **Manage**.
 
-![Plugin page](https://github.com/DotHarness/resources/raw/master/dotcraft/plugins.png)
+- Turn a plugin off to keep it installed without making its capabilities available to the agent.
+- Turn it on when you want to use it again.
+- Open the plugin and select **Uninstall** to remove it from the current workspace.
 
-1. Open DotCraft
-2. Go to **Plugins**
-3. Search or browse, open a plugin's detail page
-4. Click **Install**
-5. Click **Try in chat** when ready, or describe your task in any new conversation
+If a plugin includes an app, **App Settings** manages its account connection. Choosing an app in a conversation controls whether that conversation can use it. See [Connected Apps](./connected-apps).
 
-### Enable / Disable / Remove
+## Install from disk
 
-| Action | Meaning |
-|---|---|
-| Install | Add the plugin to the current workspace's available capabilities |
-| Enable / Disable | Keep plugin files, only control whether they enter the agent context |
-| Remove | Remove the plugin from the workspace; for plugins under `.craft/plugins/<plugin-id>` this deletes the directory |
+Use this option for a plugin you are developing or received as a folder:
 
-The Plugins management page supports bulk enable/disable.
+This option is available only for local workspaces.
 
-### Install a Local Plugin
+1. Open **Plugins**.
+2. Open the menu beside **Create**, then select **Install from disk**.
+3. Choose the plugin folder.
+4. Review the plugin, then use **Try in chat** to verify it.
 
-When developing or testing a plugin, two options:
+DotCraft copies the plugin into the current workspace. Uninstalling it removes that installed copy.
 
-```text
-.craft/plugins/<plugin-id>/.craft-plugin/plugin.json
-```
+## Create a plugin
 
-Copy the plugin root into the workspace `.craft/plugins/<plugin-id>/`, open the Plugins page, and click **Refresh**. This install can be removed via the Desktop detail page, which deletes the directory.
-
-Alternatively, point DotCraft at a directory you maintain externally. Desktop never deletes external plugin roots; remove the entry from config or manage the filesystem yourself. Full fields are in the [Configuration Reference](../../developing/configuration#plugins-mcp-and-lsp).
-
-### Verify a Plugin
-
-1. Click **Refresh** on the Plugins page
-2. Search the plugin name or id
-3. Open the detail page and confirm tools, skills, and links
-4. If it does not appear, read the diagnostics shown on the page (usually the manifest path and error reason)
-
-## Build a Plugin
-
-The fastest path is the built-in `$plugin-creator` skill: let it scaffold first, then refine documentation, tool logic, and verification steps.
-
-If your goal is just adding one workflow to a single project, prefer creating a plain skill. Use a plugin only when you want to distribute skills, dynamic tools, hooks, icon, and install-page metadata together.
-
-### Bootstrap with plugin creator
-
-Describe what you want in a chat:
+Start with the built-in `$plugin-creator` skill:
 
 ```text
-$plugin-creator Create a plugin named External Process Echo with one skill and one external-process tool.
+$plugin-creator Create a plugin that packages my project review workflow.
 ```
 
-Or specify runtime, language, and validation:
+The skill creates the plugin structure and guides you through testing it. Use a plugin when you want to distribute a reusable capability; use a plain skill for a workflow that only belongs to one project.
 
-```text
-$plugin-creator Create a local plugin that exposes an EchoText dynamic tool via a Python process, and produce install validation steps.
-```
+For marketplace packaging and distribution, see [Plugin Market](../../developing/integrations/plugin-market).
 
-`plugin-creator` generates the plugin directory and manifest, a plugin-contained skill, optional MCP config, optional [hooks](./hooks), and an optional Desktop extension. After generation, usually three things remain:
+## Connect an MCP server
 
-1. Replace the placeholder text and sample copy
-2. Implement or adjust the tool process logic
-3. Install the plugin locally and verify via Plugins **Refresh**
+Open **Settings → MCP Servers**, then add one of these connections:
 
-### What a plugin can contribute
+- **STDIO** for a server started by a local command.
+- **Streamable HTTP** for a remote MCP endpoint.
 
-A single plugin can ship any mix of these content types, all driven by one manifest:
+Use environment variables for tokens and other secrets. Select **Test connection** before relying on the server in a conversation.
 
-- **Dynamic tools** the agent can call, optionally backed by a local process.
-- **Skills** that join the skill list whenever the plugin is enabled.
-- **Desktop extensions** — local UI bundles that add their own surfaces to Desktop, such as a sidebar view, and can read (and, when authorized, write) their app's data through a sandboxed host bridge.
-- **Lifecycle hooks** that run scripts at session, prompt, tool, or turn moments after the user trusts the plugin's current hooks.
+See [Configuration](../../developing/configuration#plugins-mcp-and-lsp) for the complete MCP field reference.
 
-Let `plugin-creator` scaffold the manifest and the matching files; the generated manifest is your working reference when you tune or distribute the plugin. For the wire-level contract behind dynamic tools and Desktop extensions — manifest fields, tool schemas, the host bridge, and write authorization — see [Build an App](../../developing/integrations/build-an-app) and [App Binding](../../developing/integrations/app-binding). For hook behavior and trust, see [Lifecycle Hooks](./hooks).
+## Review trust before installation
 
-## MCP Servers
+Only install plugins and connect servers that you trust. Review the publisher, requested capabilities, source links, and account permissions first.
 
-Beyond built-in tools and plugin dynamic tools, DotCraft also speaks MCP. In Desktop, open **Settings -> MCP Servers** to add servers for the current workspace without editing JSON.
-
-- **STDIO** starts a local command and exposes the MCP tools it provides.
-- **Streamable HTTP** connects to an HTTP MCP endpoint, usually ending in `/mcp`.
-- **Secrets** should come from environment variables. Use bearer-token env vars or environment-backed headers for tokens instead of pasting secret values into literal headers.
-- **Test connection** checks reachability and shows how many tools DotCraft discovered before you rely on the server in a session.
-
-MCP server registration, deferred loading options, and the complete field list live in the [Configuration Reference](../../developing/configuration#plugins-mcp-and-lsp).
-
-## Safety & Trust
-
-Installing a plugin adds new tools and skills to the workspace's capability surface. Plugins with a `process` backend may launch a local stdio process declared in the manifest to execute dynamic tools. **Only install and enable plugins whose source, code, and dependencies you trust**.
-
-- Plugin tool calls still pass through DotCraft's session, approvals, and tool-call records.
-- Plugin hooks do not run until the plugin's current hooks are trusted in **Settings -> Hooks**; changed hook commands must be trusted again.
-- Desktop extension bundles run inside the Desktop renderer as trusted local UI code. Descriptor-bound host capabilities are still enforced by Desktop's main process; extension v1 is not an untrusted code sandbox.
-- Plugin detail pages link to website, privacy policy, and ToS for source verification.
-- Blacklists, workspace boundary, sandbox, and other restrictions also apply to plugin tools. See [Security & Sandbox](../self-hosted/security).
+Plugins may start local processes, connect to remote services, add hooks, or load a Desktop panel. Calls still follow DotCraft approvals and workspace security settings. Plugin hooks remain inactive until you review and trust them in **Settings → Hooks**.
 
 ## Related docs
 
-- [Skills & Self-Learning](./skills) — relationship between skills and plugins
-- [Lifecycle Hooks](./hooks) — plugin-bundled scripts that run at lifecycle moments
-- [Desktop Extensions](../../developing/integrations/desktop-extensions) — plugins that embed their own view inside Desktop
-- [Build an App](../../developing/integrations/build-an-app) — manifest fields, tool schemas, and Desktop extension authoring
-- [Security & Sandbox](../self-hosted/security) — global constraints on tool capabilities
+- [Plugin marketplaces](./plugin-marketplaces)
+- [Connected Apps](./connected-apps)
+- [Lifecycle Hooks](./hooks)
+- [Security & Sandbox](../self-hosted/security)
+- [Build an App](../../developing/integrations/build-an-app)

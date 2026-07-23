@@ -99,6 +99,7 @@ On startup, DotCraft checks [GitHub Releases](https://github.com/DotHarness/dotc
 ## Related docs
 
 - [Getting Started](../../getting-started)
+- [Connected Apps](../agent-system/connected-apps)
 - [Entry Points Overview](./)
 - [Observability](../self-hosted/observability)
 - [Settings Lifecycle](../../developing/lifecycle/settings-lifecycle)

@@ -16,7 +16,7 @@ This page targets integrators and contributors. It explains the session model an
 
 `ISessionService` is the core API: thread lifecycle, input submission, streaming event subscription, approval flow. Every entry point (CLI, ACP, Automations, external channel adapters) talks to the engine through it.
 
-## How Cross-Entry Sharing Works
+## How cross-entry sharing works
 
 ![DotCraft cross-entry session sharing topology](/session-sharing-topology.svg)
 
@@ -24,9 +24,9 @@ Key points:
 
 - **Hub** assembles one AppServer per workspace on the local machine. Desktop and CLI use this path by default, so opening the same project from either entry connects to the same process.
 - **AppServer** projects `ISessionService` as JSON-RPC ([full protocol](../protocols/appserver-protocol)). Any language can implement a client.
-- **Workspace `.craft/`** is the persistence layer: threads in `threads/`, session metadata in `sessions/`, dreams in `dreams/`. After a restart, any entry point can resume.
+- **Workspace `.craft/`** persists authoritative thread rollouts under `threads/`, classified state and projections in `state.db`, and referenced artifacts such as large tool results and attachments. See [Session persistence](./session-persistence) for the authority and recovery model.
 
-## Approvals & Human-in-the-Loop
+## Approvals and human-in-the-loop
 
 Session Core surfaces "may this tool call run" as a discrete approval event, so each frontend can render it natively:
 
@@ -39,7 +39,7 @@ Session Core surfaces "may this tool call run" as a discrete approval event, so 
 > [!NOTE]
 > When the same Thread is picked up by a different entry point, approval UI uses each platform's native form — Desktop never stuffs a QQ group message into its own modal.
 
-## Cross-Channel Resume
+## Cross-channel resume
 
 | Dimension | Without unified session core | DotCraft Unified Session Core |
 |---|---|---|
@@ -54,7 +54,7 @@ Typical flows:
 - A Cron-triggered automation hits an approval midway, Desktop notifies, you approve or amend.
 - A user pings a WeChat bot, the bot replies, an engineer opens Desktop and sees the same Thread to follow up.
 
-## Hub vs AppServer
+## Hub and AppServer
 
 DotCraft has two layers of local coordination:
 
@@ -67,7 +67,7 @@ When you need direct control (remote deploy, CI, bots, debugging), see:
 - [Hub Protocol](../protocols/hub-protocol) — implement a Hub client
 - [AppServer Protocol](../protocols/appserver-protocol) — implement an AppServer client
 
-## When to Care About Session Core
+## When to care about Session Core
 
 | Role | Should you care |
 |---|---|
@@ -77,8 +77,10 @@ When you need direct control (remote deploy, CI, bots, debugging), see:
 | Integrating a new IDE / editor | Read [ACP / Editors](../../features/entry-points/editors) |
 | Building a custom protocol-level client | Read [AppServer Protocol](../protocols/appserver-protocol) |
 
-## Related
+## Related docs
 
-- [Entry Points overview](../../features/entry-points/) — comparison table & decision matrix
-- [Observability](../../features/self-hosted/observability) — Trace, approvals, tool calls in Dashboard
-- [AppServer Mode](../lifecycle/appserver) — remote / multi-client / custom integrations
+- [Session persistence](./session-persistence)
+- [Entry points](../../features/entry-points/)
+- [Observability](../../features/self-hosted/observability)
+- [AppServer mode](../lifecycle/appserver)
+- [AppServer protocol](../protocols/appserver-protocol)

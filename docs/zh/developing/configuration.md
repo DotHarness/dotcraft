@@ -1,6 +1,6 @@
 # DotCraft 完整配置参考
 
-本页集中列出配置字段、默认值、JSON 示例和高级参考。第一次配置请先读 [项目级工作区](../features/project-first)。想理解功能本身时先读对应 Feature 页面，需要准确字段时再回到这里。
+本页集中列出配置字段、默认值、JSON 示例和高级参考。第一次配置请先读[项目工作区](../features/project-workspace)。想理解功能本身时先读对应 Feature 页面，需要准确字段时再回到这里。
 
 DotCraft 先读取全局 `~/.craft/config.json`，再叠加工作区 `.craft/config.json`，工作区字段优先生效。配置字符串支持 `$VAR` 和 `${VAR}` 环境变量占位；变量不存在时保留原始占位符。
 
@@ -213,6 +213,16 @@ Deep-thinking adapter 文件：
 | `Tools.Shell.RequireApprovalOutsideWorkspace` | 工作区外 Shell 命令是否需要审批 | `true` |
 | `Tools.Shell.Timeout` | Shell 命令超时时间（秒） | `300` |
 | `Tools.Shell.MaxOutputLength` | Shell 命令最大输出长度（字符） | `10000` |
+| `Tools.Shell.Background.Enabled` | 是否启用后台终端会话 | `true` |
+| `Tools.Shell.Background.DefaultYieldTimeMs` | 运行中命令返回后台会话快照前的默认等待时间 | `1000` |
+| `Tools.Shell.Background.MaxYieldTimeMs` | 后台会话读取或写入可接受的最长等待时间 | `30000` |
+| `Tools.Shell.Background.MaxSessionsPerThread` | 每个线程可同时运行的后台终端上限 | `8` |
+| `Tools.Shell.Background.MaxSessionsPerWorkspace` | 每个工作区可同时运行的后台终端上限 | `32` |
+| `Tools.Shell.Background.IdleTimeoutSeconds` | 预留字段；后台终端服务当前不执行该限制 | `1800` |
+| `Tools.Shell.Background.OutputMaxBytes` | 预留字段；后台终端服务当前不执行该限制 | `67108864` |
+| `Tools.Shell.Background.OutputRetentionDays` | 已完成或丢失终端的元数据与输出保留天数；不清理正在运行的终端 | `7` |
+| `Tools.Shell.Background.StallWatchdogSeconds` | 预留字段；后台终端服务当前不执行该限制 | `45` |
+| `Tools.Shell.Background.DefaultReadMaxOutputChars` | 终端快照默认返回的最大字符数 | `10000` |
 | `Tools.Web.MaxChars` | Web 抓取最大字符数 | `50000` |
 | `Tools.Web.Timeout` | Web 请求超时时间（秒） | `300` |
 | `Tools.Web.SearchMaxResults` | 联网搜索默认返回结果数 | `5` |
@@ -539,7 +549,7 @@ Desktop 托管的内置 TypeScript 渠道：
 | 配置项 | 说明 | 默认值 |
 |--------|------|--------|
 | `Plugins.PluginRoots` | `.craft/plugins/` 之外额外维护的 plugin root 目录 | `[]` |
-| `Plugins.PluginRegistries` | 额外的 plugin registry 来源，支持 HTTPS zip URL 或本地归档/目录路径 | `[]` |
+| `Plugins.PluginRegistries` | 用于发现插件目录的 plugin marketplace 来源 | `[]` |
 | `Plugins.DisableDefaultPluginRegistry` | 忽略宿主提供的默认官方 plugin registry | `false` |
 | `McpServers` | MCP 服务配置集合 | `{}` |
 | `Tools.DeferredLoading.Strategy` | 工具延迟加载策略：`Off`、`Auto`、`Simulated` 或 `Native` | `Auto` |
@@ -549,7 +559,24 @@ Desktop 托管的内置 TypeScript 渠道：
 | `LspServers` | LSP 服务配置集合 | `{}` |
 | `Tools.Lsp.Enabled` | 是否启用内置 LSP 工具 | `false` |
 
-DotCraft Desktop 会通过 `DOTCRAFT_DEFAULT_PLUGIN_REGISTRY_URL` 提供默认的官方 plugin marketplace registry。只有在本地开发 marketplace 之外的插件时，才需要配置本地 checkout。
+DotCraft Desktop 会通过 `DOTCRAFT_DEFAULT_PLUGIN_REGISTRY_URL` 提供默认官方插件市场。在 Desktop 中添加的市场来源保存在全局配置中；工作区中的 `PluginRegistries` 值遵循普通的工作区覆盖全局规则。
+
+`Plugins.PluginRegistries` 条目字段：
+
+| 字段 | 说明 | 默认值 |
+|---|---|---|
+| `Name` | 市场标识。手动配置时必填且必须与市场文档一致；通过 Desktop 或 AppServer 添加时自动维护 | 空 |
+| `SourceType` | 来源类型：`git`、`local` 或 `archive` | 省略时自动推断 |
+| `Url` | Git URL、本地目录、归档 URL 或归档文件 | 空 |
+| `Ref` | 要检出的 Git 分支、标签或 commit | 来源默认值 |
+| `SparsePaths` | Git checkout 中包含的仓库内相对路径 | `[]` |
+| `MarketplacePath` | 来源根目录内的市场文档路径 | `.craft/plugins/marketplace.json` |
+| `LastUpdated` | 最近一次成功添加或刷新的 UTC 时间 | 空 |
+| `LastRevision` | 最近一次成功获取的 Git revision | 空 |
+
+省略 `SourceType` 时，已存在的目录或归档文件按本地来源读取，其他值按归档 URL 处理。`Ref` 和 `SparsePaths` 只适用于 Git 来源。
+
+来源格式、市场文档和生命周期见[插件市场](./integrations/plugin-market)。
 
 本地插件开发覆盖示例：
 
@@ -694,6 +721,6 @@ Role 示例：
 
 ## 相关入口
 
-- [项目级工作区](../features/project-first) — 首次配置与 `.craft/` 目录结构
+- [项目工作区](../features/project-workspace) — 首次配置与 `.craft/` 目录结构
 - [AppServer 模式](./lifecycle/appserver) — 结合场景理解 `AppServer.*` / `CLI.*` 字段
 - [设置生效层级](./lifecycle/settings-lifecycle) — 字段变更何时生效

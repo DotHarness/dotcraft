@@ -107,6 +107,10 @@
   will-change: transform, opacity, filter;
 }
 
+.dc-motion-ready .dc-reveal.dc-reveal--from-top {
+  transform: translateY(calc(var(--stagger-distance) * -1));
+}
+
 .dc-reveal {
   transition:
     opacity   var(--duration-very-slow) var(--ease-smooth-out),
@@ -114,6 +118,7 @@
     filter    var(--duration-very-slow) var(--ease-smooth-out);
 }
 
+.dc-reveal--resetting { transition: none !important; }
 .dc-reveal--late { transition-delay: var(--duration-micro); }
 
 .dc-motion-ready .dc-reveal.is-shown {

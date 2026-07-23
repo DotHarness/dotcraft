@@ -10,6 +10,11 @@
     .mono { fill: #1F2937; font-size: 15px; font-family: "Cascadia Mono", ui-monospace, SFMono-Regular, Menlo, monospace; }
     .muted { fill: #667085; font-size: 13px; }
   </style>
+  <defs>
+    <marker id="arrow" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto">
+      <path d="M2 2L10 6L2 10" fill="none" stroke="#A8B4C6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+    </marker>
+  </defs>
 
   <rect width="1440" height="1040" fill="#F8FAF7"/>
   <text x="72" y="86" class="title">DotCraft runtime architecture topology</text>
@@ -102,15 +107,11 @@
     <text x="28" y="124" class="muted">Durable state lets capable clients resume the same work.</text>
   </g>
 
-  <path d="M468 292H512" stroke="#A8B4C6" stroke-width="2" stroke-linecap="round"/>
-  <path d="M502 284L512 292L502 300" stroke="#A8B4C6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-  <path d="M468 604H512" stroke="#A8B4C6" stroke-width="2" stroke-linecap="round"/>
-  <path d="M502 596L512 604L502 612" stroke="#A8B4C6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-  <path d="M918 292H962" stroke="#A8B4C6" stroke-width="2" stroke-linecap="round"/>
-  <path d="M952 284L962 292L952 300" stroke="#A8B4C6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-  <path d="M1170 422V464" stroke="#A8B4C6" stroke-width="2" stroke-linecap="round"/>
-  <path d="M1162 454L1170 464L1178 454" stroke="#A8B4C6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-  <path d="M720 732V794" stroke="#A8B4C6" stroke-width="2" stroke-linecap="round"/>
-  <path d="M712 784L720 794L728 784" stroke="#A8B4C6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-  <path d="M270 804V758H522" stroke="#A8B4C6" stroke-width="2" stroke-linecap="round" stroke-dasharray="6 8"/>
+  <path d="M468 292H514" stroke="#A8B4C6" stroke-width="2" stroke-linecap="round" marker-end="url(#arrow)"/>
+  <path d="M468 604H514" stroke="#A8B4C6" stroke-width="2" stroke-linecap="round" marker-end="url(#arrow)"/>
+  <path d="M918 292H964" stroke="#A8B4C6" stroke-width="2" stroke-linecap="round" marker-end="url(#arrow)"/>
+  <path d="M1170 422V466" stroke="#A8B4C6" stroke-width="2" stroke-linecap="round" marker-end="url(#arrow)"/>
+  <path d="M720 732V796" stroke="#A8B4C6" stroke-width="2" stroke-linecap="round" marker-end="url(#arrow)"/>
+  <path d="M270 804V770H620V740" stroke="#A8B4C6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="6 8" marker-end="url(#arrow)"/>
+  <text x="334" y="758" class="muted">starts / reuses runtime</text>
 </svg>

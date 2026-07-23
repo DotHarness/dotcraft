@@ -1,0 +1,87 @@
+<svg width="1280" height="720" viewBox="0 0 1280 720" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title desc">
+  <title id="title">DotCraft thread persistence and resume flow</title>
+  <desc id="desc">The authoritative thread rollout is replayed into a resumed runtime session. Workspace state provides business and query data, while referenced artifacts hold large outputs, attachments, and terminal records.</desc>
+  <style>
+    text { font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+    .title { fill: #17203A; font-size: 38px; font-weight: 760; }
+    .subtitle { fill: #667085; font-size: 17px; }
+    .cardTitle { font-size: 21px; font-weight: 740; }
+    .label { font-size: 14px; font-weight: 700; }
+    .body { fill: #475467; font-size: 14px; }
+    .small { fill: #667085; font-size: 13px; }
+    .mono { fill: #344054; font-size: 14px; font-family: "Cascadia Mono", ui-monospace, SFMono-Regular, Menlo, monospace; }
+  </style>
+  <defs>
+    <marker id="arrow" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto">
+      <path d="M2 2L10 6L2 10" fill="none" stroke="#98A2B3" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+    </marker>
+    <marker id="blueArrow" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto">
+      <path d="M2 2L10 6L2 10" fill="none" stroke="#667FDD" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+    </marker>
+  </defs>
+
+  <rect width="1280" height="720" fill="#F8FAF7"/>
+  <text x="64" y="72" class="title">How a thread resumes</text>
+  <text x="64" y="105" class="subtitle">One authoritative history is replayed into the runtime; supporting state and files remain separate.</text>
+
+  <g transform="translate(64 158)">
+    <rect width="330" height="238" rx="10" fill="#EAF0FF" stroke="#C2CEF7"/>
+    <text x="24" y="38" class="cardTitle" fill="#23305F">Thread rollout</text>
+    <text x="24" y="68" class="label" fill="#4459B8">Authoritative history</text>
+    <text x="24" y="105" class="mono">.craft/threads/active/</text>
+    <text x="24" y="132" class="mono">.craft/threads/archived/</text>
+    <line x1="24" y1="154" x2="306" y2="154" stroke="#C2CEF7"/>
+    <text x="24" y="183" class="body">Thread · Turn · Item timeline</text>
+    <text x="24" y="209" class="body">Exact model-visible history</text>
+  </g>
+
+  <path d="M394 277H498" stroke="#667FDD" stroke-width="2" marker-end="url(#blueArrow)"/>
+  <text x="414" y="258" class="small">validate + replay</text>
+
+  <g transform="translate(506 158)">
+    <rect width="330" height="238" rx="10" fill="#E9F5F0" stroke="#B7DED0"/>
+    <text x="24" y="38" class="cardTitle" fill="#153E33">Resumed session</text>
+    <text x="24" y="68" class="label" fill="#2E6B56">Runtime state</text>
+    <text x="24" y="105" class="body">Latest usable checkpoint</text>
+    <text x="24" y="132" class="body">Surviving tail turns</text>
+    <line x1="24" y1="154" x2="306" y2="154" stroke="#B7DED0"/>
+    <text x="24" y="183" class="body">Client-visible conversation</text>
+    <text x="24" y="209" class="body">Model context for the next turn</text>
+  </g>
+
+  <path d="M836 277H940" stroke="#98A2B3" stroke-width="2" marker-end="url(#arrow)"/>
+  <text x="865" y="258" class="small">continue</text>
+
+  <g transform="translate(948 158)">
+    <rect width="268" height="238" rx="10" fill="#FFF1E6" stroke="#F3C9A4"/>
+    <text x="24" y="38" class="cardTitle" fill="#623314">Clients</text>
+    <text x="24" y="76" class="body">Desktop</text>
+    <text x="24" y="104" class="body">CLI and editors</text>
+    <text x="24" y="132" class="body">Channels</text>
+    <text x="24" y="160" class="body">Automations</text>
+    <text x="24" y="188" class="body">SDK integrations</text>
+  </g>
+
+  <g transform="translate(64 454)">
+    <rect width="552" height="188" rx="10" fill="#F3F4EA" stroke="#D9DEC0"/>
+    <text x="24" y="38" class="cardTitle" fill="#3F431E">Workspace state</text>
+    <text x="24" y="68" class="mono">.craft/state.db</text>
+    <text x="24" y="102" class="body">Business state · runtime continuity · diagnostics</text>
+    <text x="24" y="130" class="body">Queryable thread projections</text>
+    <text x="24" y="160" class="small">Some projections can be repaired; not all state is rebuildable.</text>
+  </g>
+
+  <g transform="translate(664 454)">
+    <rect width="552" height="188" rx="10" fill="#F1EBFA" stroke="#D7C5EF"/>
+    <text x="24" y="38" class="cardTitle" fill="#39205F">Referenced artifacts</text>
+    <text x="24" y="72" class="body">Full tool results</text>
+    <text x="24" y="100" class="body">Attachment bytes</text>
+    <text x="24" y="128" class="body">Terminal records</text>
+    <text x="24" y="160" class="small">Copy the whole workspace to preserve these files.</text>
+  </g>
+
+  <path d="M229 396V446" stroke="#98A2B3" stroke-width="2" marker-end="url(#arrow)"/>
+  <text x="244" y="424" class="small">projection</text>
+  <path d="M785 396V446" stroke="#98A2B3" stroke-width="2" marker-end="url(#arrow)"/>
+  <text x="800" y="424" class="small">references</text>
+</svg>

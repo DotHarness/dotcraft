@@ -40,7 +40,7 @@ const enSidebar: DefaultTheme.Sidebar = collapseSidebarGroups([
   {
     text: 'Features',
     items: [
-      { text: withIcon('folder', 'Project First'), link: '/features/project-first' },
+      { text: withIcon('folder', 'Project Workspace'), link: '/features/project-workspace' },
       {
         text: withIcon('cpu', 'Agent System'),
         link: '/features/agent-system/memory',
@@ -48,6 +48,8 @@ const enSidebar: DefaultTheme.Sidebar = collapseSidebarGroups([
           { text: withIcon('brain', 'Memory & Dreams'), link: '/features/agent-system/memory' },
           { text: withIcon('sparkles', 'Skills & Self-Learning'), link: '/features/agent-system/skills' },
           { text: withIcon('puzzle', 'Plugins & Tools'), link: '/features/agent-system/plugins-tools' },
+          { text: withIcon('package', 'Plugin Marketplaces'), link: '/features/agent-system/plugin-marketplaces' },
+          { text: withIcon('plug', 'Connected Apps'), link: '/features/agent-system/connected-apps' },
           { text: withIcon('workflow', 'Automations & Goals'), link: '/features/agent-system/automations' },
           { text: withIcon('anchor', 'Lifecycle Hooks'), link: '/features/agent-system/hooks' },
           { text: withIcon('bot', 'Agent Profiles'), link: '/features/agent-system/agent-profiles' },
@@ -92,7 +94,8 @@ const enSidebar: DefaultTheme.Sidebar = collapseSidebarGroups([
         link: '/developing/architecture/overview',
         items: [
           { text: withIcon('branch', 'Overview'), link: '/developing/architecture/overview' },
-          { text: withIcon('layers', 'Unified Session Core'), link: '/developing/architecture/session-core' }
+          { text: withIcon('layers', 'Unified Session Core'), link: '/developing/architecture/session-core' },
+          { text: withIcon('database', 'Session Persistence'), link: '/developing/architecture/session-persistence' }
         ]
       },
       { text: withIcon('sliders', 'Configuration'), link: '/developing/configuration' },
@@ -134,7 +137,8 @@ const enSidebar: DefaultTheme.Sidebar = collapseSidebarGroups([
         items: [
           { text: withIcon('plug', 'App Binding'), link: '/developing/integrations/app-binding' },
           { text: withIcon('box', 'Build an App'), link: '/developing/integrations/build-an-app' },
-          { text: withIcon('layout', 'Interactive Tool UI'), link: '/developing/integrations/interactive-tool-ui' },
+          { text: withIcon('package', 'Plugin Market'), link: '/developing/integrations/plugin-market' },
+          { text: withIcon('layout', 'MCP Apps'), link: '/developing/integrations/mcp-apps' },
           { text: withIcon('dashboard', 'Desktop Extensions'), link: '/developing/integrations/desktop-extensions' },
           { text: withIcon('blocks', 'TypeScript Module'), link: '/developing/integrations/typescript-module' }
         ]
@@ -166,7 +170,7 @@ const zhSidebar: DefaultTheme.Sidebar = collapseSidebarGroups([
   {
     text: '功能',
     items: [
-      { text: withIcon('folder', '项目优先'), link: '/zh/features/project-first' },
+      { text: withIcon('folder', '项目工作区'), link: '/zh/features/project-workspace' },
       {
         text: withIcon('cpu', 'Agent 系统'),
         link: '/zh/features/agent-system/memory',
@@ -174,9 +178,11 @@ const zhSidebar: DefaultTheme.Sidebar = collapseSidebarGroups([
           { text: withIcon('brain', '长期记忆与 Dreams'), link: '/zh/features/agent-system/memory' },
           { text: withIcon('sparkles', 'Skills 与自学习'), link: '/zh/features/agent-system/skills' },
           { text: withIcon('puzzle', '插件与工具'), link: '/zh/features/agent-system/plugins-tools' },
+          { text: withIcon('package', '插件市场'), link: '/zh/features/agent-system/plugin-marketplaces' },
+          { text: withIcon('plug', 'Connected Apps'), link: '/zh/features/agent-system/connected-apps' },
           { text: withIcon('workflow', 'Automations 与 Goals'), link: '/zh/features/agent-system/automations' },
           { text: withIcon('anchor', '生命周期 Hooks'), link: '/zh/features/agent-system/hooks' },
-          { text: withIcon('bot', '个性化智能体'), link: '/zh/features/agent-system/agent-profiles' },
+          { text: withIcon('bot', 'Agent Profiles'), link: '/zh/features/agent-system/agent-profiles' },
           { text: withIcon('users', 'SubAgents'), link: '/zh/features/agent-system/subagents' },
           { text: withIcon('network', 'Teams'), link: '/zh/features/agent-system/teams' }
         ]
@@ -218,7 +224,8 @@ const zhSidebar: DefaultTheme.Sidebar = collapseSidebarGroups([
         link: '/zh/developing/architecture/overview',
         items: [
           { text: withIcon('branch', '架构总览'), link: '/zh/developing/architecture/overview' },
-          { text: withIcon('layers', '统一会话核心'), link: '/zh/developing/architecture/session-core' }
+          { text: withIcon('layers', '统一会话核心'), link: '/zh/developing/architecture/session-core' },
+          { text: withIcon('database', '会话持久化'), link: '/zh/developing/architecture/session-persistence' }
         ]
       },
       { text: withIcon('sliders', '配置'), link: '/zh/developing/configuration' },
@@ -260,7 +267,8 @@ const zhSidebar: DefaultTheme.Sidebar = collapseSidebarGroups([
         items: [
           { text: withIcon('plug', 'App Binding'), link: '/zh/developing/integrations/app-binding' },
           { text: withIcon('box', '构建应用'), link: '/zh/developing/integrations/build-an-app' },
-          { text: withIcon('layout', '交互式工具 UI'), link: '/zh/developing/integrations/interactive-tool-ui' },
+          { text: withIcon('package', '插件市场'), link: '/zh/developing/integrations/plugin-market' },
+          { text: withIcon('layout', 'MCP Apps'), link: '/zh/developing/integrations/mcp-apps' },
           { text: withIcon('dashboard', 'Desktop 扩展'), link: '/zh/developing/integrations/desktop-extensions' },
           { text: withIcon('blocks', 'TypeScript Module'), link: '/zh/developing/integrations/typescript-module' }
         ]
@@ -284,22 +292,22 @@ const zhSidebar: DefaultTheme.Sidebar = collapseSidebarGroups([
 const enNav: DefaultTheme.NavItem[] = [
   { text: 'Overview', link: '/' },
   { text: 'Getting Started', link: '/getting-started' },
-  { text: 'Features', link: '/features/project-first' },
+  { text: 'Features', link: '/features/project-workspace' },
   { text: 'Developing', link: '/developing/workflow/spec-driven-development' }
 ]
 
 const zhNav: DefaultTheme.NavItem[] = [
   { text: '总览', link: '/zh/' },
   { text: '快速开始', link: '/zh/getting-started' },
-  { text: '功能', link: '/zh/features/project-first' },
+  { text: '功能', link: '/zh/features/project-workspace' },
   { text: '开发', link: '/zh/developing/workflow/spec-driven-development' }
 ]
 
 const redirectMap: Record<string, string> = {
   'reference.md': 'developing/architecture/overview.md',
-  'features.md': 'features/project-first.md',
+  'features.md': 'features/project-workspace.md',
   'getting-started.md': 'getting-started.md',
-  'config_guide.md': 'features/project-first.md',
+  'config_guide.md': 'features/project-workspace.md',
   'desktop_guide.md': 'features/entry-points/desktop.md',
   'acp_guide.md': 'features/entry-points/editors.md',
   'unity_guide.md': 'features/entry-points/editors.md',
@@ -335,8 +343,8 @@ const redirectMap: Record<string, string> = {
   'skills/marketplace.md': 'features/agent-system/skills.md',
   'plugins/install.md': 'features/agent-system/plugins-tools.md',
   'plugins/build.md': 'features/agent-system/plugins-tools.md',
-  'features/workspace.md': 'features/project-first.md',
-  'features/project-design/workspace.md': 'features/project-first.md',
+  'features/workspace.md': 'features/project-workspace.md',
+  'features/project-design/workspace.md': 'features/project-workspace.md',
   'features/memory.md': 'features/agent-system/memory.md',
   'features/skills.md': 'features/agent-system/skills.md',
   'features/plugins-tools.md': 'features/agent-system/plugins-tools.md',
@@ -387,6 +395,7 @@ export default withMermaid(defineConfig({
   base,
   cleanUrls: true,
   lastUpdated: true,
+  srcExclude: ['demo/README.md'],
   rewrites,
   head: [
     ['meta', { name: 'theme-color', content: '#4A7FA5' }],
@@ -430,7 +439,6 @@ export default withMermaid(defineConfig({
       text: 'Edit this page on GitHub'
     },
     footer: {
-      message: 'Apache License 2.0',
       copyright: 'Copyright © DotHarness'
     }
   },

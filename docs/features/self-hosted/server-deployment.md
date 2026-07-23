@@ -1,4 +1,4 @@
-# Server Deployment
+# Server deployment
 
 DotCraft can run as a headless AppServer on a Linux host. The recommended server path is the Docker Compose deployment in `docker`, which bundles:
 
@@ -6,14 +6,52 @@ DotCraft can run as a headless AppServer on a Linux host. The recommended server
 - Node.js and the TypeScript channel modules (`telegram`, `feishu`, `qq`, `wecom`, `weixin`)
 - optional OpenSandbox, started only when the `sandbox` Compose profile is enabled
 
-## Docker Compose Quick Start
+## Docker Compose quick start
 
 ```bash
 cd docker
 cp .env.example .env
-# edit .env
+```
+
+Open `.env` and set at least:
+
+```dotenv
+DOTCRAFT_API_KEY=your-api-key
+DOTCRAFT_MODEL=your-model-id
+```
+
+> [!CAUTION]
+> `docker/.env` contains API keys and optional channel credentials. Keep it private and never commit it.
+
+Start the stack:
+
+```bash
 docker compose up -d
 ```
+
+## Configure the model provider
+
+The example file uses OpenAI with the Chat Completions protocol. To use a different provider, protocol, or endpoint, update the complete provider block:
+
+```dotenv
+DOTCRAFT_PROVIDER=openai
+DOTCRAFT_PROVIDER_DISPLAY_NAME=OpenAI
+DOTCRAFT_PROVIDER_PROTOCOL=openai-chat-completions
+DOTCRAFT_PROVIDER_ENDPOINT=https://api.openai.com/v1
+DOTCRAFT_API_KEY=your-api-key
+DOTCRAFT_MODEL=your-model-id
+```
+
+| Variable | Purpose |
+|---|---|
+| `DOTCRAFT_PROVIDER` | Stable provider ID, such as `openai` |
+| `DOTCRAFT_PROVIDER_DISPLAY_NAME` | Name shown in DotCraft |
+| `DOTCRAFT_PROVIDER_PROTOCOL` | `openai-chat-completions`, `openai-responses`, or `anthropic` |
+| `DOTCRAFT_PROVIDER_ENDPOINT` | Provider base URL; use the provider's required URL |
+| `DOTCRAFT_API_KEY` | Provider API key |
+| `DOTCRAFT_MODEL` | Exact model ID accepted by the provider |
+
+The API key remains in the container environment. DotCraft stores a reference to that environment variable and writes the selected provider and model into the generated configuration.
 
 The stack creates a workspace under `docker/workspace`. By default, Compose publishes the main service endpoints only on the server's loopback interface:
 
@@ -109,7 +147,7 @@ Then use `dotcraft-prod` as the Desktop SSH target. Verify the final target the 
 ssh -o BatchMode=yes dotcraft-prod "echo ok"
 ```
 
-## Choose Channels
+## Choose channels
 
 Set `ENABLED_CHANNELS` in `.env`:
 
@@ -138,7 +176,7 @@ If a channel gateway runs outside the server, publish only the required channel 
 
 Weixin requires an interactive QR login. After enabling it, open `workspace/.craft/tmp/channel-weixin-standard/qr.png` and scan the code.
 
-## Optional Sandbox
+## Optional sandbox
 
 Sandbox is off by default. Plain `docker compose up -d` does not mount the host Docker socket.
 
@@ -159,7 +197,7 @@ docker compose build dotcraft
 docker compose up -d
 ```
 
-## Production Notes
+## Production notes
 
 - The default Compose file does not expose AppServer or Dashboard beyond localhost. Do not publish them directly to the public internet; prefer Desktop SSH tunnels or a TLS reverse proxy with authentication.
 - Use a strong `APPSERVER_TOKEN` and Dashboard username/password when exposing these services through a reverse proxy.
@@ -171,3 +209,4 @@ docker compose up -d
 - [Channels & Bots](../entry-points/channels)
 - [Security & Sandbox](./security)
 - [Observability](./observability)
+- [Configuration reference](../../developing/configuration)

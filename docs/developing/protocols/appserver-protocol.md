@@ -1,6 +1,6 @@
 # AppServer Protocol
 
-> App Binding clients negotiate `capabilities.appBindingVersion: 2`. App-principal connections are restricted to the `app/connection/*`, `app/binding/*`, and `app/bindings/list` control plane; tools are delivered by binding-scoped MCP sessions. Unsupported methods return `AppBindingUpgradeRequired`.
+> App Binding clients negotiate `capabilities.appBindingVersion: 2`. Authenticated app-principal connections may call only the version-2 app-role allowlist: connection authentication, refresh, status, and revoke; binding request, activation, rebind, and list; `app/surface/publish`; and `app/threadInput/enqueue`. Tools are delivered by binding-scoped MCP sessions. Legacy App Binding methods and unsupported App Binding versions return `AppBindingUpgradeRequired`; other unauthorized methods return `AppPrincipalUnauthorized`. See [App Binding](../integrations/app-binding).
 
 AppServer Protocol is DotCraft's JSON-RPC wire protocol for external clients. Desktop, ACP bridges, external channel adapters, and custom IDE clients can use it to create or resume threads, submit user input, consume streaming events, and participate in command or file-change approvals.
 
@@ -216,13 +216,18 @@ Common thread methods:
 | `thread/subscribe` | Subscribe to thread events. |
 | `thread/unsubscribe` | Unsubscribe from thread events. |
 | `thread/rename` | Update the display name. |
-| `thread/delete` | Delete a thread. |
+| `thread/pause` | Pause an active thread until it is resumed. |
+| `thread/archive` | Block new turns, stop or invalidate active background terminals, and archive the thread and its SubAgent subtree. |
+| `thread/unarchive` | Restore an archived thread and descendants whose SubAgent edges remain open. Explicitly closed descendants stay archived. |
+| `thread/delete` | Permanently delete a thread and its SubAgent subtree from durable state. Thread-owned filesystem cleanup is best effort and retryable. |
 | `thread/config/update` | Update thread configuration. |
 | `thread/mode/set` | Switch agent mode, such as `plan` or `agent`. |
 
 `thread/list` accepts optional `query`, `limit`, and opaque `cursor` params. When paged, the result includes `nextCursor` and `totalMatched`; callers that omit both `limit` and `cursor` keep receiving the full compatible list.
 
 `thread/read` accepts optional `turnLimit` and opaque `cursor` params. Paged reads return the newest page first, keep turns oldest-first within the page, and include `turnPage` metadata with `nextCursor` for older history. `queuedInputs` remains current thread state and is returned independently of turn-history pagination.
+
+Archiving is reversible: it blocks new turns and stops or invalidates active background terminals, but it does not cancel a main Turn that is already executing. Conversation history is retained, while retained artifacts remain subject to their normal retention rules. Restoring a parent restores only descendants whose SubAgent edges remain open. Deletion permanently removes persisted thread data and bound tracing data; cleanup of thread-owned filesystem artifacts is attempted synchronously, and individual failures can be retried. Clients receive `thread/statusChanged` for archive and restore operations, and a workspace-level `thread/deleted` broadcast after deletion. See [Session persistence](../architecture/session-persistence) for the storage lifecycle.
 
 ### Runtime Dynamic Tools and App Context
 
@@ -384,7 +389,8 @@ The table below covers common method families used by AppServer clients.
 | Heartbeat | `heartbeat/trigger` | Manual heartbeat trigger. |
 | Skills | `skills/list`, `skills/read`, `skills/view`, `skills/restoreOriginal`, `skills/setEnabled`, `skills/uninstall` | Skill discovery, effective view, restore original, enablement, and removable skill deletion. |
 | Tools | `tool/list` | Built-in tool catalog (name, description, icon, Plan-mode availability) for agent profile tool pickers. |
-| Plugins | `plugin/list`, `plugin/view`, `plugin/install`, `plugin/remove`, `plugin/setEnabled` | Plugin discovery, detail, installation, removal, and enablement management. |
+| Plugins | `plugin/list`, `plugin/view`, `plugin/install`, `plugin/installLocal`, `plugin/remove`, `plugin/setEnabled` | Plugin discovery, detail, installation, removal, and enablement management. |
+| Plugin marketplaces | `marketplace/add`, `marketplace/refresh`, `marketplace/remove` | User-managed plugin catalog sources. |
 | Commands | `command/list`, `command/execute` | Custom command discovery and execution. |
 | Models | `model/list` | Model catalog. |
 | MCP | `mcp/list`, `mcp/get`, `mcp/upsert`, `mcp/status/list`, `mcp/test` | MCP configuration and status. |
@@ -408,17 +414,75 @@ Use `automation/task/discardWorktree` with `{ taskId }` to remove a task's manag
 
 ### Plugin and Skill Management
 
-Clients should check `capabilities.skillsManagement` before calling `skills/*`, and `capabilities.pluginManagement` before calling `plugin/*`.
+Clients should check `capabilities.skillsManagement` before calling `skills/*`, `capabilities.pluginManagement` before calling `plugin/*`, and `capabilities.pluginMarketplaces` before calling `marketplace/*`.
 
 `skills/uninstall` deletes removable workspace or personal skills only. System skills cannot be uninstalled; plugin-contained skills are managed by the plugin lifecycle and are not uninstalled separately. If the removed source skill has associated variants, the server also removes those workspace-local variants and broadcasts `workspace/configChanged` with `regions: ["skills"]`.
 
 Plugin lifecycle separates installation from enablement:
 
-- `plugin/install`: installs a Desktop-bundled built-in plugin into the current workspace at `.craft/plugins/<id>/`, writes a `.builtin` marker, and enables it by default.
+- `plugin/install`: installs an installable catalog plugin into the current workspace and enables it by default. Catalog entries can come from Desktop or a configured marketplace.
+- `plugin/installLocal`: copies a valid local plugin directory into the current workspace and enables it by default.
 - `plugin/setEnabled`: only controls whether an installed plugin enters the Agent context. It does not install or delete plugin files.
 - `plugin/remove`: removes workspace plugin directories under `.craft/plugins/<id>/`, including DotCraft-managed built-ins and user-owned plugins installed with `plugin/installLocal`. It does not delete explicit external plugin roots or user-global plugin directories.
 
 Plugin install, remove, and enablement changes broadcast `workspace/configChanged` with `regions: ["plugins", "skills"]`. Tools contributed by plugins are projected in conversations as `pluginFunctionCall` items; they do not create companion `toolCall` / `toolResult` items. For the user-facing plugin model, see [Plugins & Tools](../../features/agent-system/plugins-tools).
+
+### Plugin marketplaces
+
+Marketplace methods manage catalog sources. Adding a marketplace does not install its plugins; clients use `plugin/install` to install a catalog entry into the current workspace.
+
+#### `marketplace/add`
+
+```json
+{
+  "source": "owner/repo",
+  "ref": "main",
+  "sparsePaths": [".craft/plugins", "plugins"]
+}
+```
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `source` | string | yes | Repository shorthand, Git URL, or local directory |
+| `ref` | string? | no | Git branch, tag, or commit; overrides a reference in `source` |
+| `sparsePaths` | string[]? | no | Repository-relative paths included in a Git checkout |
+| `marketplacePath` | string? | no | Catalog path; defaults to `.craft/plugins/marketplace.json` |
+
+The result contains `marketplace: MarketplaceInfo` and `alreadyAdded`. A successful add emits `workspace/configChanged` with `regions: ["plugins"]`.
+
+#### `marketplace/refresh`
+
+Pass `{ "name": "example-marketplace" }` to refresh one marketplace, or `{}` to refresh all configured marketplaces.
+
+The result contains `marketplaces: MarketplaceInfo[]` and `errors`. Each error has `name`, stable `code`, and `message`; one marketplace can fail without preventing the others from refreshing.
+
+#### `marketplace/remove`
+
+Pass `{ "name": "example-marketplace" }`. The result contains `name` and may include `removedRoot` when DotCraft deleted a materialized checkout.
+
+Removing a marketplace does not uninstall plugins already copied into a workspace. A successful removal emits `workspace/configChanged` with `regions: ["plugins"]`.
+
+#### Marketplace metadata
+
+`plugin/list` returns `marketplaces: MarketplaceInfo[]`. Marketplace-sourced plugin entries include `marketplaceName`.
+
+| `MarketplaceInfo` field | Type | Description |
+|---|---|---|
+| `name` | string | Stable marketplace identity |
+| `displayName` | string? | Client-facing title |
+| `sourceType` | string | `git`, `local`, or `archive` |
+| `source` | string | Configured repository, directory, or archive |
+| `ref` | string? | Configured Git reference |
+| `sparsePaths` | string[] | Configured Git sparse paths |
+| `root` | string? | Materialized or in-place root |
+| `lastUpdated` | string? | Last successful update time |
+| `revision` | string? | Last resolved source revision |
+| `removable` | boolean | Whether the client may remove the source |
+| `pluginIds` | string[] | Plugins discovered from the marketplace |
+
+Marketplace request failures use JSON-RPC code `-32093` for invalid requests and `-32094` for fetch failures. Structured error data includes a stable marketplace error `code`, `messageKey`, and English `fallbackText`.
+
+See [Plugin Market](../integrations/plugin-market) for source validation and the marketplace document.
 
 ## Minimal Node Client
 

@@ -60,10 +60,10 @@
     <text x="24" y="152" class="mono">locks</text>
   </g>
 
-  <path d="M360 292H454" stroke="#A8B4C6" stroke-width="2" marker-end="url(#arrow)"/>
-  <path d="M740 292H834" stroke="#A8B4C6" stroke-width="2" marker-end="url(#arrow)"/>
-  <path d="M1120 292H1214" stroke="#A8B4C6" stroke-width="2" marker-end="url(#arrow)"/>
-  <path d="M360 380C560 560 790 560 834 380" stroke="#A8B4C6" stroke-width="2" stroke-dasharray="7 7" marker-end="url(#arrow)"/>
+  <path d="M360 292H446" stroke="#A8B4C6" stroke-width="2" marker-end="url(#arrow)"/>
+  <path d="M740 292H826" stroke="#A8B4C6" stroke-width="2" marker-end="url(#arrow)"/>
+  <path d="M1120 292H1206" stroke="#A8B4C6" stroke-width="2" marker-end="url(#arrow)"/>
+  <path d="M360 380C560 560 750 560 800 410C808 386 814 380 826 380" stroke="#A8B4C6" stroke-width="2" stroke-dasharray="7 7" marker-end="url(#arrow)"/>
   <text x="494" y="540" fill="#667085" font-size="14">after ensure, the client connects directly</text>
 
   <g transform="translate(72 560)">

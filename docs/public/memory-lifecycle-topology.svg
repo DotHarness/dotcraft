@@ -1,108 +1,112 @@
 <svg width="1440" height="980" viewBox="0 0 1440 980" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title desc">
-  <title id="title">DotCraft memory lifecycle topology</title>
-  <desc id="desc">A grouped diagram showing session history, long-term memory consolidation, and dreams review states.</desc>
+  <title id="title">How DotCraft remembers your work</title>
+  <desc id="desc">Conversation history and saved memory support continuity, while Dreams can wait for review or update automatically.</desc>
   <style>
     text { font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; letter-spacing: 0; }
     .title { fill: #17203A; font-size: 42px; font-weight: 760; }
     .subtitle { fill: #667085; font-size: 18px; }
     .cardTitle { font-size: 24px; font-weight: 760; }
-    .smallTitle { font-size: 18px; font-weight: 760; }
     .label { font-size: 14px; font-weight: 720; }
     .body { fill: #1F2937; font-size: 15px; }
-    .mono { fill: #1F2937; font-size: 15px; font-family: "Cascadia Mono", ui-monospace, SFMono-Regular, Menlo, monospace; }
+    .item { fill: #1F2937; font-size: 15px; }
     .muted { fill: #667085; font-size: 13px; }
   </style>
   <defs>
     <marker id="arrow" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto">
       <path d="M2 2L10 6L2 10" fill="none" stroke="#A8B4C6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
     </marker>
+    <marker id="dashArrow" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto">
+      <path d="M2 2L10 6L2 10" fill="none" stroke="#7653A8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+    </marker>
   </defs>
+
   <rect width="1440" height="980" fill="#F8FAF7"/>
-  <text x="72" y="86" class="title">DotCraft memory lifecycle topology</text>
-  <text x="72" y="123" class="subtitle">Conversation history, durable Markdown memory, and low-authority Dreams have separate jobs.</text>
+  <text x="72" y="86" class="title">How DotCraft remembers your work</text>
+  <text x="72" y="123" class="subtitle">Conversation history, saved memory, and Dreams each support a different need.</text>
 
   <g transform="translate(72 178)">
-    <rect x="0" y="0" width="310" height="220" rx="8" fill="#EAF0FF" stroke="#C2CEF7"/>
-    <text x="28" y="44" class="cardTitle" fill="#23305F">Recent activity</text>
+    <rect width="310" height="220" rx="12" fill="#EAF0FF" stroke="#C2CEF7"/>
+    <text x="28" y="44" class="cardTitle" fill="#23305F">Recent work</text>
     <line x1="28" y1="64" x2="282" y2="64" stroke="#C2CEF7"/>
-    <text x="28" y="100" class="mono">threads</text>
-    <text x="28" y="126" class="mono">files</text>
-    <text x="28" y="152" class="mono">tool calls</text>
-    <text x="28" y="184" class="muted">The audit baseline starts in session history.</text>
+    <text x="28" y="100" class="item">Conversations</text>
+    <text x="28" y="126" class="item">Project activity</text>
+    <text x="28" y="152" class="item">Choices and preferences</text>
+    <text x="28" y="184" class="muted">What DotCraft can learn from.</text>
   </g>
 
   <g transform="translate(468 178)">
-    <rect x="0" y="0" width="310" height="220" rx="8" fill="#E9F5F0" stroke="#B7DED0"/>
-    <text x="28" y="44" class="cardTitle" fill="#153E33">Session history</text>
+    <rect width="310" height="220" rx="12" fill="#E9F5F0" stroke="#B7DED0"/>
+    <text x="28" y="44" class="cardTitle" fill="#153E33">Conversation history</text>
     <line x1="28" y1="64" x2="282" y2="64" stroke="#B7DED0"/>
-    <text x="28" y="100" class="mono">.craft/threads/</text>
-    <text x="28" y="126" class="mono">Thread / Turn / Item</text>
-    <text x="28" y="152" class="mono">full timeline</text>
-    <text x="28" y="184" class="muted">High fidelity, but not a distilled notebook.</text>
+    <text x="28" y="100" class="item">Reopen a conversation</text>
+    <text x="28" y="126" class="item">Continue where you left off</text>
+    <text x="28" y="152" class="item">Review previous work</text>
+    <text x="28" y="184" class="muted">Kept with the workspace.</text>
   </g>
 
   <g transform="translate(864 178)">
-    <rect x="0" y="0" width="504" height="220" rx="8" fill="#FFF1E6" stroke="#F3C9A4"/>
-    <text x="28" y="44" class="cardTitle" fill="#623314">Long-term memory</text>
+    <rect width="504" height="220" rx="12" fill="#FFF1E6" stroke="#F3C9A4"/>
+    <text x="28" y="44" class="cardTitle" fill="#623314">Saved memory</text>
     <line x1="28" y1="64" x2="476" y2="64" stroke="#F3C9A4"/>
-    <text x="28" y="100" class="label" fill="#A85C21">Patch-style consolidation</text>
-    <text x="28" y="130" class="mono">.craft/memory/MEMORY.md</text>
-    <text x="28" y="156" class="mono">.craft/memory/HISTORY.md</text>
-    <text x="28" y="184" class="muted">Human-readable, editable, and authoritative for stable project facts.</text>
+    <text x="28" y="100" class="item">MEMORY.md and HISTORY.md</text>
+    <text x="28" y="126" class="item">Stable facts and preferences</text>
+    <text x="28" y="152" class="item">Readable and editable Markdown</text>
+    <text x="28" y="184" class="muted">For details worth carrying forward.</text>
   </g>
 
   <path d="M382 288H468" stroke="#A8B4C6" stroke-width="2" marker-end="url(#arrow)"/>
   <path d="M778 288H864" stroke="#A8B4C6" stroke-width="2" marker-end="url(#arrow)"/>
+  <path d="M368 550C408 550 408 450 456 450H1034C1082 450 1082 550 1122 550" stroke="#7653A8" stroke-width="2" stroke-dasharray="8 8" marker-end="url(#dashArrow)"/>
+  <rect x="514" y="428" width="462" height="34" rx="8" fill="#F8FAF7"/>
+  <text x="745" y="450" text-anchor="middle" class="label" fill="#7653A8">Auto-update Dreams on: successful runs apply automatically</text>
 
-  <g transform="translate(72 490)">
-    <rect x="0" y="0" width="296" height="250" rx="8" fill="#F1EBFA" stroke="#D7C5EF"/>
-    <text x="28" y="44" class="cardTitle" fill="#39205F">Dream scan</text>
+  <g transform="translate(72 500)">
+    <rect width="296" height="250" rx="12" fill="#F1EBFA" stroke="#D7C5EF"/>
+    <text x="28" y="44" class="cardTitle" fill="#39205F">Dreams update</text>
     <line x1="28" y1="64" x2="268" y2="64" stroke="#D7C5EF"/>
-    <text x="28" y="100" class="label" fill="#7653A8">Background loop</text>
-    <text x="28" y="130" class="mono">recent activity</text>
-    <text x="28" y="156" class="mono">open questions</text>
-    <text x="28" y="182" class="mono">focus topics</text>
-    <text x="28" y="214" class="muted">Lower authority than MEMORY.md.</text>
+    <text x="28" y="100" class="item">Recent workspace activity</text>
+    <text x="28" y="126" class="item">Focus and open questions</text>
+    <text x="28" y="152" class="item">Tentative notes</text>
+    <text x="28" y="214" class="muted">Runs in the background.</text>
   </g>
 
-  <g transform="translate(446 490)">
-    <rect x="0" y="0" width="260" height="250" rx="8" fill="#F3F4EA" stroke="#D9DEC0"/>
-    <text x="28" y="44" class="cardTitle" fill="#3F431E">Pending Dream</text>
+  <g transform="translate(446 500)">
+    <rect width="260" height="250" rx="12" fill="#F3F4EA" stroke="#D9DEC0"/>
+    <text x="28" y="44" class="cardTitle" fill="#3F431E">Pending review</text>
     <line x1="28" y1="64" x2="232" y2="64" stroke="#D9DEC0"/>
-    <text x="28" y="100" class="mono">not in context yet</text>
-    <text x="28" y="126" class="mono">awaits review</text>
-    <text x="28" y="214" class="muted">A draft note until the user acts.</text>
+    <text x="28" y="100" class="item">Auto-update is off</text>
+    <text x="28" y="126" class="item">Not used yet</text>
+    <text x="28" y="214" class="muted">Review before applying.</text>
   </g>
 
-  <g transform="translate(784 490)">
-    <rect x="0" y="0" width="260" height="250" rx="8" fill="#E8F4FA" stroke="#BBDCEE"/>
-    <text x="28" y="44" class="cardTitle" fill="#15384B">Dashboard review</text>
+  <g transform="translate(784 500)">
+    <rect width="260" height="250" rx="12" fill="#E8F4FA" stroke="#BBDCEE"/>
+    <text x="28" y="44" class="cardTitle" fill="#15384B">Manual review</text>
     <line x1="28" y1="64" x2="232" y2="64" stroke="#BBDCEE"/>
-    <text x="28" y="100" class="mono">apply</text>
-    <text x="28" y="126" class="mono">discard</text>
-    <text x="28" y="152" class="mono">archive</text>
-    <text x="28" y="204" class="muted">Users control passive</text>
-    <text x="28" y="224" class="muted">context.</text>
+    <text x="28" y="100" class="item">Apply</text>
+    <text x="28" y="126" class="item">Discard</text>
+    <text x="28" y="152" class="item">Archive</text>
+    <text x="28" y="214" class="muted">Available in Dashboard.</text>
   </g>
 
-  <g transform="translate(1122 490)">
-    <rect x="0" y="0" width="246" height="250" rx="8" fill="#E9F5F0" stroke="#B7DED0"/>
-    <text x="28" y="44" class="cardTitle" fill="#153E33">Active Dream</text>
+  <g transform="translate(1122 500)">
+    <rect width="246" height="250" rx="12" fill="#E9F5F0" stroke="#B7DED0"/>
+    <text x="28" y="44" class="cardTitle" fill="#153E33">Applied Dream</text>
     <line x1="28" y1="64" x2="218" y2="64" stroke="#B7DED0"/>
-    <text x="28" y="100" class="mono">future sessions</text>
-    <text x="28" y="126" class="mono">low-authority context</text>
-    <text x="28" y="152" class="mono">reversible state</text>
-    <text x="28" y="204" class="muted">Useful signals,</text>
-    <text x="28" y="224" class="muted">not hard facts.</text>
+    <text x="28" y="100" class="item">Available later</text>
+    <text x="28" y="126" class="item">Supporting notes</text>
+    <text x="28" y="152" class="item">Can be archived</text>
+    <text x="28" y="204" class="muted">Not a user instruction</text>
+    <text x="28" y="224" class="muted">or confirmed fact.</text>
   </g>
 
-  <path d="M368 615H446" stroke="#A8B4C6" stroke-width="2" marker-end="url(#arrow)"/>
-  <path d="M706 615H784" stroke="#A8B4C6" stroke-width="2" marker-end="url(#arrow)"/>
-  <path d="M1044 615H1122" stroke="#A8B4C6" stroke-width="2" marker-end="url(#arrow)"/>
+  <path d="M368 625H446" stroke="#A8B4C6" stroke-width="2" marker-end="url(#arrow)"/>
+  <path d="M706 625H784" stroke="#A8B4C6" stroke-width="2" marker-end="url(#arrow)"/>
+  <path d="M1044 625H1122" stroke="#A8B4C6" stroke-width="2" marker-end="url(#arrow)"/>
 
-  <g transform="translate(72 814)">
-    <rect x="0" y="0" width="1296" height="82" rx="8" fill="#FFFFFF" stroke="#D9E0EA"/>
-    <text x="28" y="34" fill="#17203A" font-size="17" font-weight="760">Trust boundary</text>
-    <text x="28" y="62" class="body">Session history is the audit record. MEMORY.md is the durable notebook. Dreams are reviewed, low-authority background notes.</text>
+  <g transform="translate(72 824)">
+    <rect width="1296" height="82" rx="12" fill="#FFFFFF" stroke="#D9E0EA"/>
+    <text x="28" y="34" fill="#17203A" font-size="17" font-weight="760">You stay in control</text>
+    <text x="28" y="62" class="body">Saved memory is editable. Dreams wait for review by default; Auto-update Dreams changes only future successful runs.</text>
   </g>
 </svg>

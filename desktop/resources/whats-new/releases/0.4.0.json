@@ -55,7 +55,7 @@
         "sizeBytes": 2247383,
         "sha256": "1FAE25F0541EDF6F063AEEFCBE744BBD77144837CB78C68489996AEBCD10DB56"
       },
-      "docsUrl": "https://www.dotcraft.net/developing/integrations/interactive-tool-ui"
+      "docsUrl": "https://www.dotcraft.net/developing/integrations/mcp-apps"
     },
     {
       "id": "subagent-management",

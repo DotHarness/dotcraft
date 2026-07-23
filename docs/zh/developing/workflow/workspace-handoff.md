@@ -22,7 +22,7 @@ DotCraft 支持两种协作方式：
 - 你希望外部 agent 接下来完成的具体任务。
 - 隐私约束，例如是否允许包含工具输出、命令输出或完整记忆历史。
 
-不要随意分享 provider 凭据、全局 `~/.craft/config.json` 或原始 state DB。除非你明确信任接收方并且正在做取证级排障，否则 Markdown 导出是更安全的默认选择，因为它经过整理，并且有脱敏开关。
+不要随意分享 provider 凭据、全局 `~/.craft/config.json` 或原始 state DB。除非你明确信任接收方并且正在做取证级排障，否则优先使用更容易限制和审阅的 Markdown 导出。但导出内容并不会自动变得安全；请通过 `--tool-results` 和 `--history` 缩小范围，再人工检查。
 
 ## 找到相关 thread
 
@@ -33,6 +33,8 @@ dotcraft context search --query "provider timeout gpt-5.3" --workspace "D:\path\
 ```
 
 搜索会优先读取 workspace 的 state DB，包括 thread 元数据、trace session binding、trace session 计数和 trace events。随后再为候选结果补充简短 rollout 片段。只要匹配的 thread 有 rollout 文件，结果里会给出可直接使用的 export 命令。
+
+搜索不会索引内部的精确模型历史或上下文压缩检查点内容。请把搜索片段用于定位，再导出选中的 thread 以获得重放后的对话。
 
 如果要让脚本或其他工具消费结果，可以加 `--json`：
 
@@ -62,13 +64,16 @@ dotcraft context export --thread thread_20260601_ab12cd --workspace "D:\path\to\
 dotcraft context export --thread thread_20260601_ab12cd --tool-results none --history tail --output handoff.md
 ```
 
-完整审计 transcript：
+最详细的 transcript：
 
 ```bash
 dotcraft context export --thread thread_20260601_ab12cd --profile transcript --tool-results full --history full --output transcript.md
 ```
 
 如果不传 `--output`，Markdown 会输出到 stdout。
+
+> [!NOTE]
+> `--tool-results full` 只取消导出器对 session 记录中现有工具结果的 preview 长度上限。它不会取回已经 spill 到 `.craft/tool-results/` 的原始 artifact，因此导出中仍可能只有记录下来的 preview 或引用。
 
 ## 导出内容
 
@@ -81,7 +86,9 @@ Markdown 导出包含：
 - 当前模型可见上下文：从最新可用 compaction checkpoint 加 surviving tail turns 重建。
 - 会话记录：从 canonical rollout JSONL replay 后仍然存活的 turns。
 
-Reasoning content 不会导出。工具调用会保留。工具和命令结果遵循 `--tool-results`。`RequestUserInput` 的回答正文始终省略，包括 full 导出；问题文本和关联 ID 仍会保留。
+导出器只会处理工具参数和结果中可识别的敏感键，以及有限的敏感文本模式。它不会把每个字段都作为 secret 扫描；会话消息、workspace 记忆、错误文本和其他自由格式内容可能原样出现。分享前必须人工审阅每一份导出。
+
+Reasoning content、自由格式的 thread 元数据，以及内部 Provider 或会话 payload 不会导出。工具调用会保留，工具和命令结果遵循 `--tool-results`。`RequestUserInput` 的回答正文始终省略，包括 full 导出；问题文本和关联 ID 仍会保留。
 
 ## Rollback 与 Compaction
 
@@ -106,7 +113,8 @@ Reasoning content 不会导出。工具调用会保留。工具和命令结果�
 
 ## 相关文档
 
-- [项目级工作区](../../features/project-first)
+- [项目工作区](../../features/project-workspace)
 - [统一会话核心](../architecture/session-core)
+- [会话持久化](../architecture/session-persistence)
 - [可观测性](../../features/self-hosted/observability)
 - [AppServer 模式](../lifecycle/appserver)

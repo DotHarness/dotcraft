@@ -99,6 +99,7 @@ Desktop 升级后，会在进入可用工作区主界面时显示一次 **What's
 ## 相关文档
 
 - [快速开始](../../getting-started)
+- [Connected Apps](../agent-system/connected-apps)
 - [入口总览](./)
 - [可观测性](../self-hosted/observability)
 - [设置生效层级](../../developing/lifecycle/settings-lifecycle)

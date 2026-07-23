@@ -55,7 +55,7 @@ Desktop 会为你管理内置 TypeScript 渠道进程。只有在想自行运行
 - 平台支持时，将渠道限制到可信用户、群或会话。
 - 独立适配器使用强随机 AppServer WebSocket token。
 - 平台需要回调 DotCraft 时，生产部署使用 HTTPS。
-- 需要更强工具隔离时，使用 [OpenSandbox](../self-hosted/security#沙箱opensandbox)。
+- 需要更强工具隔离时，使用 [OpenSandbox](../self-hosted/security#沙箱-opensandbox)。
 
 完整清单和准确字段见 [安全与沙箱](../self-hosted/security) 与 [配置完整参考](../../developing/configuration#tools-security-与-sandbox)。
 

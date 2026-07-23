@@ -76,9 +76,16 @@ Custom external CLI profiles, resume extraction, permission forwarding, and vend
 | Need strong tool isolation | Prefer `native` plus allow/deny lists and sandbox |
 | Need recurring team behavior | Define a workspace role in configuration |
 
+## Conversation lifecycle
+
+When a native SubAgent receives its own saved conversation, DotCraft keeps it as a child of the main conversation. Its parent relationship, role, runtime choice, and tool limits survive a restart.
+
+Archiving the main conversation also archives its saved SubAgent conversations. Restoring it brings back only child conversations that were still open; conversations you closed explicitly stay archived. Permanently deleting the main conversation also removes its saved child conversations. DotCraft then attempts to clean up their supporting files; any failed cleanup can be retried.
+
 ## Related docs
 
-- [Project Workspace](../project-first)
+- [Project Workspace](../project-workspace)
 - [Security & Sandbox](../self-hosted/security) — bound SubAgent behavior with workspace boundary and sandbox
 - [Observability](../self-hosted/observability) — view SubAgent calls and approvals in Dashboard
 - [Configuration Reference](../../developing/configuration#subagent-and-external-cli-profiles)
+- [Session persistence](../../developing/architecture/session-persistence)

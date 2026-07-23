@@ -33,7 +33,7 @@
       <rect x="570" y="0" width="94" height="34" rx="8" fill="#E9F5F0"/><text x="617" y="22" text-anchor="middle" fill="#247A57" font-size="14" font-weight="720">CLI</text>
       <rect x="682" y="0" width="94" height="34" rx="8" fill="#E9F5F0"/><text x="729" y="22" text-anchor="middle" fill="#247A57" font-size="14" font-weight="720">SDKs</text>
     </g>
-    <path d="M932 68H1038" stroke="#A8B4C6" stroke-width="2" marker-end="url(#arrow)"/>
+    <path d="M932 68H1062" stroke="#A8B4C6" stroke-width="2" marker-end="url(#arrow)"/>
     <g transform="translate(1070 28)">
       <rect x="0" y="0" width="188" height="58" rx="8" fill="#EAF0FF"/>
       <text x="94" y="24" text-anchor="middle" fill="#3659D4" font-size="15" font-weight="760">ISessionService</text>

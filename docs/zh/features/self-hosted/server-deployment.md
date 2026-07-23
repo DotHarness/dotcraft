@@ -11,9 +11,47 @@ DotCraft 可以在 Linux 主机上以无头 AppServer 方式运行。推荐的�
 ```bash
 cd docker
 cp .env.example .env
-# 编辑 .env
+```
+
+打开 `.env`，至少设置：
+
+```dotenv
+DOTCRAFT_API_KEY=your-api-key
+DOTCRAFT_MODEL=your-model-id
+```
+
+> [!CAUTION]
+> `docker/.env` 包含 API key 和可选的渠道凭据。请保持私密，绝不要提交到仓库。
+
+启动服务：
+
+```bash
 docker compose up -d
 ```
+
+## 配置模型 Provider
+
+示例文件默认使用 OpenAI 和 Chat Completions 协议。如果要使用其他 Provider、协议或 Endpoint，请修改完整 Provider 配置：
+
+```dotenv
+DOTCRAFT_PROVIDER=openai
+DOTCRAFT_PROVIDER_DISPLAY_NAME=OpenAI
+DOTCRAFT_PROVIDER_PROTOCOL=openai-chat-completions
+DOTCRAFT_PROVIDER_ENDPOINT=https://api.openai.com/v1
+DOTCRAFT_API_KEY=your-api-key
+DOTCRAFT_MODEL=your-model-id
+```
+
+| 变量 | 用途 |
+|---|---|
+| `DOTCRAFT_PROVIDER` | 稳定的 Provider ID，例如 `openai` |
+| `DOTCRAFT_PROVIDER_DISPLAY_NAME` | 在 DotCraft 中显示的名称 |
+| `DOTCRAFT_PROVIDER_PROTOCOL` | `openai-chat-completions`、`openai-responses` 或 `anthropic` |
+| `DOTCRAFT_PROVIDER_ENDPOINT` | Provider 的 base URL；填写该服务要求的地址 |
+| `DOTCRAFT_API_KEY` | Provider API key |
+| `DOTCRAFT_MODEL` | Provider 接受的准确模型 ID |
+
+API key 会留在容器环境中。DotCraft 在生成的配置里保存对该环境变量的引用，并写入所选 Provider 和模型。
 
 该栈会在 `docker/workspace` 下创建工作区。默认情况下，Compose 只把主要服务端点发布到服务器本机回环地址：
 
@@ -171,3 +209,4 @@ docker compose up -d
 - [Channels 与 Bots](../entry-points/channels)
 - [安全与沙箱](./security)
 - [可观测性](./observability)
+- [配置参考](../../developing/configuration)

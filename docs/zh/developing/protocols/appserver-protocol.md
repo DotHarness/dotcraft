@@ -1,6 +1,6 @@
 # AppServer Protocol
 
-> App Binding 客户端通过 `capabilities.appBindingVersion: 2` 协商版本。App principal 连接只能访问 `app/connection/*`、`app/binding/*` 与 `app/bindings/list` 控制面；工具由 binding-scoped MCP session 提供。不支持的方法会返回 `AppBindingUpgradeRequired`。
+> App Binding 客户端通过 `capabilities.appBindingVersion: 2` 协商版本。完成认证的 App principal 连接只能调用版本 2 的 app-role allowlist：连接认证、刷新、状态和撤销；binding 请求、激活、rebind 和列表；`app/surface/publish`；以及 `app/threadInput/enqueue`。工具由 binding-scoped MCP session 提供。旧版 App Binding 方法和不支持的 App Binding 版本返回 `AppBindingUpgradeRequired`；其他越权方法返回 `AppPrincipalUnauthorized`。详见 [App Binding](../integrations/app-binding)。
 
 AppServer Protocol 是 DotCraft 暴露给外部客户端的 JSON-RPC wire protocol。Desktop、ACP bridge、外部 channel adapter 和自定义 IDE client 都可以通过它创建或恢复线程、提交用户输入、消费流式事件，并参与命令执行或文件变更审批。
 
@@ -216,13 +216,18 @@ Server 还会广播 `thread/started`。多 client 场景下，发起请求的 cl
 | `thread/subscribe` | 订阅线程事件。 |
 | `thread/unsubscribe` | 取消订阅线程事件。 |
 | `thread/rename` | 更新显示名称。 |
-| `thread/delete` | 删除线程。 |
+| `thread/pause` | 暂停活跃线程，直到再次恢复。 |
+| `thread/archive` | 阻止新 Turn，停止或失效活跃后台终端，并归档线程及其 SubAgent 子树。 |
+| `thread/unarchive` | 恢复已归档线程，以及 SubAgent edge 仍为 open 的后代；显式关闭的后代保持归档。 |
+| `thread/delete` | 从持久化状态中永久删除线程及其 SubAgent 子树；线程专属文件采用 best effort 清理，失败后可以重试。 |
 | `thread/config/update` | 更新线程配置。 |
 | `thread/mode/set` | 切换 agent mode，例如 `plan` 或 `agent`。 |
 
 `thread/list` 接受可选的 `query`、`limit` 和 opaque `cursor` 参数。分页时 result 会包含 `nextCursor` 和 `totalMatched`；未传 `limit/cursor` 的调用保持兼容，继续返回完整列表。
 
 `thread/read` 接受可选的 `turnLimit` 和 opaque `cursor` 参数。分页读取先返回最新一页，但页内 turns 仍保持 oldest-first，并通过 `turnPage.nextCursor` 继续读取更早历史。`queuedInputs` 属于当前线程状态，不受 turn 历史分页影响。
+
+归档是可逆操作：它会阻止新 Turn，并停止或失效活跃后台终端，但不会取消已经在执行的主 Turn。对话历史会保留，保留下来的配套文件仍遵循各自的保留规则。恢复父线程时，只会恢复 SubAgent edge 仍为 open 的后代。删除会永久移除线程持久化数据和绑定的 tracing 数据；线程专属文件会同步尝试清理，单项失败后可以重试。归档和恢复会发出 `thread/statusChanged`；删除完成后会向工作区广播 `thread/deleted`。存储生命周期见[会话持久化](../architecture/session-persistence)。
 
 ### Runtime Dynamic Tools 与 App Context
 
@@ -384,7 +389,8 @@ Client 可以在 `initialize.params.capabilities.optOutNotificationMethods` 中�
 | Heartbeat | `heartbeat/trigger` | 手动触发 heartbeat。 |
 | Skills | `skills/list`, `skills/read`, `skills/view`, `skills/restoreOriginal`, `skills/setEnabled`, `skills/uninstall` | Skill 发现、有效内容查看、恢复原始技能、开关和可卸载 skill 删除。 |
 | Tools | `tool/list` | 内置工具目录（名称、描述、图标、Plan 模式可用性），用于 agent profile 的工具选择器。 |
-| Plugins | `plugin/list`, `plugin/view`, `plugin/install`, `plugin/remove`, `plugin/setEnabled` | 插件发现、详情、安装、移除和启用状态管理。 |
+| Plugins | `plugin/list`, `plugin/view`, `plugin/install`, `plugin/installLocal`, `plugin/remove`, `plugin/setEnabled` | 插件发现、详情、安装、移除和启用状态管理。 |
+| 插件市场 | `marketplace/add`, `marketplace/refresh`, `marketplace/remove` | 用户管理的插件目录来源。 |
 | Commands | `command/list`, `command/execute` | 自定义命令发现和执行。 |
 | Models | `model/list` | 模型目录。 |
 | MCP | `mcp/list`, `mcp/get`, `mcp/upsert`, `mcp/status/list`, `mcp/test` | MCP 配置和状态。 |
@@ -408,17 +414,75 @@ Automation task wire 使用 canonical `workspaceMode`：`project` 或 `worktree`
 
 ### Plugins 和 Skills 管理
 
-Client 在调用 `skills/*` 前应检查 `capabilities.skillsManagement`，调用 `plugin/*` 前应检查 `capabilities.pluginManagement`。
+Client 在调用 `skills/*` 前应检查 `capabilities.skillsManagement`，调用 `plugin/*` 前应检查 `capabilities.pluginManagement`，调用 `marketplace/*` 前应检查 `capabilities.pluginMarketplaces`。
 
 `skills/uninstall` 只用于删除可卸载的工作区或个人 skill。系统 skill 不能卸载；plugin-contained skill 由插件生命周期管理，不能单独卸载。若卸载的 source skill 有关联变体，server 会同时清理该 source skill 的 workspace-local variants，并广播 `workspace/configChanged`，`regions: ["skills"]`。
 
 插件生命周期把安装状态和启用状态分开：
 
-- `plugin/install`：把 Desktop 绑定分发的内置插件安装到当前工作区 `.craft/plugins/<id>/`，写入 `.builtin` marker，并默认启用。
+- `plugin/install`：把可安装目录中的插件安装到当前工作区，并默认启用。目录项可来自 Desktop 或已配置的市场。
+- `plugin/installLocal`：把有效的本地插件目录复制到当前工作区，并默认启用。
 - `plugin/setEnabled`：只切换已安装插件是否进入 Agent 上下文，不安装也不删除目录。
 - `plugin/remove`：移除 `.craft/plugins/<id>/` 下的工作区插件目录，包括 DotCraft 管理的内置插件，以及通过 `plugin/installLocal` 安装的用户本地插件；不会删除显式配置的外部插件 root 或 user-global 插件目录。
 
 插件安装、移除或启用状态变化会广播 `workspace/configChanged`，`regions: ["plugins", "skills"]`。插件贡献的 tools 在会话中投影为 `pluginFunctionCall` item；它们不会再生成 companion `toolCall` / `toolResult` item。面向用户的插件模型见 [插件与工具](../../features/agent-system/plugins-tools)。
+
+### 插件市场
+
+Marketplace 方法管理插件目录来源。添加市场不会安装其中的插件；client 通过 `plugin/install` 把目录项安装到当前工作区。
+
+#### `marketplace/add`
+
+```json
+{
+  "source": "owner/repo",
+  "ref": "main",
+  "sparsePaths": [".craft/plugins", "plugins"]
+}
+```
+
+| 字段 | 类型 | 必填 | 说明 |
+|---|---|---|---|
+| `source` | string | 是 | 仓库简写、Git URL 或本地目录 |
+| `ref` | string? | 否 | Git 分支、标签或 commit；覆盖 `source` 中附带的引用 |
+| `sparsePaths` | string[]? | 否 | Git checkout 中包含的仓库内相对路径 |
+| `marketplacePath` | string? | 否 | 目录文档路径；默认为 `.craft/plugins/marketplace.json` |
+
+结果包含 `marketplace: MarketplaceInfo` 和 `alreadyAdded`。添加成功后会发送 `workspace/configChanged`，`regions: ["plugins"]`。
+
+#### `marketplace/refresh`
+
+传入 `{ "name": "example-marketplace" }` 刷新一个市场，传入 `{}` 刷新全部已配置市场。
+
+结果包含 `marketplaces: MarketplaceInfo[]` 和 `errors`。每个错误包含 `name`、稳定的 `code` 与 `message`；一个市场失败不会阻止其他市场继续刷新。
+
+#### `marketplace/remove`
+
+传入 `{ "name": "example-marketplace" }`。结果包含 `name`；当 DotCraft 删除了 materialized checkout 时，还会包含 `removedRoot`。
+
+移除市场不会卸载已经复制到工作区的插件。移除成功后会发送 `workspace/configChanged`，`regions: ["plugins"]`。
+
+#### 市场元数据
+
+`plugin/list` 返回 `marketplaces: MarketplaceInfo[]`。来自市场的插件条目包含 `marketplaceName`。
+
+| `MarketplaceInfo` 字段 | 类型 | 说明 |
+|---|---|---|
+| `name` | string | 稳定的市场标识 |
+| `displayName` | string? | 面向 client 的显示名称 |
+| `sourceType` | string | `git`、`local` 或 `archive` |
+| `source` | string | 已配置的仓库、目录或归档 |
+| `ref` | string? | 已配置的 Git 引用 |
+| `sparsePaths` | string[] | 已配置的 Git sparse paths |
+| `root` | string? | materialized 或原地读取的根目录 |
+| `lastUpdated` | string? | 最近一次成功更新时间 |
+| `revision` | string? | 最近一次解析到的来源 revision |
+| `removable` | boolean | client 是否可以移除该来源 |
+| `pluginIds` | string[] | 从该市场发现的插件 |
+
+市场请求失败时，无效请求使用 JSON-RPC code `-32093`，获取失败使用 `-32094`。结构化错误数据包含稳定的市场错误 `code`、`messageKey` 和英文 `fallbackText`。
+
+来源校验和市场文档见[插件市场](../integrations/plugin-market)。
 
 ## 最小 Node Client 示例
 

@@ -54,7 +54,7 @@ lastUpdated: false
             对话、记忆、Agent、技能、插件和自动化都留在项目里。无论从 Desktop、CLI、社交渠道还是接入的应用打开，都能在同一份上下文中继续。
           </p>
           <div class="dc-story__links">
-            <a class="dc-link" href="./features/project-first">项目优先的工作区 <span aria-hidden="true">→</span></a>
+            <a class="dc-link" href="./features/project-workspace">项目工作区 <span aria-hidden="true">→</span></a>
           </div>
         </div>
         <figure class="dc-story__media">

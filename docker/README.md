@@ -6,9 +6,12 @@ This directory contains the Docker Compose deployment for DotCraft AppServer, bu
 
 ```bash
 cp .env.example .env
-# edit .env
+# Set DOTCRAFT_API_KEY and DOTCRAFT_MODEL.
+# Optionally configure another provider, endpoint, or channel.
 docker compose up -d
 ```
+
+Keep `.env` private; it contains API keys and optional channel credentials.
 
 For SSH setup, channel configuration, sandbox options, and production guidance, see the complete deployment guide:
 

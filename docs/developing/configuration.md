@@ -1,6 +1,6 @@
 # DotCraft Full Configuration Reference
 
-This page collects configuration fields, defaults, JSON examples, and advanced references in one place. For first-time setup, read [Project Workspace](../features/project-first). For product-level explanations, start from the matching Feature page and come back here for exact fields.
+This page collects configuration fields, defaults, JSON examples, and advanced references in one place. For first-time setup, read [Project Workspace](../features/project-workspace). For product-level explanations, start from the matching Feature page and come back here for exact fields.
 
 DotCraft reads global `~/.craft/config.json` first, then overlays workspace `.craft/config.json`; workspace fields win. String values support `$VAR` and `${VAR}` environment variable placeholders. If a variable is not set, the original placeholder is preserved.
 
@@ -214,6 +214,16 @@ For Anthropic-compatible providers, `anthropicMessageContent` can declare how Do
 | `Tools.Shell.RequireApprovalOutsideWorkspace` | Approve shell commands outside workspace | `true` |
 | `Tools.Shell.Timeout` | Shell timeout in seconds | `300` |
 | `Tools.Shell.MaxOutputLength` | Max shell output length in characters | `10000` |
+| `Tools.Shell.Background.Enabled` | Enable background terminal sessions | `true` |
+| `Tools.Shell.Background.DefaultYieldTimeMs` | Default wait before a running command returns a background-session snapshot | `1000` |
+| `Tools.Shell.Background.MaxYieldTimeMs` | Maximum wait accepted for a background-session read or write | `30000` |
+| `Tools.Shell.Background.MaxSessionsPerThread` | Maximum concurrent background terminals per thread | `8` |
+| `Tools.Shell.Background.MaxSessionsPerWorkspace` | Maximum concurrent background terminals in one workspace | `32` |
+| `Tools.Shell.Background.IdleTimeoutSeconds` | Reserved; not currently enforced by the background terminal service | `1800` |
+| `Tools.Shell.Background.OutputMaxBytes` | Reserved; not currently enforced by the background terminal service | `67108864` |
+| `Tools.Shell.Background.OutputRetentionDays` | Retention window for completed or lost terminal metadata and output; running terminals are excluded | `7` |
+| `Tools.Shell.Background.StallWatchdogSeconds` | Reserved; not currently enforced by the background terminal service | `45` |
+| `Tools.Shell.Background.DefaultReadMaxOutputChars` | Default maximum characters returned in a terminal snapshot | `10000` |
 | `Tools.Web.MaxChars` | Max chars for web fetch | `50000` |
 | `Tools.Web.Timeout` | Web request timeout in seconds | `300` |
 | `Tools.Web.SearchMaxResults` | Default search result count | `5` |
@@ -541,7 +551,7 @@ Platform connections, allowlists, and approval timeouts live in adapter-specific
 | Field | Description | Default |
 |-------|-------------|---------|
 | `Plugins.PluginRoots` | Extra plugin root directories maintained outside `.craft/plugins/` | `[]` |
-| `Plugins.PluginRegistries` | Additional plugin registry sources, using HTTPS zip URLs or local archive/directory paths | `[]` |
+| `Plugins.PluginRegistries` | Plugin marketplace sources available for catalog discovery | `[]` |
 | `Plugins.DisableDefaultPluginRegistry` | Ignore the host-provided default official plugin registry | `false` |
 | `McpServers` | MCP server configuration map | `{}` |
 | `Tools.DeferredLoading.Strategy` | Deferred tool loading strategy: `Off`, `Auto`, `Simulated`, or `Native` | `Auto` |
@@ -551,7 +561,24 @@ Platform connections, allowlists, and approval timeouts live in adapter-specific
 | `LspServers` | LSP server configuration map | `{}` |
 | `Tools.Lsp.Enabled` | Enables built-in LSP tools | `false` |
 
-DotCraft Desktop supplies the official plugin marketplace as the default registry through `DOTCRAFT_DEFAULT_PLUGIN_REGISTRY_URL`. Local checkouts are only needed when developing plugins outside the marketplace flow.
+DotCraft Desktop supplies the official plugin marketplace as the default registry through `DOTCRAFT_DEFAULT_PLUGIN_REGISTRY_URL`. Marketplace sources added in Desktop are stored in the global configuration; a workspace `PluginRegistries` value follows the normal workspace-over-global precedence.
+
+`Plugins.PluginRegistries` entry fields:
+
+| Field | Description | Default |
+|---|---|---|
+| `Name` | Marketplace identity. Required for manual entries and must match the marketplace document; maintained automatically when added through Desktop or AppServer | Empty |
+| `SourceType` | Source kind: `git`, `local`, or `archive` | Inferred when omitted |
+| `Url` | Git URL, local directory, archive URL, or archive file | Empty |
+| `Ref` | Git branch, tag, or commit to check out | Source default |
+| `SparsePaths` | Repository-relative paths included in a Git checkout | `[]` |
+| `MarketplacePath` | Marketplace document path inside the source root | `.craft/plugins/marketplace.json` |
+| `LastUpdated` | UTC timestamp of the last successful add or refresh | Empty |
+| `LastRevision` | Resolved Git revision from the last successful fetch | Empty |
+
+When `SourceType` is omitted, an existing directory or archive file is read locally; other values are treated as archive URLs. `Ref` and `SparsePaths` apply only to Git sources.
+
+See [Plugin Market](./integrations/plugin-market) for source syntax, the marketplace document, and lifecycle behavior.
 
 Local plugin development override example:
 
@@ -696,6 +723,6 @@ Vendor headless notes:
 
 ## Related docs
 
-- [Project Workspace](../features/project-first) — first-time setup and the `.craft/` layout
+- [Project Workspace](../features/project-workspace) — first-time setup and the `.craft/` layout
 - [AppServer Mode](./lifecycle/appserver) — `AppServer.*` / `CLI.*` fields in context
 - [Settings Lifecycle](./lifecycle/settings-lifecycle) — when a changed field takes effect

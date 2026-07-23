@@ -143,7 +143,7 @@ DotCraft 把 Desktop、终端、IDE、机器人与自动化都连接到同一个
 | 我想做什么 | 下一步 |
 |------------|--------|
 | 使用图形界面持续协作 | [Desktop](./features/entry-points/desktop) |
-| 在终端或 CI 中运行一次性任务 | [使用 `dotcraft exec`](#4-第一次运行) |
+| 在终端或 CI 中运行一次性任务 | [使用 `dotcraft exec`](#_4-第一次运行) |
 | 远程或多客户端共享工作区 | [AppServer 模式](./developing/lifecycle/appserver) |
 | 接入 IDE 或编辑器 | [IDE / 编辑器（ACP）](./features/entry-points/editors) |
 | 构建机器人或外部适配器 | [Channels 与 Bots](./features/entry-points/channels) |
