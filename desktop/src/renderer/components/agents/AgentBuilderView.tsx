@@ -18,6 +18,7 @@ import { useModelCatalogStore } from '../../stores/modelCatalogStore'
 import { useConversationStore } from '../../stores/conversationStore'
 import { useUIStore } from '../../stores/uiStore'
 import { useLocale, useT } from '../../contexts/LocaleContext'
+import { Input } from '../ui/Input'
 import { ConversationPanel } from '../layout/ConversationPanel'
 import { DragHandle } from '../layout/DragHandle'
 import { InputComposer, type InputComposerSubmitPayload } from '../conversation/InputComposer'
@@ -1662,7 +1663,7 @@ function CatalogAddPopover({
     <div ref={menuRef} className="agent-builder-addmenu" style={{ top: pos.top, left: pos.left, width: pos.width }} role="listbox">
       <div className="agent-builder-addmenu-search">
         <Search size={13} />
-        <input autoFocus value={query} placeholder="Search…" onChange={(e) => setQuery(e.target.value)} />
+        <Input bare autoFocus value={query} placeholder="Search…" onChange={(e) => setQuery(e.target.value)} />
       </div>
       <div className="agent-builder-addmenu-list">
         {filtered.length === 0 ? (

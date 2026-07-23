@@ -25,6 +25,7 @@ import { SettingsDescriptionWithLearnMore } from '../../SettingsLearnMoreLink'
 import { SettingsGroup, SettingsRow } from '../../SettingsGroup'
 import { Button } from '../../../ui/Button'
 import { IconButton } from '../../../ui/IconButton'
+import { Input } from '../../../ui/Input'
 import { useConfirmDialog } from '../../../ui/ConfirmDialog'
 import { useT } from '../../../../contexts/LocaleContext'
 import { useRemoteServersStore } from '../../../../stores/remoteServersStore'
@@ -238,8 +239,7 @@ function ServerFormPage({ host, onBack, onSaved }: ServerFormProps): JSX.Element
         <div style={s.formGrid}>
           <div>
             <label style={s.fieldLabel}>{t('settings.servers.form.name')}</label>
-            <input
-              style={s.input}
+            <Input
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder={t('settings.servers.form.namePlaceholder')}
@@ -247,8 +247,8 @@ function ServerFormPage({ host, onBack, onSaved }: ServerFormProps): JSX.Element
           </div>
           <div>
             <label style={s.fieldLabel}>{t('settings.servers.form.sshTarget')}</label>
-            <input
-              style={{ ...s.input, fontFamily: 'var(--font-mono)' }}
+            <Input
+              mono
               value={sshTarget}
               onChange={(e) => setSshTarget(e.target.value)}
               placeholder={t('settings.servers.form.sshTargetPlaceholder')}
@@ -310,8 +310,8 @@ function ServerFormPage({ host, onBack, onSaved }: ServerFormProps): JSX.Element
                 ({t('settings.servers.optional')})
               </span>
             </label>
-            <input
-              style={{ ...s.input, fontFamily: 'var(--font-mono)' }}
+            <Input
+              mono
               value={identityFile}
               onChange={(e) => setIdentityFile(e.target.value)}
               placeholder={t('settings.servers.auth.placeholder')}
@@ -460,7 +460,7 @@ function StackFormPage({
   }
 
   const portInput = (value: string, set: (v: string) => void): JSX.Element => (
-    <input style={{ ...s.input, fontFamily: 'var(--font-mono)' }} value={value} onChange={(e) => set(e.target.value)} />
+    <Input mono value={value} onChange={(e) => set(e.target.value)} />
   )
 
   return (
@@ -521,8 +521,7 @@ function StackFormPage({
         <div style={s.formGrid}>
           <div>
             <label style={s.fieldLabel}>{t('settings.servers.stack.name')}</label>
-            <input
-              style={s.input}
+            <Input
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder={t('settings.servers.stack.namePlaceholder')}
@@ -530,8 +529,8 @@ function StackFormPage({
           </div>
           <div>
             <label style={s.fieldLabel}>{t('settings.servers.stack.deploymentFolder')}</label>
-            <input
-              style={{ ...s.input, fontFamily: 'var(--font-mono)' }}
+            <Input
+              mono
               value={composeDir}
               onChange={(e) => setComposeDir(e.target.value)}
               placeholder={t('settings.servers.stack.deploymentPlaceholder')}
@@ -545,8 +544,8 @@ function StackFormPage({
                 ({t('settings.servers.optional')})
               </span>
             </label>
-            <input
-              style={{ ...s.input, fontFamily: 'var(--font-mono)' }}
+            <Input
+              mono
               value={workspaceDir}
               onChange={(e) => setWorkspaceDir(e.target.value)}
               placeholder={t('settings.servers.stack.dataPlaceholder')}
@@ -559,8 +558,8 @@ function StackFormPage({
                 ({t('settings.servers.optional')})
               </span>
             </label>
-            <input
-              style={{ ...s.input, fontFamily: 'var(--font-mono)' }}
+            <Input
+              mono
               value={projectName}
               onChange={(e) => setProjectName(e.target.value)}
             />

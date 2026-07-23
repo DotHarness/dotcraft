@@ -1858,6 +1858,7 @@ export const MESSAGES_KO = {
   'plugins.filter.category.research': '연구',
   'plugins.filter.category.uncategorized': '기타',
   'plugins.filter.publisher.all': '모든 게시자',
+  'plugins.filter.publisher.marketplaces': '마켓플레이스',
   'plugins.filter.publisher.dotcraft': 'DotHarness 제작',
   'plugins.filter.publisher.label': '필터 플러그인 게시자',
   'plugins.heroTitle': 'DotCraft에게 필요한 능력을 부여하세요',

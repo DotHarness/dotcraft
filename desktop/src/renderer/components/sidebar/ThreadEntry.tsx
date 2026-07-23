@@ -5,6 +5,7 @@ import { useUIStore } from '../../stores/uiStore'
 import { useConnectionStore } from '../../stores/connectionStore'
 import { useLocale, useT } from '../../contexts/LocaleContext'
 import { formatRelativeTime } from '../../utils/relativeTime'
+import { Input } from '../ui/Input'
 import type { ContextMenuPosition } from '../ui/ContextMenu'
 import { ContextMenu } from '../ui/ContextMenu'
 import { useConfirmDialog } from '../ui/ConfirmDialog'
@@ -474,7 +475,7 @@ export function ThreadEntry({ thread }: ThreadEntryProps): JSX.Element {
         }
         mainOverride={
           renaming ? (
-            <input
+            <Input
               ref={renameInputRef}
               value={renameValue}
               onChange={(e) => setRenameValue(e.target.value)}
@@ -483,14 +484,10 @@ export function ThreadEntry({ thread }: ThreadEntryProps): JSX.Element {
               autoFocus
               style={{
                 flex: 1,
-                fontSize: 'var(--type-ui-size)',
-                lineHeight: 'var(--type-ui-line-height)',
-                color: 'var(--text-primary)',
+                height: 'auto',
                 backgroundColor: 'var(--sidebar-control-active)',
-                border: '1px solid var(--border-active)',
                 borderRadius: '4px',
                 padding: '1px 4px',
-                outline: 'none',
                 minWidth: 0
               }}
               onClick={(e) => e.stopPropagation()}

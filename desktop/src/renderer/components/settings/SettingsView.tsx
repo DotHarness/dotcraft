@@ -34,10 +34,13 @@ import { useSkillsStore } from '../../stores/skillsStore'
 import { usePendingRestartStore } from '../../stores/pendingRestartStore'
 import { useSettingsWorkspaceConfigChangeEffects } from '../../hooks/useSettingsWorkspaceConfigChangeEffects'
 import { SecretInput } from '../channels/FormShared'
+import { stringifyComposerDraftSegments } from '../conversation/richInputSerialization'
+import type { ComposerDraftSegment } from '../../types/composerDraft'
 import { ArchivedThreadsSettingsView } from './ArchivedThreadsSettingsView'
 import { ActionTooltip } from '../ui/ActionTooltip'
 import { ExtensionsIcon, FolderIcon, OpenInBrowserIcon, RefreshIcon, WrenchIcon } from '../ui/AppIcons'
 import { IconButton } from '../ui/IconButton'
+import { Input } from '../ui/Input'
 import { Button } from '../ui/Button'
 import { InputWithAction } from '../ui/InputWithAction'
 import { SelectionCard, ResolvedPill } from '../ui/SelectionCard'
@@ -828,21 +831,6 @@ function sectionLabelStyle(): CSSProperties {
     larger offset an input needs. */
 function fieldHintStyle(): CSSProperties {
   return { ...settingsHintStyle(false), marginTop: '6px' }
-}
-
-function inputStyle(mono = false): CSSProperties {
-  return {
-    width: '100%',
-    boxSizing: 'border-box',
-    padding: '8px 10px',
-    fontSize: '13px',
-    borderRadius: '8px',
-    border: '1px solid var(--border-default)',
-    background: 'var(--bg-primary)',
-    color: 'var(--text-primary)',
-    outline: 'none',
-    fontFamily: mono ? 'var(--font-mono)' : undefined
-  }
 }
 
 function normalizeBrowserUseDomainInput(input: string): string | null {
@@ -3116,12 +3104,16 @@ export function SettingsView({
 
   function handleTryBrowserUseInChat(): void {
     const prompt = browserUsePlugin?.interface?.defaultPrompt || ''
-    const text = `$browser${prompt ? ` ${prompt}` : ''}`
+    // The segments are the content, so the default prompt needs one of its own —
+    // see the note on RichInputArea's setContent.
+    const segments: ComposerDraftSegment[] = [{ type: 'skill', skillName: 'browser' }]
+    if (prompt) segments.push({ type: 'text', value: ` ${prompt}` })
+    const text = stringifyComposerDraftSegments(segments)
     const ui = useUIStore.getState()
     const existing = ui.welcomeDraft
     ui.setWelcomeDraft({
       text,
-      segments: [{ type: 'skill', skillName: 'browser' }],
+      segments,
       selectionStart: text.length,
       selectionEnd: text.length,
       images: [],
@@ -3558,12 +3550,11 @@ export function SettingsView({
                                 <div
                                   role="status"
                                   aria-live="polite"
+                                  className="dc-field"
                                   style={{
-                                    ...inputStyle(),
                                     color: 'var(--text-dimmed)',
                                     display: 'flex',
-                                    alignItems: 'center',
-                                    minHeight: 'var(--button-height)'
+                                    alignItems: 'center'
                                   }}
                                 >
                                   {t('settings.llm.modelLoading')}
@@ -3592,9 +3583,8 @@ export function SettingsView({
                                   ]}
                                 />
                               ) : (
-                                <input
+                                <Input
                                   id="settings-provider-model"
-                                  type="text"
                                   value={workspaceManualModelDraft}
                                   disabled={applyingWorkspaceModel}
                                   onChange={(e) => setWorkspaceManualModelDraft(e.target.value)}
@@ -3607,7 +3597,7 @@ export function SettingsView({
                                       void handleWorkspaceManualModelCommit()
                                     }
                                   }}
-                                  style={inputStyle(true)}
+                                  mono
                                   placeholder={t('settings.llm.workspaceModelPlaceholder')}
                                 />
                               )}
@@ -3642,12 +3632,11 @@ export function SettingsView({
                                 <div
                                   role="status"
                                   aria-live="polite"
+                                  className="dc-field"
                                   style={{
-                                    ...inputStyle(),
                                     color: 'var(--text-dimmed)',
                                     display: 'flex',
-                                    alignItems: 'center',
-                                    minHeight: 'var(--button-height)'
+                                    alignItems: 'center'
                                   }}
                                 >
                                   {t('settings.llm.modelLoading')}
@@ -3670,9 +3659,8 @@ export function SettingsView({
                                   ]}
                                 />
                               ) : (
-                                <input
+                                <Input
                                   id="settings-subagent-model"
-                                  type="text"
                                   value={subAgentManualModelDraft}
                                   disabled={applyingSubAgentModel}
                                   onChange={(e) => setSubAgentManualModelDraft(e.target.value)}
@@ -3685,7 +3673,7 @@ export function SettingsView({
                                       void handleSubAgentManualModelCommit()
                                     }
                                   }}
-                                  style={inputStyle(true)}
+                                  mono
                                   placeholder={t('settings.llm.subAgentModelPlaceholder')}
                                 />
                               )}
@@ -3859,15 +3847,13 @@ export function SettingsView({
                             <label htmlFor="settings-provider-id" style={sectionLabelStyle()}>
                               {t('settings.llm.field.id')}
                             </label>
-                            <input
+                            <Input
                               id="settings-provider-id"
                               value={providerDraft.id}
                               onChange={(e) => setProviderDraft((draft) => ({ ...draft, id: slugProviderId(e.target.value) }))}
                               readOnly={!providerEditorIsNew || providerDraft.authMethod === 'chatgptOAuth'}
-                              style={{
-                                ...inputStyle(true),
-                                opacity: !providerEditorIsNew || providerDraft.authMethod === 'chatgptOAuth' ? 0.65 : 1
-                              }}
+                              mono
+                              style={{ opacity: !providerEditorIsNew || providerDraft.authMethod === 'chatgptOAuth' ? 0.65 : 1 }}
                               placeholder="anthropic"
                             />
                             <div style={{ ...settingsHintStyle(false), marginTop: '6px' }}>
@@ -3882,7 +3868,7 @@ export function SettingsView({
                             <label htmlFor="settings-provider-display-name" style={sectionLabelStyle()}>
                               {t('settings.llm.field.displayName')}
                             </label>
-                            <input
+                            <Input
                               id="settings-provider-display-name"
                               value={providerDraft.displayName}
                               onChange={(e) => {
@@ -3894,10 +3880,7 @@ export function SettingsView({
                                 }))
                               }}
                               readOnly={providerDraft.authMethod === 'chatgptOAuth'}
-                              style={{
-                                ...inputStyle(),
-                                opacity: providerDraft.authMethod === 'chatgptOAuth' ? 0.65 : 1
-                              }}
+                              style={{ opacity: providerDraft.authMethod === 'chatgptOAuth' ? 0.65 : 1 }}
                               placeholder="Anthropic"
                             />
                             {providerDraft.authMethod === 'chatgptOAuth' && (
@@ -4063,7 +4046,7 @@ export function SettingsView({
                               value={providerDraft.apiKey}
                               ariaLabel={t('settings.llm.field.apiKey')}
                               onChange={(apiKey) => setProviderDraft((draft) => ({ ...draft, apiKey }))}
-                              style={inputStyle(true)}
+                              mono
                               placeholder={t('settings.llm.field.apiKeyPlaceholder')}
                             />
                             {providerEditorProvider?.hasApiKey === true && providerDraft.apiKey === '********' && (
@@ -4077,7 +4060,7 @@ export function SettingsView({
                             <label htmlFor="settings-provider-endpoint" style={sectionLabelStyle()}>
                               {t('settings.llm.field.endpoint')}
                             </label>
-                            <input
+                            <Input
                               id="settings-provider-endpoint"
                               type="url"
                               value={providerDraft.endPoint}
@@ -4085,7 +4068,7 @@ export function SettingsView({
                                 ...draft,
                                 endPoint: e.target.value
                               }))}
-                              style={inputStyle(true)}
+                              mono
                               placeholder={defaultProviderEndpoint(providerDraft.protocol)}
                             />
                             <div style={{ ...settingsHintStyle(false), marginTop: '6px' }}>
@@ -4105,14 +4088,14 @@ export function SettingsView({
                         htmlFor="settings-provider-timeout"
                         orientation="block"
                         control={
-                          <input
+                          <Input
                             id="settings-provider-timeout"
                             type="number"
                             className="dc-plain-number"
                             min={1}
                             value={providerDraft.networkTimeoutSeconds}
                             onChange={(e) => setProviderDraft((draft) => ({ ...draft, networkTimeoutSeconds: e.target.value }))}
-                            style={inputStyle(true)}
+                            mono
                             placeholder={t('settings.llm.field.timeoutPlaceholder')}
                           />
                         }
@@ -4614,13 +4597,12 @@ export function SettingsView({
                       label={t('settings.remoteUrl')}
                       htmlFor="settings-remote-url"
                     >
-                      <input
+                      <Input
                         id="settings-remote-url"
-                        type="text"
                         value={remoteUrl}
                         onChange={(e) => setRemoteUrl(e.target.value)}
                         placeholder="ws://127.0.0.1:9100/ws"
-                        style={inputStyle(true)}
+                        mono
                       />
                       {remoteConnectionValidation && !remoteConnectionValidation.ok && (
                         <div style={{ ...settingsErrorTextStyle(false), marginTop: '6px' }}>
@@ -4634,7 +4616,7 @@ export function SettingsView({
                         value={remoteToken}
                         onChange={setRemoteToken}
                         placeholder={t('settings.remoteTokenPlaceholder')}
-                        style={inputStyle(true)}
+                        mono
                       />
                     </SettingsRow>
                   )}
@@ -5352,12 +5334,10 @@ export function SettingsView({
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
                     <SettingsGroup title={t('settings.group.identity')} flush>
                       <label style={sectionLabelStyle()}>{t('settings.mcp.field.name')}</label>
-                      <input
-                        type="text"
+                      <Input
                         value={mcpDraft.name}
                         onChange={(e) => setMcpDraft((prev) => ({ ...prev, name: e.target.value }))}
                         placeholder={t('settings.mcp.field.namePlaceholder')}
-                        style={inputStyle()}
                       />
                       <div style={{ marginTop: '12px', display: 'flex', gap: '8px' }}>
                         {(['stdio', 'streamableHttp'] as const).map((transport) => {
@@ -5413,12 +5393,11 @@ export function SettingsView({
                           <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
                             <div>
                               <label style={sectionLabelStyle()}>{t('settings.mcp.field.command')}</label>
-                              <input
-                                type="text"
+                              <Input
                                 value={mcpDraft.command ?? ''}
                                 onChange={(e) => setMcpDraft((prev) => ({ ...prev, command: e.target.value }))}
                                 placeholder="npx"
-                                style={inputStyle(true)}
+                                mono
                               />
                             </div>
 
@@ -5433,12 +5412,11 @@ export function SettingsView({
 
                             <div>
                               <label style={sectionLabelStyle()}>{t('settings.mcp.field.cwd')}</label>
-                              <input
-                                type="text"
+                              <Input
                                 value={mcpDraft.cwd ?? ''}
                                 onChange={(e) => setMcpDraft((prev) => ({ ...prev, cwd: e.target.value }))}
                                 placeholder="~/code"
-                                style={inputStyle(true)}
+                                mono
                               />
                             </div>
                           </div>
@@ -5474,26 +5452,24 @@ export function SettingsView({
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
                         <div>
                           <label style={sectionLabelStyle()}>{t('settings.mcp.field.url')}</label>
-                          <input
-                            type="text"
+                          <Input
                             value={mcpDraft.url ?? ''}
                             onChange={(e) => setMcpDraft((prev) => ({ ...prev, url: e.target.value }))}
                             placeholder="https://example.com/mcp"
-                            style={inputStyle(true)}
+                            mono
                           />
                           <div style={fieldHintStyle()}>{t('settings.mcp.field.urlHint')}</div>
                         </div>
 
                         <div>
                           <label style={sectionLabelStyle()}>{t('settings.mcp.field.bearerEnv')}</label>
-                          <input
-                            type="text"
+                          <Input
                             value={mcpDraft.bearerTokenEnvVar ?? ''}
                             onChange={(e) =>
                               setMcpDraft((prev) => ({ ...prev, bearerTokenEnvVar: e.target.value }))
                             }
                             placeholder={t('settings.mcp.field.bearerEnvPlaceholder')}
-                            style={inputStyle(true)}
+                            mono
                           />
                           <div style={fieldHintStyle()}>{t('settings.mcp.field.bearerEnvHint')}</div>
                         </div>
@@ -5637,8 +5613,7 @@ export function SettingsView({
                 ? t('settings.browserUse.addBlockedDomainHint')
                 : t('settings.browserUse.addAllowedDomainHint')}
             </p>
-            <input
-              type="text"
+            <Input
               value={browserUseDomainDraft}
               onChange={(e) => {
                 setBrowserUseDomainDraft(e.target.value)
@@ -5650,7 +5625,7 @@ export function SettingsView({
               }}
               placeholder="example.com"
               autoFocus
-              style={inputStyle(true)}
+              mono
             />
             {browserUseDomainError && (
               <div style={{ marginTop: '8px', fontSize: '12px', color: 'var(--error)' }}>

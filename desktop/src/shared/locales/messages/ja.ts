@@ -1854,6 +1854,7 @@ export const MESSAGES_JA = {
   'plugins.filter.category.research': '研究',
   'plugins.filter.category.uncategorized': 'その他',
   'plugins.filter.publisher.all': 'すべての出版社',
+  'plugins.filter.publisher.marketplaces': 'マーケットプレイス',
   'plugins.filter.publisher.dotcraft': 'DotHarness によって構築されました',
   'plugins.filter.publisher.label': 'フィルタープラグイン発行者',
   'plugins.heroTitle': 'DotCraft に必要な能力を与えてください',

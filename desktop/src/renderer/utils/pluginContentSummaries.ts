@@ -16,6 +16,8 @@ export interface PluginContentSummary {
   kind: string
   title: string
   description: string
+  /** Set for skills, so a caller can open the skill rather than parse the key. */
+  skillName?: string
 }
 
 type Translate = (key: string, vars?: Record<string, string | number>) => string
@@ -58,7 +60,8 @@ export function getPluginContentSummaries(plugin: PluginEntry, t: Translate): Pl
       type: 'skill' as const,
       kind: t('plugins.content.skill'),
       title: skill.displayName || skill.name,
-      description: skill.shortDescription || skill.description
+      description: skill.shortDescription || skill.description,
+      skillName: skill.name
     })),
     ...plugin.functions.map((fn) => ({
       key: `function:${fn.name}`,

@@ -7,6 +7,7 @@ import { addToast } from '../../stores/toastStore'
 import type { Thread } from '../../types/thread'
 import { Button } from '../ui/Button'
 import { IconButton } from '../ui/IconButton'
+import { Input } from '../ui/Input'
 
 type HandoffMode = 'local' | 'worktree'
 type DialogPhase = 'confirm' | 'running' | 'success' | 'error'
@@ -353,11 +354,10 @@ export function WorktreeHandoffDialog({
             {mode === 'worktree' ? (
               <label style={fieldStyle}>
                 <span>{t('workspaceFooter.branchName')}</span>
-                <input
+                <Input
                   value={branchDraft}
                   autoFocus
                   onChange={(event) => setBranchDraft(event.target.value)}
-                  style={inputStyle}
                 />
               </label>
             ) : (
@@ -503,17 +503,6 @@ const fieldStyle: CSSProperties = {
   color: 'var(--text-primary)',
   fontSize: '13px',
   fontWeight: 600
-}
-
-const inputStyle: CSSProperties = {
-  height: '46px',
-  borderRadius: '8px',
-  border: 'none',
-  background: 'var(--bg-tertiary)',
-  color: 'var(--text-primary)',
-  padding: '0 14px',
-  font: 'inherit',
-  outline: 'none'
 }
 
 const stepsStyle: CSSProperties = {

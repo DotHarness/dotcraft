@@ -1861,6 +1861,7 @@ export const MESSAGES_DE = {
   'plugins.filter.category.research': 'Forschung',
   'plugins.filter.category.uncategorized': 'Sonstiges',
   'plugins.filter.publisher.all': 'Alle Verlage',
+  'plugins.filter.publisher.marketplaces': 'Marktplätze',
   'plugins.filter.publisher.dotcraft': 'Gebaut von DotHarness',
   'plugins.filter.publisher.label': 'Filter-Plugin-Herausgeber',
   'plugins.heroTitle': 'Geben Sie DotCraft die Fähigkeit, die Sie benötigen',

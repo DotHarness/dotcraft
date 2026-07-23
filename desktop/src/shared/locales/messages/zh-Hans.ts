@@ -1381,6 +1381,7 @@ export const MESSAGES_ZH_HANS = {
   'plugins.filter.publisher.label': '筛选插件发布方',
   'plugins.filter.publisher.dotcraft': 'DotHarness 构建',
   'plugins.filter.publisher.all': '全部发布方',
+  'plugins.filter.publisher.marketplaces': '插件市场',
   'plugins.filter.category.label': '筛选插件类别',
   'plugins.filter.category.all': '全部',
   'plugins.filter.category.featured': '推荐',

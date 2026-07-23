@@ -141,7 +141,7 @@ Neutral tokens carry most UI structure.
 `--accent` and `--accent-hover` are reserved for restrained brand or navigation
 emphasis:
 
-- focus-visible outlines and accessibility affordances;
+- field focus borders, focus-visible outlines, and accessibility affordances;
 - selected navigation, segmented controls, or active state accents when neutral
   inversion is not appropriate;
 - links or small inline affordances where product recognition helps;
@@ -228,6 +228,12 @@ Desktop surfaces should favor dense but organized operational layouts.
   (tabs or breadcrumb) stays left, page-level management actions stay right, and
   both sides share the same vertical center. Do not position catalog actions in
   the hero/header below this band or compensate with negative offsets.
+- A catalog browse page separates its groups with space and heading weight, not
+  with rules: no rule under the hero/search header, and none above a group. A rule
+  above the first group is a frame edge rather than a separator, and one above the
+  rest is redundant with the gap already between them. A fixed header earns a
+  hairline only where it sits tight against the list it caps, as the manage
+  toolbar does.
 - Use stable dimensions for fixed-format controls such as boards, rows,
   toolbars, icon buttons, counters, tabs, and menus.
 - Constrain content with explicit grid, flex, min/max, or aspect-ratio rules so
@@ -363,8 +369,9 @@ same height so the row still aligns.
 
 Catalog top bars run one control band of their own: `28px` height with a `10px`
 radius, shorter and rounder than the standard band. Every control in that bar —
-text actions, icon actions, and compound triggers — takes it, so the row reads as
-one strip and the band does not change as the user moves between catalog surfaces.
+text actions, icon actions, compound triggers, and search fields — takes it, so the
+row reads as one strip and the band does not change as the user moves between
+catalog surfaces.
 This is the only sanctioned alternative band; elsewhere the `32px` / `8px` standard
 holds. Catalog top bars prefer icon-only actions with tooltips for repeated
 management commands such as Refresh and Manage, keeping the labelled action for the
@@ -414,17 +421,22 @@ segments share one intent and one size; the group clips the outer corners while 
 segment drops the radius and border on the edge they meet, so the pair reads as a
 single control.
 
-Two treatments exist, chosen by how much emphasis the principal action carries:
+One treatment covers every compound trigger: no outline and no divider. Both segments
+carry the same fill and meet flush, and hover lightens only the hovered segment, which
+is what makes the seam appear. The menu glyph sits at reduced opacity so the chevron
+reads as an affordance rather than a second action.
 
-- Outlined compound triggers keep a persistent neutral outline around the group and
-  separate the segments with a single hairline. The segments do not each paint a
-  frame, and that divider must not double the outline. Open-target split controls and
-  workspace connection status menus are the reference cases.
-- Filled compound triggers paint no outline and no divider: both segments carry the
-  same fill and meet flush, and hover lightens only the hovered segment, which is what
-  makes the seam appear. The catalog create control is the reference case, using the
-  `primary` neutral inversion. Its menu glyph sits at reduced opacity so the chevron
-  reads as an affordance rather than a second action.
+Emphasis is carried by intent, not by a second treatment:
+
+- the `primary` neutral inversion is for the principal action of a surface. The
+  catalog create control is the reference case.
+- the `secondary` same-color fill is for compound triggers that sit among other
+  chrome rather than leading it. Open-target split controls in the thread header and
+  the file viewer are the reference cases.
+
+Use the shared `SplitButton` rather than composing a button pair, chevron, and
+positioned menu per feature, so segment geometry, keyboard navigation, outside-click
+dismissal, and focus restoration stay identical everywhere.
 
 A compound trigger takes the height of whichever control band it sits in, so the row
 still reads as one band. Compact thread-header Apps triggers remain frameless and
@@ -473,14 +485,23 @@ Use the shared header rather than re-implementing per dialog.
 - The identity icon sits in a neutral rounded badge: a ~36px square with `8–9px`
   radius, a `--bg-tertiary` background, and the glyph at `18px` in
   `--text-secondary`. The badge gives every dialog the same quiet, recognizable
-  anchor; a bare icon without the badge is not used.
+  anchor; a bare icon without the badge is not used. When the dialog's subject
+  carries its own product artwork — a skill or plugin avatar — that artwork
+  occupies the badge's footprint instead of being nested inside a neutral badge,
+  which would read as two boxes.
 - The title sits below the badge using the panel/dialog heading scale (`15px`,
   weight `600`, `--text-primary`). Do not use hero-scale type for dialog titles —
   even prominent dialogs stay at the dialog-heading scale.
 - An optional one or two line description follows the title in
   `--text-secondary`.
 - When the dialog has a close affordance, it is a borderless, transparent icon
-  button in the top-right, aligned with the badge row (see Icon Buttons).
+  button in the top-right, aligned with the badge row (see Icon Buttons). A
+  dialog-level overflow menu joins it there, to the left of close, rather than
+  sitting beside the title.
+- A dialog previews its subject; it does not double as a place to change the
+  subject's state. Enabling, disabling, and similar switches stay in the manage
+  surface that owns them, so one control governs the state rather than two that
+  can disagree.
 
 The badge stays neutral by default. A semantic tint (success/warning/error) is
 allowed only when the dialog's whole purpose is that state, following the
@@ -536,16 +557,45 @@ Text inputs, textareas, selects, search boxes, and picker triggers stay neutral:
   dark theme can remain effectively frameless, shows a soft brand-gradient glow
   that gently breathes on focus (`--composer-focus-glow`), and lifts slightly on
   hover;
-- use `--accent` only for subtle focus-visible or focus ring affordances;
+- use `--accent` only for subtle focus affordances;
 - use `--text-primary` for values and secondary/dimmed tokens for placeholders;
 - do not use brand or semantic fills for ordinary input backgrounds.
 
-A simple action dialog's single message/objective input (commit message, thread
-goal) uses one shared recessed treatment: a `--bg-primary` field that is
-frameless at rest and shows the accent border only on focus, with an `8–10px`
-radius. Reuse this shared input rather than restyling per dialog. Dense
-multi-field dialog forms are the exception — they keep bordered fields so the
-columns stay legible.
+A field's focus indicator is its own border, and nothing else. Focus moves the
+border to `--accent`; it never adds an outline, a ring, or an outer glow around
+the control. An outline drawn outside the border box reads as a second frame
+stacked on the first, so ordinary `outline` focus styling is suppressed on every
+field and the global `:focus-visible` outline remains only as the fallback for
+elements that have no focus treatment of their own. This holds for every field
+shape below, and for composed fields such as combo boxes and inputs with a
+trailing action.
+
+Fields carry no hover state. The pointer usually comes to rest inside the field
+it just focused, so a hover border competes with the focus border for the same
+1px and hides it exactly when it matters. Focus is also the only state that must
+never be outranked: whatever a field's resting shape, the focus border wins while
+it has focus.
+
+Three shapes exist, the first two `--bg-primary` with an `8–10px` radius:
+
+- bordered at rest with `--border-default`, moving to `--accent` on focus. This is
+  the default. Dense multi-field dialog forms use it so the columns stay legible.
+- frameless at rest, showing the accent border only on focus. A simple action
+  dialog's single message/objective input (commit message, thread goal) is the
+  reference case.
+- bare: no frame, fill, or sizing of its own, for the inner field of a composed
+  control — a search row, a combo box, an input with a trailing action. The shell
+  paints the frame and owns the focus state; the field contributes only the shared
+  reset. A bare field never appears on its own.
+
+Desktop-owned text fields use the shared `Input` and `Textarea` components rather
+than a locally styled native element, so height, radius, placeholder, hover,
+focus, invalid, and disabled treatments stay identical. The components own their
+own height and never set `flex`; callers place them in a row or column layout and
+pass only their genuine deltas. Three cases stay native: a visually hidden control
+that supplies semantics, one that opens a platform picker such as the system color
+chooser, and an inline editor embedded in a canvas surface whose own class already
+follows the focus rule above.
 
 Validation combines copy, border/icon treatment, and semantic tokens. Error or
 warning color identifies the issue without taking over the form.
@@ -571,6 +621,30 @@ the same interaction language:
   or outlines;
 - stronger outlines are reserved for inputs, drag/drop targets, validation,
   destructive confirmation, or focus-visible accessibility.
+
+A row or group header may keep its secondary metadata and its management actions
+hidden at rest and reveal them on hover, so a list of many rows stays quiet. Such
+a control must reveal on keyboard focus as well, or it is unreachable without a
+pointer. Reveal by changing opacity rather than by mounting the control, so the
+row does not shift as the pointer crosses it. Metadata that only identifies the
+row — a path, a source URL — may stay a tooltip instead of taking layout at all.
+
+### Detail Sections
+
+A detail page stacks several groups — what an item contributes, its metadata, its
+settings. Those groups are frameless: a section is marked by a rule under its
+heading in `--border-subtle`, not by a border around its rows, and rows inside a
+section carry no dividers of their own. Boxing each group turns one readable
+column into a stack of cards competing for the same attention, and nesting a
+bordered table inside a bordered section doubles the frame.
+
+`--border-subtle` is the quietest rule in the system, for separating stacked
+groups. `--border-default` draws a control's own edge and is not used to divide a
+page into regions.
+
+A detail page presents its subject; it is not where the subject's state is
+changed. Enable switches and similar controls stay in the manage surface that
+owns them, for the same reason a dialog does not carry them (see Dialog Headers).
 
 ### Interactive Tool UI
 

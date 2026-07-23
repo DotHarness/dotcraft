@@ -4,6 +4,7 @@ import { FolderOpen, FolderPlus } from 'lucide-react'
 import { useT } from '../../contexts/LocaleContext'
 import { addToast } from '../../stores/toastStore'
 import { Button } from '../ui/Button'
+import { Input } from '../ui/Input'
 
 /**
  * Shared "Add new project" flow used by both the composer project selector and
@@ -205,13 +206,14 @@ function NameProjectDialog({
         <p style={{ margin: '4px 0 16px', fontSize: '13px', color: 'var(--text-secondary)' }}>
           {t('addProject.nameSubtitle')}
         </p>
-        <input
+        <Input
           ref={inputRef}
           value={value}
           disabled={busy}
           onChange={(event) => onChange(event.target.value)}
           placeholder={t('addProject.defaultName')}
-          style={inputStyle}
+          frameless
+          style={{ height: '46px', padding: '0 14px', background: 'var(--bg-tertiary)' }}
         />
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '20px' }}>
           <Button
@@ -252,18 +254,4 @@ const cardStyle: CSSProperties = {
   borderRadius: '10px',
   background: 'var(--bg-secondary)',
   boxShadow: 'var(--shadow-level-3)'
-}
-
-const inputStyle: CSSProperties = {
-  width: '100%',
-  height: '42px',
-  borderRadius: '8px',
-  border: 'none',
-  background: 'var(--bg-tertiary)',
-  color: 'var(--text-primary)',
-  padding: '0 12px',
-  font: 'inherit',
-  fontSize: '13px',
-  outline: 'none',
-  boxSizing: 'border-box'
 }

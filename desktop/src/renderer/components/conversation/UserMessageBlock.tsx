@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type MouseEvent } from 'react'
 import { Bot, CornerDownRight, Image as ImageIcon, MessagesSquare, Pencil, Sparkle, Target, Terminal, UsersRound } from 'lucide-react'
 import { FileTypeIcon } from '../ui/FileTypeIcon'
+import { Textarea } from '../ui/Input'
 import { useLocale, useT } from '../../contexts/LocaleContext'
 import { translate } from '../../../shared/locales'
 import { useConversationStore } from '../../stores/conversationStore'
@@ -225,7 +226,7 @@ export function UserMessageBlock({
         >
           {editing ? (
             <>
-              <textarea
+              <Textarea
                 ref={editAreaRef}
                 value={editText ?? displayText}
                 aria-label={t('conversation.editTextarea')}
@@ -244,19 +245,14 @@ export function UserMessageBlock({
                     }
                   }
                 }}
+                bare
                 style={{
-                  width: '100%',
                   minHeight: '72px',
                   maxHeight: '184px',
                   resize: 'none',
                   overflowY: 'auto',
-                  border: 'none',
-                  outline: 'none',
-                  background: 'transparent',
-                  color: 'var(--text-primary)',
                   font: 'inherit',
-                  lineHeight: 'inherit',
-                  padding: 0
+                  lineHeight: 'inherit'
                 }}
               />
               <div

@@ -19,6 +19,7 @@ import { SettingsSelect } from './settings/ui/SettingsSelect'
 import { ProviderProtocolIcon } from './settings/panels/ProviderProtocolIcon'
 import { ActionTooltip } from './ui/ActionTooltip'
 import { Button } from './ui/Button'
+import { Input } from './ui/Input'
 import { BootstrapImportSourceIcon } from './setup/BootstrapImportSourceIcon'
 import { centeredLaunchLogoRect, elementToLaunchLogoRect, type LaunchLogoRect } from './WorkspaceLaunchTransition'
 import {
@@ -76,19 +77,6 @@ function cardStyle(active: boolean): CSSProperties {
     background: active ? 'var(--bg-tertiary)' : 'var(--bg-secondary)',
     padding: '14px',
     cursor: 'pointer'
-  }
-}
-
-function fieldStyle(): CSSProperties {
-  return {
-    width: '100%',
-    boxSizing: 'border-box',
-    padding: '9px 10px',
-    borderRadius: '8px',
-    border: '1px solid var(--border-default)',
-    background: 'var(--bg-primary)',
-    color: 'var(--text-primary)',
-    fontSize: '13px'
   }
 }
 
@@ -1292,20 +1280,18 @@ function TemplateProviderForm({
               value={draft.apiKey}
               onChange={(apiKey) => onChange({ apiKey })}
               placeholder={t('setupWizard.placeholder.apiKey')}
-              style={fieldStyle()}
+              mono
             />
           </div>
           <div>
             <label htmlFor="setup-template-endpoint" style={{ display: 'block', marginBottom: '6px', fontSize: '12px', fontWeight: 600 }}>
               {t('setupWizard.field.endpoint')}
             </label>
-            <input
+            <Input
               id="setup-template-endpoint"
-              type="text"
               value={draft.endPoint}
               onChange={(e) => onChange({ endPoint: e.target.value })}
               placeholder={defaultProviderEndpoint(draft.protocol)}
-              style={fieldStyle()}
             />
           </div>
         </>
@@ -1362,26 +1348,22 @@ function CustomProviderForm({
           <label htmlFor="setup-provider-id" style={{ display: 'block', marginBottom: '6px', fontSize: '12px', fontWeight: 600 }}>
             {t('setupWizard.field.providerId')}
           </label>
-          <input
+          <Input
             id="setup-provider-id"
-            type="text"
             value={draft.id}
             onChange={(e) => onChange({ id: slugProviderId(e.target.value) })}
             placeholder="provider"
-            style={fieldStyle()}
           />
         </div>
         <div>
           <label htmlFor="setup-provider-display-name" style={{ display: 'block', marginBottom: '6px', fontSize: '12px', fontWeight: 600 }}>
             {t('setupWizard.field.displayName')}
           </label>
-          <input
+          <Input
             id="setup-provider-display-name"
-            type="text"
             value={draft.displayName}
             onChange={(e) => onChange({ displayName: e.target.value })}
             placeholder={t('setupWizard.placeholder.displayName')}
-            style={fieldStyle()}
           />
         </div>
       </div>
@@ -1416,7 +1398,7 @@ function CustomProviderForm({
         <label htmlFor="setup-provider-timeout" style={{ display: 'block', marginBottom: '6px', fontSize: '12px', fontWeight: 600 }}>
           {t('setupWizard.field.timeout')}
         </label>
-        <input
+        <Input
           id="setup-provider-timeout"
           type="number"
           className="dc-plain-number"
@@ -1424,7 +1406,6 @@ function CustomProviderForm({
           value={timeoutDraft}
           onChange={(e) => onTimeoutChange(e.target.value)}
           placeholder="600"
-          style={fieldStyle()}
         />
       </div>
     </div>
@@ -1474,13 +1455,11 @@ function ModelField({
           }))}
         />
       ) : (
-        <input
+        <Input
           id="setup-model"
-          type="text"
           value={model}
           onChange={(e) => onChange(e.target.value)}
           placeholder={t('setupWizard.placeholder.model')}
-          style={fieldStyle()}
         />
       )}
       {modelLoadState === 'auth-required' && (

@@ -10,6 +10,7 @@ import {
 import { useThreadStore } from '../../stores/threadStore'
 import { SchedulePicker } from './SchedulePicker'
 import { ThreadPickerOverlay } from './ThreadPickerOverlay'
+import { Input, Textarea } from '../ui/Input'
 import { TemplateGalleryOverlay } from './TemplateGalleryOverlay'
 import { PillSwitch } from '../ui/PillSwitch'
 import { MenuOption, PillDropdown } from '../ui/PillDropdown'
@@ -361,26 +362,22 @@ export function NewTaskDialog({
           >
             {tab === 'task' ? (
               <>
-                <input
-                  type="text"
+                <Input
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
                   maxLength={200}
                   placeholder={t('auto.newTask.namePlaceholder')}
                   autoFocus
                   style={{
-                    padding: '10px 12px',
+                    padding: '0 12px',
                     borderRadius: '8px',
-                    border: '1px solid var(--border-default)',
                     backgroundColor: 'var(--bg-secondary)',
-                    color: 'var(--text-primary)',
                     fontSize: '14px',
-                    fontWeight: 500,
-                    outline: 'none'
+                    fontWeight: 500
                   }}
                 />
 
-                <textarea
+                <Textarea
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
                   rows={10}
@@ -388,13 +385,8 @@ export function NewTaskDialog({
                   style={{
                     padding: '10px 12px',
                     borderRadius: '8px',
-                    border: '1px solid var(--border-default)',
                     backgroundColor: 'var(--bg-secondary)',
-                    color: 'var(--text-primary)',
                     fontSize: '13px',
-                    resize: 'vertical',
-                    outline: 'none',
-                    fontFamily: 'inherit',
                     minHeight: '160px'
                   }}
                 />
@@ -482,8 +474,7 @@ export function NewTaskDialog({
                 )}
 
                 <div style={{ display: 'flex', gap: '8px' }}>
-                  <input
-                    type="text"
+                  <Input
                     value={tplIcon}
                     onChange={(e) => setTplIcon(e.target.value.slice(0, 4))}
                     maxLength={4}
@@ -491,18 +482,14 @@ export function NewTaskDialog({
                     aria-label={t('auto.newTemplate.field.icon')}
                     style={{
                       width: '56px',
-                      padding: '10px 12px',
+                      padding: '0 12px',
                       borderRadius: '8px',
-                      border: '1px solid var(--border-default)',
                       backgroundColor: 'var(--bg-secondary)',
-                      color: 'var(--text-primary)',
                       fontSize: '16px',
-                      textAlign: 'center',
-                      outline: 'none'
+                      textAlign: 'center'
                     }}
                   />
-                  <input
-                    type="text"
+                  <Input
                     value={tplTitle}
                     onChange={(e) => setTplTitle(e.target.value)}
                     maxLength={200}
@@ -510,14 +497,11 @@ export function NewTaskDialog({
                     autoFocus={!isEditingTemplate}
                     style={{
                       flex: 1,
-                      padding: '10px 12px',
+                      padding: '0 12px',
                       borderRadius: '8px',
-                      border: '1px solid var(--border-default)',
                       backgroundColor: 'var(--bg-secondary)',
-                      color: 'var(--text-primary)',
                       fontSize: '14px',
-                      fontWeight: 500,
-                      outline: 'none'
+                      fontWeight: 500
                     }}
                   />
                 </div>
@@ -540,7 +524,7 @@ export function NewTaskDialog({
                   <label style={advancedLabelStyle}>
                     {t('auto.newTemplate.field.description')}
                   </label>
-                  <textarea
+                  <Textarea
                     value={tplDescription}
                     onChange={(e) => setTplDescription(e.target.value)}
                     rows={2}
@@ -548,13 +532,8 @@ export function NewTaskDialog({
                     style={{
                       padding: '8px 10px',
                       borderRadius: '6px',
-                      border: '1px solid var(--border-default)',
                       backgroundColor: 'var(--bg-secondary)',
-                      color: 'var(--text-primary)',
                       fontSize: '12px',
-                      resize: 'vertical',
-                      outline: 'none',
-                      fontFamily: 'inherit',
                       minHeight: '48px'
                     }}
                   />
@@ -564,7 +543,7 @@ export function NewTaskDialog({
                   <label style={advancedLabelStyle}>
                     {t('auto.newTemplate.field.workflow')}
                   </label>
-                  <textarea
+                  <Textarea
                     value={tplWorkflow}
                     onChange={(e) => setTplWorkflow(e.target.value)}
                     rows={12}
@@ -573,12 +552,8 @@ export function NewTaskDialog({
                     style={{
                       padding: '10px 12px',
                       borderRadius: '8px',
-                      border: '1px solid var(--border-default)',
                       backgroundColor: 'var(--bg-secondary)',
-                      color: 'var(--text-primary)',
                       fontSize: '12px',
-                      resize: 'vertical',
-                      outline: 'none',
                       fontFamily: 'var(--font-mono)',
                       minHeight: '200px'
                     }}
@@ -607,19 +582,15 @@ export function NewTaskDialog({
                     <label style={advancedLabelStyle}>
                       {t('auto.newTemplate.field.defaultTitle')}
                     </label>
-                    <input
-                      type="text"
+                    <Input
                       value={tplDefaultTitle}
                       onChange={(e) => setTplDefaultTitle(e.target.value)}
                       maxLength={200}
                       style={{
-                        padding: '8px 10px',
+                        padding: '0 10px',
                         borderRadius: '6px',
-                        border: '1px solid var(--border-default)',
                         backgroundColor: 'var(--bg-secondary)',
-                        color: 'var(--text-primary)',
-                        fontSize: '12px',
-                        outline: 'none'
+                        fontSize: '12px'
                       }}
                     />
                   </div>
@@ -627,20 +598,15 @@ export function NewTaskDialog({
                     <label style={advancedLabelStyle}>
                       {t('auto.newTemplate.field.defaultDescription')}
                     </label>
-                    <textarea
+                    <Textarea
                       value={tplDefaultDescription}
                       onChange={(e) => setTplDefaultDescription(e.target.value)}
                       rows={3}
                       style={{
                         padding: '8px 10px',
                         borderRadius: '6px',
-                        border: '1px solid var(--border-default)',
                         backgroundColor: 'var(--bg-secondary)',
-                        color: 'var(--text-primary)',
-                        fontSize: '12px',
-                        resize: 'vertical',
-                        outline: 'none',
-                        fontFamily: 'inherit'
+                        fontSize: '12px'
                       }}
                     />
                   </div>

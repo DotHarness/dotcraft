@@ -4,6 +4,7 @@ import type { AppLocale } from '../../../shared/locales'
 import { useLocale, useT } from '../../contexts/LocaleContext'
 import type { ChannelConnectionState } from './ChannelCard'
 import { FieldCard, FormActions, SecretInput, StatusPill, formStyles } from './FormShared'
+import { Input, Textarea } from '../ui/Input'
 import { ToggleSwitch } from './ToggleSwitch'
 import { FolderIcon } from '../ui/AppIcons'
 import { IconButton } from '../ui/IconButton'
@@ -234,7 +235,6 @@ export function ModuleConfigForm({
               { value: '', label: placeholderLabel, disabled: descriptor.required },
               ...enumValues.map((item) => ({ value: item, label: item }))
             ]}
-            style={{ ...formStyles.input, display: 'flex' }}
           />
           {!!description && (
             <div style={{ marginTop: '6px', fontSize: '12px', color: 'var(--text-dimmed)' }}>
@@ -252,7 +252,7 @@ export function ModuleConfigForm({
       return (
         <div key={descriptor.key} style={formStyles.fieldGroup}>
           <label style={formStyles.label}>{`${displayLabel}${requiredSuffix}`}</label>
-          <textarea
+          <Textarea
             value={textValue}
             placeholder={placeholder}
             onChange={(event) => {
@@ -264,9 +264,7 @@ export function ModuleConfigForm({
                 .filter(Boolean)
               onChange(applyValueChange(config, descriptor.key, nextList))
             }}
-            onFocus={formStyles.inputFocus}
-            onBlur={formStyles.inputBlur}
-            style={{ ...formStyles.input, minHeight: '90px', height: 'auto', padding: '8px 10px' }}
+            style={{ minHeight: '90px', height: 'auto', padding: '8px 10px' }}
           />
           {!!description && (
             <div style={{ marginTop: '6px', fontSize: '12px', color: 'var(--text-dimmed)' }}>
@@ -282,14 +280,13 @@ export function ModuleConfigForm({
       return (
         <div key={descriptor.key} style={formStyles.fieldGroup}>
           <label style={formStyles.label}>{`${displayLabel}${requiredSuffix}`}</label>
-          <textarea
+          <Textarea
             value={textValue}
             placeholder={placeholder}
             onChange={(event) => {
               setObjectTextByKey((prev) => ({ ...prev, [descriptor.key]: event.target.value }))
             }}
             onBlur={(event) => {
-              formStyles.inputBlur(event)
               const raw = event.target.value.trim()
               if (raw === '') {
                 onChange(applyValueChange(config, descriptor.key, undefined))
@@ -302,8 +299,7 @@ export function ModuleConfigForm({
                 // Keep user text untouched until it is valid JSON.
               }
             }}
-            onFocus={formStyles.inputFocus}
-            style={{ ...formStyles.input, minHeight: '120px', height: 'auto', padding: '8px 10px' }}
+            style={{ minHeight: '120px', height: 'auto', padding: '8px 10px' }}
           />
           {!!description && (
             <div style={{ marginTop: '6px', fontSize: '12px', color: 'var(--text-dimmed)' }}>
@@ -318,7 +314,7 @@ export function ModuleConfigForm({
       return (
         <div key={descriptor.key} style={formStyles.fieldGroup}>
           <label style={formStyles.label}>{`${displayLabel}${requiredSuffix}`}</label>
-          <input
+          <Input
             type="number"
             className="dc-plain-number"
             value={typeof value === 'number' && Number.isFinite(value) ? String(value) : ''}
@@ -334,9 +330,6 @@ export function ModuleConfigForm({
                 )
               )
             }}
-            onFocus={formStyles.inputFocus}
-            onBlur={formStyles.inputBlur}
-            style={formStyles.input}
           />
           {!!description && (
             <div style={{ marginTop: '6px', fontSize: '12px', color: 'var(--text-dimmed)' }}>
@@ -352,16 +345,13 @@ export function ModuleConfigForm({
         <div key={descriptor.key} style={formStyles.fieldGroup}>
           <label style={formStyles.label}>{`${displayLabel}${requiredSuffix}`}</label>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <input
-              type="text"
+            <Input
               value={toText(value)}
               placeholder={placeholder}
               onChange={(event) => {
                 onChange(applyValueChange(config, descriptor.key, event.target.value))
               }}
-              onFocus={formStyles.inputFocus}
-              onBlur={formStyles.inputBlur}
-              style={{ ...formStyles.input, flex: 1 }}
+              style={{ flex: 1 }}
             />
             <IconButton
               icon={<FolderIcon size={16} />}
@@ -394,20 +384,14 @@ export function ModuleConfigForm({
             onChange={(nextValue) => {
               onChange(applyValueChange(config, descriptor.key, nextValue))
             }}
-            onFocus={formStyles.inputFocus}
-            onBlur={formStyles.inputBlur}
           />
         ) : (
-          <input
-            type="text"
+          <Input
             value={toText(value)}
             placeholder={placeholder}
             onChange={(event) => {
               onChange(applyValueChange(config, descriptor.key, event.target.value))
             }}
-            onFocus={formStyles.inputFocus}
-            onBlur={formStyles.inputBlur}
-            style={formStyles.input}
           />
         )}
         {!!description && (
@@ -497,7 +481,6 @@ export function ModuleConfigForm({
                   variant: variant.variant
                 })
               }))}
-              style={{ ...formStyles.input, display: 'flex' }}
             />
           </div>
         </FieldCard>

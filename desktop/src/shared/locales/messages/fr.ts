@@ -1860,6 +1860,7 @@ export const MESSAGES_FR = {
   'plugins.filter.category.research': 'Recherche',
   'plugins.filter.category.uncategorized': 'Autre',
   'plugins.filter.publisher.all': 'Tous les éditeurs',
+  'plugins.filter.publisher.marketplaces': 'Places de marché',
   'plugins.filter.publisher.dotcraft': 'Construit par DotHarness',
   'plugins.filter.publisher.label': 'Filtrer l\'éditeur du plugin',
   'plugins.heroTitle': 'Donnez à DotCraft la capacité dont vous avez besoin',

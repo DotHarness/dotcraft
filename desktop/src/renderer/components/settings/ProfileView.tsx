@@ -6,6 +6,7 @@ import { useConnectionStore } from '../../stores/connectionStore'
 import { useProfileStore, type UsageDayWire } from '../../stores/profileStore'
 import { ActionTooltip } from '../ui/ActionTooltip'
 import { Button } from '../ui/Button'
+import { Input } from '../ui/Input'
 import { Skeleton } from '../ui/Skeleton'
 import { SettingsPageHeader } from './SettingsPageHeader'
 import { settingsMetaTextStyle, settingsPlaceholderStyle } from './settingsTypography'
@@ -263,7 +264,7 @@ function ProfileHeader({
         {editing ? (
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <span style={{ fontSize: '13px', color: 'var(--text-dimmed)' }}>github.com/</span>
-            <input
+            <Input
               autoFocus
               value={draft}
               placeholder={t('settings.profile.usernamePlaceholder')}
@@ -272,7 +273,8 @@ function ProfileHeader({
                 if (e.key === 'Enter') commit()
                 if (e.key === 'Escape') onClose()
               }}
-              style={inputStyle}
+              frameless
+              style={{ height: '42px', padding: '0 12px', background: 'var(--bg-tertiary)' }}
             />
             <Button variant="primary" size="sm" onClick={commit}>
               {t('settings.profile.save')}
@@ -583,14 +585,4 @@ const handleLinkStyle: CSSProperties = {
   fontSize: '13px',
   color: 'var(--text-secondary)',
   cursor: 'pointer'
-}
-
-const inputStyle: CSSProperties = {
-  border: '1px solid var(--border-default)',
-  background: 'var(--bg-primary)',
-  color: 'var(--text-primary)',
-  borderRadius: '8px',
-  padding: '4px 8px',
-  fontSize: '13px',
-  minWidth: '160px'
 }

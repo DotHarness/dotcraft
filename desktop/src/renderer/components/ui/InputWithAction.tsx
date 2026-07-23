@@ -8,6 +8,7 @@ import type {
   Ref
 } from 'react'
 import { ActionTooltip } from './ActionTooltip'
+import { Input } from './Input'
 
 /**
  * Unified text input + trailing action button, rendered as a single
@@ -58,17 +59,18 @@ export function InputWithAction({
       data-disabled={disabled || undefined}
       style={containerStyle()}
     >
-      <input
+      <Input
         id={id}
         ref={inputRef}
-        type="text"
+        bare
+        mono={mono}
         value={value}
         onChange={onChange}
         onClick={onInputClick}
         placeholder={placeholder}
         disabled={disabled}
         aria-describedby={ariaDescribedby}
-        style={innerInputStyle(mono)}
+        style={innerInputStyle()}
       />
       <ActionTooltip
         label={actionLabel}
@@ -103,17 +105,11 @@ function containerStyle(): CSSProperties {
   }
 }
 
-function innerInputStyle(mono: boolean): CSSProperties {
+function innerInputStyle(): CSSProperties {
   return {
     flex: 1,
     minWidth: 0,
-    padding: '8px 10px',
-    fontSize: '13px',
-    border: 'none',
-    background: 'transparent',
-    color: 'var(--text-primary)',
-    outline: 'none',
-    fontFamily: mono ? 'var(--font-mono)' : undefined
+    padding: '8px 10px'
   }
 }
 

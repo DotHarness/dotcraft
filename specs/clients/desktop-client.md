@@ -629,10 +629,24 @@ Required behavior:
   transient notification.
 - After a marketplace is added, the client shows the resolved source, reference,
   and revision so the user can confirm what was fetched.
-- Marketplaces are presented at the same level as plugins rather than in a
-  separate management area: browse groups catalog entries by their marketplace,
-  and each group exposes refresh and remove for that source. Manage rows show the
-  originating marketplace alongside the existing source column.
+- Browse groups catalog entries by category. A marketplace is a delivery route,
+  not a category, so an entry that arrived through one is grouped by what it does
+  like any other entry and carries no visible marketplace attribution there.
+- Source and marketplace management live behind the browse publisher filter,
+  which offers a marketplace mode alongside its publisher choices. That mode
+  lists only marketplace-sourced entries, groups them by their marketplace, and
+  exposes refresh and remove per group. The category filter still applies within
+  it. The mode is offered only when at least one marketplace is configured, and a
+  client sitting in it falls back to the unfiltered view when the last one is
+  removed.
+- A marketplace group header names the marketplace and keeps its source in a
+  tooltip rather than in the layout; the group's management action is revealed on
+  hover or keyboard focus. Manage rows show the originating marketplace alongside
+  the existing source column.
+- A plugin detail lists what the plugin contributes. A skill row opens the shared
+  skill preview, because a skill is the one contribution with a document behind
+  it; rows describing runtime wiring stay inert. The skill list is fetched on
+  demand the first time a row is opened, since browse does not otherwise load it.
 - Removing a marketplace does not remove plugins already installed into a
   workspace. The client says so before confirming.
 - Marketplace controls are hidden when `capabilities.pluginMarketplaces` is

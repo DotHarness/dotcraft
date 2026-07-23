@@ -4,6 +4,7 @@ import { LocaleProvider } from '../contexts/LocaleContext'
 import { SettingsView } from '../components/settings/SettingsView'
 import { SettingsSidebar } from '../components/layout/SettingsSidebar'
 import { useConnectionStore } from '../stores/connectionStore'
+import { chooseSelectValue, chooseValueIn } from './selectHarness'
 import { usePendingRestartStore } from '../stores/pendingRestartStore'
 import { useToastStore } from '../stores/toastStore'
 import { useUIStore } from '../stores/uiStore'
@@ -570,12 +571,8 @@ describe('SettingsView self-learning settings', () => {
     })
 
     fireEvent.click(screen.getByRole('switch', { name: 'Auto-update Dreams' }))
-    fireEvent.change(screen.getByRole('combobox', { name: 'Dreams frequency' }), {
-      target: { value: '12:00:00' }
-    })
-    fireEvent.change(screen.getByRole('combobox', { name: 'Recent threads' }), {
-      target: { value: '50' }
-    })
+    await chooseSelectValue('Dreams frequency', '12:00:00')
+    await chooseSelectValue('Recent threads', '50')
 
     await waitFor(() => {
       expect(confirm).toHaveBeenCalledWith(expect.objectContaining({
@@ -1045,7 +1042,7 @@ describe('SettingsView self-learning settings', () => {
 
     fireEvent.click(await screen.findByRole('button', { name: 'Model Providers' }))
     const modelSelect = await screen.findByLabelText('MainAgent Model') as HTMLSelectElement
-    fireEvent.change(modelSelect, { target: { value: 'deepseek-v4-pro' } })
+    await chooseValueIn(modelSelect, 'deepseek-v4-pro')
 
     await waitFor(() => {
       expect(appServerSendRequest).toHaveBeenCalledWith('workspace/config/update', {
@@ -1111,7 +1108,7 @@ describe('SettingsView self-learning settings', () => {
 
     // Pick a model for the active provider (openai).
     const modelSelect = await screen.findByLabelText('MainAgent Model') as HTMLSelectElement
-    fireEvent.change(modelSelect, { target: { value: 'deepseek-v4-pro' } })
+    await chooseValueIn(modelSelect, 'deepseek-v4-pro')
     await waitFor(() => {
       expect(appServerSendRequest).toHaveBeenCalledWith('workspace/config/update', {
         providerModels: { openai: 'deepseek-v4-pro' }
@@ -1167,7 +1164,7 @@ describe('SettingsView self-learning settings', () => {
     const subAgentSelect = await screen.findByLabelText('SubAgent model') as HTMLSelectElement
     appServerSendRequest.mockClear()
 
-    fireEvent.change(subAgentSelect, { target: { value: 'deepseek-v4-pro' } })
+    await chooseValueIn(subAgentSelect, 'deepseek-v4-pro')
 
     await waitFor(() => {
       expect(appServerSendRequest).toHaveBeenCalledWith('subagent/settings/update', {
@@ -1252,7 +1249,7 @@ describe('SettingsView self-learning settings', () => {
     const modelSelect = await screen.findByLabelText('MainAgent Model') as HTMLSelectElement
     appServerSendRequest.mockClear()
 
-    fireEvent.change(modelSelect, { target: { value: 'deepseek-v4-pro' } })
+    await chooseValueIn(modelSelect, 'deepseek-v4-pro')
 
     await waitFor(() => {
       expect(appServerSendRequest).toHaveBeenCalledWith('workspace/config/update', {
@@ -1313,7 +1310,7 @@ describe('SettingsView self-learning settings', () => {
 
     fireEvent.click(await screen.findByRole('button', { name: 'Connections' }))
     const modeSelect = await screen.findByRole('combobox', { name: 'Connection mode' }) as HTMLSelectElement
-    fireEvent.change(modeSelect, { target: { value: 'remote' } })
+    await chooseValueIn(modeSelect, 'remote')
     fireEvent.change(await screen.findByLabelText('Remote WebSocket URL'), {
       target: { value: 'ws://127.0.0.1:9100/ws' }
     })
@@ -1356,7 +1353,7 @@ describe('SettingsView self-learning settings', () => {
 
     fireEvent.click(await screen.findByRole('button', { name: 'Connections' }))
     const modeSelect = await screen.findByRole('combobox', { name: 'Connection mode' }) as HTMLSelectElement
-    fireEvent.change(modeSelect, { target: { value: 'remote' } })
+    await chooseValueIn(modeSelect, 'remote')
     fireEvent.change(await screen.findByLabelText('Remote WebSocket URL'), {
       target: { value: 'ws://127.0.0.1:9100/ws' }
     })
@@ -1381,7 +1378,7 @@ describe('SettingsView self-learning settings', () => {
     const approvalSelect = await screen.findByRole('combobox', { name: 'Workspace default permissions' }) as HTMLSelectElement
     expect(approvalSelect.value).toBe('default')
 
-    fireEvent.change(approvalSelect, { target: { value: 'autoApprove' } })
+    await chooseValueIn(approvalSelect, 'autoApprove')
 
     await waitFor(() => {
       expect(confirm).toHaveBeenCalledWith(expect.objectContaining({ danger: true }))
@@ -1400,7 +1397,7 @@ describe('SettingsView self-learning settings', () => {
     const approvalSelect = await screen.findByRole('combobox', { name: 'Workspace default permissions' }) as HTMLSelectElement
     expect(approvalSelect.value).toBe('default')
 
-    fireEvent.change(approvalSelect, { target: { value: 'autoApprove' } })
+    await chooseValueIn(approvalSelect, 'autoApprove')
 
     await waitFor(() => {
       expect(confirm).toHaveBeenCalledWith(expect.objectContaining({ danger: true }))

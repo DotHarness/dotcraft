@@ -1,6 +1,6 @@
 import { fireEvent, render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
-import { CatalogBreadcrumb, CatalogTopBar } from '../components/catalog/CatalogSurface'
+import { CatalogBreadcrumb, CatalogSection, CatalogTopBar, styles } from '../components/catalog/CatalogSurface'
 
 describe('CatalogTopBar', () => {
   it('uses the shared 48px control band', () => {
@@ -25,5 +25,21 @@ describe('CatalogTopBar', () => {
     expect(screen.getByText('Feishu')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Channels' }))
     expect(onBack).toHaveBeenCalledOnce()
+  })
+})
+
+// Space and heading weight separate a browse page's groups. Rules here read as a
+// frame around the header rather than as a boundary anything needs.
+describe('catalog browse rules', () => {
+  it('caps the hero header without a rule', () => {
+    expect(styles.browseHeader.borderBottom).toBeUndefined()
+  })
+
+  it('heads a group without a rule above it', () => {
+    render(<CatalogSection title="Installed locally"><div /></CatalogSection>)
+
+    const heading = screen.getByRole('heading', { name: 'Installed locally' })
+    expect(heading.style.borderTop).toBe('')
+    expect(heading.style.paddingTop).toBe('')
   })
 })

@@ -744,6 +744,9 @@ export const RichInputArea = forwardRef(function RichInputArea(
       [adjustHeight, onAtQuery, onCommandQuery, onContentChange, onSelectionChange, onSkillQuery, onSlashQuery, syncEmpty]
     )
 
+    // `segments` is the whole content, not a set of annotations on `text`: when it is
+    // present the text is ignored, so a caller that supplies both must make the segments
+    // cover every character. `text` alone is parsed against the ref catalog instead.
     const setContent = useCallback(
       (content: RichInputContent): void => {
         const normalized =

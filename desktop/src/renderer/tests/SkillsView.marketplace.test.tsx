@@ -271,7 +271,7 @@ describe('SkillsView marketplace browse and manage modes', () => {
     expect(screen.getByText('Git Local')).toBeInTheDocument()
   })
 
-  it('shows the local skill detail switch, menu, and scroll body', async () => {
+  it('shows the local skill detail menu and scroll body', async () => {
     renderView()
 
     fireEvent.click(await screen.findByText('Memory'))
@@ -286,8 +286,26 @@ describe('SkillsView marketplace browse and manage modes', () => {
     fireEvent.click(moreButton)
     expect(await screen.findByRole('menuitem', { name: 'Open folder' })).toBeInTheDocument()
     expect(await screen.findByRole('menuitem', { name: 'Restore original skill' })).toBeInTheDocument()
+  })
 
-    fireEvent.click(screen.getByRole('switch', { name: 'Toggle Memory skill' }))
+  // Enabling a skill belongs to the manage list, so the preview offers no switch —
+  // one place to change the state instead of two that can disagree.
+  it('leaves enabling to the manage list rather than the preview', async () => {
+    renderView()
+
+    fireEvent.click(await screen.findByText('Memory'))
+    const dialog = await screen.findByRole('dialog')
+    expect(within(dialog).queryByRole('switch')).not.toBeInTheDocument()
+
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Close' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Manage' }))
+    // Both rows carry an identically labelled switch, so the row is found by
+    // walking up from its name until an ancestor holds one.
+    let memoryRow = (await screen.findByText('Memory')).parentElement!
+    while (memoryRow.querySelector('[role="switch"]') == null) {
+      memoryRow = memoryRow.parentElement!
+    }
+    fireEvent.click(within(memoryRow).getByRole('switch'))
 
     await waitFor(() => {
       expect(appServerSendRequest).toHaveBeenCalledWith('skills/setEnabled', {

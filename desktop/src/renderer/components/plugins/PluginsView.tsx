@@ -8,9 +8,13 @@ import { useConversationStore } from '../../stores/conversationStore'
 import { useSkillsStore } from '../../stores/skillsStore'
 import { useUIStore, type PluginCatalogSurface } from '../../stores/uiStore'
 import { addToast } from '../../stores/toastStore'
+import { stringifyComposerDraftSegments } from '../conversation/richInputSerialization'
+import type { ComposerDraftSegment } from '../../types/composerDraft'
 import { PillSwitch } from '../ui/PillSwitch'
 import { useConfirmDialog } from '../ui/ConfirmDialog'
-import { SkillsManageList, SkillsView, filterLocalSkills } from '../skills/SkillsView'
+import { SkillsManageList, SkillsView, filterLocalSkills, stripYamlFrontmatter } from '../skills/SkillsView'
+import { SkillDetailDialog } from '../skills/SkillDetailDialog'
+import { stageSkillTryInChat } from '../skills/skillDraft'
 import {
   CatalogHoverButton,
   CatalogFilterMenu,
@@ -37,7 +41,13 @@ import { AddMarketplaceDialog } from './AddMarketplaceDialog'
 
 type Surface = PluginCatalogSurface
 type PluginMode = 'browse' | 'manage'
-type PublisherFilter = 'dotcraft' | 'all'
+/**
+ * The browse listing's grouping selector. `marketplaces` is not a publisher but a
+ * delivery route: it narrows to marketplace-sourced entries and groups them by
+ * their source, which is where refresh and remove live. See the Plugin creation
+ * and marketplace sources section in specs/clients/desktop-client.md.
+ */
+type PublisherFilter = 'dotcraft' | 'all' | 'marketplaces'
 type CategoryFilter = string
 const DOTCRAFT_PLUGIN_FALLBACK_URL = 'https://github.com/DotHarness/dotcraft'
 const PLUGIN_CREATOR_SKILL = 'plugin-creator'
@@ -81,6 +91,11 @@ export function PluginsView(): JSX.Element {
     skills,
     loading: skillsLoading,
     error: skillsError,
+    selectedSkillName,
+    skillContent,
+    contentLoading: skillContentLoading,
+    selectSkill,
+    clearSelection: clearSkillSelection,
     fetchSkills,
     toggleSkillEnabled
   } = useSkillsStore()
@@ -119,6 +134,12 @@ export function PluginsView(): JSX.Element {
     if (mode === 'manage') void fetchSkills()
   }, [fetchSkills, mode])
 
+  // Removing the last marketplace leaves the marketplace mode with nothing to show,
+  // so the listing returns to the unfiltered view rather than looking empty.
+  useEffect(() => {
+    if (publisherFilter === 'marketplaces' && marketplaces.length === 0) setPublisherFilter('all')
+  }, [marketplaces.length, publisherFilter])
+
   const browsePlugins = useMemo(
     () => filterPlugins(plugins, browseQuery, publisherFilter, categoryFilter),
     [plugins, browseQuery, publisherFilter, categoryFilter]
@@ -132,10 +153,14 @@ export function PluginsView(): JSX.Element {
     [skills, skillManageQuery]
   )
   const visibleDiagnostics = useMemo(() => filterVisibleDiagnostics(diagnostics), [diagnostics])
+  const selectedSkill = selectedSkillName
+    ? skills.find((skill) => skill.name === selectedSkillName) ?? null
+    : null
+  const selectedSkillBody = skillContent != null ? stripYamlFrontmatter(skillContent) : ''
   const categoryOptions = useMemo(() => buildCategoryOptions(plugins, t), [plugins, t])
   const sections = useMemo(
-    () => buildSections(browsePlugins, categoryFilter, t, marketplaces),
-    [browsePlugins, categoryFilter, marketplaces, t]
+    () => buildSections(browsePlugins, categoryFilter, publisherFilter, t, marketplaces),
+    [browsePlugins, categoryFilter, marketplaces, publisherFilter, t]
   )
   const installDialog = installTarget ? (
     <PluginInstallDialog
@@ -179,12 +204,19 @@ export function PluginsView(): JSX.Element {
 
     const hasCreatorSkill = available.some((skill) => skill.name === PLUGIN_CREATOR_SKILL)
     const prompt = t('plugins.create.prompt')
-    const text = hasCreatorSkill ? `$${PLUGIN_CREATOR_SKILL} ${prompt}` : prompt
+    // The segment list is the composer's content model and the plain text is only its
+    // serialization, so the prompt has to be a segment of its own — text passed beside a
+    // lone skill segment is dropped. Deriving the text from the segments keeps the two
+    // from drifting apart.
+    const segments: ComposerDraftSegment[] = hasCreatorSkill
+      ? [{ type: 'skill', skillName: PLUGIN_CREATOR_SKILL }, { type: 'text', value: ` ${prompt}` }]
+      : [{ type: 'text', value: prompt }]
+    const text = stringifyComposerDraftSegments(segments)
     const ui = useUIStore.getState()
     const existing = ui.welcomeDraft
     ui.setWelcomeDraft({
       text,
-      segments: hasCreatorSkill ? [{ type: 'skill', skillName: PLUGIN_CREATOR_SKILL }] : [],
+      segments,
       selectionStart: text.length,
       selectionEnd: text.length,
       images: [],
@@ -194,6 +226,20 @@ export function PluginsView(): JSX.Element {
       approvalPolicy: existing?.approvalPolicy ?? 'default'
     })
     ui.goToNewChat()
+  }
+
+  // Browse never loads the skill list, so it is fetched on demand the first time a
+  // plugin's contents list is used to open one.
+  async function handleOpenSkill(name: string): Promise<void> {
+    if (useSkillsStore.getState().skills.length === 0) {
+      try {
+        await fetchSkills()
+      } catch {
+        addToast(t('skills.updateFailed'), 'error')
+        return
+      }
+    }
+    await selectSkill(name)
   }
 
   async function handleRefreshMarketplace(marketplace: MarketplaceEntry): Promise<void> {
@@ -326,16 +372,6 @@ export function PluginsView(): JSX.Element {
               addToast(t('plugins.uninstallFailed'), 'error')
             }
           }}
-          onToggle={async (enabled) => {
-            try {
-              await togglePluginEnabled(selectedPlugin.id, enabled)
-              await selectPlugin(selectedPlugin.id)
-              await fetchSkills()
-              setSavedPluginId(selectedPlugin.id)
-            } catch {
-              addToast(t('plugins.updateFailed'), 'error')
-            }
-          }}
           enablingLsp={enablingLspId === selectedPlugin.id}
           onEnableLsp={async () => {
             try {
@@ -352,7 +388,20 @@ export function PluginsView(): JSX.Element {
             }
           }}
           onTryInChat={() => tryPluginInChat(selectedPlugin)}
+          onOpenSkill={(name) => void handleOpenSkill(name)}
         />
+        {selectedSkill && (
+          <SkillDetailDialog
+            skill={selectedSkill}
+            markdownBody={selectedSkillBody}
+            loading={skillContentLoading}
+            onClose={() => clearSkillSelection()}
+            onTryInChat={() => {
+              clearSkillSelection()
+              stageSkillTryInChat(selectedSkill)
+            }}
+          />
+        )}
         {installDialog}
       </>
     )
@@ -475,7 +524,10 @@ export function PluginsView(): JSX.Element {
             onChange={setPublisherFilter}
             options={[
               { value: 'dotcraft', label: t('plugins.filter.publisher.dotcraft') },
-              { value: 'all', label: t('plugins.filter.publisher.all') }
+              { value: 'all', label: t('plugins.filter.publisher.all') },
+              ...(pluginMarketplaces && marketplaces.length > 0
+                ? [{ value: 'marketplaces' as const, label: t('plugins.filter.publisher.marketplaces') }]
+                : [])
             ]}
           />
           <CatalogFilterMenu
@@ -550,26 +602,43 @@ function MarketplaceSectionHeader({
 }): JSX.Element {
   const t = useT()
   const [position, setPosition] = useState<ContextMenuPosition | null>(null)
+  const [hovered, setHovered] = useState(false)
+  const [actionFocused, setActionFocused] = useState(false)
+
+  // Revealed by opacity rather than by mounting, so the row does not shift as the
+  // pointer crosses it, and on keyboard focus too, or the actions are pointer-only.
+  // See Selection Rows in specs/architecture/DESIGN.md.
+  const actionsVisible = hovered || actionFocused || position != null
 
   return (
-    <div style={marketplaceHeaderRow}>
-      <h2 style={{ ...sectionTitle, margin: 0 }}>{marketplaceTitle(marketplace)}</h2>
-      <span style={marketplaceSourceLabel} title={marketplace.source}>{marketplace.source}</span>
+    <div
+      style={marketplaceHeaderRow}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+    >
+      {/* The source identifies the group without earning a place in the layout. */}
+      <ActionTooltip label={marketplace.source} placement="bottom" multiline>
+        <h2 style={marketplaceHeaderTitle}>{marketplaceTitle(marketplace)}</h2>
+      </ActionTooltip>
       <div style={{ flex: 1 }} />
       {marketplace.removable && (
-        <IconButton
-          label={t('plugins.marketplace.actions')}
-          tooltipLabel={t('plugins.marketplace.actions')}
-          tooltipPlacement="bottom"
-          aria-haspopup="menu"
-          aria-expanded={position != null}
-          size={28}
-          onClick={(event) => {
-            const rect = event.currentTarget.getBoundingClientRect()
-            setPosition({ x: rect.right - 200, y: rect.bottom + 4 })
-          }}
-          icon={<Ellipsis size={15} aria-hidden />}
-        />
+        <span style={revealedActionStyle(actionsVisible)}>
+          <IconButton
+            label={t('plugins.marketplace.actions')}
+            tooltipLabel={t('plugins.marketplace.actions')}
+            tooltipPlacement="bottom"
+            aria-haspopup="menu"
+            aria-expanded={position != null}
+            size={28}
+            onFocus={() => setActionFocused(true)}
+            onBlur={() => setActionFocused(false)}
+            onClick={(event) => {
+              const rect = event.currentTarget.getBoundingClientRect()
+              setPosition({ x: rect.right - 200, y: rect.bottom + 4 })
+            }}
+            icon={<Ellipsis size={15} aria-hidden />}
+          />
+        </span>
       )}
       {position && (
         <ContextMenu
@@ -840,10 +909,10 @@ function PluginDetailView({
   onManage,
   onInstall,
   onRemove,
-  onToggle,
   enablingLsp,
   onEnableLsp,
-  onTryInChat
+  onTryInChat,
+  onOpenSkill
 }: {
   plugin: PluginEntry
   loading: boolean
@@ -852,10 +921,10 @@ function PluginDetailView({
   onManage: () => void
   onInstall: () => void
   onRemove: () => void
-  onToggle: (enabled: boolean) => void
   enablingLsp: boolean
   onEnableLsp: () => void
   onTryInChat: () => void
+  onOpenSkill: (skillName: string) => void
 }): JSX.Element {
   const t = useT()
   const [detailMenuPosition, setDetailMenuPosition] = useState<ContextMenuPosition | null>(null)
@@ -932,20 +1001,37 @@ function PluginDetailView({
             <h2 style={detailSectionTitle}>{t('plugins.detail.contents')}</h2>
             {contents.length > 0 ? (
               <div style={contentList}>
-                {contents.map((item) => (
-                  <div key={item.key} style={contentItem}>
-                    <span style={contentIcon}>
-                      <PluginContentIcon type={item.type} size={16} />
-                    </span>
-                    <span style={pluginText}>
-                      <span style={contentTitleLine}>
-                        <strong style={rowTitle}>{item.title}</strong>
-                        <span style={contentKind}>{item.kind}</span>
+                {contents.map((item) => {
+                  const body = (
+                    <>
+                      <span style={contentIcon}>
+                        <PluginContentIcon type={item.type} size={16} />
                       </span>
-                      <span style={rowDesc}>{item.description}</span>
-                    </span>
-                  </div>
-                ))}
+                      <span style={pluginText}>
+                        <span style={contentTitleLine}>
+                          <strong style={rowTitle}>{item.title}</strong>
+                          <span style={contentKind}>{item.kind}</span>
+                        </span>
+                        <span style={rowDesc}>{item.description}</span>
+                      </span>
+                    </>
+                  )
+                  // Only a skill has a document to preview; the other kinds are
+                  // descriptions of runtime wiring with nothing to open.
+                  if (item.skillName == null) {
+                    return <div key={item.key} style={contentItem}>{body}</div>
+                  }
+                  return (
+                    <CatalogHoverButton
+                      key={item.key}
+                      type="button"
+                      baseStyle={contentItemButton}
+                      onClick={() => onOpenSkill(item.skillName!)}
+                    >
+                      {body}
+                    </CatalogHoverButton>
+                  )
+                })}
               </div>
             ) : (
               <p style={emptyText}>{t('plugins.detail.noContents')}</p>
@@ -970,12 +1056,6 @@ function PluginDetailView({
               <InfoLinkRow label={t('plugins.detail.terms')} href={info?.termsOfServiceUrl} />
             </div>
           </section>
-          {plugin.installed && (
-            <div style={detailToggleRow}>
-              <span>{plugin.enabled ? t('plugins.enabled') : t('plugins.disabled')}</span>
-              <PillSwitch checked={plugin.enabled} onChange={onToggle} aria-label={`${pluginTitle(plugin)} enabled`} />
-            </div>
-          )}
         </div>
       </main>
       {detailMenuPosition && (
@@ -1071,6 +1151,7 @@ function filterPlugins(
   const q = query.trim().toLowerCase()
   return plugins.filter((plugin) => {
     if (publisherFilter === 'dotcraft' && !isDotHarnessPlugin(plugin)) return false
+    if (publisherFilter === 'marketplaces' && !plugin.marketplaceName) return false
     if (categoryFilter === 'featured' && !isFeaturedPlugin(plugin)) return false
     if (categoryFilter !== 'all' && categoryFilter !== 'featured' && pluginCategoryKey(plugin) !== categoryFilter) return false
     if (!q) return true
@@ -1114,9 +1195,28 @@ interface PluginSection {
 function buildSections(
   plugins: PluginEntry[],
   categoryFilter: CategoryFilter,
+  publisherFilter: PublisherFilter,
   t: ReturnType<typeof useT>,
   marketplaces: MarketplaceEntry[]
 ): PluginSection[] {
+  // Grouping by marketplace is the one mode that asks "where did this come from",
+  // so it answers only that: no installed-state group, and the category filter
+  // still narrows what each group contains.
+  if (publisherFilter === 'marketplaces') {
+    const sections: PluginSection[] = []
+    for (const marketplace of marketplaces) {
+      const owned = plugins.filter((plugin) => plugin.marketplaceName === marketplace.name)
+      if (owned.length === 0) continue
+      sections.push({
+        key: `marketplace:${marketplace.name}`,
+        title: marketplaceTitle(marketplace),
+        plugins: owned,
+        marketplace
+      })
+    }
+    return sections
+  }
+
   if (categoryFilter === 'featured') {
     return plugins.length > 0 ? [{ key: 'featured', title: t('plugins.section.featured'), plugins }] : []
   }
@@ -1130,22 +1230,6 @@ function buildSections(
   const sections: PluginSection[] = []
   if (local.length > 0) {
     sections.push({ key: 'local', title: t('plugins.section.local'), plugins: local })
-  }
-
-  // Marketplaces are presented at the same level as the rest of the catalog: one group per
-  // configured source, ahead of the generic featured/category grouping.
-  for (const marketplace of marketplaces) {
-    const owned = plugins.filter(
-      (plugin) => !seen.has(plugin.id) && plugin.marketplaceName === marketplace.name
-    )
-    if (owned.length === 0) continue
-    sections.push({
-      key: `marketplace:${marketplace.name}`,
-      title: marketplace.displayName?.trim() || marketplace.name,
-      plugins: owned,
-      marketplace
-    })
-    for (const plugin of owned) seen.add(plugin.id)
   }
 
   const featured = plugins.filter((plugin) => isFeaturedPlugin(plugin) && !seen.has(plugin.id))
@@ -1330,20 +1414,37 @@ const manageSource: CSSProperties = {
   textOverflow: 'ellipsis',
   whiteSpace: 'nowrap'
 }
+// A section title carries the section's column geometry, not just its type: the
+// 760px width and `0 auto` centering are what line a heading up with the grid
+// beneath it. Splitting the two lets the header row take the column while the
+// heading keeps the type, instead of the row spanning the full main padding.
+const { maxWidth: sectionColumnWidth, margin: sectionColumnMargin,
+  ...sectionTitleType } = sectionTitle
+
 const marketplaceHeaderRow: CSSProperties = {
+  maxWidth: sectionColumnWidth,
+  margin: sectionColumnMargin,
   display: 'flex',
-  alignItems: 'baseline',
-  gap: '10px',
-  marginBottom: '12px'
+  alignItems: 'center',
+  gap: '10px'
 }
-const marketplaceSourceLabel: CSSProperties = {
+// `minWidth: 0` lets a long marketplace name truncate instead of pushing the row
+// wider than its column; a flex item defaults to its content's minimum width.
+const marketplaceHeaderTitle: CSSProperties = {
+  ...sectionTitleType,
+  margin: 0,
   minWidth: 0,
-  maxWidth: '46%',
-  color: 'var(--text-tertiary)',
-  fontSize: '12px',
   overflow: 'hidden',
   textOverflow: 'ellipsis',
   whiteSpace: 'nowrap'
+}
+function revealedActionStyle(visible: boolean): CSSProperties {
+  return {
+    display: 'inline-flex',
+    opacity: visible ? 1 : 0,
+    pointerEvents: visible ? 'auto' : 'none',
+    transition: 'opacity 120ms ease'
+  }
 }
 // Fixed-width, centered slot for the trailing control so the Install button and the
 // PillSwitch share one column: this keeps the developer column at a constant x across
@@ -1369,20 +1470,43 @@ const promptBubblePrefix: CSSProperties = { display: 'inline-flex', alignItems: 
 const promptBubbleTitle: CSSProperties = { minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }
 const promptBubbleText: CSSProperties = { flex: '1 1 180px', minWidth: 0, whiteSpace: 'normal', overflowWrap: 'anywhere' }
 const longDescription: CSSProperties = { margin: '54px 8px 40px', lineHeight: 1.55, fontSize: 14, color: 'var(--text-primary)' }
+// Detail sections are frameless: a section is marked by a rule under its heading,
+// not by a box around its rows, so stacked groups read as one column instead of a
+// stack of cards. See the Detail Sections part of DESIGN.md.
 const detailSection: CSSProperties = { marginTop: 28 }
-const detailSectionTitle: CSSProperties = { margin: '0 0 12px', fontSize: 15, fontWeight: 600 }
-const contentList: CSSProperties = { border: '1px solid var(--border-default)', borderRadius: 8, padding: 10 }
+const detailSectionTitle: CSSProperties = {
+  margin: '0 0 8px',
+  paddingBottom: 8,
+  borderBottom: '1px solid var(--border-subtle)',
+  fontSize: 15,
+  fontWeight: 600
+}
+const contentList: CSSProperties = { display: 'flex', flexDirection: 'column' }
 const contentItem: CSSProperties = { display: 'flex', alignItems: 'center', gap: 12, padding: '8px 0' }
+// An openable row keeps the same rhythm as a static one, so the list does not
+// change shape; the hover fill is what marks it as reachable.
+const contentItemButton: CSSProperties = {
+  ...contentItem,
+  width: 'calc(100% + 16px)',
+  marginInline: -8,
+  padding: '8px',
+  border: 'none',
+  borderRadius: 8,
+  background: 'transparent',
+  color: 'inherit',
+  font: 'inherit',
+  textAlign: 'left',
+  cursor: 'pointer'
+}
 const contentIcon: CSSProperties = { width: 38, height: 38, borderRadius: 19, border: '1px solid var(--border-default)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-secondary)' }
 const contentTitleLine: CSSProperties = { display: 'inline-flex', alignItems: 'baseline', gap: 5, minWidth: 0 }
 const contentKind: CSSProperties = { fontWeight: 400, color: 'var(--text-secondary)' }
 const lspEnablePanel: CSSProperties = { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, border: '1px solid var(--border-default)', borderRadius: 8, background: 'var(--bg-secondary)', padding: '12px 14px', marginTop: 16 }
-const infoTable: CSSProperties = { border: '1px solid var(--border-default)', borderRadius: 8, overflow: 'hidden' }
-const infoRow: CSSProperties = { display: 'grid', gridTemplateColumns: '180px 1fr', minHeight: 54, borderBottom: '1px solid var(--border-default)' }
-const infoLabel: CSSProperties = { color: 'var(--text-secondary)', fontSize: 13, padding: '18px 16px' }
-const infoValue: CSSProperties = { fontSize: 13, padding: '18px 16px' }
+const infoTable: CSSProperties = { display: 'flex', flexDirection: 'column' }
+const infoRow: CSSProperties = { display: 'grid', gridTemplateColumns: '180px 1fr', alignItems: 'center', minHeight: 32 }
+const infoLabel: CSSProperties = { color: 'var(--text-secondary)', fontSize: 13, padding: '6px 0' }
+const infoValue: CSSProperties = { fontSize: 13, padding: '6px 0' }
 const plainLink: CSSProperties = { color: 'var(--accent)', display: 'inline-flex' }
-const detailToggleRow: CSSProperties = { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 24, padding: '12px 4px', fontSize: 13 }
 const diagnosticsPanel: CSSProperties = { border: '1px solid var(--border-default)', borderRadius: 8, background: 'var(--bg-secondary)', padding: '12px 14px', margin: '0 0 24px' }
 const diagnosticsTitle: CSSProperties = { display: 'block', fontSize: 13, marginBottom: 8, color: 'var(--text-primary)' }
 const diagnosticsList: CSSProperties = { display: 'flex', flexDirection: 'column', gap: 7 }

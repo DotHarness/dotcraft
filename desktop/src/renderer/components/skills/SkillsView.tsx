@@ -9,6 +9,7 @@ import { useThreadStore } from '../../stores/threadStore'
 import type { MarketDotCraftInstallPreparation, MarketSkillDetail, MarketSkillSummary } from '../../../shared/skillMarket'
 import { SkillAvatar } from './SkillAvatar'
 import { SkillDetailDialog } from './SkillDetailDialog'
+import { stageSkillTryInChat } from './skillDraft'
 import { VariantBadge } from './VariantBadge'
 import { PillSwitch } from '../ui/PillSwitch'
 import { ActionTooltip } from '../ui/ActionTooltip'
@@ -135,22 +136,8 @@ export function SkillsView({ onManage, topNavigation }: SkillsViewProps = {}): J
   }
 
   function handleTrySkillInChat(skill: SkillEntry): void {
-    const text = `$${skill.name}`
-    const ui = useUIStore.getState()
-    const existing = ui.welcomeDraft
-    ui.setWelcomeDraft({
-      text,
-      segments: [{ type: 'skill', skillName: skill.name }],
-      selectionStart: 1,
-      selectionEnd: 1,
-      images: [],
-      files: [],
-      mode: existing?.mode ?? 'agent',
-      model: existing?.model || 'Default',
-      approvalPolicy: existing?.approvalPolicy ?? 'default'
-    })
     clearSelection()
-    ui.goToNewChat()
+    stageSkillTryInChat(skill)
   }
 
   async function handleInstallMarketSkill(skill: MarketSkillDetail, overwrite = false): Promise<void> {
@@ -371,16 +358,7 @@ export function SkillsView({ onManage, topNavigation }: SkillsViewProps = {}): J
           skill={selected}
           markdownBody={bodyMd}
           loading={contentLoading}
-          showToggle
           onClose={() => clearSelection()}
-          onToggleEnabled={async (enabled) => {
-            try {
-              await toggleSkillEnabled(selected.name, enabled)
-              setSavedSkillName(selected.name)
-            } catch {
-              addToast(t('skills.updateFailed'), 'error')
-            }
-          }}
           onTryInChat={() => handleTrySkillInChat(selected)}
           onRestoreOriginal={() => void handleRestoreOriginalSkill(selected)}
           onUninstall={isUninstallableSkill(selected) ? () => void handleUninstallSkill(selected) : undefined}
@@ -911,7 +889,7 @@ function providerLabel(provider: SkillMarketProviderFilter): string {
   return 'All'
 }
 
-function stripYamlFrontmatter(s: string): string {
+export function stripYamlFrontmatter(s: string): string {
   if (!s.startsWith('---')) return s
   const m = s.match(/^---\r?\n[\s\S]*?\r?\n---\r?\n/)
   return m ? s.slice(m[0].length).trim() : s

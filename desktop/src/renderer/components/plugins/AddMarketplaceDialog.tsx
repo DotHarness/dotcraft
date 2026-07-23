@@ -5,6 +5,7 @@ import { useT } from '../../contexts/LocaleContext'
 import { usePluginStore, type MarketplaceEntry } from '../../stores/pluginStore'
 import { Button } from '../ui/Button'
 import { IconButton } from '../ui/IconButton'
+import { Input, Textarea } from '../ui/Input'
 import { ModalHeader } from '../ui/ModalHeader'
 
 interface AddMarketplaceDialogProps {
@@ -112,14 +113,14 @@ export function AddMarketplaceDialog({
           <div style={fieldStyle}>
             <label htmlFor={sourceId} style={labelStyle}>{t('plugins.marketplace.add.source')}</label>
             <div style={sourceRowStyle}>
-              <input
+              <Input
                 ref={sourceRef}
                 id={sourceId}
                 value={source}
                 disabled={busy}
                 placeholder={t('plugins.marketplace.add.sourcePlaceholder')}
                 onChange={(event) => setSource(event.target.value)}
-                style={inputStyle}
+                style={growStyle}
               />
               {allowLocalFolder && (
                 <IconButton
@@ -135,26 +136,25 @@ export function AddMarketplaceDialog({
 
           <div style={fieldStyle}>
             <label htmlFor={refId} style={labelStyle}>{t('plugins.marketplace.add.ref')}</label>
-            <input
+            <Input
               id={refId}
               value={ref}
               disabled={busy || localSource}
               placeholder={t('plugins.marketplace.add.refPlaceholder')}
               onChange={(event) => setRef(event.target.value)}
-              style={inputStyle}
             />
           </div>
 
           <div style={fieldStyle}>
             <label htmlFor={sparseId} style={labelStyle}>{t('plugins.marketplace.add.sparsePaths')}</label>
-            <textarea
+            <Textarea
               id={sparseId}
               value={sparsePaths}
               disabled={busy || localSource}
               rows={4}
               placeholder={t('plugins.marketplace.add.sparsePathsPlaceholder')}
               onChange={(event) => setSparsePaths(event.target.value)}
-              style={textareaStyle}
+              style={monoStyle}
             />
             <span style={hintStyle}>{t('plugins.marketplace.add.sparsePathsHint')}</span>
           </div>
@@ -233,30 +233,11 @@ const labelStyle: CSSProperties = { fontSize: '12.5px', color: 'var(--text-secon
 
 const sourceRowStyle: CSSProperties = { display: 'flex', alignItems: 'center', gap: '8px' }
 
-const inputStyle: CSSProperties = {
-  flex: 1,
-  minWidth: 0,
-  height: '32px',
-  boxSizing: 'border-box',
-  padding: '0 10px',
-  borderRadius: '8px',
-  border: '1px solid var(--border-default)',
-  background: 'var(--bg-primary)',
-  color: 'var(--text-primary)',
-  fontSize: '13px'
-}
+// The shared field owns its height, so a row placement only has to say how it
+// shares the horizontal space with the folder picker beside it.
+const growStyle: CSSProperties = { flex: 1, minWidth: 0 }
 
-const textareaStyle: CSSProperties = {
-  boxSizing: 'border-box',
-  padding: '8px 10px',
-  borderRadius: '8px',
-  border: '1px solid var(--border-default)',
-  background: 'var(--bg-primary)',
-  color: 'var(--text-primary)',
-  fontSize: '13px',
-  fontFamily: 'var(--font-mono)',
-  resize: 'vertical'
-}
+const monoStyle: CSSProperties = { fontFamily: 'var(--font-mono)' }
 
 const hintStyle: CSSProperties = { fontSize: '11.5px', color: 'var(--text-tertiary)' }
 

@@ -1284,28 +1284,12 @@ html[data-theme="light"] .teams-card-game {
   text-transform: uppercase;
 }
 
-.teams-rail-field input,
-.teams-rail-field textarea {
-  width: 100%;
-  border: 1px solid var(--composer-input-border, var(--team-rail-field-border));
-  border-radius: 8px;
+.teams-rail-field .dc-field {
   background: var(--composer-input-background, var(--team-rail-field));
-  color: var(--text-primary, var(--team-rail-ink));
-  padding: 8px;
-  font: inherit;
-  font-size: 13px;
-  line-height: 1.35;
+  border-color: var(--composer-input-border, var(--team-rail-field-border));
 }
 
-.teams-rail-field input:focus,
-.teams-rail-field textarea:focus {
-  outline: none;
-  border-color: var(--composer-input-border-focus, var(--border-active));
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 18%, transparent);
-}
-
-.teams-rail-field textarea {
-  resize: vertical;
+.teams-rail-field textarea.dc-field {
   min-height: 96px;
 }
 

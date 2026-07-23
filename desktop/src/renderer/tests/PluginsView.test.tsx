@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { LocaleProvider } from '../contexts/LocaleContext'
 import { PluginsView } from '../components/plugins/PluginsView'
 import { useConnectionStore } from '../stores/connectionStore'
@@ -706,6 +706,93 @@ describe('PluginsView local plugin visibility', () => {
     expect(await screen.findByText('Plugins 2')).toBeInTheDocument()
     expect(await screen.findByPlaceholderText('Search installed plugins')).toBeInTheDocument()
     expect(screen.getByText('External Process Echo')).toBeInTheDocument()
+  })
+
+  // The detail page presents the plugin; the manage list is where its state changes,
+  // so one control governs enablement rather than two that can disagree.
+  it('leaves plugin enablement to the manage list rather than the detail page', async () => {
+    appServerSendRequest.mockImplementation(async (method: string) => {
+      if (method === 'plugin/list') return { plugins: [localPlugin], diagnostics: [] }
+      if (method === 'plugin/view') return { plugin: localPlugin }
+      return {}
+    })
+
+    renderPluginsView()
+    fireEvent.click(await screen.findByText('External Process Echo'))
+
+    expect(await screen.findByText('Info')).toBeInTheDocument()
+    expect(screen.queryByRole('switch')).not.toBeInTheDocument()
+  })
+
+  // Frameless: a section is marked by a rule under its heading, not a box around
+  // its rows, so stacked groups read as one column instead of a stack of cards.
+  it('draws detail sections without framing them', async () => {
+    appServerSendRequest.mockImplementation(async (method: string) => {
+      if (method === 'plugin/list') return { plugins: [localPlugin], diagnostics: [] }
+      if (method === 'plugin/view') return { plugin: localPlugin }
+      return {}
+    })
+
+    renderPluginsView()
+    fireEvent.click(await screen.findByText('External Process Echo'))
+
+    const heading = await screen.findByText('Info')
+    expect(heading.style.borderBottom).toContain('var(--border-subtle)')
+
+    const rows = heading.parentElement!.querySelector('div')!
+    expect(rows.style.border).toBe('')
+    expect(rows.style.borderRadius).toBe('')
+  })
+
+  // A skill is the one plugin content with a document behind it, so its row opens
+  // the shared preview instead of being inert text like the runtime wiring rows.
+  it('opens the skill preview from a plugin content row', async () => {
+    appServerSendRequest.mockImplementation(async (method: string) => {
+      if (method === 'plugin/list') return { plugins: [localPlugin], diagnostics: [] }
+      if (method === 'plugin/view') return { plugin: localPlugin }
+      if (method === 'skills/list') {
+        return {
+          skills: [{
+            name: 'external-process-echo',
+            displayName: 'Echo',
+            description: 'Echo plugin skill',
+            source: 'plugin',
+            enabled: true,
+            path: '/ws/skills/echo/SKILL.md'
+          }]
+        }
+      }
+      if (method === 'skills/view') {
+        return { content: '# Echo\n\nEchoes text back.' }
+      }
+      return {}
+    })
+
+    renderPluginsView()
+    fireEvent.click(await screen.findByText('External Process Echo'))
+
+    fireEvent.click(await screen.findByText('external-process-echo'))
+
+    const dialog = await screen.findByRole('dialog')
+    expect(dialog).toHaveAttribute('aria-labelledby', 'skill-detail-title')
+    expect(document.getElementById('skill-detail-title')).toHaveTextContent('Echo')
+    await waitFor(() => {
+      expect(within(dialog).getByText('Echoes text back.')).toBeInTheDocument()
+    })
+  })
+
+  it('leaves runtime wiring rows inert on plugin details', async () => {
+    appServerSendRequest.mockImplementation(async (method: string) => {
+      if (method === 'plugin/list') return { plugins: [mcpOnlyPlugin], diagnostics: [] }
+      if (method === 'plugin/view') return { plugin: mcpOnlyPlugin }
+      return {}
+    })
+
+    renderPluginsView()
+    fireEvent.click(await screen.findByText('Review Tools MCP'))
+
+    const row = await screen.findByText('review-tools-mcp:review')
+    expect(row.closest('button')).toBeNull()
   })
 
   it('shows plugin-bundled MCP content on plugin details', async () => {

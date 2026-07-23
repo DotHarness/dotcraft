@@ -12,6 +12,7 @@ import { SettingsGroup, SettingsRow } from '../../SettingsGroup'
 import { SettingsSelect } from '../../ui/SettingsSelect'
 import { ToggleSwitch } from '../../../channels/ToggleSwitch'
 import { SelectionCard } from '../../../ui/SelectionCard'
+import { Input, Textarea } from '../../../ui/Input'
 import {
   EditableKeyValueList,
   EditableValueList,
@@ -26,8 +27,6 @@ import { AgentIcon } from './AgentIcon'
 import { SettingsBreadcrumb } from '../../SettingsBreadcrumb'
 import {
   actionBarStyle,
-  inputStyle,
-  monoTextAreaStyle,
   noticeStyle,
   pageDescriptionStyle,
   pageHeadingStyle,
@@ -233,13 +232,12 @@ export function CustomProfileEditor({
           }
           orientation="block"
         >
-          <input
-            type="text"
+          <Input
             value={state.name}
             onChange={(event) => updateState('name', event.target.value)}
             placeholder={t('settings.subAgents.custom.namePlaceholder')}
             disabled={mode === 'edit'}
-            style={inputStyle(true)}
+            mono
             data-testid="subagent-name-input"
           />
         </SettingsRow>
@@ -263,12 +261,11 @@ export function CustomProfileEditor({
           description={t('settings.subAgents.custom.binHint')}
           orientation="block"
         >
-          <input
-            type="text"
+          <Input
             value={state.bin}
             onChange={(event) => updateState('bin', event.target.value)}
             placeholder={t('settings.subAgents.custom.binPlaceholder')}
-            style={inputStyle(true)}
+            mono
             data-testid="subagent-bin-input"
           />
         </SettingsRow>
@@ -322,12 +319,11 @@ export function CustomProfileEditor({
             description={t('settings.subAgents.custom.inputArgTemplateHint')}
             orientation="block"
           >
-            <input
-              type="text"
+            <Input
               value={state.inputArgTemplate}
               onChange={(event) => updateState('inputArgTemplate', event.target.value)}
               placeholder={t('settings.subAgents.custom.inputArgTemplatePlaceholder')}
-              style={inputStyle(true)}
+              mono
             />
           </SettingsRow>
         )}
@@ -337,12 +333,11 @@ export function CustomProfileEditor({
             description={t('settings.subAgents.custom.inputEnvKeyHint')}
             orientation="block"
           >
-            <input
-              type="text"
+            <Input
               value={state.inputEnvKey}
               onChange={(event) => updateState('inputEnvKey', event.target.value)}
               placeholder={t('settings.subAgents.custom.inputEnvKeyPlaceholder')}
-              style={inputStyle(true)}
+              mono
             />
           </SettingsRow>
         )}
@@ -373,12 +368,11 @@ export function CustomProfileEditor({
               description={t('settings.subAgents.custom.outputJsonPathHint')}
               orientation="block"
             >
-              <input
-                type="text"
+              <Input
                 value={state.outputJsonPath}
                 onChange={(event) => updateState('outputJsonPath', event.target.value)}
                 placeholder={t('settings.subAgents.custom.outputJsonPathPlaceholder')}
-                style={inputStyle(true)}
+                mono
               />
             </SettingsRow>
             <SettingsRow
@@ -414,12 +408,11 @@ export function CustomProfileEditor({
           description={t('settings.subAgents.custom.outputFileArgTemplateHint')}
           orientation="block"
         >
-          <input
-            type="text"
+          <Input
             value={state.outputFileArgTemplate}
             onChange={(event) => updateState('outputFileArgTemplate', event.target.value)}
             placeholder={t('settings.subAgents.custom.outputFileArgTemplatePlaceholder')}
-            style={inputStyle(true)}
+            mono
           />
         </SettingsRow>
         <SettingsRow
@@ -482,13 +475,13 @@ export function CustomProfileEditor({
           description={t('settings.subAgents.custom.timeoutHint')}
           orientation="block"
         >
-          <input
+          <Input
             type="number"
             className="dc-plain-number"
             min={1}
             value={state.timeout}
             onChange={(event) => updateState('timeout', event.target.value)}
-            style={{ ...inputStyle(), width: '160px' }}
+            style={{ width: '160px' }}
           />
         </SettingsRow>
         <SettingsRow
@@ -496,13 +489,13 @@ export function CustomProfileEditor({
           description={t('settings.subAgents.custom.maxOutputBytesHint')}
           orientation="block"
         >
-          <input
+          <Input
             type="number"
             className="dc-plain-number"
             min={1}
             value={state.maxOutputBytes}
             onChange={(event) => updateState('maxOutputBytes', event.target.value)}
-            style={{ ...inputStyle(), width: '200px' }}
+            style={{ width: '200px' }}
           />
         </SettingsRow>
       </SettingsGroup>
@@ -554,12 +547,11 @@ export function CustomProfileEditor({
                     <span style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
                       {t(PERMISSION_LABEL_KEYS[key])}
                     </span>
-                    <input
-                      type="text"
+                    <Input
                       value={state.permissionModeMapping[key]}
                       onChange={(event) => updatePermissionMapping(key, event.target.value)}
                       placeholder={t('settings.subAgents.custom.permissionMappingPlaceholder')}
-                      style={inputStyle(true)}
+                      mono
                     />
                   </div>
                 ))}
@@ -582,12 +574,11 @@ export function CustomProfileEditor({
                   description={t('settings.subAgents.custom.resumeArgTemplateHint')}
                   orientation="block"
                 >
-                  <input
-                    type="text"
+                  <Input
                     value={state.resumeArgTemplate}
                     onChange={(event) => updateState('resumeArgTemplate', event.target.value)}
                     placeholder={t('settings.subAgents.custom.resumeArgTemplatePlaceholder')}
-                    style={inputStyle(true)}
+                    mono
                   />
                 </SettingsRow>
                 <SettingsRow
@@ -595,12 +586,11 @@ export function CustomProfileEditor({
                   description={t('settings.subAgents.custom.resumeSessionIdJsonPathHint')}
                   orientation="block"
                 >
-                  <input
-                    type="text"
+                  <Input
                     value={state.resumeSessionIdJsonPath}
                     onChange={(event) => updateState('resumeSessionIdJsonPath', event.target.value)}
                     placeholder={t('settings.subAgents.custom.resumeSessionIdJsonPathPlaceholder')}
-                    style={inputStyle(true)}
+                    mono
                   />
                 </SettingsRow>
                 <SettingsRow
@@ -608,12 +598,11 @@ export function CustomProfileEditor({
                   description={t('settings.subAgents.custom.resumeSessionIdRegexHint')}
                   orientation="block"
                 >
-                  <input
-                    type="text"
+                  <Input
                     value={state.resumeSessionIdRegex}
                     onChange={(event) => updateState('resumeSessionIdRegex', event.target.value)}
                     placeholder={t('settings.subAgents.custom.resumeSessionIdRegexPlaceholder')}
-                    style={inputStyle(true)}
+                    mono
                   />
                 </SettingsRow>
                 {!externalCliSessionResumeEnabled && (
@@ -628,11 +617,12 @@ export function CustomProfileEditor({
               description={t('settings.subAgents.custom.sanitizationRulesHint')}
               orientation="block"
             >
-              <textarea
+              <Textarea
                 value={state.sanitizationRulesText}
                 onChange={(event) => updateState('sanitizationRulesText', event.target.value)}
                 placeholder={t('settings.subAgents.custom.sanitizationRulesPlaceholder')}
-                style={monoTextAreaStyle()}
+                mono
+                style={{ fontSize: '12px', lineHeight: 1.45, minHeight: '84px' }}
                 rows={4}
               />
             </SettingsRow>
@@ -706,12 +696,11 @@ function LabeledInline({ label, value, onChange, placeholder }: LabeledInlinePro
   return (
     <div style={{ display: 'grid', gridTemplateColumns: '180px 1fr', gap: '10px', alignItems: 'center' }}>
       <span style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>{label}</span>
-      <input
-        type="text"
+      <Input
         value={value}
         onChange={(event) => onChange(event.target.value)}
         placeholder={placeholder}
-        style={inputStyle(true)}
+        mono
       />
     </div>
   )

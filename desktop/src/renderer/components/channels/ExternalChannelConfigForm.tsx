@@ -5,6 +5,7 @@ import { FieldCard, FormActions, StatusPill, formStyles } from './FormShared'
 import { ToggleSwitch } from './ToggleSwitch'
 import { Select } from '../ui/Select'
 import { Button } from '../ui/Button'
+import { Input, Textarea } from '../ui/Input'
 
 export interface ExternalChannelConfigWire {
   name: string
@@ -116,13 +117,9 @@ export function ExternalChannelConfigForm({
       <FieldCard>
         <div style={formStyles.fieldGroup}>
           <label style={formStyles.label}>{t('channels.external.name')}</label>
-          <input
-            type="text"
+          <Input
             value={value.name}
             onChange={(e) => onChange({ ...value, name: e.target.value })}
-            style={formStyles.input}
-            onFocus={formStyles.inputFocus}
-            onBlur={formStyles.inputBlur}
           />
         </div>
         <ToggleSwitch
@@ -161,7 +158,6 @@ export function ExternalChannelConfigForm({
                 { value: 'managedWebsocket', label: 'Managed WebSocket' },
                 { value: 'websocket', label: 'WebSocket' }
               ]}
-              style={{ ...formStyles.input, display: 'flex' }}
             />
           </div>
 
@@ -169,19 +165,15 @@ export function ExternalChannelConfigForm({
             <>
               <div style={formStyles.fieldGroup}>
                 <label style={formStyles.label}>{t('channels.external.command')}</label>
-                <input
-                  type="text"
+                <Input
                   value={value.command ?? ''}
                   onChange={(e) => onChange({ ...value, command: e.target.value })}
-                  style={formStyles.input}
-                  onFocus={formStyles.inputFocus}
-                  onBlur={formStyles.inputBlur}
                 />
               </div>
 
               <div style={formStyles.fieldGroup}>
                 <label style={formStyles.label}>{t('channels.external.args')}</label>
-                <textarea
+                <Textarea
                   value={(value.args ?? []).join('\n')}
                   onChange={(e) =>
                     onChange({
@@ -189,28 +181,24 @@ export function ExternalChannelConfigForm({
                       args: e.target.value.split(/\r?\n/)
                     })
                   }
-                  style={{ ...formStyles.input, minHeight: 90, padding: '8px 10px' }}
+                  style={{ minHeight: 90, padding: '8px 10px' }}
                 />
               </div>
 
               <div style={formStyles.fieldGroup}>
                 <label style={formStyles.label}>{t('channels.external.workingDirectory')}</label>
-                <input
-                  type="text"
+                <Input
                   value={value.workingDirectory ?? ''}
                   onChange={(e) => onChange({ ...value, workingDirectory: e.target.value })}
-                  style={formStyles.input}
-                  onFocus={formStyles.inputFocus}
-                  onBlur={formStyles.inputBlur}
                 />
               </div>
 
               <div style={{ ...formStyles.fieldGroup, marginBottom: 0 }}>
                 <label style={formStyles.label}>{t('channels.external.env')}</label>
-                <textarea
+                <Textarea
                   value={envText}
                   onChange={(e) => onChange({ ...value, env: textToEnv(e.target.value) })}
-                  style={{ ...formStyles.input, minHeight: 110, padding: '8px 10px' }}
+                  style={{ minHeight: 110, padding: '8px 10px' }}
                 />
               </div>
             </>

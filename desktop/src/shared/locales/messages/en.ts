@@ -1431,6 +1431,7 @@ export const MESSAGES_EN = {
   'plugins.filter.publisher.label': 'Filter plugin publisher',
   'plugins.filter.publisher.dotcraft': 'Built by DotHarness',
   'plugins.filter.publisher.all': 'All publishers',
+  'plugins.filter.publisher.marketplaces': 'Marketplaces',
   'plugins.filter.category.label': 'Filter plugin category',
   'plugins.filter.category.all': 'All',
   'plugins.filter.category.featured': 'Featured',

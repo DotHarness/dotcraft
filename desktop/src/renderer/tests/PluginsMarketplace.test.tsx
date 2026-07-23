@@ -10,6 +10,7 @@ import { useSkillsStore, type SkillEntry } from '../stores/skillsStore'
 import { useConversationStore } from '../stores/conversationStore'
 import { useThreadStore } from '../stores/threadStore'
 import { useUIStore } from '../stores/uiStore'
+import { stringifyComposerDraftSegments } from '../components/conversation/richInputSerialization'
 
 const appServerSendRequest = vi.fn()
 const settingsGet = vi.fn()
@@ -63,6 +64,16 @@ function renderPluginsView(): void {
       <PluginsView />
     </LocaleProvider>
   )
+}
+
+/**
+ * Browse groups by category by default, so the marketplace grouping — and the
+ * refresh/remove actions that live on it — is reached through the publisher
+ * filter's marketplace mode.
+ */
+async function showMarketplaceGrouping(): Promise<void> {
+  fireEvent.click(await screen.findByRole('button', { name: 'Filter plugin publisher' }))
+  fireEvent.click(await screen.findByRole('menuitem', { name: 'Marketplaces' }))
 }
 
 function catalogResponse(overrides?: {
@@ -121,17 +132,105 @@ describe('plugin marketplace surface', () => {
     confirmDialog.mockResolvedValue(true)
   })
 
-  it('groups catalog entries under their marketplace', async () => {
+  // A marketplace says how an entry arrived, not what it does, so browse keeps
+  // grouping by category and the entry appears there like any other.
+  it('leaves marketplace entries in the category grouping by default', async () => {
     appServerSendRequest.mockResolvedValue(catalogResponse())
 
     renderPluginsView()
 
+    expect(await screen.findByText('Example Plugin')).toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: 'Example Plugins' })).not.toBeInTheDocument()
+    expect(screen.queryByText('https://example.com/team/plugins.git')).not.toBeInTheDocument()
+  })
+
+  it('groups by marketplace once the publisher filter asks for it', async () => {
+    appServerSendRequest.mockResolvedValue(catalogResponse())
+
+    renderPluginsView()
+    await screen.findByText('Example Plugin')
+    await showMarketplaceGrouping()
+
     expect(await screen.findByRole('heading', { name: 'Example Plugins' })).toBeInTheDocument()
-    expect(screen.getByText('https://example.com/team/plugins.git')).toBeInTheDocument()
     expect(screen.getByText('Example Plugin')).toBeInTheDocument()
   })
 
-  it('stages a plugin authoring draft with the creator skill mention', async () => {
+  // The source identifies the group but does not earn a place in the layout.
+  it('keeps the marketplace source out of the group header layout', async () => {
+    appServerSendRequest.mockResolvedValue(catalogResponse())
+
+    renderPluginsView()
+    await screen.findByText('Example Plugin')
+    await showMarketplaceGrouping()
+    const heading = await screen.findByRole('heading', { name: 'Example Plugins' })
+    expect(screen.queryByText('https://example.com/team/plugins.git')).not.toBeInTheDocument()
+
+    fireEvent.mouseEnter(heading)
+    expect(await screen.findByText('https://example.com/team/plugins.git')).toBeInTheDocument()
+  })
+
+  // A section title carries the column geometry that lines a heading up with the
+  // grid beneath it, so the marketplace header row has to take that geometry over
+  // rather than sit in the full width of the scroll area.
+  it('aligns the group header with the ordinary section column', async () => {
+    appServerSendRequest.mockResolvedValue(catalogResponse())
+
+    renderPluginsView()
+    const ordinary = await screen.findByRole('heading', { name: 'Other' })
+    const column = {
+      maxWidth: ordinary.style.maxWidth,
+      marginLeft: ordinary.style.marginLeft,
+      marginRight: ordinary.style.marginRight
+    }
+    expect(column.maxWidth).not.toBe('')
+
+    await showMarketplaceGrouping()
+    const header = (await screen.findByRole('heading', { name: 'Example Plugins' })).closest('div')!
+
+    expect(header.style.maxWidth).toBe(column.maxWidth)
+    expect(header.style.marginLeft).toBe(column.marginLeft)
+    expect(header.style.marginRight).toBe(column.marginRight)
+  })
+
+  // Revealed by opacity, not by mounting, so the row does not shift under the pointer;
+  // keyboard focus has to reveal it too or the actions are pointer-only.
+  it('reveals the group actions on hover and on keyboard focus', async () => {
+    appServerSendRequest.mockResolvedValue(catalogResponse())
+
+    renderPluginsView()
+    await screen.findByText('Example Plugin')
+    await showMarketplaceGrouping()
+
+    const header = (await screen.findByRole('heading', { name: 'Example Plugins' })).closest('div')!
+    // The tooltip wraps the button, so reach the reveal wrapper by its own style.
+    const actions = screen.getByRole('button', { name: 'Marketplace actions' })
+      .closest('span[style*="opacity"]') as HTMLElement
+    expect(actions.style.opacity).toBe('0')
+
+    fireEvent.mouseEnter(header)
+    expect(actions.style.opacity).toBe('1')
+
+    fireEvent.mouseLeave(header)
+    expect(actions.style.opacity).toBe('0')
+
+    fireEvent.focus(screen.getByRole('button', { name: 'Marketplace actions' }))
+    expect(actions.style.opacity).toBe('1')
+  })
+
+  it('offers the marketplace mode only while a marketplace is configured', async () => {
+    appServerSendRequest.mockResolvedValue(catalogResponse({ marketplaces: [] }))
+
+    renderPluginsView()
+    await screen.findByText('Example Plugin')
+    fireEvent.click(await screen.findByRole('button', { name: 'Filter plugin publisher' }))
+
+    expect(await screen.findByRole('menuitem', { name: 'All publishers' })).toBeInTheDocument()
+    expect(screen.queryByRole('menuitem', { name: 'Marketplaces' })).not.toBeInTheDocument()
+  })
+
+  // The segments are the composer's whole content, so the prompt needs a segment of
+  // its own — a lone skill segment renders as a bare chip with the prompt dropped.
+  it('stages a plugin authoring draft with the creator skill mention and the prompt', async () => {
     appServerSendRequest.mockImplementation((method: string) => {
       if (method === 'skills/list') return Promise.resolve({ skills: [pluginCreatorSkill] })
       return Promise.resolve(catalogResponse())
@@ -144,8 +243,28 @@ describe('plugin marketplace surface', () => {
       expect(useUIStore.getState().welcomeDraft?.text).toBe('$plugin-creator help me create a plugin')
     })
     expect(useUIStore.getState().welcomeDraft?.segments).toEqual([
-      { type: 'skill', skillName: 'plugin-creator' }
+      { type: 'skill', skillName: 'plugin-creator' },
+      { type: 'text', value: ' help me create a plugin' }
     ])
+  })
+
+  // The plain text is only the serialization of the segments; if they can disagree,
+  // whichever one a consumer reads decides what the user sees.
+  it('keeps the staged text and segments in agreement', async () => {
+    appServerSendRequest.mockImplementation((method: string) => {
+      if (method === 'skills/list') return Promise.resolve({ skills: [pluginCreatorSkill] })
+      return Promise.resolve(catalogResponse())
+    })
+
+    renderPluginsView()
+    fireEvent.click(await screen.findByRole('button', { name: 'Create' }))
+
+    await waitFor(() => {
+      expect(useUIStore.getState().welcomeDraft?.segments?.length).toBe(2)
+    })
+    const draft = useUIStore.getState().welcomeDraft
+    expect(stringifyComposerDraftSegments(draft?.segments ?? [])).toBe(draft?.text)
+    expect(draft?.selectionStart).toBe(draft?.text.length)
   })
 
   it('stages plain text when the creator skill is unavailable', async () => {
@@ -160,7 +279,9 @@ describe('plugin marketplace surface', () => {
     await waitFor(() => {
       expect(useUIStore.getState().welcomeDraft?.text).toBe('help me create a plugin')
     })
-    expect(useUIStore.getState().welcomeDraft?.segments).toEqual([])
+    expect(useUIStore.getState().welcomeDraft?.segments).toEqual([
+      { type: 'text', value: 'help me create a plugin' }
+    ])
   })
 
   it('adds a marketplace with the reference and sparse paths from the dialog', async () => {
@@ -172,6 +293,8 @@ describe('plugin marketplace surface', () => {
     })
 
     renderPluginsView()
+    await screen.findByText('Example Plugin')
+    await showMarketplaceGrouping()
     await screen.findByRole('heading', { name: 'Example Plugins' })
     fireEvent.click(screen.getByRole('button', { name: 'More create options' }))
     fireEvent.click(await screen.findByRole('menuitem', { name: 'Add marketplace' }))
@@ -202,6 +325,8 @@ describe('plugin marketplace surface', () => {
     workspacePickFolder.mockResolvedValue('/home/user/plugins')
 
     renderPluginsView()
+    await screen.findByText('Example Plugin')
+    await showMarketplaceGrouping()
     await screen.findByRole('heading', { name: 'Example Plugins' })
     fireEvent.click(screen.getByRole('button', { name: 'More create options' }))
     fireEvent.click(await screen.findByRole('menuitem', { name: 'Add marketplace' }))
@@ -227,6 +352,8 @@ describe('plugin marketplace surface', () => {
     })
 
     renderPluginsView()
+    await screen.findByText('Example Plugin')
+    await showMarketplaceGrouping()
     await screen.findByRole('heading', { name: 'Example Plugins' })
     fireEvent.click(screen.getByRole('button', { name: 'More create options' }))
     fireEvent.click(await screen.findByRole('menuitem', { name: 'Add marketplace' }))
@@ -244,6 +371,8 @@ describe('plugin marketplace surface', () => {
     })
 
     renderPluginsView()
+    await screen.findByText('Example Plugin')
+    await showMarketplaceGrouping()
     await screen.findByRole('heading', { name: 'Example Plugins' })
     fireEvent.click(screen.getByRole('button', { name: 'Marketplace actions' }))
     fireEvent.click(await screen.findByText('Remove'))

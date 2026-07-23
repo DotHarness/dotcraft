@@ -1859,6 +1859,7 @@ export const MESSAGES_ES = {
   'plugins.filter.category.research': 'Investigación',
   'plugins.filter.category.uncategorized': 'Otros',
   'plugins.filter.publisher.all': 'Todos los editores',
+  'plugins.filter.publisher.marketplaces': 'Mercados',
   'plugins.filter.publisher.dotcraft': 'Construido por DotHarness',
   'plugins.filter.publisher.label': 'Editor del complemento de filtro',
   'plugins.heroTitle': 'Dale a DotCraft la habilidad que necesitas',

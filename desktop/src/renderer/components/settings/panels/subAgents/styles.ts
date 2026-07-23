@@ -20,31 +20,6 @@ export function pageDescriptionStyle(): CSSProperties {
   return settingsDescriptionStyle()
 }
 
-export function inputStyle(mono = false): CSSProperties {
-  return {
-    width: '100%',
-    boxSizing: 'border-box',
-    padding: '8px 10px',
-    fontSize: 'var(--type-ui-size)',
-    borderRadius: '8px',
-    border: '1px solid var(--border-default)',
-    background: 'var(--bg-primary)',
-    color: 'var(--text-primary)',
-    outline: 'none',
-    fontFamily: mono ? 'var(--font-mono)' : undefined
-  }
-}
-
-export function monoTextAreaStyle(): CSSProperties {
-  return {
-    ...inputStyle(true),
-    fontSize: '12px',
-    lineHeight: 1.45,
-    minHeight: '84px',
-    resize: 'vertical'
-  }
-}
-
 export function pillBadgeStyle(tone: 'neutral' | 'accent' | 'warning' | 'success'): CSSProperties {
   const { bg, fg } = pillPalette(tone)
   return {

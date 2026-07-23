@@ -19,6 +19,7 @@ import {
 } from 'react'
 import { ChevronDown, ChevronRight, Search } from 'lucide-react'
 import { useT } from '../../contexts/LocaleContext'
+import { Input } from '../ui/Input'
 import { useConversationStore } from '../../stores/conversationStore'
 import { useViewerTabStore } from '../../stores/viewerTabStore'
 import { useUIStore } from '../../stores/uiStore'
@@ -213,8 +214,8 @@ export function WorkspaceExplorer(): JSX.Element {
       <div style={toolbarStyle}>
         <div style={searchWrapStyle}>
           <Search size={13} aria-hidden style={{ color: 'var(--text-secondary)', flexShrink: 0 }} />
-          <input
-            type="text"
+          <Input
+            bare
             value={filter}
             onChange={(e) => setFilter(e.target.value)}
             placeholder={t('viewer.explorerFilter')}

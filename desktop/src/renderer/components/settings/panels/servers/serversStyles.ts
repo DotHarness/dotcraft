@@ -221,18 +221,6 @@ export const fieldLabel: CSSProperties = {
   color: 'var(--text-primary)'
 }
 
-export const input: CSSProperties = {
-  width: '100%',
-  height: 34,
-  padding: '0 11px',
-  border: '1px solid var(--border-default)',
-  borderRadius: 8,
-  background: 'var(--bg-secondary)',
-  color: 'var(--text-primary)',
-  fontSize: 13,
-  boxSizing: 'border-box'
-}
-
 export const fieldHint: CSSProperties = {
   marginTop: 5,
   color: 'var(--text-dimmed)',
