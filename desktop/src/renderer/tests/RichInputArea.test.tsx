@@ -160,6 +160,33 @@ describe('RichInputArea selection helpers', () => {
   })
 })
 
+describe('RichInputArea reference removal', () => {
+  it('removes a reference when the nested SVG path is clicked', () => {
+    const ref = createRef<RichInputAreaHandle>()
+
+    render(<RichInputArea ref={ref} onSubmit={vi.fn()} />)
+
+    act(() => {
+      ref.current?.setContent({
+        segments: [
+          { type: 'text', value: 'Before' },
+          { type: 'skill', skillName: 'memory' },
+          { type: 'text', value: ' after' }
+        ]
+      })
+    })
+
+    const textbox = screen.getByRole('textbox')
+    const removePath = textbox.querySelector('.dc-ref-icon-remove path')
+    expect(removePath).not.toBeNull()
+
+    fireEvent.click(removePath!)
+
+    expect(textbox.querySelector(`.${SKILL_REF_CLASS}`)).toBeNull()
+    expect(ref.current?.getSegments()).toEqual([{ type: 'text', value: 'Before after' }])
+  })
+})
+
 describe('RichInputArea keyboard submit behavior', () => {
   it('submits on plain Enter but not Shift+Enter', () => {
     const onSubmit = vi.fn()

@@ -1,5 +1,5 @@
 import { COMMAND_REF_CLASS, FILE_REF_CLASS, SKILL_REF_CLASS } from './richInputConstants'
-import { SPARKLE_ICON_SVG, TERMINAL_ICON_SVG } from './refIconSvgs'
+import { REMOVE_ICON_SVG, SPARKLE_ICON_SVG, TERMINAL_ICON_SVG } from './refIconSvgs'
 import { paintFileRefIcon } from './fileRefIconDom'
 import type { ComposerDraftSegment } from '../../types/composerDraft'
 
@@ -38,6 +38,7 @@ function pushTextSegment(out: ComposerDraftSegment[], value: string): void {
 export function createRefSpan(kind: RefType, value: string): HTMLSpanElement {
   const span = document.createElement('span')
   const label = document.createElement('span')
+  const iconSlot = document.createElement('span')
   const icon = document.createElement('span')
   const removeIcon = document.createElement('span')
   span.setAttribute('contenteditable', 'false')
@@ -49,13 +50,11 @@ export function createRefSpan(kind: RefType, value: string): HTMLSpanElement {
   span.style.fontSize = '13px'
   span.style.cursor = 'default'
 
+  iconSlot.className = 'dc-ref-icon-slot'
+  iconSlot.setAttribute('aria-hidden', 'true')
   icon.className = 'dc-ref-icon dc-ref-icon-default'
-  icon.setAttribute('aria-hidden', 'true')
   removeIcon.className = 'dc-ref-icon dc-ref-icon-remove'
-  removeIcon.setAttribute('aria-hidden', 'true')
-  removeIcon.textContent = '✕'
-  removeIcon.style.fontWeight = '700'
-  removeIcon.style.cursor = 'pointer'
+  removeIcon.innerHTML = REMOVE_ICON_SVG
 
   label.className = 'dc-ref-label'
   if (kind === 'file') {
@@ -79,7 +78,8 @@ export function createRefSpan(kind: RefType, value: string): HTMLSpanElement {
     icon.innerHTML = SPARKLE_ICON_SVG
     span.title = `$${value}`
   }
-  span.append(icon, removeIcon, label)
+  iconSlot.append(icon, removeIcon)
+  span.append(iconSlot, label)
   return span
 }
 

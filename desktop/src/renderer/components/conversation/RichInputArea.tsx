@@ -1024,9 +1024,10 @@ export const RichInputArea = forwardRef(function RichInputArea(
     const onEditorClick = useCallback(
       (e: React.MouseEvent<HTMLDivElement>): void => {
         const target = e.target
-        if (!(target instanceof HTMLElement)) return
-        if (!target.classList.contains('dc-ref-icon-remove')) return
-        const tag = target.closest('[data-ref-type]')
+        if (!(target instanceof Element)) return
+        const removeIcon = target.closest('.dc-ref-icon-remove')
+        if (!removeIcon) return
+        const tag = removeIcon.closest('[data-ref-type]')
         if (!(tag instanceof HTMLElement)) return
         e.preventDefault()
         e.stopPropagation()
@@ -1123,24 +1124,34 @@ export const RichInputArea = forwardRef(function RichInputArea(
           .rich-input-area[data-chrome="default"]:focus {
             border-color: var(--border-active);
           }
-          .dc-file-ref .dc-ref-icon-remove,
-          .dc-command-ref .dc-ref-icon-remove,
-          .dc-skill-ref .dc-ref-icon-remove {
-            display: none;
-          }
-          .dc-ref-icon-default {
+          .dc-ref-icon {
+            position: absolute;
+            inset: 0;
             display: inline-flex;
             align-items: center;
+            justify-content: center;
+            transition: opacity 110ms ease;
+          }
+          .dc-ref-icon > svg {
+            display: block;
+          }
+          .dc-ref-icon-default {
+            opacity: 1;
+          }
+          .dc-ref-icon-remove {
+            opacity: 0;
+            pointer-events: none;
           }
           .dc-file-ref:hover .dc-ref-icon-default,
           .dc-command-ref:hover .dc-ref-icon-default,
           .dc-skill-ref:hover .dc-ref-icon-default {
-            display: none;
+            opacity: 0;
           }
           .dc-file-ref:hover .dc-ref-icon-remove,
           .dc-command-ref:hover .dc-ref-icon-remove,
           .dc-skill-ref:hover .dc-ref-icon-remove {
-            display: inline-flex;
+            opacity: 1;
+            pointer-events: auto;
             cursor: pointer;
           }
         `}</style>

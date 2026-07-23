@@ -619,6 +619,17 @@ form control may remain only when it is visually hidden and supplies semantics, 
 when it deliberately opens a platform picker such as the system color chooser.
 Third-party content rendered in sandboxed views is outside this rule.
 
+### Inline Reference Chips
+
+Composer file, command, and skill references are quiet inline content rather than
+standalone controls. At rest they show only their type icon and label; hover may
+reveal the type-tinted border and fill plus a neutral remove affordance. Rest and
+hover states reserve identical border, padding, icon-slot, and label geometry, so
+hover never changes the chip width, text baseline, caret position, or the position
+of surrounding text. Default and remove icons occupy the same fixed slot and swap
+through opacity rather than entering or leaving layout. Use vector icons from the
+shared icon language instead of font-dependent Unicode glyphs.
+
 ### Selection Rows
 
 Compact selectors, menu items, picker options, sidebar thread rows,
