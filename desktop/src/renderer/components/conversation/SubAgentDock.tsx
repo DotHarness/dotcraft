@@ -174,7 +174,6 @@ export function BackgroundActivityDock({
               tooltipPlacement="top"
               size={24}
               radius={6}
-              tone="danger"
               onClick={(event) => {
                 event.stopPropagation()
                 void stopAll()
@@ -384,7 +383,6 @@ function QueuedInputDockRow({
         tooltipPlacement="top"
         size={24}
         radius={5}
-        tone="danger"
         onClick={() => onRemove?.(item.id)}
         disabled={!onRemove}
       />
@@ -492,7 +490,6 @@ function SubAgentDockRow({
             tooltipPlacement="top"
             size={24}
             radius={6}
-            tone="danger"
             onClick={() => { void stop() }}
           />
         )}

@@ -1215,7 +1215,7 @@ export const composerActionButtonStyle: CSSProperties = {
   justifyContent: 'center',
   cursor: 'pointer',
   boxShadow: 'var(--composer-action-shadow)',
-  transition: 'background-color 100ms ease, transform 100ms ease'
+  transition: 'background-color 100ms ease'
 }
 
 export function composerSendButtonStyle(tone: ComposerActionButtonTone, active = false): CSSProperties {
@@ -1229,8 +1229,7 @@ export function composerSendButtonStyle(tone: ComposerActionButtonTone, active =
         : '#f5f6f7'
       : 'color-mix(in srgb, var(--bg-primary) 92%, #ffffff 8%)',
     color: enabled ? '#1f2328' : 'var(--text-dimmed)',
-    cursor: enabled ? 'pointer' : 'default',
-    transform: enabled && active ? 'translateY(-1px)' : 'none'
+    cursor: enabled ? 'pointer' : 'default'
   }
 }
 

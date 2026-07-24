@@ -121,6 +121,7 @@ describe('SubAgentDock', () => {
     expect(screen.queryByText(/codex-cli/)).toBeNull()
     const description = screen.getByText('Reading sprite atlas')
     expect(description).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Stop Lovelace' })).toHaveAttribute('data-tone', 'neutral')
 
     fireEvent.click(screen.getByRole('button', { name: 'Open' }))
 
@@ -270,7 +271,9 @@ describe('SubAgentDock', () => {
     renderDock()
 
     expect(useSubAgentStore.getState().collapsedByParent.get('parent-1')).toBe(true)
-    fireEvent.click(screen.getByRole('button', { name: 'Stop all background agents' }))
+    const stopAllButton = screen.getByRole('button', { name: 'Stop all background agents' })
+    expect(stopAllButton).toHaveAttribute('data-tone', 'neutral')
+    fireEvent.click(stopAllButton)
 
     await waitFor(() => {
       expect(appServerSendRequest).toHaveBeenCalledWith('subagent/close', {

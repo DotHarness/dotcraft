@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react'
+import { act, render, screen } from '@testing-library/react'
 import { describe, expect, it, vi, beforeEach } from 'vitest'
 import { LocaleProvider } from '../contexts/LocaleContext'
 import {
@@ -9,6 +9,11 @@ import {
 } from '../components/WorkspaceLaunchTransition'
 
 const settingsGet = vi.fn()
+
+function setViewportSize(width: number, height: number): void {
+  Object.defineProperty(window, 'innerWidth', { configurable: true, value: width })
+  Object.defineProperty(window, 'innerHeight', { configurable: true, value: height })
+}
 
 function renderTransition(phase: WorkspaceLaunchTransitionPhase, logoSrc?: string) {
   const from: LaunchLogoRect = { left: 10, top: 20, width: 96, height: 96 }
@@ -23,6 +28,7 @@ function renderTransition(phase: WorkspaceLaunchTransitionPhase, logoSrc?: strin
 describe('WorkspaceLaunchTransition', () => {
   beforeEach(() => {
     settingsGet.mockResolvedValue({ locale: 'en' })
+    setViewportSize(1024, 768)
     Object.defineProperty(window, 'api', {
       configurable: true,
       value: {
@@ -61,8 +67,7 @@ describe('WorkspaceLaunchTransition', () => {
   })
 
   it('computes the centered launch rect from the viewport', () => {
-    Object.defineProperty(window, 'innerWidth', { configurable: true, value: 1200 })
-    Object.defineProperty(window, 'innerHeight', { configurable: true, value: 800 })
+    setViewportSize(1200, 800)
 
     expect(centeredLaunchLogoRect()).toEqual({
       left: 552,
@@ -70,6 +75,69 @@ describe('WorkspaceLaunchTransition', () => {
       width: 96,
       height: 96
     })
+  })
+
+  it.each([
+    'connecting',
+    'preparing',
+    'main-reveal',
+    'error-reveal'
+  ] as const)('recenters the %s logo when the viewport is resized', (phase) => {
+    setViewportSize(800, 600)
+    const { container } = renderTransition(phase)
+    const overlay = container.querySelector<HTMLElement>('.workspace-launch-transition')
+
+    expect(overlay?.style.getPropertyValue('--launch-logo-from-x')).toBe('352px')
+    expect(overlay?.style.getPropertyValue('--launch-logo-to-y')).toBe('252px')
+
+    act(() => {
+      setViewportSize(1200, 800)
+      window.dispatchEvent(new Event('resize'))
+    })
+
+    expect(overlay?.style.getPropertyValue('--launch-logo-from-x')).toBe('552px')
+    expect(overlay?.style.getPropertyValue('--launch-logo-from-y')).toBe('352px')
+    expect(overlay?.style.getPropertyValue('--launch-logo-to-x')).toBe('552px')
+    expect(overlay?.style.getPropertyValue('--launch-logo-to-y')).toBe('352px')
+  })
+
+  it.each([
+    'welcome-to-center',
+    'setup-complete-to-center'
+  ] as const)('updates only the center target during %s', (phase) => {
+    setViewportSize(800, 600)
+    const { container } = renderTransition(phase)
+    const overlay = container.querySelector<HTMLElement>('.workspace-launch-transition')
+
+    expect(overlay?.style.getPropertyValue('--launch-logo-from-x')).toBe('10px')
+    expect(overlay?.style.getPropertyValue('--launch-logo-from-y')).toBe('20px')
+    expect(overlay?.style.getPropertyValue('--launch-logo-to-x')).toBe('352px')
+    expect(overlay?.style.getPropertyValue('--launch-logo-to-y')).toBe('252px')
+
+    act(() => {
+      setViewportSize(1200, 800)
+      window.dispatchEvent(new Event('resize'))
+    })
+
+    expect(overlay?.style.getPropertyValue('--launch-logo-from-x')).toBe('10px')
+    expect(overlay?.style.getPropertyValue('--launch-logo-from-y')).toBe('20px')
+    expect(overlay?.style.getPropertyValue('--launch-logo-to-x')).toBe('552px')
+    expect(overlay?.style.getPropertyValue('--launch-logo-to-y')).toBe('352px')
+  })
+
+  it('preserves element-to-element handoff coordinates when the viewport is resized', () => {
+    const { container } = renderTransition('setup-handoff')
+    const overlay = container.querySelector<HTMLElement>('.workspace-launch-transition')
+
+    act(() => {
+      setViewportSize(1200, 800)
+      window.dispatchEvent(new Event('resize'))
+    })
+
+    expect(overlay?.style.getPropertyValue('--launch-logo-from-x')).toBe('10px')
+    expect(overlay?.style.getPropertyValue('--launch-logo-from-y')).toBe('20px')
+    expect(overlay?.style.getPropertyValue('--launch-logo-to-x')).toBe('100px')
+    expect(overlay?.style.getPropertyValue('--launch-logo-to-y')).toBe('120px')
   })
 
   it('uses the selected profile logo while preparing a newly initialized workspace', async () => {

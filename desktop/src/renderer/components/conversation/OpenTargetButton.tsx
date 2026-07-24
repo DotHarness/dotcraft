@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { useT } from '../../contexts/LocaleContext'
 import { SplitButton, type SplitButtonItem } from '../ui/SplitButton'
+import type { ButtonVariant } from '../ui/Button'
 import {
   EDITOR_ICON_SIZE,
   listEditorsCached,
@@ -18,6 +19,7 @@ interface OpenTargetButtonProps {
   primaryButtonLabel?: string
   primaryIcon?: ReactNode
   tooltipPlacement?: 'top' | 'bottom' | 'left' | 'right'
+  variant?: ButtonVariant
 }
 
 /**
@@ -35,7 +37,8 @@ export function OpenTargetButton({
   showPrimaryLabel = false,
   primaryButtonLabel,
   primaryIcon,
-  tooltipPlacement = 'bottom'
+  tooltipPlacement = 'bottom',
+  variant = 'secondary'
 }: OpenTargetButtonProps): JSX.Element {
   const t = useT()
   const [loading, setLoading] = useState(false)
@@ -105,7 +108,7 @@ export function OpenTargetButton({
 
   return (
     <SplitButton
-      variant="secondary"
+      variant={variant}
       label={showPrimaryLabel ? (primaryButtonLabel ?? t('threadHeader.open')) : undefined}
       ariaLabel={primaryAriaLabel}
       icon={primaryIcon ?? renderEditorIcon(primaryEditor, EDITOR_ICON_SIZE)}

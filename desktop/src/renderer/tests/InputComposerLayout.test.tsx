@@ -483,6 +483,7 @@ describe('InputComposer layout', () => {
     expect(within(dock).getAllByRole('button', { name: 'Reorder queued message' })).toHaveLength(2)
     expect(within(dock).getByRole('button', { name: 'Steering' })).toBeDisabled()
     expect(within(dock).getAllByRole('button', { name: 'Reorder queued message' })[1]).toBeDisabled()
+    expect(within(dock).getAllByRole('button', { name: 'Remove' })[0]).toHaveAttribute('data-tone', 'neutral')
     const firstEditButton = within(dock).getAllByRole('button', { name: 'Edit queued message' })[0]
     const firstQueueRow = firstEditButton.parentElement?.parentElement
     expect(firstQueueRow).toHaveStyle({

@@ -108,6 +108,7 @@ export function ViewerHeader({
           tooltipLabel={t('detailPanel.openFileTitle', { path: relativePath })}
           menuAriaLabel={t('detailPanel.openFileMenuAria')}
           showPrimaryLabel
+          variant="outline"
         />
 
         <IconButton

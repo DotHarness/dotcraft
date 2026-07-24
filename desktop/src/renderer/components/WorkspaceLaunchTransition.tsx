@@ -1,4 +1,4 @@
-import type { CSSProperties } from 'react'
+import { useEffect, useState, type CSSProperties } from 'react'
 import { useT } from '../contexts/LocaleContext'
 import { DotCraftFullLogo } from './ui/DotCraftLogo'
 
@@ -65,13 +65,35 @@ export function WorkspaceLaunchTransition({
   logoSrc
 }: WorkspaceLaunchTransitionProps): JSX.Element {
   const t = useT()
+  const [centerRect, setCenterRect] = useState(() => centeredLaunchLogoRect())
+
+  useEffect(() => {
+    const updateCenterRect = (): void => {
+      setCenterRect(centeredLaunchLogoRect())
+    }
+
+    window.addEventListener('resize', updateCenterRect)
+    return () => window.removeEventListener('resize', updateCenterRect)
+  }, [])
+
+  const centerFrom =
+    phase === 'connecting' ||
+    phase === 'preparing' ||
+    phase === 'main-reveal' ||
+    phase === 'error-reveal'
+  const centerTo =
+    centerFrom ||
+    phase === 'welcome-to-center' ||
+    phase === 'setup-complete-to-center'
+  const resolvedFrom = centerFrom ? centerRect : from
+  const resolvedTo = centerTo ? centerRect : to
   const style = {
-    '--launch-logo-from-x': `${from.left}px`,
-    '--launch-logo-from-y': `${from.top}px`,
-    '--launch-logo-from-scale': String(from.width / LAUNCH_LOGO_BASE_SIZE),
-    '--launch-logo-to-x': `${to.left}px`,
-    '--launch-logo-to-y': `${to.top}px`,
-    '--launch-logo-to-scale': String(to.width / LAUNCH_LOGO_BASE_SIZE)
+    '--launch-logo-from-x': `${resolvedFrom.left}px`,
+    '--launch-logo-from-y': `${resolvedFrom.top}px`,
+    '--launch-logo-from-scale': String(resolvedFrom.width / LAUNCH_LOGO_BASE_SIZE),
+    '--launch-logo-to-x': `${resolvedTo.left}px`,
+    '--launch-logo-to-y': `${resolvedTo.top}px`,
+    '--launch-logo-to-scale': String(resolvedTo.width / LAUNCH_LOGO_BASE_SIZE)
   } as CSSProperties
 
   return (
