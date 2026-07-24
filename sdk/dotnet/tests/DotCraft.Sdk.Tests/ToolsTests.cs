@@ -1,5 +1,6 @@
 using System.ComponentModel;
 using System.Text.Json;
+using DotCraft.Sdk.AppServer;
 using DotCraft.Sdk.Tools;
 
 namespace DotCraft.Sdk.Tests;
@@ -23,6 +24,16 @@ public class ToolsTests
         public int? Limit { get; init; }
 
         public SortMode Sort { get; init; }
+    }
+
+    private sealed class NestedArgs
+    {
+        public required NestedValue Value { get; init; }
+    }
+
+    private sealed class NestedValue
+    {
+        public required string Name { get; init; }
     }
 
     private sealed class EmptyArgs
@@ -68,6 +79,16 @@ public class ToolsTests
 
         [DynamicTool("async_echo", "Async", Order = 7)]
         public Task<object> AsyncEcho(SearchArgs args) => Task.FromResult<object>(new { q = args.Query });
+
+        [DynamicTool("nested", "Nested", Order = 8)]
+        public object Nested(NestedArgs args) => new { args.Value.Name };
+
+        [DynamicTool("cancel", "Cancel", Order = 9)]
+        public async Task<object> Cancel(EmptyArgs args, CancellationToken cancellationToken)
+        {
+            await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
+            return new { };
+        }
     }
 
     private static DynamicToolRegistry BuildRecordRegistry(out RecordHandler handler)
@@ -91,10 +112,14 @@ public class ToolsTests
             new[]
             {
                 "sample.ping", "sample.search", "sample.confirm_only", "sample.free_form",
-                "sample.boom", "sample.explode", "sample.async_echo",
+                "sample.boom", "sample.explode", "sample.async_echo", "sample.nested", "sample.cancel",
             },
             descriptors.Select(d => d.Name));
-        Assert.Equal("Search things", descriptors.Single(d => d.Name == "sample.search").Description);
+        DynamicToolDescriptor search = descriptors.Single(d => d.Name == "sample.search");
+        Assert.Equal("sample", search.Namespace);
+        Assert.Equal("search", search.LocalName);
+        Assert.Equal("sample.search", search.QualifiedName);
+        Assert.Equal("Search things", search.Description);
     }
 
     [Fact]
@@ -157,6 +182,20 @@ public class ToolsTests
     }
 
     [Fact]
+    public async Task Free_form_object_accepts_unknown_properties_at_dispatch()
+    {
+        DynamicToolRegistry registry = BuildRecordRegistry(out _);
+
+        DynamicToolOutcome outcome = await registry.InvokeAsync(
+            "sample",
+            "free_form",
+            JsonDocument.Parse("""{"arbitrary":{"nested":true}}""").RootElement,
+            default);
+
+        Assert.True(outcome.Ok);
+    }
+
+    [Fact]
     public async Task Invoke_record_success_returns_outcome_data()
     {
         DynamicToolRegistry registry = BuildRecordRegistry(out RecordHandler handler);
@@ -206,7 +245,19 @@ public class ToolsTests
 
         Assert.False(outcome.Ok);
         Assert.Equal("INTERNAL", outcome.Code);
+        Assert.Equal("The dynamic tool failed unexpectedly.", outcome.Message);
         Assert.IsType<InvalidOperationException>(logged);
+    }
+
+    [Fact]
+    public async Task Cancellation_propagates()
+    {
+        DynamicToolRegistry registry = BuildRecordRegistry(out _);
+        using var cancellation = new CancellationTokenSource();
+        cancellation.Cancel();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(
+            () => registry.InvokeAsync("sample", "cancel", Empty, cancellation.Token));
     }
 
     [Fact]
@@ -229,6 +280,20 @@ public class ToolsTests
         DynamicToolOutcome outcome = await registry.InvokeAsync("sample", "missing", Empty, default);
         Assert.False(outcome.Ok);
         Assert.Equal("UNKNOWN_TOOL", outcome.Code);
+    }
+
+    [Fact]
+    public async Task Closed_record_rejects_unknown_nested_property()
+    {
+        DynamicToolRegistry registry = BuildRecordRegistry(out _);
+        JsonElement arguments = JsonDocument.Parse(
+            """{"value":{"name":"ok","unexpected":true}}""").RootElement;
+
+        DynamicToolOutcome outcome = await registry.InvokeAsync("sample", "nested", arguments, default);
+
+        Assert.False(outcome.Ok);
+        Assert.Equal("INVALID_ARGUMENT", outcome.Code);
+        Assert.Contains("$.value.unexpected", outcome.Message);
     }
 
     [Fact]
@@ -255,6 +320,16 @@ public class ToolsTests
         public string User { get; init; } = "";
     }
 
+    private interface ISampleContext
+    {
+        string User { get; }
+    }
+
+    private sealed class DerivedContext : ISampleContext
+    {
+        public string User { get; init; } = "";
+    }
+
     private sealed class FlatHandler
     {
         public SampleContext? SeenContext;
@@ -270,6 +345,34 @@ public class ToolsTests
             SeenContext = context;
             return new { assignee, note };
         }
+    }
+
+    private sealed class InterfaceContextHandler
+    {
+        public string? SeenUser;
+
+        [DynamicTool("context")]
+        [Description("Context")]
+        public object Context(ISampleContext context)
+        {
+            SeenUser = context.User;
+            return new { context.User };
+        }
+    }
+
+    private sealed class IndependentlyCancelledHandler
+    {
+        [DynamicTool("cancelled")]
+        [Description("Cancel independently")]
+        public Task<object> Cancelled(EmptyArgs args) =>
+            Task.FromCanceled<object>(new CancellationToken(canceled: true));
+    }
+
+    private sealed class AmbiguousObjectHandler
+    {
+        [DynamicTool("ambiguous")]
+        [Description("Ambiguous object")]
+        public object Ambiguous(object value) => value;
     }
 
     [Fact]
@@ -305,6 +408,135 @@ public class ToolsTests
 
         Assert.True(outcome.Ok);
         Assert.Equal("alice", handler.SeenContext!.User);
+    }
+
+    [Fact]
+    public async Task Flat_schema_and_binding_reject_unknown_and_missing_required_properties()
+    {
+        var registry = new DynamicToolRegistry(new DynamicToolRegistryOptions { ContextType = typeof(SampleContext) });
+        registry.Register(new FlatHandler(), "sample");
+
+        DynamicToolOutcome unknown = await registry.InvokeAsync(
+            "sample",
+            "assign_task",
+            JsonDocument.Parse("""{"assignee":"bob","unexpected":true}""").RootElement,
+            new SampleContext(),
+            default);
+        DynamicToolOutcome missing = await registry.InvokeAsync(
+            "sample",
+            "assign_task",
+            Empty,
+            new SampleContext(),
+            default);
+
+        Assert.False(unknown.Ok);
+        Assert.Equal("INVALID_ARGUMENT", unknown.Code);
+        Assert.False(missing.Ok);
+        Assert.Equal("INVALID_ARGUMENT", missing.Code);
+    }
+
+    [Fact]
+    public async Task Context_parameter_may_be_an_interface_implemented_by_the_configured_type()
+    {
+        var handler = new InterfaceContextHandler();
+        var registry = new DynamicToolRegistry(new DynamicToolRegistryOptions
+        {
+            ContextType = typeof(DerivedContext),
+        });
+        registry.Register(handler, "sample");
+
+        DynamicToolOutcome outcome = await registry.InvokeAsync(
+            "sample",
+            "context",
+            Empty,
+            new DerivedContext { User = "alice" },
+            default);
+
+        Assert.True(outcome.Ok);
+        Assert.Equal("alice", handler.SeenUser);
+    }
+
+    [Fact]
+    public async Task Cancellation_propagates_even_when_the_invocation_token_is_not_cancelled()
+    {
+        var registry = new DynamicToolRegistry();
+        registry.Register(new IndependentlyCancelledHandler(), "sample");
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(
+            () => registry.InvokeAsync("sample", "cancelled", Empty, CancellationToken.None));
+    }
+
+    [Fact]
+    public void Object_parameter_is_rejected_as_ambiguous_when_context_is_configured()
+    {
+        var registry = new DynamicToolRegistry(new DynamicToolRegistryOptions
+        {
+            ContextType = typeof(SampleContext),
+        });
+
+        InvalidOperationException error = Assert.Throws<InvalidOperationException>(
+            () => registry.Register(new AmbiguousObjectHandler(), "sample"));
+
+        Assert.Contains("ambiguous", error.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void Runtime_declaration_builder_groups_and_projects_selected_descriptors()
+    {
+        DynamicToolRegistry registry = BuildRecordRegistry(out _);
+        DynamicToolDescriptor descriptor = registry.ListDescriptors()
+            .Single(item => item.LocalName == "search");
+        descriptor.DeferLoading = true;
+
+        IReadOnlyList<RuntimeDynamicToolDeclaration> declarations =
+            RuntimeDynamicToolDeclarationBuilder.Build(
+                [descriptor],
+                new Dictionary<string, string> { ["sample"] = "Sample tools." },
+                item => item.LocalName == "search"
+                    ? new ToolApprovalDescriptor("remoteResource", "query", "Search")
+                    : null);
+
+        var toolNamespace = Assert.IsType<RuntimeDynamicToolNamespace>(Assert.Single(declarations));
+        Assert.Equal("sample", toolNamespace.Name);
+        var function = Assert.IsType<RuntimeDynamicToolFunction>(Assert.Single(toolNamespace.Tools));
+        Assert.Equal("search", function.Name);
+        Assert.Equal("Search things", function.Description);
+        Assert.True(function.DeferLoading);
+        Assert.Equal("remoteResource", function.Approval?.Kind);
+    }
+
+    [Fact]
+    public void Runtime_declaration_builder_rejects_invalid_names_and_missing_descriptions()
+    {
+        var descriptor = new DynamicToolDescriptor
+        {
+            Namespace = "bad.namespace",
+            LocalName = "tool",
+            Description = "Tool",
+            InputSchema = Empty,
+        };
+
+        Assert.Throws<InvalidOperationException>(() =>
+            RuntimeDynamicToolDeclarationBuilder.Build(
+                [descriptor],
+                new Dictionary<string, string> { ["bad.namespace"] = "Bad." }));
+
+        descriptor.Namespace = "sample";
+        Assert.Throws<InvalidOperationException>(() =>
+            RuntimeDynamicToolDeclarationBuilder.Build(
+                [descriptor],
+                new Dictionary<string, string>()));
+
+        Assert.Throws<InvalidOperationException>(() =>
+            RuntimeDynamicToolDeclarationBuilder.Build(
+                [descriptor, descriptor],
+                new Dictionary<string, string> { ["sample"] = "Sample." }));
+
+        descriptor.LocalName = new string('x', 60);
+        Assert.Throws<InvalidOperationException>(() =>
+            RuntimeDynamicToolDeclarationBuilder.Build(
+                [descriptor],
+                new Dictionary<string, string> { ["sample"] = "Sample." }));
     }
 
     [Fact]

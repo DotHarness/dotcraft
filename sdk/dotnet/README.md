@@ -57,6 +57,44 @@ The main public namespaces are:
 - `DotCraft.Sdk.Tools` for attribute-based runtime dynamic tool authoring and
   schema generation.
 
+## Author Runtime Dynamic Tools
+
+Prefer typed arguments and `DynamicToolRegistry` over hand-written JSON Schema.
+The registry generates a closed schema, binds arguments, injects cancellation,
+and normalizes tool failures.
+
+```csharp
+using System.ComponentModel;
+using DotCraft.Sdk.AppServer;
+using DotCraft.Sdk.Tools;
+
+public sealed class GetIssueArgs
+{
+    [Description("Issue id to read.")]
+    public required string Id { get; init; }
+}
+
+public sealed class IssueTools(IssueStore issues)
+{
+    [DynamicTool("GetIssue", "Read an issue from MyApp.")]
+    public Task<Issue> GetIssueAsync(GetIssueArgs args, CancellationToken ct) =>
+        issues.GetIssueAsync(args.Id, ct);
+}
+
+var registry = new DynamicToolRegistry();
+registry.Register(new IssueTools(issueStore), "myapp");
+
+var declarations = RuntimeDynamicToolDeclarationBuilder.Build(
+    registry.ListDescriptors(),
+    new Dictionary<string, string> { ["myapp"] = "MyApp issue tools." });
+```
+
+Pass `declarations` to `DotCraftThreadStartRequest.DynamicTools` or
+`DotCraftThreadResumeRequest.DynamicTools`. Register the callback through
+`DotCraftThread.OnToolCall`, invoke the registry, and map the outcome to a
+`DynamicToolResult`. Successful model-visible results must include a useful text
+`ToolContentItem`; structured content alone is not sufficient.
+
 ## Compatibility
 
 `DotCraft.Sdk` targets `net10.0`.
