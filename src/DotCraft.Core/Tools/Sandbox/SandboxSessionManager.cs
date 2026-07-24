@@ -16,6 +16,7 @@ public sealed class SandboxSessionManager : IAsyncDisposable
 {
     private readonly AppConfig.SandboxConfig _config;
     private readonly string _workspacePath;
+    private readonly IReadOnlyList<string> _workspaceRoots;
     private readonly ConcurrentDictionary<string, SandboxEntry> _sandboxes = new();
     private readonly SemaphoreSlim _createLock = new(1, 1);
     private readonly Timer? _cleanupTimer;
@@ -25,10 +26,16 @@ public sealed class SandboxSessionManager : IAsyncDisposable
     /// </summary>
     public const string DefaultSessionKey = "__default__";
 
-    public SandboxSessionManager(AppConfig.SandboxConfig config, string workspacePath)
+    public SandboxSessionManager(
+        AppConfig.SandboxConfig config,
+        string workspacePath,
+        IReadOnlyList<string>? workspaceRoots = null)
     {
         _config = config;
         _workspacePath = Path.GetFullPath(workspacePath);
+        _workspaceRoots = (workspaceRoots ?? [_workspacePath])
+            .Select(Path.GetFullPath)
+            .ToArray();
 
         // Start idle cleanup timer (check every 60 seconds)
         if (config.IdleTimeoutSeconds > 0)
@@ -68,7 +75,7 @@ public sealed class SandboxSessionManager : IAsyncDisposable
             }
 
             var sandbox = await CreateSandboxAsync();
-            
+
             // Sync workspace files to sandbox
             if (_config.SyncWorkspace)
             {
@@ -177,47 +184,64 @@ public sealed class SandboxSessionManager : IAsyncDisposable
         {
             // Create workspace directory in sandbox
             await sandbox.Files.CreateDirectoriesAsync([
-                new CreateDirectoryEntry { Path = "/workspace", Mode = 755 }
+                new CreateDirectoryEntry { Path = "/workspace", Mode = 755 },
+                new CreateDirectoryEntry { Path = "/workspace-roots", Mode = 755 }
             ]);
 
             // Use tar to efficiently transfer workspace contents
             // This is more efficient than transferring files one by one
             AnsiConsole.MarkupLine("[grey][[Sandbox]][/] Syncing workspace to sandbox...");
 
-            // Get list of files (respect .gitignore-like patterns, skip large dirs)
-            var files = EnumerateWorkspaceFiles(_workspacePath, _config.SyncExclude).Take(500).ToList();
-            
-            foreach (var batch in Chunk(files, 20))
+            var syncedCount = 0;
+            for (var rootIndex = 0; rootIndex < _workspaceRoots.Count; rootIndex++)
             {
-                var writeEntries = new List<WriteEntry>();
-                foreach (var filePath in batch)
+                var root = _workspaceRoots[rootIndex];
+                var sandboxRoot = string.Equals(root, _workspacePath, StringComparison.OrdinalIgnoreCase)
+                    ? "/workspace"
+                    : $"/workspace-roots/{rootIndex}";
+                await sandbox.Files.CreateDirectoriesAsync([
+                    new CreateDirectoryEntry { Path = sandboxRoot, Mode = 755 }
+                ]);
+
+                var files = EnumerateWorkspaceFiles(root, _config.SyncExclude)
+                    .Take(500 - syncedCount)
+                    .ToList();
+                foreach (var batch in Chunk(files, 20))
                 {
-                    try
+                    var writeEntries = new List<WriteEntry>();
+                    foreach (var filePath in batch)
                     {
-                        var relativePath = Path.GetRelativePath(_workspacePath, filePath);
-                        var sandboxPath = "/workspace/" + relativePath.Replace('\\', '/');
-                        var content = await File.ReadAllTextAsync(filePath);
-                        
-                        writeEntries.Add(new WriteEntry
+                        try
                         {
-                            Path = sandboxPath,
-                            Data = content,
-                            Mode = 644
-                        });
+                            var relativePath = Path.GetRelativePath(root, filePath);
+                            var sandboxPath = sandboxRoot + "/" + relativePath.Replace('\\', '/');
+                            var content = await File.ReadAllTextAsync(filePath);
+
+                            writeEntries.Add(new WriteEntry
+                            {
+                                Path = sandboxPath,
+                                Data = content,
+                                Mode = 644
+                            });
+                        }
+                        catch
+                        {
+                            // Skip files that can't be read (binary, permissions, etc.)
+                        }
                     }
-                    catch
+
+                    if (writeEntries.Count > 0)
                     {
-                        // Skip files that can't be read (binary, permissions, etc.)
+                        await sandbox.Files.WriteFilesAsync(writeEntries);
                     }
                 }
 
-                if (writeEntries.Count > 0)
-                {
-                    await sandbox.Files.WriteFilesAsync(writeEntries);
-                }
+                syncedCount += files.Count;
+                if (syncedCount >= 500)
+                    break;
             }
 
-            AnsiConsole.MarkupLine($"[grey][[Sandbox]][/] Synced [yellow]{files.Count}[/] files to sandbox");
+            AnsiConsole.MarkupLine($"[grey][[Sandbox]][/] Synced [yellow]{syncedCount}[/] files to sandbox");
         }
         catch (Exception ex)
         {

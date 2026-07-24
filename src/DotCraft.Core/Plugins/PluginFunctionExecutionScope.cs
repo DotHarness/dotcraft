@@ -22,6 +22,14 @@ public sealed class PluginFunctionExecutionContext
 
     public required string WorkspacePath { get; init; }
 
+    private IReadOnlyList<string>? _workspaceRoots;
+
+    public IReadOnlyList<string> WorkspaceRoots
+    {
+        get => _workspaceRoots ?? [WorkspacePath];
+        init => _workspaceRoots = value;
+    }
+
     public required bool RequireApprovalOutsideWorkspace { get; init; }
 
     public required IApprovalService ApprovalService { get; init; }

@@ -604,6 +604,8 @@ Thread-management tools are dynamic client callbacks, while thread lifecycle, st
   "customTools": ["SomeTool"],
   "model": "gpt-4.1",
   "workspaceOverride": "/path/to/alt/workspace",
+  "cwd": "${PRIMARY_FOLDER}",
+  "runtimeWorkspaceRoots": ["${PRIMARY_FOLDER}", "${SECONDARY_FOLDER}"],
   "executionWorkspaceOverride": "/path/to/runtime/workspace",
   "toolProfile": "commit-message",
   "useToolProfileOnly": false,
@@ -666,6 +668,8 @@ Fields:
 | `customTools` | string[] | Optional extra tool names enabled for the thread. |
 | `model` | string | Optional per-thread model override. |
 | `workspaceOverride` | string | Optional alternate workspace root for the thread. |
+| `cwd` | string | Optional sticky working directory used for relative paths and tool execution. |
+| `runtimeWorkspaceRoots` | string[] | Optional sticky ordered runtime roots. Omitted/null defaults to cwd; `[]` explicitly supplies no roots; a supplied array fully replaces the previous list. |
 | `executionWorkspaceOverride` | string | Optional runtime execution root. It is used for worktree-bound execution and does not move thread state. |
 | `toolProfile` | string | Optional named tool profile. |
 | `useToolProfileOnly` | boolean | When `true`, use only the tools from `toolProfile`. |
@@ -718,6 +722,8 @@ Approval semantics:
     "forkedFromId": null,
     "ephemeral": false,
     "worktree": null,
+    "cwd": "${PRIMARY_FOLDER}",
+    "runtimeWorkspaceRoots": ["${PRIMARY_FOLDER}", "${SECONDARY_FOLDER}"],
     "effectiveWorkspacePath": "/path/to/project",
     "status": "active",
     "createdAt": "2026-03-16T10:00:00Z",
@@ -730,7 +736,9 @@ Approval semantics:
 
 The server also emits a `thread/started` notification after the response.
 
-Thread objects may include `forkedFromId`, `ephemeral`, `worktree`, and `effectiveWorkspacePath`. `forkedFromId` is lineage metadata. `effectiveWorkspacePath` is the root clients should use for file, shell, Git, and editor surfaces for that thread.
+Thread objects may include `forkedFromId`, `ephemeral`, `worktree`, `cwd`, `runtimeWorkspaceRoots`, and `effectiveWorkspacePath`. `forkedFromId` is lineage metadata. `cwd`/`effectiveWorkspacePath` is the root clients should use for relative file, shell, Git, and editor surfaces; `runtimeWorkspaceRoots` is the complete set of runtime content boundaries.
+
+`thread/start`, `thread/resume`, and `thread/fork` accept optional top-level `cwd` and `runtimeWorkspaceRoots` fields. `turn/start` accepts the same fields and makes them sticky for that turn and subsequent turns. Their update and worktree semantics are defined in [Multi-Folder Local Projects](../features/multi-folder-projects.md).
 
 In a shared Session Core process (typical AppServer mode), when **any** channel creates a thread (not only via `thread/start` on this connection), the server **broadcasts** the same `thread/started` notification to connected clients. For ordinary `thread/start` RPCs, the initiating client may receive the post-response notification from the request handler instead of the shared broadcast and should dedupe by thread id. Session-backed SubAgent child threads are always broadcast to the current connection as well, because their creation happens inside a parent turn/tool call and has no direct `thread/start` response.
 

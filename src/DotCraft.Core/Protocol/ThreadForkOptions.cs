@@ -32,6 +32,10 @@ public sealed record ThreadForkOptions
 
     public ThreadConfiguration? Config { get; init; }
 
+    public string? Cwd { get; init; }
+
+    public IReadOnlyList<string>? RuntimeWorkspaceRoots { get; init; }
+
     public string? DisplayName { get; init; }
 
     public bool Ephemeral { get; init; }

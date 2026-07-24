@@ -196,6 +196,10 @@ public sealed record SessionWireThread
 
     public string WorkspacePath { get; init; } = string.Empty;
 
+    public string Cwd { get; init; } = string.Empty;
+
+    public IReadOnlyList<string> RuntimeWorkspaceRoots { get; init; } = [];
+
     public string EffectiveWorkspacePath { get; init; } = string.Empty;
 
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -491,13 +495,17 @@ public static class SessionWireMapper
     /// <summary>
     /// Maps a thread into the wire DTO, optionally including turn history.
     /// </summary>
-    public static SessionWireThread ToWire(this SessionThread thread, bool includeTurns) =>
-        new()
+    public static SessionWireThread ToWire(this SessionThread thread, bool includeTurns)
+    {
+        var workspace = ThreadWorkspaceResolver.Resolve(thread);
+        return new()
         {
             Id = thread.Id,
             SessionId = thread.Id,
             WorkspacePath = thread.WorkspacePath,
-            EffectiveWorkspacePath = ResolveEffectiveWorkspacePath(thread),
+            Cwd = workspace.Cwd,
+            RuntimeWorkspaceRoots = workspace.RuntimeWorkspaceRoots,
+            EffectiveWorkspacePath = workspace.Cwd,
             Path = ResolveThreadPath(thread),
             ForkedFromId = thread.ForkedFromId,
             ParentThreadId = thread.Source.SubAgent?.ParentThreadId,
@@ -518,6 +526,7 @@ public static class SessionWireMapper
             QueuedInputs = thread.QueuedInputs.ToList(),
             Turns = includeTurns ? thread.Turns.Select(t => t.ToWire(includeItems: true)).ToList() : null
         };
+    }
 
     private static Dictionary<string, string> BuildThreadMetadata(SessionThread thread)
     {
@@ -529,14 +538,6 @@ public static class SessionWireMapper
         }
 
         return metadata;
-    }
-
-    private static string ResolveEffectiveWorkspacePath(SessionThread thread)
-    {
-        var overridePath = thread.Configuration?.ExecutionWorkspaceOverride;
-        if (string.IsNullOrWhiteSpace(overridePath))
-            overridePath = thread.Configuration?.WorkspaceOverride;
-        return string.IsNullOrWhiteSpace(overridePath) ? thread.WorkspacePath : overridePath;
     }
 
     private static string? ResolveThreadPath(SessionThread thread)

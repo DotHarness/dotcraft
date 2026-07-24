@@ -8,6 +8,7 @@ namespace DotCraft.Security;
 public sealed class FileAccessGuard
 {
     private readonly string _workspaceRoot;
+    private readonly IReadOnlyList<string> _workspaceRoots;
     private readonly bool _requireApprovalOutsideWorkspace;
     private readonly IApprovalService? _approvalService;
     private readonly PathBlacklist? _blacklist;
@@ -21,9 +22,13 @@ public sealed class FileAccessGuard
         bool requireApprovalOutsideWorkspace = true,
         IApprovalService? approvalService = null,
         PathBlacklist? blacklist = null,
-        IReadOnlyList<string>? trustedReadPaths = null)
+        IReadOnlyList<string>? trustedReadPaths = null,
+        IReadOnlyList<string>? workspaceRoots = null)
     {
         _workspaceRoot = Path.GetFullPath(workspaceRoot);
+        _workspaceRoots = (workspaceRoots ?? [_workspaceRoot])
+            .Select(Path.GetFullPath)
+            .ToArray();
         _requireApprovalOutsideWorkspace = requireApprovalOutsideWorkspace;
         _approvalService = approvalService;
         _blacklist = blacklist;
@@ -68,7 +73,7 @@ public sealed class FileAccessGuard
         if (_blacklist != null && _blacklist.IsBlacklisted(fullPath))
             return $"Error: Path '{originalPath}' is in the blacklist and cannot be accessed.";
 
-        var isWithinWorkspace = IsWithinBoundary(fullPath, _workspaceRoot);
+        var isWithinWorkspace = IsWithinWorkspace(fullPath);
         if (isWithinWorkspace)
             return null;
 
@@ -95,7 +100,7 @@ public sealed class FileAccessGuard
     /// </summary>
     public bool RequiresOutsideWorkspaceApproval(string fullPath, string operation)
     {
-        if (IsWithinBoundary(fullPath, _workspaceRoot))
+        if (IsWithinWorkspace(fullPath))
             return false;
         return operation is not ("read" or "list") || !IsWithinTrustedReadPath(fullPath);
     }
@@ -110,6 +115,9 @@ public sealed class FileAccessGuard
 
         return false;
     }
+
+    private bool IsWithinWorkspace(string fullPath) =>
+        _workspaceRoots.Any(root => IsWithinBoundary(fullPath, root));
 
     private static bool IsWithinBoundary(string fullPath, string boundaryRoot)
     {

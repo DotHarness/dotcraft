@@ -29,11 +29,15 @@ public sealed class PromptBuilder(
     DreamStore? dreamStore = null,
     SubAgentWaitAgentTimeoutOptions? subAgentWaitAgentTimeoutOptions = null,
     IReadOnlyList<IThreadSystemPromptContextProvider>? threadSystemPromptContextProviders = null,
-    string? originChannel = null)
+    string? originChannel = null,
+    IReadOnlyList<string>? workspaceRoots = null)
 {
     private readonly string _craftPath = Path.GetFullPath(craftPath);
 
     private readonly string _workspacePath = Path.GetFullPath(workspacePath);
+
+    private readonly IReadOnlyList<string> _workspaceRoots =
+        workspaceRoots ?? [Path.GetFullPath(workspacePath)];
 
     /// <summary>
     /// Bootstrap files to load from DotCraft directory.
@@ -462,6 +466,7 @@ Rules:
         var workspace = sandboxEnabled ? "/workspace" : _workspacePath;
         var craftPath = _craftPath;
         var envSection = sandboxEnabled ? GetSandboxEnvironmentSection() : GetHostEnvironmentSection();
+        var workspaceRootsSection = GetWorkspaceRootsSection();
 
         return
 $$"""
@@ -478,6 +483,8 @@ Be safe, reliable, and practical. When needed, use the available tools to comple
 Your workspace is at: {{workspace}}
 This is your working directory where you perform file and shell operations.
 
+{{workspaceRootsSection}}
+
 ## DotCraft Directory
 Your data directory is at: {{craftPath}}
 This contains:
@@ -493,6 +500,33 @@ Use the available tools deliberately to gather context, make changes, validate w
 ## Git Commit Attribution
 When creating git commits for the user, do not change git config. End commit messages with:
 Co-authored-by: DotCraft <273930855+dotcraft-ai@users.noreply.github.com>
+""";
+    }
+
+    private string GetWorkspaceRootsSection()
+    {
+        if (_workspaceRoots.Count == 0
+            || (_workspaceRoots.Count == 1
+                && string.Equals(_workspaceRoots[0], _workspacePath, StringComparison.OrdinalIgnoreCase)))
+        {
+            return string.Empty;
+        }
+
+        var roots = string.Join(
+            Environment.NewLine,
+            _workspaceRoots.Select((root, index) =>
+            {
+                if (!sandboxEnabled)
+                    return $"- {root}";
+                var sandboxPath = string.Equals(root, _workspacePath, StringComparison.OrdinalIgnoreCase)
+                    ? "/workspace"
+                    : $"/workspace-roots/{index}";
+                return $"- {sandboxPath}";
+            }));
+        return
+$"""
+## Workspace Roots
+{roots}
 """;
     }
 

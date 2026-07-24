@@ -100,6 +100,18 @@ public sealed class AgentRuntimeContext
     /// </summary>
     public required string WorkspacePath { get; init; }
 
+    private IReadOnlyList<string>? _workspaceRoots;
+
+    /// <summary>
+    /// Ordered runtime workspace boundaries. When not explicitly supplied, defaults to
+    /// the working directory for legacy callers.
+    /// </summary>
+    public IReadOnlyList<string> WorkspaceRoots
+    {
+        get => _workspaceRoots ?? [WorkspacePath];
+        init => _workspaceRoots = value;
+    }
+
     /// <summary>
     /// When set (e.g. local automation), absolute path to the task directory containing <c>task.md</c>.
     /// </summary>

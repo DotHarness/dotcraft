@@ -72,18 +72,19 @@ public sealed class CoreToolSource(
 
         return function.Name switch
         {
-            "ReadFile" => FileApproval("path", "read", context.WorkspacePath, trustedRead: true),
-            "WriteFile" => FileApproval("path", "write", context.WorkspacePath),
-            "EditFile" => FileApproval("path", "edit", context.WorkspacePath),
-            "GrepFiles" => FileApproval("path", "read", context.WorkspacePath, trustedRead: true),
-            "FindFiles" => FileApproval("path", "read", context.WorkspacePath, trustedRead: true),
-            "LSP" => FileApproval("filePath", "read", context.WorkspacePath, trustedRead: true),
+            "ReadFile" => FileApproval("path", "read", context.WorkspacePath, context.WorkspaceRoots, trustedRead: true),
+            "WriteFile" => FileApproval("path", "write", context.WorkspacePath, context.WorkspaceRoots),
+            "EditFile" => FileApproval("path", "edit", context.WorkspacePath, context.WorkspaceRoots),
+            "GrepFiles" => FileApproval("path", "read", context.WorkspacePath, context.WorkspaceRoots, trustedRead: true),
+            "FindFiles" => FileApproval("path", "read", context.WorkspacePath, context.WorkspaceRoots, trustedRead: true),
+            "LSP" => FileApproval("filePath", "read", context.WorkspacePath, context.WorkspaceRoots, trustedRead: true),
             "Exec" => new
             {
                 kind = "shell",
                 targetArgument = "workingDir",
                 operationArgument = "command",
                 workspacePath = context.WorkspacePath,
+                workspaceRoots = context.WorkspaceRoots,
                 outsideWorkspaceOnly = true
             },
             _ => null
@@ -94,12 +95,14 @@ public sealed class CoreToolSource(
         string targetArgument,
         string operation,
         string workspacePath,
+        IReadOnlyList<string> workspaceRoots,
         bool trustedRead = false) => new
     {
         kind = "file",
         targetArgument,
         operation,
         workspacePath,
+        workspaceRoots,
         outsideWorkspaceOnly = true,
         trustedReadPaths = trustedRead
             ? new[] { Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".craft") }
@@ -150,7 +153,8 @@ public sealed class CoreToolSource(
                 ripgrepPath: config.Tools.File.RipgrepPath,
                 endpoint: subAgentRuntime.EndPoint,
                 maxOutputTokens: subAgentRuntime.MaxOutputTokens,
-                config: config);
+                config: config,
+                workspaceRoots: context.WorkspaceRoots);
             var subAgentCoordinator = new SubAgentCoordinator(
                 context.WorkspacePath,
                 [new NativeSubAgentRuntime(subAgentManager), new CliOneshotRuntime()],
@@ -186,7 +190,8 @@ public sealed class CoreToolSource(
             trustedReadPaths: [userDotCraftPath],
             lspServerManager: lspServerManager,
             ripgrepPath: config.Tools.File.RipgrepPath,
-            searchTimeout: fileSearchTimeout);
+            searchTimeout: fileSearchTimeout,
+            workspaceRoots: context.WorkspaceRoots);
         tools.Add(GeneratedToolFunctions.FileTools_ReadFile(fileTools));
         tools.Add(GeneratedToolFunctions.FileTools_WriteFile(fileTools));
         tools.Add(GeneratedToolFunctions.FileTools_EditFile(fileTools));
@@ -202,7 +207,8 @@ public sealed class CoreToolSource(
                 requireOutside,
                 config.Tools.Lsp.MaxFileSize,
                 approvalService: null,
-                pathBlacklist);
+                pathBlacklist,
+                context.WorkspaceRoots);
             tools.Add(GeneratedToolFunctions.LspTool_LSP(lspTool));
         }
 
@@ -214,7 +220,8 @@ public sealed class CoreToolSource(
             config.Tools.Shell.MaxOutputLength,
             approvalService: null,
             blacklist: pathBlacklist,
-            backgroundTerminals: backgroundTerminalService);
+            backgroundTerminals: backgroundTerminalService,
+            workspaceRoots: context.WorkspaceRoots);
         tools.Add(GeneratedToolFunctions.ShellTools_Exec(shellTools));
         tools.Add(GeneratedToolFunctions.ShellTools_WriteStdin(shellTools));
 

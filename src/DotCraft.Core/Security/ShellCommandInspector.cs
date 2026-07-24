@@ -5,9 +5,19 @@ namespace DotCraft.Security;
 /// <summary>
 /// Analyzes shell commands to detect references to paths outside the workspace boundary.
 /// </summary>
-public sealed partial class ShellCommandInspector(string workspaceRoot)
+public sealed partial class ShellCommandInspector
 {
-    private readonly string _workspaceRoot = Path.GetFullPath(workspaceRoot);
+    private readonly IReadOnlyList<string> _workspaceRoots;
+
+    public ShellCommandInspector(
+        string workspaceRoot,
+        IReadOnlyList<string>? workspaceRoots = null)
+    {
+        var workingDirectory = Path.GetFullPath(workspaceRoot);
+        _workspaceRoots = (workspaceRoots ?? [workingDirectory])
+            .Select(Path.GetFullPath)
+            .ToArray();
+    }
 
     private static readonly HashSet<string> SafePaths = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -143,13 +153,20 @@ public sealed partial class ShellCommandInspector(string workspaceRoot)
         try
         {
             var fullPath = Path.GetFullPath(path);
-            return !fullPath.StartsWith(_workspaceRoot, StringComparison.OrdinalIgnoreCase) &&
-                   !fullPath.Equals(_workspaceRoot, StringComparison.OrdinalIgnoreCase);
+            return !_workspaceRoots.Any(root => IsWithinBoundary(fullPath, root));
         }
         catch
         {
             return true;
         }
+    }
+
+    private static bool IsWithinBoundary(string path, string root)
+    {
+        var boundary = root.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+        return path.Equals(boundary, StringComparison.OrdinalIgnoreCase)
+            || path.StartsWith(boundary + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase)
+            || path.StartsWith(boundary + Path.AltDirectorySeparatorChar, StringComparison.OrdinalIgnoreCase);
     }
 
     private static string? ResolveHomePath(string path)

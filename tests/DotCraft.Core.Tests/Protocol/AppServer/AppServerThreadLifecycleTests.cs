@@ -52,6 +52,32 @@ public sealed class AppServerThreadLifecycleTests : IDisposable
     }
 
     [Fact]
+    public async Task ThreadStart_AppliesAndReturnsRuntimeWorkspaceRoots()
+    {
+        var primary = Path.GetFullPath(_h.Identity.WorkspacePath);
+        var secondary = Path.GetFullPath(Path.Combine(primary, "..", "secondary"));
+        var msg = _h.BuildRequest(AppServerMethods.ThreadStart, new
+        {
+            identity = new { channelName = "appserver", userId = "test_user", workspacePath = primary },
+            cwd = primary,
+            runtimeWorkspaceRoots = new[] { primary, secondary, primary }
+        });
+
+        await _h.ExecuteRequestAsync(msg);
+
+        var response = await _h.Transport.ReadNextSentAsync();
+        AppServerTestHarness.AssertIsSuccessResponse(response);
+        var thread = response.RootElement.GetProperty("result").GetProperty("thread");
+        Assert.Equal(primary, thread.GetProperty("cwd").GetString());
+        Assert.Equal(
+            [primary, secondary],
+            thread.GetProperty("runtimeWorkspaceRoots")
+                .EnumerateArray()
+                .Select(item => item.GetString()!)
+                .ToArray());
+    }
+
+    [Fact]
     public async Task ItemWidgetState_DoesNotSurfaceOnRuntimeDynamicItems()
     {
         var thread = await _h.Service.CreateThreadAsync(_h.Identity);

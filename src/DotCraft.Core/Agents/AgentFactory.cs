@@ -463,7 +463,8 @@ public sealed class AgentFactory : IAsyncDisposable
             mode.ToString().ToLowerInvariant(),
             profile: null,
             providerCapabilities: context.CurrentThreadSource?.SubAgent is null ? [] : ["subagent-child"],
-            revision: 1);
+            revision: 1,
+            workspaceRoots: context.WorkspaceRoots);
 
     /// <summary>
     /// Creates an AI agent with the specified tools.
@@ -709,7 +710,8 @@ public sealed class AgentFactory : IAsyncDisposable
                     subAgentWaitAgentTimeoutOptions: SubAgentWaitAgentTimeoutOptions.FromConfig(ctx.Config.SubAgent),
                     threadId: ctx.CurrentThreadId,
                     threadSystemPromptContextProviders: ctx.ThreadSystemPromptContextProviders,
-                    originChannel: ctx.CurrentOriginChannel)
+                    originChannel: ctx.CurrentOriginChannel,
+                    workspaceRoots: ctx.WorkspaceRoots)
             ];
         }
 

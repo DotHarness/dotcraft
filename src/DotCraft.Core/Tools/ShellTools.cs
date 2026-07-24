@@ -27,6 +27,8 @@ public sealed class ShellTools
 
     private readonly ShellCommandInspector _inspector;
 
+    private readonly IReadOnlyList<string> _workspaceRoots;
+
     private readonly IBackgroundTerminalService? _backgroundTerminals;
 
     public ShellTools(
@@ -36,7 +38,8 @@ public sealed class ShellTools
         int maxOutputLength = 10000,
         IApprovalService? approvalService = null,
         PathBlacklist? blacklist = null,
-        IBackgroundTerminalService? backgroundTerminals = null)
+        IBackgroundTerminalService? backgroundTerminals = null,
+        IReadOnlyList<string>? workspaceRoots = null)
     {
         _workingDirectory = Path.GetFullPath(workingDirectory);
         _timeoutSeconds = timeoutSeconds;
@@ -45,7 +48,10 @@ public sealed class ShellTools
         _approvalService = approvalService;
         _blacklist = blacklist;
         _backgroundTerminals = backgroundTerminals;
-        _inspector = new ShellCommandInspector(_workingDirectory);
+        _workspaceRoots = (workspaceRoots ?? [_workingDirectory])
+            .Select(Path.GetFullPath)
+            .ToArray();
+        _inspector = new ShellCommandInspector(_workingDirectory, _workspaceRoots);
     }
 
     [Description("Execute a shell command and return its output. On Windows PowerShell, run inline Python by piping a here-string to stdin, for example @'\\nprint('hello')\\n'@ | python -, instead of python -c with nested escaped quotes.")]
@@ -371,8 +377,7 @@ public sealed class ShellTools
         var hasPathTraversal = normalized.Contains("..\\") || normalized.Contains("../");
 
         var cwdPath = new DirectoryInfo(cwd).FullName;
-        var workspace = new DirectoryInfo(_workingDirectory).FullName;
-        var isOutsideWorkspace = !cwdPath.StartsWith(workspace, StringComparison.OrdinalIgnoreCase);
+        var isOutsideWorkspace = !_workspaceRoots.Any(root => IsWithinBoundary(cwdPath, root));
 
         // Detect absolute, ~, and $HOME paths that resolve outside the workspace
         var outsidePaths = _inspector.DetectOutsideWorkspacePaths(command);
@@ -402,6 +407,14 @@ public sealed class ShellTools
         }
 
         return null;
+    }
+
+    private static bool IsWithinBoundary(string path, string root)
+    {
+        var boundary = root.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+        return path.Equals(boundary, StringComparison.OrdinalIgnoreCase)
+            || path.StartsWith(boundary + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase)
+            || path.StartsWith(boundary + Path.AltDirectorySeparatorChar, StringComparison.OrdinalIgnoreCase);
     }
 }
 

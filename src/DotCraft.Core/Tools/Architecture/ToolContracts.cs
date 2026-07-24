@@ -355,7 +355,8 @@ public sealed class ToolPlanningContext
         long revision,
         ToolPlanningThreadKind threadKind = ToolPlanningThreadKind.Unknown,
         string? effectiveProviderId = null,
-        string? effectiveMainModel = null)
+        string? effectiveMainModel = null,
+        IReadOnlyList<string>? workspaceRoots = null)
     {
         if (string.IsNullOrWhiteSpace(threadId))
             throw new ArgumentException("A thread identifier is required.", nameof(threadId));
@@ -366,6 +367,7 @@ public sealed class ToolPlanningContext
         ThreadId = threadId;
         TurnId = turnId;
         WorkspacePath = workspacePath;
+        WorkspaceRoots = workspaceRoots ?? [workspacePath];
         Mode = mode;
         Profile = profile;
         ProviderCapabilities = (providerCapabilities ?? [])
@@ -382,6 +384,8 @@ public sealed class ToolPlanningContext
     public string? TurnId { get; }
     /// <summary>Gets the workspace root.</summary>
     public string WorkspacePath { get; }
+    /// <summary>Gets the ordered runtime workspace boundaries.</summary>
+    public IReadOnlyList<string> WorkspaceRoots { get; }
     /// <summary>Gets the agent mode.</summary>
     public string Mode { get; }
     /// <summary>Gets the optional tool profile.</summary>

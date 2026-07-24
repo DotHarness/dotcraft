@@ -248,8 +248,10 @@ Ownership rules:
 
 - `WorkspacePath` remains the state workspace. It owns `.craft/threads`, `.craft/state.db`, memory, goals, plans, app bindings, skills, plugins, and thread metadata.
 - The worktree path is the execution workspace for the forked thread. File tools, shell tools, Git operations, LSP, and first-party file surfaces use that execution root.
-- `effectiveWorkspacePath = ExecutionWorkspaceOverride ?? WorkspaceOverride ?? WorkspacePath`.
+- `ordinaryCwd = Cwd ?? WorkspaceOverride ?? WorkspacePath`.
+- `effectiveWorkspacePath = ExecutionWorkspaceOverride ?? ordinaryCwd`.
 - `ExecutionWorkspaceOverride` changes runtime execution location only. It must not relocate rollout, memory, goals, plans, app bindings, or workspace configuration.
+- `RuntimeWorkspaceRoots` is the ordered, sticky set of additional runtime boundaries. See [Multi-Folder Local Projects](../features/multi-folder-projects.md).
 - Registered worktree roots under `.craft/worktrees` are allowed execution roots for their bound threads even though ordinary main-workspace browsing hides `.craft/worktrees/**`.
 - Worktree handoff must not mutate the source thread or the source working tree. Dirty change handoff copies uncommitted source changes into the new worktree when requested.
 
@@ -1913,6 +1915,8 @@ ThreadConfiguration
 ├── Reasoning: ReasoningConfig?                  // Per-thread reasoning configuration
 ├── ContextWindow: { mode: "default"|"max" }?    // Per-thread context-window mode
 ├── WorkspaceOverride: string?                   // Alternate workspace root for this thread
+├── Cwd: string?                                 // Sticky working directory; relative paths resolve here
+├── RuntimeWorkspaceRoots: string[]?             // Sticky ordered runtime boundaries; null defaults to cwd
 ├── ExecutionWorkspaceOverride: string?          // Runtime execution root, typically a registered worktree
 ├── ToolProfile: string?                         // Named tool profile to inject
 ├── UseToolProfileOnly: bool                     // Use only the profile tools when true
@@ -1956,9 +1960,13 @@ Workspace resolution is thread-aware:
 
 - `WorkspacePath` is the state workspace for thread persistence and workspace-owned state.
 - `WorkspaceOverride`, when present, is the traditional alternate workspace root for a thread.
-- `ExecutionWorkspaceOverride`, when present, wins for tool execution and first-party file/Git surfaces while keeping state in `WorkspacePath`.
+- `Cwd`, when present, is the sticky working directory for tool execution and relative path resolution without moving state from `WorkspacePath`.
+- `RuntimeWorkspaceRoots` is an ordered full replacement when present. Null defaults to the ordinary cwd; an empty array explicitly supplies no runtime roots.
+- A cwd-only update retargets the old cwd entry while preserving additional roots. Duplicate roots are removed without changing first-occurrence order.
+- `ExecutionWorkspaceOverride`, when present, wins for tool execution and first-party file/Git surfaces while keeping state in `WorkspacePath`; it replaces the ordinary cwd root in the effective roots and preserves additional roots.
 - Git worktree handoff uses `ExecutionWorkspaceOverride`; it must not use `WorkspaceOverride` to move state into the worktree.
 - Existing-thread worktree handoff is a metadata/configuration change on the same Thread. It must be rejected while the Thread has running or waiting turn work, and it must rebuild the effective agent/tool context before the next turn.
+- The complete multi-folder contract is specified in [Multi-Folder Local Projects](../features/multi-folder-projects.md).
 
 ### 16.3 Mode Switching
 

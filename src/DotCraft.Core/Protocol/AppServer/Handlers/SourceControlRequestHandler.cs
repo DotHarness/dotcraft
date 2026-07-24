@@ -387,13 +387,7 @@ internal sealed class SourceControlRequestHandler(
     }
 
     private static string ResolveEffectiveWorkspacePath(SessionThread thread)
-    {
-        var execution = thread.Configuration?.ExecutionWorkspaceOverride;
-        if (!string.IsNullOrWhiteSpace(execution))
-            return execution;
-        var workspace = thread.Configuration?.WorkspaceOverride;
-        return string.IsNullOrWhiteSpace(workspace) ? thread.WorkspacePath : workspace;
-    }
+        => ThreadWorkspaceResolver.Resolve(thread).Cwd;
 
     private static PerforceConnectionWire ToWire(PerforceConnectionConfig c) => new()
     {

@@ -15,7 +15,8 @@ public sealed class LspTool(
     bool requireApprovalOutsideWorkspace = true,
     int maxFileSize = 10 * 1024 * 1024,
     IApprovalService? approvalService = null,
-    PathBlacklist? blacklist = null)
+    PathBlacklist? blacklist = null,
+    IReadOnlyList<string>? workspaceRoots = null)
 {
     private static readonly HashSet<string> SupportedOperations = new(StringComparer.Ordinal)
     {
@@ -32,7 +33,7 @@ public sealed class LspTool(
 
     private readonly string _workspaceRoot = Path.GetFullPath(workspaceRoot);
     private readonly FileAccessGuard _fileAccessGuard =
-        new(workspaceRoot, requireApprovalOutsideWorkspace, approvalService, blacklist);
+        new(workspaceRoot, requireApprovalOutsideWorkspace, approvalService, blacklist, workspaceRoots: workspaceRoots);
 
     [Description("Interact with Language Server Protocol (LSP) servers for code intelligence. Supported operations: goToDefinition, findReferences, hover, documentSymbol, workspaceSymbol, goToImplementation, prepareCallHierarchy, incomingCalls, outgoingCalls. line and character are 1-based positions.")]
     [Tool(Icon = "🧭", DisplayType = typeof(CoreToolDisplays), DisplayMethod = nameof(CoreToolDisplays.LSP), MaxResultChars = 100_000)]

@@ -445,20 +445,10 @@ public sealed partial class SessionService
         }
 
         private static string ResolveEffectiveWorkspacePath(SessionThread thread)
-        {
-            var executionOverride = thread.Configuration?.ExecutionWorkspaceOverride;
-            if (!string.IsNullOrWhiteSpace(executionOverride))
-                return executionOverride;
-
-            var workspaceOverride = thread.Configuration?.WorkspaceOverride;
-            return string.IsNullOrWhiteSpace(workspaceOverride) ? thread.WorkspacePath : workspaceOverride;
-        }
+            => ThreadWorkspaceResolver.Resolve(thread).Cwd;
 
         private static string ResolveLocalWorkspacePath(SessionThread thread)
-        {
-            var workspaceOverride = thread.Configuration?.WorkspaceOverride;
-            return string.IsNullOrWhiteSpace(workspaceOverride) ? thread.WorkspacePath : workspaceOverride;
-        }
+            => ThreadWorkspaceResolver.ResolveOrdinaryCwd(thread);
 
         private static string NormalizeWorktreeHandoffMode(string? mode)
         {

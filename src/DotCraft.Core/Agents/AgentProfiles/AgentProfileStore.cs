@@ -1688,6 +1688,8 @@ public sealed partial class AgentProfileStore
         Speed = source.Speed,
         ContextWindow = CloneContextWindow(source.ContextWindow),
         WorkspaceOverride = source.WorkspaceOverride,
+        Cwd = source.Cwd,
+        RuntimeWorkspaceRoots = source.RuntimeWorkspaceRoots == null ? null : [.. source.RuntimeWorkspaceRoots],
         ExecutionWorkspaceOverride = source.ExecutionWorkspaceOverride,
         ToolProfile = source.ToolProfile,
         UseToolProfileOnly = source.UseToolProfileOnly,

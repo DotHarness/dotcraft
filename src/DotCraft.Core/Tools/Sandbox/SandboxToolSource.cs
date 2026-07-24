@@ -38,7 +38,10 @@ public sealed class SandboxToolSource(
 
         var manager = _managers.GetOrAdd(
             context.ThreadId,
-            _ => new SandboxSessionManager(config.Tools.Sandbox, context.WorkspacePath));
+            _ => new SandboxSessionManager(
+                config.Tools.Sandbox,
+                context.WorkspacePath,
+                context.WorkspaceRoots));
         var tools = new List<AIFunction>();
         var shellTools = new SandboxShellTools(
             manager,
@@ -79,7 +82,8 @@ public sealed class SandboxToolSource(
                 traceCollector: traceCollector,
                 endpoint: subAgentRuntime.EndPoint,
                 maxOutputTokens: subAgentRuntime.MaxOutputTokens,
-                config: config);
+                config: config,
+                workspaceRoots: context.WorkspaceRoots);
             var coordinator = new SubAgentCoordinator(
                 context.WorkspacePath,
                 [new NativeSubAgentRuntime(managerRuntime), new CliOneshotRuntime()],
