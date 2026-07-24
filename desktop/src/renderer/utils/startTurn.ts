@@ -5,6 +5,7 @@ import { useConversationStore } from '../stores/conversationStore'
 import { useThreadStore } from '../stores/threadStore'
 import { buildComposerInputParts } from './composeInputParts'
 import { getFallbackThreadName } from './threadFallbackName'
+import { runtimeWorkspaceRootsFor } from './workspaceRuntimeRoots'
 
 interface StartTurnParams {
   threadId: string
@@ -96,10 +97,15 @@ export async function startTurnWithOptimisticUI({
 
   try {
     const identityPath = identityWorkspacePath ?? workspacePath
+    // Keep the multi-folder project's runtime roots in sync (sticky). Sending only
+    // runtimeWorkspaceRoots is a complete replacement with no cwd retargeting, so
+    // the thread's existing working directory is preserved.
+    const runtimeWorkspaceRoots = runtimeWorkspaceRootsFor(identityPath)
     const result = await window.api.appServer.sendRequest('turn/start', {
       threadId,
       input: inputParts,
       ...(sentAsGoal ? { sentAsGoal: true } : {}),
+      ...(runtimeWorkspaceRoots ? { runtimeWorkspaceRoots } : {}),
       identity: {
         channelName: 'dotcraft-desktop',
         userId: 'local',

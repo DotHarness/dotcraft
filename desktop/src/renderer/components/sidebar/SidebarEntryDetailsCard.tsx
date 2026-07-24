@@ -15,6 +15,7 @@ import {
   type ReactNode
 } from 'react'
 import { createPortal } from 'react-dom'
+import { useTransientOverlay } from '../../hooks/useTransientOverlay'
 
 const OPEN_DELAY_MS = 320
 const CLOSE_DELAY_MS = 120
@@ -61,12 +62,22 @@ export function SidebarEntryDetailsCard({
   wrapperStyle
 }: SidebarEntryDetailsCardProps): JSX.Element {
   const cardId = useId()
-  const anchorRef = useRef<HTMLDivElement>(null)
-  const cardRef = useRef<HTMLDivElement>(null)
-  const openTimerRef = useRef<number | null>(null)
-  const closeTimerRef = useRef<number | null>(null)
   const suppressNextFocusOpenRef = useRef(false)
-  const [visible, setVisible] = useState(false)
+  const {
+    visible,
+    anchorRef,
+    overlayRef,
+    open,
+    scheduleOpen,
+    scheduleClose,
+    hide,
+    cancelClose
+  } = useTransientOverlay<HTMLDivElement, HTMLDivElement>({
+    disabled,
+    interactive,
+    openDelayMs: OPEN_DELAY_MS,
+    closeDelayMs: CLOSE_DELAY_MS
+  })
   const [position, setPosition] = useState<SidebarEntryDetailsPlacement>({
     left: 0,
     top: 0,
@@ -74,58 +85,14 @@ export function SidebarEntryDetailsCard({
     overlapEdge: null
   })
 
-  const clearOpenTimer = (): void => {
-    if (openTimerRef.current == null) return
-    window.clearTimeout(openTimerRef.current)
-    openTimerRef.current = null
-  }
-  const clearCloseTimer = (): void => {
-    if (closeTimerRef.current == null) return
-    window.clearTimeout(closeTimerRef.current)
-    closeTimerRef.current = null
-  }
-  const show = (): void => {
-    clearOpenTimer()
-    clearCloseTimer()
-    setVisible(true)
-  }
-  const scheduleShow = (): void => {
-    if (disabled || visible || openTimerRef.current != null) return
-    clearCloseTimer()
-    openTimerRef.current = window.setTimeout(() => {
-      openTimerRef.current = null
-      setVisible(true)
-    }, OPEN_DELAY_MS)
-  }
-  const scheduleHide = (): void => {
-    clearOpenTimer()
-    clearCloseTimer()
-    closeTimerRef.current = window.setTimeout(() => {
-      closeTimerRef.current = null
-      setVisible(false)
-    }, CLOSE_DELAY_MS)
-  }
-
-  useEffect(() => {
-    if (!disabled) return
-    clearOpenTimer()
-    clearCloseTimer()
-    setVisible(false)
-  }, [disabled])
-
   useEffect(() => {
     if (visible) onOpen?.()
   }, [onOpen, visible])
 
-  useEffect(() => () => {
-    clearOpenTimer()
-    clearCloseTimer()
-  }, [])
-
   useLayoutEffect(() => {
     if (!visible) return
     const anchor = anchorRef.current
-    const card = cardRef.current
+    const card = overlayRef.current
     if (!anchor || !card) return
     const anchorRect = anchor.getBoundingClientRect()
     setPosition(placeSidebarEntryDetailsCard(
@@ -138,12 +105,26 @@ export function SidebarEntryDetailsCard({
       window.innerWidth,
       window.innerHeight
     ))
-  }, [content, visible, width])
+  }, [content, visible, width, anchorRef, overlayRef])
+
+  function handleAnchorFocus(event: FocusEvent<HTMLDivElement>): void {
+    // A non-interactive card anchors on the wrapper itself; focus moving to a
+    // child control means the user is acting, not inspecting — so hide.
+    if (!interactive && event.target !== event.currentTarget) {
+      hide()
+      return
+    }
+    if (suppressNextFocusOpenRef.current) {
+      suppressNextFocusOpenRef.current = false
+      return
+    }
+    open()
+  }
 
   function handleAnchorBlur(event: FocusEvent<HTMLDivElement>): void {
     const next = event.relatedTarget as Node | null
-    if (next && cardRef.current?.contains(next)) return
-    scheduleHide()
+    if (next && overlayRef.current?.contains(next)) return
+    scheduleClose()
   }
 
   const child = Children.only(children)
@@ -160,21 +141,9 @@ export function SidebarEntryDetailsCard({
         tabIndex={interactive ? undefined : 0}
         aria-label={interactive ? undefined : label}
         aria-describedby={!interactive && visible ? cardId : undefined}
-        onMouseEnter={scheduleShow}
-        onMouseLeave={scheduleHide}
-        onFocusCapture={(event) => {
-          if (!interactive && event.target !== event.currentTarget) {
-            clearOpenTimer()
-            clearCloseTimer()
-            setVisible(false)
-            return
-          }
-          if (suppressNextFocusOpenRef.current) {
-            suppressNextFocusOpenRef.current = false
-            return
-          }
-          show()
-        }}
+        onMouseEnter={scheduleOpen}
+        onMouseLeave={scheduleClose}
+        onFocusCapture={handleAnchorFocus}
         onBlurCapture={handleAnchorBlur}
         style={{ display: 'block', minWidth: 0, ...wrapperStyle }}
       >
@@ -183,7 +152,7 @@ export function SidebarEntryDetailsCard({
       {visible && createPortal(
         <div
           id={cardId}
-          ref={cardRef}
+          ref={overlayRef}
           role={interactive ? 'dialog' : 'tooltip'}
           aria-label={interactive ? label : undefined}
           className="sidebar-entry-details-card"
@@ -191,17 +160,17 @@ export function SidebarEntryDetailsCard({
           data-side={position.side}
           data-overlap-edge={position.overlapEdge ?? undefined}
           style={{ position: 'fixed', left: position.left, top: position.top, width }}
-          onMouseEnter={interactive ? () => { clearCloseTimer() } : undefined}
-          onMouseLeave={interactive ? scheduleHide : undefined}
-          onFocusCapture={interactive ? () => { clearCloseTimer() } : undefined}
+          onMouseEnter={interactive ? cancelClose : undefined}
+          onMouseLeave={interactive ? scheduleClose : undefined}
+          onFocusCapture={interactive ? cancelClose : undefined}
           onBlurCapture={interactive ? (event) => {
             const next = event.relatedTarget as Node | null
-            if (next && (cardRef.current?.contains(next) || anchorRef.current?.contains(next))) return
-            scheduleHide()
+            if (next && (overlayRef.current?.contains(next) || anchorRef.current?.contains(next))) return
+            scheduleClose()
           } : undefined}
           onKeyDown={interactive ? (event) => {
             if (event.key === 'Escape') {
-              setVisible(false)
+              hide()
               const focusTarget = anchorRef.current?.querySelector<HTMLElement>('[tabindex],button')
               if (focusTarget) {
                 suppressNextFocusOpenRef.current = true

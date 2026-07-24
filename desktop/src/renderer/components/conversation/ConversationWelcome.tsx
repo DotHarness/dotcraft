@@ -21,6 +21,7 @@ import {
   mergeComposerFileAttachments
 } from '../../utils/composerAttachments'
 import { buildComposerInputParts } from '../../utils/composeInputParts'
+import { runtimeWorkspaceRootsFor } from '../../utils/workspaceRuntimeRoots'
 import { buildGoalObjective, extractGoal, parseGoalSlashCommand, type GoalSlashCommand } from '../../utils/threadGoal'
 import { expandInitCommand } from '../../utils/initCommand'
 import { CommandSearchPopover } from './CommandSearchPopover'
@@ -1191,18 +1192,25 @@ export function ConversationWelcome({
       ? { providerId, model: modelName }
       : undefined
 
+    // New chats snapshot the local Project's folders as runtime roots; cwd defaults
+    // to the primary (WorkspacePath). Omitted for single-folder / remote workspaces.
+    const runtimeWorkspaceRoots = runtimeWorkspaceRootsFor(identityPath)
+    const rootsField = runtimeWorkspaceRoots ? { runtimeWorkspaceRoots } : {}
+
     const thread = welcomeWorkspaceMode === 'worktree'
       ? (await window.api.appServer.sendRequest('worktree/createAndStart', {
           identity,
           historyMode: 'server',
           baseRef: welcomeBaseRef || undefined,
           branchName: welcomeWorktreeBranchName || undefined,
-          config
+          config,
+          ...rootsField
         }, 180_000) as { thread: ThreadSummary }).thread
       : (await window.api.appServer.sendRequest('thread/start', {
           identity,
           historyMode: 'server',
-          config
+          config,
+          ...rootsField
         }) as { thread: ThreadSummary }).thread
 
     // Apply a welcome pre-selected Perforce changelist to the new thread (non-default only).

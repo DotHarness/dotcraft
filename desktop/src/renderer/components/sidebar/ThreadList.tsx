@@ -14,6 +14,7 @@ import {
   FolderPlus,
   LogOut,
   MoreHorizontal,
+  Pencil,
   Pin,
   RotateCw,
   Server,
@@ -22,6 +23,7 @@ import {
   Trash2
 } from 'lucide-react'
 import { useT } from '../../contexts/LocaleContext'
+import { LayerBoundary } from '../../contexts/LayerContext'
 import { useDragDropStore } from '../../stores/dragDropStore'
 import { useThreadStore, selectFilteredThreads } from '../../stores/threadStore'
 import { useWorkspaceProjectsStore } from '../../stores/workspaceProjectsStore'
@@ -40,7 +42,7 @@ import type { WorkspaceProjectSummary, WorkspaceProjectState } from '../../../sh
 import { addToast } from '../../stores/toastStore'
 import { PinIcon, ThreadEntry } from './ThreadEntry'
 import { WorkspaceOptionsMenu } from './WorkspaceHeader'
-import { AddProjectMenuOptions, useAddProjectFlow } from '../projects/AddProject'
+import { useAddProjectFlow } from '../projects/AddProject'
 import { SIDEBAR_ROW_MIN_HEIGHT } from './sidebarNavRowStyles'
 import {
   isRemoteProjectKey,
@@ -651,55 +653,11 @@ function ProjectsSectionHeader({
   const [hovered, setHovered] = useState(false)
   const [focused, setFocused] = useState(false)
   const [workspaceMenuOpen, setWorkspaceMenuOpen] = useState(false)
-  const [addMenuOpen, setAddMenuOpen] = useState(false)
-  const [addMenuPosition, setAddMenuPosition] = useState<{ top: number; left: number; width: number } | null>(null)
-  const addButtonRef = useRef<HTMLButtonElement>(null)
-  const addMenuRef = useRef<HTMLDivElement>(null)
   const addProject = useAddProjectFlow()
-  const showActions = hovered || focused || workspaceMenuOpen || addMenuOpen
-
-  function updateAddMenuPosition(): void {
-    const rect = addButtonRef.current?.getBoundingClientRect()
-    if (!rect) return
-    const viewportWidth = window.innerWidth || 320
-    const viewportHeight = window.innerHeight || 480
-    const menuWidth = 220
-    const estimatedMenuHeight = 76
-    const gap = 4
-    // Left-aligned dropdown that opens downward-right from the trigger, so the menu
-    // extends into open space instead of overlapping the project list below.
-    const left = Math.max(8, Math.min(rect.left, viewportWidth - menuWidth - 8))
-    const belowTop = rect.bottom + gap
-    const top = belowTop + estimatedMenuHeight > viewportHeight - 8
-      ? Math.max(8, rect.top - estimatedMenuHeight - gap)
-      : belowTop
-    setAddMenuPosition({ top, left, width: menuWidth })
-  }
-
-  useEffect(() => {
-    if (!addMenuOpen) return
-    updateAddMenuPosition()
-
-    function handleClick(event: MouseEvent): void {
-      const target = event.target as Node
-      if (addButtonRef.current?.contains(target) || addMenuRef.current?.contains(target)) return
-      setAddMenuOpen(false)
-    }
-    function handlePositionChange(): void {
-      updateAddMenuPosition()
-    }
-
-    document.addEventListener('mousedown', handleClick)
-    window.addEventListener('resize', handlePositionChange)
-    window.addEventListener('scroll', handlePositionChange, true)
-    return () => {
-      document.removeEventListener('mousedown', handleClick)
-      window.removeEventListener('resize', handlePositionChange)
-      window.removeEventListener('scroll', handlePositionChange, true)
-    }
-  }, [addMenuOpen])
+  const showActions = hovered || focused || workspaceMenuOpen
 
   return (
+    <>
     <div
       role="button"
       tabIndex={0}
@@ -763,41 +721,19 @@ function ProjectsSectionHeader({
           />
         )}
         <IconButton
-          ref={addButtonRef}
           icon={<FolderPlus size={15} aria-hidden />}
           label={t('projectsRail.addProject')}
           tooltipLabel={t('projectsRail.addProject')}
           size={24}
           radius={6}
           className="dc-thread-list-icon-button"
-          aria-haspopup="menu"
-          aria-expanded={addMenuOpen}
-          onClick={() => setAddMenuOpen((open) => !open)}
+          disabled={addProject.busy}
+          onClick={() => addProject.beginCreate()}
         />
       </div>
-      {addMenuOpen && addMenuPosition && typeof document !== 'undefined' && createPortal(
-        <div
-          ref={addMenuRef}
-          role="menu"
-          aria-label={t('projectsRail.addProject')}
-          style={{
-            ...projectMenuStyle,
-            top: addMenuPosition.top,
-            left: addMenuPosition.left,
-            width: addMenuPosition.width
-          }}
-          onClick={(event) => event.stopPropagation()}
-        >
-          <AddProjectMenuOptions
-            disabled={addProject.busy}
-            onStartFromScratch={() => { setAddMenuOpen(false); addProject.beginScratch() }}
-            onUseExistingFolder={() => { setAddMenuOpen(false); void addProject.chooseExistingFolder() }}
-          />
-        </div>,
-        document.body
-      )}
-      {addProject.dialog}
     </div>
+    {addProject.dialog}
+    </>
   )
 }
 
@@ -1129,6 +1065,7 @@ function ProjectHeader({
   const rowRef = useRef<HTMLDivElement>(null)
   const menuRef = useRef<HTMLDivElement>(null)
   const [menuPosition, setMenuPosition] = useState<{ top: number; left: number; width: number } | null>(null)
+  const addProject = useAddProjectFlow()
   const setActiveMainView = useUIStore((s) => s.setActiveMainView)
   const label = project.name || project.path
   const showActions = hovered || menuOpen
@@ -1202,7 +1139,8 @@ function ProjectHeader({
     const viewportWidth = window.innerWidth || 320
     const viewportHeight = window.innerHeight || 480
     const menuWidth = 220
-    const estimatedMenuHeight = isRemoteProject(project) ? 144 : project.running ? 264 : 176
+    // Local projects gain an "Edit project" row; remote projects do not.
+    const estimatedMenuHeight = isRemoteProject(project) ? 144 : project.running ? 298 : 210
     // Left-aligned to the project row so the menu opens downward-right from its left edge.
     const left = Math.max(8, Math.min(rect.left, viewportWidth - menuWidth - 8))
     const belowTop = rect.bottom + 4
@@ -1307,6 +1245,7 @@ function ProjectHeader({
   }
 
   return (
+    <>
     <SidebarEntryDetailsCard
       label={label}
       width={320}
@@ -1418,6 +1357,7 @@ function ProjectHeader({
         ) : null}
       </div>
       {menuOpen && menuPosition && typeof document !== 'undefined' && createPortal(
+        <LayerBoundary>
         <div
           ref={menuRef}
           role="menu"
@@ -1442,6 +1382,9 @@ function ProjectHeader({
             <ProjectMenuItem icon={<FolderOpen size={14} aria-hidden />} label={t('workspaceHeader.openInExplorer')} onClick={() => { setMenuOpen(false); void window.api.shell.openPath(project.path) }} />
           )}
           <ProjectMenuItem icon={<Copy size={14} aria-hidden />} label={t('projectsRail.copyPath')} onClick={() => { setMenuOpen(false); void copyPath() }} />
+          {!isRemoteProject(project) && (
+            <ProjectMenuItem icon={<Pencil size={14} aria-hidden />} label={t('projectsRail.editProject')} onClick={() => { setMenuOpen(false); addProject.beginEdit(project, active) }} />
+          )}
           {!isRemoteProject(project) && project.running && (
             <ProjectMenuItem icon={<RotateCw size={14} aria-hidden />} label={t('tray.restartAppServer')} onClick={() => { setMenuOpen(false); void restartWorkspace() }} />
           )}
@@ -1464,11 +1407,14 @@ function ProjectHeader({
               onClick={() => { setMenuOpen(false); void removeProject() }}
             />
           )}
-        </div>,
+        </div>
+        </LayerBoundary>,
         document.body
       )}
     </div>
     </SidebarEntryDetailsCard>
+    {addProject.dialog}
+    </>
   )
 }
 

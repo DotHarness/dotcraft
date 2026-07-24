@@ -1,5 +1,6 @@
 import { useEffect, useCallback, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
+import { LayerBoundary } from '../../contexts/LayerContext'
 import { Button } from './Button'
 
 export interface ConfirmDialogOptions {
@@ -113,7 +114,7 @@ export function ConfirmDialog({
     </div>
   )
 
-  return createPortal(dialog, document.body) as JSX.Element
+  return createPortal(<LayerBoundary>{dialog}</LayerBoundary>, document.body) as JSX.Element
 }
 
 // ---------------------------------------------------------------------------

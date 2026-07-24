@@ -980,6 +980,21 @@ const api = {
       return ipcRenderer.invoke('workspace:create-local-project', params)
     },
 
+    /**
+     * Persists a local multi-folder Project. The primary folder is the Project
+     * identity; secondary folders are additional runtime roots. Pass a
+     * `previousPath` that differs from `primaryFolder` to reassign the primary.
+     * Returns the persisted primary folder path.
+     */
+    saveLocalProject(params: {
+      previousPath?: string
+      primaryFolder: string
+      secondaryFolders: string[]
+      name?: string
+    }): Promise<{ path: string }> {
+      return ipcRenderer.invoke('workspace:save-local-project', params)
+    },
+
     getPathForFile(file: File): string {
       return webUtils.getPathForFile(file)
     },
