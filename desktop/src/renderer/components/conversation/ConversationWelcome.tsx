@@ -1194,6 +1194,10 @@ export function ConversationWelcome({
 
     // New chats snapshot the local Project's folders as runtime roots; cwd defaults
     // to the primary (WorkspacePath). Omitted for single-folder / remote workspaces.
+    // Worktree mode deliberately omits this: worktree/createAndStart does not accept
+    // runtime roots, so the first turn/start establishes them and Session Core
+    // retargets the primary root to the created worktree while preserving the
+    // secondary roots (see specs/features/multi-folder-projects.md §5).
     const runtimeWorkspaceRoots = runtimeWorkspaceRootsFor(identityPath)
     const rootsField = runtimeWorkspaceRoots ? { runtimeWorkspaceRoots } : {}
 
@@ -1203,8 +1207,7 @@ export function ConversationWelcome({
           historyMode: 'server',
           baseRef: welcomeBaseRef || undefined,
           branchName: welcomeWorktreeBranchName || undefined,
-          config,
-          ...rootsField
+          config
         }, 180_000) as { thread: ThreadSummary }).thread
       : (await window.api.appServer.sendRequest('thread/start', {
           identity,
