@@ -34,6 +34,12 @@ public sealed class TurnStartParams
 {
     public string ThreadId { get; set; } = string.Empty;
 
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Cwd { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public List<string>? RuntimeWorkspaceRoots { get; set; }
+
     public List<SessionWireInputPart> Input { get; set; } = [];
 
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]

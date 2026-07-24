@@ -547,6 +547,17 @@ declare global {
         pickFolder(options?: { title?: string }): Promise<string | null>
         /** Creates a new local project folder under Documents, git-inits it, and returns its absolute path. */
         createLocalProject(params: { name: string }): Promise<{ path: string; gitInitialized: boolean }>
+        /**
+         * Persists a local multi-folder Project (create, edit, or make-primary) and
+         * returns the persisted primary folder path. The primary folder is the
+         * Project identity; secondary folders are additional runtime roots.
+         */
+        saveLocalProject(params: {
+          previousPath?: string
+          primaryFolder: string
+          secondaryFolders: string[]
+          name?: string
+        }): Promise<{ path: string }>
         /** Returns the absolute local path for a dragged or picked Electron-backed File. */
         getPathForFile(file: File): string
         switch(newPath: string): Promise<void>

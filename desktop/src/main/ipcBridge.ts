@@ -1132,6 +1132,13 @@ export interface IpcHandlerCallbacks {
   getWorkspaceProjects?: () => WorkspaceProjectsPayload
   /** Removes a non-foreground workspace from the recent projects list. */
   removeRecentWorkspace?: (workspacePath: string) => void
+  /** Creates or updates a local multi-folder Project (primary + secondary folders). */
+  saveLocalProject?: (params: {
+    previousPath?: string
+    primaryFolder: string
+    secondaryFolders: string[]
+    name?: string
+  }) => void | Promise<void>
   /** Restarts the managed AppServer for the given workspace. */
   restartWorkspace?: (workspacePath: string) => void | Promise<void>
   /** Stops the managed AppServer for the given workspace. */
@@ -1840,6 +1847,43 @@ export function registerIpcHandlers(
   handleSafe('workspace:remove-recent', (_event, workspacePath: string) => {
     callbacks?.removeRecentWorkspace?.(workspacePath)
   })
+
+  // Renderer -> Main: persist a local multi-folder Project. The primary folder is
+  // the Project identity; secondary folders are additional runtime roots. Passing
+  // a `previousPath` that differs from `primaryFolder` reassigns the primary.
+  handleSafe(
+    'workspace:save-local-project',
+    async (
+      _event,
+      params: {
+        previousPath?: string
+        primaryFolder: string
+        secondaryFolders: string[]
+        name?: string
+      }
+    ) => {
+      const primaryFolder = typeof params?.primaryFolder === 'string' ? params.primaryFolder.trim() : ''
+      if (!primaryFolder) {
+        throw new Error('A primary folder is required to save a project.')
+      }
+      let isDirectory = false
+      try {
+        isDirectory = (await fs.stat(primaryFolder)).isDirectory()
+      } catch {
+        isDirectory = false
+      }
+      if (!isDirectory) {
+        throw new Error(`Primary folder does not exist: ${primaryFolder}`)
+      }
+      await callbacks?.saveLocalProject?.({
+        previousPath: typeof params?.previousPath === 'string' ? params.previousPath : undefined,
+        primaryFolder,
+        secondaryFolders: Array.isArray(params?.secondaryFolders) ? params.secondaryFolders : [],
+        name: typeof params?.name === 'string' ? params.name : undefined
+      })
+      return { path: primaryFolder }
+    }
+  )
 
   handleSafe('workspace:restart', async (_event, workspacePath: string) => {
     await callbacks?.restartWorkspace?.(workspacePath)
@@ -2852,6 +2896,7 @@ export function unregisterIpcHandlers(): void {
   ipcMain.removeHandler('workspace:get-recent')
   ipcMain.removeHandler('workspace:get-projects')
   ipcMain.removeHandler('workspace:remove-recent')
+  ipcMain.removeHandler('workspace:save-local-project')
   ipcMain.removeHandler('workspace:restart')
   ipcMain.removeHandler('workspace:stop')
   ipcMain.removeHandler('workspace:archive-thread')

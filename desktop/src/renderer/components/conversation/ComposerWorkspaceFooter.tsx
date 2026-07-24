@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type FocusEvent, type JSX, type ReactNode } from 'react'
 import { ComposerOverlapBand, useComposerOverlapBandHeight } from './useComposerOverlapBand'
 import { createPortal } from 'react-dom'
-import { ArrowRightLeft, Check, ChevronDown, ChevronRight, Cloud, Folder, FolderPlus, GitBranch, Laptop, ListChecks, Plus, Search, Server } from 'lucide-react'
+import { ArrowRightLeft, Check, ChevronDown, Cloud, Folder, FolderPlus, GitBranch, Laptop, ListChecks, Plus, Search, Server } from 'lucide-react'
 import { useT } from '../../contexts/LocaleContext'
 import { useConnectionStore } from '../../stores/connectionStore'
 import { Input, Textarea } from '../ui/Input'
@@ -15,7 +15,7 @@ import type { WorkspaceProjectSummary } from '../../../shared/workspaceProjects'
 import { isDefaultChatWorkspacePathCandidate } from '../../../shared/defaultChatWorkspace'
 import { normalizeWorkspaceProjectKey } from '../../../shared/workspaceProjectKey'
 import { WorktreeHandoffDialog } from './WorktreeHandoffDialog'
-import { AddProjectMenuOptions, useAddProjectFlow } from '../projects/AddProject'
+import { useAddProjectFlow } from '../projects/AddProject'
 import { Button } from '../ui/Button'
 
 export type ComposerWorkspaceMode = 'local' | 'worktree'
@@ -77,26 +77,6 @@ const menuStyle: CSSProperties = {
   borderRadius: '10px',
   background: 'var(--glass-surface-strong)',
   border: 'none',
-  boxShadow: 'var(--glass-shadow-soft)',
-  backdropFilter: 'var(--glass-blur)',
-  WebkitBackdropFilter: 'var(--glass-blur)',
-  color: 'var(--text-primary)'
-}
-
-const addProjectSubmenuStyle: CSSProperties = {
-  position: 'absolute',
-  left: 'calc(100% + 6px)',
-  bottom: 0,
-  zIndex: 101,
-  width: '220px',
-  padding: '8px',
-  borderRadius: '10px',
-  background: 'var(--glass-surface-strong)',
-  borderTop: 'none',
-  borderRight: 'none',
-  borderBottom: 'none',
-  // Opens to the right; its left edge meets the same-tone parent menu. See DESIGN.md.
-  borderLeft: '1px solid var(--glass-border)',
   boxShadow: 'var(--glass-shadow-soft)',
   backdropFilter: 'var(--glass-blur)',
   WebkitBackdropFilter: 'var(--glass-blur)',
@@ -273,8 +253,6 @@ export function ComposerWorkspaceFooter({
   const [branchQuery, setBranchQuery] = useState('')
   const [changelistQuery, setChangelistQuery] = useState('')
   const [projectQuery, setProjectQuery] = useState('')
-  const [addMenuOpen, setAddMenuOpen] = useState(false)
-  const addMenuCloseTimer = useRef<number | null>(null)
   const addProject = useAddProjectFlow()
   const [busy, setBusy] = useState(false)
   const [createOpen, setCreateOpen] = useState(false)
@@ -449,37 +427,11 @@ export function ComposerWorkspaceFooter({
     }
   }, [openMenu])
 
-  const cancelAddMenuClose = useCallback(() => {
-    if (addMenuCloseTimer.current != null) {
-      window.clearTimeout(addMenuCloseTimer.current)
-      addMenuCloseTimer.current = null
-    }
-  }, [])
-
-  const openAddMenu = useCallback(() => {
-    cancelAddMenuClose()
-    setAddMenuOpen(true)
-  }, [cancelAddMenuClose])
-
-  // Close on a short delay so the pointer can travel across the gap between the
-  // "Add new project" row and its flyout without the submenu collapsing.
-  const scheduleCloseAddMenu = useCallback(() => {
-    cancelAddMenuClose()
-    addMenuCloseTimer.current = window.setTimeout(() => {
-      setAddMenuOpen(false)
-      addMenuCloseTimer.current = null
-    }, 160)
-  }, [cancelAddMenuClose])
-
-  useEffect(() => () => cancelAddMenuClose(), [cancelAddMenuClose])
-
   useEffect(() => {
     if (openMenu !== 'project') {
       setProjectQuery('')
-      setAddMenuOpen(false)
-      cancelAddMenuClose()
     }
-  }, [openMenu, cancelAddMenuClose])
+  }, [openMenu])
 
   const hideForUnavailableGit = useCallback(() => {
     setOpenMenu(null)
@@ -753,29 +705,13 @@ export function ComposerWorkspaceFooter({
                   margin: '6px 8px'
                 }}
               />
-              <div
-                style={{ position: 'relative' }}
-                onMouseEnter={openAddMenu}
-                onMouseLeave={scheduleCloseAddMenu}
+              <FooterMenuButton
+                icon={<FolderPlus size={15} strokeWidth={1.8} aria-hidden />}
+                disabled={addProject.busy}
+                onClick={() => { setOpenMenu(null); addProject.beginCreate() }}
               >
-                <FooterMenuButton
-                  icon={<FolderPlus size={15} strokeWidth={1.8} aria-hidden />}
-                  active={addMenuOpen}
-                  onClick={openAddMenu}
-                >
-                  <span style={{ flex: 1 }}>{t('addProject.addNew')}</span>
-                  <ChevronRight size={14} strokeWidth={1.8} aria-hidden />
-                </FooterMenuButton>
-                {addMenuOpen && (
-                  <div style={addProjectSubmenuStyle}>
-                    <AddProjectMenuOptions
-                      disabled={addProject.busy}
-                      onStartFromScratch={() => { setOpenMenu(null); addProject.beginScratch() }}
-                      onUseExistingFolder={() => { setOpenMenu(null); void addProject.chooseExistingFolder() }}
-                    />
-                  </div>
-                )}
-              </div>
+                <span style={{ flex: 1 }}>{t('addProject.addNew')}</span>
+              </FooterMenuButton>
             </div>
           )}
           {addProject.dialog}

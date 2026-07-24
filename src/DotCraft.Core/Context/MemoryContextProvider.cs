@@ -32,7 +32,8 @@ public sealed class MemoryContextProvider(
     SubAgentWaitAgentTimeoutOptions? subAgentWaitAgentTimeoutOptions = null,
     string? threadId = null,
     IReadOnlyList<IThreadSystemPromptContextProvider>? threadSystemPromptContextProviders = null,
-    string? originChannel = null)
+    string? originChannel = null,
+    IReadOnlyList<string>? workspaceRoots = null)
     : AIContextProvider
 {
     private readonly PromptBuilder _promptBuilder = new(
@@ -53,7 +54,8 @@ public sealed class MemoryContextProvider(
         dreamStore,
         subAgentWaitAgentTimeoutOptions,
         threadSystemPromptContextProviders,
-        originChannel);
+        originChannel,
+        workspaceRoots);
 
     protected override ValueTask<AIContext> ProvideAIContextAsync(InvokingContext context, CancellationToken cancellationToken = default)
     {

@@ -4,7 +4,6 @@ import {
   isValidElement,
   useId,
   useLayoutEffect,
-  useRef,
   useState,
   type CSSProperties,
   type HTMLAttributes,
@@ -13,6 +12,7 @@ import {
   type ReactNode
 } from 'react'
 import { createPortal } from 'react-dom'
+import { useTransientOverlay } from '../../hooks/useTransientOverlay'
 import type { ShortcutSpec } from './shortcutKeys'
 import { ShortcutBadge } from './ShortcutBadge'
 
@@ -49,9 +49,7 @@ export function ActionTooltip({
   wrapperStyle
 }: ActionTooltipProps): JSX.Element {
   const tooltipId = useId()
-  const anchorRef = useRef<HTMLSpanElement>(null)
-  const tooltipRef = useRef<HTMLDivElement>(null)
-  const [visible, setVisible] = useState(false)
+  const { visible, anchorRef, overlayRef, open, hide } = useTransientOverlay<HTMLSpanElement, HTMLDivElement>()
   const [position, setPosition] = useState<TooltipPosition>({ left: 0, top: 0 })
   const tooltipLabel = disabledReason || label
   const child = Children.only(children)
@@ -64,7 +62,7 @@ export function ActionTooltip({
   useLayoutEffect(() => {
     if (!visible) return
     const anchor = anchorRef.current
-    const tooltip = tooltipRef.current
+    const tooltip = overlayRef.current
     if (!anchor || !tooltip) return
 
     const anchorRect = anchor.getBoundingClientRect()
@@ -78,10 +76,10 @@ export function ActionTooltip({
     <>
       <span
         ref={anchorRef}
-        onMouseEnter={() => setVisible(true)}
-        onMouseLeave={() => setVisible(false)}
-        onFocusCapture={() => setVisible(true)}
-        onBlurCapture={() => setVisible(false)}
+        onMouseEnter={open}
+        onMouseLeave={hide}
+        onFocusCapture={open}
+        onBlurCapture={hide}
         style={{
           display: 'inline-flex',
           flexShrink: 0,
@@ -93,7 +91,7 @@ export function ActionTooltip({
       {visible && createPortal(
         <div
           id={tooltipId}
-          ref={tooltipRef}
+          ref={overlayRef}
           role="tooltip"
           className={multiline ? 'dc-action-tooltip dc-action-tooltip--multiline' : 'dc-action-tooltip'}
           data-multiline={multiline ? 'true' : undefined}

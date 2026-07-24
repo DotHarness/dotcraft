@@ -72,6 +72,11 @@ internal sealed class ThreadRequestHandler(
 
         var identity = NormalizeIdentityWorkspace(p.Identity);
         p.Config = ResolveAgentProfileConfig(p.Config, msg, identity);
+        p.Config = ThreadWorkspaceResolver.Apply(
+            identity.WorkspacePath,
+            p.Config,
+            p.Cwd,
+            p.RuntimeWorkspaceRoots);
         var historyMode = p.HistoryMode?.ToLowerInvariant() == "client"
             ? HistoryMode.Client
             : HistoryMode.Server;
@@ -161,6 +166,8 @@ internal sealed class ThreadRequestHandler(
                 ForkPoint = p.ForkPoint,
                 Identity = identity,
                 Config = p.Config,
+                Cwd = p.Cwd,
+                RuntimeWorkspaceRoots = p.RuntimeWorkspaceRoots,
                 DisplayName = p.DisplayName,
                 Ephemeral = p.Ephemeral ?? false
             },
@@ -188,6 +195,14 @@ internal sealed class ThreadRequestHandler(
         threadBinder.ValidateRuntimeInputs(p.DynamicTools, p.AdditionalContext);
 
         var thread = await sessionService.ResumeThreadAsync(p.ThreadId, ct);
+        if (p.Cwd != null || p.RuntimeWorkspaceRoots != null)
+        {
+            thread = await sessionService.UpdateThreadWorkspaceAsync(
+                p.ThreadId,
+                p.Cwd,
+                p.RuntimeWorkspaceRoots,
+                ct);
+        }
         await threadBinder.BindThreadRuntimeAsync(thread, p.DynamicTools, p.AdditionalContext, ct);
 
         var resumedBy = connection.ClientInfo?.Name ?? "appserver";

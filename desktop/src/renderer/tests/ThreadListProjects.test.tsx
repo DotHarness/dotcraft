@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { LocaleProvider } from '../contexts/LocaleContext'
 import { ThreadList } from '../components/sidebar/ThreadList'
 import { useThreadStore } from '../stores/threadStore'
@@ -11,6 +11,8 @@ const settingsGet = vi.fn()
 const settingsSet = vi.fn()
 const workspaceSwitch = vi.fn()
 const workspacePickFolder = vi.fn()
+const workspaceSaveLocalProject = vi.fn()
+const workspaceCreateLocalProject = vi.fn()
 const workspaceRemoveRecent = vi.fn()
 const workspaceDisconnectRemote = vi.fn()
 const workspaceGetRecent = vi.fn()
@@ -67,6 +69,8 @@ describe('ThreadList project-first layout', () => {
     settingsSet.mockResolvedValue({})
     workspaceSwitch.mockResolvedValue(undefined)
     workspacePickFolder.mockResolvedValue(null)
+    workspaceSaveLocalProject.mockImplementation(async ({ primaryFolder }: { primaryFolder: string }) => ({ path: primaryFolder }))
+    workspaceCreateLocalProject.mockResolvedValue({ path: '/workspace/new', gitInitialized: true })
     workspaceRemoveRecent.mockResolvedValue(undefined)
     workspaceDisconnectRemote.mockResolvedValue(undefined)
     workspaceGetRecent.mockResolvedValue([])
@@ -82,6 +86,8 @@ describe('ThreadList project-first layout', () => {
         workspace: {
           switch: workspaceSwitch,
           pickFolder: workspacePickFolder,
+          saveLocalProject: workspaceSaveLocalProject,
+          createLocalProject: workspaceCreateLocalProject,
           removeRecent: workspaceRemoveRecent,
           disconnectRemote: workspaceDisconnectRemote,
           getRecent: workspaceGetRecent,
@@ -564,7 +570,7 @@ describe('ThreadList project-first layout', () => {
     })
   })
 
-  it('Add project → Use an existing folder picks a folder and switches to it', async () => {
+  it('Add project → attaching an existing folder creates the project and switches to it', async () => {
     workspacePickFolder.mockResolvedValue('/workspace/new')
     useWorkspaceProjectsStore.getState().setPayload({
       foregroundWorkspacePath: '/workspace/a',
@@ -585,11 +591,17 @@ describe('ThreadList project-first layout', () => {
 
     renderList()
     fireEvent.mouseEnter(screen.getByText('Projects').parentElement as HTMLElement)
+    // The "+" opens the unified Create dialog directly (no sub-menu).
     fireEvent.click(screen.getByRole('button', { name: 'Add project' }))
-    fireEvent.click(await screen.findByRole('menuitem', { name: 'Use an existing folder' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Add folders DotCraft can read and edit' }))
+    await screen.findByText('/workspace/new')
+    fireEvent.click(screen.getByRole('button', { name: 'Create project' }))
 
     await waitFor(() => {
       expect(workspacePickFolder).toHaveBeenCalled()
+      expect(workspaceSaveLocalProject).toHaveBeenCalledWith(
+        expect.objectContaining({ primaryFolder: '/workspace/new', secondaryFolders: [] })
+      )
       expect(workspaceSwitch).toHaveBeenCalledWith('/workspace/new')
     })
   })
@@ -1213,7 +1225,7 @@ describe('ThreadList project-first layout', () => {
     fireEvent.mouseEnter(screen.getByText('Projects').parentElement as HTMLElement)
     fireEvent.click(screen.getByRole('button', { name: 'Add project' }))
 
-    expect(await screen.findByRole('menuitem', { name: 'Use an existing folder' })).toBeInTheDocument()
+    expect(await screen.findByRole('dialog', { name: 'Create project' })).toBeInTheDocument()
   })
 
   it('New chat in the Chats group switches to the chat workspace and opens a new chat', async () => {
@@ -1585,7 +1597,7 @@ describe('ThreadList project-first layout', () => {
     expect(screen.queryByText('General chat thread')).not.toBeInTheDocument()
   })
 
-  it('does not trigger section collapse when a header action button is clicked', () => {
+  it('does not toggle the section when the Add project button or its dialog is clicked', async () => {
     useWorkspaceProjectsStore.getState().setPayload({
       foregroundWorkspacePath: '/workspace/a',
       foregroundProjectId: '/workspace/a',
@@ -1609,7 +1621,16 @@ describe('ThreadList project-first layout', () => {
     fireEvent.mouseEnter(screen.getByText('Projects').parentElement as HTMLElement)
     fireEvent.click(screen.getByRole('button', { name: 'Add project' }))
 
-    // Opening the add-project menu must not collapse the section.
+    // Opening the Create dialog must not collapse the section.
+    expect(screen.getByRole('button', { name: 'Toggle Projects section' }))
+      .toHaveAttribute('aria-expanded', 'true')
+    expect(useUIStore.getState().projectsSectionCollapsed).toBe(false)
+
+    // The dialog is portaled, but React events bubble through the component tree.
+    // Clicking inside it must NOT reach the section header's toggle onClick
+    // (regression: the dialog was rendered inside the toggle element's subtree).
+    const dialog = await screen.findByRole('dialog', { name: 'Create project' })
+    fireEvent.click(within(dialog).getByRole('textbox'))
     expect(screen.getByRole('button', { name: 'Toggle Projects section' }))
       .toHaveAttribute('aria-expanded', 'true')
     expect(useUIStore.getState().projectsSectionCollapsed).toBe(false)

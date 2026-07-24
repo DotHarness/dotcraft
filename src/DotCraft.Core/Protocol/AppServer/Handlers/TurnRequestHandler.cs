@@ -129,6 +129,14 @@ internal sealed class TurnRequestHandler(
         using var channelScope = ChannelSessionScope.Set(channelScopeInfo);
 
         await sessionService.EnsureThreadLoadedAsync(p.ThreadId, ct);
+        if (p.Cwd != null || p.RuntimeWorkspaceRoots != null)
+        {
+            await sessionService.UpdateThreadWorkspaceAsync(
+                p.ThreadId,
+                p.Cwd,
+                p.RuntimeWorkspaceRoots,
+                ct);
+        }
 
         var events = sessionService.SubmitInputAsync(
             p.ThreadId,

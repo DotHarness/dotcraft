@@ -44,6 +44,29 @@ public sealed class FileAccessGuardTests : IDisposable
         Assert.Equal(0, approval.FileApprovalCalls);
     }
 
+    [Fact]
+    public async Task ValidatePathAsync_SecondaryWorkspaceRoot_IsInsideBoundary()
+    {
+        var secondaryRoot = Path.Combine(Path.GetTempPath(), $"file_access_secondary_{Guid.NewGuid():N}");
+        Directory.CreateDirectory(secondaryRoot);
+        try
+        {
+            var guard = new FileAccessGuard(
+                _workspaceRoot,
+                requireApprovalOutsideWorkspace: false,
+                workspaceRoots: [_workspaceRoot, secondaryRoot]);
+            var secondaryFile = Path.Combine(secondaryRoot, "file.txt");
+
+            var result = await guard.ValidatePathAsync(secondaryFile, "read", secondaryFile);
+
+            Assert.Null(result);
+        }
+        finally
+        {
+            Directory.Delete(secondaryRoot, recursive: true);
+        }
+    }
+
     public void Dispose()
     {
         try

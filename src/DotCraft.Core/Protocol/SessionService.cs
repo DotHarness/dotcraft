@@ -850,6 +850,8 @@ public sealed partial class SessionService(
         Speed = source.Speed,
         ContextWindow = CloneNullableContextWindowConfig(source.ContextWindow),
         WorkspaceOverride = source.WorkspaceOverride,
+        Cwd = source.Cwd,
+        RuntimeWorkspaceRoots = source.RuntimeWorkspaceRoots == null ? null : [.. source.RuntimeWorkspaceRoots],
         ExecutionWorkspaceOverride = source.ExecutionWorkspaceOverride,
         ToolProfile = source.ToolProfile,
         UseToolProfileOnly = source.UseToolProfileOnly,
@@ -2105,10 +2107,7 @@ public sealed partial class SessionService(
                 // SubAgent progress aggregator: lazily created when SpawnAgent tool calls appear
                 SubAgentProgressAggregator? progressAggregator = null;
 
-                var effectiveWorkspacePath =
-                    !string.IsNullOrWhiteSpace(thread.Configuration?.WorkspaceOverride)
-                        ? thread.Configuration.WorkspaceOverride!
-                        : agentFactory.RuntimeContext.WorkspacePath;
+                var effectiveWorkspace = ThreadWorkspaceResolver.Resolve(thread);
                 var requireApprovalOutsideWorkspace =
                     thread.Configuration?.RequireApprovalOutsideWorkspace
                     ?? agentFactory.RuntimeContext.Config.Tools.File.RequireApprovalOutsideWorkspace;
@@ -2129,7 +2128,8 @@ public sealed partial class SessionService(
                         ChannelContext = turn.Initiator?.ChannelContext ?? thread.ChannelContext,
                         SenderId = turn.Initiator?.UserId ?? thread.UserId,
                         GroupId = turn.Initiator?.GroupId,
-                        WorkspacePath = effectiveWorkspacePath,
+                        WorkspacePath = effectiveWorkspace.Cwd,
+                        WorkspaceRoots = effectiveWorkspace.RuntimeWorkspaceRoots,
                         RequireApprovalOutsideWorkspace = requireApprovalOutsideWorkspace,
                         ApprovalService = turnApprovalService,
                         PathBlacklist = effectivePathBlacklist,
@@ -2456,7 +2456,7 @@ public sealed partial class SessionService(
                                         imageGenerationItemsByCallId,
                                         ResolveImageGenerationCallId(imageGenerationResult.CallId),
                                         imageGenerationResult,
-                                        effectiveWorkspacePath,
+                                        effectiveWorkspace.Cwd,
                                         eventChannel,
                                         NextItemSeq,
                                         cts.Token).ConfigureAwait(false);
@@ -2472,7 +2472,7 @@ public sealed partial class SessionService(
                                         turn,
                                         imageGenerationItemsByCallId,
                                         hostedImage,
-                                        effectiveWorkspacePath,
+                                        effectiveWorkspace.Cwd,
                                         eventChannel,
                                         NextItemSeq,
                                         cts.Token).ConfigureAwait(false);
@@ -2494,7 +2494,7 @@ public sealed partial class SessionService(
                                         NextItemSeq,
                                         eventChannel,
                                         supportsCommandExecutionStreaming,
-                                        effectiveWorkspacePath);
+                                        effectiveWorkspace.Cwd);
                                     RegisterToolExecutionIfNeeded(
                                         fc,
                                         turn,
@@ -3249,6 +3249,14 @@ public sealed partial class SessionService(
         => await ThreadConfig.UpdateAsync(threadId, config, ct);
 
     /// <inheritdoc/>
+    public async Task<SessionThread> UpdateThreadWorkspaceAsync(
+        string threadId,
+        string? cwd,
+        IReadOnlyList<string>? runtimeWorkspaceRoots,
+        CancellationToken ct = default)
+        => await ThreadConfig.UpdateWorkspaceAsync(threadId, cwd, runtimeWorkspaceRoots, ct);
+
+    /// <inheritdoc/>
     public async Task<SessionThread> UpdateThreadSourceControlTargetAsync(
         string threadId,
         ThreadSourceControlTarget? target,
@@ -3308,9 +3316,7 @@ public sealed partial class SessionService(
                 callId,
                 audience,
                 origin,
-                string.IsNullOrWhiteSpace(thread.Configuration?.WorkspaceOverride)
-                    ? thread.WorkspacePath
-                    : thread.Configuration.WorkspaceOverride),
+                ThreadWorkspaceResolver.Resolve(thread).Cwd),
             cancellationToken).ConfigureAwait(false);
     }
 
@@ -3396,6 +3402,7 @@ public sealed partial class SessionService(
     {
         using (await AcquireThreadAgentLockAsync(thread.Id, ct))
         {
+            await AgentFactory.ReleaseThreadToolResourcesAsync(thread.Id, ct);
             SetThreadAgent(thread.Id, await BuildAgentForThreadAsync(thread, ct));
             ReleaseStableContextPages(thread.Id);
             await PersistThreadWithMaterializationAsync(thread, ct);
@@ -3896,6 +3903,10 @@ public sealed partial class SessionService(
         if (config.CustomTools is { Length: > 0 })
             return true;
         if (!string.IsNullOrWhiteSpace(config.WorkspaceOverride))
+            return true;
+        if (!string.IsNullOrWhiteSpace(config.Cwd))
+            return true;
+        if (config.RuntimeWorkspaceRoots is not null)
             return true;
         if (!string.IsNullOrWhiteSpace(config.ExecutionWorkspaceOverride))
             return true;
@@ -4994,6 +5005,7 @@ public sealed partial class SessionService(
                 EffectiveReasoning = CloneReasoningConfig(config.Reasoning ?? currentConfig.Reasoning),
                 EffectiveSpeed = config.Speed ?? InferenceSpeed.Standard,
                 WorkspacePath = config.WorkspaceOverride,
+                WorkspaceRoots = [config.WorkspaceOverride],
                 BotPath = craftPath,
                 MemoryStore = scopedMemory,
                 DreamStore = scopedDreamStore,
@@ -5028,9 +5040,9 @@ public sealed partial class SessionService(
             };
         }
 
-        var toolContext = scopedContext ?? threadBaseContext;
-        if (!string.IsNullOrWhiteSpace(config.ExecutionWorkspaceOverride))
-            toolContext = CloneContextWithExecutionWorkspace(toolContext, config.ExecutionWorkspaceOverride);
+        var toolContext = CloneContextWithWorkspace(
+            scopedContext ?? threadBaseContext,
+            ThreadWorkspaceResolver.Resolve(thread));
 
         var bindingMcpServers = threadRuntimeState.GetBindingMcpServers();
         if (config.McpServers is not null || bindingMcpServers.Count > 0)
@@ -5114,7 +5126,8 @@ public sealed partial class SessionService(
             threadRuntimeState.NextToolSnapshotRevision(),
             ToolPlanningThreadClassifier.Classify(thread),
             config.ProviderId,
-            config.Model);
+            config.Model,
+            toolContext.WorkspaceRoots);
         var toolSnapshot = await agentFactory.BuildToolSnapshotAsync(
             snapshotSources,
             planningContext,
@@ -5237,6 +5250,7 @@ public sealed partial class SessionService(
             EffectiveReasoning = CloneReasoningConfig(thread?.Configuration?.Reasoning ?? config.Reasoning),
             EffectiveSpeed = thread?.Configuration?.Speed ?? InferenceSpeed.Standard,
             WorkspacePath = source.WorkspacePath,
+            WorkspaceRoots = source.WorkspaceRoots,
             BotPath = source.BotPath,
             MemoryStore = source.MemoryStore,
             DreamStore = source.DreamStore,
@@ -5277,9 +5291,9 @@ public sealed partial class SessionService(
         return cloned;
     }
 
-    private static AgentRuntimeContext CloneContextWithExecutionWorkspace(
+    private static AgentRuntimeContext CloneContextWithWorkspace(
         AgentRuntimeContext source,
-        string executionWorkspacePath) =>
+        ThreadWorkspaceContext workspace) =>
         new()
         {
             Config = source.Config,
@@ -5290,7 +5304,8 @@ public sealed partial class SessionService(
             EffectiveMainModel = source.EffectiveMainModel,
             EffectiveReasoning = CloneReasoningConfig(source.EffectiveReasoning),
             EffectiveSpeed = source.EffectiveSpeed,
-            WorkspacePath = executionWorkspacePath,
+            WorkspacePath = workspace.Cwd,
+            WorkspaceRoots = workspace.RuntimeWorkspaceRoots,
             BotPath = source.BotPath,
             MemoryStore = source.MemoryStore,
             DreamStore = source.DreamStore,
@@ -5308,7 +5323,7 @@ public sealed partial class SessionService(
             AcpExtensionProxy = source.AcpExtensionProxy,
             NodeReplProxy = source.NodeReplProxy,
             ExternalCliSessionStore = source.ExternalCliSessionStore,
-            AgentFileSystem = new HostAgentFileSystem(executionWorkspacePath),
+            AgentFileSystem = new HostAgentFileSystem(workspace.Cwd),
             AutomationTaskDirectory = source.AutomationTaskDirectory,
             RequireApprovalOutsideWorkspace = source.RequireApprovalOutsideWorkspace,
             DeferredToolActivationIndex = source.DeferredToolActivationIndex,
@@ -5342,6 +5357,7 @@ public sealed partial class SessionService(
             EffectiveReasoning = CloneReasoningConfig(source.EffectiveReasoning),
             EffectiveSpeed = source.EffectiveSpeed,
             WorkspacePath = source.WorkspacePath,
+            WorkspaceRoots = source.WorkspaceRoots,
             BotPath = source.BotPath,
             MemoryStore = source.MemoryStore,
             DreamStore = source.DreamStore,

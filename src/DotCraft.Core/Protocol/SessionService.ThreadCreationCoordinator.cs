@@ -17,6 +17,11 @@ public sealed partial class SessionService
             ThreadSource? source)
         {
             var capturedConfig = owner.CaptureThreadConfigurationForNewThread(config);
+            capturedConfig = ThreadWorkspaceResolver.Apply(
+                identity.WorkspacePath,
+                capturedConfig,
+                capturedConfig.Cwd,
+                capturedConfig.RuntimeWorkspaceRoots);
             var thread = new SessionThread
             {
                 Id = threadId ?? SessionIdGenerator.NewThreadId(),
@@ -110,6 +115,11 @@ public sealed partial class SessionService
             {
                 config.ContextWindow = CloneNullableContextWindowConfig(source.Configuration.ContextWindow);
             }
+            config = ThreadWorkspaceResolver.Apply(
+                identity.WorkspacePath,
+                config,
+                options.Cwd,
+                options.RuntimeWorkspaceRoots);
             var forkedThreadId = SessionIdGenerator.NewThreadId();
             var forkedTurns = CloneForkTurns(source, options.ForkPoint, forkedThreadId, source.Id, now);
             var forked = new SessionThread

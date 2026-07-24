@@ -99,6 +99,18 @@ public sealed class ThreadConfiguration
     public string? WorkspaceOverride { get; set; }
 
     /// <summary>
+    /// Sticky working directory for this thread. Relative tool paths resolve from here
+    /// without changing the thread's state workspace.
+    /// </summary>
+    public string? Cwd { get; set; }
+
+    /// <summary>
+    /// Sticky ordered runtime workspace boundaries. Null defaults to the effective cwd;
+    /// an empty array explicitly provides no runtime roots.
+    /// </summary>
+    public string[]? RuntimeWorkspaceRoots { get; set; }
+
+    /// <summary>
     /// When set, tools for this thread execute against this workspace path while
     /// thread state, memory, skills, plans, goals, and app bindings remain rooted
     /// at <see cref="SessionThread.WorkspacePath"/>.

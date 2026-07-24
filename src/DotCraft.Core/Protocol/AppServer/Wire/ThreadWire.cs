@@ -14,6 +14,12 @@ public sealed class ThreadStartParams
     public ThreadConfiguration? Config { get; set; }
 
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Cwd { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public List<string>? RuntimeWorkspaceRoots { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public List<RuntimeDynamicToolDeclaration>? DynamicTools { get; set; }
 
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -53,6 +59,12 @@ public sealed class ThreadForkParams
     public ThreadConfiguration? Config { get; set; }
 
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Cwd { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public List<string>? RuntimeWorkspaceRoots { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public List<RuntimeDynamicToolDeclaration>? DynamicTools { get; set; }
 
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -71,6 +83,12 @@ public sealed class ThreadForkParams
 public sealed class ThreadResumeParams
 {
     public string ThreadId { get; set; } = string.Empty;
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Cwd { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public List<string>? RuntimeWorkspaceRoots { get; set; }
 
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public List<RuntimeDynamicToolDeclaration>? DynamicTools { get; set; }

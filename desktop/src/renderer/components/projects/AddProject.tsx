@@ -1,257 +1,136 @@
-import { useCallback, useEffect, useRef, useState, type CSSProperties, type JSX, type ReactNode } from 'react'
-import { createPortal } from 'react-dom'
-import { FolderOpen, FolderPlus } from 'lucide-react'
+import { useCallback, useState, type JSX } from 'react'
 import { useT } from '../../contexts/LocaleContext'
 import { addToast } from '../../stores/toastStore'
-import { Button } from '../ui/Button'
-import { Input } from '../ui/Input'
+import { sameWorkspaceProjectKey } from '../../../shared/workspaceProjectKey'
+import type { WorkspaceProjectSummary } from '../../../shared/workspaceProjects'
+import { ProjectDialog, type FolderEntry, type ProjectDialogResult } from './ProjectDialog'
 
 /**
- * Shared "Add new project" flow used by both the composer project selector and
- * the sidebar projects rail, so the two surfaces stay consistent:
- *  - "Start from scratch": names a project, creates `<Documents>/<name>` as a git
- *    repository, then switches to it (which runs the setup wizard).
- *  - "Use an existing folder": opens the native folder picker and switches to it.
+ * Shared "Create / Edit project" flow used by the sidebar projects rail and the
+ * composer project selector so both surfaces stay consistent.
+ *
+ * A single unified dialog replaces the old two-option add menu:
+ *  - attach folders → the project uses those existing folders (primary first);
+ *  - type only a name → a new `<Documents>/<name>` git repository is created;
+ *  - a blank name defaults to the primary folder's name.
+ *
+ * Edit reuses the same dialog to manage a local project's ordered source folders.
  */
 export interface AddProjectFlow {
-  /** Opens the "Name project" dialog for the from-scratch path. */
-  beginScratch(): void
-  /** Opens the native folder picker and switches to the chosen folder. */
-  chooseExistingFolder(): Promise<void>
-  /** The "Name project" dialog element (rendered via portal) or null when closed. */
+  /** Opens the unified Create project dialog. */
+  beginCreate(): void
+  /** Opens the Edit project dialog for a local project. `active` = it is the foreground workspace. */
+  beginEdit(project: WorkspaceProjectSummary, active: boolean): void
+  /** The dialog element (rendered via portal) or null when closed. */
   dialog: JSX.Element | null
-  /** True while a project is being created. */
+  /** True while a create/save/remove operation is in flight. */
   busy: boolean
+}
+
+interface DialogState {
+  mode: 'create' | 'edit'
+  name: string
+  folders: FolderEntry[]
+  project: WorkspaceProjectSummary | null
+  active: boolean
+}
+
+function toFolderEntries(project: WorkspaceProjectSummary): FolderEntry[] {
+  const secondary = Array.isArray(project.secondaryFolders) ? project.secondaryFolders : []
+  return [
+    { id: 'primary', path: project.path },
+    ...secondary.map((path, index) => ({ id: `secondary-${index}`, path }))
+  ]
+}
+
+function errorMessage(err: unknown): string {
+  return err instanceof Error ? err.message : String(err)
 }
 
 export function useAddProjectFlow(): AddProjectFlow {
   const t = useT()
-  const [nameOpen, setNameOpen] = useState(false)
-  const [name, setName] = useState('')
+  const [state, setState] = useState<DialogState | null>(null)
   const [busy, setBusy] = useState(false)
 
-  const beginScratch = useCallback((): void => {
-    setName(t('addProject.defaultName'))
-    setNameOpen(true)
-  }, [t])
+  const beginCreate = useCallback((): void => {
+    setState({ mode: 'create', name: '', folders: [], project: null, active: false })
+  }, [])
 
-  const chooseExistingFolder = useCallback(async (): Promise<void> => {
-    try {
-      const path = await window.api.workspace.pickFolder()
-      if (!path) return
-      await window.api.workspace.switch(path)
-    } catch (err) {
-      addToast(t('addProject.openFailed', { error: err instanceof Error ? err.message : String(err) }), 'error')
-    }
-  }, [t])
+  const beginEdit = useCallback((project: WorkspaceProjectSummary, active: boolean): void => {
+    setState({ mode: 'edit', name: project.name ?? '', folders: toFolderEntries(project), project, active })
+  }, [])
 
-  const closeDialog = useCallback((): void => {
-    if (busy) return
-    setNameOpen(false)
-    setName('')
+  const close = useCallback((): void => {
+    setState((current) => (busy ? current : null))
   }, [busy])
 
-  const confirmScratch = useCallback(async (): Promise<void> => {
-    const trimmed = name.trim()
-    if (!trimmed || busy) return
+  const submit = useCallback(async (result: ProjectDialogResult): Promise<void> => {
+    if (!state) return
     setBusy(true)
     try {
-      const { path, gitInitialized } = await window.api.workspace.createLocalProject({ name: trimmed })
-      setNameOpen(false)
-      setName('')
-      if (!gitInitialized) addToast(t('addProject.gitUnavailable'), 'warning')
-      await window.api.workspace.switch(path)
+      const secondaryFolders = result.folders.slice(1).map((f) => f.path)
+      if (state.mode === 'create') {
+        if (result.folders.length === 0) {
+          const { path, gitInitialized } = await window.api.workspace.createLocalProject({ name: result.name.trim() })
+          if (!gitInitialized) addToast(t('addProject.gitUnavailable'), 'warning')
+          await window.api.workspace.switch(path)
+        } else {
+          const { path } = await window.api.workspace.saveLocalProject({
+            primaryFolder: result.folders[0].path,
+            secondaryFolders,
+            name: result.name.trim() || undefined
+          })
+          await window.api.workspace.switch(path)
+        }
+      } else if (state.project) {
+        const primaryFolder = result.folders[0].path
+        const primaryChanged = !sameWorkspaceProjectKey(primaryFolder, state.project.path)
+        await window.api.workspace.saveLocalProject({
+          previousPath: state.project.path,
+          primaryFolder,
+          secondaryFolders,
+          name: result.name.trim() || undefined
+        })
+        // The active project's live connection points at the old primary; re-open
+        // the new primary so the foreground workspace follows the change.
+        if (state.active && primaryChanged) {
+          await window.api.workspace.switch(primaryFolder)
+        }
+      }
+      setState(null)
     } catch (err) {
-      addToast(t('addProject.createFailed', { error: err instanceof Error ? err.message : String(err) }), 'error')
+      const key = state.mode === 'create' ? 'addProject.createFailed' : 'addProject.saveFailed'
+      addToast(t(key, { error: errorMessage(err) }), 'error')
     } finally {
       setBusy(false)
     }
-  }, [busy, name, t])
+  }, [state, t])
 
-  const dialog = nameOpen ? (
-    <NameProjectDialog
-      value={name}
+  const removeProject = useCallback(async (): Promise<void> => {
+    if (!state?.project) return
+    setBusy(true)
+    try {
+      await window.api.workspace.removeRecent(state.project.path)
+      setState(null)
+    } catch (err) {
+      addToast(t('addProject.openFailed', { error: errorMessage(err) }), 'error')
+    } finally {
+      setBusy(false)
+    }
+  }, [state, t])
+
+  const dialog = state ? (
+    <ProjectDialog
+      mode={state.mode}
+      initialName={state.name}
+      initialFolders={state.folders}
       busy={busy}
-      onChange={setName}
-      onCancel={closeDialog}
-      onConfirm={() => { void confirmScratch() }}
+      removeProjectDisabled={state.active}
+      onSubmit={(result) => { void submit(result) }}
+      onRemoveProject={state.mode === 'edit' ? () => { void removeProject() } : undefined}
+      onClose={close}
     />
   ) : null
 
-  return { beginScratch, chooseExistingFolder, dialog, busy }
-}
-
-/**
- * The two "Add new project" choices, rendered with a shared menu-row treatment so
- * the composer flyout and the sidebar dropdown look identical.
- */
-export function AddProjectMenuOptions({
-  onStartFromScratch,
-  onUseExistingFolder,
-  disabled
-}: {
-  onStartFromScratch: () => void
-  onUseExistingFolder: () => void
-  disabled?: boolean
-}): JSX.Element {
-  const t = useT()
-  return (
-    <>
-      <AddProjectOptionButton
-        icon={<FolderPlus size={14} strokeWidth={1.8} aria-hidden />}
-        label={t('addProject.fromScratch')}
-        disabled={disabled}
-        onClick={onStartFromScratch}
-      />
-      <AddProjectOptionButton
-        icon={<FolderOpen size={14} strokeWidth={1.8} aria-hidden />}
-        label={t('addProject.useExisting')}
-        disabled={disabled}
-        onClick={onUseExistingFolder}
-      />
-    </>
-  )
-}
-
-function AddProjectOptionButton({
-  icon,
-  label,
-  disabled,
-  onClick
-}: {
-  icon: ReactNode
-  label: string
-  disabled?: boolean
-  onClick: () => void
-}): JSX.Element {
-  const [hovered, setHovered] = useState(false)
-  return (
-    <button
-      type="button"
-      role="menuitem"
-      disabled={disabled}
-      onClick={onClick}
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
-      style={{
-        width: '100%',
-        minHeight: '32px',
-        border: 'none',
-        borderRadius: '6px',
-        background: !disabled && hovered ? 'var(--bg-tertiary)' : 'transparent',
-        color: disabled ? 'var(--text-tertiary)' : 'var(--text-primary)',
-        display: 'flex',
-        alignItems: 'center',
-        gap: '8px',
-        padding: '0 8px',
-        font: 'inherit',
-        textAlign: 'left',
-        cursor: disabled ? 'default' : 'pointer',
-        whiteSpace: 'nowrap'
-      }}
-    >
-      {icon}
-      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{label}</span>
-    </button>
-  )
-}
-
-function NameProjectDialog({
-  value,
-  busy,
-  onChange,
-  onCancel,
-  onConfirm
-}: {
-  value: string
-  busy: boolean
-  onChange: (value: string) => void
-  onCancel: () => void
-  onConfirm: () => void
-}): JSX.Element {
-  const t = useT()
-  const inputRef = useRef<HTMLInputElement>(null)
-  const canConfirm = value.trim().length > 0 && !busy
-
-  useEffect(() => {
-    const input = inputRef.current
-    if (!input) return
-    input.focus()
-    input.select()
-  }, [])
-
-  useEffect(() => {
-    function onKeyDown(event: KeyboardEvent): void {
-      if (event.key === 'Escape') onCancel()
-      if (event.key === 'Enter' && canConfirm) onConfirm()
-    }
-    document.addEventListener('keydown', onKeyDown)
-    return () => document.removeEventListener('keydown', onKeyDown)
-  }, [canConfirm, onCancel, onConfirm])
-
-  return createPortal(
-    <div
-      role="dialog"
-      aria-modal="true"
-      aria-label={t('addProject.nameTitle')}
-      style={overlayStyle}
-      onMouseDown={(event) => {
-        if (event.target === event.currentTarget) onCancel()
-      }}
-    >
-      <div style={cardStyle} onMouseDown={(event) => event.stopPropagation()}>
-        <h2 style={{ margin: 0, fontSize: '16px', fontWeight: 600, color: 'var(--text-primary)' }}>
-          {t('addProject.nameTitle')}
-        </h2>
-        <p style={{ margin: '4px 0 16px', fontSize: '13px', color: 'var(--text-secondary)' }}>
-          {t('addProject.nameSubtitle')}
-        </p>
-        <Input
-          ref={inputRef}
-          value={value}
-          disabled={busy}
-          onChange={(event) => onChange(event.target.value)}
-          placeholder={t('addProject.defaultName')}
-          frameless
-          style={{ height: '46px', padding: '0 14px', background: 'var(--bg-tertiary)' }}
-        />
-        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '20px' }}>
-          <Button
-            variant="secondary"
-            onClick={onCancel}
-            disabled={busy}
-          >
-            {t('addProject.cancel')}
-          </Button>
-          <Button
-            variant="primary"
-            onClick={onConfirm}
-            disabled={!canConfirm}
-          >
-            {t('addProject.save')}
-          </Button>
-        </div>
-      </div>
-    </div>,
-    document.body
-  )
-}
-
-const overlayStyle: CSSProperties = {
-  position: 'fixed',
-  inset: 0,
-  zIndex: 10000,
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  background: 'var(--overlay-scrim)'
-}
-
-const cardStyle: CSSProperties = {
-  width: '420px',
-  maxWidth: 'calc(100vw - 48px)',
-  padding: '22px',
-  borderRadius: '10px',
-  background: 'var(--bg-secondary)',
-  boxShadow: 'var(--shadow-level-3)'
+  return { beginCreate, beginEdit, dialog, busy }
 }

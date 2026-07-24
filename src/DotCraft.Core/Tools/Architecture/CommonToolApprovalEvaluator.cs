@@ -192,7 +192,8 @@ public sealed class CommonToolApprovalEvaluator : IToolApprovalEvaluator
             scope.RequireApprovalOutsideWorkspace,
             scope.ApprovalService,
             scope.PathBlacklist,
-            [userDotCraftPath]);
+            [userDotCraftPath],
+            scope.WorkspaceRoots);
         var error = await guard.ValidatePathAsync(
             guard.ResolvePath(path),
             operation,
@@ -224,7 +225,8 @@ public sealed class CommonToolApprovalEvaluator : IToolApprovalEvaluator
             : ResolveAgainstWorkspace(scope.WorkspacePath, workingDirectory);
         var hasPathTraversal = normalizedCommand.Contains("..\\", StringComparison.Ordinal)
                                || normalizedCommand.Contains("../", StringComparison.Ordinal);
-        var isOutsideWorkspace = !IsWithinBoundary(resolvedWorkingDirectory, scope.WorkspacePath);
+        var isOutsideWorkspace = !scope.WorkspaceRoots.Any(
+            root => IsWithinBoundary(resolvedWorkingDirectory, root));
         if (!hasPathTraversal && !isOutsideWorkspace)
             return ToolDispatchDecision.Allow;
 
@@ -284,6 +286,7 @@ public sealed class CommonToolApprovalEvaluator : IToolApprovalEvaluator
         var workspacePath = ReadString(descriptor, "workspacePath");
         if (string.IsNullOrWhiteSpace(workspacePath))
             return true;
+        var workspaceRoots = ReadWorkspaceRoots(descriptor, workspacePath);
 
         if (string.Equals(kind, "shell", StringComparison.OrdinalIgnoreCase))
         {
@@ -295,15 +298,13 @@ public sealed class CommonToolApprovalEvaluator : IToolApprovalEvaluator
             var fullWorkingDirectory = Path.IsPathRooted(workingDirectory)
                 ? Path.GetFullPath(workingDirectory)
                 : Path.GetFullPath(Path.Combine(workspacePath, workingDirectory));
-            var workspace = Path.GetFullPath(workspacePath)
-                .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
-            var outsideWorkingDirectory = !string.Equals(fullWorkingDirectory, workspace, StringComparison.OrdinalIgnoreCase)
-                && !fullWorkingDirectory.StartsWith(workspace + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase)
-                && !fullWorkingDirectory.StartsWith(workspace + Path.AltDirectorySeparatorChar, StringComparison.OrdinalIgnoreCase);
+            var outsideWorkingDirectory = !workspaceRoots.Any(
+                root => IsWithinBoundary(fullWorkingDirectory, root));
             return outsideWorkingDirectory
                    || command.Contains("../", StringComparison.Ordinal)
                    || command.Contains("..\\", StringComparison.Ordinal)
-                   || new ShellCommandInspector(workspacePath).DetectOutsideWorkspacePaths(command).Count > 0;
+                   || new ShellCommandInspector(workspacePath, workspaceRoots)
+                       .DetectOutsideWorkspacePaths(command).Count > 0;
         }
 
         var trustedPaths = descriptor.TryGetProperty("trustedReadPaths", out var trusted)
@@ -314,8 +315,22 @@ public sealed class CommonToolApprovalEvaluator : IToolApprovalEvaluator
                 .Where(static item => !string.IsNullOrWhiteSpace(item))
                 .ToArray()
             : [];
-        var guard = new FileAccessGuard(workspacePath, trustedReadPaths: trustedPaths);
+        var guard = new FileAccessGuard(
+            workspacePath,
+            trustedReadPaths: trustedPaths,
+            workspaceRoots: workspaceRoots);
         var fullPath = guard.ResolvePath(string.IsNullOrWhiteSpace(target) ? "." : target);
         return guard.RequiresOutsideWorkspaceApproval(fullPath, operation);
     }
+
+    private static IReadOnlyList<string> ReadWorkspaceRoots(
+        JsonElement descriptor,
+        string workspacePath) =>
+        descriptor.TryGetProperty("workspaceRoots", out var roots)
+        && roots.ValueKind == JsonValueKind.Array
+            ? roots.EnumerateArray()
+                .Where(static item => item.ValueKind == JsonValueKind.String)
+                .Select(static item => item.GetString()!)
+                .ToArray()
+            : [workspacePath];
 }

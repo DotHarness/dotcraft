@@ -406,6 +406,8 @@ internal sealed class AgentProfileRequestHandler(
         refreshed.Reasoning ??= current.Reasoning;
         refreshed.ContextWindow ??= current.ContextWindow;
         refreshed.WorkspaceOverride = current.WorkspaceOverride;
+        refreshed.Cwd = current.Cwd;
+        refreshed.RuntimeWorkspaceRoots = current.RuntimeWorkspaceRoots;
         refreshed.ExecutionWorkspaceOverride = current.ExecutionWorkspaceOverride;
         refreshed.Extensions = current.Extensions;
         refreshed.CustomTools = current.CustomTools;

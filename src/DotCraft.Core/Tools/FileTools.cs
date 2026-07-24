@@ -25,12 +25,13 @@ public sealed class FileTools(
     LspServerManager? lspServerManager = null,
     string? ripgrepPath = null,
     TimeSpan? searchTimeout = null,
-    ISourceControlWriteCoordinator? sourceControlWriteCoordinator = null)
+    ISourceControlWriteCoordinator? sourceControlWriteCoordinator = null,
+    IReadOnlyList<string>? workspaceRoots = null)
 {
     private const int MaxGrepMatches = 100;
-    
+
     private const int MaxFindResults = 200;
-    
+
     private const int MaxGrepFileSize = 5 * 1024 * 1024;
 
     private const int MaxLineLength = TextFileReadLimiter.MaxLineLength;
@@ -61,7 +62,8 @@ public sealed class FileTools(
         requireApprovalOutsideWorkspace,
         approvalService,
         blacklist,
-        trustedReadPaths);
+        trustedReadPaths,
+        workspaceRoots);
     private readonly RipgrepFileSearcher _ripgrep = new(ripgrepPath);
     private readonly TimeSpan _searchTimeout = NormalizeSearchTimeout(searchTimeout);
 

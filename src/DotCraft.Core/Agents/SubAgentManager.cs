@@ -28,6 +28,8 @@ public sealed class SubAgentManager
 
     private readonly string _workspaceRoot;
 
+    private readonly IReadOnlyList<string> _workspaceRoots;
+
     private readonly SemaphoreSlim _concurrencyGate;
 
     private readonly SandboxShellTools? _sandboxShellTools;
@@ -83,10 +85,12 @@ public sealed class SubAgentManager
         string? ripgrepPath = null,
         string? endpoint = null,
         int? maxOutputTokens = null,
-        AppConfig? config = null)
+        AppConfig? config = null,
+        IReadOnlyList<string>? workspaceRoots = null)
     {
         _chatClient = chatClient;
         _workspaceRoot = Path.GetFullPath(workspaceRoot);
+        _workspaceRoots = workspaceRoots ?? [_workspaceRoot];
         _concurrencyGate = new SemaphoreSlim(maxConcurrency, maxConcurrency);
         _useSandbox = sandboxManager != null;
         _reasoningConfig = reasoningConfig ?? config?.Reasoning ?? new AppConfig.ReasoningConfig();
@@ -110,7 +114,7 @@ public sealed class SubAgentManager
             _sandboxShellTools = new SandboxShellTools(sandboxManager, shellTimeout);
             _sandboxFileTools = new SandboxFileTools(sandboxManager);
         }
-        
+
         _webTools = new WebTools(
             maxChars: 50000,  // Limit web content size for subagents
             timeoutSeconds: 30
@@ -125,7 +129,7 @@ public sealed class SubAgentManager
     {
         // Create the subagent with restricted tools
         var subagent = CreateSubAgent(taskDescription);
-        
+
         // Wrap as AIFunction - the framework handles execution and result passing
         return subagent.AsAIFunction(
             options: new AIFunctionFactoryOptions
@@ -251,7 +255,8 @@ public sealed class SubAgentManager
                 approvalService: approvalService,
                 blacklist: _blacklist,
                 ripgrepPath: _ripgrepPath,
-                searchTimeout: _fileSearchTimeout
+                searchTimeout: _fileSearchTimeout,
+                workspaceRoots: _workspaceRoots
             );
 
             var shellTools = new ShellTools(
@@ -260,7 +265,8 @@ public sealed class SubAgentManager
                 requireApprovalOutsideWorkspace: _requireApprovalOutsideWorkspace,
                 maxOutputLength: 10000,
                 approvalService: approvalService,
-                blacklist: _blacklist
+                blacklist: _blacklist,
+                workspaceRoots: _workspaceRoots
             );
 
             tools.Add(GeneratedToolFunctions.FileTools_ReadFile(fileTools));
@@ -357,7 +363,10 @@ public sealed class SubAgentManager
 
     private string BuildSubAgentPrompt(string task)
     {
-        return 
+        var workspaceRoots = _workspaceRoots.Count == 0
+            ? "(none)"
+            : string.Join(Environment.NewLine, _workspaceRoots.Select(root => $"- {root}"));
+        return
 $"""
 # Subagent
 
@@ -388,6 +397,8 @@ You are a subagent spawned by the main agent to complete a specific task.
 
 ## Workspace
 Your workspace is at: {_workspaceRoot}
+Runtime workspace roots:
+{workspaceRoots}
 
 When you have completed the task, provide a clear summary of your findings or actions.
 """;

@@ -59,6 +59,7 @@ import {
   clearRecentWorkspaces,
   getRecentWorkspaces,
   removeRecentWorkspace,
+  saveLocalProject,
   type AppSettings,
   type BinarySource,
   type ConnectionMode
@@ -498,6 +499,8 @@ function getWorkspaceProjectsPayload(): WorkspaceProjectsPayload {
       threads: entry?.threads ?? [],
       pinnedThreadIds: getPinnedThreadIdsForWorkspace(recent.path),
       pinned: isProjectPinned(projectId),
+      // Local Projects may attach extra runtime roots beyond the primary folder.
+      secondaryFolders: recent.secondaryFolders ?? [],
       ...(entry?.errorMessage ? { errorMessage: entry.errorMessage } : {})
     }
   })
@@ -2450,6 +2453,11 @@ function buildCallbacks(): IpcHandlerCallbacks {
         disposeWorkspaceConnection(entry)
       }
       removeRecentWorkspace(sharedSettings, workspacePath)
+      saveSettings(sharedSettings)
+      emitWorkspaceProjects()
+    },
+    saveLocalProject: (params) => {
+      saveLocalProject(sharedSettings, params)
       saveSettings(sharedSettings)
       emitWorkspaceProjects()
     },

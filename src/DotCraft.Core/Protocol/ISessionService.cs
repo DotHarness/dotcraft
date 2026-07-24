@@ -391,6 +391,17 @@ public interface ISessionService
         CancellationToken ct = default);
 
     /// <summary>
+    /// Applies sticky cwd/runtime-root overrides and rebuilds the effective thread agent.
+    /// A null roots value preserves the current list; an empty list replaces it with no roots.
+    /// </summary>
+    Task<SessionThread> UpdateThreadWorkspaceAsync(
+        string threadId,
+        string? cwd,
+        IReadOnlyList<string>? runtimeWorkspaceRoots,
+        CancellationToken ct = default) =>
+        throw new NotSupportedException("Thread workspace updates are not supported by this session service.");
+
+    /// <summary>
     /// Updates the per-thread source-control write target metadata.
     /// </summary>
     Task<SessionThread> UpdateThreadSourceControlTargetAsync(

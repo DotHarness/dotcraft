@@ -21,6 +21,7 @@ import {
   mergeComposerFileAttachments
 } from '../../utils/composerAttachments'
 import { buildComposerInputParts } from '../../utils/composeInputParts'
+import { runtimeWorkspaceRootsFor } from '../../utils/workspaceRuntimeRoots'
 import { buildGoalObjective, extractGoal, parseGoalSlashCommand, type GoalSlashCommand } from '../../utils/threadGoal'
 import { expandInitCommand } from '../../utils/initCommand'
 import { CommandSearchPopover } from './CommandSearchPopover'
@@ -1191,6 +1192,15 @@ export function ConversationWelcome({
       ? { providerId, model: modelName }
       : undefined
 
+    // New chats snapshot the local Project's folders as runtime roots; cwd defaults
+    // to the primary (WorkspacePath). Omitted for single-folder / remote workspaces.
+    // Worktree mode deliberately omits this: worktree/createAndStart does not accept
+    // runtime roots, so the first turn/start establishes them and Session Core
+    // retargets the primary root to the created worktree while preserving the
+    // secondary roots (see specs/features/multi-folder-projects.md §5).
+    const runtimeWorkspaceRoots = runtimeWorkspaceRootsFor(identityPath)
+    const rootsField = runtimeWorkspaceRoots ? { runtimeWorkspaceRoots } : {}
+
     const thread = welcomeWorkspaceMode === 'worktree'
       ? (await window.api.appServer.sendRequest('worktree/createAndStart', {
           identity,
@@ -1202,7 +1212,8 @@ export function ConversationWelcome({
       : (await window.api.appServer.sendRequest('thread/start', {
           identity,
           historyMode: 'server',
-          config
+          config,
+          ...rootsField
         }) as { thread: ThreadSummary }).thread
 
     // Apply a welcome pre-selected Perforce changelist to the new thread (non-default only).
