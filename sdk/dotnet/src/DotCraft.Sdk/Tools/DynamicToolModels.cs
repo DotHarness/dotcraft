@@ -27,12 +27,42 @@ public class DynamicToolException : Exception
 }
 
 /// <summary>
-/// Declaration of a single Runtime Dynamic Tool: name (with namespace prefix),
-/// description and JSON Schema.
+/// Description of one attribute-authored Runtime Dynamic Tool.
 /// </summary>
 public sealed class DynamicToolDescriptor
 {
-    public string Name { get; set; } = "";
+    /// <summary>Namespace supplied when the target was registered.</summary>
+    public string Namespace { get; set; } = "";
+
+    /// <summary>Local tool name supplied by <see cref="DynamicToolAttribute"/>.</summary>
+    public string LocalName { get; set; } = "";
+
+    /// <summary>Qualified <c>namespace.localName</c> identity.</summary>
+    public string QualifiedName =>
+        string.IsNullOrEmpty(Namespace) ? LocalName : $"{Namespace}.{LocalName}";
+
+    /// <summary>
+    /// Compatibility alias for <see cref="QualifiedName"/>.
+    /// Setting the value splits it at the final dot into <see cref="Namespace"/> and
+    /// <see cref="LocalName"/>.
+    /// </summary>
+    public string Name
+    {
+        get => QualifiedName;
+        set
+        {
+            int separator = value.LastIndexOf('.');
+            if (separator < 0)
+            {
+                Namespace = "";
+                LocalName = value;
+                return;
+            }
+
+            Namespace = value[..separator];
+            LocalName = value[(separator + 1)..];
+        }
+    }
 
     public string Description { get; set; } = "";
 
@@ -111,6 +141,9 @@ public sealed class DynamicToolRegistryOptions
 
     /// <summary>Error code used for unexpected exceptions from a tool body.</summary>
     public string InternalErrorCode { get; init; } = "INTERNAL";
+
+    /// <summary>Model-safe message used for unexpected exceptions from a tool body.</summary>
+    public string InternalErrorMessage { get; init; } = "The dynamic tool failed unexpectedly.";
 
     /// <summary>Optional sink for unexpected tool exceptions (exception, full tool name).</summary>
     public Action<Exception, string>? InternalErrorLogger { get; init; }

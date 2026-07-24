@@ -19,6 +19,7 @@ const thread = await dotcraft.threads.start({
       inputSchema: { type: "object", properties: { id: { type: "string" } }, required: ["id"] },
       handler: async (call) => ({
         success: true,
+        contentItems: [{ type: "text", text: "Issue loaded." }],
         structuredContent: await getIssue(call.arguments.id as string),
       }),
     },
@@ -27,21 +28,56 @@ const thread = await dotcraft.threads.start({
 ```
 
 ```csharp [.NET]
-var tools = new[]
+using System.ComponentModel;
+using DotCraft.Sdk.AppServer;
+using DotCraft.Sdk.Tools;
+
+public sealed class GetIssueArgs
 {
-    new DynamicToolSpec("myapp", "GetIssue", "Read an issue from MyApp.", inputSchema),
-};
+    [Description("Issue id to read.")]
+    public required string Id { get; init; }
+}
+
+public sealed class IssueTools(IssueStore issues)
+{
+    [DynamicTool("GetIssue", "Read an issue from MyApp.")]
+    public Task<Issue> GetIssueAsync(GetIssueArgs args, CancellationToken ct) =>
+        issues.GetIssueAsync(args.Id, ct);
+}
+
+var registry = new DynamicToolRegistry();
+registry.Register(new IssueTools(issueStore), "myapp");
+
+var declarations = RuntimeDynamicToolDeclarationBuilder.Build(
+    registry.ListDescriptors(),
+    new Dictionary<string, string> { ["myapp"] = "MyApp issue tools." });
 
 var thread = await client.Threads.StartAsync(
     new DotCraftThreadStartRequest(
         new SessionIdentity("my-app", Environment.UserName),
-        DynamicTools: tools));
+        DynamicTools: declarations));
 
 using var registration = thread.OnToolCall("myapp", "GetIssue", async (call, ct) =>
 {
-    var id = call.Arguments.GetProperty("id").GetString();
-    var issue = await GetIssueAsync(id!, ct);
-    return new DynamicToolResult(Success: true, StructuredContent: issue);
+    var outcome = await registry.InvokeAsync(
+        call.Namespace!,
+        call.Tool,
+        call.Arguments,
+        ct);
+
+    if (!outcome.Ok)
+    {
+        return new DynamicToolResult(
+            false,
+            ErrorCode: outcome.Code,
+            ErrorMessage: outcome.Message);
+    }
+
+    var issue = (Issue)outcome.Data!;
+    return new DynamicToolResult(
+        true,
+        [new ToolContentItem("text", $"Loaded issue {issue.Id}.")],
+        issue);
 });
 ```
 
@@ -59,13 +95,14 @@ thread = await dotcraft.threads.start(user_id="me", dynamic_tools=tools)
 
 thread.on_tool_call("myapp", "GetIssue", lambda call: {
     "success": True,
+    "contentItems": [{"type": "text", "text": "Issue loaded."}],
     "structuredContent": get_issue(call["arguments"]["id"]),
 })
 ```
 
 :::
 
-处理器返回成功结果（`success: true`，带 `contentItems` / `structuredContent`）或失败（`success: false`，带 `errorCode` / `errorMessage`）。若未注册处理器，SDK 返回 `UnsupportedTool`；若处理器抛错，返回 `AdapterToolCallFailed`。工具处理器负责参数校验与应用级授权。
+处理器返回成功结果（`success: true`，`contentItems` 至少包含一条有用的文本，并可附带 `structuredContent`）或失败（`success: false`，带 `errorCode` / `errorMessage`）。.NET registry 会从强类型参数生成 closed JSON Schema，并拒绝未声明字段；恢复线程时把同一组 declarations 传给 `thread/resume` 以重新绑定。若未注册处理器，SDK 返回 `UnsupportedTool`；若处理器抛错，返回 `AdapterToolCallFailed`。工具处理器仍负责应用级授权。
 
 > [!TIP]
 > 对于 App Binding 应用，请使用共享的 App Binding 错误形态（`appBindingToolError` / `DotCraftAppBindingClient.ToolError` / `app_binding_tool_error`），而非通用失败。参见 [构建应用](../integrations/build-an-app)。

@@ -64,7 +64,8 @@ public sealed class DynamicToolRegistry
             _tools[fullName] = tool;
             _descriptors.Add(new DynamicToolDescriptor
             {
-                Name = fullName,
+                Namespace = @namespace,
+                LocalName = attribute.Name,
                 Description = description,
                 InputSchema = schema,
                 Order = attribute.Order,
@@ -96,6 +97,7 @@ public sealed class DynamicToolRegistry
         object?[] invokeArgs;
         try
         {
+            ValidateArguments(arguments, tool.Schema);
             invokeArgs = BindArguments(tool, arguments, context, cancellationToken);
         }
         catch (JsonException ex)
@@ -109,6 +111,15 @@ public sealed class DynamicToolRegistry
             object? data = await UnwrapAsync(result).ConfigureAwait(false);
             return DynamicToolOutcome.Success(data);
         }
+        catch (TargetInvocationException ex)
+            when (ex.InnerException is OperationCanceledException)
+        {
+            throw ex.InnerException;
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
         catch (TargetInvocationException ex) when (ex.InnerException is DynamicToolException toolError)
         {
             return DynamicToolOutcome.Error(toolError.Code, toolError.Message, toolError.Field, toolError.Hint);
@@ -121,7 +132,7 @@ public sealed class DynamicToolRegistry
         {
             Exception inner = (ex as TargetInvocationException)?.InnerException ?? ex;
             _options.InternalErrorLogger?.Invoke(inner, fullName);
-            return DynamicToolOutcome.Error(_options.InternalErrorCode, inner.Message);
+            return DynamicToolOutcome.Error(_options.InternalErrorCode, _options.InternalErrorMessage);
         }
     }
 
@@ -141,16 +152,33 @@ public sealed class DynamicToolRegistry
         ParameterInfo[] parameters = method.GetParameters();
         var slots = new ParamSlot[parameters.Length];
         var schemaParams = new List<ParameterInfo>();
+        int contextCount = 0;
+        int cancellationCount = 0;
 
         for (int i = 0; i < parameters.Length; i++)
         {
             ParameterInfo p = parameters[i];
-            if (_options.ContextType is { } contextType && contextType.IsAssignableFrom(p.ParameterType))
+            if (p.ParameterType.IsByRef || p.IsOut)
             {
-                slots[i] = new ParamSlot(SlotKind.Context, null, null);
+                throw new InvalidOperationException(
+                    $"Dynamic tool '{fullName}' parameter '{p.Name}' cannot be ref or out.");
+            }
+
+            if (_options.ContextType is { } contextType &&
+                p.ParameterType == typeof(object))
+            {
+                throw new InvalidOperationException(
+                    $"Dynamic tool '{fullName}' parameter '{p.Name}' is ambiguous: object cannot be used as a tool argument or context parameter when ContextType is configured.");
+            }
+            else if (_options.ContextType is { } assignableContextType &&
+                p.ParameterType.IsAssignableFrom(assignableContextType))
+            {
+                contextCount++;
+                slots[i] = new ParamSlot(SlotKind.Context, null, p);
             }
             else if (p.ParameterType == typeof(CancellationToken))
             {
+                cancellationCount++;
                 slots[i] = new ParamSlot(SlotKind.Cancellation, null, null);
             }
             else
@@ -158,6 +186,16 @@ public sealed class DynamicToolRegistry
                 slots[i] = new ParamSlot(SlotKind.Pending, null, p);
                 schemaParams.Add(p);
             }
+        }
+
+        if (contextCount > 1)
+        {
+            throw new InvalidOperationException($"Dynamic tool '{fullName}' can declare at most one context parameter.");
+        }
+
+        if (cancellationCount > 1)
+        {
+            throw new InvalidOperationException($"Dynamic tool '{fullName}' can declare at most one CancellationToken parameter.");
         }
 
         bool recordMode = schemaParams.Count == 1 && IsComplexType(schemaParams[0].ParameterType);
@@ -189,7 +227,7 @@ public sealed class DynamicToolRegistry
             }
         }
 
-        return (new RegisteredTool(target, method, slots, recordMode, argsType), schema);
+        return (new RegisteredTool(target, method, slots, recordMode, argsType, schema), schema);
     }
 
     private object?[] BindArguments(RegisteredTool tool, JsonElement arguments, object? context, CancellationToken cancellationToken)
@@ -202,7 +240,7 @@ public sealed class DynamicToolRegistry
             ParamSlot slot = tool.Slots[i];
             values[i] = slot.Kind switch
             {
-                SlotKind.Context => context,
+                SlotKind.Context => BindContext(slot, context),
                 SlotKind.Cancellation => cancellationToken,
                 SlotKind.RecordArgs => recordArgs,
                 SlotKind.FlatArg => BindFlatArgument(slot, arguments),
@@ -237,6 +275,110 @@ public sealed class DynamicToolRegistry
         }
 
         return CreateDefault(parameter.ParameterType);
+    }
+
+    private static object? BindContext(ParamSlot slot, object? context)
+    {
+        Type parameterType = slot.Parameter!.ParameterType;
+        if (context is null)
+        {
+            if (parameterType.IsValueType && Nullable.GetUnderlyingType(parameterType) is null)
+            {
+                throw new InvalidOperationException(
+                    $"Dynamic tool context for '{parameterType.FullName}' was not supplied.");
+            }
+
+            return null;
+        }
+
+        if (!parameterType.IsInstanceOfType(context))
+        {
+            throw new InvalidOperationException(
+                $"Dynamic tool context type '{context.GetType().FullName}' is not assignable to '{parameterType.FullName}'.");
+        }
+
+        return context;
+    }
+
+    private static void ValidateArguments(JsonElement arguments, JsonElement schema)
+    {
+        if (arguments.ValueKind is JsonValueKind.Undefined or JsonValueKind.Null)
+        {
+            using JsonDocument empty = JsonDocument.Parse("{}");
+            ValidateValue(empty.RootElement, schema, "$");
+            return;
+        }
+
+        ValidateValue(arguments, schema, "$");
+    }
+
+    private static void ValidateValue(JsonElement value, JsonElement schema, string path)
+    {
+        if (schema.ValueKind != JsonValueKind.Object)
+        {
+            return;
+        }
+
+        if (value.ValueKind == JsonValueKind.Object)
+        {
+            HashSet<string>? propertyNames = null;
+            JsonElement properties = default;
+            if (schema.TryGetProperty("properties", out properties) && properties.ValueKind == JsonValueKind.Object)
+            {
+                propertyNames = properties.EnumerateObject()
+                    .Select(property => property.Name)
+                    .ToHashSet(StringComparer.Ordinal);
+            }
+
+            if (schema.TryGetProperty("additionalProperties", out JsonElement additional) &&
+                additional.ValueKind == JsonValueKind.False)
+            {
+                foreach (JsonProperty property in value.EnumerateObject())
+                {
+                    if (propertyNames is null || !propertyNames.Contains(property.Name))
+                    {
+                        throw new JsonException($"Unknown property '{path}.{property.Name}'.");
+                    }
+                }
+            }
+
+            if (schema.TryGetProperty("required", out JsonElement required) &&
+                required.ValueKind == JsonValueKind.Array)
+            {
+                foreach (JsonElement requiredName in required.EnumerateArray())
+                {
+                    string name = requiredName.GetString()!;
+                    if (!value.TryGetProperty(name, out JsonElement requiredValue) ||
+                        requiredValue.ValueKind == JsonValueKind.Null)
+                    {
+                        throw new JsonException($"Required property '{path}.{name}' is missing.");
+                    }
+                }
+            }
+
+            if (propertyNames is not null)
+            {
+                foreach (JsonProperty property in value.EnumerateObject())
+                {
+                    if (properties.TryGetProperty(property.Name, out JsonElement propertySchema))
+                    {
+                        ValidateValue(property.Value, propertySchema, $"{path}.{property.Name}");
+                    }
+                }
+            }
+
+            return;
+        }
+
+        if (value.ValueKind == JsonValueKind.Array &&
+            schema.TryGetProperty("items", out JsonElement itemSchema))
+        {
+            int index = 0;
+            foreach (JsonElement item in value.EnumerateArray())
+            {
+                ValidateValue(item, itemSchema, $"{path}[{index++}]");
+            }
+        }
     }
 
     private bool TryGetProperty(JsonElement obj, string camelName, out JsonElement value)
@@ -355,5 +497,11 @@ public sealed class DynamicToolRegistry
 
     private readonly record struct ParamSlot(SlotKind Kind, string? PropertyName, ParameterInfo? Parameter);
 
-    private sealed record RegisteredTool(object Target, MethodInfo Method, ParamSlot[] Slots, bool RecordMode, Type? ArgsType);
+    private sealed record RegisteredTool(
+        object Target,
+        MethodInfo Method,
+        ParamSlot[] Slots,
+        bool RecordMode,
+        Type? ArgsType,
+        JsonElement Schema);
 }

@@ -140,6 +140,7 @@ Current public namespaces:
 | `DotCraft.Sdk.AppServer` | High-level AppServer client, thread/turn/model wrappers, Runtime Dynamic Tool models. |
 | `DotCraft.Sdk.AppBinding` | App Binding handoff parsing, app-side RPC helpers, standard App Binding tool errors. |
 | `DotCraft.Sdk.Hub` | Local Hub lock discovery, Hub health probing, AppServer lookup/ensure. |
+| `DotCraft.Sdk.Tools` | Attribute-based Runtime Dynamic Tool authoring, schema generation, argument binding, and declaration projection. |
 | `DotCraft.Sdk.Wire` | JSON-RPC transports, wire client, canonical JSON options, JSON-RPC exception. |
 
 Current AppServer features with typed or semi-typed SDK support:
@@ -160,7 +161,7 @@ Current AppServer features with typed or semi-typed SDK support:
 | Turn enqueue | `turn/enqueue` | `DotCraftTurnClient.EnqueueAsync` |
 | Turn interrupt | `turn/interrupt` | `DotCraftTurnClient.InterruptAsync` |
 | Model list | `model/list` | `DotCraftModelClient.ListAsync` |
-| Runtime Dynamic Tools | `thread/start.dynamicTools`, `thread/resume.dynamicTools`, `item/tool/call` | `DynamicToolSpec`, `RegisterDynamicToolHandler` |
+| Runtime Dynamic Tools | `thread/start.dynamicTools`, `thread/resume.dynamicTools`, `item/tool/call` | `RuntimeDynamicToolDeclaration`, `DynamicToolRegistry`, `RegisterDynamicToolHandler` |
 | App connection request read | `app/connection/request/get` | `DotCraftAppBindingClient.GetConnectionRequestAsync<T>` |
 | App connection completion | `app/connection/connect` | `DotCraftAppBindingClient.ConnectAsync<T>` |
 | App connection status | `app/connection/status` | `DotCraftAppBindingClient.GetConnectionStatusAsync<T>` |
@@ -637,7 +638,7 @@ public sealed record DotCraftThreadStartRequest(
     string? DisplayName = null,
     string HistoryMode = "server",
     object? Config = null,
-    IReadOnlyList<DynamicToolSpec>? DynamicTools = null,
+    IReadOnlyList<RuntimeDynamicToolDeclaration>? DynamicTools = null,
     IReadOnlyDictionary<string, RuntimeAdditionalContextEntry>? AdditionalContext = null);
 ```
 
@@ -665,7 +666,7 @@ Request record:
 ```csharp
 public sealed record DotCraftThreadResumeRequest(
     string ThreadId,
-    IReadOnlyList<DynamicToolSpec>? DynamicTools = null,
+    IReadOnlyList<RuntimeDynamicToolDeclaration>? DynamicTools = null,
     IReadOnlyDictionary<string, RuntimeAdditionalContextEntry>? AdditionalContext = null);
 ```
 
@@ -839,23 +840,33 @@ For each entry, the SDK extracts:
 
 ## 13. Runtime Dynamic Tools
 
-### 13.1 Tool Declaration
+### 13.1 Tool declaration
 
 Runtime Dynamic Tools are declared through:
 
 - `DotCraftThreadStartRequest.DynamicTools`
 - `DotCraftThreadResumeRequest.DynamicTools`
 
-Model:
+The wire model is a tagged union:
 
 ```csharp
-public sealed record DynamicToolSpec(
-    string? Namespace,
+public abstract record RuntimeDynamicToolDeclaration(
+    string Name,
+    string Description);
+
+public sealed record RuntimeDynamicToolFunction(
     string Name,
     string Description,
     JsonElement InputSchema,
     bool DeferLoading = false,
-    ToolApprovalDescriptor? Approval = null);
+    ToolApprovalDescriptor? Approval = null)
+    : RuntimeDynamicToolDeclaration(Name, Description);
+
+public sealed record RuntimeDynamicToolNamespace(
+    string Name,
+    string Description,
+    IReadOnlyList<RuntimeDynamicToolDeclaration> Tools)
+    : RuntimeDynamicToolDeclaration(Name, Description);
 ```
 
 Approval metadata:
@@ -870,7 +881,63 @@ public sealed record ToolApprovalDescriptor(
 
 The owning wire contract is [AppServer Protocol, Runtime Dynamic Tools](../protocols/appserver-protocol.md#410-runtime-dynamic-tools).
 
-### 13.2 Tool Call Dispatch
+### 13.2 Attribute-based authoring
+
+The preferred .NET authoring path uses `DotCraft.Sdk.Tools`.
+
+```csharp
+[DynamicTool("GetIssue", "Read an issue from MyApp.")]
+public Task<Issue> GetIssueAsync(GetIssueArgs args, CancellationToken cancellationToken);
+```
+
+`DynamicToolRegistry.Register(target, namespace)` discovers attributed instance methods and exposes immutable descriptors. Each descriptor contains:
+
+- `Namespace`
+- `LocalName`
+- `QualifiedName`
+- `Description`
+- `InputSchema`
+- `Order`
+- `DeferLoading`
+
+`DynamicToolDescriptor.Name` remains a compatibility alias for `QualifiedName`.
+
+The registry supports:
+
+- one typed arguments class or record;
+- flat parameters;
+- one injected context parameter configured through `DynamicToolRegistryOptions.ContextType`;
+- one injected `CancellationToken`.
+
+Schema generation uses `System.Text.Json.Schema.JsonSchemaExporter`. Object schemas are closed by default. `[SchemaAllowAdditionalProperties]` opts a type into accepting undeclared properties. The registry argument binder enforces the same closed/open-object behavior.
+
+Invalid or ambiguous handler signatures fail during registration. Cancellation requested through the invocation token propagates as `OperationCanceledException`. Expected tool failures use `DynamicToolException`; unexpected failures are logged through `InternalErrorLogger` and return the configured internal error code with a generic message.
+
+### 13.3 Runtime declaration projection
+
+`RuntimeDynamicToolDeclarationBuilder.Build(...)` converts any selected descriptor set into the current AppServer declaration union:
+
+```csharp
+IReadOnlyList<RuntimeDynamicToolDeclaration> declarations =
+    RuntimeDynamicToolDeclarationBuilder.Build(
+        descriptors,
+        new Dictionary<string, string>
+        {
+            ["myapp"] = "MyApp tools."
+        });
+```
+
+The builder:
+
+- groups functions by namespace;
+- preserves descriptor order;
+- carries `Description`, `InputSchema`, and `DeferLoading`;
+- applies optional approval metadata supplied by the caller;
+- rejects missing namespace descriptions, duplicate qualified identities, invalid identifiers, and flat names longer than 64 ASCII bytes.
+
+Attribute-authored registries are namespaced. Top-level Runtime Dynamic Functions remain available through direct construction of `RuntimeDynamicToolFunction`.
+
+### 13.4 Tool call dispatch
 
 The SDK handles server-initiated:
 
@@ -896,7 +963,7 @@ Result model:
 public sealed record DynamicToolResult(
     bool Success,
     IReadOnlyList<ToolContentItem>? ContentItems = null,
-    object? StructuredResult = null,
+    object? StructuredContent = null,
     string? ErrorCode = null,
     string? ErrorMessage = null);
 ```
@@ -904,10 +971,17 @@ public sealed record DynamicToolResult(
 Content item model:
 
 ```csharp
-public sealed record ToolContentItem(string Type, string? Text = null);
+public sealed record ToolContentItem(
+    string Type,
+    string? Text = null,
+    string? MediaType = null,
+    string? Url = null,
+    string? DataBase64 = null);
 ```
 
-### 13.3 Handler Registration
+Successful model-visible calls must include at least one useful text content item. `StructuredContent` is client-facing data and does not replace the required model-visible summary.
+
+### 13.5 Handler registration
 
 Catch-all registration:
 
@@ -1170,7 +1244,7 @@ Legend:
 | Run | normalized streaming events + text merge | required | Typed | `DotCraftRunEvent`, `RunStreamedAsync` |
 | Approvals | `item/approval/request` | `approvalFlow` | Callback | `DotCraftClientOptions.ApprovalHandler` |
 | User input | `item/tool/requestUserInput` | `requestUserInput` | Callback | `DotCraftClientOptions.UserInputHandler` |
-| Runtime Dynamic Tools | `thread/start.dynamicTools` | required | Typed | `DynamicToolSpec` |
+| Runtime Dynamic Tools | `thread/start.dynamicTools` | required | Typed | `RuntimeDynamicToolDeclaration`, `DynamicToolRegistry` |
 | Runtime Dynamic Tools | `thread/resume.dynamicTools` | `dynamicToolRebind` | Typed | `DotCraftThreadResumeRequest.DynamicTools` |
 | Runtime Dynamic Tools | `item/tool/call` | required for declared tools | Callback | `RegisterDynamicToolHandler` |
 | Models | `model/list` | `modelCatalogManagement` | Typed | `Models.ListAsync` |
