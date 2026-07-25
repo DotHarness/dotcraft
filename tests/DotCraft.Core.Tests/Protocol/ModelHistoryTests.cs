@@ -2,7 +2,6 @@ using System.Reflection;
 using System.Text.Json;
 using DotCraft.Agents;
 using DotCraft.Protocol;
-using Microsoft.Agents.AI;
 using Microsoft.Extensions.AI;
 
 namespace DotCraft.Tests.Sessions.Protocol;
@@ -227,18 +226,15 @@ public sealed class ModelHistoryTests : IDisposable
         await store.SaveThreadAsync(thread);
 
         using var client = new PassiveChatClient();
-        var agent = client.AsAIAgent(new ChatClientAgentOptions());
-        var session = await agent.CreateSessionAsync();
-        session.SetInMemoryChatHistory(
-            [
+        var session = new List<ChatMessage>
+        {
                 new ChatMessage(ChatRole.User, "hello"),
                 new ChatMessage(ChatRole.Assistant,
                 [
                     new TextReasoningContent("think") { ProtectedData = "protected" },
                     new TextContent("answer")
                 ])
-            ],
-            jsonSerializerOptions: SessionPersistenceJsonOptions.Default);
+        };
 
         await store.PersistModelHistoryAsync(session, thread.Id, "turn_001", persistedPrefixLength: 0);
 
@@ -257,7 +253,7 @@ public sealed class ModelHistoryTests : IDisposable
                     .GetArrayLength());
         }
 
-        var coldSession = await new ThreadStore(_root).LoadOrCreateSessionAsync(agent, thread.Id);
+        var coldSession = await new ThreadStore(_root).LoadModelHistoryAsync(thread.Id);
         Assert.True(coldSession.TryGetInMemoryChatHistory(
             out var history,
             jsonSerializerOptions: SessionPersistenceJsonOptions.Default));

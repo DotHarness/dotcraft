@@ -140,7 +140,8 @@ public sealed class ChatClientRegistry(
                 client,
                 new StreamRetryOptions(
                     runtime.StreamMaxRetries,
-                    TimeSpan.FromMilliseconds(runtime.StreamIdleTimeoutMs)));
+                    TimeSpan.FromMilliseconds(runtime.StreamIdleTimeoutMs),
+                    runtime.IsChatGptOAuth ? 1 : 0));
         }, this);
     }
 

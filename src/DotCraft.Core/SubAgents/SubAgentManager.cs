@@ -6,17 +6,14 @@ using DotCraft.GeneratedTools.Core;
 using DotCraft.Security;
 using DotCraft.Tools;
 using DotCraft.Tools.Sandbox;
-using Microsoft.Agents.AI;
 using Microsoft.Extensions.AI;
 
 namespace DotCraft.Agents;
 
 /// <summary>
-/// Manages subagent execution using the AIFunction pattern.
-/// Subagents are lightweight agent instances that handle specific tasks and return results directly to the main agent.
+/// Manages restricted subagent execution for native and sandbox runtimes.
 /// </summary>
 /// <remarks>
-/// Implementation uses AIAgent.AsAIFunction() for native framework support.
 /// Subagents have restricted tool access for security.
 /// A <see cref="SemaphoreSlim"/> throttles concurrent subagent executions to avoid exceeding API rate limits.
 /// </remarks>
@@ -122,25 +119,6 @@ public sealed class SubAgentManager
     }
 
     /// <summary>
-    /// Creates an AIFunction that wraps a subagent for the given task.
-    /// This allows the main agent to invoke the subagent as a tool and receive results directly.
-    /// </summary>
-    public AIFunction CreateSubAgentFunction(string taskDescription)
-    {
-        // Create the subagent with restricted tools
-        var subagent = CreateSubAgent(taskDescription);
-
-        // Wrap as AIFunction - the framework handles execution and result passing
-        return subagent.AsAIFunction(
-            options: new AIFunctionFactoryOptions
-            {
-                Name = "execute_subagent_task",
-                Description = $"Execute a subagent to handle the following task: {taskDescription}"
-            }
-        );
-    }
-
-    /// <summary>
     /// Derives the display label for a SubAgent using the same truncation logic as
     /// <c>CoreToolDisplays.SpawnAgent</c> so that the progress bridge key
     /// matches the Live Table entry label exactly.
@@ -190,7 +168,7 @@ public sealed class SubAgentManager
                     ? ApprovalContextScope.Set(approvalContext)
                     : null;
                 var subagent = CreateSubAgent(task, progressEntry, effectiveApprovalService);
-                var result = await subagent.RunAsync(task, session: null, options: null, cancellationToken);
+                var result = await subagent.RunAsync(task, cancellationToken);
                 return result.Text;
             }
             finally
@@ -338,19 +316,14 @@ public sealed class SubAgentManager
             _traceCollector);
         var configuredChatClient = chatClientBuilder.Build();
 
-        var options = new ChatClientAgentOptions
+        var options = new ChatOptions
         {
-            Name = "SubAgent",
-            UseProvidedChatClientAsIs = true,  // Use our custom-configured chat client as-is
-            ChatOptions = new ChatOptions
-            {
-                Instructions = systemPrompt,
-                Tools = tools,
-                Reasoning = _reasoningConfig.ToOptions()
-            }
+            Instructions = systemPrompt,
+            Tools = tools,
+            Reasoning = _reasoningConfig.ToOptions()
         };
 
-        return configuredChatClient.AsAIAgent(options);
+        return new ChatClientAgent(configuredChatClient, options, name: "SubAgent");
     }
 
     private static IApprovalService? BuildSubAgentApprovalService(string label, IApprovalService? approvalService)

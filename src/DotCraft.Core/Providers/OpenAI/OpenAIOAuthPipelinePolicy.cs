@@ -53,8 +53,21 @@ internal sealed class OpenAIOAuthPipelinePolicy : PipelinePolicy
         int currentIndex)
     {
         var ct = message.CancellationToken;
+        var isResponsesRequest = IsResponsesRequest(message);
+        var codexMetadata = isResponsesRequest && !string.IsNullOrEmpty(_installationId)
+            ? OpenAIResponsesCodexMetadata.GetOrCreateSnapshot(message, _installationId)
+            : null;
+        var routingIdentity = isResponsesRequest
+            ? codexMetadata == null
+                ? OpenAIResponsesCodexMetadata.ResolveRoutingIdentity()
+                : new OpenAIResponsesRoutingIdentity(
+                    codexMetadata.SessionId,
+                    codexMetadata.ThreadId,
+                    codexMetadata.DefaultPromptCacheKey,
+                    codexMetadata.ClientRequestId)
+            : null;
         var token = await _authService.GetAccessTokenAsync(forceRefresh: false, ct).ConfigureAwait(false);
-        ApplyAuthHeaders(message, token);
+        ApplyAuthHeaders(message, token, isResponsesRequest, routingIdentity, codexMetadata);
 
         await ProcessNextAsync(message, pipeline, currentIndex).ConfigureAwait(false);
         CaptureTurnState(message);
@@ -69,7 +82,7 @@ internal sealed class OpenAIOAuthPipelinePolicy : PipelinePolicy
             if (_authService is OpenAIAuthManager manager &&
                 await manager.TryReloadAccessTokenAsync(ct).ConfigureAwait(false) is { } reloadedToken)
             {
-                ApplyAuthHeaders(message, reloadedToken);
+                ApplyAuthHeaders(message, reloadedToken, isResponsesRequest, routingIdentity, codexMetadata);
                 await ProcessNextAsync(message, pipeline, currentIndex).ConfigureAwait(false);
                 CaptureTurnState(message);
                 if (message.Response?.Status != 401)
@@ -83,19 +96,20 @@ internal sealed class OpenAIOAuthPipelinePolicy : PipelinePolicy
             return; // Surface the original 401 to the caller for richer diagnostics.
         }
 
-        ApplyAuthHeaders(message, token);
+        ApplyAuthHeaders(message, token, isResponsesRequest, routingIdentity, codexMetadata);
         // The transport policy below produces a fresh response on the retry; we do not need to
         // explicitly clear the existing one.
         await ProcessNextAsync(message, pipeline, currentIndex).ConfigureAwait(false);
         CaptureTurnState(message);
     }
 
-    private void ApplyAuthHeaders(PipelineMessage message, string accessToken)
+    private void ApplyAuthHeaders(
+        PipelineMessage message,
+        string accessToken,
+        bool isResponsesRequest,
+        OpenAIResponsesRoutingIdentity? routingIdentity,
+        OpenAIResponsesCodexMetadataSnapshot? codexMetadata)
     {
-        var isResponsesRequest = IsResponsesRequest(message);
-        var codexMetadata = isResponsesRequest && !string.IsNullOrEmpty(_installationId)
-            ? OpenAIResponsesCodexMetadata.CreateSnapshot(_installationId)
-            : null;
         message.Request.Headers.Set("Authorization", $"Bearer {accessToken}");
         var accountId = ResolveAccountId();
         if (!string.IsNullOrEmpty(accountId))
@@ -104,15 +118,29 @@ internal sealed class OpenAIOAuthPipelinePolicy : PipelinePolicy
         if (!string.IsNullOrEmpty(_installationId))
             message.Request.Headers.Set(OpenAIAuthConstants.InstallationIdHeader, _installationId);
 
-        var sessionKey = codexMetadata?.ThreadId ?? TracingChatClient.CurrentSessionKey ?? TracingChatClient.GetActiveSessionKey();
-        if (!string.IsNullOrWhiteSpace(sessionKey))
+        if (isResponsesRequest)
         {
-            var trimmed = sessionKey.Trim();
-            message.Request.Headers.Set(OpenAIAuthConstants.SessionIdHeader, trimmed);
-            message.Request.Headers.Set(OpenAIAuthConstants.ThreadIdHeader, trimmed);
+            SetIfPresent(message, OpenAIAuthConstants.SessionIdHeader, routingIdentity?.SessionId);
+            SetIfPresent(message, OpenAIAuthConstants.ThreadIdHeader, routingIdentity?.ThreadId);
+            SetIfPresent(
+                message,
+                OpenAIAuthConstants.ClientRequestIdHeader,
+                routingIdentity?.ClientRequestId);
         }
-        else if (isResponsesRequest &&
-                 Interlocked.Exchange(ref _missingSessionWarningLogged, 1) == 0)
+        else
+        {
+            var sessionKey = TracingChatClient.CurrentSessionKey ?? TracingChatClient.GetActiveSessionKey();
+            if (!string.IsNullOrWhiteSpace(sessionKey))
+            {
+                var trimmed = sessionKey.Trim();
+                message.Request.Headers.Set(OpenAIAuthConstants.SessionIdHeader, trimmed);
+                message.Request.Headers.Set(OpenAIAuthConstants.ThreadIdHeader, trimmed);
+            }
+        }
+
+        if (isResponsesRequest
+            && string.IsNullOrWhiteSpace(routingIdentity?.ThreadId)
+            && Interlocked.Exchange(ref _missingSessionWarningLogged, 1) == 0)
         {
             _logger?.LogWarning(
                 "ChatGPT OAuth Responses request has no active DotCraft thread id; sending without thread-scoped sticky-routing headers.");
@@ -123,8 +151,11 @@ internal sealed class OpenAIOAuthPipelinePolicy : PipelinePolicy
             SetIfPresent(message, OpenAIAuthConstants.WindowIdHeader, codexMetadata.WindowId);
             SetIfPresent(message, OpenAIAuthConstants.TurnMetadataHeader, codexMetadata.TurnMetadataJson);
             SetIfPresent(message, OpenAIAuthConstants.ParentThreadIdHeader, codexMetadata.ParentThreadId);
-            SetIfPresent(message, OpenAIAuthConstants.SubAgentHeader, codexMetadata.SubagentKind);
-            SetIfPresent(message, OpenAIAuthConstants.TurnStateHeader, codexMetadata.TurnState);
+            SetIfPresent(message, OpenAIAuthConstants.SubAgentHeader, codexMetadata.SubagentHeader);
+            SetIfPresent(
+                message,
+                OpenAIAuthConstants.TurnStateHeader,
+                OpenAIResponsesCodexRuntimeScope.Current?.TurnState ?? codexMetadata.TurnState);
         }
 
         ApplyExperimentalHeaders(message, isResponsesRequest);

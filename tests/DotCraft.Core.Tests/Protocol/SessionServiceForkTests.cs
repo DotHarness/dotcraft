@@ -6,7 +6,6 @@ using DotCraft.Protocol;
 using DotCraft.Security;
 using DotCraft.Sessions;
 using DotCraft.Skills;
-using Microsoft.Agents.AI;
 using Microsoft.Extensions.AI;
 
 namespace DotCraft.Tests.Sessions.Protocol;
@@ -250,7 +249,7 @@ public sealed class SessionServiceForkTests : IDisposable
     {
         var defaultAgent = chatClient == null
             ? agentFactory.CreateAgentForMode(AgentMode.Agent)
-            : chatClient.AsAIAgent(new ChatClientAgentOptions());
+            : chatClient.AsAIAgent();
         return new SessionService(agentFactory, defaultAgent, _persistence, new SessionGate());
     }
 
@@ -319,10 +318,10 @@ public sealed class SessionServiceForkTests : IDisposable
         Assert.Equal(sourceThreadId, notice.SourceThreadId);
     }
 
-    private static AIAgent CreateAgent() =>
-        new RecordingChatClient("unused").AsAIAgent(new ChatClientAgentOptions());
+    private static ChatClientAgent CreateAgent() =>
+        new RecordingChatClient("unused").AsAIAgent();
 
-    private static List<string> FormatHistory(AgentSession session)
+    private static List<string> FormatHistory(List<ChatMessage> session)
     {
         Assert.True(session.TryGetInMemoryChatHistory(
             out var chatHistory,

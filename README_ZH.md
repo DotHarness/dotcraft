@@ -168,7 +168,7 @@ Oratorio 是一个面向本地任务、GitHub 和 GitLab Issue、Review 与实�
 
 ## 致谢
 
-本项目受 [nanobot](https://github.com/HKUDS/nanobot) 与 [codex](https://github.com/openai/codex) 启发，并构建在 [agent-framework](https://github.com/microsoft/agent-framework) 之上。
+本项目受 [nanobot](https://github.com/HKUDS/nanobot) 、 [codex](https://github.com/openai/codex) 与 [agent-framework](https://github.com/microsoft/agent-framework) 启发。
 
 特别感谢：
 

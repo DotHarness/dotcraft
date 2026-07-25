@@ -514,9 +514,9 @@ public sealed class OpenAIResponsesToolSearchChatClientTests
     }
 
     [Fact]
-    public void CreateResponseOptions_RemovesUnprefixedHostedImageItemId()
+    public void CreateResponseOptions_ReplacesUnprefixedHostedImageItemId()
     {
-        using var document = JsonDocument.Parse(CreateRequestJson(
+        var request = ResponsesToolSearchMapper.CreateResponseRequest(
             "gpt-test",
             [
                 new ChatMessage(ChatRole.Assistant, [
@@ -528,10 +528,15 @@ public sealed class OpenAIResponsesToolSearchChatClientTests
                     }
                 ])
             ],
-            new ChatOptions()));
+            new ChatOptions());
+        using var document = JsonDocument.Parse(SerializeOptions(request.Options));
 
         var item = Assert.Single(document.RootElement.GetProperty("input").EnumerateArray());
-        Assert.False(item.TryGetProperty("id", out _));
+        Assert.StartsWith("ig_", item.GetProperty("id").GetString(), StringComparison.Ordinal);
+        Assert.NotEqual("legacyid", item.GetProperty("id").GetString());
+        Assert.Equal(1, request.Shape.InputItemIdInvalidSourceCount);
+        Assert.Equal(1, request.Shape.InputItemIdGeneratedCount);
+        Assert.Equal(0, request.Shape.InputItemIdMissingCount);
     }
 
     [Fact]
@@ -552,6 +557,79 @@ public sealed class OpenAIResponsesToolSearchChatClientTests
 
         var item = Assert.Single(document.RootElement.GetProperty("input").EnumerateArray());
         Assert.StartsWith("ig_", item.GetProperty("id").GetString(), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void CreateResponseOptions_AssignsStableDistinctIdsAcrossModelHistoryReplay()
+    {
+        var messages = new[]
+        {
+            new ChatMessage(ChatRole.User, "create a task"),
+            new ChatMessage(ChatRole.Assistant, [
+                new TextReasoningContent("") { ProtectedData = "encrypted-reasoning-payload" },
+                new TextContent("Creating it."),
+                new FunctionCallContent(
+                    "create-call",
+                    "CreateBoardTask",
+                    new Dictionary<string, object?> { ["title"] = "test task" })
+            ]),
+            new ChatMessage(ChatRole.Tool, [
+                new FunctionResultContent("create-call", "Created task.")
+            ])
+        };
+        var codec = new ModelHistoryCodec();
+        var legacyHistory = messages.Select(message => codec.Encode(message, "turn_001")).ToArray();
+        var firstReplay = legacyHistory.Select(codec.Decode).ToArray();
+        var secondReplay = legacyHistory.Select(codec.Decode).ToArray();
+
+        using var first = JsonDocument.Parse(CreateRequestJson("gpt-test", firstReplay, new ChatOptions()));
+        using var second = JsonDocument.Parse(CreateRequestJson("gpt-test", secondReplay, new ChatOptions()));
+
+        var firstItems = first.RootElement.GetProperty("input").EnumerateArray().ToArray();
+        var secondItems = second.RootElement.GetProperty("input").EnumerateArray().ToArray();
+        var firstIds = firstItems.Select(item => item.GetProperty("id").GetString()).ToArray();
+        var secondIds = secondItems.Select(item => item.GetProperty("id").GetString()).ToArray();
+
+        Assert.Equal(firstIds, secondIds);
+        Assert.Equal(firstIds.Length, firstIds.Distinct(StringComparer.Ordinal).Count());
+        Assert.Contains(firstIds, id => id!.StartsWith("msg_", StringComparison.Ordinal));
+        Assert.Contains(firstIds, id => id!.StartsWith("rs_", StringComparison.Ordinal));
+        Assert.Contains(firstIds, id => id!.StartsWith("fc_", StringComparison.Ordinal));
+        Assert.Contains(firstIds, id => id!.StartsWith("fco_", StringComparison.Ordinal));
+
+        var call = Assert.Single(firstItems, item => item.GetProperty("type").GetString() == "function_call");
+        var output = Assert.Single(firstItems, item => item.GetProperty("type").GetString() == "function_call_output");
+        Assert.Equal("create-call", call.GetProperty("call_id").GetString());
+        Assert.Equal("create-call", output.GetProperty("call_id").GetString());
+
+        var persisted = firstReplay.Select(message => codec.Encode(message, "turn_001")).ToArray();
+        Assert.Contains(
+            OpenAIResponsesItemIdentity.MetadataKey,
+            JsonSerializer.Serialize(persisted, SessionJsonOptions.Default),
+            StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void CreateResponseOptions_PreservesValidProviderItemIds()
+    {
+        var call = new FunctionCallContent(
+            "call-1",
+            "ReadFile",
+            new Dictionary<string, object?>())
+        {
+            AdditionalProperties = new AdditionalPropertiesDictionary
+            {
+                ["id"] = "fc_provider"
+            }
+        };
+
+        using var document = JsonDocument.Parse(CreateRequestJson(
+            "gpt-test",
+            [new ChatMessage(ChatRole.Assistant, [call])],
+            new ChatOptions()));
+
+        var item = Assert.Single(document.RootElement.GetProperty("input").EnumerateArray());
+        Assert.Equal("fc_provider", item.GetProperty("id").GetString());
     }
 
     [Fact]
@@ -759,6 +837,158 @@ public sealed class OpenAIResponsesToolSearchChatClientTests
     }
 
     [Fact]
+    public void CreateResponseOptions_MapsToolModeToResponsesToolChoice()
+    {
+        var tools = new List<AITool> { new TestFunction("lookup", "Look up a value.") };
+
+        AssertToolChoice(ChatToolMode.None, "\"none\"");
+        AssertToolChoice(ChatToolMode.Auto, "\"auto\"");
+        AssertToolChoice(ChatToolMode.RequireAny, "\"required\"");
+        AssertToolChoice(ChatToolMode.RequireSpecific("lookup"), """{"type":"function","name":"lookup"}""");
+
+        void AssertToolChoice(ChatToolMode toolMode, string expectedJson)
+        {
+            var options = ResponsesToolSearchMapper.CreateResponseOptions(
+                "gpt-test",
+                [new ChatMessage(ChatRole.User, "use a tool")],
+                new ChatOptions
+                {
+                    Tools = tools,
+                    ToolMode = toolMode
+                });
+            using var document = JsonDocument.Parse(SerializeOptions(options));
+            using var expected = JsonDocument.Parse(expectedJson);
+            Assert.Equal(
+                expected.RootElement.GetRawText(),
+                document.RootElement.GetProperty("tool_choice").GetRawText());
+        }
+    }
+
+    [Fact]
+    public void CreateResponseOptions_DoesNotEmitToolChoiceWithoutTools()
+    {
+        var options = ResponsesToolSearchMapper.CreateResponseOptions(
+            "gpt-test",
+            [new ChatMessage(ChatRole.User, "do not use tools")],
+            new ChatOptions
+            {
+                AllowMultipleToolCalls = true,
+                ToolMode = ChatToolMode.None
+            });
+
+        using var document = JsonDocument.Parse(SerializeOptions(options));
+
+        Assert.False(document.RootElement.TryGetProperty("tool_choice", out _));
+        Assert.False(document.RootElement.TryGetProperty("parallel_tool_calls", out _));
+    }
+
+    [Fact]
+    public void CreateResponseOptions_MapsStrictStructuredResponseFormat()
+    {
+        using var schema = JsonDocument.Parse(
+            """{"type":"object","properties":{"value":{"type":"string"}}}""");
+        var options = ResponsesToolSearchMapper.CreateResponseOptions(
+            "gpt-test",
+            [new ChatMessage(ChatRole.User, "return json")],
+            new ChatOptions
+            {
+                ResponseFormat = new ChatResponseFormatJson(
+                    schema.RootElement.Clone(),
+                    "result",
+                    "A result."),
+                AdditionalProperties = new AdditionalPropertiesDictionary
+                {
+                    ["strict"] = true
+                }
+            });
+
+        using var document = JsonDocument.Parse(SerializeOptions(options));
+        var format = document.RootElement.GetProperty("text").GetProperty("format");
+
+        Assert.Equal("json_schema", format.GetProperty("type").GetString());
+        Assert.Equal("result", format.GetProperty("name").GetString());
+        Assert.True(format.GetProperty("strict").GetBoolean());
+        Assert.Equal(
+            ["value"],
+            format.GetProperty("schema").GetProperty("required")
+                .EnumerateArray()
+                .Select(item => item.GetString()));
+    }
+
+    [Fact]
+    public void CreateResponseOptions_TransformsStructuredSchemaEvenWhenStrictIsFalse()
+    {
+        using var schema = JsonDocument.Parse(
+            """
+            {
+              "type": "object",
+              "properties": {
+                "value": {
+                  "type": "string",
+                  "minLength": 2
+                }
+              }
+            }
+            """);
+        var options = ResponsesToolSearchMapper.CreateResponseOptions(
+            "gpt-test",
+            [new ChatMessage(ChatRole.User, "return json")],
+            new ChatOptions
+            {
+                ResponseFormat = new ChatResponseFormatJson(
+                    schema.RootElement.Clone(),
+                    "result"),
+                AdditionalProperties = new AdditionalPropertiesDictionary
+                {
+                    ["strict"] = false
+                }
+            });
+
+        using var document = JsonDocument.Parse(SerializeOptions(options));
+        var format = document.RootElement.GetProperty("text").GetProperty("format");
+        var valueSchema = format.GetProperty("schema").GetProperty("properties").GetProperty("value");
+
+        Assert.False(format.GetProperty("strict").GetBoolean());
+        Assert.False(valueSchema.TryGetProperty("minLength", out _));
+        Assert.Contains("minLength: 2", valueSchema.GetProperty("description").GetString());
+    }
+
+    [Fact]
+    public void CreateResponseRequest_PreservesProviderNativeRawOptionPrecedence()
+    {
+        var options = new ChatOptions
+        {
+            Temperature = 0.1f,
+            ToolMode = ChatToolMode.RequireAny,
+            Tools = [new TestFunction("lookup", "Look up a value.")],
+            ResponseFormat = ChatResponseFormat.Json,
+            RawRepresentationFactory = _ =>
+                new CreateResponseOptions
+                {
+                    Temperature = 0.9f,
+                    ToolChoice = ResponseToolChoice.CreateNoneChoice(),
+                    TextOptions = new ResponseTextOptions
+                    {
+                        TextFormat = ResponseTextFormat.CreateTextFormat()
+                    }
+                }
+        };
+
+        var request = ResponsesToolSearchMapper.CreateResponseRequest(
+            "gpt-test",
+            [new ChatMessage(ChatRole.User, "raw options")],
+            options,
+            rawRepresentationClient: new FakeChatClient(new ChatResponse([])));
+        using var document = JsonDocument.Parse(SerializeOptions(request.Options));
+
+        Assert.Equal(0.9, document.RootElement.GetProperty("temperature").GetDouble(), precision: 5);
+        Assert.Equal("none", document.RootElement.GetProperty("tool_choice").GetString());
+        Assert.Equal(
+            "text",
+            document.RootElement.GetProperty("text").GetProperty("format").GetProperty("type").GetString());
+    }
+
+    [Fact]
     public void CreateResponseRequestShape_RecordsSanitizedEffectiveOptions()
     {
         var shape = ResponsesToolSearchMapper.CreateResponseRequest(
@@ -785,6 +1015,11 @@ public sealed class OpenAIResponsesToolSearchChatClientTests
         Assert.Equal("Required", shape.ToolChoiceKind);
         Assert.Equal(1, shape.ToolCount);
         Assert.True(shape.StreamingEnabled);
+        Assert.True(shape.InputBytes > 0);
+        Assert.Equal(shape.InputItemCount, shape.InputItemIdEligibleCount);
+        Assert.Equal(shape.InputItemIdEligibleCount, shape.InputItemIdPresentCount);
+        Assert.Equal(0, shape.InputItemIdMissingCount);
+        Assert.Equal(0, shape.InputItemIdInvalidSourceCount);
         Assert.DoesNotContain("sample user prompt", shapeJson, StringComparison.Ordinal);
     }
 
@@ -904,6 +1139,12 @@ public sealed class OpenAIResponsesToolSearchChatClientTests
         Assert.True(root.GetProperty("streamingEnabled").GetBoolean());
         Assert.Equal("gpt-test", root.GetProperty("model").GetString());
         Assert.Equal(1, root.GetProperty("inputItemCount").GetInt32());
+        Assert.True(root.GetProperty("inputBytes").GetInt32() > 0);
+        Assert.Equal(1, root.GetProperty("inputItemIdEligibleCount").GetInt32());
+        Assert.Equal(1, root.GetProperty("inputItemIdPresentCount").GetInt32());
+        Assert.Equal(1, root.GetProperty("inputItemIdGeneratedCount").GetInt32());
+        Assert.Equal(0, root.GetProperty("inputItemIdMissingCount").GetInt32());
+        Assert.Equal(0, root.GetProperty("inputItemIdInvalidSourceCount").GetInt32());
         Assert.StartsWith("sha256:", root.GetProperty("inputHash").GetString(), StringComparison.Ordinal);
         Assert.StartsWith("sha256:", root.GetProperty("inputItemHashes")[0].GetString(), StringComparison.Ordinal);
         Assert.StartsWith("sha256:", root.GetProperty("promptCacheKeyHash").GetString(), StringComparison.Ordinal);
@@ -1403,6 +1644,298 @@ public sealed class OpenAIResponsesToolSearchChatClientTests
     }
 
     [Fact]
+    public async Task GetStreamingResponseAsync_WithEncryptedReasoning_PreservesProviderItemIdAcrossModelHistory()
+    {
+        const string providerItemId = "rs_provider_reasoning";
+        const string encryptedContent = "encrypted-provider-reasoning";
+        var inner = new FakeChatClient(new ChatResponse([new ChatMessage(ChatRole.Assistant, "inner response")]));
+        var transport = new FakeToolSearchTransport(
+            CreateStreamingUpdate($$"""
+                {
+                  "type": "response.output_item.added",
+                  "sequence_number": 1,
+                  "output_index": 0,
+                  "item": {
+                    "type": "reasoning",
+                    "id": "{{providerItemId}}",
+                    "status": "in_progress",
+                    "summary": []
+                  }
+                }
+                """),
+            new StreamingResponseReasoningSummaryTextDeltaUpdate
+            {
+                SequenceNumber = 2,
+                ItemId = providerItemId,
+                OutputIndex = 0,
+                SummaryIndex = 0,
+                Delta = "checking "
+            },
+            new StreamingResponseReasoningSummaryTextDeltaUpdate
+            {
+                SequenceNumber = 3,
+                ItemId = providerItemId,
+                OutputIndex = 0,
+                SummaryIndex = 0,
+                Delta = "inputs"
+            },
+            CreateStreamingUpdate($$"""
+                {
+                  "type": "response.output_item.done",
+                  "sequence_number": 4,
+                  "output_index": 0,
+                  "item": {
+                    "type": "reasoning",
+                    "status": "completed",
+                    "encrypted_content": "{{encryptedContent}}",
+                    "summary": []
+                  }
+                }
+                """));
+        using var client = CreateClient(inner, transport);
+
+        var response = await client.GetResponseAsync(
+            [new ChatMessage(ChatRole.User, "reason")],
+            new ChatOptions { Tools = [new NativeToolSearchTool(new DeferredToolRegistry([]))] });
+
+        var message = Assert.Single(response.Messages);
+        var reasoning = Assert.Single(message.Contents.OfType<TextReasoningContent>());
+        Assert.Equal("checking inputs", reasoning.Text);
+        Assert.Equal(encryptedContent, reasoning.ProtectedData);
+        Assert.Equal(
+            providerItemId,
+            reasoning.AdditionalProperties![OpenAIResponsesItemIdentity.MetadataKey]);
+
+        var codec = new ModelHistoryCodec();
+        var restored = codec.Decode(codec.Encode(message, "turn_001"));
+        using var request = JsonDocument.Parse(CreateRequestJson("gpt-test", [restored], new ChatOptions()));
+        var replayedReasoning = Assert.Single(
+            request.RootElement.GetProperty("input").EnumerateArray(),
+            item => item.GetProperty("type").GetString() == "reasoning");
+        Assert.Equal(providerItemId, replayedReasoning.GetProperty("id").GetString());
+        Assert.Equal(encryptedContent, replayedReasoning.GetProperty("encrypted_content").GetString());
+    }
+
+    [Fact]
+    public async Task GetStreamingResponseAsync_WhenReasoningDoneOmitsId_ReusesAddedProviderItemId()
+    {
+        const string providerItemId = "rs_added_reasoning";
+        const string encryptedContent = "encrypted-added-reasoning";
+        var inner = new FakeChatClient(new ChatResponse([new ChatMessage(ChatRole.Assistant, "inner response")]));
+        var transport = new FakeToolSearchTransport(
+            CreateStreamingUpdate($$"""
+                {
+                  "type": "response.output_item.added",
+                  "sequence_number": 1,
+                  "output_index": 0,
+                  "item": {
+                    "type": "reasoning",
+                    "id": "{{providerItemId}}",
+                    "status": "in_progress",
+                    "summary": []
+                  }
+                }
+                """),
+            CreateStreamingUpdate($$"""
+                {
+                  "type": "response.output_item.done",
+                  "sequence_number": 2,
+                  "output_index": 0,
+                  "item": {
+                    "type": "reasoning",
+                    "status": "completed",
+                    "encrypted_content": "{{encryptedContent}}",
+                    "summary": []
+                  }
+                }
+                """));
+        using var client = CreateClient(inner, transport);
+
+        var updates = await CollectStreamingAsync(client.GetStreamingResponseAsync(
+            [new ChatMessage(ChatRole.User, "reason")],
+            new ChatOptions { Tools = [new NativeToolSearchTool(new DeferredToolRegistry([]))] }));
+
+        var reasoning = Assert.Single(
+            updates.SelectMany(update => update.Contents).OfType<TextReasoningContent>());
+        Assert.Equal(encryptedContent, reasoning.ProtectedData);
+        Assert.Equal(
+            providerItemId,
+            reasoning.AdditionalProperties![OpenAIResponsesItemIdentity.MetadataKey]);
+    }
+
+    [Fact]
+    public async Task GetStreamingResponseAsync_ReasoningEventsKeepProviderIdsIsolatedByOutputIndex()
+    {
+        const string firstItemId = "rs_first_reasoning";
+        const string secondItemId = "rs_second_reasoning";
+        const string firstEncryptedContent = "encrypted-first-reasoning";
+        const string secondEncryptedContent = "encrypted-second-reasoning";
+        var inner = new FakeChatClient(new ChatResponse([new ChatMessage(ChatRole.Assistant, "inner response")]));
+        var transport = new FakeToolSearchTransport(
+            new StreamingResponseReasoningSummaryTextDeltaUpdate
+            {
+                SequenceNumber = 1,
+                ItemId = firstItemId,
+                OutputIndex = 0,
+                SummaryIndex = 0,
+                Delta = "first"
+            },
+            CreateStreamingUpdate($$"""
+                {
+                  "type": "response.output_item.done",
+                  "sequence_number": 2,
+                  "output_index": 0,
+                  "item": {
+                    "type": "reasoning",
+                    "status": "completed",
+                    "encrypted_content": "{{firstEncryptedContent}}",
+                    "summary": []
+                  }
+                }
+                """),
+            new StreamingResponseReasoningSummaryTextDeltaUpdate
+            {
+                SequenceNumber = 3,
+                ItemId = secondItemId,
+                OutputIndex = 1,
+                SummaryIndex = 0,
+                Delta = "second"
+            },
+            CreateStreamingUpdate($$"""
+                {
+                  "type": "response.output_item.done",
+                  "sequence_number": 4,
+                  "output_index": 1,
+                  "item": {
+                    "type": "reasoning",
+                    "status": "completed",
+                    "encrypted_content": "{{secondEncryptedContent}}",
+                    "summary": []
+                  }
+                }
+                """));
+        using var client = CreateClient(inner, transport);
+
+        var updates = await CollectStreamingAsync(client.GetStreamingResponseAsync(
+            [new ChatMessage(ChatRole.User, "reason twice")],
+            new ChatOptions { Tools = [new NativeToolSearchTool(new DeferredToolRegistry([]))] }));
+
+        var reasoningContents = updates
+            .SelectMany(update => update.Contents)
+            .OfType<TextReasoningContent>()
+            .ToArray();
+        Assert.Equal(4, reasoningContents.Length);
+        AssertReasoningItemId(
+            Assert.Single(reasoningContents, reasoning => reasoning.Text == "first"),
+            firstItemId);
+        AssertReasoningItemId(
+            Assert.Single(reasoningContents, reasoning => reasoning.ProtectedData == firstEncryptedContent),
+            firstItemId);
+        AssertReasoningItemId(
+            Assert.Single(reasoningContents, reasoning => reasoning.Text == "second"),
+            secondItemId);
+        AssertReasoningItemId(
+            Assert.Single(reasoningContents, reasoning => reasoning.ProtectedData == secondEncryptedContent),
+            secondItemId);
+
+        static void AssertReasoningItemId(TextReasoningContent reasoning, string expectedItemId) =>
+            Assert.Equal(
+                expectedItemId,
+                reasoning.AdditionalProperties![OpenAIResponsesItemIdentity.MetadataKey]);
+    }
+
+    [Fact]
+    public async Task StreamingFunctionLoop_WithEncryptedReasoning_ReplaysProviderItemIdAfterParallelTools()
+    {
+        const string providerItemId = "rs_parallel_reasoning";
+        const string encryptedContent = "encrypted-parallel-reasoning";
+        var tools = new[]
+        {
+            AIFunctionFactory.Create(() => "alpha", name: "ToolAlpha"),
+            AIFunctionFactory.Create(() => "beta", name: "ToolBeta"),
+            AIFunctionFactory.Create(() => "gamma", name: "ToolGamma")
+        };
+        var inner = new FakeChatClient(new ChatResponse([new ChatMessage(ChatRole.Assistant, "inner response")]));
+        var transport = new FakeToolSearchTransport([
+            [
+                CreateStreamingUpdate($$"""
+                    {
+                      "type": "response.output_item.added",
+                      "sequence_number": 1,
+                      "output_index": 0,
+                      "item": {
+                        "type": "reasoning",
+                        "id": "{{providerItemId}}",
+                        "status": "in_progress",
+                        "summary": []
+                      }
+                    }
+                    """),
+                new StreamingResponseReasoningSummaryTextDeltaUpdate
+                {
+                    SequenceNumber = 2,
+                    ItemId = providerItemId,
+                    OutputIndex = 0,
+                    SummaryIndex = 0,
+                    Delta = "checking "
+                },
+                new StreamingResponseReasoningSummaryTextDeltaUpdate
+                {
+                    SequenceNumber = 3,
+                    ItemId = providerItemId,
+                    OutputIndex = 0,
+                    SummaryIndex = 0,
+                    Delta = "tools"
+                },
+                CreateStreamingUpdate($$"""
+                    {
+                      "type": "response.output_item.done",
+                      "sequence_number": 4,
+                      "output_index": 0,
+                      "item": {
+                        "type": "reasoning",
+                        "status": "completed",
+                        "encrypted_content": "{{encryptedContent}}",
+                        "summary": []
+                      }
+                    }
+                    """),
+                CreateFunctionCallDoneUpdate(5, 1, "fc_alpha", "call_alpha", "ToolAlpha"),
+                CreateFunctionCallDoneUpdate(6, 2, "fc_beta", "call_beta", "ToolBeta"),
+                CreateFunctionCallDoneUpdate(7, 3, "fc_gamma", "call_gamma", "ToolGamma")
+            ],
+            [
+                new StreamingResponseOutputTextDeltaUpdate
+                {
+                    SequenceNumber = 8,
+                    ItemId = "msg_done",
+                    OutputIndex = 0,
+                    ContentIndex = 0,
+                    Delta = "done"
+                }
+            ]
+        ]);
+        using var responsesClient = CreateClient(inner, transport);
+        using var invokingClient = new StreamingFunctionInvokingChatClient(responsesClient)
+        {
+            AdditionalTools = tools
+        };
+
+        _ = await CollectStreamingAsync(invokingClient.GetStreamingResponseAsync(
+            [new ChatMessage(ChatRole.User, "run tools")],
+            new ChatOptions { Tools = tools.Cast<AITool>().ToList() }));
+
+        Assert.Equal(2, transport.Requests.Count);
+        using var secondRequest = JsonDocument.Parse(SerializeOptions(transport.Requests[1]));
+        var input = secondRequest.RootElement.GetProperty("input").EnumerateArray().ToArray();
+        var reasoning = Assert.Single(input, item => item.GetProperty("type").GetString() == "reasoning");
+        Assert.Equal(providerItemId, reasoning.GetProperty("id").GetString());
+        Assert.Equal(encryptedContent, reasoning.GetProperty("encrypted_content").GetString());
+        Assert.Equal(3, input.Count(item => item.GetProperty("type").GetString() == "function_call"));
+        Assert.Equal(3, input.Count(item => item.GetProperty("type").GetString() == "function_call_output"));
+    }
+
+    [Fact]
     public async Task GetStreamingResponseAsync_WithTextReasoningAndUsage_UsesMeaiStreamingMapping()
     {
         var inner = new FakeChatClient(new ChatResponse([new ChatMessage(ChatRole.Assistant, "inner response")]));
@@ -1549,9 +2082,10 @@ public sealed class OpenAIResponsesToolSearchChatClientTests
     {
         Assert.Equal("function_call_output", output.GetProperty("type").GetString());
         Assert.Equal(callId, output.GetProperty("call_id").GetString());
+        Assert.StartsWith("fco_", output.GetProperty("id").GetString(), StringComparison.Ordinal);
         Assert.False(output.TryGetProperty("namespace", out _));
         Assert.Equal(
-            ["call_id", "output", "type"],
+            ["call_id", "id", "output", "type"],
             output.EnumerateObject()
                 .Select(property => property.Name)
                 .OrderBy(name => name, StringComparer.Ordinal)
@@ -1565,6 +2099,28 @@ public sealed class OpenAIResponsesToolSearchChatClientTests
             OutputIndex = 0,
             Item = item
         };
+
+    private static StreamingResponseUpdate CreateFunctionCallDoneUpdate(
+        int sequenceNumber,
+        int outputIndex,
+        string itemId,
+        string callId,
+        string name) =>
+        CreateStreamingUpdate($$"""
+            {
+              "type": "response.output_item.done",
+              "sequence_number": {{sequenceNumber}},
+              "output_index": {{outputIndex}},
+              "item": {
+                "type": "function_call",
+                "id": "{{itemId}}",
+                "call_id": "{{callId}}",
+                "name": "{{name}}",
+                "arguments": "{}",
+                "status": "completed"
+              }
+            }
+            """);
 
     private static StreamingResponseUpdate CreateStreamingUpdate(string json) =>
         ModelReaderWriter.Read<StreamingResponseUpdate>(

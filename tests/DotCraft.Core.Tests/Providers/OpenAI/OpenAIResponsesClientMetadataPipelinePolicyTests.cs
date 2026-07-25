@@ -165,9 +165,12 @@ public sealed class OpenAIResponsesClientMetadataPipelinePolicyTests
             InstallationId,
             SessionId: "thread-codex",
             ThreadId: "thread-codex",
+            ClientRequestId: "thread-codex",
+            DefaultPromptCacheKey: "thread-codex",
             TurnId: "turn_001",
             WindowId: "0192b455-3e7c-7000-8000-000000000001",
             ParentThreadId: null,
+            SubagentHeader: null,
             SubagentKind: null,
             TurnMetadataJson: turnMetadataJson,
             TurnState: null);

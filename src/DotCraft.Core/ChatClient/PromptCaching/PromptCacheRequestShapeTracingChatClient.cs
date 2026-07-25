@@ -15,9 +15,14 @@ internal sealed class PromptCacheRequestShapeTracingChatClient(
         ChatOptions? options = null,
         CancellationToken cancellationToken = default)
     {
-        var prepared = PrepareAndRecord(messages, options, out var preparedMessages);
+        var preparedResult = await PrepareAndRecordAsync(messages, options, cancellationToken)
+            .ConfigureAwait(false);
         using var traceScope = OpenAIResponsesToolSearchChatClient.UseTraceCollector(traceCollector);
-        return await base.GetResponseAsync(preparedMessages, prepared, cancellationToken).ConfigureAwait(false);
+        return await base.GetResponseAsync(
+                preparedResult.Messages,
+                preparedResult.Options,
+                cancellationToken)
+            .ConfigureAwait(false);
     }
 
     public override async IAsyncEnumerable<ChatResponseUpdate> GetStreamingResponseAsync(
@@ -25,9 +30,13 @@ internal sealed class PromptCacheRequestShapeTracingChatClient(
         ChatOptions? options = null,
         [EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
-        var prepared = PrepareAndRecord(messages, options, out var preparedMessages);
+        var preparedResult = await PrepareAndRecordAsync(messages, options, cancellationToken)
+            .ConfigureAwait(false);
         using var traceScope = OpenAIResponsesToolSearchChatClient.UseTraceCollector(traceCollector);
-        await foreach (var update in base.GetStreamingResponseAsync(preparedMessages, prepared, cancellationToken)
+        await foreach (var update in base.GetStreamingResponseAsync(
+                               preparedResult.Messages,
+                               preparedResult.Options,
+                               cancellationToken)
                            .WithCancellation(cancellationToken)
                            .ConfigureAwait(false))
         {
@@ -35,18 +44,28 @@ internal sealed class PromptCacheRequestShapeTracingChatClient(
         }
     }
 
-    private ChatOptions? PrepareAndRecord(
+    private async Task<PreparedTracingRequest> PrepareAndRecordAsync(
         IEnumerable<ChatMessage> messages,
         ChatOptions? options,
-        out IReadOnlyList<ChatMessage> preparedMessages)
+        CancellationToken cancellationToken)
     {
-        preparedMessages = messages as IReadOnlyList<ChatMessage> ?? messages.ToList();
+        var preparedMessages = messages as IReadOnlyList<ChatMessage> ?? messages.ToList();
         var preparedOptions = ResponsesToolSearchMapper.PreparePromptCacheOptions(options);
+        var providerHistory = OpenAIResponsesProviderHistoryRuntimeScope.Current;
+        var canonicalInput = providerHistory == null
+            ? null
+            : await providerHistory.PrepareInputAsync(
+                    preparedMessages,
+                    preparedOptions,
+                    cancellationToken)
+                .ConfigureAwait(false);
         var request = ResponsesToolSearchMapper.CreateResponseRequest(
             model,
             preparedMessages,
             preparedOptions,
-            removesUnsupportedOAuthResponsesFields: removesUnsupportedOAuthResponsesFields);
+            removesUnsupportedOAuthResponsesFields: removesUnsupportedOAuthResponsesFields,
+            canonicalInput: canonicalInput?.Input,
+            canonicalItemIdentity: canonicalInput?.ItemIdentity);
         var sessionKey = TracingChatClient.CurrentSessionKey ?? TracingChatClient.GetActiveSessionKey();
         if (!string.IsNullOrWhiteSpace(sessionKey))
         {
@@ -56,6 +75,10 @@ internal sealed class PromptCacheRequestShapeTracingChatClient(
                 PromptCacheRequestShapeTraceScope.RequestIndex);
         }
 
-        return options;
+        return new PreparedTracingRequest(preparedMessages, options);
     }
+
+    private sealed record PreparedTracingRequest(
+        IReadOnlyList<ChatMessage> Messages,
+        ChatOptions? Options);
 }

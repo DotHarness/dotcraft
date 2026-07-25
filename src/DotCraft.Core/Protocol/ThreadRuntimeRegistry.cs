@@ -4,7 +4,6 @@ using DotCraft.Context;
 using DotCraft.Context.Compaction;
 using DotCraft.Mcp;
 using DotCraft.Tools;
-using Microsoft.Agents.AI;
 using Microsoft.Extensions.AI;
 
 namespace DotCraft.Protocol;
@@ -88,7 +87,9 @@ internal sealed class ThreadRuntime(SessionThread thread) : IAsyncDisposable, ID
 
     public SemaphoreSlim AgentLock { get; set; } = new(1, 1);
 
-    public AIAgent? Agent { get; set; }
+    public object TurnStartLock { get; } = new();
+
+    public ChatClientAgent? Agent { get; set; }
 
     public McpClientManager? McpManager { get; set; }
 
@@ -172,6 +173,8 @@ internal sealed class ThreadRuntime(SessionThread thread) : IAsyncDisposable, ID
     public PromptRequestSnapshot? LastPromptRequest { get; set; }
 
     public ContextUsageAnchor? ContextUsageAnchor { get; set; }
+
+    public ProviderHistorySnapshot? ResponsesProviderHistorySnapshot { get; set; }
 
     public bool PendingPermanentDeletion { get; set; }
 

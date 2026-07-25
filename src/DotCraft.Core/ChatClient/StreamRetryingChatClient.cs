@@ -7,7 +7,10 @@ using Microsoft.Extensions.AI;
 
 namespace DotCraft.Agents;
 
-internal sealed record StreamRetryOptions(int MaxRetries, TimeSpan IdleTimeout);
+internal sealed record StreamRetryOptions(
+    int MaxRetries,
+    TimeSpan IdleTimeout,
+    int ProviderServerErrorMaxRetries = 0);
 
 /// <summary>
 /// Retries dropped streaming provider calls by reissuing the same sampling
@@ -27,10 +30,18 @@ internal sealed class StreamRetryingChatClient(
         [EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
         var messages = chatMessages as IReadOnlyList<ChatMessage> ?? chatMessages.ToList();
-        var retries = 0;
+        var transportRetries = 0;
+        var providerServerErrorRetries = 0;
+        var totalRetries = 0;
+        var providerHistoryBridge =
+            GetService(typeof(IProviderConversationHistoryBridge)) as IProviderConversationHistoryBridge;
 
         while (true)
         {
+            var providerHistoryAttemptId = providerHistoryBridge?.BeginAttempt();
+            await using var providerHistoryAttempt = new ProviderHistoryAttemptLease(
+                providerHistoryBridge,
+                providerHistoryAttemptId);
             var emittedVisibleUpdate = false;
             var bufferedNonVisibleUpdates = new List<ChatResponseUpdate>();
             Exception? failure = null;
@@ -87,30 +98,50 @@ internal sealed class StreamRetryingChatClient(
                 await DisposeEnumeratorAsync(enumerator, failure).ConfigureAwait(false);
             }
 
+            if (failure == null && retryOptions.ProviderServerErrorMaxRetries > 0)
+                failure = CreateBufferedProviderServerError(bufferedNonVisibleUpdates);
+
             if (failure == null)
             {
                 foreach (var update in bufferedNonVisibleUpdates)
                     yield return update;
+                providerHistoryAttempt.Complete();
                 yield break;
             }
 
-            if (ShouldRetry(failure, cancellationToken, emittedVisibleUpdate, retries))
+            var providerServerError = failure is ProviderServerErrorException;
+            var retryCount = providerServerError ? providerServerErrorRetries : transportRetries;
+            var retryLimit = providerServerError
+                ? retryOptions.ProviderServerErrorMaxRetries
+                : retryOptions.MaxRetries;
+            if (ShouldRetry(failure, cancellationToken, emittedVisibleUpdate, retryCount, retryLimit))
             {
-                retries++;
+                await providerHistoryAttempt.AbortAsync().ConfigureAwait(false);
+                if (providerServerError)
+                    providerServerErrorRetries++;
+                else
+                    transportRetries++;
+                totalRetries++;
                 ModelStreamRetryRuntimeScope.Current?.NotifyRetry(
-                    retries,
-                    retryOptions.MaxRetries,
+                    retryCount + 1,
+                    retryLimit,
                     failure);
-                await Task.Delay(Backoff(retries), cancellationToken).ConfigureAwait(false);
+                await Task.Delay(Backoff(totalRetries), cancellationToken).ConfigureAwait(false);
                 continue;
             }
 
-            if (ShouldReportRetrySuppressed(failure, cancellationToken, emittedVisibleUpdate, retries))
+            if (ShouldReportRetrySuppressed(
+                    failure,
+                    cancellationToken,
+                    emittedVisibleUpdate,
+                    retryCount,
+                    retryLimit))
                 ModelStreamRetryRuntimeScope.Current?.NotifyRetrySuppressed?.Invoke(failure, "visible_output_emitted");
 
-            if (retries > 0)
+            if (totalRetries > 0)
                 ModelStreamRetryRuntimeScope.Current?.NotifyFinalFailure?.Invoke(failure);
 
+            providerHistoryAttempt.Complete();
             throw failure;
         }
     }
@@ -158,21 +189,37 @@ internal sealed class StreamRetryingChatClient(
         Exception exception,
         CancellationToken cancellationToken,
         bool emittedVisibleUpdate,
-        int retries) =>
+        int retries,
+        int retryLimit) =>
         !cancellationToken.IsCancellationRequested
         && !emittedVisibleUpdate
-        && retries < retryOptions.MaxRetries
+        && retries < retryLimit
         && IsRetryable(exception);
 
     private bool ShouldReportRetrySuppressed(
         Exception exception,
         CancellationToken cancellationToken,
         bool emittedVisibleUpdate,
-        int retries) =>
+        int retries,
+        int retryLimit) =>
         !cancellationToken.IsCancellationRequested
         && emittedVisibleUpdate
-        && retries < retryOptions.MaxRetries
+        && retries < retryLimit
         && IsRetryable(exception);
+
+    private static ProviderServerErrorException? CreateBufferedProviderServerError(
+        IEnumerable<ChatResponseUpdate> updates)
+    {
+        foreach (var error in updates
+                     .SelectMany(static update => update.Contents)
+                     .OfType<ErrorContent>())
+        {
+            if (string.Equals(error.ErrorCode, "server_error", StringComparison.OrdinalIgnoreCase))
+                return new ProviderServerErrorException(error.Message);
+        }
+
+        return null;
+    }
 
     private static bool IsVisibleUpdate(ChatResponseUpdate update)
     {
@@ -333,6 +380,37 @@ internal sealed class StreamRetryingChatClient(
 
     private sealed class ModelStreamDisconnectedException(string message, Exception? innerException = null)
         : IOException(message, innerException);
+
+    private sealed class ProviderServerErrorException(string message)
+        : HttpRequestException(message, null, HttpStatusCode.InternalServerError);
+
+    private sealed class ProviderHistoryAttemptLease(
+        IProviderConversationHistoryBridge? bridge,
+        string? attemptId) : IAsyncDisposable
+    {
+        private bool _closed = bridge is null || attemptId is null;
+
+        public void Complete()
+        {
+            if (_closed)
+                return;
+
+            bridge!.EndAttempt(attemptId);
+            _closed = true;
+        }
+
+        public async ValueTask AbortAsync()
+        {
+            if (_closed)
+                return;
+
+            await bridge!.AbortAttemptAsync(attemptId, CancellationToken.None).ConfigureAwait(false);
+            _closed = true;
+        }
+
+        public ValueTask DisposeAsync() =>
+            _closed ? ValueTask.CompletedTask : AbortAsync();
+    }
 
     private readonly record struct MoveNextResult(bool HasNext, Exception? Exception);
 }

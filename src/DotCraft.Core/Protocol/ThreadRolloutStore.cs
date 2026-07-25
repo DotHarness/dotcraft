@@ -315,6 +315,101 @@ internal sealed class ThreadRolloutStore
         return new RolloutAppendResult(existingPath, receipt);
     }
 
+    public async Task<RolloutAppendResult> AppendProviderHistoryItemsAsync(
+        ProviderHistoryItemsAppendedPayload payload,
+        CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(payload);
+        var existingPath = ResolveExistingPath(payload.ThreadId)
+            ?? throw new KeyNotFoundException($"Thread '{payload.ThreadId}' not found.");
+        if (payload.Entries.Count == 0)
+        {
+            return new RolloutAppendResult(
+                existingPath,
+                new RolloutWriteReceipt(new FileInfo(existingPath).Length, 0, new Dictionary<string, long>()));
+        }
+
+        var record = new ThreadRolloutRecord
+        {
+            Kind = "provider_history_items_appended",
+            Timestamp = DateTimeOffset.UtcNow,
+            ProviderHistoryItemsAppended = payload
+        };
+        var receipt = await AppendRecordsAsync(payload.ThreadId, existingPath, [record], ct);
+        return new RolloutAppendResult(existingPath, receipt);
+    }
+
+    public async Task<RolloutAppendResult> AppendProviderHistoryReplacementAsync(
+        ProviderHistoryReplacedPayload payload,
+        CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(payload);
+        var existingPath = ResolveExistingPath(payload.ThreadId)
+            ?? throw new KeyNotFoundException($"Thread '{payload.ThreadId}' not found.");
+        var record = new ThreadRolloutRecord
+        {
+            Kind = "provider_history_replaced",
+            Timestamp = DateTimeOffset.UtcNow,
+            ProviderHistoryReplaced = payload
+        };
+        var receipt = await AppendRecordsAsync(payload.ThreadId, existingPath, [record], ct);
+        return new RolloutAppendResult(existingPath, receipt);
+    }
+
+    public async Task<RolloutAppendResult> AppendProviderHistoryAttemptAbortedAsync(
+        ProviderHistoryAttemptAbortedPayload payload,
+        CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(payload);
+        var existingPath = ResolveExistingPath(payload.ThreadId)
+            ?? throw new KeyNotFoundException($"Thread '{payload.ThreadId}' not found.");
+        var record = new ThreadRolloutRecord
+        {
+            Kind = "provider_history_attempt_aborted",
+            Timestamp = DateTimeOffset.UtcNow,
+            ProviderHistoryAttemptAborted = payload
+        };
+        var receipt = await AppendRecordsAsync(payload.ThreadId, existingPath, [record], ct);
+        return new RolloutAppendResult(existingPath, receipt);
+    }
+
+    public async Task<IReadOnlyList<ThreadRolloutRecord>> LoadProviderHistoryRecordsAsync(
+        string threadId,
+        CancellationToken ct = default)
+    {
+        var path = ResolveExistingPath(threadId);
+        if (path == null)
+            return [];
+
+        var records = new List<ThreadRolloutRecord>();
+        await foreach (var line in File.ReadLinesAsync(path, ct).WithCancellation(ct))
+        {
+            if (!line.Contains("provider_history_", StringComparison.Ordinal))
+                continue;
+
+            ThreadRolloutRecord? record;
+            try
+            {
+                record = JsonSerializer.Deserialize<ThreadRolloutRecord>(line, JsonOptions);
+            }
+            catch (JsonException ex)
+            {
+                throw new InvalidDataException(
+                    $"Thread '{threadId}' contains malformed provider history.",
+                    ex);
+            }
+
+            if (record?.Kind is "provider_history_items_appended"
+                or "provider_history_replaced"
+                or "provider_history_attempt_aborted")
+            {
+                records.Add(record);
+            }
+        }
+
+        return records;
+    }
+
     public async Task<RolloutAppendResult> AppendTurnCommitAsync(
         SessionThread thread,
         SessionTurn turn,
@@ -718,6 +813,8 @@ internal sealed class ThreadRolloutStore
             return true;
         if (!JsonEquals(previous.Configuration, current.Configuration))
             return true;
+        if (previous.ProviderHistorySchemaVersion != current.ProviderHistorySchemaVersion)
+            return true;
         return !JsonEquals(previous.Metadata, current.Metadata);
     }
 
@@ -752,7 +849,8 @@ internal sealed class ThreadRolloutStore
                 LastActiveAt = thread.LastActiveAt,
                 Metadata = new Dictionary<string, string>(thread.Metadata),
                 HistoryMode = thread.HistoryMode,
-                Configuration = thread.Configuration
+                Configuration = thread.Configuration,
+                ProviderHistorySchemaVersion = thread.ProviderHistorySchemaVersion
             }
         };
     }
@@ -900,6 +998,7 @@ internal sealed class ThreadRolloutStore
                     _thread.Metadata = new Dictionary<string, string>(record.ThreadOpened.Metadata);
                     _thread.HistoryMode = record.ThreadOpened.HistoryMode;
                     _thread.Configuration = record.ThreadOpened.Configuration;
+                    _thread.ProviderHistorySchemaVersion = record.ThreadOpened.ProviderHistorySchemaVersion;
                     _hasCanonicalHeader = true;
                     break;
 
@@ -1071,6 +1170,12 @@ internal sealed class ThreadRolloutRecord
 
     public ModelHistoryMessagesAppendedPayload? ModelHistoryMessagesAppended { get; init; }
 
+    public ProviderHistoryItemsAppendedPayload? ProviderHistoryItemsAppended { get; init; }
+
+    public ProviderHistoryReplacedPayload? ProviderHistoryReplaced { get; init; }
+
+    public ProviderHistoryAttemptAbortedPayload? ProviderHistoryAttemptAborted { get; init; }
+
     public TurnStateReplacedPayload? TurnStateReplaced { get; init; }
 
     public QueuedInputAddedPayload? QueuedInputAdded { get; init; }
@@ -1111,6 +1216,8 @@ internal sealed class ThreadOpenedPayload
     public HistoryMode HistoryMode { get; init; }
 
     public ThreadConfiguration? Configuration { get; init; }
+
+    public int ProviderHistorySchemaVersion { get; init; }
 }
 
 internal sealed class TurnStartedPayload

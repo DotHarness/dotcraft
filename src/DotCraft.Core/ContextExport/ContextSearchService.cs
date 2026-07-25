@@ -274,6 +274,9 @@ public sealed class ContextSearchService
 
                     var kind = kindElement.GetString();
                     if (string.Equals(kind, "model_history_messages_appended", StringComparison.Ordinal) ||
+                        string.Equals(kind, "provider_history_items_appended", StringComparison.Ordinal) ||
+                        string.Equals(kind, "provider_history_replaced", StringComparison.Ordinal) ||
+                        string.Equals(kind, "provider_history_attempt_aborted", StringComparison.Ordinal) ||
                         string.Equals(kind, "context_compacted", StringComparison.Ordinal) ||
                         kind is not ("item_appended" or "turn_state_replaced"))
                     {

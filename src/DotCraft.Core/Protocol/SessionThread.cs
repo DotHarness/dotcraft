@@ -101,6 +101,12 @@ public sealed class SessionThread
     internal int TurnSequenceHighWatermark { get; set; }
 
     /// <summary>
+    /// Internal rollout capability marker for protocol-native provider history.
+    /// Zero keeps the legacy MEAI-only history path.
+    /// </summary>
+    internal int ProviderHistorySchemaVersion { get; set; }
+
+    /// <summary>
     /// FIFO user inputs waiting for the current running turn to complete.
     /// </summary>
     public List<QueuedTurnInput> QueuedInputs { get; set; } = [];

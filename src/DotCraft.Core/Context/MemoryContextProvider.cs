@@ -1,11 +1,11 @@
 using DotCraft.Abstractions;
+using DotCraft.Agents;
 using DotCraft.Commands.Custom;
 using DotCraft.Configuration;
 using DotCraft.Tracing;
 using DotCraft.Memory;
 using DotCraft.Dreams;
 using DotCraft.Skills;
-using Microsoft.Agents.AI;
 
 namespace DotCraft.Context;
 
@@ -33,8 +33,7 @@ public sealed class MemoryContextProvider(
     string? threadId = null,
     IReadOnlyList<IThreadSystemPromptContextProvider>? threadSystemPromptContextProviders = null,
     string? originChannel = null,
-    IReadOnlyList<string>? workspaceRoots = null)
-    : AIContextProvider
+    IReadOnlyList<string>? workspaceRoots = null) : AIContextProvider
 {
     private readonly PromptBuilder _promptBuilder = new(
         memoryStore,
@@ -57,16 +56,22 @@ public sealed class MemoryContextProvider(
         originChannel,
         workspaceRoots);
 
-    protected override ValueTask<AIContext> ProvideAIContextAsync(InvokingContext context, CancellationToken cancellationToken = default)
+    public ValueTask<string> ProvideInstructionsAsync(CancellationToken cancellationToken = default)
     {
+        cancellationToken.ThrowIfCancellationRequested();
         var sessionKey = TracingChatClient.CurrentSessionKey ?? TracingChatClient.GetActiveSessionKey();
         var systemPrompt = _promptBuilder.BuildSystemPrompt(threadId ?? sessionKey);
         if (!string.IsNullOrWhiteSpace(sessionKey))
             traceCollector?.RecordSessionMetadata(sessionKey, systemPrompt, toolNamesProvider?.Invoke());
 
-        return new ValueTask<AIContext>(new AIContext
-        {
-            Instructions = systemPrompt
-        });
+        return ValueTask.FromResult(systemPrompt);
     }
+
+    protected override async ValueTask<AIContext> ProvideAIContextAsync(
+        InvokingContext context,
+        CancellationToken cancellationToken = default) =>
+        new()
+        {
+            Instructions = await ProvideInstructionsAsync(cancellationToken).ConfigureAwait(false)
+        };
 }

@@ -16,7 +16,6 @@ using DotCraft.Protocol;
 using DotCraft.Security;
 using DotCraft.Skills;
 using DotCraft.Tools;
-using Microsoft.Agents.AI;
 using Microsoft.Extensions.AI;
 
 namespace DotCraft.Agents;
@@ -433,13 +432,13 @@ public sealed class AgentFactory : IAsyncDisposable
     /// <summary>
     /// Creates the default AI agent with all registered tools.
     /// </summary>
-    public AIAgent CreateDefaultAgent()
+    public ChatClientAgent CreateDefaultAgent()
         => CreateAgentForMode(AgentMode.Agent);
 
     /// <summary>
     /// Creates an AI agent configured for the specified mode.
     /// </summary>
-    public AIAgent CreateAgentForMode(AgentMode mode, AgentModeManager? modeManager = null)
+    public ChatClientAgent CreateAgentForMode(AgentMode mode, AgentModeManager? modeManager = null)
     {
         var planning = CreateHostPlanningContext(_runtimeContext, mode);
         var snapshot = BuildToolSnapshotAsync(_toolSources, planning, _runtimeContext)
@@ -469,17 +468,17 @@ public sealed class AgentFactory : IAsyncDisposable
     /// <summary>
     /// Creates an AI agent with the specified tools.
     /// </summary>
-    public AIAgent CreateAgentWithTools(List<AITool> tools, AgentModeManager? modeManager = null) =>
+    public ChatClientAgent CreateAgentWithTools(List<AITool> tools, AgentModeManager? modeManager = null) =>
         BuildAgent(tools, modeManager, _runtimeContext, instructions: null);
 
     /// <summary>
     /// Creates an AI agent with the specified tools and tool context (e.g. per-thread workspace override).
     /// </summary>
-    public AIAgent CreateAgentWithTools(List<AITool> tools, AgentModeManager? modeManager, AgentRuntimeContext toolContext) =>
+    public ChatClientAgent CreateAgentWithTools(List<AITool> tools, AgentModeManager? modeManager, AgentRuntimeContext toolContext) =>
         BuildAgent(tools, modeManager, toolContext, instructions: null);
 
     /// <summary>Creates an agent whose source-backed declarations execute through the common dispatcher.</summary>
-    public AIAgent CreateAgentWithSnapshot(
+    public ChatClientAgent CreateAgentWithSnapshot(
         EffectiveToolSnapshot snapshot,
         ToolPlanningContext planningContext,
         AgentModeManager? modeManager,
@@ -502,7 +501,7 @@ public sealed class AgentFactory : IAsyncDisposable
     /// dispatcher while unrelated provider-hosted functions keep their
     /// existing invocation path.
     /// </summary>
-    public AIAgent CreateAgentWithToolsAndSnapshot(
+    public ChatClientAgent CreateAgentWithToolsAndSnapshot(
         List<AITool> tools,
         EffectiveToolSnapshot snapshot,
         ToolPlanningContext planningContext,
@@ -557,14 +556,14 @@ public sealed class AgentFactory : IAsyncDisposable
     /// <summary>
     /// Creates an AI agent with explicit system instructions (e.g. ephemeral commit-message assistant).
     /// </summary>
-    public AIAgent CreateAgentWithTools(
+    public ChatClientAgent CreateAgentWithTools(
         List<AITool> tools,
         AgentModeManager? modeManager,
         AgentRuntimeContext toolContext,
         string? instructions) =>
         BuildAgent(tools, modeManager, toolContext, instructions);
 
-    private AIAgent BuildAgent(
+    private ChatClientAgent BuildAgent(
         List<AITool> tools,
         AgentModeManager? modeManager,
         AgentRuntimeContext ctx,
@@ -643,12 +642,7 @@ public sealed class AgentFactory : IAsyncDisposable
         if (ProviderHostedCapabilityPlanner.Build(ctx).ImageGenerationEnabled)
             ResponsesToolSearchMapper.EnableHostedImageGeneration(chatOptions);
 
-        var options = new ChatClientAgentOptions
-        {
-            Name = "DotCraft",
-            UseProvidedChatClientAsIs = true,
-            ChatOptions = chatOptions
-        };
+        MemoryContextProvider? contextProvider = null;
 
         // Custom instructions: skip MemoryContextProvider so ChatOptions.Instructions is the system prompt (e.g. commit-suggest).
         if (string.IsNullOrWhiteSpace(instructions))
@@ -688,9 +682,7 @@ public sealed class AgentFactory : IAsyncDisposable
                 ctx.Config.Permissions.DefaultApprovalPolicy.ToString(),
                 toolNames);
 
-            options.AIContextProviders =
-            [
-                new MemoryContextProvider(
+            contextProvider = new MemoryContextProvider(
                     ctx.MemoryStore,
                     ctx.SkillsLoader,
                     ctx.BotPath,
@@ -711,11 +703,14 @@ public sealed class AgentFactory : IAsyncDisposable
                     threadId: ctx.CurrentThreadId,
                     threadSystemPromptContextProviders: ctx.ThreadSystemPromptContextProviders,
                     originChannel: ctx.CurrentOriginChannel,
-                    workspaceRoots: ctx.WorkspaceRoots)
-            ];
+                    workspaceRoots: ctx.WorkspaceRoots);
         }
 
-        return configuredChatClient.AsAIAgent(options);
+        return new ChatClientAgent(
+            configuredChatClient,
+            chatOptions,
+            contextProvider,
+            name: "DotCraft");
     }
 
     private async ValueTask<object?> DispatchSnapshotInvocationAsync(

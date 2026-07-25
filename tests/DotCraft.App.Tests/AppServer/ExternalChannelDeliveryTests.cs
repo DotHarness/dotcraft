@@ -18,7 +18,6 @@ using DotCraft.Security;
 using DotCraft.Sessions;
 using DotCraft.Tools;
 using DotCraft.Skills;
-using Microsoft.Agents.AI;
 using Microsoft.Extensions.AI;
 
 namespace DotCraft.Tests.AppServer;
@@ -889,12 +888,9 @@ public sealed class ExternalChannelDeliveryTests : IDisposable
         var externalTool = Assert.IsAssignableFrom<AIFunction>(Assert.Single(runtimeTools));
 
         using var scriptedClient = new ExternalToolScriptedChatClient(externalTool, toolName, nullToolNameInFirstDelta);
-        var scriptedAgent = scriptedClient.AsAIAgent(new ChatClientAgentOptions
-        {
-            Name = "SessionServiceExternalToolTest",
-            UseProvidedChatClientAsIs = true,
-            ChatOptions = new ChatOptions()
-        });
+        var scriptedAgent = scriptedClient.AsAIAgent(
+            new ChatOptions(),
+            name: "SessionServiceExternalToolTest");
 
         await using var agentFactory = CreateAgentFactoryForSessionTests();
         var persistence = new SessionPersistenceService(new ThreadStore(_tempDir));
@@ -995,12 +991,9 @@ public sealed class ExternalChannelDeliveryTests : IDisposable
         var externalTool = Assert.IsAssignableFrom<AIFunction>(Assert.Single(runtimeTools));
 
         using var scriptedClient = new InterleavingExternalToolScriptedChatClient(externalTool, toolName);
-        var scriptedAgent = scriptedClient.AsAIAgent(new ChatClientAgentOptions
-        {
-            Name = "SessionServiceExternalToolInterleaveTest",
-            UseProvidedChatClientAsIs = true,
-            ChatOptions = new ChatOptions()
-        });
+        var scriptedAgent = scriptedClient.AsAIAgent(
+            new ChatOptions(),
+            name: "SessionServiceExternalToolInterleaveTest");
 
         await using var agentFactory = CreateAgentFactoryForSessionTests();
         var persistence = new SessionPersistenceService(new ThreadStore(_tempDir));
