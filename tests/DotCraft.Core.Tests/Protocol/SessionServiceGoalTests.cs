@@ -7,7 +7,6 @@ using DotCraft.Security;
 using DotCraft.Sessions;
 using DotCraft.Skills;
 using DotCraft.Tools;
-using Microsoft.Agents.AI;
 using Microsoft.Extensions.AI;
 
 namespace DotCraft.Tests.Sessions.Protocol;
@@ -665,7 +664,7 @@ public sealed class SessionServiceGoalTests : IDisposable
 
     private SessionService CreateService(AgentFactory agentFactory, IChatClient chatClient)
     {
-        var defaultAgent = chatClient.AsAIAgent(new ChatClientAgentOptions());
+        var defaultAgent = chatClient.AsAIAgent();
         return new SessionService(
             agentFactory,
             defaultAgent,
@@ -686,11 +685,7 @@ public sealed class SessionServiceGoalTests : IDisposable
         };
         var defaultAgent = useFactoryAgent
             ? agentFactory.CreateDefaultAgent()
-            : invokingClient.AsAIAgent(new ChatClientAgentOptions
-            {
-                UseProvidedChatClientAsIs = true,
-                ChatOptions = new ChatOptions { Tools = tools.ToList() }
-            });
+            : invokingClient.AsAIAgent(new ChatOptions { Tools = tools.ToList() });
         return new SessionService(
             agentFactory,
             defaultAgent,

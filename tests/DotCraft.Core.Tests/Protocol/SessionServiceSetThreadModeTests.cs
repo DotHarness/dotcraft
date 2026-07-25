@@ -8,7 +8,6 @@ using DotCraft.Protocol;
 using DotCraft.Security;
 using DotCraft.Sessions;
 using DotCraft.Skills;
-using Microsoft.Agents.AI;
 using Microsoft.Extensions.AI;
 
 namespace DotCraft.Tests.Sessions.Protocol;
@@ -125,12 +124,12 @@ public sealed class SessionServiceSetThreadModeTests : IDisposable
         };
 
         await using var agentFactory = CreateAgentFactory();
-        var defaultAgent = new SignalingChatClient("default").AsAIAgent(new ChatClientAgentOptions());
+        var defaultAgent = new SignalingChatClient("default").AsAIAgent();
         var svc = new SessionService(agentFactory, defaultAgent, persistence, new SessionGate());
         var thread = await svc.CreateThreadAsync(identity);
 
         var threadChatClient = new SignalingChatClient("thread-agent");
-        SetCachedThreadAgent(svc, thread.Id, threadChatClient.AsAIAgent(new ChatClientAgentOptions()));
+        SetCachedThreadAgent(svc, thread.Id, threadChatClient.AsAIAgent());
 
         var agentLock = new SemaphoreSlim(0, 1);
         var runtime = svc.DebugGetRuntime(thread.Id);
@@ -388,7 +387,7 @@ public sealed class SessionServiceSetThreadModeTests : IDisposable
             toolSources: Array.Empty<IToolSource>());
     }
 
-    private static AIAgent GetCachedThreadAgent(SessionService svc, string threadId)
+    private static ChatClientAgent GetCachedThreadAgent(SessionService svc, string threadId)
     {
         var runtime = svc.DebugGetRuntime(threadId);
         Assert.NotNull(runtime);
@@ -396,7 +395,7 @@ public sealed class SessionServiceSetThreadModeTests : IDisposable
         return runtime.Agent;
     }
 
-    private static void SetCachedThreadAgent(SessionService svc, string threadId, AIAgent agent)
+    private static void SetCachedThreadAgent(SessionService svc, string threadId, ChatClientAgent agent)
     {
         var runtime = svc.DebugGetRuntime(threadId);
         Assert.NotNull(runtime);
@@ -410,28 +409,9 @@ public sealed class SessionServiceSetThreadModeTests : IDisposable
         }
     }
 
-    private static IChatClient? GetInnermostChatClient(AIAgent agent)
+    private static IChatClient? GetInnermostChatClient(ChatClientAgent agent)
     {
-        var client = TryGetChatClientFromAgent(agent);
-        return UnwrapToInnermost(client);
-    }
-
-    private static IChatClient? TryGetChatClientFromAgent(AIAgent agent)
-    {
-        for (var t = agent.GetType(); t != null; t = t.BaseType)
-        {
-            foreach (var p in t.GetProperties(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic))
-            {
-                if (!typeof(IChatClient).IsAssignableFrom(p.PropertyType))
-                    continue;
-                if (p.GetIndexParameters().Length != 0)
-                    continue;
-                if (p.GetValue(agent) is IChatClient chat)
-                    return chat;
-            }
-        }
-
-        return null;
+        return UnwrapToInnermost(agent.ChatClient);
     }
 
     private static IChatClient? UnwrapToInnermost(IChatClient? client)

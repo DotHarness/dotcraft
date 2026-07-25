@@ -19,14 +19,65 @@ internal static class ResponsesToolSearchMapper
     internal const string PromptCacheKeyAdditionalProperty = "prompt_cache_key";
     internal const string HostedImageGenerationEnabledAdditionalProperty = "dotcraft.openai.responses.image_generation.enabled";
 
-    private const int PromptCacheRequestShapeSchemaVersion = 1;
+    private const int PromptCacheRequestShapeSchemaVersion = 2;
     private const string OpenAIResponsesProtocolName = "openai-responses";
 
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
+    private static readonly AIJsonSchemaTransformOptions OpenAIStrictSchemaTransformOptions = new()
+    {
+        DisallowAdditionalProperties = true,
+        ConvertBooleanSchemas = true,
+        MoveDefaultKeywordToDescription = true,
+        RequireAllProperties = true,
+        TransformSchemaNode = static (_, node) =>
+        {
+            if (node is not JsonObject schema)
+                return node;
+
+            StringBuilder? additionalDescription = null;
+            ReadOnlySpan<string> unsupportedProperties =
+            [
+                "contentEncoding", "contentMediaType", "not",
+                "minLength", "maxLength", "pattern", "format",
+                "minimum", "maximum", "multipleOf",
+                "patternProperties",
+                "minItems", "maxItems",
+                "unevaluatedProperties", "propertyNames", "minProperties", "maxProperties",
+                "unevaluatedItems", "contains", "minContains", "maxContains", "uniqueItems"
+            ];
+            foreach (var propertyName in unsupportedProperties)
+            {
+                if (schema[propertyName] is not { } propertyValue)
+                    continue;
+
+                schema.Remove(propertyName);
+                if (additionalDescription is { Length: > 0 })
+                    additionalDescription.AppendLine();
+                (additionalDescription ??= new StringBuilder())
+                    .Append(propertyName)
+                    .Append(": ")
+                    .Append(propertyValue);
+            }
+
+            if (additionalDescription is not null)
+            {
+                schema["description"] =
+                    schema["description"] is { } description
+                    && description.GetValueKind() == JsonValueKind.String
+                        ? description.GetValue<string>() + Environment.NewLine + additionalDescription
+                        : additionalDescription.ToString();
+            }
+            return node;
+        }
+    };
 
     internal sealed record OpenAIResponsesRequest(
         CreateResponseOptions Options,
         PromptCacheRequestShapeSnapshot Shape);
+
+    internal sealed record BuildInputResult(
+        JsonArray Input,
+        OpenAIResponsesItemIdentityDiagnostics ItemIdentity);
 
     public static bool HasNativeToolSearch(ChatOptions? options) =>
         options?.Tools?.Any(static tool =>
@@ -80,28 +131,48 @@ internal static class ResponsesToolSearchMapper
         IEnumerable<ChatMessage> chatMessages,
         ChatOptions? options,
         bool includeReasoning = true,
-        bool removesUnsupportedOAuthResponsesFields = false)
+        bool removesUnsupportedOAuthResponsesFields = false,
+        JsonArray? canonicalInput = null,
+        OpenAIResponsesItemIdentityDiagnostics? canonicalItemIdentity = null,
+        IChatClient? rawRepresentationClient = null)
     {
         var messages = chatMessages as IReadOnlyList<ChatMessage> ?? chatMessages.ToList();
         var callNames = new Dictionary<string, string>(StringComparer.Ordinal);
-        var responseOptions = new CreateResponseOptions
-        {
-            Model = model,
-            StreamingEnabled = true,
-            StoredOutputEnabled = false
-        };
+        var responseOptions =
+            rawRepresentationClient is not null
+            && options?.RawRepresentationFactory?.Invoke(rawRepresentationClient) is CreateResponseOptions rawOptions
+                ? rawOptions
+                : new CreateResponseOptions();
+        responseOptions.Model ??= options?.ModelId ?? model;
+        responseOptions.StreamingEnabled = true;
+        responseOptions.StoredOutputEnabled = false;
 
         var instructions = BuildInstructions(messages, options);
         if (!string.IsNullOrWhiteSpace(instructions))
-            responseOptions.Instructions = instructions;
+        {
+            responseOptions.Instructions = string.IsNullOrWhiteSpace(responseOptions.Instructions)
+                ? instructions
+                : responseOptions.Instructions + Environment.NewLine + instructions;
+        }
 
-        var input = BuildInput(messages, callNames, options);
+        var inputResult = canonicalInput == null
+            ? BuildInput(messages, callNames, options, addContinuationWhenEmpty: true)
+            : new BuildInputResult(
+                canonicalInput,
+                canonicalItemIdentity ?? OpenAIResponsesItemIdentityDiagnostics.FromInput(canonicalInput));
+        var input = inputResult.Input;
         var tools = BuildTools(options);
 
-        if (options?.AllowMultipleToolCalls is { } allowMultiple)
-            responseOptions.ParallelToolCallsEnabled = allowMultiple;
+        if (tools.Count > 0 && options?.AllowMultipleToolCalls is { } allowMultiple)
+            responseOptions.ParallelToolCallsEnabled ??= allowMultiple;
+        ApplyToolChoice(responseOptions, options, tools.Count);
         if (options?.MaxOutputTokens is { } maxOutputTokens)
-            responseOptions.MaxOutputTokenCount = maxOutputTokens;
+            responseOptions.MaxOutputTokenCount ??= maxOutputTokens;
+        if (options?.Temperature is { } temperature)
+            responseOptions.Temperature ??= temperature;
+        if (options?.TopP is { } topP)
+            responseOptions.TopP ??= topP;
+        ApplyResponseFormat(responseOptions, options);
         ResponseReasoningOptions? reasoningOptions = null;
         if (includeReasoning)
         {
@@ -111,9 +182,10 @@ internal static class ResponsesToolSearchMapper
             // IncludedProperties serializes to $.include on its own; do not also Patch.Set the
             // same path or the wire body ends up with duplicate keys that downstream JSON parsers
             // (e.g. JsonNode.Parse in the ChatGPT metadata pipeline policy) reject.
-            responseOptions.IncludedProperties.Add(IncludedResponseProperty.ReasoningEncryptedContent);
+            if (!responseOptions.IncludedProperties.Contains(IncludedResponseProperty.ReasoningEncryptedContent))
+                responseOptions.IncludedProperties.Add(IncludedResponseProperty.ReasoningEncryptedContent);
             reasoningOptions = CreateReasoningOptions(options?.Reasoning);
-            responseOptions.ReasoningOptions = reasoningOptions;
+            responseOptions.ReasoningOptions ??= reasoningOptions;
         }
 
 #pragma warning disable SCME0001
@@ -132,17 +204,68 @@ internal static class ResponsesToolSearchMapper
         return new OpenAIResponsesRequest(
             responseOptions,
             CreatePromptCacheRequestShapeSnapshot(
-                model,
+                responseOptions.Model ?? model,
                 promptCacheKey,
                 instructions,
                 input,
+                inputResult.ItemIdentity,
                 tools,
                 includeReasoning,
-                reasoningOptions,
+                responseOptions.ReasoningOptions,
                 responseOptions,
                 options,
                 removesUnsupportedOAuthResponsesFields));
     }
+
+    private static void ApplyToolChoice(
+        CreateResponseOptions responseOptions,
+        ChatOptions? options,
+        int toolCount)
+    {
+        if (toolCount == 0 || responseOptions.ToolChoice is not null)
+            return;
+
+        responseOptions.ToolChoice = options?.ToolMode switch
+        {
+            NoneChatToolMode => ResponseToolChoice.CreateNoneChoice(),
+            AutoChatToolMode => ResponseToolChoice.CreateAutoChoice(),
+            RequiredChatToolMode { RequiredFunctionName: { } functionName } =>
+                ResponseToolChoice.CreateFunctionChoice(functionName),
+            RequiredChatToolMode => ResponseToolChoice.CreateRequiredChoice(),
+            _ => null
+        };
+    }
+
+    private static void ApplyResponseFormat(
+        CreateResponseOptions responseOptions,
+        ChatOptions? options)
+    {
+        if (responseOptions.TextOptions?.TextFormat is not null)
+            return;
+
+        ResponseTextFormat? format = options?.ResponseFormat switch
+        {
+            ChatResponseFormatText => ResponseTextFormat.CreateTextFormat(),
+            ChatResponseFormatJson { Schema: { } schema } json =>
+                ResponseTextFormat.CreateJsonSchemaFormat(
+                    json.SchemaName ?? "json_schema",
+                    BinaryData.FromBytes(JsonSerializer.SerializeToUtf8Bytes(
+                        AIJsonUtilities.TransformSchema(schema, OpenAIStrictSchemaTransformOptions),
+                        JsonOptions)),
+                    json.SchemaDescription,
+                    IsStrict(options)),
+            ChatResponseFormatJson => ResponseTextFormat.CreateJsonObjectFormat(),
+            _ => null
+        };
+        if (format is not null)
+            (responseOptions.TextOptions ??= new ResponseTextOptions()).TextFormat = format;
+    }
+
+    private static bool? IsStrict(ChatOptions? options) =>
+        options?.AdditionalProperties?.TryGetValue("strict", out var value) == true
+        && value is bool strict
+            ? strict
+            : null;
 
     internal static string? ResolvePromptCacheKey(
         ChatOptions? options,
@@ -159,9 +282,7 @@ internal static class ResponsesToolSearchMapper
         if (!string.IsNullOrWhiteSpace(preferredPromptCacheKey))
             return new PromptCacheKeyResolution(preferredPromptCacheKey.Trim(), "preferred");
 
-        var active = OpenAIResponsesCodexRuntimeScope.Current?.ThreadId
-            ?? TracingChatClient.CurrentSessionKey
-            ?? TracingChatClient.GetActiveSessionKey();
+        var active = OpenAIResponsesCodexMetadata.ResolveRoutingIdentity().DefaultPromptCacheKey;
         return string.IsNullOrWhiteSpace(active)
             ? new PromptCacheKeyResolution(null, null)
             : new PromptCacheKeyResolution(active!.Trim(), "activeSession");
@@ -283,12 +404,32 @@ internal static class ResponsesToolSearchMapper
         }
     }
 
-    private static JsonArray BuildInput(
+    internal static BuildInputResult BuildInputItems(
+        IEnumerable<ChatMessage> messages,
+        ChatOptions? options,
+        IReadOnlyDictionary<string, string>? callNames = null,
+        int itemOrdinalOffset = 0)
+    {
+        var mutableCallNames = callNames == null
+            ? new Dictionary<string, string>(StringComparer.Ordinal)
+            : new Dictionary<string, string>(callNames, StringComparer.Ordinal);
+        return BuildInput(
+            messages,
+            mutableCallNames,
+            options,
+            addContinuationWhenEmpty: false,
+            itemOrdinalOffset);
+    }
+
+    private static BuildInputResult BuildInput(
         IEnumerable<ChatMessage> messages,
         Dictionary<string, string> callNames,
-        ChatOptions? options)
+        ChatOptions? options,
+        bool addContinuationWhenEmpty,
+        int itemOrdinalOffset = 0)
     {
         var input = new JsonArray();
+        var identity = new OpenAIResponsesItemIdentityDiagnostics();
         foreach (var message in messages)
         {
             if (message.Role == ChatRole.System)
@@ -296,6 +437,7 @@ internal static class ResponsesToolSearchMapper
 
             var textBuffer = new StringBuilder();
             var contentParts = new JsonArray();
+            var messageItemOrdinal = 0;
             void FlushTextPart()
             {
                 if (textBuffer.Length == 0)
@@ -311,7 +453,15 @@ internal static class ResponsesToolSearchMapper
                 if (contentParts.Count == 0)
                     return;
 
-                input.Add(CreateMessageItem(message.Role, contentParts));
+                var item = CreateMessageItem(message.Role, contentParts);
+                OpenAIResponsesItemIdentity.Assign(
+                    message,
+                    item,
+                    "msg",
+                    itemOrdinalOffset + input.Count,
+                    messageItemOrdinal++,
+                    identity);
+                input.Add(item);
                 contentParts = [];
             }
 
@@ -326,12 +476,29 @@ internal static class ResponsesToolSearchMapper
                     case TextReasoningContent reasoning when message.Role == ChatRole.Assistant:
                         FlushMessage();
                         if (TryCreateReasoningItem(reasoning, out var reasoningItem))
+                        {
+                            OpenAIResponsesItemIdentity.Assign(
+                                reasoning,
+                                reasoningItem,
+                                "rs",
+                                itemOrdinalOffset + input.Count,
+                                identity,
+                                ReadJsonString(reasoningItem, "id"));
                             input.Add(reasoningItem);
+                        }
                         break;
 
                     case HostedImageGenerationContent imageGeneration:
                         FlushMessage();
-                        input.Add(CreateImageGenerationCallItem(imageGeneration));
+                        var imageItem = CreateImageGenerationCallItem(imageGeneration);
+                        OpenAIResponsesItemIdentity.Assign(
+                            imageGeneration,
+                            imageItem,
+                            "ig",
+                            itemOrdinalOffset + input.Count,
+                            identity,
+                            imageGeneration.Id);
+                        input.Add(imageItem);
                         break;
 
                     case FunctionCallContent call:
@@ -339,16 +506,36 @@ internal static class ResponsesToolSearchMapper
                         if (!string.IsNullOrWhiteSpace(call.CallId))
                             callNames[call.CallId] = call.Name;
 
-                        input.Add(CreateFunctionCallItem(call));
+                        var callItem = CreateFunctionCallItem(call);
+                        OpenAIResponsesItemIdentity.Assign(
+                            call,
+                            callItem,
+                            string.Equals(call.Name, NativeToolSearchTool.ToolName, StringComparison.Ordinal)
+                                ? "tsc"
+                                : "fc",
+                            itemOrdinalOffset + input.Count,
+                            identity,
+                            ReadJsonString(callItem, "id"));
+                        input.Add(callItem);
                         break;
 
                     case FunctionResultContent result:
                         FlushMessage();
                         callNames.TryGetValue(result.CallId, out var toolName);
-                        input.Add(string.Equals(toolName, NativeToolSearchTool.ToolName, StringComparison.Ordinal)
-                            || IsToolSearchOutput(result.Result)
+                        var isToolSearchOutput =
+                            string.Equals(toolName, NativeToolSearchTool.ToolName, StringComparison.Ordinal)
+                            || IsToolSearchOutput(result.Result);
+                        var resultItem = isToolSearchOutput
                             ? CreateToolSearchOutputItem(result)
-                            : CreateFunctionCallOutputItem(result));
+                            : CreateFunctionCallOutputItem(result);
+                        OpenAIResponsesItemIdentity.Assign(
+                            result,
+                            resultItem,
+                            isToolSearchOutput ? "tso" : "fco",
+                            itemOrdinalOffset + input.Count,
+                            identity,
+                            ReadJsonString(resultItem, "id"));
+                        input.Add(resultItem);
                         break;
 
                     default:
@@ -361,11 +548,24 @@ internal static class ResponsesToolSearchMapper
             FlushMessage();
         }
 
-        if (input.Count == 0 && !string.IsNullOrWhiteSpace(options?.Instructions))
-            input.Add(CreateMessageItem(ChatRole.User, "Continue."));
+        if (addContinuationWhenEmpty
+            && input.Count == 0
+            && !string.IsNullOrWhiteSpace(options?.Instructions))
+        {
+            var continuation = new ChatMessage(ChatRole.User, "Continue.");
+            var item = CreateMessageItem(ChatRole.User, "Continue.");
+            OpenAIResponsesItemIdentity.Assign(
+                continuation,
+                item,
+                "msg",
+                itemOrdinalOffset + input.Count,
+                messageItemOrdinal: 0,
+                identity);
+            input.Add(item);
+        }
 
         SanitizeResponseItemIds(input);
-        return input;
+        return new BuildInputResult(input, identity);
     }
 
     private static void SanitizeResponseItemIds(JsonArray input)
@@ -431,7 +631,7 @@ internal static class ResponsesToolSearchMapper
                 continue;
             }
 
-            var functionTool = CreateFunctionTool(tool);
+            var functionTool = CreateFunctionTool(tool, options);
             if (ToolNamespaceMetadataResolver.TryGet(tool, out var toolNamespace))
             {
                 ValidateProviderToolIdentity(toolNamespace, ReadJsonString(functionTool, "name")!);
@@ -474,7 +674,7 @@ internal static class ResponsesToolSearchMapper
         return tools;
     }
 
-    private static JsonObject CreateFunctionTool(AITool tool)
+    private static JsonObject CreateFunctionTool(AITool tool, ChatOptions? options)
     {
         var functionName = CanonicalToolIdentityMetadataResolver.TryGet(
             tool,
@@ -482,15 +682,22 @@ internal static class ResponsesToolSearchMapper
             out _)
             ? canonicalName.Name
             : tool.Name;
+        var strict = tool is IOpenAIResponsesFunctionToolMetadata metadata
+            ? metadata.Strict ?? IsStrict(options)
+            : IsStrict(options);
+        var schema = GetJsonSchema(tool);
         var functionTool = new JsonObject
         {
             ["type"] = "function",
             ["name"] = functionName,
             ["description"] = tool.Description,
-            ["parameters"] = CloneJsonElement(GetJsonSchema(tool))
+            ["parameters"] = CloneJsonElement(
+                strict is true
+                    ? AIJsonUtilities.TransformSchema(schema, OpenAIStrictSchemaTransformOptions)
+                    : schema)
         };
 
-        if (tool is IOpenAIResponsesFunctionToolMetadata { Strict: { } strict })
+        if (strict is not null)
             functionTool["strict"] = strict;
 
         return functionTool;
@@ -546,6 +753,7 @@ internal static class ResponsesToolSearchMapper
         PromptCacheKeyResolution promptCacheKey,
         string? instructions,
         JsonArray input,
+        OpenAIResponsesItemIdentityDiagnostics itemIdentity,
         JsonArray tools,
         bool includeReasoning,
         ResponseReasoningOptions? reasoningOptions,
@@ -571,6 +779,12 @@ internal static class ResponsesToolSearchMapper
             HashJsonNode(input),
             input.Count,
             inputItemHashes,
+            Encoding.UTF8.GetByteCount(input.ToJsonString(JsonOptions)),
+            itemIdentity.EligibleCount,
+            itemIdentity.PresentCount,
+            itemIdentity.GeneratedCount,
+            itemIdentity.MissingCount,
+            itemIdentity.InvalidSourceCount,
             maxOutputTokensRequested,
             maxOutputTokensRequested.HasValue && !maxOutputTokensRemovedByOAuthRewrite,
             maxOutputTokensRemovedByOAuthRewrite,
@@ -750,10 +964,11 @@ internal static class ResponsesToolSearchMapper
         var item = new JsonObject
         {
             ["type"] = HostedImageGenerationContent.ToolName + "_call",
-            ["id"] = string.IsNullOrWhiteSpace(content.Id) ? $"ig_{Guid.NewGuid():N}" : content.Id,
             ["status"] = string.IsNullOrWhiteSpace(content.Status) ? "completed" : content.Status
         };
 
+        if (!string.IsNullOrWhiteSpace(content.Id))
+            item["id"] = content.Id;
         if (!string.IsNullOrWhiteSpace(content.RevisedPrompt))
             item["revised_prompt"] = content.RevisedPrompt;
         if (content.ImageBytes is { Length: > 0 })

@@ -21,7 +21,6 @@ using DotCraft.Logging;
 using DotCraft.Tools;
 using DotCraft.Tools.BackgroundTerminals;
 using DotCraft.Tracing;
-using Microsoft.Agents.AI;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Logging;
 
@@ -96,7 +95,7 @@ internal sealed class ThreadMaintenanceRegistration(
 /// </summary>
 public sealed partial class SessionService(
     AgentFactory agentFactory,
-    AIAgent defaultAgent,
+    ChatClientAgent defaultAgent,
     SessionPersistenceService persistence,
     SessionGate sessionGate,
     HookRunner? hookRunner = null,
@@ -180,7 +179,7 @@ public sealed partial class SessionService(
 
     private McpAppTransientContextStore? McpAppTransientContexts => mcpAppTransientContextStore;
 
-    private AIAgent DefaultAgent => defaultAgent;
+    private ChatClientAgent DefaultAgent => defaultAgent;
 
     private AgentFactory AgentFactory => agentFactory;
 
@@ -189,7 +188,7 @@ public sealed partial class SessionService(
     internal ThreadRuntime? DebugGetRuntime(string threadId) =>
         _runtimeRegistry.TryGetRuntime(threadId, out var runtime) ? runtime : null;
 
-    private AIAgent GetThreadAgentOrDefault(string threadId) =>
+    private ChatClientAgent GetThreadAgentOrDefault(string threadId) =>
         _runtimeRegistry.TryGetRuntime(threadId, out var runtime) && runtime.Agent != null
             ? runtime.Agent
             : defaultAgent;
@@ -197,7 +196,7 @@ public sealed partial class SessionService(
     private bool HasThreadAgent(string threadId) =>
         _runtimeRegistry.TryGetRuntime(threadId, out var runtime) && runtime.Agent != null;
 
-    private void SetThreadAgent(string threadId, AIAgent agent)
+    private void SetThreadAgent(string threadId, ChatClientAgent agent)
     {
         if (_runtimeRegistry.TryGetRuntime(threadId, out var runtime))
             runtime.Agent = agent;
@@ -247,8 +246,14 @@ public sealed partial class SessionService(
         {
             var record = persistence.AdvanceCodexContextWindow(threadId);
             var context = OpenAIResponsesCodexRuntimeScope.Current;
-            if (context != null && string.Equals(context.ThreadId, threadId, StringComparison.Ordinal))
-                context.WindowId = record.CurrentWindowId;
+            if (context != null
+                && string.Equals(
+                    context.ConversationIdentity.CurrentThreadId,
+                    threadId,
+                    StringComparison.Ordinal))
+            {
+                context.AdvanceContextWindow(record.CurrentWindowId);
+            }
         }
         catch (Exception ex)
         {
@@ -256,31 +261,137 @@ public sealed partial class SessionService(
         }
     }
 
-    private static OpenAIResponsesCodexRuntimeContext CreateCodexRuntimeContext(
+    private async Task<OpenAIResponsesProviderHistoryContext?> CreateResponsesProviderHistoryContextAsync(
         SessionThread thread,
-        SessionTurn? turn,
-        CodexContextWindowRecord window,
-        string requestKind)
+        SessionTurn turn,
+        List<ChatMessage> session,
+        CancellationToken ct)
     {
-        var subAgent = thread.Source.SubAgent;
-        return new OpenAIResponsesCodexRuntimeContext
+        if (thread.ProviderHistorySchemaVersion != ProviderHistorySchema.CurrentSchemaVersion
+            || thread.HistoryMode != HistoryMode.Server)
+            return null;
+        var currentConfig = _appConfigMonitor?.Current ?? agentFactory.RuntimeContext.Config;
+        var runtime = agentFactory.RuntimeContext.ChatClientRegistry.ResolveMainRuntime(
+            currentConfig,
+            thread.Configuration?.ProviderId,
+            thread.Configuration?.Model);
+        if (!string.Equals(
+                runtime.Protocol,
+                ModelProviderProtocols.OpenAIResponses,
+                StringComparison.Ordinal))
         {
-            ThreadId = thread.Id,
-            TurnId = turn?.Id,
-            WindowId = window.CurrentWindowId,
-            RequestKind = requestKind,
-            TurnStartedAtUnixMs = turn?.StartedAt.ToUnixTimeMilliseconds() ?? DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
-            ParentThreadId = subAgent?.ParentThreadId ?? thread.Source.SpawnedFromThreadId,
-            ForkedFromThreadId = thread.ForkedFromId,
-            SubagentKind = subAgent == null
+            return null;
+        }
+
+        if (!TrySnapshotInMemoryHistory(session, out var baselineHistory))
+            baselineHistory = [];
+
+        var activeIdentity = OpenAIResponsesCodexRuntimeScope.Current?.ConversationIdentity
+            ?? throw new InvalidOperationException(
+                "Responses provider history requires an active conversation identity.");
+        var snapshot = thread.Ephemeral
+            ? _runtimeRegistry.TryGetRuntime(thread.Id, out var ephemeralRuntime)
+              && ephemeralRuntime.ResponsesProviderHistorySnapshot is { } inMemorySnapshot
+                ? inMemorySnapshot
+                : ProviderHistorySnapshot.Empty(activeIdentity.ContextWindowId)
+            : await persistence.LoadProviderHistoryAsync(
+                    thread,
+                    activeIdentity.ContextWindowId,
+                    ct)
+                .ConfigureAwait(false);
+        var previousTurn = thread.Turns
+            .Where(candidate =>
+                !string.Equals(candidate.Id, turn.Id, StringComparison.Ordinal)
+                && candidate.Status is TurnStatus.Completed or TurnStatus.Failed or TurnStatus.Cancelled)
+            .OrderBy(candidate => candidate.StartedAt)
+            .ThenBy(candidate => candidate.Id, StringComparer.Ordinal)
+            .LastOrDefault();
+        var requiresReplacement = previousTurn != null
+            && !string.Equals(
+                snapshot.CoveredThroughTurnId,
+                previousTurn.Id,
+                StringComparison.Ordinal);
+        if (requiresReplacement)
+        {
+            TryAdvanceCodexContextWindowAfterReplacement(thread.Id);
+            activeIdentity = OpenAIResponsesCodexRuntimeScope.Current?.ConversationIdentity ?? activeIdentity;
+            snapshot = ProviderHistorySnapshot.Empty(activeIdentity.ContextWindowId);
+        }
+
+        var context = new OpenAIResponsesProviderHistoryContext(
+            activeIdentity,
+            snapshot,
+            baselineHistory.Count,
+            thread.Ephemeral
                 ? null
-                : !string.IsNullOrWhiteSpace(subAgent.RuntimeType)
-                    ? subAgent.RuntimeType
-                    : !string.IsNullOrWhiteSpace(subAgent.AgentRole)
-                        ? subAgent.AgentRole
-                        : "subagent",
-            ThreadSource = thread.Source.Kind
-        };
+                : (payload, cancellationToken) =>
+                    persistence.AppendProviderHistoryItemsAsync(payload, cancellationToken),
+            thread.Ephemeral
+                ? null
+                : (payload, cancellationToken) =>
+                    persistence.ReplaceProviderHistoryAsync(payload, cancellationToken),
+            thread.Ephemeral
+                ? null
+                : (payload, cancellationToken) =>
+                    persistence.AbortProviderHistoryAttemptAsync(payload, cancellationToken));
+
+        if (requiresReplacement)
+        {
+            await context.ReplaceAsync(
+                    baselineHistory,
+                    options: null,
+                    "protocol_return",
+                    ct)
+                .ConfigureAwait(false);
+        }
+
+        return context;
+    }
+
+    private async Task TryReplaceResponsesProviderHistoryAsync(
+        SessionThread thread,
+        List<ChatMessage> session,
+        string reason,
+        CancellationToken ct)
+    {
+        if (thread.ProviderHistorySchemaVersion != ProviderHistorySchema.CurrentSchemaVersion
+            || thread.Ephemeral)
+        {
+            return;
+        }
+
+        var currentConfig = _appConfigMonitor?.Current ?? agentFactory.RuntimeContext.Config;
+        var runtime = agentFactory.RuntimeContext.ChatClientRegistry.ResolveMainRuntime(
+            currentConfig,
+            thread.Configuration?.ProviderId,
+            thread.Configuration?.Model);
+        if (!string.Equals(runtime.Protocol, ModelProviderProtocols.OpenAIResponses, StringComparison.Ordinal)
+            || !TrySnapshotInMemoryHistory(session, out var replacementHistory))
+        {
+            return;
+        }
+
+        var coveredTurn = thread.Turns
+            .Where(candidate => candidate.Status is TurnStatus.Completed or TurnStatus.Failed or TurnStatus.Cancelled)
+            .OrderBy(candidate => candidate.StartedAt)
+            .ThenBy(candidate => candidate.Id, StringComparer.Ordinal)
+            .LastOrDefault();
+        var identity = ThreadConversationIdentity.Create(
+            thread,
+            coveredTurn,
+            GetOrCreateCodexContextWindow(thread.Id).CurrentWindowId,
+            ThreadConversationRequestKind.Compaction);
+        var context = new OpenAIResponsesProviderHistoryContext(
+            identity,
+            ProviderHistorySnapshot.Empty(identity.ContextWindowId),
+            coveredMessageCount: 0,
+            (payload, cancellationToken) =>
+                persistence.AppendProviderHistoryItemsAsync(payload, cancellationToken),
+            (payload, cancellationToken) =>
+                persistence.ReplaceProviderHistoryAsync(payload, cancellationToken),
+            (payload, cancellationToken) =>
+                persistence.AbortProviderHistoryAttemptAsync(payload, cancellationToken));
+        await context.ReplaceAsync(replacementHistory, options: null, reason, ct).ConfigureAwait(false);
     }
 
     private TurnRuntime? TryGetTurnRuntime(TurnKey turnKey) =>
@@ -1214,10 +1325,36 @@ public sealed partial class SessionService(
         SessionInputSnapshot? inputSnapshot,
         CancellationToken callerCt)
     {
-        // Step 1: Validate synchronously before starting the background Task
         if (!_runtimeRegistry.TryGetThread(threadId, out var thread))
             throw new KeyNotFoundException($"Thread '{threadId}' not found. Call CreateThreadAsync or ResumeThreadAsync first.");
+        if (!_runtimeRegistry.TryGetRuntime(threadId, out var runtime))
+            throw new InvalidOperationException($"Thread '{threadId}' has no active runtime.");
 
+        lock (runtime.TurnStartLock)
+        {
+            return StartTurnCore(
+                thread,
+                content,
+                sender,
+                messages,
+                inputSnapshot,
+                callerCt);
+        }
+    }
+
+    private SessionEventChannel StartTurnCore(
+        SessionThread thread,
+        IList<AIContent> content,
+        SenderContext? sender,
+        ChatMessage[]? messages,
+        SessionInputSnapshot? inputSnapshot,
+        CancellationToken callerCt)
+    {
+        var threadId = thread.Id;
+        // Step 1: Validate synchronously before starting the background Task.
+        // This method executes while holding ThreadRuntime.TurnStartLock so validation,
+        // sequence reservation, insertion, event publication, and runtime registration
+        // form one Thread-local transition.
         if (thread.Status != ThreadStatus.Active)
             throw new InvalidOperationException($"Thread '{threadId}' is not Active (current status: {thread.Status}). Cannot submit input.");
 
@@ -1369,8 +1506,8 @@ public sealed partial class SessionService(
 
             IDisposable? gateLock = null;
             IDisposable? approvalOverride = null;
-            AIAgent agent = defaultAgent;
-            AgentSession? session = null;
+            ChatClientAgent agent = defaultAgent;
+            List<ChatMessage>? session = null;
             TokenTracker? tokenTracker = null;
             SessionItem? agentMessageItem = null;
             SessionItem? reasoningItem = null;
@@ -1737,11 +1874,10 @@ public sealed partial class SessionService(
 
                 CompactionHistoryResult result;
                 var codexContext = OpenAIResponsesCodexRuntimeScope.Current;
-                var previousCodexRequestKind = codexContext?.RequestKind;
                 try
                 {
-                    if (codexContext != null)
-                        codexContext.RequestKind = OpenAIResponsesCodexRequestKinds.Compaction;
+                    using var requestKindScope = codexContext?.OverrideRequestKind(
+                        ThreadConversationRequestKind.Compaction);
                     result = await pipeline.TryAutoCompactHistoryAsync(
                         compactHistory,
                         threadId,
@@ -1768,11 +1904,6 @@ public sealed partial class SessionService(
 
                     return null;
                 }
-                finally
-                {
-                    if (codexContext != null && previousCodexRequestKind != null)
-                        codexContext.RequestKind = previousCodexRequestKind;
-                }
 
                 var status = result.Status;
                 switch (status.Outcome)
@@ -1780,9 +1911,8 @@ public sealed partial class SessionService(
                     case CompactionOutcome.Micro:
                     case CompactionOutcome.Partial:
                         tokenTracker.Reset();
-                        session.SetInMemoryChatHistory(
-                            [.. result.Messages],
-                            jsonSerializerOptions: SessionPersistenceJsonOptions.Default);
+                        session.Clear();
+                        session.AddRange(result.Messages);
                         if (!TrySnapshotInMemoryHistory(session, out var compactedHistory))
                             throw new InvalidOperationException("Unable to snapshot compacted model history.");
                         pendingCompactionCheckpoint = new PendingCompactionCheckpoint(
@@ -1792,6 +1922,13 @@ public sealed partial class SessionService(
                             status.ThresholdAfter.Tokens,
                             compactedHistory);
                         persistedModelHistoryCount = compactedHistory.Count;
+                        await TryAppendCompactionCheckpointAsync(
+                            threadId,
+                            turn.Id,
+                            session,
+                            pendingCompactionCheckpoint,
+                            CancellationToken.None);
+                        pendingCompactionCheckpoint = null;
                         InvalidatePromptRequestSnapshot(threadId, "auto_compaction");
                         var contextUsage = await SaveReplacementContextUsageSnapshotAsync(
                             threadId,
@@ -1918,13 +2055,11 @@ public sealed partial class SessionService(
                     return;
                 }
 
-                // Step 5b: Load/create AgentSession
+                // Step 5b: Rebuild the MEAI model history from Session Core rollout.
                 using (await AcquireThreadAgentLockAsync(threadId, executionCt))
                     agent = GetThreadAgentOrDefault(threadId);
 
-                // Bind tracing and token tracking before session creation so session metadata
-                // captured during CreateSessionAsync / LoadOrCreateSessionAsync is attributed
-                // to the correct ephemeral or persisted thread.
+                // Bind tracing and token tracking before model history reconstruction.
                 traceCollector?.BindThreadMainSession(threadId);
                 TracingChatClient.CurrentSessionKey = threadId;
                 TracingChatClient.ResetCallState(threadId);
@@ -1934,17 +2069,11 @@ public sealed partial class SessionService(
 
                 if (thread.HistoryMode == HistoryMode.Client && messages != null)
                 {
-                    // Client-managed: construct from provided messages
-                    session = await agent.CreateSessionAsync(executionCt);
-                    var chatHistory = session.GetService<ChatHistoryProvider>();
-                    if (chatHistory is InMemoryChatHistoryProvider memProvider)
-                    {
-                        memProvider.SetMessages(session, [.. messages]);
-                    }
+                    session = [.. messages];
                 }
                 else
                 {
-                    session = await persistence.LoadOrCreateSessionAsync(agent, thread, turn.Id, executionCt);
+                    session = await persistence.LoadModelHistoryAsync(thread, turn.Id, executionCt);
                 }
                 if (TrySnapshotInMemoryHistory(session, out var persistedHistory))
                     persistedModelHistoryCount = persistedHistory.Count;
@@ -2187,11 +2316,29 @@ public sealed partial class SessionService(
                 });
                 var codexContextWindow = GetOrCreateCodexContextWindow(threadId);
                 using var codexResponsesScope = OpenAIResponsesCodexRuntimeScope.Set(
-                    CreateCodexRuntimeContext(
+                    new OpenAIResponsesCodexRuntimeContext(
+                        ThreadConversationIdentity.Create(
+                            thread,
+                            turn,
+                            codexContextWindow.CurrentWindowId,
+                            ThreadConversationRequestKind.Turn)));
+                var responsesProviderHistoryContext =
+                    await CreateResponsesProviderHistoryContextAsync(
                         thread,
                         turn,
-                        codexContextWindow,
-                        OpenAIResponsesCodexRequestKinds.Turn));
+                        session,
+                        executionCt);
+                using var responsesProviderHistoryScope = responsesProviderHistoryContext == null
+                    ? null
+                    : OpenAIResponsesProviderHistoryRuntimeScope.Set(
+                        responsesProviderHistoryContext,
+                        thread.Ephemeral
+                            ? context =>
+                            {
+                                if (_runtimeRegistry.TryGetRuntime(thread.Id, out var runtime))
+                                    runtime.ResponsesProviderHistorySnapshot = context.CaptureSnapshot();
+                            }
+                            : null);
                 try
                 {
                     if (!TrySnapshotInMemoryHistory(session, out var preflightHistory)
@@ -2257,7 +2404,7 @@ public sealed partial class SessionService(
                     await foreach (var update in agent.RunStreamingAsync(userMessage, session)
                         .WithCancellation(executionCt))
                     {
-                        var chatResponseUpdate = update.AsChatResponseUpdate();
+                        var chatResponseUpdate = update;
                         if (chatResponseUpdate.FinishReason.HasValue)
                             lastFinishReason = chatResponseUpdate.FinishReason.Value;
 
@@ -3020,11 +3167,12 @@ public sealed partial class SessionService(
                         {
                             eventChannel.EmitSystemEvent("compacting");
                             using var reactiveCodexScope = OpenAIResponsesCodexRuntimeScope.Set(
-                                CreateCodexRuntimeContext(
-                                    thread,
-                                    turn,
-                                    GetOrCreateCodexContextWindow(threadId),
-                                    OpenAIResponsesCodexRequestKinds.Compaction));
+                                new OpenAIResponsesCodexRuntimeContext(
+                                    ThreadConversationIdentity.Create(
+                                        thread,
+                                        turn,
+                                        GetOrCreateCodexContextWindow(threadId).CurrentWindowId,
+                                        ThreadConversationRequestKind.Compaction)));
                             var status = await reactivePipeline.TryReactiveCompactAsync(
                                 session,
                                 threadId,
@@ -3042,6 +3190,13 @@ public sealed partial class SessionService(
                                     status.ThresholdAfter.Tokens,
                                     compactedHistory);
                                 persistedModelHistoryCount = compactedHistory.Count;
+                                await TryAppendCompactionCheckpointAsync(
+                                    threadId,
+                                    turn.Id,
+                                    session,
+                                    pendingCompactionCheckpoint,
+                                    CancellationToken.None);
+                                pendingCompactionCheckpoint = null;
                                 InvalidatePromptRequestSnapshot(threadId, "reactive_compaction");
                                 var contextUsage = await SaveReplacementContextUsageSnapshotAsync(
                                     threadId,
@@ -4520,7 +4675,7 @@ public sealed partial class SessionService(
         string threadId,
         SessionThread thread,
         SessionTurn turn,
-        AgentSession session,
+        List<ChatMessage> session,
         SessionEventChannel eventChannel,
         Func<int> nextItemSequence)
         => Maintenance.TryScheduleMemoryConsolidation(
@@ -4534,7 +4689,7 @@ public sealed partial class SessionService(
     private async Task TryAppendCompactionCheckpointAsync(
         string threadId,
         string coveredThroughTurnId,
-        AgentSession session,
+        List<ChatMessage> session,
         PendingCompactionCheckpoint checkpoint,
         CancellationToken ct)
         => await Maintenance.TryAppendCompactionCheckpointAsync(
@@ -4545,24 +4700,16 @@ public sealed partial class SessionService(
             ct);
 
     private static bool TrySnapshotInMemoryHistory(
-        AgentSession session,
+        List<ChatMessage> session,
         out IReadOnlyList<ChatMessage> history)
     {
-        history = [];
-        if (!session.TryGetInMemoryChatHistory(
-                out var messages,
-                jsonSerializerOptions: SessionPersistenceJsonOptions.Default))
-        {
-            return false;
-        }
-
-        history = messages.ToList();
+        history = session.ToList();
         return true;
     }
 
     private string BuildEmptyProviderResponseMessage(
         string threadId,
-        AgentSession? session,
+        List<ChatMessage>? session,
         TokenTracker? tokenTracker,
         string fallbackMessage)
     {
@@ -4598,15 +4745,9 @@ public sealed partial class SessionService(
         }
     }
 
-    private static bool TryAppendFailedTurnTailToSession(AgentSession session, SessionTurn turn)
+    private static bool TryAppendFailedTurnTailToSession(List<ChatMessage> session, SessionTurn turn)
     {
-        if (!session.TryGetInMemoryChatHistory(
-                out var history,
-                jsonSerializerOptions: SessionPersistenceJsonOptions.Default))
-        {
-            return false;
-        }
-
+        var history = session;
         var turnTail = ThreadStore.BuildModelVisibleHistoryFromTurn(turn);
         if (turnTail.Count == 0)
             return true;
@@ -4620,19 +4761,20 @@ public sealed partial class SessionService(
         for (var i = overlap; i < turnTail.Count; i++)
             merged.Add(turnTail[i]);
 
-        session.SetInMemoryChatHistory(merged, jsonSerializerOptions: SessionPersistenceJsonOptions.Default);
+        session.Clear();
+        session.AddRange(merged);
         return true;
     }
 
-    private async Task<AgentSession?> TryUpdateSessionAfterRollbackAsync(
-        AIAgent agent,
+    private async Task<List<ChatMessage>?> TryUpdateSessionAfterRollbackAsync(
+        ChatClientAgent agent,
         string threadId,
         IReadOnlyList<SessionTurn> removedTurns,
         CancellationToken ct)
     {
         try
         {
-            return await persistence.LoadOrCreateSessionAsync(agent, threadId, ct);
+            return await persistence.LoadModelHistoryAsync(threadId, ct);
         }
         catch (OperationCanceledException)
         {
@@ -4648,7 +4790,7 @@ public sealed partial class SessionService(
 
     private async Task SaveContextUsageFromSessionAsync(
         string threadId,
-        AgentSession? session,
+        List<ChatMessage>? session,
         CancellationToken ct)
     {
         try
@@ -4674,16 +4816,10 @@ public sealed partial class SessionService(
     }
 
     private static bool TryTrimRolledBackTailFromSession(
-        AgentSession session,
+        List<ChatMessage> session,
         IReadOnlyList<SessionTurn> removedTurns)
     {
-        if (!session.TryGetInMemoryChatHistory(
-                out var history,
-                jsonSerializerOptions: SessionPersistenceJsonOptions.Default))
-        {
-            return false;
-        }
-
+        var history = session;
         var removedTail = new List<ChatMessage>();
         foreach (var turn in removedTurns.OrderBy(t => t.StartedAt).ThenBy(t => t.Id, StringComparer.Ordinal))
             removedTail.AddRange(ThreadStore.BuildModelVisibleHistoryFromTurn(turn));
@@ -4703,7 +4839,8 @@ public sealed partial class SessionService(
         }
 
         var trimmed = history.Take(historyStart).ToList();
-        session.SetInMemoryChatHistory(trimmed, jsonSerializerOptions: SessionPersistenceJsonOptions.Default);
+        session.Clear();
+        session.AddRange(trimmed);
         return true;
     }
 
@@ -4940,7 +5077,7 @@ public sealed partial class SessionService(
 
     private sealed class ContextCompactionFailedException(string message) : InvalidOperationException(message);
 
-    private async Task<AIAgent> BuildAgentForThreadAsync(
+    private async Task<ChatClientAgent> BuildAgentForThreadAsync(
         SessionThread thread,
         CancellationToken ct)
     {
@@ -4956,7 +5093,7 @@ public sealed partial class SessionService(
         }
     }
 
-    private async Task<AIAgent> BuildAgentForThreadCoreAsync(
+    private async Task<ChatClientAgent> BuildAgentForThreadCoreAsync(
         SessionThread thread,
         CancellationToken ct)
     {

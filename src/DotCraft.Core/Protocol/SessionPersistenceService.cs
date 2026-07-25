@@ -1,7 +1,6 @@
 using DotCraft.State;
 using DotCraft.Tracing;
 using DotCraft.Context.Compaction;
-using Microsoft.Agents.AI;
 using Microsoft.Extensions.AI;
 
 namespace DotCraft.Protocol;
@@ -54,12 +53,12 @@ public sealed class SessionPersistenceService(
         => threadStore.LoadIndexAsync(ct);
 
     internal Task PersistModelHistoryAsync(
-        AgentSession session,
+        IReadOnlyList<ChatMessage> history,
         string threadId,
         string turnId,
         int persistedPrefixLength,
         CancellationToken ct = default)
-        => threadStore.PersistModelHistoryAsync(session, threadId, turnId, persistedPrefixLength, ct);
+        => threadStore.PersistModelHistoryAsync(history, threadId, turnId, persistedPrefixLength, ct);
 
     internal Task AppendModelHistoryAsync(
         string threadId,
@@ -74,18 +73,16 @@ public sealed class SessionPersistenceService(
         CancellationToken ct = default)
         => threadStore.BuildForkModelHistoryMaterializationAsync(source, forked, ct);
 
-    public Task<AgentSession> LoadOrCreateSessionAsync(
-        AIAgent agent,
+    public Task<List<ChatMessage>> LoadModelHistoryAsync(
         string threadId,
         CancellationToken ct = default)
-        => threadStore.LoadOrCreateSessionAsync(agent, threadId, ct);
+        => threadStore.LoadModelHistoryAsync(threadId, ct);
 
-    internal Task<AgentSession> LoadOrCreateSessionAsync(
-        AIAgent agent,
+    internal Task<List<ChatMessage>> LoadModelHistoryAsync(
         SessionThread thread,
         string? excludedTurnId,
         CancellationToken ct = default)
-        => threadStore.LoadOrCreateSessionAsync(agent, thread, excludedTurnId, ct);
+        => threadStore.LoadModelHistoryAsync(thread, excludedTurnId, ct);
 
     public Task RollbackThreadAsync(SessionThread thread, int numTurns, CancellationToken ct = default)
         => threadStore.RollbackThreadAsync(thread, numTurns, ct);
@@ -163,6 +160,27 @@ public sealed class SessionPersistenceService(
 
     internal CodexContextWindowRecord AdvanceCodexContextWindow(string threadId)
         => _codexContextWindowStore.Advance(threadId);
+
+    internal Task<ProviderHistorySnapshot> LoadProviderHistoryAsync(
+        SessionThread thread,
+        string currentContextWindowId,
+        CancellationToken ct = default)
+        => threadStore.LoadProviderHistoryAsync(thread, currentContextWindowId, ct);
+
+    internal Task AppendProviderHistoryItemsAsync(
+        ProviderHistoryItemsAppendedPayload payload,
+        CancellationToken ct = default)
+        => threadStore.AppendProviderHistoryItemsAsync(payload, ct);
+
+    internal Task ReplaceProviderHistoryAsync(
+        ProviderHistoryReplacedPayload payload,
+        CancellationToken ct = default)
+        => threadStore.ReplaceProviderHistoryAsync(payload, ct);
+
+    internal Task AbortProviderHistoryAttemptAsync(
+        ProviderHistoryAttemptAbortedPayload payload,
+        CancellationToken ct = default)
+        => threadStore.AbortProviderHistoryAttemptAsync(payload, ct);
 
     public IReadOnlyDictionary<string, string> GetItemWidgetStates(string threadId)
         => threadStore.LoadItemWidgetStates(threadId);

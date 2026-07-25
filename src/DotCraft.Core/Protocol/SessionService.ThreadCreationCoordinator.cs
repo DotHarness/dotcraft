@@ -34,7 +34,8 @@ public sealed partial class SessionService
                 HistoryMode = historyMode,
                 Configuration = capturedConfig,
                 DisplayName = displayName,
-                Source = source ?? ThreadSource.User()
+                Source = source ?? ThreadSource.User(),
+                ProviderHistorySchemaVersion = ProviderHistorySchema.CurrentSchemaVersion
             };
 
             if (identity.ChannelContext != null)
@@ -141,7 +142,8 @@ public sealed partial class SessionService
                 Worktree = options.Worktree,
                 Metadata = CopyForkMetadata(source, identity),
                 Turns = forkedTurns,
-                QueuedInputs = []
+                QueuedInputs = [],
+                ProviderHistorySchemaVersion = ProviderHistorySchema.CurrentSchemaVersion
             };
 
             owner._runtimeRegistry.SetThread(forked);
@@ -160,6 +162,7 @@ public sealed partial class SessionService
                 var materialization = await owner.Persistence.BuildForkModelHistoryMaterializationAsync(source, forked, ct);
                 await owner.PersistThreadWithMaterializationAsync(forked, ct);
                 await PersistForkModelHistoryAsync(forked, materialization, ct);
+                await PersistForkProviderHistoryAsync(source, forked, options, ct);
             }
 
             broker.PublishThreadEvent(SessionEventType.ThreadCreated, forked);
@@ -210,6 +213,51 @@ public sealed partial class SessionService
                 materialization.EstimatedTokens,
                 materialization.UsageSource,
                 materialization.UsageIsEstimate,
+                ct);
+        }
+
+        private async Task PersistForkProviderHistoryAsync(
+            SessionThread source,
+            SessionThread forked,
+            ThreadForkOptions options,
+            CancellationToken ct)
+        {
+            if (forked.ProviderHistorySchemaVersion != ProviderHistorySchema.CurrentSchemaVersion
+                || source.ProviderHistorySchemaVersion != ProviderHistorySchema.CurrentSchemaVersion
+                || !string.IsNullOrWhiteSpace(options.ForkPoint?.ItemId))
+            {
+                return;
+            }
+
+            var selectedSource = new SessionThread
+            {
+                Id = source.Id,
+                ProviderHistorySchemaVersion = source.ProviderHistorySchemaVersion,
+                Turns = forked.Turns
+            };
+            var sourceWindow = owner.GetOrCreateCodexContextWindow(source.Id);
+            var sourceSnapshot = await owner.Persistence.LoadProviderHistoryAsync(
+                selectedSource,
+                sourceWindow.CurrentWindowId,
+                ct);
+            if (sourceSnapshot.Entries.Count == 0)
+                return;
+
+            var forkWindow = owner.GetOrCreateCodexContextWindow(forked.Id);
+            await owner.Persistence.ReplaceProviderHistoryAsync(
+                new ProviderHistoryReplacedPayload
+                {
+                    SchemaVersion = ProviderHistorySchema.CurrentSchemaVersion,
+                    ThreadId = forked.Id,
+                    Protocol = ProviderHistorySchema.OpenAIResponsesProtocol,
+                    GenerationId = forkWindow.CurrentWindowId,
+                    ContextWindowId = forkWindow.CurrentWindowId,
+                    CoveredThroughTurnId = forked.Turns.LastOrDefault()?.Id,
+                    Reason = "fork",
+                    Entries = sourceSnapshot.Entries
+                        .Select(ProviderHistoryReplayer.CloneEntry)
+                        .ToList()
+                },
                 ct);
         }
 

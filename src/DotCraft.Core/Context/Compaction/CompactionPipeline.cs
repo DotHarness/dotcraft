@@ -1,8 +1,6 @@
-using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using DotCraft.Configuration;
 using DotCraft.Tracing;
-using Microsoft.Agents.AI;
 using DotCraft.Agents;
 using Microsoft.Extensions.AI;
 
@@ -140,7 +138,7 @@ public sealed class CompactionPipeline
     /// falls back to <see cref="MessageTokenEstimator.Estimate"/>.
     /// </summary>
     public async Task<CompactionStatus> TryAutoCompactAsync(
-        AgentSession session,
+        List<ChatMessage> session,
         string threadId,
         long inputTokenHint,
         DateTimeOffset? lastAssistantTimestampUtc,
@@ -162,17 +160,6 @@ public sealed class CompactionPipeline
                 FailureReason: "auto_disabled");
         }
 
-        if (!TryGetProvider(session, out var provider))
-        {
-            var skippedBefore = BeforeFromHintOrZero();
-            var threshold = EvaluateThreshold(skippedBefore);
-            return new CompactionStatus(
-                CompactionOutcome.Skipped,
-                skippedBefore, skippedBefore,
-                threshold, threshold,
-                FailureReason: "no_history_provider");
-        }
-
         if (_failures.IsTripped(threadId))
         {
             var skippedBefore = BeforeFromHintOrZero();
@@ -184,7 +171,7 @@ public sealed class CompactionPipeline
                 FailureReason: "circuit_breaker_tripped");
         }
 
-        var history = SnapshotHistory(session, provider);
+        var history = SnapshotHistory(session);
         var before = inputTokenHint > 0
             ? (int)Math.Min(int.MaxValue, inputTokenHint)
             : MessageTokenEstimator.Estimate(history);
@@ -206,7 +193,7 @@ public sealed class CompactionPipeline
             snapshot: snapshot,
             requestOverheadTokens: requestOverheadTokens);
 
-        ApplyHistoryReplacement(session, provider, result.Messages);
+        ApplyHistoryReplacement(session, result.Messages);
         return result.Status;
     }
 
@@ -278,7 +265,7 @@ public sealed class CompactionPipeline
     /// evaluation and always runs summary-producing compaction.
     /// </summary>
     public async Task<CompactionStatus> TryReactiveCompactAsync(
-        AgentSession session,
+        List<ChatMessage> session,
         string threadId,
         DateTimeOffset? lastAssistantTimestampUtc,
         CancellationToken cancellationToken)
@@ -290,13 +277,6 @@ public sealed class CompactionPipeline
                 EvaluateThreshold(0), EvaluateThreshold(0),
                 FailureReason: "reactive_disabled");
 
-        if (!TryGetProvider(session, out var provider))
-            return new CompactionStatus(
-                CompactionOutcome.Skipped,
-                0, 0,
-                EvaluateThreshold(0), EvaluateThreshold(0),
-                FailureReason: "no_history_provider");
-
         if (_failures.IsTripped(threadId))
             return new CompactionStatus(
                 CompactionOutcome.Failed,
@@ -304,7 +284,7 @@ public sealed class CompactionPipeline
                 EvaluateThreshold(0), EvaluateThreshold(0),
                 FailureReason: "circuit_breaker_tripped");
 
-        var history = SnapshotHistory(session, provider);
+        var history = SnapshotHistory(session);
         var before = MessageTokenEstimator.Estimate(history);
         var beforeThreshold = EvaluateThreshold(before);
 
@@ -316,7 +296,7 @@ public sealed class CompactionPipeline
             lastAssistantTimestampUtc,
             cancellationToken,
             forcePartial: true);
-        ApplyHistoryReplacement(session, provider, result.Messages);
+        ApplyHistoryReplacement(session, result.Messages);
         return result.Status;
     }
 
@@ -326,7 +306,7 @@ public sealed class CompactionPipeline
     /// limit.
     /// </summary>
     public async Task<CompactionStatus> TryManualCompactAsync(
-        AgentSession session,
+        List<ChatMessage> session,
         string threadId,
         DateTimeOffset? lastAssistantTimestampUtc,
         CancellationToken cancellationToken,
@@ -335,13 +315,6 @@ public sealed class CompactionPipeline
         IReadOnlyList<AITool>? fallbackTools = null,
         bool carryRequestOverhead = true)
     {
-        if (!TryGetProvider(session, out var provider))
-            return new CompactionStatus(
-                CompactionOutcome.Skipped,
-                0, 0,
-                EvaluateThreshold(0), EvaluateThreshold(0),
-                FailureReason: "no_history_provider");
-
         if (_failures.IsTripped(threadId))
             return new CompactionStatus(
                 CompactionOutcome.Failed,
@@ -349,7 +322,7 @@ public sealed class CompactionPipeline
                 EvaluateThreshold(0), EvaluateThreshold(0),
                 FailureReason: "circuit_breaker_tripped");
 
-        var history = SnapshotHistory(session, provider);
+        var history = SnapshotHistory(session);
         var result = await TryManualCompactHistoryAsync(
             history,
             threadId,
@@ -359,15 +332,14 @@ public sealed class CompactionPipeline
             snapshot,
             fallbackTools,
             carryRequestOverhead);
-        ApplyHistoryReplacement(session, provider, result.Messages);
+        ApplyHistoryReplacement(session, result.Messages);
         return result.Status;
     }
 
     /// <summary>
     /// Manual compaction for an explicit history snapshot. This is used by
     /// clients that need to compact an idle persisted session even when the
-    /// loaded <see cref="AgentSession"/> does not expose an in-memory history
-    /// provider.
+    /// loaded model history is represented directly by MEAI messages.
     /// </summary>
     public async Task<CompactionHistoryResult> TryManualCompactHistoryAsync(
         IReadOnlyList<ChatMessage> history,
@@ -719,12 +691,8 @@ public sealed class CompactionPipeline
             parsed > 0;
     }
 
-    private static IReadOnlyList<ChatMessage> SnapshotHistory(
-        AgentSession session,
-        InMemoryChatHistoryProvider provider)
-    {
-        return [.. provider.GetMessages(session)];
-    }
+    private static IReadOnlyList<ChatMessage> SnapshotHistory(List<ChatMessage> history) =>
+        [.. history];
 
     private static int EstimateRequestOverheadTokens(
         IReadOnlyList<ChatMessage> history,
@@ -749,19 +717,10 @@ public sealed class CompactionPipeline
     }
 
     private static void ApplyHistoryReplacement(
-        AgentSession session,
-        InMemoryChatHistoryProvider provider,
+        List<ChatMessage> history,
         IReadOnlyList<ChatMessage> newHistory)
     {
-        provider.SetMessages(session, [.. newHistory]);
-    }
-
-    private static bool TryGetProvider(
-        AgentSession session,
-        [NotNullWhen(true)] out InMemoryChatHistoryProvider? provider)
-    {
-        var chatHistory = session.GetService<ChatHistoryProvider>();
-        provider = chatHistory as InMemoryChatHistoryProvider;
-        return provider is not null;
+        history.Clear();
+        history.AddRange(newHistory);
     }
 }

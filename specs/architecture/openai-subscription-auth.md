@@ -107,13 +107,15 @@ preserves the installation id.
 | Auth method | Base URL | Path | Auth header | Extra headers |
 |---|---|---|---|---|
 | API key | `https://api.openai.com/v1` | `/responses`, `/chat/completions`, `/models` | `Authorization: Bearer <api-key>` | — |
-| ChatGPT OAuth | `https://chatgpt.com/backend-api/codex` | `/responses` | `Authorization: Bearer <access_token>` | `chatgpt-account-id: <account_id>`, `originator: codex_cli_rs`, `x-codex-installation-id: <uuid>`, `session-id: <thread_id>`, `thread-id: <thread_id>`, `x-codex-window-id: <window_id>`, `x-codex-turn-metadata: <json>`, `x-codex-turn-state: <state>` when established in the same logical turn |
+| ChatGPT OAuth | `https://chatgpt.com/backend-api/codex` | `/responses` | `Authorization: Bearer <access_token>` | `chatgpt-account-id: <account_id>`, `originator: codex_cli_rs`, `x-codex-installation-id: <uuid>`, `session-id: <root_thread_id>`, `thread-id: <current_thread_id>`, `x-client-request-id: <current_thread_id>`, `x-codex-window-id: <window_id>`, `x-codex-turn-metadata: <json>`, `x-codex-turn-state: <state>` when established in the same logical turn |
 | ChatGPT OAuth | `https://chatgpt.com/backend-api/codex` | `/models` | `Authorization: Bearer <access_token>` | `chatgpt-account-id: <account_id>`, `originator: codex_cli_rs` |
 
-For HTTP Responses, DotCraft sends the `session-id` / `thread-id` pair plus the body-level
-`prompt_cache_key`. All three values come from the active `TracingChatClient.CurrentSessionKey`
-(the DotCraft thread id). `session_id` and `thread_id` are body-level `client_metadata` keys, not
-direct HTTP headers.
+For HTTP Responses, DotCraft sends `session-id`, `thread-id`, and `x-client-request-id` plus the
+body-level `prompt_cache_key`. `session-id` and the default cache key use the root cache-session
+identity; `thread-id` and `x-client-request-id` use the currently executing DotCraft thread.
+They are equal for root threads and ordinary user forks. A subagent shares its root thread's cache
+session while retaining its child thread as the execution and correlation identity. `session_id`
+and `thread_id` are body-level `client_metadata` keys, not direct HTTP headers.
 
 Each thread/session header gives the ChatGPT backend's prompt-cache shards a finer-grained anchor
 than `chatgpt-account-id` alone so that requests on the same thread tend to land on the cache node
@@ -133,11 +135,11 @@ envelope for the Responses API, and flat fields expose the routing identities us
 {
   "client_metadata": {
     "x-codex-installation-id": "<uuid>",
-    "session_id": "<thread_id>",
-    "thread_id": "<thread_id>",
+    "session_id": "<root_thread_id>",
+    "thread_id": "<current_thread_id>",
     "turn_id": "<turn_id>",
     "x-codex-window-id": "<window_id>",
-    "x-codex-turn-metadata": "{\"installation_id\":\"<uuid>\",\"session_id\":\"<thread_id>\",\"thread_id\":\"<thread_id>\",\"turn_id\":\"<turn_id>\",\"window_id\":\"<window_id>\",\"request_kind\":\"turn\",\"turn_started_at_unix_ms\":1778544000000}"
+    "x-codex-turn-metadata": "{\"installation_id\":\"<uuid>\",\"session_id\":\"<root_thread_id>\",\"thread_id\":\"<current_thread_id>\",\"turn_id\":\"<turn_id>\",\"window_id\":\"<window_id>\",\"request_kind\":\"turn\",\"turn_started_at_unix_ms\":1778544000000}"
   }
 }
 ```
@@ -149,17 +151,81 @@ preserved, but provider-reserved keys are authoritative runtime state. Caller-pr
 `x-codex-turn-metadata` are overwritten when they differ from DotCraft's active runtime context so
 the header and body use one sticky-routing identity.
 
+## Thread conversation and request identity
+
+Session Core constructs one immutable `ThreadConversationIdentity` at the model-invocation
+lifecycle boundary. It contains the current, root, parent, and fork-source thread ids; turn id;
+context-window id; request kind; thread source; and subagent kind. Optional lineage fields remain
+absent when the corresponding relationship does not exist. Starting another turn or replacing the
+context window creates a new snapshot instead of mutating the active snapshot.
+
+The OpenAI Responses adapter derives one request identity from that snapshot:
+
+| Request value | Source |
+|---|---|
+| `session-id` / `client_metadata.session_id` | `ThreadConversationIdentity.RootThreadId` |
+| `thread-id` / `client_metadata.thread_id` | `ThreadConversationIdentity.CurrentThreadId` |
+| `x-client-request-id` | `ThreadConversationIdentity.CurrentThreadId` |
+| Default `prompt_cache_key` | `ThreadConversationIdentity.RootThreadId` |
+| Turn, window, parent, fork, source, and subagent metadata | Corresponding immutable lifecycle fields |
+
+For a native Session Core subagent created through the thread-spawn lifecycle, provider
+compatibility metadata uses the provider taxonomy rather than DotCraft's internal runtime
+taxonomy:
+
+| Provider projection | Value |
+|---|---|
+| `x-openai-subagent` header | `collab_spawn` |
+| `client_metadata["x-openai-subagent"]` | `collab_spawn` |
+| `x-codex-turn-metadata.subagent_kind` | `thread_spawn` |
+
+The subagent's DotCraft runtime type, profile, role, parent, and root lineage remain on its Session
+Core thread source and spawn edge. They are not replaced by these provider-facing compatibility
+values. This projection does not participate in root/current thread resolution and therefore does
+not change `session-id`, `thread-id`, `x-client-request-id`, or `prompt_cache_key`.
+
+An explicit caller-provided `prompt_cache_key` remains authoritative over the derived default.
+Requests made outside a Session Core scope retain the existing active-session compatibility
+fallback. The adapter resolves that fallback once into the request identity. Request mapping,
+OAuth headers, and `client_metadata` consume the resolved identity and do not independently infer
+thread or source values from tracing state.
+
+Provider state that can change within a logical turn is not part of
+`ThreadConversationIdentity`. In particular, `x-codex-turn-state` remains a separately synchronized
+turn-scoped value: responses may establish it, retries and later requests in the same turn may
+reuse it, and ending the runtime scope discards it.
+
+Thread/request identity remains independent from the canonical Responses item history defined in
+[Canonical OpenAI Responses Provider History](responses-provider-history.md). The provider-history
+capability changes only the Responses `input` source; routing identity is derived from Session
+lineage and never inferred from item history.
+
 ## Responses request contract
 
 Every OAuth `/responses` request uses `store=false`, includes
 `reasoning.encrypted_content`, and contains a `reasoning` object. The object may be empty or carry
-the configured effort and summary fields. `prompt_cache_key` is the active DotCraft thread id.
+the configured effort and summary fields. The default `prompt_cache_key` is the root cache-session
+thread id; an explicit caller value remains authoritative.
 Installation, window, Turn, parent-thread, subagent, and same-Turn provider state are projected only
 when the corresponding runtime values exist.
 
-Outbound response item IDs are included only when they contain a non-empty prefix and suffix
-separated by `_`. DotCraft omits invalid item IDs without changing `call_id`. Locally generated
-image-generation items use `ig_<uuid>`.
+Every outbound Responses input item that supports an item ID has a stable ID with a non-empty
+type prefix and suffix separated by `_`. Provider-returned valid IDs are preserved. Missing IDs
+are assigned before the item first enters a provider request and are retained in model-history
+metadata so subsequent tool loops, rollback retries, and resumed sessions replay the same IDs.
+Legacy model history without item IDs is upgraded lazily in memory without rewriting its rollout
+records. DotCraft replaces or omits invalid IDs without changing tool `call_id`; item IDs and
+tool-call correlation IDs are separate identities. Locally generated IDs use the corresponding
+Responses item prefix (`msg`, `rs`, `fc`, `fco`, `tsc`, `tso`, or `ig`).
+
+For a thread whose rollout opts into provider-history schema version 1, completed raw provider
+items and newly mapped local input items are durably appended to the canonical Responses history.
+Later requests consume that item sequence directly instead of reconstructing prior turns from
+aggregated MEAI messages. Threads without the capability retain the legacy mapping behavior.
+
+`PromptCacheRequestShape` diagnostics report the serialized input byte count and only aggregate
+item-ID coverage: eligible, present, generated, missing, and invalid-source counts. They never
+record item contents, credentials, or reasoning protected data.
 
 The OAuth `/responses` transport omits the top-level `max_output_tokens` request field even when a
 caller sets `ChatOptions.MaxOutputTokens`, because this backend path rejects that parameter. The
@@ -173,6 +239,12 @@ logical Session Core turn and replays that value on subsequent `/responses` requ
 turn, including every bounded 401 recovery attempt. The stored value is discarded when the logical
 turn's runtime scope ends and is not persisted to thread history, trace events, or the next user
 turn.
+
+When the ChatGPT OAuth stream terminates with `server_error` before emitting text, reasoning text,
+or a tool call, DotCraft retries that sampling request once. Usage, error, and echoed tool-result
+updates from the failed attempt remain buffered and are not surfaced or executed. A second
+`server_error`, or any failure after visible model output, is surfaced immediately with the final
+provider message and request ID.
 
 ## HTTP 401 recovery
 

@@ -4,7 +4,6 @@ using DotCraft.Agents;
 using DotCraft.Context.Compaction;
 using DotCraft.Plugins;
 using DotCraft.State;
-using Microsoft.Agents.AI;
 using Microsoft.Extensions.AI;
 
 namespace DotCraft.Protocol;
@@ -199,27 +198,20 @@ public sealed class ThreadStore : IAsyncDisposable
     }
 
     internal async Task PersistModelHistoryAsync(
-        AgentSession session,
+        IReadOnlyList<ChatMessage> history,
         string threadId,
         string turnId,
         int persistedPrefixLength,
         CancellationToken ct = default)
     {
-        if (!session.TryGetInMemoryChatHistory(
-                out var currentHistory,
-                jsonSerializerOptions: SessionPersistenceJsonOptions.Default))
-        {
-            return;
-        }
-
-        if (persistedPrefixLength < 0 || persistedPrefixLength > currentHistory.Count)
+        if (persistedPrefixLength < 0 || persistedPrefixLength > history.Count)
         {
             throw new InvalidOperationException($"Invalid model-history prefix length for thread '{threadId}'.");
         }
 
         using var writeLock = await ThreadRolloutWriteGate.AcquireAsync(_botPath, threadId, ct);
         var codec = new ModelHistoryCodec();
-        var appended = currentHistory
+        var appended = history
             .Skip(persistedPrefixLength)
             .Select(message => codec.Encode(message, turnId))
             .ToList();
@@ -241,6 +233,75 @@ public sealed class ThreadStore : IAsyncDisposable
             history.Select(message => codec.Encode(message, turnId)).ToList(),
             ct);
         TryUpdateRolloutOffsetProjection(threadId, result);
+    }
+
+    internal async Task<ProviderHistorySnapshot> LoadProviderHistoryAsync(
+        SessionThread thread,
+        string currentContextWindowId,
+        CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(thread);
+        if (thread.ProviderHistorySchemaVersion == 0)
+            return ProviderHistorySnapshot.Empty(currentContextWindowId);
+        if (thread.ProviderHistorySchemaVersion != ProviderHistorySchema.CurrentSchemaVersion)
+        {
+            throw new InvalidDataException(
+                $"responses_provider_history_corrupt: Thread '{thread.Id}' uses unsupported provider history schema version {thread.ProviderHistorySchemaVersion}.");
+        }
+
+        var records = await _rolloutStore.LoadProviderHistoryRecordsAsync(thread.Id, ct);
+        var checkpoints = await _rolloutStore.LoadCompactionCheckpointsAsync(thread.Id, ct);
+        var latestCheckpoint = checkpoints.LastOrDefault();
+        var latestReplacementTimestamp = records
+            .Where(static record => record.ProviderHistoryReplaced is not null)
+            .Select(static record => (DateTimeOffset?)record.Timestamp)
+            .LastOrDefault();
+        if (latestCheckpoint is not null
+            && (!latestReplacementTimestamp.HasValue
+                || latestCheckpoint.CreatedAt > latestReplacementTimestamp.Value))
+        {
+            // The rollout checkpoint is authoritative. A process may have stopped after committing
+            // it but before publishing the derived provider-history replacement. Returning an empty
+            // snapshot makes Session Core advance the window and rebuild the provider prefix from
+            // the replayed compacted history.
+            return ProviderHistorySnapshot.Empty(currentContextWindowId);
+        }
+
+        var survivingTurnIds = thread.Turns
+            .Select(turn => turn.Id)
+            .ToHashSet(StringComparer.Ordinal);
+        return ProviderHistoryReplayer.Replay(
+            thread.Id,
+            currentContextWindowId,
+            survivingTurnIds,
+            records);
+    }
+
+    internal async Task AppendProviderHistoryItemsAsync(
+        ProviderHistoryItemsAppendedPayload payload,
+        CancellationToken ct = default)
+    {
+        using var writeLock = await ThreadRolloutWriteGate.AcquireAsync(_botPath, payload.ThreadId, ct);
+        var result = await _rolloutStore.AppendProviderHistoryItemsAsync(payload, ct);
+        TryUpdateRolloutOffsetProjection(payload.ThreadId, result);
+    }
+
+    internal async Task ReplaceProviderHistoryAsync(
+        ProviderHistoryReplacedPayload payload,
+        CancellationToken ct = default)
+    {
+        using var writeLock = await ThreadRolloutWriteGate.AcquireAsync(_botPath, payload.ThreadId, ct);
+        var result = await _rolloutStore.AppendProviderHistoryReplacementAsync(payload, ct);
+        TryUpdateRolloutOffsetProjection(payload.ThreadId, result);
+    }
+
+    internal async Task AbortProviderHistoryAttemptAsync(
+        ProviderHistoryAttemptAbortedPayload payload,
+        CancellationToken ct = default)
+    {
+        using var writeLock = await ThreadRolloutWriteGate.AcquireAsync(_botPath, payload.ThreadId, ct);
+        var result = await _rolloutStore.AppendProviderHistoryAttemptAbortedAsync(payload, ct);
+        TryUpdateRolloutOffsetProjection(payload.ThreadId, result);
     }
 
     internal async Task<ForkModelHistoryMaterialization> BuildForkModelHistoryMaterializationAsync(
@@ -288,23 +349,21 @@ public sealed class ThreadStore : IAsyncDisposable
     }
 
     /// <summary>
-    /// Creates a runtime agent session and hydrates its model history from canonical rollout records.
+    /// Rebuilds MEAI model history from canonical rollout records.
     /// </summary>
-    public async Task<AgentSession> LoadOrCreateSessionAsync(
-        AIAgent agent,
+    public async Task<List<ChatMessage>> LoadModelHistoryAsync(
         string threadId,
         CancellationToken ct = default)
     {
-        return await RebuildSessionFromRolloutAsync(agent, threadId, ct);
+        return await RebuildModelHistoryFromRolloutAsync(threadId, ct);
     }
 
-    internal async Task<AgentSession> LoadOrCreateSessionAsync(
-        AIAgent agent,
+    internal async Task<List<ChatMessage>> LoadModelHistoryAsync(
         SessionThread thread,
         string? excludedTurnId = null,
         CancellationToken ct = default)
     {
-        return await RebuildSessionFromRolloutAsync(agent, thread, excludedTurnId, ct);
+        return await RebuildModelHistoryFromRolloutAsync(thread, excludedTurnId, ct);
     }
 
     /// <summary>
@@ -644,20 +703,18 @@ public sealed class ThreadStore : IAsyncDisposable
         }
     }
 
-    private async Task<AgentSession> RebuildSessionFromRolloutAsync(
-        AIAgent agent,
+    private async Task<List<ChatMessage>> RebuildModelHistoryFromRolloutAsync(
         string threadId,
         CancellationToken ct)
     {
         var thread = await _rolloutStore.LoadThreadAsync(threadId, ct);
         if (thread == null)
-            return await agent.CreateSessionAsync(ct);
+            return [];
 
-        return await RebuildSessionFromRolloutAsync(agent, thread, excludedTurnId: null, ct);
+        return await RebuildModelHistoryFromRolloutAsync(thread, excludedTurnId: null, ct);
     }
 
-    private async Task<AgentSession> RebuildSessionFromRolloutAsync(
-        AIAgent agent,
+    private async Task<List<ChatMessage>> RebuildModelHistoryFromRolloutAsync(
         SessionThread thread,
         string? excludedTurnId,
         CancellationToken ct)
@@ -685,10 +742,7 @@ public sealed class ThreadStore : IAsyncDisposable
             : BuildModelVisibleHistoryFromTurns(fallbackTurns);
         history = MessageGrouper.NormalizeFunctionCallArguments(history).ToList();
 
-        if (history.Count == 0)
-            return await agent.CreateSessionAsync(ct);
-
-        return await CreateSessionWithHistoryAsync(agent, history, ct);
+        return history;
     }
 
     private async Task<List<ChatMessage>?> TryBuildModelVisibleHistoryFromLatestCheckpointAsync(
@@ -862,35 +916,6 @@ public sealed class ThreadStore : IAsyncDisposable
 
         FlushAssistantSegment(history, assistantBuilder);
         return history;
-    }
-
-    private static async Task<AgentSession> CreateSessionWithHistoryAsync(
-        AIAgent agent,
-        List<ChatMessage> history,
-        CancellationToken ct)
-    {
-        var session = await agent.CreateSessionAsync(ct);
-        session.SetInMemoryChatHistory(history, jsonSerializerOptions: SessionPersistenceJsonOptions.Default);
-        return session;
-    }
-
-    private static void NormalizeSessionToolCallArguments(AgentSession session)
-    {
-        if (!session.TryGetInMemoryChatHistory(
-                out var history,
-                jsonSerializerOptions: SessionPersistenceJsonOptions.Default))
-        {
-            return;
-        }
-
-        var normalized = MessageGrouper.NormalizeFunctionCallArguments(history);
-        if (normalized.Any(static message =>
-                message.Contents.OfType<FunctionCallContent>().Any(static call => call.Arguments is not null))
-            || history.Any(static message =>
-                message.Contents.OfType<FunctionCallContent>().Any(static call => call.Arguments is null)))
-        {
-            session.SetInMemoryChatHistory(normalized, jsonSerializerOptions: SessionPersistenceJsonOptions.Default);
-        }
     }
 
     private static bool TryBuildUserMessage(SessionItem item, out ChatMessage message)

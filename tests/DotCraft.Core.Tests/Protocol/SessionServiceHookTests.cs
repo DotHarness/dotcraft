@@ -8,7 +8,6 @@ using DotCraft.Security;
 using DotCraft.Sessions;
 using DotCraft.Skills;
 using DotCraft.Tools;
-using Microsoft.Agents.AI;
 using Microsoft.Extensions.AI;
 
 namespace DotCraft.Tests.Sessions.Protocol;
@@ -128,7 +127,7 @@ public sealed class SessionServiceHookTests : IDisposable
 
     private SessionService CreateService(AgentFactory agentFactory, IChatClient chatClient, HookRunner hookRunner)
     {
-        var defaultAgent = chatClient.AsAIAgent(new ChatClientAgentOptions());
+        var defaultAgent = chatClient.AsAIAgent();
         return new SessionService(
             agentFactory,
             defaultAgent,

@@ -168,7 +168,7 @@ We welcome code, documentation, and integration contributions. Start with [CONTR
 
 ## Credits
 
-Inspired by [nanobot](https://github.com/HKUDS/nanobot) and [codex](https://github.com/openai/codex), and built on [agent-framework](https://github.com/microsoft/agent-framework).
+Inspired by [nanobot](https://github.com/HKUDS/nanobot), [codex](https://github.com/openai/codex) and [agent-framework](https://github.com/microsoft/agent-framework).
 
 Special thanks to:
 

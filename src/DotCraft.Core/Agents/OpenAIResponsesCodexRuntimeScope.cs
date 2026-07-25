@@ -1,39 +1,27 @@
+using System.ClientModel.Primitives;
 using System.Text;
 using System.Text.Json;
 using DotCraft.Auth.OpenAI;
+using DotCraft.Protocol;
 using DotCraft.Tracing;
 
 namespace DotCraft.Agents;
 
-internal static class OpenAIResponsesCodexRequestKinds
-{
-    public const string Turn = "turn";
-    public const string Compaction = "compaction";
-    public const string Memory = "memory";
-}
-
-internal sealed class OpenAIResponsesCodexRuntimeContext
+internal sealed class OpenAIResponsesCodexRuntimeContext(ThreadConversationIdentity conversationIdentity)
 {
     private readonly object _gate = new();
+    private ThreadConversationIdentity _conversationIdentity = conversationIdentity
+        ?? throw new ArgumentNullException(nameof(conversationIdentity));
     private string? _turnState;
 
-    public required string ThreadId { get; init; }
-
-    public string? TurnId { get; init; }
-
-    public required string WindowId { get; set; }
-
-    public string RequestKind { get; set; } = OpenAIResponsesCodexRequestKinds.Turn;
-
-    public long TurnStartedAtUnixMs { get; init; }
-
-    public string? ParentThreadId { get; init; }
-
-    public string? ForkedFromThreadId { get; init; }
-
-    public string? SubagentKind { get; init; }
-
-    public string? ThreadSource { get; init; }
+    public ThreadConversationIdentity ConversationIdentity
+    {
+        get
+        {
+            lock (_gate)
+                return _conversationIdentity;
+        }
+    }
 
     public string? TurnState
     {
@@ -60,6 +48,38 @@ internal sealed class OpenAIResponsesCodexRuntimeContext
         }
     }
 
+    public void AdvanceContextWindow(string contextWindowId)
+    {
+        if (string.IsNullOrWhiteSpace(contextWindowId))
+            throw new ArgumentException("Value must be non-empty.", nameof(contextWindowId));
+
+        lock (_gate)
+        {
+            _conversationIdentity = _conversationIdentity with
+            {
+                ContextWindowId = contextWindowId.Trim()
+            };
+        }
+    }
+
+    public IDisposable OverrideRequestKind(ThreadConversationRequestKind requestKind)
+    {
+        ThreadConversationRequestKind previous;
+        lock (_gate)
+        {
+            previous = _conversationIdentity.RequestKind;
+            _conversationIdentity = _conversationIdentity with { RequestKind = requestKind };
+        }
+
+        return new RequestKindScope(this, previous);
+    }
+
+    private void RestoreRequestKind(ThreadConversationRequestKind requestKind)
+    {
+        lock (_gate)
+            _conversationIdentity = _conversationIdentity with { RequestKind = requestKind };
+    }
+
     private static string? NormalizeHeaderValue(string? value)
     {
         if (string.IsNullOrWhiteSpace(value))
@@ -74,6 +94,19 @@ internal sealed class OpenAIResponsesCodexRuntimeContext
         }
 
         return builder.Length == 0 ? null : builder.ToString();
+    }
+
+    private sealed class RequestKindScope(
+        OpenAIResponsesCodexRuntimeContext owner,
+        ThreadConversationRequestKind previous) : IDisposable
+    {
+        private int _disposed;
+
+        public void Dispose()
+        {
+            if (Interlocked.Exchange(ref _disposed, 1) == 0)
+                owner.RestoreRequestKind(previous);
+        }
     }
 }
 
@@ -96,16 +129,45 @@ internal static class OpenAIResponsesCodexRuntimeScope
     }
 }
 
+internal static class OpenAIResponsesRoutingIdentityScope
+{
+    private static readonly AsyncLocal<OpenAIResponsesRoutingIdentity?> CurrentIdentity = new();
+
+    public static OpenAIResponsesRoutingIdentity? Current => CurrentIdentity.Value;
+
+    public static IDisposable Set(OpenAIResponsesRoutingIdentity identity)
+    {
+        ArgumentNullException.ThrowIfNull(identity);
+        var previous = CurrentIdentity.Value;
+        CurrentIdentity.Value = identity;
+        return new Scope(previous);
+    }
+
+    private sealed class Scope(OpenAIResponsesRoutingIdentity? previous) : IDisposable
+    {
+        public void Dispose() => CurrentIdentity.Value = previous;
+    }
+}
+
 internal sealed record OpenAIResponsesCodexMetadataSnapshot(
     string InstallationId,
     string? SessionId,
     string? ThreadId,
+    string? ClientRequestId,
+    string? DefaultPromptCacheKey,
     string? TurnId,
     string? WindowId,
     string? ParentThreadId,
+    string? SubagentHeader,
     string? SubagentKind,
     string? TurnMetadataJson,
     string? TurnState);
+
+internal sealed record OpenAIResponsesRoutingIdentity(
+    string? SessionId,
+    string? ThreadId,
+    string? DefaultPromptCacheKey,
+    string? ClientRequestId);
 
 internal static class OpenAIResponsesCodexMetadata
 {
@@ -113,35 +175,80 @@ internal static class OpenAIResponsesCodexMetadata
     {
         var normalizedInstallationId = NormalizeRequired(installationId, nameof(installationId));
         var context = OpenAIResponsesCodexRuntimeScope.Current;
-        var activeThreadId = NormalizeOptional(context?.ThreadId)
-            ?? NormalizeOptional(TracingChatClient.CurrentSessionKey)
-            ?? NormalizeOptional(TracingChatClient.GetActiveSessionKey());
+        var conversationIdentity = context?.ConversationIdentity;
+        var routingIdentity = ResolveRoutingIdentity();
 
         if (context == null)
         {
             return new OpenAIResponsesCodexMetadataSnapshot(
                 normalizedInstallationId,
-                activeThreadId,
-                activeThreadId,
+                routingIdentity.SessionId,
+                routingIdentity.ThreadId,
+                routingIdentity.ClientRequestId,
+                routingIdentity.DefaultPromptCacheKey,
                 TurnId: null,
                 WindowId: null,
                 ParentThreadId: null,
+                SubagentHeader: null,
                 SubagentKind: null,
                 TurnMetadataJson: null,
                 TurnState: null);
         }
 
-        var turnMetadata = BuildTurnMetadataJson(normalizedInstallationId, context, activeThreadId);
+        var turnMetadata = BuildTurnMetadataJson(
+            normalizedInstallationId,
+            conversationIdentity!,
+            routingIdentity);
         return new OpenAIResponsesCodexMetadataSnapshot(
             normalizedInstallationId,
-            activeThreadId,
-            activeThreadId,
-            NormalizeOptional(context.TurnId),
-            NormalizeOptional(context.WindowId),
-            NormalizeOptional(context.ParentThreadId),
-            NormalizeOptional(context.SubagentKind),
+            routingIdentity.SessionId,
+            routingIdentity.ThreadId,
+            routingIdentity.ClientRequestId,
+            routingIdentity.DefaultPromptCacheKey,
+            NormalizeOptional(conversationIdentity!.TurnId),
+            NormalizeOptional(conversationIdentity.ContextWindowId),
+            NormalizeOptional(conversationIdentity.ParentThreadId),
+            ResolveSubagentHeader(conversationIdentity.SubagentKind),
+            NormalizeOptional(conversationIdentity.SubagentKind),
             turnMetadata,
             context.TurnState);
+    }
+
+    internal static OpenAIResponsesCodexMetadataSnapshot GetOrCreateSnapshot(
+        PipelineMessage message,
+        string installationId)
+    {
+        ArgumentNullException.ThrowIfNull(message);
+        if (message.TryGetProperty(
+                typeof(OpenAIResponsesCodexMetadataSnapshot),
+                out var value)
+            && value is OpenAIResponsesCodexMetadataSnapshot snapshot)
+        {
+            return snapshot;
+        }
+
+        snapshot = CreateSnapshot(installationId);
+        message.SetProperty(typeof(OpenAIResponsesCodexMetadataSnapshot), snapshot);
+        return snapshot;
+    }
+
+    internal static OpenAIResponsesRoutingIdentity ResolveRoutingIdentity()
+    {
+        if (OpenAIResponsesRoutingIdentityScope.Current is { } requestIdentity)
+            return requestIdentity;
+
+        var conversationIdentity = OpenAIResponsesCodexRuntimeScope.Current?.ConversationIdentity;
+        var fallbackThreadId = NormalizeOptional(TracingChatClient.CurrentSessionKey)
+                               ?? NormalizeOptional(TracingChatClient.GetActiveSessionKey());
+        var currentThreadId = NormalizeOptional(conversationIdentity?.CurrentThreadId)
+                              ?? fallbackThreadId;
+        var cacheSessionId = NormalizeOptional(conversationIdentity?.RootThreadId)
+                             ?? currentThreadId;
+        return new OpenAIResponsesRoutingIdentity(
+            SessionId: cacheSessionId,
+            ThreadId: currentThreadId,
+            DefaultPromptCacheKey: cacheSessionId,
+            ClientRequestId: currentThreadId);
     }
 
     internal static IReadOnlyDictionary<string, string> BuildClientMetadata(
@@ -157,37 +264,51 @@ internal static class OpenAIResponsesCodexMetadata
         AddIfPresent(metadata, "turn_id", snapshot.TurnId);
         AddIfPresent(metadata, OpenAIAuthConstants.WindowIdHeader, snapshot.WindowId);
         AddIfPresent(metadata, OpenAIAuthConstants.ParentThreadIdHeader, snapshot.ParentThreadId);
-        AddIfPresent(metadata, OpenAIAuthConstants.SubAgentHeader, snapshot.SubagentKind);
+        AddIfPresent(metadata, OpenAIAuthConstants.SubAgentHeader, snapshot.SubagentHeader);
         AddIfPresent(metadata, OpenAIAuthConstants.TurnMetadataHeader, snapshot.TurnMetadataJson);
         return metadata;
     }
 
+    private static string? ResolveSubagentHeader(string? subagentKind) =>
+        string.Equals(subagentKind, "thread_spawn", StringComparison.Ordinal)
+            ? "collab_spawn"
+            : NormalizeOptional(subagentKind);
+
     private static string BuildTurnMetadataJson(
         string installationId,
-        OpenAIResponsesCodexRuntimeContext context,
-        string? activeThreadId)
+        ThreadConversationIdentity identity,
+        OpenAIResponsesRoutingIdentity routingIdentity)
     {
         using var stream = new MemoryStream();
         using (var writer = new Utf8JsonWriter(stream))
         {
             writer.WriteStartObject();
             writer.WriteString("installation_id", installationId);
-            WriteStringIfPresent(writer, "session_id", activeThreadId);
-            WriteStringIfPresent(writer, "thread_id", activeThreadId);
-            WriteStringIfPresent(writer, "turn_id", context.TurnId);
-            WriteStringIfPresent(writer, "window_id", context.WindowId);
-            WriteStringIfPresent(writer, "request_kind", context.RequestKind);
-            if (context.TurnStartedAtUnixMs > 0)
-                writer.WriteNumber("turn_started_at_unix_ms", context.TurnStartedAtUnixMs);
-            WriteStringIfPresent(writer, "parent_thread_id", context.ParentThreadId);
-            WriteStringIfPresent(writer, "forked_from_thread_id", context.ForkedFromThreadId);
-            WriteStringIfPresent(writer, "subagent_kind", context.SubagentKind);
-            WriteStringIfPresent(writer, "thread_source", context.ThreadSource);
+            WriteStringIfPresent(writer, "session_id", routingIdentity.SessionId);
+            WriteStringIfPresent(writer, "thread_id", routingIdentity.ThreadId);
+            WriteStringIfPresent(writer, "turn_id", identity.TurnId);
+            WriteStringIfPresent(writer, "window_id", identity.ContextWindowId);
+            writer.WriteString("request_kind", ToProviderRequestKind(identity.RequestKind));
+            if (identity.TurnStartedAtUnixMs > 0)
+                writer.WriteNumber("turn_started_at_unix_ms", identity.TurnStartedAtUnixMs);
+            WriteStringIfPresent(writer, "parent_thread_id", identity.ParentThreadId);
+            WriteStringIfPresent(writer, "forked_from_thread_id", identity.ForkedFromThreadId);
+            WriteStringIfPresent(writer, "subagent_kind", identity.SubagentKind);
+            WriteStringIfPresent(writer, "thread_source", identity.ThreadSource);
             writer.WriteEndObject();
         }
 
         return Encoding.UTF8.GetString(stream.ToArray());
     }
+
+    private static string ToProviderRequestKind(ThreadConversationRequestKind requestKind) =>
+        requestKind switch
+        {
+            ThreadConversationRequestKind.Turn => "turn",
+            ThreadConversationRequestKind.Compaction => "compaction",
+            ThreadConversationRequestKind.Memory => "memory",
+            _ => throw new ArgumentOutOfRangeException(nameof(requestKind), requestKind, null)
+        };
 
     private static void AddIfPresent(Dictionary<string, string> metadata, string key, string? value)
     {

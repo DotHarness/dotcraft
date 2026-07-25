@@ -2,7 +2,6 @@ using System.Text.Json;
 using DotCraft.Agents;
 using DotCraft.Context.Compaction;
 using DotCraft.Protocol;
-using Microsoft.Agents.AI;
 using Microsoft.Extensions.AI;
 
 namespace DotCraft.Tests.Sessions.Protocol;

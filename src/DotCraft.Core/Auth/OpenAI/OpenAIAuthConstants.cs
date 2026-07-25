@@ -65,6 +65,13 @@ public static class OpenAIAuthConstants
     public const string ThreadIdHeader = "thread-id";
 
     /// <summary>
+    /// Header carrying the currently executing DotCraft thread identifier for request
+    /// correlation. Unlike <see cref="SessionIdHeader"/>, this remains child-scoped for
+    /// subagent requests.
+    /// </summary>
+    public const string ClientRequestIdHeader = "x-client-request-id";
+
+    /// <summary>
     /// Session identifier key used inside the ChatGPT Responses <c>client_metadata</c> object.
     /// It is not emitted as a direct HTTP header.
     /// </summary>

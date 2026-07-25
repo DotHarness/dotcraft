@@ -12,7 +12,6 @@ using DotCraft.Security;
 using DotCraft.Sessions;
 using DotCraft.Skills;
 using DotCraft.Tracing;
-using Microsoft.Agents.AI;
 using Microsoft.Extensions.AI;
 
 namespace DotCraft.Tests.Sessions.Protocol;
@@ -97,6 +96,51 @@ public sealed class SessionServiceManualCompactionTests : IDisposable
             $"{thread.Id}.jsonl"));
         Assert.Contains("context_compacted", rolloutJson, StringComparison.Ordinal);
         Assert.Contains("replacementHistory", rolloutJson, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task CompactThreadAsync_UsesLifecycleIdentityAndAdvancesWindowForNextTurn()
+    {
+        var mainChat = new IdentityCapturingChatClient("ok", supportsStreaming: true);
+        var summaryChat = new IdentityCapturingChatClient(
+            "<summary>older context summary</summary>",
+            supportsStreaming: false);
+        await using var agentFactory = CreateAgentFactory(summaryChat);
+        var service = CreateService(agentFactory, mainChat);
+        var thread = await service.CreateThreadAsync(
+            MakeIdentity(),
+            threadId: "thread-identity-compaction");
+
+        for (var i = 0; i < 4; i++)
+        {
+            await DrainAsync(service.SubmitInputAsync(
+                thread.Id,
+                [new TextContent($"turn {i} " + new string('u', 1200))]));
+        }
+
+        var windowBeforeCompaction = Assert.Single(
+            mainChat.Identities.Select(identity => identity.ContextWindowId).Distinct());
+
+        var result = await service.CompactThreadAsync(thread.Id);
+
+        Assert.Equal("partial", result.Outcome);
+        var compactionIdentity = Assert.Single(summaryChat.Identities);
+        Assert.Equal(thread.Id, compactionIdentity.CurrentThreadId);
+        Assert.Equal(thread.Id, compactionIdentity.RootThreadId);
+        Assert.Null(compactionIdentity.TurnId);
+        Assert.Equal(ThreadConversationRequestKind.Compaction, compactionIdentity.RequestKind);
+        Assert.Equal(windowBeforeCompaction, compactionIdentity.ContextWindowId);
+
+        await DrainAsync(service.SubmitInputAsync(
+            thread.Id,
+            [new TextContent("after compaction")]));
+
+        var nextTurnIdentity = mainChat.Identities[^1];
+        Assert.Equal(thread.Id, nextTurnIdentity.CurrentThreadId);
+        Assert.Equal(thread.Id, nextTurnIdentity.RootThreadId);
+        Assert.NotNull(nextTurnIdentity.TurnId);
+        Assert.Equal(ThreadConversationRequestKind.Turn, nextTurnIdentity.RequestKind);
+        Assert.NotEqual(windowBeforeCompaction, nextTurnIdentity.ContextWindowId);
     }
 
     [Fact]
@@ -503,7 +547,7 @@ public sealed class SessionServiceManualCompactionTests : IDisposable
         TraceCollector? traceCollector = null,
         HookRunner? hookRunner = null)
     {
-        var defaultAgent = mainChatClient.AsAIAgent(new ChatClientAgentOptions());
+        var defaultAgent = mainChatClient.AsAIAgent();
         return new SessionService(
             agentFactory,
             defaultAgent,
@@ -627,10 +671,10 @@ public sealed class SessionServiceManualCompactionTests : IDisposable
         evt.EventType == SessionEventType.ItemCompleted
         && evt.Payload is SessionItem { Payload: SystemNoticePayload { Kind: "compacted", Trigger: "manual" } };
 
-    private static AIAgent CreateAgent() =>
-        new StreamingReplyChatClient("unused").AsAIAgent(new ChatClientAgentOptions());
+    private static ChatClientAgent CreateAgent() =>
+        new StreamingReplyChatClient("unused").AsAIAgent();
 
-    private static List<string> FormatHistory(AgentSession session)
+    private static List<string> FormatHistory(List<ChatMessage> session)
     {
         Assert.True(session.TryGetInMemoryChatHistory(
             out var chatHistory,
@@ -747,6 +791,46 @@ public sealed class SessionServiceManualCompactionTests : IDisposable
         public object? GetService(Type serviceType, object? serviceKey = null) => null;
 
         public void Dispose() { }
+    }
+
+    private sealed class IdentityCapturingChatClient(
+        string responseText,
+        bool supportsStreaming) : IChatClient
+    {
+        public List<ThreadConversationIdentity> Identities { get; } = [];
+
+        public Task<ChatResponse> GetResponseAsync(
+            IEnumerable<ChatMessage> messages,
+            ChatOptions? options = null,
+            CancellationToken cancellationToken = default)
+        {
+            CaptureIdentity();
+            return Task.FromResult(new ChatResponse(new ChatMessage(ChatRole.Assistant, responseText)));
+        }
+
+        public async IAsyncEnumerable<ChatResponseUpdate> GetStreamingResponseAsync(
+            IEnumerable<ChatMessage> messages,
+            ChatOptions? options = null,
+            [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
+        {
+            if (!supportsStreaming)
+                throw new NotSupportedException();
+
+            CaptureIdentity();
+            yield return new ChatResponseUpdate(ChatRole.Assistant, [new TextContent(responseText)]);
+            await Task.CompletedTask;
+        }
+
+        public object? GetService(Type serviceType, object? serviceKey = null) => null;
+
+        public void Dispose() { }
+
+        private void CaptureIdentity()
+        {
+            var identity = OpenAIResponsesCodexRuntimeScope.Current?.ConversationIdentity;
+            Assert.NotNull(identity);
+            Identities.Add(identity);
+        }
     }
 
     private sealed class SequenceSummaryChatClient(params string[] responseTexts) : IChatClient

@@ -62,7 +62,7 @@ The wire body emitted on every Responses request:
   "store": false,
   "stream": true,
   "include": ["reasoning.encrypted_content"],
-  "prompt_cache_key": "<thread_id>",
+  "prompt_cache_key": "<root_cache_session_id>",
   "reasoning": { /* effort and summary fields are optional */ },
   "parallel_tool_calls": <optional bool>,
   "max_output_tokens": <optional int>
@@ -71,10 +71,18 @@ The wire body emitted on every Responses request:
 
 Invariants the runtime must uphold:
 
-- **`prompt_cache_key` equals the active thread id** across every request issued on that thread, including maintenance forks and session-backed subagent turns scoped to the parent thread. Isolated subagent runtimes outside the parent provider conversation may use a deterministic derived identity because they are separate provider conversations; they must not overwrite the parent thread's remembered cache breakpoints.
+- **`prompt_cache_key` equals the root cache-session thread id**. Root requests use their own thread
+  id. Subagent requests use their root thread id while retaining the child id in `thread-id` and
+  `x-client-request-id`. An ordinary user fork starts a new root cache session and uses its new
+  fork thread id.
 - **`store=false`**. The backend MUST be treated as stateless; conversation state lives in DotCraft. Reasoning items round-trip through `include: ["reasoning.encrypted_content"]`.
 - **`reasoning` is always an object**. Effort and summary fields are present only when configured, but the object itself remains part of the stable request shape.
 - **Input is rebuilt deterministically each turn**. Reasoning items keep their original `encrypted_content` blob byte-for-byte. Re-encrypting or stripping them breaks prefix equality.
+- **Canonical Responses history is append-only between explicit replacement boundaries**.
+  Version-1 threads reuse completed provider items directly and map only the new local MEAI tail;
+  compaction, protocol return, and incompatible fork materialization establish a new prefix
+  generation as specified by
+  [Canonical OpenAI Responses Provider History](responses-provider-history.md).
 - **Namespaced tools keep their provider-visible namespace shape**. Runtime tools with a namespace are serialized as Responses `namespace` tool definitions that wrap local child `function` definitions. The namespace is the canonical `ToolName.namespace`; a child definition's name is only `ToolName.name`, never a flattened `namespace__name`. Namespaced `function_call` input items retain that same namespace and local name. Matching `function_call_output` input items are correlated by `call_id` and must not include `namespace`; prompt-cache request-shape hashes must reflect only the legal provider-visible request shape so flat and namespaced tools cannot share the same tool-schema hash.
 - **Native tool search returns the same composite definitions used by direct projection**. A deferred result describes one namespace once and returns its children under their local names. Discovery and activation are keyed by the full canonical `ToolName`, so equal child names in different namespaces remain independent. The local search tool itself is the top-level canonical `tool_search` function.
 - **No volatile content in system / assistant turns**. Timestamps, randomised tool ordering, in-place mutation of caller options — all forbidden inside the cached prefix. Volatile content belongs only at the tail of the latest user turn.
@@ -97,10 +105,11 @@ Prompt-cache routing uses these fields on
 | `chatgpt-account-id` | HTTP header | ChatGPT account id, resolved from the signed-in token/account store before runtime config |
 | `originator` | HTTP header | Fixed identifier the backend recognises (see [openai-subscription-auth](openai-subscription-auth.md)) |
 | `x-codex-installation-id` | HTTP header **and** request body `client_metadata` | Per-machine UUID v4, stable across processes and accounts |
-| `session-id` | HTTP header | Active thread id |
-| `thread-id` | HTTP header | Active thread id |
-| `session_id` | Request body `client_metadata` | Active thread id |
-| `thread_id` | Request body `client_metadata` | Active thread id |
+| `session-id` | HTTP header | Root cache-session thread id |
+| `thread-id` | HTTP header | Current executing thread id |
+| `x-client-request-id` | HTTP header | Current executing thread id |
+| `session_id` | Request body `client_metadata` | Root cache-session thread id |
+| `thread_id` | Request body `client_metadata` | Current executing thread id |
 | `x-codex-window-id` | HTTP header and request body `client_metadata` | Stable internal context-window id for the active thread |
 | `x-codex-turn-metadata` | HTTP header and request body `client_metadata` | Canonical provider metadata JSON envelope for Responses routing |
 | `x-codex-turn-state` | HTTP header | Provider-returned state replayed only within the same logical turn |
@@ -179,7 +188,7 @@ Anthropic's tool surface is flat. DotCraft therefore emits and replays the persi
 
 ### 2.5 Trace diagnostics
 
-For `openai-responses`, each provider request records a `PromptCacheRequestShape` trace event before transport. The event records SHA-256 hashes and counts for provider-visible byte shapes: instructions, tools, reasoning configuration, the full input array, and each ordered input item.
+For `openai-responses`, each provider request records a `PromptCacheRequestShape` trace event before transport. The event records SHA-256 hashes and counts for provider-visible byte shapes: instructions, tools, reasoning configuration, the full input array, and each ordered input item. It also records the serialized input byte count and aggregate response-item ID coverage (eligible, present, generated, missing, and invalid-source counts) without storing request content.
 
 Prompt-cache investigations compare adjacent `PromptCacheRequestShape` events by `inputItemHashes` from the start of the array. A long common prefix with only appended tail items means the provider-visible prefix stayed stable; an early hash mismatch means the prefix changed at or before that input item. If `inputItemHashes` stay stable but `promptCacheKeyHash` changes, the cache identity changed. If both stay stable but cached reads drop, the trace should classify the evidence as provider/cache-routing-side rather than a DotCraft prefix mutation.
 
@@ -198,9 +207,13 @@ These rules apply to every protocol unless the protocol contract above explicitl
 3. **Tool order is part of the prefix.** Tools must be enumerated in a stable order across requests on the same thread. Re-sorting tools (alphabetically, by category, etc.) between turns is a cache-break.
 4. **Reasoning items round-trip verbatim.** When a model emits a reasoning item with `encrypted_content`, the next request must pass that exact blob back. Decrypting and re-encrypting, dropping the field, or normalising whitespace inside it all break the cache.
 5. **Reasoning configuration is part of the cache key.** Provider-visible thinking / reasoning settings must be treated as a cache-key dimension for diagnostics. A change in reasoning effort, reasoning output visibility, or provider thinking mode can explain a cache read drop even when messages and tools are unchanged.
-6. **Thread id is the cache identity.** Provider-visible cache keys and routing identities (`prompt_cache_key`, `session-id`, `thread-id`, and body-level `client_metadata.session_id` / `client_metadata.thread_id`) MUST use the active thread id for the main conversation, maintenance forks, session-backed subagent turns scoped to the parent, and reactive recovery paths. Different threads MUST NOT share a cache key. Isolated subagent runtimes outside the parent provider conversation may use their own thread id or a deterministic derived key such as `parent:sub:<task>`; that identity is a separate provider conversation and MUST NOT replace the parent thread's provider-visible cache identity or internal breakpoint state.
+6. **Root lineage is the Responses cache identity.** `prompt_cache_key`, `session-id`, and
+   `client_metadata.session_id` MUST use the root cache-session thread id. `thread-id`,
+   `x-client-request-id`, and `client_metadata.thread_id` MUST use the current executing thread id.
+   Root threads use the same value for both roles; subagents share the root cache key while keeping
+   child-scoped execution identity; ordinary user forks start a new root identity.
 7. **One canonical body per request.** Wire bodies must not contain duplicate top-level JSON keys. Downstream policies and inspectors are allowed to assume the body parses cleanly into a flat object.
-8. **Internal cache state may be narrower than provider identity.** DotCraft may track remembered prompt-cache breakpoints under an internal state key such as `thread:<id>:maintenance:<kind>:<run>` so maintenance forks and the main conversation do not overwrite each other's breakpoint history. One-shot maintenance forks may use that state key in `readOnlyPrefix` mode without committing new remembered breakpoints. This internal state key MUST NOT replace provider-visible cache identity; Responses `prompt_cache_key`, OAuth session/thread headers, and trace session ownership still use the active thread id.
+8. **Internal cache state may be narrower than provider identity.** DotCraft may track remembered prompt-cache breakpoints under an internal state key such as `thread:<id>:maintenance:<kind>:<run>` so maintenance forks and the main conversation do not overwrite each other's breakpoint history. One-shot maintenance forks may use that state key in `readOnlyPrefix` mode without committing new remembered breakpoints. This internal state key MUST NOT replace provider-visible cache-session or current-thread routing identity.
 9. **Tool identity shape is cache state.** Canonical namespace/name pairs, flat aliases, namespace grouping, and child ordering come from the immutable Turn snapshot. Provider adapters must not re-sanitize names, derive namespaces from runtime source names, or enumerate collision groups in discovery order. History replay uses persisted canonical tuples for namespace-capable providers and persisted flat aliases for flat-only providers.
 
 ---

@@ -61,6 +61,21 @@ public sealed class StreamingFunctionInvokingChatClient(IChatClient innerClient,
     public bool AllowConcurrentInvocation { get; set; }
 
     /// <summary>
+    /// Gets or sets the maximum number of tool round trips before one final tool-free sampling
+    /// request is made.
+    /// </summary>
+    public int MaximumIterationsPerRequest
+    {
+        get;
+        set
+        {
+            if (value < 1)
+                throw new ArgumentOutOfRangeException(nameof(value));
+            field = value;
+        }
+    } = 40;
+
+    /// <summary>
     /// Includes additional exception details in generated function result content.
     /// </summary>
     public bool IncludeDetailedErrors { get; set; }
@@ -148,7 +163,10 @@ public sealed class StreamingFunctionInvokingChatClient(IChatClient innerClient,
         ChatOptions? options = null,
         [EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
+        ArgumentNullException.ThrowIfNull(messages);
         var originalMessages = messages.ToList();
+        var providerHistoryBridge =
+            GetService(typeof(IProviderConversationHistoryBridge)) as IProviderConversationHistoryBridge;
         var currentMessages = (IEnumerable<ChatMessage>)originalMessages;
         List<ChatMessage>? augmentedHistory = null;
         List<ChatMessage>? responseMessages = null;
@@ -162,6 +180,9 @@ public sealed class StreamingFunctionInvokingChatClient(IChatClient innerClient,
         for (var iteration = 0; ; iteration++)
         {
             cancellationToken.ThrowIfCancellationRequested();
+            var reachedIterationLimit = iteration >= MaximumIterationsPerRequest;
+            if (reachedIterationLimit)
+                PrepareOptionsForLastIteration(ref options);
 
             var preparedMessages = await PrepareMessagesForSamplingAsync(
                 currentMessages,
@@ -169,6 +190,14 @@ public sealed class StreamingFunctionInvokingChatClient(IChatClient innerClient,
                 cancellationToken);
             if (!ReferenceEquals(preparedMessages, currentMessages))
             {
+                if (providerHistoryBridge != null)
+                {
+                    await providerHistoryBridge.HistoryReplacedAsync(
+                        preparedMessages,
+                        options,
+                        "sampling_history_replaced",
+                        cancellationToken);
+                }
                 currentMessages = preparedMessages;
                 originalMessages = preparedMessages.ToList();
                 augmentedHistory = originalMessages.ToList();
@@ -188,6 +217,9 @@ public sealed class StreamingFunctionInvokingChatClient(IChatClient innerClient,
             using var promptCacheRequestIndexScope = PromptCacheRequestShapeTraceScope.UseRequestIndex(iteration + 1);
             await foreach (var update in base.GetStreamingResponseAsync(samplingMessages, options, cancellationToken))
             {
+                if (update is null)
+                    throw new InvalidOperationException("The inner chat client streamed a null response update.");
+
                 if (!requestMarked)
                 {
                     TokenUsageRequestMetadata.MarkRequestStart(update, iteration + 1);
@@ -252,7 +284,7 @@ public sealed class StreamingFunctionInvokingChatClient(IChatClient innerClient,
             var response = updates.ToChatResponse();
             (responseMessages ??= []).AddRange(response.Messages);
 
-            if (ShouldTerminateLoopBasedOnHandleableFunctions(functionCalls, options))
+            if (reachedIterationLimit || ShouldTerminateLoopBasedOnHandleableFunctions(functionCalls, options))
             {
                 FixupHistories(
                     originalMessages,
@@ -261,9 +293,12 @@ public sealed class StreamingFunctionInvokingChatClient(IChatClient innerClient,
                     response,
                     responseMessages,
                     ref lastIterationHadConversationId);
+                providerHistoryBridge?.MarkProjectionCovered(
+                    augmentedHistory ?? throw new InvalidOperationException("Augmented history was not initialized."));
 
                 var history = augmentedHistory ?? throw new InvalidOperationException("Augmented history was not initialized.");
-                if (guidanceContinuationCount < MaximumGuidanceContinuationsPerRequest &&
+                if (!reachedIterationLimit &&
+                    guidanceContinuationCount < MaximumGuidanceContinuationsPerRequest &&
                     await TryAppendGuidanceAsync(history, cancellationToken))
                 {
                     guidanceContinuationCount++;
@@ -283,6 +318,7 @@ public sealed class StreamingFunctionInvokingChatClient(IChatClient innerClient,
                 responseMessages,
                 ref lastIterationHadConversationId);
             var nextHistory = augmentedHistory ?? throw new InvalidOperationException("Augmented history was not initialized.");
+            providerHistoryBridge?.MarkProjectionCovered(nextHistory);
 
             var toolMessages = await InvokeFunctionsAsync(
                 nextHistory,
@@ -978,11 +1014,10 @@ public sealed class StreamingFunctionInvokingChatClient(IChatClient innerClient,
 
     private string CreateFunctionFailureMessage(Exception? exception)
     {
-        var reason = exception == null
-            ? null
-            : IncludeDetailedErrors
-                ? $"{exception.GetType().Name}: {exception.Message}"
-                : exception.Message;
+        if (!IncludeDetailedErrors || exception is null)
+            return "Error: Function failed.";
+
+        var reason = $"{exception.GetType().Name}: {exception.Message}";
         var safeReason = SanitizeToolFailureMessage(reason);
         return string.IsNullOrEmpty(safeReason)
             ? "Error: Function failed."
@@ -1116,6 +1151,23 @@ public sealed class StreamingFunctionInvokingChatClient(IChatClient innerClient,
 
         if (options?.ContinuationToken != null)
             options.ContinuationToken = null;
+    }
+
+    private static void PrepareOptionsForLastIteration(ref ChatOptions? options)
+    {
+        if (options?.Tools is not { Count: > 0 })
+            return;
+
+        var remainingTools = options.Tools
+            .Where(static tool => tool is not AIFunctionDeclaration)
+            .ToList();
+        if (remainingTools.Count == options.Tools.Count)
+            return;
+
+        options = options.Clone();
+        options.Tools = remainingTools.Count == 0 ? null : remainingTools;
+        if (remainingTools.Count == 0)
+            options.ToolMode = null;
     }
 
     private static void ThrowFunctionExceptions(List<Exception> exceptions)

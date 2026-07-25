@@ -9,7 +9,6 @@ using DotCraft.Sessions;
 using DotCraft.Tools.BackgroundTerminals;
 using DotCraft.Tools;
 using DotCraft.Tracing;
-using Microsoft.Agents.AI;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
@@ -17,7 +16,7 @@ namespace DotCraft.Protocol;
 
 /// <summary>
 /// Factory helper that constructs a <see cref="SessionService"/> from an already-built
-/// <see cref="DotCraft.Agents.AgentFactory"/> and <see cref="AIAgent"/> plus shared DI services.
+/// <see cref="DotCraft.Agents.AgentFactory"/> and <see cref="ChatClientAgent"/> plus shared DI services.
 /// Avoids boilerplate across channel hosts that each build their own AgentFactory.
 /// </summary>
 public static class SessionServiceFactory
@@ -29,7 +28,7 @@ public static class SessionServiceFactory
     /// </summary>
     public static SessionService Create(
         AgentFactory agentFactory,
-        AIAgent agent,
+        ChatClientAgent agent,
         IServiceProvider sp,
         TimeSpan? approvalTimeout = null)
     {

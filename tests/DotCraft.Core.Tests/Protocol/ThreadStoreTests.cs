@@ -4,7 +4,6 @@ using DotCraft.Agents;
 using DotCraft.Context.Compaction;
 using DotCraft.Plugins;
 using DotCraft.Protocol;
-using Microsoft.Agents.AI;
 using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.AI;
 
@@ -2359,10 +2358,10 @@ public sealed class ThreadStoreTests : IDisposable
         return JsonSerializer.Deserialize<SessionThread>(json, SessionJsonOptions.Default)!;
     }
 
-    private static AIAgent CreateAgent()
-        => new TestChatClient().AsAIAgent(new ChatClientAgentOptions());
+    private static ChatClientAgent CreateAgent()
+        => new TestChatClient().AsAIAgent();
 
-    private static Task<List<string>> ExtractHistoryAsync(AIAgent _, AgentSession session)
+    private static Task<List<string>> ExtractHistoryAsync(ChatClientAgent _, List<ChatMessage> session)
     {
         Assert.True(session.TryGetInMemoryChatHistory(
             out var chatHistory,
@@ -2377,7 +2376,7 @@ public sealed class ThreadStoreTests : IDisposable
         return Task.FromResult(history);
     }
 
-    private static List<string> FormatHistoryWithContents(AgentSession session)
+    private static List<string> FormatHistoryWithContents(List<ChatMessage> session)
     {
         Assert.True(session.TryGetInMemoryChatHistory(
             out var chatHistory,

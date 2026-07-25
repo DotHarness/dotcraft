@@ -13,7 +13,6 @@ using DotCraft.Sessions;
 using DotCraft.Skills;
 using DotCraft.Tools;
 using DotCraft.Tracing;
-using Microsoft.Agents.AI;
 using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.AI;
 using AnthropicBetaInputJsonDelta = Anthropic.Models.Beta.Messages.BetaInputJsonDelta;
@@ -41,6 +40,58 @@ public sealed class SessionServiceRuntimeSignalTests : IDisposable
     {
         try { Directory.Delete(_tempDir, true); }
         catch { /* best-effort */ }
+    }
+
+    [Fact]
+    public async Task SubmitInputAsync_ConcurrentCallsCreateOnlyOneRunningTurn()
+    {
+        using var chatClient = new RecordingBlockingChatClient();
+        await using var agentFactory = CreateAgentFactory(chatClient);
+        var service = CreateService(agentFactory, chatClient);
+        var thread = await service.CreateThreadAsync(MakeIdentity());
+        await service.RefreshThreadAgentAsync(thread.Id);
+        using var cancellation = new CancellationTokenSource();
+        using var start = new ManualResetEventSlim();
+
+        var attempts = Enumerable.Range(0, 32)
+            .Select(index => Task.Run(() =>
+            {
+                start.Wait();
+                try
+                {
+                    return (
+                        Events: service.SubmitInputAsync(
+                            thread.Id,
+                            [new TextContent($"input-{index}")],
+                            ct: cancellation.Token),
+                        Error: (Exception?)null);
+                }
+                catch (Exception ex)
+                {
+                    return (Events: (IAsyncEnumerable<SessionEvent>?)null, Error: ex);
+                }
+            }))
+            .ToArray();
+
+        start.Set();
+        var results = await Task.WhenAll(attempts);
+        var accepted = Assert.Single(results, result => result.Events is not null);
+        Assert.Equal(31, results.Count(result => result.Error is InvalidOperationException));
+        await chatClient.Started.Task.WaitAsync(TimeSpan.FromSeconds(10));
+
+        var running = await service.GetThreadAsync(thread.Id);
+        Assert.Single(
+            running.Turns,
+            turn => turn.Status is TurnStatus.Running or TurnStatus.WaitingApproval or TurnStatus.WaitingInput);
+
+        cancellation.Cancel();
+        try
+        {
+            await DrainAsync(accepted.Events!);
+        }
+        catch (OperationCanceledException)
+        {
+        }
     }
 
     [Fact]
@@ -580,14 +631,10 @@ public sealed class SessionServiceRuntimeSignalTests : IDisposable
             configureConfig: config => config.Memory.ConsolidateEveryNTurns = 1,
             memoryConsolidator: consolidator);
         var defaultAgent = new StreamingFunctionInvokingChatClient(chatClient).AsAIAgent(
-            new ChatClientAgentOptions
+            new ChatOptions
             {
-                UseProvidedChatClientAsIs = true,
-                ChatOptions = new ChatOptions
-                {
-                    Instructions = "stable base",
-                    ModelId = "gpt-test"
-                }
+                Instructions = "stable base",
+                ModelId = "gpt-test"
             });
         var svc = new SessionService(
             agentFactory,
@@ -2295,9 +2342,8 @@ public sealed class SessionServiceRuntimeSignalTests : IDisposable
         TraceCollector? traceCollector = null)
     {
         var defaultAgent = useStreamingFunctionInvoker
-            ? new StreamingFunctionInvokingChatClient(chatClient).AsAIAgent(
-                new ChatClientAgentOptions { UseProvidedChatClientAsIs = true })
-            : chatClient.AsAIAgent(new ChatClientAgentOptions());
+            ? new StreamingFunctionInvokingChatClient(chatClient).AsAIAgent()
+            : chatClient.AsAIAgent();
         return new SessionService(
             agentFactory,
             defaultAgent,
@@ -2313,11 +2359,7 @@ public sealed class SessionServiceRuntimeSignalTests : IDisposable
         string instructions)
     {
         var defaultAgent = new StreamingFunctionInvokingChatClient(chatClient).AsAIAgent(
-            new ChatClientAgentOptions
-            {
-                UseProvidedChatClientAsIs = true,
-                ChatOptions = new ChatOptions { Instructions = instructions }
-            });
+            new ChatOptions { Instructions = instructions });
         return new SessionService(
             agentFactory,
             defaultAgent,

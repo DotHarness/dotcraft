@@ -2,9 +2,9 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.4.0 |
+| **Version** | 0.6.0 |
 | **Status** | Living |
-| **Date** | 2026-07-20 |
+| **Date** | 2026-07-25 |
 
 Purpose: Define the current **server-managed** session model (Thread / Turn / Item) used by `DotCraft.Core`, including lifecycle, persistence, event semantics, approval semantics, and adapter boundaries.
 
@@ -146,7 +146,7 @@ Server-managed channels
 | Existing Component | Session Protocol Relationship |
 |--------------------|-------------------------------|
 | `AgentRunner` | Session Core subsumes its responsibilities. `AgentRunner.RunAsync` logic (session load, hook execution, streaming, save, compaction, consolidation) is now implemented on top of Session Core behavior. |
-| `AgentFactory` | Unchanged. Session Core calls `CreateAgentWithTools` and `CreateAgent` as before. |
+| `AgentFactory` | Builds immutable `ChatClientAgent` instances and their MEAI `IChatClient` pipelines. It does not create or own a second session model. |
 | `SessionStore` | Removed. Its responsibilities are now split between thread/session file persistence and `ISessionService`. |
 | `SessionGate` | Becomes an internal implementation detail of Session Core. Channels no longer call `AcquireAsync` directly. |
 | `IApprovalService` | Remains the approval interface. Session Core delegates approval requests to the channel adapter, while the request and response are modeled as Items with explicit lifecycle. |
@@ -157,7 +157,6 @@ Server-managed channels
 ### 3.5 External Dependencies
 
 - **Microsoft.Extensions.AI**: `IChatClient`, `AITool`, `FunctionInvokingChatClient` — the agent execution pipeline.
-- **Microsoft.Agents.AI**: `AIAgent`, `AgentSession`, `AgentResponseUpdate` — the agent session model.
 - **Existing DotCraft.Core**: `AppConfig`, `SkillsLoader`, `MemoryStore`, `ToolProviderCollector` — workspace infrastructure.
 - **Channel transports**: Each channel's transport library (NapCat for QQ, ASP.NET for WeCom, custom stdio for ACP).
 
@@ -321,7 +320,12 @@ The persisted record is keyed by `thread_id` and stores `first_window_id`, `prev
 
 When a compaction succeeds and replaces the model-visible history (`micro` or `partial` outcomes from auto, reactive, or manual compaction), Session Core advances the provider context window after the replacement checkpoint is durable in rollout. The previous `current_window_id` becomes `previous_window_id`, a new `current_window_id` is generated, and `generation` increments. Skipped, failed, cancelled, or diagnostic-only compaction attempts must not advance the window.
 
-The window record is internal routing metadata. It must not be rendered as conversation content, included in AppServer Thread DTOs, or used as the provider prompt-cache key. `prompt_cache_key`, OAuth `session-id`, and OAuth `thread-id` remain the active Thread id.
+The window record is internal routing metadata. It must not be rendered as conversation content,
+included in AppServer Thread DTOs, or used as the provider prompt-cache key. For Responses,
+`prompt_cache_key` and OAuth `session-id` use the root cache-session Thread id, while OAuth
+`thread-id` and `x-client-request-id` use the current executing Thread id. Root Threads and
+ordinary user forks are their own cache-session roots; subagents retain the persisted
+`Source.SubAgent.RootThreadId`.
 
 #### 4.1.2 Turn
 
@@ -876,6 +880,12 @@ Session Core distinguishes canonical thread history from thread-owned runtime ar
 
 ### 5.2 Turn Lifecycle
 
+Creating a Running Turn is an atomic Thread-local transition. Validation that the Thread is active
+and has no Running, WaitingApproval, or WaitingInput Turn, sequence reservation, Turn insertion,
+and runtime registration occur under the same Thread-local start gate. Concurrent submissions may
+create at most one Running Turn; all other contenders fail with the existing turn-in-progress
+error and must not append input Items or emit start events.
+
 ```
 SubmitInput
     │
@@ -1002,7 +1012,7 @@ When a channel adapter resumes a Thread that was created by a different channel:
 
 1. The adapter calls `ResumeThread(threadId)`.
 2. Session Core loads the Thread from persistence.
-3. Session Core reconstructs the runtime `AgentSession` from the rollout's exact model-history records and latest usable compaction checkpoint. Domain Items are used only as a finite fallback when an exact record is absent.
+3. Session Core reconstructs a request-local `List<ChatMessage>` from the rollout's exact model-history records and latest usable compaction checkpoint. Domain Items are used only as a finite fallback when an exact record is absent.
 4. The Thread's `Status` is set to `Active`, `LastActiveAt` is updated.
 5. The adapter can now call `SubmitInput` to start a new Turn.
 6. The new Turn's Items are attributed to the resuming channel (recorded in Turn metadata).
@@ -1415,6 +1425,9 @@ Each thread is stored as an append-only JSONL rollout. Every line is a `ThreadRo
 { "kind": "turn_started", "timestamp": "2026-03-15T10:00:01Z", "turnStarted": { ... } }
 { "kind": "item_appended", "timestamp": "2026-03-15T10:00:01Z", "itemAppended": { ... } }
 { "kind": "model_history_messages_appended", "timestamp": "2026-03-15T10:00:02Z", "modelHistoryMessagesAppended": { "turnId": "...", "messages": [ ... ] } }
+{ "kind": "provider_history_items_appended", "timestamp": "2026-03-15T10:00:03Z", "providerHistoryItemsAppended": { "schemaVersion": 1, "protocol": "openai-responses", "turnId": "...", "entries": [ ... ] } }
+{ "kind": "provider_history_replaced", "timestamp": "2026-03-15T10:00:04Z", "providerHistoryReplaced": { "schemaVersion": 1, "protocol": "openai-responses", "coveredThroughTurnId": "...", "entries": [ ... ] } }
+{ "kind": "provider_history_attempt_aborted", "timestamp": "2026-03-15T10:00:05Z", "providerHistoryAttemptAborted": { "schemaVersion": 1, "protocol": "openai-responses", "turnId": "...", "attemptId": "..." } }
 { "kind": "turn_state_replaced", "timestamp": "2026-03-15T10:02:30Z", "turnStateReplaced": { ... } }
 { "kind": "turn_completed", "timestamp": "2026-03-15T10:02:30Z", "turnCompleted": { ... } }
 { "kind": "queued_input_added", "timestamp": "2026-03-15T10:02:31Z", "queuedInputAdded": { ... } }
@@ -1428,9 +1441,17 @@ Session Core reconstructs a `SessionThread` by replaying the rollout file in ord
 
 Every current rollout begins with a canonical `thread_opened` record containing the versioned source union. An unknown source schema version or a structurally invalid canonical source is a thread identity safety error and stops thread replay; it must not be downgraded to an ordinary user thread.
 
-### 9.3 Model-History Storage and Runtime Sessions
+### 9.3 Model-History Storage and Runtime Execution
 
-The rollout is the sole authority for both the Session Protocol domain model and optimized model-visible history. A persisted Microsoft Agent Framework `AgentSession` is not part of the storage contract. Session Core creates an empty runtime `AgentSession` with `CreateSessionAsync`, replays the rollout into DotCraft-owned model-history messages, converts them to `ChatMessage` values, and injects them with `SetInMemoryChatHistory` before execution.
+The rollout is the sole authority for both the Session Protocol domain model and optimized model-visible history. Session Core replays the rollout into DotCraft-owned model-history messages, converts them to a request-local `List<ChatMessage>`, and passes that list explicitly to `ChatClientAgent` for execution. The request-local agent object and its middleware pipeline are not persistence records.
+
+A successful context replacement has one recoverable rollout commit boundary. The authoritative
+compaction checkpoint and replacement model history are committed before derived context-usage,
+provider-history, context-window, or cache projections are published. Recovery replays the
+checkpoint and repairs or replaces those derived projections; it must never expose a new provider
+window with pre-compaction model history, nor compacted model history with an unrelated provider
+prefix. In-memory history and UI notifications become observable only after the authoritative
+commit succeeds.
 
 Per-thread plans are stored in SQLite `thread_plans`. Plans follow the thread lifecycle: archive/unarchive keeps them, and permanent thread deletion cascades through the database. Legacy `.craft/plans/{threadId}.json|md` files are not a runtime plan source.
 
@@ -1461,7 +1482,7 @@ Artifact rules:
 - Thread deletion is the authoritative synchronous cleanup path; janitor cleanup is best effort and must not be required to make a deleted Thread unavailable. If database deletion succeeds while filesystem cleanup fails, the failure is observable and the orphan remains eligible for a later janitor retry.
 - Normal process shutdown is not an artifact retention boundary. Shutdown cleanup handles active processes and open streams; it does not remove persistent terminal logs or tool-result spill files.
 
-`model_history_messages_appended` atomically stores one Turn-local ordered batch of versioned `ModelHistoryMessage` values. Each message carries `schemaVersion`, `turnId`, role, optional message identity/author/timestamp, and ordered contents. DotCraft's `kind` field is the content discriminator; rollout does not depend on the Framework polymorphic `$type` envelope or on the JSON property shape of any Framework CLR content type. Framework values exist only at the codec boundary: encoding reads their semantic fields into DotCraft-owned DTOs, and decoding explicitly constructs new runtime values from those DTOs.
+`model_history_messages_appended` atomically stores one Turn-local ordered batch of versioned `ModelHistoryMessage` values. Each message carries `schemaVersion`, `turnId`, role, optional message identity/author/timestamp, and ordered contents. DotCraft's `kind` field is the content discriminator. The storage contract is independent of runtime CLR type envelopes and serializer-specific property shapes. The codec encodes MEAI semantic fields into DotCraft-owned DTOs and explicitly constructs new MEAI values when decoding.
 
 Every model-history content value has the shape `{ kind, payload }`. The version 1 payload union is owned by DotCraft and contains only the following durable fields, plus content-level `additionalProperties`:
 
@@ -1490,10 +1511,17 @@ Streaming tool-call argument deltas are transient presentation state. They are r
 Session Core manages the mapping:
 
 - **Append**: Every successful mutation of server-managed model history appends the corresponding model-history records to the same thread rollout before the mutation is considered durable.
-- **Load**: Resume creates an empty Framework session and injects the history produced by rollout replay. It never calls `DeserializeSessionAsync` for persisted state.
-- **Fork**: A persistent fork writes its materialized model history into the fork rollout. It does not create a separate Framework session blob.
+- **Load**: Resume materializes the request-local MEAI history produced by rollout replay and supplies it directly to `ChatClientAgent`.
+- **Fork**: A persistent fork writes its materialized model history into the fork rollout. It does not create a separate runtime-session blob.
 
 The domain history and exact model history are intentionally distinct durable representations. `turn_state_replaced` preserves client-visible Turn and Item lifecycle state. `model_history_messages_appended` preserves the exact provider-facing message sequence. Neither representation is required to losslessly derive the other, and arbitrary model metadata must not be copied into client-visible Items merely to remove duplicate text.
+
+Threads with `thread_opened.providerHistorySchemaVersion = 1` may additionally persist a
+protocol-native history. For OpenAI Responses, that history is the source of the future wire
+`input` array while generic model history remains the Session-owned cross-provider
+representation. Its append, replacement, retry, rollback, fork, privacy, and compatibility
+contracts are defined in
+[Canonical OpenAI Responses Provider History](responses-provider-history.md).
 
 `context_compacted` is an internal model-history replacement record, not a Session Item and not a client event. Its replacement history uses the same versioned DotCraft model-history schema. During replay, the newest checkpoint whose covered turn survives establishes a new history baseline; earlier model-history records are discarded and only later surviving records are appended. Rollback that removes the covered turn invalidates that checkpoint.
 
@@ -1521,7 +1549,7 @@ The replay result contains ordered messages, warnings, rejected-record count, fa
 
 Rollout diagnostics measure record count and serialized bytes by record kind, flush duration and outcome, and resume bytes, decoded-record count, and rejected-record count. Metric dimensions must remain low-cardinality and must not contain thread ids, message contents, `ProtectedData`, or arbitrary `AdditionalProperties`.
 
-Context search treats exact model-history and compaction replacement records as internal recovery state. It must not index or preview `model_history_messages_appended`, `context_compacted`, `ProtectedData`, arbitrary `AdditionalProperties`, system prompts, raw trace event JSON, channel context, or tool arguments/results. Searchable rollout evidence is extracted from explicitly displayable domain fields rather than raw JSONL lines, and a domain value duplicated in model history contributes only one rollout match. Tool arguments and result payloads are omitted or replaced with `[redacted]` at the presentation boundary.
+Context search treats exact model-history, provider-history, and compaction replacement records as internal recovery state. It must not index or preview `model_history_messages_appended`, `provider_history_items_appended`, `provider_history_replaced`, `provider_history_attempt_aborted`, `context_compacted`, `ProtectedData`, arbitrary `AdditionalProperties`, system prompts, raw trace event JSON, channel context, or tool arguments/results. Searchable rollout evidence is extracted from explicitly displayable domain fields rather than raw JSONL lines, and a domain value duplicated in model history contributes only one rollout match. Tool arguments and result payloads are omitted or replaced with `[redacted]` at the presentation boundary.
 
 Diagnostic readers apply the same domain replay semantics as Session Core: later `turn_state_replaced` records replace the same Turn, rollback removes the visible tail, and only surviving terminal Items contribute errors and tool summaries. Exact model batches may expose counts, Turn ids, schema versions, content kinds, and rejection status, but never model payloads, `ProtectedData`, or extension properties. Compaction diagnostics expose only checkpoint boundaries and decode status. The current schema has no `thread_sessions` table; diagnostic readers must not read or infer data from that retired shape.
 
@@ -1592,7 +1620,7 @@ This opt-in path exists so clients such as **DotCraft Desktop** (which uses a no
 1. **Discovery**: Adapter calls `FindThreadsAsync(identity, includeArchived, crossChannelOrigins)`. Returns threads matching the combined predicate when `crossChannelOrigins` is set, otherwise the default predicate only.
 2. **Selection**: The adapter presents the list to the user, or auto-selects the most recently active thread.
 3. **Resume**: Adapter calls `ResumeThreadAsync(threadId)`. Session Core sets status to `Active` and updates `LastActiveAt`.
-4. **Session Load**: Session Core creates an empty runtime `AgentSession`, replays model history from the rollout, and injects it into the configured history provider.
+4. **Session Load**: Session Core replays model history from the rollout and materializes the request-local `List<ChatMessage>` supplied to `ChatClientAgent`.
 5. **Ready**: Adapter calls `SubmitInputAsync` to start a new Turn. The Turn's `OriginChannel` records the resuming channel's name.
 
 ### 9.6 Legacy Compatibility Policy
@@ -1727,7 +1755,7 @@ The lifecycle contract in Section 5.1.1 and storage contract in Section 9.3.0 ar
 
 `RollbackThread(threadId, numTurns)` removes `numTurns` turns from the end of a non-archived Thread. `numTurns` must be at least 1 and no turn in the Thread may be `Running` or `WaitingApproval`.
 
-Rollback appends a canonical rollback record to thread JSONL and updates thread metadata; it does not revert files or other workspace side effects created by tools. After rollback, Session Core first tries to trim the removed Turn tail from the optimized `AgentSession`. If the removed Turns are no longer present as a plain model-visible suffix, Session Core rebuilds through the newest surviving compaction checkpoint before falling back to full canonical history. Rollback must not silently restore model-visible history that had already been compacted out.
+Rollback appends a canonical rollback record to thread JSONL and updates thread metadata; it does not revert files or other workspace side effects created by tools. After rollback, Session Core first tries to trim the removed Turn tail from the optimized request-local model history. If the removed Turns are no longer present as a plain model-visible suffix, Session Core rebuilds through the newest surviving compaction checkpoint before falling back to full canonical history. Rollback must not silently restore model-visible history that had already been compacted out.
 Rollback does not release the historical Turn sequence numbers of removed Turns. Replay scans all valid `turn_started` records, including Turns later removed by rollback, before allocating a new Turn ID.
 Successful rollback also records a maintenance trace event for live Dashboard visibility. Dashboard must de-duplicate that live event with the canonical rollout-derived operation when both are available.
 

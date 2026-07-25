@@ -3,7 +3,6 @@ using DotCraft.Configuration;
 using DotCraft.Context;
 using DotCraft.Context.Compaction;
 using DotCraft.Hooks;
-using Microsoft.Agents.AI;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Logging;
 
@@ -48,7 +47,7 @@ public sealed partial class SessionService
             {
                 await owner.EnsurePerThreadAgentIfMissingAsync(threadId, thread, maintenanceCt);
                 var agent = owner.GetThreadAgentOrDefault(threadId);
-                var session = await owner.Persistence.LoadOrCreateSessionAsync(agent, threadId, maintenanceCt);
+                var session = await owner.Persistence.LoadModelHistoryAsync(threadId, maintenanceCt);
                 var pipeline = GetCompactionPipelineForThread(thread);
                 var historyForEstimate = SessionService.PrepareProviderVisibleHistory(
                     SnapshotSessionHistoryForConsolidation(session, thread));
@@ -115,11 +114,12 @@ public sealed partial class SessionService
                 try
                 {
                     using var codexResponsesScope = OpenAIResponsesCodexRuntimeScope.Set(
-                        CreateCodexRuntimeContext(
-                            thread,
-                            turn: null,
-                            owner.GetOrCreateCodexContextWindow(threadId),
-                            OpenAIResponsesCodexRequestKinds.Compaction));
+                        new OpenAIResponsesCodexRuntimeContext(
+                            ThreadConversationIdentity.Create(
+                                thread,
+                                turn: null,
+                                owner.GetOrCreateCodexContextWindow(threadId).CurrentWindowId,
+                                ThreadConversationRequestKind.Compaction)));
                     var compactResult = await pipeline.TryManualCompactHistoryAsync(
                         historyForEstimate,
                         threadId,
@@ -132,9 +132,8 @@ public sealed partial class SessionService
                     status = compactResult.Status;
                     if (status.Success)
                     {
-                        session.SetInMemoryChatHistory(
-                            [.. compactResult.Messages],
-                            jsonSerializerOptions: SessionPersistenceJsonOptions.Default);
+                        session.Clear();
+                        session.AddRange(compactResult.Messages);
                         owner.InvalidatePromptRequestSnapshot(threadId, "manual_compaction");
                     }
                 }
@@ -176,12 +175,32 @@ public sealed partial class SessionService
                     case CompactionOutcome.Partial:
                     {
                         tokenTracker.Reset();
+                        var coveredTurn = thread.Turns.LastOrDefault(t => t.Status == TurnStatus.Completed);
+                        if (coveredTurn != null)
+                        {
+                            await TryAppendCompactionCheckpointAsync(
+                                threadId,
+                                coveredTurn.Id,
+                                session,
+                                new PendingCompactionCheckpoint(
+                                    "manual",
+                                    CompactionOutcomeToWire(status.Outcome),
+                                    status.ThresholdBefore.Tokens,
+                                    status.ThresholdAfter.Tokens),
+                                maintenanceCt);
+                        }
+
                         var contextUsage = await owner.SaveReplacementContextUsageSnapshotAsync(
                             threadId,
                             status.ThresholdAfter.Tokens,
                             source: "compacted_estimate",
                             ct: maintenanceCt);
                         owner.TryAdvanceCodexContextWindowAfterReplacement(threadId);
+                        await owner.TryReplaceResponsesProviderHistoryAsync(
+                            thread,
+                            session,
+                            "manual_compaction",
+                            maintenanceCt);
                         owner.ReleaseStableContextPages(threadId);
                         if (status.Outcome == CompactionOutcome.Partial)
                             owner.TraceCollector?.RecordContextCompaction(threadId);
@@ -196,19 +215,6 @@ public sealed partial class SessionService
                             AppendManualCompactionNotice(thread, status, broker);
                         thread.LastActiveAt = DateTimeOffset.UtcNow;
                         await owner.PersistThreadWithMaterializationAsync(thread, maintenanceCt);
-                        if (thread.Turns.LastOrDefault(t => t.Status == TurnStatus.Completed) is { } coveredTurn)
-                        {
-                            await TryAppendCompactionCheckpointAsync(
-                                threadId,
-                                coveredTurn.Id,
-                                session,
-                                new PendingCompactionCheckpoint(
-                                    "manual",
-                                    CompactionOutcomeToWire(status.Outcome),
-                                    status.ThresholdBefore.Tokens,
-                                    status.ThresholdAfter.Tokens),
-                                maintenanceCt);
-                        }
 
                         await owner.RunCompactionHookAsync(
                             HookEvent.PostCompact,
@@ -306,7 +312,7 @@ public sealed partial class SessionService
 
                 await owner.EnsurePerThreadAgentIfMissingAsync(threadId, thread, ct);
                 var agent = owner.GetThreadAgentOrDefault(threadId);
-                var session = await owner.Persistence.LoadOrCreateSessionAsync(agent, threadId, ct);
+                var session = await owner.Persistence.LoadModelHistoryAsync(threadId, ct);
                 history = SnapshotSessionHistoryForConsolidation(session, thread);
                 if (history.Count == 0)
                     throw new InvalidOperationException($"Thread '{threadId}' has no model-visible history to consolidate.");
@@ -324,11 +330,12 @@ public sealed partial class SessionService
             try
             {
                 using var codexResponsesScope = OpenAIResponsesCodexRuntimeScope.Set(
-                    CreateCodexRuntimeContext(
-                        thread,
-                        turn: null,
-                        owner.GetOrCreateCodexContextWindow(threadId),
-                        OpenAIResponsesCodexRequestKinds.Memory));
+                    new OpenAIResponsesCodexRuntimeContext(
+                        ThreadConversationIdentity.Create(
+                            thread,
+                            turn: null,
+                            owner.GetOrCreateCodexContextWindow(threadId).CurrentWindowId,
+                            ThreadConversationRequestKind.Memory)));
                 return await RunMemoryConsolidationAsync(
                     threadId,
                     thread,
@@ -388,7 +395,7 @@ public sealed partial class SessionService
             string threadId,
             SessionThread thread,
             SessionTurn turn,
-            AgentSession session,
+            List<ChatMessage> session,
             SessionEventChannel eventChannel,
             Func<int> nextItemSequence)
         {
@@ -440,7 +447,7 @@ public sealed partial class SessionService
         public async Task TryAppendCompactionCheckpointAsync(
             string threadId,
             string coveredThroughTurnId,
-            AgentSession session,
+            List<ChatMessage> session,
             PendingCompactionCheckpoint checkpoint,
             CancellationToken ct)
         {
@@ -723,16 +730,11 @@ public sealed partial class SessionService
         }
 
         private static IReadOnlyList<ChatMessage> SnapshotSessionHistoryForConsolidation(
-            AgentSession session,
+            List<ChatMessage> session,
             SessionThread thread)
         {
-            var chatHistory = session.GetService<ChatHistoryProvider>();
-            if (chatHistory is InMemoryChatHistoryProvider provider)
-            {
-                var messages = provider.GetMessages(session).ToList();
-                if (messages.Count > 0)
-                    return messages;
-            }
+            if (session.Count > 0)
+                return session.ToList();
 
             var fallback = new List<ChatMessage>();
             foreach (var turn in thread.Turns)

@@ -78,7 +78,7 @@ internal sealed class OpenAIResponsesClientMetadataPipelinePolicy : PipelinePoli
     private void ApplyPatch(PipelineMessage message, MemoryStream stream)
     {
         var original = BinaryData.FromBytes(stream.ToArray()).ToString();
-        var snapshot = OpenAIResponsesCodexMetadata.CreateSnapshot(_installationId);
+        var snapshot = OpenAIResponsesCodexMetadata.GetOrCreateSnapshot(message, _installationId);
         var hadMismatchedInstallationId = HasDifferentInstallationIdMetadata(original, _installationId);
         var stripped = RemoveUnsupportedOAuthResponsesFields(original);
         var working = stripped ?? original;

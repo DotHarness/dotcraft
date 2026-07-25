@@ -172,6 +172,98 @@ public sealed class StreamRetryingChatClientTests
     }
 
     [Fact]
+    public async Task GetStreamingResponseAsync_RetriesCompletedServerErrorOnceWithoutVisibleOutput()
+    {
+        var inner = new SequenceChatClient(
+            _ => Stream([
+                new ChatResponseUpdate(ChatRole.Tool, [
+                    new FunctionResultContent("call-1", "tool result"),
+                    new ErrorContent("request failed; request ID req_first")
+                    {
+                        ErrorCode = "server_error"
+                    }
+                ])
+            ]),
+            _ => Stream([new ChatResponseUpdate(ChatRole.Assistant, "ok")]));
+        var client = new StreamRetryingChatClient(
+            inner,
+            new StreamRetryOptions(
+                MaxRetries: 0,
+                IdleTimeout: TimeSpan.FromSeconds(30),
+                ProviderServerErrorMaxRetries: 1));
+
+        var updates = await CollectAsync(client.GetStreamingResponseAsync([
+            new ChatMessage(ChatRole.Tool, [new FunctionResultContent("call-1", "tool result")])
+        ]));
+
+        Assert.Equal(2, inner.Calls);
+        Assert.DoesNotContain(
+            updates.SelectMany(update => update.Contents),
+            content => content is FunctionResultContent or ErrorContent);
+        Assert.Equal("ok", Assert.Single(updates.SelectMany(update => update.Contents).OfType<TextContent>()).Text);
+    }
+
+    [Fact]
+    public async Task GetStreamingResponseAsync_SurfacesFinalServerErrorRequestIdAfterSingleRetry()
+    {
+        var inner = new SequenceChatClient(
+            _ => Stream([
+                new ChatResponseUpdate(ChatRole.Assistant, [
+                    new ErrorContent("request failed; request ID req_first") { ErrorCode = "server_error" }
+                ])
+            ]),
+            _ => Stream([
+                new ChatResponseUpdate(ChatRole.Assistant, [
+                    new ErrorContent("request failed; request ID req_final") { ErrorCode = "server_error" }
+                ])
+            ]));
+        var client = new StreamRetryingChatClient(
+            inner,
+            new StreamRetryOptions(
+                MaxRetries: 0,
+                IdleTimeout: TimeSpan.FromSeconds(30),
+                ProviderServerErrorMaxRetries: 1));
+
+        var exception = await Assert.ThrowsAnyAsync<HttpRequestException>(async () =>
+        {
+            await foreach (var _ in client.GetStreamingResponseAsync([new ChatMessage(ChatRole.User, "hi")]))
+            {
+            }
+        });
+
+        Assert.Equal(2, inner.Calls);
+        Assert.Contains("req_final", exception.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task GetStreamingResponseAsync_DoesNotRetryCompletedServerErrorAfterVisibleOutput()
+    {
+        var inner = new SequenceChatClient(
+            _ => Stream([
+                new ChatResponseUpdate(ChatRole.Assistant, "partial"),
+                new ChatResponseUpdate(ChatRole.Assistant, [
+                    new ErrorContent("request failed; request ID req_visible") { ErrorCode = "server_error" }
+                ])
+            ]),
+            _ => Stream([new ChatResponseUpdate(ChatRole.Assistant, "retry")]));
+        var client = new StreamRetryingChatClient(
+            inner,
+            new StreamRetryOptions(
+                MaxRetries: 0,
+                IdleTimeout: TimeSpan.FromSeconds(30),
+                ProviderServerErrorMaxRetries: 1));
+
+        var updates = await CollectAsync(
+            client.GetStreamingResponseAsync([new ChatMessage(ChatRole.User, "hi")]));
+
+        Assert.Equal(1, inner.Calls);
+        Assert.Equal("partial", Assert.Single(updates.SelectMany(update => update.Contents).OfType<TextContent>()).Text);
+        Assert.Contains(
+            updates.SelectMany(update => update.Contents).OfType<ErrorContent>(),
+            error => error.Message.Contains("req_visible", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public async Task GetStreamingResponseAsync_PreservesNonVisibleUpdateOrderBeforeFirstVisibleUpdate()
     {
         var metadata = new ChatResponseUpdate { Role = ChatRole.Assistant };
