@@ -971,9 +971,9 @@ function PluginDetailView({
             />
           )}
           {plugin.installed ? (
-            <Button variant="primary" disabled={!plugin.enabled} onClick={onTryInChat} iconLeft={<MessageCircle size={14} />}>
+            <PluginInstallButton variant="primary" disabled={!plugin.enabled} onClick={onTryInChat} iconLeft={<MessageCircle size={14} />}>
               {t('plugins.tryInChat')}
-            </Button>
+            </PluginInstallButton>
           ) : (
             <PluginInstallButton variant="primary" onClick={onInstall} iconLeft={<Plus size={14} />}>
               {t('plugins.install')}
