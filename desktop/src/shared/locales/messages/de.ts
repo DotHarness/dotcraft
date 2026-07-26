@@ -368,7 +368,7 @@ export const MESSAGES_DE = {
 
   'setupWizard.title': 'Workspace einrichten',
   'setupWizard.done': 'Fertig',
-  'setupWizard.stepCount': 'Schritt {{n}}',
+  'setupWizard.stepCount': 'Schritt {{n}} von {{total}}',
   'setupWizard.step.welcome': 'Workspace bestätigen',
   'setupWizard.step.profile': 'Profilvorlage wählen',
   'setupWizard.step.import': 'Vorhandene Konfiguration importieren',

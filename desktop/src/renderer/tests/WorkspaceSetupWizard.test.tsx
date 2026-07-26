@@ -135,11 +135,16 @@ describe('WorkspaceSetupWizard', () => {
     }
 
     renderWizard(status)
+    const currentStep = screen.getByRole('button', { name: 'Confirm workspace' })
+    expect(currentStep).toHaveAttribute('aria-current', 'step')
+    expect(screen.getByText('Step 1 of 4')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Configure model provider' })).toBeDisabled()
 
     fireEvent.click(await screen.findByRole('button', { name: 'Next' }))
     const previousStep = screen.getByRole('button', { name: 'Confirm workspace' })
     expect(previousStep).not.toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Choose profile template' })).toHaveAttribute('aria-current', 'step')
+    expect(screen.getByText('Step 2 of 4')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Configure model provider' })).toBeDisabled()
 
     fireEvent.click(previousStep)

@@ -542,93 +542,55 @@ export function WorkspaceSetupWizard({
           >
             {t('setupWizard.title')}
           </div>
-          <div
+          <nav
             className="setup-stepper-row"
-            style={{
-              display: 'grid',
-              gridTemplateColumns: `repeat(${steps.length}, minmax(0, 1fr))`,
-              gap: '8px'
-            }}
+            aria-label={t('setupWizard.title')}
           >
-            {steps.map((label, idx) => {
-              const active = idx === step
-              const completed = idx < step
-              const future = idx > step
-              const canReturn = completed && !submitting
-              return (
-                <button
-                  key={label}
-                  type="button"
-                  className="setup-stepper-button"
-                  disabled={!canReturn}
-                  aria-label={label}
-                  aria-current={active ? 'step' : undefined}
-                  onClick={() => {
-                    if (canReturn) setStep(idx)
-                  }}
-                  style={{
-                    display: 'grid',
-                    gridTemplateColumns: 'auto minmax(0, 1fr)',
-                    alignItems: 'center',
-                    gap: '10px',
-                    width: '100%',
-                    textAlign: 'left',
-                    borderRadius: '8px',
-                    border: active
-                      ? '1px solid color-mix(in srgb, var(--accent) 72%, var(--border-active))'
-                      : completed
-                        ? '1px solid color-mix(in srgb, var(--success) 42%, var(--border-default))'
-                        : '1px solid var(--border-default)',
-                    background: active
-                      ? 'color-mix(in srgb, var(--accent) 14%, var(--bg-secondary))'
-                      : 'var(--bg-secondary)',
-                    color: future ? 'var(--text-dimmed)' : 'var(--text-primary)',
-                    padding: '10px 12px',
-                    cursor: canReturn ? 'pointer' : 'default',
-                    opacity: future ? 0.64 : 1,
-                    transition: 'background-color 140ms ease, border-color 140ms ease, color 140ms ease, opacity 140ms ease'
-                  }}
-                >
-                  <span
-                    style={{
-                      width: '24px',
-                      height: '24px',
-                      borderRadius: '999px',
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      border: active
-                        ? '1px solid var(--accent)'
-                        : completed
-                          ? '1px solid var(--success)'
-                          : '1px solid var(--border-active)',
-                      background: active
-                        ? 'var(--accent)'
-                        : completed
-                          ? 'color-mix(in srgb, var(--success) 14%, transparent)'
-                          : 'transparent',
-                      color: active ? 'var(--on-accent)' : completed ? 'var(--success)' : 'var(--text-dimmed)',
-                      fontSize: '12px',
-                      fontWeight: 700,
-                      flexShrink: 0
-                    }}
+            <div className="setup-stepper-compact-heading">
+              <span>
+                {t('setupWizard.stepCount', {
+                  n: step + 1,
+                  total: steps.length
+                })}
+              </span>
+              <strong>{steps[step]}</strong>
+            </div>
+            <ol
+              className="setup-stepper-list"
+              style={{
+                gridTemplateColumns: `repeat(${steps.length}, minmax(0, 1fr))`
+              }}
+            >
+              {steps.map((label, idx) => {
+                const active = idx === step
+                const completed = idx < step
+                const canReturn = completed && !submitting
+                return (
+                  <li
+                    key={label}
+                    className="setup-stepper-item"
+                    data-state={completed ? 'complete' : active ? 'active' : 'future'}
                   >
-                    {completed ? <Check size={14} strokeWidth={2.4} aria-hidden="true" /> : idx + 1}
-                  </span>
-                  <span
-                    style={{
-                      fontSize: '13px',
-                      fontWeight: active ? 600 : 500,
-                      color: 'inherit',
-                      whiteSpace: 'normal'
-                    }}
-                  >
-                    {label}
-                  </span>
-                </button>
-              )
-            })}
-          </div>
+                    <button
+                      type="button"
+                      className="setup-stepper-button"
+                      disabled={!canReturn}
+                      aria-label={label}
+                      aria-current={active ? 'step' : undefined}
+                      onClick={() => {
+                        if (canReturn) setStep(idx)
+                      }}
+                    >
+                      <span className="setup-stepper-marker" aria-hidden="true">
+                        {completed ? <Check size={14} strokeWidth={2.4} /> : idx + 1}
+                      </span>
+                      <span className="setup-stepper-label">{label}</span>
+                    </button>
+                  </li>
+                )
+              })}
+            </ol>
+          </nav>
         </div>
 
         <div

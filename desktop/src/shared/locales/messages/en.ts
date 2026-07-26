@@ -961,7 +961,7 @@ export const MESSAGES_EN = {
   'setupInterstitial.chooseDifferent': 'Choose another folder',
   'setupWizard.title': 'Workspace setup',
   'setupWizard.done': 'Done',
-  'setupWizard.stepCount': 'Step {{n}}',
+  'setupWizard.stepCount': 'Step {{n}} of {{total}}',
   'setupWizard.step.welcome': 'Confirm workspace',
   'setupWizard.step.profile': 'Choose profile template',
   'setupWizard.step.import': 'Import existing config',

@@ -930,7 +930,7 @@ export const MESSAGES_ZH_HANS = {
   'setupInterstitial.chooseDifferent': '选择其他文件夹',
   'setupWizard.title': '工作区初始化',
   'setupWizard.done': '完成',
-  'setupWizard.stepCount': '第 {{n}} 步',
+  'setupWizard.stepCount': '第 {{n}} 步，共 {{total}} 步',
   'setupWizard.step.welcome': '确认工作区',
   'setupWizard.step.profile': '选择角色模板',
   'setupWizard.step.import': '导入现有配置',

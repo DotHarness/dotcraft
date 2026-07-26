@@ -368,7 +368,7 @@ export const MESSAGES_KO = {
 
   'setupWizard.title': '워크스페이스 설정',
   'setupWizard.done': '완료',
-  'setupWizard.stepCount': '{{n}}단계',
+  'setupWizard.stepCount': '{{total}}단계 중 {{n}}단계',
   'setupWizard.step.welcome': '워크스페이스 확인',
   'setupWizard.step.profile': '프로필 템플릿 선택',
   'setupWizard.step.import': '기존 설정 가져오기',

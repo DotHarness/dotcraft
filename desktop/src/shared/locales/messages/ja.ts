@@ -368,7 +368,7 @@ export const MESSAGES_JA = {
 
   'setupWizard.title': 'ワークスペース設定',
   'setupWizard.done': '完了',
-  'setupWizard.stepCount': 'ステップ {{n}}',
+  'setupWizard.stepCount': 'ステップ {{n}} / {{total}}',
   'setupWizard.step.welcome': 'ワークスペースを確認',
   'setupWizard.step.profile': 'プロファイルテンプレートを選択',
   'setupWizard.step.import': '既存設定をインポート',

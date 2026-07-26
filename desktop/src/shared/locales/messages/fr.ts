@@ -368,7 +368,7 @@ export const MESSAGES_FR = {
 
   'setupWizard.title': 'Configuration de l’espace',
   'setupWizard.done': 'Terminé',
-  'setupWizard.stepCount': 'Étape {{n}}',
+  'setupWizard.stepCount': 'Étape {{n}} sur {{total}}',
   'setupWizard.step.welcome': 'Confirmer l’espace',
   'setupWizard.step.profile': 'Choisir un profil',
   'setupWizard.step.import': 'Importer une configuration',
