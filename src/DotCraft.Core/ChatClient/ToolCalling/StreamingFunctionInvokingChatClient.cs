@@ -184,20 +184,22 @@ public sealed class StreamingFunctionInvokingChatClient(IChatClient innerClient,
             if (reachedIterationLimit)
                 PrepareOptionsForLastIteration(ref options);
 
-            var preparedMessages = await PrepareMessagesForSamplingAsync(
+            var preparation = await PrepareMessagesForSamplingAsync(
                 currentMessages,
                 options,
                 cancellationToken);
-            if (!ReferenceEquals(preparedMessages, currentMessages))
+            var preparedMessages = preparation.Messages;
+            if (preparation.CanonicalHistoryWasReplaced && providerHistoryBridge != null)
             {
-                if (providerHistoryBridge != null)
-                {
-                    await providerHistoryBridge.HistoryReplacedAsync(
-                        preparedMessages,
-                        options,
-                        "sampling_history_replaced",
-                        cancellationToken);
-                }
+                await providerHistoryBridge.HistoryReplacedAsync(
+                    preparedMessages,
+                    options,
+                    "compaction",
+                    cancellationToken);
+            }
+            if (preparation.CanonicalHistoryWasReplaced
+                || !ReferenceEquals(preparedMessages, currentMessages))
+            {
                 currentMessages = preparedMessages;
                 originalMessages = preparedMessages.ToList();
                 augmentedHistory = originalMessages.ToList();
@@ -364,7 +366,7 @@ public sealed class StreamingFunctionInvokingChatClient(IChatClient innerClient,
         }
     }
 
-    private static async Task<IReadOnlyList<ChatMessage>> PrepareMessagesForSamplingAsync(
+    private static async Task<SamplingPreparationResult> PrepareMessagesForSamplingAsync(
         IEnumerable<ChatMessage> currentMessages,
         ChatOptions? options,
         CancellationToken cancellationToken)
@@ -372,7 +374,11 @@ public sealed class StreamingFunctionInvokingChatClient(IChatClient innerClient,
         var messages = currentMessages as IReadOnlyList<ChatMessage> ?? currentMessages.ToList();
         var compaction = PreSamplingCompactionRuntimeScope.Current;
         if (compaction == null)
-            return ModelRequestHistorySanitizer.Sanitize(messages);
+        {
+            return new SamplingPreparationResult(
+                ModelRequestHistorySanitizer.Sanitize(messages),
+                CanonicalHistoryWasReplaced: false);
+        }
 
         var snapshotBeforeCompaction = PromptRequestSnapshot.Capture(
             messages,
@@ -399,8 +405,14 @@ public sealed class StreamingFunctionInvokingChatClient(IChatClient innerClient,
             await capture(snapshot, cancellationToken);
         }
 
-        return preparedMessages;
+        return new SamplingPreparationResult(
+            preparedMessages,
+            CanonicalHistoryWasReplaced: replacement != null);
     }
+
+    private readonly record struct SamplingPreparationResult(
+        IReadOnlyList<ChatMessage> Messages,
+        bool CanonicalHistoryWasReplaced);
 
     private static void FixupHistories(
         IEnumerable<ChatMessage> originalMessages,

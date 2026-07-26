@@ -291,7 +291,19 @@ internal sealed class OpenAIResponsesToolSearchChatClient : IChatClient
 
         public void Apply(ChatResponseUpdate update)
         {
-            if (!TryResolveReasoningItemId(update.RawRepresentation, out var providerItemId))
+            if (!TryGetReasoningEvent(
+                    update.RawRepresentation,
+                    out var outputIndex,
+                    out var eventItemId))
+                return;
+
+            // MEAI does not currently assign a role to Responses reasoning updates.
+            // Give every event in the reasoning item an Assistant boundary so its
+            // summary/protected content cannot be aggregated into a preceding Tool
+            // message. The provider item ID remains content metadata, not MessageId.
+            update.Role = ChatRole.Assistant;
+
+            if (!TryResolveItemId(outputIndex, eventItemId, out var providerItemId))
                 return;
 
             foreach (var reasoning in update.Contents.OfType<TextReasoningContent>())
@@ -335,39 +347,55 @@ internal sealed class OpenAIResponsesToolSearchChatClient : IChatClient
             }
         }
 
-        private bool TryResolveReasoningItemId(
+        private static bool TryGetReasoningEvent(
             object? rawRepresentation,
-            out string resolvedItemId)
+            out int outputIndex,
+            out string? providerItemId)
         {
-            return rawRepresentation switch
+            switch (rawRepresentation)
             {
-                StreamingResponseOutputItemAddedUpdate
+                case StreamingResponseOutputItemAddedUpdate
                 {
                     Item: ReasoningResponseItem item
-                } added => TryResolveItemId(added.OutputIndex, item.Id, out resolvedItemId),
-                StreamingResponseOutputItemDoneUpdate
+                } added:
+                    outputIndex = added.OutputIndex;
+                    providerItemId = item.Id;
+                    return true;
+                case StreamingResponseOutputItemDoneUpdate
                 {
                     Item: ReasoningResponseItem item
-                } done => TryResolveItemId(done.OutputIndex, item.Id, out resolvedItemId),
-                StreamingResponseReasoningSummaryPartAddedUpdate reasoning =>
-                    TryResolveItemId(reasoning.OutputIndex, reasoning.ItemId, out resolvedItemId),
-                StreamingResponseReasoningSummaryPartDoneUpdate reasoning =>
-                    TryResolveItemId(reasoning.OutputIndex, reasoning.ItemId, out resolvedItemId),
-                StreamingResponseReasoningSummaryTextDeltaUpdate reasoning =>
-                    TryResolveItemId(reasoning.OutputIndex, reasoning.ItemId, out resolvedItemId),
-                StreamingResponseReasoningSummaryTextDoneUpdate reasoning =>
-                    TryResolveItemId(reasoning.OutputIndex, reasoning.ItemId, out resolvedItemId),
-                StreamingResponseReasoningTextDeltaUpdate reasoning =>
-                    TryResolveItemId(reasoning.OutputIndex, reasoning.ItemId, out resolvedItemId),
-                StreamingResponseReasoningTextDoneUpdate reasoning =>
-                    TryResolveItemId(reasoning.OutputIndex, reasoning.ItemId, out resolvedItemId),
-                _ => Fail(out resolvedItemId)
-            };
-
-            static bool Fail(out string resolvedItemId)
-            {
-                resolvedItemId = string.Empty;
-                return false;
+                } done:
+                    outputIndex = done.OutputIndex;
+                    providerItemId = item.Id;
+                    return true;
+                case StreamingResponseReasoningSummaryPartAddedUpdate reasoning:
+                    outputIndex = reasoning.OutputIndex;
+                    providerItemId = reasoning.ItemId;
+                    return true;
+                case StreamingResponseReasoningSummaryPartDoneUpdate reasoning:
+                    outputIndex = reasoning.OutputIndex;
+                    providerItemId = reasoning.ItemId;
+                    return true;
+                case StreamingResponseReasoningSummaryTextDeltaUpdate reasoning:
+                    outputIndex = reasoning.OutputIndex;
+                    providerItemId = reasoning.ItemId;
+                    return true;
+                case StreamingResponseReasoningSummaryTextDoneUpdate reasoning:
+                    outputIndex = reasoning.OutputIndex;
+                    providerItemId = reasoning.ItemId;
+                    return true;
+                case StreamingResponseReasoningTextDeltaUpdate reasoning:
+                    outputIndex = reasoning.OutputIndex;
+                    providerItemId = reasoning.ItemId;
+                    return true;
+                case StreamingResponseReasoningTextDoneUpdate reasoning:
+                    outputIndex = reasoning.OutputIndex;
+                    providerItemId = reasoning.ItemId;
+                    return true;
+                default:
+                    outputIndex = default;
+                    providerItemId = null;
+                    return false;
             }
         }
 

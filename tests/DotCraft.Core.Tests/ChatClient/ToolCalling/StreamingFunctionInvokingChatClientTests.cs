@@ -285,7 +285,8 @@ public sealed partial class StreamingFunctionInvokingChatClientTests
     [Fact]
     public async Task GetStreamingResponseAsync_RunsPreSamplingCompactionBeforeModelRequest()
     {
-        var inner = new SingleReplyFakeChatClient();
+        var bridge = new RecordingProviderHistoryBridge();
+        var inner = new ProviderHistoryBridgeFakeChatClient(bridge);
         var client = new StreamingFunctionInvokingChatClient(inner);
         var callbackCalls = 0;
         var replacement = new List<ChatMessage>
@@ -311,6 +312,40 @@ public sealed partial class StreamingFunctionInvokingChatClientTests
         Assert.Equal(1, callbackCalls);
         var call = Assert.Single(inner.Calls);
         Assert.Equal(["assistant:compacted summary", "user:latest user"], call.Select(m => $"{m.Role}:{m.Text}"));
+        var providerReplacement = Assert.Single(bridge.Replacements);
+        Assert.Equal("compaction", providerReplacement.Reason);
+        Assert.Same(replacement, providerReplacement.Messages);
+    }
+
+    [Fact]
+    public async Task GetStreamingResponseAsync_RequestSanitizationDoesNotReplaceCanonicalProviderHistory()
+    {
+        var bridge = new RecordingProviderHistoryBridge();
+        var inner = new ProviderHistoryBridgeFakeChatClient(bridge);
+        var client = new StreamingFunctionInvokingChatClient(inner);
+        var messages = new List<ChatMessage>
+        {
+            new(
+                ChatRole.Assistant,
+                [new FunctionCallContent("call-1", "GetStatus", new Dictionary<string, object?>())]),
+            new(
+                ChatRole.Tool,
+                [
+                    new TextReasoningContent("must stay canonical"),
+                    new FunctionResultContent("call-1", "tool result")
+                ])
+        };
+
+        await foreach (var _ in client.GetStreamingResponseAsync(messages))
+        {
+        }
+
+        Assert.Empty(bridge.Replacements);
+        var request = Assert.Single(inner.Calls);
+        Assert.Equal(2, request.Count);
+        var tool = request[1];
+        Assert.Single(tool.Contents);
+        Assert.IsType<FunctionResultContent>(tool.Contents[0]);
     }
 
     [Fact]
@@ -1139,6 +1174,63 @@ public sealed partial class StreamingFunctionInvokingChatClientTests
         public object? GetService(Type serviceType, object? serviceKey = null) => null;
 
         public void Dispose()
+        {
+        }
+    }
+
+    private sealed class ProviderHistoryBridgeFakeChatClient(
+        RecordingProviderHistoryBridge bridge) : IChatClient
+    {
+        public List<List<ChatMessage>> Calls { get; } = [];
+
+        public Task<ChatResponse> GetResponseAsync(
+            IEnumerable<ChatMessage> chatMessages,
+            ChatOptions? options = null,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(new ChatResponse([new ChatMessage(ChatRole.Assistant, "ok")]));
+
+        public async IAsyncEnumerable<ChatResponseUpdate> GetStreamingResponseAsync(
+            IEnumerable<ChatMessage> chatMessages,
+            ChatOptions? options = null,
+            [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
+        {
+            Calls.Add(chatMessages.ToList());
+            yield return new ChatResponseUpdate(ChatRole.Assistant, "done");
+            await Task.CompletedTask;
+        }
+
+        public object? GetService(Type serviceType, object? serviceKey = null) =>
+            serviceType == typeof(IProviderConversationHistoryBridge) ? bridge : null;
+
+        public void Dispose()
+        {
+        }
+    }
+
+    private sealed class RecordingProviderHistoryBridge : IProviderConversationHistoryBridge
+    {
+        public List<(IReadOnlyList<ChatMessage> Messages, string Reason)> Replacements { get; } = [];
+
+        public ValueTask HistoryReplacedAsync(
+            IReadOnlyList<ChatMessage> messages,
+            ChatOptions? options,
+            string reason,
+            CancellationToken cancellationToken)
+        {
+            Replacements.Add((messages, reason));
+            return ValueTask.CompletedTask;
+        }
+
+        public void MarkProjectionCovered(IReadOnlyList<ChatMessage> messages)
+        {
+        }
+
+        public string? BeginAttempt() => null;
+
+        public ValueTask AbortAttemptAsync(string? attemptId, CancellationToken cancellationToken) =>
+            ValueTask.CompletedTask;
+
+        public void EndAttempt(string? attemptId)
         {
         }
     }
