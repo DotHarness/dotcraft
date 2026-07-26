@@ -246,20 +246,11 @@ internal sealed class ProviderRequestHandler(
             Success = result.Success,
             ProviderId = result.ProviderId,
             Protocol = result.Protocol,
-            Models = [.. result.Models.Select(m => new ModelCatalogItem
-            {
-                Id = m.Id,
-                OwnedBy = m.OwnedBy,
-                CreatedAt = m.CreatedAt,
-                Reasoning = ProviderWireMapper.MapReasoningCapability(ModelThinkingAdapterCatalog.ResolveReasoningCapability(
-                    config,
-                    result.Protocol,
-                    result.EndPoint,
-                    m.Id)),
-                Speed = ProviderWireMapper.MapSpeedCapability(config, result.Protocol, m.Id),
-                ContextWindow = ProviderWireMapper.MapContextWindowCapability(
-                    ModelCatalog.ResolveContextWindowCapability(config, m.Id))
-            })],
+            Models = [.. result.Models.Select(m => ProviderWireMapper.BuildModelCatalogItem(
+                config,
+                result.Protocol,
+                result.EndPoint,
+                m))],
             ErrorCode = result.Success ? null : result.ErrorCode.ToString(),
             ErrorMessage = result.Success ? null : ProviderWireMapper.FormatModelListErrorMessage(result.ErrorMessage, result.EndPoint)
         };
@@ -316,23 +307,11 @@ internal sealed class ProviderRequestHandler(
             Success = result.Success,
             ProviderId = result.ProviderId,
             Protocol = result.Protocol ?? NormalizeProviderProtocol(p.Protocol),
-            Models = [.. result.Models.Select(m => new ModelCatalogItem
-            {
-                Id = m.Id,
-                OwnedBy = m.OwnedBy,
-                CreatedAt = m.CreatedAt,
-                Reasoning = ProviderWireMapper.MapReasoningCapability(ModelThinkingAdapterCatalog.ResolveReasoningCapability(
-                    config,
-                    result.Protocol ?? NormalizeProviderProtocol(p.Protocol),
-                    result.EndPoint,
-                    m.Id)),
-                Speed = ProviderWireMapper.MapSpeedCapability(
-                    config,
-                    result.Protocol ?? NormalizeProviderProtocol(p.Protocol),
-                    m.Id),
-                ContextWindow = ProviderWireMapper.MapContextWindowCapability(
-                    ModelCatalog.ResolveContextWindowCapability(config, m.Id))
-            })],
+            Models = [.. result.Models.Select(m => ProviderWireMapper.BuildModelCatalogItem(
+                config,
+                result.Protocol ?? NormalizeProviderProtocol(p.Protocol),
+                result.EndPoint,
+                m))],
             ErrorCode = result.Success ? null : result.ErrorCode.ToString(),
             ErrorMessage = result.Success ? null : ProviderWireMapper.FormatModelListErrorMessage(result.ErrorMessage, result.EndPoint)
         };

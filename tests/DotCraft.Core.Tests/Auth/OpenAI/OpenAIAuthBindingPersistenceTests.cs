@@ -23,7 +23,7 @@ public sealed class OpenAIAuthBindingPersistenceTests : IDisposable
         using var document = JsonDocument.Parse(File.ReadAllText(configPath));
         Assert.Equal(
             ModelProviderDefaults.DefaultChatGptCodexModel,
-            document.RootElement.GetProperty("ProviderModels").GetProperty("openai").GetString());
+            document.RootElement.GetProperty("ProviderPreferences").GetProperty("openai").GetProperty("Model").GetString());
         Assert.False(document.RootElement.TryGetProperty("Model", out _));
     }
 
@@ -41,7 +41,7 @@ public sealed class OpenAIAuthBindingPersistenceTests : IDisposable
         using var document = JsonDocument.Parse(File.ReadAllText(configPath));
         Assert.Equal(
             ModelProviderDefaults.DefaultChatGptCodexModel,
-            document.RootElement.GetProperty("ProviderModels").GetProperty("openai").GetString());
+            document.RootElement.GetProperty("ProviderPreferences").GetProperty("openai").GetProperty("Model").GetString());
         Assert.False(document.RootElement.TryGetProperty("Model", out _));
     }
 

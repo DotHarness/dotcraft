@@ -13,7 +13,8 @@ public sealed class AgentTools(
     SubAgentCoordinator? subAgentManager = null,
     IEnumerable<SubAgentRoleConfig>? subAgentRoles = null,
     int maxSubAgentDepth = 1,
-    string? subAgentModel = null,
+    ModelPreference? subAgentPreference = null,
+    AppConfig? appConfig = null,
     SubAgentWaitAgentTimeoutOptions? waitAgentTimeoutOptions = null,
     int maxConcurrentSubAgents = 16)
 {
@@ -45,7 +46,10 @@ public sealed class AgentTools(
                 ProfileName = profile,
                 WorkingDirectory = workingDirectory,
                 RoleConfigs = subAgentRoles?.ToArray(),
-                SubAgentModel = subAgentModel,
+                SubAgentPreference = subAgentPreference == null
+                    ? null
+                    : ModelPreferenceRules.Clone(subAgentPreference),
+                RuntimeConfig = appConfig,
                 MaxDepth = maxSubAgentDepth,
                 MaxConcurrentSubAgents = maxConcurrentSubAgents,
                 ForkTurns = forkTurns

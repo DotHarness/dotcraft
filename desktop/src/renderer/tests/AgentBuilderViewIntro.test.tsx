@@ -242,7 +242,14 @@ describe('AgentBuilderView intro composer', () => {
     vi.mocked(window.api.file.readFile).mockResolvedValue(JSON.stringify({
       ProviderId: 'provider-a',
       Model: 'legacy-model',
-      ProviderModels: { 'provider-a': 'provider-model' }
+      ProviderPreferences: {
+        'provider-a': {
+          Model: 'provider-model',
+          Reasoning: { Enabled: false, Effort: 'Medium', Output: 'Full' },
+          Speed: 'Standard',
+          ContextWindow: { Mode: 'Default' }
+        }
+      }
     }))
     const defaultSendRequest = appServerSendRequest.getMockImplementation()
     appServerSendRequest.mockImplementation(async (method: string, params?: Record<string, unknown>) => {

@@ -1,4 +1,5 @@
 using System.Text.Json.Nodes;
+using DotCraft.Configuration;
 using DotCraft.Protocol.AppServer;
 
 namespace DotCraft.Tests.Sessions.Protocol.AppServer;
@@ -162,17 +163,17 @@ public sealed class SubAgentProfileManagementTests : IDisposable
     }
 
     [Fact]
-    public async Task SettingsUpdate_ProviderModels_PersistsUnderSubAgentSection_AndListReflects()
+    public async Task SettingsUpdate_ProviderPreferences_PersistsUnderSubAgentSection_AndListReflects()
     {
         using var harness = new AppServerTestHarness(workspaceCraftPath: _workspaceCraftPath);
         await harness.InitializeAsync();
 
         var updateReq = harness.BuildRequest(AppServerMethods.SubAgentSettingsUpdate, new
         {
-            providerModels = new Dictionary<string, string>
+            providerPreferences = new Dictionary<string, ModelPreference>
             {
-                ["openai"] = "gpt-x",
-                ["anthropic-main"] = "claude-y"
+                ["openai"] = ModelPreferenceRules.CreateManual("gpt-x"),
+                ["anthropic-main"] = ModelPreferenceRules.CreateManual("claude-y")
             }
         });
         await harness.ExecuteRequestAsync(updateReq);
@@ -180,52 +181,52 @@ public sealed class SubAgentProfileManagementTests : IDisposable
         var sent = await harness.Transport.WaitAndDrainAsync(1, TimeSpan.FromSeconds(5));
         AppServerTestHarness.AssertIsSuccessResponse(sent[0]);
         var settings = sent[0].RootElement.GetProperty("result").GetProperty("settings");
-        var resultModels = settings.GetProperty("providerModels");
-        Assert.Equal("gpt-x", resultModels.GetProperty("openai").GetString());
-        Assert.Equal("claude-y", resultModels.GetProperty("anthropic-main").GetString());
+        var resultPreferences = settings.GetProperty("providerPreferences");
+        Assert.Equal("gpt-x", resultPreferences.GetProperty("openai").GetProperty("model").GetString());
+        Assert.Equal("claude-y", resultPreferences.GetProperty("anthropic-main").GetProperty("model").GetString());
 
         var configPath = Path.Combine(_workspaceCraftPath, "config.json");
         var root = JsonNode.Parse(await File.ReadAllTextAsync(configPath))!.AsObject();
-        var persisted = root["SubAgent"]!["ProviderModels"]!.AsObject();
-        Assert.Equal("gpt-x", persisted["openai"]!.GetValue<string>());
-        Assert.Equal("claude-y", persisted["anthropic-main"]!.GetValue<string>());
+        var persisted = root["SubAgent"]!["ProviderPreferences"]!.AsObject();
+        Assert.Equal("gpt-x", persisted["openai"]!["Model"]!.GetValue<string>());
+        Assert.Equal("claude-y", persisted["anthropic-main"]!["Model"]!.GetValue<string>());
 
         var listReq = harness.BuildRequest(AppServerMethods.SubAgentProfileList, new { });
         await harness.ExecuteRequestAsync(listReq);
         var listSent = await harness.Transport.WaitAndDrainAsync(1, TimeSpan.FromSeconds(5));
         var listedSettings = listSent[0].RootElement.GetProperty("result").GetProperty("settings");
-        Assert.Equal("gpt-x", listedSettings.GetProperty("providerModels").GetProperty("openai").GetString());
+        Assert.Equal("gpt-x", listedSettings.GetProperty("providerPreferences").GetProperty("openai").GetProperty("model").GetString());
     }
 
     [Fact]
-    public async Task SettingsUpdate_ProviderModelsEmpty_RemovesKey()
+    public async Task SettingsUpdate_ProviderPreferencesEmpty_RemovesKey()
     {
         using var harness = new AppServerTestHarness(workspaceCraftPath: _workspaceCraftPath);
         await harness.InitializeAsync();
 
         await harness.ExecuteRequestAsync(harness.BuildRequest(AppServerMethods.SubAgentSettingsUpdate, new
         {
-            providerModels = new Dictionary<string, string> { ["openai"] = "gpt-x" }
+            providerPreferences = new Dictionary<string, ModelPreference> { ["openai"] = ModelPreferenceRules.CreateManual("gpt-x") }
         }));
         await harness.Transport.WaitAndDrainAsync(1, TimeSpan.FromSeconds(5));
 
         await harness.ExecuteRequestAsync(harness.BuildRequest(AppServerMethods.SubAgentSettingsUpdate, new
         {
-            providerModels = new Dictionary<string, string>()
+            providerPreferences = new Dictionary<string, ModelPreference>()
         }));
         var sent = await harness.Transport.WaitAndDrainAsync(1, TimeSpan.FromSeconds(5));
         AppServerTestHarness.AssertIsSuccessResponse(sent[0]);
         var settings = sent[0].RootElement.GetProperty("result").GetProperty("settings");
-        Assert.False(settings.TryGetProperty("providerModels", out _));
+        Assert.False(settings.TryGetProperty("providerPreferences", out _));
 
         var configPath = Path.Combine(_workspaceCraftPath, "config.json");
         var root = JsonNode.Parse(await File.ReadAllTextAsync(configPath))!.AsObject();
         var subAgentNode = root.TryGetPropertyValue("SubAgent", out var node) ? node as JsonObject : null;
-        Assert.True(subAgentNode is null || !subAgentNode.ContainsKey("ProviderModels"));
+        Assert.True(subAgentNode is null || !subAgentNode.ContainsKey("ProviderPreferences"));
     }
 
     [Fact]
-    public async Task SettingsUpdate_ProviderModels_RemovesLegacyModel()
+    public async Task SettingsUpdate_ProviderPreferences_RemovesLegacyModel()
     {
         using var harness = new AppServerTestHarness(workspaceCraftPath: _workspaceCraftPath);
         await harness.InitializeAsync();
@@ -235,17 +236,17 @@ public sealed class SubAgentProfileManagementTests : IDisposable
 
         await harness.ExecuteRequestAsync(harness.BuildRequest(AppServerMethods.SubAgentSettingsUpdate, new
         {
-            providerModels = new Dictionary<string, string> { ["openai"] = "gpt-x" }
+            providerPreferences = new Dictionary<string, ModelPreference> { ["openai"] = ModelPreferenceRules.CreateManual("gpt-x") }
         }));
         var sent = await harness.Transport.WaitAndDrainAsync(1, TimeSpan.FromSeconds(5));
         AppServerTestHarness.AssertIsSuccessResponse(sent[0]);
         var settings = sent[0].RootElement.GetProperty("result").GetProperty("settings");
         Assert.False(settings.TryGetProperty("model", out _));
-        Assert.Equal("gpt-x", settings.GetProperty("providerModels").GetProperty("openai").GetString());
+        Assert.Equal("gpt-x", settings.GetProperty("providerPreferences").GetProperty("openai").GetProperty("model").GetString());
 
         var root = JsonNode.Parse(await File.ReadAllTextAsync(configPath))!.AsObject();
         Assert.False(root["SubAgent"]!.AsObject().ContainsKey("Model"));
-        Assert.Equal("gpt-x", root["SubAgent"]!["ProviderModels"]!["openai"]!.GetValue<string>());
+        Assert.Equal("gpt-x", root["SubAgent"]!["ProviderPreferences"]!["openai"]!["Model"]!.GetValue<string>());
     }
 
     [Fact]

@@ -770,7 +770,7 @@ public sealed class MaintenanceForkRunnerTests
         new()
         {
             ProviderId = "test",
-            ProviderModels = new() { ["test"] = model },
+            ProviderPreferences = new() { ["test"] = new ModelPreference { Model = model  } },
             Reasoning = new AppConfig.ReasoningConfig
             {
                 Enabled = true,

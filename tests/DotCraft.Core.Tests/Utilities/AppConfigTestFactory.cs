@@ -11,9 +11,9 @@ internal static class AppConfigTestFactory
         return new AppConfig
         {
             ProviderId = providerId,
-            ProviderModels = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+            ProviderPreferences = new Dictionary<string, ModelPreference>(StringComparer.OrdinalIgnoreCase)
             {
-                [providerId] = model
+                [providerId] = new ModelPreference { Model = model }
             },
             Providers =
             {
@@ -37,9 +37,9 @@ internal static class AppConfigTestFactory
         return new AppConfig
         {
             ProviderId = providerId,
-            ProviderModels = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+            ProviderPreferences = new Dictionary<string, ModelPreference>(StringComparer.OrdinalIgnoreCase)
             {
-                [providerId] = model
+                [providerId] = new ModelPreference { Model = model }
             },
             Providers =
             {

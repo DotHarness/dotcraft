@@ -137,13 +137,16 @@ public sealed class CoreToolSource(
                 config,
                 mainRuntime.ProviderId,
                 mainRuntime.Model);
+            var subAgentPreference = ModelPreferenceRules.Find(
+                config.SubAgent.ProviderPreferences,
+                mainRuntime.ProviderId);
             var subAgentManager = new SubAgentManager(
                 subAgentChatClient,
                 context.WorkspacePath,
                 maxConcurrency: config.SubagentMaxConcurrency,
                 shellTimeout: config.Tools.Shell.Timeout,
                 requireApprovalOutsideWorkspace: requireOutside,
-                reasoningConfig: config.Reasoning,
+                reasoningConfig: subAgentPreference?.Reasoning ?? config.Reasoning,
                 promptCachingConfig: config.PromptCaching,
                 model: subAgentRuntime.Model,
                 providerProtocol: subAgentRuntime.Protocol,
@@ -164,12 +167,13 @@ public sealed class CoreToolSource(
                 externalCliSessionStore: null,
                 config.SubAgent.EnableExternalCliSessionResume);
             var agentTools = new AgentTools(
-                subAgentCoordinator,
-                config.SubAgent.Roles,
-                config.SubAgent.MaxDepth,
-                subAgentRuntime.Model,
-                SubAgentWaitAgentTimeoutOptions.FromConfig(config.SubAgent),
-                config.SubAgent.MaxConcurrentSubAgents);
+                subAgentManager: subAgentCoordinator,
+                subAgentRoles: config.SubAgent.Roles,
+                maxSubAgentDepth: config.SubAgent.MaxDepth,
+                subAgentPreference: subAgentPreference,
+                appConfig: config,
+                waitAgentTimeoutOptions: SubAgentWaitAgentTimeoutOptions.FromConfig(config.SubAgent),
+                maxConcurrentSubAgents: config.SubAgent.MaxConcurrentSubAgents);
             tools.Add(GeneratedToolFunctions.AgentTools_SpawnAgent(agentTools));
             tools.Add(GeneratedToolFunctions.AgentTools_SendMessage(agentTools));
             tools.Add(GeneratedToolFunctions.AgentTools_FollowupTask(agentTools));

@@ -18,6 +18,10 @@ Open `.env` and set at least:
 ```dotenv
 DOTCRAFT_API_KEY=your-api-key
 DOTCRAFT_MODEL=your-model-id
+DOTCRAFT_REASONING_EFFORT=off
+DOTCRAFT_REASONING_OUTPUT=full
+DOTCRAFT_SPEED=standard
+DOTCRAFT_CONTEXT_WINDOW=default
 ```
 
 > [!CAUTION]
@@ -50,8 +54,12 @@ DOTCRAFT_MODEL=your-model-id
 | `DOTCRAFT_PROVIDER_ENDPOINT` | Provider base URL; use the provider's required URL |
 | `DOTCRAFT_API_KEY` | Provider API key |
 | `DOTCRAFT_MODEL` | Exact model ID accepted by the provider |
+| `DOTCRAFT_REASONING_EFFORT` | `off`, `low`, `medium`, `high`, or `extraHigh` |
+| `DOTCRAFT_REASONING_OUTPUT` | `none`, `summary`, or `full` |
+| `DOTCRAFT_SPEED` | `standard` or `fast` |
+| `DOTCRAFT_CONTEXT_WINDOW` | `default` or `max` |
 
-The API key remains in the container environment. DotCraft stores a reference to that environment variable and writes the selected provider and model into the generated configuration.
+The API key remains in the container environment. DotCraft stores a reference to that environment variable and writes one complete provider preference into the generated configuration. When a preference already exists, omitted model-option variables preserve their current fields. Invalid enum values stop startup with the variable name and allowed values.
 
 The stack creates a workspace under `docker/workspace`. By default, Compose publishes the main service endpoints only on the server's loopback interface:
 

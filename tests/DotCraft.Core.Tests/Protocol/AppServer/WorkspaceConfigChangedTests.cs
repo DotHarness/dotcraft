@@ -41,12 +41,12 @@ public sealed class WorkspaceConfigChangedTests : IDisposable
 
         var req = harness.BuildRequest(AppServerMethods.WorkspaceConfigUpdate, new
         {
-            providerModels = new Dictionary<string, string> { ["openai"] = "gpt-test-new" }
+            providerPreferences = new Dictionary<string, ModelPreference> { ["openai"] = Preference("gpt-test-new") }
         });
         await harness.ExecuteRequestAsync(req);
 
         var sent = await harness.Transport.WaitAndDrainAsync(2, TimeSpan.FromSeconds(5));
-        AssertSingleConfigChanged(sent, AppServerMethods.WorkspaceConfigUpdate, ConfigChangeRegions.WorkspaceModel);
+        AssertSingleConfigChanged(sent, AppServerMethods.WorkspaceConfigUpdate, ConfigChangeRegions.WorkspaceProviderPreferences);
     }
 
     [Fact]
@@ -344,7 +344,6 @@ public sealed class WorkspaceConfigChangedTests : IDisposable
     [Fact]
     public async Task WorkspaceConfigUpdate_Reasoning_WritesConfigUpdatesMonitorAndEmitsReasoningRegion()
     {
-        var configPath = Path.Combine(_workspaceCraftPath, "config.json");
         using var harness = new AppServerTestHarness(workspaceCraftPath: _workspaceCraftPath);
         using var bridge = AttachConfigChangedBridge(harness);
         await harness.InitializeAsync(configChange: true);
@@ -359,22 +358,9 @@ public sealed class WorkspaceConfigChangedTests : IDisposable
         });
         await harness.ExecuteRequestAsync(req);
 
-        var sent = await harness.Transport.WaitAndDrainAsync(2, TimeSpan.FromSeconds(5));
-        AssertSingleConfigChanged(sent, AppServerMethods.WorkspaceConfigUpdate, ConfigChangeRegions.WorkspaceReasoning);
-        var response = sent.Single(message => message.RootElement.TryGetProperty("id", out _));
-        var result = response.RootElement.GetProperty("result");
-        Assert.True(result.GetProperty("reasoning").GetProperty("enabled").GetBoolean());
-        Assert.Equal("high", result.GetProperty("reasoning").GetProperty("effort").GetString());
-        Assert.Equal("full", result.GetProperty("reasoning").GetProperty("output").GetString());
-        Assert.True(harness.Monitor.Current.Reasoning.Enabled);
-        Assert.Equal(Microsoft.Extensions.AI.ReasoningEffort.High, harness.Monitor.Current.Reasoning.Effort);
-
-        var json = await File.ReadAllTextAsync(configPath);
-        using var doc = JsonDocument.Parse(json);
-        var reasoning = doc.RootElement.GetProperty("Reasoning");
-        Assert.True(reasoning.GetProperty("Enabled").GetBoolean());
-        Assert.Equal("High", reasoning.GetProperty("Effort").GetString());
-        Assert.Equal("Full", reasoning.GetProperty("Output").GetString());
+        var sent = await harness.Transport.WaitAndDrainAsync(1, TimeSpan.FromSeconds(5));
+        AppServerTestHarness.AssertIsErrorResponse(Assert.Single(sent), AppServerErrors.InvalidParamsCode);
+        AssertNoConfigChanged(sent);
     }
 
     [Fact]
@@ -402,21 +388,15 @@ public sealed class WorkspaceConfigChangedTests : IDisposable
             new System.Text.Json.Nodes.JsonObject { ["reasoning"] = null });
         await harness.ExecuteRequestAsync(req);
 
-        var sent = await harness.Transport.WaitAndDrainAsync(2, TimeSpan.FromSeconds(5));
-        AssertSingleConfigChanged(sent, AppServerMethods.WorkspaceConfigUpdate, ConfigChangeRegions.WorkspaceReasoning);
-        var response = sent.Single(message => message.RootElement.TryGetProperty("id", out _));
-        Assert.Equal(JsonValueKind.Null, response.RootElement.GetProperty("result").GetProperty("reasoning").ValueKind);
-
-        var json = await File.ReadAllTextAsync(configPath);
-        using var doc = JsonDocument.Parse(json);
-        Assert.False(doc.RootElement.TryGetProperty("Reasoning", out _));
-        Assert.False(harness.Monitor.Current.Reasoning.Enabled);
+        var sent = await harness.Transport.WaitAndDrainAsync(1, TimeSpan.FromSeconds(5));
+        AppServerTestHarness.AssertIsErrorResponse(Assert.Single(sent), AppServerErrors.InvalidParamsCode);
+        AssertNoConfigChanged(sent);
+        Assert.True(File.Exists(configPath));
     }
 
     [Fact]
     public async Task WorkspaceConfigUpdate_Speed_WritesConfigUpdatesMonitorAndEmitsSpeedRegion()
     {
-        var configPath = Path.Combine(_workspaceCraftPath, "config.json");
         using var harness = new AppServerTestHarness(workspaceCraftPath: _workspaceCraftPath);
         using var bridge = AttachConfigChangedBridge(harness);
         await harness.InitializeAsync(configChange: true);
@@ -425,14 +405,9 @@ public sealed class WorkspaceConfigChangedTests : IDisposable
             AppServerMethods.WorkspaceConfigUpdate,
             new { speed = "fast" }));
 
-        var sent = await harness.Transport.WaitAndDrainAsync(2, TimeSpan.FromSeconds(5));
-        AssertSingleConfigChanged(sent, AppServerMethods.WorkspaceConfigUpdate, ConfigChangeRegions.WorkspaceSpeed);
-        var response = sent.Single(message => message.RootElement.TryGetProperty("id", out _));
-        Assert.Equal("fast", response.RootElement.GetProperty("result").GetProperty("speed").GetString());
-        Assert.Equal(InferenceSpeed.Fast, harness.Monitor.Current.Speed);
-
-        using var doc = JsonDocument.Parse(await File.ReadAllTextAsync(configPath));
-        Assert.Equal("Fast", doc.RootElement.GetProperty("Speed").GetString());
+        var sent = await harness.Transport.WaitAndDrainAsync(1, TimeSpan.FromSeconds(5));
+        AppServerTestHarness.AssertIsErrorResponse(Assert.Single(sent), AppServerErrors.InvalidParamsCode);
+        AssertNoConfigChanged(sent);
     }
 
     [Fact]
@@ -453,18 +428,9 @@ public sealed class WorkspaceConfigChangedTests : IDisposable
         });
         await harness.ExecuteRequestAsync(req);
 
-        var sent = await harness.Transport.WaitAndDrainAsync(2, TimeSpan.FromSeconds(5));
-        AssertSingleConfigChanged(sent, AppServerMethods.WorkspaceConfigUpdate, ConfigChangeRegions.WorkspaceContextWindow);
-        var response = sent.Single(message => message.RootElement.TryGetProperty("id", out _));
-        var result = response.RootElement.GetProperty("result");
-        Assert.Equal("max", result.GetProperty("contextWindow").GetProperty("mode").GetString());
-        Assert.Equal(ContextWindowMode.Max, harness.Monitor.Current.Compaction.ContextWindowMode);
-
-        var json = await File.ReadAllTextAsync(configPath);
-        using var doc = JsonDocument.Parse(json);
-        Assert.Equal(
-            "Max",
-            doc.RootElement.GetProperty("Compaction").GetProperty("ContextWindowMode").GetString());
+        var sent = await harness.Transport.WaitAndDrainAsync(1, TimeSpan.FromSeconds(5));
+        AppServerTestHarness.AssertIsErrorResponse(Assert.Single(sent), AppServerErrors.InvalidParamsCode);
+        AssertNoConfigChanged(sent);
     }
 
     [Fact]
@@ -492,15 +458,10 @@ public sealed class WorkspaceConfigChangedTests : IDisposable
             new System.Text.Json.Nodes.JsonObject { ["contextWindow"] = null });
         await harness.ExecuteRequestAsync(req);
 
-        var sent = await harness.Transport.WaitAndDrainAsync(2, TimeSpan.FromSeconds(5));
-        AssertSingleConfigChanged(sent, AppServerMethods.WorkspaceConfigUpdate, ConfigChangeRegions.WorkspaceContextWindow);
-        var response = sent.Single(message => message.RootElement.TryGetProperty("id", out _));
-        Assert.Equal(JsonValueKind.Null, response.RootElement.GetProperty("result").GetProperty("contextWindow").ValueKind);
-
-        var json = await File.ReadAllTextAsync(configPath);
-        using var doc = JsonDocument.Parse(json);
-        Assert.False(doc.RootElement.TryGetProperty("Compaction", out _));
-        Assert.Equal(ContextWindowMode.Default, harness.Monitor.Current.Compaction.ContextWindowMode);
+        var sent = await harness.Transport.WaitAndDrainAsync(1, TimeSpan.FromSeconds(5));
+        AppServerTestHarness.AssertIsErrorResponse(Assert.Single(sent), AppServerErrors.InvalidParamsCode);
+        AssertNoConfigChanged(sent);
+        Assert.True(File.Exists(configPath));
     }
 
     [Fact]
@@ -512,7 +473,7 @@ public sealed class WorkspaceConfigChangedTests : IDisposable
 
         var req = harness.BuildRequest(AppServerMethods.WorkspaceConfigUpdate, new
         {
-            providerModels = new Dictionary<string, string> { ["openai"] = "gpt-test-new" },
+            providerPreferences = new Dictionary<string, ModelPreference> { ["openai"] = Preference("gpt-test-new") },
             welcomeSuggestionsEnabled = false,
             skillsSelfLearningEnabled = true,
             memoryAutoConsolidateEnabled = false,
@@ -525,7 +486,7 @@ public sealed class WorkspaceConfigChangedTests : IDisposable
             sent,
             AppServerMethods.WorkspaceConfigUpdate,
             [
-                ConfigChangeRegions.WorkspaceModel,
+                ConfigChangeRegions.WorkspaceProviderPreferences,
                 ConfigChangeRegions.WelcomeSuggestions,
                 ConfigChangeRegions.Skills,
                 ConfigChangeRegions.Memory,
@@ -542,14 +503,14 @@ public sealed class WorkspaceConfigChangedTests : IDisposable
 
         var firstReq = harness.BuildRequest(AppServerMethods.WorkspaceConfigUpdate, new
         {
-            providerModels = new Dictionary<string, string> { ["openai"] = "gpt-4.1" }
+            providerPreferences = new Dictionary<string, ModelPreference> { ["openai"] = Preference("gpt-4.1") }
         });
         await harness.ExecuteRequestAsync(firstReq);
         await harness.Transport.WaitAndDrainAsync(2, TimeSpan.FromSeconds(5));
 
         var secondReq = harness.BuildRequest(AppServerMethods.WorkspaceConfigUpdate, new
         {
-            providerModels = new Dictionary<string, string> { ["openai"] = "gpt-4.1" }
+            providerPreferences = new Dictionary<string, ModelPreference> { ["openai"] = Preference("gpt-4.1") }
         });
         await harness.ExecuteRequestAsync(secondReq);
 
@@ -577,19 +538,19 @@ public sealed class WorkspaceConfigChangedTests : IDisposable
 
         var req = harness.BuildRequest(AppServerMethods.WorkspaceConfigUpdate, new
         {
-            providerModels = new Dictionary<string, string> { ["openai"] = "gpt-4o-mini" }
+            providerPreferences = new Dictionary<string, ModelPreference> { ["openai"] = Preference("gpt-4o-mini") }
         });
         await harness.ExecuteRequestAsync(req);
 
         var json = await File.ReadAllTextAsync(configPath);
-        Assert.DoesNotContain("\"model\":", json, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("\"ProviderModels\"", json, StringComparison.Ordinal);
+        Assert.Contains("\"ProviderPreferences\"", json, StringComparison.Ordinal);
         Assert.Contains("\"apikey\": \"sk-old\"", json, StringComparison.Ordinal);
         Assert.Contains("\"endpoint\": \"https://old.example.com/v1\"", json, StringComparison.Ordinal);
         Assert.Contains("\"Theme\": \"dark\"", json, StringComparison.Ordinal);
-        Assert.DoesNotContain("\"Model\":", json, StringComparison.Ordinal);
         Assert.DoesNotContain("\"ApiKey\":", json, StringComparison.Ordinal);
         Assert.DoesNotContain("\"EndPoint\":", json, StringComparison.Ordinal);
+        using var preservedDoc = JsonDocument.Parse(json);
+        Assert.False(preservedDoc.RootElement.TryGetProperty("model", out _));
         Assert.False(File.Exists(harness.Monitor.Current.GlobalConfigPath!));
     }
 
@@ -858,7 +819,7 @@ public sealed class WorkspaceConfigChangedTests : IDisposable
 
         var req = harness.BuildRequest(AppServerMethods.WorkspaceConfigUpdate, new
         {
-            providerModels = new Dictionary<string, string> { ["openai"] = "gpt-test-new" }
+            providerPreferences = new Dictionary<string, ModelPreference> { ["openai"] = Preference("gpt-test-new") }
         });
         await harness.ExecuteRequestAsync(req);
 
@@ -866,7 +827,7 @@ public sealed class WorkspaceConfigChangedTests : IDisposable
         AssertNoConfigChanged(sent);
         Assert.Single(monitorEvents);
         Assert.Equal(AppServerMethods.WorkspaceConfigUpdate, monitorEvents[0].Source);
-        Assert.Contains(ConfigChangeRegions.WorkspaceModel, monitorEvents[0].Regions);
+        Assert.Contains(ConfigChangeRegions.WorkspaceProviderPreferences, monitorEvents[0].Regions);
 
         harness.Monitor.Changed -= OnChanged;
 
@@ -877,7 +838,7 @@ public sealed class WorkspaceConfigChangedTests : IDisposable
     }
 
     [Fact]
-    public async Task WorkspaceConfigUpdate_ProviderModels_RoundTripsPersistsAndEmitsWorkspaceModelRegion()
+    public async Task WorkspaceConfigUpdate_ProviderPreferences_RoundTripsPersistsAndEmitsWorkspacePreferenceRegion()
     {
         var configPath = Path.Combine(_workspaceCraftPath, "config.json");
         using var harness = new AppServerTestHarness(workspaceCraftPath: _workspaceCraftPath);
@@ -886,41 +847,47 @@ public sealed class WorkspaceConfigChangedTests : IDisposable
 
         var req = harness.BuildRequest(AppServerMethods.WorkspaceConfigUpdate, new
         {
-            providerModels = new Dictionary<string, string>
+            providerPreferences = new Dictionary<string, ModelPreference>
             {
-                ["openai"] = "gpt-x",
-                ["anthropic-main"] = "claude-y"
+                ["openai"] = Preference("gpt-x", InferenceSpeed.Fast),
+                ["anthropic-main"] = Preference("claude-y")
             }
         });
         await harness.ExecuteRequestAsync(req);
 
         var sent = await harness.Transport.WaitAndDrainAsync(2, TimeSpan.FromSeconds(5));
-        AssertSingleConfigChanged(sent, AppServerMethods.WorkspaceConfigUpdate, ConfigChangeRegions.WorkspaceModel);
+        AssertSingleConfigChanged(sent, AppServerMethods.WorkspaceConfigUpdate, ConfigChangeRegions.WorkspaceProviderPreferences);
 
         var response = Assert.Single(sent, d => d.RootElement.TryGetProperty("result", out _));
         var result = response.RootElement.GetProperty("result");
         Assert.False(result.TryGetProperty("model", out _));
-        var resultModels = result.GetProperty("providerModels");
-        Assert.Equal("gpt-x", resultModels.GetProperty("openai").GetString());
-        Assert.Equal("claude-y", resultModels.GetProperty("anthropic-main").GetString());
+        var resultPreferences = result.GetProperty("providerPreferences");
+        Assert.Equal("gpt-x", resultPreferences.GetProperty("openai").GetProperty("model").GetString());
+        Assert.Equal("fast", resultPreferences.GetProperty("openai").GetProperty("speed").GetString());
+        Assert.Equal("default", resultPreferences.GetProperty("openai").GetProperty("contextWindow").GetProperty("mode").GetString());
+        Assert.Equal("claude-y", resultPreferences.GetProperty("anthropic-main").GetProperty("model").GetString());
 
         using var doc = JsonDocument.Parse(await File.ReadAllTextAsync(configPath));
-        var persisted = doc.RootElement.GetProperty("ProviderModels");
-        Assert.Equal("gpt-x", persisted.GetProperty("openai").GetString());
-        Assert.Equal("claude-y", persisted.GetProperty("anthropic-main").GetString());
+        var persisted = doc.RootElement.GetProperty("ProviderPreferences");
+        Assert.Equal("gpt-x", persisted.GetProperty("openai").GetProperty("Model").GetString());
+        Assert.Equal("claude-y", persisted.GetProperty("anthropic-main").GetProperty("Model").GetString());
     }
 
     [Fact]
-    public async Task WorkspaceConfigUpdate_ProviderModelsEmpty_RemovesKeyAndReturnsNull()
+    public async Task WorkspaceConfigUpdate_ProviderPreferencesEmpty_RemovesKeyAndReturnsNull()
     {
         var configPath = Path.Combine(_workspaceCraftPath, "config.json");
         await File.WriteAllTextAsync(
             configPath,
             """
             {
-              "ProviderModels": {
-                "openai": "gpt-x",
-                "anthropic-main": "claude-y"
+              "ProviderPreferences": {
+                "openai": {
+                  "Model": "gpt-x",
+                  "Reasoning": { "Enabled": false, "Effort": "Medium", "Output": "Full" },
+                  "Speed": "Standard",
+                  "ContextWindow": { "Mode": "Default" }
+                }
               }
             }
             """);
@@ -931,22 +898,22 @@ public sealed class WorkspaceConfigChangedTests : IDisposable
 
         var req = harness.BuildRequest(AppServerMethods.WorkspaceConfigUpdate, new
         {
-            providerModels = new Dictionary<string, string>()
+            providerPreferences = new Dictionary<string, ModelPreference>()
         });
         await harness.ExecuteRequestAsync(req);
 
         var sent = await harness.Transport.WaitAndDrainAsync(2, TimeSpan.FromSeconds(5));
-        AssertSingleConfigChanged(sent, AppServerMethods.WorkspaceConfigUpdate, ConfigChangeRegions.WorkspaceModel);
+        AssertSingleConfigChanged(sent, AppServerMethods.WorkspaceConfigUpdate, ConfigChangeRegions.WorkspaceProviderPreferences);
 
         var response = Assert.Single(sent, d => d.RootElement.TryGetProperty("result", out _));
-        Assert.False(response.RootElement.GetProperty("result").TryGetProperty("providerModels", out _));
+        Assert.False(response.RootElement.GetProperty("result").TryGetProperty("providerPreferences", out _));
 
         using var doc = JsonDocument.Parse(await File.ReadAllTextAsync(configPath));
-        Assert.False(doc.RootElement.TryGetProperty("ProviderModels", out _));
+        Assert.False(doc.RootElement.TryGetProperty("ProviderPreferences", out _));
     }
 
     [Fact]
-    public async Task WorkspaceConfigUpdate_ProviderModels_PreservesUnrelatedFieldsAndKeyCasing()
+    public async Task WorkspaceConfigUpdate_ProviderPreferences_PreservesUnrelatedFieldsAndKeyCasing()
     {
         var configPath = Path.Combine(_workspaceCraftPath, "config.json");
         await File.WriteAllTextAsync(
@@ -963,16 +930,32 @@ public sealed class WorkspaceConfigChangedTests : IDisposable
 
         var req = harness.BuildRequest(AppServerMethods.WorkspaceConfigUpdate, new
         {
-            providerModels = new Dictionary<string, string> { ["openai"] = "gpt-x" }
+            providerPreferences = new Dictionary<string, ModelPreference> { ["openai"] = Preference("gpt-x") }
         });
         await harness.ExecuteRequestAsync(req);
 
         var json = await File.ReadAllTextAsync(configPath);
-        Assert.DoesNotContain("\"model\":", json, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("\"Theme\": \"dark\"", json, StringComparison.Ordinal);
         using var doc = JsonDocument.Parse(json);
-        Assert.Equal("gpt-x", doc.RootElement.GetProperty("ProviderModels").GetProperty("openai").GetString());
+        Assert.False(doc.RootElement.TryGetProperty("model", out _));
+        Assert.Equal("gpt-x", doc.RootElement.GetProperty("ProviderPreferences").GetProperty("openai").GetProperty("Model").GetString());
     }
+
+    private static ModelPreference Preference(
+        string model,
+        InferenceSpeed speed = InferenceSpeed.Standard,
+        ContextWindowMode contextMode = ContextWindowMode.Default) => new()
+        {
+            Model = model,
+            Reasoning = new AppConfig.ReasoningConfig
+            {
+                Enabled = false,
+                Effort = Microsoft.Extensions.AI.ReasoningEffort.Medium,
+                Output = Microsoft.Extensions.AI.ReasoningOutput.Full
+            },
+            Speed = speed,
+            ContextWindow = new ModelPreferenceContextWindow { Mode = contextMode }
+        };
 
     private static IDisposable AttachConfigChangedBridge(AppServerTestHarness harness)
     {

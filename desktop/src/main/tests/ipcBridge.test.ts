@@ -1597,12 +1597,26 @@ describe('registerIpcHandlers', () => {
     const readCoreConfig = vi.spyOn(getRemoteServersManager(), 'readCoreConfig').mockResolvedValue({
       workspaceRaw: JSON.stringify({
         ProviderId: 'anthropic-main',
-        ProviderModels: { 'anthropic-main': 'claude-sonnet-4-5' },
+        ProviderPreferences: {
+          'anthropic-main': {
+            Model: 'claude-sonnet-4-5',
+            Reasoning: { Enabled: false, Effort: 'Medium', Output: 'Full' },
+            Speed: 'Standard',
+            ContextWindow: { Mode: 'Default' }
+          }
+        },
         Permissions: { DefaultApprovalPolicy: 'autoApprove' }
       }),
       userDefaultsRaw: JSON.stringify({
         ProviderId: 'openai',
-        ProviderModels: { openai: 'gpt-5' }
+        ProviderPreferences: {
+          openai: {
+            Model: 'gpt-5',
+            Reasoning: { Enabled: false, Effort: 'Medium', Output: 'Full' },
+            Speed: 'Standard',
+            ContextWindow: { Mode: 'Default' }
+          }
+        }
       })
     })
 
@@ -1642,12 +1656,26 @@ describe('registerIpcHandlers', () => {
       expect(result).toMatchObject({
         workspace: {
           providerId: 'anthropic-main',
-          providerModels: { 'anthropic-main': 'claude-sonnet-4-5' },
+          providerPreferences: {
+            'anthropic-main': {
+              model: 'claude-sonnet-4-5',
+              reasoning: { enabled: false, effort: 'medium', output: 'full' },
+              speed: 'standard',
+              contextWindow: { mode: 'default' }
+            }
+          },
           defaultApprovalPolicy: 'autoApprove'
         },
         userDefaults: {
           providerId: 'openai',
-          providerModels: { openai: 'gpt-5' }
+          providerPreferences: {
+            openai: {
+              model: 'gpt-5',
+              reasoning: { enabled: false, effort: 'medium', output: 'full' },
+              speed: 'standard',
+              contextWindow: { mode: 'default' }
+            }
+          }
         }
       })
     } finally {

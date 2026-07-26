@@ -747,9 +747,10 @@ Required behavior:
 - If model catalog capability is absent or temporarily fails, the conversation workflow remains usable.
 - Welcome model catalog requests are scoped to the workspace provider. Existing-thread requests are scoped to `thread.configuration.providerId` and do not follow workspace changes.
 - If model listing returns `EndpointNotSupported` or another provider-neutral error, the client must keep manual model entry available.
-- The combined picker exposes configured Provider and model submenus with the existing keyboard and ARIA menu behavior.
-- Welcome atomically persists `providerId` and `providerModels`, then sends the complete pair in `thread/start` or `worktree/createAndStart`.
-- Existing threads do not expose Default. A provider/model choice sends one full `thread/config/update`, never `workspace/config/update`, and updates local state only after success.
+- The combined picker exposes configured Provider, model, reasoning, speed, and context-window controls with the same keyboard and ARIA menu behavior in Composer, Settings, and Setup.
+- Settings and Setup use the full-width field trigger and omit the Provider submenu because provider selection already belongs to the surrounding workflow.
+- Welcome atomically persists `providerId` and the complete provider-keyed `providerPreferences` map, then sends the selected model/reasoning/speed/context snapshot in `thread/start` or `worktree/createAndStart`.
+- Existing threads do not expose Default. A provider or preference choice sends one full `thread/config/update`, never `workspace/config/update`, and updates local state only after success.
 - If a target provider has no remembered model, Desktop selects its first listed model. If listing is unavailable, it leaves the thread unchanged and directs the user to Model Providers settings.
 - Missing/deleted providers remain visible as missing thread state until the user explicitly migrates the thread.
 
@@ -773,7 +774,10 @@ Required behavior:
 - When `providerManagement` is available, Desktop exposes provider-aware model settings:
   - personal providers can be created, edited, tested, and deleted from Settings;
   - `openai` is a normal explicit provider id and can be created, selected, edited, and deleted like other providers when it is not the active workspace selection;
-  - provider credentials and endpoints are personal config, while workspace saves write `providerId`, `model`, and the provider-keyed `providerModels` preference map;
+  - provider credentials and endpoints are personal config, while workspace saves write `providerId` and the provider-keyed `providerPreferences` map;
+  - each preference contains model, reasoning, speed, and context-window selections; a workspace record atomically overrides the personal record for the same provider;
+  - MainAgent and SubAgent use the shared ModelPicker menu; the Workspace preferences group owns the catalog refresh action in its header;
+  - SubAgent displays an inline `Inherit MainAgent` switch. Inherit removes the provider-specific SubAgent record; enabling Custom starts from the current MainAgent preference;
   - provider testing uses `provider/test` and must not perform hidden chat-completion requests;
   - unsupported model listing remains a recoverable setup state with manual model entry.
 - The legacy shared footer Save/Cancel pattern is retired. Settings actions are group-scoped (for example Apply, Restart, or Apply & Restart) based on the tier semantics of that group.

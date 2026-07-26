@@ -30,6 +30,20 @@ import {
   providerProtocolLabel
 } from '../../shared/providerProtocols'
 import { slugProviderId, uniqueProviderId } from '../utils/providerId'
+import {
+  cloneModelPreference,
+  createManualModelPreference,
+  type ModelPreference
+} from '../../shared/modelPreference'
+import {
+  parseModelCatalogItems,
+  type ModelCatalogItem
+} from '../stores/modelCatalogStore'
+import {
+  createCatalogDefaultPreference,
+  normalizePreferenceForModel,
+  PreferenceModelPicker
+} from './conversation/PreferenceModelPicker'
 
 interface WorkspaceSetupWizardProps {
   workspacePath: string
@@ -156,7 +170,12 @@ export function WorkspaceSetupWizard({
     networkTimeoutSeconds: null
   }))
   const [customTimeoutDraft, setCustomTimeoutDraft] = useState('')
-  const [model, setModel] = useState(userConfigDefaults?.model?.trim() || '')
+  const [preference, setPreference] = useState<ModelPreference>(() =>
+    userConfigDefaults?.preference
+      ? cloneModelPreference(userConfigDefaults.preference)
+      : createManualModelPreference(userConfigDefaults?.model?.trim() || '')
+  )
+  const model = preference.model
   const [modelDirty, setModelDirty] = useState(false)
   const [defaultScopeDirty, setDefaultScopeDirty] = useState(false)
   const [setAsUserDefault, setSetAsUserDefault] = useState(providers.length === 0)
@@ -164,7 +183,7 @@ export function WorkspaceSetupWizard({
   const [submitError, setSubmitError] = useState<string | null>(null)
   const [submitWarning, setSubmitWarning] = useState<string | null>(null)
   const [modelLoadState, setModelLoadState] = useState<'idle' | 'loading' | 'ready' | 'auth-required' | 'unsupported' | 'missing-key' | 'error'>('idle')
-  const [modelOptions, setModelOptions] = useState<string[]>([])
+  const [modelCatalog, setModelCatalog] = useState<ModelCatalogItem[]>([])
   const [chatGptLoginPending, setChatGptLoginPending] = useState(false)
   const [modelReloadSeq, setModelReloadSeq] = useState(0)
   const [switchingDisplayLocale, setSwitchingDisplayLocale] = useState(false)
@@ -220,15 +239,9 @@ export function WorkspaceSetupWizard({
     activeDraft.endPoint.trim().length > 0 &&
     !isValidHttpUrl(activeDraft.endPoint)
   const modelListLoading = modelLoadState === 'loading'
-  const effectiveModelOptions = useMemo(() => {
-    const normalized = Array.from(new Set(modelOptions.map((item) => item.trim()).filter(Boolean)))
-    const current = model.trim()
-    if (!current || normalized.includes(current)) return normalized
-    return [current, ...normalized]
-  }, [model, modelOptions])
   const modelSelectAvailable =
     modelLoadState === 'ready' &&
-    effectiveModelOptions.length > 0
+    modelCatalog.length > 0
   const canAdvanceFromConfig =
     model.trim().length > 0 &&
     (providerChoice !== 'existing' || activeExistingProvider != null) &&
@@ -301,9 +314,11 @@ export function WorkspaceSetupWizard({
 
   useEffect(() => {
     if (!modelDirty) {
-      setModel(userConfigDefaults?.model?.trim() || '')
+      setPreference(userConfigDefaults?.preference
+        ? cloneModelPreference(userConfigDefaults.preference)
+        : createManualModelPreference(userConfigDefaults?.model?.trim() || ''))
     }
-  }, [modelDirty, userConfigDefaults?.model])
+  }, [modelDirty, userConfigDefaults?.model, userConfigDefaults?.preference])
 
   useEffect(() => {
     if (defaultScopeDirty) return
@@ -328,7 +343,7 @@ export function WorkspaceSetupWizard({
 
     if (request == null) {
       setModelLoadState('error')
-      setModelOptions([])
+      setModelCatalog([])
       return
     }
 
@@ -338,28 +353,35 @@ export function WorkspaceSetupWizard({
         if (controller.signal.aborted) return
 
         if (result.kind === 'success') {
-          setModelOptions(result.models)
+          const parsedModels = parseModelCatalogItems({ success: true, models: result.models })
+          const parsedById = new Map(parsedModels.map((item) => [item.id, item]))
+          const models = result.models
+            .map((item) => parsedById.get(item.id))
+            .filter((item): item is ModelCatalogItem => item != null)
+          setModelCatalog(models)
           setModelLoadState('ready')
-          const trimmedModels = result.models.map((item) => item.trim()).filter(Boolean)
-          if (!modelDirty && trimmedModels.length > 0) {
-            setModel(trimmedModels[0])
+          if (!modelDirty && models.length > 0) {
+            const remembered = userConfigDefaults?.preference
+            setPreference(remembered && models.some((item) => item.id === remembered.model)
+              ? normalizePreferenceForModel(remembered, models)
+              : createCatalogDefaultPreference(models[0], models[0].id))
           }
           return
         }
 
-        setModelOptions([])
+        setModelCatalog([])
         setModelLoadState(result.kind)
       })
       .catch(() => {
         if (controller.signal.aborted) return
-        setModelOptions([])
+        setModelCatalog([])
         setModelLoadState('error')
       })
 
     return () => {
       controller.abort()
     }
-  }, [activeDraft, activeExistingProvider, configStepIndex, modelDirty, modelReloadSeq, providerChoice, step])
+  }, [activeDraft, activeExistingProvider, configStepIndex, modelDirty, modelReloadSeq, providerChoice, step, userConfigDefaults?.preference])
 
   const loginChatGptForSetup = useCallback(async (): Promise<void> => {
     const providerId = providerChoice === 'existing' ? activeExistingProvider?.id : activeDraft?.id
@@ -402,6 +424,7 @@ export function WorkspaceSetupWizard({
     if (providerChoice === 'existing') {
       return {
         model: model.trim(),
+        preference: cloneModelPreference(preference),
         profile,
         providerMode: 'existing',
         providerId: activeExistingProvider?.id ?? selectedProviderId.trim(),
@@ -413,6 +436,7 @@ export function WorkspaceSetupWizard({
     const draft = activeDraft ?? templateDraft(activeProtocol, providers)
     return {
       model: model.trim(),
+      preference: cloneModelPreference(preference),
       profile,
       providerMode: 'create',
       provider: {
@@ -746,17 +770,17 @@ export function WorkspaceSetupWizard({
               )}
 
               <ModelField
-                model={model}
-                modelOptions={effectiveModelOptions}
+                preference={preference}
+                models={modelCatalog}
                 modelListLoading={modelListLoading}
                 modelSelectAvailable={modelSelectAvailable}
                 modelLoadState={modelLoadState}
                 chatGptLoginPending={chatGptLoginPending}
                 onLoginChatGpt={() => { void loginChatGptForSetup() }}
                 onRetry={() => setModelReloadSeq((value) => value + 1)}
-                onChange={(nextModel) => {
+                onChange={(nextPreference) => {
                   setModelDirty(true)
-                  setModel(nextModel)
+                  setPreference(nextPreference)
                 }}
               />
 
@@ -796,7 +820,7 @@ export function WorkspaceSetupWizard({
                   ? activeExistingProvider?.id ?? selectedProviderId
                   : activeDraft?.id ?? ''
               }
-              model={model.trim()}
+              preference={preference}
               setAsUserDefault={setAsUserDefault}
               bootstrapImportSource={selectedBootstrapImportSource}
               submitError={submitError}
@@ -1413,8 +1437,8 @@ function CustomProviderForm({
 }
 
 function ModelField({
-  model,
-  modelOptions,
+  preference,
+  models,
   modelListLoading,
   modelSelectAvailable,
   modelLoadState,
@@ -1423,15 +1447,15 @@ function ModelField({
   onRetry,
   onChange
 }: {
-  model: string
-  modelOptions: string[]
+  preference: ModelPreference
+  models: ModelCatalogItem[]
   modelListLoading: boolean
   modelSelectAvailable: boolean
   modelLoadState: 'idle' | 'loading' | 'ready' | 'auth-required' | 'unsupported' | 'missing-key' | 'error'
   chatGptLoginPending: boolean
   onLoginChatGpt(): void
   onRetry(): void
-  onChange(model: string): void
+  onChange(preference: ModelPreference): void
 }): JSX.Element {
   const t = useT()
   return (
@@ -1439,29 +1463,19 @@ function ModelField({
       <label htmlFor="setup-model" style={{ display: 'block', marginBottom: '6px', fontSize: '12px', fontWeight: 600 }}>
         {t('setupWizard.field.model')}
       </label>
-      {modelListLoading ? (
-        <div role="status" aria-live="polite" style={{ marginTop: '2px', fontSize: '12px', color: 'var(--text-dimmed)' }}>
-          {t('setupWizard.modelListLoading')}
-        </div>
-      ) : modelSelectAvailable ? (
-        <SettingsSelect
-          id="setup-model"
-          value={model}
-          onValueChange={onChange}
-          ariaLabel={t('setupWizard.field.model')}
-          options={modelOptions.map((item) => ({
-            value: item,
-            label: item
-          }))}
-        />
-      ) : (
-        <Input
-          id="setup-model"
-          value={model}
-          onChange={(e) => onChange(e.target.value)}
-          placeholder={t('setupWizard.placeholder.model')}
-        />
-      )}
+      <PreferenceModelPicker
+        preference={preference}
+        models={models}
+        loading={modelListLoading}
+        disabled={false}
+        errorMessage={modelLoadState === 'error' ? t('setupWizard.modelListUnavailable') : null}
+        manualFallback={!modelListLoading && !modelSelectAvailable}
+        onRetry={onRetry}
+        onChange={onChange}
+        inputId="setup-model"
+        inputAriaLabel={t('setupWizard.field.model')}
+        placeholder={t('setupWizard.placeholder.model')}
+      />
       {modelLoadState === 'auth-required' && (
         <Button variant="primary" onClick={onLoginChatGpt} loading={chatGptLoginPending} style={{ marginTop: '8px' }}>
           {chatGptLoginPending ? t('settings.llm.authMethod.signInPending') : t('setupWizard.authMethod.chatgpt')}
@@ -1486,7 +1500,7 @@ function ConfirmStep({
   displayLanguage,
   providerName,
   providerId,
-  model,
+  preference,
   setAsUserDefault,
   bootstrapImportSource,
   submitError,
@@ -1496,7 +1510,7 @@ function ConfirmStep({
   displayLanguage: string
   providerName: string
   providerId: string
-  model: string
+  preference: ModelPreference
   setAsUserDefault: boolean
   bootstrapImportSource: WorkspaceSetupBootstrapImportSource | null
   submitError: string | null
@@ -1528,7 +1542,29 @@ function ConfirmStep({
         <SummaryRow label={t('setupWizard.summary.displayLanguage')} value={displayLanguage} />
         <SummaryRow label={t('setupWizard.summary.provider')} value={providerName} />
         <SummaryRow label={t('setupWizard.summary.providerId')} value={providerId} mono />
-        <SummaryRow label={t('setupWizard.summary.model')} value={model} mono />
+        <SummaryRow label={t('setupWizard.summary.model')} value={preference.model} mono />
+        <SummaryRow
+          label={t('composer.reasoning.heading')}
+          value={preference.reasoning.enabled
+            ? preference.reasoning.effort === 'extraHigh'
+              ? t('composer.reasoning.extraHigh')
+              : preference.reasoning.effort === 'high'
+                ? t('composer.reasoning.high')
+                : preference.reasoning.effort === 'medium'
+                  ? t('composer.reasoning.medium')
+                  : preference.reasoning.effort === 'low'
+                    ? t('composer.reasoning.low')
+                    : t('composer.reasoning.off')
+            : t('composer.reasoning.off')}
+        />
+        <SummaryRow
+          label={t('composer.speed.heading')}
+          value={t(preference.speed === 'fast' ? 'composer.speed.fast' : 'composer.speed.standard')}
+        />
+        <SummaryRow
+          label={t('composer.context.label')}
+          value={preference.contextWindow.mode === 'max' ? 'MAX' : t('composer.reasoning.default')}
+        />
         <SummaryRow
           label={t('setupWizard.summary.userDefault')}
           value={setAsUserDefault ? t('setupWizard.summary.yes') : t('setupWizard.summary.no')}

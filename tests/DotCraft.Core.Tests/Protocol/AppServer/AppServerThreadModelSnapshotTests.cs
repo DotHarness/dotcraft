@@ -45,13 +45,19 @@ public sealed class AppServerThreadModelSnapshotTests : IDisposable
                   "EndPoint": "https://127.0.0.1:9/v1"
                 }
               },
-              "ProviderModels": { "openai": "model-a" },
-              "Speed": "Fast"
+              "ProviderPreferences": {
+                "openai": {
+                  "Model": "model-a",
+                  "Reasoning": { "Enabled": false, "Effort": "Medium", "Output": "Full" },
+                  "Speed": "Fast",
+                  "ContextWindow": { "Mode": "Default" }
+                }
+              }
             }
             """);
 
         var config = AppConfigTestFactory.CreateOpenAI(model: "model-a");
-        config.Speed = InferenceSpeed.Fast;
+        config.ProviderPreferences["openai"].Speed = InferenceSpeed.Fast;
         config.GlobalConfigPath = Path.Combine(_tempDir, "global", "config.json");
         var monitor = new AppConfigMonitor(config);
         await using var agentFactory = CreateAgentFactory(config);
@@ -89,7 +95,13 @@ public sealed class AppServerThreadModelSnapshotTests : IDisposable
 
         var update = InMemoryTransport.BuildRequest(
             AppServerMethods.WorkspaceConfigUpdate,
-            new { providerModels = new Dictionary<string, string> { ["openai"] = "model-b" } },
+            new
+            {
+                providerPreferences = new Dictionary<string, ModelPreference>
+                {
+                    ["openai"] = ModelPreferenceRules.CreateManual("model-b")
+                }
+            },
             id: 11);
         await ExecuteRequestAsync(handler, transport, update);
         await ReadResponseForIdAsync(transport, 11);
@@ -140,7 +152,14 @@ public sealed class AppServerThreadModelSnapshotTests : IDisposable
             """
             {
               "ProviderId": "anthropic-main",
-              "ProviderModels": { "anthropic-main": "claude-sonnet-4-5" }
+              "ProviderPreferences": {
+                "anthropic-main": {
+                  "Model": "claude-sonnet-4-5",
+                  "Reasoning": { "Enabled": false, "Effort": "Medium", "Output": "Full" },
+                  "Speed": "Standard",
+                  "ContextWindow": { "Mode": "Default" }
+                }
+              }
             }
             """);
 
@@ -184,10 +203,10 @@ public sealed class AppServerThreadModelSnapshotTests : IDisposable
             new
             {
                 providerId = "openrouter",
-                providerModels = new Dictionary<string, string>
+                providerPreferences = new Dictionary<string, ModelPreference>
                 {
-                    ["anthropic-main"] = "claude-sonnet-4-5",
-                    ["openrouter"] = "openrouter-model"
+                    ["anthropic-main"] = ModelPreferenceRules.CreateManual("claude-sonnet-4-5"),
+                    ["openrouter"] = ModelPreferenceRules.CreateManual("openrouter-model")
                 }
             },
             id: 21);

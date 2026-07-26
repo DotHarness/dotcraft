@@ -98,6 +98,24 @@ import type {
 import type { WorkspaceConfigChangedPayload } from '../../utils/workspaceConfigChanged'
 import { slugProviderId, uniqueProviderId } from '../../utils/providerId'
 import { formatPlanLabel } from '../../utils/chatgptPlan'
+import {
+  cloneModelPreference,
+  createManualModelPreference,
+  findProviderPreference,
+  readProviderPreferences,
+  setProviderPreference,
+  type ModelPreference,
+  type ProviderPreferences
+} from '../../../shared/modelPreference'
+import {
+  parseModelCatalogItems,
+  type ModelCatalogItem
+} from '../../stores/modelCatalogStore'
+import {
+  createCatalogDefaultPreference,
+  normalizePreferenceForModel,
+  PreferenceModelPicker
+} from '../conversation/PreferenceModelPicker'
 
 declare const __APP_VERSION__: string | undefined
 
@@ -119,7 +137,7 @@ interface McpTestResultWire {
 
 interface WorkspaceCoreConfig {
   providerId: string | null
-  providerModels: Record<string, string>
+  providerPreferences: ProviderPreferences
   welcomeSuggestionsEnabled: boolean | null
   skillsSelfLearningEnabled: boolean | null
   memoryAutoConsolidateEnabled: boolean | null
@@ -137,7 +155,7 @@ interface WorkspaceCoreConfigResult {
 
 const EMPTY_WORKSPACE_CORE_CONFIG: WorkspaceCoreConfig = {
   providerId: null,
-  providerModels: {},
+  providerPreferences: {},
   welcomeSuggestionsEnabled: null,
   skillsSelfLearningEnabled: null,
   memoryAutoConsolidateEnabled: null,
@@ -497,43 +515,20 @@ function normalizeDreamsStatus(value: unknown): DreamsStatus {
   }
 }
 
-function normalizeProviderModels(value: unknown): Record<string, string> {
-  if (value == null || typeof value !== 'object' || Array.isArray(value)) {
-    return {}
-  }
-  const result: Record<string, string> = {}
-  for (const [providerId, rawModel] of Object.entries(value as Record<string, unknown>)) {
-    const normalizedProviderId = providerId.trim()
-    const model = typeof rawModel === 'string' ? rawModel.trim() : ''
-    if (normalizedProviderId && model && model.toLowerCase() !== 'default') {
-      result[normalizedProviderId] = model
-    }
-  }
-  return result
-}
-
-function getProviderModel(providerModels: Record<string, string>, providerId: string): string {
-  const expected = providerId.trim().toLowerCase()
-  if (!expected) return ''
-  const entry = Object.entries(providerModels).find(
-    ([candidate]) => candidate.trim().toLowerCase() === expected
-  )
-  return entry?.[1]?.trim() ?? ''
-}
-
-function resolveEffectiveProviderModel(
-  workspaceProviderModels: Record<string, string>,
-  userProviderModels: Record<string, string>,
+function resolveEffectiveProviderPreference(
+  workspaceProviderPreferences: ProviderPreferences,
+  userProviderPreferences: ProviderPreferences,
   providerId: string
-): string {
-  return getProviderModel(workspaceProviderModels, providerId) || getProviderModel(userProviderModels, providerId)
+): ModelPreference | null {
+  return findProviderPreference(workspaceProviderPreferences, providerId)
+    ?? findProviderPreference(userProviderPreferences, providerId)
 }
 
 function normalizeWorkspaceCoreConfig(value: unknown): WorkspaceCoreConfig {
   const source = value != null && typeof value === 'object' ? value as Partial<WorkspaceCoreConfig> : {}
   return {
     providerId: typeof source.providerId === 'string' ? source.providerId : null,
-    providerModels: normalizeProviderModels(source.providerModels),
+    providerPreferences: readProviderPreferences(source.providerPreferences),
     welcomeSuggestionsEnabled:
       typeof source.welcomeSuggestionsEnabled === 'boolean'
         ? source.welcomeSuggestionsEnabled
@@ -871,14 +866,6 @@ function mcpSourcePillStyle(): CSSProperties {
     fontSize: 11,
     fontWeight: 600
   }
-}
-
-function formatCompactNumber(value: number): string {
-  if (!Number.isFinite(value)) return '0'
-  return new Intl.NumberFormat(undefined, {
-    notation: 'compact',
-    maximumFractionDigits: 1
-  }).format(value)
 }
 
 function asRecord(value: unknown): Record<string, unknown> | null {
@@ -1373,7 +1360,7 @@ export function SettingsView({
   } | null>(null)
   const [, setWorkspaceCoreBaseline] = useState<WorkspaceCoreConfig>({
     providerId: null,
-    providerModels: {},
+    providerPreferences: {},
     welcomeSuggestionsEnabled: null,
     skillsSelfLearningEnabled: null,
     memoryAutoConsolidateEnabled: null,
@@ -1385,7 +1372,7 @@ export function SettingsView({
   })
   const [userDefaultCore, setUserDefaultCore] = useState<WorkspaceCoreConfig>({
     providerId: null,
-    providerModels: {},
+    providerPreferences: {},
     welcomeSuggestionsEnabled: null,
     skillsSelfLearningEnabled: null,
     memoryAutoConsolidateEnabled: null,
@@ -1404,27 +1391,25 @@ export function SettingsView({
   const [providerEditorId, setProviderEditorId] = useState<ProviderEditorId>(null)
   const [selectedProviderId, setSelectedProviderId] = useState('')
   const selectedProviderIdRef = useRef('')
-  const [workspaceModel, setWorkspaceModel] = useState('')
-  // Per-provider remembered model map (providerId → model). Used to restore the model when a
-  // provider is re-selected so switching providers no longer discards earlier model choices.
-  const [providerModels, setProviderModels] = useState<Record<string, string>>({})
+  const [workspacePreference, setWorkspacePreference] = useState<ModelPreference>(
+    () => createManualModelPreference('')
+  )
+  const [providerPreferences, setProviderPreferences] = useState<ProviderPreferences>({})
   const [providerTestResult, setProviderTestResult] = useState<ProviderTestResultWire | null>(null)
   const [testingProvider, setTestingProvider] = useState(false)
   const [savingProvider, setSavingProvider] = useState(false)
   const [deletingProvider, setDeletingProvider] = useState(false)
-  const [providerModelOptions, setProviderModelOptions] = useState<string[]>([])
+  const [providerModelCatalog, setProviderModelCatalog] = useState<ModelCatalogItem[]>([])
   const [providerModelLoading, setProviderModelLoading] = useState(false)
   const [providerModelError, setProviderModelError] = useState('')
   const providerModelRequestSeqRef = useRef(0)
   const [workspaceManualModelDraft, setWorkspaceManualModelDraft] = useState('')
   const [applyingWorkspaceProvider, setApplyingWorkspaceProvider] = useState(false)
   const [applyingWorkspaceModel, setApplyingWorkspaceModel] = useState(false)
-  // Effective native SubAgent model ('' = inherit the active MainAgent model) plus per-provider
-  // memory (providerId → native model), mirroring the main-model provider memory above.
-  const [subAgentModel, setSubAgentModel] = useState('')
+  const [subAgentPreference, setSubAgentPreference] = useState<ModelPreference | null>(null)
   const [subAgentManualModelDraft, setSubAgentManualModelDraft] = useState('')
-  const [subAgentProviderModels, setSubAgentProviderModels] = useState<Record<string, string>>({})
-  const subAgentProviderModelsRef = useRef<Record<string, string>>({})
+  const [subAgentProviderPreferences, setSubAgentProviderPreferences] = useState<ProviderPreferences>({})
+  const subAgentProviderPreferencesRef = useRef<ProviderPreferences>({})
   const [applyingSubAgentModel, setApplyingSubAgentModel] = useState(false)
   const [welcomeSuggestionsEnabled, setWelcomeSuggestionsEnabled] = useState(true)
   const [applyingWelcomeSuggestions, setApplyingWelcomeSuggestions] = useState(false)
@@ -1498,18 +1483,6 @@ export function SettingsView({
   const providersCountLabel = providers.length === 1
     ? t('settings.llm.providersCount.one', { count: providers.length })
     : t('settings.llm.providersCount.other', { count: providers.length })
-  const effectiveProviderModelOptions = useMemo(() => {
-    const normalized = Array.from(new Set(providerModelOptions.map((item) => item.trim()).filter(Boolean)))
-    const current = workspaceModel.trim()
-    if (!current || normalized.includes(current)) return normalized
-    return [current, ...normalized]
-  }, [providerModelOptions, workspaceModel])
-  const effectiveSubAgentModelOptions = useMemo(() => {
-    const normalized = Array.from(new Set(providerModelOptions.map((item) => item.trim()).filter(Boolean)))
-    const current = subAgentModel.trim()
-    if (!current || normalized.includes(current)) return normalized
-    return [current, ...normalized]
-  }, [providerModelOptions, subAgentModel])
   const selectedProviderMissing =
     selectedProviderId.trim() !== '' &&
     !providersLoading &&
@@ -1518,10 +1491,6 @@ export function SettingsView({
   const workspaceProviderMissingMessage = selectedProviderMissing
     ? t('settings.llm.workspaceProviderMissing', { providerId: selectedProviderId })
     : ''
-  const providerModelSelectAvailable =
-    !providerModelLoading &&
-    providerModelError.trim() === '' &&
-    effectiveProviderModelOptions.length > 0
   const llmDirty = false
   const activeRemoteStackConnection = connectionMode === 'remote' && activeRemoteStack != null
   const manualRemoteConnection = connectionMode === 'remote' && !activeRemoteStackConnection
@@ -1550,14 +1519,14 @@ export function SettingsView({
       const resolvedProviderId = core.workspace.providerId ?? core.userDefaults.providerId ?? 'openai'
       selectedProviderIdRef.current = resolvedProviderId
       setSelectedProviderId(resolvedProviderId)
-      const resolvedModel = resolveEffectiveProviderModel(
-        core.workspace.providerModels,
-        core.userDefaults.providerModels,
+      const resolvedPreference = resolveEffectiveProviderPreference(
+        core.workspace.providerPreferences,
+        core.userDefaults.providerPreferences,
         resolvedProviderId
-      )
-      setWorkspaceModel(resolvedModel)
-      setWorkspaceManualModelDraft(resolvedModel)
-      setProviderModels({ ...core.workspace.providerModels })
+      ) ?? createManualModelPreference('')
+      setWorkspacePreference(resolvedPreference)
+      setWorkspaceManualModelDraft(resolvedPreference.model)
+      setProviderPreferences({ ...core.workspace.providerPreferences })
     }
 
     const resolvedWelcomeSuggestionsEnabled =
@@ -1640,33 +1609,35 @@ export function SettingsView({
 
   async function reloadSubAgentModelMemory(): Promise<void> {
     if (!providerManagementEnabled || !subAgentEnabled) {
-      setSubAgentModel('')
+      setSubAgentPreference(null)
       setSubAgentManualModelDraft('')
-      subAgentProviderModelsRef.current = {}
-      setSubAgentProviderModels({})
+      subAgentProviderPreferencesRef.current = {}
+      setSubAgentProviderPreferences({})
       return
     }
     try {
       const result = (await window.api.appServer.sendRequest(
         'subagent/profiles/list',
         {}
-      )) as { settings?: { providerModels?: Record<string, string> | null } }
-      const nextProviderModels = { ...(result.settings?.providerModels ?? {}) }
+      )) as { settings?: { providerPreferences?: ProviderPreferences | null } }
+      const nextProviderPreferences = readProviderPreferences(result.settings?.providerPreferences)
       const activeProviderId = selectedProviderIdRef.current.trim()
-      const model = activeProviderId ? (nextProviderModels[activeProviderId] ?? '').trim() : ''
-      setSubAgentModel(model)
-      setSubAgentManualModelDraft(model)
-      subAgentProviderModelsRef.current = nextProviderModels
-      setSubAgentProviderModels(nextProviderModels)
+      const preference = activeProviderId
+        ? findProviderPreference(nextProviderPreferences, activeProviderId)
+        : null
+      setSubAgentPreference(preference)
+      setSubAgentManualModelDraft(preference?.model ?? '')
+      subAgentProviderPreferencesRef.current = nextProviderPreferences
+      setSubAgentProviderPreferences(nextProviderPreferences)
     } catch {
       // Non-fatal: the native model editor simply falls back to inherit.
     }
   }
 
-  async function reloadProviderModels(providerId: string): Promise<void> {
+  async function reloadProviderPreferences(providerId: string): Promise<void> {
     const requestSeq = ++providerModelRequestSeqRef.current
     if (!modelCatalogManagementEnabled) {
-      setProviderModelOptions([])
+      setProviderModelCatalog([])
       setProviderModelLoading(false)
       return
     }
@@ -1678,7 +1649,7 @@ export function SettingsView({
       normalizedProviderId &&
       !providers.some((provider) => provider.id === normalizedProviderId)
     ) {
-      setProviderModelOptions([])
+      setProviderModelCatalog([])
       setProviderModelError(t('settings.llm.workspaceProviderMissing', { providerId: normalizedProviderId }))
       return
     }
@@ -1697,7 +1668,7 @@ export function SettingsView({
       }
       if (requestSeq !== providerModelRequestSeqRef.current) return
       if (result.success === false) {
-        setProviderModelOptions([])
+        setProviderModelCatalog([])
         setProviderModelError(
           result.errorMessage ??
           result.ErrorMessage ??
@@ -1705,13 +1676,11 @@ export function SettingsView({
         )
         return
       }
-      const models = Array.isArray(result.models)
-        ? Array.from(new Set(result.models.map((m) => String(m.id ?? m.Id ?? '').trim()).filter(Boolean))).sort((a, b) => a.localeCompare(b))
-        : []
-      setProviderModelOptions(models)
+      const models = parseModelCatalogItems(result)
+      setProviderModelCatalog(models)
     } catch (err) {
       if (requestSeq !== providerModelRequestSeqRef.current) return
-      setProviderModelOptions([])
+      setProviderModelCatalog([])
       setProviderModelError(err instanceof Error ? err.message : String(err))
     } finally {
       if (requestSeq === providerModelRequestSeqRef.current) {
@@ -1720,7 +1689,7 @@ export function SettingsView({
     }
   }
 
-  async function fetchWorkspaceProviderModelOptions(providerId: string): Promise<string[] | null> {
+  async function fetchWorkspaceProviderModelOptions(providerId: string): Promise<ModelCatalogItem[] | null> {
     if (!modelCatalogManagementEnabled) return null
 
     try {
@@ -1733,9 +1702,7 @@ export function SettingsView({
         models?: Array<{ id?: string; Id?: string }>
       }
       if (result.success === false) return null
-      return Array.isArray(result.models)
-        ? Array.from(new Set(result.models.map((m) => String(m.id ?? m.Id ?? '').trim()).filter(Boolean))).sort((a, b) => a.localeCompare(b))
-        : []
+      return parseModelCatalogItems(result)
     } catch {
       return null
     }
@@ -1753,6 +1720,15 @@ export function SettingsView({
   }, [providerManagementEnabled, subAgentEnabled, subAgentRefreshTick])
 
   useEffect(() => {
+    if (!subAgentEnabled) return
+    const preference = selectedProviderId
+      ? findProviderPreference(subAgentProviderPreferences, selectedProviderId)
+      : null
+    setSubAgentPreference(preference)
+    setSubAgentManualModelDraft(preference?.model ?? '')
+  }, [selectedProviderId, subAgentEnabled, subAgentProviderPreferences])
+
+  useEffect(() => {
     if (!providerManagementEnabled || workspaceConfigChangeSeq === 0) return
     if (workspaceConfigChange?.regions.includes('providers')) {
       void reloadProviders()
@@ -1761,12 +1737,40 @@ export function SettingsView({
 
   useEffect(() => {
     if (!selectedProviderId) return
-    void reloadProviderModels(selectedProviderId)
+    void reloadProviderPreferences(selectedProviderId)
   }, [modelCatalogManagementEnabled, selectedProviderId])
 
   useEffect(() => {
+    if (
+      providerModelLoading
+      || applyingWorkspaceModel
+      || !selectedProviderId.trim()
+      || workspacePreference.model.trim()
+      || providerModelCatalog.length === 0
+    ) {
+      return
+    }
+
+    const nextPreference = createCatalogDefaultPreference(
+      providerModelCatalog[0],
+      providerModelCatalog[0].id
+    )
+    const previousPreference = cloneModelPreference(workspacePreference)
+    setWorkspacePreference(nextPreference)
+    setWorkspaceManualModelDraft(nextPreference.model)
+    void persistWorkspacePreference(nextPreference, previousPreference)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    applyingWorkspaceModel,
+    providerModelCatalog,
+    providerModelLoading,
+    selectedProviderId,
+    workspacePreference.model
+  ])
+
+  useEffect(() => {
     if (!selectedProviderMissing) return
-    setProviderModelOptions([])
+    setProviderModelCatalog([])
     setProviderModelError(workspaceProviderMissingMessage)
   }, [selectedProviderMissing, workspaceProviderMissingMessage])
 
@@ -1792,81 +1796,67 @@ export function SettingsView({
     if (!normalized || normalized === selectedProviderId || applyingWorkspaceProvider) return
 
     const previousProviderId = selectedProviderId
-    const previousModel = workspaceModel
+    const previousPreference = cloneModelPreference(workspacePreference)
     setApplyingWorkspaceProvider(true)
-    setProviderModelOptions([])
+    setProviderModelCatalog([])
     setProviderModelError('')
     try {
       const listedModels = await fetchWorkspaceProviderModelOptions(normalized)
-      const rememberedModel = resolveEffectiveProviderModel(
-        providerModels,
-        userDefaultCore.providerModels,
+      const rememberedPreference = resolveEffectiveProviderPreference(
+        providerPreferences,
+        userDefaultCore.providerPreferences,
         normalized
       )
-      const nextModel =
-        listedModels != null && listedModels.length > 0
-          ? rememberedModel && listedModels.includes(rememberedModel)
-            ? rememberedModel
-            : listedModels[0]
-          : rememberedModel || undefined
-
-      const nextProviderModels = { ...providerModels }
-      if (nextModel !== undefined && nextModel.trim()) {
-        nextProviderModels[normalized] = nextModel.trim()
+      const listedRemembered = rememberedPreference == null
+        ? undefined
+        : listedModels?.find((model) => model.id === rememberedPreference.model)
+      const nextPreference = rememberedPreference
+        ? normalizePreferenceForModel(rememberedPreference, listedModels ?? [])
+        : listedModels && listedModels.length > 0
+          ? createCatalogDefaultPreference(listedModels[0], listedModels[0].id)
+          : createManualModelPreference('')
+      if (listedModels && listedModels.length > 0 && rememberedPreference && !listedRemembered) {
+        Object.assign(nextPreference, createCatalogDefaultPreference(listedModels[0], listedModels[0].id))
       }
 
-      const updatePayload: { providerId: string; providerModels: Record<string, string> } = {
+      const nextProviderPreferences = nextPreference.model
+        ? setProviderPreference(providerPreferences, normalized, nextPreference)
+        : providerPreferences
+
+      const updatePayload: { providerId: string; providerPreferences: ProviderPreferences } = {
         providerId: normalized,
-        providerModels: nextProviderModels
+        providerPreferences: nextProviderPreferences
       }
 
       await window.api.appServer.sendRequest('workspace/config/update', updatePayload, 20_000)
       selectedProviderIdRef.current = normalized
       setSelectedProviderId(normalized)
       if (listedModels != null) {
-        setProviderModelOptions(listedModels)
+        setProviderModelCatalog(listedModels)
         setProviderModelError('')
       }
-      setProviderModels(nextProviderModels)
+      setProviderPreferences(nextProviderPreferences)
       setWorkspaceCoreBaseline((current) => ({
         ...current,
         providerId: normalized,
-        providerModels: nextProviderModels
+        providerPreferences: nextProviderPreferences
       }))
-      if (nextModel !== undefined) {
-        setWorkspaceModel(nextModel)
-        setWorkspaceManualModelDraft(nextModel)
-      }
+      setWorkspacePreference(nextPreference)
+      setWorkspaceManualModelDraft(nextPreference.model)
 
-      // Restore/persist this provider's remembered native SubAgent model. Best-effort: a failure
-      // here must not roll back the (already persisted) main provider selection.
       if (subAgentEnabled) {
-        try {
-          const nextSubModel = getProviderModel(subAgentProviderModelsRef.current, normalized)
-          const nextSubProviderModels = { ...subAgentProviderModelsRef.current }
-          if (nextSubModel) {
-            nextSubProviderModels[normalized] = nextSubModel
-          } else {
-            delete nextSubProviderModels[normalized]
-          }
-          await window.api.appServer.sendRequest('subagent/settings/update', {
-            providerModels: nextSubProviderModels
-          }, 20_000)
-          setSubAgentModel(nextSubModel)
-          setSubAgentManualModelDraft(nextSubModel)
-          subAgentProviderModelsRef.current = nextSubProviderModels
-          setSubAgentProviderModels(nextSubProviderModels)
-        } catch (subErr) {
-          addToast(t('settings.llm.toast.saveSubAgentModelFailed', {
-            error: subErr instanceof Error ? subErr.message : String(subErr)
-          }), 'error')
-        }
+        const nextSubPreference = findProviderPreference(
+          subAgentProviderPreferencesRef.current,
+          normalized
+        )
+        setSubAgentPreference(nextSubPreference)
+        setSubAgentManualModelDraft(nextSubPreference?.model ?? '')
       }
     } catch (err) {
       selectedProviderIdRef.current = previousProviderId
       setSelectedProviderId(previousProviderId)
-      setWorkspaceModel(previousModel)
-      setWorkspaceManualModelDraft(previousModel)
+      setWorkspacePreference(previousPreference)
+      setWorkspaceManualModelDraft(previousPreference.model)
       addToast(t('settings.llm.toast.saveProviderSelectionFailed', {
         error: err instanceof Error ? err.message : String(err)
       }), 'error')
@@ -1875,32 +1865,34 @@ export function SettingsView({
     }
   }
 
-  async function persistWorkspaceModel(nextModel: string, previousModel: string): Promise<void> {
+  async function persistWorkspacePreference(
+    nextPreference: ModelPreference,
+    previousPreference: ModelPreference
+  ): Promise<void> {
     setApplyingWorkspaceModel(true)
     try {
-      const normalized = nextModel.trim()
       const activeProviderId = selectedProviderId.trim()
-      const nextProviderModels = { ...providerModels }
-      if (activeProviderId) {
-        if (normalized) {
-          nextProviderModels[activeProviderId] = normalized
-        } else {
-          delete nextProviderModels[activeProviderId]
-        }
-      }
+      if (!activeProviderId || !nextPreference.model.trim()) return
+      const normalized = cloneModelPreference(nextPreference)
+      normalized.model = normalized.model.trim()
+      const nextProviderPreferences = setProviderPreference(
+        providerPreferences,
+        activeProviderId,
+        normalized
+      )
       await window.api.appServer.sendRequest('workspace/config/update', {
-        providerModels: nextProviderModels
+        providerPreferences: nextProviderPreferences
       }, 20_000)
-      setProviderModels(nextProviderModels)
+      setProviderPreferences(nextProviderPreferences)
       setWorkspaceCoreBaseline((current) => ({
         ...current,
-        providerModels: nextProviderModels
+        providerPreferences: nextProviderPreferences
       }))
-      setWorkspaceModel(normalized)
-      setWorkspaceManualModelDraft(normalized)
+      setWorkspacePreference(normalized)
+      setWorkspaceManualModelDraft(normalized.model)
     } catch (err) {
-      setWorkspaceModel(previousModel)
-      setWorkspaceManualModelDraft(previousModel)
+      setWorkspacePreference(previousPreference)
+      setWorkspaceManualModelDraft(previousPreference.model)
       addToast(t('settings.llm.toast.saveModelFailed', {
         error: err instanceof Error ? err.message : String(err)
       }), 'error')
@@ -1909,39 +1901,39 @@ export function SettingsView({
     }
   }
 
-  async function handleWorkspaceModelSelect(nextModel: string): Promise<void> {
-    const normalized = nextModel.trim()
-    if (normalized === workspaceModel.trim() || applyingWorkspaceModel) return
-
-    const previousModel = workspaceModel
-    setWorkspaceModel(normalized)
-    setWorkspaceManualModelDraft(normalized)
-    await persistWorkspaceModel(normalized, previousModel)
+  async function handleWorkspacePreferenceChange(nextPreference: ModelPreference): Promise<void> {
+    if (applyingWorkspaceModel) return
+    const previousPreference = cloneModelPreference(workspacePreference)
+    const normalized = normalizePreferenceForModel(nextPreference, providerModelCatalog)
+    setWorkspacePreference(normalized)
+    setWorkspaceManualModelDraft(normalized.model)
+    await persistWorkspacePreference(normalized, previousPreference)
   }
 
-  async function persistSubAgentModel(nextModel: string, previousModel: string): Promise<void> {
+  async function persistSubAgentPreference(
+    nextPreference: ModelPreference | null,
+    previousPreference: ModelPreference | null
+  ): Promise<void> {
     setApplyingSubAgentModel(true)
     try {
-      const normalized = nextModel.trim()
       const activeProviderId = selectedProviderIdRef.current.trim()
-      const nextSubProviderModels = { ...subAgentProviderModelsRef.current }
-      if (activeProviderId) {
-        if (normalized) {
-          nextSubProviderModels[activeProviderId] = normalized
-        } else {
-          delete nextSubProviderModels[activeProviderId]
-        }
-      }
+      const normalized = nextPreference == null ? null : cloneModelPreference(nextPreference)
+      if (normalized) normalized.model = normalized.model.trim()
+      const nextSubProviderPreferences = setProviderPreference(
+        subAgentProviderPreferencesRef.current,
+        activeProviderId,
+        normalized
+      )
       await window.api.appServer.sendRequest('subagent/settings/update', {
-        providerModels: nextSubProviderModels
+        providerPreferences: nextSubProviderPreferences
       }, 20_000)
-      setSubAgentModel(normalized)
-      setSubAgentManualModelDraft(normalized)
-      subAgentProviderModelsRef.current = nextSubProviderModels
-      setSubAgentProviderModels(nextSubProviderModels)
+      setSubAgentPreference(normalized)
+      setSubAgentManualModelDraft(normalized?.model ?? '')
+      subAgentProviderPreferencesRef.current = nextSubProviderPreferences
+      setSubAgentProviderPreferences(nextSubProviderPreferences)
     } catch (err) {
-      setSubAgentModel(previousModel)
-      setSubAgentManualModelDraft(previousModel)
+      setSubAgentPreference(previousPreference)
+      setSubAgentManualModelDraft(previousPreference?.model ?? '')
       addToast(t('settings.llm.toast.saveSubAgentModelFailed', {
         error: err instanceof Error ? err.message : String(err)
       }), 'error')
@@ -1950,38 +1942,66 @@ export function SettingsView({
     }
   }
 
-  async function handleSubAgentModelSelect(nextModel: string): Promise<void> {
-    const normalized = nextModel.trim()
-    if (normalized === subAgentModel.trim() || applyingSubAgentModel) return
+  async function handleSubAgentPreferenceChange(nextPreference: ModelPreference): Promise<void> {
+    if (applyingSubAgentModel) return
+    const previousPreference = subAgentPreference == null
+      ? null
+      : cloneModelPreference(subAgentPreference)
+    const normalized = normalizePreferenceForModel(nextPreference, providerModelCatalog)
+    setSubAgentPreference(normalized)
+    setSubAgentManualModelDraft(normalized.model)
+    await persistSubAgentPreference(normalized, previousPreference)
+  }
 
-    const previousModel = subAgentModel
-    setSubAgentModel(normalized)
-    setSubAgentManualModelDraft(normalized)
-    await persistSubAgentModel(normalized, previousModel)
+  async function handleSubAgentInheritanceChange(custom: boolean): Promise<void> {
+    if (applyingSubAgentModel) return
+    const previousPreference = subAgentPreference == null
+      ? null
+      : cloneModelPreference(subAgentPreference)
+    const nextPreference = custom ? cloneModelPreference(workspacePreference) : null
+    setSubAgentPreference(nextPreference)
+    setSubAgentManualModelDraft(nextPreference?.model ?? '')
+    await persistSubAgentPreference(nextPreference, previousPreference)
   }
 
   async function handleSubAgentManualModelCommit(): Promise<void> {
     const normalized = subAgentManualModelDraft.trim()
-    if (normalized === subAgentModel.trim() || applyingSubAgentModel) {
-      setSubAgentManualModelDraft(subAgentModel)
+    const persistedPreference = findProviderPreference(
+      subAgentProviderPreferencesRef.current,
+      selectedProviderIdRef.current
+    )
+    if (normalized === (persistedPreference?.model ?? '') || applyingSubAgentModel) {
+      setSubAgentManualModelDraft(persistedPreference?.model ?? '')
       return
     }
 
-    const previousModel = subAgentModel
-    setSubAgentModel(normalized)
-    await persistSubAgentModel(normalized, previousModel)
+    if (!normalized) return
+    const previousPreference = subAgentPreference == null
+      ? null
+      : cloneModelPreference(subAgentPreference)
+    const nextPreference = {
+      ...cloneModelPreference(subAgentPreference ?? workspacePreference),
+      model: normalized
+    }
+    setSubAgentPreference(nextPreference)
+    await persistSubAgentPreference(nextPreference, previousPreference)
   }
 
   async function handleWorkspaceManualModelCommit(): Promise<void> {
     const normalized = workspaceManualModelDraft.trim()
-    if (normalized === workspaceModel.trim() || applyingWorkspaceModel) {
-      setWorkspaceManualModelDraft(workspaceModel)
+    const persistedPreference = findProviderPreference(providerPreferences, selectedProviderId)
+    if (normalized === (persistedPreference?.model ?? '') || applyingWorkspaceModel) {
+      setWorkspaceManualModelDraft(persistedPreference?.model ?? '')
       return
     }
 
-    const previousModel = workspaceModel
-    setWorkspaceModel(normalized)
-    await persistWorkspaceModel(normalized, previousModel)
+    if (!normalized) return
+    const previousPreference = persistedPreference
+      ? cloneModelPreference(persistedPreference)
+      : createManualModelPreference('')
+    const nextPreference = { ...cloneModelPreference(workspacePreference), model: normalized }
+    setWorkspacePreference(nextPreference)
+    await persistWorkspacePreference(nextPreference, previousPreference)
   }
 
   async function handleProviderTest(): Promise<void> {
@@ -3538,146 +3558,107 @@ export function SettingsView({
                           ? t('settings.llm.workspaceDescriptionForProvider', { name: selectedProvider.displayName })
                           : t('settings.llm.workspaceDescription')
                       }
+                      headerAction={
+                        <IconButton
+                          icon={<RefreshIcon size={15} />}
+                          label={t('settings.llm.refreshModels')}
+                          tooltipLabel={t('settings.llm.refreshModels')}
+                          disabled={providerModelLoading || !selectedProviderId}
+                          onClick={() => void reloadProviderPreferences(selectedProviderId)}
+                        />
+                      }
                       flush
                     >
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                          <div style={{ minWidth: 0 }}>
-                            <label htmlFor="settings-provider-model" style={sectionLabelStyle()}>
-                              {t('settings.llm.workspaceModel')}
-                            </label>
-                            <div style={{ display: 'flex', gap: '8px' }}>
-                              {providerModelLoading ? (
-                                <div
-                                  role="status"
-                                  aria-live="polite"
-                                  className="dc-field"
-                                  style={{
-                                    color: 'var(--text-dimmed)',
-                                    display: 'flex',
-                                    alignItems: 'center'
-                                  }}
-                                >
-                                  {t('settings.llm.modelLoading')}
-                                </div>
-                              ) : providerModelSelectAvailable ? (
-                                <SettingsSelect
-                                  id="settings-provider-model"
-                                  value={workspaceModel}
-                                  disabled={applyingWorkspaceModel}
-                                  onValueChange={(nextModel) => {
-                                    void handleWorkspaceModelSelect(nextModel)
-                                  }}
-                                  style={{ flex: 1, minWidth: 0 }}
-                                  options={[
-                                    ...(!workspaceModel.trim()
-                                      ? [{
-                                          value: '',
-                                          label: t('settings.llm.modelSelectPlaceholder'),
-                                          disabled: true
-                                        }]
-                                      : []),
-                                    ...effectiveProviderModelOptions.map((model) => ({
-                                      value: model,
-                                      label: model
-                                    }))
-                                  ]}
-                                />
-                              ) : (
-                                <Input
-                                  id="settings-provider-model"
-                                  value={workspaceManualModelDraft}
-                                  disabled={applyingWorkspaceModel}
-                                  onChange={(e) => setWorkspaceManualModelDraft(e.target.value)}
-                                  onBlur={() => {
-                                    void handleWorkspaceManualModelCommit()
-                                  }}
-                                  onKeyDown={(event) => {
-                                    if (event.key === 'Enter') {
-                                      event.preventDefault()
-                                      void handleWorkspaceManualModelCommit()
-                                    }
-                                  }}
-                                  mono
-                                  placeholder={t('settings.llm.workspaceModelPlaceholder')}
-                                />
-                              )}
-                              <IconButton
-                                icon={<RefreshIcon size={15} />}
-                                label={t('settings.llm.refreshModels')}
-                                tooltipLabel={t('settings.llm.refreshModels')}
-                                disabled={providerModelLoading || !selectedProviderId}
-                                onClick={() => void reloadProviderModels(selectedProviderId)}
-                              />
-                            </div>
-                          </div>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                        <div style={{ minWidth: 0 }}>
+                          <label htmlFor="settings-provider-model" style={sectionLabelStyle()}>
+                            {t('settings.llm.workspaceModel')}
+                          </label>
+                          <PreferenceModelPicker
+                            preference={workspacePreference}
+                            models={providerModelCatalog}
+                            loading={providerModelLoading}
+                            disabled={applyingWorkspaceModel || applyingWorkspaceProvider}
+                            errorMessage={providerModelError || null}
+                            manualFallback={!providerModelLoading && providerModelCatalog.length === 0}
+                            onRetry={() => void reloadProviderPreferences(selectedProviderId)}
+                            onChange={(next) => {
+                              if (providerModelCatalog.length === 0) {
+                                setWorkspacePreference(next)
+                                setWorkspaceManualModelDraft(next.model)
+                              } else {
+                                void handleWorkspacePreferenceChange(next)
+                              }
+                            }}
+                            onManualCommit={() => void handleWorkspaceManualModelCommit()}
+                            inputId="settings-provider-model"
+                            inputAriaLabel={t('settings.llm.workspaceModel')}
+                            placeholder={t('settings.llm.workspaceModelPlaceholder')}
+                          />
+                        </div>
                         {providerModelError && (
-                          <div style={{ ...settingsHintStyle(false), color: 'var(--warning, #d29922)' }}>
+                          <div style={{ ...settingsHintStyle(false), color: 'var(--warning)' }}>
                             {providerModelError}
                           </div>
                         )}
                         {subAgentEnabled && selectedProviderId && (
-                          <div
-                            style={{
-                              minWidth: 0,
-                              borderTop: '1px solid var(--border-subtle, rgba(255,255,255,0.06))',
-                              paddingTop: '12px',
-                              marginTop: '4px'
-                            }}
-                          >
-                            <label htmlFor="settings-subagent-model" style={sectionLabelStyle()}>
-                              {t('settings.llm.subAgentModelTitle')}
-                            </label>
-                            <div style={{ display: 'flex', gap: '8px' }}>
-                              {providerModelLoading ? (
-                                <div
-                                  role="status"
-                                  aria-live="polite"
-                                  className="dc-field"
-                                  style={{
-                                    color: 'var(--text-dimmed)',
-                                    display: 'flex',
-                                    alignItems: 'center'
-                                  }}
-                                >
-                                  {t('settings.llm.modelLoading')}
-                                </div>
-                              ) : providerModelSelectAvailable ? (
-                                <SettingsSelect
-                                  id="settings-subagent-model"
-                                  value={subAgentModel}
-                                  disabled={applyingSubAgentModel}
-                                  onValueChange={(nextModel) => {
-                                    void handleSubAgentModelSelect(nextModel)
-                                  }}
-                                  style={{ flex: 1, minWidth: 0 }}
-                                  options={[
-                                    { value: '', label: t('settings.llm.subAgentModelInherit') },
-                                    ...effectiveSubAgentModelOptions.map((model) => ({
-                                      value: model,
-                                      label: model
-                                    }))
-                                  ]}
+                          <div style={{ minWidth: 0 }}>
+                            <div style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'space-between',
+                              minHeight: '18px',
+                              gap: '12px',
+                              marginBottom: '7px'
+                            }}>
+                              <label htmlFor="settings-subagent-model" style={{ ...sectionLabelStyle(), marginBottom: 0 }}>
+                                {t('settings.llm.subAgentModelTitle')}
+                              </label>
+                              <span style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
+                                <span style={{ color: 'var(--text-tertiary)', fontSize: '10px', fontWeight: 500 }}>
+                                  {subAgentPreference == null
+                                    ? t('settings.llm.subAgentPreferenceInherit')
+                                    : t('settings.llm.subAgentPreferenceCustom')}
+                                </span>
+                                <PillSwitch
+                                  checked={subAgentPreference != null}
+                                  onChange={(checked) => void handleSubAgentInheritanceChange(checked)}
+                                  disabled={
+                                    applyingSubAgentModel
+                                    || applyingWorkspaceProvider
+                                    || providerModelLoading
+                                    || workspacePreference.model.trim() === ''
+                                  }
+                                  aria-label={t('settings.llm.subAgentPreferenceCustomAria')}
+                                  size="sm"
                                 />
-                              ) : (
-                                <Input
-                                  id="settings-subagent-model"
-                                  value={subAgentManualModelDraft}
-                                  disabled={applyingSubAgentModel}
-                                  onChange={(e) => setSubAgentManualModelDraft(e.target.value)}
-                                  onBlur={() => {
-                                    void handleSubAgentManualModelCommit()
-                                  }}
-                                  onKeyDown={(event) => {
-                                    if (event.key === 'Enter') {
-                                      event.preventDefault()
-                                      void handleSubAgentManualModelCommit()
-                                    }
-                                  }}
-                                  mono
-                                  placeholder={t('settings.llm.subAgentModelPlaceholder')}
-                                />
-                              )}
+                              </span>
                             </div>
+                            <PreferenceModelPicker
+                              preference={subAgentPreference ?? workspacePreference}
+                              models={providerModelCatalog}
+                              loading={providerModelLoading}
+                              disabled={
+                                applyingSubAgentModel
+                                || applyingWorkspaceProvider
+                                || subAgentPreference == null
+                              }
+                              errorMessage={providerModelError || null}
+                              manualFallback={!providerModelLoading && providerModelCatalog.length === 0}
+                              onRetry={() => void reloadProviderPreferences(selectedProviderId)}
+                              onChange={(next) => {
+                                if (providerModelCatalog.length === 0) {
+                                  setSubAgentPreference(next)
+                                  setSubAgentManualModelDraft(next.model)
+                                } else {
+                                  void handleSubAgentPreferenceChange(next)
+                                }
+                              }}
+                              onManualCommit={() => void handleSubAgentManualModelCommit()}
+                              inputId="settings-subagent-model"
+                              inputAriaLabel={t('settings.llm.subAgentModelTitle')}
+                              placeholder={t('settings.llm.subAgentModelPlaceholder')}
+                            />
                           </div>
                         )}
                       </div>
@@ -3717,20 +3698,38 @@ export function SettingsView({
 
                         {!providersLoading && providers.map((provider) => {
                           const active = provider.id === selectedProviderId
-                          const rememberedMainAgentModel = active
-                            ? workspaceModel.trim() || resolveEffectiveProviderModel(
-                              providerModels,
-                              userDefaultCore.providerModels,
+                          const rememberedMainAgentPreference = active
+                            ? workspacePreference
+                            : resolveEffectiveProviderPreference(
+                              providerPreferences,
+                              userDefaultCore.providerPreferences,
                               provider.id
                             )
-                            : resolveEffectiveProviderModel(
-                              providerModels,
-                              userDefaultCore.providerModels,
-                              provider.id
-                            )
-                          const rememberedSubAgentModel = active
-                            ? subAgentModel.trim() || (subAgentProviderModels[provider.id] ?? '').trim()
-                            : (subAgentProviderModels[provider.id] ?? '').trim()
+                          const rememberedSubAgentPreference = active
+                            ? subAgentPreference
+                            : findProviderPreference(subAgentProviderPreferences, provider.id)
+                          const formatPreference = (preference: ModelPreference): string => {
+                            const reasoning = preference.reasoning.enabled
+                              ? preference.reasoning.effort === 'extraHigh'
+                                ? t('composer.reasoning.extraHigh')
+                                : preference.reasoning.effort === 'high'
+                                  ? t('composer.reasoning.high')
+                                  : preference.reasoning.effort === 'medium'
+                                    ? t('composer.reasoning.medium')
+                                    : preference.reasoning.effort === 'low'
+                                      ? t('composer.reasoning.low')
+                                      : t('composer.reasoning.off')
+                              : t('composer.reasoning.off')
+                            const speed = preference.speed === 'fast'
+                              ? t('composer.speed.fast')
+                              : t('composer.speed.standard')
+                            return [
+                              preference.model,
+                              reasoning,
+                              speed,
+                              preference.contextWindow.mode === 'max' ? 'MAX' : null
+                            ].filter(Boolean).join(' · ')
+                          }
                           return (
                             <div
                               key={provider.id}
@@ -3793,7 +3792,7 @@ export function SettingsView({
                                     {provider.endPoint || t('settings.llm.providerDefaultEndpoint')}
                                   </span>
                                 </div>
-                                {(rememberedMainAgentModel || rememberedSubAgentModel) && (
+                                {(rememberedMainAgentPreference || rememberedSubAgentPreference) && (
                                   <div
                                     style={{
                                       marginTop: '4px',
@@ -3804,17 +3803,21 @@ export function SettingsView({
                                       gap: '6px'
                                     }}
                                   >
-                                    {rememberedMainAgentModel && (
+                                    {rememberedMainAgentPreference && (
                                       <span style={{ minWidth: 0, maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                        {t('settings.llm.providerRememberedMainAgentModel', { model: rememberedMainAgentModel })}
+                                        {t('settings.llm.providerRememberedMainAgentModel', {
+                                          model: formatPreference(rememberedMainAgentPreference)
+                                        })}
                                       </span>
                                     )}
-                                    {rememberedMainAgentModel && rememberedSubAgentModel && <span aria-hidden>·</span>}
-                                    {rememberedSubAgentModel && (
-                                      <span style={{ minWidth: 0, maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                        {t('settings.llm.providerRememberedSubAgentModel', { model: rememberedSubAgentModel })}
-                                      </span>
-                                    )}
+                                    {rememberedMainAgentPreference && <span aria-hidden>·</span>}
+                                    <span style={{ minWidth: 0, maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                      {rememberedSubAgentPreference
+                                        ? t('settings.llm.providerRememberedSubAgentModel', {
+                                            model: formatPreference(rememberedSubAgentPreference)
+                                          })
+                                        : t('settings.llm.providerInheritedSubAgentPreference')}
+                                    </span>
                                   </div>
                                 )}
                               </div>

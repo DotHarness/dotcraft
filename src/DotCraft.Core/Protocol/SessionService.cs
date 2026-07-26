@@ -911,6 +911,7 @@ public sealed partial class SessionService(
             ? new ThreadConfiguration()
             : CloneThreadConfiguration(source);
         var currentConfig = _appConfigMonitor?.Current ?? agentFactory.RuntimeContext.Config;
+        ModelPreference preference;
 
         if (string.IsNullOrWhiteSpace(captured.Model))
         {
@@ -918,6 +919,7 @@ public sealed partial class SessionService(
                 .ResolveMainRuntime(currentConfig, captured.ProviderId);
             captured.ProviderId = runtime.ProviderId;
             captured.Model = runtime.Model;
+            preference = ModelProviderResolver.ResolveMainPreference(currentConfig, runtime.ProviderId);
         }
         else
         {
@@ -925,21 +927,17 @@ public sealed partial class SessionService(
                 .ResolveMainRuntime(currentConfig, captured.ProviderId, captured.Model);
             captured.ProviderId = runtime.ProviderId;
             captured.Model = captured.Model.Trim();
+            preference = ModelProviderResolver.ResolveMainPreference(currentConfig, runtime.ProviderId);
+            preference.Model = captured.Model;
+            preference = ModelPreferenceRules.Normalize(currentConfig, runtime.ProviderId, preference);
         }
 
-        captured.Reasoning ??= CloneReasoningConfig(currentConfig.Reasoning);
-        captured.Speed ??= currentConfig.Speed;
-        if (captured.ContextWindow == null && currentConfig.Compaction.ContextWindowMode == ContextWindowMode.Max)
+        captured.Reasoning ??= CloneReasoningConfig(preference.Reasoning);
+        captured.Speed ??= preference.Speed;
+        captured.ContextWindow ??= new ThreadContextWindowConfig
         {
-            var capability = ModelCatalog.ResolveContextWindowCapability(currentConfig, captured.Model);
-            if (capability.SupportsMax)
-            {
-                captured.ContextWindow = new ThreadContextWindowConfig
-                {
-                    Mode = ContextWindowMode.Max
-                };
-            }
-        }
+            Mode = preference.ContextWindow.Mode
+        };
 
         return captured;
     }

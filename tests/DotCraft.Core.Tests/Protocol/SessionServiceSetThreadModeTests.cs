@@ -163,13 +163,13 @@ public sealed class SessionServiceSetThreadModeTests : IDisposable
             WorkspacePath = _tempDir
         };
         var config = AppConfigTestFactory.CreateOpenAI(model: "gpt-5.5");
-        config.Reasoning = new AppConfig.ReasoningConfig
+        config.ProviderPreferences[config.ProviderId].Reasoning = new AppConfig.ReasoningConfig
         {
             Enabled = true,
             Effort = ReasoningEffort.High,
             Output = ReasoningOutput.Full
         };
-        config.Compaction.ContextWindowMode = ContextWindowMode.Max;
+        config.ProviderPreferences[config.ProviderId].ContextWindow.Mode = ContextWindowMode.Max;
         var monitor = new AppConfigMonitor(config);
 
         await using var agentFactory = CreateAgentFactory(config);
@@ -188,16 +188,19 @@ public sealed class SessionServiceSetThreadModeTests : IDisposable
         Assert.Equal(ReasoningEffort.High, existingThread.Configuration?.Reasoning?.Effort);
         Assert.Equal(ReasoningOutput.Full, existingThread.Configuration?.Reasoning?.Output);
         Assert.Equal(ContextWindowMode.Max, existingThread.Configuration?.ContextWindow?.Mode);
-        Assert.Null(svc.DebugGetRuntime(existingThread.Id)?.Agent);
+        Assert.NotNull(svc.DebugGetRuntime(existingThread.Id)?.Agent);
 
-        monitor.Current.ProviderModels[monitor.Current.ProviderId] = "model-b";
-        monitor.Current.Reasoning = new AppConfig.ReasoningConfig
+        monitor.Current.ProviderPreferences[monitor.Current.ProviderId] = new ModelPreference
         {
-            Enabled = false,
-            Effort = ReasoningEffort.Low,
-            Output = ReasoningOutput.Full
+            Model = "model-b",
+            Reasoning = new AppConfig.ReasoningConfig
+            {
+                Enabled = false,
+                Effort = ReasoningEffort.Low,
+                Output = ReasoningOutput.Full
+            },
+            ContextWindow = new ModelPreferenceContextWindow { Mode = ContextWindowMode.Default }
         };
-        monitor.Current.Compaction.ContextWindowMode = ContextWindowMode.Default;
         svc.InvalidateThreadAgents();
 
         var existingAfterChange = await svc.EnsureThreadLoadedAsync(existingThread.Id);
@@ -216,7 +219,7 @@ public sealed class SessionServiceSetThreadModeTests : IDisposable
         Assert.Equal("model-b", newThread.Configuration?.Model);
         Assert.False(newThread.Configuration?.Reasoning?.Enabled);
         Assert.Equal(ReasoningEffort.Low, newThread.Configuration?.Reasoning?.Effort);
-        Assert.Null(newThread.Configuration?.ContextWindow);
+        Assert.Equal(ContextWindowMode.Default, newThread.Configuration?.ContextWindow?.Mode);
 
         var explicitThread = await svc.CreateThreadAsync(
             identity,
@@ -239,7 +242,7 @@ public sealed class SessionServiceSetThreadModeTests : IDisposable
     }
 
     [Fact]
-    public async Task CreateThreadAsync_DoesNotInheritWorkspaceMaxContextWindowForUnsupportedModels()
+    public async Task CreateThreadAsync_RepairsWorkspaceMaxContextWindowToDefaultForUnsupportedModels()
     {
         var store = new ThreadStore(_tempDir);
         var persistence = new SessionPersistenceService(store);
@@ -273,11 +276,11 @@ public sealed class SessionServiceSetThreadModeTests : IDisposable
         var persistedExplicitModelThread = await store.LoadThreadAsync(explicitModelThread.Id);
 
         Assert.Equal("model-a", defaultThread.Configuration?.Model);
-        Assert.Null(defaultThread.Configuration?.ContextWindow);
-        Assert.Null(persistedDefaultThread?.Configuration?.ContextWindow);
+        Assert.Equal(ContextWindowMode.Default, defaultThread.Configuration?.ContextWindow?.Mode);
+        Assert.Equal(ContextWindowMode.Default, persistedDefaultThread?.Configuration?.ContextWindow?.Mode);
         Assert.Equal("unknown-model", explicitModelThread.Configuration?.Model);
-        Assert.Null(explicitModelThread.Configuration?.ContextWindow);
-        Assert.Null(persistedExplicitModelThread?.Configuration?.ContextWindow);
+        Assert.Equal(ContextWindowMode.Default, explicitModelThread.Configuration?.ContextWindow?.Mode);
+        Assert.Equal(ContextWindowMode.Default, persistedExplicitModelThread?.Configuration?.ContextWindow?.Mode);
     }
 
     [Fact]

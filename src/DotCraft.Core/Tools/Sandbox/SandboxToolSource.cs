@@ -66,13 +66,16 @@ public sealed class SandboxToolSource(
                 config,
                 mainRuntime.ProviderId,
                 mainRuntime.Model);
+            var subAgentPreference = ModelPreferenceRules.Find(
+                config.SubAgent.ProviderPreferences,
+                mainRuntime.ProviderId);
             var managerRuntime = new SubAgentManager(
                 chatClientRegistry.GetSubAgentChatClient(config, mainRuntime.ProviderId, mainRuntime.Model),
                 context.WorkspacePath,
                 maxConcurrency: config.SubagentMaxConcurrency,
                 shellTimeout: config.Tools.Shell.Timeout,
                 requireApprovalOutsideWorkspace: config.Tools.File.RequireApprovalOutsideWorkspace,
-                reasoningConfig: config.Reasoning,
+                reasoningConfig: subAgentPreference?.Reasoning ?? config.Reasoning,
                 promptCachingConfig: config.PromptCaching,
                 model: subAgentRuntime.Model,
                 providerProtocol: subAgentRuntime.Protocol,
@@ -93,12 +96,13 @@ public sealed class SandboxToolSource(
                 externalCliSessionStore: null,
                 config.SubAgent.EnableExternalCliSessionResume);
             var agentTools = new AgentTools(
-                coordinator,
-                config.SubAgent.Roles,
-                config.SubAgent.MaxDepth,
-                subAgentRuntime.Model,
-                SubAgentWaitAgentTimeoutOptions.FromConfig(config.SubAgent),
-                config.SubAgent.MaxConcurrentSubAgents);
+                subAgentManager: coordinator,
+                subAgentRoles: config.SubAgent.Roles,
+                maxSubAgentDepth: config.SubAgent.MaxDepth,
+                subAgentPreference: subAgentPreference,
+                appConfig: config,
+                waitAgentTimeoutOptions: SubAgentWaitAgentTimeoutOptions.FromConfig(config.SubAgent),
+                maxConcurrentSubAgents: config.SubAgent.MaxConcurrentSubAgents);
             tools.Add(GeneratedToolFunctions.AgentTools_SpawnAgent(agentTools));
             tools.Add(GeneratedToolFunctions.AgentTools_SendMessage(agentTools));
             tools.Add(GeneratedToolFunctions.AgentTools_FollowupTask(agentTools));

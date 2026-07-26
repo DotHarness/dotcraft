@@ -6,10 +6,17 @@ import {
 } from '../utils/workspaceCoreConfig'
 
 describe('workspace core model resolution', () => {
+  const preference = (model: string, speed: 'standard' | 'fast' = 'standard') => ({
+    model,
+    reasoning: { enabled: false, effort: 'medium' as const, output: 'full' as const },
+    speed,
+    contextWindow: { mode: 'default' as const }
+  })
+
   it('prefers an explicit thread model over a provider-specific workspace model', () => {
     const config = {
       ProviderId: 'provider-a',
-      ProviderModels: { 'provider-a': 'remembered-model' }
+      ProviderPreferences: { 'provider-a': preference('remembered-model') }
     }
 
     expect(resolveWorkspaceModelFromConfig(config, 'provider-a', 'thread-model')).toBe('thread-model')
@@ -18,7 +25,7 @@ describe('workspace core model resolution', () => {
   it('uses the effective provider model', () => {
     const config = {
       providerid: 'PROVIDER-A',
-      providermodels: { 'provider-a': 'remembered-model' }
+      providerpreferences: { 'provider-a': preference('remembered-model') }
     }
 
     const providerId = resolveWorkspaceProviderFromConfig(config)
@@ -28,7 +35,7 @@ describe('workspace core model resolution', () => {
 
   it('ignores the obsolete top-level model and falls back to Default', () => {
     expect(resolveWorkspaceModelFromConfig({ Model: 'legacy-model' }, 'provider-b')).toBe('Default')
-    expect(resolveWorkspaceModelFromConfig({ ProviderModels: { 'provider-b': 'default' } }, 'provider-b'))
+    expect(resolveWorkspaceModelFromConfig({ ProviderModels: { 'provider-b': 'legacy' } }, 'provider-b'))
       .toBe('Default')
     expect(resolveWorkspaceModelFromConfig({}, 'provider-b')).toBe('Default')
   })
@@ -37,34 +44,32 @@ describe('workspace core model resolution', () => {
     const config = configObjectFromWorkspaceCore({
       userDefaults: {
         providerId: 'provider-a',
-        providerModels: {
-          'provider-a': 'user-model-a',
-          'provider-b': 'user-model-b',
-          'provider-c': 'user-model-c',
-          ignored: 'Default'
+        providerPreferences: {
+          'provider-a': preference('user-model-a', 'fast'),
+          'provider-b': preference('user-model-b'),
+          'provider-c': preference('user-model-c')
         }
       },
       workspace: {
         providerId: ' Provider-B ',
-        providerModels: {
-          'PROVIDER-A': 'workspace-model-a',
-          'provider-b': ' workspace-model-b ',
-          'PROVIDER-C': 'Default'
+        providerPreferences: {
+          'PROVIDER-A': preference('workspace-model-a'),
+          'provider-b': preference('workspace-model-b')
         }
       }
     })
 
     expect(config).toMatchObject({
       ProviderId: 'Provider-B',
-      ProviderModels: {
-        'PROVIDER-A': 'workspace-model-a',
-        'provider-b': 'workspace-model-b'
+      ProviderPreferences: {
+        'PROVIDER-A': preference('workspace-model-a'),
+        'provider-b': preference('workspace-model-b')
       }
     })
-    expect(config.ProviderModels).not.toHaveProperty('provider-c')
-    expect(config.ProviderModels).not.toHaveProperty('PROVIDER-C')
+    expect(config.ProviderPreferences).toHaveProperty('provider-c')
+    expect(config.ProviderPreferences).not.toHaveProperty('PROVIDER-C')
     expect(resolveWorkspaceModelFromConfig(config, 'provider-a')).toBe('workspace-model-a')
     expect(resolveWorkspaceModelFromConfig(config, 'PROVIDER-B')).toBe('workspace-model-b')
-    expect(resolveWorkspaceModelFromConfig(config, 'provider-c')).toBe('Default')
+    expect(resolveWorkspaceModelFromConfig(config, 'provider-c')).toBe('user-model-c')
   })
 })

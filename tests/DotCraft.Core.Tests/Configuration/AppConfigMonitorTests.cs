@@ -10,7 +10,7 @@ public sealed class AppConfigMonitorTests
         var config = new AppConfig
         {
             ProviderId = "openai",
-            ProviderModels = new() { ["openai"] = "gpt-4o-mini" }
+            ProviderPreferences = new() { ["openai"] = new ModelPreference { Model = "gpt-4o-mini"  } }
         };
         var monitor = new AppConfigMonitor(config);
 
@@ -42,7 +42,7 @@ public sealed class AppConfigMonitorTests
         monitor.Changed += (_, _) => invoked++;
 
         var ex = Record.Exception(() =>
-            monitor.NotifyChanged("workspace/config/update", [ConfigChangeRegions.WorkspaceModel]));
+            monitor.NotifyChanged("workspace/config/update", [ConfigChangeRegions.WorkspaceProviderPreferences]));
 
         Assert.Null(ex);
         Assert.Equal(1, invoked);

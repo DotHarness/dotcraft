@@ -40,7 +40,7 @@ export function useSettingsWorkspaceConfigChangeEffects({
 
     const changedRegions = new Set(change.regions)
     const llmCoreChanged =
-      changedRegions.has('workspace.model') ||
+      changedRegions.has('workspace.providerPreferences') ||
       changedRegions.has('workspace.provider') ||
       changedRegions.has('providers')
     const workspaceCoreChanged =

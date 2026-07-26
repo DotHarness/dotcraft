@@ -1,6 +1,7 @@
 using System.Text.Json.Nodes;
 using DotCraft.CLI;
 using DotCraft.Configuration;
+using Microsoft.Extensions.AI;
 
 namespace DotCraft.Tests.CLI;
 
@@ -25,6 +26,18 @@ public sealed class InitHelperSetupTests : IDisposable
             ApiKey = "sk-global",
             EndPoint = "https://example.com/v1",
             Model = "gpt-4o-mini",
+            Preference = new ModelPreference
+            {
+                Model = "gpt-4o-mini",
+                Reasoning = new AppConfig.ReasoningConfig
+                {
+                    Enabled = true,
+                    Effort = ReasoningEffort.High,
+                    Output = ReasoningOutput.Summary
+                },
+                Speed = InferenceSpeed.Fast,
+                ContextWindow = new ModelPreferenceContextWindow { Mode = ContextWindowMode.Max }
+            },
             Profile = WorkspaceBootstrapProfile.Developer,
             SaveToUserConfig = true
         }, globalConfigPath);
@@ -35,7 +48,13 @@ public sealed class InitHelperSetupTests : IDisposable
         var globalNode = JsonNode.Parse(File.ReadAllText(globalConfigPath))!.AsObject();
         Assert.DoesNotContain("Language", globalNode.Select(p => p.Key));
         Assert.Equal("openai", globalNode["ProviderId"]?.GetValue<string>());
-        Assert.Equal("gpt-4o-mini", globalNode["ProviderModels"]!["openai"]?.GetValue<string>());
+        var preference = globalNode["ProviderPreferences"]!["openai"]!;
+        Assert.Equal("gpt-4o-mini", preference["model"]?.GetValue<string>());
+        Assert.True(preference["reasoning"]!["enabled"]!.GetValue<bool>());
+        Assert.Equal("High", preference["reasoning"]!["effort"]?.GetValue<string>());
+        Assert.Equal("Summary", preference["reasoning"]!["output"]?.GetValue<string>());
+        Assert.Equal("Fast", preference["speed"]?.GetValue<string>());
+        Assert.Equal("Max", preference["contextWindow"]!["mode"]?.GetValue<string>());
         Assert.DoesNotContain("Model", globalNode.Select(p => p.Key));
         var globalProvider = globalNode["Providers"]!["openai"]!;
         Assert.Equal("sk-global", globalProvider["ApiKey"]?.GetValue<string>());
@@ -84,7 +103,7 @@ public sealed class InitHelperSetupTests : IDisposable
         var workspaceNode = JsonNode.Parse(File.ReadAllText(Path.Combine(craftPath, "config.json")))!.AsObject();
         Assert.DoesNotContain("Language", workspaceNode.Select(p => p.Key));
         Assert.Equal("openai", workspaceNode["ProviderId"]?.GetValue<string>());
-        Assert.Equal("deepseek-chat", workspaceNode["ProviderModels"]!["openai"]?.GetValue<string>());
+        Assert.Equal("deepseek-chat", workspaceNode["ProviderPreferences"]!["openai"]!["model"]?.GetValue<string>());
         Assert.DoesNotContain("Model", workspaceNode.Select(p => p.Key));
         Assert.DoesNotContain("ApiKey", workspaceNode.Select(p => p.Key));
         Assert.DoesNotContain("EndPoint", workspaceNode.Select(p => p.Key));
@@ -134,7 +153,7 @@ public sealed class InitHelperSetupTests : IDisposable
         Assert.DoesNotContain("ApiKey", workspaceNode.Select(p => p.Key));
         Assert.DoesNotContain("EndPoint", workspaceNode.Select(p => p.Key));
         Assert.Equal("openai", workspaceNode["ProviderId"]?.GetValue<string>());
-        Assert.Equal("gpt-4.1", workspaceNode["ProviderModels"]!["openai"]?.GetValue<string>());
+        Assert.Equal("gpt-4.1", workspaceNode["ProviderPreferences"]!["openai"]!["model"]?.GetValue<string>());
         Assert.False(File.Exists(Path.Combine(craftPath, "AGENTS.md")));
         Assert.False(File.Exists(Path.Combine(craftPath, "USER.md")));
     }
@@ -176,7 +195,7 @@ public sealed class InitHelperSetupTests : IDisposable
 
         var workspaceNode = JsonNode.Parse(File.ReadAllText(Path.Combine(craftPath, "config.json")))!.AsObject();
         Assert.Equal("anthropic", workspaceNode["ProviderId"]?.GetValue<string>());
-        Assert.Equal("claude-sonnet-4-5", workspaceNode["ProviderModels"]!["anthropic"]?.GetValue<string>());
+        Assert.Equal("claude-sonnet-4-5", workspaceNode["ProviderPreferences"]!["anthropic"]!["model"]?.GetValue<string>());
         Assert.DoesNotContain("ApiKey", workspaceNode.Select(p => p.Key));
         Assert.DoesNotContain("EndPoint", workspaceNode.Select(p => p.Key));
         Assert.DoesNotContain("Language", workspaceNode.Select(p => p.Key));
@@ -216,7 +235,7 @@ public sealed class InitHelperSetupTests : IDisposable
 
         var workspaceNode = JsonNode.Parse(File.ReadAllText(Path.Combine(craftPath, "config.json")))!.AsObject();
         Assert.Equal("openai-api", workspaceNode["ProviderId"]?.GetValue<string>());
-        Assert.Equal("gpt-4.1", workspaceNode["ProviderModels"]!["openai-api"]?.GetValue<string>());
+        Assert.Equal("gpt-4.1", workspaceNode["ProviderPreferences"]!["openai-api"]!["model"]?.GetValue<string>());
         Assert.False(File.Exists(Path.Combine(craftPath, "AGENTS.md")));
         Assert.False(File.Exists(Path.Combine(craftPath, "USER.md")));
     }
@@ -250,14 +269,14 @@ public sealed class InitHelperSetupTests : IDisposable
         var globalNode = JsonNode.Parse(File.ReadAllText(globalConfigPath))!.AsObject();
         Assert.DoesNotContain("Language", globalNode.Select(p => p.Key));
         Assert.Equal("openai-main", globalNode["ProviderId"]?.GetValue<string>());
-        Assert.Equal("gpt-4.1", globalNode["ProviderModels"]!["openai-main"]?.GetValue<string>());
+        Assert.Equal("gpt-4.1", globalNode["ProviderPreferences"]!["openai-main"]!["model"]?.GetValue<string>());
         Assert.DoesNotContain("Model", globalNode.Select(p => p.Key));
         Assert.Equal("OpenAI", globalNode["Providers"]!["openai-main"]!["DisplayName"]?.GetValue<string>());
 
         var workspaceNode = JsonNode.Parse(File.ReadAllText(Path.Combine(craftPath, "config.json")))!.AsObject();
         Assert.DoesNotContain("ProviderId", workspaceNode.Select(p => p.Key));
         Assert.DoesNotContain("Model", workspaceNode.Select(p => p.Key));
-        Assert.DoesNotContain("ProviderModels", workspaceNode.Select(p => p.Key));
+        Assert.DoesNotContain("ProviderPreferences", workspaceNode.Select(p => p.Key));
         Assert.DoesNotContain("ApiKey", workspaceNode.Select(p => p.Key));
         Assert.DoesNotContain("EndPoint", workspaceNode.Select(p => p.Key));
     }

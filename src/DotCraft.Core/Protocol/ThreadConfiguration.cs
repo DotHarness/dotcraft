@@ -69,7 +69,7 @@ public sealed class ThreadConfiguration
 
     /// <summary>
     /// Per-thread model. When empty during thread creation, Session Core captures
-    /// the selected provider's workspace/global <c>AppConfig.ProviderModels</c> entry.
+    /// the selected provider's workspace/global <c>AppConfig.ProviderPreferences</c> entry.
     /// </summary>
     public string? Model { get; set; }
 
@@ -79,7 +79,7 @@ public sealed class ThreadConfiguration
 
     /// <summary>
     /// Per-thread reasoning configuration. Null means use the current effective
-    /// workspace/global <see cref="AppConfig.Reasoning"/> value.
+    /// effective provider preference.
     /// </summary>
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     public AppConfig.ReasoningConfig? Reasoning { get; set; }

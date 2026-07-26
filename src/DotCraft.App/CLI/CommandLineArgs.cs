@@ -105,6 +105,8 @@ public sealed record CommandLineArgs
 
     public string? SetupModel { get; init; }
 
+    public string? SetupPreferenceJson { get; init; }
+
     public string? SetupEndPoint { get; init; }
 
     public string? SetupApiKey { get; init; }
@@ -225,6 +227,7 @@ public sealed record CommandLineArgs
         var execReadStdin = false;
         var execPromptParts = new List<string>();
         string? setupModel = null;
+        string? setupPreferenceJson = null;
         string? setupEndPoint = null;
         string? setupApiKey = null;
         string? setupProfile = null;
@@ -395,6 +398,12 @@ public sealed record CommandLineArgs
             if (arg.Equals("--model", StringComparison.OrdinalIgnoreCase))
             {
                 setupModel = ConsumeNext(args, ref i, "--model");
+                continue;
+            }
+
+            if (arg.Equals("--preference-json", StringComparison.OrdinalIgnoreCase))
+            {
+                setupPreferenceJson = ConsumeNext(args, ref i, "--preference-json");
                 continue;
             }
 
@@ -606,6 +615,12 @@ public sealed record CommandLineArgs
                 continue;
             }
 
+            if (TryParseKeyValue(arg, "--preference-json", out var preferenceJsonValue))
+            {
+                setupPreferenceJson = preferenceJsonValue;
+                continue;
+            }
+
             if (TryParseKeyValue(arg, "--language", out _))
             {
                 continue;
@@ -787,6 +802,7 @@ public sealed record CommandLineArgs
             ExecPrompt = execPrompt,
             ExecReadStdin = execReadStdin,
             SetupModel = setupModel,
+            SetupPreferenceJson = setupPreferenceJson,
             SetupEndPoint = setupEndPoint,
             SetupApiKey = setupApiKey,
             SetupProfile = setupProfile,

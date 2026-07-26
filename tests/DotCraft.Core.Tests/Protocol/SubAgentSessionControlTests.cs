@@ -417,7 +417,8 @@ public sealed class SubAgentSessionControlTests : IDisposable
             {
                 AgentPrompt = "inspect code",
                 TaskName = "inspect",
-                SubAgentModel = "subagent-model"
+                SubAgentPreference = ModelPreferenceRules.CreateManual("subagent-model"),
+                RuntimeConfig = AppConfigTestFactory.CreateOpenAI(model: "parent-model")
             },
             waitForCompletion: false,
             coordinator: null,
@@ -447,7 +448,8 @@ public sealed class SubAgentSessionControlTests : IDisposable
                         Model = "role-model"
                     }
                 ],
-                SubAgentModel = "subagent-model"
+                SubAgentPreference = ModelPreferenceRules.CreateManual("subagent-model"),
+                RuntimeConfig = AppConfigTestFactory.CreateOpenAI(model: "parent-model")
             },
             waitForCompletion: false,
             coordinator: null,

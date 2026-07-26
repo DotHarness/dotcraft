@@ -86,7 +86,7 @@ public sealed class MemoryForkConsolidatorTests : IDisposable
         var config = new AppConfig
         {
             ProviderId = "test",
-            ProviderModels = new() { ["test"] = "claude-opus-4-8" },
+            ProviderPreferences = new() { ["test"] = new ModelPreference { Model = "claude-opus-4-8"  } },
             Reasoning = new AppConfig.ReasoningConfig
             {
                 Enabled = true,

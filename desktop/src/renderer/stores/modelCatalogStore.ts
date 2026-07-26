@@ -171,7 +171,7 @@ function parseContextWindowMeta(value: unknown): ModelContextWindowMeta | null {
   }
 }
 
-function parseModelCatalogItems(payload: unknown): ModelCatalogItem[] {
+export function parseModelCatalogItems(payload: unknown): ModelCatalogItem[] {
   const typed = payload as {
     success?: boolean
     models?: Array<{ id?: string; Id?: string; ownedBy?: string; OwnedBy?: string; createdAt?: string; CreatedAt?: string; reasoning?: unknown; Reasoning?: unknown; speed?: unknown; Speed?: unknown; contextWindow?: unknown; ContextWindow?: unknown }>

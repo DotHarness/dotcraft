@@ -3,6 +3,8 @@ using System.Text.Json;
 using DotCraft.Agents;
 using DotCraft.Auth.OpenAI;
 using DotCraft.Configuration;
+using DotCraft.Protocol;
+using DotCraft.Protocol.AppServer;
 
 namespace DotCraft.CLI;
 
@@ -67,7 +69,16 @@ public static class ModelCatalogCliRunner
                 await Console.Error.WriteLineAsync(result.ErrorMessage);
             }
             await WriteAsync(result.Success
-                ? new { kind = "success", models = result.Models.Select(model => model.Id).ToArray() }
+                ? new
+                {
+                    kind = "success",
+                    models = result.Models.Select(model =>
+                        ProviderWireMapper.BuildModelCatalogItem(
+                            config,
+                            result.Protocol,
+                            result.EndPoint,
+                            model)).ToArray()
+                }
                 : new
                 {
                     kind = result.ErrorCode switch
@@ -94,7 +105,8 @@ public static class ModelCatalogCliRunner
 
     private static async Task WriteAsync(object value)
     {
-        var payload = Encoding.UTF8.GetBytes(JsonSerializer.Serialize(value) + "\n");
+        var payload = Encoding.UTF8.GetBytes(
+            JsonSerializer.Serialize(value, SessionWireJsonOptions.Default) + "\n");
         await using var output = Console.OpenStandardOutput();
         await output.WriteAsync(payload);
         await output.FlushAsync();

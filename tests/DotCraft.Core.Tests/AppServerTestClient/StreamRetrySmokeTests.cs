@@ -93,7 +93,7 @@ public sealed class StreamRetrySmokeTests
         var root = doc.RootElement;
 
         Assert.Equal("openai-chat", root.GetProperty("ProviderId").GetString());
-        Assert.Equal("gpt-test", root.GetProperty("ProviderModels").GetProperty("openai-chat").GetString());
+        Assert.Equal("gpt-test", root.GetProperty("ProviderPreferences").GetProperty("openai-chat").GetProperty("model").GetString());
         Assert.False(root.TryGetProperty("Model", out _));
         Assert.Equal(0, root.GetProperty("McpServers").GetArrayLength());
         Assert.Equal(0, root.GetProperty("LspServers").GetArrayLength());
@@ -142,7 +142,7 @@ public sealed class StreamRetrySmokeTests
             var config = AppConfig.LoadWithGlobalFallback(workspacePath, globalPath);
             var provider = config.Providers["openai-chat"];
 
-            Assert.Equal("gpt-test", config.ProviderModels["openai-chat"]);
+            Assert.Equal("gpt-test", config.ProviderPreferences["openai-chat"].Model);
             Assert.Equal("openai-chat", config.ProviderId);
             Assert.Equal(ModelProviderProtocols.OpenAIChatCompletions, provider.Protocol);
             Assert.Equal("sk-test", provider.ApiKey);

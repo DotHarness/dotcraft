@@ -9,7 +9,7 @@ DotCraft reads global `~/.craft/config.json` first, then overlays workspace `.cr
 | Field | Description | Default |
 |-------|-------------|---------|
 | `ProviderId` | Current personal provider id. Empty means no provider is selected | Empty |
-| `ProviderModels` | MainAgent model names keyed by provider id. The selected provider must have an effective entry | `{}` |
+| `ProviderPreferences` | Complete MainAgent preferences keyed by provider id. The selected provider must have an effective entry | `{}` |
 | `NetworkTimeoutSeconds` | Global model request timeout in seconds; providers can override it | `600` |
 | `Providers` | Personal model provider dictionary, usually stored in `~/.craft/config.json` | Empty |
 | `SubagentMaxConcurrency` | Maximum concurrent subagents | `3` |
@@ -43,11 +43,33 @@ Workspace model selection example:
 ```json
 {
   "ProviderId": "anthropic",
-  "ProviderModels": {
-    "anthropic": "claude-sonnet-4-5"
+  "ProviderPreferences": {
+    "anthropic": {
+      "Model": "claude-sonnet-4-5",
+      "Reasoning": {
+        "Enabled": true,
+        "Effort": "High",
+        "Output": "Full"
+      },
+      "Speed": "Fast",
+      "ContextWindow": {
+        "Mode": "Max"
+      }
+    }
   }
 }
 ```
+
+`ProviderPreferences` records are atomic across config scopes. If global and workspace config both define the same provider id, the workspace record replaces the complete global record.
+
+| Preference field | Values | Description |
+|------------------|--------|-------------|
+| **`Model`** | Non-empty model id | Model used for new MainAgent threads |
+| **`Reasoning.Enabled`** | `true`, `false` | Enables reasoning when the model supports the choice |
+| **`Reasoning.Effort`** | `Low`, `Medium`, `High`, `ExtraHigh` | Requested reasoning effort |
+| **`Reasoning.Output`** | `None`, `Summary`, `Full` | Requested reasoning output |
+| **`Speed`** | `Standard`, `Fast` | Requested inference speed; unsupported Fast runs as Standard |
+| **`ContextWindow.Mode`** | `Default`, `Max` | Requested context-window mode; unsupported Max resets to Default |
 
 Provider object fields:
 
@@ -618,7 +640,7 @@ For the beginner path, read [SubAgents](../features/agent-system/subagents).
 | Field | Description | Default |
 |-------|-------------|---------|
 | `SubAgent.MaxDepth` | Maximum session-backed SubAgent spawn depth; the first child is depth `1` | `1` |
-| `SubAgent.ProviderModels` | Native SubAgent model preferences keyed by the parent thread provider; a missing entry inherits that thread's effective MainAgent model | `{}` |
+| `SubAgent.ProviderPreferences` | Complete native SubAgent preferences keyed by the parent thread provider; a missing entry inherits that thread's complete MainAgent preference | `{}` |
 | `SubAgent.MinWaitTimeoutMs` | Minimum accepted `WaitAgent.timeoutMs` value in milliseconds | `15000` |
 | `SubAgent.DefaultWaitTimeoutMs` | `WaitAgent.timeoutMs` used when the tool call omits a timeout | `60000` |
 | `SubAgent.MaxWaitTimeoutMs` | Maximum accepted `WaitAgent.timeoutMs` value in milliseconds | `3600000` |

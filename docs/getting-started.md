@@ -75,13 +75,24 @@ In Desktop, the setup wizard handles this end to end: choose a provider, paste a
 
 Already paying for ChatGPT Plus / Pro / Team / Business / Enterprise? Pick **Sign in with ChatGPT** in the wizard's OpenAI template, or run `dotcraft auth openai login` after setup, to reuse that subscription instead of an API key.
 
-Prefer to edit configuration directly? The minimal config is a list of providers plus the selected `ProviderId` and its `ProviderModels` entry:
+Prefer to edit configuration directly? The minimal config is a list of providers plus the selected `ProviderId` and its complete `ProviderPreferences` entry:
 
 ```json
 {
   "ProviderId": "anthropic",
-  "ProviderModels": {
-    "anthropic": "claude-sonnet-4-5"
+  "ProviderPreferences": {
+    "anthropic": {
+      "Model": "claude-sonnet-4-5",
+      "Reasoning": {
+        "Enabled": false,
+        "Effort": "Medium",
+        "Output": "Full"
+      },
+      "Speed": "Standard",
+      "ContextWindow": {
+        "Mode": "Default"
+      }
+    }
   },
   "Providers": {
     "anthropic": {
@@ -99,7 +110,7 @@ Prefer to edit configuration directly? The minimal config is a list of providers
 }
 ```
 
-Keep API keys and endpoints in the global file at `~/.craft/config.json`; a workspace usually overrides only `ProviderId` and `ProviderModels`. For every field — protocols, endpoints, and the `/v1` rule for OpenAI-compatible services — see the [Configuration Reference](./developing/configuration).
+Keep API keys and endpoints in the global file at `~/.craft/config.json`; a workspace usually overrides only `ProviderId` and `ProviderPreferences`. For every field — protocols, endpoints, and the `/v1` rule for OpenAI-compatible services — see the [Configuration Reference](./developing/configuration).
 
 ### 4. Run the First Session
 
@@ -133,10 +144,10 @@ First-time setup only needs a few fields:
 |-------|---------|----------------------|
 | `Providers` | Model provider registry, including API keys and endpoints | Global config |
 | `ProviderId` | Current model provider id | Global or workspace config |
-| `ProviderModels` | MainAgent model names keyed by provider id | Global or workspace config |
+| `ProviderPreferences` | MainAgent model, reasoning, speed, and context-window choices keyed by provider id | Global or workspace config |
 | `DashBoard.Enabled` | Enable web debugging and visual configuration | Workspace config |
 
-If unsure, put providers globally and let the workspace override only `ProviderId` and `ProviderModels`.
+If unsure, put providers globally and let the workspace override only `ProviderId` and `ProviderPreferences`.
 
 ## Choose the Next Step by Goal
 

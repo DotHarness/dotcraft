@@ -1,10 +1,12 @@
 using System.Text;
+using System.Text.Json;
 using DotCraft.CLI;
 using DotCraft.AppServer;
 using DotCraft.Diagnostics;
 using DotCraft.Configuration;
 using DotCraft.Hub;
 using DotCraft.Hosting;
+using DotCraft.Protocol;
 using DotCraft.Text;
 using DotCraft.Modules;
 
@@ -226,9 +228,15 @@ if (cliArgs.Mode == CommandLineArgs.RunMode.Setup)
                 : "openai";
         }
 
+        var preference = string.IsNullOrWhiteSpace(cliArgs.SetupPreferenceJson)
+            ? null
+            : JsonSerializer.Deserialize<ModelPreference>(
+                cliArgs.SetupPreferenceJson,
+                SessionWireJsonOptions.Default);
         request = new WorkspaceSetupRequest
         {
             Model = cliArgs.SetupModel?.Trim() ?? string.Empty,
+            Preference = preference,
             EndPoint = cliArgs.SetupEndPoint?.Trim() ?? string.Empty,
             ApiKey = cliArgs.SetupApiKey?.Trim() ?? string.Empty,
             Profile = ParseSetupProfile(cliArgs.SetupProfile),

@@ -12,6 +12,12 @@ import {
 } from '../workspaceSetup'
 
 const tempDirs: string[] = []
+const preference = (model: string) => ({
+  model,
+  reasoning: { enabled: false, effort: 'medium', output: 'full' },
+  speed: 'standard',
+  contextWindow: { mode: 'default' }
+})
 
 function createTempWorkspace(): string {
   const dir = mkdtempSync(join(tmpdir(), 'dotcraft-workspace-'))
@@ -62,7 +68,7 @@ describe('getWorkspaceStatus', () => {
     writeFileSync(join(workspace, '.craft', 'config.json'), '{}', 'utf8')
     writeJson(userConfigPath, {
       ProviderId: 'openai',
-      ProviderModels: { openai: 'gpt-4.1' },
+      ProviderPreferences: { openai: preference('gpt-4.1') },
       Providers: {
         openai: {
           DisplayName: 'OpenAI',
@@ -78,7 +84,8 @@ describe('getWorkspaceStatus', () => {
       hasUserConfig: true,
       userConfigDefaults: {
         providerId: 'openai',
-        model: 'gpt-4.1'
+        model: 'gpt-4.1',
+        preference: preference('gpt-4.1')
       },
       providers: [
         {
@@ -102,7 +109,7 @@ describe('getWorkspaceStatus', () => {
       ProviderId: 'anthropic'
     })
     writeJson(userConfigPath, {
-      ProviderModels: { anthropic: 'claude-sonnet-4-5' },
+      ProviderPreferences: { anthropic: preference('claude-sonnet-4-5') },
       Providers: {
         anthropic: {
           DisplayName: 'Anthropic',
@@ -187,7 +194,7 @@ describe('getWorkspaceStatus', () => {
       userConfigPath,
       JSON.stringify({
         ProviderId: 'anthropic',
-        ProviderModels: { anthropic: 'claude-sonnet-4-5' },
+        ProviderPreferences: { anthropic: preference('claude-sonnet-4-5') },
         ApiKey: 'sk-legacy',
         EndPoint: 'https://legacy.example/v1',
         Providers: {
@@ -221,7 +228,8 @@ describe('getWorkspaceStatus', () => {
       hasUserConfig: true,
       userConfigDefaults: {
         providerId: 'anthropic',
-        model: 'claude-sonnet-4-5'
+        model: 'claude-sonnet-4-5',
+        preference: preference('claude-sonnet-4-5')
       },
       providers: [
         {
@@ -285,10 +293,10 @@ describe('shouldRouteWorkspaceThroughSetupBeforeAppServerStart', () => {
     const userConfigPath = join(userHome, '.craft', 'config.json')
     writeJson(join(workspace, '.craft', 'config.json'), {
       ProviderId: 'openai',
-      ProviderModels: { openai: 'gpt-4.1' }
+      ProviderPreferences: { openai: preference('gpt-4.1') }
     })
     writeJson(userConfigPath, {
-      ProviderModels: { openai: 'gpt-4.1' },
+      ProviderPreferences: { openai: preference('gpt-4.1') },
       Providers: {
         openai: {
           DisplayName: 'OpenAI',
@@ -356,7 +364,7 @@ describe('workspace setup bootstrap import detection', () => {
     mkdirSync(join(workspace, '.craft'), { recursive: true })
     writeFileSync(
       join(workspace, '.craft', 'config.json'),
-      '{"ProviderId":"openai","ProviderModels":{"openai":"gpt-4.1"}}',
+      JSON.stringify({ ProviderId: 'openai', ProviderPreferences: { openai: preference('gpt-4.1') } }),
       'utf8'
     )
     expect(getWorkspaceStatus(workspace, { userConfigPath }))
@@ -407,7 +415,10 @@ describe('listSetupModels', () => {
       { runBackend }
     )
 
-    expect(result).toEqual({ kind: 'success', models: ['gpt-5.6', 'gpt-5.5'] })
+    expect(result).toEqual({
+      kind: 'success',
+      models: [{ id: 'gpt-5.6' }, { id: 'gpt-5.5' }]
+    })
     expect(runBackend).toHaveBeenCalledWith(
       ['model-catalog', '--stdin'],
       expect.stringContaining('test-api-key'),
@@ -467,7 +478,10 @@ describe('listSetupModels', () => {
       { userConfigPath, runBackend }
     )
 
-    expect(result).toEqual({ kind: 'success', models: ['claude-opus-4-5'] })
+    expect(result).toEqual({
+      kind: 'success',
+      models: [{ id: 'claude-opus-4-5' }]
+    })
     expect(runBackend).toHaveBeenCalledWith(
       ['model-catalog', '--provider-id', 'anthropic'],
       undefined,

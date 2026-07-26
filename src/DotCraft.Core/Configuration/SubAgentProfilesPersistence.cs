@@ -19,7 +19,7 @@ public static class SubAgentProfilesPersistence
                 .Distinct(StringComparer.OrdinalIgnoreCase)
                 .ToArray(),
             config.SubAgent.EnableExternalCliSessionResume,
-            NormalizeProviderModels(config.SubAgent.ProviderModels),
+            NormalizeProviderPreferences(config.SubAgent.ProviderPreferences),
             SubAgentWaitAgentTimeoutOptions.FromConfig(config.SubAgent),
             config.SubAgentProfiles
                 .Where(profile => !string.IsNullOrWhiteSpace(profile.Name))
@@ -33,7 +33,7 @@ public static class SubAgentProfilesPersistence
         bool enableExternalCliSessionResume,
         SubAgentWaitAgentTimeoutOptions waitAgentTimeouts,
         IReadOnlyCollection<SubAgentProfile> profiles,
-        IReadOnlyDictionary<string, string>? providerModels = null)
+        IReadOnlyDictionary<string, ModelPreference>? providerPreferences = null)
     {
         var configPath = Path.Combine(craftPath, "config.json");
         Directory.CreateDirectory(craftPath);
@@ -44,7 +44,7 @@ public static class SubAgentProfilesPersistence
         RemoveLegacyModel(root);
         WriteWaitAgentTimeouts(root, waitAgentTimeouts);
         WriteProfiles(root, profiles);
-        WriteProviderModels(root, providerModels);
+        WriteProviderPreferences(root, providerPreferences);
 
         var json = root.ToJsonString(new JsonSerializerOptions { WriteIndented = true });
         File.WriteAllText(configPath, $"{json}{Environment.NewLine}", new UTF8Encoding(false));
@@ -109,20 +109,25 @@ public static class SubAgentProfilesPersistence
     }
 
     /// <summary>
-    /// Writes the per-provider native SubAgent model memory map under <c>SubAgent.ProviderModels</c>.
+    /// Writes complete native SubAgent preferences under <c>SubAgent.ProviderPreferences</c>.
     /// A null map preserves the existing key (no change); an empty map removes it.
     /// </summary>
-    private static void WriteProviderModels(JsonObject root, IReadOnlyDictionary<string, string>? providerModels)
+    private static void WriteProviderPreferences(
+        JsonObject root,
+        IReadOnlyDictionary<string, ModelPreference>? providerPreferences)
     {
-        if (providerModels == null)
+        if (providerPreferences == null)
             return;
 
-        var normalized = NormalizeProviderModels(providerModels);
+        var normalized = NormalizeProviderPreferences(providerPreferences);
         var section = GetOrCreateConfigSection(root, "SubAgent", createIfMissing: normalized.Count > 0);
         if (section == null)
             return;
 
-        var key = FindCaseInsensitiveKey(section, "ProviderModels");
+        var legacyKey = FindCaseInsensitiveKey(section, "ProviderModels");
+        if (legacyKey != null)
+            section.Remove(legacyKey);
+        var key = FindCaseInsensitiveKey(section, "ProviderPreferences");
         if (normalized.Count == 0)
         {
             if (key != null)
@@ -133,9 +138,9 @@ public static class SubAgentProfilesPersistence
 
         var objectNode = new JsonObject();
         foreach (var kv in normalized.OrderBy(kv => kv.Key, StringComparer.OrdinalIgnoreCase))
-            objectNode[kv.Key] = JsonValue.Create(kv.Value);
+            objectNode[kv.Key] = JsonSerializer.SerializeToNode(kv.Value, AppConfig.SerializerOptions);
 
-        section[key ?? "ProviderModels"] = objectNode;
+        section[key ?? "ProviderPreferences"] = objectNode;
     }
 
     private static void WriteWaitAgentTimeouts(JsonObject root, SubAgentWaitAgentTimeoutOptions waitAgentTimeouts)
@@ -225,25 +230,24 @@ public static class SubAgentProfilesPersistence
     }
 
     /// <summary>
-    /// Normalizes a provider-model map: trims keys/values and drops empty provider ids and
-    /// empty or "default" model values.
+    /// Normalizes provider keys and drops incomplete preferences.
     /// </summary>
-    private static Dictionary<string, string> NormalizeProviderModels(IReadOnlyDictionary<string, string> providerModels)
+    private static Dictionary<string, ModelPreference> NormalizeProviderPreferences(
+        IReadOnlyDictionary<string, ModelPreference> providerPreferences)
     {
-        var result = new Dictionary<string, string>(StringComparer.Ordinal);
-        foreach (var kv in providerModels)
+        var result = new Dictionary<string, ModelPreference>(StringComparer.Ordinal);
+        foreach (var kv in providerPreferences)
         {
             var providerId = kv.Key?.Trim();
             if (string.IsNullOrWhiteSpace(providerId))
                 continue;
-            var model = kv.Value?.Trim();
-            if (string.IsNullOrWhiteSpace(model) ||
-                string.Equals(model, "default", StringComparison.OrdinalIgnoreCase))
-            {
+            if (kv.Value is null || string.IsNullOrWhiteSpace(kv.Value.Model)
+                || string.Equals(kv.Value.Model.Trim(), "default", StringComparison.OrdinalIgnoreCase))
                 continue;
-            }
 
-            result[providerId] = model;
+            var preference = ModelPreferenceRules.Clone(kv.Value);
+            preference.Model = preference.Model.Trim();
+            result[providerId] = preference;
         }
 
         return result;
@@ -298,6 +302,6 @@ public static class SubAgentProfilesPersistence
 public sealed record SubAgentWorkspaceState(
     IReadOnlyList<string> DisabledProfiles,
     bool EnableExternalCliSessionResume,
-    IReadOnlyDictionary<string, string> ProviderModels,
+    IReadOnlyDictionary<string, ModelPreference> ProviderPreferences,
     SubAgentWaitAgentTimeoutOptions WaitAgentTimeouts,
     IReadOnlyList<SubAgentProfile> Profiles);

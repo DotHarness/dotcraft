@@ -2325,7 +2325,7 @@ export function App(): JSX.Element {
             if (
               event.regions.includes('providers') ||
               event.regions.includes('workspace.provider') ||
-              event.regions.includes('workspace.model')
+              event.regions.includes('workspace.providerPreferences')
             ) {
               useModelCatalogStore.getState().reset()
               if (useConnectionStore.getState().capabilities?.modelCatalogManagement === true) {

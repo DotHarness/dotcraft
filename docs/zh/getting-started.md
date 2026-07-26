@@ -75,13 +75,24 @@ dotcraft
 
 已有 ChatGPT Plus / Pro / Team / Business / Enterprise 订阅时，可在向导的 OpenAI 模板里选「使用 ChatGPT 登录」，或在初始化后运行 `dotcraft auth openai login`，无需 API Key 即可复用订阅。
 
-更喜欢直接编辑配置？最小配置就是一份提供商清单，加上当前选择的 `ProviderId` 及其 `ProviderModels` 条目：
+更喜欢直接编辑配置？最小配置就是一份提供商清单，加上当前选择的 `ProviderId` 及其完整 `ProviderPreferences` 条目：
 
 ```json
 {
   "ProviderId": "anthropic",
-  "ProviderModels": {
-    "anthropic": "claude-sonnet-4-5"
+  "ProviderPreferences": {
+    "anthropic": {
+      "Model": "claude-sonnet-4-5",
+      "Reasoning": {
+        "Enabled": false,
+        "Effort": "Medium",
+        "Output": "Full"
+      },
+      "Speed": "Standard",
+      "ContextWindow": {
+        "Mode": "Default"
+      }
+    }
   },
   "Providers": {
     "anthropic": {
@@ -99,7 +110,7 @@ dotcraft
 }
 ```
 
-API Key 和端点放在全局文件 `~/.craft/config.json`；工作区通常只覆盖 `ProviderId` 和 `ProviderModels`。协议、端点，以及 OpenAI 兼容服务的 `/v1` 规则等完整字段，见 [配置参考](./developing/configuration)。
+API Key 和端点放在全局文件 `~/.craft/config.json`；工作区通常只覆盖 `ProviderId` 和 `ProviderPreferences`。协议、端点，以及 OpenAI 兼容服务的 `/v1` 规则等完整字段，见 [配置参考](./developing/configuration)。
 
 ### 4. 第一次运行
 
@@ -133,10 +144,10 @@ DotCraft 把 Desktop、终端、IDE、机器人与自动化都连接到同一个
 |------|------|----------|
 | `Providers` | 模型提供商注册表，包含 API Key 和 Endpoint | 全局配置 |
 | `ProviderId` | 当前使用的模型提供商 id | 全局或工作区配置 |
-| `ProviderModels` | 按 provider id 保存的 MainAgent 模型名称 | 全局或工作区配置 |
+| `ProviderPreferences` | 按 provider id 保存 MainAgent 的模型、思考程度、速率和上下文窗口选择 | 全局或工作区配置 |
 | `DashBoard.Enabled` | 启用 Web 调试与可视化配置 | 工作区配置 |
 
-如果你不确定应该把配置放在哪里：Provider 放全局，工作区只覆盖 `ProviderId` 和 `ProviderModels`。
+如果你不确定应该把配置放在哪里：Provider 放全局，工作区只覆盖 `ProviderId` 和 `ProviderPreferences`。
 
 ## 下一步按场景选择
 

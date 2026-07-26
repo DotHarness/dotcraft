@@ -22,6 +22,11 @@ import {
 } from '../../utils/workspaceCoreConfig'
 import type { ReasoningQuickValue } from './ModelPicker'
 import { useT } from '../../contexts/LocaleContext'
+import {
+  findProviderPreference,
+  readProviderPreferences,
+  type ModelPreference
+} from '../../../shared/modelPreference'
 
 export interface ResolvedReasoningConfig {
   enabled: boolean
@@ -164,11 +169,10 @@ export function useComposerModelControls({
   )
 
   const resolveEffectiveReasoning = useCallback(
-    (thread: Thread | null, workspaceCfg: Record<string, unknown>): ResolvedReasoningConfig => {
+    (thread: Thread | null, workspaceCfg: Record<string, unknown>, effectiveProviderId: string): ResolvedReasoningConfig => {
       const threadReasoning = readReasoningObject(thread?.configuration?.reasoning ?? thread?.configuration?.Reasoning)
       if (threadReasoning) return threadReasoning
-      const workspaceReasoning = readReasoningObject(workspaceCfg.Reasoning ?? workspaceCfg.reasoning)
-      return workspaceReasoning ?? DEFAULT_REASONING_CONFIG
+      return readWorkspacePreference(workspaceCfg, effectiveProviderId)?.reasoning ?? DEFAULT_REASONING_CONFIG
     },
     []
   )
@@ -184,11 +188,10 @@ export function useComposerModelControls({
   )
 
   const resolveEffectiveSpeed = useCallback(
-    (thread: Thread | null, workspaceCfg: Record<string, unknown>): InferenceSpeedWire => {
+    (thread: Thread | null, workspaceCfg: Record<string, unknown>, effectiveProviderId: string): InferenceSpeedWire => {
       const raw = thread?.configuration?.speed
         ?? thread?.configuration?.Speed
-        ?? workspaceCfg.Speed
-        ?? workspaceCfg.speed
+        ?? readWorkspacePreference(workspaceCfg, effectiveProviderId)?.speed
       return typeof raw === 'string' && raw.toLowerCase() === 'fast' ? 'fast' : 'standard'
     },
     []
@@ -197,9 +200,15 @@ export function useComposerModelControls({
   // Context-window mode is read from the thread's captured configuration only. New
   // threads already capture the workspace default at creation (see spec §4), so the
   // composer does not need to read the workspace default separately.
-  const resolveEffectiveContextMode = useCallback((thread: Thread | null): ContextWindowMode => {
+  const resolveEffectiveContextMode = useCallback((
+    thread: Thread | null,
+    workspaceCfg: Record<string, unknown>,
+    effectiveProviderId: string
+  ): ContextWindowMode => {
     const raw = thread?.configuration?.contextWindow ?? thread?.configuration?.ContextWindow
-    if (!raw || typeof raw !== 'object') return 'default'
+    if (!raw || typeof raw !== 'object') {
+      return readWorkspacePreference(workspaceCfg, effectiveProviderId)?.contextWindow.mode ?? 'default'
+    }
     const modeRaw = (raw as { mode?: unknown; Mode?: unknown }).mode ?? (raw as { Mode?: unknown }).Mode
     return modeRaw === 'max' ? 'max' : 'default'
   }, [])
@@ -222,13 +231,13 @@ export function useComposerModelControls({
           setModelName(resolveEffectiveModel(activeThread, workspaceCfg, effectiveProviderId))
         }
         if (!detached || !detachedReasoningTouched) {
-          setReasoningConfig(resolveEffectiveReasoning(activeThread, workspaceCfg))
+          setReasoningConfig(resolveEffectiveReasoning(activeThread, workspaceCfg, effectiveProviderId))
         }
         if (!detached || !detachedSpeedTouched) {
-          setSpeedValue(resolveEffectiveSpeed(activeThread, workspaceCfg))
+          setSpeedValue(resolveEffectiveSpeed(activeThread, workspaceCfg, effectiveProviderId))
         }
         if (!detached || !detachedContextTouched) {
-          setContextMode(resolveEffectiveContextMode(activeThread))
+          setContextMode(resolveEffectiveContextMode(activeThread, workspaceCfg, effectiveProviderId))
         }
       } catch {
         if (disposed) return
@@ -246,10 +255,10 @@ export function useComposerModelControls({
           )
         }
         if (!detached || !detachedSpeedTouched) {
-          setSpeedValue(resolveEffectiveSpeed(activeThread, {}))
+          setSpeedValue(resolveEffectiveSpeed(activeThread, {}, ''))
         }
         if (!detached || !detachedContextTouched) {
-          setContextMode(resolveEffectiveContextMode(activeThread))
+          setContextMode(resolveEffectiveContextMode(activeThread, {}, ''))
         }
       }
     }
@@ -349,9 +358,8 @@ export function useComposerModelControls({
       const workspaceCfg = await readWorkspaceConfig()
       await loadModels(true, nextProviderId)
       const catalogState = useModelCatalogStore.getState()
-      const remembered = Object.entries(readProviderModels(workspaceCfg))
-        .find(([key]) => key.toLowerCase() === nextProviderId.toLowerCase())?.[1]
-      const nextModel = remembered || catalogState.modelOptions[0]
+      const remembered = readWorkspacePreference(workspaceCfg, nextProviderId)
+      const nextModel = remembered?.model || catalogState.modelOptions[0]
       if (!nextModel) {
         addToast(t('composer.providerModelUnavailable'), 'error')
         return
@@ -365,7 +373,11 @@ export function useComposerModelControls({
         ? { ...(readRes.thread.configuration as Record<string, unknown>) }
         : {}
       setCaseInsensitiveField(existingConfig, 'providerId', nextProviderId)
-      setCaseInsensitiveField(existingConfig, 'model', nextModel)
+      if (remembered) {
+        applyPreferenceToThreadConfig(existingConfig, remembered)
+      } else {
+        setCaseInsensitiveField(existingConfig, 'model', nextModel)
+      }
       applyModelCompatibility(existingConfig, catalogState.models.find((item) => item.id === nextModel) ?? null)
       await window.api.appServer.sendRequest('thread/config/update', {
         threadId: activeThread.id,
@@ -381,6 +393,7 @@ export function useComposerModelControls({
       setProviderId(nextProviderId)
       setModelName(nextModel)
       setReasoningConfig(resolveReasoningFromConfiguration(existingConfig))
+      setSpeedValue(readThreadSpeed(existingConfig))
       setContextMode(resolveContextFromConfiguration(existingConfig))
       addToast(`Provider switched to ${nextProviderId}`, 'success')
     } catch (err) {
@@ -725,15 +738,27 @@ function reasoningQuickToastLabel(value: ReasoningQuickValue): string {
   return 'Default'
 }
 
-function readProviderModels(config: Record<string, unknown>): Record<string, string> {
-  const key = Object.keys(config).find((candidate) => candidate.toLowerCase() === 'providermodels')
-  const raw = key ? config[key] : null
-  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return {}
-  const result: Record<string, string> = {}
-  for (const [providerId, value] of Object.entries(raw as Record<string, unknown>)) {
-    if (typeof value === 'string' && providerId.trim() && value.trim()) result[providerId.trim()] = value.trim()
-  }
-  return result
+function readWorkspacePreference(
+  config: Record<string, unknown>,
+  providerId: string
+): ModelPreference | null {
+  const key = Object.keys(config).find((candidate) => candidate.toLowerCase() === 'providerpreferences')
+  return findProviderPreference(readProviderPreferences(key ? config[key] : null), providerId)
+}
+
+function applyPreferenceToThreadConfig(
+  config: Record<string, unknown>,
+  preference: ModelPreference
+): void {
+  config.model = preference.model
+  config.reasoning = { ...preference.reasoning }
+  config.speed = preference.speed
+  config.contextWindow = { ...preference.contextWindow }
+}
+
+function readThreadSpeed(config: Record<string, unknown>): InferenceSpeedWire {
+  const key = Object.keys(config).find((candidate) => candidate.toLowerCase() === 'speed')
+  return key && config[key] === 'fast' ? 'fast' : 'standard'
 }
 
 function applyModelCompatibility(config: Record<string, unknown>, model: ModelCatalogItem | null): void {

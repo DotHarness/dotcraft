@@ -114,7 +114,7 @@ public sealed class DeepThinkingChatClientTests
             new AppConfig
             {
                 ProviderId = "test",
-                ProviderModels = new() { ["test"] = "mimo-v2.5-pro" },
+                ProviderPreferences = new() { ["test"] = new ModelPreference { Model = "mimo-v2.5-pro"  } },
                 Reasoning = new AppConfig.ReasoningConfig { Enabled = false }
             },
             "mimo-v2.5-pro",
@@ -137,7 +137,7 @@ public sealed class DeepThinkingChatClientTests
             new AppConfig
             {
                 ProviderId = "test",
-                ProviderModels = new() { ["test"] = "mimo-v2.5-pro" },
+                ProviderPreferences = new() { ["test"] = new ModelPreference { Model = "mimo-v2.5-pro"  } },
                 Reasoning = new AppConfig.ReasoningConfig { Enabled = true }
             },
             "mimo-v2.5-pro",
@@ -160,7 +160,7 @@ public sealed class DeepThinkingChatClientTests
             new AppConfig
             {
                 ProviderId = "test",
-                ProviderModels = new() { ["test"] = model },
+                ProviderPreferences = new() { ["test"] = new ModelPreference { Model = model  } },
                 Reasoning = new AppConfig.ReasoningConfig { Enabled = reasoningEnabled }
             },
             model,

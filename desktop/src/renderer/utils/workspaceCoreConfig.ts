@@ -1,24 +1,24 @@
 export type WorkspaceDefaultApprovalPolicy = 'default' | 'autoApprove'
 export type ConcreteApprovalPolicy = 'prompt' | 'autoApprove'
-export type WorkspaceContextWindowMode = 'default' | 'max'
-export type WorkspaceInferenceSpeed = 'standard' | 'fast'
+import {
+  findProviderPreference,
+  mergeProviderPreferences,
+  readProviderPreferences,
+  type ProviderPreferences
+} from '../../shared/modelPreference'
 
 export interface WorkspaceCoreConfigLike {
   workspace?: {
     providerId?: string | null
-    providerModels?: Record<string, string> | null
+    providerPreferences?: ProviderPreferences | null
     welcomeSuggestionsEnabled?: boolean | null
     defaultApprovalPolicy?: WorkspaceDefaultApprovalPolicy | null
-    contextWindowMode?: WorkspaceContextWindowMode | null
-    speed?: WorkspaceInferenceSpeed | null
   } | null
   userDefaults?: {
     providerId?: string | null
-    providerModels?: Record<string, string> | null
+    providerPreferences?: ProviderPreferences | null
     welcomeSuggestionsEnabled?: boolean | null
     defaultApprovalPolicy?: WorkspaceDefaultApprovalPolicy | null
-    contextWindowMode?: WorkspaceContextWindowMode | null
-    speed?: WorkspaceInferenceSpeed | null
   } | null
 }
 
@@ -34,45 +34,12 @@ function normalizeOptionalString(value: unknown): string | null {
   return trimmed || null
 }
 
-function normalizeContextWindowMode(value: unknown): WorkspaceContextWindowMode | null {
-  if (typeof value !== 'string') return null
-  const normalized = value.trim().toLowerCase()
-  if (normalized === 'max' || normalized === 'maximum') return 'max'
-  if (normalized === 'default') return 'default'
-  return null
-}
-
 function getCaseInsensitiveValue(record: Record<string, unknown>, key: string): unknown {
   const expected = key.toLowerCase()
   for (const [candidate, value] of Object.entries(record)) {
     if (candidate.toLowerCase() === expected) return value
   }
   return undefined
-}
-
-function mergeProviderModels(
-  userDefaults: unknown,
-  workspace: unknown
-): Record<string, string> {
-  const result: Record<string, string> = {}
-  const apply = (source: unknown): void => {
-    if (source == null || typeof source !== 'object' || Array.isArray(source)) return
-    for (const [rawProviderId, rawModel] of Object.entries(source as Record<string, unknown>)) {
-      const providerId = rawProviderId.trim()
-      if (!providerId) continue
-      const existingKey = Object.keys(result).find(
-        (candidate) => candidate.toLowerCase() === providerId.toLowerCase()
-      )
-      if (existingKey) delete result[existingKey]
-      const model = normalizeOptionalModel(rawModel)
-      if (!model) continue
-      result[providerId] = model
-    }
-  }
-
-  apply(userDefaults)
-  apply(workspace)
-  return result
 }
 
 export function resolveWorkspaceProviderFromConfig(config: Record<string, unknown>): string {
@@ -88,13 +55,11 @@ export function resolveWorkspaceModelFromConfig(
   if (override) return override
 
   const normalizedProviderId = providerId.trim()
-  const providerModels = getCaseInsensitiveValue(config, 'ProviderModels')
-  if (normalizedProviderId && providerModels != null && typeof providerModels === 'object' && !Array.isArray(providerModels)) {
-    const remembered = Object.entries(providerModels as Record<string, unknown>)
-      .find(([candidate]) => candidate.trim().toLowerCase() === normalizedProviderId.toLowerCase())?.[1]
-    const providerModel = normalizeOptionalModel(remembered)
-    if (providerModel) return providerModel
-  }
+  const providerPreferences = readProviderPreferences(
+    getCaseInsensitiveValue(config, 'ProviderPreferences')
+  )
+  const preference = findProviderPreference(providerPreferences, normalizedProviderId)
+  if (preference) return preference.model
 
   return 'Default'
 }
@@ -119,16 +84,13 @@ export function configObjectFromWorkspaceCore(core: WorkspaceCoreConfigLike): Re
     config.ProviderId = providerId
   }
 
-  const providerModels = mergeProviderModels(
-    core.userDefaults?.providerModels,
-    core.workspace?.providerModels
+  const providerPreferences = mergeProviderPreferences(
+    core.userDefaults?.providerPreferences,
+    core.workspace?.providerPreferences
   )
-  if (Object.keys(providerModels).length > 0) {
-    config.ProviderModels = providerModels
+  if (Object.keys(providerPreferences).length > 0) {
+    config.ProviderPreferences = providerPreferences
   }
-
-  const speed = core.workspace?.speed ?? core.userDefaults?.speed
-  if (speed === 'standard' || speed === 'fast') config.Speed = speed
 
   const welcomeSuggestionsEnabled =
     core.workspace?.welcomeSuggestionsEnabled ?? core.userDefaults?.welcomeSuggestionsEnabled
@@ -140,15 +102,6 @@ export function configObjectFromWorkspaceCore(core: WorkspaceCoreConfigLike): Re
     core.workspace?.defaultApprovalPolicy ?? core.userDefaults?.defaultApprovalPolicy
   if (defaultApprovalPolicy === 'default' || defaultApprovalPolicy === 'autoApprove') {
     config.Permissions = { DefaultApprovalPolicy: defaultApprovalPolicy }
-  }
-
-  const contextWindowMode = normalizeContextWindowMode(
-    core.workspace?.contextWindowMode ?? core.userDefaults?.contextWindowMode
-  )
-  if (contextWindowMode != null) {
-    config.Compaction = {
-      ContextWindowMode: contextWindowMode === 'max' ? 'Max' : 'Default'
-    }
   }
 
   return config

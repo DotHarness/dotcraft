@@ -73,7 +73,9 @@ public sealed class SubAgentSpawnOptions
 
     public IReadOnlyList<SubAgentRoleConfig>? RoleConfigs { get; set; }
 
-    public string? SubAgentModel { get; set; }
+    public ModelPreference? SubAgentPreference { get; set; }
+
+    internal AppConfig? RuntimeConfig { get; set; }
 
     public int MaxDepth { get; set; } = 1;
 
@@ -253,7 +255,10 @@ public static class SubAgentSessionControl
             context.ParentThread.Configuration,
             roleConfig,
             string.Equals(runtimeType, NativeSubAgentRuntime.RuntimeTypeName, StringComparison.OrdinalIgnoreCase)
-                ? options.SubAgentModel
+                ? options.SubAgentPreference
+                : null,
+            string.Equals(runtimeType, NativeSubAgentRuntime.RuntimeTypeName, StringComparison.OrdinalIgnoreCase)
+                ? options.RuntimeConfig
                 : null,
             depth,
             maxDepth);
@@ -1844,17 +1849,38 @@ $$"""
     private static ThreadConfiguration ApplyRoleToChildConfiguration(
         ThreadConfiguration? parentConfiguration,
         SubAgentRoleConfig role,
-        string? nativeSubAgentModel,
+        ModelPreference? nativeSubAgentPreference,
+        AppConfig? runtimeConfig,
         int childDepth,
         int maxDepth)
     {
         var child = CloneConfiguration(parentConfiguration);
         if (!string.IsNullOrWhiteSpace(role.Mode))
             child.Mode = role.Mode.Trim();
-        if (!string.IsNullOrWhiteSpace(role.Model))
-            child.Model = role.Model.Trim();
-        else if (!string.IsNullOrWhiteSpace(nativeSubAgentModel))
-            child.Model = nativeSubAgentModel.Trim();
+        if (runtimeConfig != null)
+        {
+            var providerId = child.ProviderId ?? runtimeConfig.ProviderId;
+            var parentPreference = new ModelPreference
+            {
+                Model = child.Model ?? string.Empty,
+                Reasoning = CloneReasoningConfig(child.Reasoning) ?? new AppConfig.ReasoningConfig(),
+                Speed = child.Speed ?? InferenceSpeed.Standard,
+                ContextWindow = new ModelPreferenceContextWindow
+                {
+                    Mode = child.ContextWindow?.Mode ?? ContextWindowMode.Default
+                }
+            };
+            var preference = nativeSubAgentPreference == null
+                ? parentPreference
+                : ModelPreferenceRules.Clone(nativeSubAgentPreference);
+            if (!string.IsNullOrWhiteSpace(role.Model))
+                preference.Model = role.Model.Trim();
+            preference = ModelPreferenceRules.Normalize(runtimeConfig, providerId, preference);
+            child.Model = preference.Model;
+            child.Reasoning = CloneReasoningConfig(preference.Reasoning);
+            child.Speed = preference.Speed;
+            child.ContextWindow = new ThreadContextWindowConfig { Mode = preference.ContextWindow.Mode };
+        }
 
         child.ToolAllowList = MergeAllowLists(parentConfiguration?.ToolAllowList, role.ToolAllowList);
         child.ToolDenyList = MergeDenyLists(parentConfiguration?.ToolDenyList, role.ToolDenyList);

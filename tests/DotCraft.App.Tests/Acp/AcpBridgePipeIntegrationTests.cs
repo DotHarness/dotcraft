@@ -758,7 +758,7 @@ public sealed class AcpBridgePipeIntegrationTests
         new(new AppConfig
         {
             ProviderId = "openai",
-            ProviderModels = new() { ["openai"] = "gpt-4o-mini" },
+            ProviderPreferences = new() { ["openai"] = new ModelPreference { Model = "gpt-4o-mini"  } },
             Providers =
             {
                 ["openai"] = new AppConfig.ModelProviderConfig

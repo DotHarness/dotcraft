@@ -4588,6 +4588,14 @@ input.dc-plain-number {
   border-color: var(--accent);
 }
 
+.dc-model-preference-field {
+  transition: border-color 120ms ease;
+}
+
+.dc-model-preference-field:focus-within {
+  border-color: var(--accent) !important;
+}
+
 .dc-input-with-action[data-invalid] {
   border-color: color-mix(in srgb, var(--warning) 55%, var(--border-default));
 }
