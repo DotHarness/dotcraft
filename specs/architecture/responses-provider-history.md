@@ -2,9 +2,9 @@
 
 | Field | Value |
 |---|---|
-| **Version** | 0.2.0 |
+| **Version** | 0.3.0 |
 | **Status** | Living |
-| **Date** | 2026-07-25 |
+| **Date** | 2026-07-26 |
 | **Parent Specs** | [Session Core](session-core.md), [Prompt Cache](prompt-cache.md), [OpenAI Subscription Auth](openai-subscription-auth.md) |
 
 ## Overview
@@ -75,6 +75,12 @@ agent. The function-invocation wrapper marks MEAI response projections as covere
 its augmented sampling history. This lets the next tool-loop request map only newly appended tool
 results and guidance.
 
+Request-local history sanitization is not a conversation-history replacement. A sanitizer may
+repair an incomplete tool pair or remove content that is invalid for a role in the current request,
+but that projection must not replace, truncate, reorder, or regenerate the canonical Responses
+generation. Object identity or collection shape changes produced by sanitization are never evidence
+that canonical history changed.
+
 The existing Responses mapper remains authoritative for converting local MEAI content, assigning
 locally generated item IDs, and sanitizing invalid IDs. A correlation index derived from canonical
 calls is supplied when mapping a tail so a result for a native tool-search call remains a
@@ -125,6 +131,23 @@ transition set; adding an isolated lock to one method is not sufficient.
 - **Ephemeral threads:** use the same runtime state in memory and persist nothing until normal
   thread-promotion behavior makes the thread durable.
 
+Canonical replacement is an explicit lifecycle transition. Successful compaction, protocol return,
+and fork materialization may create `provider_history_replaced`; request-local sanitization,
+provider adapter normalization, retry preparation, and ordinary tool-loop projection may not.
+
+## MEAI projection boundaries
+
+Responses reasoning output is assistant-authored content even when the provider SDK leaves the
+corresponding MEAI streaming update role unset. Before an update enters a cross-service-call
+aggregate, the Responses adapter assigns it `Assistant` role so a reasoning item following a local
+tool-result update starts a new MEAI message instead of inheriting the `Tool` role.
+
+The provider response-item ID remains content-scoped metadata and is not promoted to
+`ChatMessage.MessageId`. A valid provider ID is preserved on every streamed reasoning fragment and
+on its encrypted completion fragment so MEAI content coalescing, model-history persistence, and
+outbound mapping retain one identity. Missing or invalid item IDs do not suppress the Assistant
+message boundary.
+
 ## Recovery and privacy
 
 Unknown capability versions or malformed records required by the active generation produce the
@@ -139,8 +162,12 @@ durable but must never be copied into diagnostics.
 
 - Consecutive tool-loop and cross-turn Responses requests keep the previous request input as a
   byte-identical prefix and append only completed provider items and new local tail items.
+- Request-local sanitization never emits `provider_history_replaced`; successful compaction emits
+  exactly one replacement for the new context window.
 - Provider IDs, `call_id`, item ordering, and encrypted reasoning bytes survive turn completion,
   cold resume, rollback, and compatible fork.
+- Reasoning emitted after a tool result is projected as Assistant content, while the Tool message
+  contains only the corresponding tool results.
 - Compaction and protocol return establish an explicit, diagnosable prefix boundary.
 - Legacy threads retain their existing Responses wire shape.
 - Anthropic and OpenAI Chat Completions produce the same transport shapes and persistence behavior

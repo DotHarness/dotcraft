@@ -1936,6 +1936,132 @@ public sealed class OpenAIResponsesToolSearchChatClientTests
     }
 
     [Fact]
+    public async Task StreamingFunctionLoop_PostToolReasoningStartsAssistantMessage()
+    {
+        const string firstReasoningId = "rs_before_tools";
+        const string secondReasoningId = "rs_after_tools";
+        var tools = new[]
+        {
+            AIFunctionFactory.Create(() => "alpha", name: "ToolAlpha"),
+            AIFunctionFactory.Create(() => "beta", name: "ToolBeta"),
+            AIFunctionFactory.Create(() => "gamma", name: "ToolGamma")
+        };
+        var inner = new FakeChatClient(new ChatResponse([new ChatMessage(ChatRole.Assistant, "inner response")]));
+        var transport = new FakeToolSearchTransport([
+            [
+                CreateStreamingUpdate($$"""
+                    {
+                      "type": "response.output_item.added",
+                      "sequence_number": 1,
+                      "output_index": 0,
+                      "item": {
+                        "type": "reasoning",
+                        "id": "{{firstReasoningId}}",
+                        "status": "in_progress",
+                        "summary": []
+                      }
+                    }
+                    """),
+                new StreamingResponseReasoningSummaryTextDeltaUpdate
+                {
+                    SequenceNumber = 2,
+                    ItemId = firstReasoningId,
+                    OutputIndex = 0,
+                    SummaryIndex = 0,
+                    Delta = "before tools"
+                },
+                CreateFunctionCallDoneUpdate(3, 1, "fc_alpha", "call_alpha", "ToolAlpha"),
+                CreateFunctionCallDoneUpdate(4, 2, "fc_beta", "call_beta", "ToolBeta"),
+                CreateFunctionCallDoneUpdate(5, 3, "fc_gamma", "call_gamma", "ToolGamma")
+            ],
+            [
+                CreateStreamingUpdate($$"""
+                    {
+                      "type": "response.output_item.added",
+                      "sequence_number": 6,
+                      "output_index": 0,
+                      "item": {
+                        "type": "reasoning",
+                        "id": "{{secondReasoningId}}",
+                        "status": "in_progress",
+                        "summary": []
+                      }
+                    }
+                    """),
+                new StreamingResponseReasoningSummaryTextDeltaUpdate
+                {
+                    SequenceNumber = 7,
+                    ItemId = secondReasoningId,
+                    OutputIndex = 0,
+                    SummaryIndex = 0,
+                    Delta = "after tools"
+                },
+                CreateStreamingUpdate("""
+                    {
+                      "type": "response.output_item.done",
+                      "sequence_number": 8,
+                      "output_index": 0,
+                      "item": {
+                        "type": "reasoning",
+                        "id": "rs_after_tools",
+                        "status": "completed",
+                        "encrypted_content": "encrypted-after-tools",
+                        "summary": []
+                      }
+                    }
+                    """),
+                CreateStreamingUpdate("""
+                    {
+                      "type": "response.output_item.added",
+                      "sequence_number": 9,
+                      "output_index": 1,
+                      "item": {
+                        "type": "message",
+                        "id": "msg_done",
+                        "status": "in_progress",
+                        "content": [],
+                        "role": "assistant"
+                      }
+                    }
+                    """),
+                new StreamingResponseOutputTextDeltaUpdate
+                {
+                    SequenceNumber = 10,
+                    ItemId = "msg_done",
+                    OutputIndex = 1,
+                    ContentIndex = 0,
+                    Delta = "done"
+                }
+            ]
+        ]);
+        using var responsesClient = CreateClient(inner, transport);
+        using var invokingClient = new StreamingFunctionInvokingChatClient(responsesClient)
+        {
+            AdditionalTools = tools
+        };
+
+        var updates = await CollectStreamingAsync(invokingClient.GetStreamingResponseAsync(
+            [new ChatMessage(ChatRole.User, "run tools")],
+            new ChatOptions { Tools = tools.Cast<AITool>().ToList() }));
+        var response = updates.ToChatResponse();
+
+        var toolMessage = Assert.Single(response.Messages, message => message.Role == ChatRole.Tool);
+        Assert.Equal(3, toolMessage.Contents.OfType<FunctionResultContent>().Count());
+        Assert.DoesNotContain(toolMessage.Contents, content => content is TextReasoningContent);
+
+        var postToolReasoning = Assert.Single(
+            response.Messages
+                .Where(message => message.Role == ChatRole.Assistant)
+                .SelectMany(message => message.Contents)
+                .OfType<TextReasoningContent>(),
+            reasoning => reasoning.Text == "after tools");
+        Assert.Equal(
+            secondReasoningId,
+            postToolReasoning.AdditionalProperties![OpenAIResponsesItemIdentity.MetadataKey]);
+        Assert.Equal("encrypted-after-tools", postToolReasoning.ProtectedData);
+    }
+
+    [Fact]
     public async Task GetStreamingResponseAsync_WithTextReasoningAndUsage_UsesMeaiStreamingMapping()
     {
         var inner = new FakeChatClient(new ChatResponse([new ChatMessage(ChatRole.Assistant, "inner response")]));
