@@ -41,6 +41,7 @@ public sealed class CompactionConfig
     /// Workspace default context-window mode captured by newly created threads.
     /// </summary>
     [ConfigField(Hint = "Default per-thread context-window mode: Default or Max.")]
+    [System.Text.Json.Serialization.JsonIgnore]
     public ContextWindowMode ContextWindowMode { get; set; } = ContextWindowMode.Default;
 
     /// <summary>

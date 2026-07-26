@@ -701,8 +701,8 @@ public sealed class SessionServiceRuntimeSignalTests : IDisposable
         static void ConfigureAnthropicProvider(AppConfig config)
         {
             config.ProviderId = "anthropic";
-            config.ProviderModels.Clear();
-            config.ProviderModels["anthropic"] = "claude-test";
+            config.ProviderPreferences.Clear();
+            config.ProviderPreferences["anthropic"] = new ModelPreference { Model = "claude-test" };
             config.Providers.Clear();
             config.Providers["anthropic"] = new AppConfig.ModelProviderConfig
             {

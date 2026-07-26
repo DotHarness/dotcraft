@@ -3135,6 +3135,8 @@ html[data-theme="light"] [data-mascot-speed='fast'] .composer-mascot-fast-echo {
 
 .setup-wizard-title-block {
   position: relative;
+  container-name: setup-wizard-title;
+  container-type: inline-size;
 }
 
 .setup-wizard-kicker {
@@ -3148,7 +3150,137 @@ html[data-theme="light"] [data-mascot-speed='fast'] .composer-mascot-fast-echo {
 }
 
 .setup-stepper-row {
+  width: 100%;
+  padding: 0 10px;
   animation: setup-stepper-enter 460ms ease-out 160ms both;
+}
+
+.setup-stepper-list {
+  display: grid;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.setup-stepper-item {
+  position: relative;
+  min-width: 0;
+}
+
+.setup-stepper-item::before,
+.setup-stepper-item::after {
+  position: absolute;
+  z-index: 0;
+  top: 13px;
+  height: 1px;
+  background: var(--border-default);
+  content: "";
+}
+
+.setup-stepper-item::before {
+  right: 50%;
+  left: 0;
+}
+
+.setup-stepper-item::after {
+  right: 0;
+  left: 50%;
+}
+
+.setup-stepper-item:first-child::before,
+.setup-stepper-item:last-child::after {
+  display: none;
+}
+
+.setup-stepper-item[data-state="complete"]::before,
+.setup-stepper-item[data-state="complete"]::after,
+.setup-stepper-item[data-state="active"]::before {
+  background: color-mix(in srgb, var(--success) 64%, var(--border-default));
+}
+
+.setup-stepper-button {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  justify-items: center;
+  width: 100%;
+  min-width: 0;
+  padding: 0 8px;
+  border: 0;
+  background: transparent;
+  color: var(--text-secondary);
+  text-align: center;
+}
+
+.setup-stepper-button:disabled {
+  cursor: default;
+}
+
+.setup-stepper-button:focus-visible {
+  outline: none;
+}
+
+.setup-stepper-button:focus-visible .setup-stepper-marker {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.setup-stepper-marker {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border: 1px solid var(--border-active);
+  border-radius: 999px;
+  background: var(--welcome-surface);
+  color: var(--text-secondary);
+  font-size: var(--type-secondary-size);
+  font-weight: 600;
+  line-height: 1;
+}
+
+.setup-stepper-item[data-state="active"] .setup-stepper-marker {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--on-accent);
+}
+
+.setup-stepper-item[data-state="complete"] .setup-stepper-marker {
+  border-color: color-mix(in srgb, var(--success) 70%, var(--border-default));
+  background: var(--welcome-surface);
+  color: var(--success);
+}
+
+.setup-stepper-label {
+  display: block;
+  width: 100%;
+  max-width: 124px;
+  min-height: calc(var(--type-secondary-line-height) * 2);
+  margin-top: 7px;
+  color: var(--text-secondary);
+  font-size: var(--type-secondary-size);
+  font-weight: 500;
+  line-height: var(--type-secondary-line-height);
+  text-wrap: balance;
+}
+
+.setup-stepper-item[data-state="active"] .setup-stepper-label {
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+.setup-stepper-button:not(:disabled):hover .setup-stepper-label {
+  color: var(--text-primary);
+}
+
+.setup-stepper-button:not(:disabled):hover .setup-stepper-marker {
+  background: var(--bg-tertiary);
+}
+
+.setup-stepper-compact-heading {
+  display: none;
 }
 
 .setup-wizard-step-panel {
@@ -3174,15 +3306,49 @@ html[data-theme="light"] [data-mascot-speed='fast'] .composer-mascot-fast-echo {
   animation: none !important;
 }
 
-.setup-stepper-button:hover:not(:disabled) {
-  border-color: color-mix(in srgb, var(--accent) 48%, var(--border-active)) !important;
-  background: color-mix(in srgb, var(--accent) 10%, var(--bg-secondary)) !important;
-  color: var(--text-primary) !important;
-}
+@container setup-wizard-title (max-width: 560px) {
+  .setup-stepper-row {
+    padding: 0 8px;
+  }
 
-.setup-stepper-button:focus-visible {
-  outline: 2px solid color-mix(in srgb, var(--accent) 72%, transparent);
-  outline-offset: 2px;
+  .setup-stepper-compact-heading {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 9px;
+  }
+
+  .setup-stepper-compact-heading > span {
+    flex-shrink: 0;
+    color: var(--text-secondary);
+    font-size: var(--type-secondary-size);
+    line-height: var(--type-secondary-line-height);
+  }
+
+  .setup-stepper-compact-heading > strong {
+    overflow: hidden;
+    color: var(--text-primary);
+    font-size: var(--type-ui-size);
+    font-weight: 600;
+    line-height: var(--type-ui-line-height);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .setup-stepper-label {
+    display: none;
+  }
+
+  .setup-stepper-marker {
+    width: 24px;
+    height: 24px;
+  }
+
+  .setup-stepper-item::before,
+  .setup-stepper-item::after {
+    top: 12px;
+  }
 }
 
 .welcome-logo-focus {
@@ -4586,6 +4752,14 @@ input.dc-plain-number {
 /* ─── Input with inline action button ─── */
 .dc-input-with-action:focus-within {
   border-color: var(--accent);
+}
+
+.dc-model-preference-field {
+  transition: border-color 120ms ease;
+}
+
+.dc-model-preference-field:focus-within {
+  border-color: var(--accent) !important;
 }
 
 .dc-input-with-action[data-invalid] {

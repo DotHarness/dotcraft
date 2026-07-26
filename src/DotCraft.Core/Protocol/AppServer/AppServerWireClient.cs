@@ -4,6 +4,7 @@ using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Threading.Channels;
+using DotCraft.Configuration;
 
 namespace DotCraft.Protocol.AppServer;
 
@@ -337,15 +338,15 @@ public sealed class AppServerWireClient(Stream input, Stream output) : IAsyncDis
     /// </summary>
     public Task<WorkspaceConfigUpdateResult> WorkspaceConfigUpdateAsync(
         string? providerId,
-        IReadOnlyDictionary<string, string>? providerModels,
+        IReadOnlyDictionary<string, ModelPreference>? providerPreferences,
         CancellationToken ct = default)
     {
         var payload = new JsonObject
         {
             ["providerId"] = providerId == null ? null : JsonValue.Create(providerId),
-            ["providerModels"] = providerModels == null
+            ["providerPreferences"] = providerPreferences == null
                 ? null
-                : JsonSerializer.SerializeToNode(providerModels)
+                : JsonSerializer.SerializeToNode(providerPreferences, SessionWireJsonOptions.Default)
         };
         return WorkspaceConfigUpdateAsync(payload, ct);
     }

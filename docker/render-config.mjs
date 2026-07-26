@@ -64,13 +64,97 @@ function objectAt(root, key) {
   return root[key];
 }
 
-function setProviderModel(config, providerId, model) {
-  if (!providerId || !model) return;
-  const providerModels = objectAt(config, "ProviderModels");
-  const existingKey = Object.keys(providerModels).find(
+function enumEnv(name, allowed) {
+  const value = trim(env[name]);
+  if (!value) return undefined;
+  const canonical = allowed.find((item) => item.toLowerCase() === value.toLowerCase());
+  if (!canonical) {
+    throw new Error(`${name} must be one of: ${allowed.join(", ")}`);
+  }
+  return canonical;
+}
+
+function removeCaseInsensitive(target, key) {
+  const existingKey = Object.keys(target).find(
+    (candidate) => candidate.toLowerCase() === key.toLowerCase(),
+  );
+  if (existingKey !== undefined) delete target[existingKey];
+}
+
+function cleanupLegacyPreferences(config) {
+  removeCaseInsensitive(config, "ProviderModels");
+  removeCaseInsensitive(config, "Reasoning");
+  removeCaseInsensitive(config, "Speed");
+  const compactionKey = Object.keys(config).find(
+    (key) => key.toLowerCase() === "compaction",
+  );
+  if (compactionKey && isObject(config[compactionKey])) {
+    removeCaseInsensitive(config[compactionKey], "ContextWindowMode");
+    if (Object.keys(config[compactionKey]).length === 0) delete config[compactionKey];
+  }
+  const subAgentKey = Object.keys(config).find(
+    (key) => key.toLowerCase() === "subagent",
+  );
+  if (subAgentKey && isObject(config[subAgentKey])) {
+    removeCaseInsensitive(config[subAgentKey], "ProviderModels");
+    if (Object.keys(config[subAgentKey]).length === 0) delete config[subAgentKey];
+  }
+}
+
+function setProviderPreference(config, providerId) {
+  cleanupLegacyPreferences(config);
+  if (!providerId) return;
+
+  const model = trim(env.DOTCRAFT_MODEL);
+  const effort = enumEnv(
+    "DOTCRAFT_REASONING_EFFORT",
+    ["off", "low", "medium", "high", "extraHigh"],
+  );
+  const output = enumEnv(
+    "DOTCRAFT_REASONING_OUTPUT",
+    ["none", "summary", "full"],
+  );
+  const speed = enumEnv("DOTCRAFT_SPEED", ["standard", "fast"]);
+  const contextWindow = enumEnv(
+    "DOTCRAFT_CONTEXT_WINDOW",
+    ["default", "max"],
+  );
+
+  const preferences = objectAt(config, "ProviderPreferences");
+  const existingKey = Object.keys(preferences).find(
     (key) => key.toLowerCase() === providerId.toLowerCase(),
   );
-  providerModels[existingKey ?? providerId] = model;
+  const existing = existingKey && isObject(preferences[existingKey])
+    ? preferences[existingKey]
+    : undefined;
+  if (!model && !existing) return;
+
+  const preference = existing
+    ? { ...existing }
+    : {
+        model,
+        reasoning: { enabled: false, effort: "medium", output: "full" },
+        speed: "standard",
+        contextWindow: { mode: "default" },
+      };
+  if (model) preference.model = model;
+  const reasoning = isObject(preference.reasoning)
+    ? { ...preference.reasoning }
+    : { enabled: false, effort: "medium", output: "full" };
+  if (effort) {
+    reasoning.enabled = effort !== "off";
+    if (effort !== "off") reasoning.effort = effort;
+  }
+  if (output) reasoning.output = output;
+  preference.reasoning = reasoning;
+  if (speed) preference.speed = speed;
+  const currentContext = isObject(preference.contextWindow)
+    ? { ...preference.contextWindow }
+    : { mode: "default" };
+  if (contextWindow) currentContext.mode = contextWindow;
+  preference.contextWindow = currentContext;
+  preferences[existingKey ?? providerId] = preference;
+  if (Object.keys(preferences).length === 0) delete config.ProviderPreferences;
 }
 
 function setIfMissing(target, key, value) {
@@ -107,7 +191,6 @@ async function renderGlobalConfig() {
 
   const configuredProviderId = first(env.DOTCRAFT_PROVIDER, first(env.DOTCRAFT_PROVIDER_ID, ""));
   const providerId = first(configuredProviderId, trim(config.ProviderId));
-  const model = first(env.DOTCRAFT_MODEL, "");
   const apiKey = first(env.DOTCRAFT_API_KEY, "");
 
   if (configuredProviderId) {
@@ -121,7 +204,7 @@ async function renderGlobalConfig() {
     if (trim(env.DOTCRAFT_PROVIDER_ENDPOINT)) provider.EndPoint = trim(env.DOTCRAFT_PROVIDER_ENDPOINT);
   }
 
-  setProviderModel(config, providerId, model);
+  setProviderPreference(config, providerId);
 
   await writeJson(filePath, config);
 }
@@ -136,7 +219,7 @@ async function renderWorkspaceConfig(enabledChannels) {
   if (configuredProviderId) {
     config.ProviderId = configuredProviderId;
   }
-  setProviderModel(config, providerId, trim(env.DOTCRAFT_MODEL));
+  setProviderPreference(config, providerId);
 
   config.AppServer = {
     ...(isObject(config.AppServer) ? config.AppServer : {}),

@@ -194,11 +194,11 @@ public sealed class SubAgentSettingsWire
     public bool ExternalCliSessionResumeEnabled { get; set; }
 
     /// <summary>
-    /// Per-provider native SubAgent model preference (providerId → model).
+    /// Complete per-provider native SubAgent preference.
     /// Null means the map is empty or absent.
     /// </summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public Dictionary<string, string>? ProviderModels { get; set; }
+    public Dictionary<string, ModelPreference>? ProviderPreferences { get; set; }
 
     public int MinWaitTimeoutMs { get; set; } = SubAgentWaitAgentTimeoutOptions.BuiltInMinTimeoutMs;
 
@@ -211,7 +211,7 @@ public sealed class SubAgentSettingsUpdateParams
 {
     public bool? ExternalCliSessionResumeEnabled { get; set; }
 
-    public Dictionary<string, string>? ProviderModels { get; set; }
+    public Dictionary<string, ModelPreference>? ProviderPreferences { get; set; }
 
     public int? MinWaitTimeoutMs { get; set; }
 

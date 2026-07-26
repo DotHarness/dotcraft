@@ -9,6 +9,11 @@ import {
   normalizeProviderProtocol,
   type DesktopProviderProtocol
 } from '../shared/providerProtocols'
+import {
+  findProviderPreference,
+  readProviderPreferences,
+  type ModelPreference
+} from '../shared/modelPreference'
 
 export type WorkspaceSetupState = 'no-workspace' | 'needs-setup' | 'ready'
 export type WorkspaceBootstrapProfile = 'default' | 'developer' | 'personal-assistant'
@@ -35,6 +40,7 @@ export interface WorkspaceSetupProviderSummary {
 export interface WorkspaceUserConfigDefaults {
   providerId?: string
   model?: string
+  preference?: ModelPreference
 }
 
 export interface RemoteWorkspaceStatusPayload {
@@ -76,6 +82,7 @@ export interface WorkspaceSetupProviderDraft {
 
 export interface WorkspaceSetupRequest {
   model: string
+  preference: ModelPreference
   profile: WorkspaceBootstrapProfile
   providerMode: WorkspaceSetupProviderMode
   providerId?: string
@@ -95,11 +102,70 @@ export type WorkspaceSetupModelListRequest =
   | { provider: WorkspaceSetupProviderDraft }
 
 export type WorkspaceSetupModelListResult =
-  | { kind: 'success'; models: string[] }
+  | { kind: 'success'; models: WorkspaceSetupModelCatalogItem[] }
   | { kind: 'auth-required' }
   | { kind: 'unsupported' }
   | { kind: 'missing-key' }
   | { kind: 'error'; retryable?: boolean }
+
+export interface WorkspaceSetupModelCatalogItem {
+  id: string
+  ownedBy?: string
+  createdAt?: string
+  reasoning?: {
+    supportsDisable: boolean
+    supportedEfforts: Array<{ effort: 'low' | 'medium' | 'high' | 'extraHigh'; label: string; description: string }>
+    defaultEffort: 'low' | 'medium' | 'high' | 'extraHigh'
+    supportedOutputs: Array<'none' | 'summary' | 'full'>
+    defaultOutput: 'none' | 'summary' | 'full'
+  } | null
+  speed?: {
+    supportedModes: Array<'standard' | 'fast'>
+    defaultMode: 'standard' | 'fast'
+  } | null
+  contextWindow?: {
+    catalogWindow: number
+    configuredWindow: number
+    supportsMax: boolean
+    maxWindow: number
+  } | null
+}
+
+function normalizeSetupModelListResult(value: unknown): WorkspaceSetupModelListResult {
+  if (!value || typeof value !== 'object') return { kind: 'error' }
+
+  const result = value as {
+    kind?: unknown
+    models?: unknown
+    retryable?: unknown
+  }
+  if (result.kind !== 'success') {
+    if (result.kind === 'auth-required' || result.kind === 'unsupported' || result.kind === 'missing-key') {
+      return { kind: result.kind }
+    }
+    return {
+      kind: 'error',
+      ...(typeof result.retryable === 'boolean' ? { retryable: result.retryable } : {})
+    }
+  }
+
+  if (!Array.isArray(result.models)) return { kind: 'error' }
+  const models = result.models
+    .map((item): WorkspaceSetupModelCatalogItem | null => {
+      if (typeof item === 'string') {
+        const id = item.trim()
+        return id ? { id } : null
+      }
+      if (!item || typeof item !== 'object' || Array.isArray(item)) return null
+      const record = item as Record<string, unknown>
+      const rawId = record.id ?? record.Id
+      const id = typeof rawId === 'string' ? rawId.trim() : ''
+      return id ? { ...record, id } as WorkspaceSetupModelCatalogItem : null
+    })
+    .filter((item): item is WorkspaceSetupModelCatalogItem => item != null)
+
+  return { kind: 'success', models }
+}
 
 
 function buildBinaryResolutionError(settings: AppSettings): Error {
@@ -237,7 +303,7 @@ function getUserConfigStatusFromParsed(
 
   const providers = readExplicitProviders(parsed)
   const providerId = normalizeOptionalString(getConfigValueCaseInsensitive(parsed, 'ProviderId'))
-  const model = providerId ? readProviderModel(parsed, providerId) : ''
+  const preference = providerId ? readProviderPreference(parsed, providerId) : null
   const explicitProviderIds = new Set(providers.map((provider) => provider.id.toLowerCase()))
   return {
     hasUserConfig: true,
@@ -246,7 +312,8 @@ function getUserConfigStatusFromParsed(
         providerId && !isImplicitProviderId(providerId) && explicitProviderIds.has(providerId.toLowerCase())
           ? providerId
           : undefined,
-      model
+      model: preference?.model,
+      preference: preference ?? undefined
     },
     providers
   }
@@ -275,28 +342,23 @@ function resolveEffectiveProviderId(
   return userProviderId.present ? userProviderId.value : ''
 }
 
-function readProviderModel(
+function readProviderPreference(
   config: Record<string, unknown> | null,
   providerId: string
-): string {
-  if (!config || !providerId.trim()) return ''
-  const raw = getConfigValueCaseInsensitive(config, 'ProviderModels')
-  if (raw == null || typeof raw !== 'object' || Array.isArray(raw)) return ''
-  const expected = providerId.trim().toLowerCase()
-  for (const [candidate, value] of Object.entries(raw as Record<string, unknown>)) {
-    if (candidate.trim().toLowerCase() !== expected) continue
-    const model = normalizeOptionalString(value)
-    return model && model.toLowerCase() !== 'default' ? model : ''
-  }
-  return ''
+): ModelPreference | null {
+  if (!config || !providerId.trim()) return null
+  return findProviderPreference(
+    readProviderPreferences(getConfigValueCaseInsensitive(config, 'ProviderPreferences')),
+    providerId
+  )
 }
 
 function resolveEffectiveModel(
   workspaceConfig: Record<string, unknown> | null,
   userConfig: Record<string, unknown> | null
-): string {
+): ModelPreference | null {
   const providerId = resolveEffectiveProviderId(workspaceConfig, userConfig)
-  return readProviderModel(workspaceConfig, providerId) || readProviderModel(userConfig, providerId)
+  return readProviderPreference(workspaceConfig, providerId) ?? readProviderPreference(userConfig, providerId)
 }
 
 function hasConfiguredProvider(
@@ -371,8 +433,10 @@ export async function listSetupModels(
   const stdin = 'provider' in request ? JSON.stringify(provider) : undefined
   if (stdin) args.push('--stdin')
   else args.push('--provider-id', request.providerId)
-  if (options?.runBackend) return options.runBackend(args, stdin, 30_000)
-  return runSetupBackend(resolveDesktopBinary(options?.settings ?? ({} as AppSettings)), args, stdin, 30_000)
+  const result = options?.runBackend
+    ? await options.runBackend(args, stdin, 30_000)
+    : await runSetupBackend(resolveDesktopBinary(options?.settings ?? ({} as AppSettings)), args, stdin, 30_000)
+  return normalizeSetupModelListResult(result)
 }
 
 export async function loginSetupChatGpt(
@@ -536,11 +600,11 @@ export function getWorkspaceStatus(
   const workspaceProviders = workspaceConfig ? readExplicitProviders(workspaceConfig) : []
   const providers = mergeProviderSummaries(userConfigStatus.providers, workspaceProviders)
   const effectiveProviderId = resolveEffectiveProviderId(workspaceConfig, userConfig)
-  const effectiveModel = resolveEffectiveModel(workspaceConfig, userConfig)
+  const effectivePreference = resolveEffectiveModel(workspaceConfig, userConfig)
   const status: WorkspaceSetupState =
     workspaceConfigExists &&
     hasConfiguredProvider(effectiveProviderId, providers) &&
-    effectiveModel.length > 0
+    Boolean(effectivePreference?.model)
       ? 'ready'
       : 'needs-setup'
   const bootstrapImportSources = status === 'needs-setup'
@@ -575,6 +639,7 @@ function appendProviderArgs(args: string[], request: WorkspaceSetupRequest): voi
   if (request.model.trim()) {
     args.push('--model', request.model.trim())
   }
+  args.push('--preference-json', JSON.stringify(request.preference))
 
   if (request.providerMode === 'existing') {
     args.push('--provider-id', request.providerId?.trim() ?? '')

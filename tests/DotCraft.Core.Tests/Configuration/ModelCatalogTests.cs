@@ -130,7 +130,7 @@ public sealed class ModelCatalogTests : IDisposable
         var config = new AppConfig
         {
             ProviderId = "test",
-            ProviderModels = new() { ["test"] = "large-model" }
+            ProviderPreferences = new() { ["test"] = new ModelPreference { Model = "large-model"  } }
         };
         ModelCatalog.ApplyToConfig(
             config,
@@ -157,7 +157,7 @@ public sealed class ModelCatalogTests : IDisposable
         var config = new AppConfig
         {
             ProviderId = "test",
-            ProviderModels = new() { ["test"] = "large-model" }
+            ProviderPreferences = new() { ["test"] = new ModelPreference { Model = "large-model"  } }
         };
         ModelCatalog.ApplyToConfig(
             config,
@@ -185,7 +185,7 @@ public sealed class ModelCatalogTests : IDisposable
         var config = new AppConfig
         {
             ProviderId = "test",
-            ProviderModels = new() { ["test"] = "unknown-model" }
+            ProviderPreferences = new() { ["test"] = new ModelPreference { Model = "unknown-model"  } }
         };
         ModelCatalog.ApplyToConfig(
             config,
@@ -223,7 +223,7 @@ public sealed class ModelCatalogTests : IDisposable
         var config = new AppConfig
         {
             ProviderId = "test",
-            ProviderModels = new() { ["test"] = "configured-model" }
+            ProviderPreferences = new() { ["test"] = new ModelPreference { Model = "configured-model"  } }
         };
         ModelCatalog.ApplyToConfig(
             config,
@@ -252,7 +252,7 @@ public sealed class ModelCatalogTests : IDisposable
         var config = new AppConfig
         {
             ProviderId = "test",
-            ProviderModels = new() { ["test"] = "large-model" },
+            ProviderPreferences = new() { ["test"] = new ModelPreference { Model = "large-model"  } },
             Compaction =
             {
                 MaxContextWindow = 300_000
@@ -276,7 +276,7 @@ public sealed class ModelCatalogTests : IDisposable
         var config = new AppConfig
         {
             ProviderId = "test",
-            ProviderModels = new() { ["test"] = "custom-model" },
+            ProviderPreferences = new() { ["test"] = new ModelPreference { Model = "custom-model"  } },
             Compaction = new DotCraft.Context.Compaction.CompactionConfig
             {
                 ContextWindow = 123_000,
@@ -347,7 +347,14 @@ public sealed class ModelCatalogTests : IDisposable
         var configPath = WriteConfig("workspace", """
             {
               "ProviderId": "test",
-              "ProviderModels": { "test": "my-model" },
+              "ProviderPreferences": {
+                "test": {
+                  "Model": "my-model",
+                  "Reasoning": { "Enabled": false, "Effort": "Medium", "Output": "Full" },
+                  "Speed": "Standard",
+                  "ContextWindow": { "Mode": "Default" }
+                }
+              },
               "Compaction": {
                 "MaxContextWindow": 400000
               }

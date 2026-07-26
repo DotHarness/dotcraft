@@ -27,7 +27,7 @@ internal static class CompactSmokeWorkspace
         var root = new JsonObject
         {
             ["ProviderId"] = providerId,
-            ["ProviderModels"] = new JsonObject { [providerId] = model },
+            ["ProviderPreferences"] = new JsonObject { [providerId] = SmokeModelPreference.Create(model) },
             ["McpServers"] = new JsonArray(),
             ["LspServers"] = new JsonArray(),
             ["ExternalChannels"] = new JsonArray(),

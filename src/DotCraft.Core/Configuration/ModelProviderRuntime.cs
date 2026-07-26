@@ -219,27 +219,11 @@ public static class ModelProviderResolver
         string effectiveMainProviderId,
         string effectiveMainModel)
     {
-        var model = GetProviderModel(config.SubAgent.ProviderModels, effectiveMainProviderId)
+        var model = ModelPreferenceRules.Find(
+                config.SubAgent.ProviderPreferences,
+                effectiveMainProviderId)?.Model
             ?? effectiveMainModel;
         return ResolveMain(config, effectiveMainProviderId, model);
-    }
-
-    private static string? GetProviderModel(
-        IReadOnlyDictionary<string, string>? providerModels,
-        string providerId)
-    {
-        if (providerModels is null)
-            return null;
-
-        foreach (var (key, value) in providerModels)
-        {
-            if (string.Equals(key, providerId, StringComparison.OrdinalIgnoreCase)
-                && !string.IsNullOrWhiteSpace(value)
-                && !string.Equals(value.Trim(), "Default", StringComparison.OrdinalIgnoreCase))
-                return value.Trim();
-        }
-
-        return null;
     }
 
     internal static string? ResolveConfiguredModel(AppConfig config, string? providerId = null)
@@ -250,7 +234,38 @@ public static class ModelProviderResolver
             effectiveProviderId = NormalizeProviderId(config.ProviderId);
         return string.IsNullOrWhiteSpace(effectiveProviderId)
             ? null
-            : GetProviderModel(config.ProviderModels, effectiveProviderId);
+            : ModelPreferenceRules.Find(config.ProviderPreferences, effectiveProviderId)?.Model;
+    }
+
+    /// <summary>Resolves the complete MainAgent preference for a provider.</summary>
+    public static ModelPreference ResolveMainPreference(AppConfig config, string? providerId = null)
+    {
+        ArgumentNullException.ThrowIfNull(config);
+        var runtime = ResolveProvider(config, providerId);
+        var preference = ModelPreferenceRules.Find(config.ProviderPreferences, runtime.ProviderId);
+        if (preference is null)
+            throw new ArgumentException("Model must be configured.", nameof(config));
+        return ModelPreferenceRules.Normalize(config, runtime.ProviderId, preference);
+    }
+
+    /// <summary>
+    /// Resolves a native SubAgent preference, inheriting the complete parent preference when absent.
+    /// </summary>
+    public static ModelPreference ResolveSubAgentPreference(
+        AppConfig config,
+        string effectiveMainProviderId,
+        ModelPreference parentPreference,
+        string? roleModel = null)
+    {
+        ArgumentNullException.ThrowIfNull(config);
+        ArgumentNullException.ThrowIfNull(parentPreference);
+        var preference = ModelPreferenceRules.Find(
+                config.SubAgent.ProviderPreferences,
+                effectiveMainProviderId)
+            ?? ModelPreferenceRules.Clone(parentPreference);
+        if (!string.IsNullOrWhiteSpace(roleModel))
+            preference.Model = roleModel.Trim();
+        return ModelPreferenceRules.Normalize(config, effectiveMainProviderId, preference);
     }
 
     public static EffectiveModelRuntime ResolveProvider(AppConfig config, string? providerIdOverride = null)

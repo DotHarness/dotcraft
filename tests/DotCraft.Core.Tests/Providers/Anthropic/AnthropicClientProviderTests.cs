@@ -65,7 +65,7 @@ public sealed class AnthropicClientProviderTests
         var config = new AppConfig
         {
             ProviderId = "anthropic-main",
-            ProviderModels = new() { ["anthropic-main"] = "claude-sonnet-4-5" },
+            ProviderPreferences = new() { ["anthropic-main"] = new ModelPreference { Model = "claude-sonnet-4-5"  } },
             Providers =
             {
                 ["anthropic-main"] = new AppConfig.ModelProviderConfig

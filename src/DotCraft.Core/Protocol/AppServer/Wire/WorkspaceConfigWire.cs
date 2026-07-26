@@ -75,11 +75,10 @@ public sealed class WorkspaceConfigUpdateParams
     public string? ProviderId { get; set; }
 
     /// <summary>
-    /// Per-provider MainAgent model map (providerId → model). Empty/null removes the
-    /// workspace ProviderModels key. Only entries with a non-empty, non-"Default" model are kept.
+    /// Complete per-provider MainAgent preferences. Empty/null removes the workspace key.
     /// </summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public Dictionary<string, string>? ProviderModels { get; set; }
+    public Dictionary<string, ModelPreference>? ProviderPreferences { get; set; }
 
     /// <summary>
     /// Workspace-level toggle for personalized welcome suggestions. Null removes the workspace override.
@@ -136,20 +135,6 @@ public sealed class WorkspaceConfigUpdateParams
     [JsonIgnore(Condition = JsonIgnoreCondition.Never)]
     public bool? ToolsLspEnabled { get; set; }
 
-    /// <summary>
-    /// Workspace-level reasoning configuration. Null removes the workspace Reasoning section.
-    /// </summary>
-    [JsonIgnore(Condition = JsonIgnoreCondition.Never)]
-    public AppConfig.ReasoningConfig? Reasoning { get; set; }
-
-    /// <summary>Workspace inference-speed preset.</summary>
-    public InferenceSpeed? Speed { get; set; }
-
-    /// <summary>
-    /// Workspace default context-window mode for newly created threads. Null removes the workspace override.
-    /// </summary>
-    [JsonIgnore(Condition = JsonIgnoreCondition.Never)]
-    public ThreadContextWindowConfig? ContextWindow { get; set; }
 }
 
 /// <summary>
@@ -165,11 +150,10 @@ public sealed class WorkspaceConfigUpdateResult
     public string? ProviderId { get; set; }
 
     /// <summary>
-    /// Persisted per-provider remembered model map after normalization.
-    /// Null means the workspace ProviderModels key was removed or is absent.
+    /// Persisted complete provider preferences after normalization.
     /// </summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public Dictionary<string, string>? ProviderModels { get; set; }
+    public Dictionary<string, ModelPreference>? ProviderPreferences { get; set; }
 
     /// <summary>
     /// Persisted workspace personalized-welcome-suggestions toggle after normalization.
@@ -233,22 +217,6 @@ public sealed class WorkspaceConfigUpdateResult
     [JsonIgnore(Condition = JsonIgnoreCondition.Never)]
     public bool? ToolsLspEnabled { get; set; }
 
-    /// <summary>
-    /// Persisted workspace reasoning configuration after normalization.
-    /// Null means the workspace Reasoning section was removed or is absent.
-    /// </summary>
-    [JsonIgnore(Condition = JsonIgnoreCondition.Never)]
-    public AppConfig.ReasoningConfig? Reasoning { get; set; }
-
-    /// <summary>Persisted workspace inference-speed preset.</summary>
-    public InferenceSpeed Speed { get; set; } = InferenceSpeed.Standard;
-
-    /// <summary>
-    /// Persisted workspace context-window mode after normalization.
-    /// Null means the workspace Compaction.ContextWindowMode override was removed or is absent.
-    /// </summary>
-    [JsonIgnore(Condition = JsonIgnoreCondition.Never)]
-    public ThreadContextWindowConfig? ContextWindow { get; set; }
 }
 
 /// <summary>

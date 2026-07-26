@@ -25,12 +25,16 @@ public sealed class AppConfig
     [ConfigField(Reload = ReloadBehavior.ProcessRestart, HasReload = true)]
     public string ProviderId { get; set; } = string.Empty;
 
-    /// <summary>Workspace model preference keyed by provider id.</summary>
+    /// <summary>Complete MainAgent model preference keyed by provider id.</summary>
     [ConfigField(Ignore = true)]
-    public Dictionary<string, string> ProviderModels { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+    public Dictionary<string, ModelPreference> ProviderPreferences { get; set; } = new(StringComparer.OrdinalIgnoreCase);
 
-    /// <summary>Workspace inference-speed preset captured by newly created threads.</summary>
+    /// <summary>
+    /// Process fallback for legacy threads that do not contain a captured speed.
+    /// It is not read from or written to the root configuration.
+    /// </summary>
     [ConfigField(Ignore = true)]
+    [JsonIgnore]
     public InferenceSpeed Speed { get; set; } = InferenceSpeed.Standard;
 
     /// <summary>
@@ -51,6 +55,7 @@ public sealed class AppConfig
     /// Disabled by default; enable when you want providers that support reasoning to use it.
     /// </summary>
     [ConfigField(Ignore = true)]
+    [JsonIgnore]
     public ReasoningConfig Reasoning { get; set; } = new();
 
     /// <summary>
@@ -416,9 +421,21 @@ public sealed class AppConfig
 
             foreach (var property in overrideObj)
             {
-                if (result.TryGetPropertyValue(property.Key, out var existingValue))
+                var existingKey = result
+                    .Select(candidate => candidate.Key)
+                    .FirstOrDefault(key => string.Equals(key, property.Key, StringComparison.OrdinalIgnoreCase));
+                if (existingKey is not null
+                    && string.Equals(property.Key, "ProviderPreferences", StringComparison.OrdinalIgnoreCase)
+                    && result[existingKey] is JsonObject basePreferences
+                    && property.Value is JsonObject overridePreferences)
                 {
-                    result[property.Key] = MergeNodes(existingValue ?? new JsonObject(), property.Value ?? new JsonObject());
+                    result[existingKey] = MergeProviderPreferences(basePreferences, overridePreferences);
+                }
+                else if (existingKey is not null)
+                {
+                    result[existingKey] = MergeNodes(
+                        result[existingKey] ?? new JsonObject(),
+                        property.Value ?? new JsonObject());
                 }
                 else
                 {
@@ -431,6 +448,22 @@ public sealed class AppConfig
 
         // For arrays and values, override node takes precedence if it exists
         return overrideNode.DeepClone();
+    }
+
+    private static JsonObject MergeProviderPreferences(JsonObject basePreferences, JsonObject overridePreferences)
+    {
+        var result = (JsonObject)basePreferences.DeepClone();
+        foreach (var (providerId, preference) in overridePreferences)
+        {
+            var existingKey = result
+                .Select(candidate => candidate.Key)
+                .FirstOrDefault(key => string.Equals(key, providerId, StringComparison.OrdinalIgnoreCase));
+            if (existingKey is not null)
+                result.Remove(existingKey);
+            result[providerId] = preference?.DeepClone();
+        }
+
+        return result;
     }
 
     public static readonly JsonSerializerOptions SerializerOptions = new()
@@ -1138,11 +1171,11 @@ public sealed class AppConfig
         public bool EnableExternalCliSessionResume { get; set; }
 
         /// <summary>
-        /// Native SubAgent model preference keyed by provider id.
-        /// A missing entry inherits the current thread's effective MainAgent model.
+        /// Complete native SubAgent preference keyed by provider id.
+        /// A missing entry inherits the current thread's effective MainAgent preference.
         /// </summary>
         [ConfigField(Ignore = true)]
-        public Dictionary<string, string> ProviderModels { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+        public Dictionary<string, ModelPreference> ProviderPreferences { get; set; } = new(StringComparer.OrdinalIgnoreCase);
 
         /// <summary>
         /// Minimum accepted <c>WaitAgent.timeoutMs</c> value in milliseconds.

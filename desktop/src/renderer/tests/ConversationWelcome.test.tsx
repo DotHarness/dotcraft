@@ -15,6 +15,7 @@ import { useAppBindingStore } from '../stores/appBindingStore'
 import { useConversationStore } from '../stores/conversationStore'
 import type { ThreadGoal } from '../types/thread'
 import type { WorkspaceConfigChangedPayload } from '../utils/workspaceConfigChanged'
+import type { ModelPreference } from '../../shared/modelPreference'
 
 const fileReadFile = vi.fn()
 const appServerSendRequest = vi.fn()
@@ -150,6 +151,32 @@ function makeGoal(threadId = 'thread-welcome', objective = 'Build feature'): Thr
   }
 }
 
+function preference(
+  model: string,
+  overrides: Partial<ModelPreference> = {}
+): ModelPreference {
+  return {
+    model,
+    reasoning: { enabled: false, effort: 'medium', output: 'full' },
+    speed: 'standard',
+    contextWindow: { mode: 'default' },
+    ...overrides
+  }
+}
+
+function workspacePreferenceConfig(
+  providerId: string,
+  model: string,
+  overrides: Partial<ModelPreference> = {}
+): Record<string, unknown> {
+  return {
+    ProviderId: providerId,
+    ProviderPreferences: {
+      [providerId]: preference(model, overrides)
+    }
+  }
+}
+
 describe('ConversationWelcome composer', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -208,6 +235,8 @@ describe('ConversationWelcome composer', () => {
     })
     useModelCatalogStore.setState({
       status: 'ready',
+      providerId: 'openai',
+      requestedProviderId: 'openai',
       modelOptions: ['gpt-5.4', 'gpt-5.4-mini'],
       modelListUnsupportedEndpoint: false
     })
@@ -215,12 +244,12 @@ describe('ConversationWelcome composer', () => {
     fileReadFile.mockResolvedValue('{}')
     workspaceConfigGetCore.mockResolvedValue({
       workspace: {
-        providerModels: {},
+        providerPreferences: {},
         welcomeSuggestionsEnabled: null,
         defaultApprovalPolicy: null
       },
       userDefaults: {
-        providerModels: {},
+        providerPreferences: {},
         welcomeSuggestionsEnabled: null,
         defaultApprovalPolicy: null
       }
@@ -378,7 +407,7 @@ describe('ConversationWelcome composer', () => {
       ],
       modelListUnsupportedEndpoint: false
     })
-    fileReadFile.mockResolvedValue(JSON.stringify({ Model: 'gpt-5.5' }))
+    fileReadFile.mockResolvedValue(JSON.stringify(workspacePreferenceConfig('openai', 'gpt-5.5')))
 
     renderWelcome()
 
@@ -402,7 +431,7 @@ describe('ConversationWelcome composer', () => {
       }],
       modelListUnsupportedEndpoint: false
     })
-    fileReadFile.mockResolvedValue(JSON.stringify({ Model: 'gpt-5.5', Speed: 'Standard' }))
+    fileReadFile.mockResolvedValue(JSON.stringify(workspacePreferenceConfig('openai', 'gpt-5.5')))
 
     renderWelcome()
     await waitFor(() => expect(screen.getByRole('button', { name: 'Select model' })).toHaveTextContent('gpt-5.5'))
@@ -411,7 +440,12 @@ describe('ConversationWelcome composer', () => {
     fireEvent.click(within(screen.getByRole('listbox', { name: 'Speed' })).getByRole('option', { name: /Fast/ }))
 
     await waitFor(() => {
-      expect(appServerSendRequest).toHaveBeenCalledWith('workspace/config/update', { speed: 'fast' })
+      expect(appServerSendRequest).toHaveBeenCalledWith('workspace/config/update', {
+        providerId: 'openai',
+        providerPreferences: {
+          openai: preference('gpt-5.5', { speed: 'fast' })
+        }
+      })
     })
     expect(appServerSendRequest).not.toHaveBeenCalledWith('thread/start', expect.anything())
   })
@@ -433,7 +467,7 @@ describe('ConversationWelcome composer', () => {
       ],
       modelListUnsupportedEndpoint: false
     })
-    fileReadFile.mockResolvedValue(JSON.stringify({ Model: 'gpt-5.5' }))
+    fileReadFile.mockResolvedValue(JSON.stringify(workspacePreferenceConfig('openai', 'gpt-5.5')))
 
     renderWelcome()
 
@@ -475,10 +509,9 @@ describe('ConversationWelcome composer', () => {
       ],
       modelListUnsupportedEndpoint: false
     })
-    fileReadFile.mockResolvedValue(JSON.stringify({
-      Model: 'gpt-5.5',
-      Compaction: { ContextWindowMode: 'Max' }
-    }))
+    fileReadFile.mockResolvedValue(JSON.stringify(workspacePreferenceConfig('openai', 'gpt-5.5', {
+      contextWindow: { mode: 'max' }
+    })))
 
     renderWelcome()
 
@@ -513,10 +546,9 @@ describe('ConversationWelcome composer', () => {
       ],
       modelListUnsupportedEndpoint: false
     })
-    fileReadFile.mockResolvedValue(JSON.stringify({
-      Model: 'gpt-5.5',
-      Compaction: { ContextWindowMode: 'Max' }
-    }))
+    fileReadFile.mockResolvedValue(JSON.stringify(workspacePreferenceConfig('openai', 'gpt-5.5', {
+      contextWindow: { mode: 'max' }
+    })))
 
     renderWelcome()
 
@@ -629,9 +661,7 @@ describe('ConversationWelcome composer', () => {
       capabilities: { ...state.capabilities, providerManagement: true }
     }))
     let workspaceConfig: Record<string, unknown> = {
-      ProviderId: 'provider-a',
-      Model: 'model-a-v1',
-      ProviderModels: { 'provider-a': 'model-a-v1' }
+      ...workspacePreferenceConfig('provider-a', 'model-a-v1')
     }
     fileReadFile.mockImplementation(async () => JSON.stringify(workspaceConfig))
     const defaultSendRequest = appServerSendRequest.getMockImplementation()
@@ -668,8 +698,10 @@ describe('ConversationWelcome composer', () => {
     }
     workspaceConfig = {
       ProviderId: 'provider-b',
-      Model: 'model-b-v1',
-      ProviderModels: { 'provider-a': 'model-a-v1', 'provider-b': 'model-b-v1' }
+      ProviderPreferences: {
+        'provider-a': preference('model-a-v1'),
+        'provider-b': preference('model-b-v1')
+      }
     }
     view.rerender(
       <LocaleProvider>
@@ -693,9 +725,7 @@ describe('ConversationWelcome composer', () => {
       capabilities: { ...state.capabilities, providerManagement: true }
     }))
     fileReadFile.mockResolvedValue(JSON.stringify({
-      ProviderId: 'provider-b',
-      Model: 'model-b-v2',
-      ProviderModels: { 'provider-b': 'model-b-v2' }
+      ...workspacePreferenceConfig('provider-b', 'model-b-v2')
     }))
     const defaultSendRequest = appServerSendRequest.getMockImplementation()
     appServerSendRequest.mockImplementation(async (method: string, params?: Record<string, unknown>) => {
@@ -740,7 +770,7 @@ describe('ConversationWelcome composer', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Send message' }))
     await waitFor(() => {
       expect(appServerSendRequest).toHaveBeenCalledWith('thread/start', expect.objectContaining({
-        config: { providerId: 'provider-b', model: 'model-b-v2' }
+        config: expect.objectContaining({ providerId: 'provider-b', model: 'model-b-v2' })
       }))
     })
     secondMount.unmount()
@@ -751,13 +781,13 @@ describe('ConversationWelcome composer', () => {
     workspaceConfigGetCore.mockResolvedValue({
       workspace: {
         providerId: 'anthropic',
-        providerModels: { anthropic: 'claude-sonnet-4-5' },
+        providerPreferences: { anthropic: preference('claude-sonnet-4-5') },
         welcomeSuggestionsEnabled: null,
         defaultApprovalPolicy: null
       },
       userDefaults: {
         providerId: 'openai',
-        providerModels: { openai: 'gpt-5' },
+        providerPreferences: { openai: preference('gpt-5') },
         welcomeSuggestionsEnabled: null,
         defaultApprovalPolicy: null
       }

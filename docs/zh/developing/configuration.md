@@ -9,7 +9,7 @@ DotCraft 先读取全局 `~/.craft/config.json`，再叠加工作区 `.craft/con
 | 配置项 | 说明 | 默认值 |
 |--------|------|--------|
 | `ProviderId` | 当前选择的个人 Provider id；为空表示未选择 Provider | 空 |
-| `ProviderModels` | 按 provider id 保存的 MainAgent 模型名称；当前 provider 必须存在有效条目 | `{}` |
+| `ProviderPreferences` | 按 provider id 保存的完整 MainAgent 偏好；当前 provider 必须存在有效条目 | `{}` |
 | `NetworkTimeoutSeconds` | 全局模型请求超时时间，单位秒；Provider 可单独覆盖 | `600` |
 | `Providers` | 个人模型 Provider 字典，通常写在 `~/.craft/config.json` | 空 |
 | `SubagentMaxConcurrency` | 最大并发子 Agent 数量 | `3` |
@@ -43,11 +43,33 @@ DotCraft 先读取全局 `~/.craft/config.json`，再叠加工作区 `.craft/con
 ```json
 {
   "ProviderId": "anthropic",
-  "ProviderModels": {
-    "anthropic": "claude-sonnet-4-5"
+  "ProviderPreferences": {
+    "anthropic": {
+      "Model": "claude-sonnet-4-5",
+      "Reasoning": {
+        "Enabled": true,
+        "Effort": "High",
+        "Output": "Full"
+      },
+      "Speed": "Fast",
+      "ContextWindow": {
+        "Mode": "Max"
+      }
+    }
   }
 }
 ```
+
+不同配置层级中的 `ProviderPreferences` 记录按整条覆盖。全局和工作区同时配置同一 provider id 时，工作区记录会完整替换全局记录。
+
+| 偏好字段 | 可选值 | 说明 |
+|----------|--------|------|
+| **`Model`** | 非空模型 id | 新 MainAgent 线程使用的模型 |
+| **`Reasoning.Enabled`** | `true`、`false` | 模型支持时启用或关闭 reasoning |
+| **`Reasoning.Effort`** | `Low`、`Medium`、`High`、`ExtraHigh` | 请求的思考程度 |
+| **`Reasoning.Output`** | `None`、`Summary`、`Full` | 请求的 reasoning 输出 |
+| **`Speed`** | `Standard`、`Fast` | 请求的推理速率；不支持 Fast 时按 Standard 执行 |
+| **`ContextWindow.Mode`** | `Default`、`Max` | 请求的上下文窗口模式；不支持 Max 时恢复 Default |
 
 Provider 对象字段：
 
@@ -616,7 +638,7 @@ MCP 示例：
 | 配置项 | 说明 | 默认值 |
 |--------|------|--------|
 | `SubAgent.MaxDepth` | session-backed SubAgent 最大生成深度；第一级子代理深度为 `1` | `1` |
-| `SubAgent.ProviderModels` | 按父线程 provider 保存的原生 SubAgent 模型偏好；缺少对应项时继承该线程的有效 MainAgent 模型 | `{}` |
+| `SubAgent.ProviderPreferences` | 按父线程 provider 保存的完整原生 SubAgent 偏好；缺少对应项时继承该线程完整的 MainAgent 偏好 | `{}` |
 | `SubAgent.MinWaitTimeoutMs` | `WaitAgent.timeoutMs` 接受的最小值，单位毫秒 | `15000` |
 | `SubAgent.DefaultWaitTimeoutMs` | `WaitAgent` 调用未传 timeout 时使用的默认毫秒数 | `60000` |
 | `SubAgent.MaxWaitTimeoutMs` | `WaitAgent.timeoutMs` 接受的最大值，单位毫秒 | `3600000` |

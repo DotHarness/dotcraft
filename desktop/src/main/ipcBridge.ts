@@ -13,6 +13,10 @@ import { resolveTaskCompletionNotificationMode } from './settings'
 import type { GitHeadInspection } from '../shared/gitHead'
 import { sameWorkspaceProjectKey } from '../shared/workspaceProjectKey'
 import type { InlineVisualizationCaptureRect } from '../shared/inlineVisualization'
+import {
+  readProviderPreferences,
+  type ProviderPreferences
+} from '../shared/modelPreference'
 import { copyInlineVisualizationImage } from './inlineVisualizationCapture'
 import { resolveBinaryLocation } from './AppServerManager'
 import { RemoteServersManager } from './remoteServers/remoteServersManager'
@@ -813,7 +817,7 @@ function normalizeOptionalStringValue(value: unknown): string | null {
 
 interface WorkspaceCoreConfigSnapshot {
   providerId: string | null
-  providerModels: Record<string, string>
+  providerPreferences: ProviderPreferences
   welcomeSuggestionsEnabled: boolean | null
   skillsSelfLearningEnabled: boolean | null
   memoryAutoConsolidateEnabled: boolean | null
@@ -822,8 +826,6 @@ interface WorkspaceCoreConfigSnapshot {
   dreamsThreadLookbackCount: number | null
   dreamsAutoApply: boolean | null
   defaultApprovalPolicy: 'default' | 'autoApprove' | null
-  contextWindowMode: 'default' | 'max' | null
-  speed: 'standard' | 'fast' | null
 }
 
 function getCaseInsensitiveRecordValue(
@@ -894,46 +896,10 @@ function readDefaultApprovalPolicy(record: Record<string, unknown>): 'default' |
   return raw === 'default' || raw === 'autoApprove' ? raw : null
 }
 
-function readContextWindowMode(record: Record<string, unknown>): 'default' | 'max' | null {
-  const compaction = getCaseInsensitiveRecordValue(record, 'Compaction')
-  if (compaction == null || typeof compaction !== 'object' || Array.isArray(compaction)) {
-    return null
-  }
-  const raw = getCaseInsensitiveRecordValue(compaction as Record<string, unknown>, 'ContextWindowMode')
-  if (typeof raw !== 'string') return null
-  const normalized = raw.trim().toLowerCase()
-  if (normalized === 'max' || normalized === 'maximum') return 'max'
-  if (normalized === 'default') return 'default'
-  return null
-}
-
-function readInferenceSpeed(record: Record<string, unknown>): 'standard' | 'fast' | null {
-  const raw = getCaseInsensitiveRecordValue(record, 'Speed')
-  if (typeof raw !== 'string') return null
-  const normalized = raw.trim().toLowerCase()
-  return normalized === 'standard' || normalized === 'fast' ? normalized : null
-}
-
-function readProviderModels(record: Record<string, unknown>): Record<string, string> {
-  const section = getCaseInsensitiveRecordValue(record, 'ProviderModels')
-  if (section == null || typeof section !== 'object' || Array.isArray(section)) {
-    return {}
-  }
-  const result: Record<string, string> = {}
-  for (const [providerId, rawModel] of Object.entries(section as Record<string, unknown>)) {
-    const normalizedProviderId = providerId.trim()
-    const model = normalizeOptionalStringValue(rawModel)
-    if (normalizedProviderId && model) {
-      result[normalizedProviderId] = model
-    }
-  }
-  return result
-}
-
 function createEmptyCoreConfigSnapshot(): WorkspaceCoreConfigSnapshot {
   return {
     providerId: null,
-    providerModels: {},
+    providerPreferences: {},
     welcomeSuggestionsEnabled: null,
     skillsSelfLearningEnabled: null,
     memoryAutoConsolidateEnabled: null,
@@ -941,9 +907,7 @@ function createEmptyCoreConfigSnapshot(): WorkspaceCoreConfigSnapshot {
     dreamsInterval: null,
     dreamsThreadLookbackCount: null,
     dreamsAutoApply: null,
-    defaultApprovalPolicy: null,
-    contextWindowMode: null,
-    speed: null
+    defaultApprovalPolicy: null
   }
 }
 
@@ -952,7 +916,9 @@ function readCoreConfigSnapshotFromText(raw: string): WorkspaceCoreConfigSnapsho
   const parsed = parseJsonObjectConfig(raw)
   return {
     providerId: normalizeOptionalStringValue(parsed.ProviderId ?? parsed.providerId),
-    providerModels: readProviderModels(parsed),
+    providerPreferences: readProviderPreferences(
+      getCaseInsensitiveRecordValue(parsed, 'ProviderPreferences')
+    ),
     welcomeSuggestionsEnabled: readNestedBoolean(parsed, 'WelcomeSuggestions', 'Enabled'),
     skillsSelfLearningEnabled: readSkillsSelfLearningEnabled(parsed),
     memoryAutoConsolidateEnabled: readNestedBoolean(parsed, 'Memory', 'AutoConsolidateEnabled'),
@@ -960,9 +926,7 @@ function readCoreConfigSnapshotFromText(raw: string): WorkspaceCoreConfigSnapsho
     dreamsInterval: readNestedString(parsed, 'Dreams', 'Interval'),
     dreamsThreadLookbackCount: readNestedInteger(parsed, 'Dreams', 'ThreadLookbackCount'),
     dreamsAutoApply: readNestedBoolean(parsed, 'Dreams', 'AutoApply'),
-    defaultApprovalPolicy: readDefaultApprovalPolicy(parsed),
-    contextWindowMode: readContextWindowMode(parsed),
-    speed: readInferenceSpeed(parsed)
+    defaultApprovalPolicy: readDefaultApprovalPolicy(parsed)
   }
 }
 

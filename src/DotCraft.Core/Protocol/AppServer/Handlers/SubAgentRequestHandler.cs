@@ -42,13 +42,20 @@ internal sealed class SubAgentRequestHandler(
         _ = ct;
         EnsureSubAgentManagementAvailable();
         var p = AppServerParams.Get<SubAgentSettingsUpdateParams>(msg);
-        JsonElement providerModelsEl = default;
+        JsonElement providerPreferencesEl = default;
         JsonElement minWaitTimeoutMsEl = default;
         JsonElement defaultWaitTimeoutMsEl = default;
         JsonElement maxWaitTimeoutMsEl = default;
-        var hasProviderModels = msg.Params.HasValue
+        var hasProviderPreferences = msg.Params.HasValue
             && msg.Params.Value.ValueKind == JsonValueKind.Object
-            && TryGetCaseInsensitiveProperty(msg.Params.Value, "providerModels", out providerModelsEl);
+            && TryGetCaseInsensitiveProperty(msg.Params.Value, "providerPreferences", out providerPreferencesEl);
+        if (msg.Params.HasValue
+            && msg.Params.Value.ValueKind == JsonValueKind.Object
+            && TryGetCaseInsensitiveProperty(msg.Params.Value, "providerModels", out _))
+        {
+            throw AppServerErrors.InvalidParams(
+                "'providerModels' is no longer accepted. Use 'providerPreferences'.");
+        }
         var hasMinWaitTimeoutMs = msg.Params.HasValue
             && msg.Params.Value.ValueKind == JsonValueKind.Object
             && TryGetCaseInsensitiveProperty(msg.Params.Value, "minWaitTimeoutMs", out minWaitTimeoutMsEl);
@@ -59,19 +66,38 @@ internal sealed class SubAgentRequestHandler(
             && msg.Params.Value.ValueKind == JsonValueKind.Object
             && TryGetCaseInsensitiveProperty(msg.Params.Value, "maxWaitTimeoutMs", out maxWaitTimeoutMsEl);
         if (!p.ExternalCliSessionResumeEnabled.HasValue
-            && !hasProviderModels
+            && !hasProviderPreferences
             && !hasMinWaitTimeoutMs
             && !hasDefaultWaitTimeoutMs
             && !hasMaxWaitTimeoutMs)
         {
-            throw AppServerErrors.InvalidParams("At least one of 'externalCliSessionResumeEnabled', 'providerModels', 'minWaitTimeoutMs', 'defaultWaitTimeoutMs', or 'maxWaitTimeoutMs' is required.");
+            throw AppServerErrors.InvalidParams("At least one of 'externalCliSessionResumeEnabled', 'providerPreferences', 'minWaitTimeoutMs', 'defaultWaitTimeoutMs', or 'maxWaitTimeoutMs' is required.");
         }
 
         var state = SubAgentProfilesPersistence.LoadWorkspaceState(workspaceCraftPath!);
         var nextResumeEnabled = p.ExternalCliSessionResumeEnabled ?? state.EnableExternalCliSessionResume;
-        var nextProviderModels = hasProviderModels
-            ? NormalizeProviderModels(ParseNullableProviderModels(providerModelsEl, "providerModels"))
-            : state.ProviderModels;
+        var nextProviderPreferences = hasProviderPreferences
+            ? NormalizeProviderPreferences(
+                ParseNullableProviderPreferences(providerPreferencesEl, "providerPreferences"))
+            : state.ProviderPreferences;
+        if (hasProviderPreferences)
+        {
+            var currentConfig = appConfigMonitor?.Current ?? AppConfig.Load(
+                Path.Combine(workspaceCraftPath!, "config.json"));
+            foreach (var (providerId, preference) in nextProviderPreferences)
+            {
+                AppServerRuntimeRequestValidator.ValidateReasoningForRuntime(
+                    currentConfig,
+                    providerId,
+                    preference.Model,
+                    preference.Reasoning);
+                AppServerRuntimeRequestValidator.ValidateContextWindowForRuntime(
+                    currentConfig,
+                    providerId,
+                    preference.Model,
+                    new ThreadContextWindowConfig { Mode = preference.ContextWindow.Mode });
+            }
+        }
         var nextWaitAgentTimeouts = new SubAgentWaitAgentTimeoutOptions(
             hasMinWaitTimeoutMs ? ParseInteger(minWaitTimeoutMsEl, "minWaitTimeoutMs") : state.WaitAgentTimeouts.MinTimeoutMs,
             hasDefaultWaitTimeoutMs ? ParseInteger(defaultWaitTimeoutMsEl, "defaultWaitTimeoutMs") : state.WaitAgentTimeouts.DefaultTimeoutMs,
@@ -86,7 +112,7 @@ internal sealed class SubAgentRequestHandler(
             nextResumeEnabled,
             nextWaitAgentTimeouts,
             state.Profiles,
-            hasProviderModels ? nextProviderModels : null);
+            hasProviderPreferences ? nextProviderPreferences : null);
         runtimeConfig.RefreshCurrentSubAgentConfig();
         runtimeConfig.InvalidateThreadAgents();
         appConfigMonitor?.NotifyChanged(
@@ -98,9 +124,12 @@ internal sealed class SubAgentRequestHandler(
             Settings = new SubAgentSettingsWire
             {
                 ExternalCliSessionResumeEnabled = nextResumeEnabled,
-                ProviderModels = nextProviderModels.Count == 0
+                ProviderPreferences = nextProviderPreferences.Count == 0
                     ? null
-                    : new Dictionary<string, string>(nextProviderModels, StringComparer.Ordinal),
+                    : nextProviderPreferences.ToDictionary(
+                        pair => pair.Key,
+                        pair => ModelPreferenceRules.Clone(pair.Value),
+                        StringComparer.Ordinal),
                 MinWaitTimeoutMs = nextWaitAgentTimeouts.MinTimeoutMs,
                 DefaultWaitTimeoutMs = nextWaitAgentTimeouts.DefaultTimeoutMs,
                 MaxWaitTimeoutMs = nextWaitAgentTimeouts.MaxTimeoutMs
@@ -141,7 +170,7 @@ internal sealed class SubAgentRequestHandler(
             state.EnableExternalCliSessionResume,
             state.WaitAgentTimeouts,
             state.Profiles,
-            state.ProviderModels);
+            state.ProviderPreferences);
         runtimeConfig.RefreshCurrentSubAgentConfig();
         runtimeConfig.InvalidateThreadAgents();
         appConfigMonitor?.NotifyChanged(
@@ -178,7 +207,7 @@ internal sealed class SubAgentRequestHandler(
             state.EnableExternalCliSessionResume,
             state.WaitAgentTimeouts,
             profiles,
-            state.ProviderModels);
+            state.ProviderPreferences);
         runtimeConfig.RefreshCurrentSubAgentConfig();
         runtimeConfig.InvalidateThreadAgents();
         appConfigMonitor?.NotifyChanged(
@@ -217,7 +246,7 @@ internal sealed class SubAgentRequestHandler(
             state.EnableExternalCliSessionResume,
             state.WaitAgentTimeouts,
             workspaceProfiles,
-            state.ProviderModels);
+            state.ProviderPreferences);
         runtimeConfig.RefreshCurrentSubAgentConfig();
         runtimeConfig.InvalidateThreadAgents();
         appConfigMonitor?.NotifyChanged(
@@ -485,9 +514,12 @@ internal sealed class SubAgentRequestHandler(
             Settings = new SubAgentSettingsWire
             {
                 ExternalCliSessionResumeEnabled = state.EnableExternalCliSessionResume,
-                ProviderModels = state.ProviderModels.Count == 0
+                ProviderPreferences = state.ProviderPreferences.Count == 0
                     ? null
-                    : new Dictionary<string, string>(state.ProviderModels, StringComparer.Ordinal),
+                    : state.ProviderPreferences.ToDictionary(
+                        pair => pair.Key,
+                        pair => ModelPreferenceRules.Clone(pair.Value),
+                        StringComparer.Ordinal),
                 MinWaitTimeoutMs = state.WaitAgentTimeouts.MinTimeoutMs,
                 DefaultWaitTimeoutMs = state.WaitAgentTimeouts.DefaultTimeoutMs,
                 MaxWaitTimeoutMs = state.WaitAgentTimeouts.MaxTimeoutMs
@@ -580,61 +612,63 @@ internal sealed class SubAgentRequestHandler(
         };
     }
 
-    private static Dictionary<string, string>? ParseNullableProviderModels(JsonElement element, string fieldName)
+    private static Dictionary<string, ModelPreference>? ParseNullableProviderPreferences(
+        JsonElement element,
+        string fieldName)
     {
         if (element.ValueKind == JsonValueKind.Null)
             return null;
         if (element.ValueKind != JsonValueKind.Object)
             throw AppServerErrors.InvalidParams($"'{fieldName}' must be an object or null.");
 
-        var result = new Dictionary<string, string>(StringComparer.Ordinal);
+        var result = new Dictionary<string, ModelPreference>(StringComparer.Ordinal);
         foreach (var prop in element.EnumerateObject())
         {
             var providerId = NormalizeOptionalString(prop.Name);
             if (providerId == null)
                 continue;
-            if (prop.Value.ValueKind != JsonValueKind.String && prop.Value.ValueKind != JsonValueKind.Null)
-                throw AppServerErrors.InvalidParams($"'{fieldName}.{prop.Name}' must be a string or null.");
-            var model = prop.Value.ValueKind == JsonValueKind.String
-                ? NormalizeModelValue(prop.Value.GetString())
-                : null;
-            if (model == null)
+            if (prop.Value.ValueKind == JsonValueKind.Null)
                 continue;
-            result[providerId] = model;
+            ModelPreference? preference;
+            try
+            {
+                preference = prop.Value.Deserialize<ModelPreference>(AppConfig.SerializerOptions);
+            }
+            catch (JsonException ex)
+            {
+                throw AppServerErrors.InvalidParams($"'{fieldName}.{prop.Name}' is invalid: {ex.Message}");
+            }
+            if (preference == null || string.IsNullOrWhiteSpace(preference.Model)
+                || string.Equals(preference.Model.Trim(), "default", StringComparison.OrdinalIgnoreCase))
+            {
+                throw AppServerErrors.InvalidParams($"'{fieldName}.{prop.Name}.model' is required.");
+            }
+            preference.Model = preference.Model.Trim();
+            preference.Reasoning ??= new AppConfig.ReasoningConfig();
+            preference.ContextWindow ??= new ModelPreferenceContextWindow();
+            result[providerId] = preference;
         }
 
         return result;
     }
 
-    private static Dictionary<string, string> NormalizeProviderModels(Dictionary<string, string>? providerModels)
+    private static Dictionary<string, ModelPreference> NormalizeProviderPreferences(
+        IReadOnlyDictionary<string, ModelPreference>? providerPreferences)
     {
-        var result = new Dictionary<string, string>(StringComparer.Ordinal);
-        if (providerModels == null)
+        var result = new Dictionary<string, ModelPreference>(StringComparer.Ordinal);
+        if (providerPreferences == null)
             return result;
-        foreach (var kv in providerModels)
+        foreach (var (rawProviderId, rawPreference) in providerPreferences)
         {
-            var providerId = NormalizeOptionalString(kv.Key);
-            if (providerId == null)
+            var providerId = NormalizeOptionalString(rawProviderId);
+            if (providerId == null || rawPreference == null || string.IsNullOrWhiteSpace(rawPreference.Model))
                 continue;
-            var model = NormalizeModelValue(kv.Value);
-            if (model == null)
-                continue;
-            result[providerId] = model;
+            var preference = ModelPreferenceRules.Clone(rawPreference);
+            preference.Model = preference.Model.Trim();
+            result[providerId] = preference;
         }
 
         return result;
-    }
-
-    private static string? NormalizeModelValue(string? rawModel)
-    {
-        var trimmed = rawModel?.Trim();
-        if (string.IsNullOrWhiteSpace(trimmed) ||
-            string.Equals(trimmed, "default", StringComparison.OrdinalIgnoreCase))
-        {
-            return null;
-        }
-
-        return trimmed;
     }
 
     private static bool TryGetCaseInsensitiveProperty(JsonElement obj, string expectedName, out JsonElement value)

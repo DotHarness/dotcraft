@@ -146,6 +146,22 @@ public static class InitHelper
         RemoveCoreConfigFields(node);
         node.Remove("ProviderId");
         node.Remove("ProviderModels");
+        node.Remove("ProviderPreferences");
+        RemoveLegacyModelOptionFields(node);
+    }
+
+    private static void RemoveLegacyModelOptionFields(JsonObject node)
+    {
+        RemoveCaseInsensitive(node, "ProviderModels");
+        RemoveCaseInsensitive(node, "Reasoning");
+        RemoveCaseInsensitive(node, "Speed");
+        var compaction = node
+            .FirstOrDefault(pair => string.Equals(
+                pair.Key,
+                "Compaction",
+                StringComparison.OrdinalIgnoreCase)).Value as JsonObject;
+        if (compaction != null)
+            RemoveCaseInsensitive(compaction, "ContextWindowMode");
     }
 
     private static JsonObject GetOrCreateObject(JsonObject node, string key)
@@ -248,7 +264,7 @@ public static class InitHelper
         JsonObject workspaceNode,
         JsonObject globalNode,
         string providerId,
-        string model)
+        ModelPreference preference)
     {
         RemoveProviderAwareWorkspaceFields(workspaceNode);
 
@@ -263,15 +279,16 @@ public static class InitHelper
             workspaceNode.Remove("ProviderId");
         }
 
-        var trimmedModel = model.Trim();
-        var globalProviderModels = globalNode["ProviderModels"] as JsonObject;
-        var inheritedModel = globalProviderModels == null
-            ? null
-            : ReadTrimmedString(globalProviderModels, trimmedProviderId);
-        if (!string.IsNullOrWhiteSpace(trimmedModel)
-            && !string.Equals(inheritedModel, trimmedModel, StringComparison.Ordinal))
+        var globalPreferences = globalNode["ProviderPreferences"] as JsonObject;
+        var inheritedPreference = globalPreferences?
+            .FirstOrDefault(pair => string.Equals(
+                pair.Key,
+                trimmedProviderId,
+                StringComparison.OrdinalIgnoreCase)).Value;
+        var preferenceNode = JsonSerializer.SerializeToNode(preference, JsonOptions);
+        if (!JsonNode.DeepEquals(inheritedPreference, preferenceNode))
         {
-            GetOrCreateObject(workspaceNode, "ProviderModels")[trimmedProviderId] = trimmedModel;
+            GetOrCreateObject(workspaceNode, "ProviderPreferences")[trimmedProviderId] = preferenceNode;
         }
     }
 
@@ -283,6 +300,7 @@ public static class InitHelper
         var globalNode = LoadJsonObject(globalConfigPath);
         RemoveCaseInsensitive(globalNode, "Language");
         RemoveCaseInsensitive(globalNode, "Model");
+        RemoveLegacyModelOptionFields(globalNode);
         var workspaceConfigPath = Path.Combine(craftPath, "config.json");
         var workspaceNode = LoadJsonObject(workspaceConfigPath);
 
@@ -329,18 +347,22 @@ public static class InitHelper
             throw new ArgumentException($"Unsupported provider setup mode '{request.ProviderMode}'.");
         }
 
-        var model = request.Model.Trim();
-        if (string.IsNullOrWhiteSpace(model))
-            throw new ArgumentException("Missing --model.");
+        var preference = request.Preference == null
+            ? ModelPreferenceRules.CreateManual(request.Model)
+            : ModelPreferenceRules.Clone(request.Preference);
+        if (string.IsNullOrWhiteSpace(preference.Model))
+            throw new ArgumentException("Missing model preference.");
+        preference.Model = preference.Model.Trim();
 
         if (setAsUserDefault)
         {
             globalNode["ProviderId"] = providerId;
-            GetOrCreateObject(globalNode, "ProviderModels")[providerId] = model;
+            GetOrCreateObject(globalNode, "ProviderPreferences")[providerId] =
+                JsonSerializer.SerializeToNode(preference, JsonOptions);
         }
 
         SaveJsonObject(globalConfigPath, globalNode);
-        ApplyProviderAwareWorkspaceSelection(workspaceNode, globalNode, providerId, model);
+        ApplyProviderAwareWorkspaceSelection(workspaceNode, globalNode, providerId, preference);
         SaveJsonObject(workspaceConfigPath, workspaceNode);
         WriteWorkspaceTemplates(craftPath, request.Profile);
         return 0;
@@ -456,9 +478,11 @@ public static class InitHelper
             ["ApiKey"] = apiKey
         };
         configNode["ProviderId"] = "openai";
-        configNode["ProviderModels"] = new JsonObject
+        configNode["ProviderPreferences"] = new JsonObject
         {
-            ["openai"] = "gpt-4o-mini"
+            ["openai"] = JsonSerializer.SerializeToNode(
+                ModelPreferenceRules.CreateManual("gpt-4o-mini"),
+                JsonOptions)
         };
         SaveJsonObject(configPath, configNode);
     }

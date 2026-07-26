@@ -2,9 +2,9 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.1.0 |
+| **Version** | 0.2.0 |
 | **Status** | Living |
-| **Date** | 2026-07-12 |
+| **Date** | 2026-07-26 |
 | **Parent Specs** | [Session Core](../architecture/session-core.md), [AppServer Protocol](../protocols/appserver-protocol.md), [Desktop Client](../clients/desktop-client.md) |
 
 Purpose: define the provider-neutral, model-aware options that control how DotCraft runs a selected
@@ -26,9 +26,9 @@ This specification covers:
 - default and MAX context-window modes
 - workspace presets, thread snapshots, model capability metadata, and Desktop behavior
 
-It does not define visual styling, arbitrary numeric context sizes, transcript rendering of reasoning,
-automatic Fast-to-Standard fallback, or raw provider fields as client-facing configuration. AppServer
-wire DTO details remain authoritative in the AppServer Protocol.
+It does not define arbitrary numeric context sizes, transcript rendering of reasoning, or raw provider
+fields as client-facing configuration. AppServer wire DTO details remain authoritative in the
+AppServer Protocol.
 
 ---
 
@@ -51,22 +51,71 @@ protocols; `fast: null` explicitly disables an inherited Fast declaration. Inval
 ignored. Provider request adapters and `model/list` must resolve capabilities through the same
 merged catalog.
 
-### 2.2 Presets and Thread Snapshots
+### 2.2 Provider Preferences
+
+The public provider-neutral preset is `ModelPreference`:
+
+```json
+{
+  "model": "gpt-5.6",
+  "reasoning": {
+    "enabled": true,
+    "effort": "high",
+    "output": "full"
+  },
+  "speed": "fast",
+  "contextWindow": {
+    "mode": "max"
+  }
+}
+```
+
+MainAgent preferences are stored under `ProviderPreferences[providerId]`. Native SubAgent preferences
+are stored under `SubAgent.ProviderPreferences[providerId]`. Provider keys are case-insensitive and
+normalized when written. A workspace preference replaces the personal preference for the same provider
+as one atomic record; fields within a preference are never merged across scopes. Preferences for other
+providers remain inherited.
+
+The old `ProviderModels`, `SubAgent.ProviderModels`, root `Reasoning`, root `Speed`, and
+`Compaction.ContextWindowMode` preference fields are not read or migrated. A successful preference save
+removes those obsolete keys from the target file.
+
+Missing native SubAgent preferences inherit the parent thread's complete MainAgent preference. An
+explicit role model takes precedence over the SubAgent model, while inherited or explicit reasoning,
+speed, and context selections are revalidated against the role model. External CLI SubAgents do not
+consume native preferences.
+
+### 2.3 Defaults and Normalization
+
+Creating a preference uses model-catalog capability defaults:
+
+- models that can disable reasoning start at Off
+- models that cannot disable reasoning use the catalog default effort and output
+- speed uses the catalog default, normally Standard
+- context uses Default
+- manual models use Off / Full / Standard / Default
+
+Changing models replaces unsupported reasoning selections with the model defaults and clears MAX when
+unsupported. Fast remains stored as a user preference, but unsupported models execute as Standard.
+
+### 2.4 Presets and Thread Snapshots
 
 Model options follow this lifecycle:
 
-1. Workspace configuration supplies the preset used by the Welcome composer and future threads.
-2. `thread/start` captures effective provider, model, reasoning, and speed into `ThreadConfiguration`
-   unless the request supplies explicit values. It captures workspace MAX only when the resolved model
-   supports MAX.
-3. A Welcome picker change atomically updates the workspace provider/model preset; an active-thread picker change updates only that thread's complete provider/model snapshot.
+1. The effective `ProviderPreferences` record supplies the preset used by the Welcome composer and
+   future threads.
+2. `thread/start` captures effective provider, model, reasoning, speed, and context-window mode into
+   `ThreadConfiguration` unless the request supplies explicit values. Unsupported MAX is normalized to
+   Default before capture.
+3. A Welcome picker change atomically updates the complete workspace provider preference; an
+   active-thread picker change updates only that thread's complete provider/model snapshot.
 4. A change affects future and queued turns; it never changes a running provider request.
 5. Forks copy the source thread configuration unless the fork request supplies an override.
 6. Existing threads keep their captured values when workspace defaults change.
 
 `thread/config/update` replaces the full `ThreadConfiguration`; clients must preserve unrelated fields.
 
-### 2.3 Reconnect and External Changes
+### 2.5 Reconnect and External Changes
 
 Clients recompute effective model options when:
 
@@ -100,11 +149,10 @@ The provider-neutral object is:
 ```
 
 - `enabled=false` represents Off; quick selectors must not encode Off as `effort=none`.
-- `effort` supports `none`, `low`, `medium`, `high`, and `extraHigh` on the wire.
+- `effort` supports `low`, `medium`, `high`, and `extraHigh` on the wire.
 - `output` supports `none`, `summary`, and `full`. The quick picker changes effort only.
-- Workspace persistence uses `Reasoning.Enabled`, `Reasoning.Effort`, and `Reasoning.Output`.
-- Effective reasoning resolves thread, workspace, global, then the built-in disabled default.
-- A missing reasoning field on an old thread uses the effective AppConfig for compatibility.
+- Preference persistence uses `ModelPreference.reasoning`.
+- A new thread always captures the effective preference reasoning.
 
 ### 3.2 Capability Metadata
 
@@ -112,8 +160,7 @@ The provider-neutral object is:
 `supportedOutputs`, and `defaultOutput`. `defaultEffort` must be one of `supportedEfforts`.
 
 When `supportsDisable=false`, clients must not offer Off as an enabled action. If an explicit effort is
-unsupported for a known model, the server rejects it; selecting Default may resolve to the model's
-default effort.
+unsupported for a known model, normalization repairs it to the model's default effort.
 
 The server derives reasoning capability and request shaping from protocol, endpoint, model id, and
 `model-thinking-adapters.json`. Matching supports model prefixes and namespaced suffixes.
@@ -196,9 +243,8 @@ fallback match, or no larger catalog window.
 
 ### 5.3 Persistence and Metadata
 
-Thread configuration uses `{ "contextWindow": { "mode": "max" } }`. Workspace persistence uses
-`Compaction.ContextWindowMode`; `default` or null removes the explicit workspace override. New threads
-capture MAX only when their resolved model supports it.
+Thread configuration and `ModelPreference` use `{ "contextWindow": { "mode": "max" } }`. New threads
+capture the normalized preference mode; unsupported MAX becomes Default.
 
 `model/list.contextWindow` supplies `catalogWindow`, `configuredWindow`, `supportsMax`, and
 `maxWindow`. `supportsMax` is true only for an explicit match whose catalog window is larger.
@@ -208,9 +254,10 @@ capture MAX only when their resolved model supports it.
 
 ## 6. Desktop UX
 
-The composer Model picker is the shared entry point:
+The composer Model picker supplies one shared menu implementation:
 
-- Provider opens a submenu of configured providers. Welcome uses the workspace provider and remembered `ProviderModels` entry; an existing thread uses its captured provider.
+- Provider opens a submenu of configured providers. Welcome uses the workspace provider and remembered
+  `ProviderPreferences` entry; an existing thread uses its captured provider.
 - Model opens the model submenu and preserves manual fallback behavior.
 - Effort exposes only the active model's reasoning choices and keeps the trigger label compact.
 - Speed appears only for Fast-capable models and offers Standard and Fast.
@@ -228,11 +275,23 @@ preserved and unsupported Fast continues to run as Standard.
 The picker remains available while a turn is running; changes update the thread snapshot for queued and
 future turns without changing the active provider request. It is disabled while waiting for approval or
 user input, during blocking maintenance, or while a configuration update is being applied. The Welcome
-atomically updates `providerId` and `providerModels` and passes the resulting pair to thread creation.
+atomically updates `providerId` and `providerPreferences` and passes the resulting preference to thread
+creation.
 Existing threads never show Default and update only their own snapshot. They load `model/list` for their
 captured provider and do not follow later workspace provider changes. Without a remembered model Desktop
 chooses the first listed model; if no list is available, it leaves state unchanged and directs the user
 to Model Providers settings.
+
+Settings and Setup reuse the same menu, keyboard navigation, portal placement, submenu aim, and
+capability handling. Their full-width field wrapper hides the Provider row because those screens
+already establish the provider. It does not add alternate menu rows, icons, dividers, or explanatory
+tooltips.
+
+The Settings `Workspace preferences` header owns the refresh action. MainAgent uses one full-width
+picker. SubAgent uses the same field with a shared `PillSwitch` in the row: the adjacent label is
+`Inherit MainAgent` when off and `Custom` when on. Off removes the provider's SubAgent record and
+disables the field; on clones the current MainAgent preference before editing. Setup is one centered
+wizard screen, configures MainAgent only, and leaves SubAgent inheritance untouched.
 
 ---
 
@@ -242,9 +301,8 @@ to Model Providers settings.
 - Invalid explicit AppServer values return protocol validation errors.
 - Provider rejection of an advertised option fails through the normal turn error contract.
 - Unknown models never receive Fast fields or MAX capability without a catalog match.
-- Existing reasoning configurations retain their current `Reasoning` shape.
 - Existing threads without Speed use Standard; existing threads without Context Window use default.
-- The obsolete workspace root `Model` key is ignored and is neither migrated nor used as a fallback.
+- Obsolete preference keys are ignored and are neither migrated nor used as fallback.
 
 ---
 
@@ -252,8 +310,11 @@ to Model Providers settings.
 
 - `model/list` is sufficient for clients to render Reasoning, Speed, and MAX without model hardcoding.
 - Workspace presets and active-thread snapshots round-trip through AppServer.
+- Workspace-over-personal resolution replaces one provider preference atomically.
+- Native SubAgent inheritance and explicit overrides preserve the complete preference, while role-model
+  and external-runtime precedence remain deterministic.
 - New threads capture effective reasoning and speed plus supported MAX, and existing threads remain stable after preset changes.
 - Provider-specific reasoning and Fast request shapes remain server-owned.
 - MAX resolution and validation use explicit server catalog evidence.
 - Desktop exposes the three options through one model picker and respects busy state.
-- Legacy configurations and threads retain their documented defaults.
+- Threads without Speed or Context Window retain the documented Standard and Default runtime behavior.

@@ -5094,7 +5094,7 @@ Provider mutations emit `workspace/configChanged` with region `providers`.
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `id` | string | Model id used in `ProviderModels` and thread configuration payloads. |
+| `id` | string | Model id used in `ProviderPreferences` and thread configuration payloads. |
 | `ownedBy` | string | Provider-reported owner string when available; may be empty. |
 | `createdAt` | string (ISO 8601 UTC) | Provider-reported creation time. |
 | `reasoning` | object | Optional server-authored reasoning UI capability metadata. Clients must not hardcode model compatibility rules; use this metadata when present. |
@@ -6136,7 +6136,14 @@ Returns all builtin profiles plus workspace-defined custom profiles for the curr
   "defaultName": "native",
   "settings": {
     "externalCliSessionResumeEnabled": false,
-    "providerModels": { "anthropic": "claude-sonnet-4-5" },
+    "providerPreferences": {
+      "anthropic": {
+        "model": "claude-sonnet-4-5",
+        "reasoning": { "enabled": false, "effort": "medium", "output": "full" },
+        "speed": "standard",
+        "contextWindow": { "mode": "default" }
+      }
+    },
     "minWaitTimeoutMs": 15000,
     "defaultWaitTimeoutMs": 60000,
     "maxWaitTimeoutMs": 3600000
@@ -6146,7 +6153,7 @@ Returns all builtin profiles plus workspace-defined custom profiles for the curr
 ```
 
 `settings.externalCliSessionResumeEnabled` is the workspace-scoped toggle that controls whether supported external CLI profiles may reuse saved external session ids.
-`settings.providerModels` contains native SubAgent model preferences keyed by provider id. A missing entry inherits the effective MainAgent model for that thread. The legacy `SubAgent.Model` field is neither read nor migrated.
+`settings.providerPreferences` contains complete native SubAgent preferences keyed by provider id. A missing entry inherits the parent thread's complete MainAgent preference.
 `settings.minWaitTimeoutMs`, `settings.defaultWaitTimeoutMs`, and `settings.maxWaitTimeoutMs` define the configured `WaitAgent(timeoutMs?)` range in milliseconds. Omitted `timeoutMs` uses the default; explicit values outside the configured range are rejected rather than clamped.
 `SubAgent.MaxDepth` defaults to `1`, so root threads can spawn first-level SubAgents but child SubAgents cannot recursively call `SpawnAgent` unless the workspace explicitly raises the depth limit and the selected role exposes Agent control.
 
@@ -6159,7 +6166,14 @@ Update workspace-level SubAgent settings.
 ```json
 {
   "externalCliSessionResumeEnabled": true,
-  "providerModels": { "openai": "gpt-5.1" },
+  "providerPreferences": {
+    "openai": {
+      "model": "gpt-5.1",
+      "reasoning": { "enabled": true, "effort": "high", "output": "full" },
+      "speed": "fast",
+      "contextWindow": { "mode": "max" }
+    }
+  },
   "minWaitTimeoutMs": 15000,
   "defaultWaitTimeoutMs": 60000,
   "maxWaitTimeoutMs": 3600000
@@ -6168,11 +6182,12 @@ Update workspace-level SubAgent settings.
 
 **Semantics**:
 
-- clients may send `externalCliSessionResumeEnabled`, `providerModels`, any `*WaitTimeoutMs` field, or a combination; at least one supported field is required
+- clients may send `externalCliSessionResumeEnabled`, `providerPreferences`, any `*WaitTimeoutMs` field, or a combination; at least one supported field is required
 - `externalCliSessionResumeEnabled` updates `SubAgent.EnableExternalCliSessionResume`
-- `providerModels` replaces `SubAgent.ProviderModels`; empty/default values are omitted and an empty map clears the section
+- `providerPreferences` replaces `SubAgent.ProviderPreferences`; an empty map clears the section
+- each record is normalized as a complete unit; an invalid model, reasoning selection, speed value, or context-window selection rejects the request without writing
 - `minWaitTimeoutMs`, `defaultWaitTimeoutMs`, and `maxWaitTimeoutMs` update `SubAgent.MinWaitTimeoutMs`, `SubAgent.DefaultWaitTimeoutMs`, and `SubAgent.MaxWaitTimeoutMs`; each value must be between `0` and `3600000`, and the resulting triple must satisfy `min <= default <= max`
-- saving SubAgent settings removes an obsolete `SubAgent.Model` key if present; no migration or compatibility fallback is performed
+- saving SubAgent settings removes obsolete SubAgent model-only keys if present
 - the resume toggle affects only profiles whose effective definition has `supportsResume=true`
 - clearing or changing these settings does not delete existing saved external session ids
 - on success, the server emits `workspace/configChanged` (see [Section 25.5](#255-workspaceconfigchanged)) with `source: "subagent/settings/update"` and `regions: ["subagent"]`
@@ -6415,7 +6430,7 @@ Update workspace-level config values.
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
 | `providerId` | string \| null | no | Workspace-selected personal provider id. `null` or empty removes the workspace `ProviderId` key; runtime then has no selected provider unless a managed runtime override supplies one. |
-| `providerModels` | object \| null | no | Provider-keyed workspace model preferences. Empty/default values are omitted; `null` or an empty object clears the map. |
+| `providerPreferences` | object \| null | no | Complete provider-keyed MainAgent preferences. Each record contains `model`, `reasoning`, `speed`, and `contextWindow`; `null` or an empty object clears the map. |
 | `welcomeSuggestionsEnabled` | boolean \| null | no | Workspace-level override for personalized welcome suggestions. `true` enables, `false` disables, and `null` removes the explicit override so server defaults apply. |
 | `skillsSelfLearningEnabled` | boolean \| null | no | Workspace-level override for `Skills.SelfLearning.Enabled`. `true` enables the SkillManage tool surface and skill-authoring built-in skill, `false` disables, and `null` removes the explicit override so server defaults apply (`true` by default). Takes effect on next AppServer restart (`Skills.SelfLearning.Enabled` is a `ProcessRestart` field). |
 | `memoryAutoConsolidateEnabled` | boolean \| null | no | Workspace-level override for `Memory.AutoConsolidateEnabled`. `true` enables turn-count-based long-term memory consolidation, `false` disables it, and `null` removes the explicit override so server defaults apply (`true` by default). Takes effect for future successful turns without restart. |
@@ -6425,16 +6440,26 @@ Update workspace-level config values.
 | `dreamsAutoApply` | boolean \| null | no | Workspace-level override for `Dreams.AutoApply`. `true` makes future successful Dreams runs active immediately, `false` keeps them pending for Dashboard review, and `null` removes the explicit override. |
 | `defaultApprovalPolicy` | string \| null | no | Workspace default approval policy for threads whose `ThreadConfiguration.approvalPolicy` is `default` or unset. Supported values are `default` and `autoApprove`; `null` removes the explicit workspace override so server defaults apply. |
 | `toolsLspEnabled` | boolean \| null | no | Workspace-level override for `Tools.Lsp.Enabled`. `true` enables the built-in LSP tool, `false` disables it, and `null` removes the explicit override so server defaults apply. |
-| `reasoning` | object \| null | no | Workspace default reasoning override. Omitted means no change; `null` removes the workspace `Reasoning` section; an object may set `enabled`, `effort`, and/or `output` using camelCase wire enum values. |
-| `speed` | `"standard"` \| `"fast"` | no | Workspace inference-speed preset for new threads. Omitted means no change. |
-| `contextWindow` | object \| null | no | Workspace default context-window mode for newly created threads. Shape: `{ "mode": "default" | "max" }`. Omitted means no change; `null` or `{ "mode": "default" }` removes the explicit workspace default; `{ "mode": "max" }` persists `Compaction.ContextWindowMode = Max`. |
 
 **Result**:
 
 ```json
 {
   "providerId": "anthropic",
-  "providerModels": { "anthropic": "claude-sonnet-4-5" },
+  "providerPreferences": {
+    "anthropic": {
+      "model": "claude-sonnet-4-5",
+      "reasoning": {
+        "enabled": true,
+        "effort": "high",
+        "output": "full"
+      },
+      "speed": "fast",
+      "contextWindow": {
+        "mode": "max"
+      }
+    }
+  },
   "welcomeSuggestionsEnabled": true,
   "skillsSelfLearningEnabled": true,
   "memoryAutoConsolidateEnabled": true,
@@ -6443,16 +6468,7 @@ Update workspace-level config values.
   "dreamsThreadLookbackCount": 20,
   "dreamsAutoApply": false,
   "defaultApprovalPolicy": "default",
-  "toolsLspEnabled": true,
-  "reasoning": {
-    "enabled": true,
-    "effort": "high",
-    "output": "full"
-  },
-  "speed": "fast",
-  "contextWindow": {
-    "mode": "max"
-  }
+  "toolsLspEnabled": true
 }
 ```
 
@@ -6461,19 +6477,19 @@ Update workspace-level config values.
 - This method updates **workspace default** only, not any active thread state.
 - Clients that need immediate effect in a running thread should additionally call `thread/config/update`.
 - Server preserves unrelated configuration state.
-- At least one of `providerId`, `providerModels`, `welcomeSuggestionsEnabled`, `skillsSelfLearningEnabled`, `memoryAutoConsolidateEnabled`, `dreamsEnabled`, `dreamsInterval`, `dreamsThreadLookbackCount`, `dreamsAutoApply`, `defaultApprovalPolicy`, `toolsLspEnabled`, `reasoning`, `speed`, or `contextWindow` must be provided.
-- Key matching is case-insensitive and normalized in-place (`ProviderId`, `ProviderModels`, and nested sections).
-- Provider-aware saves persist `ProviderId` and `ProviderModels` to workspace config and remove an obsolete root `Model` key without reading or migrating it. Credentials and endpoints are changed through `provider/create` and `provider/update`.
+- At least one of `providerId`, `providerPreferences`, `welcomeSuggestionsEnabled`, `skillsSelfLearningEnabled`, `memoryAutoConsolidateEnabled`, `dreamsEnabled`, `dreamsInterval`, `dreamsThreadLookbackCount`, `dreamsAutoApply`, `defaultApprovalPolicy`, or `toolsLspEnabled` must be provided.
+- Key matching is case-insensitive and normalized in-place (`ProviderId`, `ProviderPreferences`, and nested sections).
+- `providerPreferences` replaces the complete workspace map. Each workspace record atomically overrides the personal record for the same provider; fields are never merged across scopes.
+- Provider-aware saves persist `ProviderId` and `ProviderPreferences` and remove obsolete model-only and root model-option keys. Credentials and endpoints are changed through `provider/create` and `provider/update`.
 - Requests containing legacy root-level `apiKey` or `endPoint` parameters are rejected.
+- Requests containing `providerModels`, root-level `reasoning`, root-level `speed`, or root-level `contextWindow` are rejected.
 - When `skillsSelfLearningEnabled` is provided, the server writes the boolean to the nested `Skills.SelfLearning.Enabled` key. Setting it to `null` removes the leaf, and the server prunes empty `Skills.SelfLearning` / `Skills` objects when no other keys remain.
 - When `memoryAutoConsolidateEnabled` is provided, the server writes the boolean to `Memory.AutoConsolidateEnabled`. Setting it to `null` removes the leaf, and the server prunes the empty `Memory` object when no other keys remain.
 - When Dreams fields are provided, the server writes them to `Dreams.Enabled`, `Dreams.Interval`, `Dreams.ThreadLookbackCount`, and `Dreams.AutoApply`. Setting a field to `null` removes that leaf, and the server prunes the empty `Dreams` object when no other keys remain.
 - When `defaultApprovalPolicy` is provided, the server writes the value to `Permissions.DefaultApprovalPolicy`. Setting it to `null` removes the leaf, and the server prunes the empty `Permissions` object when no other keys remain.
 - When `toolsLspEnabled` is provided, the server writes the boolean to `Tools.Lsp.Enabled`. Setting it to `null` removes the leaf, and the server prunes empty `Tools.Lsp` / `Tools` objects when no other keys remain.
-- When `reasoning` is provided, `null` removes the workspace `Reasoning` section. `enabled: false` writes an explicit Off override; `enabled: true` or a payload that only sets `effort` writes an enabled override. Missing `effort` and `output` are filled from existing workspace values, merged config values, then `medium` / `full`.
-- When `speed` is provided, the server writes the canonical `Speed` string. Existing configurations without it resolve to `standard`.
-- When `contextWindow` is provided, `null` or `{ "mode": "default" }` removes `Compaction.ContextWindowMode`; `{ "mode": "max" }` writes `Compaction.ContextWindowMode = Max`. Explicit `max` is validated against the prospective provider and its `ProviderModels` entry before saving.
-- On success, the server emits `workspace/configChanged` (see [Section 25.5](#255-workspaceconfigchanged)) with `source: "workspace/config/update"` and one or more regions from `workspace.provider`, `workspace.model`, `workspace.reasoning`, `workspace.speed`, `workspace.contextWindow`, `providers`, `welcomeSuggestions`, `skills`, `memory`, `workspace.defaultApprovalPolicy`, or `lsp`.
+- Each preference must contain a non-empty model and valid enum values. Unsupported reasoning selections are repaired to catalog defaults, unsupported `max` is reset to `default`, and `fast` may remain stored even when the selected model executes it as `standard`.
+- On success, the server emits `workspace/configChanged` (see [Section 25.5](#255-workspaceconfigchanged)) with `source: "workspace/config/update"` and one or more regions from `workspace.provider`, `workspace.providerPreferences`, `providers`, `welcomeSuggestions`, `skills`, `memory`, `workspace.defaultApprovalPolicy`, or `lsp`.
 
 ### 25.4 Capability Advertisement
 
@@ -6509,10 +6525,7 @@ Current `regions` taxonomy:
 |--------|----------|
 | `providers` | `provider/create`, `provider/update`, `provider/delete` |
 | `workspace.provider` | `workspace/config/update` |
-| `workspace.model` | `workspace/config/update` |
-| `workspace.reasoning` | `workspace/config/update` |
-| `workspace.speed` | `workspace/config/update` |
-| `workspace.contextWindow` | `workspace/config/update` |
+| `workspace.providerPreferences` | `workspace/config/update` |
 | `welcomeSuggestions` | `workspace/config/update` |
 | `skills` | `skills/setEnabled`, `skills/uninstall`, `plugin/install`, `plugin/remove`, `plugin/setEnabled`, `workspace/config/update` |
 | `plugins` | `plugin/install`, `plugin/remove`, `plugin/setEnabled`, `marketplace/add`, `marketplace/remove`, `marketplace/refresh` |

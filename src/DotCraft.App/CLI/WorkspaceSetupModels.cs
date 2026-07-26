@@ -1,3 +1,5 @@
+using DotCraft.Configuration;
+
 namespace DotCraft.CLI;
 
 public enum WorkspaceBootstrapProfile
@@ -46,6 +48,9 @@ public sealed record WorkspaceSetupProviderDraft
 public sealed record WorkspaceSetupRequest
 {
     public required string Model { get; init; }
+
+    /// <summary>Complete MainAgent preference selected by setup.</summary>
+    public ModelPreference? Preference { get; init; }
 
     public required string EndPoint { get; init; }
 

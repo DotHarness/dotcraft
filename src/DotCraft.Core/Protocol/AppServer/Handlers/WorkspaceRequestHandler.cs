@@ -95,10 +95,10 @@ internal sealed class WorkspaceRequestHandler(
     private async Task<object?> HandleWorkspaceConfigUpdateAsync(AppServerIncomingMessage msg, CancellationToken ct)
     {
         const string requiredFieldMessage =
-            "At least one of 'providerId', 'providerModels', 'welcomeSuggestionsEnabled', " +
+            "At least one of 'providerId', 'providerPreferences', 'welcomeSuggestionsEnabled', " +
             "'skillsSelfLearningEnabled', 'memoryAutoConsolidateEnabled', 'dreamsEnabled', 'dreamsInterval', " +
             "'dreamsThreadLookbackCount', 'dreamsAutoApply', 'defaultApprovalPolicy', 'toolsLspEnabled', " +
-            "'reasoning', 'speed', or 'contextWindow' is required.";
+            "is required.";
 
         if (string.IsNullOrWhiteSpace(workspaceCraftPath))
             throw AppServerErrors.MethodNotFound(AppServerMethods.WorkspaceConfigUpdate);
@@ -107,7 +107,10 @@ internal sealed class WorkspaceRequestHandler(
 
         var hasProviderId = TryGetCaseInsensitiveProperty(msg.Params.Value, "providerId", out var providerIdEl);
         var hasModel = TryGetCaseInsensitiveProperty(msg.Params.Value, "model", out _);
-        var hasProviderModels = TryGetCaseInsensitiveProperty(msg.Params.Value, "providerModels", out var providerModelsEl);
+        var hasProviderPreferences = TryGetCaseInsensitiveProperty(
+            msg.Params.Value,
+            "providerPreferences",
+            out var providerPreferencesEl);
         var hasApiKey = TryGetCaseInsensitiveProperty(msg.Params.Value, "apiKey", out var apiKeyEl);
         var hasEndPoint = TryGetCaseInsensitiveProperty(msg.Params.Value, "endPoint", out var endPointEl);
         if (hasApiKey || hasEndPoint)
@@ -115,7 +118,15 @@ internal sealed class WorkspaceRequestHandler(
                 "'apiKey' and 'endPoint' are no longer accepted by workspace/config/update. Use provider/create or provider/update.");
         if (hasModel)
             throw AppServerErrors.InvalidParams(
-                "'model' is no longer accepted by workspace/config/update. Set the selected provider's entry in 'providerModels'.");
+                "'model' is no longer accepted by workspace/config/update. Set the selected provider's entry in 'providerPreferences'.");
+        if (TryGetCaseInsensitiveProperty(msg.Params.Value, "providerModels", out _)
+            || TryGetCaseInsensitiveProperty(msg.Params.Value, "reasoning", out _)
+            || TryGetCaseInsensitiveProperty(msg.Params.Value, "speed", out _)
+            || TryGetCaseInsensitiveProperty(msg.Params.Value, "contextWindow", out _))
+        {
+            throw AppServerErrors.InvalidParams(
+                "Legacy model option fields are not accepted. Use 'providerPreferences'.");
+        }
         var hasWelcomeSuggestionsEnabled = TryGetCaseInsensitiveProperty(
             msg.Params.Value,
             "welcomeSuggestionsEnabled",
@@ -152,20 +163,8 @@ internal sealed class WorkspaceRequestHandler(
             msg.Params.Value,
             "toolsLspEnabled",
             out var toolsLspEnabledEl);
-        var hasReasoning = TryGetCaseInsensitiveProperty(
-            msg.Params.Value,
-            "reasoning",
-            out var reasoningEl);
-        var hasSpeed = TryGetCaseInsensitiveProperty(
-            msg.Params.Value,
-            "speed",
-            out var speedEl);
-        var hasContextWindow = TryGetCaseInsensitiveProperty(
-            msg.Params.Value,
-            "contextWindow",
-            out var contextWindowEl);
         if (!hasProviderId
-            && !hasProviderModels
+            && !hasProviderPreferences
             && !hasWelcomeSuggestionsEnabled
             && !hasSkillsSelfLearningEnabled
             && !hasMemoryAutoConsolidateEnabled
@@ -174,17 +173,16 @@ internal sealed class WorkspaceRequestHandler(
             && !hasDreamsThreadLookbackCount
             && !hasDreamsAutoApply
             && !hasDefaultApprovalPolicy
-            && !hasToolsLspEnabled
-            && !hasReasoning
-            && !hasSpeed
-            && !hasContextWindow)
+            && !hasToolsLspEnabled)
         {
             throw AppServerErrors.InvalidParams(requiredFieldMessage);
         }
 
         var currentConfig = appConfigMonitor?.Current ?? workspaceConfig.LoadCurrentMergedConfig();
         var providerId = hasProviderId ? NormalizeOptionalString(ParseNullableString(providerIdEl, "providerId")) : null;
-        var providerModels = hasProviderModels ? ParseNullableProviderModels(providerModelsEl, "providerModels") : null;
+        var providerPreferences = hasProviderPreferences
+            ? ParseNullableProviderPreferences(providerPreferencesEl, "providerPreferences")
+            : null;
         var welcomeSuggestionsEnabled = hasWelcomeSuggestionsEnabled
             ? ParseNullableBoolean(welcomeSuggestionsEnabledEl, "welcomeSuggestionsEnabled")
             : null;
@@ -212,44 +210,17 @@ internal sealed class WorkspaceRequestHandler(
         var toolsLspEnabled = hasToolsLspEnabled
             ? ParseNullableBoolean(toolsLspEnabledEl, "toolsLspEnabled")
             : null;
-        var reasoning = hasReasoning
-            ? ParseNullableReasoningConfig(reasoningEl, "reasoning", currentConfig.Reasoning)
-            : null;
-        var speed = hasSpeed
-            ? ParseInferenceSpeed(speedEl, "speed")
-            : currentConfig.Speed;
-        var contextWindow = hasContextWindow
-            ? ParseNullableWorkspaceContextWindowConfig(contextWindowEl, "contextWindow")
-            : null;
-
         var prospectiveProviderId = hasProviderId ? providerId : currentConfig.ProviderId;
-        var prospectiveModel = ResolveProspectiveWorkspaceModel(
-            currentConfig,
-            workspaceConfig.PersonalConfigPath,
-            prospectiveProviderId,
-            hasProviderModels ? providerModels : null,
-            hasProviderModels);
-        if (hasReasoning && reasoning != null)
+        if (hasProviderPreferences && providerPreferences != null)
         {
-            AppServerRuntimeRequestValidator.ValidateReasoningForRuntime(
-                currentConfig,
-                prospectiveProviderId,
-                prospectiveModel,
-                reasoning);
-        }
-        if (hasContextWindow && contextWindow != null)
-        {
-            AppServerRuntimeRequestValidator.ValidateContextWindowForRuntime(
-                currentConfig,
-                prospectiveProviderId,
-                prospectiveModel,
-                contextWindow);
+            foreach (var (preferenceProviderId, preference) in providerPreferences)
+                ValidatePreferenceForRuntime(currentConfig, preferenceProviderId, preference);
         }
 
         var saveResult = SaveWorkspaceCoreConfig(
             workspaceCraftPath!,
             hasProviderId ? providerId : null,
-            hasProviderModels ? providerModels : null,
+            hasProviderPreferences ? providerPreferences : null,
             welcomeSuggestionsEnabled,
             skillsSelfLearningEnabled,
             memoryAutoConsolidateEnabled,
@@ -259,10 +230,10 @@ internal sealed class WorkspaceRequestHandler(
             dreamsAutoApply,
             hasDefaultApprovalPolicy ? NormalizeDefaultApprovalPolicy(defaultApprovalPolicy) : null,
             toolsLspEnabled,
-            reasoning,
-            contextWindow,
+            reasoning: null,
+            contextWindow: null,
             hasProviderId,
-            hasProviderModels,
+            hasProviderPreferences,
             hasWelcomeSuggestionsEnabled,
             hasSkillsSelfLearningEnabled,
             hasMemoryAutoConsolidateEnabled,
@@ -272,17 +243,16 @@ internal sealed class WorkspaceRequestHandler(
             hasDreamsAutoApply,
             hasDefaultApprovalPolicy,
             hasToolsLspEnabled,
-            hasReasoning,
-            hasContextWindow);
-        var speedChanged = hasSpeed && SaveWorkspaceSpeed(workspaceCraftPath!, speed);
+            updateReasoning: false,
+            updateContextWindow: false);
 
         var changedRegions = new List<string>();
         if (saveResult.ProviderIdChanged)
             changedRegions.Add(ConfigChangeRegions.WorkspaceProvider);
-        if (saveResult.ProviderModelsChanged)
-            changedRegions.Add(ConfigChangeRegions.WorkspaceModel);
+        if (saveResult.ProviderPreferencesChanged)
+            changedRegions.Add(ConfigChangeRegions.WorkspaceProviderPreferences);
         if (saveResult.ProviderIdChanged
-            || saveResult.ProviderModelsChanged)
+            || saveResult.ProviderPreferencesChanged)
         {
             runtimeConfig.RefreshCurrentLlmConfig();
             runtimeConfig.InvalidateThreadAgents();
@@ -322,23 +292,6 @@ internal sealed class WorkspaceRequestHandler(
             runtimeConfig.RefreshCurrentLspConfig(saveResult.ToolsLspEnabled);
             await ReconnectEffectiveLspRuntimeAsync(ct);
         }
-        if (saveResult.ReasoningChanged)
-        {
-            changedRegions.Add(ConfigChangeRegions.WorkspaceReasoning);
-            runtimeConfig.RefreshCurrentReasoningConfig();
-            runtimeConfig.InvalidateThreadAgents();
-        }
-        if (speedChanged)
-        {
-            changedRegions.Add(ConfigChangeRegions.WorkspaceSpeed);
-            runtimeConfig.RefreshCurrentSpeedConfig();
-            runtimeConfig.InvalidateThreadAgents();
-        }
-        if (saveResult.ContextWindowChanged)
-        {
-            changedRegions.Add(ConfigChangeRegions.WorkspaceContextWindow);
-            runtimeConfig.RefreshCurrentContextWindowConfig();
-        }
         if (changedRegions.Count > 0)
         {
             appConfigMonitor?.NotifyChanged(
@@ -349,7 +302,7 @@ internal sealed class WorkspaceRequestHandler(
         return new WorkspaceConfigUpdateResult
         {
             ProviderId = saveResult.ProviderId,
-            ProviderModels = saveResult.ProviderModels,
+            ProviderPreferences = saveResult.ProviderPreferences,
             WelcomeSuggestionsEnabled = saveResult.WelcomeSuggestionsEnabled,
             SkillsSelfLearningEnabled = saveResult.SkillsSelfLearningEnabled,
             MemoryAutoConsolidateEnabled = saveResult.MemoryAutoConsolidateEnabled,
@@ -358,38 +311,8 @@ internal sealed class WorkspaceRequestHandler(
             DreamsThreadLookbackCount = saveResult.DreamsThreadLookbackCount,
             DreamsAutoApply = saveResult.DreamsAutoApply,
             DefaultApprovalPolicy = saveResult.DefaultApprovalPolicy,
-            ToolsLspEnabled = saveResult.ToolsLspEnabled,
-            Reasoning = CloneNullableReasoningConfig(saveResult.Reasoning),
-            Speed = hasSpeed ? speed : currentConfig.Speed,
-            ContextWindow = CloneNullableContextWindowConfig(saveResult.ContextWindow)
+            ToolsLspEnabled = saveResult.ToolsLspEnabled
         };
-    }
-
-    private static InferenceSpeed ParseInferenceSpeed(JsonElement element, string fieldName)
-    {
-        if (element.ValueKind != JsonValueKind.String)
-            throw AppServerErrors.InvalidParams($"'{fieldName}' must be 'standard' or 'fast'.");
-        return element.GetString()?.Trim().ToLowerInvariant() switch
-        {
-            "standard" => InferenceSpeed.Standard,
-            "fast" => InferenceSpeed.Fast,
-            _ => throw AppServerErrors.InvalidParams($"'{fieldName}' must be 'standard' or 'fast'.")
-        };
-    }
-
-    private static bool SaveWorkspaceSpeed(string workspaceCraftPath, InferenceSpeed speed)
-    {
-        var configPath = Path.Combine(workspaceCraftPath, "config.json");
-        Directory.CreateDirectory(workspaceCraftPath);
-        var root = LoadWorkspaceConfigObject(configPath);
-        var key = FindCaseInsensitiveKey(root, "Speed");
-        var existing = ReadConfigStringValue(root, key);
-        var canonical = speed == InferenceSpeed.Fast ? "Fast" : "Standard";
-        if (string.Equals(existing, canonical, StringComparison.OrdinalIgnoreCase))
-            return false;
-        UpsertOrRemoveConfigValue(root, key, "Speed", canonical);
-        WriteConfigObject(configPath, root);
-        return true;
     }
 
     private Task<object?> HandleMemoryResetAsync(AppServerIncomingMessage msg, CancellationToken ct)
@@ -447,138 +370,137 @@ internal sealed class WorkspaceRequestHandler(
         return string.IsNullOrWhiteSpace(trimmed) ? null : trimmed;
     }
 
-    private static string? NormalizeWorkspaceModel(string? rawModel)
-    {
-        var trimmed = rawModel?.Trim();
-        if (string.IsNullOrWhiteSpace(trimmed) ||
-            string.Equals(trimmed, "default", StringComparison.OrdinalIgnoreCase))
-        {
-            return null;
-        }
-
-        return trimmed;
-    }
-
-    private static Dictionary<string, string>? ParseNullableProviderModels(JsonElement element, string fieldName)
+    private static Dictionary<string, ModelPreference>? ParseNullableProviderPreferences(
+        JsonElement element,
+        string fieldName)
     {
         if (element.ValueKind == JsonValueKind.Null)
             return null;
         if (element.ValueKind != JsonValueKind.Object)
             throw AppServerErrors.InvalidParams($"'{fieldName}' must be an object or null.");
 
-        var result = new Dictionary<string, string>(StringComparer.Ordinal);
+        var result = new Dictionary<string, ModelPreference>(StringComparer.Ordinal);
         foreach (var prop in element.EnumerateObject())
         {
             var providerId = NormalizeOptionalString(prop.Name);
             if (providerId == null)
                 continue;
-            if (prop.Value.ValueKind != JsonValueKind.String && prop.Value.ValueKind != JsonValueKind.Null)
-                throw AppServerErrors.InvalidParams($"'{fieldName}.{prop.Name}' must be a string or null.");
-            var model = prop.Value.ValueKind == JsonValueKind.String
-                ? NormalizeWorkspaceModel(prop.Value.GetString())
-                : null;
-            if (model == null)
+            if (prop.Value.ValueKind == JsonValueKind.Null)
                 continue;
-            result[providerId] = model;
-        }
-
-        return result;
-    }
-
-    private static Dictionary<string, string> NormalizeProviderModels(Dictionary<string, string>? providerModels)
-    {
-        var result = new Dictionary<string, string>(StringComparer.Ordinal);
-        if (providerModels == null)
-            return result;
-        foreach (var kv in providerModels)
-        {
-            var providerId = NormalizeOptionalString(kv.Key);
-            if (providerId == null)
-                continue;
-            var model = NormalizeWorkspaceModel(kv.Value);
-            if (model == null)
-                continue;
-            result[providerId] = model;
-        }
-
-        return result;
-    }
-
-    private static string? ResolveProspectiveWorkspaceModel(
-        AppConfig currentConfig,
-        string personalConfigPath,
-        string? providerId,
-        Dictionary<string, string>? workspaceProviderModels,
-        bool updateProviderModels)
-    {
-        if (!updateProviderModels)
-            return ModelProviderResolver.ResolveConfiguredModel(currentConfig, providerId);
-
-        var effectiveModels = new Dictionary<string, string>(
-            AppConfig.Load(personalConfigPath).ProviderModels,
-            StringComparer.OrdinalIgnoreCase);
-        foreach (var (key, value) in NormalizeProviderModels(workspaceProviderModels))
-            effectiveModels[key] = value;
-
-        return ModelProviderResolver.ResolveConfiguredModel(
-            new AppConfig
+            ModelPreference? preference;
+            try
             {
-                ProviderId = providerId ?? string.Empty,
-                ProviderModels = effectiveModels
-            },
-            providerId);
-    }
+                preference = prop.Value.Deserialize<ModelPreference>(AppConfig.SerializerOptions);
+            }
+            catch (JsonException ex)
+            {
+                throw AppServerErrors.InvalidParams($"'{fieldName}.{prop.Name}' is invalid: {ex.Message}");
+            }
 
-    private static Dictionary<string, string> ReadConfigProviderModels(JsonObject root)
-    {
-        var result = new Dictionary<string, string>(StringComparer.Ordinal);
-        var key = FindCaseInsensitiveKey(root, "ProviderModels");
-        if (key == null || root[key] is not JsonObject obj)
-            return result;
+            if (preference == null || string.IsNullOrWhiteSpace(preference.Model)
+                || string.Equals(preference.Model.Trim(), "default", StringComparison.OrdinalIgnoreCase))
+            {
+                throw AppServerErrors.InvalidParams($"'{fieldName}.{prop.Name}.model' is required.");
+            }
 
-        foreach (var kv in obj)
-        {
-            var providerId = NormalizeOptionalString(kv.Key);
-            if (providerId == null)
-                continue;
-            if (kv.Value is not JsonValue value || !value.TryGetValue<string>(out var rawModel))
-                continue;
-            var model = NormalizeWorkspaceModel(rawModel);
-            if (model == null)
-                continue;
-            result[providerId] = model;
+            preference.Model = preference.Model.Trim();
+            preference.Reasoning ??= new AppConfig.ReasoningConfig();
+            preference.ContextWindow ??= new ModelPreferenceContextWindow();
+            result[providerId] = preference;
         }
 
         return result;
     }
 
-    private static bool ProviderModelsEqual(Dictionary<string, string> a, Dictionary<string, string> b)
+    private static Dictionary<string, ModelPreference> NormalizeProviderPreferences(
+        IReadOnlyDictionary<string, ModelPreference>? providerPreferences)
     {
-        if (a.Count != b.Count)
-            return false;
-        foreach (var kv in a)
+        var result = new Dictionary<string, ModelPreference>(StringComparer.Ordinal);
+        if (providerPreferences == null)
+            return result;
+        foreach (var (rawProviderId, rawPreference) in providerPreferences)
         {
-            if (!b.TryGetValue(kv.Key, out var other) || !string.Equals(other, kv.Value, StringComparison.Ordinal))
+            var providerId = NormalizeOptionalString(rawProviderId);
+            if (providerId == null || rawPreference == null || string.IsNullOrWhiteSpace(rawPreference.Model))
+                continue;
+            var preference = ModelPreferenceRules.Clone(rawPreference);
+            preference.Model = preference.Model.Trim();
+            result[providerId] = preference;
+        }
+        return result;
+    }
+
+    private static Dictionary<string, ModelPreference> ReadConfigProviderPreferences(JsonObject root)
+    {
+        var key = FindCaseInsensitiveKey(root, "ProviderPreferences");
+        if (key == null || root[key] is not JsonObject obj)
+            return new Dictionary<string, ModelPreference>(StringComparer.Ordinal);
+        try
+        {
+            return NormalizeProviderPreferences(
+                obj.Deserialize<Dictionary<string, ModelPreference>>(AppConfig.SerializerOptions));
+        }
+        catch (JsonException)
+        {
+            return new Dictionary<string, ModelPreference>(StringComparer.Ordinal);
+        }
+    }
+
+    private static bool ProviderPreferencesEqual(
+        IReadOnlyDictionary<string, ModelPreference> left,
+        IReadOnlyDictionary<string, ModelPreference> right)
+    {
+        if (left.Count != right.Count)
+            return false;
+        foreach (var (providerId, preference) in left)
+        {
+            var other = right.FirstOrDefault(
+                pair => string.Equals(pair.Key, providerId, StringComparison.OrdinalIgnoreCase)).Value;
+            if (!ModelPreferenceRules.ValueEquals(preference, other))
                 return false;
         }
-
         return true;
     }
 
-    private static void WriteProviderModels(JsonObject root, Dictionary<string, string> providerModels)
+    private static void WriteProviderPreferences(
+        JsonObject root,
+        IReadOnlyDictionary<string, ModelPreference> providerPreferences)
     {
-        var existingKey = FindCaseInsensitiveKey(root, "ProviderModels");
-        if (providerModels.Count == 0)
+        var legacyKey = FindCaseInsensitiveKey(root, "ProviderModels");
+        if (legacyKey != null)
+            root.Remove(legacyKey);
+        var existingKey = FindCaseInsensitiveKey(root, "ProviderPreferences");
+        if (providerPreferences.Count == 0)
         {
             if (existingKey != null)
                 root.Remove(existingKey);
             return;
         }
-
         var obj = new JsonObject();
-        foreach (var kv in providerModels)
-            obj[kv.Key] = JsonValue.Create(kv.Value);
-        root[existingKey ?? "ProviderModels"] = obj;
+        foreach (var (providerId, preference) in providerPreferences.OrderBy(
+                     pair => pair.Key,
+                     StringComparer.OrdinalIgnoreCase))
+        {
+            obj[providerId] = JsonSerializer.SerializeToNode(preference, AppConfig.SerializerOptions);
+        }
+        root[existingKey ?? "ProviderPreferences"] = obj;
+    }
+
+    private static void ValidatePreferenceForRuntime(
+        AppConfig currentConfig,
+        string providerId,
+        ModelPreference preference)
+    {
+        AppServerRuntimeRequestValidator.ValidateReasoningForRuntime(
+            currentConfig,
+            providerId,
+            preference.Model,
+            preference.Reasoning);
+        AppServerRuntimeRequestValidator.ValidateContextWindowForRuntime(
+            currentConfig,
+            providerId,
+            preference.Model,
+            new ThreadContextWindowConfig { Mode = preference.ContextWindow.Mode });
     }
 
     private static string? NormalizeDefaultApprovalPolicy(string? rawPolicy)
@@ -598,7 +520,7 @@ internal sealed class WorkspaceRequestHandler(
     private static WorkspaceConfigSaveResult SaveWorkspaceCoreConfig(
         string workspaceCraftPath,
         string? providerId,
-        Dictionary<string, string>? providerModels,
+        Dictionary<string, ModelPreference>? providerPreferences,
         bool? welcomeSuggestionsEnabled,
         bool? skillsSelfLearningEnabled,
         bool? memoryAutoConsolidateEnabled,
@@ -611,7 +533,7 @@ internal sealed class WorkspaceRequestHandler(
         AppConfig.ReasoningConfig? reasoning,
         ThreadContextWindowConfig? contextWindow,
         bool updateProviderId,
-        bool updateProviderModels,
+        bool updateProviderPreferences,
         bool updateWelcomeSuggestionsEnabled,
         bool updateSkillsSelfLearningEnabled,
         bool updateMemoryAutoConsolidateEnabled,
@@ -662,7 +584,7 @@ internal sealed class WorkspaceRequestHandler(
         var contextWindowModeKey = compactionSection == null ? null : FindCaseInsensitiveKey(compactionSection, "ContextWindowMode");
 
         var existingProviderId = NormalizeOptionalString(ReadConfigStringValue(root, providerIdKey));
-        var existingProviderModels = ReadConfigProviderModels(root);
+        var existingProviderPreferences = ReadConfigProviderPreferences(root);
         var existingWelcomeSuggestionsEnabled = ReadConfigBooleanValue(welcomeSection, welcomeEnabledKey);
         var existingSkillsSelfLearningEnabled = ReadConfigBooleanValue(selfLearningSection, selfLearningEnabledKey);
         var existingMemoryAutoConsolidateEnabled = ReadConfigBooleanValue(memorySection, memoryAutoConsolidateEnabledKey);
@@ -676,8 +598,11 @@ internal sealed class WorkspaceRequestHandler(
         var existingContextWindow = ReadConfigContextWindowValue(compactionSection, contextWindowModeKey);
 
         var providerIdChanged = updateProviderId && !string.Equals(existingProviderId, providerId, StringComparison.Ordinal);
-        var normalizedProviderModels = updateProviderModels ? NormalizeProviderModels(providerModels) : existingProviderModels;
-        var providerModelsChanged = updateProviderModels && !ProviderModelsEqual(existingProviderModels, normalizedProviderModels);
+        var normalizedProviderPreferences = updateProviderPreferences
+            ? NormalizeProviderPreferences(providerPreferences)
+            : existingProviderPreferences;
+        var providerPreferencesChanged = updateProviderPreferences
+            && !ProviderPreferencesEqual(existingProviderPreferences, normalizedProviderPreferences);
         var welcomeSuggestionsChanged = updateWelcomeSuggestionsEnabled
             && existingWelcomeSuggestionsEnabled != welcomeSuggestionsEnabled;
         var skillsSelfLearningChanged = updateSkillsSelfLearningEnabled
@@ -703,8 +628,22 @@ internal sealed class WorkspaceRequestHandler(
 
         if (updateProviderId)
             UpsertOrRemoveConfigValue(root, providerIdKey, "ProviderId", providerId);
-        if (updateProviderModels)
-            WriteProviderModels(root, normalizedProviderModels);
+        if (updateProviderPreferences)
+        {
+            WriteProviderPreferences(root, normalizedProviderPreferences);
+            RemoveConfigSection(root, "Reasoning");
+            var speedKey = FindCaseInsensitiveKey(root, "Speed");
+            if (speedKey != null)
+                root.Remove(speedKey);
+            var compaction = GetOrCreateConfigSection(root, "Compaction", createIfMissing: false);
+            if (compaction != null)
+            {
+                var contextWindowMode = FindCaseInsensitiveKey(compaction, "ContextWindowMode");
+                if (contextWindowMode != null)
+                    compaction.Remove(contextWindowMode);
+                RemoveConfigSectionIfEmpty(root, "Compaction");
+            }
+        }
         if (updateWelcomeSuggestionsEnabled)
         {
             var section = GetOrCreateConfigSection(root, "WelcomeSuggestions", createIfMissing: true)!;
@@ -807,7 +746,7 @@ internal sealed class WorkspaceRequestHandler(
         }
 
         if (providerIdChanged
-            || providerModelsChanged
+            || providerPreferencesChanged
             || welcomeSuggestionsChanged
             || skillsSelfLearningChanged
             || memoryAutoConsolidateChanged
@@ -828,7 +767,12 @@ internal sealed class WorkspaceRequestHandler(
         return new WorkspaceConfigSaveResult
         {
             ProviderId = updateProviderId ? providerId : existingProviderId,
-            ProviderModels = normalizedProviderModels.Count == 0 ? null : new Dictionary<string, string>(normalizedProviderModels, StringComparer.Ordinal),
+            ProviderPreferences = normalizedProviderPreferences.Count == 0
+                ? null
+                : normalizedProviderPreferences.ToDictionary(
+                    pair => pair.Key,
+                    pair => ModelPreferenceRules.Clone(pair.Value),
+                    StringComparer.Ordinal),
             WelcomeSuggestionsEnabled = updateWelcomeSuggestionsEnabled
                 ? welcomeSuggestionsEnabled
                 : existingWelcomeSuggestionsEnabled,
@@ -863,7 +807,7 @@ internal sealed class WorkspaceRequestHandler(
                 ? CloneNullableContextWindowConfig(contextWindow)
                 : CloneNullableContextWindowConfig(existingContextWindow),
             ProviderIdChanged = providerIdChanged,
-            ProviderModelsChanged = providerModelsChanged,
+            ProviderPreferencesChanged = providerPreferencesChanged,
             WelcomeSuggestionsChanged = welcomeSuggestionsChanged,
             SkillsSelfLearningChanged = skillsSelfLearningChanged,
             MemoryAutoConsolidateChanged = memoryAutoConsolidateChanged,
@@ -924,89 +868,6 @@ internal sealed class WorkspaceRequestHandler(
             JsonValueKind.False => false,
             _ => throw AppServerErrors.InvalidParams($"'{fieldName}' must be a boolean or null.")
         };
-    }
-
-    private static AppConfig.ReasoningConfig? ParseNullableReasoningConfig(
-        JsonElement element,
-        string fieldName,
-        AppConfig.ReasoningConfig fallback)
-    {
-        if (element.ValueKind == JsonValueKind.Null)
-            return null;
-
-        if (element.ValueKind != JsonValueKind.Object)
-            throw AppServerErrors.InvalidParams($"'{fieldName}' must be an object or null.");
-
-        var hasEnabled = TryGetCaseInsensitiveProperty(element, "enabled", out var enabledEl);
-        var hasEffort = TryGetCaseInsensitiveProperty(element, "effort", out var effortEl);
-        var hasOutput = TryGetCaseInsensitiveProperty(element, "output", out var outputEl);
-        if (!hasEnabled && !hasEffort && !hasOutput)
-            throw AppServerErrors.InvalidParams($"'{fieldName}' must contain at least one of 'enabled', 'effort', or 'output'.");
-
-        var enabled = hasEnabled ? ParseNullableBoolean(enabledEl, $"{fieldName}.enabled") : null;
-        var effort = hasEffort ? ParseNullableReasoningEffort(effortEl, $"{fieldName}.effort") : null;
-        var output = hasOutput ? ParseNullableReasoningOutput(outputEl, $"{fieldName}.output") : null;
-
-        return new AppConfig.ReasoningConfig
-        {
-            Enabled = enabled ?? (hasEffort ? true : fallback.Enabled),
-            Effort = effort ?? fallback.Effort,
-            Output = output ?? fallback.Output
-        };
-    }
-
-    private static ThreadContextWindowConfig? ParseNullableWorkspaceContextWindowConfig(
-        JsonElement element,
-        string fieldName)
-    {
-        if (element.ValueKind == JsonValueKind.Null)
-            return null;
-
-        if (element.ValueKind != JsonValueKind.Object)
-            throw AppServerErrors.InvalidParams($"'{fieldName}' must be an object or null.");
-
-        if (!TryGetCaseInsensitiveProperty(element, "mode", out var modeEl))
-            throw AppServerErrors.InvalidParams($"'{fieldName}' must contain 'mode'.");
-        if (modeEl.ValueKind != JsonValueKind.String)
-            throw AppServerErrors.InvalidParams($"'{fieldName}.mode' must be 'default' or 'max'.");
-
-        if (!ContextWindowModeJsonConverter.TryParse(modeEl.GetString(), out var mode))
-            throw AppServerErrors.InvalidParams($"'{fieldName}.mode' must be 'default' or 'max'.");
-
-        return mode == ContextWindowMode.Default
-            ? null
-            : new ThreadContextWindowConfig
-            {
-                Mode = mode
-            };
-    }
-
-    private static ReasoningEffort? ParseNullableReasoningEffort(JsonElement element, string fieldName)
-    {
-        if (element.ValueKind == JsonValueKind.Null)
-            return null;
-        if (element.ValueKind != JsonValueKind.String)
-            throw AppServerErrors.InvalidParams($"'{fieldName}' must be a reasoning effort string or null.");
-
-        var raw = element.GetString();
-        if (!ModelThinkingAdapterCatalog.TryParseReasoningEffort(raw, out var effort))
-            throw AppServerErrors.InvalidParams($"'{fieldName}' must be one of 'low', 'medium', 'high', or 'extraHigh'.");
-
-        return effort;
-    }
-
-    private static ReasoningOutput? ParseNullableReasoningOutput(JsonElement element, string fieldName)
-    {
-        if (element.ValueKind == JsonValueKind.Null)
-            return null;
-        if (element.ValueKind != JsonValueKind.String)
-            throw AppServerErrors.InvalidParams($"'{fieldName}' must be a reasoning output string or null.");
-
-        var raw = element.GetString();
-        if (!ModelThinkingAdapterCatalog.TryParseReasoningOutput(raw, out var output))
-            throw AppServerErrors.InvalidParams($"'{fieldName}' must be one of 'none', 'summary', or 'full'.");
-
-        return output;
     }
 
     private static int? ParseNullablePositiveInt32(JsonElement element, string fieldName)
@@ -1250,7 +1111,7 @@ internal sealed class WorkspaceRequestHandler(
     {
         public string? ProviderId { get; init; }
 
-        public Dictionary<string, string>? ProviderModels { get; init; }
+        public Dictionary<string, ModelPreference>? ProviderPreferences { get; init; }
 
         public bool? WelcomeSuggestionsEnabled { get; init; }
 
@@ -1276,7 +1137,7 @@ internal sealed class WorkspaceRequestHandler(
 
         public bool ProviderIdChanged { get; init; }
 
-        public bool ProviderModelsChanged { get; init; }
+        public bool ProviderPreferencesChanged { get; init; }
 
         public bool WelcomeSuggestionsChanged { get; init; }
 

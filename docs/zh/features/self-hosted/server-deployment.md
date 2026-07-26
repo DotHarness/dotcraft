@@ -18,6 +18,10 @@ cp .env.example .env
 ```dotenv
 DOTCRAFT_API_KEY=your-api-key
 DOTCRAFT_MODEL=your-model-id
+DOTCRAFT_REASONING_EFFORT=off
+DOTCRAFT_REASONING_OUTPUT=full
+DOTCRAFT_SPEED=standard
+DOTCRAFT_CONTEXT_WINDOW=default
 ```
 
 > [!CAUTION]
@@ -50,8 +54,12 @@ DOTCRAFT_MODEL=your-model-id
 | `DOTCRAFT_PROVIDER_ENDPOINT` | Provider 的 base URL；填写该服务要求的地址 |
 | `DOTCRAFT_API_KEY` | Provider API key |
 | `DOTCRAFT_MODEL` | Provider 接受的准确模型 ID |
+| `DOTCRAFT_REASONING_EFFORT` | `off`、`low`、`medium`、`high` 或 `extraHigh` |
+| `DOTCRAFT_REASONING_OUTPUT` | `none`、`summary` 或 `full` |
+| `DOTCRAFT_SPEED` | `standard` 或 `fast` |
+| `DOTCRAFT_CONTEXT_WINDOW` | `default` 或 `max` |
 
-API key 会留在容器环境中。DotCraft 在生成的配置里保存对该环境变量的引用，并写入所选 Provider 和模型。
+API key 会留在容器环境中。DotCraft 在生成的配置里保存对该环境变量的引用，并写入一条完整的 Provider 偏好。已有偏好中未设置对应环境变量的字段保持不变；枚举值无效时，容器会在启动阶段报出变量名和允许值并停止。
 
 该栈会在 `docker/workspace` 下创建工作区。默认情况下，Compose 只把主要服务端点发布到服务器本机回环地址：
 

@@ -56,10 +56,21 @@ import { AppBindingPickerRow, AppBindingsPicker, isAppReadyForBindingPicker } fr
 import {
   configObjectFromWorkspaceCore,
   resolveConcreteApprovalPolicyFromConfig,
-  resolveWorkspaceModelFromConfig,
   resolveWorkspaceProviderFromConfig,
   type WorkspaceCoreConfigLike
 } from '../../utils/workspaceCoreConfig'
+import {
+  createManualModelPreference,
+  findProviderPreference,
+  readProviderPreferences,
+  setProviderPreference,
+  type ModelPreference,
+  type ProviderPreferences
+} from '../../../shared/modelPreference'
+import {
+  createCatalogDefaultPreference,
+  normalizePreferenceForModel
+} from './PreferenceModelPicker'
 
 interface ConversationWelcomeProps {
   workspacePath: string
@@ -452,14 +463,15 @@ export function ConversationWelcome({
     return parseJsonConfig<Record<string, unknown>>(raw, {})
   }, [remoteWorkspace, workspaceConfigPath])
 
-  const readWorkspaceProviderModels = useCallback(async (): Promise<Record<string, string>> => {
+  const readWorkspaceProviderPreferences = useCallback(async (): Promise<ProviderPreferences> => {
     if (remoteWorkspace) {
       const getCore = window.api.workspaceConfig?.getCore
       if (typeof getCore !== 'function') return {}
       const core = await getCore() as WorkspaceCoreConfigLike
-      return { ...(core.workspace?.providerModels ?? {}) }
+      return readProviderPreferences(core.workspace?.providerPreferences)
     }
-    return readProviderModelsFromConfig(await readWorkspaceConfig())
+    const config = await readWorkspaceConfig()
+    return readProviderPreferences(getCaseInsensitiveConfigValue(config, 'ProviderPreferences'))
   }, [readWorkspaceConfig, remoteWorkspace])
 
   const getCaseInsensitiveValue = useCallback((record: Record<string, unknown>, key: string): unknown => {
@@ -469,20 +481,6 @@ export function ConversationWelcome({
     }
     return undefined
   }, [])
-
-  const resolveReasoningFromConfig = useCallback((cfg: Record<string, unknown>): ResolvedReasoningConfig => {
-    return readReasoningObject(cfg.Reasoning ?? cfg.reasoning) ?? DEFAULT_REASONING_CONFIG
-  }, [])
-
-  const resolveContextModeFromConfig = useCallback((cfg: Record<string, unknown>): ContextWindowMode => {
-    const compaction = getCaseInsensitiveValue(cfg, 'Compaction')
-    if (compaction == null || typeof compaction !== 'object' || Array.isArray(compaction)) {
-      return 'default'
-    }
-    return normalizeContextWindowMode(
-      getCaseInsensitiveValue(compaction as Record<string, unknown>, 'ContextWindowMode')
-    ) ?? 'default'
-  }, [getCaseInsensitiveValue])
 
   const resolveWelcomeSuggestionsEnabled = useCallback((cfg: Record<string, unknown>): boolean => {
     const section = getCaseInsensitiveValue(cfg, 'WelcomeSuggestions')
@@ -624,7 +622,7 @@ export function ConversationWelcome({
     }
   }, [
     readWorkspaceConfig,
-    readWorkspaceProviderModels,
+    readWorkspaceProviderPreferences,
     resolveWelcomeSuggestionsEnabled,
     workspaceConfigChange,
     workspaceConfigChangeSeq
@@ -853,39 +851,21 @@ export function ConversationWelcome({
   useEffect(() => {
     let disposed = false
     const loadWorkspaceDefaults = async (): Promise<void> => {
-      const workspaceModelChanged =
+      const workspacePreferenceChanged =
         workspaceConfigChangeSeq > 0 &&
         workspaceConfigChange?.regions.some((region) =>
-          region === 'workspace.provider' || region === 'workspace.model'
+          region === 'workspace.provider' || region === 'workspace.providerPreferences'
         ) === true
-      const workspaceReasoningChanged =
-        workspaceConfigChangeSeq > 0 &&
-        workspaceConfigChange?.regions.includes('workspace.reasoning') === true
-      const workspaceSpeedChanged =
-        workspaceConfigChangeSeq > 0 &&
-        workspaceConfigChange?.regions.includes('workspace.speed') === true
-      const workspaceContextChanged =
-        workspaceConfigChangeSeq > 0 &&
-        workspaceConfigChange?.regions.includes('workspace.contextWindow') === true
       const hasInitialDraft = initialWelcomeDraftRef.current != null
-      const hasInitialDraftSpeed = initialWelcomeDraftRef.current?.speed != null
-      const hasInitialDraftContext =
-        normalizeContextWindowConfig(initialWelcomeDraftRef.current?.contextWindow) != null
       if (!workspaceConfigPath) {
-        if (!hasInitialDraft || workspaceModelChanged) {
+        if (!hasInitialDraft || workspacePreferenceChanged) {
           workspaceLlmConfigResolvedRef.current = true
           workspaceProviderFromConfigRef.current = ''
           workspaceModelFromConfigRef.current = 'Default'
           setProviderId('')
           setModelName('Default')
-        }
-        if (!hasInitialDraft || workspaceReasoningChanged) {
           setReasoningConfig(DEFAULT_REASONING_CONFIG)
-        }
-        if (!hasInitialDraftSpeed || workspaceSpeedChanged) {
           setSpeedValue('standard')
-        }
-        if (!hasInitialDraftContext || workspaceContextChanged) {
           setWelcomeContextMode('default')
           setWelcomeContextExplicit(false)
         }
@@ -898,54 +878,51 @@ export function ConversationWelcome({
         const nextProviderId = resolveWorkspaceProviderFromConfig(cfg)
         // A concrete workspace provider is authoritative even when a draft exists. This keeps
         // Settings changes from reviving a stale provider/model pair on the Welcome screen.
-        if (!hasInitialDraft || workspaceModelChanged || nextProviderId !== '') {
-          let nextModel = resolveWorkspaceModelFromConfig(cfg, nextProviderId)
+        if (!hasInitialDraft || workspacePreferenceChanged || nextProviderId !== '') {
+          let nextPreference = findProviderPreference(
+            readProviderPreferences(getCaseInsensitiveConfigValue(cfg, 'ProviderPreferences')),
+            nextProviderId
+          )
           workspaceLlmConfigResolvedRef.current = true
           workspaceProviderFromConfigRef.current = nextProviderId
-          workspaceModelFromConfigRef.current = nextModel
           if (nextProviderId) await loadModels(false, nextProviderId)
           if (disposed) return
-          if (nextModel === 'Default') {
-            nextModel = useModelCatalogStore.getState().modelOptions[0] ?? 'Default'
-            if (nextModel !== 'Default' && nextProviderId) {
-              const providerModels = await readWorkspaceProviderModels()
-              providerModels[nextProviderId] = nextModel
+          if (!nextPreference) {
+            const catalogState = useModelCatalogStore.getState()
+            const firstModel = catalogState.models[0]
+            const nextModel = firstModel?.id ?? catalogState.modelOptions[0] ?? ''
+            if (nextModel && nextProviderId) {
+              nextPreference = createCatalogDefaultPreference(firstModel, nextModel)
+              const providerPreferences = setProviderPreference(
+                await readWorkspaceProviderPreferences(),
+                nextProviderId,
+                nextPreference
+              )
               await window.api.appServer.sendRequest('workspace/config/update', {
                 providerId: nextProviderId,
-                providerModels
+                providerPreferences
               })
             }
           }
-          workspaceModelFromConfigRef.current = nextModel
+          const resolved = nextPreference ?? createManualModelPreference('')
+          workspaceModelFromConfigRef.current = resolved.model || 'Default'
           setProviderId(nextProviderId)
-          setModelName(nextModel)
-        }
-        if (!hasInitialDraft || workspaceReasoningChanged) {
-          setReasoningConfig(resolveReasoningFromConfig(cfg))
-        }
-        if (!hasInitialDraftSpeed || workspaceSpeedChanged) {
-          setSpeedValue(readInferenceSpeed(cfg.Speed ?? cfg.speed))
-        }
-        if (!hasInitialDraftContext || workspaceContextChanged) {
-          setWelcomeContextMode(resolveContextModeFromConfig(cfg))
+          setModelName(resolved.model || 'Default')
+          setReasoningConfig(resolved.reasoning)
+          setSpeedValue(resolved.speed)
+          setWelcomeContextMode(resolved.contextWindow.mode)
           setWelcomeContextExplicit(false)
         }
       } catch {
         if (!disposed) {
-          if (!hasInitialDraft || workspaceModelChanged) {
+          if (!hasInitialDraft || workspacePreferenceChanged) {
             workspaceLlmConfigResolvedRef.current = true
             workspaceProviderFromConfigRef.current = ''
             workspaceModelFromConfigRef.current = 'Default'
             setProviderId('')
             setModelName('Default')
-          }
-          if (!hasInitialDraft || workspaceReasoningChanged) {
             setReasoningConfig(DEFAULT_REASONING_CONFIG)
-          }
-          if (!hasInitialDraftSpeed || workspaceSpeedChanged) {
             setSpeedValue('standard')
-          }
-          if (!hasInitialDraftContext || workspaceContextChanged) {
             setWelcomeContextMode('default')
             setWelcomeContextExplicit(false)
           }
@@ -959,9 +936,8 @@ export function ConversationWelcome({
     }
   }, [
     readWorkspaceConfig,
-    resolveContextModeFromConfig,
     loadModels,
-    resolveReasoningFromConfig,
+    readWorkspaceProviderPreferences,
     workspaceConfigChange,
     workspaceConfigChangeSeq,
     workspaceConfigPath
@@ -1038,29 +1014,59 @@ export function ConversationWelcome({
     useUIStore.getState().setWelcomeDraftWorkspace(nextWorkspacePath)
   }, [flushWelcomeDraft, workspacePath])
 
+  const persistWelcomePreference = useCallback(async (
+    nextPreference: ModelPreference,
+    nextProviderId = providerId
+  ): Promise<void> => {
+    if (!workspaceConfigPath || !nextProviderId.trim() || !nextPreference.model.trim()) return
+    const providerPreferences = setProviderPreference(
+      await readWorkspaceProviderPreferences(),
+      nextProviderId,
+      nextPreference
+    )
+    await window.api.appServer.sendRequest('workspace/config/update', {
+      providerId: nextProviderId,
+      providerPreferences
+    })
+  }, [providerId, readWorkspaceProviderPreferences, workspaceConfigPath])
+
   const handleModelChange = useCallback(
     async (nextModel: string): Promise<void> => {
-      if (!workspaceConfigPath || !nextModel || nextModel === modelName) return
+      if (!workspaceConfigPath || !nextModel || nextModel === 'Default' || nextModel === modelName) return
       setModelApplying(true)
       const previousModel = modelName
-      setModelName(nextModel)
+      const previousReasoning = reasoningConfig
+      const previousContext = welcomeContextMode
+      const nextPreference = normalizePreferenceForModel({
+        model: nextModel,
+        reasoning: { ...reasoningConfig },
+        speed: speedValue,
+        contextWindow: { mode: welcomeContextMode }
+      }, modelCatalog)
+      setModelName(nextPreference.model)
+      setReasoningConfig(nextPreference.reasoning)
+      setWelcomeContextMode(nextPreference.contextWindow.mode)
       try {
-        const providerModels = await readWorkspaceProviderModels()
-        if (providerId && nextModel !== 'Default') providerModels[providerId] = nextModel
-        else if (providerId) delete providerModels[providerId]
-        await window.api.appServer.sendRequest('workspace/config/update', {
-          providerId,
-          providerModels
-        })
+        await persistWelcomePreference(nextPreference)
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err)
         setModelName(previousModel)
+        setReasoningConfig(previousReasoning)
+        setWelcomeContextMode(previousContext)
         addToast(`Failed to save model: ${msg}`, 'error')
       } finally {
         setModelApplying(false)
       }
     },
-    [modelName, providerId, readWorkspaceProviderModels, workspaceConfigPath]
+    [
+      modelCatalog,
+      modelName,
+      persistWelcomePreference,
+      reasoningConfig,
+      speedValue,
+      welcomeContextMode,
+      workspaceConfigPath
+    ]
   )
 
   const handleProviderChange = useCallback(async (nextProviderId: string): Promise<void> => {
@@ -1072,23 +1078,25 @@ export function ConversationWelcome({
       const cfg = await readWorkspaceConfig()
       await loadModels(true, nextProviderId)
       const catalogState = useModelCatalogStore.getState()
-      const effectiveProviderModels = readProviderModelsFromConfig(cfg)
-      const remembered = Object.entries(effectiveProviderModels)
-        .find(([key]) => key.toLowerCase() === nextProviderId.toLowerCase())?.[1]
-      const nextModel = remembered || catalogState.modelOptions[0]
-      if (!nextModel) {
+      const remembered = findProviderPreference(
+        readProviderPreferences(getCaseInsensitiveConfigValue(cfg, 'ProviderPreferences')),
+        nextProviderId
+      )
+      const nextPreference = remembered
+        ? normalizePreferenceForModel(remembered, catalogState.models)
+        : createCatalogDefaultPreference(catalogState.models[0], catalogState.modelOptions[0] ?? '')
+      if (!nextPreference.model) {
         addToast(t('composer.providerModelUnavailable'), 'error')
         await loadModels(true, previousProvider)
         return
       }
-      const providerModels = await readWorkspaceProviderModels()
-      providerModels[nextProviderId] = nextModel
-      await window.api.appServer.sendRequest('workspace/config/update', {
-        providerId: nextProviderId,
-        providerModels
-      })
+      await persistWelcomePreference(nextPreference, nextProviderId)
       setProviderId(nextProviderId)
-      setModelName(nextModel)
+      setModelName(nextPreference.model)
+      setReasoningConfig(nextPreference.reasoning)
+      setSpeedValue(nextPreference.speed)
+      setWelcomeContextMode(nextPreference.contextWindow.mode)
+      setWelcomeContextExplicit(false)
     } catch (err) {
       setProviderId(previousProvider)
       setModelName(previousModel)
@@ -1097,7 +1105,7 @@ export function ConversationWelcome({
     } finally {
       setModelApplying(false)
     }
-  }, [loadModels, modelName, providerId, readWorkspaceConfig, readWorkspaceProviderModels, t, workspaceConfigPath])
+  }, [loadModels, modelName, persistWelcomePreference, providerId, readWorkspaceConfig, t, workspaceConfigPath])
 
   const handleReasoningChange = useCallback(
     async (nextReasoning: ReasoningQuickValue): Promise<void> => {
@@ -1107,8 +1115,15 @@ export function ConversationWelcome({
       const previousReasoning = reasoningConfig
       setReasoningConfig(nextPayload ?? DEFAULT_REASONING_CONFIG)
       try {
-        await window.api.appServer.sendRequest('workspace/config/update', {
-          reasoning: nextPayload
+        const fallback = createCatalogDefaultPreference(
+          modelCatalog.find((item) => item.id === modelName),
+          modelName
+        ).reasoning
+        await persistWelcomePreference({
+          model: modelName,
+          reasoning: nextPayload ?? fallback,
+          speed: speedValue,
+          contextWindow: { mode: welcomeContextMode }
         })
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err)
@@ -1118,7 +1133,7 @@ export function ConversationWelcome({
         setModelApplying(false)
       }
     },
-    [reasoningConfig, workspaceConfigPath]
+    [modelCatalog, modelName, persistWelcomePreference, reasoningConfig, speedValue, welcomeContextMode, workspaceConfigPath]
   )
 
   const handleSpeedChange = useCallback(async (nextSpeed: InferenceSpeedWire): Promise<void> => {
@@ -1127,19 +1142,39 @@ export function ConversationWelcome({
     setModelApplying(true)
     setSpeedValue(nextSpeed)
     try {
-      await window.api.appServer.sendRequest('workspace/config/update', { speed: nextSpeed })
+      await persistWelcomePreference({
+        model: modelName,
+        reasoning: { ...reasoningConfig },
+        speed: nextSpeed,
+        contextWindow: { mode: welcomeContextMode }
+      })
     } catch (err) {
       setSpeedValue(previousSpeed)
       addToast(`Failed to save speed: ${err instanceof Error ? err.message : String(err)}`, 'error')
     } finally {
       setModelApplying(false)
     }
-  }, [speedValue, workspaceConfigPath])
+  }, [modelName, persistWelcomePreference, reasoningConfig, speedValue, welcomeContextMode, workspaceConfigPath])
 
-  const handleContextModeChange = useCallback((nextMode: ContextWindowMode): void => {
+  const handleContextModeChange = useCallback(async (nextMode: ContextWindowMode): Promise<void> => {
+    const previousMode = welcomeContextMode
     setWelcomeContextExplicit(true)
     setWelcomeContextMode(nextMode)
-  }, [])
+    setModelApplying(true)
+    try {
+      await persistWelcomePreference({
+        model: modelName,
+        reasoning: { ...reasoningConfig },
+        speed: speedValue,
+        contextWindow: { mode: nextMode }
+      })
+    } catch (err) {
+      setWelcomeContextMode(previousMode)
+      addToast(`Failed to save context window: ${err instanceof Error ? err.message : String(err)}`, 'error')
+    } finally {
+      setModelApplying(false)
+    }
+  }, [modelName, persistWelcomePreference, reasoningConfig, speedValue, welcomeContextMode])
 
   useEffect(() => {
     if (!welcomeContextExplicit || welcomeContextMode !== 'max') return
@@ -2213,16 +2248,7 @@ function normalizeReasoningOutput(value: unknown): ReasoningOutputWire | null {
   return null
 }
 
-function readProviderModelsFromConfig(config: Record<string, unknown>): Record<string, string> {
-  const raw = config.ProviderModels ?? config.providerModels
-  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return {}
-  const result: Record<string, string> = {}
-  for (const [providerId, value] of Object.entries(raw as Record<string, unknown>)) {
-    if (providerId.trim() && typeof value === 'string' && value.trim()) result[providerId.trim()] = value.trim()
-  }
-  return result
-}
-
-function readInferenceSpeed(value: unknown): InferenceSpeedWire {
-  return typeof value === 'string' && value.toLowerCase() === 'fast' ? 'fast' : 'standard'
+function getCaseInsensitiveConfigValue(record: Record<string, unknown>, key: string): unknown {
+  const expected = key.toLowerCase()
+  return Object.entries(record).find(([candidate]) => candidate.toLowerCase() === expected)?.[1]
 }

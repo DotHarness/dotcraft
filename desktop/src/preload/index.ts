@@ -2,6 +2,7 @@ import { contextBridge, ipcRenderer, shell, webFrame, webUtils } from 'electron'
 import { resolveThemeMode, type ThemeMode } from '../shared/theme'
 import { readInitialWorkspaceStatusFromArgv } from '../shared/initialWorkspaceStatus'
 import type { DesktopProviderProtocol } from '../shared/providerProtocols'
+import type { ModelPreference, ProviderPreferences } from '../shared/modelPreference'
 import { localeToHtmlLang, normalizeLocale, type AppLocale } from '../shared/locales'
 import type {
   RemoteHost,
@@ -200,6 +201,7 @@ export interface WorkspaceStatusPayload {
   userConfigDefaults?: {
     providerId?: string
     model?: string
+    preference?: ModelPreference
   }
   providers: WorkspaceSetupProviderSummary[]
   bootstrapImportSources?: WorkspaceSetupBootstrapImportSource[]
@@ -248,6 +250,7 @@ export interface WorkspaceSetupProviderDraft {
 
 export interface WorkspaceSetupRequest {
   model: string
+  preference: ModelPreference
   profile: WorkspaceBootstrapProfile
   providerMode: WorkspaceSetupProviderMode
   providerId?: string
@@ -269,11 +272,34 @@ export type WorkspaceSetupModelListRequest =
   | { provider: WorkspaceSetupProviderDraft }
 
 export type WorkspaceSetupModelListResult =
-  | { kind: 'success'; models: string[] }
+  | { kind: 'success'; models: WorkspaceSetupModelCatalogItem[] }
   | { kind: 'auth-required' }
   | { kind: 'unsupported' }
   | { kind: 'missing-key' }
   | { kind: 'error'; retryable?: boolean }
+
+export interface WorkspaceSetupModelCatalogItem {
+  id: string
+  ownedBy?: string
+  createdAt?: string
+  reasoning?: {
+    supportsDisable: boolean
+    supportedEfforts: Array<{ effort: 'low' | 'medium' | 'high' | 'extraHigh'; label: string; description: string }>
+    defaultEffort: 'low' | 'medium' | 'high' | 'extraHigh'
+    supportedOutputs: Array<'none' | 'summary' | 'full'>
+    defaultOutput: 'none' | 'summary' | 'full'
+  } | null
+  speed?: {
+    supportedModes: Array<'standard' | 'fast'>
+    defaultMode: 'standard' | 'fast'
+  } | null
+  contextWindow?: {
+    catalogWindow: number
+    configuredWindow: number
+    supportsMax: boolean
+    maxWindow: number
+  } | null
+}
 
 export interface ConfigDescriptorWire {
   key: string
@@ -614,7 +640,7 @@ const api = {
     getCore(): Promise<{
       workspace: {
         providerId: string | null
-        providerModels: Record<string, string>
+        providerPreferences: ProviderPreferences
         welcomeSuggestionsEnabled: boolean | null
         skillsSelfLearningEnabled: boolean | null
         memoryAutoConsolidateEnabled: boolean | null
@@ -623,12 +649,10 @@ const api = {
         dreamsThreadLookbackCount: number | null
         dreamsAutoApply: boolean | null
         defaultApprovalPolicy: 'default' | 'autoApprove' | null
-        contextWindowMode: 'default' | 'max' | null
-        speed: 'standard' | 'fast' | null
       }
       userDefaults: {
         providerId: string | null
-        providerModels: Record<string, string>
+        providerPreferences: ProviderPreferences
         welcomeSuggestionsEnabled: boolean | null
         skillsSelfLearningEnabled: boolean | null
         memoryAutoConsolidateEnabled: boolean | null
@@ -637,8 +661,6 @@ const api = {
         dreamsThreadLookbackCount: number | null
         dreamsAutoApply: boolean | null
         defaultApprovalPolicy: 'default' | 'autoApprove' | null
-        contextWindowMode: 'default' | 'max' | null
-        speed: 'standard' | 'fast' | null
       }
     }> {
       return ipcRenderer.invoke('workspace-config:get-core')

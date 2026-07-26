@@ -3,7 +3,7 @@ using Microsoft.Extensions.AI;
 
 namespace DotCraft.Protocol.AppServer;
 
-internal static class ProviderWireMapper
+public static class ProviderWireMapper
 {
     public static List<ProviderInfo> BuildProviderInfos(AppConfig config)
     {
@@ -45,7 +45,7 @@ internal static class ProviderWireMapper
         };
     }
 
-    public static ModelReasoningCapability? MapReasoningCapability(
+    internal static ModelReasoningCapability? MapReasoningCapability(
         ModelThinkingAdapterCatalog.ReasoningCapabilityData? capability)
     {
         if (capability == null)
@@ -68,7 +68,7 @@ internal static class ProviderWireMapper
         };
     }
 
-    public static ModelContextWindowCapabilityWire MapContextWindowCapability(
+    internal static ModelContextWindowCapabilityWire MapContextWindowCapability(
         ModelContextWindowCapability capability)
         => new()
         {
@@ -83,6 +83,25 @@ internal static class ProviderWireMapper
         string? protocol,
         string? model) =>
         ModelCatalog.SupportsFast(config, protocol, model) ? new ModelSpeedCapability() : null;
+
+    public static ModelCatalogItem BuildModelCatalogItem(
+        AppConfig config,
+        string? protocol,
+        string? endpoint,
+        DotCraft.Configuration.ModelCatalogEntry model) => new()
+        {
+            Id = model.Id,
+            OwnedBy = model.OwnedBy,
+            CreatedAt = model.CreatedAt,
+            Reasoning = MapReasoningCapability(ModelThinkingAdapterCatalog.ResolveReasoningCapability(
+                config,
+                protocol,
+                endpoint,
+                model.Id)),
+            Speed = MapSpeedCapability(config, protocol, model.Id),
+            ContextWindow = MapContextWindowCapability(
+                ModelCatalog.ResolveContextWindowCapability(config, model.Id))
+        };
 
     public static string? FormatModelListErrorMessage(string? message, string? endpoint)
     {

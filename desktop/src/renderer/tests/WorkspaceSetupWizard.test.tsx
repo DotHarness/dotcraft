@@ -4,6 +4,7 @@ import { WorkspaceSetupInterstitial } from '../components/WorkspaceSetupIntersti
 import { WorkspaceSetupWizard } from '../components/WorkspaceSetupWizard'
 import { LocaleProvider } from '../contexts/LocaleContext'
 import type { WorkspaceStatusPayload } from '../../preload/api.d'
+import type { ModelPreference } from '../../shared/modelPreference'
 
 const settingsGet = vi.fn()
 const settingsSet = vi.fn()
@@ -41,8 +42,26 @@ async function openConfigStep(): Promise<void> {
   fireEvent.click(await screen.findByRole('button', { name: 'Next' }))
   fireEvent.click(await screen.findByRole('button', { name: 'Next' }))
   await waitFor(() => {
-    expect(screen.queryByText('Loading available models...')).not.toBeInTheDocument()
+    const control = screen.getByLabelText('Model')
+    expect(['BUTTON', 'INPUT']).toContain(control.tagName)
   })
+}
+
+async function findManualModelInput(): Promise<HTMLInputElement> {
+  return waitFor(() => {
+    const control = screen.getByLabelText('Model')
+    expect(control.tagName).toBe('INPUT')
+    return control as HTMLInputElement
+  })
+}
+
+function preference(model: string): ModelPreference {
+  return {
+    model,
+    reasoning: { enabled: false, effort: 'medium', output: 'full' },
+    speed: 'standard',
+    contextWindow: { mode: 'default' }
+  }
 }
 
 async function createWorkspace(): Promise<void> {
@@ -116,11 +135,16 @@ describe('WorkspaceSetupWizard', () => {
     }
 
     renderWizard(status)
+    const currentStep = screen.getByRole('button', { name: 'Confirm workspace' })
+    expect(currentStep).toHaveAttribute('aria-current', 'step')
+    expect(screen.getByText('Step 1 of 4')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Configure model provider' })).toBeDisabled()
 
     fireEvent.click(await screen.findByRole('button', { name: 'Next' }))
     const previousStep = screen.getByRole('button', { name: 'Confirm workspace' })
     expect(previousStep).not.toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Choose profile template' })).toHaveAttribute('aria-current', 'step')
+    expect(screen.getByText('Step 2 of 4')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Configure model provider' })).toBeDisabled()
 
     fireEvent.click(previousStep)
@@ -130,7 +154,7 @@ describe('WorkspaceSetupWizard', () => {
   it('selects an existing explicit provider and saves only provider id and model', async () => {
     listSetupModels.mockResolvedValue({
       kind: 'success',
-      models: ['claude-sonnet-4-5']
+      models: [{ id: 'claude-sonnet-4-5' }]
     })
     const status: WorkspaceStatusPayload = {
       status: 'needs-setup',
@@ -163,6 +187,7 @@ describe('WorkspaceSetupWizard', () => {
 
     expect(runSetup).toHaveBeenCalledWith({
       model: 'claude-sonnet-4-5',
+      preference: preference('claude-sonnet-4-5'),
       profile: 'default',
       providerMode: 'existing',
       providerId: 'anthropic',
@@ -249,7 +274,7 @@ describe('WorkspaceSetupWizard', () => {
     fireEvent.click(screen.getByRole('button', { name: /Anthropic/ }))
     expect(screen.getByLabelText('API endpoint')).toHaveValue('https://api.anthropic.com')
 
-    const modelInput = await screen.findByLabelText('Model')
+    const modelInput = await findManualModelInput()
     expect(modelInput).toHaveValue('')
     fireEvent.change(modelInput, { target: { value: 'claude-sonnet-4-5' } })
 
@@ -257,6 +282,7 @@ describe('WorkspaceSetupWizard', () => {
 
     expect(runSetup).toHaveBeenCalledWith({
       model: 'claude-sonnet-4-5',
+      preference: preference('claude-sonnet-4-5'),
       profile: 'default',
       providerMode: 'create',
       provider: {
@@ -284,7 +310,7 @@ describe('WorkspaceSetupWizard', () => {
     await openConfigStep()
 
     fireEvent.change(screen.getByLabelText('API endpoint'), { target: { value: '' } })
-    fireEvent.change(await screen.findByLabelText('Model'), { target: { value: 'gpt-4.1' } })
+    fireEvent.change(await findManualModelInput(), { target: { value: 'gpt-4.1' } })
     await createWorkspace()
 
     expect(runSetup).toHaveBeenCalledWith(expect.objectContaining({
@@ -312,7 +338,7 @@ describe('WorkspaceSetupWizard', () => {
     expect(protocolSelect).toHaveTextContent('OpenAI-Responses')
     fireEvent.click(protocolSelect)
     fireEvent.click(await screen.findByRole('option', { name: 'OpenAI-Legacy' }))
-    fireEvent.change(await screen.findByLabelText('Model'), { target: { value: 'gpt-4.1' } })
+    fireEvent.change(await findManualModelInput(), { target: { value: 'gpt-4.1' } })
 
     await createWorkspace()
 
@@ -347,7 +373,7 @@ describe('WorkspaceSetupWizard', () => {
     fireEvent.click(protocolSelect)
     fireEvent.click(await screen.findByRole('option', { name: 'OpenAI-Legacy' }))
 
-    fireEvent.change(await screen.findByLabelText('Model'), { target: { value: 'gpt-4.1' } })
+    fireEvent.change(await findManualModelInput(), { target: { value: 'gpt-4.1' } })
     await createWorkspace()
 
     expect(runSetup).toHaveBeenCalledWith(expect.objectContaining({
@@ -363,7 +389,7 @@ describe('WorkspaceSetupWizard', () => {
     listSetupModels.mockImplementation(async (request) => {
       if (request.provider?.authMethod !== 'chatgptOAuth') return { kind: 'unsupported' }
       return loggedIn
-        ? { kind: 'success', models: ['gpt-5.6', 'gpt-5.5'] }
+        ? { kind: 'success', models: [{ id: 'gpt-5.6' }, { id: 'gpt-5.5' }] }
         : { kind: 'auth-required' }
     })
     loginSetupChatGpt.mockImplementation(async () => {
@@ -411,7 +437,7 @@ describe('WorkspaceSetupWizard', () => {
     await openConfigStep()
 
     fireEvent.click(screen.getByRole('button', { name: /Anthropic/ }))
-    fireEvent.change(await screen.findByLabelText('Model'), { target: { value: 'claude-sonnet-4-5' } })
+    fireEvent.change(await findManualModelInput(), { target: { value: 'claude-sonnet-4-5' } })
     await createWorkspace()
 
     expect(runSetup.mock.calls[0][0].provider.id).toBe('anthropic-2')
@@ -434,7 +460,7 @@ describe('WorkspaceSetupWizard', () => {
     const nextButton = screen.getByRole('button', { name: 'Next' })
     expect(nextButton).toBeDisabled()
 
-    fireEvent.change(await screen.findByLabelText('Model'), { target: { value: 'gpt-4.1' } })
+    fireEvent.change(await findManualModelInput(), { target: { value: 'gpt-4.1' } })
 
     expect(nextButton).not.toBeDisabled()
     fireEvent.click(nextButton)
@@ -468,7 +494,7 @@ describe('WorkspaceSetupWizard', () => {
     await waitFor(() => {
       expect(screen.queryByText('Loading available models...')).not.toBeInTheDocument()
     })
-    fireEvent.change(await screen.findByLabelText('Model'), { target: { value: 'gpt-4.1' } })
+    fireEvent.change(await findManualModelInput(), { target: { value: 'gpt-4.1' } })
     fireEvent.click(await screen.findByRole('button', { name: 'Next' }))
     fireEvent.click(await screen.findByRole('button', { name: 'Create Workspace' }))
 
@@ -516,7 +542,7 @@ describe('WorkspaceSetupWizard', () => {
   it('ends loading after a model catalog rejection and retries successfully', async () => {
     listSetupModels
       .mockRejectedValueOnce(new Error('backend failed'))
-      .mockResolvedValueOnce({ kind: 'success', models: ['gpt-5.6', 'gpt-5.5'] })
+      .mockResolvedValueOnce({ kind: 'success', models: [{ id: 'gpt-5.6' }, { id: 'gpt-5.5' }] })
     const status: WorkspaceStatusPayload = {
       status: 'needs-setup',
       workspacePath: '/workspace/demo',
@@ -543,7 +569,7 @@ describe('WorkspaceSetupWizard', () => {
           rejectExisting = reject
         })
       }
-      return Promise.resolve({ kind: 'success', models: ['claude-sonnet-4-5'] })
+      return Promise.resolve({ kind: 'success', models: [{ id: 'claude-sonnet-4-5' }] })
     })
     const status: WorkspaceStatusPayload = {
       status: 'needs-setup',

@@ -27,7 +27,7 @@ import { ComposerOverlapBand, useComposerOverlapBandHeight } from './useComposer
 
 export type ReasoningQuickValue = 'default' | 'off' | ReasoningEffortWire
 
-interface ModelPickerProps {
+export interface ModelPickerProps {
   providerId?: string
   providerOptions?: Array<{ id: string; displayName: string }>
   modelName: string
@@ -58,6 +58,9 @@ interface ModelPickerProps {
   contextConfiguredWindow?: number
   onContextModeChange?: (mode: ContextWindowMode) => void
   allowDefaultModel?: boolean
+  triggerVariant?: 'composer' | 'field'
+  triggerId?: string
+  triggerAriaLabel?: string
 }
 
 type EffectiveReasoningValue = Exclude<ReasoningQuickValue, 'default'>
@@ -96,7 +99,10 @@ export function ModelPicker({
   contextDegraded = false,
   contextConfiguredWindow = 0,
   onContextModeChange,
-  allowDefaultModel = true
+  allowDefaultModel = true,
+  triggerVariant = 'composer',
+  triggerId,
+  triggerAriaLabel
 }: ModelPickerProps): JSX.Element {
   const t = useT()
   const contextEnabled = typeof onContextModeChange === 'function'
@@ -468,18 +474,32 @@ export function ModelPicker({
     <div
       ref={wrapRef}
       data-composer-overlay-open={open ? 'true' : 'false'}
-      style={{ ...composerFooterControlBoxStyle, position: 'relative', minWidth: 0 }}
+      style={{
+        ...composerFooterControlBoxStyle,
+        position: 'relative',
+        minWidth: 0,
+        width: triggerVariant === 'field' ? '100%' : undefined,
+        height: triggerVariant === 'field' ? '38px' : undefined,
+        display: triggerVariant === 'field' ? 'flex' : undefined
+      }}
     >
       <ActionTooltip
         label={tooltipLabel}
         shortcut={shortcut}
         disabledReason={disabledReason}
         placement="top"
-        wrapperStyle={{ minWidth: 0 }}
+        wrapperStyle={{
+          minWidth: 0,
+          width: triggerVariant === 'field' ? '100%' : undefined,
+          display: triggerVariant === 'field' ? 'flex' : undefined,
+          flex: triggerVariant === 'field' ? '1 1 auto' : undefined
+        }}
       >
         <button
+          id={triggerId}
           type="button"
-          aria-label={tooltipLabel}
+          value={modelName}
+          aria-label={triggerAriaLabel ?? tooltipLabel}
           aria-haspopup={interactive ? 'menu' : undefined}
           aria-expanded={interactive ? open : undefined}
           aria-controls={interactive && open ? menuId : undefined}

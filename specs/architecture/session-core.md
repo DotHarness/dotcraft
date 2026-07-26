@@ -1939,8 +1939,9 @@ ThreadConfiguration
 ├── Extensions: string[]?                        // Active extension prefixes, e.g. ["_unity"]
 ├── CustomTools: string[]?                       // Additional tool names to enable
 ├── ProviderId: string?                          // Per-thread provider id captured at thread creation
-├── Model: string?                               // Per-thread model captured from ProviderModels at thread creation
+├── Model: string?                               // Per-thread model captured from ProviderPreferences at thread creation
 ├── Reasoning: ReasoningConfig?                  // Per-thread reasoning configuration
+├── Speed: standard|fast?                        // Per-thread requested inference-speed mode
 ├── ContextWindow: { mode: "default"|"max" }?    // Per-thread context-window mode
 ├── WorkspaceOverride: string?                   // Alternate workspace root for this thread
 ├── Cwd: string?                                 // Sticky working directory; relative paths resolve here
@@ -1965,22 +1966,24 @@ Approval-related fields are normative:
 
 When a thread is created or its configuration changes, Session Core recreates the effective agent/tool set from that configuration.
 
-Model resolution is thread-aware:
+Model preference resolution is thread-aware:
 
-- when a server-managed thread is created, Session Core captures a complete effective `ProviderId` + `Model` pair; an explicit request pair wins, otherwise the model resolves from `AppConfig.ProviderModels[ProviderId]`
-- a selected provider without a non-empty `ProviderModels` entry is not a valid MainAgent runtime; the obsolete root `Model` key is ignored and is never migrated or used as a fallback
-- the MainAgent uses the thread pair for every turn, resume, and tool-planning operation; workspace defaults never replace either value on an existing thread
-- DotCraft-managed native SubAgents resolve `AppConfig.SubAgent.ProviderModels[Thread.Configuration.ProviderId]`; a missing entry inherits the parent thread's MainAgent model
-- `SubAgent.Model` is not a configuration field or fallback and is ignored when present in an old config file
-- changing provider/model on an existing thread atomically replaces both values while preserving the rest of `ThreadConfiguration`; workspace changes affect Welcome and future threads only
-- provider, model, and SubAgent preference changes invalidate cached agents, but an already-running turn is never switched mid-flight
+- when a server-managed thread is created, Session Core captures the effective provider and its complete `ModelPreference`: model, reasoning, speed, and context-window mode
+- an explicit thread configuration wins; otherwise the preference resolves from `AppConfig.ProviderPreferences[ProviderId]`
+- a selected provider without a complete preference is not a valid MainAgent runtime; obsolete model-only and root model-option keys are ignored
+- the MainAgent uses the captured thread configuration for every turn, resume, and tool-planning operation; workspace defaults never replace values on an existing thread
+- DotCraft-managed native SubAgents resolve `AppConfig.SubAgent.ProviderPreferences[Thread.Configuration.ProviderId]`; a missing entry inherits the parent thread's complete MainAgent preference
+- a native SubAgent role model overrides the inherited or configured model, after which reasoning and context-window selections are repaired against that model's capabilities
+- external CLI SubAgents do not consume native model preferences
+- changing provider or preference on an existing thread atomically replaces the corresponding provider/model/reasoning/speed/context values while preserving the rest of `ThreadConfiguration`; workspace changes affect Welcome and future threads only
+- provider and SubAgent preference changes invalidate cached agents, but an already-running turn is never switched mid-flight
 
 Context-window resolution is thread-aware:
 
 - `ThreadConfiguration.ContextWindow` is an optional object `{ mode: "default" | "max" }`; omitted or null means `default`.
 - `default` preserves today's compaction behavior: explicit `Compaction.ContextWindow` wins, otherwise the model catalog is inferred and capped by `Compaction.MaxContextWindow`.
 - `max` is valid only when the model-context catalog has an explicit match for the thread's effective model and that catalog window is greater than the configured default window. When valid, Session Core sets the effective compaction `ContextWindow` to the raw catalog window and bypasses `Compaction.MaxContextWindow`.
-- New threads capture the workspace default context-window mode when one is set on `Compaction.ContextWindowMode` and the resolved thread model supports that mode; otherwise they omit the field and use `default`.
+- New threads capture the context-window mode from the selected provider preference. Unsupported `max` selections are normalized to `default`.
 - Forks copy the source thread's context-window configuration unless the fork request supplies a replacement `ThreadConfiguration`.
 - `UpdateThreadConfiguration` validates explicit `max`, rebuilds the thread agent and compaction pipeline before the next turn, persists the new configuration, and emits `thread/updated`.
 

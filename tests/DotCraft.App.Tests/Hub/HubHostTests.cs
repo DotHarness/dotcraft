@@ -300,8 +300,19 @@ public sealed class HubHostTests : IDisposable
             File.WriteAllText(Path.Combine(BotPath, "config.json"), """
                 {
                   "ProviderId": "openai",
-                  "ProviderModels": {
-                    "openai": "gpt-4o-mini"
+                  "ProviderPreferences": {
+                    "openai": {
+                      "Model": "gpt-4o-mini",
+                      "Reasoning": {
+                        "Enabled": false,
+                        "Effort": "Medium",
+                        "Output": "Full"
+                      },
+                      "Speed": "Standard",
+                      "ContextWindow": {
+                        "Mode": "Default"
+                      }
+                    }
                   },
                   "Providers": {
                     "openai": {

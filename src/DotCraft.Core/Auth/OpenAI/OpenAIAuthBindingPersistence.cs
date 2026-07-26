@@ -55,10 +55,21 @@ public static class OpenAIAuthBindingPersistence
         var legacyModelKey = root.FirstOrDefault(p => string.Equals(p.Key, "Model", StringComparison.OrdinalIgnoreCase)).Key;
         if (!string.IsNullOrEmpty(legacyModelKey))
             root.Remove(legacyModelKey);
-        var providerModels = GetOrCreateObject(root, "ProviderModels");
-        var existingModel = GetStringValue(providerModels, canonicalKey);
+        var legacyProviderModelsKey = root
+            .FirstOrDefault(p => string.Equals(p.Key, "ProviderModels", StringComparison.OrdinalIgnoreCase)).Key;
+        if (!string.IsNullOrEmpty(legacyProviderModelsKey))
+            root.Remove(legacyProviderModelsKey);
+        var providerPreferences = GetOrCreateObject(root, "ProviderPreferences");
+        var preferenceMatch = providerPreferences
+            .FirstOrDefault(p => string.Equals(p.Key, canonicalKey, StringComparison.OrdinalIgnoreCase));
+        var preference = preferenceMatch.Value as JsonObject;
+        var existingModel = preference == null ? null : GetStringValue(preference, "Model");
         if (string.IsNullOrWhiteSpace(existingModel) || IsLegacyChatGptDefaultModel(existingModel))
-            providerModels[canonicalKey] = defaultModel;
+        {
+            providerPreferences[preferenceMatch.Key ?? canonicalKey] = JsonSerializer.SerializeToNode(
+                ModelPreferenceRules.CreateManual(defaultModel),
+                AppConfig.SerializerOptions);
+        }
 
         Save(path, root);
     }

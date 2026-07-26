@@ -26,13 +26,13 @@ Desktop 将设置项按生效方式划分为三类：
 | External Channel | 外部通道相关配置 | 子系统重启 |
 | Connection / Local AppServer | `connectionMode = local`、本地 AppServer 二进制路径、本地 WebSocket 监听配置 | Hub 托管的本地 AppServer 可 Apply & Restart |
 | Connection / Remote AppServer | `connectionMode = remote`、远程 WebSocket URL、token | 先用草稿 URL/token 完成 WebSocket initialize 探测，成功后保存并切换；不重启远端 AppServer |
-| Model Providers | `Providers[id]`、`ProviderId`、`ProviderModels` | Desktop / AppServer 通过 Provider 管理接口即时刷新新会话默认值 |
+| Model Providers | `Providers[id]`、`ProviderId`、`ProviderPreferences`、`SubAgent.ProviderPreferences` | Desktop / AppServer 通过 Provider 管理接口即时刷新新会话默认值 |
 
 说明：
 
 - Desktop 的模型设置页管理 Provider 注册表；凭证与端点只属于 `Providers[id]`。
-- 修改工作区 `ProviderId` 或 `ProviderModels` 只会刷新新线程默认值；已有线程保留创建时的 provider/model pair，除非该线程自己的 composer 原子更新这两个值。
-- 工作区只保存当前 `ProviderId` 和按 provider 区分的模型覆盖，不保存根级 `ApiKey` / `EndPoint`。
+- 修改工作区 `ProviderId` 或 `ProviderPreferences` 只会刷新新线程默认值；已有线程保留创建时的模型、思考程度、速率和上下文窗口快照，除非该线程自己的 composer 原子更新完整偏好。
+- 工作区只保存当前 `ProviderId` 和按 provider 区分的完整偏好覆盖，不保存根级 `ApiKey` / `EndPoint`。
 - Remote AppServer 的生命周期由用户或远端环境管理。Desktop 只测试连接并切换，不提供 remote restart。
 - 如果 Desktop 通过 `--remote` 启动，本次会话的连接由启动参数控制，Settings 中的持久化连接切换不可用。
 
