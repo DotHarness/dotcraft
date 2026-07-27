@@ -81,7 +81,6 @@ const settingsPayload = {
   theme: demoTheme,
   locale: demoLocale,
   showThinkingContent: true,
-  visibleChannels: [],
   connectionMode: 'local' as const
 }
 

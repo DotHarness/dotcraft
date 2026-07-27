@@ -52,7 +52,7 @@ describe('initial workspace status argument parsing', () => {
     expect(readInitialWorkspaceStatusFromArgv(['electron', encodeInitialWorkspaceStatusArg(status)])).toEqual(status)
   })
 
-  it('normalizes legacy OpenAI provider protocols from raw startup payloads', () => {
+  it('falls back to the canonical default for unsupported provider protocols', () => {
     const rawStatus = {
       status: 'ready',
       workspacePath: 'C:\\sample\\workspace',
@@ -61,7 +61,7 @@ describe('initial workspace status argument parsing', () => {
         {
           id: 'openai',
           displayName: 'OpenAI',
-          protocol: 'openai',
+          protocol: 'unsupported-protocol',
           hasApiKey: true,
           endPoint: 'https://api.openai.com/v1'
         }
@@ -71,15 +71,7 @@ describe('initial workspace status argument parsing', () => {
 
     expect(readInitialWorkspaceStatusFromArgv(['electron', arg])).toEqual({
       ...rawStatus,
-      providers: [
-        {
-          id: 'openai',
-          displayName: 'OpenAI',
-          protocol: 'openai-chat-completions',
-          hasApiKey: true,
-          endPoint: 'https://api.openai.com/v1'
-        }
-      ]
+      providers: []
     })
   })
 

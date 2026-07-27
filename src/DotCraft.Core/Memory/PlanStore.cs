@@ -1,7 +1,7 @@
 using System.Text;
 using System.Text.Encodings.Web;
 using System.Text.Json;
-using DotCraft.State;
+using DotCraft.Persistence;
 
 namespace DotCraft.Memory;
 
@@ -22,16 +22,16 @@ public sealed class PlanStore
         PropertyNameCaseInsensitive = true
     };
 
-    private readonly StateRuntime _stateRuntime;
+    private readonly WorkspaceStateDatabase _stateRuntime;
 
     public PlanStore(string botPath)
         : this(botPath, null)
     {
     }
 
-    internal PlanStore(string botPath, StateRuntime? stateRuntime)
+    internal PlanStore(string botPath, WorkspaceStateDatabase? stateRuntime)
     {
-        _stateRuntime = stateRuntime ?? new StateRuntime(botPath);
+        _stateRuntime = stateRuntime ?? new WorkspaceStateDatabase(botPath);
     }
 
     // ── Structured plan (JSON + rendered MD) ──

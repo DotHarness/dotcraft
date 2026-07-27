@@ -70,8 +70,8 @@ function route(cmd: string): SshRunResult {
   if (cmd.includes('CONFIG_BEGIN')) {
     return ok(
       'CONFIG_BEGIN\n' +
-      `workspace=${Buffer.from('{"ProviderId":"anthropic-main","Model":"claude-sonnet-4-5"}').toString('base64')}\n` +
-      `userDefaults=${Buffer.from('{"ProviderId":"openai","Model":"gpt-5"}').toString('base64')}\n` +
+      `workspace=${Buffer.from('{"ProviderId":"anthropic-main","CustomSettings":{"theme":"dark"}}').toString('base64')}\n` +
+      `userDefaults=${Buffer.from('{"ProviderId":"openai","CustomSettings":{"theme":"light"}}').toString('base64')}\n` +
       'CONFIG_END'
     )
   }
@@ -197,8 +197,8 @@ describe('RemoteServersManager', () => {
 
     const result = await mgr.readCoreConfig(host, stack)
 
-    expect(result.workspaceRaw).toBe('{"ProviderId":"anthropic-main","Model":"claude-sonnet-4-5"}')
-    expect(result.userDefaultsRaw).toBe('{"ProviderId":"openai","Model":"gpt-5"}')
+    expect(result.workspaceRaw).toBe('{"ProviderId":"anthropic-main","CustomSettings":{"theme":"dark"}}')
+    expect(result.userDefaultsRaw).toBe('{"ProviderId":"openai","CustomSettings":{"theme":"light"}}')
     expect(calls[0]).toContain('CONFIG_BEGIN')
     expect(calls[0]).toContain('.craft/config.json')
     expect(opts[0]).toMatchObject({ timeoutMs: 20_000, connectTimeoutSec: 8 })

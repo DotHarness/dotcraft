@@ -75,21 +75,22 @@ public sealed class PerforceConnectionConfig
 /// <summary>Stable provider identifiers for <see cref="SourceControlConfig.Provider"/>.</summary>
 public static class SourceControlProviders
 {
-    /// <summary>Legacy value retained only for normalizing old configs; resolves to <see cref="Git"/>.</summary>
-    public const string Auto = "auto";
     public const string None = "none";
     public const string Git = "git";
     public const string Perforce = "perforce";
 
     /// <summary>
-    /// Normalizes arbitrary input to a known provider id. Unknown values and the legacy
-    /// <c>auto</c> id both resolve to <see cref="Git"/> (the default).
+    /// Normalizes a provider id. An absent value uses <see cref="Git"/> as the default.
     /// </summary>
     public static string Normalize(string? value) => value?.Trim().ToLowerInvariant() switch
     {
+        "" or null => Git,
         None => None,
+        Git => Git,
         Perforce => Perforce,
-        _ => Git
+        _ => throw new ArgumentException(
+            $"Unsupported source control provider '{value}'. Expected 'none', 'git', or 'perforce'.",
+            nameof(value))
     };
 }
 

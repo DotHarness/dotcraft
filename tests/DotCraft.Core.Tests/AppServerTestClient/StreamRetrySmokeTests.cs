@@ -94,9 +94,8 @@ public sealed class StreamRetrySmokeTests
 
         Assert.Equal("openai-chat", root.GetProperty("ProviderId").GetString());
         Assert.Equal("gpt-test", root.GetProperty("ProviderPreferences").GetProperty("openai-chat").GetProperty("model").GetString());
-        Assert.False(root.TryGetProperty("Model", out _));
-        Assert.Equal(0, root.GetProperty("McpServers").GetArrayLength());
-        Assert.Equal(0, root.GetProperty("LspServers").GetArrayLength());
+        Assert.Empty(root.GetProperty("McpServers").EnumerateObject());
+        Assert.Empty(root.GetProperty("LspServers").EnumerateObject());
         Assert.Equal(0, root.GetProperty("ExternalChannels").GetArrayLength());
         Assert.False(root.GetProperty("Memory").GetProperty("AutoConsolidateEnabled").GetBoolean());
 
@@ -121,7 +120,11 @@ public sealed class StreamRetrySmokeTests
             File.WriteAllText(globalPath, """
                 {
                   "ProviderId": "openai-chat",
-                  "Model": "global-model",
+                  "ProviderPreferences": {
+                    "openai-chat": {
+                      "Model": "global-model"
+                    }
+                  },
                   "Providers": {
                     "openai-chat": {
                       "Protocol": "openai-chat-completions",

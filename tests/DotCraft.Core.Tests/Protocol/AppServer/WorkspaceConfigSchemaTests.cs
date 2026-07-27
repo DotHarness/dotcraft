@@ -73,9 +73,9 @@ public sealed class WorkspaceConfigSchemaTests : IDisposable
             [
                 new ConfigSchemaField
                 {
-                    Key = "Model",
+                    Key = "Theme",
                     Type = "text",
-                    DefaultValue = "gpt-4o-mini"
+                    DefaultValue = "dark"
                 }
             ]
         }

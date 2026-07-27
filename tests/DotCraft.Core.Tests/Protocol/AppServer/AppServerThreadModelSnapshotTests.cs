@@ -1,5 +1,4 @@
 using System.Text.Json;
-using DotCraft.Abstractions;
 using DotCraft.Agents;
 using DotCraft.Configuration;
 using DotCraft.Memory;
@@ -40,7 +39,7 @@ public sealed class AppServerThreadModelSnapshotTests : IDisposable
               "ProviderId": "openai",
               "Providers": {
                 "openai": {
-                  "Protocol": "openai",
+                  "Protocol": "openai-chat-completions",
                   "ApiKey": "sk-test-not-used-for-network",
                   "EndPoint": "https://127.0.0.1:9/v1"
                 }
@@ -140,7 +139,7 @@ public sealed class AppServerThreadModelSnapshotTests : IDisposable
                   "ApiKey": "sk-ant-test"
                 },
                 "openrouter": {
-                  "Protocol": "openai",
+                  "Protocol": "openai-chat-completions",
                   "ApiKey": "sk-router-test",
                   "EndPoint": "https://openrouter.ai/api/v1"
                 }
@@ -356,17 +355,13 @@ public sealed class AppServerThreadModelSnapshotTests : IDisposable
     private static string? GetThreadModel(JsonElement thread)
     {
         var configuration = thread.GetProperty("configuration");
-        return configuration.TryGetProperty("model", out var model)
-            ? model.GetString()
-            : configuration.GetProperty("Model").GetString();
+        return configuration.GetProperty("model").GetString();
     }
 
     private static string? GetThreadProviderId(JsonElement thread)
     {
         var configuration = thread.GetProperty("configuration");
-        return configuration.TryGetProperty("providerId", out var providerId)
-            ? providerId.GetString()
-            : configuration.GetProperty("ProviderId").GetString();
+        return configuration.GetProperty("providerId").GetString();
     }
 
 }

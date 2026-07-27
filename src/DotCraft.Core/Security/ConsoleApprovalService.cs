@@ -1,4 +1,3 @@
-using DotCraft.Abstractions;
 
 namespace DotCraft.Security;
 
@@ -10,30 +9,12 @@ public sealed class ConsoleApprovalService(ApprovalStore? store = null) : IAppro
 {
     // Session-based operation approvals (cleared when process exits)
     private readonly HashSet<string> _sessionFileOperations = [];
-    
+
     private readonly HashSet<string> _sessionShellCommands = [];
 
     private readonly HashSet<string> _sessionResourceScopes = [];
 
     private readonly Lock _sessionLock = new();
-
-    // Static render control for coordinating with renderer.
-    // NOTE: Must NOT be [ThreadStatic] because async continuations (tool calls)
-    // can run on different thread-pool threads in console apps (no SynchronizationContext).
-    private static volatile IRenderControl? _renderControl;
-
-    /// <summary>
-    /// Gets the current render control (for other components that need to pause rendering).
-    /// </summary>
-    public static IRenderControl? CurrentRenderControl => _renderControl;
-
-    /// <summary>
-    /// Set the render control for the current thread before streaming.
-    /// </summary>
-    public static void SetRenderControl(IRenderControl? renderControl)
-    {
-        _renderControl = renderControl;
-    }
 
     public async Task<bool> RequestFileApprovalAsync(string operation, string path, ApprovalContext? context = null)
     {
@@ -50,12 +31,7 @@ public sealed class ConsoleApprovalService(ApprovalStore? store = null) : IAppro
             return true;
         }
 
-        // Run the approval prompt on the render thread to avoid cross-thread
-        // Spectre.Console live rendering issues (Status spinner corruption)
-        var choice = _renderControl != null
-            ? await _renderControl.ExecuteWhilePausedAsync(
-                () => ApprovalPrompt.RequestFileApproval(operation, path))
-            : ApprovalPrompt.RequestFileApproval(operation, path);
+        var choice = ApprovalPrompt.RequestFileApproval(operation, path);
 
         switch (choice)
         {
@@ -94,12 +70,7 @@ public sealed class ConsoleApprovalService(ApprovalStore? store = null) : IAppro
             return true;
         }
 
-        // Run the approval prompt on the render thread to avoid cross-thread
-        // Spectre.Console live rendering issues (Status spinner corruption)
-        var choice = _renderControl != null
-            ? await _renderControl.ExecuteWhilePausedAsync(
-                () => ApprovalPrompt.RequestShellApproval(command, workingDir))
-            : ApprovalPrompt.RequestShellApproval(command, workingDir);
+        var choice = ApprovalPrompt.RequestShellApproval(command, workingDir);
 
         switch (choice)
         {
@@ -137,10 +108,7 @@ public sealed class ConsoleApprovalService(ApprovalStore? store = null) : IAppro
         // Reuse the file approval prompt to avoid adding new localization keys; the
         // operation / target columns still convey the resource identity clearly.
         var displayOperation = $"{kind}:{operation}";
-        var choice = _renderControl != null
-            ? await _renderControl.ExecuteWhilePausedAsync(
-                () => ApprovalPrompt.RequestFileApproval(displayOperation, target))
-            : ApprovalPrompt.RequestFileApproval(displayOperation, target);
+        var choice = ApprovalPrompt.RequestFileApproval(displayOperation, target);
 
         switch (choice)
         {

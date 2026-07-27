@@ -113,7 +113,6 @@ public sealed partial class UserTemplateFileStore(
         var now = DateTimeOffset.UtcNow;
         createdAt ??= now;
 
-        var canonicalWorkflowMarkdown = CanonicalizeWorkflowWorkspaceMode(workflowMarkdown ?? string.Empty);
         var fm = new TemplateFileFrontMatter
         {
             Id = id,
@@ -144,7 +143,7 @@ public sealed partial class UserTemplateFileStore(
         sb.Append(yaml.TrimEnd());
         sb.AppendLine();
         sb.AppendLine("---");
-        sb.Append(canonicalWorkflowMarkdown);
+        sb.Append(workflowMarkdown ?? string.Empty);
 
         File.WriteAllText(file, sb.ToString());
 
@@ -154,7 +153,7 @@ public sealed partial class UserTemplateFileStore(
             Description: fm.Description ?? string.Empty,
             Icon: fm.Icon ?? string.Empty,
             Category: fm.Category ?? string.Empty,
-            WorkflowMarkdown: canonicalWorkflowMarkdown,
+            WorkflowMarkdown: workflowMarkdown ?? string.Empty,
             DefaultSchedule: defaultSchedule,
             DefaultWorkspaceMode: fm.DefaultWorkspaceMode,
             DefaultApprovalPolicy: fm.DefaultApprovalPolicy,
@@ -237,7 +236,7 @@ public sealed partial class UserTemplateFileStore(
             Category: fm.Category ?? string.Empty,
             WorkflowMarkdown: body,
             DefaultSchedule: FromYaml(fm.DefaultSchedule),
-            DefaultWorkspaceMode: NormalizeOptionalWorkspaceModeForLoad(fm.DefaultWorkspaceMode),
+            DefaultWorkspaceMode: NormalizeOptionalWorkspaceMode(fm.DefaultWorkspaceMode),
             DefaultApprovalPolicy: fm.DefaultApprovalPolicy,
             NeedsThreadBinding: fm.NeedsThreadBinding ?? false,
             DefaultTitle: fm.DefaultTitle,
@@ -294,27 +293,6 @@ public sealed partial class UserTemplateFileStore(
             return normalized;
 
         throw new ArgumentException("Template default workspace mode must be 'project' or 'worktree'.", nameof(mode));
-    }
-
-    private static string? NormalizeOptionalWorkspaceModeForLoad(string? mode)
-    {
-        if (string.IsNullOrWhiteSpace(mode))
-            return null;
-
-        return AutomationWorkspaceModeNames.TryNormalize(mode, out var normalized)
-            ? normalized
-            : null;
-    }
-
-    private static string CanonicalizeWorkflowWorkspaceMode(string markdown)
-    {
-        if (string.IsNullOrWhiteSpace(markdown))
-            return markdown;
-
-        return Regex.Replace(
-            markdown,
-            @"(?im)^(\s*workspace\s*:\s*)[""']?isolated[""']?(\s*(?:#.*)?$)",
-            "$1worktree$2");
     }
 
     private sealed class TemplateFileFrontMatter

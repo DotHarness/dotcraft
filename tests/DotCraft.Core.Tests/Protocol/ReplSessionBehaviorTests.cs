@@ -352,15 +352,6 @@ public sealed class ReplSessionBehaviorTests : IDisposable
         Assert.Equal(1, index.First(e => e.Id == t1.Id).TurnCount);
     }
 
-    [Fact]
-    public void StateDatabase_DoesNotCreateThreadSessionsTable()
-    {
-        using var connection = OpenStateConnection();
-        using var command = connection.CreateCommand();
-        command.CommandText = "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = 'thread_sessions'";
-        Assert.Equal(0L, (long)(command.ExecuteScalar() ?? 0L));
-    }
-
     // -------------------------------------------------------------------------
     // Helpers
     // -------------------------------------------------------------------------

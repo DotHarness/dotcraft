@@ -34,7 +34,6 @@ function isActiveTurnStatus(turn: ConversationTurn): boolean {
 
 function isToolLikeItem(item: ConversationItem): boolean {
   return item.type === 'toolCall' ||
-    item.type === 'pluginFunctionCall' ||
     item.type === 'dynamicToolCall' ||
     item.type === 'commandExecution'
 }

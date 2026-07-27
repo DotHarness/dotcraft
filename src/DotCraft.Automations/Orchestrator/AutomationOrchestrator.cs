@@ -1,7 +1,7 @@
 using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Text;
-using DotCraft.Abstractions;
+using DotCraft.Channels;
 using DotCraft.Agents;
 using DotCraft.Automations.Abstractions;
 using DotCraft.Automations.Local;
@@ -921,11 +921,7 @@ public sealed class AutomationOrchestrator
 
         if (string.Equals(p, "fullAuto", StringComparison.OrdinalIgnoreCase))
             return true;
-        if (string.Equals(p, "autoApprove", StringComparison.OrdinalIgnoreCase))
-            return true;
         if (string.Equals(p, "workspaceScope", StringComparison.OrdinalIgnoreCase))
-            return false;
-        if (string.Equals(p, "default", StringComparison.OrdinalIgnoreCase))
             return false;
 
         return false;

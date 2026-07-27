@@ -791,7 +791,6 @@ declare global {
           pinnedSectionCollapsed?: boolean
           chatsSectionCollapsed?: boolean
           showInMenuBar?: boolean
-          visibleChannels?: string[]
           lastOpenEditorId?: EditorId
           lastSeenWhatsNewVersion?: string
           browserUse?: {
@@ -834,7 +833,6 @@ declare global {
             pinnedSectionCollapsed?: boolean
             chatsSectionCollapsed?: boolean
             showInMenuBar?: boolean
-            visibleChannels?: string[]
             lastOpenEditorId?: EditorId
             lastSeenWhatsNewVersion?: string
             browserUse?: {

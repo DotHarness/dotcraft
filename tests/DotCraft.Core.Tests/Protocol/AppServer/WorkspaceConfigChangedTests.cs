@@ -49,50 +49,8 @@ public sealed class WorkspaceConfigChangedTests : IDisposable
         AssertSingleConfigChanged(sent, AppServerMethods.WorkspaceConfigUpdate, ConfigChangeRegions.WorkspaceProviderPreferences);
     }
 
-    [Fact]
-    public async Task WorkspaceConfigUpdate_ApiKeyOnly_ReturnsInvalidParamsWithoutConfigChanged()
-    {
-        using var harness = new AppServerTestHarness(workspaceCraftPath: _workspaceCraftPath);
-        using var bridge = AttachConfigChangedBridge(harness);
-        await harness.InitializeAsync(configChange: true);
 
-        var req = harness.BuildRequest(AppServerMethods.WorkspaceConfigUpdate, new { apiKey = "sk-live-key" });
-        await harness.ExecuteRequestAsync(req);
 
-        var sent = await harness.Transport.WaitAndDrainAsync(1, TimeSpan.FromSeconds(5));
-        AppServerTestHarness.AssertIsErrorResponse(Assert.Single(sent), AppServerErrors.InvalidParamsCode);
-        AssertNoConfigChanged(sent);
-    }
-
-    [Fact]
-    public async Task WorkspaceConfigUpdate_LegacyModel_ReturnsInvalidParamsWithoutConfigChanged()
-    {
-        using var harness = new AppServerTestHarness(workspaceCraftPath: _workspaceCraftPath);
-        using var bridge = AttachConfigChangedBridge(harness);
-        await harness.InitializeAsync(configChange: true);
-
-        var req = harness.BuildRequest(AppServerMethods.WorkspaceConfigUpdate, new { model = "gpt-legacy" });
-        await harness.ExecuteRequestAsync(req);
-
-        var sent = await harness.Transport.WaitAndDrainAsync(1, TimeSpan.FromSeconds(5));
-        AppServerTestHarness.AssertIsErrorResponse(Assert.Single(sent), AppServerErrors.InvalidParamsCode);
-        AssertNoConfigChanged(sent);
-    }
-
-    [Fact]
-    public async Task WorkspaceConfigUpdate_EndPointOnly_ReturnsInvalidParamsWithoutConfigChanged()
-    {
-        using var harness = new AppServerTestHarness(workspaceCraftPath: _workspaceCraftPath);
-        using var bridge = AttachConfigChangedBridge(harness);
-        await harness.InitializeAsync(configChange: true);
-
-        var req = harness.BuildRequest(AppServerMethods.WorkspaceConfigUpdate, new { endPoint = "https://example.com/v1" });
-        await harness.ExecuteRequestAsync(req);
-
-        var sent = await harness.Transport.WaitAndDrainAsync(1, TimeSpan.FromSeconds(5));
-        AppServerTestHarness.AssertIsErrorResponse(Assert.Single(sent), AppServerErrors.InvalidParamsCode);
-        AssertNoConfigChanged(sent);
-    }
 
     [Fact]
     public async Task WorkspaceConfigUpdate_WelcomeSuggestionsOnly_EmitsWelcomeSuggestionsRegion()
@@ -526,10 +484,10 @@ public sealed class WorkspaceConfigChangedTests : IDisposable
             configPath,
             """
             {
-              "model": "gpt-legacy",
-              "apikey": "sk-old",
-              "endpoint": "https://old.example.com/v1",
-              "Theme": "dark"
+              "Theme": "dark",
+              "CustomSettings": {
+                "keep": true
+              }
             }
             """);
 
@@ -544,13 +502,9 @@ public sealed class WorkspaceConfigChangedTests : IDisposable
 
         var json = await File.ReadAllTextAsync(configPath);
         Assert.Contains("\"ProviderPreferences\"", json, StringComparison.Ordinal);
-        Assert.Contains("\"apikey\": \"sk-old\"", json, StringComparison.Ordinal);
-        Assert.Contains("\"endpoint\": \"https://old.example.com/v1\"", json, StringComparison.Ordinal);
         Assert.Contains("\"Theme\": \"dark\"", json, StringComparison.Ordinal);
-        Assert.DoesNotContain("\"ApiKey\":", json, StringComparison.Ordinal);
-        Assert.DoesNotContain("\"EndPoint\":", json, StringComparison.Ordinal);
         using var preservedDoc = JsonDocument.Parse(json);
-        Assert.False(preservedDoc.RootElement.TryGetProperty("model", out _));
+        Assert.True(preservedDoc.RootElement.GetProperty("CustomSettings").GetProperty("keep").GetBoolean());
         Assert.False(File.Exists(harness.Monitor.Current.GlobalConfigPath!));
     }
 
@@ -920,8 +874,10 @@ public sealed class WorkspaceConfigChangedTests : IDisposable
             configPath,
             """
             {
-              "model": "gpt-legacy",
-              "Theme": "dark"
+              "Theme": "dark",
+              "CustomSettings": {
+                "keep": true
+              }
             }
             """);
 
@@ -937,7 +893,7 @@ public sealed class WorkspaceConfigChangedTests : IDisposable
         var json = await File.ReadAllTextAsync(configPath);
         Assert.Contains("\"Theme\": \"dark\"", json, StringComparison.Ordinal);
         using var doc = JsonDocument.Parse(json);
-        Assert.False(doc.RootElement.TryGetProperty("model", out _));
+        Assert.True(doc.RootElement.GetProperty("CustomSettings").GetProperty("keep").GetBoolean());
         Assert.Equal("gpt-x", doc.RootElement.GetProperty("ProviderPreferences").GetProperty("openai").GetProperty("Model").GetString());
     }
 

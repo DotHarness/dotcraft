@@ -260,7 +260,7 @@ public sealed class ThreadStoreTests : IDisposable
         var rolloutPath = GetCanonicalPath(thread.Id, archived: false);
         var failingStore = new ThreadStore(
             _root,
-            _store.StateRuntime,
+            _store.StateDatabase,
             (_, _) => throw new IOException("injected rollout delete failure"));
 
         var error = Assert.Throws<IOException>(() => failingStore.DeleteThread(thread.Id));
@@ -1483,42 +1483,6 @@ public sealed class ThreadStoreTests : IDisposable
 
         Assert.Equal(
             ["user:hello", "assistant:calling dynamic tool"],
-            FormatHistoryWithContents(session));
-    }
-
-    [Fact]
-    public async Task LoadOrCreateSessionAsync_DoesNotReplayRemovedLegacyPluginItem()
-    {
-        var thread = CreateThread();
-        AddTurnWithMessages(thread, "hello", "calling plugin");
-        var turn = thread.Turns[0];
-        turn.Items.Add(new SessionItem
-        {
-            Id = SessionIdGenerator.NewItemId(3),
-            TurnId = turn.Id,
-            Type = ItemType.PluginFunctionCall,
-            Status = ItemStatus.Completed,
-            CreatedAt = DateTimeOffset.UtcNow,
-            CompletedAt = DateTimeOffset.UtcNow,
-            Payload = new PluginFunctionCallPayload
-            {
-                PluginId = "legacy",
-                FunctionName = "legacy_tool",
-                CallId = "legacy-call-1",
-                Success = true,
-                ContentItems = [new PluginFunctionContentItem { Type = "text", Text = "legacy result" }],
-                StructuredResult = new JsonObject { ["hidden"] = true }
-            }
-        });
-        await _store.SaveThreadAsync(thread);
-
-        var session = await new ThreadStore(_root).LoadOrCreateSessionAsync(CreateAgent(), thread.Id);
-
-        Assert.Equal(
-            [
-                "user:hello",
-                "assistant:calling plugin"
-            ],
             FormatHistoryWithContents(session));
     }
 

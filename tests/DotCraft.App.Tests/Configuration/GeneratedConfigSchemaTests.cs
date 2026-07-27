@@ -13,11 +13,8 @@ public sealed class GeneratedConfigSchemaTests
         var fields = core.Fields.ToDictionary(f => f.Key, f => f);
 
         Assert.Equal(ReloadBehavior.ProcessRestart, fields["ProviderId"].Reload);
-        Assert.False(fields.ContainsKey("Model"));
         Assert.Equal("number", fields["NetworkTimeoutSeconds"].Type);
         Assert.Equal(1, fields["NetworkTimeoutSeconds"].Min);
-        Assert.False(fields.ContainsKey("ApiKey"));
-        Assert.False(fields.ContainsKey("EndPoint"));
 
         var skills = Assert.Single(schema, s => s.Path is ["Skills"]);
         var disabledSkills = Assert.Single(skills.Fields, f => f.Key == "DisabledSkills");

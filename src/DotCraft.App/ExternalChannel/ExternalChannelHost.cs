@@ -1,6 +1,6 @@
 using System.Diagnostics;
 using System.Text.Json;
-using DotCraft.Abstractions;
+using DotCraft.Channels;
 using DotCraft.AppBinding;
 using DotCraft.AppServer;
 using DotCraft.Configuration;

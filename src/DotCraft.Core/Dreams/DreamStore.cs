@@ -343,8 +343,6 @@ public sealed class DreamStore
         }
     }
 
-    internal static string NormalizeTopicPathForStore(string path) => NormalizeTopicPath(path);
-
     private DreamStoreDescriptor GetStoreDescriptorCore(string storeId)
     {
         var dir = Path.Combine(_storesDir, storeId);

@@ -80,7 +80,7 @@ function renderView(): void {
 }
 
 function installWindowApi(locale = 'en'): void {
-  settingsGet.mockResolvedValue({ locale, connectionMode: 'local', visibleChannels: [] })
+  settingsGet.mockResolvedValue({ locale, connectionMode: 'local' })
   settingsSet.mockResolvedValue(undefined)
   chromeCheckSetup.mockResolvedValue({
     extension: { ok: true, code: 'extensionReady', message: 'DotCraft Chrome extension is ready.' },

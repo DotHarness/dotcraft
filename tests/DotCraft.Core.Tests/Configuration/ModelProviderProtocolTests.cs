@@ -9,10 +9,8 @@ public sealed class ModelProviderProtocolTests
     [Theory]
     [InlineData(null)]
     [InlineData("")]
-    [InlineData("openai")]
-    [InlineData(" OPENAI ")]
     [InlineData("openai-chat-completions")]
-    public void Normalize_OpenAILegacyAliasReturnsChatCompletions(string? protocol)
+    public void Normalize_DefaultOrCanonicalChatCompletionsReturnsCanonicalProtocol(string? protocol)
     {
         Assert.Equal(ModelProviderProtocols.OpenAIChatCompletions, ModelProviderProtocols.Normalize(protocol));
     }
@@ -23,23 +21,6 @@ public sealed class ModelProviderProtocolTests
         Assert.Equal(ModelProviderProtocols.OpenAIResponses, ModelProviderProtocols.Normalize("openai-responses"));
     }
 
-    [Fact]
-    public void AppConfig_DeferredLoadingDefaultsToAutoAndIgnoresLegacyEnabled()
-    {
-        var config = JsonSerializer.Deserialize<AppConfig>(
-            """
-            {
-              "Tools": {
-                "DeferredLoading": {
-                  "Enabled": true
-                }
-              }
-            }
-            """,
-            AppConfig.SerializerOptions)!;
-
-        Assert.Equal(AppConfig.DeferredLoadingStrategy.Auto, config.Tools.DeferredLoading.Strategy);
-    }
 
     [Theory]
     [InlineData(AppConfig.DeferredLoadingStrategy.Auto, ModelProviderProtocols.OpenAIChatCompletions, "Simulated")]

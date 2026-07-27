@@ -21,20 +21,17 @@ request-local model execution, UI projection, provider-neutral recovery, token e
 every non-Responses protocol. Session Core owns that history directly and persists it through the
 rollout contracts defined in [Session Core](session-core.md).
 
-## Activation and compatibility
+## Activation
 
 The canonical provider-history capability is selected when the thread is created and persisted in
 the canonical `thread_opened` baseline as `providerHistorySchemaVersion = 1`.
 
-- Threads whose rollout has no capability version remain on the legacy MEAI-to-Responses mapping
-  path for their entire lifetime.
-- New threads and new forks use version 1.
-- An old source thread is never migrated or rewritten. A newly created fork may establish its own
-  version-1 snapshot from the fork's MEAI materialization.
+- Every current thread and fork uses version 1.
+- A missing or unsupported capability version is a rollout error and is not inferred or migrated.
 - The capability is internal rollout state and is not part of the public SessionThread/AppServer
   schema.
 - Both API-key and ChatGPT OAuth `openai-responses` runtimes consume the capability.
-- Version 1 is consumed only for server-managed history. Client-managed history keeps the legacy
+- Version 1 is consumed only for server-managed history. Client-managed history uses direct
   per-request mapping because the caller, rather than the rollout, owns its preceding prefix.
 - Anthropic and OpenAI Chat Completions never consume or mutate Responses provider history.
 

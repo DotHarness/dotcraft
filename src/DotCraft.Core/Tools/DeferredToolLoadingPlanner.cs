@@ -1,4 +1,4 @@
-using DotCraft.Abstractions;
+using DotCraft.Agents;
 using DotCraft.Configuration;
 using DotCraft.GeneratedTools.Core;
 using Microsoft.Extensions.AI;

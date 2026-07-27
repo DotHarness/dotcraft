@@ -41,7 +41,6 @@ public static class SubAgentProfilesPersistence
 
         WriteDisabledProfiles(root, disabledProfiles);
         WriteEnableExternalCliSessionResume(root, enableExternalCliSessionResume);
-        RemoveLegacyModel(root);
         WriteWaitAgentTimeouts(root, waitAgentTimeouts);
         WriteProfiles(root, profiles);
         WriteProviderPreferences(root, providerPreferences);
@@ -96,18 +95,6 @@ public static class SubAgentProfilesPersistence
         section[key ?? "EnableExternalCliSessionResume"] = enabled;
     }
 
-    private static void RemoveLegacyModel(JsonObject root)
-    {
-        var section = GetOrCreateConfigSection(root, "SubAgent", createIfMissing: false);
-        if (section == null)
-            return;
-
-        var key = FindCaseInsensitiveKey(section, "Model");
-        if (key != null)
-            section.Remove(key);
-        RemoveConfigSectionIfEmpty(root, "SubAgent");
-    }
-
     /// <summary>
     /// Writes complete native SubAgent preferences under <c>SubAgent.ProviderPreferences</c>.
     /// A null map preserves the existing key (no change); an empty map removes it.
@@ -124,9 +111,6 @@ public static class SubAgentProfilesPersistence
         if (section == null)
             return;
 
-        var legacyKey = FindCaseInsensitiveKey(section, "ProviderModels");
-        if (legacyKey != null)
-            section.Remove(legacyKey);
         var key = FindCaseInsensitiveKey(section, "ProviderPreferences");
         if (normalized.Count == 0)
         {

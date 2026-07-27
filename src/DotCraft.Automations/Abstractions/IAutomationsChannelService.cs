@@ -1,4 +1,4 @@
-using DotCraft.Abstractions;
+using DotCraft.Channels;
 
 namespace DotCraft.Automations.Abstractions;
 

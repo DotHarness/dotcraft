@@ -4,7 +4,7 @@ using System.Text.Json;
 using DotCraft.DashBoard;
 using DotCraft.Hosting;
 using DotCraft.Protocol;
-using DotCraft.State;
+using DotCraft.Persistence;
 using DotCraft.Tracing;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.Logging;
@@ -73,20 +73,23 @@ public sealed class DashBoardReadOnlyEndpointTests : IDisposable
     }
 
     [Fact]
-    public async Task ReadOnlyDashboard_WithEmptyCraft_DoesNotCreateStateDb()
+    public void ReadOnlyStoreLoader_WhenStateDbIsMissing_Throws()
     {
-        await using var app = await CreateDashboardApp();
+        var stateDbPath = Path.Combine(_craft, "state.db");
+        if (File.Exists(stateDbPath))
+            File.Delete(stateDbPath);
 
-        Assert.False(File.Exists(Path.Combine(_craft, "state.db")));
-        Assert.False(Directory.Exists(Path.Combine(_craft, "threads", "active")));
-        Assert.False(Directory.Exists(Path.Combine(_craft, "threads", "archived")));
+        var exception = Assert.Throws<FileNotFoundException>(
+            () => DashBoardReadOnlyStoreLoader.Load(_craft));
+
+        Assert.Equal(stateDbPath, exception.FileName);
     }
 
     [Fact]
     public void ReadOnlyStoreLoader_ReadsExistingStateDbTraces()
     {
-        var stateRuntime = new StateRuntime(_craft);
-        var writer = new TraceStore(Path.Combine(_craft, "tracing"), 5000, true, stateRuntime);
+        var stateRuntime = new WorkspaceStateDatabase(_craft);
+        var writer = new TraceStore(stateRuntime, 5000, synchronousPersist: true);
         writer.Record(new TraceEvent
         {
             SessionKey = "thread_smoke",
@@ -97,7 +100,6 @@ public sealed class DashBoardReadOnlyEndpointTests : IDisposable
 
         var stores = DashBoardReadOnlyStoreLoader.Load(_craft);
 
-        Assert.True(stores.UsesStateDb);
         Assert.Contains(stores.TraceStore.GetSessions(), session => session.SessionKey == "thread_smoke");
         Assert.Contains(
             stores.TraceStore.GetEvents("thread_smoke"),
@@ -107,8 +109,8 @@ public sealed class DashBoardReadOnlyEndpointTests : IDisposable
     [Fact]
     public async Task ReadOnlyDashboard_ExposesPagedTraceEventsFromStateDb()
     {
-        var stateRuntime = new StateRuntime(_craft);
-        var writer = new TraceStore(Path.Combine(_craft, "tracing"), 5000, true, stateRuntime);
+        var stateRuntime = new WorkspaceStateDatabase(_craft);
+        var writer = new TraceStore(stateRuntime, 5000, synchronousPersist: true);
         var startedAt = new DateTimeOffset(2026, 5, 29, 2, 0, 0, TimeSpan.Zero);
         writer.Record(new TraceEvent
         {
@@ -192,8 +194,8 @@ public sealed class DashBoardReadOnlyEndpointTests : IDisposable
     {
         var timestamp = new DateTimeOffset(2026, 6, 1, 10, 0, 0, TimeSpan.Zero);
         WriteRollbackRollout("thread_root", timestamp, 1);
-        var stateRuntime = new StateRuntime(_craft);
-        var traceStore = new TraceStore(Path.Combine(_craft, "tracing"), 5000, true, stateRuntime);
+        var stateRuntime = new WorkspaceStateDatabase(_craft);
+        var traceStore = new TraceStore(stateRuntime, 5000, synchronousPersist: true);
         traceStore.BindThreadMainSession("thread_root", timestamp);
         traceStore.BindChildSession("child_session", "thread_root", "thread_root", timestamp);
         var persistence = new SessionPersistenceService(
@@ -222,6 +224,7 @@ public sealed class DashBoardReadOnlyEndpointTests : IDisposable
 
     private async Task<WebApplication> CreateDashboardApp()
     {
+        _ = new WorkspaceStateDatabase(_craft);
         var stores = DashBoardReadOnlyStoreLoader.Load(_craft);
         var builder = WebApplication.CreateBuilder();
         builder.Logging.ClearProviders();

@@ -213,15 +213,14 @@ Every outbound Responses input item that supports an item ID has a stable ID wit
 type prefix and suffix separated by `_`. Provider-returned valid IDs are preserved. Missing IDs
 are assigned before the item first enters a provider request and are retained in model-history
 metadata so subsequent tool loops, rollback retries, and resumed sessions replay the same IDs.
-Legacy model history without item IDs is upgraded lazily in memory without rewriting its rollout
-records. DotCraft replaces or omits invalid IDs without changing tool `call_id`; item IDs and
+DotCraft replaces or omits invalid IDs without changing tool `call_id`; item IDs and
 tool-call correlation IDs are separate identities. Locally generated IDs use the corresponding
 Responses item prefix (`msg`, `rs`, `fc`, `fco`, `tsc`, `tso`, or `ig`).
 
-For a thread whose rollout opts into provider-history schema version 1, completed raw provider
+For a thread whose rollout uses the required provider-history schema version 1, completed raw provider
 items and newly mapped local input items are durably appended to the canonical Responses history.
 Later requests consume that item sequence directly instead of reconstructing prior turns from
-aggregated MEAI messages. Threads without the capability retain the legacy mapping behavior.
+aggregated MEAI messages. A missing capability version is a rollout error.
 
 `PromptCacheRequestShape` diagnostics report the serialized input byte count and only aggregate
 item-ID coverage: eligible, present, generated, missing, and invalid-source counts. They never
@@ -324,8 +323,8 @@ should not edit them by hand.
 | Auth manager | `src/DotCraft.Core/Auth/OpenAI/OpenAIAuthManager.cs` | Login, same-account disk reload, authority refresh, token rotation, logout, and status; thread-safe; raises `LoggedIn` / `LoggedOut` events |
 | Token store | `src/DotCraft.Core/Auth/OpenAI/OpenAITokenStore.cs` | Reads/writes `auth.json` with locked-down permissions |
 | Installation id provider | `src/DotCraft.Core/Auth/OpenAI/OpenAIInstallationIdProvider.cs` | Resolves and persists the `~/.craft/installation_id` UUID v4 |
-| Auth pipeline policy | `src/DotCraft.Core/Providers/OpenAI/OpenAIOAuthPipelinePolicy.cs` | Sets OAuth auth headers, resolves account id from auth service before config, adds Responses sticky headers and provider turn/window headers, captures and replays same-turn `x-codex-turn-state`, applies opt-in request profiles, and runs bounded HTTP 401 recovery |
-| Responses metadata policy | `src/DotCraft.Core/Providers/OpenAI/OpenAIResponsesClientMetadataPipelinePolicy.cs` | Adds/normalizes provider-compatible `client_metadata` into outgoing `/responses` request bodies on OAuth clients |
+| Auth pipeline policy | `src/DotCraft.Core/Agents/Providers/OpenAI/OpenAIOAuthPipelinePolicy.cs` | Sets OAuth auth headers, resolves account id from auth service before config, adds Responses sticky headers and provider turn/window headers, captures and replays same-turn `x-codex-turn-state`, applies opt-in request profiles, and runs bounded HTTP 401 recovery |
+| Responses metadata policy | `src/DotCraft.Core/Agents/Providers/OpenAI/OpenAIResponsesClientMetadataPipelinePolicy.cs` | Adds/normalizes provider-compatible `client_metadata` into outgoing `/responses` request bodies on OAuth clients |
 | Provider resolver | `src/DotCraft.Core/Configuration/ModelProviderRuntime.cs` | Forces `chatgpt.com/backend-api/codex` endpoint + `openai-responses` protocol in OAuth mode |
 | Binding helper | `src/DotCraft.Core/Auth/OpenAI/OpenAIAuthBindingPersistence.cs` | Shared CLI/AppServer helper that writes `AuthMethod` / `ChatGptAccountId` into the global config |
 | Usage client | `src/DotCraft.Core/Auth/OpenAI/OpenAIUsageClient.cs` | One-shot `GET wham/usage`; reuses the same headers; 401 → force-refresh + retry once |

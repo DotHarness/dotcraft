@@ -6,17 +6,16 @@ using System.Text.Encodings.Web;
 using System.Text.Json;
 using System.Threading.Channels;
 using DotCraft.Protocol;
-using DotCraft.State;
+using DotCraft.Persistence;
 
 namespace DotCraft.Tracing;
 
 /// <param name="synchronousPersist">When true, writes traces on the caller thread (blocks). When false (default), uses background persistence.</param>
 public sealed class TraceStore
 {
-    private readonly string? _storagePath;
     private readonly int _maxEventsPerSession;
     private readonly bool _synchronousPersist;
-    private readonly StateRuntime? _stateRuntime;
+    private readonly WorkspaceStateDatabase? _stateRuntime;
     private readonly TraceSessionBindingStore? _bindingStore;
     private readonly object _diskMutationLock = new();
     private readonly ConcurrentDictionary<string, TraceSession> _sessions = new();
@@ -30,40 +29,39 @@ public sealed class TraceStore
     private int _persistInFlight;
     private const int DefaultEventPageLimit = 1000;
     private const int MaxEventPageLimit = 1000;
-    private static readonly TraceSessionSummaryColumn[] TraceSessionSummaryColumns =
-    [
-        new("session_key", "session_key"),
-        new("started_at", "started_at"),
-        new("last_activity_at", "started_at"),
-        new("request_count", "0"),
-        new("maintenance_fork_request_count", "0"),
-        new("response_count", "0"),
-        new("maintenance_fork_response_count", "0"),
-        new("tool_call_count", "0"),
-        new("error_count", "0"),
-        new("context_compaction_count", "0"),
-        new("thinking_count", "0"),
-        new("token_usage_count", "0"),
-        new("total_input_tokens", "0"),
-        new("total_output_tokens", "0"),
-        new("total_cached_input_tokens", "0"),
-        new("total_cache_write_input_tokens", "0"),
-        new("total_reasoning_output_tokens", "0"),
-        new("total_tool_duration_ms", "0"),
-        new("max_tool_duration_ms", "0"),
-        new("max_turn_duration_ms", "0"),
-        new("last_finish_reason", "NULL"),
-        new("final_system_prompt", "NULL"),
-        new("tool_names_json", "'[]'"),
-        new("first_user_request", "NULL"),
-        new("system_prompt_hash", "NULL"),
-        new("tool_schema_hash", "NULL"),
-        new("prompt_drift_count", "0"),
-        new("session_metadata_captured_at", "NULL"),
-        new("last_prompt_cache_change_at", "NULL"),
-        new("last_prompt_cache_change_kind", "NULL"),
-        new("last_prompt_cache_changed_fields_json", "NULL")
-    ];
+    private const string TraceSessionSummarySelectList = """
+                session_key,
+                started_at,
+                last_activity_at,
+                request_count,
+                maintenance_fork_request_count,
+                response_count,
+                maintenance_fork_response_count,
+                tool_call_count,
+                error_count,
+                context_compaction_count,
+                thinking_count,
+                token_usage_count,
+                total_input_tokens,
+                total_output_tokens,
+                total_cached_input_tokens,
+                total_cache_write_input_tokens,
+                total_reasoning_output_tokens,
+                total_tool_duration_ms,
+                max_tool_duration_ms,
+                max_turn_duration_ms,
+                last_finish_reason,
+                final_system_prompt,
+                tool_names_json,
+                first_user_request,
+                system_prompt_hash,
+                tool_schema_hash,
+                prompt_drift_count,
+                session_metadata_captured_at,
+                last_prompt_cache_change_at,
+                last_prompt_cache_change_kind,
+                last_prompt_cache_changed_fields_json
+        """;
 
     private static readonly JsonSerializerOptions PersistJsonOptions = new()
     {
@@ -72,20 +70,25 @@ public sealed class TraceStore
     };
 
     public TraceStore(
-        string? storagePath = null,
         int maxEventsPerSession = 5000,
         bool synchronousPersist = false)
-        : this(storagePath, maxEventsPerSession, synchronousPersist, null)
+        : this(maxEventsPerSession, synchronousPersist, null)
     {
     }
 
     internal TraceStore(
-        string? storagePath,
+        WorkspaceStateDatabase stateRuntime,
+        int maxEventsPerSession,
+        bool synchronousPersist = false)
+        : this(maxEventsPerSession, synchronousPersist, stateRuntime)
+    {
+    }
+
+    private TraceStore(
         int maxEventsPerSession,
         bool synchronousPersist,
-        StateRuntime? stateRuntime)
+        WorkspaceStateDatabase? stateRuntime)
     {
-        _storagePath = storagePath;
         _maxEventsPerSession = maxEventsPerSession;
         _synchronousPersist = synchronousPersist;
         _stateRuntime = stateRuntime;
@@ -97,7 +100,7 @@ public sealed class TraceStore
         _bindingStore?.GetOrCreateBinding(evt.SessionKey, evt.Timestamp);
         ApplyEvent(evt, writeToSse: true);
 
-        if (_stateRuntime != null || _storagePath != null)
+        if (_stateRuntime != null)
             PersistEvent(evt);
     }
 
@@ -106,7 +109,7 @@ public sealed class TraceStore
     /// </summary>
     public void WaitForPendingPersistence()
     {
-        if ((_storagePath == null && _stateRuntime == null) || _synchronousPersist)
+        if (_stateRuntime == null || _synchronousPersist)
             return;
 
         var spin = new SpinWait();
@@ -119,7 +122,7 @@ public sealed class TraceStore
     /// </summary>
     public void RefreshFromDisk()
     {
-        if (_storagePath == null && _stateRuntime == null)
+        if (_stateRuntime == null)
             return;
 
         WaitForPendingPersistence();
@@ -127,7 +130,6 @@ public sealed class TraceStore
         lock (_diskMutationLock)
         {
             _sessions.Clear();
-            LoadFromDisk();
         }
     }
 
@@ -171,25 +173,25 @@ public sealed class TraceStore
         var effectivePromptCacheChangedFields = promptCacheChangedFields?.ToArray();
         if (string.IsNullOrWhiteSpace(effectivePromptCacheEventKind))
         {
-            var legacyChangedFields = new List<string>(capacity: 2);
+            var inferredChangedFields = new List<string>(capacity: 2);
             if (!string.IsNullOrWhiteSpace(systemPromptHash)
                 && !string.IsNullOrWhiteSpace(session.SystemPromptHash)
                 && !string.Equals(session.SystemPromptHash, systemPromptHash, StringComparison.Ordinal))
             {
-                legacyChangedFields.Add(PromptCacheChangedFields.Prompt);
+                inferredChangedFields.Add(PromptCacheChangedFields.Prompt);
             }
 
             if (!string.IsNullOrWhiteSpace(toolSchemaHash)
                 && !string.IsNullOrWhiteSpace(session.ToolSchemaHash)
                 && !string.Equals(session.ToolSchemaHash, toolSchemaHash, StringComparison.Ordinal))
             {
-                legacyChangedFields.Add(PromptCacheChangedFields.Tools);
+                inferredChangedFields.Add(PromptCacheChangedFields.Tools);
             }
 
-            if (legacyChangedFields.Count > 0)
+            if (inferredChangedFields.Count > 0)
             {
                 effectivePromptCacheEventKind = PromptCacheEventKinds.Drift;
-                effectivePromptCacheChangedFields = legacyChangedFields.ToArray();
+                effectivePromptCacheChangedFields = inferredChangedFields.ToArray();
             }
         }
 
@@ -293,12 +295,6 @@ public sealed class TraceStore
                 deleteSession.Parameters.AddWithValue("$session_key", sessionKey);
                 persistedRemoved |= deleteSession.ExecuteNonQuery() > 0;
             }
-            else if (_storagePath != null)
-            {
-                persistedRemoved = File.Exists(Path.Combine(_storagePath, $"{SanitizeFileName(sessionKey)}.jsonl"));
-                DeleteSessionFile(sessionKey);
-            }
-
             if (!removed && !persistedRemoved)
                 return false;
 
@@ -324,11 +320,6 @@ public sealed class TraceStore
                 deleteSessions.CommandText = "DELETE FROM trace_sessions";
                 deleteSessions.ExecuteNonQuery();
             }
-            else if (_storagePath != null)
-            {
-                DeleteAllSessionFiles();
-            }
-
             _bindingStore?.DeleteAllBindings();
         }
     }
@@ -660,43 +651,6 @@ public sealed class TraceStore
         return new RankedUsage(top.Key, top.Count, list.Count);
     }
 
-    public void LoadFromDisk()
-    {
-        if (_stateRuntime != null)
-        {
-            // State-backed stores keep historical events in SQLite and read them on demand.
-            // Startup only needs the table schema opened by StateRuntime; materializing every
-            // event_json row here inflates appserver memory for large workspaces.
-            return;
-        }
-
-        if (_storagePath == null || !Directory.Exists(_storagePath))
-            return;
-
-        foreach (var file in Directory.GetFiles(_storagePath, "*.jsonl"))
-        {
-            if (string.Equals(Path.GetFileName(file), "token_usage.jsonl", StringComparison.OrdinalIgnoreCase))
-                continue;
-
-            try
-            {
-                foreach (var line in File.ReadLines(file))
-                {
-                    if (string.IsNullOrWhiteSpace(line))
-                        continue;
-
-                    var evt = JsonSerializer.Deserialize<TraceEvent>(line, PersistJsonOptions);
-                    if (evt != null && !string.IsNullOrEmpty(evt.SessionKey))
-                        ApplyEvent(evt, writeToSse: false);
-                }
-            }
-            catch
-            {
-                // Skip corrupted files
-            }
-        }
-    }
-
     private void ApplyEvent(TraceEvent evt, bool writeToSse)
     {
         var session = GetOrAddSessionForEvent(evt);
@@ -837,27 +791,7 @@ public sealed class TraceStore
 
     private void PersistEventCore(TraceEvent evt)
     {
-        if (_stateRuntime != null)
-        {
-            PersistEventToDb(evt);
-            return;
-        }
-
-        try
-        {
-            Directory.CreateDirectory(_storagePath!);
-            var safeKey = SanitizeFileName(evt.SessionKey);
-            var filePath = Path.Combine(_storagePath!, $"{safeKey}.jsonl");
-            var json = JsonSerializer.Serialize(evt, PersistJsonOptions);
-            lock (_diskMutationLock)
-            {
-                File.AppendAllText(filePath, json + "\n");
-            }
-        }
-        catch
-        {
-            // Best-effort persistence.
-        }
+        PersistEventToDb(evt);
     }
 
     private void PersistEventToDb(TraceEvent evt)
@@ -1133,11 +1067,10 @@ public sealed class TraceStore
         WaitForPendingPersistence();
 
         using var connection = _stateRuntime!.OpenConnection();
-        var selectList = BuildTraceSessionSummarySelectList(connection);
         using var command = connection.CreateCommand();
         command.CommandText = $"""
             SELECT
-            {selectList}
+            {TraceSessionSummarySelectList}
             FROM trace_sessions
             ORDER BY last_activity_at DESC, session_key DESC
             """;
@@ -1162,11 +1095,10 @@ public sealed class TraceStore
     private TraceSession? LoadSessionSummaryFromDb(string sessionKey)
     {
         using var connection = _stateRuntime!.OpenConnection();
-        var selectList = BuildTraceSessionSummarySelectList(connection);
         using var command = connection.CreateCommand();
         command.CommandText = $"""
             SELECT
-            {selectList}
+            {TraceSessionSummarySelectList}
             FROM trace_sessions
             WHERE session_key = $session_key
             """;
@@ -1222,26 +1154,25 @@ public sealed class TraceStore
         WaitForPendingPersistence();
 
         using var connection = _stateRuntime!.OpenConnection();
-        var columns = GetTableColumns(connection, "trace_sessions");
         using var command = connection.CreateCommand();
-        command.CommandText = $"""
+        command.CommandText = """
             SELECT
                 COUNT(*),
-                {SumTraceSessionColumnOrZero(columns, "request_count")},
-                {SumTraceSessionColumnOrZero(columns, "maintenance_fork_request_count")},
-                {SumTraceSessionColumnOrZero(columns, "response_count")},
-                {SumTraceSessionColumnOrZero(columns, "maintenance_fork_response_count")},
-                {SumTraceSessionColumnOrZero(columns, "tool_call_count")},
-                {SumTraceSessionColumnOrZero(columns, "error_count")},
-                {SumTraceSessionColumnOrZero(columns, "context_compaction_count")},
-                {SumTraceSessionColumnOrZero(columns, "total_tool_duration_ms")},
-                {MaxTraceSessionColumnOrZero(columns, "max_tool_duration_ms")},
-                {MaxTraceSessionColumnOrZero(columns, "max_turn_duration_ms")},
-                {SumTraceSessionColumnOrZero(columns, "total_input_tokens")},
-                {SumTraceSessionColumnOrZero(columns, "total_output_tokens")},
-                {SumTraceSessionColumnOrZero(columns, "total_cached_input_tokens")},
-                {SumTraceSessionColumnOrZero(columns, "total_cache_write_input_tokens")},
-                {SumTraceSessionColumnOrZero(columns, "total_reasoning_output_tokens")}
+                COALESCE(SUM(request_count), 0),
+                COALESCE(SUM(maintenance_fork_request_count), 0),
+                COALESCE(SUM(response_count), 0),
+                COALESCE(SUM(maintenance_fork_response_count), 0),
+                COALESCE(SUM(tool_call_count), 0),
+                COALESCE(SUM(error_count), 0),
+                COALESCE(SUM(context_compaction_count), 0),
+                COALESCE(SUM(total_tool_duration_ms), 0),
+                COALESCE(MAX(max_tool_duration_ms), 0),
+                COALESCE(MAX(max_turn_duration_ms), 0),
+                COALESCE(SUM(total_input_tokens), 0),
+                COALESCE(SUM(total_output_tokens), 0),
+                COALESCE(SUM(total_cached_input_tokens), 0),
+                COALESCE(SUM(total_cache_write_input_tokens), 0),
+                COALESCE(SUM(total_reasoning_output_tokens), 0)
             FROM trace_sessions
             """;
 
@@ -1323,10 +1254,6 @@ public sealed class TraceStore
         WaitForPendingPersistence();
 
         using var connection = _stateRuntime!.OpenConnection();
-        var columns = GetTableColumns(connection, "trace_sessions");
-        if (!columns.Contains("max_turn_duration_ms"))
-            return 0;
-
         using var command = connection.CreateCommand();
         command.CommandText = "SELECT COALESCE(MAX(max_turn_duration_ms), 0) FROM trace_sessions";
         return Convert.ToInt64(command.ExecuteScalar(), CultureInfo.InvariantCulture);
@@ -1420,34 +1347,6 @@ public sealed class TraceStore
         return session;
     }
 
-    private static string BuildTraceSessionSummarySelectList(DbConnection connection)
-    {
-        var availableColumns = GetTableColumns(connection, "trace_sessions");
-        return string.Join(
-            ",\n",
-            TraceSessionSummaryColumns.Select(column =>
-                availableColumns.Contains(column.Name)
-                    ? "                " + column.Name
-                    : $"                {column.FallbackExpression} AS {column.Name}"));
-    }
-
-    private static HashSet<string> GetTableColumns(DbConnection connection, string tableName)
-    {
-        var columns = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        using var command = connection.CreateCommand();
-        command.CommandText = $"PRAGMA table_info({tableName})";
-        using var reader = command.ExecuteReader();
-        while (reader.Read())
-            columns.Add(reader.GetString(1));
-        return columns;
-    }
-
-    private static string SumTraceSessionColumnOrZero(IReadOnlySet<string> availableColumns, string columnName)
-        => availableColumns.Contains(columnName) ? $"COALESCE(SUM({columnName}), 0)" : "0";
-
-    private static string MaxTraceSessionColumnOrZero(IReadOnlySet<string> availableColumns, string columnName)
-        => availableColumns.Contains(columnName) ? $"COALESCE(MAX({columnName}), 0)" : "0";
-
     private static string[] ReadStringArray(DbDataReader reader, int ordinal)
     {
         if (reader.IsDBNull(ordinal))
@@ -1503,26 +1402,6 @@ public sealed class TraceStore
             out var parsed)
             ? parsed
             : null;
-    }
-
-    private void DeleteSessionFile(string sessionKey)
-    {
-        var filePath = Path.Combine(_storagePath!, $"{SanitizeFileName(sessionKey)}.jsonl");
-        if (File.Exists(filePath))
-            File.Delete(filePath);
-    }
-
-    private void DeleteAllSessionFiles()
-    {
-        if (_storagePath == null || !Directory.Exists(_storagePath))
-            return;
-
-        foreach (var file in Directory.GetFiles(_storagePath, "*.jsonl"))
-        {
-            if (string.Equals(Path.GetFileName(file), "token_usage.jsonl", StringComparison.OrdinalIgnoreCase))
-                continue;
-            File.Delete(file);
-        }
     }
 
     private static TraceSession CloneSessionWithStartedAt(TraceSession session, DateTimeOffset startedAt)
@@ -1804,12 +1683,7 @@ public sealed class TraceStore
         }
     }
 
-    private static string SanitizeFileName(string value)
-        => string.Concat(value.Split(Path.GetInvalidFileNameChars()));
-
     private sealed record TraceEventDbRow(long RowId, string Timestamp, string EventJson);
-
-    private sealed record TraceSessionSummaryColumn(string Name, string FallbackExpression);
 }
 
 public sealed record TraceEventPage(

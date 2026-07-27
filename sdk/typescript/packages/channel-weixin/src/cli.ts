@@ -1,28 +1,15 @@
 #!/usr/bin/env node
 
-import { existsSync, readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 
 import { type WorkspaceContext } from "@dotcraft/sdk/channel";
 
-import { waitForQrLogin, DEFAULT_BOT_TYPE } from "./auth.js";
-import { runMonitorLoop } from "./monitor.js";
-import { WeixinState } from "./state.js";
-import type { WeixinConfig } from "./weixin-config.js";
 import { manifest } from "./manifest.js";
 import { createModule } from "./module.js";
-import { WeixinAdapter, validateWeixinConfig } from "./weixin-adapter.js";
 
 type ParsedArgs = {
   workspacePath?: string;
   configPath?: string;
-  legacyConfigPath?: string;
-};
-
-type LegacyWeixinConfig = WeixinConfig & {
-  weixin: WeixinConfig["weixin"] & {
-    dataDir?: string;
-  };
 };
 
 function parseArgs(argv: string[]): ParsedArgs {
@@ -39,20 +26,8 @@ function parseArgs(argv: string[]): ParsedArgs {
       i += 1;
       continue;
     }
-    if (!token?.startsWith("-") && !parsed.legacyConfigPath) {
-      parsed.legacyConfigPath = token;
-    }
   }
   return parsed;
-}
-
-function loadLegacyConfig(configPath: string): LegacyWeixinConfig {
-  if (!existsSync(configPath)) {
-    throw new Error(`Config not found: ${configPath}`);
-  }
-  const raw = JSON.parse(readFileSync(configPath, "utf-8")) as unknown;
-  validateWeixinConfig(raw);
-  return raw as LegacyWeixinConfig;
 }
 
 function printLifecycleError(status: "configMissing" | "configInvalid", detail?: string): void {
@@ -95,7 +70,11 @@ async function renderQrInTerminal(url: string): Promise<void> {
 }
 
 async function runWorkspaceMode(args: ParsedArgs): Promise<void> {
-  const workspaceRoot = resolve(args.workspacePath ?? process.cwd());
+  if (!args.workspacePath) {
+    throw new Error("Missing value for --workspace.");
+  }
+
+  const workspaceRoot = resolve(args.workspacePath);
   const context: WorkspaceContext = {
     workspaceRoot,
     craftPath: join(workspaceRoot, ".craft"),
@@ -140,75 +119,10 @@ async function runWorkspaceMode(args: ParsedArgs): Promise<void> {
   await instance.stop();
 }
 
-async function runLegacyMode(args: ParsedArgs): Promise<void> {
-  const configPath =
-    args.legacyConfigPath || process.env.DOTCRAFT_WEIXIN_CONFIG || join(process.cwd(), "adapter_config.json");
-  console.error("[DEPRECATED] Legacy mode is deprecated. Use --workspace <path> [--config <path>] instead.");
-
-  const config = loadLegacyConfig(configPath);
-  const rawDataDir = config.weixin.dataDir ?? "./data";
-  const dataDir = rawDataDir.startsWith(".") ? resolve(rawDataDir) : rawDataDir;
-  const state = new WeixinState(dataDir);
-
-  let creds = state.loadCredentials();
-  if (!creds?.botToken || !creds.ilinkBotId) {
-    logInfo("Starting Weixin QR login...");
-    creds = await waitForQrLogin({
-      apiBaseUrl: config.weixin.apiBaseUrl,
-      botType: config.weixin.botType ?? DEFAULT_BOT_TYPE,
-      onQrUrl: (url) => {
-        void renderQrInTerminal(url);
-      },
-      deadlineMs: 480_000,
-    });
-    state.saveCredentials(creds);
-  }
-
-  const adapter = new WeixinAdapter({
-    wsUrl: config.dotcraft.wsUrl,
-    dotcraftToken: config.dotcraft.token,
-    apiBaseUrl: config.weixin.apiBaseUrl,
-    approvalTimeoutMs: config.weixin.approvalTimeoutMs ?? 120_000,
-    state,
-    credentials: creds,
-  });
-
-  await adapter.start();
-  logInfo("Connected to DotCraft; starting Weixin monitor...");
-
-  const ac = new AbortController();
-  process.on("SIGINT", () => ac.abort());
-  process.on("SIGTERM", () => ac.abort());
-
-  await runMonitorLoop({
-    baseUrl: creds.baseUrl || config.weixin.apiBaseUrl,
-    token: creds.botToken,
-    getInitialBuf: () => state.loadSyncBuf(),
-    saveBuf: (buf) => state.saveSyncBuf(buf),
-    longPollMs: config.weixin.pollTimeoutMs,
-    abortSignal: ac.signal,
-    callbacks: {
-      onMessage: async (msg) => {
-        await adapter.handleInboundUserMessage(msg);
-      },
-      onSessionExpired: async () => {
-        logInfo("Session expired — run again to scan QR.");
-      },
-    },
-  });
-
-  await adapter.stop();
-}
-
 export async function runFromCommandLine(): Promise<void> {
   const args = parseArgs(process.argv.slice(2));
-  const useWorkspaceMode = Boolean(args.workspacePath || args.configPath);
   try {
-    if (useWorkspaceMode) {
-      await runWorkspaceMode(args);
-    } else {
-      await runLegacyMode(args);
-    }
+    await runWorkspaceMode(args);
   } catch (error) {
     console.error("[weixin] startup failed:", error);
     process.exit(1);

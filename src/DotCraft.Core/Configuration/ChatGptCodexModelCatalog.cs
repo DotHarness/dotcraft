@@ -74,10 +74,6 @@ internal static class ChatGptCodexModelCatalog
         return Success(BuiltInModels.Value);
     }
 
-    internal static IReadOnlyList<string> BuiltInPickerModelIds() => ToPickerEntries(BuiltInModels.Value)
-        .Select(model => model.Id)
-        .ToArray();
-
     private static OpenAIModelCatalogResult Success(IReadOnlyList<CodexModelInfo> models) => new()
     {
         Success = true,

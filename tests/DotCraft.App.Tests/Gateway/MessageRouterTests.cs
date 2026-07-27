@@ -1,4 +1,4 @@
-using DotCraft.Abstractions;
+using DotCraft.Channels;
 using DotCraft.Cron;
 using DotCraft.Gateway;
 using DotCraft.Heartbeat;

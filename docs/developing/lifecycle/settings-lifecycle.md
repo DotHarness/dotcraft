@@ -32,7 +32,7 @@ Notes:
 
 - The Desktop model page manages the provider registry; credentials and endpoints belong only to `Providers[id]`.
 - Changing workspace `ProviderId` or `ProviderPreferences` updates new-thread defaults; existing threads keep their captured model/reasoning/speed/context snapshot unless their own composer atomically changes it.
-- Workspaces save only the current `ProviderId` and provider-specific preference overrides, not root-level `ApiKey` / `EndPoint`.
+- Workspace files save `ProviderId` and provider-specific preference overrides; provider credentials remain in the personal `Providers[id]` registry.
 - A Remote AppServer is owned by the user or remote environment. Desktop tests and switches the connection, but does not restart remote processes.
 - If Desktop was launched with `--remote`, the current session is controlled by that launch argument and persistent connection switching is unavailable in Settings.
 

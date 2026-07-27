@@ -39,6 +39,26 @@ class MockFeishuClient {
   }
 }
 
+function createTestAdapter(mockFeishu: MockFeishuClient): {
+  adapter: FeishuAdapter;
+  client: {
+    turnStart: () => Promise<Turn>;
+    streamEvents: () => AsyncIterableIterator<{ method: string; params: Record<string, unknown> }>;
+  };
+} {
+  const adapter = new FeishuAdapter();
+  const client = {} as {
+    turnStart: () => Promise<Turn>;
+    streamEvents: () => AsyncIterableIterator<{ method: string; params: Record<string, unknown> }>;
+  };
+  Object.assign(adapter as unknown as Record<string, unknown>, {
+    client,
+    feishu: mockFeishu as unknown as FeishuClient,
+    approvalTimeoutMs: 2000,
+  });
+  return { adapter, client };
+}
+
 function asEventStream(events: WireEventFixture[]): AsyncIterableIterator<{ method: string; params: Record<string, unknown> }> {
   return (async function* () {
     for (const event of events) yield event;
@@ -85,12 +105,7 @@ function latestCardByTitle(mock: MockFeishuClient, title: string): Record<string
 
 test("Feishu adapter keeps one evolving transcript card across a multi-segment flow", async () => {
   const mockFeishu = new MockFeishuClient();
-  const adapter = new FeishuAdapter({
-    wsUrl: "ws://localhost:9100/ws",
-    approvalTimeoutMs: 2000,
-    feishu: mockFeishu as unknown as FeishuClient,
-  });
-  const client = (adapter as unknown as { client: Record<string, unknown> }).client;
+  const { adapter, client } = createTestAdapter(mockFeishu);
   (adapter as unknown as { getOrCreateThread: (...args: unknown[]) => Promise<Thread> }).getOrCreateThread = async () =>
     new Thread(twoApprovalFileSendFixture.threadId, "active");
   client.turnStart = async () => new Turn(twoApprovalFileSendFixture.turnId, twoApprovalFileSendFixture.threadId, "running");
@@ -110,11 +125,7 @@ test("Feishu adapter keeps one evolving transcript card across a multi-segment f
 
 test("Feishu adapter keeps approval card separate from transcript content", async () => {
   const mockFeishu = new MockFeishuClient();
-  const adapter = new FeishuAdapter({
-    wsUrl: "ws://localhost:9100/ws",
-    approvalTimeoutMs: 2000,
-    feishu: mockFeishu as unknown as FeishuClient,
-  });
+  const { adapter } = createTestAdapter(mockFeishu);
 
   await (adapter as unknown as {
     onSegmentCompleted: (
@@ -149,11 +160,7 @@ test("Feishu adapter keeps approval card separate from transcript content", asyn
 
 test("Feishu adapter sends file caption in a separate card and keeps transcript clean", async () => {
   const mockFeishu = new MockFeishuClient();
-  const adapter = new FeishuAdapter({
-    wsUrl: "ws://localhost:9100/ws",
-    approvalTimeoutMs: 2000,
-    feishu: mockFeishu as unknown as FeishuClient,
-  });
+  const { adapter } = createTestAdapter(mockFeishu);
 
   await (adapter as unknown as {
     onSegmentCompleted: (

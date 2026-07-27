@@ -29,9 +29,6 @@ export interface FeishuConfig {
   };
 }
 
-/** @deprecated Use FeishuConfig instead. */
-export type AppConfig = FeishuConfig;
-
 export interface FeishuSenderId {
   open_id?: string;
   user_id?: string;

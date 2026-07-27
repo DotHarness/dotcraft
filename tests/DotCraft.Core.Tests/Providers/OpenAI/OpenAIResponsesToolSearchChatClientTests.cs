@@ -522,7 +522,7 @@ public sealed class OpenAIResponsesToolSearchChatClientTests
                 new ChatMessage(ChatRole.Assistant, [
                     new HostedImageGenerationContent
                     {
-                        Id = "legacyid",
+                        Id = "invalidid",
                         Status = "completed",
                         ImageBytes = CreateImageBytes("image/png")
                     }
@@ -533,7 +533,7 @@ public sealed class OpenAIResponsesToolSearchChatClientTests
 
         var item = Assert.Single(document.RootElement.GetProperty("input").EnumerateArray());
         Assert.StartsWith("ig_", item.GetProperty("id").GetString(), StringComparison.Ordinal);
-        Assert.NotEqual("legacyid", item.GetProperty("id").GetString());
+        Assert.NotEqual("invalidid", item.GetProperty("id").GetString());
         Assert.Equal(1, request.Shape.InputItemIdInvalidSourceCount);
         Assert.Equal(1, request.Shape.InputItemIdGeneratedCount);
         Assert.Equal(0, request.Shape.InputItemIdMissingCount);
@@ -578,9 +578,9 @@ public sealed class OpenAIResponsesToolSearchChatClientTests
             ])
         };
         var codec = new ModelHistoryCodec();
-        var legacyHistory = messages.Select(message => codec.Encode(message, "turn_001")).ToArray();
-        var firstReplay = legacyHistory.Select(codec.Decode).ToArray();
-        var secondReplay = legacyHistory.Select(codec.Decode).ToArray();
+        var persistedHistory = messages.Select(message => codec.Encode(message, "turn_001")).ToArray();
+        var firstReplay = persistedHistory.Select(codec.Decode).ToArray();
+        var secondReplay = persistedHistory.Select(codec.Decode).ToArray();
 
         using var first = JsonDocument.Parse(CreateRequestJson("gpt-test", firstReplay, new ChatOptions()));
         using var second = JsonDocument.Parse(CreateRequestJson("gpt-test", secondReplay, new ChatOptions()));

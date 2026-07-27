@@ -106,27 +106,10 @@ internal sealed class WorkspaceRequestHandler(
             throw AppServerErrors.InvalidParams(requiredFieldMessage);
 
         var hasProviderId = TryGetCaseInsensitiveProperty(msg.Params.Value, "providerId", out var providerIdEl);
-        var hasModel = TryGetCaseInsensitiveProperty(msg.Params.Value, "model", out _);
         var hasProviderPreferences = TryGetCaseInsensitiveProperty(
             msg.Params.Value,
             "providerPreferences",
             out var providerPreferencesEl);
-        var hasApiKey = TryGetCaseInsensitiveProperty(msg.Params.Value, "apiKey", out var apiKeyEl);
-        var hasEndPoint = TryGetCaseInsensitiveProperty(msg.Params.Value, "endPoint", out var endPointEl);
-        if (hasApiKey || hasEndPoint)
-            throw AppServerErrors.InvalidParams(
-                "'apiKey' and 'endPoint' are no longer accepted by workspace/config/update. Use provider/create or provider/update.");
-        if (hasModel)
-            throw AppServerErrors.InvalidParams(
-                "'model' is no longer accepted by workspace/config/update. Set the selected provider's entry in 'providerPreferences'.");
-        if (TryGetCaseInsensitiveProperty(msg.Params.Value, "providerModels", out _)
-            || TryGetCaseInsensitiveProperty(msg.Params.Value, "reasoning", out _)
-            || TryGetCaseInsensitiveProperty(msg.Params.Value, "speed", out _)
-            || TryGetCaseInsensitiveProperty(msg.Params.Value, "contextWindow", out _))
-        {
-            throw AppServerErrors.InvalidParams(
-                "Legacy model option fields are not accepted. Use 'providerPreferences'.");
-        }
         var hasWelcomeSuggestionsEnabled = TryGetCaseInsensitiveProperty(
             msg.Params.Value,
             "welcomeSuggestionsEnabled",
@@ -230,8 +213,6 @@ internal sealed class WorkspaceRequestHandler(
             dreamsAutoApply,
             hasDefaultApprovalPolicy ? NormalizeDefaultApprovalPolicy(defaultApprovalPolicy) : null,
             toolsLspEnabled,
-            reasoning: null,
-            contextWindow: null,
             hasProviderId,
             hasProviderPreferences,
             hasWelcomeSuggestionsEnabled,
@@ -242,9 +223,7 @@ internal sealed class WorkspaceRequestHandler(
             hasDreamsThreadLookbackCount,
             hasDreamsAutoApply,
             hasDefaultApprovalPolicy,
-            hasToolsLspEnabled,
-            updateReasoning: false,
-            updateContextWindow: false);
+            hasToolsLspEnabled);
 
         var changedRegions = new List<string>();
         if (saveResult.ProviderIdChanged)
@@ -466,9 +445,6 @@ internal sealed class WorkspaceRequestHandler(
         JsonObject root,
         IReadOnlyDictionary<string, ModelPreference> providerPreferences)
     {
-        var legacyKey = FindCaseInsensitiveKey(root, "ProviderModels");
-        if (legacyKey != null)
-            root.Remove(legacyKey);
         var existingKey = FindCaseInsensitiveKey(root, "ProviderPreferences");
         if (providerPreferences.Count == 0)
         {
@@ -530,8 +506,6 @@ internal sealed class WorkspaceRequestHandler(
         bool? dreamsAutoApply,
         string? defaultApprovalPolicy,
         bool? toolsLspEnabled,
-        AppConfig.ReasoningConfig? reasoning,
-        ThreadContextWindowConfig? contextWindow,
         bool updateProviderId,
         bool updateProviderPreferences,
         bool updateWelcomeSuggestionsEnabled,
@@ -542,17 +516,11 @@ internal sealed class WorkspaceRequestHandler(
         bool updateDreamsThreadLookbackCount,
         bool updateDreamsAutoApply,
         bool updateDefaultApprovalPolicy,
-        bool updateToolsLspEnabled,
-        bool updateReasoning,
-        bool updateContextWindow)
+        bool updateToolsLspEnabled)
     {
         var configPath = Path.Combine(workspaceCraftPath, "config.json");
         Directory.CreateDirectory(workspaceCraftPath);
         var root = LoadWorkspaceConfigObject(configPath);
-        var legacyLanguageKey = FindCaseInsensitiveKey(root, "Language");
-        var legacyLanguageRemoved = legacyLanguageKey != null && root.Remove(legacyLanguageKey);
-        var legacyModelKey = FindCaseInsensitiveKey(root, "Model");
-        var legacyModelRemoved = legacyModelKey != null && root.Remove(legacyModelKey);
 
         var providerIdKey = FindCaseInsensitiveKey(root, "ProviderId");
         var welcomeSection = GetOrCreateConfigSection(root, "WelcomeSuggestions", createIfMissing: updateWelcomeSuggestionsEnabled);
@@ -579,10 +547,6 @@ internal sealed class WorkspaceRequestHandler(
             ? null
             : GetOrCreateConfigSection(toolsSection, "Lsp", createIfMissing: updateToolsLspEnabled);
         var toolsLspEnabledKey = lspSection == null ? null : FindCaseInsensitiveKey(lspSection, "Enabled");
-        var reasoningSection = GetOrCreateConfigSection(root, "Reasoning", createIfMissing: updateReasoning && reasoning != null);
-        var compactionSection = GetOrCreateConfigSection(root, "Compaction", createIfMissing: updateContextWindow && contextWindow != null);
-        var contextWindowModeKey = compactionSection == null ? null : FindCaseInsensitiveKey(compactionSection, "ContextWindowMode");
-
         var existingProviderId = NormalizeOptionalString(ReadConfigStringValue(root, providerIdKey));
         var existingProviderPreferences = ReadConfigProviderPreferences(root);
         var existingWelcomeSuggestionsEnabled = ReadConfigBooleanValue(welcomeSection, welcomeEnabledKey);
@@ -594,9 +558,6 @@ internal sealed class WorkspaceRequestHandler(
         var existingDreamsAutoApply = ReadConfigBooleanValue(dreamsSection, dreamsAutoApplyKey);
         var existingDefaultApprovalPolicy = NormalizeDefaultApprovalPolicy(ReadConfigStringValue(permissionsSection, defaultApprovalPolicyKey));
         var existingToolsLspEnabled = ReadConfigBooleanValue(lspSection, toolsLspEnabledKey);
-        var existingReasoning = ReadConfigReasoningValue(reasoningSection);
-        var existingContextWindow = ReadConfigContextWindowValue(compactionSection, contextWindowModeKey);
-
         var providerIdChanged = updateProviderId && !string.Equals(existingProviderId, providerId, StringComparison.Ordinal);
         var normalizedProviderPreferences = updateProviderPreferences
             ? NormalizeProviderPreferences(providerPreferences)
@@ -621,29 +582,10 @@ internal sealed class WorkspaceRequestHandler(
             && !string.Equals(existingDefaultApprovalPolicy, defaultApprovalPolicy, StringComparison.Ordinal);
         var toolsLspEnabledChanged = updateToolsLspEnabled
             && existingToolsLspEnabled != toolsLspEnabled;
-        var reasoningChanged = updateReasoning
-            && !ReasoningConfigEquals(existingReasoning, reasoning);
-        var contextWindowChanged = updateContextWindow
-            && !ContextWindowConfigEquals(existingContextWindow, contextWindow);
-
         if (updateProviderId)
             UpsertOrRemoveConfigValue(root, providerIdKey, "ProviderId", providerId);
         if (updateProviderPreferences)
-        {
             WriteProviderPreferences(root, normalizedProviderPreferences);
-            RemoveConfigSection(root, "Reasoning");
-            var speedKey = FindCaseInsensitiveKey(root, "Speed");
-            if (speedKey != null)
-                root.Remove(speedKey);
-            var compaction = GetOrCreateConfigSection(root, "Compaction", createIfMissing: false);
-            if (compaction != null)
-            {
-                var contextWindowMode = FindCaseInsensitiveKey(compaction, "ContextWindowMode");
-                if (contextWindowMode != null)
-                    compaction.Remove(contextWindowMode);
-                RemoveConfigSectionIfEmpty(root, "Compaction");
-            }
-        }
         if (updateWelcomeSuggestionsEnabled)
         {
             var section = GetOrCreateConfigSection(root, "WelcomeSuggestions", createIfMissing: true)!;
@@ -708,43 +650,6 @@ internal sealed class WorkspaceRequestHandler(
             RemoveConfigSectionIfEmpty(tools, "Lsp");
             RemoveConfigSectionIfEmpty(root, "Tools");
         }
-        if (updateReasoning)
-        {
-            if (reasoning == null)
-            {
-                RemoveConfigSection(root, "Reasoning");
-            }
-            else
-            {
-                var section = GetOrCreateConfigSection(root, "Reasoning", createIfMissing: true)!;
-                UpsertOrRemoveConfigValue(section, FindCaseInsensitiveKey(section, "Enabled"), "Enabled", reasoning.Enabled);
-                UpsertOrRemoveConfigValue(section, FindCaseInsensitiveKey(section, "Effort"), "Effort", reasoning.Effort.ToString());
-                UpsertOrRemoveConfigValue(section, FindCaseInsensitiveKey(section, "Output"), "Output", reasoning.Output.ToString());
-            }
-        }
-        if (updateContextWindow)
-        {
-            if (contextWindow == null)
-            {
-                var section = GetOrCreateConfigSection(root, "Compaction", createIfMissing: false);
-                if (section != null)
-                {
-                    var existingKey = FindCaseInsensitiveKey(section, "ContextWindowMode");
-                    UpsertOrRemoveConfigValue(section, existingKey, "ContextWindowMode", (string?)null);
-                    RemoveConfigSectionIfEmpty(root, "Compaction");
-                }
-            }
-            else
-            {
-                var section = GetOrCreateConfigSection(root, "Compaction", createIfMissing: true)!;
-                UpsertOrRemoveConfigValue(
-                    section,
-                    FindCaseInsensitiveKey(section, "ContextWindowMode"),
-                    "ContextWindowMode",
-                    contextWindow.Mode.ToString());
-            }
-        }
-
         if (providerIdChanged
             || providerPreferencesChanged
             || welcomeSuggestionsChanged
@@ -755,11 +660,7 @@ internal sealed class WorkspaceRequestHandler(
             || dreamsThreadLookbackCountChanged
             || dreamsAutoApplyChanged
             || defaultApprovalPolicyChanged
-            || toolsLspEnabledChanged
-            || reasoningChanged
-            || contextWindowChanged
-            || legacyLanguageRemoved
-            || legacyModelRemoved)
+            || toolsLspEnabledChanged)
         {
             WriteConfigObject(configPath, root);
         }
@@ -800,12 +701,6 @@ internal sealed class WorkspaceRequestHandler(
             ToolsLspEnabled = updateToolsLspEnabled
                 ? toolsLspEnabled
                 : existingToolsLspEnabled,
-            Reasoning = updateReasoning
-                ? CloneNullableReasoningConfig(reasoning)
-                : CloneNullableReasoningConfig(existingReasoning),
-            ContextWindow = updateContextWindow
-                ? CloneNullableContextWindowConfig(contextWindow)
-                : CloneNullableContextWindowConfig(existingContextWindow),
             ProviderIdChanged = providerIdChanged,
             ProviderPreferencesChanged = providerPreferencesChanged,
             WelcomeSuggestionsChanged = welcomeSuggestionsChanged,
@@ -813,9 +708,7 @@ internal sealed class WorkspaceRequestHandler(
             MemoryAutoConsolidateChanged = memoryAutoConsolidateChanged,
             DreamsChanged = dreamsEnabledChanged || dreamsIntervalChanged || dreamsThreadLookbackCountChanged || dreamsAutoApplyChanged,
             DefaultApprovalPolicyChanged = defaultApprovalPolicyChanged,
-            ToolsLspEnabledChanged = toolsLspEnabledChanged,
-            ReasoningChanged = reasoningChanged,
-            ContextWindowChanged = contextWindowChanged
+            ToolsLspEnabledChanged = toolsLspEnabledChanged
         };
     }
 
@@ -923,75 +816,6 @@ internal sealed class WorkspaceRequestHandler(
         if (node is not JsonValue value)
             return null;
         return value.TryGetValue<bool>(out var result) ? result : null;
-    }
-
-    private static AppConfig.ReasoningConfig? ReadConfigReasoningValue(JsonObject? root)
-    {
-        if (root == null)
-            return null;
-
-        var enabled = ReadConfigBooleanValue(root, FindCaseInsensitiveKey(root, "Enabled"));
-        var effortRaw = ReadConfigStringValue(root, FindCaseInsensitiveKey(root, "Effort"));
-        var outputRaw = ReadConfigStringValue(root, FindCaseInsensitiveKey(root, "Output"));
-        var hasEffort = ModelThinkingAdapterCatalog.TryParseReasoningEffort(effortRaw, out var effort);
-        var hasOutput = ModelThinkingAdapterCatalog.TryParseReasoningOutput(outputRaw, out var output);
-        if (!enabled.HasValue && !hasEffort && !hasOutput)
-            return null;
-
-        return new AppConfig.ReasoningConfig
-        {
-            Enabled = enabled ?? false,
-            Effort = hasEffort ? effort : ReasoningEffort.Medium,
-            Output = hasOutput ? output : ReasoningOutput.Full
-        };
-    }
-
-    private static ThreadContextWindowConfig? ReadConfigContextWindowValue(JsonObject? root, string? key)
-    {
-        var raw = ReadConfigStringValue(root, key);
-        if (!ContextWindowModeJsonConverter.TryParse(raw, out var mode) || mode == ContextWindowMode.Default)
-            return null;
-
-        return new ThreadContextWindowConfig
-        {
-            Mode = mode
-        };
-    }
-
-    private static AppConfig.ReasoningConfig CloneReasoningConfig(AppConfig.ReasoningConfig source) => new()
-    {
-        Enabled = source.Enabled,
-        Effort = source.Effort,
-        Output = source.Output
-    };
-
-    private static AppConfig.ReasoningConfig? CloneNullableReasoningConfig(AppConfig.ReasoningConfig? source) =>
-        source == null ? null : CloneReasoningConfig(source);
-
-    private static ThreadContextWindowConfig? CloneNullableContextWindowConfig(ThreadContextWindowConfig? source) =>
-        source == null
-            ? null
-            : new ThreadContextWindowConfig
-            {
-                Mode = source.Mode
-            };
-
-    private static bool ReasoningConfigEquals(AppConfig.ReasoningConfig? left, AppConfig.ReasoningConfig? right)
-    {
-        if (left == null || right == null)
-            return left == null && right == null;
-
-        return left.Enabled == right.Enabled
-               && left.Effort == right.Effort
-               && left.Output == right.Output;
-    }
-
-    private static bool ContextWindowConfigEquals(ThreadContextWindowConfig? left, ThreadContextWindowConfig? right)
-    {
-        if (left == null || right == null)
-            return left == null && right == null;
-
-        return left.Mode == right.Mode;
     }
 
     private static int? ReadConfigIntegerValue(JsonObject? root, string? key)
@@ -1131,10 +955,6 @@ internal sealed class WorkspaceRequestHandler(
 
         public bool? ToolsLspEnabled { get; init; }
 
-        public AppConfig.ReasoningConfig? Reasoning { get; init; }
-
-        public ThreadContextWindowConfig? ContextWindow { get; init; }
-
         public bool ProviderIdChanged { get; init; }
 
         public bool ProviderPreferencesChanged { get; init; }
@@ -1150,9 +970,5 @@ internal sealed class WorkspaceRequestHandler(
         public bool DefaultApprovalPolicyChanged { get; init; }
 
         public bool ToolsLspEnabledChanged { get; init; }
-
-        public bool ReasoningChanged { get; init; }
-
-        public bool ContextWindowChanged { get; init; }
     }
 }

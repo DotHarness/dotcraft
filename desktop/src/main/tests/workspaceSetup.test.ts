@@ -138,8 +138,7 @@ describe('getWorkspaceStatus', () => {
     const userHome = createTempWorkspace()
     const userConfigPath = join(userHome, '.craft', 'config.json')
     writeJson(join(workspace, '.craft', 'config.json'), {
-      ProviderId: 'missing',
-      Model: 'gpt-4.1'
+      ProviderId: 'missing'
     })
     writeJson(userConfigPath, {
       Providers: {
@@ -158,34 +157,7 @@ describe('getWorkspaceStatus', () => {
     })
   })
 
-  it('ignores obsolete root model values when no provider model is configured', () => {
-    const workspace = createTempWorkspace()
-    const userHome = createTempWorkspace()
-    const userConfigPath = join(userHome, '.craft', 'config.json')
-    writeJson(join(workspace, '.craft', 'config.json'), {
-      ProviderId: 'openai',
-      Model: ''
-    })
-    writeJson(userConfigPath, {
-      ProviderId: 'openai',
-      Model: 'gpt-4.1',
-      Providers: {
-        openai: {
-          DisplayName: 'OpenAI',
-          Protocol: 'openai-responses',
-          ApiKey: 'sk-test'
-        }
-      }
-    })
-
-    expect(getWorkspaceStatus(workspace, { userConfigPath })).toMatchObject({
-      status: 'needs-setup',
-      workspacePath: workspace,
-      hasUserConfig: true
-    })
-  })
-
-  it('returns explicit user providers without exposing legacy OpenAI fields', () => {
+  it('returns explicit user providers', () => {
     const workspace = createTempWorkspace()
     const userHome = createTempWorkspace()
     const userConfigPath = join(userHome, '.craft', 'config.json')
@@ -195,11 +167,9 @@ describe('getWorkspaceStatus', () => {
       JSON.stringify({
         ProviderId: 'anthropic',
         ProviderPreferences: { anthropic: preference('claude-sonnet-4-5') },
-        ApiKey: 'sk-legacy',
-        EndPoint: 'https://legacy.example/v1',
         Providers: {
           openai: {
-            DisplayName: 'Legacy OpenAI',
+            DisplayName: 'OpenAI',
             Protocol: 'openai',
             ApiKey: 'sk-hidden',
             EndPoint: 'https://hidden.example/v1'
@@ -242,7 +212,7 @@ describe('getWorkspaceStatus', () => {
         },
         {
           id: 'openai',
-          displayName: 'Legacy OpenAI',
+          displayName: 'OpenAI',
           protocol: 'openai-chat-completions',
           hasApiKey: true,
           endPoint: 'https://hidden.example/v1',

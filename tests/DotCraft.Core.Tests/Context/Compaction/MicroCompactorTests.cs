@@ -6,13 +6,11 @@ namespace DotCraft.Tests.Context.Compaction;
 public sealed class MicroCompactorTests
 {
     private static CompactionConfig Config(
-        int triggerCount = 5,
         int keepRecent = 2,
         int gapMinutes = 0,
         bool enabled = true) => new()
     {
         MicrocompactEnabled = enabled,
-        MicrocompactTriggerCount = triggerCount,
         MicrocompactKeepRecent = keepRecent,
         MicrocompactGapMinutes = gapMinutes,
     };
@@ -48,7 +46,7 @@ public sealed class MicroCompactorTests
     [Fact]
     public void Run_CountOnly_DoesNotTrigger()
     {
-        var cfg = Config(triggerCount: 3, keepRecent: 2, gapMinutes: 0);
+        var cfg = Config(keepRecent: 2, gapMinutes: 0);
         var micro = new MicroCompactor(cfg);
 
         var messages = new List<ChatMessage>();
@@ -68,7 +66,7 @@ public sealed class MicroCompactorTests
     [Fact]
     public void Run_NonCompactableToolNotCleared()
     {
-        var cfg = Config(triggerCount: 2, keepRecent: 1, gapMinutes: 5);
+        var cfg = Config(keepRecent: 1, gapMinutes: 5);
         var micro = new MicroCompactor(cfg);
 
         var messages = new List<ChatMessage>
@@ -98,7 +96,7 @@ public sealed class MicroCompactorTests
     [Fact]
     public void Run_TimeTrigger_FiresWhenIdleAndOverKeepRecent()
     {
-        var cfg = Config(triggerCount: 1000, keepRecent: 2, gapMinutes: 5);
+        var cfg = Config(keepRecent: 2, gapMinutes: 5);
         var micro = new MicroCompactor(cfg);
 
         var messages = new List<ChatMessage>();
@@ -118,7 +116,7 @@ public sealed class MicroCompactorTests
     [Fact]
     public void Run_AlreadyClearedResultsDoNotRetrigger()
     {
-        var cfg = Config(triggerCount: 1, keepRecent: 1, gapMinutes: 5);
+        var cfg = Config(keepRecent: 1, gapMinutes: 5);
         var micro = new MicroCompactor(cfg);
         var messages = new List<ChatMessage>
         {
@@ -138,7 +136,7 @@ public sealed class MicroCompactorTests
     [Fact]
     public void Run_Disabled_NoOp()
     {
-        var cfg = Config(triggerCount: 1, keepRecent: 0, enabled: false);
+        var cfg = Config(keepRecent: 0, enabled: false);
         var micro = new MicroCompactor(cfg);
         var messages = new List<ChatMessage> { AssistantCall("c1"), ToolResult("c1") };
         var result = micro.Run(messages);

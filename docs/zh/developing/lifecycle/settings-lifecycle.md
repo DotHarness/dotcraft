@@ -32,7 +32,7 @@ Desktop 将设置项按生效方式划分为三类：
 
 - Desktop 的模型设置页管理 Provider 注册表；凭证与端点只属于 `Providers[id]`。
 - 修改工作区 `ProviderId` 或 `ProviderPreferences` 只会刷新新线程默认值；已有线程保留创建时的模型、思考程度、速率和上下文窗口快照，除非该线程自己的 composer 原子更新完整偏好。
-- 工作区只保存当前 `ProviderId` 和按 provider 区分的完整偏好覆盖，不保存根级 `ApiKey` / `EndPoint`。
+- 工作区文件保存 `ProviderId` 和按 provider 区分的完整偏好覆盖；Provider 凭证保留在个人 `Providers[id]` 注册表中。
 - Remote AppServer 的生命周期由用户或远端环境管理。Desktop 只测试连接并切换，不提供 remote restart。
 - 如果 Desktop 通过 `--remote` 启动，本次会话的连接由启动参数控制，Settings 中的持久化连接切换不可用。
 

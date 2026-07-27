@@ -1,4 +1,3 @@
-using DotCraft.Abstractions;
 using DotCraft.Protocol;
 using DotCraft.Tests.Sessions.Protocol.AppServer;
 using Microsoft.Extensions.DependencyInjection;

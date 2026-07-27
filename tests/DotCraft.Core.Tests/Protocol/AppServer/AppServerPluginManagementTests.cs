@@ -1104,7 +1104,7 @@ interface:
     "review": {
       "transport": "stdio",
       "command": "node",
-      "args": ["server.js"],
+      "arguments": ["server.js"],
       "cwd": "./server"
     }
   }
@@ -1146,7 +1146,7 @@ interface:
     "csharp": {
       "transport": "stdio",
       "command": "csharp-ls",
-      "args": ["--stdio"],
+      "arguments": ["--stdio"],
       "extensionToLanguage": {
         ".cs": "csharp"
       }

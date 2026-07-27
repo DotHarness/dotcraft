@@ -102,7 +102,7 @@ def build_mcp_config() -> dict[str, Any]:
             "demo": {
                 "transport": "stdio",
                 "command": "node",
-                "args": ["./mcp-server/index.js"],
+                "arguments": ["./mcp-server/index.js"],
                 "cwd": "./",
             }
         }

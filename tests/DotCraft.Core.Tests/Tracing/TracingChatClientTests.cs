@@ -1,5 +1,5 @@
 using System.Runtime.CompilerServices;
-using DotCraft.State;
+using DotCraft.Persistence;
 using DotCraft.Tracing;
 using Microsoft.Extensions.AI;
 
@@ -182,13 +182,11 @@ public sealed class TracingChatClientTests
     {
         var root = Path.Combine(Path.GetTempPath(), "tracing-chat-client-tests", Guid.NewGuid().ToString("N"));
         var craftPath = Path.Combine(root, ".craft");
-        var tracingPath = Path.Combine(craftPath, "tracing");
-        Directory.CreateDirectory(tracingPath);
 
         try
         {
-            var stateRuntime = new StateRuntime(craftPath);
-            var writer = new TraceStore(tracingPath, 5000, false, stateRuntime);
+            var stateRuntime = new WorkspaceStateDatabase(craftPath);
+            var writer = new TraceStore(stateRuntime, 5000);
             await RunStreamingAsync([
                 new ChatResponseUpdate(ChatRole.Assistant, [new TextReasoningContent("one ")]),
                 new ChatResponseUpdate(ChatRole.Assistant, [new TextReasoningContent("two")]),
@@ -198,8 +196,7 @@ public sealed class TracingChatClientTests
             ], "trace-persisted", store: writer);
             writer.WaitForPendingPersistence();
 
-            var reader = new TraceStore(tracingPath, 5000, false, stateRuntime);
-            reader.LoadFromDisk();
+            var reader = new TraceStore(stateRuntime, 5000);
 
             var session = reader.GetSession("trace-persisted");
             var events = NonRequestEvents(reader, "trace-persisted");

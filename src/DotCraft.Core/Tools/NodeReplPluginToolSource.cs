@@ -1,6 +1,6 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
-using DotCraft.Abstractions;
+using DotCraft.Protocol.AppServer;
 using DotCraft.Configuration;
 using DotCraft.Plugins;
 

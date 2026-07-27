@@ -5,7 +5,7 @@ namespace DotCraft.Configuration;
 
 /// <summary>
 /// Provides unified configuration validation by delegating to each module's own validator.
-/// Modules register their validation logic via <see cref="Abstractions.IDotCraftModule.ValidateConfig"/>.
+/// Modules register their validation logic via <see cref="Modules.IDotCraftModule.ValidateConfig"/>.
 /// </summary>
 public sealed class ConfigValidator(ModuleRegistry moduleRegistry)
 {

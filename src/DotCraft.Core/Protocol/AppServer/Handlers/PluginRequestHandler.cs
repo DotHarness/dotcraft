@@ -536,20 +536,6 @@ internal sealed class PluginRequestHandler(
         return null;
     }
 
-    private void ReleaseAppContextPagesForBindings(IReadOnlyList<ThreadAppBindingWire> bindings)
-    {
-        if (contextPageManager == null || bindings.Count == 0)
-            return;
-
-        foreach (var threadId in bindings
-                     .Select(binding => binding.ThreadId)
-                     .Where(threadId => !string.IsNullOrWhiteSpace(threadId))
-                     .Distinct(StringComparer.Ordinal))
-        {
-            contextPageManager.ReleaseStablePage(threadId, ContextPageKeys.AppContextBlocks());
-        }
-    }
-
     private object? TryBuildAppListUpdatedNotification(
         PluginDiscoveryResult discovery,
         string pluginId,

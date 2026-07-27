@@ -1,6 +1,6 @@
 using System.ComponentModel;
 using System.Text.Json;
-using DotCraft.Abstractions;
+using DotCraft.Channels;
 using DotCraft.Tools;
 
 namespace DotCraft.Cron;

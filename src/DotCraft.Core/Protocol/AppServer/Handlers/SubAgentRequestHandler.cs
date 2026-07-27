@@ -49,13 +49,6 @@ internal sealed class SubAgentRequestHandler(
         var hasProviderPreferences = msg.Params.HasValue
             && msg.Params.Value.ValueKind == JsonValueKind.Object
             && TryGetCaseInsensitiveProperty(msg.Params.Value, "providerPreferences", out providerPreferencesEl);
-        if (msg.Params.HasValue
-            && msg.Params.Value.ValueKind == JsonValueKind.Object
-            && TryGetCaseInsensitiveProperty(msg.Params.Value, "providerModels", out _))
-        {
-            throw AppServerErrors.InvalidParams(
-                "'providerModels' is no longer accepted. Use 'providerPreferences'.");
-        }
         var hasMinWaitTimeoutMs = msg.Params.HasValue
             && msg.Params.Value.ValueKind == JsonValueKind.Object
             && TryGetCaseInsensitiveProperty(msg.Params.Value, "minWaitTimeoutMs", out minWaitTimeoutMsEl);

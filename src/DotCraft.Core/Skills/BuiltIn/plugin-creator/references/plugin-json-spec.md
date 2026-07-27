@@ -57,7 +57,7 @@ Matching `.mcp.json`:
     "review": {
       "transport": "stdio",
       "command": "node",
-      "args": ["./mcp-server/index.js"],
+      "arguments": ["./mcp-server/index.js"],
       "cwd": "./"
     }
   }

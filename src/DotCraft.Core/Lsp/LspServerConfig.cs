@@ -54,13 +54,6 @@ public sealed class LspServerConfig
     [ConfigField(Hint = "One argument per line in Dashboard.")]
     public List<string> Arguments { get; set; } = [];
 
-    [JsonIgnore]
-    public List<string> Args
-    {
-        get => Arguments;
-        set => Arguments = value ?? [];
-    }
-
     [ConfigField(Hint = "Map file extension to language id, e.g. {\".cs\":\"csharp\"}")]
     public Dictionary<string, string> ExtensionToLanguage { get; set; } = new(StringComparer.OrdinalIgnoreCase);
 
@@ -68,13 +61,6 @@ public sealed class LspServerConfig
     public string Transport { get; set; } = "stdio";
 
     public Dictionary<string, string> EnvironmentVariables { get; set; } = new();
-
-    [JsonIgnore]
-    public Dictionary<string, string> Env
-    {
-        get => EnvironmentVariables;
-        set => EnvironmentVariables = value ?? new Dictionary<string, string>();
-    }
 
     [ConfigField(FieldType = "json", Hint = "JSON object passed as LSP initialize.initializationOptions")]
     public JsonElement? InitializationOptions { get; set; }
@@ -123,8 +109,8 @@ public sealed class LspServerConfig
 }
 
 /// <summary>
-/// Supports both object-map and array forms:
-/// { "LspServers": { "serverName": { ... } } } or [ { "Name": "...", ... } ].
+/// Reads and writes the canonical object-map form:
+/// { "LspServers": { "serverName": { ... } } }.
 /// </summary>
 public sealed class LspServerConfigListConverter : JsonConverter<List<LspServerConfig>>
 {
@@ -134,32 +120,18 @@ public sealed class LspServerConfigListConverter : JsonConverter<List<LspServerC
         var root = doc.RootElement;
         var list = new List<LspServerConfig>();
 
-        if (root.ValueKind == JsonValueKind.Array)
-        {
-            foreach (var item in root.EnumerateArray())
-            {
-                var cfg = DeserializeConfig(item, options);
-                if (cfg != null)
-                    list.Add(cfg);
-            }
+        if (root.ValueKind != JsonValueKind.Object)
+            throw new JsonException("LspServers must be an object keyed by server name.");
 
-            return list;
+        foreach (var prop in root.EnumerateObject())
+        {
+            var cfg = DeserializeConfig(prop.Value, options) ?? new LspServerConfig();
+            if (string.IsNullOrWhiteSpace(cfg.Name))
+                cfg.Name = prop.Name;
+            list.Add(cfg);
         }
 
-        if (root.ValueKind == JsonValueKind.Object)
-        {
-            foreach (var prop in root.EnumerateObject())
-            {
-                var cfg = DeserializeConfig(prop.Value, options) ?? new LspServerConfig();
-                if (string.IsNullOrWhiteSpace(cfg.Name))
-                    cfg.Name = prop.Name;
-                list.Add(cfg);
-            }
-
-            return list;
-        }
-
-        return [];
+        return list;
     }
 
     public override void Write(Utf8JsonWriter writer, List<LspServerConfig> value, JsonSerializerOptions options)
@@ -178,38 +150,26 @@ public sealed class LspServerConfigListConverter : JsonConverter<List<LspServerC
 
     private static LspServerConfig? DeserializeConfig(JsonElement element, JsonSerializerOptions options)
     {
+        if (element.ValueKind != JsonValueKind.Object)
+            throw new JsonException("Each LSP server entry must be an object.");
+
+        foreach (var property in element.EnumerateObject())
+        {
+            if (property.Name.Equals("args", StringComparison.OrdinalIgnoreCase)
+                || property.Name.Equals("env", StringComparison.OrdinalIgnoreCase))
+                throw new JsonException(
+                    $"LSP server property '{property.Name}' is no longer supported. Use arguments or environmentVariables.");
+        }
+
         var cfg = element.Deserialize<LspServerConfig>(options);
-        if (cfg == null || element.ValueKind != JsonValueKind.Object)
-            return cfg;
+        if (cfg == null)
+            return null;
 
         if (string.IsNullOrWhiteSpace(cfg.Name)
             && TryGetPropertyIgnoreCase(element, "name", out var nameElement)
             && nameElement.ValueKind == JsonValueKind.String)
         {
             cfg.Name = nameElement.GetString() ?? string.Empty;
-        }
-
-        if (cfg.Arguments.Count == 0
-            && TryGetPropertyIgnoreCase(element, "args", out var argsElement)
-            && argsElement.ValueKind == JsonValueKind.Array)
-        {
-            cfg.Arguments = argsElement
-                .EnumerateArray()
-                .Where(e => e.ValueKind == JsonValueKind.String)
-                .Select(e => e.GetString() ?? string.Empty)
-                .ToList();
-        }
-
-        if (cfg.EnvironmentVariables.Count == 0
-            && TryGetPropertyIgnoreCase(element, "env", out var envElement)
-            && envElement.ValueKind == JsonValueKind.Object)
-        {
-            cfg.EnvironmentVariables = envElement
-                .EnumerateObject()
-                .ToDictionary(
-                    p => p.Name,
-                    p => p.Value.ValueKind == JsonValueKind.String ? p.Value.GetString() ?? string.Empty : p.Value.ToString(),
-                    StringComparer.Ordinal);
         }
 
         return cfg;

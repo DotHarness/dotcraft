@@ -1,4 +1,4 @@
-using DotCraft.State;
+using DotCraft.Persistence;
 
 namespace DotCraft.Tracing;
 
@@ -16,7 +16,7 @@ internal sealed record TraceSessionBinding(
     TraceSessionBindingKind BindingKind,
     DateTimeOffset CreatedAt);
 
-internal sealed class TraceSessionBindingStore(StateRuntime stateRuntime)
+internal sealed class TraceSessionBindingStore(WorkspaceStateDatabase stateRuntime)
 {
     public TraceSessionBinding GetOrCreateBinding(string sessionKey, DateTimeOffset? createdAt = null)
     {

@@ -284,7 +284,7 @@ internal sealed record OneShotNotification(OneShotNotificationKind Kind, string?
             return new OneShotNotification(OneShotNotificationKind.Ignored, null);
 
         var type = item.TryGetProperty("type", out var typeEl) ? typeEl.GetString() : null;
-        if (type is not ("toolCall" or "pluginFunctionCall" or "commandExecution"))
+        if (type is not ("toolCall" or "commandExecution"))
             return new OneShotNotification(OneShotNotificationKind.Ignored, null);
 
         var payload = item.TryGetProperty("payload", out var p) ? p : default;
@@ -317,7 +317,7 @@ internal sealed record OneShotNotification(OneShotNotificationKind Kind, string?
             return new OneShotNotification(OneShotNotificationKind.AgentCompleted, text);
         }
 
-        if (type is not ("toolExecution" or "toolResult" or "pluginFunctionCall" or "commandExecution"))
+        if (type is not ("toolExecution" or "toolResult" or "commandExecution"))
             return new OneShotNotification(OneShotNotificationKind.Ignored, null);
 
         return new OneShotNotification(OneShotNotificationKind.Progress, $"[CLI] Completed {type}.");

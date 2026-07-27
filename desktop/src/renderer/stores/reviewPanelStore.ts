@@ -296,7 +296,7 @@ function mergeHistoricalCommandExecutions(turn: ConversationTurn): ConversationT
 
 function buildToolLikeItem(
   item: Record<string, unknown>,
-  type: 'toolCall' | 'pluginFunctionCall' | 'dynamicToolCall',
+  type: 'toolCall' | 'dynamicToolCall',
   status: ConversationItem['status']
 ): ConversationItem {
   const payload = (item.payload ?? {}) as Record<string, unknown>
@@ -1111,7 +1111,7 @@ export const useReviewPanelStore = create<ReviewPanelState>((set, get) => ({
               }
         )
       }))
-    } else if (type === 'pluginFunctionCall' || type === 'dynamicToolCall') {
+    } else if (type === 'dynamicToolCall') {
       const completedItem = buildToolLikeItem(
         item,
         type,

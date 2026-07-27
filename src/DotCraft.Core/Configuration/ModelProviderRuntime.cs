@@ -5,7 +5,6 @@ namespace DotCraft.Configuration;
 
 public static class ModelProviderProtocols
 {
-    public const string LegacyOpenAI = "openai";
     public const string OpenAIChatCompletions = "openai-chat-completions";
     public const string OpenAIResponses = "openai-responses";
     public const string OpenAI = OpenAIChatCompletions;
@@ -17,7 +16,6 @@ public static class ModelProviderProtocols
         return normalized switch
         {
             "" or null => OpenAIChatCompletions,
-            LegacyOpenAI => OpenAIChatCompletions,
             OpenAIChatCompletions => OpenAIChatCompletions,
             OpenAIResponses => OpenAIResponses,
             Anthropic => Anthropic,

@@ -76,10 +76,6 @@ normalized when written. A workspace preference replaces the personal preference
 as one atomic record; fields within a preference are never merged across scopes. Preferences for other
 providers remain inherited.
 
-The old `ProviderModels`, `SubAgent.ProviderModels`, root `Reasoning`, root `Speed`, and
-`Compaction.ContextWindowMode` preference fields are not read or migrated. A successful preference save
-removes those obsolete keys from the target file.
-
 Missing native SubAgent preferences inherit the parent thread's complete MainAgent preference. An
 explicit role model takes precedence over the SubAgent model, while inherited or explicit reasoning,
 speed, and context selections are revalidated against the role model. External CLI SubAgents do not

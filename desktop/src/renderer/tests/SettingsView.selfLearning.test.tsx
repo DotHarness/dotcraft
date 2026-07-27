@@ -198,7 +198,7 @@ describe('SettingsView self-learning settings', () => {
     }
     const dreamRuns: any[] = []
 
-    settingsGet.mockResolvedValue({ locale: 'en', connectionMode: 'stdio', visibleChannels: [] })
+    settingsGet.mockResolvedValue({ locale: 'en', connectionMode: 'stdio' })
     settingsSet.mockResolvedValue(undefined)
     workspaceConfigGetCore.mockImplementation(async () => core)
     appServerSendRequest.mockImplementation(async (method: string, params?: Record<string, unknown>) => {
@@ -463,7 +463,6 @@ describe('SettingsView self-learning settings', () => {
     settingsGet.mockResolvedValueOnce({
       locale: 'en',
       connectionMode: 'stdio',
-      visibleChannels: [],
       showThinkingContent: false
     })
 
@@ -492,7 +491,6 @@ describe('SettingsView self-learning settings', () => {
     settingsGet.mockResolvedValueOnce({
       locale: 'en',
       connectionMode: 'stdio',
-      visibleChannels: [],
       showInMenuBar: false
     })
 
@@ -968,7 +966,7 @@ describe('SettingsView self-learning settings', () => {
   })
 
   it('uses the simplified provider list title in Chinese', async () => {
-    settingsGet.mockResolvedValue({ locale: 'zh-Hans', connectionMode: 'stdio', visibleChannels: [] })
+    settingsGet.mockResolvedValue({ locale: 'zh-Hans', connectionMode: 'stdio' })
     enableProviderManagement()
     renderView()
 
@@ -1001,7 +999,6 @@ describe('SettingsView self-learning settings', () => {
       locale: 'en',
       connectionMode: 'remote',
       activeRemoteStack: { hostId: 'host-1', stackId: 'stack-1' },
-      visibleChannels: []
     })
     workspaceConfigGetCore.mockResolvedValue({
       workspace: {
@@ -1355,7 +1352,6 @@ describe('SettingsView self-learning settings', () => {
       locale: 'en',
       connectionMode: 'remote',
       activeRemoteStack: { hostId: 'host-1', stackId: 'stack-1' },
-      visibleChannels: []
     })
     renderView()
 

@@ -75,6 +75,5 @@ public sealed class PluginToolSessionHistoryTests
         Assert.Equal("sent", text);
         Assert.DoesNotContain("private-id", text, StringComparison.Ordinal);
         Assert.DoesNotContain("private-token", text, StringComparison.Ordinal);
-        Assert.DoesNotContain(turn.Items, item => item.Type == ItemType.PluginFunctionCall);
     }
 }

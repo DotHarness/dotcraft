@@ -14,7 +14,6 @@ public enum WorkspaceBootstrapProfile
 /// </summary>
 public enum WorkspaceSetupProviderMode
 {
-    Legacy,
     Existing,
     Create,
     Skip
@@ -62,7 +61,7 @@ public sealed record WorkspaceSetupRequest
 
     public bool PreferExistingUserConfig { get; init; }
 
-    public WorkspaceSetupProviderMode ProviderMode { get; init; } = WorkspaceSetupProviderMode.Legacy;
+    public WorkspaceSetupProviderMode ProviderMode { get; init; } = WorkspaceSetupProviderMode.Skip;
 
     public string ProviderId { get; init; } = string.Empty;
 

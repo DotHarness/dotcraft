@@ -19,7 +19,6 @@ public static class AutomationWorkspaceModeNames
 {
     public const string Project = "project";
     public const string Worktree = "worktree";
-    public const string LegacyIsolated = "isolated";
 
     /// <summary>
     /// Converts a persisted or wire value to the canonical workspace mode name.
@@ -37,8 +36,7 @@ public static class AutomationWorkspaceModeNames
             return true;
         }
 
-        if (string.Equals(trimmed, Worktree, StringComparison.OrdinalIgnoreCase)
-            || string.Equals(trimmed, LegacyIsolated, StringComparison.OrdinalIgnoreCase))
+        if (string.Equals(trimmed, Worktree, StringComparison.OrdinalIgnoreCase))
         {
             normalized = Worktree;
             return true;
@@ -54,7 +52,7 @@ public static class AutomationWorkspaceModeNames
     public static string NormalizeOrDefault(string? value, string defaultValue = Project)
     {
         if (!TryNormalize(value, out var normalized))
-            return defaultValue;
+            throw new ArgumentException("Workspace mode must be 'project' or 'worktree'.", nameof(value));
 
         return string.IsNullOrWhiteSpace(normalized) ? defaultValue : normalized!;
     }

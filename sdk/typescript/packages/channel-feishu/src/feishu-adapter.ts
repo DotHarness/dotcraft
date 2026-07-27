@@ -4,10 +4,7 @@ import {
   textPart,
   type SocialChannelTarget,
 } from "@dotcraft/sdk";
-import {
-  DotCraftWireClient,
-  WebSocketTransport,
-} from "@dotcraft/sdk/wire";
+import { WebSocketTransport } from "@dotcraft/sdk/wire";
 import {
   ConfigValidationError,
   configureTextMergeDebug,
@@ -50,18 +47,6 @@ import { getFeishuWikiChannelTools, maybeExecuteFeishuWikiToolCall } from "./fei
 import type { FeishuCardActionEvent, FeishuConfig, ParsedInboundMessage } from "./feishu-types.js";
 import { FeishuClient } from "./feishu-client.js";
 import { errorMessage, logError, logInfo, logWarn, shortId } from "./logging.js";
-
-export interface FeishuAdapterConfig {
-  wsUrl: string;
-  dotcraftToken?: string;
-  approvalTimeoutMs: number;
-  feishu: FeishuClient;
-  /** Debug logging; pass `true` per flag to enable. */
-  debug?: {
-    adapterStream?: boolean;
-    textMerge?: boolean;
-  };
-}
 
 export function validateFeishuConfig(rawConfig: unknown): asserts rawConfig is FeishuConfig {
   const fields: string[] = [];
@@ -134,25 +119,13 @@ export class FeishuAdapter extends ModuleChannelAdapter<FeishuConfig> {
   >();
   private readonly userInputRequestByChannelTarget = new Map<string, string>();
 
-  constructor(cfg?: FeishuAdapterConfig) {
+  constructor() {
     super(
       "feishu",
       "dotcraft-feishu",
       "0.1.0",
       ["item/reasoning/delta", "subagent/progress", "item/usage/delta", "system/event", "plan/updated"],
-      { debugStream: cfg?.debug?.adapterStream },
     );
-    if (cfg) {
-      this.client = new DotCraftWireClient(
-        new WebSocketTransport({
-          url: cfg.wsUrl,
-          token: cfg.dotcraftToken ?? "",
-        }),
-      );
-      this.feishu = cfg.feishu;
-      this.approvalTimeoutMs = cfg.approvalTimeoutMs;
-    }
-    configureTextMergeDebug(cfg?.debug?.textMerge);
   }
 
   protected override getConfigFileName(_context: WorkspaceContext): string {
@@ -217,7 +190,7 @@ export class FeishuAdapter extends ModuleChannelAdapter<FeishuConfig> {
 
   private getFeishuClient(): FeishuClient {
     if (!this.feishu) {
-      throw new Error("Feishu client is not initialized. Call startWithContext() or use legacy constructor.");
+      throw new Error("Feishu client is not initialized. Call startWithContext() first.");
     }
     return this.feishu;
   }
@@ -1096,4 +1069,3 @@ async function resolveOutboundFilePayload(
     mediaType: prepared.mediaType,
   };
 }
-

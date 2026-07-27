@@ -2,12 +2,11 @@ import type { CSSProperties, JSX } from 'react'
 import { ProviderMark, type ProviderMarkKind } from '../../ui/ProviderMark'
 import {
   ANTHROPIC_PROTOCOL,
-  LEGACY_OPENAI_PROTOCOL,
   normalizeProviderProtocol,
   type DesktopProviderProtocol
 } from '../../../../shared/providerProtocols'
 
-export type ProviderProtocol = DesktopProviderProtocol | typeof LEGACY_OPENAI_PROTOCOL
+export type ProviderProtocol = DesktopProviderProtocol
 
 interface ProviderProtocolIconProps {
   protocol: ProviderProtocol

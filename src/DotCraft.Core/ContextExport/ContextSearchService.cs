@@ -251,7 +251,7 @@ public sealed class ContextSearchService
     {
         var candidates = rows.Count > 0
             ? rows.Select(row => (row.ThreadId, row.RolloutPath)).DistinctBy(c => c.RolloutPath, StringComparer.OrdinalIgnoreCase)
-            : EnumerateLegacyRolloutCandidates(paths);
+            : EnumerateRolloutCandidates(paths);
 
         var rowByThreadId = rows.ToDictionary(r => r.ThreadId, StringComparer.Ordinal);
         foreach (var (threadId, path) in candidates.Take(250))
@@ -390,13 +390,6 @@ public sealed class ContextSearchService
             case ItemType.ToolCall when item.AsToolCall is { } toolCall:
                 AppendSearchField(builder, "namespace", toolCall.Namespace);
                 AppendSearchField(builder, "tool", toolCall.ToolName);
-                break;
-            case ItemType.PluginFunctionCall when item.AsPluginFunctionCall is { } pluginCall:
-                AppendSearchField(builder, "plugin", pluginCall.PluginId);
-                AppendSearchField(builder, "namespace", pluginCall.Namespace);
-                AppendSearchField(builder, "function", pluginCall.FunctionName);
-                AppendSearchField(builder, "error_code", pluginCall.ErrorCode);
-                AppendSearchField(builder, "error", pluginCall.ErrorMessage);
                 break;
             case ItemType.McpToolCall when item.AsMcpToolCall is { } mcpCall:
                 AppendSearchField(builder, "server", mcpCall.Server);
@@ -672,7 +665,7 @@ public sealed class ContextSearchService
     private static DateTimeOffset ParseDateTimeOffset(string value)
         => DateTimeOffset.TryParse(value, out var parsed) ? parsed : DateTimeOffset.MinValue;
 
-    private static IEnumerable<(string ThreadId, string RolloutPath)> EnumerateLegacyRolloutCandidates(ContextWorkspacePaths paths)
+    private static IEnumerable<(string ThreadId, string RolloutPath)> EnumerateRolloutCandidates(ContextWorkspacePaths paths)
     {
         foreach (var dir in new[]
                  {

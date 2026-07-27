@@ -1,5 +1,5 @@
 using DotCraft.Protocol;
-using DotCraft.State;
+using DotCraft.Persistence;
 
 namespace DotCraft.Tests.Protocol;
 
@@ -23,7 +23,7 @@ public sealed class CodexContextWindowStoreTests : IDisposable
     [Fact]
     public async Task GetOrCreateIsStableAndAdvancePreservesPreviousWindow()
     {
-        var runtime = new StateRuntime(_root);
+        var runtime = new WorkspaceStateDatabase(_root);
         var threadStore = new ThreadStore(_root, runtime);
         var thread = new SessionThread
         {

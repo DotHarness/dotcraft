@@ -614,7 +614,7 @@ describe('AgentResponseBlock subagent transcript rendering', () => {
     expect(text).toContain('Reviewer failed')
   })
 
-  it('renders pluginFunctionCall items in the tool run', () => {
+  it('renders toolCall items in the tool run', () => {
     const turn: ConversationTurn = {
       id: 'turn-plugin',
       threadId: 'thread-1',
@@ -623,7 +623,7 @@ describe('AgentResponseBlock subagent transcript rendering', () => {
       items: [
         {
           id: 'plugin-tool-1',
-          type: 'pluginFunctionCall',
+          type: 'toolCall',
           status: 'completed',
           toolCallId: 'plugin-call-1',
           toolName: 'NodeReplJs',
@@ -675,7 +675,7 @@ describe('AgentResponseBlock subagent transcript rendering', () => {
       items: [
         {
           id: 'node-repl-tool-1',
-          type: 'pluginFunctionCall',
+          type: 'toolCall',
           status: 'completed',
           toolCallId: 'node-repl-call-1',
           toolName: 'NodeReplJs',
@@ -726,7 +726,7 @@ describe('AgentResponseBlock subagent transcript rendering', () => {
       items: [
         {
           id: 'node-repl-tool-2',
-          type: 'pluginFunctionCall',
+          type: 'toolCall',
           status: 'completed',
           toolCallId: 'node-repl-call-2',
           toolName: 'NodeReplJs',
@@ -844,7 +844,7 @@ describe('AgentResponseBlock subagent transcript rendering', () => {
       items: [
         {
           id: 'node-repl-context-menu-1',
-          type: 'pluginFunctionCall',
+          type: 'toolCall',
           status: 'completed',
           toolCallId: 'node-repl-context-menu-call-1',
           toolName: 'NodeReplJs',
@@ -904,7 +904,7 @@ describe('AgentResponseBlock subagent transcript rendering', () => {
       items: [
         {
           id: 'node-repl-copy-image-1',
-          type: 'pluginFunctionCall',
+          type: 'toolCall',
           status: 'completed',
           toolCallId: 'node-repl-copy-image-call-1',
           toolName: 'NodeReplJs',
@@ -956,7 +956,7 @@ describe('AgentResponseBlock subagent transcript rendering', () => {
       items: [
         {
           id: 'node-repl-copy-image-fallback-1',
-          type: 'pluginFunctionCall',
+          type: 'toolCall',
           status: 'completed',
           toolCallId: 'node-repl-copy-image-fallback-call-1',
           toolName: 'NodeReplJs',

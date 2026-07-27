@@ -1,4 +1,4 @@
-using DotCraft.Abstractions;
+using DotCraft.Modules;
 using DotCraft.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -14,9 +14,9 @@ namespace DotCraft.Hosting;
 public sealed class HostBuilder
 {
     private readonly ModuleRegistry _registry;
-    
+
     private readonly AppConfig _config;
-    
+
     private readonly DotCraftPaths _paths;
 
     private readonly string? _preferredPrimaryModuleName;
@@ -51,7 +51,7 @@ public sealed class HostBuilder
             Config = _config,
             Paths = _paths
         };
-        
+
         module.ConfigureServices(services, context);
     }
 

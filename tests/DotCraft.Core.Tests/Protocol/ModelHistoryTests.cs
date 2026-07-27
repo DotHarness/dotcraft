@@ -262,12 +262,6 @@ public sealed class ModelHistoryTests : IDisposable
         var restoredReasoning = Assert.IsType<TextReasoningContent>(history[1].Contents[0]);
         Assert.Equal("protected", restoredReasoning.ProtectedData);
 
-        using (var connection = store.StateRuntime.OpenConnection())
-        using (var command = connection.CreateCommand())
-        {
-            command.CommandText = "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = 'thread_sessions'";
-            Assert.Equal(0L, (long)(command.ExecuteScalar() ?? 0L));
-        }
     }
 
     [Fact]

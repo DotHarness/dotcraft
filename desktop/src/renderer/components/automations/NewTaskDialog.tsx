@@ -169,8 +169,7 @@ export function NewTaskDialog({
     if (tpl.defaultSchedule !== undefined) setSchedule(tpl.defaultSchedule ?? null)
     if (
       tpl.defaultWorkspaceMode === 'project' ||
-      tpl.defaultWorkspaceMode === 'worktree' ||
-      tpl.defaultWorkspaceMode === 'isolated'
+      tpl.defaultWorkspaceMode === 'worktree'
     )
       setWorkspaceMode(normalizeWorkspaceMode(tpl.defaultWorkspaceMode))
     if (tpl.defaultApprovalPolicy === 'workspaceScope' || tpl.defaultApprovalPolicy === 'fullAuto')
@@ -190,8 +189,7 @@ export function NewTaskDialog({
     setTplSchedule(tpl.defaultSchedule ?? null)
     if (
       tpl.defaultWorkspaceMode === 'project' ||
-      tpl.defaultWorkspaceMode === 'worktree' ||
-      tpl.defaultWorkspaceMode === 'isolated'
+      tpl.defaultWorkspaceMode === 'worktree'
     )
       setTplWorkspaceMode(normalizeWorkspaceMode(tpl.defaultWorkspaceMode))
     if (tpl.defaultApprovalPolicy === 'workspaceScope' || tpl.defaultApprovalPolicy === 'fullAuto')
@@ -775,7 +773,7 @@ export function NewTaskDialog({
 }
 
 function normalizeWorkspaceMode(value: unknown): AutomationWorkspaceMode {
-  return value === 'worktree' || value === 'isolated' ? 'worktree' : 'project'
+  return value === 'worktree' ? 'worktree' : 'project'
 }
 
 const advancedLabelStyle: CSSProperties = {

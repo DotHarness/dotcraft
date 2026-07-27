@@ -76,7 +76,7 @@ Provider object fields:
 | Field | Description | Default |
 |-------|-------------|---------|
 | `DisplayName` | User-facing provider name; falls back to the provider id when empty | Empty |
-| `Protocol` | Provider protocol: `anthropic`, `openai-chat-completions`, or `openai-responses`. Empty values and legacy `openai` are treated as `openai-chat-completions`. | `openai-chat-completions` |
+| `Protocol` | Provider protocol: `anthropic`, `openai-chat-completions`, or `openai-responses`. Empty values default to `openai-chat-completions`. | `openai-chat-completions` |
 | `ApiKey` | Provider API key; prefer `${ENV_NAME}` environment variable references | Empty |
 | `EndPoint` | Provider base URL; empty values use the protocol default endpoint | OpenAI protocols: `https://api.openai.com/v1`; `anthropic`: `https://api.anthropic.com` |
 | `NetworkTimeoutSeconds` | Per-provider request timeout, overriding the global `NetworkTimeoutSeconds` | Empty |
@@ -137,7 +137,6 @@ Self-learning example:
 | `Compaction.KeepRecentMinGroups` | Minimum recent API groups after partial summary | `3` |
 | `Compaction.KeepRecentMaxTokens` | Maximum recent tail tokens after partial summary | `40000` |
 | `Compaction.MicrocompactEnabled` | Enables micro-compaction | `true` |
-| `Compaction.MicrocompactTriggerCount` | Compressible tool-result count that triggers micro-compaction | `30` |
 | `Compaction.MicrocompactKeepRecent` | Recent tool results kept during micro-compaction | `8` |
 | `Compaction.MicrocompactGapMinutes` | Also triggers after this many minutes since last assistant message; `0` disables it | `20` |
 | `Compaction.MaxConsecutiveFailures` | Consecutive failures before circuit breaking compaction | `3` |
@@ -619,7 +618,7 @@ MCP example:
   "McpServers": {
     "everything": {
       "command": "npx",
-      "args": ["-y", "@modelcontextprotocol/server-everything"]
+      "arguments": ["-y", "@modelcontextprotocol/server-everything"]
     }
   },
   "Tools": {

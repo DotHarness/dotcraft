@@ -1227,8 +1227,6 @@ function summarizeItem(item: unknown, includeOutputs: boolean, maxOutputCharsPer
       return summarizeToolExecution(summary, payload)
     case 'toolCall':
       return summarizeToolCall(summary, payload)
-    case 'pluginFunctionCall':
-      return summarizePluginFunctionCall(summary, payload, includeOutputs, maxOutputCharsPerItem)
     case 'dynamicToolCall':
       return summarizeDynamicToolCall(summary, payload, includeOutputs, maxOutputCharsPerItem)
     case 'toolResult':
@@ -1337,29 +1335,6 @@ function summarizeToolCall(summary: JsonObject, payload: Record<string, unknown>
   copyOptionalStringFields(summary, payload, ['toolName', 'callId'])
   const argumentsPreview = jsonPreview(payload.arguments, 500)
   if (argumentsPreview) summary.argumentsPreview = argumentsPreview
-  return summary
-}
-
-function summarizePluginFunctionCall(
-  summary: JsonObject,
-  payload: Record<string, unknown>,
-  includeOutputs: boolean,
-  maxOutputCharsPerItem: number
-): JsonObject {
-  copyOptionalStringFields(summary, payload, [
-    'pluginId',
-    'namespace',
-    'functionName',
-    'callId',
-    'errorCode',
-    'errorMessage'
-  ])
-  copyOptionalBooleanFields(summary, payload, ['success'])
-  const argumentsPreview = jsonPreview(payload.arguments, 500)
-  if (argumentsPreview) summary.argumentsPreview = argumentsPreview
-  if (includeOutputs) {
-    addToolOutputPreview(summary, payload, maxOutputCharsPerItem)
-  }
   return summary
 }
 
@@ -1606,8 +1581,6 @@ function formatItemSummaryLine(item: Record<string, unknown>): string {
       return formatToolExecutionLine(item, status)
     case 'toolCall':
       return `Tool call: ${stringProperty(item, 'toolName') ?? '(unknown tool)'}${formatCallId(item)}`
-    case 'pluginFunctionCall':
-      return `Plugin tool: ${formatQualifiedName(item, 'pluginId', 'functionName')}${formatSuccess(item)}${formatCallId(item)}`
     case 'dynamicToolCall':
       return `Dynamic tool: ${formatQualifiedName(item, 'namespace', 'toolName')}${formatSuccess(item)}${formatCallId(item)}`
     case 'toolResult':

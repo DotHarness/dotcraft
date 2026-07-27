@@ -1,25 +1,25 @@
 using DotCraft.Memory;
 using DotCraft.Protocol;
-using DotCraft.State;
+using DotCraft.Persistence;
 
 namespace DotCraft.Tests.Memory;
 
 public sealed class PlanStoreTests : IDisposable
 {
     private readonly string _root = Path.Combine(Path.GetTempPath(), "PlanStoreTests_" + Guid.NewGuid().ToString("N")[..8]);
-    private readonly StateRuntime _stateRuntime;
+    private readonly WorkspaceStateDatabase _stateRuntime;
     private readonly ThreadStore _threadStore;
     private readonly PlanStore _planStore;
 
     public PlanStoreTests()
     {
-        _stateRuntime = new StateRuntime(_root);
+        _stateRuntime = new WorkspaceStateDatabase(_root);
         _threadStore = new ThreadStore(_root, _stateRuntime);
         _planStore = new PlanStore(_root, _stateRuntime);
     }
 
     [Fact]
-    public async Task SaveStructuredPlanAsync_ReadsFromDatabaseOnly()
+    public async Task SaveStructuredPlanAsync_RoundTripsStructuredPlan()
     {
         var thread = CreateThread("thread_plan_db");
         await _threadStore.SaveThreadAsync(thread);
@@ -41,24 +41,6 @@ public sealed class PlanStoreTests : IDisposable
 
         Assert.NotNull(loaded);
         Assert.Equal("DB plan", loaded.Title);
-        Assert.False(File.Exists(Path.Combine(_root, "plans", $"{thread.Id}.json")));
-        Assert.False(File.Exists(Path.Combine(_root, "plans", $"{thread.Id}.md")));
-    }
-
-    [Fact]
-    public async Task LoadStructuredPlanAsync_IgnoresLegacyPlanFiles()
-    {
-        var thread = CreateThread("thread_legacy_ignored");
-        await _threadStore.SaveThreadAsync(thread);
-        var plansDir = Path.Combine(_root, "plans");
-        Directory.CreateDirectory(plansDir);
-        await File.WriteAllTextAsync(Path.Combine(plansDir, $"{thread.Id}.json"), "{\"title\":\"Legacy\"}");
-        await File.WriteAllTextAsync(Path.Combine(plansDir, $"{thread.Id}.md"), "# Legacy");
-
-        Assert.False(_planStore.StructuredPlanExists(thread.Id));
-        Assert.Null(await _planStore.LoadStructuredPlanAsync(thread.Id));
-        Assert.True(File.Exists(Path.Combine(plansDir, $"{thread.Id}.json")));
-        Assert.True(File.Exists(Path.Combine(plansDir, $"{thread.Id}.md")));
     }
 
     [Fact]

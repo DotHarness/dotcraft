@@ -93,7 +93,7 @@ public sealed class ProviderManagementTests : IDisposable
         {
             id = "openai-api",
             displayName = "OpenAI",
-            protocol = "openai",
+            protocol = "openai-chat-completions",
             apiKey = "sk-openai",
             endPoint = ""
         }));
@@ -266,7 +266,7 @@ public sealed class ProviderManagementTests : IDisposable
               "Providers": {
                 "openrouter": {
                   "DisplayName": "Old Router",
-                  "Protocol": "openai",
+                  "Protocol": "openai-chat-completions",
                   "ApiKey": "old-key",
                   "EndPoint": "https://old.example/v1"
                 }
@@ -346,8 +346,6 @@ public sealed class ProviderManagementTests : IDisposable
             Path.Combine(_workspaceCraftPath, "config.json"),
             """
             {
-              "ApiKey": "workspace-old-key",
-              "EndPoint": "https://workspace-old.example/v1",
               "Theme": "dark"
             }
             """);
@@ -393,23 +391,6 @@ public sealed class ProviderManagementTests : IDisposable
         Assert.False(provider.TryGetProperty("EndPoint", out _));
     }
 
-    [Fact]
-    public async Task WorkspaceConfigUpdate_RejectsLegacyCredentialFields()
-    {
-        using var harness = new AppServerTestHarness(workspaceCraftPath: _workspaceCraftPath);
-        await harness.InitializeAsync();
-
-        await harness.ExecuteRequestAsync(harness.BuildRequest(AppServerMethods.WorkspaceConfigUpdate, new
-        {
-            apiKey = "new-key",
-            endPoint = "https://api.anthropic.com"
-        }));
-
-        var response = Assert.Single(await harness.Transport.WaitAndDrainAsync(1, TimeSpan.FromSeconds(5)));
-        AppServerTestHarness.AssertIsErrorResponse(response, AppServerErrors.InvalidParamsCode);
-        var error = response.RootElement.GetProperty("error");
-        Assert.Contains("provider/create", error.GetProperty("data").GetProperty("detail").GetString(), StringComparison.Ordinal);
-    }
 
     [Fact]
     public async Task ProviderList_IncludesExplicitProvidersOnly()
@@ -419,8 +400,6 @@ public sealed class ProviderManagementTests : IDisposable
             harness,
             """
             {
-              "ApiKey": "legacy-key",
-              "EndPoint": "https://legacy.example/v1",
               "Providers": {
                 "anthropic-main": {
                   "DisplayName": "Anthropic Main",
@@ -464,7 +443,7 @@ public sealed class ProviderManagementTests : IDisposable
 
         await harness.ExecuteRequestAsync(harness.BuildRequest(AppServerMethods.ProviderTest, new
         {
-            protocol = "openai",
+            protocol = "openai-chat-completions",
             apiKey = "sk-openai-test",
             endPoint = $"{endpoint}/v1",
             networkTimeoutSeconds = 5

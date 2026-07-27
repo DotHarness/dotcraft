@@ -250,62 +250,6 @@ public static partial class AppBindingCatalog
         }
     }
 
-    private static void ValidateToolCatalogEntry(
-        DiscoveredPlugin plugin,
-        string? path,
-        AppDescriptor descriptor,
-        HashSet<string> scopeIds,
-        HashSet<string> toolNames,
-        AppToolCatalogEntry tool,
-        List<PluginDiagnostic> diagnostics)
-    {
-        if (!PluginManifestParser.IsValidFunctionName(tool.Name)
-            || string.IsNullOrWhiteSpace(tool.Scope)
-            || !AppBindingRisks.IsKnown(tool.Risk)
-            || !AppBindingExposures.IsKnown(tool.DefaultExposure))
-        {
-            diagnostics.Add(PluginDiagnostic.Error(
-                "InvalidAppToolCatalogEntry",
-                "Each app tool catalog entry requires a valid name, scope, risk, and defaultExposure.",
-                plugin.Manifest.Id,
-                tool.Name,
-                path));
-            return;
-        }
-
-        if (!toolNames.Add(tool.Name))
-        {
-            diagnostics.Add(PluginDiagnostic.Error(
-                "DuplicateAppTool",
-                $"App tool '{tool.Name}' is declared more than once.",
-                plugin.Manifest.Id,
-                tool.Name,
-                path));
-        }
-
-        if (!scopeIds.Contains(tool.Scope))
-        {
-            diagnostics.Add(PluginDiagnostic.Error(
-                "UnknownAppToolScope",
-                $"App tool '{tool.Name}' references unknown scope '{tool.Scope}'.",
-                plugin.Manifest.Id,
-                tool.Name,
-                path));
-            return;
-        }
-
-        var scope = descriptor.Scopes.First(s => string.Equals(s.Id, tool.Scope, StringComparison.Ordinal));
-        if (AppBindingRisks.Rank(tool.Risk) < AppBindingRisks.Rank(scope.Risk))
-        {
-            diagnostics.Add(PluginDiagnostic.Error(
-                "InvalidAppToolRisk",
-                $"App tool '{tool.Name}' risk must not be lower than scope '{tool.Scope}' risk.",
-                plugin.Manifest.Id,
-                tool.Name,
-                path));
-        }
-    }
-
     private static IReadOnlyList<AppCatalogEntry> RejectCollisions(
         IReadOnlyList<AppCatalogEntry> candidates,
         List<PluginDiagnostic> diagnostics)

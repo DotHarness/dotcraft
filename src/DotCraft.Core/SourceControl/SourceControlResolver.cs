@@ -3,8 +3,7 @@ namespace DotCraft.SourceControl;
 /// <summary>
 /// Resolves the effective source control provider and a derived (non-live) binding status from
 /// configuration. Connectivity is never probed here — live Perforce status comes from a connection
-/// test. There is no auto-detection: the effective provider is simply the configured one (a legacy
-/// <c>auto</c> value resolves to <c>git</c>).
+/// test. There is no auto-detection: the effective provider is simply the configured one.
 /// </summary>
 public static class SourceControlResolver
 {

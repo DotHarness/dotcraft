@@ -168,7 +168,7 @@ public sealed partial class LocalWorkflowLoader(ILogger<LocalWorkflowLoader> log
         public int MaxRounds { get; set; } = 10;
         public List<string>? Steps { get; set; }
 
-        /// <summary><c>project</c> (default) or <c>worktree</c>. Legacy <c>isolated</c> is accepted.</summary>
+        /// <summary><c>project</c> (default) or <c>worktree</c>.</summary>
         public string? Workspace { get; set; }
     }
 

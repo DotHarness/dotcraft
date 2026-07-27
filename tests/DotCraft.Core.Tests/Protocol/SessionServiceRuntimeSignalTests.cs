@@ -1,6 +1,6 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
-using DotCraft.Abstractions;
+using DotCraft.Protocol.AppServer;
 using DotCraft.Agents;
 using DotCraft.Configuration;
 using DotCraft.Context;
@@ -744,7 +744,6 @@ public sealed class SessionServiceRuntimeSignalTests : IDisposable
                 config.Compaction.KeepRecentMinGroups = 1;
                 config.Compaction.KeepRecentMaxTokens = 1_000;
                 config.Compaction.MicrocompactEnabled = true;
-                config.Compaction.MicrocompactTriggerCount = 1;
                 config.Compaction.MicrocompactKeepRecent = 1;
                 config.Compaction.MicrocompactGapMinutes = 5;
             },
@@ -1551,7 +1550,7 @@ public sealed class SessionServiceRuntimeSignalTests : IDisposable
             UsageUpdate(requestIndex: 3, input: 41_000, output: 8, cachedInput: 40_000)
         ]);
         await using var agentFactory = CreateAgentFactory(chatClient);
-        var tokenUsageStore = new TokenUsageStore(_tempDir);
+        var tokenUsageStore = new TokenUsageStore();
         var svc = CreateService(agentFactory, chatClient, tokenUsageStore);
         var thread = await svc.CreateThreadAsync(MakeIdentity());
 
@@ -2263,7 +2262,7 @@ public sealed class SessionServiceRuntimeSignalTests : IDisposable
     }
 
     [Fact]
-    public async Task SubmitInputAsync_WhenLegacyThreadSessionRowIsMissing_RebuildsHistoryFromRollout()
+    public async Task SubmitInputAsync_AfterServiceRestart_RebuildsHistoryFromRollout()
     {
         var firstChatClient = new RecordingChatClient("first answer");
         await using var firstFactory = CreateAgentFactory(firstChatClient);

@@ -2,7 +2,6 @@ using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using Anthropic.Models.Beta.Messages;
-using DotCraft.Abstractions;
 using DotCraft.Configuration;
 using DotCraft.Tracing;
 using Microsoft.Extensions.AI;
