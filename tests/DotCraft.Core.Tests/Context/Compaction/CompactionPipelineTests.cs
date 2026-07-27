@@ -185,7 +185,6 @@ public sealed class CompactionPipelineTests
         cfg.KeepRecentMinGroups = 1;
         cfg.KeepRecentMaxTokens = 100_000;
         cfg.MicrocompactEnabled = true;
-        cfg.MicrocompactTriggerCount = 1;
         cfg.MicrocompactKeepRecent = 1;
         cfg.MicrocompactGapMinutes = 20;
         var store = new TraceStore();
@@ -239,7 +238,6 @@ public sealed class CompactionPipelineTests
             SummaryReserveTokens = 4_000,
             AutoCompactBufferTokens = 2_000,
             MicrocompactEnabled = true,
-            MicrocompactTriggerCount = 1,
             MicrocompactKeepRecent = 1,
             MicrocompactGapMinutes = 5
         };
@@ -276,7 +274,6 @@ public sealed class CompactionPipelineTests
             KeepRecentMinGroups = 1,
             KeepRecentMaxTokens = 100_000,
             MicrocompactEnabled = true,
-            MicrocompactTriggerCount = 3,
             MicrocompactKeepRecent = 1,
             MicrocompactGapMinutes = 5
         };
@@ -319,7 +316,6 @@ public sealed class CompactionPipelineTests
             KeepRecentMinGroups = 1,
             KeepRecentMaxTokens = 100_000,
             MicrocompactEnabled = true,
-            MicrocompactTriggerCount = 1,
             MicrocompactKeepRecent = 1,
             MicrocompactGapMinutes = 5
         };
@@ -362,7 +358,6 @@ public sealed class CompactionPipelineTests
             KeepRecentMinGroups = 1,
             KeepRecentMaxTokens = 100_000,
             MicrocompactEnabled = true,
-            MicrocompactTriggerCount = 1,
             MicrocompactKeepRecent = 1,
             MicrocompactGapMinutes = 5
         };

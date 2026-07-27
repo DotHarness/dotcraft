@@ -120,15 +120,6 @@ export function validateWeixinConfig(rawConfig: unknown): asserts rawConfig is W
   }
 }
 
-export interface WeixinAdapterConfig {
-  wsUrl: string;
-  dotcraftToken?: string;
-  apiBaseUrl: string;
-  approvalTimeoutMs: number;
-  state: WeixinState;
-  credentials: WeixinCredentials;
-}
-
 interface CaptionDeliveryResult {
   attempted: boolean;
   delivered?: boolean;
@@ -158,7 +149,7 @@ export class WeixinAdapter extends ModuleChannelAdapter<WeixinConfig> {
     { request: Record<string, unknown>; promptTitle?: string; resolve: (response: UserInputResponse) => void }
   >();
 
-  constructor(cfg?: WeixinAdapterConfig) {
+  constructor() {
     super("weixin", "dotcraft-weixin", "0.1.0", [
       "item/reasoning/delta",
       "subagent/progress",
@@ -166,20 +157,6 @@ export class WeixinAdapter extends ModuleChannelAdapter<WeixinConfig> {
       "system/event",
       "plan/updated",
     ]);
-
-    if (cfg) {
-      this.client = new DotCraftWireClient(
-        new WebSocketTransport({
-          url: cfg.wsUrl,
-          token: cfg.dotcraftToken ?? "",
-        }),
-      );
-      this.apiBaseUrl = cfg.credentials.baseUrl || cfg.apiBaseUrl;
-      this.botToken = cfg.credentials.botToken;
-      this.approvalTimeoutMs = cfg.approvalTimeoutMs;
-      this.state = cfg.state;
-      this.contextTokens = cfg.state.loadContextTokens();
-    }
   }
 
   protected override getConfigFileName(_context: WorkspaceContext): string {

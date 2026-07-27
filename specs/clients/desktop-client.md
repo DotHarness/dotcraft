@@ -292,8 +292,8 @@ Desktop must also tolerate the request being replayed by AppServer when the user
 - The setup flow is local to Desktop and the `dotcraft setup` command; it must not depend on AppServer provider-management RPCs because the workspace is not connected yet.
 - Provider setup offers only the actions needed to initialize a usable workspace: select an existing explicit provider, create a provider from an `OpenAI-Responses` or `Anthropic` template, or create a custom provider.
 - Desktop guided setup must require a provider and model before creating the workspace. CLI setup may still expose skip-provider behavior for advanced automation scenarios.
-- Desktop provider protocol terminology uses `OpenAI-Responses`, `OpenAI-Legacy`, and `Anthropic`. `OpenAI-Responses` writes `openai-responses`; `OpenAI-Legacy` writes `openai-chat-completions`; legacy `openai` values may be read as `OpenAI-Legacy` but must not be emitted by Desktop mutations.
-- Setup shows only explicit personal providers. Existing root-level legacy `ApiKey` / `EndPoint` fields in user config are ignored by setup.
+- Desktop provider protocol terminology uses `OpenAI-Responses`, `OpenAI-Legacy`, and `Anthropic`. `OpenAI-Responses` writes `openai-responses`; `OpenAI-Legacy` writes the canonical `openai-chat-completions` value.
+- Setup shows only explicit personal providers.
 - Provider credentials and endpoints are saved to personal provider config. Workspace setup writes only provider/model selection overrides for provider-aware setup.
 - Model listing and provider probing are advisory. If listing fails or is unsupported, setup must keep manual model entry available.
 
@@ -785,7 +785,7 @@ Required behavior:
   - Local mode shows Hub-managed AppServer actions, including Apply & Restart when local process settings change.
   - Remote mode uses Apply & Connect for URL/token changes, validates before persisting, and hides or disables local-only AppServer binary and restart controls with explanatory copy.
 - When `capabilities.sourceControlManagement` is available, Desktop exposes a workspace-scoped `Source Control` tab:
-  - the user selects a provider (`git`, `perforce`, `none`); any legacy stored `auto` value is normalized by AppServer to Git and is not shown as an auto-detection mode.
+  - the user selects a provider (`git`, `perforce`, `none`); unsupported stored values are rejected rather than normalized to another provider.
   - for Perforce, the user configures the connection (P4CONFIG/default or manual parameters) and runs Test Connection.
   - Test Connection and provider detection execute on the AppServer (`sourceControl/test`/`sourceControl/get`) so results reflect the workspace-owning environment in both local and remote modes; Desktop never runs `p4` locally.
   - binding is saved with `sourceControl/update`, which persists only non-sensitive fields (no password/ticket); a workspace may be bound while unverified, surfaced as a `Not verified` or offline status.

@@ -40,32 +40,6 @@ public class LspServerConfigConverterTests
     }
 
     [Fact]
-    public void AppConfig_Deserializes_LspServers_ArrayForm()
-    {
-        const string json = """
-        {
-          "LspServers": [
-            {
-              "name": "typescript",
-              "command": "typescript-language-server",
-              "arguments": ["--stdio"],
-              "extensionToLanguage": {
-                ".ts": "typescript"
-              }
-            }
-          ]
-        }
-        """;
-
-        var config = JsonSerializer.Deserialize<AppConfig>(json, SerializerOptions);
-        Assert.NotNull(config);
-        var server = Assert.Single(config!.LspServers);
-        Assert.Equal("typescript", server.Name);
-        Assert.Equal("typescript-language-server", server.Command);
-        Assert.Equal(["--stdio"], server.Arguments);
-    }
-
-    [Fact]
     public void AppConfig_Serializes_LspServers_AsObjectMap()
     {
         var config = new AppConfig

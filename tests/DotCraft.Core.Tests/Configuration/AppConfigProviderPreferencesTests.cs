@@ -60,29 +60,6 @@ public sealed class AppConfigProviderPreferencesTests : IDisposable
         Assert.Equal("claude-model", ModelPreferenceRules.Find(config.ProviderPreferences, "ANTHROPIC")?.Model);
     }
 
-    [Fact]
-    public void LoadWithGlobalFallback_DoesNotReadModelOnlyPreferenceKeys()
-    {
-        Directory.CreateDirectory(tempRoot);
-        var globalPath = Path.Combine(tempRoot, "global.json");
-        var workspacePath = Path.Combine(tempRoot, "workspace.json");
-        File.WriteAllText(globalPath, """
-            {
-              "ProviderId": "openai",
-              "ProviderModels": { "openai": "legacy-global" },
-              "SubAgent": {
-                "ProviderModels": { "openai": "legacy-subagent" }
-              }
-            }
-            """);
-        File.WriteAllText(workspacePath, "{}");
-
-        var config = AppConfig.LoadWithGlobalFallback(workspacePath, globalPath);
-
-        Assert.Empty(config.ProviderPreferences);
-        Assert.Empty(config.SubAgent.ProviderPreferences);
-    }
-
     public void Dispose()
     {
         try

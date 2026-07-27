@@ -56,7 +56,15 @@ internal sealed class SourceControlRequestHandler(
             throw AppServerErrors.InvalidParams("'provider' is required.");
 
         var current = appConfigMonitor?.Current.SourceControl ?? new SourceControlConfig();
-        var updated = ApplyUpdate(current, p, msg.Params.Value);
+        SourceControlConfig updated;
+        try
+        {
+            updated = ApplyUpdate(current, p, msg.Params.Value);
+        }
+        catch (ArgumentException ex)
+        {
+            throw AppServerErrors.InvalidParams(ex.Message);
+        }
 
         Persist(updated);
 

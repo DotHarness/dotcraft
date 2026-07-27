@@ -125,7 +125,7 @@ Three message kinds:
 - Timestamps are **ISO 8601 UTC** strings (e.g., `"2026-03-15T10:00:00Z"`).
 - Enums are serialized as **camelCase strings** (e.g., `"active"`, `"running"`, `"toolCall"`, `"waitingApproval"`).
 - Nullable fields are omitted from the JSON when `null`, unless explicitly stated otherwise.
-- Wire DTOs are distinct from the on-disk persistence models. Persisted thread JSON may keep internal compatibility quirks; the wire contract must remain lossless and transport-stable.
+- Wire DTOs are distinct from the on-disk persistence models. Persisted thread JSON may contain internal-only fields; the wire contract must remain lossless and transport-stable.
 - AppServer projects Session Core `item/delta` events to specific wire methods (`item/agentMessage/delta`, `item/reasoning/delta`, `item/toolCall/argumentsDelta`, `item/commandExecution/outputDelta`). Delta notifications that can represent multiple logical kinds carry `deltaKind`.
 - `id` fields in JSON-RPC messages may be strings or integers. The server preserves the type and value when responding.
 
@@ -1934,7 +1934,6 @@ The canonical item payload schemas are defined in [Session Core, Section 4.2](..
 | `commandExecution` | Command execution payload uses camelCase fields such as `command`, `workingDirectory`, `source`, `status`, `aggregatedOutput`, `exitCode`, `durationMs`, and `callId`. |
 | `toolExecution` | Runtime lifecycle enhancement for a normal tool invocation. Payload uses `callId`, `toolName`, `status`, `success`, `durationMs`, `resultPreview`, and `errorMessage`. It is emitted only when the client advertises `capabilities.toolExecutionLifecycle = true`. |
 | `imageGeneration` | Hosted image generation lifecycle item. Payload uses `callId`, `status` (`"inProgress"` / `"completed"` / `"failed"`), optional `revisedPrompt`, optional base64 `result`, `mediaType`, optional `savedPath`, and optional `errorMessage`. Clients should render it independently from ordinary tool aggregation and must not treat `"inProgress"` provider status as failure. |
-| `pluginFunctionCall` | Reserved persisted item type. Servers MUST NOT create this item for an invocation or expand it into model history because it lacks the canonical composite identity and `providerFlatName`. |
 | `mcpToolCall` | One MCP lifecycle item with canonical namespace/name, required `providerFlatName`, runtime `server`, `origin`, raw `sourceToolId`, definition/runtime binding identities, binding/snapshot revisions, safe provenance, original `callId`, arguments, status, duration, normalized `contentItems`, raw MCP content, `structuredContent`, sanitized `_meta`, `isError`, success, stable error fields, and optional normalized `mcpAppResourceUri`. It has no companion `toolResult`. View handles, HTML, CSP, and availability are never persisted in the item. |
 | `dynamicToolCall` | One Runtime Dynamic lifecycle item with optional canonical namespace, canonical local tool name, required `providerFlatName`, original `callId`, arguments, `inProgress`/`completed`/`failed` status, duration, `contentItems`, `structuredContent`, nullable terminal success, and stable error fields. It has no companion `toolCall`/`toolResult`. |
 | `toolResult` | Standard result paired by `callId`, preserving canonical namespace/name and required `providerFlatName`, with model-safe `result`/`contentItems`, client-only `structuredContent`, sanitized host-only `_meta`, success, and stable error fields. Provider history never includes `structuredContent` or `_meta`. |
@@ -2734,11 +2733,11 @@ Automation task methods are defined in full in [automations-lifecycle.md §13](.
 - `automation/task/updateBinding` `{ taskId, threadBinding?: { threadId, mode } | null }` → `{ task }` — rewrites only the `thread_binding` block on disk; pass `null` to unbind.
 - `automation/task/discardWorktree` `{ taskId }` → `{ task }` — best-effort removes the task's managed worktree and branch while keeping the task. Rejects running tasks.
 - `automation/template/list` `{}` → `{ templates: AutomationTemplateWire[] }` — returns the built-in local task templates followed by any user-authored templates so desktop clients can render the "Use template" picker without bundling a copy. User templates carry `isUser: true`; built-ins omit the field (default `false`). User templates also populate `createdAt` / `updatedAt` (ISO-8601 UTC).
-- `automation/template/save` `{ id?, title, description?, icon?, category?, workflowMarkdown, defaultSchedule?, defaultWorkspaceMode?, defaultApprovalPolicy?, needsThreadBinding, defaultTitle?, defaultDescription?, defaultAgentProfileId? }` → `{ template: AutomationTemplateWire }` — upsert a user template. `defaultWorkspaceMode` is canonical `project` or `worktree`; legacy `isolated` input is accepted as `worktree`. `defaultAgentProfileId` records the Agent Profile that pre-fills the task Agent picker when the template is applied; it is a default, not itself executable. When `id` is omitted the server assigns `"user-" + shortGuid`. Rejects built-in id collisions, path-traversal / invalid id shapes (`^[a-zA-Z0-9][a-zA-Z0-9_-]{0,63}$`), empty `title` / `workflowMarkdown`, invalid workspace mode, and overlong `title` (>200 chars).
+- `automation/template/save` `{ id?, title, description?, icon?, category?, workflowMarkdown, defaultSchedule?, defaultWorkspaceMode?, defaultApprovalPolicy?, needsThreadBinding, defaultTitle?, defaultDescription?, defaultAgentProfileId? }` → `{ template: AutomationTemplateWire }` — upsert a user template. `defaultWorkspaceMode` must be `project` or `worktree`. `defaultAgentProfileId` records the Agent Profile that pre-fills the task Agent picker when the template is applied; it is a default, not itself executable. When `id` is omitted the server assigns `"user-" + shortGuid`. Rejects built-in id collisions, path-traversal / invalid id shapes (`^[a-zA-Z0-9][a-zA-Z0-9_-]{0,63}$`), empty `title` / `workflowMarkdown`, invalid workspace mode, and overlong `title` (>200 chars).
 - `automation/template/delete` `{ id }` → `{ ok: true }` — delete a user template directory. Built-in ids and invalid id shapes are rejected with `-32602` Invalid params. Idempotent: missing directories return `{ ok: true }`.
 - User template disk layout: `<CraftPath>/automations/templates/<id>/template.md` (overridable via `Automations.UserTemplatesRoot`). The file is YAML front matter (`id`, `title`, `description`, `icon`, `category`, `default_schedule`, `default_workspace_mode`, `default_approval_policy`, `default_agent_profile_id`, `needs_thread_binding`, `default_title`, `default_description`, `created_at`, `updated_at`) followed by the complete `workflow.md` body that is copied into new tasks applying the template.
 - `AutomationTaskWire.status` is one of `pending`, `running`, `completed`, or `failed`, and carries `workspaceMode` (`project` or `worktree`), nullable `worktree` (`{ branchName, path }`), optional `schedule` (mirrors `CronSchedule`), `threadBinding` (`{ threadId, mode: "run-in-thread" }`), and `nextRunAt` (ISO-8601 UTC). `worktree` is null before provisioning, for project-mode or bound tasks, and when worktree-mode execution falls back to the legacy task workspace.
-- `automation/task/create` accepts `schedule`, `workspaceMode`, `threadBinding`, `templateId`, and `agentProfileId` in addition to the existing fields. `workspaceMode` accepts canonical `project` or `worktree`; legacy `isolated` input is normalized to `worktree`. When both `templateId` and explicit fields are supplied, the explicit fields win.
+- `automation/task/create` accepts `schedule`, `workspaceMode`, `threadBinding`, `templateId`, and `agentProfileId` in addition to the existing fields. `workspaceMode` must be `project` or `worktree`. When both `templateId` and explicit fields are supplied, the explicit fields win.
 - `agentProfileId` (on `automation/task/create`, persisted as `agent_profile_id` in `task.md`) binds the task to an Agent Profile that governs the agent's capabilities (tools, MCP, skills, model, instructions). The automation still force-overrides its operational fields (auto-approve, task directory, approval-outside-workspace) on top of the resolved profile, and always injects its `CompleteLocalTask` completion tool — kept reachable even under a restrictive profile allow-list — so the run can finish. The profile's capability policy is the source of truth for general tools; the default source tool profile is not merged on top. Only the id is stored; the profile is resolved at each dispatch (latest definition wins). A bound profile that no longer resolves fails the run. See [automations-lifecycle.md §Agent Profile Binding](../features/automations-lifecycle.md#agent-profile-binding).
 
 ### 8.4 Turn-Level Errors
@@ -3125,7 +3124,7 @@ External channel adapter behavior rules for `ext/channel/toolCall`:
 - When a tool descriptor declares `approval`, the server may gate execution before sending `ext/channel/toolCall`.
 - `approval` metadata identifies approval targets for server interception only; it does not define an adapter-local approval policy.
 - Any gating decision for adapter-declared tools must be resolved from the same server-owned thread/workspace policy surfaces used by built-in tools.
-- Adapter-declared channel/plugin tools use standard `toolCall` + `toolResult` projection with plugin/channel provenance. They do not create new `pluginFunctionCall` items.
+- Adapter-declared channel/plugin tools use standard `toolCall` + `toolResult` projection with plugin/channel provenance.
 
 #### 11.3.1 Interactive Tool UI boundary
 
@@ -4988,7 +4987,7 @@ Clients must check `capabilities.providerManagement` before calling `provider/li
 |-------|------|-------------|
 | `id` | string | Stable personal provider id. |
 | `displayName` | string | User-facing label. |
-| `protocol` | string | Provider protocol. Canonical values are `openai-chat-completions`, `openai-responses`, and `anthropic`. Servers accept legacy `openai` as a read-only alias for `openai-chat-completions`, but provider mutations return and persist canonical values. |
+| `protocol` | string | Provider protocol. Supported values are `openai-chat-completions`, `openai-responses`, and `anthropic`. |
 | `apiKey` | string? | Redacted secret marker when a key is present; raw secrets are never returned. |
 | `hasApiKey` | boolean | Whether the provider has an API key configured. |
 | `endPoint` | string | Configured provider base URL. Empty means the protocol's official default endpoint. |
@@ -5016,7 +5015,7 @@ Additional capability flags include:
 |-------|------|----------|-------------|
 | `id` | string | yes | Stable provider id. `openai` is allowed as an explicit personal provider id. |
 | `displayName` | string | no | User-facing label. Defaults to `id`. |
-| `protocol` | string | yes | `openai-chat-completions`, `openai-responses`, or `anthropic`. Legacy `openai` is accepted as an alias for `openai-chat-completions`. |
+| `protocol` | string | yes | `openai-chat-completions`, `openai-responses`, or `anthropic`. |
 | `apiKey` | string | no | Provider credential or secret reference. |
 | `endPoint` | string | no | Provider base URL. Empty values use the protocol's official default endpoint. |
 | `networkTimeoutSeconds` | integer? | no | Timeout override; must be greater than zero. |
@@ -6187,7 +6186,6 @@ Update workspace-level SubAgent settings.
 - `providerPreferences` replaces `SubAgent.ProviderPreferences`; an empty map clears the section
 - each record is normalized as a complete unit; an invalid model, reasoning selection, speed value, or context-window selection rejects the request without writing
 - `minWaitTimeoutMs`, `defaultWaitTimeoutMs`, and `maxWaitTimeoutMs` update `SubAgent.MinWaitTimeoutMs`, `SubAgent.DefaultWaitTimeoutMs`, and `SubAgent.MaxWaitTimeoutMs`; each value must be between `0` and `3600000`, and the resulting triple must satisfy `min <= default <= max`
-- saving SubAgent settings removes obsolete SubAgent model-only keys if present
 - the resume toggle affects only profiles whose effective definition has `supportsResume=true`
 - clearing or changing these settings does not delete existing saved external session ids
 - on success, the server emits `workspace/configChanged` (see [Section 25.5](#255-workspaceconfigchanged)) with `source: "subagent/settings/update"` and `regions: ["subagent"]`
@@ -6480,9 +6478,7 @@ Update workspace-level config values.
 - At least one of `providerId`, `providerPreferences`, `welcomeSuggestionsEnabled`, `skillsSelfLearningEnabled`, `memoryAutoConsolidateEnabled`, `dreamsEnabled`, `dreamsInterval`, `dreamsThreadLookbackCount`, `dreamsAutoApply`, `defaultApprovalPolicy`, or `toolsLspEnabled` must be provided.
 - Key matching is case-insensitive and normalized in-place (`ProviderId`, `ProviderPreferences`, and nested sections).
 - `providerPreferences` replaces the complete workspace map. Each workspace record atomically overrides the personal record for the same provider; fields are never merged across scopes.
-- Provider-aware saves persist `ProviderId` and `ProviderPreferences` and remove obsolete model-only and root model-option keys. Credentials and endpoints are changed through `provider/create` and `provider/update`.
-- Requests containing legacy root-level `apiKey` or `endPoint` parameters are rejected.
-- Requests containing `providerModels`, root-level `reasoning`, root-level `speed`, or root-level `contextWindow` are rejected.
+- Provider-aware saves persist `ProviderId` and `ProviderPreferences` while preserving unrelated configuration state. Credentials and endpoints are changed through `provider/create` and `provider/update`.
 - When `skillsSelfLearningEnabled` is provided, the server writes the boolean to the nested `Skills.SelfLearning.Enabled` key. Setting it to `null` removes the leaf, and the server prunes empty `Skills.SelfLearning` / `Skills` objects when no other keys remain.
 - When `memoryAutoConsolidateEnabled` is provided, the server writes the boolean to `Memory.AutoConsolidateEnabled`. Setting it to `null` removes the leaf, and the server prunes the empty `Memory` object when no other keys remain.
 - When Dreams fields are provided, the server writes them to `Dreams.Enabled`, `Dreams.Interval`, `Dreams.ThreadLookbackCount`, and `Dreams.AutoApply`. Setting a field to `null` removes that leaf, and the server prunes the empty `Dreams` object when no other keys remain.
@@ -6602,7 +6598,7 @@ Return the effective source control binding snapshot for the current workspace.
 | Field | Type | Description |
 |-------|------|-------------|
 | `provider` | string | User-selected provider: `none`, `git`, or `perforce` (default `git`). |
-| `effectiveProvider` | string | Resolved provider; equals `provider` in this version (no auto-detection). A legacy stored `auto` value normalizes to `git`. |
+| `effectiveProvider` | string | Resolved provider; equals `provider` in this version because source control has no auto-detection. |
 | `connectionMode` | string \| null | Perforce connection mode: `p4config` or `manual`. Null for non-Perforce providers. |
 | `status` | string | Derived binding status (see [25A.9](#25a9-status-and-error-taxonomy)). `sourceControl/get` never runs `p4`; live connectivity comes from `sourceControl/test`. |
 | `workspacePath` | string | Absolute workspace path owned by this AppServer. |
@@ -6612,7 +6608,7 @@ Return the effective source control binding snapshot for the current workspace.
 **Semantics**:
 
 - Snapshot reflects the merged global + workspace config (`SourceControl` section), workspace values taking precedence.
-- The default provider is `git`. There is no auto-detection: `effectiveProvider` equals the configured provider. A legacy stored `auto` value (from earlier versions) is normalized to `git`.
+- The default provider is `git`. There is no auto-detection: `effectiveProvider` equals the configured provider.
 - `status` is `notConfigured` when no provider is bound, `notTested` for a bound Perforce provider not yet tested this session, and `offline` when `perforce.online` is `false`.
 
 ### 25A.3 `sourceControl/update`

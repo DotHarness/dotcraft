@@ -3,7 +3,7 @@ import { sendSingleCard } from "./card-sender.js";
 import type { FeishuAdapter } from "./feishu-adapter.js";
 import type { FeishuClient } from "./feishu-client.js";
 import type {
-  AppConfig,
+  FeishuConfig,
   FeishuBotInfo,
   FeishuCardActionEvent,
   FeishuMessageEvent,
@@ -19,7 +19,7 @@ export function createFeishuEventHandlers(params: {
   adapter: FeishuAdapter;
   client: FeishuClient;
   bot: FeishuBotInfo;
-  config: AppConfig["feishu"];
+  config: FeishuConfig["feishu"];
 }) {
   const dedup = new Map<string, number>();
   const dedupTtlMs = 5 * 60 * 1000;

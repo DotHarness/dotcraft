@@ -3,7 +3,6 @@ using System.ComponentModel;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Text.RegularExpressions;
-using DotCraft.Abstractions;
 using DotCraft.Agents;
 using DotCraft.Configuration;
 using DotCraft.Plugins;
@@ -3286,21 +3285,6 @@ public sealed partial class TeamsService(IAppConfigMonitor? appConfigMonitor = n
     {
         var mission = RequireMission(state, task.MissionId);
         EnsureMissionCanReceiveWork(mission);
-    }
-
-    private static void ReconcileMissionCompletion(
-        TeamsStateDocument state,
-        string missionId,
-        DateTimeOffset now,
-        string summary)
-    {
-        var mission = state.Missions.FirstOrDefault(m => string.Equals(m.MissionId, missionId, StringComparison.Ordinal));
-        if (mission == null || mission.ArchivedAt != null || IsTerminalMissionStatus(mission.Status))
-            return;
-
-        var missionTasks = state.Tasks.Where(t => string.Equals(t.MissionId, missionId, StringComparison.Ordinal)).ToList();
-        if (missionTasks.Count > 0 && missionTasks.All(t => t.Status == "done"))
-            CompleteMission(mission, now, summary);
     }
 
     private static void CompleteMission(MissionRecord mission, DateTimeOffset now, string summary)

@@ -91,29 +91,9 @@ public sealed class McpServerConfig
     public List<string> Arguments { get; set; } = [];
 
     /// <summary>
-    /// Wire alias for <see cref="Arguments"/>.
-    /// </summary>
-    [JsonIgnore]
-    public List<string> Args
-    {
-        get => Arguments;
-        set => Arguments = value ?? [];
-    }
-
-    /// <summary>
     /// Environment variables for the command (stdio transport only).
     /// </summary>
     public Dictionary<string, string> EnvironmentVariables { get; set; } = new();
-
-    /// <summary>
-    /// Wire alias for <see cref="EnvironmentVariables"/>.
-    /// </summary>
-    [JsonIgnore]
-    public Dictionary<string, string> Env
-    {
-        get => EnvironmentVariables;
-        set => EnvironmentVariables = value ?? new Dictionary<string, string>();
-    }
 
     /// <summary>
     /// Environment variable names to forward from the host process (stdio transport only).
@@ -134,16 +114,6 @@ public sealed class McpServerConfig
     /// Additional HTTP headers (http transport only).
     /// </summary>
     public Dictionary<string, string> Headers { get; set; } = new();
-
-    /// <summary>
-    /// Wire alias for <see cref="Headers"/>.
-    /// </summary>
-    [JsonIgnore]
-    public Dictionary<string, string> HttpHeaders
-    {
-        get => Headers;
-        set => Headers = value ?? new Dictionary<string, string>();
-    }
 
     /// <summary>
     /// HTTP headers whose values are sourced from environment variables (HTTP transport only).
@@ -206,7 +176,7 @@ public sealed class McpServerConfig
 }
 
 /// <summary>
-/// Supports both legacy array-form MCP config and the new object-map form:
+/// Reads and writes the canonical object-map MCP config:
 /// { "McpServers": { "name": { ... } } }.
 /// </summary>
 public sealed class McpServerConfigListConverter : JsonConverter<List<McpServerConfig>>
@@ -217,34 +187,19 @@ public sealed class McpServerConfigListConverter : JsonConverter<List<McpServerC
         var root = doc.RootElement;
         var list = new List<McpServerConfig>();
 
-        if (root.ValueKind == JsonValueKind.Array)
+        if (root.ValueKind != JsonValueKind.Object)
+            throw new JsonException("McpServers must be an object keyed by server name.");
+
+        foreach (var prop in root.EnumerateObject())
         {
-            foreach (var item in root.EnumerateArray())
-            {
-                var cfg = item.Deserialize<McpServerConfig>(options);
-                if (cfg != null)
-                {
-                    ApplyWireAliases(cfg, item, options);
-                    list.Add(cfg);
-                }
-            }
-            return list;
+            RejectLegacyAliases(prop.Value);
+            var cfg = prop.Value.Deserialize<McpServerConfig>(options) ?? new McpServerConfig();
+            if (string.IsNullOrWhiteSpace(cfg.Name))
+                cfg.Name = prop.Name;
+            list.Add(cfg);
         }
 
-        if (root.ValueKind == JsonValueKind.Object)
-        {
-            foreach (var prop in root.EnumerateObject())
-            {
-                var cfg = prop.Value.Deserialize<McpServerConfig>(options) ?? new McpServerConfig();
-                ApplyWireAliases(cfg, prop.Value, options);
-                if (string.IsNullOrWhiteSpace(cfg.Name))
-                    cfg.Name = prop.Name;
-                list.Add(cfg);
-            }
-            return list;
-        }
-
-        return [];
+        return list;
     }
 
     public override void Write(Utf8JsonWriter writer, List<McpServerConfig> value, JsonSerializerOptions options)
@@ -261,50 +216,18 @@ public sealed class McpServerConfigListConverter : JsonConverter<List<McpServerC
         writer.WriteEndObject();
     }
 
-    private static void ApplyWireAliases(McpServerConfig cfg, JsonElement element, JsonSerializerOptions options)
+    private static void RejectLegacyAliases(JsonElement element)
     {
         if (element.ValueKind != JsonValueKind.Object)
-            return;
+            throw new JsonException("Each MCP server entry must be an object.");
 
-        if (!HasProperty(element, "arguments")
-            && cfg.Arguments.Count == 0
-            && TryGetProperty(element, "args", out var argsElement))
-        {
-            cfg.Arguments = argsElement.Deserialize<List<string>>(options) ?? [];
-        }
-
-        if (!HasProperty(element, "environmentVariables")
-            && cfg.EnvironmentVariables.Count == 0
-            && TryGetProperty(element, "env", out var envElement))
-        {
-            cfg.EnvironmentVariables = envElement.Deserialize<Dictionary<string, string>>(options)
-                                       ?? new Dictionary<string, string>();
-        }
-
-        if (!HasProperty(element, "headers")
-            && cfg.Headers.Count == 0
-            && TryGetProperty(element, "httpHeaders", out var headersElement))
-        {
-            cfg.Headers = headersElement.Deserialize<Dictionary<string, string>>(options)
-                          ?? new Dictionary<string, string>();
-        }
-    }
-
-    private static bool HasProperty(JsonElement element, string name) =>
-        TryGetProperty(element, name, out _);
-
-    private static bool TryGetProperty(JsonElement element, string name, out JsonElement value)
-    {
         foreach (var property in element.EnumerateObject())
         {
-            if (property.NameEquals(name) || string.Equals(property.Name, name, StringComparison.OrdinalIgnoreCase))
-            {
-                value = property.Value;
-                return true;
-            }
+            if (property.Name.Equals("args", StringComparison.OrdinalIgnoreCase)
+                || property.Name.Equals("env", StringComparison.OrdinalIgnoreCase)
+                || property.Name.Equals("httpHeaders", StringComparison.OrdinalIgnoreCase))
+                throw new JsonException(
+                    $"MCP server property '{property.Name}' is no longer supported. Use arguments, environmentVariables, or headers.");
         }
-
-        value = default;
-        return false;
     }
 }

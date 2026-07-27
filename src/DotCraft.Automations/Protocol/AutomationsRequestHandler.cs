@@ -60,13 +60,13 @@ public sealed partial class AutomationsRequestHandler(
             throw AppServerErrors.InvalidParams("'description' must be 10000 characters or less.");
 
         var taskId = GenerateTaskId(p.Title, p.TemplateId);
-        
+
         // Security: Validate the generated task ID to prevent path traversal
         if (!IsValidTaskId(taskId))
             throw AppServerErrors.InvalidParams("Generated task ID contains invalid characters.");
 
         var taskDir = Path.Combine(fileStore.TasksRoot, taskId);
-        
+
         // Security: Ensure the task directory is within TasksRoot (path traversal protection)
         var fullTaskDir = Path.GetFullPath(taskDir);
         var fullRoot = Path.GetFullPath(fileStore.TasksRoot);
@@ -115,7 +115,7 @@ public sealed partial class AutomationsRequestHandler(
         var workflowContent = string.IsNullOrWhiteSpace(p.WorkflowTemplate)
             ? BuildDefaultWorkflowContent(workflowWorkspaceMode ?? AutomationWorkspaceModeNames.Project)
             : ApplyExplicitWorkflowWorkspaceMode(
-                CanonicalizeWorkflowWorkspaceMode(p.WorkflowTemplate),
+                p.WorkflowTemplate,
                 workflowWorkspaceMode);
         File.WriteAllText(Path.Combine(taskDir, "workflow.md"), workflowContent);
 
@@ -560,7 +560,7 @@ public sealed partial class AutomationsRequestHandler(
         if (AutomationWorkspaceModeNames.TryNormalize(mode, out var normalized) && normalized != null)
             return normalized;
 
-        throw AppServerErrors.InvalidParams("'workspaceMode' must be 'project' or 'worktree' (legacy 'isolated' is accepted).");
+        throw AppServerErrors.InvalidParams("'workspaceMode' must be 'project' or 'worktree'.");
     }
 
     private static string? NormalizeOptionalWorkspaceMode(string? mode)
@@ -571,18 +571,7 @@ public sealed partial class AutomationsRequestHandler(
         if (AutomationWorkspaceModeNames.TryNormalize(mode, out var normalized))
             return normalized;
 
-        throw AppServerErrors.InvalidParams("'defaultWorkspaceMode' must be 'project' or 'worktree' (legacy 'isolated' is accepted).");
-    }
-
-    private static string CanonicalizeWorkflowWorkspaceMode(string markdown)
-    {
-        if (string.IsNullOrWhiteSpace(markdown))
-            return markdown;
-
-        return Regex.Replace(
-            markdown,
-            @"(?im)^(\s*workspace\s*:\s*)[""']?isolated[""']?(\s*(?:#.*)?$)",
-            "$1worktree$2");
+        throw AppServerErrors.InvalidParams("'defaultWorkspaceMode' must be 'project' or 'worktree'.");
     }
 
     private static string ApplyExplicitWorkflowWorkspaceMode(string markdown, string? workspaceMode)
@@ -658,21 +647,12 @@ public sealed partial class AutomationsRequestHandler(
             return false;
 
         // Must not be a reserved Windows name
-        var reserved = new[] { "CON", "PRN", "AUX", "NUL", "COM1", "COM2", "COM3", "COM4", 
+        var reserved = new[] { "CON", "PRN", "AUX", "NUL", "COM1", "COM2", "COM3", "COM4",
             "LPT1", "LPT2", "LPT3", "LPT4" };
         if (reserved.Any(r => string.Equals(taskId, r, StringComparison.OrdinalIgnoreCase)))
             return false;
 
         return true;
-    }
-
-    /// <summary>
-    /// Checks if a directory already exists to prevent accidental overwrites.
-    /// </summary>
-    private bool TaskDirectoryExists(string taskId)
-    {
-        var taskDir = Path.Combine(fileStore.TasksRoot, taskId);
-        return Directory.Exists(taskDir);
     }
 
     #endregion

@@ -18,6 +18,13 @@ internal static class DashboardCliHost
             return 1;
         }
 
+        var stateDbPath = Path.Combine(craftPath, "state.db");
+        if (!File.Exists(stateDbPath))
+        {
+            await Console.Error.WriteLineAsync($"DotCraft workspace state database not found: {stateDbPath}");
+            return 1;
+        }
+
         var configPath = Path.Combine(craftPath, "config.json");
         var config = AppConfig.LoadWithGlobalFallback(configPath);
         args.ApplyTo(config);

@@ -1,7 +1,6 @@
 export const OPENAI_RESPONSES_PROTOCOL = 'openai-responses'
 export const OPENAI_CHAT_COMPLETIONS_PROTOCOL = 'openai-chat-completions'
 export const ANTHROPIC_PROTOCOL = 'anthropic'
-export const LEGACY_OPENAI_PROTOCOL = 'openai'
 
 export type DesktopProviderProtocol =
   | typeof OPENAI_RESPONSES_PROTOCOL
@@ -26,7 +25,6 @@ export function tryNormalizeProviderProtocol(value: unknown): DesktopProviderPro
     case OPENAI_RESPONSES_PROTOCOL:
       return OPENAI_RESPONSES_PROTOCOL
     case OPENAI_CHAT_COMPLETIONS_PROTOCOL:
-    case LEGACY_OPENAI_PROTOCOL:
       return OPENAI_CHAT_COMPLETIONS_PROTOCOL
     case ANTHROPIC_PROTOCOL:
       return ANTHROPIC_PROTOCOL

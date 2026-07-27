@@ -1,4 +1,4 @@
-using DotCraft.Abstractions;
+using DotCraft.Channels;
 using DotCraft.Agents;
 using DotCraft.AppServer;
 using DotCraft.Automations.Abstractions;

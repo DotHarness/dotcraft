@@ -395,7 +395,7 @@ public sealed class PluginDiscoveryTests
   "processes": {
     "demo": {
       "command": "python",
-      "args": ["./tools/demo_tool.py"]
+      "arguments": ["./tools/demo_tool.py"]
     }
   }
 """);
@@ -514,8 +514,8 @@ public sealed class PluginDiscoveryTests
     "csharp": {
       "transport": "stdio",
       "command": "${DOTCRAFT_PLUGIN_ROOT}/server/bin/csharp-ls",
-      "args": ["--cache", "${DOTCRAFT_PLUGIN_DATA}/cache"],
-      "env": {
+      "arguments": ["--cache", "${DOTCRAFT_PLUGIN_DATA}/cache"],
+      "environmentVariables": {
         "PLUGIN_HOME": "${DOTCRAFT_PLUGIN_ROOT}",
         "PLUGIN_CACHE": "${DOTCRAFT_PLUGIN_DATA}/cache"
       },
@@ -1394,7 +1394,7 @@ public sealed class PluginDiscoveryTests
     "review": {
       "transport": "stdio",
       "command": "node",
-      "args": ["server.js"],
+      "arguments": ["server.js"],
       "cwd": "./server"
     }
   }
@@ -1490,7 +1490,7 @@ description: Test skill
     "csharp": {
       "transport": "stdio",
       "command": "csharp-ls",
-      "args": ["--stdio"],
+      "arguments": ["--stdio"],
       "extensionToLanguage": {
         ".cs": "csharp"
       }

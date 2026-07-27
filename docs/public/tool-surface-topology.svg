@@ -97,7 +97,7 @@
     <text x="28" y="44" class="cardTitle" fill="#17203A">Conversation records</text>
     <line x1="28" y1="64" x2="588" y2="64" stroke="#D9E0EA"/>
     <text x="28" y="96" class="mono">toolCall / toolResult</text>
-    <text x="272" y="96" class="mono">pluginFunctionCall</text>
+    <text x="272" y="96" class="mono">mcpToolCall</text>
     <text x="28" y="124" class="mono">dynamicToolCall</text>
     <text x="272" y="124" class="mono">approvalRequest / approvalResponse</text>
   </g>

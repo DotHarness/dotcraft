@@ -1,4 +1,4 @@
-using DotCraft.State;
+using DotCraft.Persistence;
 using DotCraft.Tracing;
 
 namespace DotCraft.Tests.Tracing;
@@ -11,14 +11,14 @@ namespace DotCraft.Tests.Tracing;
 public sealed class ProfileInsightsStoreTests : IDisposable
 {
     private readonly string _root;
-    private readonly StateRuntime _stateRuntime;
+    private readonly WorkspaceStateDatabase _stateRuntime;
 
     public ProfileInsightsStoreTests()
     {
         _root = Path.Combine(Path.GetTempPath(), "profile-insights-tests", Guid.NewGuid().ToString("N"));
         var craftPath = Path.Combine(_root, ".craft");
         Directory.CreateDirectory(Path.Combine(craftPath, "tracing"));
-        _stateRuntime = new StateRuntime(craftPath);
+        _stateRuntime = new WorkspaceStateDatabase(craftPath);
     }
 
     [Fact]
@@ -34,10 +34,9 @@ public sealed class ProfileInsightsStoreTests : IDisposable
     public void GetProfileInsights_StateDb_RanksModelsReasoningAndSkills()
     {
         var store = new TraceStore(
-            Path.Combine(_root, ".craft", "tracing"),
+            _stateRuntime,
             maxEventsPerSession: 5000,
-            synchronousPersist: true,
-            _stateRuntime);
+            synchronousPersist: true);
         Seed(store);
 
         AssertSeededInsights(store.GetProfileInsights());

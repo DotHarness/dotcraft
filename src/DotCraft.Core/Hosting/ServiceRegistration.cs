@@ -1,5 +1,5 @@
 using DotCraft.Agents;
-using DotCraft.Abstractions;
+using DotCraft.Context;
 using DotCraft.Auth.OpenAI;
 using DotCraft.Commands.Custom;
 using DotCraft.Configuration;
@@ -17,7 +17,7 @@ using DotCraft.Plugins;
 using DotCraft.Protocol;
 using DotCraft.Security;
 using DotCraft.Skills;
-using DotCraft.State;
+using DotCraft.Persistence;
 using DotCraft.Tools;
 using DotCraft.Tools.BackgroundTerminals;
 using Microsoft.Extensions.DependencyInjection;
@@ -99,7 +99,7 @@ public static class ServiceRegistration
             WorkspacePath = workspacePath,
             CraftPath = botPath
         });
-        services.AddSingleton(new StateRuntime(botPath));
+        services.AddSingleton(new WorkspaceStateDatabase(botPath));
         services.AddSingleton(new PathBlacklist(config.Security.BlacklistedPaths));
         services.AddSingleton<IBackgroundTerminalService>(sp =>
             new BackgroundTerminalService(
@@ -150,8 +150,7 @@ public static class ServiceRegistration
             new McpClientManager(sp.GetService<ILoggerFactory>()?.CreateLogger<McpClientManager>()));
         services.AddSingleton<LspServerManager>();
         services.AddSingleton(new SessionGate(config.MaxSessionQueueSize));
-        services.AddSingleton<ActiveRunRegistry>();
-        services.AddSingleton(sp => new ThreadStore(botPath, sp.GetRequiredService<StateRuntime>()));
+        services.AddSingleton(sp => new ThreadStore(botPath, sp.GetRequiredService<WorkspaceStateDatabase>()));
         services.AddSingleton(sp => new DreamsInputCollector(
             sp.GetRequiredService<AppConfig>(),
             workspacePath,
@@ -188,34 +187,20 @@ public static class ServiceRegistration
 
         if (config.Tracing.Enabled)
         {
-            var tracingStoragePath = Path.Combine(botPath, "tracing");
-            services.AddSingleton(sp =>
-            {
-                var traceStore = new TraceStore(
-                    tracingStoragePath,
-                    maxEventsPerSession: 5000,
-                    synchronousPersist: false,
-                    stateRuntime: sp.GetRequiredService<StateRuntime>());
-                traceStore.LoadFromDisk();
-                return traceStore;
-            });
+            services.AddSingleton(sp => new TraceStore(
+                sp.GetRequiredService<WorkspaceStateDatabase>(),
+                maxEventsPerSession: 5000));
             services.AddSingleton<TraceCollector>();
 
-            services.AddSingleton(sp =>
-            {
-                var tokenUsageStore = new TokenUsageStore(
-                    tracingStoragePath,
-                    stateRuntime: sp.GetRequiredService<StateRuntime>());
-                tokenUsageStore.LoadFromDisk();
-                return tokenUsageStore;
-            });
+            services.AddSingleton(sp => new TokenUsageStore(
+                sp.GetRequiredService<WorkspaceStateDatabase>()));
         }
 
         services.AddSingleton(sp => new SessionPersistenceService(
             sp.GetRequiredService<ThreadStore>(),
             sp.GetService<TraceStore>(),
             sp.GetService<TokenUsageStore>(),
-            sp.GetRequiredService<StateRuntime>()));
+            sp.GetRequiredService<WorkspaceStateDatabase>()));
         services.AddSingleton<IWorkspaceRuntimeFactory, WorkspaceRuntimeFactory>();
         services.AddSingleton(sp => sp.GetRequiredService<IWorkspaceRuntimeFactory>().Create(sp));
 

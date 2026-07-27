@@ -66,7 +66,7 @@ describe('Settings Hooks', () => {
       }
     ]
 
-    settingsGet.mockResolvedValue({ locale: 'en', connectionMode: 'local', visibleChannels: [] })
+    settingsGet.mockResolvedValue({ locale: 'en', connectionMode: 'local' })
     settingsSet.mockResolvedValue(undefined)
     appServerSendRequest.mockImplementation(async (method: string, params?: Record<string, unknown>) => {
       if (method === 'channel/list') return { channels: [] }

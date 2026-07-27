@@ -1,5 +1,5 @@
 using DotCraft.Protocol;
-using DotCraft.State;
+using DotCraft.Persistence;
 
 namespace DotCraft.Tests.Protocol;
 
@@ -10,12 +10,12 @@ namespace DotCraft.Tests.Protocol;
 public sealed class ItemWidgetStateStoreTests : IDisposable
 {
     private readonly string _root = Path.Combine(Path.GetTempPath(), "WidgetStateTests_" + Guid.NewGuid().ToString("N")[..8]);
-    private readonly StateRuntime _stateRuntime;
+    private readonly WorkspaceStateDatabase _stateRuntime;
     private readonly ThreadStore _threadStore;
 
     public ItemWidgetStateStoreTests()
     {
-        _stateRuntime = new StateRuntime(_root);
+        _stateRuntime = new WorkspaceStateDatabase(_root);
         _threadStore = new ThreadStore(_root, _stateRuntime);
     }
 

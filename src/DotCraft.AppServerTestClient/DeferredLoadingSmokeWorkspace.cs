@@ -49,7 +49,7 @@ internal static class DeferredLoadingSmokeWorkspace
                     ["ToolTimeoutSec"] = 20
                 }
             },
-            ["LspServers"] = new JsonArray(),
+            ["LspServers"] = new JsonObject(),
             ["ExternalChannels"] = new JsonArray(),
             ["Tools"] = new JsonObject
             {

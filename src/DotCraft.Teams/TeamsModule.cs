@@ -1,4 +1,5 @@
-using DotCraft.Abstractions;
+using DotCraft.Channels;
+using DotCraft.Context;
 using DotCraft.Configuration;
 using DotCraft.Modules;
 using DotCraft.Protocol;

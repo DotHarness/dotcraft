@@ -28,8 +28,8 @@ internal static class CompactSmokeWorkspace
         {
             ["ProviderId"] = providerId,
             ["ProviderPreferences"] = new JsonObject { [providerId] = SmokeModelPreference.Create(model) },
-            ["McpServers"] = new JsonArray(),
-            ["LspServers"] = new JsonArray(),
+            ["McpServers"] = new JsonObject(),
+            ["LspServers"] = new JsonObject(),
             ["ExternalChannels"] = new JsonArray(),
             ["Tracing"] = new JsonObject
             {

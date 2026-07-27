@@ -29,7 +29,7 @@ function expectDisclosureInsideTitleGroup(container: HTMLElement): HTMLElement {
 
 const collapseAnimationMs = 200
 
-describe('ToolCallCard plugin function rendering', () => {
+describe('ToolCallCard structured result rendering', () => {
   beforeEach(() => {
     useConversationStore.getState().reset()
     Object.defineProperty(window, 'api', {
@@ -45,10 +45,10 @@ describe('ToolCallCard plugin function rendering', () => {
     })
   })
 
-  it('renders plugin text but not image content when expanded', () => {
+  it('renders result text but not image content when expanded', () => {
     const item: ConversationItem = {
       id: 'plugin-tool-1',
-      type: 'pluginFunctionCall',
+      type: 'toolCall',
       status: 'completed',
       toolName: 'NodeReplJs',
       toolCallId: 'plugin-call-1',

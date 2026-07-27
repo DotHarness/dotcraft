@@ -56,7 +56,7 @@ Manifest metadata includes:
 
 Plugins must declare at least one supported contribution: a plugin-contained `skills` path, plugin-bundled MCP servers, lifecycle hooks, App Binding descriptors, LSP server descriptors, Desktop extensions, or interface metadata. Skill-only, MCP-only, hooks-only, app-only, desktop-extension-only, and interface-only plugins are valid.
 
-`mcpServers` is an optional manifest-relative path to a plugin-contained MCP configuration file. If omitted, DotCraft looks for `./.mcp.json` in the plugin root. The MCP file may use either `{ "mcpServers": { ... } }` or a direct server map. Plugin MCP config should use canonical DotCraft fields such as `arguments`, `environmentVariables`, and `headers`; for compatibility with common MCP config files, DotCraft also accepts `args`, `env`, and `httpHeaders` as read aliases. Plugin-bundled MCP servers use the same runtime as workspace `McpServers`; relative MCP `cwd` values resolve under the plugin root. At runtime, contributed server names are prefixed as `{pluginId}:{serverName}` to avoid collisions with workspace MCP servers and other plugins. This prefixed value is the connection-facing `runtimeName`, not a model-visible tool namespace. MCP tool projection derives its separately normalized canonical namespace from the declared server name and retains `runtimeName` plus the raw MCP tool name only for exact source routing; clients and provider adapters MUST NOT split or flatten `runtimeName` to construct model identity.
+`mcpServers` is an optional manifest-relative path to a plugin-contained MCP configuration file. If omitted, DotCraft looks for `./.mcp.json` in the plugin root. The MCP file may use either `{ "mcpServers": { ... } }` or a direct server map. Plugin MCP config uses the canonical DotCraft fields `arguments`, `environmentVariables`, and `headers`. Plugin-bundled MCP servers use the same runtime as workspace `McpServers`; relative MCP `cwd` values resolve under the plugin root. At runtime, contributed server names are prefixed as `{pluginId}:{serverName}` to avoid collisions with workspace MCP servers and other plugins. This prefixed value is the connection-facing `runtimeName`, not a model-visible tool namespace. MCP tool projection derives its separately normalized canonical namespace from the declared server name and retains `runtimeName` plus the raw MCP tool name only for exact source routing; clients and provider adapters MUST NOT split or flatten `runtimeName` to construct model identity.
 
 Effective MCP merge rules:
 
@@ -270,7 +270,7 @@ Installing a registry plugin does not install or launch any native application r
 
 External channel tools are runtime-declared by channel adapters during AppServer `initialize`. Static plugin manifests are not required for external-channel runtime tools. Execution continues to use the `ext/channel/toolCall` server-to-client request defined by [External Channel Adapter](../protocols/external-channel-adapter.md).
 
-External channel tool invocations may still be projected as Session Core `pluginFunctionCall` items for wire compatibility. This projection is a runtime adapter detail, not a plugin manifest native-tool capability.
+External channel tool invocations are projected as standard Session Core `toolCall` and `toolResult` items with plugin/channel provenance.
 
 ### Runtime Dynamic Tools
 
@@ -354,6 +354,6 @@ Workspace-level MCP configuration continues to use `McpServers`. Plugin-bundled 
 ## 9. Protocol Boundaries
 
 - AppServer JSON-RPC methods and capability negotiation are defined in [AppServer Protocol](../protocols/appserver-protocol.md).
-- Session item payloads, including `pluginFunctionCall`, are defined in [Session Core](session-core.md).
+- Session item payloads are defined in [Session Core](session-core.md).
 - External channel adapter handshake, delivery, and `ext/channel/*` requests are defined in [External Channel Adapter](../protocols/external-channel-adapter.md).
 - Desktop user-facing module workflows are defined in [Desktop Client](../clients/desktop-client.md).

@@ -32,7 +32,6 @@ ERROR_NEEDLES = (
 
 TOOL_ITEM_TYPES = {
     "ToolCall",
-    "PluginFunctionCall",
     "McpToolCall",
     "DynamicToolCall",
     "ToolExecution",
@@ -618,19 +617,6 @@ def load_db(
                         {"code": "query_failed", "table": "thread_context_usage", "message": str(exc)}
                     )
 
-        if thread_id and table_exists(connection, "thread_sessions"):
-            try:
-                session_row = connection.execute(
-                    "select updated_at, length(session_json) as session_json_bytes "
-                    "from thread_sessions where thread_id = ?",
-                    (thread_id,),
-                ).fetchone()
-                result["legacy_thread_session"] = dict(session_row) if session_row else None
-            except sqlite3.Error as exc:
-                result["warnings"].append(
-                    {"code": "query_failed", "table": "thread_sessions", "message": str(exc)}
-                )
-
         bound_keys: list[str] = []
         if thread_id and table_exists(connection, "trace_session_bindings"):
             try:
@@ -821,12 +807,10 @@ def emit_markdown(summary: dict[str, Any]) -> None:
             print(f"- Parse errors: `{thread['parse_errors']}`")
         print()
 
-    if db.get("context_usage") or db.get("legacy_thread_session"):
-        print("## Runtime And Legacy State")
+    if db.get("context_usage"):
+        print("## Runtime State")
         if db.get("context_usage"):
             print(f"- thread_context_usage: `{db['context_usage']}`")
-        if db.get("legacy_thread_session"):
-            print(f"- optional legacy thread_sessions evidence: `{db['legacy_thread_session']}`")
         print()
 
     if db.get("trace_bindings") or db.get("trace_sessions") or db.get("trace_events"):

@@ -25,7 +25,7 @@ fi
 
 node /opt/dotcraft/render-config.mjs
 
-APP_HOST="${APPSERVER_LISTEN_HOST:-${APPSERVER_HOST:-0.0.0.0}}"
+APP_HOST="${APPSERVER_LISTEN_HOST:-0.0.0.0}"
 APP_PORT="${APPSERVER_PORT:-9100}"
 
 echo "Starting DotCraft AppServer on ws://${APP_HOST}:${APP_PORT}/ws"

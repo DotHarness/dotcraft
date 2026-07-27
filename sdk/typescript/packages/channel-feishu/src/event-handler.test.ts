@@ -5,7 +5,7 @@ import { FeishuAdapter } from "./feishu-adapter.js";
 import { createFeishuEventHandlers } from "./event-handler.js";
 import { FeishuClient } from "./feishu-client.js";
 import type {
-  AppConfig,
+  FeishuConfig,
   FeishuBotInfo,
   FeishuCardActionEvent,
   FeishuMessageEvent,
@@ -103,7 +103,7 @@ function createHandlers(options?: {
   client?: MockClient;
   adapter?: MockAdapter;
   bot?: Partial<FeishuBotInfo>;
-  config?: Partial<AppConfig["feishu"]>;
+  config?: Partial<FeishuConfig["feishu"]>;
 }) {
   const adapter = options?.adapter ?? createAdapterMock();
   const client = options?.client ?? createClientMock();
@@ -114,7 +114,7 @@ function createHandlers(options?: {
     hasBotIdentity: true,
     ...options?.bot,
   };
-  const config: AppConfig["feishu"] = {
+  const config: FeishuConfig["feishu"] = {
     appId: "cli_test",
     appSecret: "secret_test",
     groupMentionRequired: true,
@@ -561,4 +561,3 @@ test("Feishu event handler preserves metadata for post and image messages", asyn
     assert.equal(message.mentions.length, 1);
   }
 });
-

@@ -88,9 +88,8 @@ class SocialRecordingAdapter extends RecordingAdapter {
   }
 }
 
-test("should flush segments for plugin function calls", () => {
+test("should flush segments for tool calls", () => {
   assert.equal(shouldFlushSegmentOnItemStarted("toolCall"), true);
-  assert.equal(shouldFlushSegmentOnItemStarted("pluginFunctionCall"), true);
   assert.equal(shouldFlushSegmentOnItemStarted("agentMessage"), false);
 });
 
@@ -101,7 +100,7 @@ test("ChannelAdapter parses numeric social bind codes", () => {
   assert.equal(adapter.parseBindCodeForTest("bind 482913"), null);
 });
 
-test("ChannelAdapter flushes the current segment before plugin function calls", async () => {
+test("ChannelAdapter flushes the current segment before tool calls", async () => {
   const adapter = new RecordingAdapter();
   const client = (adapter as unknown as { client: Record<string, unknown> }).client;
 
@@ -120,7 +119,7 @@ test("ChannelAdapter flushes the current segment before plugin function calls", 
         method: "item/started",
         params: {
           threadId: "thread-1",
-          item: { type: "pluginFunctionCall", id: "tool-1" },
+          item: { type: "toolCall", id: "tool-1" },
         },
       };
       yield {
@@ -593,7 +592,7 @@ test("approval-gated external tool call keeps final segment as unsent tail only"
         method: "item/started",
         params: {
           threadId: "thread-1",
-          item: { id: "ext-tool", type: "pluginFunctionCall" },
+          item: { id: "ext-tool", type: "toolCall" },
         },
       };
       yield {
@@ -608,7 +607,7 @@ test("approval-gated external tool call keeps final segment as unsent tail only"
         method: "item/completed",
         params: {
           threadId: "thread-1",
-          item: { id: "ext-tool", type: "pluginFunctionCall", status: "completed" },
+          item: { id: "ext-tool", type: "toolCall", status: "completed" },
         },
       };
       yield {
@@ -687,7 +686,7 @@ test("two approvals and file-send style flow preserves ordered unsent transcript
       };
       yield {
         method: "item/started",
-        params: { threadId: "thread-1", item: { id: "item-009", type: "pluginFunctionCall" } },
+        params: { threadId: "thread-1", item: { id: "item-009", type: "toolCall" } },
       };
       yield {
         method: "item/started",
@@ -707,7 +706,7 @@ test("two approvals and file-send style flow preserves ordered unsent transcript
       };
       yield {
         method: "item/completed",
-        params: { threadId: "thread-1", item: { id: "item-009", type: "pluginFunctionCall" } },
+        params: { threadId: "thread-1", item: { id: "item-009", type: "toolCall" } },
       };
       yield { method: "item/started", params: { threadId: "thread-1", item: { id: "item-013", type: "agentMessage" } } };
       yield {

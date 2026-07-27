@@ -425,7 +425,7 @@ Plugin lifecycle separates installation from enablement:
 - `plugin/setEnabled`: only controls whether an installed plugin enters the Agent context. It does not install or delete plugin files.
 - `plugin/remove`: removes workspace plugin directories under `.craft/plugins/<id>/`, including DotCraft-managed built-ins and user-owned plugins installed with `plugin/installLocal`. It does not delete explicit external plugin roots or user-global plugin directories.
 
-Plugin install, remove, and enablement changes broadcast `workspace/configChanged` with `regions: ["plugins", "skills"]`. Tools contributed by plugins are projected in conversations as `pluginFunctionCall` items; they do not create companion `toolCall` / `toolResult` items. For the user-facing plugin model, see [Plugins & Tools](../../features/agent-system/plugins-tools).
+Plugin install, remove, and enablement changes broadcast `workspace/configChanged` with `regions: ["plugins", "skills"]`. Tools contributed by plugins use the standard `toolCall` / `toolResult` lifecycle and retain plugin provenance on those items. For the user-facing plugin model, see [Plugins & Tools](../../features/agent-system/plugins-tools).
 
 ### Plugin marketplaces
 

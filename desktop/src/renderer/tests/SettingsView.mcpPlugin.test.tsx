@@ -26,7 +26,7 @@ function renderView(): void {
 describe('SettingsView plugin MCP servers', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    settingsGet.mockResolvedValue({ locale: 'en', connectionMode: 'stdio', visibleChannels: [] })
+    settingsGet.mockResolvedValue({ locale: 'en', connectionMode: 'stdio' })
     settingsSet.mockResolvedValue(undefined)
     workspaceConfigGetCore.mockResolvedValue({
       workspace: {

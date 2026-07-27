@@ -24,17 +24,14 @@ public sealed class OpenAIAuthBindingPersistenceTests : IDisposable
         Assert.Equal(
             ModelProviderDefaults.DefaultChatGptCodexModel,
             document.RootElement.GetProperty("ProviderPreferences").GetProperty("openai").GetProperty("Model").GetString());
-        Assert.False(document.RootElement.TryGetProperty("Model", out _));
     }
 
-    [Theory]
-    [InlineData("gpt-5")]
-    [InlineData("gpt-5-codex")]
-    public void BindProviderToOAuth_IgnoresAndRemovesLegacyRootModel(string legacyModel)
+    [Fact]
+    public void BindProviderToOAuth_PreservesUnrelatedSettings()
     {
         var configPath = Path.Combine(_tempRoot, ".craft", "config.json");
         Directory.CreateDirectory(Path.GetDirectoryName(configPath)!);
-        File.WriteAllText(configPath, $$"""{"Model":"{{legacyModel}}"}""");
+        File.WriteAllText(configPath, """{"CustomSettings":{"theme":"dark"}}""");
 
         OpenAIAuthBindingPersistence.BindProviderToOAuth("openai", Status(), configPath);
 
@@ -42,7 +39,9 @@ public sealed class OpenAIAuthBindingPersistenceTests : IDisposable
         Assert.Equal(
             ModelProviderDefaults.DefaultChatGptCodexModel,
             document.RootElement.GetProperty("ProviderPreferences").GetProperty("openai").GetProperty("Model").GetString());
-        Assert.False(document.RootElement.TryGetProperty("Model", out _));
+        Assert.Equal(
+            "dark",
+            document.RootElement.GetProperty("CustomSettings").GetProperty("theme").GetString());
     }
 
     public void Dispose()

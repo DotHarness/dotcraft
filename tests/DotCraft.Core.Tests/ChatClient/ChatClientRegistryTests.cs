@@ -188,7 +188,7 @@ public sealed class ChatClientRegistryTests
                 ["openrouter"] = new AppConfig.ModelProviderConfig
                 {
                     DisplayName = "OpenRouter",
-                    Protocol = "openai",
+                    Protocol = "openai-chat-completions",
                     ApiKey = "sk-router-test",
                     EndPoint = "https://openrouter.ai/api/v1",
                     NetworkTimeoutSeconds = 120
@@ -230,7 +230,7 @@ public sealed class ChatClientRegistryTests
             {
                 ["openai"] = new AppConfig.ModelProviderConfig
                 {
-                    Protocol = "openai",
+                    Protocol = "openai-chat-completions",
                     ApiKey = "sk-test"
                 }
             }
@@ -254,7 +254,7 @@ public sealed class ChatClientRegistryTests
             {
                 ["openai"] = new AppConfig.ModelProviderConfig
                 {
-                    Protocol = "openai",
+                    Protocol = "openai-chat-completions",
                     ApiKey = "sk-openai-test",
                     EndPoint = "https://example.test/v1"
                 }

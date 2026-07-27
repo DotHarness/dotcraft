@@ -73,7 +73,7 @@ export interface AutomationTask {
   threadId: string | null
   description?: string
   agentSummary?: string | null
-  /** Wire: `workspaceScope` (default) or `fullAuto`; legacy `autoApprove` / `default`. */
+  /** Wire: `workspaceScope` (default) or `fullAuto`. */
   approvalPolicy?: string | null
   /** Canonical declared workspace mode. */
   workspaceMode?: AutomationWorkspaceMode | string | null
@@ -102,7 +102,7 @@ export interface AutomationTemplate {
   category?: string
   workflowMarkdown: string
   defaultSchedule?: AutomationSchedule | null
-  defaultWorkspaceMode?: AutomationWorkspaceMode | 'isolated' | string | null
+  defaultWorkspaceMode?: AutomationWorkspaceMode | string | null
   defaultApprovalPolicy?: 'workspaceScope' | 'fullAuto' | string | null
   needsThreadBinding?: boolean | null
   defaultTitle?: string | null

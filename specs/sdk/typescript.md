@@ -833,7 +833,7 @@ Rules:
 
 ### 13.4 Segment Boundaries
 
-For channel adapters, stream reducers may emit intermediate segments at meaningful item boundaries, such as before tool calls or plugin function calls.
+For channel adapters, stream reducers may emit intermediate segments at meaningful item boundaries, such as before tool calls.
 
 For high-level application runs, segment boundaries are optional. Applications receive raw delta events and a final merged result.
 

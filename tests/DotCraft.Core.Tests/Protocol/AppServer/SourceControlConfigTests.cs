@@ -326,7 +326,7 @@ public sealed class SourceControlConfigTests : IDisposable
     [Fact]
     public async Task SourceControlUpdate_PreservesUnrelatedConfigKeys()
     {
-        await File.WriteAllTextAsync(_configPath, "{\n  \"Model\": \"gpt-4o-mini\"\n}\n");
+        await File.WriteAllTextAsync(_configPath, "{\n  \"CustomSettings\": { \"keep\": true }\n}\n");
 
         using var harness = new AppServerTestHarness(workspaceCraftPath: _workspaceCraftPath);
         using var bridge = AttachConfigChangedBridge(harness);
@@ -340,7 +340,7 @@ public sealed class SourceControlConfigTests : IDisposable
 
         var json = await File.ReadAllTextAsync(_configPath);
         using var doc = JsonDocument.Parse(json);
-        Assert.Equal("gpt-4o-mini", doc.RootElement.GetProperty("Model").GetString());
+        Assert.True(doc.RootElement.GetProperty("CustomSettings").GetProperty("keep").GetBoolean());
         Assert.Equal("git", doc.RootElement.GetProperty("SourceControl").GetProperty("Provider").GetString());
     }
 

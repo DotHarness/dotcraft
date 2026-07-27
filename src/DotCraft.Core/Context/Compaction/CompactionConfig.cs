@@ -116,13 +116,6 @@ public sealed class CompactionConfig
     public bool MicrocompactEnabled { get; set; } = true;
 
     /// <summary>
-    /// Legacy compatibility value. Count-based microcompact no longer drives
-    /// the default auto-compaction path because it rewrites hot prompt prefixes.
-    /// </summary>
-    [ConfigField(Min = 1, Hint = "Legacy count-based microcompact trigger (reserved; no-op by default).")]
-    public int MicrocompactTriggerCount { get; set; } = 30;
-
-    /// <summary>
     /// Number of tool results to keep at full fidelity when microcompact fires.
     /// </summary>
     [ConfigField(Min = 1, Hint = "Number of tool results kept at full fidelity during microcompact.")]
@@ -164,7 +157,6 @@ public sealed class CompactionConfig
         KeepRecentMinGroups = KeepRecentMinGroups,
         KeepRecentMaxTokens = KeepRecentMaxTokens,
         MicrocompactEnabled = MicrocompactEnabled,
-        MicrocompactTriggerCount = MicrocompactTriggerCount,
         MicrocompactKeepRecent = MicrocompactKeepRecent,
         MicrocompactGapMinutes = MicrocompactGapMinutes,
         MaxConsecutiveFailures = MaxConsecutiveFailures

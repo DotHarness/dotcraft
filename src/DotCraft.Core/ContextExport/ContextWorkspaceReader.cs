@@ -393,11 +393,9 @@ internal sealed class ContextWorkspaceReader
                     _thread.UserId = record.ThreadOpened.UserId;
                     _thread.OriginChannel = record.ThreadOpened.OriginChannel;
                     _thread.ChannelContext = record.ThreadOpened.ChannelContext;
-                    _thread.Source = record.ThreadOpened.Source == null
-                        ? PersistedThreadSourceCodec.InferLegacy(
-                            record.ThreadOpened.OriginChannel,
-                            record.ThreadOpened.Metadata)
-                        : PersistedThreadSourceCodec.Decode(record.ThreadOpened.Source);
+                    _thread.Source = PersistedThreadSourceCodec.Decode(
+                        record.ThreadOpened.Source
+                        ?? throw new InvalidDataException("The canonical thread header has no source."));
                     _thread.ForkedFromId = record.ThreadOpened.ForkedFromId;
                     _thread.Ephemeral = record.ThreadOpened.Ephemeral;
                     _thread.Worktree = record.ThreadOpened.Worktree;

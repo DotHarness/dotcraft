@@ -31,30 +31,8 @@ describe('getConfigReloadAffordance', () => {
     expect(
       getConfigReloadAffordance({
         field: {
-          key: 'Model',
+          key: 'FutureField',
           reload: 'futureMode'
-        }
-      })
-    ).toEqual({ kind: 'processRestart' })
-  })
-
-  it('returns processRestart for legacy ApiKey', () => {
-    expect(
-      getConfigReloadAffordance({
-        field: {
-          key: 'ApiKey',
-          reload: 'processRestart'
-        }
-      })
-    ).toEqual({ kind: 'processRestart' })
-  })
-
-  it('returns processRestart for legacy EndPoint', () => {
-    expect(
-      getConfigReloadAffordance({
-        field: {
-          key: 'EndPoint',
-          reload: 'processRestart'
         }
       })
     ).toEqual({ kind: 'processRestart' })
@@ -64,7 +42,7 @@ describe('getConfigReloadAffordance', () => {
     expect(
       getConfigReloadAffordance({
         field: {
-          key: 'ApiKey',
+          key: 'Credential',
           sectionPath: ['Tools', 'Sandbox'],
           reload: 'processRestart'
         }

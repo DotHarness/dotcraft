@@ -46,94 +46,6 @@ public sealed class RuntimeDynamicToolNamespace : RuntimeDynamicToolDeclaration
     public List<RuntimeDynamicToolDeclaration> Tools { get; set; } = [];
 }
 
-/// <summary>
-/// Read-only App Binding presentation metadata. Runtime Dynamic Tools cannot carry this type.
-/// </summary>
-public sealed class LegacyAppBindingToolMeta
-{
-    /// <summary>Read-only iframe descriptor (<c>_meta.ui</c>).</summary>
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public LegacyAppBindingUiToolMeta? Ui { get; set; }
-}
-
-/// <summary>
-/// Read-only private App Binding iframe descriptor. It is not MCP Apps metadata or authority.
-/// </summary>
-public sealed class LegacyAppBindingUiToolMeta
-{
-    /// <summary>The <c>ui://</c> resource URI whose HTML renders this tool's result.</summary>
-    public string ResourceUri { get; set; } = string.Empty;
-
-    /// <summary>
-    /// Audience for the tool. <c>["model","app"]</c> = model-callable and UI-rendered;
-    /// <c>["app"]</c> = UI-only (hidden from the model, invocable only via <c>ui/tool/call</c>).
-    /// Absent =&gt; model-visible by default.
-    /// </summary>
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public List<string>? Visibility { get; set; }
-
-    /// <summary>Content-Security-Policy allowances for the rendered iframe.</summary>
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public LegacyAppBindingUiToolCsp? Csp { get; set; }
-
-    /// <summary>Optional host permissions the UI requests.</summary>
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public List<string>? Permissions { get; set; }
-
-    /// <summary>Whether the host should draw a default border/frame around the UI.</summary>
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public bool? PrefersBorder { get; set; }
-
-    /// <summary>Optional app domain identifier (provenance / grouping).</summary>
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public string? Domain { get; set; }
-}
-
-/// <summary>
-/// Content-Security-Policy allowances for a read-only App Binding iframe.
-/// </summary>
-public sealed class LegacyAppBindingUiToolCsp
-{
-    /// <summary>Origins the UI may <c>connect-src</c> to (fetch / XHR / WebSocket).</summary>
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public List<string>? ConnectDomains { get; set; }
-
-    /// <summary>Origins the UI may load passive resources from (img / style / font / media).</summary>
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public List<string>? ResourceDomains { get; set; }
-
-    /// <summary>Origins the UI may embed as nested frames.</summary>
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public List<string>? FrameDomains { get; set; }
-}
-
-/// <summary>
-/// Private audience helpers for <see cref="LegacyAppBindingUiToolMeta.Visibility"/>.
-/// </summary>
-public static class LegacyAppBindingUiToolVisibility
-{
-    public const string Model = "model";
-    public const string App = "app";
-
-    /// <summary>
-    /// True when the tool should be exposed to the model. A tool with no UI metadata or no
-    /// explicit visibility list is model-visible; an explicit list must contain <c>"model"</c>.
-    /// </summary>
-    public static bool IsModelVisible(LegacyAppBindingUiToolMeta? ui)
-        => ui?.Visibility is not { Count: > 0 } visibility
-           || visibility.Contains(Model, StringComparer.Ordinal);
-
-    /// <summary>
-    /// True when the tool may be invoked by its UI via <c>ui/tool/call</c>. A tool with no UI
-    /// metadata is not app-invocable; an explicit list must contain <c>"app"</c>, and a tool that
-    /// declares a UI resource without a visibility list is app-invocable by default.
-    /// </summary>
-    public static bool IsAppVisible(LegacyAppBindingUiToolMeta? ui)
-        => ui is not null
-           && (ui.Visibility is not { Count: > 0 } visibility
-               || visibility.Contains(App, StringComparer.Ordinal));
-}
-
 public sealed class DynamicToolCallParams
 {
     public string ThreadId { get; set; } = string.Empty;
@@ -209,15 +121,6 @@ public sealed class UiResourceReadParams
 public sealed class UiResourceReadResult
 {
     public List<UiResourceContent> Contents { get; set; } = [];
-
-    /// <summary>
-    /// The owning tool's resolved <c>_meta.ui.csp</c> (host‑populated, M‑iii). Lets the host build the
-    /// per‑resource iframe CSP (data path B widening) from the server‑validated descriptor — never from
-    /// the iframe. Absent =&gt; restrictive default (network‑denied). The brokered app response does not
-    /// set this; the host fills it from the attached tool's descriptor before returning to the renderer.
-    /// </summary>
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public LegacyAppBindingUiToolCsp? Csp { get; set; }
 }
 
 /// <summary>

@@ -1404,7 +1404,7 @@ function mergeToolLikeProjection(
 
 function buildToolLikeItem(
   item: Record<string, unknown>,
-  type: 'toolCall' | 'pluginFunctionCall' | 'dynamicToolCall' | 'mcpToolCall',
+  type: 'toolCall' | 'dynamicToolCall' | 'mcpToolCall',
   status: ConversationItem['status']
 ): ConversationItem {
   const payload = (item.payload ?? {}) as Record<string, unknown>
@@ -2858,7 +2858,7 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
         }
         return { turns, pendingToolCompletionsByCallKey: pending }
       })
-    } else if (type === 'pluginFunctionCall' || type === 'dynamicToolCall' || type === 'mcpToolCall') {
+    } else if (type === 'dynamicToolCall' || type === 'mcpToolCall') {
       const completedItem = buildToolLikeItem(
         item,
         type,

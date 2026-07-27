@@ -316,13 +316,13 @@ public sealed class HubHostTests : IDisposable
                   },
                   "Providers": {
                     "openai": {
-                      "Protocol": "openai",
+                      "Protocol": "openai-chat-completions",
                       "ApiKey": "test-key",
                       "EndPoint": "https://api.openai.com/v1"
                     }
                   },
-                  "McpServers": [],
-                  "LspServers": []
+                  "McpServers": {},
+                  "LspServers": {}
                 }
                 """);
         }

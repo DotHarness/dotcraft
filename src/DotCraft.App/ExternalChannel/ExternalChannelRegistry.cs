@@ -1,4 +1,4 @@
-using DotCraft.Abstractions;
+using DotCraft.Channels;
 using System.Collections.Concurrent;
 
 namespace DotCraft.ExternalChannel;

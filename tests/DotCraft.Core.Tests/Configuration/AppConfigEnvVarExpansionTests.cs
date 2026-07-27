@@ -180,11 +180,10 @@ public class AppConfigEnvVarExpansionTests : IDisposable
                   "ProviderId": "openai",
                   "Providers": {
                     "openai": {
-                      "Protocol": "openai",
+                      "Protocol": "openai-chat-completions",
                       "ApiKey": "$CRAFT_TEST_LOAD_KEY"
                     }
-                  },
-                  "Model": "gpt-4o"
+                  }
                 }
                 """);
 

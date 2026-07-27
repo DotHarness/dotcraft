@@ -65,8 +65,7 @@ Tasks are addressed by `taskId` only. The AppServer automation task methods do n
 ```
 
 `status` is one of `pending`, `running`, `completed`, or `failed`.
-`workspaceMode` is canonicalized to `project` or `worktree`; legacy input
-`isolated` is accepted on reads and create requests as an alias for `worktree`.
+`workspaceMode` uses the canonical `project` or `worktree` names. Other values are rejected.
 `worktree` is populated after a managed task worktree is provisioned and is
 `null` for project-mode tasks, bound tasks, and non-Git fallback execution.
 `agentProfileId` is the optional Agent Profile bound to the task; `null` when

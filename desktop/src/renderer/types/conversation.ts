@@ -20,7 +20,6 @@ export type ItemType =
   | 'toolExecution'
   | 'imageGeneration'
   | 'toolCall'
-  | 'pluginFunctionCall'
   | 'dynamicToolCall'
   | 'mcpToolCall'
   | 'toolResult'
@@ -142,15 +141,15 @@ export interface ConversationItem {
   argumentsPreview?: string
   /** Extracted partial file content preview while WriteFile/EditFile is streaming */
   streamingFileContent?: string
-  /** Plugin ID for pluginFunctionCall items */
+  /** Plugin ID projected by a tool source when available */
   pluginId?: string
-  /** Plugin function namespace for pluginFunctionCall items */
+  /** Tool namespace for structured invocation items */
   pluginNamespace?: string
-  /** Canonical function name for pluginFunctionCall items */
+  /** Canonical function name projected by a tool source when available */
   functionName?: string
-  /** Rich content returned by pluginFunctionCall/dynamicToolCall items */
+  /** Rich content returned by structured invocation items */
   contentItems?: PluginFunctionContentItem[]
-  /** Structured result returned by pluginFunctionCall/dynamicToolCall items */
+  /** Structured result returned by structured invocation items */
   structuredResult?: unknown
   /** True only on the connection that received this terminal MCP item live. */
   mcpAppAvailable?: boolean
@@ -160,9 +159,9 @@ export interface ConversationItem {
   toolUi?: ToolUiDescriptor
   /** UI-only Interactive Tool UI widgetState (M-iv), surfaced on thread/read for iframe restore. */
   widgetState?: unknown
-  /** Error code returned by pluginFunctionCall/dynamicToolCall items */
+  /** Error code returned by structured invocation items */
   errorCode?: string
-  /** Error message returned by pluginFunctionCall/dynamicToolCall items */
+  /** Error message returned by structured invocation items */
   errorMessage?: string
   /** Tool result text updated on item/completed (toolResult) */
   result?: string
@@ -275,8 +274,8 @@ export interface UserMessageImageRef {
 
 export function isToolLikeItemType(
   type: string | undefined
-): type is 'toolCall' | 'pluginFunctionCall' | 'dynamicToolCall' | 'mcpToolCall' {
-  return type === 'toolCall' || type === 'pluginFunctionCall' || type === 'dynamicToolCall' || type === 'mcpToolCall'
+): type is 'toolCall' | 'dynamicToolCall' | 'mcpToolCall' {
+  return type === 'toolCall' || type === 'dynamicToolCall' || type === 'mcpToolCall'
 }
 
 const CONVERSATION_ITEM_TYPE_ALIASES: Record<string, ItemType> = {
@@ -294,8 +293,6 @@ const CONVERSATION_ITEM_TYPE_ALIASES: Record<string, ItemType> = {
   ImageGeneration: 'imageGeneration',
   toolCall: 'toolCall',
   ToolCall: 'toolCall',
-  pluginFunctionCall: 'pluginFunctionCall',
-  PluginFunctionCall: 'pluginFunctionCall',
   dynamicToolCall: 'dynamicToolCall',
   DynamicToolCall: 'dynamicToolCall',
   mcpToolCall: 'mcpToolCall',
@@ -315,8 +312,8 @@ export function normalizeConversationItemType(value: unknown): ItemType | undefi
   return CONVERSATION_ITEM_TYPE_ALIASES[value.trim()]
 }
 
-function isStructuredInvocationType(type: ItemType): type is 'pluginFunctionCall' | 'dynamicToolCall' | 'mcpToolCall' {
-  return type === 'pluginFunctionCall' || type === 'dynamicToolCall' || type === 'mcpToolCall'
+function isStructuredInvocationType(type: ItemType): type is 'dynamicToolCall' | 'mcpToolCall' {
+  return type === 'dynamicToolCall' || type === 'mcpToolCall'
 }
 
 export function normalizePluginFunctionContentItems(

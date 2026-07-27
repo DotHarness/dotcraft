@@ -674,9 +674,7 @@ internal static class ModelThinkingAdapterCatalog
             if (Protocols.Count > 0
                 && (string.IsNullOrWhiteSpace(normalizedProtocol)
                     || (!Protocols.Contains(normalizedProtocol)
-                        && !Protocols.Contains(protocol!.Trim())
-                        && !(string.Equals(normalizedProtocol, ModelProviderProtocols.OpenAIChatCompletions, StringComparison.Ordinal)
-                            && Protocols.Contains(ModelProviderProtocols.LegacyOpenAI)))))
+                        && !Protocols.Contains(protocol!.Trim()))))
             {
                 return false;
             }

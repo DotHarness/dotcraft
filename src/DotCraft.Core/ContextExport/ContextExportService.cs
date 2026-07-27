@@ -309,22 +309,6 @@ public sealed class ContextExportService
                 }
                 break;
 
-            case ItemType.PluginFunctionCall when item.AsPluginFunctionCall is { } pluginCall:
-                AppendMetadata(sb, "Plugin", pluginCall.PluginId);
-                AppendMetadata(sb, "Namespace", pluginCall.Namespace ?? "(none)");
-                AppendMetadata(sb, "Function", pluginCall.FunctionName);
-                AppendMetadata(sb, "Call Id", pluginCall.CallId);
-                AppendMetadata(sb, "Success", pluginCall.Success.ToString());
-                if (pluginCall.Arguments != null)
-                {
-                    var arguments = options.ToolResults == ContextExportToolResultMode.None
-                        ? "[redacted]"
-                        : SafeContextProjection.RedactJson(pluginCall.Arguments.ToJsonString(new JsonSerializerOptions(JsonSerializerOptions.Web) { WriteIndented = true }));
-                    AppendCodeBlock(sb, "json", arguments);
-                }
-                AppendStructuredResult(sb, pluginCall.StructuredResult, pluginCall.ErrorCode, pluginCall.ErrorMessage, options);
-                break;
-
             case ItemType.DynamicToolCall when item.Payload is DynamicToolCallPayload dynamicCall:
                 AppendMetadata(sb, "Namespace", dynamicCall.Namespace ?? "(none)");
                 AppendMetadata(sb, "Tool", dynamicCall.ToolName);
@@ -589,7 +573,6 @@ public sealed class ContextExportService
         ItemType.ToolExecution => "Tool Execution",
         ItemType.ImageGeneration => "Image Generation",
         ItemType.ToolCall => "Tool Call",
-        ItemType.PluginFunctionCall => "Plugin Function Call",
         ItemType.DynamicToolCall => "Dynamic Tool Call",
         ItemType.ToolResult => "Tool Result",
         ItemType.ApprovalRequest => "Approval Request",
@@ -600,9 +583,6 @@ public sealed class ContextExportService
         ItemType.Error => "Error",
         _ => type.ToString()
     };
-
-    private static string EscapeInline(string value) =>
-        value.Replace("`", "\\`", StringComparison.Ordinal);
 
     private static void AppendCodeBlock(StringBuilder sb, string language, string content)
     {

@@ -25,7 +25,6 @@ describe('SettingsView notification settings', () => {
     settingsGet.mockResolvedValue({
       locale: 'en',
       connectionMode: 'local',
-      visibleChannels: [],
       notifications: {
         taskCompletionMode: 'whenUnfocused'
       }

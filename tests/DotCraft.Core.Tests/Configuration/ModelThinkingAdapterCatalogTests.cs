@@ -111,7 +111,7 @@ public sealed class ModelThinkingAdapterCatalogTests : IDisposable
               "reasoningCapabilities": {
                 "adapters": [
                   {
-                    "protocols": ["openai"],
+                    "protocols": ["openai-chat-completions"],
                     "models": ["custom-reasoner-"],
                     "supportsDisable": true,
                     "supportedEfforts": ["low", "high"],

@@ -35,7 +35,7 @@ public sealed class LocalAutomationTask : AutomationTask
 
     /// <summary>
     /// Serialized as <c>approval_policy</c> in task.md: <c>workspaceScope</c> (default, reject tools outside agent workspace)
-    /// or <c>fullAuto</c>. Legacy <c>autoApprove</c> / <c>default</c> are still read by the orchestrator.
+    /// or <c>fullAuto</c>.
     /// </summary>
     public string? ApprovalPolicy { get; set; }
 

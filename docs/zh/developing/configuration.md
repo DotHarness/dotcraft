@@ -76,7 +76,7 @@ Provider 对象字段：
 | 字段 | 说明 | 默认值 |
 |------|------|--------|
 | `DisplayName` | 面向用户显示的 Provider 名称；为空时使用 provider id | 空 |
-| `Protocol` | Provider 协议：`anthropic`、`openai-chat-completions` 或 `openai-responses`；空值和旧值 `openai` 按 `openai-chat-completions` 处理 | `openai-chat-completions` |
+| `Protocol` | Provider 协议：`anthropic`、`openai-chat-completions` 或 `openai-responses`；空值默认使用 `openai-chat-completions` | `openai-chat-completions` |
 | `ApiKey` | Provider API Key；建议使用 `${ENV_NAME}` 引用环境变量 | 空 |
 | `EndPoint` | Provider base URL；为空时使用协议默认地址 | OpenAI 协议：`https://api.openai.com/v1`；`anthropic`: `https://api.anthropic.com` |
 | `NetworkTimeoutSeconds` | 单个 Provider 请求超时时间，覆盖全局 `NetworkTimeoutSeconds` | 空 |
@@ -137,7 +137,6 @@ Skill 自学习示例：
 | `Compaction.KeepRecentMinGroups` | 局部摘要后尾部至少保留的 API 轮次数 | `3` |
 | `Compaction.KeepRecentMaxTokens` | 局部摘要后尾部最多保留的 Token 数 | `40000` |
 | `Compaction.MicrocompactEnabled` | 启用微压缩 | `true` |
-| `Compaction.MicrocompactTriggerCount` | 可压缩工具结果数量达到该值时触发微压缩 | `30` |
 | `Compaction.MicrocompactKeepRecent` | 微压缩时保留的最近工具结果数 | `8` |
 | `Compaction.MicrocompactGapMinutes` | 距离上次助理消息超过该分钟数也触发微压缩；`0` 表示禁用 | `20` |
 | `Compaction.MaxConsecutiveFailures` | 连续失败次数达到该值时熔断 | `3` |
@@ -617,7 +616,7 @@ MCP 示例：
   "McpServers": {
     "everything": {
       "command": "npx",
-      "args": ["-y", "@modelcontextprotocol/server-everything"]
+      "arguments": ["-y", "@modelcontextprotocol/server-everything"]
     }
   },
   "Tools": {

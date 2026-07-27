@@ -73,7 +73,6 @@ sqlite3 "file:D:\path\to\workspace\.craft\state.db?mode=ro" `
 4. **Inspect context and recovery shape**
    - Use `thread_context_usage` to check whether context size or message count is suspicious.
    - Use model-history and checkpoint decode status from the rollout to assess resume behavior.
-   - Treat `thread_sessions` as optional legacy evidence only. Its absence is normal and it must not participate in freshness or persistence-mismatch decisions.
 
 5. **Classify the failure**
    - **Provider/API error**: Trace `Error` content mentions HTTP status, provider, unsupported params, rate limit, authentication, model, or payload validation.

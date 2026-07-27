@@ -1,5 +1,5 @@
 using DotCraft.Protocol;
-using DotCraft.State;
+using DotCraft.Persistence;
 
 namespace DotCraft.Tests.Protocol;
 
@@ -96,7 +96,7 @@ public sealed class ThreadAttachmentStoreTests : IDisposable
 
     private int CountAttachmentRows()
     {
-        var runtime = new StateRuntime(_root);
+        var runtime = new WorkspaceStateDatabase(_root);
         using var connection = runtime.OpenConnection();
         using var command = connection.CreateCommand();
         command.CommandText = "SELECT COUNT(*) FROM thread_attachments";
@@ -105,7 +105,7 @@ public sealed class ThreadAttachmentStoreTests : IDisposable
 
     private void ClearAttachmentRows()
     {
-        var runtime = new StateRuntime(_root);
+        var runtime = new WorkspaceStateDatabase(_root);
         using var connection = runtime.OpenConnection();
         using var command = connection.CreateCommand();
         command.CommandText = "DELETE FROM thread_attachments";

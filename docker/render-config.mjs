@@ -74,35 +74,7 @@ function enumEnv(name, allowed) {
   return canonical;
 }
 
-function removeCaseInsensitive(target, key) {
-  const existingKey = Object.keys(target).find(
-    (candidate) => candidate.toLowerCase() === key.toLowerCase(),
-  );
-  if (existingKey !== undefined) delete target[existingKey];
-}
-
-function cleanupLegacyPreferences(config) {
-  removeCaseInsensitive(config, "ProviderModels");
-  removeCaseInsensitive(config, "Reasoning");
-  removeCaseInsensitive(config, "Speed");
-  const compactionKey = Object.keys(config).find(
-    (key) => key.toLowerCase() === "compaction",
-  );
-  if (compactionKey && isObject(config[compactionKey])) {
-    removeCaseInsensitive(config[compactionKey], "ContextWindowMode");
-    if (Object.keys(config[compactionKey]).length === 0) delete config[compactionKey];
-  }
-  const subAgentKey = Object.keys(config).find(
-    (key) => key.toLowerCase() === "subagent",
-  );
-  if (subAgentKey && isObject(config[subAgentKey])) {
-    removeCaseInsensitive(config[subAgentKey], "ProviderModels");
-    if (Object.keys(config[subAgentKey]).length === 0) delete config[subAgentKey];
-  }
-}
-
 function setProviderPreference(config, providerId) {
-  cleanupLegacyPreferences(config);
   if (!providerId) return;
 
   const model = trim(env.DOTCRAFT_MODEL);
@@ -181,15 +153,15 @@ function first(value, fallback) {
   return trimmed || fallback;
 }
 
-function listenHost(name, legacyName, fallback) {
-  return first(env[name], first(env[legacyName], fallback));
+function listenHost(name, fallback) {
+  return first(env[name], fallback);
 }
 
 async function renderGlobalConfig() {
   const filePath = path.join(userCraftDir, "config.json");
   const config = await readJson(filePath);
 
-  const configuredProviderId = first(env.DOTCRAFT_PROVIDER, first(env.DOTCRAFT_PROVIDER_ID, ""));
+  const configuredProviderId = trim(env.DOTCRAFT_PROVIDER);
   const providerId = first(configuredProviderId, trim(config.ProviderId));
   const apiKey = first(env.DOTCRAFT_API_KEY, "");
 
@@ -212,10 +184,9 @@ async function renderGlobalConfig() {
 async function renderWorkspaceConfig(enabledChannels) {
   const filePath = path.join(craftDir, "config.json");
   const config = await readJson(filePath);
-  const configuredProviderId = first(env.DOTCRAFT_PROVIDER, first(env.DOTCRAFT_PROVIDER_ID, ""));
+  const configuredProviderId = trim(env.DOTCRAFT_PROVIDER);
   const providerId = first(configuredProviderId, trim(config.ProviderId));
 
-  setIfMissing(config, "Language", first(env.DOTCRAFT_LANGUAGE, "English"));
   if (configuredProviderId) {
     config.ProviderId = configuredProviderId;
   }
@@ -226,7 +197,7 @@ async function renderWorkspaceConfig(enabledChannels) {
     Mode: "WebSocket",
     WebSocket: {
       ...(isObject(config.AppServer?.WebSocket) ? config.AppServer.WebSocket : {}),
-      Host: listenHost("APPSERVER_LISTEN_HOST", "APPSERVER_HOST", "0.0.0.0"),
+      Host: listenHost("APPSERVER_LISTEN_HOST", "0.0.0.0"),
       Port: intEnv("APPSERVER_PORT", 9100),
       Token: env.APPSERVER_TOKEN || "",
     },
@@ -235,7 +206,7 @@ async function renderWorkspaceConfig(enabledChannels) {
   config.DashBoard = {
     ...(isObject(config.DashBoard) ? config.DashBoard : {}),
     Enabled: boolEnv("DASHBOARD_ENABLED", true),
-    Host: listenHost("DASHBOARD_LISTEN_HOST", "DASHBOARD_HOST", "0.0.0.0"),
+    Host: listenHost("DASHBOARD_LISTEN_HOST", "0.0.0.0"),
     Port: intEnv("DASHBOARD_PORT", 8080),
   };
 
@@ -294,7 +265,7 @@ async function renderQq() {
   const config = await readJson(filePath);
   ensureDotCraftSection(config);
   const qq = objectAt(config, "qq");
-  setIfMissing(qq, "host", listenHost("QQ_LISTEN_HOST", "QQ_HOST", "0.0.0.0"));
+  setIfMissing(qq, "host", listenHost("QQ_LISTEN_HOST", "0.0.0.0"));
   setIfMissing(qq, "port", intEnv("QQ_PORT", 6700));
   setIfMissing(qq, "accessToken", trim(env.QQ_ACCESS_TOKEN));
   await writeJson(filePath, config);
@@ -309,7 +280,7 @@ async function renderWeCom(errors) {
   const config = await readJson(filePath);
   ensureDotCraftSection(config);
   const wecom = objectAt(config, "wecom");
-  setIfMissing(wecom, "host", listenHost("WECOM_LISTEN_HOST", "WECOM_HOST", "0.0.0.0"));
+  setIfMissing(wecom, "host", listenHost("WECOM_LISTEN_HOST", "0.0.0.0"));
   setIfMissing(wecom, "port", intEnv("WECOM_PORT", 9000));
   setIfMissing(wecom, "scheme", first(env.WECOM_SCHEME, "http"));
 

@@ -1,7 +1,7 @@
 using System.Text.Json.Nodes;
 using DotCraft.ContextExport;
 using DotCraft.Protocol;
-using DotCraft.State;
+using DotCraft.Persistence;
 using DotCraft.Tracing;
 using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.AI;
@@ -13,7 +13,7 @@ public sealed class ContextExportServiceTests : IDisposable
     private readonly string _root;
     private readonly string _workspace;
     private readonly string _craft;
-    private readonly StateRuntime _stateRuntime;
+    private readonly WorkspaceStateDatabase _stateRuntime;
     private readonly ThreadStore _threadStore;
 
     public ContextExportServiceTests()
@@ -22,7 +22,7 @@ public sealed class ContextExportServiceTests : IDisposable
         _workspace = Path.Combine(_root, "workspace");
         _craft = Path.Combine(_workspace, ".craft");
         Directory.CreateDirectory(_workspace);
-        _stateRuntime = new StateRuntime(_craft);
+        _stateRuntime = new WorkspaceStateDatabase(_craft);
         _threadStore = new ThreadStore(_craft, _stateRuntime);
     }
 
@@ -161,7 +161,6 @@ public sealed class ContextExportServiceTests : IDisposable
                      "COMMAND_RESULT_SECRET",
                      "EXECUTION_RESULT_SECRET",
                      "TOOL_RESULT_SECRET",
-                     "PLUGIN_RESULT_SECRET",
                      "DYNAMIC_RESULT_SECRET",
                      "EXACT_RESULT_SECRET"
                  })
@@ -172,7 +171,6 @@ public sealed class ContextExportServiceTests : IDisposable
         Assert.Contains("command-visible", result.Markdown);
         Assert.Contains("execution-visible", result.Markdown);
         Assert.Contains("tool-visible", result.Markdown);
-        Assert.Contains("plugin-visible", result.Markdown);
         Assert.Contains("dynamic-visible", result.Markdown);
         Assert.Contains("exact-visible", result.Markdown);
         Assert.Contains("[redacted]", result.Markdown);
@@ -417,7 +415,7 @@ public sealed class ContextExportServiceTests : IDisposable
         AddTurnWithMessages(thread, "provider issue", "failed");
         await _threadStore.SaveThreadAsync(thread);
 
-        var traceStore = new TraceStore(Path.Combine(_craft, "tracing"), 5000, false, _stateRuntime);
+        var traceStore = new TraceStore(_stateRuntime, 5000);
         traceStore.Record(new TraceEvent
         {
             SessionKey = thread.Id,
@@ -649,27 +647,6 @@ public sealed class ContextExportServiceTests : IDisposable
                     CallId = "call_result",
                     Success = true,
                     Result = "{\"token\":\"TOOL_RESULT_SECRET\",\"safe\":\"tool-visible\"}"
-                }
-            },
-            new SessionItem
-            {
-                Id = SessionIdGenerator.NewItemId(13),
-                TurnId = turn.Id,
-                Type = ItemType.PluginFunctionCall,
-                Status = ItemStatus.Completed,
-                CreatedAt = now,
-                CompletedAt = now,
-                Payload = new PluginFunctionCallPayload
-                {
-                    PluginId = "plugin",
-                    FunctionName = "demo",
-                    CallId = "call_plugin",
-                    Success = true,
-                    StructuredResult = new JsonObject
-                    {
-                        ["api_key"] = "PLUGIN_RESULT_SECRET",
-                        ["safe"] = "plugin-visible"
-                    }
                 }
             },
             new SessionItem

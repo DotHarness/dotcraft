@@ -46,10 +46,9 @@ public sealed class CompactSmokeTests
 
         Assert.Equal("openai-chat", root.GetProperty("ProviderId").GetString());
         Assert.Equal("gpt-test", root.GetProperty("ProviderPreferences").GetProperty("openai-chat").GetProperty("model").GetString());
-        Assert.False(root.TryGetProperty("Model", out _));
         Assert.False(root.TryGetProperty("Providers", out _));
-        Assert.Equal(0, root.GetProperty("McpServers").GetArrayLength());
-        Assert.Equal(0, root.GetProperty("LspServers").GetArrayLength());
+        Assert.Empty(root.GetProperty("McpServers").EnumerateObject());
+        Assert.Empty(root.GetProperty("LspServers").EnumerateObject());
         Assert.Equal(0, root.GetProperty("ExternalChannels").GetArrayLength());
         Assert.True(root.GetProperty("Tracing").GetProperty("Enabled").GetBoolean());
 

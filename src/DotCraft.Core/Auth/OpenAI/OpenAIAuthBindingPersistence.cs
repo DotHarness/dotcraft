@@ -52,19 +52,12 @@ public static class OpenAIAuthBindingPersistence
         // Make this provider the default if no provider is configured yet.
         if (string.IsNullOrWhiteSpace(GetStringValue(root, "ProviderId")))
             root["ProviderId"] = canonicalKey;
-        var legacyModelKey = root.FirstOrDefault(p => string.Equals(p.Key, "Model", StringComparison.OrdinalIgnoreCase)).Key;
-        if (!string.IsNullOrEmpty(legacyModelKey))
-            root.Remove(legacyModelKey);
-        var legacyProviderModelsKey = root
-            .FirstOrDefault(p => string.Equals(p.Key, "ProviderModels", StringComparison.OrdinalIgnoreCase)).Key;
-        if (!string.IsNullOrEmpty(legacyProviderModelsKey))
-            root.Remove(legacyProviderModelsKey);
         var providerPreferences = GetOrCreateObject(root, "ProviderPreferences");
         var preferenceMatch = providerPreferences
             .FirstOrDefault(p => string.Equals(p.Key, canonicalKey, StringComparison.OrdinalIgnoreCase));
         var preference = preferenceMatch.Value as JsonObject;
         var existingModel = preference == null ? null : GetStringValue(preference, "Model");
-        if (string.IsNullOrWhiteSpace(existingModel) || IsLegacyChatGptDefaultModel(existingModel))
+        if (string.IsNullOrWhiteSpace(existingModel))
         {
             providerPreferences[preferenceMatch.Key ?? canonicalKey] = JsonSerializer.SerializeToNode(
                 ModelPreferenceRules.CreateManual(defaultModel),
@@ -143,10 +136,4 @@ public static class OpenAIAuthBindingPersistence
         return matched.Value is JsonValue value && value.TryGetValue<string>(out var str) ? str : null;
     }
 
-    private static bool IsLegacyChatGptDefaultModel(string? model)
-    {
-        var trimmed = model?.Trim();
-        return string.Equals(trimmed, "gpt-5", StringComparison.OrdinalIgnoreCase)
-            || string.Equals(trimmed, "gpt-5-codex", StringComparison.OrdinalIgnoreCase);
-    }
 }

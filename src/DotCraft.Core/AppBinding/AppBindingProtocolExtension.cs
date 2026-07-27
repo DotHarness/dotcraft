@@ -65,7 +65,7 @@ public sealed class AppBindingProtocolExtension : IAppServerProtocolExtension
         IAppConfigMonitor appConfigMonitor,
         SkillsLoader? skillsLoader = null,
         IReadOnlyList<string>? builtInPluginSourceRoots = null,
-        DotCraft.Abstractions.IChannelRuntimeRegistry? channelRuntimeRegistry = null)
+        DotCraft.Channels.IChannelRuntimeRegistry? channelRuntimeRegistry = null)
     {
         _controlPlane = controlPlane;
         _coordinator = coordinator;

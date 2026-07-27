@@ -339,42 +339,6 @@ describe('wireItemToConversationItem — nested payload format (thread/read)', (
     expect(item.toolCallId).toBe('call-abc')
   })
 
-  it('maps pluginFunctionCall payload fields and display result', () => {
-    const item = wireItemToConversationItem({
-      id: 'plugin-1',
-      type: 'pluginFunctionCall',
-      payload: {
-        pluginId: 'browser',
-        namespace: 'node_repl',
-        functionName: 'NodeReplJs',
-        callId: 'plugin-call-1',
-        arguments: { code: '1 + 1' },
-        contentItems: [
-          { type: 'text', text: '2' },
-          { type: 'image', mediaType: 'image/png', dataBase64: 'abc123' }
-        ],
-        structuredResult: { ok: true },
-        success: true
-      },
-      createdAt: '2025-01-01T00:00:00Z'
-    })
-
-    expect(item.type).toBe('pluginFunctionCall')
-    expect(item.toolName).toBe('NodeReplJs')
-    expect(item.toolCallId).toBe('plugin-call-1')
-    expect(item.pluginId).toBe('browser')
-    expect(item.pluginNamespace).toBe('node_repl')
-    expect(item.functionName).toBe('NodeReplJs')
-    expect(item.arguments).toEqual({ code: '1 + 1' })
-    expect(item.result).toBe('2')
-    expect(item.contentItems).toEqual([
-      { type: 'text', text: '2' },
-      { type: 'image', mediaType: 'image/png', dataBase64: 'abc123' }
-    ])
-    expect(item.structuredResult).toEqual({ ok: true })
-    expect(item.success).toBe(true)
-  })
-
   it('maps dynamicToolCall payload fields and display result', () => {
     const item = wireItemToConversationItem({
       id: 'dynamic-1',

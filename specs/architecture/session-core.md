@@ -377,7 +377,6 @@ Fields:
   - `ToolExecution` — Server-observed runtime lifecycle for a normal tool invocation. Payload includes call id, tool name, status, duration, and optional preview/error text.
   - `ImageGeneration` — Hosted image generation lifecycle. Payload includes provider call id, in-progress/completed/failed status, revised prompt, generated image bytes when available, saved path, and error text.
   - `ToolCall` — Agent invokes a native or plugin tool, including managed social tools. Payload includes canonical namespace/name, arguments, call id, definition identity, and safe provenance.
-  - `PluginFunctionCall` — Reserved persisted item type. New invocations MUST NOT create this item.
   - `McpToolCall` — MCP invocation lifecycle item preserving raw MCP result fields under audience rules plus separately normalized model content.
   - `DynamicToolCall` — Runtime Dynamic callback lifecycle item with canonical namespace/name, separate call/item ids, status, duration, normalized content, structured content, and stable failure data.
   - `ToolResult` — Result paired with a standard `ToolCall`, including model fallback content and audience-separated client/host data.
@@ -539,32 +538,6 @@ always carries the authoritative argument object.
 ```
 
 `ImageGeneration` represents hosted image generation as a first-class Session item. It is a provider-hosted capability, not a local tool and not an `IToolRuntime` invocation. Snapshot planning records it in a separate provider-capability plan; the provider adapter creates and completes this item from provider call/result content. If the result arrives before the call, Session Core creates and immediately completes a single `ImageGeneration` item. Completed inline image bytes are persisted under `.craft/generated_images/{threadId}/{callId}.png`; the payload also carries base64 bytes for wire clients.
-
-#### PluginFunctionCall
-
-```
-{
-  "pluginId": string,       // Stable plugin identifier, e.g. "browser" or "external-channel:telegram"
-  "namespace": string,      // Optional plugin function namespace
-  "functionName": string,   // Model-visible function name
-  "callId": string,         // Correlation ID for the plugin function invocation
-  "arguments": object,      // Function arguments as key-value pairs
-  "contentItems": [         // Optional rich result content
-    {
-      "type": string,       // "text" | "image"
-      "text": string,       // Text content when type is "text"
-      "mediaType": string,  // Image media type when type is "image"
-      "dataBase64": string  // Base64 image data when type is "image"
-    }
-  ],
-  "structuredResult": any,  // Optional structured JSON result
-  "success": boolean,      // Whether the plugin function succeeded
-  "errorCode": string,     // Optional machine-readable failure code
-  "errorMessage": string   // Optional human-readable failure message
-}
-```
-
-`PluginFunctionCall` is a reserved persisted payload that clients may project as generic content. Plugin invocations use `ToolCall` + `ToolResult`, with plugin provenance on those standard payloads. No production execution path may create a `PluginFunctionCall`, and it is not expanded into provider model history because it lacks the canonical composite identity plus `providerFlatName`.
 
 #### McpToolCall
 
@@ -962,7 +935,6 @@ WaitingApproval/WaitingInput ──────────► Cancelled
     - `ToolCall` is usually completed directly, but hosts may expose an intermediate streaming preview of argument construction before the final completed payload is persisted.
     - `ImageGeneration` starts when hosted image generation begins and completes with inline image data or a visible failure/unsupported-result payload.
     - `McpToolCall` and `DynamicToolCall` start with `status = "inProgress"` and nullable/absent `success`, then complete once with a terminal completed/failed payload.
-    - A reserved `PluginFunctionCall` item is projected as generic content and is never created by execution.
 
 **Invariants**:
 
@@ -1021,7 +993,7 @@ The resumed agent has full context of previous Turns regardless of which channel
 
 When reconstructing model history, provider reasoning metadata MUST be preserved on assistant messages that contain tool calls. If one sampling segment produced `ReasoningContent`, visible assistant text, and one or more `ToolCall` Items before their matching `ToolResult` Items, the reconstructed history represents them as one assistant `ChatMessage` containing reasoning content, visible text, and all function calls. This preserves OpenAI protocol providers such as DeepSeek whose thinking mode requires `reasoning_content` to be round-tripped on assistant tool-call messages.
 
-Tool history reconstruction is source-neutral. It expands a valid standard `ToolCall`/`ToolResult` pair or a terminal `McpToolCall`/`DynamicToolCall` into the provider's function-call/function-result sequence while preserving the original provider `callId`. A namespace-capable provider receives the persisted `(namespace, toolName)` tuple; a flat-only provider receives the persisted `providerFlatName`. Reconstruction MUST NOT consult the current tool inventory, parse a flat alias, regenerate one from current naming rules, substitute MCP `server`/`sourceToolId` for model identity, or expand a reserved `PluginFunctionCall` that lacks the canonical identity fields. Orphaned, duplicated, incomplete, or identity-incomplete calls are diagnosed and skipped or rejected at the request boundary; Session Core MUST NOT guess pairings. Only normalized model content participates in provider history. `structuredContent`, `_meta`, and raw MCP result fields never do.
+Tool history reconstruction is source-neutral. It expands a valid standard `ToolCall`/`ToolResult` pair or a terminal `McpToolCall`/`DynamicToolCall` into the provider's function-call/function-result sequence while preserving the original provider `callId`. A namespace-capable provider receives the persisted `(namespace, toolName)` tuple; a flat-only provider receives the persisted `providerFlatName`. Reconstruction MUST NOT consult the current tool inventory, parse a flat alias, regenerate one from current naming rules, or substitute MCP `server`/`sourceToolId` for model identity. Orphaned, duplicated, incomplete, or identity-incomplete calls are diagnosed and skipped or rejected at the request boundary; Session Core MUST NOT guess pairings. Only normalized model content participates in provider history. `structuredContent`, `_meta`, and raw MCP result fields never do.
 
 Validated tool-result images remain structured media until history compaction.
 Summary-producing partial or full compaction replaces tool-result images in the
@@ -1453,7 +1425,7 @@ window with pre-compaction model history, nor compacted model history with an un
 prefix. In-memory history and UI notifications become observable only after the authoritative
 commit succeeds.
 
-Per-thread plans are stored in SQLite `thread_plans`. Plans follow the thread lifecycle: archive/unarchive keeps them, and permanent thread deletion cascades through the database. Legacy `.craft/plans/{threadId}.json|md` files are not a runtime plan source.
+Per-thread plans are stored in SQLite `thread_plans`. Plans follow the thread lifecycle: archive/unarchive keeps them, and permanent thread deletion cascades through the database.
 
 Workspace-managed local images referenced by persisted `localImage` input parts are indexed in SQLite `thread_attachments`. The image file is an independent asset: rollout stores its reference but cannot reconstruct its bytes. The file remains available for history rendering while at least one active or archived thread references it. Permanent thread deletion removes that thread's references and best-effort deletes now-unreferenced managed files. Unsent draft images that never enter thread history are cleaned as unreferenced attachments after the configured TTL.
 
@@ -1516,16 +1488,14 @@ Session Core manages the mapping:
 
 The domain history and exact model history are intentionally distinct durable representations. `turn_state_replaced` preserves client-visible Turn and Item lifecycle state. `model_history_messages_appended` preserves the exact provider-facing message sequence. Neither representation is required to losslessly derive the other, and arbitrary model metadata must not be copied into client-visible Items merely to remove duplicate text.
 
-Threads with `thread_opened.providerHistorySchemaVersion = 1` may additionally persist a
-protocol-native history. For OpenAI Responses, that history is the source of the future wire
+Current rollouts require `thread_opened.providerHistorySchemaVersion = 1` and may additionally
+persist a protocol-native history. For OpenAI Responses, that history is the source of the future wire
 `input` array while generic model history remains the Session-owned cross-provider
 representation. Its append, replacement, retry, rollback, fork, privacy, and compatibility
 contracts are defined in
 [Canonical OpenAI Responses Provider History](responses-provider-history.md).
 
 `context_compacted` is an internal model-history replacement record, not a Session Item and not a client event. Its replacement history uses the same versioned DotCraft model-history schema. During replay, the newest checkpoint whose covered turn survives establishes a new history baseline; earlier model-history records are discarded and only later surviving records are appended. Rollback that removes the covered turn invalidates that checkpoint.
-
-Existing installations may still contain a `thread_sessions` table. Runtime code must neither read, update, migrate, nor delete it. New databases do not create the table.
 
 ### 9.3.1 Ordered Rollout Writer
 
@@ -1551,7 +1521,7 @@ Rollout diagnostics measure record count and serialized bytes by record kind, fl
 
 Context search treats exact model-history, provider-history, and compaction replacement records as internal recovery state. It must not index or preview `model_history_messages_appended`, `provider_history_items_appended`, `provider_history_replaced`, `provider_history_attempt_aborted`, `context_compacted`, `ProtectedData`, arbitrary `AdditionalProperties`, system prompts, raw trace event JSON, channel context, or tool arguments/results. Searchable rollout evidence is extracted from explicitly displayable domain fields rather than raw JSONL lines, and a domain value duplicated in model history contributes only one rollout match. Tool arguments and result payloads are omitted or replaced with `[redacted]` at the presentation boundary.
 
-Diagnostic readers apply the same domain replay semantics as Session Core: later `turn_state_replaced` records replace the same Turn, rollback removes the visible tail, and only surviving terminal Items contribute errors and tool summaries. Exact model batches may expose counts, Turn ids, schema versions, content kinds, and rejection status, but never model payloads, `ProtectedData`, or extension properties. Compaction diagnostics expose only checkpoint boundaries and decode status. The current schema has no `thread_sessions` table; diagnostic readers must not read or infer data from that retired shape.
+Diagnostic readers apply the same domain replay semantics as Session Core: later `turn_state_replaced` records replace the same Turn, rollback removes the visible tail, and only surviving terminal Items contribute errors and tool summaries. Exact model batches may expose counts, Turn ids, schema versions, content kinds, and rejection status, but never model payloads, `ProtectedData`, or extension properties. Compaction diagnostics expose only checkpoint boundaries and decode status.
 
 Current-context handoff uses the canonical shared model-history replayer. Its Markdown presentation excludes reasoning, `ProtectedData`, `AdditionalProperties`, internal provider metadata, and the free-form `SessionThread.Metadata` dictionary. Thread metadata may contain channel credentials, external CLI session identifiers, private paths, or future extension values and therefore is not eligible for blacklist-based redaction. Export uses an explicit allowlist of strong thread fields such as display name, status, timestamps, origin channel, history mode, and Turn count, and propagates sanitized replay warnings through the existing export warning surface.
 
@@ -1561,7 +1531,7 @@ Thread discovery uses a filesystem-first read-repair pass followed by the SQLite
 
 Each metadata row records the confirmed rollout byte offset from the flush that produced it. Discovery enumerates active and archived rollout files and compares their paths and lengths with SQLite. Matching rows require no rollout-body read. A missing row, changed path, shortened file, or mismatched offset causes only that rollout to be replayed and its projection rebuilt before the list is returned. Concurrent initial discovery shares one reconciliation operation.
 
-If SQLite listing or repair is unavailable, discovery reports the metadata read failure; it does not infer or migrate legacy rollout paths. Rows whose current canonical rollout files are absent are omitted but are not destructively deleted by read-repair. SQLite projections never participate in model-history reconstruction.
+If SQLite listing or repair is unavailable, discovery reports the metadata read failure; it does not infer or migrate non-canonical rollout paths. Rows whose current canonical rollout files are absent are omitted but are not destructively deleted by read-repair. SQLite projections never participate in model-history reconstruction.
 
 ### 9.4.1 Persistence Authority Classification
 
@@ -1970,7 +1940,7 @@ Model preference resolution is thread-aware:
 
 - when a server-managed thread is created, Session Core captures the effective provider and its complete `ModelPreference`: model, reasoning, speed, and context-window mode
 - an explicit thread configuration wins; otherwise the preference resolves from `AppConfig.ProviderPreferences[ProviderId]`
-- a selected provider without a complete preference is not a valid MainAgent runtime; obsolete model-only and root model-option keys are ignored
+- a selected provider without a complete preference is not a valid MainAgent runtime
 - the MainAgent uses the captured thread configuration for every turn, resume, and tool-planning operation; workspace defaults never replace values on an existing thread
 - DotCraft-managed native SubAgents resolve `AppConfig.SubAgent.ProviderPreferences[Thread.Configuration.ProviderId]`; a missing entry inherits the parent thread's complete MainAgent preference
 - a native SubAgent role model overrides the inherited or configured model, after which reasoning and context-window selections are repaired against that model's capabilities
@@ -2142,12 +2112,11 @@ Client-local commands are outside `command/list` and `command/execute`.
 
 ### 17.4 Active Run Cancellation
 
-QQ and WeCom use `ActiveRunRegistry` to track and cancel in-flight runs. Under Session Core, this is replaced by:
+Session Core owns active-run cancellation:
 
 - Session Core tracks the `CancellationTokenSource` for each Running Turn internally.
 - `CancelTurn(turnId)` cancels the token and transitions the Turn to `Cancelled`.
 - The adapter maps `/stop` to `CancelTurn` for the current Thread's active Turn.
-- `ActiveRunRegistry` is no longer needed — Session Core owns the cancellation lifecycle.
 
 ---
 

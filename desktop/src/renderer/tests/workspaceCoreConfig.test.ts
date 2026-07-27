@@ -33,10 +33,7 @@ describe('workspace core model resolution', () => {
     expect(resolveWorkspaceModelFromConfig(config, providerId)).toBe('remembered-model')
   })
 
-  it('ignores the obsolete top-level model and falls back to Default', () => {
-    expect(resolveWorkspaceModelFromConfig({ Model: 'legacy-model' }, 'provider-b')).toBe('Default')
-    expect(resolveWorkspaceModelFromConfig({ ProviderModels: { 'provider-b': 'legacy' } }, 'provider-b'))
-      .toBe('Default')
+  it('falls back to Default when the provider has no preference', () => {
     expect(resolveWorkspaceModelFromConfig({}, 'provider-b')).toBe('Default')
   })
 

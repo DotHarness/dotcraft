@@ -180,15 +180,13 @@ if (cliArgs.Mode == CommandLineArgs.RunMode.Setup)
         if (!string.IsNullOrWhiteSpace(cliArgs.SetupProviderMode))
         {
             var mode = cliArgs.SetupProviderMode.Trim();
-            if (string.Equals(mode, "legacy", StringComparison.OrdinalIgnoreCase))
-                return WorkspaceSetupProviderMode.Create;
             if (string.Equals(mode, "existing", StringComparison.OrdinalIgnoreCase))
                 return WorkspaceSetupProviderMode.Existing;
             if (string.Equals(mode, "create", StringComparison.OrdinalIgnoreCase))
                 return WorkspaceSetupProviderMode.Create;
             if (string.Equals(mode, "skip", StringComparison.OrdinalIgnoreCase))
                 return WorkspaceSetupProviderMode.Skip;
-            throw new ArgumentException("Invalid --provider-mode. Expected legacy, existing, create, or skip.");
+            throw new ArgumentException("Invalid --provider-mode. Expected existing, create, or skip.");
         }
 
         if (!string.IsNullOrWhiteSpace(cliArgs.SetupProviderProtocol)

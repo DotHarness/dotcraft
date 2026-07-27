@@ -130,8 +130,6 @@ export interface AppSettings {
   /** Desktop-local What's New read marker. */
   lastSeenWhatsNewVersion?: string
   recentWorkspaces?: RecentWorkspace[]
-  /** Legacy Desktop-local cross-channel filter. Retained only so older settings files parse. */
-  visibleChannels?: string[]
   lastOpenEditorId?: LastOpenEditorId
   browserUse?: BrowserUseSettings
   notifications?: NotificationSettings

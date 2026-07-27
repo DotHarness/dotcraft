@@ -121,7 +121,7 @@ public sealed class WireNodeReplProxyTests
             var result = await proxy.EvaluateAsync(
                 "1 + 1",
                 5,
-                metadata: new DotCraft.Abstractions.NodeReplEvaluationMetadata
+                metadata: new DotCraft.Protocol.AppServer.NodeReplEvaluationMetadata
                 {
                     ThreadId = "thread-b",
                     SessionId = "thread-b",

@@ -67,8 +67,6 @@ test("writes a complete preference to global and workspace config", async (t) =>
   };
   assert.deepEqual(globalConfig.ProviderPreferences.openai, expected);
   assert.deepEqual(workspaceConfig.ProviderPreferences.openai, expected);
-  assert.equal("Model" in globalConfig, false);
-  assert.equal("Model" in workspaceConfig, false);
 });
 
 test("updates provider case-insensitively and preserves unrelated preferences", async (t) => {
@@ -89,7 +87,6 @@ test("updates provider case-insensitively and preserves unrelated preferences", 
         contextWindow: { mode: "max" },
       },
     },
-    Model: "legacy-model",
     Unrelated: { keep: true },
   };
   await writeFile(
@@ -115,7 +112,6 @@ test("updates provider case-insensitively and preserves unrelated preferences", 
       speed: "fast",
       contextWindow: { mode: "max" },
     });
-    assert.equal(config.Model, "legacy-model");
     assert.deepEqual(config.Unrelated, { keep: true });
   }
 });
@@ -177,34 +173,6 @@ test("creates capability-safe fallback values without a catalog", async (t) => {
     speed: "standard",
     contextWindow: { mode: "default" },
   });
-});
-
-test("cleans obsolete preference fields while preserving unrelated compaction config", async (t) => {
-  const fixture = await createFixture(t);
-  const existing = {
-    ProviderId: "openai",
-    ProviderModels: { openai: "old" },
-    Reasoning: { Enabled: true },
-    Speed: "Fast",
-    Compaction: { ContextWindowMode: "Max", BufferTokens: 1234 },
-    SubAgent: { ProviderModels: { openai: "old-sub" }, MaxDepth: 2 },
-  };
-  await writeFile(
-    path.join(fixture.workspace, ".craft", "config.json"),
-    `${JSON.stringify(existing)}\n`,
-    "utf8",
-  );
-
-  runRenderer(fixture, {
-    DOTCRAFT_PROVIDER: "openai",
-    DOTCRAFT_MODEL: "gpt-new",
-  });
-  const config = await readConfig(path.join(fixture.workspace, ".craft", "config.json"));
-  assert.equal("ProviderModels" in config, false);
-  assert.equal("Reasoning" in config, false);
-  assert.equal("Speed" in config, false);
-  assert.deepEqual(config.Compaction, { BufferTokens: 1234 });
-  assert.deepEqual(config.SubAgent, { MaxDepth: 2 });
 });
 
 for (const [name, value, allowed] of [

@@ -1,7 +1,6 @@
 using System.Diagnostics;
 using System.Text.Json;
 using System.Text.RegularExpressions;
-using DotCraft.Abstractions;
 using DotCraft.Agents;
 using DotCraft.Automations;
 using DotCraft.Automations.Abstractions;
@@ -87,10 +86,8 @@ public sealed class LocalAutomationProtocolTests
         }
     }
 
-    [Theory]
-    [InlineData("worktree")]
-    [InlineData("isolated")]
-    public async Task TaskCreate_NormalizesWorktreeModeInWorkflowAndWire(string requestedMode)
+    [Fact]
+    public async Task TaskCreate_PersistsWorktreeModeInWorkflowAndWire()
     {
         var root = CreateTestRoot();
         try
@@ -102,7 +99,7 @@ public sealed class LocalAutomationProtocolTests
                 {
                     title = "Build mini game",
                     description = "Create a tiny game",
-                    workspaceMode = requestedMode
+                    workspaceMode = "worktree"
                 }),
                 CancellationToken.None);
 
@@ -111,7 +108,6 @@ public sealed class LocalAutomationProtocolTests
                 Path.Combine(created.TaskDirectory, "workflow.md"),
                 CancellationToken.None);
             Assert.Contains("workspace: worktree", workflow);
-            Assert.DoesNotContain("workspace: isolated", workflow);
 
             var readResult = await harness.Handler.HandleTaskReadAsync(
                 Request(AppServerMethods.AutomationTaskRead, new { taskId = created.TaskId }),
@@ -245,34 +241,6 @@ public sealed class LocalAutomationProtocolTests
         }
     }
 
-    [Fact]
-    public async Task TemplateSave_NormalizesLegacyWorkspaceMode()
-    {
-        var root = CreateTestRoot();
-        try
-        {
-            using var harness = CreateHarness(root);
-
-            var result = await harness.Handler.HandleTemplateSaveAsync(
-                Request(AppServerMethods.AutomationTemplateSave, new
-                {
-                    title = "Legacy worktree",
-                    workflowMarkdown = "---\nworkspace: \"isolated\"\n---\nDo work",
-                    defaultWorkspaceMode = "isolated",
-                    needsThreadBinding = false
-                }),
-                CancellationToken.None);
-
-            var wire = Assert.IsType<AutomationTemplateSaveResult>(result).Template;
-            Assert.Equal("worktree", wire.DefaultWorkspaceMode);
-            Assert.Contains("workspace: worktree", wire.WorkflowMarkdown);
-            Assert.DoesNotContain("isolated", wire.WorkflowMarkdown);
-        }
-        finally
-        {
-            DeleteDirectory(root);
-        }
-    }
 
     [Fact]
     public async Task TaskCreate_PersistsAndRoundTripsAgentProfileId()
@@ -369,33 +337,6 @@ public sealed class LocalAutomationProtocolTests
             var reloaded = Assert.IsType<AutomationTemplateListResult>(listResult)
                 .Templates.Single(t => t.Id == saved.Id);
             Assert.Equal("team-reviewer", reloaded.DefaultAgentProfileId);
-        }
-        finally
-        {
-            DeleteDirectory(root);
-        }
-    }
-
-    [Fact]
-    public async Task TaskRead_NormalizesLegacyIsolatedWorkflowWithoutMigratingFile()
-    {
-        var root = CreateTestRoot();
-        try
-        {
-            using var harness = CreateHarness(root);
-            var task = await CreateTaskAsync(harness.FileStore, "legacy-isolated", AutomationTaskStatus.Pending, schedule: null);
-            await File.WriteAllTextAsync(
-                task.WorkflowFilePath,
-                "---\nworkspace: isolated\n---\nLegacy workflow",
-                CancellationToken.None);
-
-            var result = await harness.Handler.HandleTaskReadAsync(
-                Request(AppServerMethods.AutomationTaskRead, new { taskId = task.Id }),
-                CancellationToken.None);
-
-            var wire = Assert.IsType<AutomationTaskWire>(result);
-            Assert.Equal("worktree", wire.WorkspaceMode);
-            Assert.Contains("workspace: isolated", await File.ReadAllTextAsync(task.WorkflowFilePath));
         }
         finally
         {

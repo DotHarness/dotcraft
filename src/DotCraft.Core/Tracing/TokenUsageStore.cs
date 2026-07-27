@@ -1,6 +1,4 @@
-using System.Text.Encodings.Web;
-using System.Text.Json;
-using DotCraft.State;
+using DotCraft.Persistence;
 
 namespace DotCraft.Tracing;
 
@@ -152,27 +150,17 @@ public sealed class UsageBreakdownEntry
 
 public sealed class TokenUsageStore
 {
-    private readonly string? _storagePath;
-    private readonly StateRuntime? _stateRuntime;
+    private readonly WorkspaceStateDatabase? _stateRuntime;
     private readonly Dictionary<string, FallbackSourceAggregate> _fallbackSources = new(StringComparer.OrdinalIgnoreCase);
     private readonly object _aggregateLock = new();
-    private readonly object _fileLock = new();
 
-    private static readonly JsonSerializerOptions JsonOptions = new()
-    {
-        WriteIndented = false,
-        Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping
-    };
-
-    public TokenUsageStore(string? storagePath = null)
-        : this(storagePath, null)
+    public TokenUsageStore()
     {
     }
 
-    internal TokenUsageStore(string? storagePath, StateRuntime? stateRuntime)
+    internal TokenUsageStore(WorkspaceStateDatabase stateRuntime)
     {
-        _storagePath = storagePath;
-        _stateRuntime = stateRuntime;
+        _stateRuntime = stateRuntime ?? throw new ArgumentNullException(nameof(stateRuntime));
     }
 
     public void Record(TokenUsageRecord record)
@@ -187,8 +175,6 @@ public sealed class TokenUsageStore
         else
         {
             ApplyFallbackRecord(record);
-            if (_storagePath != null)
-                PersistRecordToFile(record);
         }
     }
 
@@ -211,45 +197,6 @@ public sealed class TokenUsageStore
         return _stateRuntime != null
             ? GetContextBreakdownFromDb(sourceId)
             : GetContextBreakdownFromFallback(sourceId);
-    }
-
-    public void LoadFromDisk()
-    {
-        if (_stateRuntime != null)
-            return;
-
-        ClearFallbackAggregates();
-
-        if (_storagePath == null)
-            return;
-
-        var filePath = Path.Combine(_storagePath, "usage_records.jsonl");
-        if (!File.Exists(filePath))
-            return;
-
-        try
-        {
-            foreach (var line in File.ReadLines(filePath))
-            {
-                if (string.IsNullOrWhiteSpace(line))
-                    continue;
-
-                try
-                {
-                    var record = JsonSerializer.Deserialize<TokenUsageRecord>(line, JsonOptions);
-                    if (record != null && IsValidRecord(record))
-                        ApplyFallbackRecord(record);
-                }
-                catch
-                {
-                    // Skip corrupted lines
-                }
-            }
-        }
-        catch
-        {
-            // Skip corrupted file
-        }
     }
 
     /// <summary>
@@ -727,36 +674,7 @@ public sealed class TokenUsageStore
         }
     }
 
-    private void ClearFallbackAggregates()
-    {
-        lock (_aggregateLock)
-        {
-            _fallbackSources.Clear();
-        }
-    }
-
     #endregion
-
-    private void PersistRecordToFile(TokenUsageRecord record)
-    {
-        _ = Task.Run(() =>
-        {
-            try
-            {
-                Directory.CreateDirectory(_storagePath!);
-                var filePath = Path.Combine(_storagePath!, "usage_records.jsonl");
-                var json = JsonSerializer.Serialize(record, JsonOptions);
-                lock (_fileLock)
-                {
-                    File.AppendAllText(filePath, json + "\n");
-                }
-            }
-            catch
-            {
-                // Silently ignore persistence errors
-            }
-        });
-    }
 
     private static bool IsValidRecord(TokenUsageRecord record)
     {

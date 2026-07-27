@@ -1,4 +1,4 @@
-using DotCraft.Abstractions;
+using DotCraft.Channels;
 using Microsoft.AspNetCore.Builder;
 
 namespace DotCraft.Hosting;

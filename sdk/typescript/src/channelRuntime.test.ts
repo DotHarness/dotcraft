@@ -408,7 +408,7 @@ test("TurnStreamReducer preserves segment boundaries and final results", async (
 
   await reducer.consume(events([
     { method: "item/agentMessage/delta", params: { threadId: "t", itemId: "a", delta: "before " } },
-    { method: "item/started", params: { threadId: "t", item: { id: "tool", type: "pluginFunctionCall" } } },
+    { method: "item/started", params: { threadId: "t", item: { id: "tool", type: "toolCall" } } },
     { method: "item/agentMessage/delta", params: { threadId: "t", itemId: "b", delta: "af" } },
     {
       method: "item/completed",
@@ -451,7 +451,7 @@ test("TurnStreamReducer preserves failed segment tails for final delivery", asyn
 
   await reducer.consume(events([
     { method: "item/agentMessage/delta", params: { threadId: "t", itemId: "a", delta: "before " } },
-    { method: "item/started", params: { threadId: "t", item: { id: "tool", type: "pluginFunctionCall" } } },
+    { method: "item/started", params: { threadId: "t", item: { id: "tool", type: "toolCall" } } },
     {
       method: "item/completed",
       params: { threadId: "t", item: { id: "a", type: "agentMessage", payload: { text: "before " } } },

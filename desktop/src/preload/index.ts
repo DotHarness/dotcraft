@@ -1459,7 +1459,6 @@ const api = {
       pinnedSectionCollapsed?: boolean
       chatsSectionCollapsed?: boolean
       showInMenuBar?: boolean
-      visibleChannels?: string[]
       lastOpenEditorId?: EditorId
       lastSeenWhatsNewVersion?: string
       browserUse?: {
@@ -1514,7 +1513,6 @@ const api = {
       pinnedSectionCollapsed?: boolean
       chatsSectionCollapsed?: boolean
       showInMenuBar?: boolean
-      visibleChannels?: string[]
       lastOpenEditorId?: EditorId
       lastSeenWhatsNewVersion?: string
       browserUse?: {

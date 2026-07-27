@@ -358,13 +358,11 @@ Provider-native history:
 
 ### 9.3 Schema activation and recovery
 
-Rollout and model-history schemas remain readable according to their versioned storage contracts.
-Capability activation is governed by the owning provider-history specification. A Responses
-thread without `providerHistorySchemaVersion` derives its request input from provider-neutral
-model history. A compatible whole-Turn fork may preserve an exact native snapshot; a partial fork
-or a fork without native history establishes the documented replacement boundary. Unknown or
-corrupt active provider-native history fails with a stable error rather than silently falling back
-to a lossy mapping.
+Current rollouts require the provider-history schema version defined by the owning
+provider-history specification. A compatible whole-Turn fork may preserve an exact native
+snapshot; a partial fork or a fork without native history establishes the documented replacement
+boundary. Unknown, missing, or corrupt active provider-native history fails with a stable error
+rather than silently falling back to a lossy mapping.
 
 ## 10. Provider Isolation
 

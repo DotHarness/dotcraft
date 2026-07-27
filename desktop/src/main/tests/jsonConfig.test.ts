@@ -4,11 +4,11 @@ import { parseJsonConfig, parseJsonObjectConfig, parseJsonRecordConfig, stripUtf
 describe('jsonConfig', () => {
   describe('stripUtf8Bom', () => {
     it('removes a leading UTF-8 BOM', () => {
-      expect(stripUtf8Bom('\uFEFF{"Model":"gpt-5"}')).toBe('{"Model":"gpt-5"}')
+      expect(stripUtf8Bom('\uFEFF{"Theme":"dark"}')).toBe('{"Theme":"dark"}')
     })
 
     it('returns the original content when no BOM exists', () => {
-      expect(stripUtf8Bom('{"Model":"gpt-5"}')).toBe('{"Model":"gpt-5"}')
+      expect(stripUtf8Bom('{"Theme":"dark"}')).toBe('{"Theme":"dark"}')
     })
 
     it('returns empty input unchanged', () => {
@@ -18,18 +18,18 @@ describe('jsonConfig', () => {
 
   describe('parseJsonConfig', () => {
     it('parses JSON object with UTF-8 BOM', () => {
-      expect(parseJsonConfig('\uFEFF{"Model":"gpt-5"}', {} as Record<string, unknown>)).toEqual({
-        Model: 'gpt-5'
+      expect(parseJsonConfig('\uFEFF{"Theme":"dark"}', {} as Record<string, unknown>)).toEqual({
+        Theme: 'dark'
       })
     })
 
     it('returns fallback for empty input', () => {
-      const fallback = { Model: 'Default' }
+      const fallback = { Theme: 'system' }
       expect(parseJsonConfig('   ', fallback)).toBe(fallback)
     })
 
     it('returns fallback for non-object JSON', () => {
-      const fallback = { EndPoint: 'https://example.com/v1' }
+      const fallback = { CustomSettings: { keep: true } }
       expect(parseJsonConfig('["a", "b"]', fallback)).toBe(fallback)
       expect(parseJsonConfig('"value"', fallback)).toBe(fallback)
     })
@@ -42,8 +42,8 @@ describe('jsonConfig', () => {
 
   describe('parseJsonObjectConfig', () => {
     it('parses JSON object with UTF-8 BOM', () => {
-      expect(parseJsonObjectConfig('\uFEFF{"Model":"gpt-5"}')).toEqual({
-        Model: 'gpt-5'
+      expect(parseJsonObjectConfig('\uFEFF{"Theme":"dark"}')).toEqual({
+        Theme: 'dark'
       })
     })
 
@@ -63,8 +63,8 @@ describe('jsonConfig', () => {
 
   describe('parseJsonRecordConfig', () => {
     it('parses JSON object with UTF-8 BOM', () => {
-      expect(parseJsonRecordConfig('\uFEFF{"Model":"gpt-5"}')).toEqual({
-        Model: 'gpt-5'
+      expect(parseJsonRecordConfig('\uFEFF{"Theme":"dark"}')).toEqual({
+        Theme: 'dark'
       })
     })
 

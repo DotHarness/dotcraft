@@ -11,6 +11,3 @@ export interface WeixinConfig {
     botType?: string;
   };
 }
-
-/** @deprecated Use WeixinConfig instead. */
-export type AppConfig = WeixinConfig;

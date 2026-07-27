@@ -287,7 +287,6 @@ public sealed class AppConfig
         }
 
         var node = JsonNode.Parse(File.ReadAllText(path)) ?? new JsonObject();
-        RemoveLegacyLanguage(node);
         ExpandEnvironmentVariables(node);
         var config = node.Deserialize<AppConfig>(SerializerOptions) ?? new AppConfig();
         ModelCatalog.ApplyToConfig(config, node, globalConfigPath: null, workspaceConfigPath: path);
@@ -319,12 +318,8 @@ public sealed class AppConfig
         JsonNode? workspaceNode = File.Exists(workspacePath)
             ? JsonNode.Parse(File.ReadAllText(workspacePath))
             : new JsonObject();
-        RemoveLegacyLanguage(globalNode);
-        RemoveLegacyLanguage(workspaceNode);
-
         // Merge workspace config into global config (workspace values take precedence)
         var mergedNode = MergeNodes(globalNode ?? new JsonObject(), workspaceNode ?? new JsonObject());
-        RemoveLegacyLanguage(mergedNode);
 
         // Expand environment variable references before deserializing
         ExpandEnvironmentVariables(mergedNode);
@@ -332,16 +327,6 @@ public sealed class AppConfig
         var config = mergedNode.Deserialize<AppConfig>(SerializerOptions) ?? new AppConfig();
         ModelCatalog.ApplyToConfig(config, mergedNode, globalConfigPath, workspacePath);
         return config;
-    }
-
-    private static void RemoveLegacyLanguage(JsonNode? node)
-    {
-        if (node is not JsonObject obj) return;
-        var key = obj
-            .Select(property => property.Key)
-            .FirstOrDefault(name => string.Equals(name, "Language", StringComparison.OrdinalIgnoreCase));
-        if (key is not null)
-            obj.Remove(key);
     }
 
     /// <summary>
@@ -520,8 +505,7 @@ public sealed class AppConfig
 
         /// <summary>
         /// Provider protocol. Supported values are "openai-chat-completions",
-        /// "openai-responses", and "anthropic". Legacy "openai" is accepted as
-        /// a read-only alias for "openai-chat-completions".
+        /// "openai-responses", and "anthropic".
         /// </summary>
         public string Protocol { get; set; } = ModelProviderProtocols.OpenAIChatCompletions;
 
@@ -853,7 +837,6 @@ public sealed class AppConfig
             ".craft/dashboard",     // LLM trace data and token usage records
             ".craft/security",      // persisted approval records (authorized paths/commands)
             ".craft/logs",          // ACP communication debug logs
-            ".craft/plans",         // per-session task planning history
         ];
     }
 

@@ -241,7 +241,6 @@ describe('AgentBuilderView intro composer', () => {
   it('starts a detached builder thread with the provider-specific workspace model', async () => {
     vi.mocked(window.api.file.readFile).mockResolvedValue(JSON.stringify({
       ProviderId: 'provider-a',
-      Model: 'legacy-model',
       ProviderPreferences: {
         'provider-a': {
           Model: 'provider-model',

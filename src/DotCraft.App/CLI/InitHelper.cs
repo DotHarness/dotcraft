@@ -133,35 +133,10 @@ public static class InitHelper
             node.Remove(matched.Key);
     }
 
-    private static void RemoveCoreConfigFields(JsonObject node)
-    {
-        node.Remove("Language");
-        node.Remove("ApiKey");
-        node.Remove("EndPoint");
-        node.Remove("Model");
-    }
-
     private static void RemoveProviderAwareWorkspaceFields(JsonObject node)
     {
-        RemoveCoreConfigFields(node);
         node.Remove("ProviderId");
-        node.Remove("ProviderModels");
         node.Remove("ProviderPreferences");
-        RemoveLegacyModelOptionFields(node);
-    }
-
-    private static void RemoveLegacyModelOptionFields(JsonObject node)
-    {
-        RemoveCaseInsensitive(node, "ProviderModels");
-        RemoveCaseInsensitive(node, "Reasoning");
-        RemoveCaseInsensitive(node, "Speed");
-        var compaction = node
-            .FirstOrDefault(pair => string.Equals(
-                pair.Key,
-                "Compaction",
-                StringComparison.OrdinalIgnoreCase)).Value as JsonObject;
-        if (compaction != null)
-            RemoveCaseInsensitive(compaction, "ContextWindowMode");
     }
 
     private static JsonObject GetOrCreateObject(JsonObject node, string key)
@@ -298,9 +273,6 @@ public static class InitHelper
         string globalConfigPath)
     {
         var globalNode = LoadJsonObject(globalConfigPath);
-        RemoveCaseInsensitive(globalNode, "Language");
-        RemoveCaseInsensitive(globalNode, "Model");
-        RemoveLegacyModelOptionFields(globalNode);
         var workspaceConfigPath = Path.Combine(craftPath, "config.json");
         var workspaceNode = LoadJsonObject(workspaceConfigPath);
 
@@ -314,22 +286,7 @@ public static class InitHelper
 
         string providerId;
         var setAsUserDefault = request.SetAsUserDefault;
-        if (request.ProviderMode == WorkspaceSetupProviderMode.Legacy)
-        {
-            var protocol = ModelProviderProtocols.OpenAI;
-            var legacyProvider = NormalizeProviderDraft(new WorkspaceSetupProviderDraft
-            {
-                Id = string.IsNullOrWhiteSpace(request.ProviderId) ? "openai" : request.ProviderId,
-                DisplayName = "OpenAI",
-                Protocol = protocol,
-                ApiKey = request.ApiKey,
-                EndPoint = request.EndPoint
-            });
-            SaveProviderDraft(globalNode, legacyProvider);
-            providerId = legacyProvider.Id;
-            setAsUserDefault = request.SaveToUserConfig || request.SetAsUserDefault;
-        }
-        else if (request.ProviderMode == WorkspaceSetupProviderMode.Create)
+        if (request.ProviderMode == WorkspaceSetupProviderMode.Create)
         {
             var provider = request.Provider ?? throw new ArgumentException("Provider draft is required.");
             var normalizedProvider = NormalizeProviderDraft(provider);
