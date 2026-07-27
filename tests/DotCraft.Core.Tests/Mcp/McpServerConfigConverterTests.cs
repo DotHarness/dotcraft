@@ -29,6 +29,23 @@ public sealed class McpServerConfigConverterTests
         Assert.Equal(["./mcp-server/index.js"], server.Arguments);
     }
 
+    [Fact]
+    public void Read_ObjectMap_RejectsUnknownFields()
+    {
+        const string json =
+            """
+{
+  "review": {
+    "transport": "stdio",
+    "command": "node",
+    "unsupportedOption": true
+  }
+}
+""";
+
+        Assert.Throws<JsonException>(() => Deserialize(json));
+    }
+
     private static List<McpServerConfig> Deserialize(string json) =>
         JsonSerializer.Deserialize<List<McpServerConfig>>(json, JsonOptions) ?? [];
 }

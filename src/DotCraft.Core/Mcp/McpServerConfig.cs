@@ -66,6 +66,7 @@ public sealed class McpServerOrigin
     RootKey = "McpServers",
     DefaultReload = ReloadBehavior.Hot,
     HasDefaultReload = true)]
+[JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
 public sealed class McpServerConfig
 {
     private McpServerOrigin _origin = McpServerOrigin.Workspace();
@@ -192,7 +193,6 @@ public sealed class McpServerConfigListConverter : JsonConverter<List<McpServerC
 
         foreach (var prop in root.EnumerateObject())
         {
-            RejectLegacyAliases(prop.Value);
             var cfg = prop.Value.Deserialize<McpServerConfig>(options) ?? new McpServerConfig();
             if (string.IsNullOrWhiteSpace(cfg.Name))
                 cfg.Name = prop.Name;
@@ -214,20 +214,5 @@ public sealed class McpServerConfigListConverter : JsonConverter<List<McpServerC
         }
 
         writer.WriteEndObject();
-    }
-
-    private static void RejectLegacyAliases(JsonElement element)
-    {
-        if (element.ValueKind != JsonValueKind.Object)
-            throw new JsonException("Each MCP server entry must be an object.");
-
-        foreach (var property in element.EnumerateObject())
-        {
-            if (property.Name.Equals("args", StringComparison.OrdinalIgnoreCase)
-                || property.Name.Equals("env", StringComparison.OrdinalIgnoreCase)
-                || property.Name.Equals("httpHeaders", StringComparison.OrdinalIgnoreCase))
-                throw new JsonException(
-                    $"MCP server property '{property.Name}' is no longer supported. Use arguments, environmentVariables, or headers.");
-        }
     }
 }

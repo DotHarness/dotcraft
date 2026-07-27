@@ -584,6 +584,8 @@ Platform connections, allowlists, and approval timeouts live in adapter-specific
 
 DotCraft Desktop supplies the official plugin marketplace as the default registry through `DOTCRAFT_DEFAULT_PLUGIN_REGISTRY_URL`. Marketplace sources added in Desktop are stored in the global configuration; a workspace `PluginRegistries` value follows the normal workspace-over-global precedence.
 
+Each `McpServers` and `LspServers` entry accepts only the fields defined by its current schema. Unknown properties cause configuration parsing to fail.
+
 `Plugins.PluginRegistries` entry fields:
 
 | Field | Description | Default |

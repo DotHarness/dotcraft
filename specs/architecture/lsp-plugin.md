@@ -158,12 +158,7 @@ Canonical field names match workspace `LspServers`:
 | `startupTimeoutMs` | integer | no | Startup timeout in milliseconds. |
 | `maxRestarts` | integer | no | Maximum restart attempts after server crashes. |
 
-Compatibility read aliases are accepted for common LSP config examples:
-
-| Alias | Canonical Field |
-|-------|-----------------|
-| `args` | `arguments` |
-| `env` | `environmentVariables` |
+Server entries accept only these canonical fields. Unknown properties are rejected.
 
 ---
 

@@ -582,6 +582,8 @@ Desktop 托管的内置 TypeScript 渠道：
 
 DotCraft Desktop 会通过 `DOTCRAFT_DEFAULT_PLUGIN_REGISTRY_URL` 提供默认官方插件市场。在 Desktop 中添加的市场来源保存在全局配置中；工作区中的 `PluginRegistries` 值遵循普通的工作区覆盖全局规则。
 
+每个 `McpServers` 和 `LspServers` 条目只接受当前 schema 定义的字段。出现未知属性时，配置解析会失败。
+
 `Plugins.PluginRegistries` 条目字段：
 
 | 字段 | 说明 | 默认值 |

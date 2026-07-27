@@ -68,4 +68,24 @@ public class LspServerConfigConverterTests
         Assert.Equal("pylsp", python["Command"]?.GetValue<string>());
         Assert.False(python.ContainsKey("Name"));
     }
+
+    [Fact]
+    public void AppConfig_RejectsUnknownLspServerFields()
+    {
+        const string json = """
+        {
+          "LspServers": {
+            "csharp": {
+              "command": "csharp-ls",
+              "extensionToLanguage": {
+                ".cs": "csharp"
+              },
+              "unsupportedOption": true
+            }
+          }
+        }
+        """;
+
+        Assert.Throws<JsonException>(() => JsonSerializer.Deserialize<AppConfig>(json, SerializerOptions));
+    }
 }

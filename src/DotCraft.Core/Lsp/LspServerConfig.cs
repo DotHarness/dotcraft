@@ -42,6 +42,7 @@ public sealed class LspServerOrigin
 }
 
 [ConfigSection("LspServers", DisplayName = "LSP Servers", Order = 96, RootKey = "LspServers")]
+[JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
 public sealed class LspServerConfig
 {
     [JsonIgnore]
@@ -152,14 +153,6 @@ public sealed class LspServerConfigListConverter : JsonConverter<List<LspServerC
     {
         if (element.ValueKind != JsonValueKind.Object)
             throw new JsonException("Each LSP server entry must be an object.");
-
-        foreach (var property in element.EnumerateObject())
-        {
-            if (property.Name.Equals("args", StringComparison.OrdinalIgnoreCase)
-                || property.Name.Equals("env", StringComparison.OrdinalIgnoreCase))
-                throw new JsonException(
-                    $"LSP server property '{property.Name}' is no longer supported. Use arguments or environmentVariables.");
-        }
 
         var cfg = element.Deserialize<LspServerConfig>(options);
         if (cfg == null)
