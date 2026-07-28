@@ -5,7 +5,7 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <PackageId>DotCraft.Sdk</PackageId>
-    <Version>0.4.1</Version>
+    <Version>0.4.2</Version>
     <Authors>DotHarness</Authors>
     <Description>Lightweight .NET SDK for DotCraft Hub and AppServer protocol clients.</Description>
     <PackageProjectUrl>https://github.com/DotHarness/dotcraft</PackageProjectUrl>

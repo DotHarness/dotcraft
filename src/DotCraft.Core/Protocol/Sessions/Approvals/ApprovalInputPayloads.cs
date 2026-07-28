@@ -34,6 +34,11 @@ public sealed record ApprovalRequestPayload
     /// Human-readable explanation of why this approval is needed, shown to the user in approval UIs.
     /// </summary>
     public string Reason { get; init; } = string.Empty;
+
+    /// <summary>
+    /// UTC instant after which the request can no longer be approved.
+    /// </summary>
+    public DateTimeOffset ExpiresAt { get; init; }
 }
 
 /// <summary>

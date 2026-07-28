@@ -206,6 +206,10 @@ public sealed class SessionApprovalServiceTests
         Assert.Equal("remoteResource", payload!.ApprovalType);
         Assert.Equal("create", payload.Operation);
         Assert.Equal("doc-123", payload.Target);
+        Assert.InRange(
+            payload.ExpiresAt,
+            DateTimeOffset.UtcNow.AddSeconds(50),
+            DateTimeOffset.UtcNow.AddSeconds(70));
 
         svc.TryResolve(payload.RequestId, SessionApprovalDecision.AcceptOnce);
 

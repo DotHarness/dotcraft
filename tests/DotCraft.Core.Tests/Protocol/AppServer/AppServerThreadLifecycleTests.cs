@@ -248,6 +248,38 @@ public sealed class AppServerThreadLifecycleTests : IDisposable
         AppServerTestHarness.AssertIsErrorResponse(response, AppServerErrors.InvalidParamsCode);
     }
 
+    [Theory]
+    [InlineData(0)]
+    [InlineData(86401)]
+    public async Task ThreadStart_WithInvalidApprovalTimeout_ReturnsInvalidParams(int seconds)
+    {
+        var msg = _h.BuildRequest(AppServerMethods.ThreadStart, new
+        {
+            identity = new { channelName = "appserver", userId = "test_user", workspacePath = _h.Identity.WorkspacePath },
+            config = new { approvalTimeoutSeconds = seconds }
+        });
+        await _h.ExecuteRequestAsync(msg);
+
+        var response = await _h.Transport.ReadNextSentAsync();
+        AppServerTestHarness.AssertIsErrorResponse(response, AppServerErrors.InvalidParamsCode);
+    }
+
+    [Fact]
+    public async Task ThreadStart_PersistsApprovalTimeoutOverride()
+    {
+        var msg = _h.BuildRequest(AppServerMethods.ThreadStart, new
+        {
+            identity = new { channelName = "appserver", userId = "test_user", workspacePath = _h.Identity.WorkspacePath },
+            config = new { approvalTimeoutSeconds = 1800 }
+        });
+        await _h.ExecuteRequestAsync(msg);
+
+        var response = await _h.Transport.ReadNextSentAsync();
+        AppServerTestHarness.AssertIsSuccessResponse(response);
+        var config = response.RootElement.GetProperty("result").GetProperty("thread").GetProperty("configuration");
+        Assert.Equal(1800, config.GetProperty("approvalTimeoutSeconds").GetInt32());
+    }
+
     [Fact]
     public async Task ThreadConfigUpdate_WithSupportedContextWindowMax_BroadcastsThreadUpdated()
     {

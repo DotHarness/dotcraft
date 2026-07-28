@@ -572,6 +572,8 @@ public sealed partial class AgentProfileStore
             resolved.Speed = requested.Speed;
         if (HasConfigProperty(configElement, "contextWindow"))
             resolved.ContextWindow = CloneContextWindow(requested.ContextWindow);
+        if (HasConfigProperty(configElement, "approvalTimeoutSeconds"))
+            resolved.ApprovalTimeoutSeconds = requested.ApprovalTimeoutSeconds;
 
         return resolved;
     }
@@ -599,7 +601,8 @@ public sealed partial class AgentProfileStore
         || string.Equals(name, "model", StringComparison.OrdinalIgnoreCase)
         || string.Equals(name, "reasoning", StringComparison.OrdinalIgnoreCase)
         || string.Equals(name, "speed", StringComparison.OrdinalIgnoreCase)
-        || string.Equals(name, "contextWindow", StringComparison.OrdinalIgnoreCase);
+        || string.Equals(name, "contextWindow", StringComparison.OrdinalIgnoreCase)
+        || string.Equals(name, "approvalTimeoutSeconds", StringComparison.OrdinalIgnoreCase);
 
     private static bool IsBenignSerializedDefaultOverlay(JsonProperty property)
     {
@@ -1700,6 +1703,7 @@ public sealed partial class AgentProfileStore
         RoleInstructions = source.RoleInstructions,
         OverrideBasePrompt = source.OverrideBasePrompt,
         ApprovalPolicy = source.ApprovalPolicy,
+        ApprovalTimeoutSeconds = source.ApprovalTimeoutSeconds,
         AutomationTaskDirectory = source.AutomationTaskDirectory,
         RequireApprovalOutsideWorkspace = source.RequireApprovalOutsideWorkspace
     };

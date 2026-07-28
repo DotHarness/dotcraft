@@ -137,9 +137,15 @@ public sealed record ApprovalDecision(string Value)
 /// Server approval request delivered to the client.
 /// </summary>
 public sealed record ApprovalRequest(
+    string RequestId,
     string ThreadId,
     string? TurnId,
-    string? CallId,
+    string? ItemId,
+    string ApprovalType,
+    string Operation,
+    string Target,
+    string? Reason,
+    DateTimeOffset ExpiresAt,
     JsonElement Raw);
 
 /// <summary>

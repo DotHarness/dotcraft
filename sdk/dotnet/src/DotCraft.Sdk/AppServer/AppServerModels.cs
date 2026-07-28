@@ -367,6 +367,12 @@ internal static class JsonElementReaders
         return ReadString(nested, propertyName);
     }
 
+    public static DateTimeOffset? ReadDateTimeOffset(JsonElement element, string propertyName)
+    {
+        var value = ReadString(element, propertyName);
+        return DateTimeOffset.TryParse(value, out var parsed) ? parsed : null;
+    }
+
     public static bool ReadNestedBoolean(JsonElement element, string container, string propertyName)
     {
         if (element.ValueKind != JsonValueKind.Object || !element.TryGetProperty(container, out var nested))

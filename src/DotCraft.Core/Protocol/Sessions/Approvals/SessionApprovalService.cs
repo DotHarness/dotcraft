@@ -21,6 +21,8 @@ internal sealed class SessionApprovalService : IApprovalService
     private readonly ConcurrentDictionary<string, PendingApproval> _pending = new();
     private readonly ConcurrentDictionary<string, byte> _sessionApprovedScopes = new();
 
+    private DateTimeOffset ApprovalExpiry() => DateTimeOffset.UtcNow.Add(_timeout);
+
     private sealed class PendingApproval(
         string scopeKey,
         ApprovalRequestPayload payload,
@@ -72,7 +74,8 @@ internal sealed class SessionApprovalService : IApprovalService
             Target = path,
             RequestId = requestId,
             ScopeKey = scopeKey,
-            Reason = $"Agent wants to perform a '{operation}' file operation on: {path}"
+            Reason = $"Agent wants to perform a '{operation}' file operation on: {path}",
+            ExpiresAt = ApprovalExpiry()
         };
         return RequestApprovalAsync(requestId, scopeKey, payload);
     }
@@ -91,7 +94,8 @@ internal sealed class SessionApprovalService : IApprovalService
             Target = workingDir ?? string.Empty,
             RequestId = requestId,
             ScopeKey = scopeKey,
-            Reason = $"Agent wants to execute a shell command: {command}"
+            Reason = $"Agent wants to execute a shell command: {command}",
+            ExpiresAt = ApprovalExpiry()
         };
         return RequestApprovalAsync(requestId, scopeKey, payload);
     }
@@ -111,7 +115,8 @@ internal sealed class SessionApprovalService : IApprovalService
             Target = target,
             RequestId = requestId,
             ScopeKey = scopeKey,
-            Reason = $"Agent wants to perform '{operation}' on remote resource: {target}"
+            Reason = $"Agent wants to perform '{operation}' on remote resource: {target}",
+            ExpiresAt = ApprovalExpiry()
         };
         return RequestApprovalAsync(requestId, scopeKey, payload);
     }

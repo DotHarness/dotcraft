@@ -144,7 +144,18 @@ public sealed class RunProfileTests
             jsonrpc = "2.0",
             id = 42,
             method = "item/approval/request",
-            @params = new { threadId = "thread_1", turnId = "turn_1", callId = "call_1" }
+            @params = new
+            {
+                requestId = "approval_1",
+                threadId = "thread_1",
+                turnId = "turn_1",
+                itemId = "item_1",
+                approvalType = "shell",
+                operation = "deploy",
+                target = "production",
+                reason = "Protected environment",
+                expiresAt = "2026-07-28T12:30:00Z"
+            }
         });
 
         using var outbound = await transport.ReadOutboundAsync();
@@ -152,7 +163,12 @@ public sealed class RunProfileTests
         Assert.Equal("decline", outbound.RootElement.GetProperty("result").GetProperty("decision").GetString());
         Assert.NotNull(captured);
         Assert.Equal("thread_1", captured!.ThreadId);
-        Assert.Equal("call_1", captured.CallId);
+        Assert.Equal("approval_1", captured.RequestId);
+        Assert.Equal("item_1", captured.ItemId);
+        Assert.Equal("shell", captured.ApprovalType);
+        Assert.Equal("deploy", captured.Operation);
+        Assert.Equal("production", captured.Target);
+        Assert.Equal(DateTimeOffset.Parse("2026-07-28T12:30:00Z"), captured.ExpiresAt);
     }
 
     [Fact]

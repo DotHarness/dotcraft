@@ -188,6 +188,7 @@ The Run profile provides:
 - `DotCraftThread.RunAsync` / `RunStreamedAsync` provide the high-level run abstraction that waits for terminal turn notifications and returns merged text.
 - `DotCraftRunEvent` plus `RunStreamedAsync` normalize streaming notifications; a delta/snapshot reducer merges agent text.
 - `DotCraftClientOptions.ApprovalHandler` and `UserInputHandler` provide typed approval and user-input callbacks (with auto-accept / empty-answer fallbacks).
+- `ApprovalRequest` exposes the stable request, thread, turn, and item identifiers together with the approval type, operation, target, reason, and authoritative `ExpiresAt`. `Raw` remains available for forward-compatible fields.
 - Typed wrappers exist for `thread/list` (`Threads.ListAsync`), `thread/unsubscribe`, `thread/archive`, `thread/delete`, and `thread/mode/set` (on `DotCraftThread`).
 
 Current explicit gaps:

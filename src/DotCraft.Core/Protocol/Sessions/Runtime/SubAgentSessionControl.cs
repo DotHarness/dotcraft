@@ -1965,6 +1965,7 @@ $$"""
             RoleInstructions = source.RoleInstructions,
             OverrideBasePrompt = source.OverrideBasePrompt,
             ApprovalPolicy = source.ApprovalPolicy,
+            ApprovalTimeoutSeconds = source.ApprovalTimeoutSeconds,
             AutomationTaskDirectory = source.AutomationTaskDirectory,
             RequireApprovalOutsideWorkspace = source.RequireApprovalOutsideWorkspace
         };
