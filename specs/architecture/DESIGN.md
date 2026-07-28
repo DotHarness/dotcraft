@@ -228,12 +228,11 @@ Desktop surfaces should favor dense but organized operational layouts.
   (tabs or breadcrumb) stays left, page-level management actions stay right, and
   both sides share the same vertical center. Do not position catalog actions in
   the hero/header below this band or compensate with negative offsets.
-- A catalog browse page separates its groups with space and heading weight, not
-  with rules: no rule under the hero/search header, and none above a group. A rule
-  above the first group is a frame edge rather than a separator, and one above the
-  rest is redundant with the gap already between them. A fixed header earns a
-  hairline only where it sits tight against the list it caps, as the manage
-  toolbar does.
+- Catalog browse and manage pages separate their controls and groups with space
+  and heading weight, not with rules: no rule under the hero/search header or
+  manage toolbar, and none above a group. A rule above the first group is a frame
+  edge rather than a separator, and one above the rest is redundant with the gap
+  already between them.
 - Use stable dimensions for fixed-format controls such as boards, rows,
   toolbars, icon buttons, counters, tabs, and menus.
 - Constrain content with explicit grid, flex, min/max, or aspect-ratio rules so

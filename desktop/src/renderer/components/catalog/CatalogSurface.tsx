@@ -386,8 +386,7 @@ export const styles = {
   },
   // No bottom rule: the hero and its search band already float in ~44px of air
   // above the first group, so a divider here only draws a frame the page does not
-  // need. A catalog header earns a rule only when it sits tight against a list —
-  // see `manageHeader`.
+  // need.
   browseHeader: {
     flexShrink: 0,
     padding: '28px 64px 16px'
@@ -523,8 +522,7 @@ export const styles = {
   },
   manageHeader: {
     flexShrink: 0,
-    padding: '24px 64px 12px',
-    borderBottom: '1px solid var(--border-subtle)'
+    padding: '24px 64px 12px'
   },
   breadcrumb: {
     display: 'flex',

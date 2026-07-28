@@ -28,11 +28,12 @@ describe('CatalogTopBar', () => {
   })
 })
 
-// Space and heading weight separate a browse page's groups. Rules here read as a
-// frame around the header rather than as a boundary anything needs.
-describe('catalog browse rules', () => {
-  it('caps the hero header without a rule', () => {
+// Space and heading weight separate catalog controls and groups. Rules here read
+// as a frame around the header rather than as a boundary anything needs.
+describe('catalog surface rules', () => {
+  it('caps the hero and manage headers without a rule', () => {
     expect(styles.browseHeader.borderBottom).toBeUndefined()
+    expect(styles.manageHeader.borderBottom).toBeUndefined()
   })
 
   it('heads a group without a rule above it', () => {
