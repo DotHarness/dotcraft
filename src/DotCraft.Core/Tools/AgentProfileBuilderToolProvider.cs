@@ -66,7 +66,8 @@ public sealed class AgentProfileBuilderToolSource(
         yield return GeneratedToolFunctions.AgentProfileBuilderToolMethods_RemoveAgentSkills(methods);
         yield return GeneratedToolFunctions.AgentProfileBuilderToolMethods_AddAgentMcpServers(methods);
         yield return GeneratedToolFunctions.AgentProfileBuilderToolMethods_RemoveAgentMcpServers(methods);
-        yield return GeneratedToolFunctions.AgentProfileBuilderToolMethods_SetAgentModel(methods);
+        yield return GeneratedToolFunctions.AgentProfileBuilderToolMethods_SetAgentProviderPreference(methods);
+        yield return GeneratedToolFunctions.AgentProfileBuilderToolMethods_ClearAgentProviderPreference(methods);
         yield return GeneratedToolFunctions.AgentProfileBuilderToolMethods_SetAgentApproval(methods);
     }
 
@@ -221,24 +222,74 @@ internal sealed class AgentProfileBuilderToolMethods(
         });
 
     [GeneratedTool]
-    [Description("Set the agent's default model and/or reasoning effort. Use model='inherit' to follow the thread default.")]
-    public string SetAgentModel(
-        [Description("Model id (e.g. 'claude-opus-4-8') or 'inherit'. Omit to leave unchanged.")] string? model = null,
-        [Description("Reasoning effort: 'minimal', 'low', 'medium', or 'high'. Omit to leave unchanged.")] string? reasoning = null)
+    [Description("Set the agent's complete fixed provider preference. Every argument is required.")]
+    public string SetAgentProviderPreference(
+        [Description("Provider id.")] string providerId,
+        [Description("Model id.")] string model,
+        [Description("Whether reasoning is enabled.")] bool reasoningEnabled,
+        [Description("Reasoning effort: 'low', 'medium', 'high', or 'extraHigh'.")] string reasoningEffort,
+        [Description("Reasoning output: 'none', 'summary', or 'full'.")] string reasoningOutput,
+        [Description("Inference speed: 'standard' or 'fast'.")] string speed,
+        [Description("Context-window mode: 'default' or 'max'.")] string contextWindowMode)
     {
-        var reasoningValue = (reasoning ?? string.Empty).Trim();
-        if (!string.IsNullOrEmpty(reasoningValue) && !AgentProfileDraftEditor.IsReasoningEffort(reasoningValue))
-            return Reject("model", $"Invalid reasoning '{reasoning}'. Expected one of: {string.Join(", ", AgentProfileDraftEditor.ReasoningEffortValues)}.");
-
-        return Mutate("model", draft =>
+        var providerIdValue = providerId?.Trim() ?? string.Empty;
+        var modelValue = model?.Trim() ?? string.Empty;
+        var effortValue = reasoningEffort?.Trim() ?? string.Empty;
+        var outputValue = reasoningOutput?.Trim() ?? string.Empty;
+        var speedValue = speed?.Trim() ?? string.Empty;
+        var contextWindowValue = contextWindowMode?.Trim() ?? string.Empty;
+        if (providerIdValue.Length == 0
+            || modelValue.Length == 0
+            || !AgentProfileDraftEditor.IsReasoningEffort(effortValue)
+            || !AgentProfileDraftEditor.IsReasoningOutput(outputValue)
+            || !AgentProfileDraftEditor.IsSpeed(speedValue)
+            || !AgentProfileDraftEditor.IsContextWindowMode(contextWindowValue))
         {
-            if (model != null)
-                draft.Model = string.IsNullOrWhiteSpace(model) ? "inherit" : model.Trim();
-            if (!string.IsNullOrEmpty(reasoningValue))
-                draft.ReasoningEffort = reasoningValue;
-            return Change("set", value: draft.Model);
+            return Reject(
+                "providerPreference",
+                "providerPreference requires providerId, model, reasoningEnabled, reasoningEffort, reasoningOutput, speed, and contextWindowMode.");
+        }
+
+        return Mutate("providerPreference", draft =>
+        {
+            draft.HasProviderPreference = true;
+            draft.ProviderId = providerIdValue;
+            draft.Model = modelValue;
+            draft.ReasoningEnabled = reasoningEnabled;
+            draft.ReasoningEffort = effortValue;
+            draft.ReasoningOutput = outputValue;
+            draft.Speed = speedValue;
+            draft.ContextWindowMode = contextWindowValue;
+            return new
+            {
+                op = "set",
+                providerPreference = new
+                {
+                    providerId = providerIdValue,
+                    model = modelValue,
+                    reasoning = new
+                    {
+                        enabled = reasoningEnabled,
+                        effort = effortValue,
+                        output = outputValue
+                    },
+                    speed = speedValue,
+                    contextWindow = new { mode = contextWindowValue }
+                }
+            };
         });
     }
+
+    [GeneratedTool]
+    [Description("Remove the agent's fixed provider preference so new threads inherit workspace/global model settings.")]
+    public string ClearAgentProviderPreference() =>
+        Mutate("providerPreference", draft =>
+        {
+            draft.HasProviderPreference = false;
+            draft.ProviderId = string.Empty;
+            draft.Model = string.Empty;
+            return Change("remove");
+        });
 
     [GeneratedTool]
     [Description("Set the agent's approval posture. policy is one of 'default', 'autoApprove', 'readOnly', 'restricted'.")]

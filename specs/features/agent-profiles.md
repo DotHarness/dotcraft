@@ -2,9 +2,9 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.2.0 |
+| **Version** | 0.3.0 |
 | **Status** | Draft |
-| **Date** | 2026-06-14 |
+| **Date** | 2026-07-28 |
 | **Related Specs** | [Prompt Composition](../architecture/prompt-composition.md), [Agent Teams](agent-teams.md), [Session Core](../architecture/session-core.md), [AppServer Protocol](../protocols/appserver-protocol.md), [App Binding](../protocols/app-binding.md) |
 
 Purpose: define Agent Profiles as reusable agent configuration templates. A profile gives a thread a role, default runtime preferences, and enforceable capability policy without replacing DotCraft's generated base instructions.
@@ -39,7 +39,8 @@ Out of scope:
 - Profile resolution is deterministic. Higher-priority sources shadow lower-priority profiles as whole documents.
 - Existing threads are stable. A profile file change affects new threads only, unless a client explicitly refreshes an existing profile-backed thread.
 - Profiles specialize the generated DotCraft prompt through role instructions. They must not replace the base prompt.
-- Overlays are narrow. Profile-backed thread creation may override ordinary runtime choices such as provider, model, and reasoning, but must not use request-time overlays to broaden capabilities.
+- Model policy is atomic. A profile either inherits the complete effective provider preference or pins a complete provider preference; canonical profiles do not merge individual model-option fields with workspace defaults.
+- Overlays are narrow. Profile-backed thread creation may override ordinary runtime model choices, but must not use request-time overlays to broaden capabilities.
 - Teams owns coordination. Team profiles define member capability and role style; Teams state, scheduler rules, reserved tools, and mission context remain owned by Teams.
 
 ---
@@ -55,7 +56,6 @@ Minimal shape:
 name: team-reviewer
 description: Read-only reviewer focused on correctness, risks, and tests.
 avatar: 457
-model: inherit
 tools:
   deny: [WriteFile, EditFile, Exec, WriteStdin]
 permissions:
@@ -77,7 +77,8 @@ Supported frontmatter groups:
 
 | Field | Meaning |
 |-------|---------|
-| `providerId`, `model`, `reasoning`, `mode`, `promptProfile` | Runtime defaults for new profile-backed threads. |
+| `providerPreference` | Optional fixed model policy for new profile-backed threads. When present it contains `providerId` plus the complete `ModelPreference` fields `model`, `reasoning`, `speed`, and `contextWindow`. |
+| `mode`, `promptProfile` | Other runtime defaults for new profile-backed threads. |
 | `avatar` | Optional packed non-negative integer client visual identity metadata. Bits 0-3 encode `palette`, bits 4-6 encode `face`, and bits 7-9 encode `accessory`. It is not compiled into thread configuration or model-visible instructions. |
 | `tools` | Built-in, dynamic, deferred, and agent-control tool policy. |
 | `mcp` | MCP server and MCP tool policy. |
@@ -93,9 +94,28 @@ Validation rules:
 - `description` must be present for valid authoring and selection UX.
 - Unknown fields are rejected unless explicitly marked experimental.
 - The Markdown body maps to role instructions, not a base-prompt replacement.
-- `model: inherit` leaves model selection to normal runtime default capture.
+- An omitted `providerPreference` captures the complete effective workspace/global provider preference when a new thread is created.
+- A present `providerPreference` requires a non-empty `providerId`, `model`, `reasoning`, `speed`, and `contextWindow`.
+- An empty or partial `providerPreference` is invalid; omission is the only inherited form.
+- Canonical profiles do not support partial model inheritance such as pinning a model while inheriting reasoning or overriding reasoning while inheriting the model.
+- A profile with a fixed provider preference may remain structurally valid when its provider or model is unavailable in the current workspace. Management APIs report that runtime diagnostic, and thread creation fails without changing thread state until the provider becomes runnable.
 - Non-managed profiles must not declare managed-only locks.
 - Profiles from lower-trust sources must not silently grant high-risk tools, MCP servers, skill management, approval bypass, or broad filesystem/shell access outside their trust boundary.
+
+A fixed provider preference uses this shape:
+
+```yaml
+providerPreference:
+  providerId: openai
+  model: gpt-5.6
+  reasoning:
+    enabled: true
+    effort: high
+    output: full
+  speed: fast
+  contextWindow:
+    mode: max
+```
 
 ---
 
@@ -131,11 +151,19 @@ When a client starts a thread with `config.agentProfileId`:
 3. Compile profile frontmatter into structured thread configuration fields.
 4. Map the profile body into `roleInstructions`.
 5. Persist profile provenance: `agentProfileId`, `agentProfileSource`, and `agentProfileFingerprint`.
-6. Apply allowed runtime overlays such as provider, model, and reasoning.
-7. Reject unsupported overlays that would broaden capabilities or replace the base prompt.
-8. Create the thread with the resolved configuration snapshot.
+6. Resolve the profile model policy as one complete provider preference.
+7. Apply allowed runtime model overlays and normalize the resulting provider preference as one unit.
+8. Reject unsupported overlays that would broaden capabilities or replace the base prompt.
+9. Create the thread with the resolved configuration snapshot.
 
 Existing profile-backed threads do not reread profile documents automatically. `agent/profiles/refreshThread` is the explicit operation for recompiling the currently resolved profile and updating a thread snapshot.
+
+Refresh model behavior is deterministic:
+
+- refreshing from a profile without `providerPreference` preserves the existing thread's complete provider/model/reasoning/speed/context-window snapshot;
+- refreshing from a profile with `providerPreference` replaces that complete snapshot atomically;
+- changing workspace/global provider preferences never mutates an existing thread;
+- returning an existing thread to current workspace model defaults is a separate explicit model-reset operation, not a side effect of profile refresh.
 
 If the profile is missing, invalid, blocked by source restrictions, or incompatible with requested overlays, thread creation or refresh fails before changing thread state.
 
@@ -151,7 +179,8 @@ A profile-backed thread stores:
 | `agentProfileSource` | Source selected during resolution. |
 | `agentProfileFingerprint` | Stable fingerprint for stale-thread detection. |
 | `roleInstructions` | Profile body, optionally followed by first-party runtime role text. |
-| Runtime defaults | Provider, model, reasoning, mode, and prompt profile when set by the profile or overlay. |
+| Model snapshot | Complete provider, model, reasoning, speed, and context-window values resolved at thread creation. |
+| Runtime defaults | Mode and prompt profile when set by the profile. |
 | Capability policies | Tool, MCP, plugin/app, skills, approval, workspace-boundary, and Teams policy. |
 
 Policy semantics:
@@ -320,16 +349,17 @@ The profile-builder agent is given fine-grained, model-visible tools — each mu
 | `SetAgentToolControl(value)` | Set `tools.agentControl` (`full` / `disabled` / `allowList`). |
 | `AddAgentSkills(names[])` / `RemoveAgentSkills(names[])` | Add/remove `skills.preload`. |
 | `AddAgentMcpServers(names[])` / `RemoveAgentMcpServers(names[])` | Add/remove `mcp.servers`. |
-| `SetAgentModel(model?, reasoning?)` | Set runtime model/reasoning defaults. |
+| `SetAgentProviderPreference(...)` | Set the complete fixed `providerPreference`. |
+| `ClearAgentProviderPreference()` | Remove `providerPreference` so the profile inherits model settings. |
 | `SetAgentApproval(policy?, requireApprovalOutsideWorkspace?)` | Set the approval policy fields. |
 
 Every tool validates names against any live catalogs available to the builder runtime — built-in tools via the tool catalog (AppServer protocol Section 18A), skills via the skills loader, MCP servers via the configured MCP manager. When a catalog is available, unknown values are rejected with a diagnostic the agent can correct. When a catalog is not available in the host context, the builder preserves the requested names and relies on normal profile validation/refresh diagnostics to surface unresolved references. Each successful tool call leaves the working draft valid per the normal profile validation rules (Section 3).
 
-Tool results are **fine-grained change descriptors, not the whole document**: each returns `{ ok, field, change }`, where `field` is the changed field path (for example `name`, `instructions`, `tools.allow`, `skills.preload`, `mcp.servers`, `approval`) and `change` carries the operation (`set` / `add` / `remove` / `append`) with the scalar value or the added/removed/rejected items. Rejections return `{ ok: false, field, error }`. The authoritative full draft is the server-side working draft (12A.1), injected into prompt composition (12A.3) rather than echoed per call. Clients read the descriptors from the normal tool-call stream to drive the per-field cursor highlight and apply the same single-field change to their local document — no additional request method or notification is introduced.
+Tool results are **fine-grained change descriptors, not the whole document**: each returns `{ ok, field, change }`, where `field` is the changed field path (for example `name`, `instructions`, `tools.allow`, `skills.preload`, `mcp.servers`, `providerPreference`, `approval`) and `change` carries the operation (`set` / `add` / `remove` / `append`) with the scalar value or the added/removed/rejected items. `SetAgentProviderPreference` carries the complete atomic preference in `change.providerPreference`; `ClearAgentProviderPreference` carries `change.op = "remove"`. Rejections return `{ ok: false, field, error }`. The authoritative full draft is the server-side working draft (12A.1), injected into prompt composition (12A.3) rather than echoed per call. Clients read the descriptors from the normal tool-call stream to drive the per-field cursor highlight and apply the same single-field change to their local document — no additional request method or notification is introduced.
 
 ### 12A.3 Catalog and schema context
 
-Prompt composition for a builder thread additionally injects, through the normal thread-system-prompt context path (Section 7): (a) the Agent Profile frontmatter schema and field semantics, (b) the working-draft snapshot, and (c) the built-in tool catalog — so the agent proposes only valid tool names. The builder draft is a guided-edit subset of the full profile schema: it omits operational `mode`, and its editable reasoning control is `reasoning.effort` with builder-supported values. The saved profile is still parsed by the normal profile parser, which owns the complete schema and final diagnostics. Skill and MCP server names are validated against the live catalogs at tool-call time when those catalogs are available (12A.2) rather than enumerated in the prompt. This section is keyed by a constant context page (cache-stable for prompt caching): it snapshots the draft once per thread after each compaction, with later field edits carried by the conversation's own tool-call history. It carries no user-secret data.
+Prompt composition for a builder thread additionally injects, through the normal thread-system-prompt context path (Section 7): (a) the Agent Profile frontmatter schema and field semantics, (b) the working-draft snapshot, and (c) the built-in tool catalog — so the agent proposes only valid tool names. The builder draft is a guided-edit subset of the full profile schema and uses the same atomic `providerPreference` shape as persisted profiles. The saved profile is still parsed by the normal profile parser, which owns the complete schema and final diagnostics. Skill and MCP server names are validated against the live catalogs at tool-call time when those catalogs are available (12A.2) rather than enumerated in the prompt. This section is keyed by a constant context page (cache-stable for prompt caching): it snapshots the draft once per thread after each compaction, with later field edits carried by the conversation's own tool-call history. It carries no user-secret data.
 
 ### 12A.4 Creation, persistence, and concurrency
 

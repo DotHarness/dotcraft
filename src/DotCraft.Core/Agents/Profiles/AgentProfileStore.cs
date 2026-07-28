@@ -36,6 +36,16 @@ public sealed record AgentProfileDiagnostic(
     string Code,
     string Message);
 
+/// <summary>A complete provider preference fixed by an Agent Profile.</summary>
+public sealed class AgentProfileProviderPreference
+{
+    /// <summary>Provider selected by the profile.</summary>
+    public string ProviderId { get; init; } = string.Empty;
+
+    /// <summary>Complete model preference selected by the profile.</summary>
+    public ModelPreference Preference { get; init; } = new();
+}
+
 public sealed class AgentProfileEntry
 {
     public string Id { get; init; } = string.Empty;
@@ -81,6 +91,8 @@ public sealed class AgentProfileEntry
     public List<AgentProfileDiagnostic> Diagnostics { get; init; } = [];
 
     public ThreadConfiguration? CompiledConfiguration { get; init; }
+
+    public AgentProfileProviderPreference? ProviderPreference { get; init; }
 }
 
 public sealed class AgentProfileValidationResult
@@ -105,6 +117,8 @@ public sealed class AgentProfileValidationResult
     public List<string> RestrictedFields { get; init; } = [];
 
     public ThreadConfiguration? CompiledConfiguration { get; init; }
+
+    public AgentProfileProviderPreference? ProviderPreference { get; init; }
 }
 
 /// <summary>Packs and validates Agent Profile avatar indices into a single integer frontmatter field.</summary>
@@ -196,9 +210,7 @@ public sealed partial class AgentProfileStore
         "name",
         "description",
         "avatar",
-        "providerId",
-        "model",
-        "reasoning",
+        "providerPreference",
         "mode",
         "promptProfile",
         "tools",
@@ -215,6 +227,20 @@ public sealed partial class AgentProfileStore
         "enabled",
         "effort",
         "output"
+    };
+
+    private static readonly HashSet<string> ProviderPreferenceFields = new(StringComparer.Ordinal)
+    {
+        "providerId",
+        "model",
+        "reasoning",
+        "speed",
+        "contextWindow"
+    };
+
+    private static readonly HashSet<string> ContextWindowFields = new(StringComparer.Ordinal)
+    {
+        "mode"
     };
 
     private static readonly HashSet<string> ToolsFields = new(StringComparer.Ordinal)
@@ -455,7 +481,16 @@ public sealed partial class AgentProfileStore
 
         var locked = new List<string>();
         var restricted = new List<string>();
-        var config = Compile(frontmatter, id ?? expectedId ?? string.Empty, sourceName, fingerprint, extracted.Value.Body, diagnostics, locked, restricted);
+        var config = Compile(
+            frontmatter,
+            id ?? expectedId ?? string.Empty,
+            sourceName,
+            fingerprint,
+            extracted.Value.Body,
+            diagnostics,
+            locked,
+            restricted,
+            out var providerPreference);
 
         return new AgentProfileValidationResult
         {
@@ -467,7 +502,8 @@ public sealed partial class AgentProfileStore
             Diagnostics = diagnostics,
             LockedFields = locked,
             RestrictedFields = restricted,
-            CompiledConfiguration = config
+            CompiledConfiguration = config,
+            ProviderPreference = providerPreference
         };
     }
 
@@ -562,6 +598,20 @@ public sealed partial class AgentProfileStore
         }
 
         var resolved = CloneThreadConfiguration(profile.CompiledConfiguration);
+        var selectsRuntimeModel = HasConfigProperty(configElement, "providerId")
+                                  || HasConfigProperty(configElement, "model");
+        if (selectsRuntimeModel)
+        {
+            resolved.Reasoning = null;
+            resolved.Speed = null;
+            resolved.ContextWindow = null;
+            if (HasConfigProperty(configElement, "providerId")
+                && !HasConfigProperty(configElement, "model"))
+            {
+                resolved.Model = null;
+            }
+        }
+
         if (HasConfigProperty(configElement, "providerId"))
             resolved.ProviderId = NormalizeNullableString(requested.ProviderId);
         if (HasConfigProperty(configElement, "model"))
@@ -726,7 +776,8 @@ public sealed partial class AgentProfileStore
             Diagnostics = validation.Diagnostics,
             LockedFields = validation.LockedFields,
             RestrictedFields = validation.RestrictedFields,
-            CompiledConfiguration = validation.CompiledConfiguration
+            CompiledConfiguration = validation.CompiledConfiguration,
+            ProviderPreference = validation.ProviderPreference
         };
     }
 
@@ -772,6 +823,7 @@ public sealed partial class AgentProfileStore
         Avatar = entry.Avatar,
         Source = entry.Source,
         Path = entry.Path,
+        UpdatedAt = entry.UpdatedAt,
         PluginId = entry.PluginId,
         Fingerprint = entry.Fingerprint,
         Valid = entry.Valid,
@@ -783,6 +835,7 @@ public sealed partial class AgentProfileStore
         RestrictedFields = entry.RestrictedFields,
         RawContent = entry.RawContent,
         CompiledConfiguration = entry.CompiledConfiguration,
+        ProviderPreference = entry.ProviderPreference,
         Diagnostics =
         [
             .. entry.Diagnostics,
@@ -801,6 +854,7 @@ public sealed partial class AgentProfileStore
         Avatar = entry.Avatar,
         Source = entry.Source,
         Path = entry.Path,
+        UpdatedAt = entry.UpdatedAt,
         PluginId = entry.PluginId,
         Fingerprint = entry.Fingerprint,
         Valid = entry.Valid,
@@ -812,6 +866,7 @@ public sealed partial class AgentProfileStore
         RestrictedFields = entry.RestrictedFields,
         RawContent = entry.RawContent,
         CompiledConfiguration = entry.CompiledConfiguration,
+        ProviderPreference = entry.ProviderPreference,
         Diagnostics = entry.Diagnostics
     };
 
@@ -846,7 +901,8 @@ public sealed partial class AgentProfileStore
         string body,
         List<AgentProfileDiagnostic> diagnostics,
         List<string> lockedFields,
-        List<string> restrictedFields)
+        List<string> restrictedFields,
+        out AgentProfileProviderPreference? providerPreference)
     {
         ValidateNestedSections(frontmatter, diagnostics);
 
@@ -859,16 +915,10 @@ public sealed partial class AgentProfileStore
             OverrideBasePrompt = false
         };
 
-        config.ProviderId = ReadOptionalString(frontmatter, "providerId", diagnostics);
-
-        var model = ReadOptionalString(frontmatter, "model", diagnostics);
-        config.Model = string.Equals(model, "inherit", StringComparison.OrdinalIgnoreCase)
-            ? null
-            : NormalizeNullableString(model);
+        providerPreference = CompileProviderPreference(frontmatter, config, diagnostics);
 
         config.Mode = NormalizeMode(ReadOptionalString(frontmatter, "mode", diagnostics), diagnostics) ?? "agent";
         config.PromptProfile = NormalizeNullableString(ReadOptionalString(frontmatter, "promptProfile", diagnostics));
-        config.Reasoning = CompileReasoning(TryGetObject(frontmatter, "reasoning", diagnostics), diagnostics);
         config.ToolPolicy = CompileTools(TryGetObject(frontmatter, "tools", diagnostics), diagnostics);
         config.ToolAllowList = config.ToolPolicy?.Allow == null ? null : [.. config.ToolPolicy.Allow];
         config.ToolDenyList = config.ToolPolicy?.Deny == null ? null : [.. config.ToolPolicy.Deny];
@@ -900,7 +950,10 @@ public sealed partial class AgentProfileStore
 
     private static void ValidateNestedSections(JsonObject frontmatter, List<AgentProfileDiagnostic> diagnostics)
     {
-        ValidateAllowedFields(TryGetObject(frontmatter, "reasoning", diagnostics), ReasoningFields, "reasoning", diagnostics);
+        var providerPreference = TryGetObject(frontmatter, "providerPreference", diagnostics);
+        ValidateAllowedFields(providerPreference, ProviderPreferenceFields, "providerPreference", diagnostics);
+        ValidateAllowedFields(TryGetObject(providerPreference, "reasoning", diagnostics), ReasoningFields, "providerPreference.reasoning", diagnostics);
+        ValidateAllowedFields(TryGetObject(providerPreference, "contextWindow", diagnostics), ContextWindowFields, "providerPreference.contextWindow", diagnostics);
         ValidateAllowedFields(TryGetObject(frontmatter, "tools", diagnostics), ToolsFields, "tools", diagnostics);
         ValidateAllowedFields(TryGetObject(frontmatter, "mcp", diagnostics), McpFields, "mcp", diagnostics);
         ValidateAllowedFields(TryGetObject(TryGetObject(frontmatter, "mcp", diagnostics), "tools", diagnostics), NamePolicyFields, "mcp.tools", diagnostics);
@@ -1103,6 +1156,123 @@ public sealed partial class AgentProfileStore
         }
     }
 
+    private static AgentProfileProviderPreference? CompileProviderPreference(
+        JsonObject frontmatter,
+        ThreadConfiguration config,
+        List<AgentProfileDiagnostic> diagnostics)
+    {
+        if (!TryGetProperty(frontmatter, "providerPreference", out _))
+            return null;
+
+        var section = TryGetObject(frontmatter, "providerPreference", diagnostics);
+        if (section == null)
+            return null;
+
+        RequireProperties(
+            section,
+            "providerPreference",
+            diagnostics,
+            "providerId",
+            "model",
+            "reasoning",
+            "speed",
+            "contextWindow");
+
+        var reasoningSection = TryGetObject(section, "reasoning", diagnostics);
+        if (reasoningSection != null)
+        {
+            RequireProperties(
+                reasoningSection,
+                "providerPreference.reasoning",
+                diagnostics,
+                "enabled",
+                "effort",
+                "output");
+        }
+
+        var contextWindowSection = TryGetObject(section, "contextWindow", diagnostics);
+        if (contextWindowSection != null)
+            RequireProperties(contextWindowSection, "providerPreference.contextWindow", diagnostics, "mode");
+
+        var providerId = NormalizeNullableString(ReadOptionalString(section, "providerId", diagnostics, required: true));
+        var model = NormalizeNullableString(ReadOptionalString(section, "model", diagnostics, required: true));
+        var reasoning = CompileReasoning(reasoningSection, diagnostics) ?? new AppConfig.ReasoningConfig();
+
+        var preference = new ModelPreference
+        {
+            Model = model ?? string.Empty,
+            Reasoning = reasoning,
+            Speed = ParseInferenceSpeed(ReadOptionalString(section, "speed", diagnostics), diagnostics),
+            ContextWindow = new ModelPreferenceContextWindow
+            {
+                Mode = ParseContextWindowMode(
+                    contextWindowSection == null
+                        ? null
+                        : ReadOptionalString(contextWindowSection, "mode", diagnostics),
+                    diagnostics)
+            }
+        };
+
+        config.ProviderId = providerId;
+        config.Model = model;
+        config.Reasoning = CloneReasoning(preference.Reasoning);
+        config.Speed = preference.Speed;
+        config.ContextWindow = new ThreadContextWindowConfig { Mode = preference.ContextWindow.Mode };
+
+        return new AgentProfileProviderPreference
+        {
+            ProviderId = providerId ?? string.Empty,
+            Preference = preference
+        };
+    }
+
+    private static void RequireProperties(
+        JsonObject section,
+        string path,
+        List<AgentProfileDiagnostic> diagnostics,
+        params string[] properties)
+    {
+        foreach (var property in properties)
+        {
+            if (!TryGetProperty(section, property, out var value) || value == null)
+            {
+                diagnostics.Add(Error(
+                    "MissingRequiredField",
+                    $"Agent profile field '{path}.{property}' is required."));
+            }
+        }
+    }
+
+    private static InferenceSpeed ParseInferenceSpeed(
+        string? raw,
+        List<AgentProfileDiagnostic> diagnostics)
+    {
+        if (string.Equals(raw, "fast", StringComparison.OrdinalIgnoreCase))
+            return InferenceSpeed.Fast;
+        if (string.Equals(raw, "standard", StringComparison.OrdinalIgnoreCase))
+            return InferenceSpeed.Standard;
+
+        if (!string.IsNullOrWhiteSpace(raw))
+            diagnostics.Add(Error("InvalidPolicyValue", "providerPreference.speed must be standard or fast."));
+        return InferenceSpeed.Standard;
+    }
+
+    private static ContextWindowMode ParseContextWindowMode(
+        string? raw,
+        List<AgentProfileDiagnostic> diagnostics)
+    {
+        if (string.Equals(raw, "max", StringComparison.OrdinalIgnoreCase))
+            return ContextWindowMode.Max;
+        if (string.Equals(raw, "default", StringComparison.OrdinalIgnoreCase))
+            return ContextWindowMode.Default;
+
+        if (!string.IsNullOrWhiteSpace(raw))
+            diagnostics.Add(Error(
+                "InvalidPolicyValue",
+                "providerPreference.contextWindow.mode must be default or max."));
+        return ContextWindowMode.Default;
+    }
+
     private static AppConfig.ReasoningConfig? CompileReasoning(JsonObject? reasoning, List<AgentProfileDiagnostic> diagnostics)
     {
         if (reasoning == null)
@@ -1250,7 +1420,6 @@ public sealed partial class AgentProfileStore
         var normalized = NormalizeEnumToken(raw);
         return normalized switch
         {
-            "none" => ReasoningEffort.None,
             "low" => ReasoningEffort.Low,
             "medium" => ReasoningEffort.Medium,
             "high" => ReasoningEffort.High,
@@ -1261,7 +1430,9 @@ public sealed partial class AgentProfileStore
 
     private static ReasoningEffort? AddReasoningEffortError(List<AgentProfileDiagnostic> diagnostics)
     {
-        diagnostics.Add(Error("InvalidPolicyValue", "reasoning.effort must be one of none, low, medium, high, or extraHigh."));
+        diagnostics.Add(Error(
+            "InvalidPolicyValue",
+            "providerPreference.reasoning.effort must be low, medium, high, or extraHigh; use enabled: false for Off."));
         return null;
     }
 
@@ -1734,7 +1905,6 @@ public sealed partial class AgentProfileStore
 ---
 name: team-leader
 description: Plan, assign, coordinate, synthesize, and finalize.
-model: inherit
 tools:
   agentControl: full
 skills:
@@ -1751,7 +1921,6 @@ You coordinate the mission, keep the plan current, assign work clearly, and synt
 ---
 name: team-explorer
 description: Inspect, research, map unknowns, and produce findings.
-model: inherit
 mode: plan
 tools:
   agentControl: disabled
@@ -1769,7 +1938,6 @@ You explore the problem space, gather evidence, and report concise findings befo
 ---
 name: team-builder
 description: Edit, test, and produce implementation artifacts.
-model: inherit
 tools:
   agentControl: disabled
 skills:
@@ -1786,7 +1954,6 @@ You implement focused changes, verify them, and keep the work aligned with the a
 ---
 name: team-reviewer
 description: Review correctness, risks, tests, and maintainability with read-focused defaults.
-model: inherit
 mode: plan
 tools:
   deny: [WriteFile, EditFile, Exec, WriteStdin]
@@ -1805,7 +1972,6 @@ You review for correctness, risk, tests, and maintainability. Prefer evidence an
 ---
 name: team-operator
 description: Use app, browser, and workflow capabilities selected for operational tasks.
-model: inherit
 tools:
   agentControl: disabled
 skills:

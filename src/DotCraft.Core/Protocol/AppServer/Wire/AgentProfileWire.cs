@@ -1,5 +1,6 @@
 using System.Text.Json.Serialization;
 using DotCraft.Agents;
+using DotCraft.Configuration;
 
 namespace DotCraft.Protocol.AppServer;
 
@@ -19,6 +20,25 @@ public sealed class AgentProfileSummaryWire
 
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? Description { get; set; }
+}
+
+/// <summary>Complete provider preference fixed by an Agent Profile.</summary>
+public sealed class AgentProfileProviderPreferenceWire
+{
+    /// <summary>Provider selected by the profile.</summary>
+    public string ProviderId { get; set; } = string.Empty;
+
+    /// <summary>Model selected by the profile.</summary>
+    public string Model { get; set; } = string.Empty;
+
+    /// <summary>Complete reasoning selection.</summary>
+    public AppConfig.ReasoningConfig Reasoning { get; set; } = new();
+
+    /// <summary>Requested inference speed.</summary>
+    public InferenceSpeed Speed { get; set; } = InferenceSpeed.Standard;
+
+    /// <summary>Requested context-window mode.</summary>
+    public ModelPreferenceContextWindow ContextWindow { get; set; } = new();
 }
 
 public sealed class AgentProfileEntryWire
@@ -72,6 +92,9 @@ public sealed class AgentProfileEntryWire
     public List<AgentProfileDiagnosticWire> Diagnostics { get; set; } = [];
 
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public AgentProfileProviderPreferenceWire? ProviderPreference { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? RawContent { get; set; }
 
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -123,6 +146,9 @@ public sealed class AgentProfileValidateResult
     public List<string> LockedFields { get; set; } = [];
 
     public List<string> RestrictedFields { get; set; } = [];
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public AgentProfileProviderPreferenceWire? ProviderPreference { get; set; }
 
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public ThreadConfiguration? CompiledConfig { get; set; }

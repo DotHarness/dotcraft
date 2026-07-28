@@ -460,7 +460,7 @@ Create a new thread. The server generates a Thread ID and persists initial state
 | `displayName` | string | no | Explicit thread display name. |
 | `spawnedFromThreadId` | string | no | Id of the thread that started this thread on the user's behalf (e.g. the Desktop `CreateThread` tool invoked from another thread). The server records it as a non-subagent origin on the new thread's `ThreadSource` (`kind` stays `"user"`) and mirrors it into thread metadata as `spawnedFromThreadId`, so the new thread stays an ordinary sibling thread (it does not become a subagent and does not enter the SubAgent dock) while its first user message can link back to the source thread. Self-references are ignored. |
 
-When `config.agentProfileId` is set, AppServer resolves the Agent Profile for the normalized workspace, compiles the Markdown profile into a `ThreadConfiguration`, applies only the supported runtime overlays (`providerId`, `model`, `reasoning`, `speed`, `contextWindow`), captures normal defaults for omitted fields, and persists the resolved snapshot on the new thread. Capability-expanding overlay fields such as tools, MCP, plugins, skills, approval bypass, `agentInstructions`, `overrideBasePrompt`, and workspace overrides are rejected with `AgentProfileValidationFailed`.
+When `config.agentProfileId` is set, AppServer resolves the Agent Profile for the normalized workspace and compiles the Markdown profile into a `ThreadConfiguration` template. A profile without `providerPreference` starts from the effective workspace/global provider preference; a profile with `providerPreference` starts from that complete fixed preference. AppServer then applies only the supported runtime overlays (`providerId`, `model`, `reasoning`, `speed`, `contextWindow`), normalizes the resulting model configuration as one unit, and persists a complete provider/model/reasoning/speed/context-window snapshot on the new thread. A provider or model overlay selects a new runtime model and reseeds omitted model options from that provider's effective preference before explicit option overlays are applied. Capability-expanding overlay fields such as tools, MCP, plugins, skills, approval bypass, `agentInstructions`, `overrideBasePrompt`, and workspace overrides are rejected with `AgentProfileValidationFailed`.
 
 #### 4.1.0 Runtime Dynamic Tools
 
@@ -5835,6 +5835,10 @@ Diagnostics are stable English fallback messages. Desktop owns localization.
 }
 ```
 
+`PinnedProviderUnavailable` is a warning diagnostic emitted when a structurally valid pinned profile
+cannot resolve its provider/model in the current workspace. It does not prevent saving the profile;
+thread creation still fails until the pinned runtime is available.
+
 ### 23A.2 `agent/profiles/list`
 
 **Params**:
@@ -5924,6 +5928,22 @@ Validates raw Markdown without writing.
 }
 ```
 
+`providerPreference` is omitted when the profile inherits model settings. When present it contains
+`providerId`, `model`, `reasoning`, `speed`, and `contextWindow`, matching the profile frontmatter.
+For example:
+
+```json
+{
+  "providerPreference": {
+    "providerId": "openai",
+    "model": "gpt-5.6",
+    "reasoning": { "enabled": true, "effort": "high", "output": "full" },
+    "speed": "fast",
+    "contextWindow": { "mode": "max" }
+  }
+}
+```
+
 ### 23A.5 `agent/profiles/upsert`
 
 Creates or replaces a writable user/workspace profile from raw Markdown. The frontmatter `name` must match the requested `id`.
@@ -5967,6 +5987,10 @@ Explicitly refreshes one profile-backed thread from the currently resolved profi
 ```
 
 `profileId` is optional. When omitted, the server uses the thread's persisted `configuration.agentProfileId`.
+
+Refreshing from a profile without `providerPreference` preserves the thread's complete current
+provider/model/reasoning/speed/context-window snapshot. A present `providerPreference` replaces all
+five values. The complete replacement is validated before the thread is changed.
 
 **Result**:
 

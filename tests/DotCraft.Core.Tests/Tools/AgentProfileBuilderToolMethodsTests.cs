@@ -108,6 +108,89 @@ public sealed class AgentProfileBuilderToolMethodsTests
     }
 
     [Fact]
+    public void SetAgentProviderPreference_SetsCompletePreference()
+    {
+        var threadId = NewThread();
+        var methods = Seed(threadId);
+
+        var result = Parse(methods.SetAgentProviderPreference(
+            providerId: "openai",
+            model: "gpt-5.6",
+            reasoningEnabled: true,
+            reasoningEffort: "high",
+            reasoningOutput: "summary",
+            speed: "fast",
+            contextWindowMode: "max"));
+
+        Assert.True(result.GetProperty("ok").GetBoolean());
+        Assert.Equal("providerPreference", result.GetProperty("field").GetString());
+        var changedPreference = result.GetProperty("change").GetProperty("providerPreference");
+        Assert.Equal("openai", changedPreference.GetProperty("providerId").GetString());
+        Assert.Equal("gpt-5.6", changedPreference.GetProperty("model").GetString());
+        Assert.True(changedPreference.GetProperty("reasoning").GetProperty("enabled").GetBoolean());
+        Assert.Equal("high", changedPreference.GetProperty("reasoning").GetProperty("effort").GetString());
+        Assert.Equal("summary", changedPreference.GetProperty("reasoning").GetProperty("output").GetString());
+        Assert.Equal("fast", changedPreference.GetProperty("speed").GetString());
+        Assert.Equal("max", changedPreference.GetProperty("contextWindow").GetProperty("mode").GetString());
+        var draft = AgentProfileDraftEditor.Parse(ProfileBuilderDraftStore.TryGet(threadId)!.Markdown);
+        Assert.True(draft.HasProviderPreference);
+        Assert.Equal("openai", draft.ProviderId);
+        Assert.Equal("gpt-5.6", draft.Model);
+        Assert.True(draft.ReasoningEnabled);
+        Assert.Equal("high", draft.ReasoningEffort);
+        Assert.Equal("summary", draft.ReasoningOutput);
+        Assert.Equal("fast", draft.Speed);
+        Assert.Equal("max", draft.ContextWindowMode);
+
+        ProfileBuilderDraftStore.Remove(threadId);
+    }
+
+    [Fact]
+    public void SetAgentProviderPreference_RejectsInvalidCompletePreference()
+    {
+        var threadId = NewThread();
+        var methods = Seed(threadId);
+
+        var result = Parse(methods.SetAgentProviderPreference(
+            providerId: "openai",
+            model: "gpt-5.6",
+            reasoningEnabled: false,
+            reasoningEffort: "",
+            reasoningOutput: "full",
+            speed: "standard",
+            contextWindowMode: "default"));
+
+        Assert.False(result.GetProperty("ok").GetBoolean());
+        Assert.Equal("providerPreference", result.GetProperty("field").GetString());
+
+        ProfileBuilderDraftStore.Remove(threadId);
+    }
+
+    [Fact]
+    public void ClearAgentProviderPreference_RemovesPreference()
+    {
+        var threadId = NewThread();
+        var methods = Seed(threadId);
+        _ = methods.SetAgentProviderPreference(
+            providerId: "openai",
+            model: "gpt-5.6",
+            reasoningEnabled: false,
+            reasoningEffort: "medium",
+            reasoningOutput: "full",
+            speed: "standard",
+            contextWindowMode: "default");
+
+        var result = Parse(methods.ClearAgentProviderPreference());
+
+        Assert.True(result.GetProperty("ok").GetBoolean());
+        var draft = AgentProfileDraftEditor.Parse(ProfileBuilderDraftStore.TryGet(threadId)!.Markdown);
+        Assert.False(draft.HasProviderPreference);
+        Assert.DoesNotContain("providerPreference:", ProfileBuilderDraftStore.TryGet(threadId)!.Markdown);
+
+        ProfileBuilderDraftStore.Remove(threadId);
+    }
+
+    [Fact]
     public async Task AddAgentSkills_WithoutCatalog_AcceptsNames()
     {
         var threadId = NewThread();

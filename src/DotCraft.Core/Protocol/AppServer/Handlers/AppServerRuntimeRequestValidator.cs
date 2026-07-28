@@ -4,6 +4,47 @@ namespace DotCraft.Protocol.AppServer;
 
 internal static class AppServerRuntimeRequestValidator
 {
+    public static void NormalizeCompleteModelConfiguration(
+        AppConfig appConfig,
+        ThreadConfiguration config)
+    {
+        if (string.IsNullOrWhiteSpace(config.ProviderId)
+            || string.IsNullOrWhiteSpace(config.Model)
+            || config.Reasoning == null
+            || !config.Speed.HasValue
+            || config.ContextWindow == null)
+        {
+            return;
+        }
+
+        var normalized = ModelPreferenceRules.Normalize(
+            appConfig,
+            config.ProviderId,
+            new ModelPreference
+            {
+                Model = config.Model,
+                Reasoning = new AppConfig.ReasoningConfig
+                {
+                    Enabled = config.Reasoning.Enabled,
+                    Effort = config.Reasoning.Effort,
+                    Output = config.Reasoning.Output
+                },
+                Speed = config.Speed.Value,
+                ContextWindow = new ModelPreferenceContextWindow
+                {
+                    Mode = config.ContextWindow.Mode
+                }
+            });
+
+        config.Model = normalized.Model;
+        config.Reasoning = normalized.Reasoning;
+        config.Speed = normalized.Speed;
+        config.ContextWindow = new ThreadContextWindowConfig
+        {
+            Mode = normalized.ContextWindow.Mode
+        };
+    }
+
     public static void ValidateReasoningForRuntime(
         AppConfig config,
         string? providerId,
