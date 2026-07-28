@@ -528,6 +528,8 @@ public sealed class AppServerApprovalRequestParams
 
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? Reason { get; set; }
+
+    public DateTimeOffset ExpiresAt { get; set; }
 }
 
 // ───── item/approval/request response (Client → Server) ─────

@@ -478,6 +478,11 @@ public sealed partial class SessionService(
         return _appConfigMonitor?.Current.Permissions.DefaultApprovalPolicy ?? ApprovalPolicy.Default;
     }
 
+    private TimeSpan ResolveApprovalTimeout(int? approvalTimeoutSeconds) =>
+        approvalTimeoutSeconds.HasValue
+            ? TimeSpan.FromSeconds(approvalTimeoutSeconds.Value)
+            : _approvalTimeout;
+
     /// <inheritdoc />
     public ContextUsageSnapshot? TryGetContextUsageSnapshot(string threadId)
         => ThreadAccess.TryGetContextUsageSnapshot(threadId);
@@ -971,6 +976,7 @@ public sealed partial class SessionService(
         RoleInstructions = source.RoleInstructions,
         OverrideBasePrompt = source.OverrideBasePrompt,
         ApprovalPolicy = source.ApprovalPolicy,
+        ApprovalTimeoutSeconds = source.ApprovalTimeoutSeconds,
         AutomationTaskDirectory = source.AutomationTaskDirectory,
         RequireApprovalOutsideWorkspace = source.RequireApprovalOutsideWorkspace
     };
@@ -2172,7 +2178,7 @@ public sealed partial class SessionService(
                             eventChannel,
                             turn,
                             NextItemSeq,
-                            _approvalTimeout,
+                            ResolveApprovalTimeout(thread.Configuration?.ApprovalTimeoutSeconds),
                             cts.Cancel,
                             approvalStore,
                             ThreadRuntimeSignalForBroadcast);
@@ -4087,6 +4093,8 @@ public sealed partial class SessionService(
         if (config.OverrideBasePrompt)
             return true;
         if (config.ApprovalPolicy != ApprovalPolicy.Default)
+            return true;
+        if (config.ApprovalTimeoutSeconds.HasValue)
             return true;
         if (!string.IsNullOrWhiteSpace(config.AutomationTaskDirectory))
             return true;

@@ -64,7 +64,8 @@ internal sealed class AppServerInteractiveRequestSender
             Operation = request.Operation,
             Target = request.Target,
             ScopeKey = request.ScopeKey,
-            Reason = request.Reason
+            Reason = request.Reason,
+            ExpiresAt = request.ExpiresAt
         };
 
         AppServerIncomingMessage response;
@@ -74,7 +75,7 @@ internal sealed class AppServerInteractiveRequestSender
                 AppServerMethods.ItemApprovalRequest,
                 approvalParams,
                 CancellationToken.None,
-                timeout: TimeSpan.FromSeconds(120));
+                timeout: RemainingApprovalTimeout(request.ExpiresAt));
         }
         catch (OperationCanceledException)
         {
@@ -90,6 +91,12 @@ internal sealed class AppServerInteractiveRequestSender
 
         var decision = ParseApprovalDecision(response);
         await TryResolveApprovalAsync(threadId, turnId, request.RequestId, decision, CancellationToken.None);
+    }
+
+    private static TimeSpan RemainingApprovalTimeout(DateTimeOffset expiresAt)
+    {
+        var remaining = expiresAt - DateTimeOffset.UtcNow;
+        return remaining > TimeSpan.Zero ? remaining : TimeSpan.FromMilliseconds(1);
     }
 
     public async Task SendUserInputRequestAsync(

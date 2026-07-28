@@ -639,6 +639,7 @@ Thread-management tools are dynamic client callbacks, while thread lifecycle, st
     "reservedTools": "keep"
   },
   "approvalPolicy": "default",
+  "approvalTimeoutSeconds": 1800,
   "automationTaskDirectory": "/path/to/task",
   "reasoning": {
     "enabled": true,
@@ -677,6 +678,7 @@ Fields:
 | `toolAllowList` | string[] | Legacy exact-name tool allow-list. Null or omitted means no legacy allow-list. |
 | `toolDenyList` | string[] | Legacy exact-name tool deny-list. Deny wins over allow. |
 | `toolPolicy` | object | Structured tool policy with `allow`, `deny`, `agentControl`, and `allowedAgentControlTools`. Null or omitted keeps existing runtime defaults. |
+| `approvalTimeoutSeconds` | integer | Optional per-thread approval request timeout in seconds. Omitted preserves the server default (currently 300 seconds). Values must be between 1 and 86400. The resolved value is persisted with the thread and applies to future turns and replayed requests. |
 | `mcpPolicy` | object | Structured MCP policy. `servers` filters by effective MCP server name where available. `tools.allow` and `tools.deny` match canonical tool selectors and may use `*` wildcards: `name` for a top-level tool or `namespace/name` for a namespaced tool. They do not match `providerFlatName`, raw `SourceToolId`, or connection `runtimeName`. |
 | `pluginPolicy` | object | Structured plugin/app policy with source-aware `allow` and `deny` lists where metadata exists, falling back to stable tool-name denial. |
 | `skillsPolicy` | object | Structured skills policy with `preload`, skill name `allow`/`deny`, and `allowManage`. |
@@ -2548,6 +2550,7 @@ The turn enters `"waitingApproval"` status while the server waits for the client
 | `target` | string | For shell: working directory. For file: the file path. |
 | `scopeKey` | string | Session-scoped cache key used when the client returns `acceptForSession`. |
 | `reason` | string | Human-readable explanation of why approval is needed. |
+| `expiresAt` | string | UTC ISO-8601 instant after which the Runtime resolves the request through its safe timeout path. Replayed requests retain the original expiry. |
 
 **Example**:
 
@@ -2561,7 +2564,8 @@ The turn enters `"waitingApproval"` status while the server waits for the client
     "operation": "npm test",
     "target": "/home/dev/myproject",
     "scopeKey": "shell:*",
-    "reason": "Agent wants to execute a shell command"
+    "reason": "Agent wants to execute a shell command",
+    "expiresAt": "2026-03-16T10:30:00Z"
 } }
 ```
 
@@ -2599,7 +2603,7 @@ If a client declared `capabilities.approvalSupport = false` during initializatio
 - `approvalPolicy = default` first resolves through the workspace default approval policy. If both the thread policy and workspace default are `default` or unset, the server cannot prompt on a non-interactive client, so it falls back to its non-interactive default decision. In the current implementation and spec baseline, that fallback is `decline`.
 - `approvalPolicy = prompt` requires the interactive flow; because a non-interactive client cannot prompt, it falls back to the same non-interactive default decision as `default` (`decline` in the baseline).
 
-The same non-interactive fallback may also be applied when an approval-capable client disconnects, the approval request cannot be written to the transport, or the client times out before replying. Cancelling a passive `thread/subscribe` subscription is not itself a rejection, timeout, or disconnect; it must not resolve an outstanding approval request.
+The same non-interactive fallback may also be applied when an approval-capable client disconnects, the approval request cannot be written to the transport, or the request reaches its persisted `expiresAt` before the client replies. The AppServer client-request timeout uses the same expiry and must not introduce a shorter independent deadline. Cancelling a passive `thread/subscribe` subscription is not itself a rejection, timeout, or disconnect; it must not resolve an outstanding approval request.
 
 When a client later resumes or subscribes to a thread that is still waiting for unresolved approvals, the server replays `item/approval/request` with the original `requestId` values so the client can render actionable approval UI again. Multiple replayed approvals are started serially per thread; a later approval's server-to-client reply timeout begins only when that later request is actually sent.
 

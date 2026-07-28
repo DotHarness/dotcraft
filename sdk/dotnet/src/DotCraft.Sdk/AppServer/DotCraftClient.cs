@@ -286,9 +286,15 @@ public sealed class DotCraftClient : IAsyncDisposable
         }
 
         var approval = new ApprovalRequest(
+            JsonElementReaders.ReadString(request.Params, "requestId") ?? string.Empty,
             JsonElementReaders.ReadString(request.Params, "threadId") ?? string.Empty,
             JsonElementReaders.ReadString(request.Params, "turnId"),
-            JsonElementReaders.ReadString(request.Params, "callId"),
+            JsonElementReaders.ReadString(request.Params, "itemId"),
+            JsonElementReaders.ReadString(request.Params, "approvalType") ?? string.Empty,
+            JsonElementReaders.ReadString(request.Params, "operation") ?? string.Empty,
+            JsonElementReaders.ReadString(request.Params, "target") ?? string.Empty,
+            JsonElementReaders.ReadString(request.Params, "reason"),
+            JsonElementReaders.ReadDateTimeOffset(request.Params, "expiresAt") ?? DateTimeOffset.UtcNow,
             request.Params);
         var decision = await _approvalHandler(approval, cancellationToken);
         return new { decision = decision.Value };

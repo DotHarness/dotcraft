@@ -219,6 +219,12 @@ public sealed class ThreadConfiguration
     public ApprovalPolicy ApprovalPolicy { get; set; } = ApprovalPolicy.Default;
 
     /// <summary>
+    /// Optional per-thread approval timeout in seconds. Null preserves the process default.
+    /// </summary>
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public int? ApprovalTimeoutSeconds { get; set; }
+
+    /// <summary>
     /// Absolute path to the local automation task directory (contains <c>task.md</c>).
     /// Used by automation-specific tools when <see cref="WorkspaceOverride"/> is the project root.
     /// </summary>

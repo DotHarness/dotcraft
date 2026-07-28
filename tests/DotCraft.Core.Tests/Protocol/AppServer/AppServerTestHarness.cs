@@ -457,7 +457,8 @@ internal sealed class AppServerTestHarness : IDisposable
                 Operation = "exec",
                 Target = "echo hello",
                 ScopeKey = "scope1",
-                Reason = "test approval"
+                Reason = "test approval",
+                ExpiresAt = DateTimeOffset.UtcNow.AddMinutes(5)
             }
         };
         var resolvedItem = new SessionItem
