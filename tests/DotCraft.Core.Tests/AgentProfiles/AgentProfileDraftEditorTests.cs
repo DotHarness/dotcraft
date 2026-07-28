@@ -56,7 +56,6 @@ public sealed class AgentProfileDraftEditorTests : IDisposable
             Model = "claude-opus-4-8",
             ReasoningEnabled = true,
             ReasoningEffort = "high",
-            ReasoningOutput = "summary",
             Speed = "fast",
             ContextWindowMode = "max",
             ToolsAllow = ["ReadFile", "RunShellCommand"],
@@ -83,7 +82,6 @@ public sealed class AgentProfileDraftEditorTests : IDisposable
         Assert.Equal(draft.Model, roundTripped.Model);
         Assert.Equal(draft.ReasoningEnabled, roundTripped.ReasoningEnabled);
         Assert.Equal(draft.ReasoningEffort, roundTripped.ReasoningEffort);
-        Assert.Equal(draft.ReasoningOutput, roundTripped.ReasoningOutput);
         Assert.Equal(draft.Speed, roundTripped.Speed);
         Assert.Equal(draft.ContextWindowMode, roundTripped.ContextWindowMode);
         Assert.Equal(draft.ToolsAllow, roundTripped.ToolsAllow);

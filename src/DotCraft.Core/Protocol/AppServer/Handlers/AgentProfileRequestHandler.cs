@@ -168,7 +168,14 @@ internal sealed class AgentProfileRequestHandler(
                 throw new AgentProfileException(AgentProfileErrorKind.ValidationFailed, "Agent profile validation failed.", profile.Diagnostics);
 
             var beforeFingerprint = thread.Configuration?.AgentProfileFingerprint;
-            var refreshed = store.ResolveProfileConfiguration(profileId);
+            var currentConfig = appConfigMonitor?.Current;
+            if (profile.ProviderPreference != null && currentConfig == null)
+                throw new AgentProfileException(
+                    AgentProfileErrorKind.ValidationFailed,
+                    "Provider configuration is unavailable for the fixed Agent Profile model preset.");
+            var refreshed = currentConfig == null
+                ? store.ResolveProfileConfiguration(profileId)
+                : store.ResolveProfileConfiguration(profileId, currentConfig);
             PreserveUnrelatedThreadFields(
                 thread.Configuration,
                 refreshed,
@@ -366,7 +373,7 @@ internal sealed class AgentProfileRequestHandler(
             _ = ModelProviderResolver.ResolveMain(
                 currentConfig,
                 providerPreference.ProviderId,
-                providerPreference.Preference.Model);
+                providerPreference.Model);
         }
         catch (Exception ex) when (ex is ArgumentException or ModelProviderConfigurationException)
         {
@@ -387,14 +394,20 @@ internal sealed class AgentProfileRequestHandler(
         if (providerPreference == null)
             return null;
 
-        var preference = ModelPreferenceRules.Clone(providerPreference.Preference);
         return new AgentProfileProviderPreferenceWire
         {
             ProviderId = providerPreference.ProviderId,
-            Model = preference.Model,
-            Reasoning = preference.Reasoning,
-            Speed = preference.Speed,
-            ContextWindow = preference.ContextWindow
+            Model = providerPreference.Model,
+            Reasoning = new AgentProfileReasoningPreferenceWire
+            {
+                Enabled = providerPreference.Reasoning.Enabled,
+                Effort = providerPreference.Reasoning.Effort
+            },
+            Speed = providerPreference.Speed,
+            ContextWindow = new ModelPreferenceContextWindow
+            {
+                Mode = providerPreference.ContextWindow.Mode
+            }
         };
     }
 

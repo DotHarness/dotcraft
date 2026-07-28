@@ -39,7 +39,7 @@ Out of scope:
 - Profile resolution is deterministic. Higher-priority sources shadow lower-priority profiles as whole documents.
 - Existing threads are stable. A profile file change affects new threads only, unless a client explicitly refreshes an existing profile-backed thread.
 - Profiles specialize the generated DotCraft prompt through role instructions. They must not replace the base prompt.
-- Model policy is atomic. A profile either inherits the complete effective provider preference or pins a complete provider preference; canonical profiles do not merge individual model-option fields with workspace defaults.
+- Model policy is atomic. A profile either inherits the complete effective provider preference or pins one complete Profile model preset; canonical profiles do not merge individual model-option fields with workspace defaults.
 - Overlays are narrow. Profile-backed thread creation may override ordinary runtime model choices, but must not use request-time overlays to broaden capabilities.
 - Teams owns coordination. Team profiles define member capability and role style; Teams state, scheduler rules, reserved tools, and mission context remain owned by Teams.
 
@@ -77,7 +77,7 @@ Supported frontmatter groups:
 
 | Field | Meaning |
 |-------|---------|
-| `providerPreference` | Optional fixed model policy for new profile-backed threads. When present it contains `providerId` plus the complete `ModelPreference` fields `model`, `reasoning`, `speed`, and `contextWindow`. |
+| `providerPreference` | Optional fixed model preset for new profile-backed threads. When present it contains `providerId`, `model`, reasoning enabled/effort, speed, and context-window mode. Reasoning output visibility is selected from the model catalog at runtime rather than authored in a profile. |
 | `mode`, `promptProfile` | Other runtime defaults for new profile-backed threads. |
 | `avatar` | Optional packed non-negative integer client visual identity metadata. Bits 0-3 encode `palette`, bits 4-6 encode `face`, and bits 7-9 encode `accessory`. It is not compiled into thread configuration or model-visible instructions. |
 | `tools` | Built-in, dynamic, deferred, and agent-control tool policy. |
@@ -97,6 +97,7 @@ Validation rules:
 - An omitted `providerPreference` captures the complete effective workspace/global provider preference when a new thread is created.
 - A present `providerPreference` requires a non-empty `providerId`, `model`, `reasoning`, `speed`, and `contextWindow`.
 - An empty or partial `providerPreference` is invalid; omission is the only inherited form.
+- `providerPreference.reasoning` contains only `enabled` and `effort`. `output` is not a Profile field and is rejected as unknown.
 - Canonical profiles do not support partial model inheritance such as pinning a model while inheriting reasoning or overriding reasoning while inheriting the model.
 - A profile with a fixed provider preference may remain structurally valid when its provider or model is unavailable in the current workspace. Management APIs report that runtime diagnostic, and thread creation fails without changing thread state until the provider becomes runnable.
 - Non-managed profiles must not declare managed-only locks.
@@ -111,7 +112,6 @@ providerPreference:
   reasoning:
     enabled: true
     effort: high
-    output: full
   speed: fast
   contextWindow:
     mode: max
@@ -151,7 +151,7 @@ When a client starts a thread with `config.agentProfileId`:
 3. Compile profile frontmatter into structured thread configuration fields.
 4. Map the profile body into `roleInstructions`.
 5. Persist profile provenance: `agentProfileId`, `agentProfileSource`, and `agentProfileFingerprint`.
-6. Resolve the profile model policy as one complete provider preference.
+6. Materialize the profile model preset as one complete provider preference, deriving reasoning output visibility from the selected model's catalog default.
 7. Apply allowed runtime model overlays and normalize the resulting provider preference as one unit.
 8. Reject unsupported overlays that would broaden capabilities or replace the base prompt.
 9. Create the thread with the resolved configuration snapshot.
@@ -349,7 +349,7 @@ The profile-builder agent is given fine-grained, model-visible tools — each mu
 | `SetAgentToolControl(value)` | Set `tools.agentControl` (`full` / `disabled` / `allowList`). |
 | `AddAgentSkills(names[])` / `RemoveAgentSkills(names[])` | Add/remove `skills.preload`. |
 | `AddAgentMcpServers(names[])` / `RemoveAgentMcpServers(names[])` | Add/remove `mcp.servers`. |
-| `SetAgentProviderPreference(...)` | Set the complete fixed `providerPreference`. |
+| `SetAgentProviderPreference(...)` | Set the fixed `providerPreference` atomically. The input contains provider, model, reasoning enabled/effort, speed, and context-window mode; it does not expose reasoning output. |
 | `ClearAgentProviderPreference()` | Remove `providerPreference` so the profile inherits model settings. |
 | `SetAgentApproval(policy?, requireApprovalOutsideWorkspace?)` | Set the approval policy fields. |
 

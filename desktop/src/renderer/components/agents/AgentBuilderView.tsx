@@ -24,6 +24,10 @@ import { ConversationPanel } from '../layout/ConversationPanel'
 import { DragHandle } from '../layout/DragHandle'
 import { InputComposer, type InputComposerSubmitPayload } from '../conversation/InputComposer'
 import { useComposerModelControls } from '../conversation/useComposerModelControls'
+import {
+  createCatalogDefaultPreference,
+  PreferenceModelPicker
+} from '../conversation/PreferenceModelPicker'
 import { MarkdownRenderer } from '../conversation/MarkdownRenderer'
 import type { ThreadConfigurationWire } from '../../types/thread'
 import { formatRelativeTime } from '../../utils/relativeTime'
@@ -45,10 +49,8 @@ import { useAgentProfileAvatarStore } from '../../stores/agentProfileAvatarStore
 import {
   findProviderPreference,
   mergeProviderPreferences,
-  type ModelPreferenceContextMode,
-  type ModelPreferenceReasoningEffort,
-  type ModelPreferenceReasoningOutput,
-  type ModelPreferenceSpeed
+  type ModelPreference,
+  type ProviderPreferences
 } from '../../../shared/modelPreference'
 import {
   AGENT_CONTROL_OPTIONS,
@@ -97,6 +99,22 @@ interface SkillInfo {
   description?: string
   source?: string
   enabled?: boolean
+}
+
+function toAgentProviderPreference(
+  providerId: string,
+  preference: ModelPreference
+): AgentProviderPreference {
+  return {
+    providerId,
+    model: preference.model,
+    reasoning: {
+      enabled: preference.reasoning.enabled,
+      effort: preference.reasoning.effort
+    },
+    speed: preference.speed,
+    contextWindow: { mode: preference.contextWindow.mode }
+  }
 }
 
 type Filter = 'all' | 'builtIn' | 'user' | 'workspace'
@@ -1125,10 +1143,12 @@ function BuilderView({ route, setRoute, setDraft, toolCatalog, skillCatalog, mcp
   }, [menuOpen])
 
   const providers = useProvidersStore((s) => s.providers)
-  const modelOptions = useModelCatalogStore((s) => s.modelOptions)
   const models = useModelCatalogStore((s) => s.models)
+  const modelCatalogStatus = useModelCatalogStore((s) => s.status)
+  const modelCatalogError = useModelCatalogStore((s) => s.errorMessage)
   const effectiveCatalogProviderId = useModelCatalogStore((s) => s.providerId)
   const [workspaceDefaultPreference, setWorkspaceDefaultPreference] = useState<AgentProviderPreference | null>(null)
+  const [workspaceProviderPreferences, setWorkspaceProviderPreferences] = useState<ProviderPreferences>({})
 
   useEffect(() => {
     void useProvidersStore.getState().reload()
@@ -1136,11 +1156,13 @@ function BuilderView({ route, setRoute, setDraft, toolCatalog, skillCatalog, mcp
     if (typeof getCore !== 'function') return
     void getCore().then((core) => {
       const providerId = (core.workspace.providerId ?? core.userDefaults.providerId ?? '').trim()
-      const preference = findProviderPreference(
-        mergeProviderPreferences(core.userDefaults.providerPreferences, core.workspace.providerPreferences),
-        providerId
+      const preferences = mergeProviderPreferences(
+        core.userDefaults.providerPreferences,
+        core.workspace.providerPreferences
       )
-      setWorkspaceDefaultPreference(preference ? { providerId, ...preference } : null)
+      const preference = findProviderPreference(preferences, providerId)
+      setWorkspaceProviderPreferences(preferences)
+      setWorkspaceDefaultPreference(preference ? toAgentProviderPreference(providerId, preference) : null)
     }).catch(() => undefined)
   }, [])
 
@@ -1153,6 +1175,20 @@ function BuilderView({ route, setRoute, setDraft, toolCatalog, skillCatalog, mcp
     () => models.find((item) => item.id === draft.providerPreference?.model) ?? null,
     [draft.providerPreference?.model, models]
   )
+  const pickerPreference = useMemo<ModelPreference | null>(() => {
+    const preference = draft.providerPreference
+    if (!preference) return null
+    return {
+      model: preference.model,
+      reasoning: {
+        enabled: preference.reasoning.enabled,
+        effort: preference.reasoning.effort,
+        output: selectedModel?.reasoning?.defaultOutput ?? 'full'
+      },
+      speed: preference.speed,
+      contextWindow: { mode: preference.contextWindow.mode }
+    }
+  }, [draft.providerPreference, selectedModel])
   const providerSelectOptions = useMemo(() => {
     const options = providers.map((provider) => ({ value: provider.id, label: provider.displayName }))
     const current = draft.providerPreference?.providerId
@@ -1161,28 +1197,16 @@ function BuilderView({ route, setRoute, setDraft, toolCatalog, skillCatalog, mcp
     }
     return options
   }, [draft.providerPreference?.providerId, providers])
-  const modelSelectOptions = useMemo(() => {
-    const opts = modelOptions.map((id) => ({ value: id, label: id }))
-    const current = draft.providerPreference?.model
-    if (current && !modelOptions.includes(current)) {
-      opts.push({ value: current, label: current })
-    }
-    return opts
-  }, [modelOptions, draft.providerPreference?.model])
-
   const seedProviderPreference = useCallback((): AgentProviderPreference | null => {
     if (workspaceDefaultPreference) return structuredClone(workspaceDefaultPreference)
     const providerId = effectiveCatalogProviderId ?? providers[0]?.id
-    const model = modelOptions[0]
+    const model = models[0]
     if (!providerId || !model) return null
-    return {
+    return toAgentProviderPreference(
       providerId,
-      model,
-      reasoning: { enabled: false, effort: 'medium', output: 'full' },
-      speed: 'standard',
-      contextWindow: { mode: 'default' }
-    }
-  }, [effectiveCatalogProviderId, modelOptions, providers, workspaceDefaultPreference])
+      createCatalogDefaultPreference(model, model.id)
+    )
+  }, [effectiveCatalogProviderId, models, providers, workspaceDefaultPreference])
 
   const updateProviderPreference = useCallback((
     update: (preference: AgentProviderPreference) => AgentProviderPreference
@@ -1192,31 +1216,23 @@ function BuilderView({ route, setRoute, setDraft, toolCatalog, skillCatalog, mcp
       : current)
   }, [setDraft])
 
-  const selectModel = useCallback((model: string): void => {
-    const catalog = models.find((item) => item.id === model)
-    updateProviderPreference((preference) => {
-      const reasoning = catalog?.reasoning
-      const speed = catalog?.speed
-      const contextWindow = catalog?.contextWindow
-      return {
-        ...preference,
-        model,
-        reasoning: reasoning
-          ? {
-              enabled: preference.reasoning.enabled,
-              effort: reasoning.supportedEfforts.some((item) => item.effort === preference.reasoning.effort)
-                ? preference.reasoning.effort
-                : reasoning.defaultEffort,
-              output: reasoning.supportedOutputs.includes(preference.reasoning.output)
-                ? preference.reasoning.output
-                : reasoning.defaultOutput
-            }
-          : { enabled: false, effort: 'medium', output: 'full' },
-        speed: speed?.supportedModes.includes(preference.speed) ? preference.speed : speed?.defaultMode ?? 'standard',
-        contextWindow: { mode: contextWindow?.supportsMax && preference.contextWindow.mode === 'max' ? 'max' : 'default' }
-      }
+  const selectProvider = useCallback((providerId: string): void => {
+    updateProviderPreference((preference) => ({ ...preference, providerId }))
+    void useModelCatalogStore.getState().loadIfNeeded(true, providerId).then(() => {
+      const catalog = useModelCatalogStore.getState()
+      const configured = findProviderPreference(workspaceProviderPreferences, providerId)
+      const seeded = configured
+        ?? createCatalogDefaultPreference(catalog.models[0], catalog.models[0]?.id ?? '')
+      if (!seeded.model) return
+      setDraft((current) => {
+        if (current.providerPreference?.providerId !== providerId) return current
+        return {
+          ...current,
+          providerPreference: toAgentProviderPreference(providerId, seeded)
+        }
+      })
     })
-  }, [models, updateProviderPreference])
+  }, [setDraft, updateProviderPreference, workspaceProviderPreferences])
 
   const inheritSummary = workspaceDefaultPreference
     ? `${workspaceDefaultPreference.providerId} · ${workspaceDefaultPreference.model}`
@@ -1224,16 +1240,6 @@ function BuilderView({ route, setRoute, setDraft, toolCatalog, skillCatalog, mcp
   const pinnedProviderUnavailable = draft.providerPreference != null
     && providers.length > 0
     && !providers.some((provider) => provider.id.toLowerCase() === draft.providerPreference!.providerId.toLowerCase())
-  const reasoningOptions: Array<{ value: 'off' | ModelPreferenceReasoningEffort; label: string }> = [
-    { value: 'off', label: t('agentBuilder.model.reasoningOff') },
-    ...(selectedModel?.reasoning?.supportedEfforts ?? [
-      { effort: 'low' as const, label: t('agentBuilder.model.reasoningLow'), description: '' },
-      { effort: 'medium' as const, label: t('agentBuilder.model.reasoningMedium'), description: '' },
-      { effort: 'high' as const, label: t('agentBuilder.model.reasoningHigh'), description: '' },
-      { effort: 'extraHigh' as const, label: t('agentBuilder.model.reasoningExtraHigh'), description: '' }
-    ]).map((option) => ({ value: option.effort, label: option.label }))
-  ]
-
   return (
     <div className="agent-builder">
       <header className="agent-builder-edit-head">
@@ -1409,102 +1415,41 @@ function BuilderView({ route, setRoute, setDraft, toolCatalog, skillCatalog, mcp
                   control={(
                     <SettingsSelect<string>
                       value={draft.providerPreference.providerId}
-                      onValueChange={(providerId) => updateProviderPreference((preference) => ({ ...preference, providerId }))}
+                      onValueChange={selectProvider}
                       disabled={preview}
                       style={{ width: '100%' }}
                       options={providerSelectOptions}
                     />
                   )}
                 />
-                <SettingsRow
-                  label={t('agentBuilder.model.model')}
-                  controlMinWidth={200}
-                  control={(
-                    <SettingsSelect<string>
-                      value={draft.providerPreference.model}
-                      onValueChange={selectModel}
-                      disabled={preview}
-                      style={{ width: '100%' }}
-                      options={modelSelectOptions}
-                    />
-                  )}
-                />
-                <SettingsRow
-                  label={t('agentBuilder.model.reasoning')}
-                  controlMinWidth={200}
-                  control={(
-                    <SettingsSelect<'off' | ModelPreferenceReasoningEffort>
-                      value={draft.providerPreference.reasoning.enabled ? draft.providerPreference.reasoning.effort : 'off'}
-                      onValueChange={(value) => updateProviderPreference((preference) => ({
-                        ...preference,
-                        reasoning: {
-                          ...preference.reasoning,
-                          enabled: value !== 'off',
-                          effort: value === 'off' ? preference.reasoning.effort : value
-                        }
-                      }))}
-                      disabled={preview}
-                      style={{ width: '100%' }}
-                      options={reasoningOptions}
-                    />
-                  )}
-                />
-                <SettingsRow
-                  label={t('agentBuilder.model.reasoningOutput')}
-                  controlMinWidth={200}
-                  control={(
-                    <SettingsSelect<ModelPreferenceReasoningOutput>
-                      value={draft.providerPreference.reasoning.output}
-                      onValueChange={(output) => updateProviderPreference((preference) => ({
-                        ...preference,
-                        reasoning: { ...preference.reasoning, output }
-                      }))}
-                      disabled={preview || !draft.providerPreference.reasoning.enabled}
-                      style={{ width: '100%' }}
-                      options={(selectedModel?.reasoning?.supportedOutputs ?? ['none', 'summary', 'full']).map((value) => ({
-                        value,
-                        label: t(`agentBuilder.model.output.${value}`)
-                      }))}
-                    />
-                  )}
-                />
-                <SettingsRow
-                  label={t('agentBuilder.model.speed')}
-                  controlMinWidth={200}
-                  control={(
-                    <SettingsSelect<ModelPreferenceSpeed>
-                      value={draft.providerPreference.speed}
-                      onValueChange={(speed) => updateProviderPreference((preference) => ({ ...preference, speed }))}
-                      disabled={preview}
-                      style={{ width: '100%' }}
-                      options={(selectedModel?.speed?.supportedModes ?? ['standard', 'fast']).map((value) => ({
-                        value,
-                        label: t(`agentBuilder.model.speed.${value}`)
-                      }))}
-                    />
-                  )}
-                />
-                <SettingsRow
-                  label={t('agentBuilder.model.contextWindow')}
-                  controlMinWidth={200}
-                  control={(
-                    <SettingsSelect<ModelPreferenceContextMode>
-                      value={draft.providerPreference.contextWindow.mode}
-                      onValueChange={(mode) => updateProviderPreference((preference) => ({
-                        ...preference,
-                        contextWindow: { mode }
-                      }))}
-                      disabled={preview}
-                      style={{ width: '100%' }}
-                      options={[
-                        { value: 'default', label: t('agentBuilder.model.context.default') },
-                        ...(selectedModel?.contextWindow?.supportsMax
-                          ? [{ value: 'max' as const, label: t('agentBuilder.model.context.max') }]
-                          : [])
-                      ]}
-                    />
-                  )}
-                />
+                {pickerPreference && (
+                  <SettingsRow
+                    label={t('agentBuilder.model.model')}
+                    controlMinWidth={200}
+                    control={(
+                      <PreferenceModelPicker
+                        preference={pickerPreference}
+                        models={models}
+                        loading={modelCatalogStatus === 'loading'}
+                        disabled={preview}
+                        errorMessage={modelCatalogError}
+                        manualFallback={modelCatalogStatus !== 'loading' && models.length === 0}
+                        onRetry={() => {
+                          void useModelCatalogStore.getState().loadIfNeeded(
+                            true,
+                            draft.providerPreference?.providerId ?? null
+                          )
+                        }}
+                        onChange={(preference) => {
+                          updateProviderPreference((current) =>
+                            toAgentProviderPreference(current.providerId, preference))
+                        }}
+                        inputId="agent-builder-provider-model"
+                        inputAriaLabel={t('agentBuilder.model.model')}
+                      />
+                    )}
+                  />
+                )}
               </div>
             )}
             <SettingsRow

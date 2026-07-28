@@ -118,8 +118,8 @@ internal sealed class ThreadRequestHandler(
         try
         {
             var store = new AgentProfileStore(ResolveAgentProfileWorkspaceCraftPath(identity));
-            var resolved = store.ResolveThreadStartConfiguration(config, TryGetConfigElement(msg));
             var currentConfig = appConfigMonitor?.Current ?? workspaceConfig.LoadCurrentMergedConfig();
+            var resolved = store.ResolveThreadStartConfiguration(config, currentConfig, TryGetConfigElement(msg));
             AppServerRuntimeRequestValidator.NormalizeCompleteModelConfiguration(currentConfig, resolved);
             return resolved;
         }

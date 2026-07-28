@@ -103,7 +103,6 @@ providerPreference:
   reasoning:
     enabled: true
     effort: high
-    output: full
   speed: standard
   contextWindow:
     mode: default
@@ -138,11 +137,14 @@ Focus on correctness.
         Assert.Equal("reviewer-lite", config.AgentProfileId);
         Assert.Equal(AgentProfileSources.Workspace, config.AgentProfileSource);
         Assert.StartsWith("sha256:", config.AgentProfileFingerprint);
-        Assert.Equal("profile-provider", config.ProviderId);
-        Assert.Equal("profile-model", config.Model);
-        Assert.NotNull(config.Reasoning);
-        Assert.True(config.Reasoning.Enabled);
-        Assert.Equal(ReasoningEffort.High, config.Reasoning.Effort);
+        Assert.Null(config.ProviderId);
+        Assert.Null(config.Model);
+        Assert.Null(config.Reasoning);
+        var preset = Assert.IsType<AgentProfileProviderPreference>(result.ProviderPreference);
+        Assert.Equal("profile-provider", preset.ProviderId);
+        Assert.Equal("profile-model", preset.Model);
+        Assert.True(preset.Reasoning.Enabled);
+        Assert.Equal(ReasoningEffort.High, preset.Reasoning.Effort);
         Assert.NotNull(config.ToolPolicy);
         var toolPolicy = config.ToolPolicy!;
         Assert.Equal(new[] { "ReadFile", "FindFiles" }, toolPolicy.Allow ?? Array.Empty<string>());
@@ -165,7 +167,7 @@ Focus on correctness.
     }
 
     [Fact]
-    public void ValidateRaw_CompilesProviderPreferenceAsCompleteUnit()
+    public void ValidateRaw_CompilesReducedProviderPreference()
     {
         var store = new AgentProfileStore(_workspaceCraftPath, _userCraftPath);
         var result = store.ValidateRaw(
@@ -179,7 +181,6 @@ providerPreference:
   reasoning:
     enabled: true
     effort: high
-    output: summary
   speed: fast
   contextWindow:
     mode: max
@@ -192,19 +193,18 @@ Review carefully.
         Assert.True(result.Valid);
         var providerPreference = Assert.IsType<AgentProfileProviderPreference>(result.ProviderPreference);
         Assert.Equal("openai", providerPreference.ProviderId);
-        var preference = providerPreference.Preference;
-        Assert.Equal("gpt-5.6", preference.Model);
-        Assert.True(preference.Reasoning.Enabled);
-        Assert.Equal(ReasoningEffort.High, preference.Reasoning.Effort);
-        Assert.Equal(ReasoningOutput.Summary, preference.Reasoning.Output);
-        Assert.Equal(InferenceSpeed.Fast, preference.Speed);
-        Assert.Equal(ContextWindowMode.Max, preference.ContextWindow.Mode);
+        Assert.Equal("gpt-5.6", providerPreference.Model);
+        Assert.True(providerPreference.Reasoning.Enabled);
+        Assert.Equal(ReasoningEffort.High, providerPreference.Reasoning.Effort);
+        Assert.Equal(InferenceSpeed.Fast, providerPreference.Speed);
+        Assert.Equal(ContextWindowMode.Max, providerPreference.ContextWindow.Mode);
 
         var config = Assert.IsType<ThreadConfiguration>(result.CompiledConfiguration);
-        Assert.Equal("openai", config.ProviderId);
-        Assert.Equal("gpt-5.6", config.Model);
-        Assert.Equal(InferenceSpeed.Fast, config.Speed);
-        Assert.Equal(ContextWindowMode.Max, config.ContextWindow?.Mode);
+        Assert.Null(config.ProviderId);
+        Assert.Null(config.Model);
+        Assert.Null(config.Reasoning);
+        Assert.Null(config.Speed);
+        Assert.Null(config.ContextWindow);
     }
 
     [Fact]
@@ -249,7 +249,6 @@ providerPreference:
   reasoning:
     enabled: true
     effort: high
-    output: full
   speed: fast
   contextWindow:
     mode: max
@@ -266,6 +265,7 @@ Review.
                 AgentProfileId = "pinned-reviewer",
                 Model = "gpt-overlay"
             },
+            RuntimeConfig(),
             document.RootElement);
 
         Assert.Equal("openai", resolved.ProviderId);
@@ -273,6 +273,134 @@ Review.
         Assert.Null(resolved.Reasoning);
         Assert.Null(resolved.Speed);
         Assert.Null(resolved.ContextWindow);
+    }
+
+    [Fact]
+    public void ResolveProfileConfiguration_DerivesReasoningOutputFromModelCatalog()
+    {
+        var store = new AgentProfileStore(_workspaceCraftPath, _userCraftPath);
+        store.Upsert(
+            "pinned-reviewer",
+            AgentProfileSources.Workspace,
+            """
+---
+name: pinned-reviewer
+description: Pinned reviewer
+providerPreference:
+  providerId: openai
+  model: custom-reasoner-v1
+  reasoning:
+    enabled: true
+    effort: high
+  speed: fast
+  contextWindow:
+    mode: default
+---
+
+Review.
+""");
+
+        var config = RuntimeConfig();
+        File.WriteAllText(
+            Path.Combine(_workspaceCraftPath, ModelThinkingAdapterCatalog.FileName),
+            """
+{
+  "reasoningCapabilities": {
+    "adapters": [{
+      "protocols": ["openai-responses"],
+      "models": ["custom-reasoner-"],
+      "supportsDisable": true,
+      "supportedEfforts": ["high"],
+      "defaultEffort": "high",
+      "supportedOutputs": ["summary"],
+      "defaultOutput": "summary"
+    }]
+  }
+}
+""");
+
+        var resolved = store.ResolveProfileConfiguration("pinned-reviewer", config);
+
+        Assert.Equal("openai", resolved.ProviderId);
+        Assert.Equal("custom-reasoner-v1", resolved.Model);
+        Assert.Equal(ReasoningOutput.Summary, resolved.Reasoning?.Output);
+        Assert.Equal(InferenceSpeed.Fast, resolved.Speed);
+    }
+
+    [Fact]
+    public void ResolveThreadStartConfiguration_ExplicitReasoningOutputOverridesCatalogDefault()
+    {
+        var store = new AgentProfileStore(_workspaceCraftPath, _userCraftPath);
+        store.Upsert(
+            "pinned-reviewer",
+            AgentProfileSources.Workspace,
+            """
+---
+name: pinned-reviewer
+description: Pinned reviewer
+providerPreference:
+  providerId: openai
+  model: gpt-5.6-sol
+  reasoning:
+    enabled: true
+    effort: high
+  speed: standard
+  contextWindow:
+    mode: default
+---
+
+Review.
+""");
+        using var document = JsonDocument.Parse(
+            """{"agentProfileId":"pinned-reviewer","reasoning":{"enabled":true,"effort":"medium","output":"none"}}""");
+
+        var resolved = store.ResolveThreadStartConfiguration(
+            new ThreadConfiguration
+            {
+                AgentProfileId = "pinned-reviewer",
+                Reasoning = new AppConfig.ReasoningConfig
+                {
+                    Enabled = true,
+                    Effort = ReasoningEffort.Medium,
+                    Output = ReasoningOutput.None
+                }
+            },
+            RuntimeConfig(),
+            document.RootElement);
+
+        Assert.Equal(ReasoningOutput.None, resolved.Reasoning?.Output);
+        Assert.Equal(ReasoningEffort.Medium, resolved.Reasoning?.Effort);
+    }
+
+    [Fact]
+    public void ValidateRaw_RejectsReasoningOutputField()
+    {
+        var store = new AgentProfileStore(_workspaceCraftPath, _userCraftPath);
+        var result = store.ValidateRaw(
+            """
+---
+name: obsolete-output
+description: Uses an obsolete Profile field
+providerPreference:
+  providerId: openai
+  model: gpt-5.6-sol
+  reasoning:
+    enabled: true
+    effort: high
+    output: summary
+  speed: standard
+  contextWindow:
+    mode: default
+---
+
+Body.
+""",
+            AgentProfileSources.Workspace);
+
+        Assert.False(result.Valid);
+        Assert.Contains(result.Diagnostics, diagnostic =>
+            diagnostic.Code == "UnsupportedField"
+            && diagnostic.Message.Contains("reasoning.output", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -466,4 +594,24 @@ description: {description}
 
 Instructions for {id}.
 """;
+
+    private AppConfig RuntimeConfig()
+    {
+        var config = new AppConfig
+        {
+            ProviderId = "openai",
+            WorkspaceConfigPath = Path.Combine(_workspaceCraftPath, "config.json"),
+            ProviderPreferences = new()
+            {
+                ["openai"] = ModelPreferenceRules.CreateManual("gpt-default")
+            }
+        };
+        config.Providers["openai"] = new AppConfig.ModelProviderConfig
+        {
+            DisplayName = "OpenAI",
+            Protocol = ModelProviderProtocols.OpenAIResponses,
+            ApiKey = "test"
+        };
+        return config;
+    }
 }

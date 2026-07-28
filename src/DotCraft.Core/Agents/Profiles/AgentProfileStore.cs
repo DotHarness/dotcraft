@@ -36,14 +36,33 @@ public sealed record AgentProfileDiagnostic(
     string Code,
     string Message);
 
-/// <summary>A complete provider preference fixed by an Agent Profile.</summary>
+/// <summary>Reasoning preset authored by an Agent Profile.</summary>
+public sealed class AgentProfileReasoningPreference
+{
+    /// <summary>Whether reasoning is enabled.</summary>
+    public bool Enabled { get; init; }
+
+    /// <summary>Requested reasoning effort.</summary>
+    public ReasoningEffort Effort { get; init; } = ReasoningEffort.Medium;
+}
+
+/// <summary>A provider-scoped model preset fixed by an Agent Profile.</summary>
 public sealed class AgentProfileProviderPreference
 {
     /// <summary>Provider selected by the profile.</summary>
     public string ProviderId { get; init; } = string.Empty;
 
-    /// <summary>Complete model preference selected by the profile.</summary>
-    public ModelPreference Preference { get; init; } = new();
+    /// <summary>Model selected by the profile.</summary>
+    public string Model { get; init; } = string.Empty;
+
+    /// <summary>Reasoning selection authored by the profile.</summary>
+    public AgentProfileReasoningPreference Reasoning { get; init; } = new();
+
+    /// <summary>Requested inference speed.</summary>
+    public InferenceSpeed Speed { get; init; } = InferenceSpeed.Standard;
+
+    /// <summary>Requested context-window mode.</summary>
+    public ModelPreferenceContextWindow ContextWindow { get; init; } = new();
 }
 
 public sealed class AgentProfileEntry
@@ -225,8 +244,7 @@ public sealed partial class AgentProfileStore
     private static readonly HashSet<string> ReasoningFields = new(StringComparer.Ordinal)
     {
         "enabled",
-        "effort",
-        "output"
+        "effort"
     };
 
     private static readonly HashSet<string> ProviderPreferenceFields = new(StringComparer.Ordinal)
@@ -563,6 +581,22 @@ public sealed partial class AgentProfileStore
         return CloneThreadConfiguration(profile.CompiledConfiguration);
     }
 
+    /// <summary>
+    /// Resolves a profile into a runtime configuration and materializes its fixed model preset.
+    /// </summary>
+    public ThreadConfiguration ResolveProfileConfiguration(string id, AppConfig appConfig)
+    {
+        ArgumentNullException.ThrowIfNull(appConfig);
+        var profile = Read(id);
+        if (!profile.Valid || profile.CompiledConfiguration == null)
+            throw new AgentProfileException(AgentProfileErrorKind.ValidationFailed, "Agent profile validation failed.", profile.Diagnostics);
+
+        var resolved = CloneThreadConfiguration(profile.CompiledConfiguration);
+        if (profile.ProviderPreference != null)
+            ApplyProviderPreference(resolved, profile.ProviderPreference, appConfig);
+        return resolved;
+    }
+
     public void AppendAudit(AgentProfileAuditRecord record)
     {
         if (_workspaceCraftPath == null)
@@ -577,6 +611,7 @@ public sealed partial class AgentProfileStore
 
     public ThreadConfiguration ResolveThreadStartConfiguration(
         ThreadConfiguration requested,
+        AppConfig appConfig,
         JsonElement? configElement = null)
     {
         if (string.IsNullOrWhiteSpace(requested.AgentProfileId))
@@ -598,6 +633,8 @@ public sealed partial class AgentProfileStore
         }
 
         var resolved = CloneThreadConfiguration(profile.CompiledConfiguration);
+        if (profile.ProviderPreference != null)
+            ApplyProviderPreference(resolved, profile.ProviderPreference, appConfig);
         var selectsRuntimeModel = HasConfigProperty(configElement, "providerId")
                                   || HasConfigProperty(configElement, "model");
         if (selectsRuntimeModel)
@@ -626,6 +663,61 @@ public sealed partial class AgentProfileStore
             resolved.ApprovalTimeoutSeconds = requested.ApprovalTimeoutSeconds;
 
         return resolved;
+    }
+
+    private static void ApplyProviderPreference(
+        ThreadConfiguration config,
+        AgentProfileProviderPreference profilePreference,
+        AppConfig appConfig)
+    {
+        EffectiveModelRuntime runtime;
+        try
+        {
+            runtime = ModelProviderResolver.ResolveMain(
+                appConfig,
+                profilePreference.ProviderId,
+                profilePreference.Model);
+        }
+        catch (Exception ex) when (ex is ArgumentException or ModelProviderConfigurationException)
+        {
+            throw new AgentProfileException(
+                AgentProfileErrorKind.ValidationFailed,
+                $"Pinned provider '{profilePreference.ProviderId}' is not runnable in the current workspace.",
+                [Error("PinnedProviderUnavailable", $"Pinned provider '{profilePreference.ProviderId}' is not runnable in the current workspace.")]);
+        }
+
+        var capability = ModelThinkingAdapterCatalog.ResolveReasoningCapability(
+            appConfig,
+            runtime.Protocol,
+            runtime.EndPoint,
+            runtime.Model);
+        var preference = ModelPreferenceRules.Normalize(
+            appConfig,
+            runtime.ProviderId,
+            new ModelPreference
+            {
+                Model = runtime.Model,
+                Reasoning = new AppConfig.ReasoningConfig
+                {
+                    Enabled = profilePreference.Reasoning.Enabled,
+                    Effort = profilePreference.Reasoning.Effort,
+                    Output = capability?.DefaultOutput ?? ReasoningOutput.Full
+                },
+                Speed = profilePreference.Speed,
+                ContextWindow = new ModelPreferenceContextWindow
+                {
+                    Mode = profilePreference.ContextWindow.Mode
+                }
+            });
+
+        config.ProviderId = runtime.ProviderId;
+        config.Model = preference.Model;
+        config.Reasoning = CloneReasoning(preference.Reasoning);
+        config.Speed = preference.Speed;
+        config.ContextWindow = new ThreadContextWindowConfig
+        {
+            Mode = preference.ContextWindow.Mode
+        };
     }
 
     private static IEnumerable<string> FindUnsupportedThreadStartOverlayFields(JsonElement? configElement)
@@ -915,7 +1007,7 @@ public sealed partial class AgentProfileStore
             OverrideBasePrompt = false
         };
 
-        providerPreference = CompileProviderPreference(frontmatter, config, diagnostics);
+        providerPreference = CompileProviderPreference(frontmatter, diagnostics);
 
         config.Mode = NormalizeMode(ReadOptionalString(frontmatter, "mode", diagnostics), diagnostics) ?? "agent";
         config.PromptProfile = NormalizeNullableString(ReadOptionalString(frontmatter, "promptProfile", diagnostics));
@@ -1158,7 +1250,6 @@ public sealed partial class AgentProfileStore
 
     private static AgentProfileProviderPreference? CompileProviderPreference(
         JsonObject frontmatter,
-        ThreadConfiguration config,
         List<AgentProfileDiagnostic> diagnostics)
     {
         if (!TryGetProperty(frontmatter, "providerPreference", out _))
@@ -1186,8 +1277,7 @@ public sealed partial class AgentProfileStore
                 "providerPreference.reasoning",
                 diagnostics,
                 "enabled",
-                "effort",
-                "output");
+                "effort");
         }
 
         var contextWindowSection = TryGetObject(section, "contextWindow", diagnostics);
@@ -1196,10 +1286,11 @@ public sealed partial class AgentProfileStore
 
         var providerId = NormalizeNullableString(ReadOptionalString(section, "providerId", diagnostics, required: true));
         var model = NormalizeNullableString(ReadOptionalString(section, "model", diagnostics, required: true));
-        var reasoning = CompileReasoning(reasoningSection, diagnostics) ?? new AppConfig.ReasoningConfig();
+        var reasoning = CompileProfileReasoning(reasoningSection, diagnostics) ?? new AgentProfileReasoningPreference();
 
-        var preference = new ModelPreference
+        return new AgentProfileProviderPreference
         {
+            ProviderId = providerId ?? string.Empty,
             Model = model ?? string.Empty,
             Reasoning = reasoning,
             Speed = ParseInferenceSpeed(ReadOptionalString(section, "speed", diagnostics), diagnostics),
@@ -1211,18 +1302,6 @@ public sealed partial class AgentProfileStore
                         : ReadOptionalString(contextWindowSection, "mode", diagnostics),
                     diagnostics)
             }
-        };
-
-        config.ProviderId = providerId;
-        config.Model = model;
-        config.Reasoning = CloneReasoning(preference.Reasoning);
-        config.Speed = preference.Speed;
-        config.ContextWindow = new ThreadContextWindowConfig { Mode = preference.ContextWindow.Mode };
-
-        return new AgentProfileProviderPreference
-        {
-            ProviderId = providerId ?? string.Empty,
-            Preference = preference
         };
     }
 
@@ -1273,21 +1352,20 @@ public sealed partial class AgentProfileStore
         return ContextWindowMode.Default;
     }
 
-    private static AppConfig.ReasoningConfig? CompileReasoning(JsonObject? reasoning, List<AgentProfileDiagnostic> diagnostics)
+    private static AgentProfileReasoningPreference? CompileProfileReasoning(
+        JsonObject? reasoning,
+        List<AgentProfileDiagnostic> diagnostics)
     {
         if (reasoning == null)
             return null;
 
         var enabled = ReadOptionalBool(reasoning, "enabled", diagnostics);
         var effort = ReadOptionalString(reasoning, "effort", diagnostics);
-        var output = ReadOptionalString(reasoning, "output", diagnostics);
-        var config = new AppConfig.ReasoningConfig
+        return new AgentProfileReasoningPreference
         {
             Enabled = enabled ?? true,
-            Effort = ParseReasoningEffort(effort, diagnostics) ?? ReasoningEffort.Medium,
-            Output = ParseReasoningOutput(output, diagnostics) ?? ReasoningOutput.Full
+            Effort = ParseReasoningEffort(effort, diagnostics) ?? ReasoningEffort.Medium
         };
-        return config;
     }
 
     private static ThreadToolPolicy? CompileTools(JsonObject? tools, List<AgentProfileDiagnostic> diagnostics)
@@ -1433,27 +1511,6 @@ public sealed partial class AgentProfileStore
         diagnostics.Add(Error(
             "InvalidPolicyValue",
             "providerPreference.reasoning.effort must be low, medium, high, or extraHigh; use enabled: false for Off."));
-        return null;
-    }
-
-    private static ReasoningOutput? ParseReasoningOutput(string? raw, List<AgentProfileDiagnostic> diagnostics)
-    {
-        if (string.IsNullOrWhiteSpace(raw))
-            return null;
-
-        var normalized = NormalizeEnumToken(raw);
-        return normalized switch
-        {
-            "none" or "omitted" => ReasoningOutput.None,
-            "summary" or "summarized" => ReasoningOutput.Summary,
-            "full" => ReasoningOutput.Full,
-            _ => AddReasoningOutputError(diagnostics)
-        };
-    }
-
-    private static ReasoningOutput? AddReasoningOutputError(List<AgentProfileDiagnostic> diagnostics)
-    {
-        diagnostics.Add(Error("InvalidPolicyValue", "reasoning.output must be one of none, summary, or full."));
         return null;
     }
 

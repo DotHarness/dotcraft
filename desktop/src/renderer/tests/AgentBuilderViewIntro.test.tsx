@@ -496,7 +496,6 @@ describe('AgentBuilderView intro composer', () => {
   reasoning:
     enabled: true
     effort: high
-    output: full
   speed: fast
   contextWindow:
     mode: max`)

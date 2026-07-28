@@ -16,7 +16,6 @@ public sealed class AgentProfileDraft
     public string Model { get; set; } = string.Empty;
     public bool ReasoningEnabled { get; set; }
     public string ReasoningEffort { get; set; } = "medium";
-    public string ReasoningOutput { get; set; } = "full";
     public string Speed { get; set; } = "standard";
     public string ContextWindowMode { get; set; } = "default";
 
@@ -40,29 +39,26 @@ public sealed class AgentProfileDraft
 
 /// <summary>
 /// Parses and re-serializes an Agent Profile Markdown document (YAML frontmatter + Markdown body)
-/// for the conversational builder. The serializer emits canonical profile YAML with a complete,
-/// atomic provider preference and inline <c>[a, b]</c> flow sequences for list-valued policies.
+/// for the conversational builder. The serializer emits canonical profile YAML with an atomic
+/// provider preference and inline <c>[a, b]</c> flow sequences for list-valued policies.
 /// </summary>
 public static class AgentProfileDraftEditor
 {
     private static readonly string[] ApprovalPolicies = ["default", "autoApprove", "interrupt"];
     private static readonly string[] AgentControls = ["full", "disabled", "allowList"];
     private static readonly string[] ReasoningEfforts = ["low", "medium", "high", "extraHigh"];
-    private static readonly string[] ReasoningOutputs = ["none", "summary", "full"];
     private static readonly string[] Speeds = ["standard", "fast"];
     private static readonly string[] ContextWindowModes = ["default", "max"];
 
     public static IReadOnlyList<string> ApprovalPolicyValues => ApprovalPolicies;
     public static IReadOnlyList<string> AgentControlValues => AgentControls;
     public static IReadOnlyList<string> ReasoningEffortValues => ReasoningEfforts;
-    public static IReadOnlyList<string> ReasoningOutputValues => ReasoningOutputs;
     public static IReadOnlyList<string> SpeedValues => Speeds;
     public static IReadOnlyList<string> ContextWindowModeValues => ContextWindowModes;
 
     public static bool IsApprovalPolicy(string value) => ApprovalPolicies.Contains(value, StringComparer.Ordinal);
     public static bool IsAgentControl(string value) => AgentControls.Contains(value, StringComparer.Ordinal);
     public static bool IsReasoningEffort(string value) => ReasoningEfforts.Contains(value, StringComparer.Ordinal);
-    public static bool IsReasoningOutput(string value) => ReasoningOutputs.Contains(value, StringComparer.Ordinal);
     public static bool IsSpeed(string value) => Speeds.Contains(value, StringComparer.Ordinal);
     public static bool IsContextWindowMode(string value) => ContextWindowModes.Contains(value, StringComparer.Ordinal);
 
@@ -141,7 +137,6 @@ public static class AgentProfileDraftEditor
                 {
                     if (key == "enabled") draft.ReasoningEnabled = val == "true";
                     else if (key == "effort") draft.ReasoningEffort = string.IsNullOrEmpty(val) ? "medium" : val;
-                    else if (key == "output") draft.ReasoningOutput = string.IsNullOrEmpty(val) ? "full" : val;
                 }
                 else if (sub == "providerContextWindow" && key == "mode")
                 {
@@ -174,7 +169,6 @@ public static class AgentProfileDraftEditor
             fm.Add("  reasoning:");
             fm.Add($"    enabled: {(draft.ReasoningEnabled ? "true" : "false")}");
             fm.Add($"    effort: {draft.ReasoningEffort}");
-            fm.Add($"    output: {draft.ReasoningOutput}");
             fm.Add($"  speed: {draft.Speed}");
             fm.Add("  contextWindow:");
             fm.Add($"    mode: {draft.ContextWindowMode}");

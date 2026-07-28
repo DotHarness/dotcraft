@@ -145,6 +145,7 @@ public sealed class AgentProfileManagementTests : IDisposable
         Assert.Equal("unavailable-provider", providerPreference.GetProperty("providerId").GetString());
         Assert.Equal("gpt-portable", providerPreference.GetProperty("model").GetString());
         Assert.Equal("standard", providerPreference.GetProperty("speed").GetString());
+        Assert.False(providerPreference.GetProperty("reasoning").TryGetProperty("output", out _));
         Assert.Contains(
             result.GetProperty("diagnostics").EnumerateArray(),
             diagnostic => diagnostic.GetProperty("code").GetString() == "PinnedProviderUnavailable");
@@ -646,7 +647,6 @@ providerPreference:
   reasoning:
     enabled: false
     effort: medium
-    output: full
   speed: {speed}
   contextWindow:
     mode: default

@@ -51,12 +51,12 @@ describe('agentBuilderDraftSync', () => {
     expect(draft.description).toBe('Triages issues')
   })
 
-  it('sets and clears the complete provider preference', () => {
+  it('sets and clears the provider model preset', () => {
     const draft = createEmptyDraft()
     const providerPreference = {
       providerId: 'openai',
       model: 'gpt-5.6',
-      reasoning: { enabled: true, effort: 'high' as const, output: 'full' as const },
+      reasoning: { enabled: true, effort: 'high' as const },
       speed: 'fast' as const,
       contextWindow: { mode: 'max' as const }
     }

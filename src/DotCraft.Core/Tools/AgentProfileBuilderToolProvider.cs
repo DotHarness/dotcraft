@@ -222,32 +222,29 @@ internal sealed class AgentProfileBuilderToolMethods(
         });
 
     [GeneratedTool]
-    [Description("Set the agent's complete fixed provider preference. Every argument is required.")]
+    [Description("Set the agent's fixed provider model preset. Every argument is required.")]
     public string SetAgentProviderPreference(
         [Description("Provider id.")] string providerId,
         [Description("Model id.")] string model,
         [Description("Whether reasoning is enabled.")] bool reasoningEnabled,
         [Description("Reasoning effort: 'low', 'medium', 'high', or 'extraHigh'.")] string reasoningEffort,
-        [Description("Reasoning output: 'none', 'summary', or 'full'.")] string reasoningOutput,
         [Description("Inference speed: 'standard' or 'fast'.")] string speed,
         [Description("Context-window mode: 'default' or 'max'.")] string contextWindowMode)
     {
         var providerIdValue = providerId?.Trim() ?? string.Empty;
         var modelValue = model?.Trim() ?? string.Empty;
         var effortValue = reasoningEffort?.Trim() ?? string.Empty;
-        var outputValue = reasoningOutput?.Trim() ?? string.Empty;
         var speedValue = speed?.Trim() ?? string.Empty;
         var contextWindowValue = contextWindowMode?.Trim() ?? string.Empty;
         if (providerIdValue.Length == 0
             || modelValue.Length == 0
             || !AgentProfileDraftEditor.IsReasoningEffort(effortValue)
-            || !AgentProfileDraftEditor.IsReasoningOutput(outputValue)
             || !AgentProfileDraftEditor.IsSpeed(speedValue)
             || !AgentProfileDraftEditor.IsContextWindowMode(contextWindowValue))
         {
             return Reject(
                 "providerPreference",
-                "providerPreference requires providerId, model, reasoningEnabled, reasoningEffort, reasoningOutput, speed, and contextWindowMode.");
+                "providerPreference requires providerId, model, reasoningEnabled, reasoningEffort, speed, and contextWindowMode.");
         }
 
         return Mutate("providerPreference", draft =>
@@ -257,7 +254,6 @@ internal sealed class AgentProfileBuilderToolMethods(
             draft.Model = modelValue;
             draft.ReasoningEnabled = reasoningEnabled;
             draft.ReasoningEffort = effortValue;
-            draft.ReasoningOutput = outputValue;
             draft.Speed = speedValue;
             draft.ContextWindowMode = contextWindowValue;
             return new
@@ -270,8 +266,7 @@ internal sealed class AgentProfileBuilderToolMethods(
                     reasoning = new
                     {
                         enabled = reasoningEnabled,
-                        effort = effortValue,
-                        output = outputValue
+                        effort = effortValue
                     },
                     speed = speedValue,
                     contextWindow = new { mode = contextWindowValue }

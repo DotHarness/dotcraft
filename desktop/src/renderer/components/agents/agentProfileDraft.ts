@@ -12,7 +12,6 @@ import { decodeAvatar, encodeAvatar, type AvatarSpec } from './agentAvatar'
 import type {
   ModelPreferenceContextMode,
   ModelPreferenceReasoningEffort,
-  ModelPreferenceReasoningOutput,
   ModelPreferenceSpeed
 } from '../../../shared/modelPreference'
 
@@ -26,7 +25,6 @@ export interface AgentProviderPreference {
   reasoning: {
     enabled: boolean
     effort: ModelPreferenceReasoningEffort
-    output: ModelPreferenceReasoningOutput
   }
   speed: ModelPreferenceSpeed
   contextWindow: {
@@ -117,10 +115,14 @@ export function parseProfile(rawContent: string | null | undefined): ProfileDraf
 
   let section: string | null = null
   let sub: string | null = null
-  const providerPreference: Partial<AgentProviderPreference> & {
+  const providerPreference: {
+    providerId?: string
+    model?: string
     reasoning?: Partial<AgentProviderPreference['reasoning']>
+    speed?: ModelPreferenceSpeed
     contextWindow?: Partial<AgentProviderPreference['contextWindow']>
   } = {}
+  let providerPreferenceHasRemovedOutput = false
   for (const rawLine of front.split('\n')) {
     if (!rawLine.trim()) continue
     const indent = rawLine.length - rawLine.replace(/^\s+/, '').length
@@ -165,7 +167,7 @@ export function parseProfile(rawContent: string | null | undefined): ProfileDraf
           providerPreference.reasoning!.enabled = val === 'true'
         }
         else if (key === 'effort') providerPreference.reasoning!.effort = val as ModelPreferenceReasoningEffort
-        else if (key === 'output') providerPreference.reasoning!.output = val as ModelPreferenceReasoningOutput
+        else if (key === 'output') providerPreferenceHasRemovedOutput = true
       } else if (sub === 'providerContextWindow' && key === 'mode') {
         providerPreference.contextWindow!.mode = val as ModelPreferenceContextMode
       } else if (sub === 'mcpTools') {
@@ -175,11 +177,11 @@ export function parseProfile(rawContent: string | null | undefined): ProfileDraf
     }
   }
   if (
-    providerPreference.providerId
+    !providerPreferenceHasRemovedOutput
+    && providerPreference.providerId
     && providerPreference.model
     && typeof providerPreference.reasoning?.enabled === 'boolean'
     && ['low', 'medium', 'high', 'extraHigh'].includes(providerPreference.reasoning.effort ?? '')
-    && ['none', 'summary', 'full'].includes(providerPreference.reasoning.output ?? '')
     && ['standard', 'fast'].includes(providerPreference.speed ?? '')
     && ['default', 'max'].includes(providerPreference.contextWindow?.mode ?? '')
   ) {
@@ -208,7 +210,6 @@ export function toMarkdown(draft: ProfileDraft): string {
     fm.push('  reasoning:')
     fm.push(`    enabled: ${preference.reasoning.enabled ? 'true' : 'false'}`)
     fm.push(`    effort: ${preference.reasoning.effort}`)
-    fm.push(`    output: ${preference.reasoning.output}`)
     fm.push(`  speed: ${preference.speed}`)
     fm.push('  contextWindow:')
     fm.push(`    mode: ${preference.contextWindow.mode}`)

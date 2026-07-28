@@ -35,7 +35,7 @@ Inherited body.
     expect(parsed.providerPreference).toBeNull()
   })
 
-  it('round-trips a complete provider preference', () => {
+  it('round-trips a provider model preset', () => {
     const draft = createDraftWithProviderPreference()
     const markdown = toMarkdown(draft)
 
@@ -45,7 +45,6 @@ Inherited body.
   reasoning:
     enabled: true
     effort: high
-    output: full
   speed: fast
   contextWindow:
     mode: max`)
@@ -85,6 +84,25 @@ providerPreference:
     expect(partial.providerPreference).toBeNull()
     expect(modeBased.providerPreference).toBeNull()
   })
+
+  it('rejects the removed reasoning output field', () => {
+    const parsed = parseProfile(`---
+name: removed-output
+providerPreference:
+  providerId: openai
+  model: gpt-5.6
+  reasoning:
+    enabled: true
+    effort: high
+    output: full
+  speed: fast
+  contextWindow:
+    mode: max
+---
+`)
+
+    expect(parsed.providerPreference).toBeNull()
+  })
 })
 
 function createDraftWithProviderPreference(): ProfileDraft {
@@ -94,7 +112,7 @@ function createDraftWithProviderPreference(): ProfileDraft {
     providerPreference: {
       providerId: 'openai',
       model: 'gpt-5.6',
-      reasoning: { enabled: true, effort: 'high', output: 'full' },
+      reasoning: { enabled: true, effort: 'high' },
       speed: 'fast',
       contextWindow: { mode: 'max' }
     },

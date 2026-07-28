@@ -44,8 +44,8 @@ An Agent Profile is YAML frontmatter plus a Markdown role body. Fields:
 - `avatar` (packed non-negative integer client visual identity; preserve when present)
 - optional `providerPreference`; omission means inherit, while presence requires `providerId`, `model`,
   `reasoning.enabled`, `reasoning.effort` ('low' | 'medium' | 'high' | 'extraHigh'),
-  `reasoning.output` ('none' | 'summary' | 'full'), `speed` ('standard' | 'fast'), and
-  `contextWindow.mode` ('default' | 'max')
+  `speed` ('standard' | 'fast'), and `contextWindow.mode` ('default' | 'max'). Reasoning output is
+  selected from the model catalog at runtime and is not an Agent Profile field
 - `tools.allow` / `tools.deny` (built-in tool names), `tools.agentControl` ('full' | 'disabled' | 'allowList')
 - `skills.preload` (installed skill names)
 - `mcp.servers` (configured MCP server names)

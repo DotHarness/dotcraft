@@ -1,6 +1,7 @@
 using System.Text.Json.Serialization;
 using DotCraft.Agents;
 using DotCraft.Configuration;
+using Microsoft.Extensions.AI;
 
 namespace DotCraft.Protocol.AppServer;
 
@@ -22,7 +23,17 @@ public sealed class AgentProfileSummaryWire
     public string? Description { get; set; }
 }
 
-/// <summary>Complete provider preference fixed by an Agent Profile.</summary>
+/// <summary>Reasoning preset fixed by an Agent Profile.</summary>
+public sealed class AgentProfileReasoningPreferenceWire
+{
+    /// <summary>Whether reasoning is enabled.</summary>
+    public bool Enabled { get; set; }
+
+    /// <summary>Requested reasoning effort.</summary>
+    public ReasoningEffort Effort { get; set; } = ReasoningEffort.Medium;
+}
+
+/// <summary>Provider-scoped model preset fixed by an Agent Profile.</summary>
 public sealed class AgentProfileProviderPreferenceWire
 {
     /// <summary>Provider selected by the profile.</summary>
@@ -31,8 +42,8 @@ public sealed class AgentProfileProviderPreferenceWire
     /// <summary>Model selected by the profile.</summary>
     public string Model { get; set; } = string.Empty;
 
-    /// <summary>Complete reasoning selection.</summary>
-    public AppConfig.ReasoningConfig Reasoning { get; set; } = new();
+    /// <summary>Reasoning selection authored by the profile.</summary>
+    public AgentProfileReasoningPreferenceWire Reasoning { get; set; } = new();
 
     /// <summary>Requested inference speed.</summary>
     public InferenceSpeed Speed { get; set; } = InferenceSpeed.Standard;

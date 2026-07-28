@@ -6,6 +6,7 @@ using DotCraft.Agents;
 using DotCraft.Automations.Abstractions;
 using DotCraft.Automations.Local;
 using DotCraft.Automations.Protocol;
+using DotCraft.Configuration;
 using DotCraft.Cron;
 using DotCraft.Protocol;
 using Microsoft.Extensions.Logging;
@@ -24,6 +25,7 @@ public sealed class AutomationOrchestrator
     private readonly IToolProfileRegistry _toolProfileRegistry;
     private readonly LocalAutomationSource _source;
     private readonly IChannelRuntimeRegistry? _channelRuntimeRegistry;
+    private readonly IAppConfigMonitor? _appConfigMonitor;
     private readonly ILogger<AutomationOrchestrator> _logger;
     private readonly OrchestratorState _state = new();
     private readonly ConcurrentDictionary<string, AutomationTask> _allTasks = new(StringComparer.Ordinal);
@@ -43,13 +45,15 @@ public sealed class AutomationOrchestrator
         IToolProfileRegistry toolProfileRegistry,
         LocalAutomationSource source,
         ILogger<AutomationOrchestrator> logger,
-        IChannelRuntimeRegistry? channelRuntimeRegistry = null)
+        IChannelRuntimeRegistry? channelRuntimeRegistry = null,
+        IAppConfigMonitor? appConfigMonitor = null)
     {
         _config = config;
         _workflowLoader = workflowLoader;
         _toolProfileRegistry = toolProfileRegistry;
         _source = source;
         _channelRuntimeRegistry = channelRuntimeRegistry;
+        _appConfigMonitor = appConfigMonitor;
         _logger = logger;
         _concurrency = new SemaphoreSlim(config.MaxConcurrentTasks, config.MaxConcurrentTasks);
     }
@@ -641,7 +645,14 @@ public sealed class AutomationOrchestrator
                     // the next run. The profile governs capabilities (tools/MCP/skills/model/instructions);
                     // ApplyAutomationOperationalOverrides forces the automation-owned fields on top.
                     var workspaceCraftPath = Path.Combine(client.ProjectWorkspacePath, ".craft");
-                    threadConfig = new AgentProfileStore(workspaceCraftPath).ResolveProfileConfiguration(boundProfileId);
+                    var profileStore = new AgentProfileStore(workspaceCraftPath);
+                    var profile = profileStore.Read(boundProfileId);
+                    threadConfig = profile.ProviderPreference == null
+                        ? profileStore.ResolveProfileConfiguration(boundProfileId)
+                        : profileStore.ResolveProfileConfiguration(
+                            boundProfileId,
+                            _appConfigMonitor?.Current
+                            ?? throw new InvalidOperationException("Provider configuration is unavailable for the fixed Agent Profile model preset."));
                     threadConfig.AgentProfileId = boundProfileId;
                 }
                 catch (Exception ex)
