@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using DotCraft.Sdk.AppBinding;
 using DotCraft.Sdk.Hub;
 using DotCraft.Sdk.Wire;
@@ -25,6 +26,7 @@ public sealed class DotCraftClient : IAsyncDisposable
         _userInputHandler = options.UserInputHandler;
         Threads = new DotCraftThreadClient(this);
         Turns = new DotCraftTurnClient(this);
+        Providers = new DotCraftProviderClient(this);
         Models = new DotCraftModelClient(this);
         McpRuntime = new DotCraftMcpRuntimeClient(this);
         AppBindings = new DotCraftAppBindingClient(this);
@@ -57,6 +59,11 @@ public sealed class DotCraftClient : IAsyncDisposable
     /// Turn operations.
     /// </summary>
     public DotCraftTurnClient Turns { get; }
+
+    /// <summary>
+    /// Configured Provider discovery operations.
+    /// </summary>
+    public DotCraftProviderClient Providers { get; }
 
     /// <summary>
     /// Model catalog operations.
@@ -441,7 +448,53 @@ public sealed class DotCraftThreadClient(DotCraftClient client)
             ? turnPageElement.Clone()
             : null;
         var id = JsonElementReaders.ReadString(thread, "id") ?? JsonElementReaders.ReadString(thread, "threadId") ?? threadId;
-        return new DotCraftThreadReadResult(id, thread.Clone(), turnPage);
+        return new DotCraftThreadReadResult(
+            id,
+            thread.Clone(),
+            turnPage,
+            ParseModelConfiguration(thread));
+    }
+
+    /// <summary>
+    /// Reads the complete model configuration captured on a Thread.
+    /// </summary>
+    public async Task<DotCraftModelConfiguration> ReadModelConfigurationAsync(
+        string threadId,
+        CancellationToken cancellationToken = default)
+    {
+        var result = await ReadAsync(threadId, cancellationToken: cancellationToken);
+        return result.ModelConfiguration
+               ?? throw new InvalidOperationException(
+                   $"DotCraft Thread '{threadId}' does not contain a complete model configuration.");
+    }
+
+    /// <summary>
+    /// Replaces only Provider/model fields while preserving the latest complete
+    /// Thread configuration, then reads back the authoritative Runtime value.
+    /// </summary>
+    public async Task<DotCraftModelConfiguration> UpdateModelConfigurationAsync(
+        string threadId,
+        DotCraftModelConfiguration configuration,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(threadId);
+        ArgumentNullException.ThrowIfNull(configuration);
+        ValidateModelConfiguration(configuration);
+
+        var current = await ReadAsync(threadId, cancellationToken: cancellationToken);
+        var config = ReadConfigurationObject(current.Thread);
+        config["providerId"] = configuration.ProviderId;
+        config["model"] = configuration.Model;
+        config["reasoning"] = JsonSerializer.SerializeToNode(configuration.Reasoning, DotCraftJson.Options);
+        config["speed"] = configuration.Speed;
+        config["contextWindow"] = JsonSerializer.SerializeToNode(configuration.ContextWindow, DotCraftJson.Options);
+
+        await client.RequestAsync(
+            "thread/config/update",
+            new { threadId, config },
+            cancellationToken);
+
+        return await ReadModelConfigurationAsync(threadId, cancellationToken);
     }
 
     private static object ToIdentityPayload(SessionIdentity identity) => new
@@ -451,6 +504,70 @@ public sealed class DotCraftThreadClient(DotCraftClient client)
         workspacePath = identity.WorkspacePath,
         channelContext = identity.ChannelContext
     };
+
+    internal static DotCraftModelConfiguration? ParseModelConfiguration(JsonElement thread)
+    {
+        if (thread.ValueKind != JsonValueKind.Object
+            || !thread.TryGetProperty("configuration", out var config)
+            || config.ValueKind != JsonValueKind.Object)
+        {
+            return null;
+        }
+
+        var providerId = JsonElementReaders.ReadString(config, "providerId");
+        var model = JsonElementReaders.ReadString(config, "model");
+        if (string.IsNullOrWhiteSpace(providerId)
+            || string.IsNullOrWhiteSpace(model)
+            || !config.TryGetProperty("reasoning", out var reasoning)
+            || reasoning.ValueKind != JsonValueKind.Object
+            || !config.TryGetProperty("contextWindow", out var contextWindow)
+            || contextWindow.ValueKind != JsonValueKind.Object)
+        {
+            return null;
+        }
+
+        var effort = JsonElementReaders.ReadString(reasoning, "effort");
+        var output = JsonElementReaders.ReadString(reasoning, "output");
+        var mode = JsonElementReaders.ReadString(contextWindow, "mode");
+        if (string.IsNullOrWhiteSpace(effort)
+            || string.IsNullOrWhiteSpace(output)
+            || string.IsNullOrWhiteSpace(mode))
+        {
+            return null;
+        }
+
+        var enabled = reasoning.TryGetProperty("enabled", out var enabledElement)
+                      && enabledElement.ValueKind == JsonValueKind.True;
+        return new DotCraftModelConfiguration(
+            providerId,
+            model,
+            new DotCraftReasoningConfiguration(enabled, effort, output),
+            JsonElementReaders.ReadString(config, "speed") ?? "standard",
+            new DotCraftContextWindowConfiguration(mode));
+    }
+
+    private static JsonObject ReadConfigurationObject(JsonElement thread)
+    {
+        if (thread.ValueKind == JsonValueKind.Object
+            && thread.TryGetProperty("configuration", out var configuration)
+            && configuration.ValueKind == JsonValueKind.Object
+            && JsonNode.Parse(configuration.GetRawText()) is JsonObject parsed)
+        {
+            return parsed;
+        }
+
+        return [];
+    }
+
+    private static void ValidateModelConfiguration(DotCraftModelConfiguration configuration)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(configuration.ProviderId);
+        ArgumentException.ThrowIfNullOrWhiteSpace(configuration.Model);
+        ArgumentException.ThrowIfNullOrWhiteSpace(configuration.Reasoning.Effort);
+        ArgumentException.ThrowIfNullOrWhiteSpace(configuration.Reasoning.Output);
+        ArgumentException.ThrowIfNullOrWhiteSpace(configuration.Speed);
+        ArgumentException.ThrowIfNullOrWhiteSpace(configuration.ContextWindow.Mode);
+    }
 }
 
 /// <summary>
@@ -528,36 +645,145 @@ public sealed class DotCraftTurnClient(DotCraftClient client)
 /// <summary>
 /// Model catalog operation surface.
 /// </summary>
+public sealed class DotCraftProviderClient(DotCraftClient client)
+{
+    /// <summary>
+    /// Lists configured Providers. Consumers must project only fields suitable
+    /// for their trust boundary.
+    /// </summary>
+    public async Task<DotCraftProviderListResult> ListAsync(CancellationToken cancellationToken = default)
+    {
+        var result = await client.RequestAsync("provider/list", new { }, cancellationToken);
+        var providers = result.TryGetProperty("providers", out var values) && values.ValueKind == JsonValueKind.Array
+            ? values.EnumerateArray()
+                .Where(provider => provider.ValueKind == JsonValueKind.Object)
+                .Select(provider => new DotCraftProviderInfo(
+                    JsonElementReaders.ReadString(provider, "id") ?? string.Empty,
+                    JsonElementReaders.ReadString(provider, "displayName")
+                    ?? JsonElementReaders.ReadString(provider, "id")
+                    ?? string.Empty,
+                    JsonElementReaders.ReadString(provider, "protocol") ?? string.Empty,
+                    provider.TryGetProperty("isImplicit", out var implicitValue)
+                    && implicitValue.ValueKind == JsonValueKind.True))
+                .Where(provider => provider.Id.Length > 0)
+                .ToArray()
+            : [];
+        return new DotCraftProviderListResult(providers, result.Clone());
+    }
+}
+
+/// <summary>
+/// Model catalog operation surface.
+/// </summary>
 public sealed class DotCraftModelClient(DotCraftClient client)
 {
     /// <summary>
-    /// Lists available models from the connected AppServer.
+    /// Lists the backward-compatible lightweight model projection for the
+    /// Runtime-selected Provider.
     /// </summary>
-    public async Task<IReadOnlyList<ModelInfo>> ListAsync(CancellationToken cancellationToken = default)
+    public async Task<IReadOnlyList<ModelInfo>> ListAsync(
+        CancellationToken cancellationToken = default)
     {
-        var result = await client.RequestAsync("model/list", new { }, cancellationToken);
-        var modelsElement = result.TryGetProperty("models", out var models)
-            ? models
-            : result.TryGetProperty("items", out var items)
-                ? items
-                : result;
-        if (modelsElement.ValueKind != JsonValueKind.Array)
-        {
-            return [];
-        }
-
-        return modelsElement.EnumerateArray()
-            .Select(model => new ModelInfo(
-                JsonElementReaders.ReadString(model, "id")
-                ?? JsonElementReaders.ReadString(model, "modelId")
-                ?? JsonElementReaders.ReadString(model, "name")
-                ?? "unknown",
-                JsonElementReaders.ReadString(model, "displayName")
-                ?? JsonElementReaders.ReadString(model, "name")
-                ?? JsonElementReaders.ReadString(model, "id")
-                ?? "Unknown model",
-                JsonElementReaders.ReadString(model, "provider")))
-            .Where(model => !string.Equals(model.Id, "unknown", StringComparison.Ordinal))
+        var catalog = await GetCatalogAsync(cancellationToken: cancellationToken);
+        return catalog.Models
+            .Select(model => new ModelInfo(model.Id, model.Id, catalog.ProviderId))
             .ToArray();
     }
+
+    /// <summary>
+    /// Gets available models and option capabilities for one Provider, or the
+    /// Runtime-selected Provider when omitted.
+    /// </summary>
+    public async Task<DotCraftModelCatalogResult> GetCatalogAsync(
+        string? providerId = null,
+        CancellationToken cancellationToken = default)
+    {
+        var result = await client.RequestAsync(
+            "model/list",
+            string.IsNullOrWhiteSpace(providerId) ? new { } : new { providerId },
+            cancellationToken);
+        var modelsElement = result.TryGetProperty("models", out var models) ? models : default;
+        var parsed = new List<DotCraftModelCatalogItem>();
+        if (modelsElement.ValueKind == JsonValueKind.Array)
+        {
+            foreach (var model in modelsElement.EnumerateArray())
+            {
+                var id = JsonElementReaders.ReadString(model, "id");
+                if (string.IsNullOrWhiteSpace(id))
+                    continue;
+                parsed.Add(new DotCraftModelCatalogItem(
+                    id,
+                    JsonElementReaders.ReadString(model, "ownedBy") ?? string.Empty,
+                    JsonElementReaders.ReadDateTimeOffset(model, "createdAt"),
+                    ParseReasoning(model),
+                    ParseSpeed(model),
+                    ParseContextWindow(model)));
+            }
+        }
+
+        return new DotCraftModelCatalogResult(
+            !result.TryGetProperty("success", out var success) || success.ValueKind == JsonValueKind.True,
+            JsonElementReaders.ReadString(result, "providerId"),
+            JsonElementReaders.ReadString(result, "protocol"),
+            parsed,
+            JsonElementReaders.ReadString(result, "errorCode"),
+            JsonElementReaders.ReadString(result, "errorMessage"),
+            result.Clone());
+    }
+
+    private static DotCraftReasoningCapability? ParseReasoning(JsonElement model)
+    {
+        if (!model.TryGetProperty("reasoning", out var value) || value.ValueKind != JsonValueKind.Object)
+            return null;
+        var efforts = value.TryGetProperty("supportedEfforts", out var effortValues)
+                      && effortValues.ValueKind == JsonValueKind.Array
+            ? effortValues.EnumerateArray()
+                .Select(item => new DotCraftReasoningEffort(
+                    JsonElementReaders.ReadString(item, "effort") ?? string.Empty,
+                    JsonElementReaders.ReadString(item, "label")
+                    ?? JsonElementReaders.ReadString(item, "effort")
+                    ?? string.Empty))
+                .Where(item => item.Effort.Length > 0)
+                .ToArray()
+            : [];
+        return new DotCraftReasoningCapability(
+            value.TryGetProperty("supportsDisable", out var disable) && disable.ValueKind == JsonValueKind.True,
+            efforts,
+            JsonElementReaders.ReadString(value, "defaultEffort") ?? string.Empty,
+            ReadStringArray(value, "supportedOutputs"),
+            JsonElementReaders.ReadString(value, "defaultOutput") ?? string.Empty);
+    }
+
+    private static DotCraftSpeedCapability? ParseSpeed(JsonElement model)
+    {
+        if (!model.TryGetProperty("speed", out var value) || value.ValueKind != JsonValueKind.Object)
+            return null;
+        return new DotCraftSpeedCapability(
+            ReadStringArray(value, "supportedModes"),
+            JsonElementReaders.ReadString(value, "defaultMode") ?? "standard");
+    }
+
+    private static DotCraftContextWindowCapability? ParseContextWindow(JsonElement model)
+    {
+        if (!model.TryGetProperty("contextWindow", out var value) || value.ValueKind != JsonValueKind.Object)
+            return null;
+        return new DotCraftContextWindowCapability(
+            ReadInt64(value, "catalogWindow"),
+            ReadInt64(value, "configuredWindow"),
+            value.TryGetProperty("supportsMax", out var supportsMax) && supportsMax.ValueKind == JsonValueKind.True,
+            ReadInt64(value, "maxWindow"));
+    }
+
+    private static IReadOnlyList<string> ReadStringArray(JsonElement value, string propertyName) =>
+        value.TryGetProperty(propertyName, out var array) && array.ValueKind == JsonValueKind.Array
+            ? array.EnumerateArray()
+                .Where(item => item.ValueKind == JsonValueKind.String)
+                .Select(item => item.GetString()!)
+                .ToArray()
+            : [];
+
+    private static long ReadInt64(JsonElement value, string propertyName) =>
+        value.TryGetProperty(propertyName, out var number) && number.TryGetInt64(out var parsed)
+            ? parsed
+            : 0;
 }

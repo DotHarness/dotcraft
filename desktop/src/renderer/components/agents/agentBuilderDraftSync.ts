@@ -10,7 +10,7 @@
  * marker (the "agent is editing this" affordance). Pure and synchronous: no I/O, no React.
  */
 
-import type { AgentControl, ApprovalPolicy, ProfileDraft } from './agentProfileDraft'
+import type { AgentControl, AgentProviderPreference, ApprovalPolicy, ProfileDraft } from './agentProfileDraft'
 
 /** Field paths the builder tools report (and the editor marks). Mirrors the backend `field` values. */
 export type BuilderField =
@@ -21,7 +21,7 @@ export type BuilderField =
   | 'tools.agentControl'
   | 'skills.preload'
   | 'mcp.servers'
-  | 'model'
+  | 'providerPreference'
   | 'approval'
 
 /** The `change` payload a builder tool returns. Scalar edits use `value`; list edits carry the full `list`. */
@@ -31,6 +31,7 @@ export interface BuilderToolChange {
   values?: string[] | null
   rejected?: string[] | null
   list?: string[] | null
+  providerPreference?: AgentProviderPreference | null
 }
 
 /** A builder tool's parsed result. `ok:false` carries an `error` (e.g. a validation rejection). */
@@ -57,7 +58,8 @@ const BUILDER_TOOL_FIELDS: ReadonlyMap<string, BuilderField> = new Map([
   ['RemoveAgentSkills', 'skills.preload'],
   ['AddAgentMcpServers', 'mcp.servers'],
   ['RemoveAgentMcpServers', 'mcp.servers'],
-  ['SetAgentModel', 'model'],
+  ['SetAgentProviderPreference', 'providerPreference'],
+  ['ClearAgentProviderPreference', 'providerPreference'],
   ['SetAgentApproval', 'approval']
 ])
 
@@ -128,8 +130,10 @@ export function applyBuilderChange(
     case 'instructions':
       next.roleInstructions = ch?.value ?? draft.roleInstructions
       break
-    case 'model':
-      next.model = ch?.value ?? draft.model
+    case 'providerPreference':
+      next.providerPreference = ch?.op === 'remove'
+        ? null
+        : ch?.providerPreference ?? draft.providerPreference
       break
     case 'tools.agentControl':
       next.tools = { ...draft.tools, agentControl: (ch?.value as AgentControl) ?? draft.tools.agentControl }

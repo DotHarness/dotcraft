@@ -1,5 +1,6 @@
 using DotCraft.Context;
 using DotCraft.Agents;
+using DotCraft.Configuration;
 using DotCraft.Protocol;
 using DotCraft.Protocol.AppServer;
 using DotCraft.Tools;
@@ -50,6 +51,7 @@ public sealed class AgentProfileManagementTests : IDisposable
             Assert.True(result.GetProperty("valid").GetBoolean());
             Assert.Equal("reviewer-lite", result.GetProperty("summary").GetProperty("id").GetString());
             Assert.Equal("reviewer-lite", result.GetProperty("compiledConfig").GetProperty("agentProfileId").GetString());
+            Assert.False(result.TryGetProperty("providerPreference", out _));
         }
 
         await harness.ExecuteRequestAsync(harness.BuildRequest(AppServerMethods.AgentProfileUpsert, new
@@ -122,6 +124,34 @@ public sealed class AgentProfileManagementTests : IDisposable
     }
 
     [Fact]
+    public async Task Validate_PinnedUnavailableProvider_RemainsValidWithRuntimeWarning()
+    {
+        using var harness = new AppServerTestHarness(workspaceCraftPath: _workspaceCraftPath);
+        await harness.InitializeAsync();
+
+        var raw = PinnedProfileMarkdown("portable-reviewer", "gpt-portable", "standard")
+            .Replace("providerId: openai", "providerId: unavailable-provider", StringComparison.Ordinal);
+        await harness.ExecuteRequestAsync(harness.BuildRequest(AppServerMethods.AgentProfileValidate, new
+        {
+            rawContent = raw,
+            source = "workspace"
+        }));
+
+        using var response = await harness.Transport.ReadNextSentAsync();
+        AppServerTestHarness.AssertIsSuccessResponse(response);
+        var result = response.RootElement.GetProperty("result");
+        Assert.True(result.GetProperty("valid").GetBoolean());
+        var providerPreference = result.GetProperty("providerPreference");
+        Assert.Equal("unavailable-provider", providerPreference.GetProperty("providerId").GetString());
+        Assert.Equal("gpt-portable", providerPreference.GetProperty("model").GetString());
+        Assert.Equal("standard", providerPreference.GetProperty("speed").GetString());
+        Assert.False(providerPreference.GetProperty("reasoning").TryGetProperty("output", out _));
+        Assert.Contains(
+            result.GetProperty("diagnostics").EnumerateArray(),
+            diagnostic => diagnostic.GetProperty("code").GetString() == "PinnedProviderUnavailable");
+    }
+
+    [Fact]
     public async Task CrudMethods_SurfaceAvatarMetadata()
     {
         using var harness = new AppServerTestHarness(workspaceCraftPath: _workspaceCraftPath);
@@ -132,7 +162,6 @@ public sealed class AgentProfileManagementTests : IDisposable
 name: avatar-bot
 description: Uses a persisted avatar
 avatar: 278
-model: inherit
 ---
 
 Avatar body.
@@ -244,6 +273,139 @@ Avatar body.
         Assert.Equal("reviewer-lite", persistedConfig.GetProperty("agentProfileId").GetString());
         Assert.Equal(fingerprint, persistedConfig.GetProperty("agentProfileFingerprint").GetString());
         Assert.Equal("Profile body for reviewer-lite.", persistedConfig.GetProperty("roleInstructions").GetString());
+    }
+
+    [Fact]
+    public async Task ThreadStart_WithPinnedProviderPreference_PersistsCompleteSnapshot()
+    {
+        using var harness = new AppServerTestHarness(workspaceCraftPath: _workspaceCraftPath);
+        await harness.InitializeAsync();
+
+        await harness.ExecuteRequestAsync(harness.BuildRequest(AppServerMethods.AgentProfileUpsert, new
+        {
+            id = "pinned-reviewer",
+            source = "workspace",
+            rawContent = PinnedProfileMarkdown("pinned-reviewer", "gpt-pinned", "fast")
+        }));
+        await harness.Transport.ReadNextSentAsync();
+
+        await harness.ExecuteRequestAsync(harness.BuildRequest(AppServerMethods.ThreadStart, new
+        {
+            identity = new { channelName = "appserver", userId = "test_user", workspacePath = harness.Identity.WorkspacePath },
+            config = new { agentProfileId = "pinned-reviewer" }
+        }));
+
+        using var response = await harness.Transport.ReadNextSentAsync();
+        AppServerTestHarness.AssertIsSuccessResponse(response);
+        var config = response.RootElement.GetProperty("result").GetProperty("thread").GetProperty("configuration");
+        Assert.True(config.TryGetProperty("providerId", out var providerId), config.GetRawText());
+        Assert.Equal("openai", providerId.GetString());
+        Assert.Equal("gpt-pinned", config.GetProperty("model").GetString());
+        Assert.False(config.GetProperty("reasoning").GetProperty("enabled").GetBoolean());
+        Assert.Equal("fast", config.GetProperty("speed").GetString());
+        Assert.Equal("default", config.GetProperty("contextWindow").GetProperty("mode").GetString());
+    }
+
+    [Fact]
+    public async Task RefreshThread_ToInheritedProfile_PreservesCompleteModelSnapshot()
+    {
+        using var harness = new AppServerTestHarness(workspaceCraftPath: _workspaceCraftPath);
+        await harness.InitializeAsync();
+
+        await harness.ExecuteRequestAsync(harness.BuildRequest(AppServerMethods.AgentProfileUpsert, new
+        {
+            id = "stable-reviewer",
+            source = "workspace",
+            rawContent = PinnedProfileMarkdown("stable-reviewer", "gpt-pinned", "fast")
+        }));
+        await harness.Transport.ReadNextSentAsync();
+
+        await harness.ExecuteRequestAsync(harness.BuildRequest(AppServerMethods.ThreadStart, new
+        {
+            identity = new { channelName = "appserver", userId = "test_user", workspacePath = harness.Identity.WorkspacePath },
+            config = new { agentProfileId = "stable-reviewer" }
+        }));
+
+        string threadId;
+        using (var startResponse = await harness.Transport.ReadNextSentAsync())
+        {
+            AppServerTestHarness.AssertIsSuccessResponse(startResponse);
+            threadId = startResponse.RootElement.GetProperty("result").GetProperty("thread").GetProperty("id").GetString()!;
+        }
+        await harness.Transport.ReadNextSentAsync();
+
+        await harness.ExecuteRequestAsync(harness.BuildRequest(AppServerMethods.AgentProfileUpsert, new
+        {
+            id = "stable-reviewer",
+            source = "workspace",
+            rawContent = InheritedProfileMarkdown("stable-reviewer")
+        }));
+        await harness.Transport.ReadNextSentAsync();
+
+        await harness.ExecuteRequestAsync(harness.BuildRequest(AppServerMethods.AgentProfileRefreshThread, new
+        {
+            threadId
+        }));
+
+        using var refreshResponse = await harness.Transport.ReadNextSentAsync();
+        AppServerTestHarness.AssertIsSuccessResponse(refreshResponse);
+        var config = refreshResponse.RootElement.GetProperty("result").GetProperty("config");
+        Assert.True(config.TryGetProperty("providerId", out var providerId), config.GetRawText());
+        Assert.Equal("openai", providerId.GetString());
+        Assert.Equal("gpt-pinned", config.GetProperty("model").GetString());
+        Assert.Equal("fast", config.GetProperty("speed").GetString());
+        Assert.Equal("default", config.GetProperty("contextWindow").GetProperty("mode").GetString());
+    }
+
+    [Fact]
+    public async Task RefreshThread_ToPinnedProfile_ReplacesCompleteModelSnapshot()
+    {
+        using var harness = new AppServerTestHarness(workspaceCraftPath: _workspaceCraftPath);
+        await harness.InitializeAsync();
+
+        await harness.ExecuteRequestAsync(harness.BuildRequest(AppServerMethods.AgentProfileUpsert, new
+        {
+            id = "replace-reviewer",
+            source = "workspace",
+            rawContent = InheritedProfileMarkdown("replace-reviewer")
+        }));
+        await harness.Transport.ReadNextSentAsync();
+
+        await harness.ExecuteRequestAsync(harness.BuildRequest(AppServerMethods.ThreadStart, new
+        {
+            identity = new { channelName = "appserver", userId = "test_user", workspacePath = harness.Identity.WorkspacePath },
+            config = new { agentProfileId = "replace-reviewer" }
+        }));
+
+        string threadId;
+        using (var startResponse = await harness.Transport.ReadNextSentAsync())
+        {
+            AppServerTestHarness.AssertIsSuccessResponse(startResponse);
+            threadId = startResponse.RootElement.GetProperty("result").GetProperty("thread").GetProperty("id").GetString()!;
+        }
+        await harness.Transport.ReadNextSentAsync();
+
+        await harness.ExecuteRequestAsync(harness.BuildRequest(AppServerMethods.AgentProfileUpsert, new
+        {
+            id = "replace-reviewer",
+            source = "workspace",
+            rawContent = PinnedProfileMarkdown("replace-reviewer", "gpt-replacement", "fast")
+        }));
+        await harness.Transport.ReadNextSentAsync();
+
+        await harness.ExecuteRequestAsync(harness.BuildRequest(AppServerMethods.AgentProfileRefreshThread, new
+        {
+            threadId
+        }));
+
+        using var refreshResponse = await harness.Transport.ReadNextSentAsync();
+        AppServerTestHarness.AssertIsSuccessResponse(refreshResponse);
+        var config = refreshResponse.RootElement.GetProperty("result").GetProperty("config");
+        Assert.True(config.TryGetProperty("providerId", out var providerId), config.GetRawText());
+        Assert.Equal("openai", providerId.GetString());
+        Assert.Equal("gpt-replacement", config.GetProperty("model").GetString());
+        Assert.Equal("fast", config.GetProperty("speed").GetString());
+        Assert.Equal("default", config.GetProperty("contextWindow").GetProperty("mode").GetString());
     }
 
     [Fact]
@@ -459,7 +621,6 @@ Avatar body.
 ---
 name: {id}
 description: {description}
-model: inherit
 mode: plan
 tools:
   deny: [WriteFile]
@@ -473,5 +634,34 @@ teams:
 ---
 
 {body ?? $"Profile body for {id}."}
+""";
+
+    private static string PinnedProfileMarkdown(string id, string model, string speed) =>
+        $"""
+---
+name: {id}
+description: Pinned profile for {id}
+providerPreference:
+  providerId: openai
+  model: {model}
+  reasoning:
+    enabled: false
+    effort: medium
+  speed: {speed}
+  contextWindow:
+    mode: default
+---
+
+Pinned body for {id}.
+""";
+
+    private static string InheritedProfileMarkdown(string id) =>
+        $"""
+---
+name: {id}
+description: Inherited profile for {id}
+---
+
+Inherited body for {id}.
 """;
 }

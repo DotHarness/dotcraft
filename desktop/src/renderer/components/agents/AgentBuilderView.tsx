@@ -15,6 +15,7 @@ import { createPortal } from 'react-dom'
 import { ArrowLeft, BookOpen, CircleHelp, Clock, Eye, FileSearch, FileText, Globe, ListChecks, MoreHorizontal, MousePointer2, Pencil, Plus, RefreshCw, Search, Server, Shuffle, Tag, Trash2, Wrench, X, type LucideIcon } from 'lucide-react'
 import { showToast } from '../../stores/toastStore'
 import { useModelCatalogStore } from '../../stores/modelCatalogStore'
+import { useProvidersStore } from '../../stores/providersStore'
 import { useConversationStore } from '../../stores/conversationStore'
 import { useUIStore } from '../../stores/uiStore'
 import { useLocale, useT } from '../../contexts/LocaleContext'
@@ -23,6 +24,10 @@ import { ConversationPanel } from '../layout/ConversationPanel'
 import { DragHandle } from '../layout/DragHandle'
 import { InputComposer, type InputComposerSubmitPayload } from '../conversation/InputComposer'
 import { useComposerModelControls } from '../conversation/useComposerModelControls'
+import {
+  createCatalogDefaultPreference,
+  PreferenceModelPicker
+} from '../conversation/PreferenceModelPicker'
 import { MarkdownRenderer } from '../conversation/MarkdownRenderer'
 import type { ThreadConfigurationWire } from '../../types/thread'
 import { formatRelativeTime } from '../../utils/relativeTime'
@@ -42,16 +47,21 @@ import { RobotAvatar } from './RobotAvatar'
 import { AGENT_BUILDER_AVATAR, randomAvatar, resolveProfileAvatar, type AvatarSpec } from './agentAvatar'
 import { useAgentProfileAvatarStore } from '../../stores/agentProfileAvatarStore'
 import {
+  findProviderPreference,
+  mergeProviderPreferences,
+  type ModelPreference,
+  type ProviderPreferences
+} from '../../../shared/modelPreference'
+import {
   AGENT_CONTROL_OPTIONS,
   APPROVAL_OPTIONS,
-  REASONING_OPTIONS,
   createEmptyDraft,
   parseProfile,
   toMarkdown,
   type AgentControl,
+  type AgentProviderPreference,
   type ApprovalPolicy,
   type ProfileDraft,
-  type ReasoningEffort,
   type SaveTarget
 } from './agentProfileDraft'
 import { applyBuilderChange, isBuilderField, type BuilderField, type BuilderToolResult } from './agentBuilderDraftSync'
@@ -89,6 +99,22 @@ interface SkillInfo {
   description?: string
   source?: string
   enabled?: boolean
+}
+
+function toAgentProviderPreference(
+  providerId: string,
+  preference: ModelPreference
+): AgentProviderPreference {
+  return {
+    providerId,
+    model: preference.model,
+    reasoning: {
+      enabled: preference.reasoning.enabled,
+      effort: preference.reasoning.effort
+    },
+    speed: preference.speed,
+    contextWindow: { mode: preference.contextWindow.mode }
+  }
 }
 
 type Filter = 'all' | 'builtIn' | 'user' | 'workspace'
@@ -133,7 +159,7 @@ const BUILDER_FIELD_LABEL_KEYS: Record<BuilderField, string> = {
   'tools.allow': 'agentBuilder.field.tools',
   'mcp.servers': 'agentBuilder.field.mcp',
   'skills.preload': 'agentBuilder.field.skills',
-  model: 'agentBuilder.field.model',
+  providerPreference: 'agentBuilder.field.model',
   approval: 'agentBuilder.field.approval',
   'tools.agentControl': 'agentBuilder.field.toolControl'
 }
@@ -1094,6 +1120,7 @@ interface BuilderViewProps {
 
 function BuilderView({ route, setRoute, setDraft, toolCatalog, skillCatalog, mcpServers, viewMode, setViewMode, autoSaveState, editingField, agentDriving, onBack, onDelete, onCreate }: BuilderViewProps): JSX.Element {
   const locale = useLocale()
+  const t = useT()
   const { draft, avatar } = route
   const nameMissing = !draft.name.trim()
   const preview = viewMode === 'preview'
@@ -1115,18 +1142,104 @@ function BuilderView({ route, setRoute, setDraft, toolCatalog, skillCatalog, mcp
     return () => document.removeEventListener('mousedown', onDown, true)
   }, [menuOpen])
 
-  const modelOptions = useModelCatalogStore((s) => s.modelOptions)
-  useEffect(() => {
-    void useModelCatalogStore.getState().loadIfNeeded()
-  }, [])
-  const modelSelectOptions = useMemo(() => {
-    const opts = [{ value: 'inherit', label: 'Inherit (thread default)' }, ...modelOptions.map((id) => ({ value: id, label: id }))]
-    if (draft.model && draft.model !== 'inherit' && !modelOptions.includes(draft.model)) {
-      opts.push({ value: draft.model, label: draft.model })
-    }
-    return opts
-  }, [modelOptions, draft.model])
+  const providers = useProvidersStore((s) => s.providers)
+  const models = useModelCatalogStore((s) => s.models)
+  const modelCatalogStatus = useModelCatalogStore((s) => s.status)
+  const modelCatalogError = useModelCatalogStore((s) => s.errorMessage)
+  const effectiveCatalogProviderId = useModelCatalogStore((s) => s.providerId)
+  const [workspaceDefaultPreference, setWorkspaceDefaultPreference] = useState<AgentProviderPreference | null>(null)
+  const [workspaceProviderPreferences, setWorkspaceProviderPreferences] = useState<ProviderPreferences>({})
 
+  useEffect(() => {
+    void useProvidersStore.getState().reload()
+    const getCore = window.api.workspaceConfig?.getCore
+    if (typeof getCore !== 'function') return
+    void getCore().then((core) => {
+      const providerId = (core.workspace.providerId ?? core.userDefaults.providerId ?? '').trim()
+      const preferences = mergeProviderPreferences(
+        core.userDefaults.providerPreferences,
+        core.workspace.providerPreferences
+      )
+      const preference = findProviderPreference(preferences, providerId)
+      setWorkspaceProviderPreferences(preferences)
+      setWorkspaceDefaultPreference(preference ? toAgentProviderPreference(providerId, preference) : null)
+    }).catch(() => undefined)
+  }, [])
+
+  const selectedProviderId = draft.providerPreference?.providerId ?? null
+  useEffect(() => {
+    void useModelCatalogStore.getState().loadIfNeeded(false, selectedProviderId)
+  }, [selectedProviderId])
+
+  const selectedModel = useMemo(
+    () => models.find((item) => item.id === draft.providerPreference?.model) ?? null,
+    [draft.providerPreference?.model, models]
+  )
+  const pickerPreference = useMemo<ModelPreference | null>(() => {
+    const preference = draft.providerPreference
+    if (!preference) return null
+    return {
+      model: preference.model,
+      reasoning: {
+        enabled: preference.reasoning.enabled,
+        effort: preference.reasoning.effort,
+        output: selectedModel?.reasoning?.defaultOutput ?? 'full'
+      },
+      speed: preference.speed,
+      contextWindow: { mode: preference.contextWindow.mode }
+    }
+  }, [draft.providerPreference, selectedModel])
+  const providerSelectOptions = useMemo(() => {
+    const options = providers.map((provider) => ({ value: provider.id, label: provider.displayName }))
+    const current = draft.providerPreference?.providerId
+    if (current && !providers.some((provider) => provider.id.toLowerCase() === current.toLowerCase())) {
+      options.push({ value: current, label: current })
+    }
+    return options
+  }, [draft.providerPreference?.providerId, providers])
+  const seedProviderPreference = useCallback((): AgentProviderPreference | null => {
+    if (workspaceDefaultPreference) return structuredClone(workspaceDefaultPreference)
+    const providerId = effectiveCatalogProviderId ?? providers[0]?.id
+    const model = models[0]
+    if (!providerId || !model) return null
+    return toAgentProviderPreference(
+      providerId,
+      createCatalogDefaultPreference(model, model.id)
+    )
+  }, [effectiveCatalogProviderId, models, providers, workspaceDefaultPreference])
+
+  const updateProviderPreference = useCallback((
+    update: (preference: AgentProviderPreference) => AgentProviderPreference
+  ): void => {
+    setDraft((current) => current.providerPreference
+      ? { ...current, providerPreference: update(current.providerPreference) }
+      : current)
+  }, [setDraft])
+
+  const selectProvider = useCallback((providerId: string): void => {
+    updateProviderPreference((preference) => ({ ...preference, providerId }))
+    void useModelCatalogStore.getState().loadIfNeeded(true, providerId).then(() => {
+      const catalog = useModelCatalogStore.getState()
+      const configured = findProviderPreference(workspaceProviderPreferences, providerId)
+      const seeded = configured
+        ?? createCatalogDefaultPreference(catalog.models[0], catalog.models[0]?.id ?? '')
+      if (!seeded.model) return
+      setDraft((current) => {
+        if (current.providerPreference?.providerId !== providerId) return current
+        return {
+          ...current,
+          providerPreference: toAgentProviderPreference(providerId, seeded)
+        }
+      })
+    })
+  }, [setDraft, updateProviderPreference, workspaceProviderPreferences])
+
+  const inheritSummary = workspaceDefaultPreference
+    ? `${workspaceDefaultPreference.providerId} · ${workspaceDefaultPreference.model}`
+    : t('agentBuilder.model.inheritDescription')
+  const pinnedProviderUnavailable = draft.providerPreference != null
+    && providers.length > 0
+    && !providers.some((provider) => provider.id.toLowerCase() === draft.providerPreference!.providerId.toLowerCase())
   return (
     <div className="agent-builder">
       <header className="agent-builder-edit-head">
@@ -1269,34 +1382,76 @@ function BuilderView({ route, setRoute, setDraft, toolCatalog, skillCatalog, mcp
         <Section label="Details">
           <SettingsGroup>
             <SettingsRow
-              label="Model"
-              controlMinWidth={200}
+              label={t('agentBuilder.model.customSettings')}
+              description={draft.providerPreference ? t('agentBuilder.model.customDescription') : inheritSummary}
               control={(
-                <FieldAnchor field="model" active={editingField === 'model'} className="agent-builder-detail-control">
-                  <SettingsSelect<string>
-                    value={draft.model}
-                    onValueChange={(v) => setDraft((d) => ({ ...d, model: v }))}
-                    disabled={preview}
-                    style={{ width: '100%' }}
-                    valueProps={{ 'data-agent-builder-marker-target': '' }}
-                    options={modelSelectOptions}
+                <FieldAnchor field="providerPreference" active={editingField === 'providerPreference'} className="agent-builder-detail-toggle">
+                  <PillSwitch
+                    checked={draft.providerPreference != null}
+                    onChange={(checked) => {
+                      if (!checked) {
+                        setDraft((current) => ({ ...current, providerPreference: null }))
+                        return
+                      }
+                      const preference = seedProviderPreference()
+                      if (preference) setDraft((current) => ({ ...current, providerPreference: preference }))
+                    }}
+                    disabled={preview || (!draft.providerPreference && !seedProviderPreference())}
+                    aria-label={t('agentBuilder.model.customSettings')}
                   />
                 </FieldAnchor>
               )}
             />
-            <SettingsRow
-              label="Reasoning"
-              controlMinWidth={200}
-              control={(
-                <SettingsSelect<ReasoningEffort>
-                  value={draft.reasoningEffort}
-                  onValueChange={(v) => setDraft((d) => ({ ...d, reasoningEffort: v }))}
-                  disabled={preview}
-                  style={{ width: '100%' }}
-                  options={REASONING_OPTIONS}
+            {draft.providerPreference && (
+              <div className="agent-builder-model-settings">
+                {pinnedProviderUnavailable && (
+                  <div className="agent-builder-model-warning" role="status">
+                    {t('agentBuilder.model.providerUnavailable', { provider: draft.providerPreference.providerId })}
+                  </div>
+                )}
+                <SettingsRow
+                  label={t('agentBuilder.model.provider')}
+                  controlMinWidth={200}
+                  control={(
+                    <SettingsSelect<string>
+                      value={draft.providerPreference.providerId}
+                      onValueChange={selectProvider}
+                      disabled={preview}
+                      style={{ width: '100%' }}
+                      options={providerSelectOptions}
+                    />
+                  )}
                 />
-              )}
-            />
+                {pickerPreference && (
+                  <SettingsRow
+                    label={t('agentBuilder.model.model')}
+                    controlMinWidth={200}
+                    control={(
+                      <PreferenceModelPicker
+                        preference={pickerPreference}
+                        models={models}
+                        loading={modelCatalogStatus === 'loading'}
+                        disabled={preview}
+                        errorMessage={modelCatalogError}
+                        manualFallback={modelCatalogStatus !== 'loading' && models.length === 0}
+                        onRetry={() => {
+                          void useModelCatalogStore.getState().loadIfNeeded(
+                            true,
+                            draft.providerPreference?.providerId ?? null
+                          )
+                        }}
+                        onChange={(preference) => {
+                          updateProviderPreference((current) =>
+                            toAgentProviderPreference(current.providerId, preference))
+                        }}
+                        inputId="agent-builder-provider-model"
+                        inputAriaLabel={t('agentBuilder.model.model')}
+                      />
+                    )}
+                  />
+                )}
+              </div>
+            )}
             <SettingsRow
               label="Tool self-control"
               description="Whether the agent can manage its own available tools at runtime."

@@ -3,18 +3,34 @@
  *
  * A `ProfileDraft` is the in-memory shape the editor manipulates. It mirrors the
  * Agent Profile frontmatter from specs/features/agent-profiles.md (name, description,
- * avatar, model, reasoning, mode, tools, mcp, skills, permissions) plus the Markdown body
+ * avatar, providerPreference, tools, mcp, skills, permissions) plus the Markdown body
  * (`roleInstructions`). `toMarkdown` renders the draft as the raw Markdown the
  * `agent/profiles/upsert` write format expects; `parseProfile` reads it back.
  */
 
 import { decodeAvatar, encodeAvatar, type AvatarSpec } from './agentAvatar'
+import type {
+  ModelPreferenceContextMode,
+  ModelPreferenceReasoningEffort,
+  ModelPreferenceSpeed
+} from '../../../shared/modelPreference'
 
 export type SaveTarget = 'user' | 'workspace'
-export type ReasoningEffort = 'minimal' | 'low' | 'medium' | 'high'
 export type AgentControl = 'full' | 'disabled' | 'allowList'
 export type ApprovalPolicy = 'default' | 'autoApprove' | 'interrupt'
-export type ModelId = 'inherit' | 'claude-opus-4-8' | 'claude-sonnet-4-6' | 'claude-haiku-4-5'
+
+export interface AgentProviderPreference {
+  providerId: string
+  model: string
+  reasoning: {
+    enabled: boolean
+    effort: ModelPreferenceReasoningEffort
+  }
+  speed: ModelPreferenceSpeed
+  contextWindow: {
+    mode: ModelPreferenceContextMode
+  }
+}
 
 // Operational mode (Agent/Plan) is intentionally NOT a profile field: it is a per-thread
 // runtime posture, and a profile already expresses its capability scope through tools/mcp/skills
@@ -24,8 +40,7 @@ export interface ProfileDraft {
   name: string
   description: string
   avatar?: AvatarSpec
-  model: string
-  reasoningEffort: ReasoningEffort
+  providerPreference: AgentProviderPreference | null
   tools: {
     allow: string[]
     deny: string[]
@@ -48,20 +63,6 @@ export interface ProfileDraft {
   roleInstructions: string
 }
 
-export const MODELS: { value: string; label: string }[] = [
-  { value: 'inherit', label: 'Inherit (thread default)' },
-  { value: 'claude-opus-4-8', label: 'Opus 4.8' },
-  { value: 'claude-sonnet-4-6', label: 'Sonnet 4.6' },
-  { value: 'claude-haiku-4-5', label: 'Haiku 4.5' }
-]
-
-export const REASONING_OPTIONS: { value: ReasoningEffort; label: string }[] = [
-  { value: 'minimal', label: 'Minimal' },
-  { value: 'low', label: 'Low' },
-  { value: 'medium', label: 'Medium' },
-  { value: 'high', label: 'High' }
-]
-
 export const APPROVAL_OPTIONS: { value: ApprovalPolicy; label: string }[] = [
   { value: 'default', label: 'Default' },
   { value: 'autoApprove', label: 'Auto-approve' },
@@ -78,8 +79,7 @@ export function createEmptyDraft(): ProfileDraft {
   return {
     name: '',
     description: '',
-    model: 'inherit',
-    reasoningEffort: 'medium',
+    providerPreference: null,
     tools: { allow: [], deny: [], agentControl: 'full' },
     mcp: { servers: [], toolsAllow: [], toolsDeny: [] },
     skills: { preload: [], allow: [], deny: [] },
@@ -115,6 +115,14 @@ export function parseProfile(rawContent: string | null | undefined): ProfileDraf
 
   let section: string | null = null
   let sub: string | null = null
+  const providerPreference: {
+    providerId?: string
+    model?: string
+    reasoning?: Partial<AgentProviderPreference['reasoning']>
+    speed?: ModelPreferenceSpeed
+    contextWindow?: Partial<AgentProviderPreference['contextWindow']>
+  } = {}
+  let providerPreferenceHasRemovedOutput = false
   for (const rawLine of front.split('\n')) {
     if (!rawLine.trim()) continue
     const indent = rawLine.length - rawLine.replace(/^\s+/, '').length
@@ -128,14 +136,22 @@ export function parseProfile(rawContent: string | null | undefined): ProfileDraf
       sub = null
       if (key === 'name') draft.name = val
       else if (key === 'description') draft.description = val
-      else if (key === 'model') draft.model = val || 'inherit'
       else if (key === 'avatar') {
         draft.avatar = parsePackedAvatar(val)
-      } else if (key === 'reasoning' || key === 'tools' || key === 'mcp' || key === 'skills' || key === 'permissions') section = key
+      } else if (key === 'providerPreference' || key === 'tools' || key === 'mcp' || key === 'skills' || key === 'permissions') section = key
     } else if (indent === 2) {
       sub = null
-      if (section === 'reasoning' && key === 'effort') draft.reasoningEffort = (val || 'medium') as ReasoningEffort
-      else if (section === 'tools' && key === 'allow') draft.tools.allow = parseList(val)
+      if (section === 'providerPreference' && key === 'providerId') providerPreference.providerId = val
+      else if (section === 'providerPreference' && key === 'model') providerPreference.model = val
+      else if (section === 'providerPreference' && key === 'reasoning') {
+        providerPreference.reasoning = {}
+        sub = 'providerReasoning'
+      } else if (section === 'providerPreference' && key === 'speed') {
+        providerPreference.speed = val as ModelPreferenceSpeed
+      } else if (section === 'providerPreference' && key === 'contextWindow') {
+        providerPreference.contextWindow = {}
+        sub = 'providerContextWindow'
+      } else if (section === 'tools' && key === 'allow') draft.tools.allow = parseList(val)
       else if (section === 'tools' && key === 'deny') draft.tools.deny = parseList(val)
       else if (section === 'tools' && key === 'agentControl') draft.tools.agentControl = (val || 'full') as AgentControl
       else if (section === 'mcp' && key === 'servers') draft.mcp.servers = parseList(val)
@@ -145,10 +161,31 @@ export function parseProfile(rawContent: string | null | undefined): ProfileDraf
       else if (section === 'skills' && key === 'deny') draft.skills.deny = parseList(val)
       else if (section === 'permissions' && key === 'approvalPolicy') draft.permissions.approvalPolicy = (val || 'default') as ApprovalPolicy
       else if (section === 'permissions' && key === 'requireApprovalOutsideWorkspace') draft.permissions.requireApprovalOutsideWorkspace = val === 'true'
-    } else if (indent >= 4 && sub === 'mcpTools') {
-      if (key === 'allow') draft.mcp.toolsAllow = parseList(val)
-      else if (key === 'deny') draft.mcp.toolsDeny = parseList(val)
+    } else if (indent >= 4) {
+      if (sub === 'providerReasoning') {
+        if (key === 'enabled' && (val === 'true' || val === 'false')) {
+          providerPreference.reasoning!.enabled = val === 'true'
+        }
+        else if (key === 'effort') providerPreference.reasoning!.effort = val as ModelPreferenceReasoningEffort
+        else if (key === 'output') providerPreferenceHasRemovedOutput = true
+      } else if (sub === 'providerContextWindow' && key === 'mode') {
+        providerPreference.contextWindow!.mode = val as ModelPreferenceContextMode
+      } else if (sub === 'mcpTools') {
+        if (key === 'allow') draft.mcp.toolsAllow = parseList(val)
+        else if (key === 'deny') draft.mcp.toolsDeny = parseList(val)
+      }
     }
+  }
+  if (
+    !providerPreferenceHasRemovedOutput
+    && providerPreference.providerId
+    && providerPreference.model
+    && typeof providerPreference.reasoning?.enabled === 'boolean'
+    && ['low', 'medium', 'high', 'extraHigh'].includes(providerPreference.reasoning.effort ?? '')
+    && ['standard', 'fast'].includes(providerPreference.speed ?? '')
+    && ['default', 'max'].includes(providerPreference.contextWindow?.mode ?? '')
+  ) {
+    draft.providerPreference = providerPreference as AgentProviderPreference
   }
   return draft
 }
@@ -165,10 +202,17 @@ export function toMarkdown(draft: ProfileDraft): string {
   if (draft.avatar) {
     fm.push(`avatar: ${encodeAvatar(draft.avatar)}`)
   }
-  fm.push(`model: ${draft.model || 'inherit'}`)
-  if (draft.reasoningEffort && draft.reasoningEffort !== 'medium') {
-    fm.push('reasoning:')
-    fm.push(`  effort: ${draft.reasoningEffort}`)
+  if (draft.providerPreference) {
+    const preference = draft.providerPreference
+    fm.push('providerPreference:')
+    fm.push(`  providerId: ${preference.providerId}`)
+    fm.push(`  model: ${preference.model}`)
+    fm.push('  reasoning:')
+    fm.push(`    enabled: ${preference.reasoning.enabled ? 'true' : 'false'}`)
+    fm.push(`    effort: ${preference.reasoning.effort}`)
+    fm.push(`  speed: ${preference.speed}`)
+    fm.push('  contextWindow:')
+    fm.push(`    mode: ${preference.contextWindow.mode}`)
   }
 
   if (draft.tools.allow.length || draft.tools.deny.length || draft.tools.agentControl !== 'full') {

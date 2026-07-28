@@ -937,6 +937,27 @@ public sealed partial class SessionService(
             Mode = preference.ContextWindow.Mode
         };
 
+        var normalized = ModelPreferenceRules.Normalize(
+            currentConfig,
+            captured.ProviderId,
+            new ModelPreference
+            {
+                Model = captured.Model,
+                Reasoning = CloneReasoningConfig(captured.Reasoning),
+                Speed = captured.Speed.Value,
+                ContextWindow = new ModelPreferenceContextWindow
+                {
+                    Mode = captured.ContextWindow.Mode
+                }
+            });
+        captured.Model = normalized.Model;
+        captured.Reasoning = CloneReasoningConfig(normalized.Reasoning);
+        captured.Speed = normalized.Speed;
+        captured.ContextWindow = new ThreadContextWindowConfig
+        {
+            Mode = normalized.ContextWindow.Mode
+        };
+
         return captured;
     }
 

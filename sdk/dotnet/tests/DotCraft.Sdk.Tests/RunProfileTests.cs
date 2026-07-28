@@ -299,6 +299,161 @@ public sealed class RunProfileTests
         await modeTask.WaitAsync(Timeout);
     }
 
+    [Fact]
+    public async Task ProviderAndModelCatalogs_ParseCapabilityMetadata()
+    {
+        var (client, transport) = await ConnectAsync();
+        await using var _ = client;
+
+        var providersTask = client.Providers.ListAsync();
+        await RespondAsync(transport, "provider/list", new
+        {
+            providers = new[]
+            {
+                new { id = "openai", displayName = "OpenAI (ChatGPT)", protocol = "openai-responses", isImplicit = true }
+            }
+        });
+        var providers = await providersTask.WaitAsync(Timeout);
+        Assert.Single(providers.Providers);
+        Assert.True(providers.Providers[0].IsImplicit);
+
+        var modelsTask = client.Models.GetCatalogAsync("openai");
+        using (var outbound = await transport.ReadOutboundAsync())
+        {
+            Assert.Equal("model/list", outbound.RootElement.GetProperty("method").GetString());
+            Assert.Equal("openai", outbound.RootElement.GetProperty("params").GetProperty("providerId").GetString());
+            var id = outbound.RootElement.GetProperty("id").GetInt64();
+            await transport.PushInboundAsync(new
+            {
+                jsonrpc = "2.0",
+                id,
+                result = new
+                {
+                    success = true,
+                    providerId = "openai",
+                    protocol = "openai-responses",
+                    models = new[]
+                    {
+                        new
+                        {
+                            id = "gpt-5.6-sol",
+                            ownedBy = "openai",
+                            createdAt = "2026-07-01T00:00:00Z",
+                            reasoning = new
+                            {
+                                supportsDisable = true,
+                                supportedEfforts = new[] { new { effort = "medium", label = "Medium" }, new { effort = "high", label = "High" } },
+                                defaultEffort = "medium",
+                                supportedOutputs = new[] { "none", "full" },
+                                defaultOutput = "full"
+                            },
+                            speed = new { supportedModes = new[] { "standard", "fast" }, defaultMode = "standard" },
+                            contextWindow = new { catalogWindow = 1000000, configuredWindow = 256000, supportsMax = true, maxWindow = 1000000 }
+                        }
+                    }
+                }
+            });
+        }
+
+        var catalog = await modelsTask.WaitAsync(Timeout);
+        Assert.True(catalog.Success);
+        Assert.Equal("openai", catalog.ProviderId);
+        var model = Assert.Single(catalog.Models);
+        Assert.Equal("gpt-5.6-sol", model.Id);
+        Assert.Equal(["standard", "fast"], model.Speed!.SupportedModes);
+        Assert.Equal("high", model.Reasoning!.SupportedEfforts[1].Effort);
+        Assert.True(model.ContextWindow!.SupportsMax);
+        Assert.Equal(1000000, model.ContextWindow.MaxWindow);
+    }
+
+    [Fact]
+    public async Task UpdateModelConfiguration_PreservesUnrelatedThreadFields()
+    {
+        var (client, transport) = await ConnectAsync();
+        await using var _ = client;
+        var update = new DotCraftModelConfiguration(
+            "anthropic",
+            "claude-sonnet-4-5",
+            new DotCraftReasoningConfiguration(true, "high", "full"),
+            "fast",
+            new DotCraftContextWindowConfiguration("max"));
+
+        var task = client.Threads.UpdateModelConfigurationAsync("thread_1", update);
+        await RespondAsync(transport, "thread/read", ThreadSnapshot("openai", "gpt-5.5"));
+
+        using (var outbound = await transport.ReadOutboundAsync())
+        {
+            Assert.Equal("thread/config/update", outbound.RootElement.GetProperty("method").GetString());
+            var parameters = outbound.RootElement.GetProperty("params");
+            var config = parameters.GetProperty("config");
+            Assert.Equal("agent-profile", config.GetProperty("agentProfileId").GetString());
+            Assert.Equal("autoApprove", config.GetProperty("approvalPolicy").GetString());
+            Assert.Equal("anthropic", config.GetProperty("providerId").GetString());
+            Assert.Equal("claude-sonnet-4-5", config.GetProperty("model").GetString());
+            Assert.Equal("fast", config.GetProperty("speed").GetString());
+            var id = outbound.RootElement.GetProperty("id").GetInt64();
+            await transport.PushInboundAsync(new { jsonrpc = "2.0", id, result = new { } });
+        }
+
+        await RespondAsync(
+            transport,
+            "thread/read",
+            ThreadSnapshot(
+                update.ProviderId,
+                update.Model,
+                update.Reasoning,
+                update.Speed,
+                update.ContextWindow));
+        Assert.Equal(update, await task.WaitAsync(Timeout));
+    }
+
+    [Fact]
+    public async Task StartAsync_SerializesTypedModelConfiguration()
+    {
+        var (client, transport) = await ConnectAsync();
+        await using var _ = client;
+        var configuration = new DotCraftModelConfiguration(
+            "openai",
+            "gpt-5.6-sol",
+            new DotCraftReasoningConfiguration(true, "medium", "full"),
+            "standard",
+            new DotCraftContextWindowConfiguration("default"));
+
+        var task = client.Threads.StartAsync(new DotCraftThreadStartRequest(
+            new SessionIdentity("universe", "member"),
+            Config: new
+            {
+                agentProfileId = "release-operator",
+                providerId = configuration.ProviderId,
+                model = configuration.Model,
+                reasoning = configuration.Reasoning,
+                speed = configuration.Speed,
+                contextWindow = configuration.ContextWindow
+            }));
+        using (var outbound = await transport.ReadOutboundAsync())
+        {
+            var config = outbound.RootElement.GetProperty("params").GetProperty("config");
+            Assert.Equal("release-operator", config.GetProperty("agentProfileId").GetString());
+            Assert.Equal("gpt-5.6-sol", config.GetProperty("model").GetString());
+            Assert.Equal("medium", config.GetProperty("reasoning").GetProperty("effort").GetString());
+            var id = outbound.RootElement.GetProperty("id").GetInt64();
+            await transport.PushInboundAsync(new
+            {
+                jsonrpc = "2.0",
+                id,
+                result = ThreadSnapshot(
+                    configuration.ProviderId,
+                    configuration.Model,
+                    configuration.Reasoning,
+                    configuration.Speed,
+                    configuration.ContextWindow)
+            });
+        }
+
+        var thread = await task.WaitAsync(Timeout);
+        Assert.Equal("thread_1", thread.Id);
+    }
+
     private static async Task<(DotCraftClient client, TestJsonRpcTransport transport)> ConnectAsync(DotCraftClientOptions? options = null)
     {
         var transport = new TestJsonRpcTransport();
@@ -345,6 +500,31 @@ public sealed class RunProfileTests
         var id = outbound.RootElement.GetProperty("id").GetInt64();
         await transport.PushInboundAsync(new { jsonrpc = "2.0", id, result });
     }
+
+    private static object ThreadSnapshot(
+        string providerId,
+        string model,
+        DotCraftReasoningConfiguration? reasoning = null,
+        string speed = "standard",
+        DotCraftContextWindowConfiguration? contextWindow = null) =>
+        new
+        {
+            thread = new
+            {
+                id = "thread_1",
+                status = "active",
+                configuration = new
+                {
+                    agentProfileId = "agent-profile",
+                    approvalPolicy = "autoApprove",
+                    providerId,
+                    model,
+                    reasoning = reasoning ?? new DotCraftReasoningConfiguration(true, "medium", "full"),
+                    speed,
+                    contextWindow = contextWindow ?? new DotCraftContextWindowConfiguration("default")
+                }
+            }
+        };
 
     private static Task PushNotificationAsync(TestJsonRpcTransport transport, string method, object parameters) =>
         transport.PushInboundAsync(new { jsonrpc = "2.0", method, @params = parameters });

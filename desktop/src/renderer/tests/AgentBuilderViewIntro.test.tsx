@@ -110,7 +110,10 @@ describe('AgentBuilderView intro composer', () => {
       if (method === 'tool/list') return { tools: toolCatalog }
       if (method === 'skills/list') return { skills: [] }
       if (method === 'mcp/list') return { servers: [] }
-      if (method === 'model/list') return { success: true, models: [{ id: 'gpt-5.5' }] }
+      if (method === 'provider/list') {
+        return { providers: [{ id: 'openai', displayName: 'OpenAI', protocol: 'responses', authMethod: 'apiKey' }] }
+      }
+      if (method === 'model/list') return { success: true, providerId: 'openai', models: [{ id: 'gpt-5.5' }] }
       if (method === 'thread/start') return { thread: { id: 'builder-thread' } }
       return {}
     })
@@ -126,6 +129,22 @@ describe('AgentBuilderView intro composer', () => {
         workspace: {
           saveImageToTemp: vi.fn(),
           getPathForFile: vi.fn()
+        },
+        workspaceConfig: {
+          getCore: vi.fn(async () => ({
+            workspace: {
+              providerId: 'openai',
+              providerPreferences: {
+                openai: {
+                  model: 'gpt-5.5',
+                  reasoning: { enabled: true, effort: 'high', output: 'full' },
+                  speed: 'fast',
+                  contextWindow: { mode: 'max' }
+                }
+              }
+            },
+            userDefaults: { providerId: null, providerPreferences: {} }
+          }))
         },
         file: {
           readFile: vi.fn(async () => '{}')
@@ -350,9 +369,9 @@ describe('AgentBuilderView intro composer', () => {
       expect(screen.getByLabelText('Updating instructions').closest('[data-builder-field-anchor="instructions"]')).not.toBeNull()
     })
 
-    emitBuilderToolStarted('model', 'SetAgentModel')
+    emitBuilderToolStarted('providerPreference', 'SetAgentProviderPreference')
     await waitFor(() => {
-      expect(screen.getByLabelText('Updating model').closest('[data-builder-field-anchor="model"]')).not.toBeNull()
+      expect(screen.getByLabelText('Updating model').closest('[data-builder-field-anchor="providerPreference"]')).not.toBeNull()
     })
   })
 
@@ -451,5 +470,41 @@ describe('AgentBuilderView intro composer', () => {
     expect((upsertCall?.[1] as { rawContent?: string } | undefined)?.rawContent).toMatch(
       /avatar: \d+/
     )
+  })
+
+  it('persists a complete custom provider preference and omits it when inheriting', async () => {
+    await openBlankBuilder()
+    fireEvent.change(screen.getByPlaceholderText('agent name'), { target: { value: 'model-bot' } })
+
+    const customSwitch = await screen.findByRole('switch', { name: 'Custom model settings' })
+    expect(customSwitch).not.toBeChecked()
+    fireEvent.click(customSwitch)
+    expect(customSwitch).toBeChecked()
+
+    fireEvent.click(screen.getByRole('button', { name: /Create/i }))
+    fireEvent.click((await screen.findByText('Workspace')).closest('button')!)
+    await waitFor(() => expect(appServerSendRequest).toHaveBeenCalledWith(
+      'agent/profiles/upsert',
+      expect.objectContaining({ id: 'model-bot' })
+    ))
+
+    const upsertCall = appServerSendRequest.mock.calls.find(([method]) => method === 'agent/profiles/upsert')
+    const rawContent = (upsertCall?.[1] as { rawContent?: string } | undefined)?.rawContent ?? ''
+    expect(rawContent).toContain(`providerPreference:
+  providerId: openai
+  model: gpt-5.5
+  reasoning:
+    enabled: true
+    effort: high
+  speed: fast
+  contextWindow:
+    mode: max`)
+
+    fireEvent.click(customSwitch)
+    await waitFor(() => {
+      const updates = appServerSendRequest.mock.calls.filter(([method]) => method === 'agent/profiles/upsert')
+      expect(updates.length).toBeGreaterThan(1)
+      expect((updates.at(-1)?.[1] as { rawContent?: string }).rawContent).not.toContain('providerPreference:')
+    })
   })
 })

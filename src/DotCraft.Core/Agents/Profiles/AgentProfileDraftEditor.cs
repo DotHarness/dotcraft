@@ -1,11 +1,9 @@
 namespace DotCraft.Agents;
 
 /// <summary>
-/// The conversational builder's working-draft shape. Mirrors the Agent Profile frontmatter
-/// (see specs/features/agent-profiles.md) and the renderer's <c>ProfileDraft</c>
-/// (desktop/src/renderer/components/agents/agentProfileDraft.ts) field-for-field, so a draft edited
-/// by the builder tools round-trips through both the renderer's parser and the real
-/// <see cref="AgentProfileStore"/> YAML parser. Operational <c>mode</c> is intentionally absent —
+/// The conversational builder's working-draft shape. Mirrors the canonical Agent Profile frontmatter
+/// (see specs/features/agent-profiles.md), so a draft edited by the builder tools round-trips through
+/// the real <see cref="AgentProfileStore"/> YAML parser. Operational <c>mode</c> is intentionally absent —
 /// a profile expresses its posture through tools/mcp/skills scope and approval policy, not Agent/Plan.
 /// </summary>
 public sealed class AgentProfileDraft
@@ -13,8 +11,13 @@ public sealed class AgentProfileDraft
     public string Name { get; set; } = string.Empty;
     public string Description { get; set; } = string.Empty;
     public int? Avatar { get; set; }
-    public string Model { get; set; } = "inherit";
+    public bool HasProviderPreference { get; set; }
+    public string ProviderId { get; set; } = string.Empty;
+    public string Model { get; set; } = string.Empty;
+    public bool ReasoningEnabled { get; set; }
     public string ReasoningEffort { get; set; } = "medium";
+    public string Speed { get; set; } = "standard";
+    public string ContextWindowMode { get; set; } = "default";
 
     public List<string> ToolsAllow { get; set; } = [];
     public List<string> ToolsDeny { get; set; } = [];
@@ -36,23 +39,28 @@ public sealed class AgentProfileDraft
 
 /// <summary>
 /// Parses and re-serializes an Agent Profile Markdown document (YAML frontmatter + Markdown body)
-/// for the conversational builder. The serializer emits the same flat shape the renderer emits —
-/// scalar <c>key: value</c> lines and inline <c>[a, b]</c> flow sequences — which is valid YAML for
-/// <see cref="AgentProfileStore"/> and also readable by the renderer's indent-based parser.
+/// for the conversational builder. The serializer emits canonical profile YAML with an atomic
+/// provider preference and inline <c>[a, b]</c> flow sequences for list-valued policies.
 /// </summary>
 public static class AgentProfileDraftEditor
 {
     private static readonly string[] ApprovalPolicies = ["default", "autoApprove", "interrupt"];
     private static readonly string[] AgentControls = ["full", "disabled", "allowList"];
-    private static readonly string[] ReasoningEfforts = ["minimal", "low", "medium", "high"];
+    private static readonly string[] ReasoningEfforts = ["low", "medium", "high", "extraHigh"];
+    private static readonly string[] Speeds = ["standard", "fast"];
+    private static readonly string[] ContextWindowModes = ["default", "max"];
 
     public static IReadOnlyList<string> ApprovalPolicyValues => ApprovalPolicies;
     public static IReadOnlyList<string> AgentControlValues => AgentControls;
     public static IReadOnlyList<string> ReasoningEffortValues => ReasoningEfforts;
+    public static IReadOnlyList<string> SpeedValues => Speeds;
+    public static IReadOnlyList<string> ContextWindowModeValues => ContextWindowModes;
 
     public static bool IsApprovalPolicy(string value) => ApprovalPolicies.Contains(value, StringComparer.Ordinal);
     public static bool IsAgentControl(string value) => AgentControls.Contains(value, StringComparer.Ordinal);
     public static bool IsReasoningEffort(string value) => ReasoningEfforts.Contains(value, StringComparer.Ordinal);
+    public static bool IsSpeed(string value) => Speeds.Contains(value, StringComparer.Ordinal);
+    public static bool IsContextWindowMode(string value) => ContextWindowModes.Contains(value, StringComparer.Ordinal);
 
     /// <summary>Reads a raw profile Markdown document into an editable draft. Missing frontmatter yields an empty draft whose body is the whole text.</summary>
     public static AgentProfileDraft Parse(string? rawContent)
@@ -93,9 +101,12 @@ public static class AgentProfileDraftEditor
                 {
                     case "name": draft.Name = val; break;
                     case "description": draft.Description = val; break;
-                    case "model": draft.Model = string.IsNullOrEmpty(val) ? "inherit" : val; break;
                     case "avatar": draft.Avatar = ParsePackedAvatar(val); break;
-                    case "reasoning" or "tools" or "mcp" or "skills" or "permissions": section = key; break;
+                    case "providerPreference":
+                        draft.HasProviderPreference = true;
+                        section = key;
+                        break;
+                    case "tools" or "mcp" or "skills" or "permissions": section = key; break;
                 }
             }
             else if (indent == 2)
@@ -103,7 +114,11 @@ public static class AgentProfileDraftEditor
                 sub = null;
                 switch (section)
                 {
-                    case "reasoning" when key == "effort": draft.ReasoningEffort = string.IsNullOrEmpty(val) ? "medium" : val; break;
+                    case "providerPreference" when key == "providerId": draft.ProviderId = val; break;
+                    case "providerPreference" when key == "model": draft.Model = val; break;
+                    case "providerPreference" when key == "reasoning": sub = "providerReasoning"; break;
+                    case "providerPreference" when key == "speed": draft.Speed = string.IsNullOrEmpty(val) ? "standard" : val; break;
+                    case "providerPreference" when key == "contextWindow": sub = "providerContextWindow"; break;
                     case "tools" when key == "allow": draft.ToolsAllow = ParseList(val); break;
                     case "tools" when key == "deny": draft.ToolsDeny = ParseList(val); break;
                     case "tools" when key == "agentControl": draft.AgentControl = string.IsNullOrEmpty(val) ? "full" : val; break;
@@ -114,6 +129,18 @@ public static class AgentProfileDraftEditor
                     case "skills" when key == "deny": draft.SkillsDeny = ParseList(val); break;
                     case "permissions" when key == "approvalPolicy": draft.ApprovalPolicy = string.IsNullOrEmpty(val) ? "default" : val; break;
                     case "permissions" when key == "requireApprovalOutsideWorkspace": draft.RequireApprovalOutsideWorkspace = val == "true"; break;
+                }
+            }
+            else if (indent >= 4 && section == "providerPreference")
+            {
+                if (sub == "providerReasoning")
+                {
+                    if (key == "enabled") draft.ReasoningEnabled = val == "true";
+                    else if (key == "effort") draft.ReasoningEffort = string.IsNullOrEmpty(val) ? "medium" : val;
+                }
+                else if (sub == "providerContextWindow" && key == "mode")
+                {
+                    draft.ContextWindowMode = string.IsNullOrEmpty(val) ? "default" : val;
                 }
             }
             else if (indent >= 4 && sub == "mcpTools")
@@ -134,12 +161,17 @@ public static class AgentProfileDraftEditor
         fm.Add($"description: {draft.Description}");
         if (draft.Avatar.HasValue)
             fm.Add($"avatar: {draft.Avatar.Value}");
-        fm.Add($"model: {(string.IsNullOrEmpty(draft.Model) ? "inherit" : draft.Model)}");
-
-        if (!string.IsNullOrEmpty(draft.ReasoningEffort) && draft.ReasoningEffort != "medium")
+        if (draft.HasProviderPreference)
         {
-            fm.Add("reasoning:");
-            fm.Add($"  effort: {draft.ReasoningEffort}");
+            fm.Add("providerPreference:");
+            fm.Add($"  providerId: {draft.ProviderId}");
+            fm.Add($"  model: {draft.Model}");
+            fm.Add("  reasoning:");
+            fm.Add($"    enabled: {(draft.ReasoningEnabled ? "true" : "false")}");
+            fm.Add($"    effort: {draft.ReasoningEffort}");
+            fm.Add($"  speed: {draft.Speed}");
+            fm.Add("  contextWindow:");
+            fm.Add($"    mode: {draft.ContextWindowMode}");
         }
 
         if (draft.ToolsAllow.Count > 0 || draft.ToolsDeny.Count > 0 || draft.AgentControl != "full")

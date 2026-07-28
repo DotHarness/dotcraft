@@ -25,7 +25,8 @@ public sealed class AgentProfileDraftEditorTests : IDisposable
         var draft = AgentProfileDraftEditor.Parse(null);
 
         Assert.Equal(string.Empty, draft.Name);
-        Assert.Equal("inherit", draft.Model);
+        Assert.False(draft.HasProviderPreference);
+        Assert.Equal(string.Empty, draft.Model);
         Assert.Equal("medium", draft.ReasoningEffort);
         Assert.Equal("full", draft.AgentControl);
         Assert.Equal("default", draft.ApprovalPolicy);
@@ -50,8 +51,13 @@ public sealed class AgentProfileDraftEditorTests : IDisposable
             Name = "release-notes-writer",
             Description = "Drafts release notes from merged PRs",
             Avatar = AgentProfileAvatarCodec.Encode(7, 3, 5),
+            HasProviderPreference = true,
+            ProviderId = "anthropic",
             Model = "claude-opus-4-8",
+            ReasoningEnabled = true,
             ReasoningEffort = "high",
+            Speed = "fast",
+            ContextWindowMode = "max",
             ToolsAllow = ["ReadFile", "RunShellCommand"],
             ToolsDeny = ["DeleteFile"],
             AgentControl = "allowList",
@@ -71,8 +77,13 @@ public sealed class AgentProfileDraftEditorTests : IDisposable
         Assert.Equal(draft.Name, roundTripped.Name);
         Assert.Equal(draft.Description, roundTripped.Description);
         Assert.Equal(draft.Avatar, roundTripped.Avatar);
+        Assert.Equal(draft.HasProviderPreference, roundTripped.HasProviderPreference);
+        Assert.Equal(draft.ProviderId, roundTripped.ProviderId);
         Assert.Equal(draft.Model, roundTripped.Model);
+        Assert.Equal(draft.ReasoningEnabled, roundTripped.ReasoningEnabled);
         Assert.Equal(draft.ReasoningEffort, roundTripped.ReasoningEffort);
+        Assert.Equal(draft.Speed, roundTripped.Speed);
+        Assert.Equal(draft.ContextWindowMode, roundTripped.ContextWindowMode);
         Assert.Equal(draft.ToolsAllow, roundTripped.ToolsAllow);
         Assert.Equal(draft.ToolsDeny, roundTripped.ToolsDeny);
         Assert.Equal(draft.AgentControl, roundTripped.AgentControl);
@@ -95,7 +106,8 @@ public sealed class AgentProfileDraftEditorTests : IDisposable
         var md = AgentProfileDraftEditor.ToMarkdown(draft);
 
         Assert.Contains("name: minimal", md);
-        Assert.Contains("model: inherit", md);
+        Assert.DoesNotContain("providerPreference:", md);
+        Assert.DoesNotContain("model:", md);
         Assert.DoesNotContain("reasoning:", md);
         Assert.DoesNotContain("tools:", md);
         Assert.DoesNotContain("mcp:", md);

@@ -1305,7 +1305,7 @@ public sealed partial class TeamsService(IAppConfigMonitor? appConfigMonitor = n
         return config;
     }
 
-    private static TeamMemberProfileResolution ResolveMemberProfile(AgentProfileStore store, TeamMemberRecord member)
+    private TeamMemberProfileResolution ResolveMemberProfile(AgentProfileStore store, TeamMemberRecord member)
     {
         var requested = string.IsNullOrWhiteSpace(member.AgentProfileId)
             ? DefaultAgentProfileIdForMember(member)
@@ -1335,7 +1335,7 @@ public sealed partial class TeamsService(IAppConfigMonitor? appConfigMonitor = n
             diagnostics);
     }
 
-    private static TeamMemberProfileResolution TryResolveProfile(
+    private TeamMemberProfileResolution TryResolveProfile(
         AgentProfileStore store,
         string profileId,
         List<TeamMemberAgentProfileDiagnostic> diagnostics,
@@ -1361,7 +1361,12 @@ public sealed partial class TeamsService(IAppConfigMonitor? appConfigMonitor = n
                 entry.Id,
                 entry.Source,
                 entry.Fingerprint,
-                store.ResolveProfileConfiguration(entry.Id),
+                entry.ProviderPreference == null
+                    ? store.ResolveProfileConfiguration(entry.Id)
+                    : store.ResolveProfileConfiguration(
+                        entry.Id,
+                        appConfigMonitor?.Current
+                        ?? throw new InvalidOperationException("Provider configuration is unavailable for the fixed Agent Profile model preset.")),
                 false,
                 fallbackUsed,
                 true,
@@ -1379,7 +1384,7 @@ public sealed partial class TeamsService(IAppConfigMonitor? appConfigMonitor = n
         }
     }
 
-    private static TeamMemberAgentProfileView ResolveMemberProfileView(AgentProfileStore store, TeamMemberRecord member)
+    private TeamMemberAgentProfileView ResolveMemberProfileView(AgentProfileStore store, TeamMemberRecord member)
     {
         var profile = ResolveMemberProfile(store, member);
         return new TeamMemberAgentProfileView

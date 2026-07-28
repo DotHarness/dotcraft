@@ -2,9 +2,9 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.2.0 |
+| **Version** | 0.3.0 |
 | **Status** | Living |
-| **Date** | 2026-07-26 |
+| **Date** | 2026-07-28 |
 | **Parent Specs** | [Session Core](../architecture/session-core.md), [AppServer Protocol](../protocols/appserver-protocol.md), [Desktop Client](../clients/desktop-client.md) |
 
 Purpose: define the provider-neutral, model-aware options that control how DotCraft runs a selected
@@ -111,7 +111,28 @@ Model options follow this lifecycle:
 
 `thread/config/update` replaces the full `ThreadConfiguration`; clients must preserve unrelated fields.
 
-### 2.5 Reconnect and External Changes
+### 2.5 Agent Profile Model Policy
+
+Agent Profiles expose a reduced model-preset contract while runtime threads continue to capture the
+complete `ModelPreference`:
+
+- an omitted `providerPreference` captures the complete effective workspace/global provider preference
+  when a new thread is created;
+- a present `providerPreference` stores provider id, model, reasoning enabled/effort, speed, and
+  context-window mode;
+- reasoning output visibility is not authorable in a Profile; runtime materialization derives it from
+  the selected model's catalog `defaultOutput`;
+- an empty or partial `providerPreference` is invalid;
+- canonical profiles never merge individual model, reasoning, speed, or context-window fields with a
+  workspace preference;
+- profile-backed thread creation always persists a normalized complete provider/model/reasoning/speed/
+  context-window snapshot;
+- explicit thread-level reasoning overlays may still set output visibility and take precedence over
+  the catalog default;
+- refreshing an existing thread from a profile without `providerPreference` preserves its current
+  complete model snapshot, while a present `providerPreference` replaces the complete snapshot.
+
+### 2.6 Reconnect and External Changes
 
 Clients recompute effective model options when:
 

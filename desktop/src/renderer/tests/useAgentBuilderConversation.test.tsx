@@ -298,14 +298,14 @@ describe('useAgentBuilderConversation', () => {
           id: 'tool-call-1',
           type: 'toolCall',
           payload: {
-            toolName: 'SetAgentModel',
+            toolName: 'SetAgentProviderPreference',
             callId: 'call-1'
           }
         }
       }
     })
 
-    expect(onEditingField).toHaveBeenCalledWith('model')
+    expect(onEditingField).toHaveBeenCalledWith('providerPreference')
 
     emitNotification({
       method: 'item/toolCall/argumentsDelta',
@@ -318,7 +318,7 @@ describe('useAgentBuilderConversation', () => {
       }
     })
 
-    expect(onEditingField).toHaveBeenLastCalledWith('model')
+    expect(onEditingField).toHaveBeenLastCalledWith('providerPreference')
 
     emitNotification({
       method: 'item/completed',

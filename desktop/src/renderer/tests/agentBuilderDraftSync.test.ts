@@ -19,6 +19,8 @@ describe('agentBuilderDraftSync', () => {
     expect(builderFieldForToolName('SetAgentName')).toBe('name')
     expect(builderFieldForToolName('AppendAgentInstructions')).toBe('instructions')
     expect(builderFieldForToolName('AddAgentTools')).toBe('tools.allow')
+    expect(builderFieldForToolName('SetAgentProviderPreference')).toBe('providerPreference')
+    expect(builderFieldForToolName('ClearAgentProviderPreference')).toBe('providerPreference')
     expect(builderFieldForToolName('SetAgentApproval')).toBe('approval')
     expect(builderFieldForToolName('ReadFile')).toBeNull()
   })
@@ -37,7 +39,7 @@ describe('agentBuilderDraftSync', () => {
     expect(r).toEqual({ ok: false, field: 'approval', error: 'bad' })
   })
 
-  it('applies a scalar set (name / description / model)', () => {
+  it('applies scalar text changes', () => {
     let draft = createEmptyDraft()
     ;({ draft } = applyBuilderChange(draft, { ok: true, field: 'name', change: { op: 'set', value: 'triage-bot' } }))
     ;({ draft } = applyBuilderChange(draft, {
@@ -45,12 +47,33 @@ describe('agentBuilderDraftSync', () => {
       field: 'description',
       change: { op: 'set', value: 'Triages issues' }
     }))
-    const res = applyBuilderChange(draft, { ok: true, field: 'model', change: { op: 'set', value: 'claude-opus-4-8' } })
+    expect(draft.name).toBe('triage-bot')
+    expect(draft.description).toBe('Triages issues')
+  })
 
-    expect(res.draft.name).toBe('triage-bot')
-    expect(res.draft.description).toBe('Triages issues')
-    expect(res.draft.model).toBe('claude-opus-4-8')
-    expect(res.changedField).toBe('model')
+  it('sets and clears the provider model preset', () => {
+    const draft = createEmptyDraft()
+    const providerPreference = {
+      providerId: 'openai',
+      model: 'gpt-5.6',
+      reasoning: { enabled: true, effort: 'high' as const },
+      speed: 'fast' as const,
+      contextWindow: { mode: 'max' as const }
+    }
+    const set = applyBuilderChange(draft, {
+      ok: true,
+      field: 'providerPreference',
+      change: { op: 'set', providerPreference }
+    })
+    const clear = applyBuilderChange(set.draft, {
+      ok: true,
+      field: 'providerPreference',
+      change: { op: 'remove' }
+    })
+
+    expect(set.draft.providerPreference).toEqual(providerPreference)
+    expect(set.changedField).toBe('providerPreference')
+    expect(clear.draft.providerPreference).toBeNull()
   })
 
   it('applies a list change using the authoritative full list', () => {

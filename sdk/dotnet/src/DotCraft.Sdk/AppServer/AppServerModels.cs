@@ -113,7 +113,9 @@ public sealed record AppServerServerCapabilities(
     bool RuntimeAdditionalContext,
     int AppBindingVersion,
     bool ModelCatalogManagement,
-    JsonElement Raw);
+    JsonElement Raw,
+    bool ConfigOverride = false,
+    bool ProviderManagement = false);
 
 /// <summary>
 /// Raw AppServer notification.
@@ -158,7 +160,11 @@ public sealed record RuntimeAdditionalContextEntry(
 /// <summary>
 /// AppServer thread/read result with raw thread JSON.
 /// </summary>
-public sealed record DotCraftThreadReadResult(string ThreadId, JsonElement Thread, JsonElement? TurnPage = null);
+public sealed record DotCraftThreadReadResult(
+    string ThreadId,
+    JsonElement Thread,
+    JsonElement? TurnPage = null,
+    DotCraftModelConfiguration? ModelConfiguration = null);
 
 /// <summary>
 /// One input part for turn/start and turn/enqueue.
@@ -186,7 +192,8 @@ public sealed record DotCraftTurnStartResult(string? TurnId, JsonElement Raw);
 public sealed record DotCraftTurnEnqueueResult(string? QueuedInputId, JsonElement Raw);
 
 /// <summary>
-/// Model catalog item returned by model/list.
+/// Backward-compatible lightweight model projection returned by
+/// <see cref="DotCraftModelClient.ListAsync(CancellationToken)"/>.
 /// </summary>
 public sealed record ModelInfo(string Id, string DisplayName, string? Provider);
 

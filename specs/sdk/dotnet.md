@@ -157,10 +157,12 @@ Current AppServer features with typed or semi-typed SDK support:
 | Thread resume | `thread/resume` | `DotCraftThreadClient.ResumeAsync` |
 | Thread subscribe | `thread/subscribe` | `DotCraftThreadClient.SubscribeAsync` |
 | Thread read | `thread/read` | `DotCraftThreadClient.ReadAsync` |
+| Thread model configuration | `thread/read`, `thread/config/update` | `ReadModelConfigurationAsync`, `UpdateModelConfigurationAsync` |
 | Turn start | `turn/start` | `DotCraftTurnClient.StartAsync` |
 | Turn enqueue | `turn/enqueue` | `DotCraftTurnClient.EnqueueAsync` |
 | Turn interrupt | `turn/interrupt` | `DotCraftTurnClient.InterruptAsync` |
-| Model list | `model/list` | `DotCraftModelClient.ListAsync` |
+| Provider list | `provider/list` | `DotCraftProviderClient.ListAsync` |
+| Model list | `model/list` | `DotCraftModelClient.ListAsync`, `GetCatalogAsync(providerId)` |
 | Runtime Dynamic Tools | `thread/start.dynamicTools`, `thread/resume.dynamicTools`, `item/tool/call` | `RuntimeDynamicToolDeclaration`, `DynamicToolRegistry`, `RegisterDynamicToolHandler` |
 | App connection request read | `app/connection/request/get` | `DotCraftAppBindingClient.GetConnectionRequestAsync<T>` |
 | App connection completion | `app/connection/connect` | `DotCraftAppBindingClient.ConnectAsync<T>` |
@@ -193,8 +195,8 @@ The Run profile provides:
 
 Current explicit gaps:
 
-- No typed wrappers for `thread/rename`, `thread/config/update`, goal methods, maintenance methods, or memory consolidation methods.
-- No typed wrappers for provider, workspace config, skills, plugins, commands, cron, heartbeat, MCP, external channel, subagent, memory, or Dreams methods.
+- No typed wrappers for `thread/rename`, goal methods, maintenance methods, or memory consolidation methods.
+- Provider discovery and Thread model configuration are typed. Provider mutation, workspace config, skills, plugins, commands, cron, heartbeat, external channel, subagent, memory, and Dreams methods remain raw.
 - No automatic reconnect or callback rebind policy.
 
 ---
@@ -803,11 +805,21 @@ The method returns after the server accepts the interruption request. Callers sh
 
 ---
 
-## 12. Model Catalog API
+## 12. Provider, Model Catalog, And Thread Configuration APIs
 
-### 12.1 `ListAsync`
+### 12.1 Provider `ListAsync`
 
-Maps to:
+`DotCraftClient.Providers.ListAsync()` maps to `provider/list` and returns
+public Provider identity, display name, protocol, and implicit-provider state.
+The raw result remains available for forward compatibility. Consumers must
+project only fields appropriate to their trust boundary.
+
+### 12.2 Model catalog
+
+`DotCraftClient.Models.ListAsync()` retains the backward-compatible lightweight
+`ModelInfo` projection for the Runtime-selected Provider.
+
+`DotCraftClient.Models.GetCatalogAsync(providerId)` maps to:
 
 ```text
 model/list
@@ -819,23 +831,21 @@ Capability:
 capabilities.modelCatalogManagement
 ```
 
-Result model:
+`GetCatalogAsync(providerId)` returns the structured AppServer
+result including success/error state, effective Provider, protocol, and every
+model's Reasoning, Speed, and Context Window capability. It does not infer
+capability from model names.
 
-```csharp
-public sealed record ModelInfo(string Id, string DisplayName, string? Provider);
-```
+### 12.3 Thread model configuration
 
-The SDK tolerates these result shapes:
+`DotCraftThreadClient.ReadModelConfigurationAsync(threadId)` reads the complete
+captured Provider, model, Reasoning, Speed, and Context Window fields.
 
-- `{ "models": [...] }`
-- `{ "items": [...] }`
-- direct array
-
-For each entry, the SDK extracts:
-
-- `id`, `modelId`, or `name` as the stable id;
-- `displayName`, `name`, or `id` as the display name;
-- `provider` when present.
+`UpdateModelConfigurationAsync(threadId, configuration)` reads the latest full
+Thread configuration, changes only these model fields, sends one complete
+`thread/config/update`, and reads the authoritative value back. This preserves
+Agent Profile, tool, approval, Sandbox, workspace, and other unrelated Thread
+fields. AppServer remains responsible for normalization and validation.
 
 ---
 
@@ -1232,7 +1242,7 @@ Legend:
 | Threads | `thread/delete` | `threadManagement` | Typed | `DotCraftThread.DeleteAsync` |
 | Threads | `thread/rename` | `threadManagement` | Raw | `RequestAsync` |
 | Threads | `thread/rollback` | `threadManagement` | Raw | `RequestAsync` |
-| Thread config | `thread/config/update` | `configOverride` | Raw | `RequestAsync` |
+| Thread config | `thread/config/update` | `configOverride` | Typed model update | `Threads.UpdateModelConfigurationAsync` |
 | Thread mode | `thread/mode/set` | `modeSwitch` | Typed | `DotCraftThread.SetModeAsync` |
 | Thread goals | `thread/goal/*` | `threadGoals` | Raw | `RequestAsync` |
 | Thread maintenance | `thread/compact/start` | `manualCompaction` | Raw | `RequestAsync` |
@@ -1249,7 +1259,7 @@ Legend:
 | Runtime Dynamic Tools | `thread/resume.dynamicTools` | `dynamicToolRebind` | Typed | `DotCraftThreadResumeRequest.DynamicTools` |
 | Runtime Dynamic Tools | `item/tool/call` | required for declared tools | Callback | `RegisterDynamicToolHandler` |
 | Models | `model/list` | `modelCatalogManagement` | Typed | `Models.ListAsync` |
-| Providers | `provider/list` | `providerManagement` | Raw | `RequestAsync` |
+| Providers | `provider/list` | `providerManagement` | Typed | `Providers.ListAsync` |
 | Providers | `provider/create` | `providerManagement` | Raw | `RequestAsync` |
 | Providers | `provider/update` | `providerManagement` | Raw | `RequestAsync` |
 | Providers | `provider/delete` | `providerManagement` | Raw | `RequestAsync` |

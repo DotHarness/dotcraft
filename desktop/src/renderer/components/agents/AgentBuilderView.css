@@ -42,7 +42,7 @@
 
 /* full-width scroll container keeps the scrollbar at the app's right edge, not on the centered doc */
 .agent-builder-scroll { flex: 1 1 auto; min-height: 0; overflow-y: auto; }
-.agent-builder-doc { max-width: 720px; width: 100%; margin: 0 auto; padding: 22px 30px 56px; }
+.agent-builder-doc { max-width: 720px; width: 100%; margin: 0 auto; padding: 22px 30px 56px; container-type: inline-size; }
 .agent-builder-id { display: flex; align-items: center; gap: 16px; }
 .agent-builder-id-avatar { position: relative; display: inline-flex; flex: 0 0 auto; }
 .agent-builder-reroll { position: absolute; right: -4px; bottom: -4px; width: 22px; height: 22px; display: grid; place-items: center; border: 1px solid var(--border-default); border-radius: 999px; background: var(--bg-elevated); color: var(--text-secondary); cursor: pointer; box-shadow: var(--shadow-sm); }
@@ -101,7 +101,37 @@
 .agent-builder-instr-preview .markdown-body { font-size: 14px; line-height: 1.8; }
 .agent-builder-instr-empty { color: var(--text-dimmed); }
 
-/* Details uses the shared SettingsGroup/SettingsRow (desktop Settings layout) — no bespoke styles. */
+/* Provider preference rows stay visually subordinate to the inherit/custom decision. */
+.agent-builder-detail-toggle { display: inline-flex; }
+.agent-builder-model-settings {
+  margin: 0 10px 10px;
+  overflow: hidden;
+  border: 1px solid var(--border-default);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--bg-tertiary) 55%, transparent);
+}
+.agent-builder-model-settings .dc-settings-row + .dc-settings-row {
+  border-top: 1px solid var(--border-default);
+}
+.agent-builder-model-warning {
+  padding: 10px 16px;
+  color: var(--warning);
+  font-size: 12px;
+  line-height: 1.45;
+  border-bottom: 1px solid color-mix(in srgb, var(--warning) 28%, var(--border-default));
+  background: color-mix(in srgb, var(--warning) 8%, transparent);
+}
+@container (max-width: 520px) {
+  .agent-builder-model-settings .dc-settings-row {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 8px !important;
+  }
+  .agent-builder-model-settings .dc-settings-row > div:last-child {
+    width: 100%;
+    min-width: 0 !important;
+  }
+}
 
 /* header: auto-save status + "…" overflow menu */
 .agent-builder-autosave { font-size: 11.5px; color: var(--text-dimmed); white-space: nowrap; }

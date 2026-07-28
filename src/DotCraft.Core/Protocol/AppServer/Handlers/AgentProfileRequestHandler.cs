@@ -1,4 +1,5 @@
 using DotCraft.Agents;
+using DotCraft.Configuration;
 using DotCraft.Tools;
 
 namespace DotCraft.Protocol.AppServer;
@@ -6,7 +7,8 @@ namespace DotCraft.Protocol.AppServer;
 internal sealed class AgentProfileRequestHandler(
     ISessionService sessionService,
     string? workspaceCraftPath,
-    string? hostWorkspacePath) : IAppServerDomainHandler
+    string? hostWorkspacePath,
+    IAppConfigMonitor? appConfigMonitor) : IAppServerDomainHandler
 {
     public void RegisterMethods(AppServerMethodTable table)
     {
@@ -76,7 +78,9 @@ internal sealed class AgentProfileRequestHandler(
             return Task.FromResult<object?>(new AgentProfileValidateResult
             {
                 Valid = validation.Valid,
-                Diagnostics = validation.Diagnostics.Select(ToWire).ToList(),
+                Diagnostics = ToWireDiagnostics(
+                    validation.Diagnostics,
+                    validation.ProviderPreference),
                 Summary = new AgentProfileSummaryWire
                 {
                     Id = validation.Id,
@@ -84,7 +88,8 @@ internal sealed class AgentProfileRequestHandler(
                 },
                 LockedFields = validation.LockedFields,
                 RestrictedFields = validation.RestrictedFields,
-                CompiledConfig = validation.CompiledConfiguration
+                CompiledConfig = validation.CompiledConfiguration,
+                ProviderPreference = ToWire(validation.ProviderPreference)
             });
         }
         catch (AgentProfileException ex)
@@ -163,8 +168,19 @@ internal sealed class AgentProfileRequestHandler(
                 throw new AgentProfileException(AgentProfileErrorKind.ValidationFailed, "Agent profile validation failed.", profile.Diagnostics);
 
             var beforeFingerprint = thread.Configuration?.AgentProfileFingerprint;
-            var refreshed = store.ResolveProfileConfiguration(profileId);
-            PreserveUnrelatedThreadFields(thread.Configuration, refreshed);
+            var currentConfig = appConfigMonitor?.Current;
+            if (profile.ProviderPreference != null && currentConfig == null)
+                throw new AgentProfileException(
+                    AgentProfileErrorKind.ValidationFailed,
+                    "Provider configuration is unavailable for the fixed Agent Profile model preset.");
+            var refreshed = currentConfig == null
+                ? store.ResolveProfileConfiguration(profileId)
+                : store.ResolveProfileConfiguration(profileId, currentConfig);
+            PreserveUnrelatedThreadFields(
+                thread.Configuration,
+                refreshed,
+                profile.ProviderPreference);
+            ValidateRuntimeConfiguration(refreshed);
             await sessionService.UpdateThreadConfigurationAsync(thread.Id, refreshed, ct);
             var audit = new AgentProfileAuditRecord
             {
@@ -310,33 +326,90 @@ internal sealed class AgentProfileRequestHandler(
         return null;
     }
 
-    internal static AgentProfileEntryWire ToWire(
+    private AgentProfileEntryWire ToWire(
         AgentProfileEntry profile,
         bool includeRawContent = false,
         bool includeCompiledConfig = false) => new()
+        {
+            Id = profile.Id,
+            Name = profile.Name,
+            Description = profile.Description,
+            Avatar = profile.Avatar,
+            Source = profile.Source,
+            Path = profile.Path,
+            UpdatedAt = profile.UpdatedAt,
+            PluginId = profile.PluginId,
+            Fingerprint = profile.Fingerprint,
+            Valid = profile.Valid,
+            IsBuiltIn = profile.IsBuiltIn,
+            ReadOnly = profile.ReadOnly,
+            Shadowed = profile.Shadowed,
+            ShadowedBy = profile.ShadowedBy,
+            SourceStack = profile.SourceStack,
+            LockedFields = profile.LockedFields,
+            RestrictedFields = profile.RestrictedFields,
+            TrustRestricted = profile.TrustRestricted,
+            Diagnostics = ToWireDiagnostics(profile.Diagnostics, profile.ProviderPreference),
+            ProviderPreference = ToWire(profile.ProviderPreference),
+            RawContent = includeRawContent ? profile.RawContent : null,
+            CompiledConfig = includeCompiledConfig ? profile.CompiledConfiguration : null
+        };
+
+    private List<AgentProfileDiagnosticWire> ToWireDiagnostics(
+        IEnumerable<AgentProfileDiagnostic> diagnostics,
+        AgentProfileProviderPreference? providerPreference)
     {
-        Id = profile.Id,
-        Name = profile.Name,
-        Description = profile.Description,
-        Avatar = profile.Avatar,
-        Source = profile.Source,
-        Path = profile.Path,
-        UpdatedAt = profile.UpdatedAt,
-        PluginId = profile.PluginId,
-        Fingerprint = profile.Fingerprint,
-        Valid = profile.Valid,
-        IsBuiltIn = profile.IsBuiltIn,
-        ReadOnly = profile.ReadOnly,
-        Shadowed = profile.Shadowed,
-        ShadowedBy = profile.ShadowedBy,
-        SourceStack = profile.SourceStack,
-        LockedFields = profile.LockedFields,
-        RestrictedFields = profile.RestrictedFields,
-        TrustRestricted = profile.TrustRestricted,
-        Diagnostics = profile.Diagnostics.Select(ToWire).ToList(),
-        RawContent = includeRawContent ? profile.RawContent : null,
-        CompiledConfig = includeCompiledConfig ? profile.CompiledConfiguration : null
-    };
+        var result = diagnostics.Select(ToWire).ToList();
+        var currentConfig = appConfigMonitor?.Current;
+        if (providerPreference == null
+            || string.IsNullOrWhiteSpace(providerPreference.ProviderId)
+            || currentConfig == null)
+        {
+            return result;
+        }
+
+        try
+        {
+            _ = ModelProviderResolver.ResolveMain(
+                currentConfig,
+                providerPreference.ProviderId,
+                providerPreference.Model);
+        }
+        catch (Exception ex) when (ex is ArgumentException or ModelProviderConfigurationException)
+        {
+            result.Add(new AgentProfileDiagnosticWire
+            {
+                Severity = "warning",
+                Code = "PinnedProviderUnavailable",
+                Message = $"Pinned provider '{providerPreference.ProviderId}' is not runnable in the current workspace."
+            });
+        }
+
+        return result;
+    }
+
+    private static AgentProfileProviderPreferenceWire? ToWire(
+        AgentProfileProviderPreference? providerPreference)
+    {
+        if (providerPreference == null)
+            return null;
+
+        return new AgentProfileProviderPreferenceWire
+        {
+            ProviderId = providerPreference.ProviderId,
+            Model = providerPreference.Model,
+            Reasoning = new AgentProfileReasoningPreferenceWire
+            {
+                Enabled = providerPreference.Reasoning.Enabled,
+                Effort = providerPreference.Reasoning.Effort
+            },
+            Speed = providerPreference.Speed,
+            ContextWindow = new ModelPreferenceContextWindow
+            {
+                Mode = providerPreference.ContextWindow.Mode
+            }
+        };
+    }
 
     internal static AgentProfileDiagnosticWire ToWire(AgentProfileDiagnostic diagnostic) => new()
     {
@@ -396,15 +469,22 @@ internal sealed class AgentProfileRequestHandler(
         }
     }
 
-    private static void PreserveUnrelatedThreadFields(ThreadConfiguration? current, ThreadConfiguration refreshed)
+    private static void PreserveUnrelatedThreadFields(
+        ThreadConfiguration? current,
+        ThreadConfiguration refreshed,
+        AgentProfileProviderPreference? providerPreference)
     {
         if (current == null)
             return;
 
-        refreshed.ProviderId ??= current.ProviderId;
-        refreshed.Model ??= current.Model;
-        refreshed.Reasoning ??= current.Reasoning;
-        refreshed.ContextWindow ??= current.ContextWindow;
+        if (providerPreference == null)
+        {
+            refreshed.ProviderId = current.ProviderId;
+            refreshed.Model = current.Model;
+            refreshed.Reasoning = current.Reasoning;
+            refreshed.Speed = current.Speed;
+            refreshed.ContextWindow = current.ContextWindow;
+        }
         refreshed.WorkspaceOverride = current.WorkspaceOverride;
         refreshed.Cwd = current.Cwd;
         refreshed.RuntimeWorkspaceRoots = current.RuntimeWorkspaceRoots;
@@ -412,6 +492,33 @@ internal sealed class AgentProfileRequestHandler(
         refreshed.Extensions = current.Extensions;
         refreshed.CustomTools = current.CustomTools;
         refreshed.AutomationTaskDirectory = current.AutomationTaskDirectory;
+    }
+
+    private void ValidateRuntimeConfiguration(ThreadConfiguration config)
+    {
+        var currentConfig = appConfigMonitor?.Current;
+        if (currentConfig == null)
+            return;
+
+        AppServerRuntimeRequestValidator.NormalizeCompleteModelConfiguration(currentConfig, config);
+
+        if (config.Reasoning != null)
+        {
+            AppServerRuntimeRequestValidator.ValidateReasoningForRuntime(
+                currentConfig,
+                config.ProviderId,
+                config.Model,
+                config.Reasoning);
+        }
+
+        if (config.ContextWindow != null)
+        {
+            AppServerRuntimeRequestValidator.ValidateContextWindowForRuntime(
+                currentConfig,
+                config.ProviderId,
+                config.Model,
+                config.ContextWindow);
+        }
     }
 
     private static AgentProfileAuditWire ToWire(AgentProfileAuditRecord audit) => new()
