@@ -349,7 +349,9 @@ public sealed class DotCraftWireClient : IAsyncDisposable
                 ReadBoolean(capabilities, "modelCatalogManagement"),
                 capabilities.ValueKind == JsonValueKind.Undefined
                     ? JsonSerializer.SerializeToElement(new { }, DotCraftJson.Options)
-                    : capabilities.Clone()),
+                    : capabilities.Clone(),
+                ReadBoolean(capabilities, "configOverride"),
+                ReadBoolean(capabilities, "providerManagement")),
             result.Clone());
     }
 
