@@ -160,6 +160,7 @@ internal sealed class OpenAIResponsesProviderHistoryContext
         using var document = JsonDocument.Parse(raw);
         if (document.RootElement.ValueKind != JsonValueKind.Object)
             return;
+        var normalizedItem = ResponsesToolSearchMapper.NormalizeProviderHistoryItem(document.RootElement);
 
         await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
@@ -170,14 +171,14 @@ internal sealed class OpenAIResponsesProviderHistoryContext
                 attemptId,
                 outputIndex,
                 sequenceNumber,
-                document.RootElement.GetRawText());
+                normalizedItem.GetRawText());
             if (_entries.Any(entry => string.Equals(entry.Entry.EntryId, entryId, StringComparison.Ordinal)))
                 return;
 
             var entry = new ProviderHistoryEntry
             {
                 EntryId = entryId,
-                Item = document.RootElement.Clone()
+                Item = normalizedItem
             };
             await PersistAppendAsync(
                     [entry],
@@ -356,7 +357,11 @@ internal sealed class OpenAIResponsesProviderHistoryContext
     {
         var input = new JsonArray();
         foreach (var entry in _entries)
-            input.Add(JsonNode.Parse(entry.Entry.Item.GetRawText()));
+        {
+            var normalizedItem =
+                ResponsesToolSearchMapper.NormalizeProviderHistoryItem(entry.Entry.Item);
+            input.Add(JsonNode.Parse(normalizedItem.GetRawText()));
+        }
         NormalizeCallOutputs(input);
         return input;
     }

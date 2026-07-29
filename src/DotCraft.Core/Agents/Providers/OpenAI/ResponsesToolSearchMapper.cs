@@ -959,20 +959,54 @@ internal static class ResponsesToolSearchMapper
         return item;
     }
 
-    private static JsonObject CreateImageGenerationCallItem(HostedImageGenerationContent content)
+    internal static JsonElement NormalizeProviderHistoryItem(JsonElement item)
+    {
+        if (item.ValueKind != JsonValueKind.Object
+            || !item.TryGetProperty("type", out var type)
+            || type.ValueKind != JsonValueKind.String
+            || !string.Equals(
+                type.GetString(),
+                HostedImageGenerationContent.ToolName + "_call",
+                StringComparison.Ordinal))
+        {
+            return item.Clone();
+        }
+
+        var projected = CreateImageGenerationCallItem(
+            ReadJsonString(item, "status"),
+            ReadJsonString(item, "id"),
+            ReadJsonString(item, "revised_prompt"),
+            ReadJsonString(item, "result"));
+        return JsonSerializer.SerializeToElement(projected, JsonOptions);
+    }
+
+    private static JsonObject CreateImageGenerationCallItem(HostedImageGenerationContent content) =>
+        CreateImageGenerationCallItem(
+            content.Status,
+            content.Id,
+            content.RevisedPrompt,
+            content.ImageBytes is { Length: > 0 }
+                ? Convert.ToBase64String(content.ImageBytes)
+                : null);
+
+    private static JsonObject CreateImageGenerationCallItem(
+        string? status,
+        string? id,
+        string? revisedPrompt,
+        string? result)
     {
         var item = new JsonObject
         {
             ["type"] = HostedImageGenerationContent.ToolName + "_call",
-            ["status"] = string.IsNullOrWhiteSpace(content.Status) ? "completed" : content.Status
+            ["status"] = string.IsNullOrWhiteSpace(status) ? "completed" : status
         };
 
-        if (!string.IsNullOrWhiteSpace(content.Id))
-            item["id"] = content.Id;
-        if (!string.IsNullOrWhiteSpace(content.RevisedPrompt))
-            item["revised_prompt"] = content.RevisedPrompt;
-        if (content.ImageBytes is { Length: > 0 })
-            item["result"] = Convert.ToBase64String(content.ImageBytes);
+        if (!string.IsNullOrWhiteSpace(id))
+            item["id"] = id;
+        if (!string.IsNullOrWhiteSpace(revisedPrompt))
+            item["revised_prompt"] = revisedPrompt;
+        if (!string.IsNullOrWhiteSpace(result))
+            item["result"] = result;
         return item;
     }
 
@@ -1257,6 +1291,11 @@ internal static class ResponsesToolSearchMapper
     private static string? ReadJsonString(JsonObject obj, string name) =>
         obj.TryGetPropertyValue(name, out var value) && value != null
             ? value.GetValue<string?>()
+            : null;
+
+    private static string? ReadJsonString(JsonElement element, string name) =>
+        element.TryGetProperty(name, out var value) && value.ValueKind == JsonValueKind.String
+            ? value.GetString()
             : null;
 
     private static int? ReadJsonInt(JsonObject obj, string name)
