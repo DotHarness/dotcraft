@@ -925,7 +925,8 @@ public sealed partial class SessionService(
                 .ResolveMainRuntime(currentConfig, captured.ProviderId, captured.Model);
             captured.ProviderId = runtime.ProviderId;
             captured.Model = captured.Model.Trim();
-            preference = ModelProviderResolver.ResolveMainPreference(currentConfig, runtime.ProviderId);
+            preference = ModelPreferenceRules.Find(currentConfig.ProviderPreferences, runtime.ProviderId)
+                         ?? ModelPreferenceRules.CreateDefault(currentConfig, runtime.ProviderId, captured.Model);
             preference.Model = captured.Model;
             preference = ModelPreferenceRules.Normalize(currentConfig, runtime.ProviderId, preference);
         }

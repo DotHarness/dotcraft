@@ -138,6 +138,10 @@ public sealed class AppServerThreadModelSnapshotTests : IDisposable
                   "Protocol": "anthropic",
                   "ApiKey": "sk-ant-test"
                 },
+                "explicit-only": {
+                  "Protocol": "anthropic",
+                  "ApiKey": "sk-ant-explicit"
+                },
                 "openrouter": {
                   "Protocol": "openai-chat-completions",
                   "ApiKey": "sk-router-test",
@@ -236,6 +240,77 @@ public sealed class AppServerThreadModelSnapshotTests : IDisposable
             expectedModel: "claude-opus-4-1",
             expectedProviderId: "anthropic-main",
             config: new { providerId = "anthropic-main", model = "claude-opus-4-1" });
+
+        await StartThreadAndAssertModelAsync(
+            handler,
+            transport,
+            requestId: 25,
+            expectedModel: "claude-opus-4-8",
+            expectedProviderId: "explicit-only",
+            expectedSpeed: "standard",
+            config: new
+            {
+                providerId = "explicit-only",
+                model = "claude-opus-4-8",
+                reasoning = new { enabled = true, effort = "extraHigh", output = "full" },
+                speed = "standard",
+                contextWindow = new { mode = "default" }
+            });
+
+        var agentsDirectory = Path.Combine(_craftPath, "agents");
+        Directory.CreateDirectory(agentsDirectory);
+        await File.WriteAllTextAsync(
+            Path.Combine(agentsDirectory, "universe-agent.md"),
+            """
+            ---
+            name: universe-agent
+            description: Universe model override regression fixture
+            providerPreference:
+              providerId: anthropic-main
+              model: claude-sonnet-4-5
+              reasoning:
+                enabled: true
+                effort: high
+              speed: standard
+              contextWindow:
+                mode: default
+            tools:
+              deny: [WriteFile]
+            ---
+
+            Keep the profile policy when Universe selects another configured Provider.
+            """);
+
+        var profileThreadId = await StartThreadAndAssertModelAsync(
+            handler,
+            transport,
+            requestId: 26,
+            expectedModel: "claude-opus-4-8",
+            expectedProviderId: "explicit-only",
+            expectedSpeed: "standard",
+            config: new
+            {
+                agentProfileId = "universe-agent",
+                providerId = "explicit-only",
+                model = "claude-opus-4-8",
+                reasoning = new { enabled = true, effort = "extraHigh", output = "full" },
+                speed = "standard",
+                contextWindow = new { mode = "default" }
+            });
+
+        var profileThreadRead = InMemoryTransport.BuildRequest(
+            AppServerMethods.ThreadRead,
+            new { threadId = profileThreadId, includeTurns = false },
+            id: 27);
+        await ExecuteRequestAsync(handler, transport, profileThreadRead);
+        var profileThreadResponse = await ReadResponseForIdAsync(transport, 27);
+        var profileConfiguration = profileThreadResponse.RootElement
+            .GetProperty("result")
+            .GetProperty("thread")
+            .GetProperty("configuration");
+        Assert.Equal(
+            "WriteFile",
+            profileConfiguration.GetProperty("toolPolicy").GetProperty("deny")[0].GetString());
     }
 
     private AgentFactory CreateAgentFactory(AppConfig config)
