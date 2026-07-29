@@ -849,6 +849,7 @@ List threads matching a given identity.
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
 | `identity` | SessionIdentity | yes | Identity to filter by. |
+| `scope` | string | no | Discovery scope: `"identity"` (default) applies Session identity and optional cross-channel matching; `"workspace"` matches every thread with the same exact `workspacePath`, regardless of user, channel context, or origin. |
 | `includeArchived` | boolean | no | Default `false`. When `true`, archived threads are included in the result set alongside non-archived threads. |
 | `includeSubAgents` | boolean | no | Default `false`. When `true`, session-backed subagent child threads may be included in the mixed result set. Children whose parent is archived are still hidden unless `includeArchived` is also true. Widget-style clients should prefer `subagent/children/list` for a parent thread. |
 | `includeInternal` | boolean | no | Default `false`. When `false`, DotCraft-owned helper threads marked with `dotcraft.internal` metadata or known internal origins are excluded. This should only be enabled by diagnostics. |
@@ -888,6 +889,8 @@ List threads matching a given identity.
 ```
 
 Results are ordered by `lastActiveAt` descending. Filtering is applied before pagination. `nextCursor` is `null` or omitted when no further page exists. `totalMatched` is the number of threads after all filters and before pagination. Cursors are opaque and clients must not parse them. Older clients that omit both `limit` and `cursor` keep receiving the complete list for compatibility.
+
+When `scope = "workspace"`, `crossChannelOrigins` is ignored because all origins in the exact workspace are already eligible. `includeInternal` remains `false` by default, so workspace scope does not expose internal helper threads unless explicitly requested. Unknown scope values return `InvalidParams`.
 
 Each `ThreadSummary` may include an optional `runtime` snapshot with the same shape as `thread/runtimeChanged`. This snapshot is best-effort process-local state intended to hydrate thread-list activity indicators after reconnect. Clients should apply it as initial list state and continue to consume `thread/runtimeChanged` as the incremental source of truth. Older servers may omit `runtime`, and clients must treat omission as unknown rather than as an idle thread.
 

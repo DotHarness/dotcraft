@@ -157,6 +157,7 @@ describe('ArchivedThreadsSettingsView deletion actions', () => {
 
     const listCall = appServerSendRequest.mock.calls.find((call) => call[0] === 'thread/list')
     expect(listCall?.[1]).toEqual(expect.objectContaining({
+      scope: 'workspace',
       identity: expect.objectContaining({
         channelContext: 'workspace:/workspace',
         workspacePath: '/workspace'

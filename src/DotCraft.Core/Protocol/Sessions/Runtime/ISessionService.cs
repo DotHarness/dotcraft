@@ -7,6 +7,18 @@ using System.Text.Json.Nodes;
 namespace DotCraft.Protocol;
 
 /// <summary>
+/// Controls which identity fields participate in thread discovery.
+/// </summary>
+public enum ThreadDiscoveryScope
+{
+    /// <summary>Match workspace, user, and channel context, plus explicitly allowed origins.</summary>
+    Identity,
+
+    /// <summary>Match every thread in the exact workspace regardless of user or channel identity.</summary>
+    Workspace
+}
+
+/// <summary>
 /// The central Session Core API consumed by all Channel Adapters.
 /// Manages Thread/Turn/Item lifecycle, event emission, and persistence.
 /// </summary>
@@ -195,12 +207,15 @@ public interface ISessionService
     /// <see cref="ThreadSummary.OriginChannel"/> in this list (case-insensitive), ignoring channel context.
     /// </param>
     /// <param name="ct"></param>
+    /// <param name="includeSubAgents">Whether session-backed sub-agent threads are included.</param>
+    /// <param name="scope">Identity-scoped discovery by default; workspace scope ignores user, channel context, and origin.</param>
     Task<IReadOnlyList<ThreadSummary>> FindThreadsAsync(
         SessionIdentity identity,
         bool includeArchived = false,
         IReadOnlyList<string>? crossChannelOrigins = null,
         CancellationToken ct = default,
-        bool includeSubAgents = false);
+        bool includeSubAgents = false,
+        ThreadDiscoveryScope scope = ThreadDiscoveryScope.Identity);
 
     /// <summary>
     /// Counts non-internal, top-level (non-sub-agent) threads in <paramref name="workspacePath"/>,

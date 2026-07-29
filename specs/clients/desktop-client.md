@@ -473,7 +473,9 @@ Unmounting, switching threads, or disconnecting closes an acquired handle. A han
 
 ### 5.10 Cross-Channel Visibility
 
-- If the server supports cross-channel thread discovery, the Desktop client may present threads whose origin differs from the desktop client itself.
+- Desktop requests workspace-scoped thread discovery for foreground, secondary-project, archived, and Desktop-tool thread lists.
+- Every non-internal thread whose state workspace exactly matches the selected workspace is visible regardless of origin channel, user id, or channel context. This includes cron, heartbeat, App Binding origins, and unknown external origins.
+- App Binding origin declarations provide attribution and branding; they are not a thread-visibility allowlist.
 - The UX contract is that origin differences must not make the thread list confusing:
   - origin may be shown when useful
   - unsupported actions must be disabled rather than failing unexpectedly

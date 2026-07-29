@@ -279,6 +279,33 @@ public sealed class RunProfileTests
     }
 
     [Fact]
+    public async Task ListAsync_WorkspaceScope_SendsTypedScope()
+    {
+        var (client, transport) = await ConnectAsync();
+        await using var _ = client;
+
+        var listTask = client.Threads.ListAsync(new DotCraftThreadListOptions(
+            IncludeArchived: true,
+            Scope: DotCraftThreadListScope.Workspace));
+        using (var outbound = await transport.ReadOutboundAsync())
+        {
+            Assert.Equal("thread/list", outbound.RootElement.GetProperty("method").GetString());
+            var parameters = outbound.RootElement.GetProperty("params");
+            Assert.True(parameters.GetProperty("includeArchived").GetBoolean());
+            Assert.Equal("workspace", parameters.GetProperty("scope").GetString());
+            var id = outbound.RootElement.GetProperty("id").GetInt64();
+            await transport.PushInboundAsync(new
+            {
+                jsonrpc = "2.0",
+                id,
+                result = new { threads = Array.Empty<object>() }
+            });
+        }
+
+        Assert.Empty(await listTask.WaitAsync(Timeout));
+    }
+
+    [Fact]
     public async Task ThreadHandle_SetMode_SendsTypedRequest()
     {
         var (client, transport) = await ConnectAsync();

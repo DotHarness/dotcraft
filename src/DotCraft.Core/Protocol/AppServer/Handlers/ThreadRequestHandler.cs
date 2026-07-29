@@ -234,13 +234,17 @@ internal sealed class ThreadRequestHandler(
     {
         var p = AppServerParams.Get<ThreadListParams>(msg);
         var identity = NormalizeIdentityWorkspace(p.Identity);
-        var crossOrigins = ResolveCrossChannelOriginsForThreadList(p);
+        var scope = ResolveThreadDiscoveryScope(p.Scope);
+        var crossOrigins = scope == ThreadDiscoveryScope.Workspace
+            ? null
+            : ResolveCrossChannelOriginsForThreadList(p);
         var threads = await sessionService.FindThreadsAsync(
             identity,
             p.IncludeArchived ?? false,
             crossOrigins,
             ct,
-            p.IncludeSubAgents ?? false);
+            p.IncludeSubAgents ?? false,
+            scope);
 
         if (p.IncludeInternal != true)
         {
@@ -859,6 +863,22 @@ internal sealed class ThreadRequestHandler(
 
     private static IReadOnlyList<string>? ResolveCrossChannelOriginsForThreadList(ThreadListParams p) =>
         p.CrossChannelOrigins;
+
+    private static ThreadDiscoveryScope ResolveThreadDiscoveryScope(string? scope)
+    {
+        if (string.IsNullOrWhiteSpace(scope)
+            || string.Equals(scope, ThreadListScopes.Identity, StringComparison.OrdinalIgnoreCase))
+        {
+            return ThreadDiscoveryScope.Identity;
+        }
+
+        if (string.Equals(scope, ThreadListScopes.Workspace, StringComparison.OrdinalIgnoreCase))
+            return ThreadDiscoveryScope.Workspace;
+
+        throw new ArgumentException(
+            $"scope must be '{ThreadListScopes.Identity}' or '{ThreadListScopes.Workspace}'.",
+            nameof(scope));
+    }
 
     private static bool MatchesThreadListQuery(ThreadSummary summary, string query)
     {

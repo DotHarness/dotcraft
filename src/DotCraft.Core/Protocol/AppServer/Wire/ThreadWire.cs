@@ -111,9 +111,22 @@ public sealed class RuntimeAdditionalContextEntry
 
 // ───── thread/list ─────
 
+public static class ThreadListScopes
+{
+    public const string Identity = "identity";
+
+    public const string Workspace = "workspace";
+}
+
 public sealed class ThreadListParams
 {
     public SessionIdentity Identity { get; set; } = new();
+
+    /// <summary>
+    /// Discovery scope. Defaults to <see cref="ThreadListScopes.Identity"/>.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Scope { get; set; }
 
     public bool? IncludeArchived { get; set; }
 

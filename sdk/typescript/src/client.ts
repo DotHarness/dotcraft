@@ -170,6 +170,7 @@ export class DotCraftWireClient {
     userId: string;
     workspacePath?: string;
     channelContext?: string;
+    scope?: "identity" | "workspace";
     includeArchived?: boolean;
     query?: string;
     limit?: number;
@@ -184,6 +185,7 @@ export class DotCraftWireClient {
     userId: string;
     workspacePath?: string;
     channelContext?: string;
+    scope?: "identity" | "workspace";
     includeArchived?: boolean;
     query?: string;
     limit?: number;
@@ -200,6 +202,7 @@ export class DotCraftWireClient {
       identity,
       includeArchived: params.includeArchived ?? false,
     };
+    if (params.scope) payload.scope = params.scope;
     if (params.query) payload.query = params.query;
     if (params.limit != null) payload.limit = params.limit;
     if (params.cursor) payload.cursor = params.cursor;

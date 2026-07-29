@@ -9,7 +9,8 @@ public sealed partial class SessionService
             bool includeArchived,
             IReadOnlyList<string>? crossChannelOrigins,
             CancellationToken ct,
-            bool includeSubAgents)
+            bool includeSubAgents,
+            ThreadDiscoveryScope scope)
         {
             var all = await owner.Persistence.LoadIndexAsync(ct);
             var hasCross = crossChannelOrigins is { Count: > 0 };
@@ -43,6 +44,9 @@ public sealed partial class SessionService
                     {
                         return false;
                     }
+
+                    if (scope == ThreadDiscoveryScope.Workspace)
+                        return true;
 
                     if (includeSubAgents
                         && IsSubAgentSummary(s)
