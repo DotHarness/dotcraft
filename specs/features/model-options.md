@@ -101,8 +101,10 @@ Model options follow this lifecycle:
 1. The effective `ProviderPreferences` record supplies the preset used by the Welcome composer and
    future threads.
 2. `thread/start` captures effective provider, model, reasoning, speed, and context-window mode into
-   `ThreadConfiguration` unless the request supplies explicit values. Unsupported MAX is normalized to
-   Default before capture.
+   `ThreadConfiguration` unless the request supplies explicit values. A configured Provider without a
+   saved preference remains usable when the request supplies an explicit model; missing model options
+   use capability-safe defaults and explicit options win. Unsupported MAX is normalized to Default
+   before capture.
 3. A Welcome picker change atomically updates the complete workspace provider preference; an
    active-thread picker change updates only that thread's complete provider/model snapshot.
 4. A change affects future and queued turns; it never changes a running provider request.
