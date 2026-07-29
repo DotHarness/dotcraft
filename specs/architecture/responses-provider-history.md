@@ -52,8 +52,11 @@ The thread rollout supports:
 
 Every record carries schema version, thread id, protocol, generation id, and context-window id.
 Append entries additionally carry turn id, source, optional attempt id, a stable ledger entry id,
-and the exact item object. Provider-output entries are captured from completed raw Responses
-output items before tool-search normalization and MEAI conversion.
+and the provider-visible item object. Provider-output entries are captured from completed raw
+Responses output items before tool-search normalization and MEAI conversion. An
+`image_generation_call` is first projected to its replayable input representation containing only
+`type`, `status`, optional `id`, optional `revised_prompt`, and optional `result`; output-only
+generation controls and SDK metadata are not canonical history.
 
 Local items are appended before transport. Provider-output items are appended as soon as the raw
 `response.output_item.done` event is consumed, so completed output survives a later cancellation or
@@ -99,7 +102,9 @@ when the request has no tools.
 Before transport, request-local normalization supplies a deterministic `aborted` output for a
 client function/tool-search call that has no output and removes orphan client outputs. Synthetic
 items are not persisted; their IDs are derived from the source call item ID so repeated sampling
-has the same byte shape.
+has the same byte shape. Request construction also applies the replayable
+`image_generation_call` projection idempotently so version-1 histories written before that
+projection remain usable without rewriting their rollout records.
 
 ## Lifecycle
 
@@ -161,8 +166,8 @@ durable but must never be copied into diagnostics.
   byte-identical prefix and append only completed provider items and new local tail items.
 - Request-local sanitization never emits `provider_history_replaced`; successful compaction emits
   exactly one replacement for the new context window.
-- Provider IDs, `call_id`, item ordering, and encrypted reasoning bytes survive turn completion,
-  cold resume, rollback, and compatible fork.
+- Provider IDs, `call_id`, item ordering, replayable image-generation fields, and encrypted
+  reasoning bytes survive turn completion, cold resume, rollback, and compatible fork.
 - Reasoning emitted after a tool result is projected as Assistant content, while the Tool message
   contains only the corresponding tool results.
 - Compaction and protocol return establish an explicit, diagnosable prefix boundary.

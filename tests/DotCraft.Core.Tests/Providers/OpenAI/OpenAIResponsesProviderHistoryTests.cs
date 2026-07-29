@@ -438,6 +438,134 @@ public sealed class OpenAIResponsesProviderHistoryTests
     }
 
     [Fact]
+    public async Task ResponsesAdapter_ProjectsImageGenerationCallBeforePersistence()
+    {
+        var records = new List<ThreadRolloutRecord>();
+        var context = CreateContext(
+            CreateIdentity(CreateTurn("turn_001")),
+            ProviderHistorySnapshot.Empty("window_1"),
+            coveredMessageCount: 0,
+            records);
+        var transport = new CapturingResponsesTransport(
+            ReadStreamingUpdate(
+                """
+                {
+                  "type": "response.output_item.done",
+                  "sequence_number": 1,
+                  "output_index": 0,
+                  "item": {
+                    "type": "image_generation_call",
+                    "id": "ig_provider",
+                    "status": "generating",
+                    "action": "edit",
+                    "background": "opaque",
+                    "output_format": "png",
+                    "quality": "medium",
+                    "size": "1536x1024",
+                    "revised_prompt": "A compact project actions popover",
+                    "result": "Zm9v",
+                    "metadata": {"provider_only": true}
+                  }
+                }
+                """));
+        using var adapter = new OpenAIResponsesToolSearchChatClient(
+            new ResponsesClient("sk-test"),
+            "gpt-test",
+            new NoopChatClient(),
+            transport);
+        using var scope = OpenAIResponsesProviderHistoryRuntimeScope.Set(context);
+
+        await foreach (var _ in adapter.GetStreamingResponseAsync(
+                           [new ChatMessage(ChatRole.User, "create")]))
+        {
+        }
+
+        var providerAppend = Assert.Single(
+            records,
+            record => string.Equals(
+                record.ProviderHistoryItemsAppended?.Source,
+                ProviderHistorySources.ProviderOutput,
+                StringComparison.Ordinal));
+        var item = Assert.Single(providerAppend.ProviderHistoryItemsAppended!.Entries).Item;
+        AssertReplayableImageGenerationCall(item);
+    }
+
+    [Fact]
+    public async Task LegacyImageGenerationCall_IsProjectedOnColdResumeAndWireRequest()
+    {
+        using var legacyDocument = JsonDocument.Parse(
+            """
+            {
+              "type": "image_generation_call",
+              "id": "ig_legacy",
+              "status": "generating",
+              "action": "edit",
+              "background": "opaque",
+              "output_format": "png",
+              "quality": "medium",
+              "size": "1536x1024",
+              "revised_prompt": "A compact project actions popover",
+              "result": "Zm9v",
+              "metadata": {"provider_only": true}
+            }
+            """);
+        var snapshot = new ProviderHistorySnapshot(
+            "window_1",
+            "window_1",
+            [
+                new ProviderHistoryEntry
+                {
+                    EntryId = "phe_legacy",
+                    Item = legacyDocument.RootElement.Clone()
+                }
+            ],
+            "turn_001");
+        var records = new List<ThreadRolloutRecord>();
+        var messages = new List<ChatMessage>
+        {
+            new(ChatRole.User, "adjust spacing")
+        };
+        var context = CreateContext(
+            CreateIdentity(CreateTurn("turn_002")),
+            snapshot,
+            coveredMessageCount: 0,
+            records);
+        var transport = new CapturingResponsesTransport();
+        using var adapter = new OpenAIResponsesToolSearchChatClient(
+            new ResponsesClient("sk-test"),
+            "gpt-test",
+            new NoopChatClient(),
+            transport);
+        using (OpenAIResponsesProviderHistoryRuntimeScope.Set(context))
+        {
+            await foreach (var _ in adapter.GetStreamingResponseAsync(messages))
+            {
+            }
+        }
+
+        using var requestDocument = JsonDocument.Parse(
+            ModelReaderWriter.Write(Assert.Single(transport.Requests)).ToString());
+        var requestInput = requestDocument.RootElement.GetProperty("input");
+        Assert.Equal(2, requestInput.GetArrayLength());
+        AssertReplayableImageGenerationCall(requestInput[0]);
+        Assert.DoesNotContain(records, record => record.ProviderHistoryReplaced is not null);
+
+        var firstInput = requestInput.EnumerateArray()
+            .Select(item => item.GetRawText())
+            .ToList();
+        var resumed = CreateContext(
+            CreateIdentity(CreateTurn("turn_003")),
+            context.CaptureSnapshot(),
+            coveredMessageCount: messages.Count,
+            records: []);
+        var next = await resumed.PrepareInputAsync(
+            [.. messages, new ChatMessage(ChatRole.User, "continue")],
+            options: null,
+            CancellationToken.None);
+        Assert.Equal(firstInput, ItemJson(next.Input).Take(firstInput.Count));
+    }
+
+    [Fact]
     public void Replay_MalformedActiveRecordFailsWithStableError()
     {
         var record = new ThreadRolloutRecord
@@ -544,6 +672,23 @@ public sealed class OpenAIResponsesProviderHistoryTests
 
     private static string? ReadType(JsonNode? item) =>
         item?["type"]?.GetValue<string>();
+
+    private static void AssertReplayableImageGenerationCall(JsonElement item)
+    {
+        Assert.Equal("image_generation_call", item.GetProperty("type").GetString());
+        Assert.Equal("generating", item.GetProperty("status").GetString());
+        Assert.StartsWith("ig_", item.GetProperty("id").GetString(), StringComparison.Ordinal);
+        Assert.Equal(
+            "A compact project actions popover",
+            item.GetProperty("revised_prompt").GetString());
+        Assert.Equal("Zm9v", item.GetProperty("result").GetString());
+        Assert.Equal(
+            ["id", "result", "revised_prompt", "status", "type"],
+            item.EnumerateObject()
+                .Select(property => property.Name)
+                .OrderBy(name => name, StringComparer.Ordinal)
+                .ToArray());
+    }
 
     private sealed class ProviderHistoryRetryClient(
         OpenAIResponsesProviderHistoryContext context) : IChatClient
