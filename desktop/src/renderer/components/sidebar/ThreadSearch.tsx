@@ -41,6 +41,7 @@ export function ThreadSearch({ workspaceName }: ThreadSearchProps): JSX.Element 
     <>
       <div style={{ flexShrink: 0 }}>
         <button
+          className="dotcraft-sidebar-row-radius"
           type="button"
           onClick={() => setOpen(true)}
           aria-label={t('threadSearch.open')}

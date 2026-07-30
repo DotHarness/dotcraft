@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
-import { ChevronRight, Copy, ExternalLink, FolderOpen } from 'lucide-react'
+import { ChevronRight, Copy, ExternalLink, FolderOpen, MessageSquarePlus } from 'lucide-react'
 import { useT } from '../../contexts/LocaleContext'
 import { addToast } from '../../stores/toastStore'
+import { useUIStore } from '../../stores/uiStore'
+import { normalizeComposerFileAttachment } from '../../utils/composerAttachments'
 import {
   EDITOR_ICON_SIZE,
   listEditorsCached,
@@ -16,6 +18,7 @@ import type { ContextMenuPosition } from '../ui/ContextMenu'
 interface ReferencePathContextMenuProps {
   position: ContextMenuPosition
   targetPath: string
+  allowAddToChat?: boolean
   onClose: () => void
 }
 
@@ -27,6 +30,7 @@ const menuGap = 6
 export function ReferencePathContextMenu({
   position,
   targetPath,
+  allowAddToChat = true,
   onClose
 }: ReferencePathContextMenuProps): JSX.Element {
   const t = useT()
@@ -133,6 +137,12 @@ export function ReferencePathContextMenu({
     }
   }
 
+  function addToChat(): void {
+    const attachment = normalizeComposerFileAttachment(targetPath)
+    if (!attachment) return
+    useUIStore.getState().requestComposerFileAttachment(attachment)
+  }
+
   function handlePrimary(): void {
     void launchWithEditor(primaryEditor)
   }
@@ -166,6 +176,14 @@ export function ReferencePathContextMenu({
           onClick={() => { void copyPath() }}
           onClose={onClose}
         />
+        {allowAddToChat && (
+          <MenuButton
+            label={t('conversation.reference.addToChat')}
+            icon={<MessageSquarePlus size={16} />}
+            onClick={addToChat}
+            onClose={onClose}
+          />
+        )}
         <MenuButton
           label={t('conversation.reference.openInExplorer')}
           icon={<FolderOpen size={16} />}

@@ -4,8 +4,8 @@ import type { JSX } from 'react'
  * Teams-style speech bubble shown above the composer mascot.
  *
  * Visual spec: neutral elevated surface (`--bg-secondary` + `--border-default`
- * + tokenized shadow). The tone is communicated only as a small semantic accent
- * (left rule + status dot) using `--error` / `--success` / `--warning` / `--info`,
+ * + tokenized shadow). The tone is communicated only as a small status dot
+ * using `--error` / `--success` / `--warning` / `--info`,
  * never as a coloured surface. At most one primary action, rendered in the neutral
  * inverted style; secondary actions stay neutral-bordered.
  *
@@ -63,7 +63,6 @@ export function MascotBubble({
         maxWidth: '76vw',
         background: 'var(--bg-secondary)',
         border: '1px solid var(--border-default)',
-        borderLeft: `3px solid ${accent}`,
         borderRadius: '12px',
         padding: '10px 12px 11px',
         boxShadow: 'var(--shadow-lg)',

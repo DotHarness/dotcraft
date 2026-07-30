@@ -33,6 +33,7 @@ export function SidebarFooter(): JSX.Element {
       }}
     >
       <button
+        className="dotcraft-sidebar-row-radius"
         type="button"
         onClick={() => setActiveMainView('settings')}
         aria-label={t('sidebar.openSettingsAria')}

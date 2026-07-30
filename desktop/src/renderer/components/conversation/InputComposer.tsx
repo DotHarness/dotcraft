@@ -274,6 +274,7 @@ export function InputComposer({
   const threadMode = useConversationStore((s) => s.threadMode)
   const setThreadMode = useConversationStore((s) => s.setThreadMode)
   const composerPrefill = useUIStore((s) => s.composerPrefill)
+  const composerFileAttachmentRequest = useUIStore((s) => s.composerFileAttachmentRequest)
   const currentGoal = useThreadStore((s) => s.goalSnapshots.get(threadId) ?? null)
   const hasSubAgentDock = useSubAgentStore(
     (s) => (s.childrenByParent.get(threadId)?.some(isSubAgentChildRunning) ?? false)
@@ -599,6 +600,18 @@ export function InputComposer({
       }, 0)
     }
   }, [composerPrefill])
+
+  useEffect(() => {
+    if (!composerFileAttachmentRequest) return
+    const attachment = useUIStore.getState().consumeComposerFileAttachmentRequest()
+    if (!attachment) return
+    if (remoteWorkspace) {
+      addToast(t('input.remoteLocalFilesUnavailable'), 'warning')
+      return
+    }
+    setFiles((current) => mergeComposerFileAttachments(current, [attachment]))
+    setTimeout(() => richRef.current?.focus(), 0)
+  }, [composerFileAttachmentRequest, remoteWorkspace, t])
 
   useEffect(() => {
     const prefill = prefillRequest?.text

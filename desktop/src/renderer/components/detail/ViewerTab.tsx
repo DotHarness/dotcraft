@@ -17,7 +17,7 @@ import { useUIStore } from '../../stores/uiStore'
 import { AlertTriangle } from 'lucide-react'
 import { ViewerHeader } from './ViewerHeader'
 import { WorkspaceExplorer } from './WorkspaceExplorer'
-import { DragHandle } from '../layout/DragHandle'
+import { ExplorerDock } from './ExplorerDock'
 
 const LazyTextViewer = lazy(() =>
   import('./viewers/TextViewer').then((m) => ({ default: m.TextViewer }))
@@ -133,21 +133,9 @@ export function ViewerTab({ tabId }: ViewerTabProps): JSX.Element {
         </div>
 
         {explorerVisible && (
-          <>
-            <DragHandle onDrag={handleExplorerDrag} />
-            <div
-              style={{
-                flex: `0 1 ${explorerWidth}px`,
-                minWidth: 140,
-                overflow: 'hidden',
-                display: 'flex',
-                flexDirection: 'column',
-                borderLeft: '1px solid var(--glass-border)'
-              }}
-            >
-              <WorkspaceExplorer />
-            </div>
-          </>
+          <ExplorerDock width={explorerWidth} onDrag={handleExplorerDrag}>
+            <WorkspaceExplorer />
+          </ExplorerDock>
         )}
       </div>
     </div>

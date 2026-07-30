@@ -9,6 +9,8 @@ export interface IconButtonProps extends Omit<ButtonHTMLAttributes<HTMLButtonEle
   /** Corner radius in px. Defaults to the standard 8px control-band radius. */
   radius?: number
   active?: boolean
+  /** Active-state color treatment. Explorer/view toggles use neutral chrome. */
+  activeTone?: 'accent' | 'neutral'
   /** Semantic treatment for destructive icon-only actions. */
   tone?: 'neutral' | 'danger'
   /** Paint a visible neutral border. Reserve for special / important framed controls. */
@@ -26,6 +28,7 @@ export const IconButton = forwardRef<HTMLButtonElement, IconButtonProps>(functio
   size = 32,
   radius = 8,
   active = false,
+  activeTone = 'accent',
   tone = 'neutral',
   bordered = false,
   disabled = false,
@@ -46,6 +49,7 @@ export const IconButton = forwardRef<HTMLButtonElement, IconButtonProps>(functio
       disabled={disabled}
       className={className ? `dc-icon-button ${className}` : 'dc-icon-button'}
       data-active={active || undefined}
+      data-active-tone={activeTone}
       data-bordered={bordered || undefined}
       data-tone={tone}
       style={{

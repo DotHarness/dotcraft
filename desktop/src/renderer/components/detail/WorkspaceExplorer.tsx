@@ -48,7 +48,11 @@ export function WorkspaceExplorer(): JSX.Element {
   const [expanded, setExpanded] = useState<Set<string>>(new Set())
   const [errored, setErrored] = useState<Set<string>>(new Set())
   const [filter, setFilter] = useState('')
-  const [contextMenu, setContextMenu] = useState<{ position: ContextMenuPosition; targetPath: string } | null>(null)
+  const [contextMenu, setContextMenu] = useState<{
+    position: ContextMenuPosition
+    targetPath: string
+    isDirectory: boolean
+  } | null>(null)
   const [scrollTargetKey, setScrollTargetKey] = useState<string | null>(null)
 
   const loadingRef = useRef<Set<string>>(new Set())
@@ -187,7 +191,11 @@ export function WorkspaceExplorer(): JSX.Element {
           onContextMenu={(event) => {
             event.preventDefault()
             event.stopPropagation()
-            setContextMenu({ position: { x: event.clientX, y: event.clientY }, targetPath: entry.absolutePath })
+            setContextMenu({
+              position: { x: event.clientX, y: event.clientY },
+              targetPath: entry.absolutePath,
+              isDirectory: entry.isDir
+            })
           }}
           style={{ ...rowStyle, paddingLeft: 8 + depth * 14 }}
           onMouseEnter={(e) => { (e.currentTarget as HTMLDivElement).style.background = 'var(--bg-tertiary)' }}
@@ -235,6 +243,7 @@ export function WorkspaceExplorer(): JSX.Element {
         <ReferencePathContextMenu
           position={contextMenu.position}
           targetPath={contextMenu.targetPath}
+          allowAddToChat={!contextMenu.isDirectory}
           onClose={() => setContextMenu(null)}
         />
       )}

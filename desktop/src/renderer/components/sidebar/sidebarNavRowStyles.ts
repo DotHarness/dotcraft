@@ -13,7 +13,7 @@ export const SIDEBAR_NAV_ROW_OUTER: CSSProperties = {
   margin: '2px 4px',
   minHeight: SIDEBAR_ROW_MIN_HEIGHT,
   padding: '0 12px',
-  borderRadius: 'var(--sidebar-control-radius)',
+  borderRadius: 'var(--sidebar-row-radius)',
   border: 'none',
   fontSize: 'var(--type-ui-size)',
   lineHeight: 'var(--type-ui-line-height)',
@@ -39,5 +39,5 @@ export const SIDEBAR_NAV_LABEL: CSSProperties = {
 }
 
 export const SIDEBAR_NAV_BORDER_INACTIVE: CSSProperties = {
-  borderLeft: '3px solid transparent'
+  borderLeft: 'none'
 }

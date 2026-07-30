@@ -20,6 +20,7 @@ const workspaceClearRecent = vi.fn()
 const workspaceClearSelection = vi.fn()
 const workspaceStop = vi.fn()
 const workspaceArchiveThread = vi.fn()
+const shellOpenPath = vi.fn()
 
 function makeThread(id: string, displayName: string, minutesAgo = 0): ThreadSummary {
   const time = new Date(Date.now() - minutesAgo * 60 * 1000).toISOString()
@@ -78,6 +79,7 @@ describe('ThreadList project-first layout', () => {
     workspaceClearSelection.mockResolvedValue(undefined)
     workspaceStop.mockResolvedValue(undefined)
     workspaceArchiveThread.mockResolvedValue(undefined)
+    shellOpenPath.mockResolvedValue(undefined)
     Object.defineProperty(window, 'api', {
       configurable: true,
       value: {
@@ -96,7 +98,7 @@ describe('ThreadList project-first layout', () => {
           stop: workspaceStop,
           archiveThread: workspaceArchiveThread
         },
-        shell: { openPath: vi.fn() }
+        shell: { openPath: shellOpenPath }
       }
     })
     Object.defineProperty(navigator, 'clipboard', {
@@ -953,7 +955,7 @@ describe('ThreadList project-first layout', () => {
     })
   })
 
-  it('renders a Chats group with default chat workspace threads after Projects', () => {
+  it('renders a Recents group with default chat workspace threads after Projects', () => {
     useWorkspaceProjectsStore.getState().setPayload({
       foregroundWorkspacePath: '/workspace/a',
       foregroundProjectId: '/workspace/a',
@@ -988,11 +990,13 @@ describe('ThreadList project-first layout', () => {
     renderList()
 
     const projectsHeading = screen.getByText('Projects')
-    const chatsHeading = screen.getByText('Chats')
-    // Chats renders as its own group, after Projects.
-    expect(projectsHeading.compareDocumentPosition(chatsHeading) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    const recentsHeading = screen.getByText('Recents')
+    expect(projectsHeading.parentElement).toHaveStyle({ padding: '8px 8px 2px' })
+    expect(recentsHeading.parentElement).toHaveStyle({ padding: '8px 8px 2px' })
+    // Recents renders as its own group, after Projects.
+    expect(projectsHeading.compareDocumentPosition(recentsHeading) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     expect(screen.getByText('General chat thread')).toBeInTheDocument()
-    // The Chats group is not a project: no folder row carrying its physical path.
+    // The Recents group is not a project: no folder row carrying its physical path.
     expect(screen.queryByRole('button', { name: '/chats' })).not.toBeInTheDocument()
   })
 
@@ -1029,8 +1033,8 @@ describe('ThreadList project-first layout', () => {
 
     renderList()
 
-    expect(screen.getByText('Chats')).toBeInTheDocument()
-    expect(screen.getByText('No chats')).toBeInTheDocument()
+    expect(screen.getByText('Recents')).toBeInTheDocument()
+    expect(screen.getByText('No chats')).toHaveStyle({ padding: '4px 8px 8px' })
   })
 
   it('shows mutually exclusive waiting and running counts in project details', async () => {
@@ -1072,6 +1076,53 @@ describe('ThreadList project-first layout', () => {
       expect(screen.queryByRole('dialog', { name: 'project-b' })).not.toBeInTheDocument()
     })
     expect(screen.getByRole('button', { name: 'project-b' })).toHaveFocus()
+  })
+
+  it('opens every local project folder from details and exposes the edit shortcut', async () => {
+    useWorkspaceProjectsStore.getState().setPayload({
+      foregroundWorkspacePath: '/workspace/a',
+      secondaryLimit: 8,
+      projects: [{
+        path: '/workspace/a',
+        secondaryFolders: ['/workspace/shared', '/workspace/docs'],
+        name: 'project-a',
+        state: 'foreground',
+        running: true,
+        loaded: true,
+        threadCount: 0,
+        threads: [],
+        pinnedThreadIds: []
+      }]
+    })
+
+    renderList({ workspacePath: '/workspace/a' })
+    fireEvent.focus(screen.getByRole('button', { name: 'project-a' }))
+
+    const details = await screen.findByRole('dialog', { name: 'project-a' })
+    const primaryFolder = within(details).getByRole('button', {
+      name: 'Open in Explorer: /workspace/a'
+    })
+    const sharedFolder = within(details).getByRole('button', {
+      name: 'Open in Explorer: /workspace/shared'
+    })
+    const docsFolder = within(details).getByRole('button', {
+      name: 'Open in Explorer: /workspace/docs'
+    })
+
+    fireEvent.click(primaryFolder)
+    fireEvent.click(sharedFolder)
+    fireEvent.click(docsFolder)
+
+    expect(shellOpenPath).toHaveBeenNthCalledWith(1, '/workspace/a')
+    expect(shellOpenPath).toHaveBeenNthCalledWith(2, '/workspace/shared')
+    expect(shellOpenPath).toHaveBeenNthCalledWith(3, '/workspace/docs')
+
+    fireEvent.click(within(details).getByRole('button', { name: 'Edit project' }))
+
+    const editDialog = await screen.findByRole('dialog', { name: 'Edit project' })
+    expect(editDialog).toHaveTextContent('/workspace/a')
+    expect(editDialog).toHaveTextContent('/workspace/shared')
+    expect(editDialog).toHaveTextContent('/workspace/docs')
   })
 
   it('reports a cold project as not loaded instead of zero threads', async () => {
@@ -1194,7 +1245,7 @@ describe('ThreadList project-first layout', () => {
     })
   })
 
-  it('keeps the Projects header available when Chats is foreground with no projects', async () => {
+  it('keeps the Projects header available when Recents is foreground with no projects', async () => {
     useWorkspaceProjectsStore.getState().setPayload({
       foregroundWorkspacePath: '/chats',
       foregroundProjectId: '/chats',
@@ -1218,7 +1269,7 @@ describe('ThreadList project-first layout', () => {
     renderList({ workspacePath: '/chats' })
 
     expect(screen.getByText('Projects')).toBeInTheDocument()
-    expect(screen.getByText('Chats')).toBeInTheDocument()
+    expect(screen.getByText('Recents')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Workspace options' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: '/chats' })).not.toBeInTheDocument()
 
@@ -1228,7 +1279,7 @@ describe('ThreadList project-first layout', () => {
     expect(await screen.findByRole('dialog', { name: 'Create project' })).toBeInTheDocument()
   })
 
-  it('New chat in the Chats group switches to the chat workspace and opens a new chat', async () => {
+  it('New chat in the Recents group switches to the chat workspace and opens a new chat', async () => {
     useThreadStore.getState().setActiveThreadId('old-thread')
     useWorkspaceProjectsStore.getState().setPayload({
       foregroundWorkspacePath: '/workspace/a',
@@ -1261,7 +1312,7 @@ describe('ThreadList project-first layout', () => {
     })
 
     renderList()
-    fireEvent.mouseEnter(screen.getByText('Chats').parentElement as HTMLElement)
+    fireEvent.mouseEnter(screen.getByText('Recents').parentElement as HTMLElement)
     fireEvent.click(screen.getByRole('button', { name: 'New chat' }))
 
     await waitFor(() => {
@@ -1307,7 +1358,7 @@ describe('ThreadList project-first layout', () => {
 
     renderList({ workspacePath: '/chats' })
 
-    // The live foreground thread appears in the Chats group as an interactive row.
+    // The live foreground thread appears in the Recents group as an interactive row.
     expect(screen.getByText('Live chat thread')).toBeInTheDocument()
     // The foreground chat workspace is never synthesized as a Project row.
     expect(screen.queryByRole('button', { name: '/chats' })).not.toBeInTheDocument()
@@ -1471,7 +1522,7 @@ describe('ThreadList project-first layout', () => {
 
     renderList()
 
-    const header = screen.getByRole('button', { name: 'Toggle Chats section' })
+    const header = screen.getByRole('button', { name: 'Toggle Recents section' })
     expect(header).toHaveAttribute('aria-expanded', 'true')
 
     fireEvent.click(header)
@@ -1517,7 +1568,7 @@ describe('ThreadList project-first layout', () => {
 
     renderList()
 
-    const header = screen.getByRole('button', { name: 'Toggle Chats section' })
+    const header = screen.getByRole('button', { name: 'Toggle Recents section' })
     expect(screen.getByText('General chat thread')).toBeInTheDocument()
 
     fireEvent.keyDown(header, { key: ' ' })
@@ -1592,7 +1643,7 @@ describe('ThreadList project-first layout', () => {
 
     renderList()
 
-    expect(screen.getByRole('button', { name: 'Toggle Chats section' }))
+    expect(screen.getByRole('button', { name: 'Toggle Recents section' }))
       .toHaveAttribute('aria-expanded', 'false')
     expect(screen.queryByText('General chat thread')).not.toBeInTheDocument()
   })

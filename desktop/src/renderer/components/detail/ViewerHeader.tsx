@@ -118,6 +118,7 @@ export function ViewerHeader({
           tooltipPlacement="bottom"
           aria-pressed={explorerVisible}
           active={explorerVisible}
+          activeTone="neutral"
           onClick={toggleExplorer}
           icon={explorerVisible
               ? <FolderOpen size={16} aria-hidden style={{ display: 'block' }} />

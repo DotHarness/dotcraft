@@ -45,4 +45,23 @@ describe('ViewerHeader', () => {
 
     expect(screen.getByTestId('viewer-open-target')).toHaveAttribute('data-variant', 'outline')
   })
+
+  it('uses a neutral active treatment for the explorer toggle', () => {
+    useUIStore.setState({ explorerVisible: true })
+
+    render(
+      <LocaleProvider>
+        <ViewerHeader
+          absolutePath="/workspace/example/README.md"
+          relativePath="README.md"
+          isText
+          wordWrap
+          onToggleWordWrap={vi.fn()}
+        />
+      </LocaleProvider>
+    )
+
+    expect(screen.getByRole('button', { name: 'Hide explorer' }))
+      .toHaveAttribute('data-active-tone', 'neutral')
+  })
 })

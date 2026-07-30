@@ -9,7 +9,7 @@ import { SIDEBAR_ROW_MIN_HEIGHT } from './sidebarNavRowStyles'
  * the two never drift apart on indentation.
  */
 export function threadRowPaddingLeft(opts: { canPin?: boolean; subAgentDepth?: number }): number {
-  if (opts.canPin) return 6
+  if (opts.canPin) return 12
   return 14 + (opts.subAgentDepth ?? 0) * 14
 }
 
@@ -83,7 +83,7 @@ export interface ThreadRowLayoutProps {
 
 /**
  * Presentational scaffold shared by every sidebar thread row. It owns the row
- * geometry (height, padding, squircle radius, indent), the subagent marker, the
+ * geometry (height, padding, row radius, indent), the subagent marker, the
  * name/badge/status grid, and the centered status slot. Behaviour (selection,
  * archive, drag, rename for the live workspace; switch-then-open for secondary
  * workspaces) lives in the wrapper that renders this — only the layout is shared,
@@ -125,7 +125,7 @@ export function ThreadRowLayout({
 
   return (
     <div
-      className="dotcraft-sidebar-control-radius"
+      className="dotcraft-sidebar-row-radius"
       data-testid={rowTestId}
       {...containerProps}
       style={{
@@ -144,9 +144,9 @@ export function ThreadRowLayout({
         // keeping every right-side control on the same vertical line.
         padding: `3px 6px 3px ${paddingLeft}px`,
         boxSizing: 'border-box',
-        borderRadius: 'var(--sidebar-control-radius)',
+        borderRadius: 'var(--sidebar-row-radius)',
         backgroundColor: active ? 'var(--sidebar-control-active)' : 'transparent',
-        gap: '6px',
+        gap: '8px',
         userSelect: 'none',
         ...containerStyle
       }}

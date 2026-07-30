@@ -12,7 +12,7 @@ import { DiffViewer } from './DiffViewer'
 import { ChangesActionsMenu } from './ChangesActionsMenu'
 import { ChangesFileList } from './ChangesFileList'
 import { JumpToFileButton } from './JumpToFileButton'
-import { DragHandle } from '../layout/DragHandle'
+import { ExplorerDock } from './ExplorerDock'
 
 interface ChangesTabProps {
   workspacePath: string
@@ -230,26 +230,14 @@ export function ChangesTab({ workspacePath }: ChangesTabProps): JSX.Element {
         </div>
 
         {explorerVisible && (
-          <>
-            <DragHandle onDrag={handleExplorerDrag} />
-            <div
-              style={{
-                flex: `0 1 ${explorerWidth}px`,
-                minWidth: 140,
-                overflow: 'hidden',
-                display: 'flex',
-                flexDirection: 'column',
-                borderLeft: '1px solid var(--glass-border)'
-              }}
-            >
-              <ChangesFileList
-                files={files}
-                workspacePath={workspacePath}
-                selectedPath={selectedFile}
-                onSelect={handleSelectFromExplorer}
-              />
-            </div>
-          </>
+          <ExplorerDock width={explorerWidth} onDrag={handleExplorerDrag}>
+            <ChangesFileList
+              files={files}
+              workspacePath={workspacePath}
+              selectedPath={selectedFile}
+              onSelect={handleSelectFromExplorer}
+            />
+          </ExplorerDock>
         )}
       </div>
     </div>

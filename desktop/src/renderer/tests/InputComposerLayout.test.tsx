@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import type { ComponentProps } from 'react'
 import { LocaleProvider } from '../contexts/LocaleContext'
 import { InputComposer } from '../components/conversation/InputComposer'
@@ -111,6 +111,7 @@ describe('InputComposer layout', () => {
       selectedChangedFile: null,
       autoShowTriggeredForTurn: null,
       composerPrefill: null,
+      composerFileAttachmentRequest: null,
       pendingWelcomeTurn: null,
       _pendingWelcomeTimer: null
     })
@@ -125,6 +126,23 @@ describe('InputComposer layout', () => {
           lastActiveAt: new Date().toISOString()
         }
       ]
+    })
+  })
+
+  it('adds a file requested by another surface to the active composer', async () => {
+    renderComposer()
+
+    act(() => {
+      useUIStore.getState().requestComposerFileAttachment({
+        path: 'C:\\sample\\workspace\\.dockerignore',
+        fileName: '.dockerignore'
+      })
+    })
+
+    expect(await screen.findByText('.dockerignore')).toBeInTheDocument()
+    expect(useUIStore.getState().composerFileAttachmentRequest).toBeNull()
+    await waitFor(() => {
+      expect(screen.getByRole('textbox')).toHaveFocus()
     })
   })
 

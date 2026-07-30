@@ -4,6 +4,7 @@ import { useShallow } from 'zustand/react/shallow'
 import {
   AlertCircle,
   Archive,
+  ArrowUpRight,
   ChevronRight,
   Cloud,
   Copy,
@@ -14,10 +15,10 @@ import {
   FolderPlus,
   LogOut,
   MoreHorizontal,
-  Pencil,
   Pin,
   RotateCw,
   Server,
+  Settings,
   Square,
   SquarePen,
   Trash2
@@ -93,8 +94,8 @@ export function ThreadList({
   const dragHintTitle =
     dragActive?.kind === 'automation-task' ? dragActive.title : null
 
-  // The default Chat workspace is surfaced as a dedicated `Chats` group sibling to
-  // `Projects`. Once present it drives the same grouped layout so Chats always shows.
+  // The default Chat workspace is surfaced as a dedicated `Recents` group sibling to
+  // `Projects`. Once present it drives the same grouped layout so Recents always shows.
   const showChats = chat != null
   const hasProjectRows = projects.length > 0
   const chatIsCurrentWorkspace =
@@ -176,7 +177,7 @@ export function ThreadList({
     const foregroundProject = projects.find((project) =>
       isProjectForeground(project, effectiveForegroundProjectId, effectiveForegroundWorkspacePath)
     )
-    // When the default Chat workspace is foreground, the `Chats` group represents it,
+    // When the default Chat workspace is foreground, the `Recents` group represents it,
     // so the foreground must not be synthesized as a Project row below.
     const chatIsForeground =
       chat != null &&
@@ -678,21 +679,16 @@ function ProjectsSectionHeader({
         }
       }}
       style={{
-        display: 'flex',
-        alignItems: 'center',
-        gap: '4px',
-        minHeight: '28px',
-        padding: '8px 8px 2px',
+        ...sidebarSectionHeaderStyle,
         position: 'relative',
-        cursor: 'pointer',
-        userSelect: 'none'
       }}
     >
       <span
         style={{
-          color: 'var(--text-dimmed)',
+          color: 'var(--text-secondary)',
           fontSize: 'var(--type-secondary-size)',
-          lineHeight: 'var(--type-secondary-line-height)'
+          lineHeight: 'var(--type-secondary-line-height)',
+          fontWeight: 'var(--type-ui-emphasis-weight)'
         }}
       >
         {t('projectsRail.title')}
@@ -738,7 +734,7 @@ function ProjectsSectionHeader({
 }
 
 /**
- * The `Chats` group: threads from the default Chat workspace, rendered sibling to
+ * The `Recents` group: threads from the default Chat workspace, rendered sibling to
  * `Projects`. It deliberately has no folder icon, project path, or project actions —
  * only a `New chat` affordance and the same thread rows used elsewhere. When the Chat
  * workspace is the foreground connection its rows are interactive (ThreadEntry);
@@ -797,7 +793,10 @@ function ChatsSection({
         {showSkeleton ? (
           <ProjectThreadSkeletonList />
         ) : threads.length === 0 ? (
-          <ProjectHint label={searchQuery ? t('threadList.noSearchResults') : t('projectsRail.noChats')} />
+          <ProjectHint
+            label={searchQuery ? t('threadList.noSearchResults') : t('projectsRail.noChats')}
+            alignment="section"
+          />
         ) : (
           threads.map((thread) => (
             interactive ? (
@@ -837,7 +836,7 @@ function ChatsSectionHeader({
       role="button"
       tabIndex={0}
       aria-expanded={!collapsed}
-      aria-label={t('projectsRail.toggleSection', { section: t('chatsRail.title') })}
+      aria-label={t('projectsRail.toggleSection', { section: t('recentsRail.title') })}
       onClick={onToggle}
       onKeyDown={(event) => {
         if (event.key !== 'Enter' && event.key !== ' ') return
@@ -852,24 +851,17 @@ function ChatsSectionHeader({
           setFocused(false)
         }
       }}
-      style={{
-        display: 'flex',
-        alignItems: 'center',
-        gap: '4px',
-        minHeight: '28px',
-        padding: '8px 8px 2px',
-        cursor: 'pointer',
-        userSelect: 'none'
-      }}
+      style={sidebarSectionHeaderStyle}
     >
       <span
         style={{
-          color: 'var(--text-dimmed)',
+          color: 'var(--text-secondary)',
           fontSize: 'var(--type-secondary-size)',
-          lineHeight: 'var(--type-secondary-line-height)'
+          lineHeight: 'var(--type-secondary-line-height)',
+          fontWeight: 'var(--type-ui-emphasis-weight)'
         }}
       >
-        {t('chatsRail.title')}
+        {t('recentsRail.title')}
       </span>
       <CollapseChevron collapsed={collapsed} visible={showActions} />
       <div
@@ -972,9 +964,10 @@ function PinnedSectionHeader({
     >
       <span
         style={{
-          color: 'var(--text-dimmed)',
+          color: 'var(--text-secondary)',
           fontSize: 'var(--type-secondary-size)',
-          lineHeight: 'var(--type-secondary-line-height)'
+          lineHeight: 'var(--type-secondary-line-height)',
+          fontWeight: 'var(--type-ui-emphasis-weight)'
         }}
       >
         {t('threadGroup.pinned')}
@@ -1077,6 +1070,7 @@ function ProjectHeader({
   const runningCount = detailThreads.filter((thread) => !isThreadWaiting(thread) && isThreadRunning(thread)).length
   const threadCount = detailThreads.length
   const detailsLoaded = project.loaded || project.state === 'foreground' || project.state === 'secondary'
+  const detailFolders = isRemoteProject(project) ? [] : projectFolderPaths(project)
 
   async function toggleProjectPinned(): Promise<void> {
     const projectId = projectIdentity(project)
@@ -1126,10 +1120,33 @@ function ProjectHeader({
         </div>
       )}
       <div className="sidebar-entry-details-divider" />
-      <div className="sidebar-entry-details-row">
-        <Folder size={14} strokeWidth={1.8} aria-hidden />
-        <span title={detailLabel}>{detailLabel}</span>
-      </div>
+      {isRemoteProject(project) ? (
+        <div className="sidebar-entry-details-row">
+          <Folder size={14} strokeWidth={1.8} aria-hidden />
+          <span title={detailLabel}>{detailLabel}</span>
+        </div>
+      ) : (
+        <>
+          {detailFolders.map((folder) => (
+            <ProjectDetailsActionRow
+              key={folder}
+              icon={<Folder size={14} strokeWidth={1.8} aria-hidden />}
+              label={folder}
+              title={folder}
+              ariaLabel={`${t('workspaceHeader.openInExplorer')}: ${folder}`}
+              affordance
+              onClick={() => { void window.api.shell.openPath(folder) }}
+            />
+          ))}
+          <div className="sidebar-entry-details-divider" />
+          <ProjectDetailsActionRow
+            icon={<Settings size={14} strokeWidth={1.8} aria-hidden />}
+            label={t('projectsRail.editProject')}
+            ariaLabel={t('projectsRail.editProject')}
+            onClick={() => addProject.beginEdit(project, active)}
+          />
+        </>
+      )}
     </>
   )
 
@@ -1256,7 +1273,7 @@ function ProjectHeader({
     >
     <div
       ref={rowRef}
-      className="dotcraft-sidebar-control-radius"
+      className="dotcraft-sidebar-row-radius"
       role="button"
       tabIndex={0}
       aria-expanded={cold ? undefined : !collapsed}
@@ -1275,15 +1292,15 @@ function ProjectHeader({
       style={{
         position: 'relative',
         display: 'grid',
-        gridTemplateColumns: `20px minmax(0, 1fr) ${actionColumnWidth}`,
+        gridTemplateColumns: `18px minmax(0, 1fr) ${actionColumnWidth}`,
         alignItems: 'center',
-        gap: '6px',
+        gap: '8px',
         minHeight: SIDEBAR_ROW_MIN_HEIGHT,
         // 4px side inset matches the sidebar nav rows and thread rows so all
         // sidebar buttons share the same width and right-edge alignment.
         margin: '2px 4px',
-        padding: '2px 6px',
-        borderRadius: 'var(--sidebar-control-radius)',
+        padding: '2px 6px 2px 12px',
+        borderRadius: 'var(--sidebar-row-radius)',
         backgroundColor: hovered ? 'var(--sidebar-control-hover)' : 'transparent',
         cursor: 'pointer',
         userSelect: 'none'
@@ -1383,7 +1400,7 @@ function ProjectHeader({
           )}
           <ProjectMenuItem icon={<Copy size={14} aria-hidden />} label={t('projectsRail.copyPath')} onClick={() => { setMenuOpen(false); void copyPath() }} />
           {!isRemoteProject(project) && (
-            <ProjectMenuItem icon={<Pencil size={14} aria-hidden />} label={t('projectsRail.editProject')} onClick={() => { setMenuOpen(false); addProject.beginEdit(project, active) }} />
+            <ProjectMenuItem icon={<Settings size={14} aria-hidden />} label={t('projectsRail.editProject')} onClick={() => { setMenuOpen(false); addProject.beginEdit(project, active) }} />
           )}
           {!isRemoteProject(project) && project.running && (
             <ProjectMenuItem icon={<RotateCw size={14} aria-hidden />} label={t('tray.restartAppServer')} onClick={() => { setMenuOpen(false); void restartWorkspace() }} />
@@ -1630,11 +1647,55 @@ function ProjectMenuItem({
   )
 }
 
-function ProjectHint({ label }: { label: string }): JSX.Element {
+function ProjectDetailsActionRow({
+  icon,
+  label,
+  title,
+  ariaLabel,
+  affordance = false,
+  onClick
+}: {
+  icon: ReactNode
+  label: string
+  title?: string
+  ariaLabel: string
+  affordance?: boolean
+  onClick: () => void
+}): JSX.Element {
+  return (
+    <button
+      type="button"
+      className="sidebar-entry-details-row sidebar-entry-details-action-row"
+      aria-label={ariaLabel}
+      title={title}
+      onClick={onClick}
+    >
+      {icon}
+      <span>{label}</span>
+      {affordance && (
+        <ArrowUpRight
+          className="sidebar-entry-details-action-row__affordance"
+          size={14}
+          aria-hidden
+        />
+      )}
+    </button>
+  )
+}
+
+function ProjectHint({
+  label,
+  alignment = 'thread'
+}: {
+  label: string
+  alignment?: 'thread' | 'section'
+}): JSX.Element {
   return (
     <div
       style={{
-        padding: '4px 16px 8px 32px',
+        padding: alignment === 'section'
+          ? `4px ${SIDEBAR_SECTION_INSET} 8px`
+          : '4px 16px 8px 32px',
         color: 'var(--text-dimmed)',
         fontSize: 'var(--type-secondary-size)',
         lineHeight: 'var(--type-secondary-line-height)'
@@ -1998,8 +2059,8 @@ const projectStatusIndicatorSlotStyle: CSSProperties = {
 
 const projectIconSlotStyle: CSSProperties = {
   position: 'relative',
-  width: '20px',
-  height: '20px',
+  width: '18px',
+  height: '18px',
   display: 'inline-flex',
   alignItems: 'center',
   justifyContent: 'center'
@@ -2037,6 +2098,27 @@ function projectStatusDotColor(state: WorkspaceProjectState): string {
   if (state === 'error') return 'var(--error)'
   if (state === 'connecting') return 'var(--warning)'
   return 'var(--success)'
+}
+
+function projectFolderPaths(project: WorkspaceProjectSummary): string[] {
+  const folders = [project.path, ...(project.secondaryFolders ?? [])]
+  return folders.filter((folder, index) => {
+    const key = normalizeWorkspaceProjectKey(folder)
+    return key.length > 0 &&
+      folders.findIndex((candidate) => normalizeWorkspaceProjectKey(candidate) === key) === index
+  })
+}
+
+const SIDEBAR_SECTION_INSET = '8px'
+
+const sidebarSectionHeaderStyle: CSSProperties = {
+  display: 'flex',
+  alignItems: 'center',
+  gap: '4px',
+  minHeight: '28px',
+  padding: `8px ${SIDEBAR_SECTION_INSET} 2px`,
+  cursor: 'pointer',
+  userSelect: 'none'
 }
 
 const projectMenuStyle: CSSProperties = {

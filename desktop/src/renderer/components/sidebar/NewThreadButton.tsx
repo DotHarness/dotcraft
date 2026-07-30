@@ -34,7 +34,7 @@ export function NewThreadButton(): JSX.Element {
   return (
     <div style={{ padding: '8px 0 0', flexShrink: 0 }}>
       <button
-        className="dotcraft-sidebar-control-radius"
+        className="dotcraft-sidebar-row-radius"
         onClick={handleClick}
         disabled={!isConnected}
         aria-label={t('sidebar.newThread')}
@@ -49,7 +49,7 @@ export function NewThreadButton(): JSX.Element {
             : active
               ? 'var(--text-primary)'
               : 'var(--text-secondary)',
-          borderRadius: 'var(--sidebar-control-radius)',
+          borderRadius: 'var(--sidebar-row-radius)',
           cursor: isConnected ? 'pointer' : 'default',
           justifyContent: 'space-between',
           transition: 'background-color 120ms ease, color 120ms ease'

@@ -171,25 +171,15 @@ function SidebarNavRow({
 }: SidebarNavRowProps): JSX.Element {
   const button = (
     <button
-      className="dotcraft-sidebar-control-radius"
+      className="dotcraft-sidebar-nav-button dotcraft-sidebar-row-radius"
       type="button"
       data-testid={testId}
       onClick={disabled ? undefined : onClick}
       disabled={disabled}
+      data-active={active ? 'true' : undefined}
       style={{
         ...SIDEBAR_NAV_ROW_OUTER,
-        cursor: disabled ? 'default' : 'pointer',
-        backgroundColor: active ? 'var(--sidebar-control-active)' : 'transparent',
-        ...SIDEBAR_NAV_BORDER_INACTIVE,
-        color: disabled ? 'var(--text-tertiary)' : active ? 'var(--text-primary)' : 'var(--text-secondary)',
-        opacity: disabled ? 0.5 : 1,
-        transition: 'background-color 120ms ease, color 120ms ease'
-      }}
-      onMouseEnter={(e) => {
-        if (!active && !disabled) (e.currentTarget as HTMLButtonElement).style.backgroundColor = 'var(--sidebar-control-hover)'
-      }}
-      onMouseLeave={(e) => {
-        if (!active && !disabled) (e.currentTarget as HTMLButtonElement).style.backgroundColor = 'transparent'
+        ...SIDEBAR_NAV_BORDER_INACTIVE
       }}
     >
       <span style={SIDEBAR_NAV_ICON_SLOT}>{icon}</span>

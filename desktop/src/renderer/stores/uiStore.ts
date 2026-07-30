@@ -177,6 +177,11 @@ export interface UIState {
   autoShowReasons: Set<string>
   /** Text to pre-fill into the InputComposer when its next mounts. */
   composerPrefill: string | null
+  /** One-shot local file attachment to add to the active InputComposer. */
+  composerFileAttachmentRequest: {
+    id: number
+    file: ComposerFileAttachment
+  } | null
   /**
    * First message to send after thread/read completes for a thread created from the
    * welcome screen (avoids optimistic UI being cleared by conversation reset).
@@ -294,6 +299,10 @@ interface UIStore extends UIState {
   setComposerPrefill(text: string): void
   /** Read and clear the prefill text atomically. */
   consumeComposerPrefill(): string | null
+  /** Queue a local file attachment for the active InputComposer. */
+  requestComposerFileAttachment(file: ComposerFileAttachment): void
+  /** Read and clear the pending file attachment atomically. */
+  consumeComposerFileAttachmentRequest(): ComposerFileAttachment | null
   /** Queue first turn for a thread created from the welcome composer. */
   setPendingWelcomeTurn(
     payload: {
@@ -439,6 +448,7 @@ export const useUIStore = create<UIStore & InternalState>((set, get) => ({
   autoShowPlanForItem: null,
   autoShowReasons: new Set<string>(),
   composerPrefill: null,
+  composerFileAttachmentRequest: null,
   pendingWelcomeTurn: null,
   pendingProjectThreadOpen: null,
   welcomeDraft: null,
@@ -854,6 +864,21 @@ export const useUIStore = create<UIStore & InternalState>((set, get) => ({
     const text = get().composerPrefill
     set({ composerPrefill: null })
     return text
+  },
+
+  requestComposerFileAttachment(file) {
+    set({
+      composerFileAttachmentRequest: {
+        id: Date.now(),
+        file
+      }
+    })
+  },
+
+  consumeComposerFileAttachmentRequest() {
+    const request = get().composerFileAttachmentRequest
+    set({ composerFileAttachmentRequest: null })
+    return request?.file ?? null
   },
 
   setPendingWelcomeTurn(payload) {

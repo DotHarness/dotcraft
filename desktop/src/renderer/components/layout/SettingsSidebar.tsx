@@ -37,7 +37,7 @@ export function SettingsSidebar(): JSX.Element {
       <div style={collapsedContainerStyle}>
         <ActionTooltip label={t('common.backToApp')} placement="right">
           <button
-            className="dc-settings-sidebar-button dotcraft-sidebar-control-radius"
+            className="dotcraft-sidebar-nav-button dotcraft-sidebar-icon-control-radius"
             type="button"
             onClick={requestCloseSettings}
             aria-label={t('common.backToApp')}
@@ -53,7 +53,7 @@ export function SettingsSidebar(): JSX.Element {
           return (
             <ActionTooltip key={tab.id} label={tab.label} placement="right">
               <button
-                className="dc-settings-sidebar-button dotcraft-sidebar-control-radius"
+                className="dotcraft-sidebar-nav-button dotcraft-sidebar-icon-control-radius"
                 type="button"
                 onClick={() => setActiveSettingsTab(tab.id)}
                 aria-label={tab.label}
@@ -72,13 +72,15 @@ export function SettingsSidebar(): JSX.Element {
   return (
     <div style={expandedContainerStyle}>
       <button
-        className="dc-settings-sidebar-button dotcraft-sidebar-control-radius"
+        className="dotcraft-sidebar-nav-button dotcraft-sidebar-row-radius"
         type="button"
         onClick={requestCloseSettings}
         style={backRowStyle}
         aria-label={t('common.backToApp')}
       >
-        <ArrowLeft size={16} strokeWidth={2} aria-hidden="true" />
+        <span style={iconSlotStyle}>
+          <ArrowLeft size={16} strokeWidth={2} aria-hidden="true" />
+        </span>
         <span style={labelStyle}>{t('common.backToApp')}</span>
       </button>
 
@@ -95,7 +97,7 @@ export function SettingsSidebar(): JSX.Element {
                 </div>
               )}
               <button
-                className="dc-settings-sidebar-button dotcraft-sidebar-control-radius"
+                className="dotcraft-sidebar-nav-button dotcraft-sidebar-row-radius"
                 type="button"
                 onClick={() => setActiveSettingsTab(tab.id)}
                 style={expandedTabStyle}
@@ -173,22 +175,14 @@ const groupLabelStyle: CSSProperties = {
 
 const backRowStyle: CSSProperties = {
   ...SIDEBAR_NAV_ROW_OUTER,
-  ...SIDEBAR_NAV_BORDER_INACTIVE,
-  background: 'var(--settings-sidebar-row-bg, transparent)',
-  color: 'var(--settings-sidebar-row-color, var(--text-secondary))',
-  cursor: 'pointer',
-  transition: 'background-color 120ms ease, color 120ms ease'
+  ...SIDEBAR_NAV_BORDER_INACTIVE
 }
 
+// Match the main sidebar nav rows: active state changes background + text
+// colour only (via the shared CSS class), never weight.
 const expandedTabStyle: CSSProperties = {
   ...SIDEBAR_NAV_ROW_OUTER,
-  ...SIDEBAR_NAV_BORDER_INACTIVE,
-  background: 'var(--settings-sidebar-row-bg, transparent)',
-  color: 'var(--settings-sidebar-row-color, var(--text-secondary))',
-  // Match the main sidebar nav rows: active state changes background + text
-  // colour only (via the dc-settings-sidebar-button CSS vars), never weight.
-  cursor: 'pointer',
-  transition: 'background-color 120ms ease, color 120ms ease'
+  ...SIDEBAR_NAV_BORDER_INACTIVE
 }
 
 const collapsedButtonStyle: CSSProperties = {
@@ -199,11 +193,7 @@ const collapsedButtonStyle: CSSProperties = {
   justifyContent: 'center',
   border: 'none',
   borderRadius: 'var(--sidebar-icon-control-radius)',
-  background: 'var(--settings-sidebar-row-bg, transparent)',
-  color: 'var(--settings-sidebar-row-color, var(--text-secondary))',
-  cursor: 'pointer',
-  padding: 0,
-  transition: 'background-color 120ms ease, color 120ms ease'
+  padding: 0
 }
 
 const iconSlotStyle: CSSProperties = SIDEBAR_NAV_ICON_SLOT
