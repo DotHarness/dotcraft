@@ -44,7 +44,7 @@ import { addToast } from '../../stores/toastStore'
 import { PinIcon, ThreadEntry } from './ThreadEntry'
 import { WorkspaceOptionsMenu } from './WorkspaceHeader'
 import { useAddProjectFlow } from '../projects/AddProject'
-import { SIDEBAR_ROW_MIN_HEIGHT } from './sidebarNavRowStyles'
+import { SIDEBAR_RAIL_CONTENT_INSET, SIDEBAR_ROW_MIN_HEIGHT } from './sidebarNavRowStyles'
 import {
   isRemoteProjectKey,
   normalizeWorkspaceProjectKey,
@@ -1703,7 +1703,7 @@ function ProjectHint({
     <div
       style={{
         padding: alignment === 'section'
-          ? `4px ${SIDEBAR_SECTION_INSET} 8px`
+          ? `4px ${SIDEBAR_RAIL_CONTENT_INSET} 8px`
           : '4px 16px 8px 32px',
         color: 'var(--text-dimmed)',
         fontSize: 'var(--type-secondary-size)',
@@ -2119,14 +2119,12 @@ function projectFolderPaths(project: WorkspaceProjectSummary): string[] {
   })
 }
 
-const SIDEBAR_SECTION_INSET = '8px'
-
 const sidebarSectionHeaderStyle: CSSProperties = {
   display: 'flex',
   alignItems: 'center',
   gap: '4px',
   minHeight: '28px',
-  padding: `8px ${SIDEBAR_SECTION_INSET} 2px`,
+  padding: `8px ${SIDEBAR_RAIL_CONTENT_INSET} 2px`,
   cursor: 'pointer',
   userSelect: 'none'
 }

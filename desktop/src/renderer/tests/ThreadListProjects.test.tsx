@@ -1007,9 +1007,13 @@ describe('ThreadList project-first layout', () => {
     renderList({ workspacePath: '/chats' })
 
     expect(screen.getByText('Projects')).toBeInTheDocument()
-    expect(screen.getByText('No projects')).toHaveStyle({ padding: '4px 8px 8px' })
+    expect(screen.getByRole('button', { name: 'Toggle Projects section' }))
+      .toHaveStyle({ padding: '8px 16px 2px' })
+    expect(screen.getByText('No projects')).toHaveStyle({ padding: '4px 16px 8px' })
     expect(screen.getByText('Recents')).toBeInTheDocument()
-    expect(screen.getByText('No chats')).toHaveStyle({ padding: '4px 8px 8px' })
+    expect(screen.getByRole('button', { name: 'Toggle Recents section' }))
+      .toHaveStyle({ padding: '8px 16px 2px' })
+    expect(screen.getByText('No chats')).toHaveStyle({ padding: '4px 16px 8px' })
   })
 
   it('does not report No projects when every configured project is pinned', () => {
@@ -1076,8 +1080,8 @@ describe('ThreadList project-first layout', () => {
 
     const projectsHeading = screen.getByText('Projects')
     const recentsHeading = screen.getByText('Recents')
-    expect(projectsHeading.parentElement).toHaveStyle({ padding: '8px 8px 2px' })
-    expect(recentsHeading.parentElement).toHaveStyle({ padding: '8px 8px 2px' })
+    expect(projectsHeading.parentElement).toHaveStyle({ padding: '8px 16px 2px' })
+    expect(recentsHeading.parentElement).toHaveStyle({ padding: '8px 16px 2px' })
     // Recents renders as its own group, after Projects.
     expect(projectsHeading.compareDocumentPosition(recentsHeading) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     expect(screen.getByText('General chat thread')).toBeInTheDocument()
@@ -1122,7 +1126,7 @@ describe('ThreadList project-first layout', () => {
     const recentsGroup = recentsHeading.parentElement?.parentElement
     expect(recentsGroup).not.toBeNull()
     expect(within(recentsGroup as HTMLElement).getByText('No chats')).toHaveStyle({
-      padding: '4px 8px 8px'
+      padding: '4px 16px 8px'
     })
   })
 
