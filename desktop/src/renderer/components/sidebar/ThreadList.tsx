@@ -265,9 +265,7 @@ export function ThreadList({
               <ProjectThreadSkeletonList />
             ) : (
               <>
-                {project.loaded &&
-                  ((searchQuery && projectThreads.length === 0) ||
-                    (!searchQuery && rawProjectThreads.length === 0)) && (
+                {project.loaded && rawProjectThreads.length === 0 && (
                   <ProjectHint
                     label={searchQuery
                       ? t('threadList.noSearchResults')
