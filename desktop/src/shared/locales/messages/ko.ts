@@ -3,6 +3,8 @@ import type { MessageId } from './en'
 export const MESSAGES_KO = {
   'app.titleWithWorkspace': 'DotCraft - {{name}}',
   'app.brandSubtitle': 'DotCraft',
+  'navigation.back': '뒤로',
+  'navigation.forward': '앞으로',
 
   'menu.file': '파일',
   'menu.edit': '편집',

@@ -230,9 +230,11 @@ export const usePluginStore = create<PluginState>((set, get) => ({
     set({ selectedPluginId: id, selectedPlugin: null, detailLoading: true })
     try {
       const result = (await window.api.appServer.sendRequest('plugin/view', { id })) as { plugin?: PluginEntry }
+      if (get().selectedPluginId !== id) return
       const plugin = result.plugin ? normalizePlugin(result.plugin) : null
       set({ selectedPlugin: plugin, detailLoading: false })
     } catch (e: unknown) {
+      if (get().selectedPluginId !== id) return
       const msg = e instanceof Error ? e.message : String(e)
       set({ error: msg, detailLoading: false })
     }

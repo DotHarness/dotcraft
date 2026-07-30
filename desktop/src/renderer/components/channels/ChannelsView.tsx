@@ -4,6 +4,11 @@ import { addToast } from '../../stores/toastStore'
 import { useLocale, useT } from '../../contexts/LocaleContext'
 import type { AppLocale, LocalizedTextMap } from '../../../shared/locales'
 import { useConnectionStore } from '../../stores/connectionStore'
+import { useUIStore } from '../../stores/uiStore'
+import {
+  replaceCurrentAppNavigationLocation,
+  runWithoutAppNavigationRecording
+} from '../../stores/appNavigationStore'
 import { FolderIcon, RefreshIcon } from '../ui/AppIcons'
 import type { ChannelConnectionState } from './ChannelCard'
 import { ModuleConfigForm } from './ModuleConfigForm'
@@ -46,8 +51,6 @@ interface ChannelStatusWire {
 interface ChannelInfoWire {
   name: string
 }
-
-type SelectedChannelKey = `module:${string}` | `external:${string}` | null
 
 interface ExternalChannelViewModel {
   name: string
@@ -353,7 +356,8 @@ export function ChannelsView(): JSX.Element {
   const locale = useLocale()
   const t = useT()
   const capabilities = useConnectionStore((s) => s.capabilities)
-  const [selectedChannelKey, setSelectedChannelKey] = useState<SelectedChannelKey>(null)
+  const selectedChannelKey = useUIStore((s) => s.selectedChannelKey)
+  const setSelectedChannelKey = useUIStore((s) => s.setSelectedChannelKey)
   const [channelStatusMap, setChannelStatusMap] = useState<Map<string, ChannelStatusWire> | null>(null)
   const [fallbackConnected, setFallbackConnected] = useState<Set<string> | null>(null)
   const [statusError, setStatusError] = useState(false)
@@ -533,7 +537,8 @@ export function ChannelsView(): JSX.Element {
         if (selected) {
           setExternalDraft(cloneExternalChannel(selected))
         } else {
-          setSelectedChannelKey(null)
+          runWithoutAppNavigationRecording(() => setSelectedChannelKey(null))
+          replaceCurrentAppNavigationLocation()
           setExternalDraft(createEmptyExternalChannel())
         }
       }
@@ -882,7 +887,8 @@ export function ChannelsView(): JSX.Element {
     try {
       await window.api.appServer.sendRequest('externalChannel/remove', { name })
       await reloadExternalChannels()
-      setSelectedChannelKey(null)
+      runWithoutAppNavigationRecording(() => setSelectedChannelKey(null))
+      replaceCurrentAppNavigationLocation()
       setExternalDraft(createEmptyExternalChannel())
       addToast(t('channels.external.removed'), 'success')
     } catch (err) {
@@ -946,7 +952,8 @@ export function ChannelsView(): JSX.Element {
       : undefined
   useEffect(() => {
     if (selectedModuleId && !selectedModule) {
-      setSelectedChannelKey(null)
+      runWithoutAppNavigationRecording(() => setSelectedChannelKey(null))
+      replaceCurrentAppNavigationLocation()
     }
   }, [selectedModuleId, selectedModule])
 
@@ -956,7 +963,8 @@ export function ChannelsView(): JSX.Element {
       (item) => item.name.toLowerCase() === selectedExternalName.toLowerCase()
     )
     if (!selected) {
-      setSelectedChannelKey(null)
+      runWithoutAppNavigationRecording(() => setSelectedChannelKey(null))
+      replaceCurrentAppNavigationLocation()
       setExternalDraft(createEmptyExternalChannel())
     }
   }, [selectedExternalName, externalChannelCards])

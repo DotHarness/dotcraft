@@ -32,6 +32,10 @@ import { useConnectionStore } from '../../stores/connectionStore'
 import { usePluginStore } from '../../stores/pluginStore'
 import { useSkillsStore } from '../../stores/skillsStore'
 import { usePendingRestartStore } from '../../stores/pendingRestartStore'
+import {
+  replaceCurrentAppNavigationLocation,
+  runWithoutAppNavigationRecording
+} from '../../stores/appNavigationStore'
 import { useSettingsWorkspaceConfigChangeEffects } from '../../hooks/useSettingsWorkspaceConfigChangeEffects'
 import { SecretInput } from '../channels/FormShared'
 import { stringifyComposerDraftSegments } from '../conversation/richInputSerialization'
@@ -2512,18 +2516,13 @@ export function SettingsView({
   })
 
   useEffect(() => {
-    if (activeSettingsTab === 'mcp' && !mcpEnabled) {
-      setActiveSettingsTab('general')
-    }
-    if (activeSettingsTab === 'subAgents' && !subAgentEnabled) {
-      setActiveSettingsTab('general')
-    }
-    if (activeSettingsTab === 'sourceControl' && !sourceControlEnabled) {
-      setActiveSettingsTab('general')
-    }
-    if (activeSettingsTab === 'hooks' && !hooksEnabled) {
-      setActiveSettingsTab('general')
-    }
+    const unavailable = (activeSettingsTab === 'mcp' && !mcpEnabled)
+      || (activeSettingsTab === 'subAgents' && !subAgentEnabled)
+      || (activeSettingsTab === 'sourceControl' && !sourceControlEnabled)
+      || (activeSettingsTab === 'hooks' && !hooksEnabled)
+    if (!unavailable) return
+    runWithoutAppNavigationRecording(() => setActiveSettingsTab('general'))
+    replaceCurrentAppNavigationLocation()
   }, [activeSettingsTab, hooksEnabled, mcpEnabled, subAgentEnabled, sourceControlEnabled])
 
   useEffect(() => {
@@ -2595,12 +2594,16 @@ export function SettingsView({
   }, [isMac])
 
   useEffect(() => {
+    let fallback: 'general' | 'personalization' | null = null
     if (!personalizationAvailable && activeSettingsTab === 'personalization') {
-      setActiveSettingsTab('general')
+      fallback = 'general'
     }
     if (!dreamsCapabilityEnabled && activeSettingsTab === 'dreams') {
-      setActiveSettingsTab(personalizationAvailable ? 'personalization' : 'general')
+      fallback = personalizationAvailable ? 'personalization' : 'general'
     }
+    if (!fallback) return
+    runWithoutAppNavigationRecording(() => setActiveSettingsTab(fallback))
+    replaceCurrentAppNavigationLocation()
   }, [activeSettingsTab, dreamsCapabilityEnabled, personalizationAvailable])
 
   useEffect(() => {

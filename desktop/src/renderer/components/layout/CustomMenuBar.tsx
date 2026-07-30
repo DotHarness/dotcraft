@@ -11,6 +11,7 @@ import { ActionTooltip } from '../ui/ActionTooltip'
 import { ACTION_SHORTCUTS } from '../ui/shortcutKeys'
 import { DotCraftLogo } from '../ui/DotCraftLogo'
 import { AppUpdateDialog } from '../update/AppUpdateDialog'
+import { AppNavigationControls } from './AppNavigationControls'
 
 const dragRegion: CSSProperties = { WebkitAppRegion: 'drag' }
 const noDrag: CSSProperties = { WebkitAppRegion: 'no-drag' }
@@ -119,6 +120,8 @@ export function CustomMenuBar(): JSX.Element {
             : <DotCraftLogo size={20} />}
         </button>
       </ActionTooltip>
+
+      <AppNavigationControls />
 
       {updateButtonVisible && (
         <ActionTooltip label={updateLabel} placement="bottom">

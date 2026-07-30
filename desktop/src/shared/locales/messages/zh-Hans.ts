@@ -131,6 +131,8 @@ export const MESSAGES_ZH_HANS = {
   'approval.sendFailed': '发送审批结果失败：{{error}}',
   'app.titleWithWorkspace': 'DotCraft — {{name}}',
   'app.brandSubtitle': 'DotCraft',
+  'navigation.back': '后退',
+  'navigation.forward': '前进',
 
   'menu.file': '文件',
   'menu.edit': '编辑',
