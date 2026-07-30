@@ -265,8 +265,14 @@ export function ThreadList({
               <ProjectThreadSkeletonList />
             ) : (
               <>
-                {projectThreads.length === 0 && project.loaded && searchQuery && (
-                  <ProjectHint label={t('threadList.noSearchResults')} />
+                {project.loaded &&
+                  ((searchQuery && projectThreads.length === 0) ||
+                    (!searchQuery && rawProjectThreads.length === 0)) && (
+                  <ProjectHint
+                    label={searchQuery
+                      ? t('threadList.noSearchResults')
+                      : t('projectsRail.noChats')}
+                  />
                 )}
                 {projectThreads.map((thread) => (
                   isForeground ? (
@@ -314,6 +320,9 @@ export function ThreadList({
         )}
         {showProjects && (
           <CollapsibleThreads collapsed={projectsSectionCollapsed} marginTop={0}>
+            {projectsForRender.length === 0 && (
+              <ProjectHint label={t('projectsRail.noProjects')} alignment="section" />
+            )}
             {ordinaryProjects.map(renderProjectBlock)}
           </CollapsibleThreads>
         )}
@@ -1698,6 +1707,7 @@ function ProjectHint({
           : '4px 16px 8px 32px',
         color: 'var(--text-dimmed)',
         fontSize: 'var(--type-secondary-size)',
+        fontWeight: 400,
         lineHeight: 'var(--type-secondary-line-height)'
       }}
     >

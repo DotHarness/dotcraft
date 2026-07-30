@@ -1422,6 +1422,7 @@ export const MESSAGES_JA = {
   'projectsRail.title': 'Projects',
   'projectsRail.addProject': 'プロジェクトを追加',
   'projectsRail.noChats': 'チャットはありません',
+  'projectsRail.noProjects': 'プロジェクトがありません',
   'chatsRail.title': 'チャット',
   'recentsRail.title': '最近',
   'projectsRail.toggleSection': '{{section}} セクションを切り替え',

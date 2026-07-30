@@ -1428,6 +1428,7 @@ export const MESSAGES_FR = {
   'projectsRail.title': 'Projects',
   'projectsRail.addProject': 'Ajouter un projet',
   'projectsRail.noChats': 'Aucun chat',
+  'projectsRail.noProjects': 'Aucun projet',
   'chatsRail.title': 'Chats',
   'recentsRail.title': 'Récents',
   'projectsRail.toggleSection': 'Basculer la section {{section}}',

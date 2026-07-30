@@ -2100,6 +2100,7 @@ export const MESSAGES_ZH_HANS = {
   'projectsRail.title': 'Projects',
   'projectsRail.addProject': '添加项目',
   'projectsRail.noChats': '暂无对话',
+  'projectsRail.noProjects': '暂无项目',
   'chatsRail.title': '对话',
   'recentsRail.title': '最近',
   'projectsRail.toggleSection': '折叠或展开{{section}}分组',
