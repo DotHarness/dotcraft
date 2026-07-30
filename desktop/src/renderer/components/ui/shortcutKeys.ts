@@ -12,6 +12,8 @@ export const ACTION_SHORTCUTS = {
   newPlan: ['Mod', 'Shift', 'P'],
   newTerminalTab: ['Mod', '`'],
   settings: ['Mod', ','],
+  navigateBack: ['Ctrl', '['],
+  navigateForward: ['Ctrl', ']'],
   send: ['Enter'],
   cancel: ['Esc'],
   toggleMode: ['Shift', 'Tab'],

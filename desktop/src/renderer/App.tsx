@@ -34,6 +34,12 @@ import { useSubAgentStore } from './stores/subAgentStore'
 import { useAppBindingStore } from './stores/appBindingStore'
 import { isGitBranchProbeSettled, normalizeGitPathKey, useGitStore } from './stores/gitStore'
 import { useWorkspaceProjectsStore } from './stores/workspaceProjectsStore'
+import {
+  replaceCurrentAppNavigationLocation,
+  runWithoutAppNavigationRecording,
+  startAppNavigationHistory,
+  stopAppNavigationHistory
+} from './stores/appNavigationStore'
 import { isDefaultChatWorkspacePathCandidate } from '../shared/defaultChatWorkspace'
 import { CustomMenuBar } from './components/layout/CustomMenuBar'
 import { Sidebar } from './components/layout/Sidebar'
@@ -78,6 +84,7 @@ import { performAddTabAction } from './utils/detailTabActions'
 import { getSubAgentParentThreadId, isSubAgentThread } from './utils/subAgentThreads'
 import { isFatalConnectionError, useSlowConnectingHint } from './utils/connectionUi'
 import { isAgentTeamsPluginEnabled } from './utils/agentTeamsPlugin'
+import { handleAppNavigationShortcut } from './utils/appNavigationShortcut'
 import { conversationNeedsFullSnapshotReconcile } from './utils/threadRestoreReconcile'
 import {
   createThreadSubscriptionOperationQueue,
@@ -1662,12 +1669,15 @@ export function App(): JSX.Element {
   useEffect(() => {
     if (!isExtensionMainView(activeMainView) || activeDesktopExtensionView) return
     const ui = useUIStore.getState()
-    if (capabilities?.pluginManagement === true) {
-      ui.setPluginCatalogSurface('plugins')
-      ui.setActiveMainView('skills')
-      return
-    }
-    ui.setActiveMainView('conversation')
+    runWithoutAppNavigationRecording(() => {
+      if (capabilities?.pluginManagement === true) {
+        ui.setPluginCatalogSurface('plugins')
+        ui.setActiveMainView('skills')
+        return
+      }
+      ui.setActiveMainView('conversation')
+    })
+    replaceCurrentAppNavigationLocation()
   }, [activeDesktopExtensionView, activeMainView, capabilities?.pluginManagement])
 
   useEffect(() => {
@@ -2449,8 +2459,10 @@ export function App(): JSX.Element {
     if (!currentTurnId) return
     // Only auto-show once per turn
     if (uiState.autoShowTriggeredForTurn === currentTurnId) return
-    useUIStore.getState().markAutoShowForTurn(currentTurnId)
-    useUIStore.getState().setActiveDetailTab('changes')
+    runWithoutAppNavigationRecording(() => {
+      useUIStore.getState().markAutoShowForTurn(currentTurnId)
+      useUIStore.getState().setActiveDetailTab('changes')
+    })
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [changedFilesSize])
 
@@ -2462,8 +2474,10 @@ export function App(): JSX.Element {
     if (!streamingPlanItemId) return
     const uiState = useUIStore.getState()
     if (uiState.autoShowPlanForItem === streamingPlanItemId) return
-    useUIStore.getState().markAutoShowPlanForItem(streamingPlanItemId)
-    useUIStore.getState().setActiveDetailTab('plan')
+    runWithoutAppNavigationRecording(() => {
+      useUIStore.getState().markAutoShowPlanForItem(streamingPlanItemId)
+      useUIStore.getState().setActiveDetailTab('plan')
+    })
   }, [streamingPlanItemId])
 
   // -------------------------------------------------------------------------
@@ -2472,6 +2486,8 @@ export function App(): JSX.Element {
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent): void {
       const ctrl = e.ctrlKey || e.metaKey
+
+      if (handleAppNavigationShortcut(e)) return
 
       // Escape: cancel running turn
       if (e.key === 'Escape') {
@@ -2835,10 +2851,12 @@ export function App(): JSX.Element {
     const threadState = activeThreadId
       ? viewerStore.getThreadState(activeThreadId)
       : null
-    useUIStore.getState().syncDetailPanelForThread(
-      activeThreadId,
-      threadState?.activeTabId ?? null
-    )
+    runWithoutAppNavigationRecording(() => {
+      useUIStore.getState().syncDetailPanelForThread(
+        activeThreadId,
+        threadState?.activeTabId ?? null
+      )
+    })
 
     if (threadState?.activeTabId) {
       const activeTab = threadState.tabs.find((tab) => tab.id === threadState.activeTabId)
@@ -3500,6 +3518,14 @@ export function App(): JSX.Element {
     !showSetupInterstitial &&
     !showSetupFlow
   showMainWorkspaceUiRef.current = showMainWorkspaceUi
+
+  useEffect(() => {
+    if (!showMainWorkspaceUi) {
+      stopAppNavigationHistory()
+      return
+    }
+    return startAppNavigationHistory(protocolWorkspacePath || workspacePath)
+  }, [protocolWorkspacePath, showMainWorkspaceUi, workspacePath])
 
   useEffect(() => {
     if (!showMainWorkspaceUi) return

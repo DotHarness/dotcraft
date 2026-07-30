@@ -2,6 +2,8 @@ export const MESSAGES_EN = {
   // App / window
   'app.titleWithWorkspace': 'DotCraft — {{name}}',
   'app.brandSubtitle': 'DotCraft',
+  'navigation.back': 'Back',
+  'navigation.forward': 'Forward',
 
   // Main menu (custom labels only)
   'menu.file': 'File',

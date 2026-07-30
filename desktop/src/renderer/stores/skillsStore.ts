@@ -61,8 +61,10 @@ export const useSkillsStore = create<SkillsState>((set, get) => ({
       const result = (await window.api.appServer.sendRequest('skills/view', {
         name
       })) as { content?: string }
+      if (get().selectedSkillName !== name) return
       set({ skillContent: result.content ?? '', contentLoading: false })
     } catch (e: unknown) {
+      if (get().selectedSkillName !== name) return
       const msg = e instanceof Error ? e.message : String(e)
       set({ skillContent: `Error loading skill: ${msg}`, contentLoading: false })
     }

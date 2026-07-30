@@ -3,6 +3,8 @@ import type { MessageId } from './en'
 export const MESSAGES_FR = {
   'app.titleWithWorkspace': 'DotCraft - {{name}}',
   'app.brandSubtitle': 'DotCraft',
+  'navigation.back': 'Précédent',
+  'navigation.forward': 'Suivant',
 
   'menu.file': 'Fichier',
   'menu.edit': 'Modifier',

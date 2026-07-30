@@ -63,6 +63,7 @@ interface DetailRevealOptions {
 export type BuiltInMainView = 'conversation' | 'skills' | 'automations' | 'settings' | 'channels'
 export type ExtensionMainView = `extension:${string}`
 export type ActiveMainView = BuiltInMainView | ExtensionMainView
+export type SelectedChannelKey = `module:${string}` | `external:${string}` | null
 
 /** Secondary surface inside the plugin/skill catalog view. */
 export type PluginCatalogSurface = 'plugins' | 'skills'
@@ -108,6 +109,8 @@ export interface UIState {
   automationsTab: AutomationsTab
   /** Active section inside the Settings surface. */
   activeSettingsTab: SettingsTab
+  /** Selected channel detail, kept outside ChannelsView so app history can restore it. */
+  selectedChannelKey: SelectedChannelKey
   /** Monotonic request counter used by the Settings sidebar Back action. */
   settingsCloseRequestSeq: number
   /** Monotonic request counter used by renderer-owned What's New entry points. */
@@ -239,6 +242,7 @@ interface UIStore extends UIState {
   goToNewChat(options?: { workspacePath?: string; clearDraft?: boolean }): void
   setAutomationsTab(tab: AutomationsTab): void
   setActiveSettingsTab(tab: SettingsTab): void
+  setSelectedChannelKey(key: SelectedChannelKey): void
   requestCloseSettings(): void
   requestOpenWhatsNew(): void
   setDiffMarkers(mode: DiffMarkerMode): void
@@ -421,6 +425,7 @@ export const useUIStore = create<UIStore & InternalState>((set, get) => ({
   pluginCatalogSurface: 'plugins',
   automationsTab: 'tasks',
   activeSettingsTab: 'general',
+  selectedChannelKey: null,
   settingsCloseRequestSeq: 0,
   whatsNewOpenRequestSeq: 0,
   sidebarPreferredCollapsed: false,
@@ -486,6 +491,10 @@ export const useUIStore = create<UIStore & InternalState>((set, get) => ({
 
   setActiveSettingsTab(tab) {
     set({ activeSettingsTab: tab })
+  },
+
+  setSelectedChannelKey(key) {
+    set({ selectedChannelKey: key })
   },
 
   requestCloseSettings() {
