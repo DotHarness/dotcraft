@@ -6,7 +6,6 @@ import { useThreadStore } from '../../stores/threadStore'
 import type { SessionIdentity, ThreadSummary } from '../../types/thread'
 import { formatRelativeTime } from '../../utils/relativeTime'
 import { isSubAgentThread } from '../../utils/subAgentThreads'
-import { resolveDefaultCrossChannelOrigins } from '../../utils/visibleChannelsDefaults'
 import { ContextMenu, type ContextMenuPosition } from '../ui/ContextMenu'
 import { useConfirmDialog } from '../ui/ConfirmDialog'
 import { ActionTooltip } from '../ui/ActionTooltip'
@@ -47,7 +46,6 @@ export function ArchivedThreadsSettingsView({
     setLoading(true)
     setError(null)
     try {
-      const crossChannelOrigins = await resolveDefaultCrossChannelOrigins()
       const identity: SessionIdentity = {
         channelName: 'dotcraft-desktop',
         userId: 'local',
@@ -56,8 +54,8 @@ export function ArchivedThreadsSettingsView({
       }
       const result = await window.api.appServer.sendRequest('thread/list', {
         identity,
+        scope: 'workspace',
         includeArchived: true,
-        crossChannelOrigins
       })
       const archivedThreads = ((result as { data?: ThreadSummary[] }).data ?? []).filter(
         (thread) => thread.status === 'archived' && !isSubAgentThread(thread)

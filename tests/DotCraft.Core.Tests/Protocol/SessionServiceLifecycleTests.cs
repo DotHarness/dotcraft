@@ -551,6 +551,48 @@ public sealed class SessionServiceLifecycleTests : IDisposable
         Assert.Contains(merged, s => s.Id == cronThread.Id && s.OriginChannel == "cron");
     }
 
+    [Fact]
+    public async Task FindThreads_WorkspaceScope_IncludesEveryOriginButNotOtherWorkspaces()
+    {
+        var workspace = "/ws/workspace_scope";
+        var desktop = new SessionIdentity
+        {
+            ChannelName = "dotcraft-desktop",
+            UserId = "local",
+            WorkspacePath = workspace,
+            ChannelContext = "workspace:" + workspace
+        };
+        var identities = new[]
+        {
+            desktop,
+            new SessionIdentity { ChannelName = "oratorio", UserId = "operator", WorkspacePath = workspace, ChannelContext = "oratorio:bridge" },
+            new SessionIdentity { ChannelName = "cron", UserId = "cron:job", WorkspacePath = workspace },
+            new SessionIdentity { ChannelName = "heartbeat", UserId = "heartbeat:run", WorkspacePath = workspace },
+            new SessionIdentity { ChannelName = "future-channel", UserId = "future:user", WorkspacePath = workspace, ChannelContext = "future:context" }
+        };
+
+        foreach (var identity in identities)
+            await _svc.CreateThreadAsync(identity);
+        await _svc.CreateThreadAsync(new SessionIdentity
+        {
+            ChannelName = "oratorio",
+            UserId = "operator",
+            WorkspacePath = "/ws/other"
+        });
+
+        var identityScoped = await _svc.FindThreadsAsync(desktop);
+        var workspaceScoped = await _svc.FindThreadsAsync(
+            desktop,
+            crossChannelOrigins: ["not-used"],
+            scope: ThreadDiscoveryScope.Workspace);
+
+        Assert.Single(identityScoped);
+        Assert.Equal(identities.Length, workspaceScoped.Count);
+        Assert.Equal(
+            identities.Select(identity => identity.ChannelName).Order(),
+            workspaceScoped.Select(summary => summary.OriginChannel).Order());
+    }
+
     // -------------------------------------------------------------------------
     // GetThread
     // -------------------------------------------------------------------------
@@ -864,7 +906,8 @@ internal sealed class FakeSessionService : ISessionService, ISubAgentThreadLifec
         bool includeArchived = false,
         IReadOnlyList<string>? crossChannelOrigins = null,
         CancellationToken ct = default,
-        bool includeSubAgents = false)
+        bool includeSubAgents = false,
+        ThreadDiscoveryScope scope = ThreadDiscoveryScope.Identity)
     {
         var index = await _store.LoadIndexAsync(ct);
         var byId = index.ToDictionary(s => s.Id, StringComparer.OrdinalIgnoreCase);
@@ -883,6 +926,8 @@ internal sealed class FakeSessionService : ISessionService, ISubAgentThreadLifec
                     && IsSubAgentSummary(s)
                     && IsHiddenByArchivedParent(s, byId, includeArchived))
                     return false;
+                if (scope == ThreadDiscoveryScope.Workspace)
+                    return true;
                 if (includeSubAgents
                     && IsSubAgentSummary(s)
                     && (identity.UserId == null || s.UserId == identity.UserId))

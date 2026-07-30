@@ -556,6 +556,7 @@ async function listThreadsTool(
 
   const request: JsonObject = {
     identity: desktopIdentity(workspacePath),
+    scope: 'workspace',
     includeSubAgents: false,
     includeArchived: includeArchived.value,
     limit: limit.value

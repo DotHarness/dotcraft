@@ -151,6 +151,25 @@ public sealed record DotCraftThreadResumeRequest(
     IReadOnlyDictionary<string, RuntimeAdditionalContextEntry>? AdditionalContext = null);
 
 /// <summary>
+/// Thread discovery scope for <c>thread/list</c>.
+/// </summary>
+public enum DotCraftThreadListScope
+{
+    /// <summary>Apply the connected session identity and optional cross-channel rules.</summary>
+    Identity,
+
+    /// <summary>List every non-internal thread in the exact workspace.</summary>
+    Workspace
+}
+
+/// <summary>
+/// Options for listing threads.
+/// </summary>
+public sealed record DotCraftThreadListOptions(
+    bool IncludeArchived = false,
+    DotCraftThreadListScope Scope = DotCraftThreadListScope.Identity);
+
+/// <summary>
 /// Thread-bound runtime context supplied by an AppServer client.
 /// </summary>
 public sealed record RuntimeAdditionalContextEntry(

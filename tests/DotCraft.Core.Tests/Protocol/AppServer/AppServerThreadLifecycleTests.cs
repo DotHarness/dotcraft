@@ -1701,6 +1701,75 @@ public sealed class AppServerThreadLifecycleTests : IDisposable
     }
 
     [Fact]
+    public async Task ThreadList_WorkspaceScope_IncludesAllOriginsAndStillExcludesInternalThreads()
+    {
+        var workspacePath = _h.Identity.WorkspacePath;
+        var visibleIdentities = new[]
+        {
+            _h.Identity,
+            new SessionIdentity { ChannelName = "oratorio", UserId = "operator", WorkspacePath = workspacePath, ChannelContext = "oratorio:bridge" },
+            new SessionIdentity { ChannelName = "cron", UserId = "cron:job", WorkspacePath = workspacePath },
+            new SessionIdentity { ChannelName = "heartbeat", UserId = "heartbeat:run", WorkspacePath = workspacePath },
+            new SessionIdentity { ChannelName = "unknown-origin", UserId = "unknown:user", WorkspacePath = workspacePath }
+        };
+        foreach (var identity in visibleIdentities)
+            await _h.Service.CreateThreadAsync(identity);
+        await _h.Service.CreateThreadAsync(new SessionIdentity
+        {
+            ChannelName = "oratorio",
+            UserId = "operator",
+            WorkspacePath = workspacePath + "/child"
+        });
+        var internalThread = await _h.Service.CreateThreadAsync(new SessionIdentity
+        {
+            ChannelName = WelcomeSuggestionConstants.ChannelName,
+            UserId = WelcomeSuggestionConstants.InternalUserId,
+            WorkspacePath = workspacePath
+        });
+        internalThread.Metadata[ThreadVisibility.InternalMetadataKey] = WelcomeSuggestionConstants.InternalMetadataValue;
+
+        var msg = _h.BuildRequest(AppServerMethods.ThreadList, new
+        {
+            identity = new
+            {
+                channelName = _h.Identity.ChannelName,
+                userId = _h.Identity.UserId,
+                workspacePath
+            },
+            scope = ThreadListScopes.Workspace,
+            crossChannelOrigins = new[] { "not-used" }
+        });
+        await _h.ExecuteRequestAsync(msg);
+
+        var doc = await _h.Transport.ReadNextSentAsync();
+        AppServerTestHarness.AssertIsSuccessResponse(doc);
+        var data = doc.RootElement.GetProperty("result").GetProperty("data");
+        Assert.Equal(visibleIdentities.Length, data.GetArrayLength());
+        Assert.Equal(
+            visibleIdentities.Select(identity => identity.ChannelName).Order(),
+            data.EnumerateArray().Select(item => item.GetProperty("originChannel").GetString()).Order());
+    }
+
+    [Fact]
+    public async Task ThreadList_InvalidScope_ReturnsInvalidParams()
+    {
+        var msg = _h.BuildRequest(AppServerMethods.ThreadList, new
+        {
+            identity = new
+            {
+                channelName = _h.Identity.ChannelName,
+                userId = _h.Identity.UserId,
+                workspacePath = _h.Identity.WorkspacePath
+            },
+            scope = "global"
+        });
+        await _h.ExecuteRequestAsync(msg);
+
+        var doc = await _h.Transport.ReadNextSentAsync();
+        AppServerTestHarness.AssertIsErrorResponse(doc, AppServerErrors.InvalidParamsCode);
+    }
+
+    [Fact]
     public async Task ThreadList_EmptyWorkspace_ReturnsEmpty()
     {
         var msg = _h.BuildRequest(AppServerMethods.ThreadList, new

@@ -389,8 +389,22 @@ public sealed class DotCraftThreadClient(DotCraftClient client)
     /// Lists threads visible to the connected workspace.
     /// </summary>
     public async Task<IReadOnlyList<DotCraftThreadSummary>> ListAsync(bool includeArchived = false, CancellationToken cancellationToken = default)
+        => await ListAsync(new DotCraftThreadListOptions(includeArchived), cancellationToken);
+
+    /// <summary>
+    /// Lists threads using the requested discovery scope.
+    /// </summary>
+    public async Task<IReadOnlyList<DotCraftThreadSummary>> ListAsync(
+        DotCraftThreadListOptions options,
+        CancellationToken cancellationToken = default)
     {
-        var result = await client.RequestAsync("thread/list", new { includeArchived }, cancellationToken);
+        ArgumentNullException.ThrowIfNull(options);
+        var scope = options.Scope == DotCraftThreadListScope.Workspace ? "workspace" : "identity";
+        var result = await client.RequestAsync("thread/list", new
+        {
+            includeArchived = options.IncludeArchived,
+            scope
+        }, cancellationToken);
         var array = result.TryGetProperty("threads", out var threads)
             ? threads
             : result.TryGetProperty("data", out var data)

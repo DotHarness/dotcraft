@@ -70,7 +70,6 @@ import { wireTurnToConversationTurn } from './types/conversation'
 import type { ApprovalDecision, ConversationItem, ConversationTurn, QueuedTurnInput } from './types/conversation'
 import type { SubAgentEntry } from './types/toolCall'
 import { applyTheme, resolveTheme } from './utils/theme'
-import { resolveDefaultCrossChannelOrigins } from './utils/visibleChannelsDefaults'
 import { buildComposerInputParts } from './utils/composeInputParts'
 import { getFallbackThreadName } from './utils/threadFallbackName'
 import { handleBrowserEvent } from './utils/browserEventHandler'
@@ -902,7 +901,7 @@ export function App(): JSX.Element {
     }
   }, [])
 
-  const reloadThreadList = useCallback(async (options?: { includeTeams?: boolean }) => {
+  const reloadThreadList = useCallback(async () => {
     const requestGeneration = ++threadListReloadGenerationRef.current
     const path = protocolWorkspacePathRef.current
     if (!canReloadForegroundThreadList(activeProjectKeyRef.current, path)) {
@@ -924,11 +923,7 @@ export function App(): JSX.Element {
     try {
       const settings = await window.api.settings.get()
       if (!isCurrentRequest()) return
-      const crossChannelOrigins = await resolveDefaultCrossChannelOrigins({
-        includeTeams: options?.includeTeams ?? agentTeamsAvailableRef.current
-      })
-      if (!isCurrentRequest()) return
-      const params = { identity, crossChannelOrigins, includeSubAgents: true }
+      const params = { identity, scope: 'workspace', includeSubAgents: true }
       const result = await window.api.appServer.sendRequest('thread/list', params)
       if (!isCurrentRequest()) return
       const res = result as { data: ThreadSummary[] }
@@ -969,7 +964,7 @@ export function App(): JSX.Element {
         nextRetry.attempts += 1
         nextRetry.timer = window.setTimeout(() => {
           nextRetry.timer = null
-          void reloadThreadList(options)
+          void reloadThreadList()
         }, 1200)
       }
     } finally {
@@ -1775,7 +1770,7 @@ export function App(): JSX.Element {
           }
 
           case 'teams/team/changed': {
-            void reloadThreadList({ includeTeams: true })
+            void reloadThreadList()
             break
           }
 

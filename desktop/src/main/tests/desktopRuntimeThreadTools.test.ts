@@ -271,6 +271,7 @@ describe('desktop runtime thread tools', () => {
           channelName: 'dotcraft-desktop',
           workspacePath: 'F:\\examples\\workspace'
         }),
+        scope: 'workspace',
         includeSubAgents: false,
         includeArchived: false,
         limit: 5,

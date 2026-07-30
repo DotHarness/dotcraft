@@ -785,9 +785,13 @@ describe('App initial workspace status bootstrap', () => {
       expect(appServerSendRequest.mock.calls.some((call) => call[0] === 'thread/list')).toBe(true)
     })
     const threadListCall = appServerSendRequest.mock.calls.find((call) => call[0] === 'thread/list')
-    const params = threadListCall?.[1] as { identity?: { channelContext?: string; workspacePath?: string } } | undefined
+    const params = threadListCall?.[1] as {
+      identity?: { channelContext?: string; workspacePath?: string }
+      scope?: string
+    } | undefined
     expect(params?.identity?.workspacePath).toBe('/workspace')
     expect(params?.identity?.channelContext).toBe('workspace:/workspace')
+    expect(params?.scope).toBe('workspace')
   })
 
   it('reloads the foreground thread list when the workspace identity changes while connected', async () => {
@@ -1291,19 +1295,10 @@ describe('App initial workspace status bootstrap', () => {
     })
   })
 
-  it('reloads thread list with teams origin after the Agent Teams plugin becomes available', async () => {
+  it('uses workspace scope without channel discovery after the Agent Teams plugin becomes available', async () => {
     const appServerSendRequest = vi.fn(async (method: string) => {
       if (method === 'plugin/list') {
         return { plugins: [agentTeamsPlugin], diagnostics: [] }
-      }
-      if (method === 'channel/list') {
-        return {
-          channels: [
-            { name: 'acp', category: 'builtin' },
-            { name: 'cron', category: 'system' },
-            { name: 'teams', category: 'system' }
-          ]
-        }
       }
       if (method === 'thread/list') {
         return { data: [] }
@@ -1325,38 +1320,28 @@ describe('App initial workspace status bootstrap', () => {
 
     await waitFor(() => {
       const threadListCalls = appServerSendRequest.mock.calls.filter((call) => call[0] === 'thread/list')
-      expect(threadListCalls.some((call) => {
-        const params = call[1] as { crossChannelOrigins?: string[] } | undefined
-        return params?.crossChannelOrigins?.includes('teams') === true
-      })).toBe(true)
+      expect(threadListCalls.length).toBeGreaterThan(0)
     })
 
-    const teamsCall = appServerSendRequest.mock.calls
-      .filter((call) => call[0] === 'thread/list')
-      .find((call) => {
-        const params = call[1] as { crossChannelOrigins?: string[] } | undefined
-        return params?.crossChannelOrigins?.includes('teams') === true
-      })
-    const params = teamsCall?.[1] as { crossChannelOrigins?: string[]; includeSubAgents?: boolean } | undefined
-    expect(params?.crossChannelOrigins).toEqual(['acp', 'teams'])
+    const listCall = appServerSendRequest.mock.calls.find((call) => call[0] === 'thread/list')
+    const params = listCall?.[1] as {
+      scope?: string
+      crossChannelOrigins?: string[]
+      includeSubAgents?: boolean
+    } | undefined
+    expect(params?.scope).toBe('workspace')
+    expect(params?.crossChannelOrigins).toBeUndefined()
     expect(params?.includeSubAgents).toBe(true)
+    expect(appServerSendRequest.mock.calls.some((call) => call[0] === 'channel/list')).toBe(false)
   })
 
-  it('reloads thread list with teams origin when Team state changes after plugin state updates', async () => {
+  it('reloads the workspace-scoped thread list when Team state changes', async () => {
     let notificationHandler: ((payload: { method: string; params?: unknown }) => void) | undefined
     const onNotification = vi.fn((handler: (payload: { method: string; params?: unknown }) => void) => {
       notificationHandler = handler
       return vi.fn()
     })
     const appServerSendRequest = vi.fn(async (method: string) => {
-      if (method === 'channel/list') {
-        return {
-          channels: [
-            { name: 'acp', category: 'builtin' },
-            { name: 'teams', category: 'system' }
-          ]
-        }
-      }
       if (method === 'thread/list') {
         return { data: [] }
       }
@@ -1391,8 +1376,8 @@ describe('App initial workspace status bootstrap', () => {
     await waitFor(() => {
       const threadListCalls = appServerSendRequest.mock.calls.filter((call) => call[0] === 'thread/list')
       expect(threadListCalls.some((call) => {
-        const params = call[1] as { crossChannelOrigins?: string[] } | undefined
-        return params?.crossChannelOrigins?.includes('teams') === true
+        const params = call[1] as { scope?: string; crossChannelOrigins?: string[] } | undefined
+        return params?.scope === 'workspace' && params.crossChannelOrigins === undefined
       })).toBe(true)
     })
   })

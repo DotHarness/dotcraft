@@ -577,6 +577,7 @@ export interface GetOrCreateThreadOptions extends StartThreadOptions {
 }
 
 export interface ListThreadOptions extends ThreadIdentityOptions {
+  scope?: "identity" | "workspace";
   includeArchived?: boolean;
   query?: string;
   limit?: number;
@@ -883,6 +884,7 @@ class ThreadManagerImpl implements ThreadManager {
     const identity = normalizeIdentity(options);
     return await this.sdk.wire.threadListPage({
       ...identity,
+      scope: options.scope,
       includeArchived: options.includeArchived ?? false,
       query: options.query,
       limit: options.limit,

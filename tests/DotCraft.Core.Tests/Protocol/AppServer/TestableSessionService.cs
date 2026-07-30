@@ -547,7 +547,8 @@ internal sealed class TestableSessionService : ISessionService, IThreadAgentRefr
         bool includeArchived = false,
         IReadOnlyList<string>? crossChannelOrigins = null,
         CancellationToken ct = default,
-        bool includeSubAgents = false)
+        bool includeSubAgents = false,
+        ThreadDiscoveryScope scope = ThreadDiscoveryScope.Identity)
     {
         var index = await _store.LoadIndexAsync(ct);
         var hasCross = crossChannelOrigins is { Count: > 0 };
@@ -561,6 +562,8 @@ internal sealed class TestableSessionService : ISessionService, IThreadAgentRefr
                 if (!includeSubAgents && (string.Equals(s.Source.Kind, ThreadSourceKinds.SubAgent, StringComparison.OrdinalIgnoreCase)
                     || string.Equals(s.OriginChannel, SubAgentThreadOrigin.ChannelName, StringComparison.OrdinalIgnoreCase)))
                     return false;
+                if (scope == ThreadDiscoveryScope.Workspace)
+                    return true;
                 if (includeSubAgents
                     && (string.Equals(s.Source.Kind, ThreadSourceKinds.SubAgent, StringComparison.OrdinalIgnoreCase)
                         || string.Equals(s.OriginChannel, SubAgentThreadOrigin.ChannelName, StringComparison.OrdinalIgnoreCase))

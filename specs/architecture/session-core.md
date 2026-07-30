@@ -1559,7 +1559,7 @@ A projection repair or terminal Turn commit updates thread metadata, attachment 
 
 #### Default discovery (no `crossChannelOrigins`)
 
-`FindThreadsAsync(identity, includeArchived, crossChannelOrigins: null)` matches threads by three fields. `ChannelName` on the identity is **not** used as a filter:
+`FindThreadsAsync(identity, includeArchived, crossChannelOrigins: null)` uses identity-scoped discovery by default and matches threads by three fields. `ChannelName` on the identity is **not** used as a filter:
 
 | Field | Behavior |
 |---|---|
@@ -1584,6 +1584,12 @@ This means cross-channel discovery is **natural for channels that share the same
 The union is deduplicated by thread ID and ordered by `LastActiveAt` descending.
 
 This opt-in path exists so clients such as **DotCraft Desktop** (which uses a non-null `ChannelContext` such as `workspace:{path}`) can still list threads created by channels with a different context (e.g. CLI with `ChannelContext = null`) when the user explicitly allows those origin channels.
+
+#### Workspace-scoped discovery
+
+Trusted workspace-owner clients may request workspace-scoped discovery. This mode still requires an exact case-insensitive `WorkspacePath` match, but does not filter by `UserId`, `ChannelContext`, or `OriginChannel`. `crossChannelOrigins` is redundant and ignored in this mode.
+
+Workspace-scoped discovery does not weaken the default identity scope. Clients and adapters that omit the scope continue to use the identity rules above. Archived, sub-agent, internal-thread, query, channel-name, and pagination controls remain independent filters. DotCraft Desktop uses workspace scope so every non-internal thread in the current workspace is discoverable, including cron, heartbeat, App Binding origins, and previously unknown external origins.
 
 #### Resume flow
 

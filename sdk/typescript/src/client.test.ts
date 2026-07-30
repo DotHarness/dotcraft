@@ -90,6 +90,31 @@ test("DotCraftWireClient omits params when a request has no parameters", async (
   await client.stop();
 });
 
+test("DotCraftWireClient sends workspace scope for thread list requests", async () => {
+  const transport = new QueueTransport();
+  const client = new DotCraftWireClient(transport);
+  await client.start();
+
+  const pending = client.threadListPage({
+    channelName: "desktop",
+    userId: "local-user",
+    workspacePath: "C:\\workspace",
+    scope: "workspace",
+  });
+  const written = await transport.nextWrite();
+  assert.equal(written.method, "thread/list");
+  assert.equal((written.params as Record<string, unknown>).scope, "workspace");
+
+  transport.push({
+    jsonrpc: "2.0",
+    id: written.id,
+    result: { data: [], nextCursor: null, totalMatched: 0 },
+  });
+  assert.deepEqual((await pending).threads, []);
+
+  await client.stop();
+});
+
 test("DotCraftWireClient dispatches server requests without blocking the reader", async () => {
   const transport = new QueueTransport();
   const client = new DotCraftWireClient(transport);

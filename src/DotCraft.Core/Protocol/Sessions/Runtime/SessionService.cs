@@ -1198,8 +1198,9 @@ public sealed partial class SessionService(
         bool includeArchived = false,
         IReadOnlyList<string>? crossChannelOrigins = null,
         CancellationToken ct = default,
-        bool includeSubAgents = false)
-        => await ThreadIndex.FindAsync(identity, includeArchived, crossChannelOrigins, ct, includeSubAgents);
+        bool includeSubAgents = false,
+        ThreadDiscoveryScope scope = ThreadDiscoveryScope.Identity)
+        => await ThreadIndex.FindAsync(identity, includeArchived, crossChannelOrigins, ct, includeSubAgents, scope);
 
     public async Task<int> CountWorkspaceThreadsAsync(string workspacePath, CancellationToken ct = default)
         => await ThreadIndex.CountWorkspaceThreadsAsync(workspacePath, ct);

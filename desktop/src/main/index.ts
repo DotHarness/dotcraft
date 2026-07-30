@@ -543,6 +543,7 @@ async function refreshConnectionThreadList(entry: WorkspaceConnectionEntry): Pro
   try {
     const result = await entry.client.sendRequest<{ data?: unknown[] }>('thread/list', {
       identity: makeThreadListIdentity(entry.workspacePath),
+      scope: 'workspace',
       includeSubAgents: true
     })
     applyWorkspaceThreadListRefreshSuccess(entry, result.data)
