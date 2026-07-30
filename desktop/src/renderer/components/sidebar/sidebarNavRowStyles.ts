@@ -7,6 +7,13 @@ import type { CSSProperties } from 'react'
  */
 export const SIDEBAR_ROW_MIN_HEIGHT = '30px'
 
+/**
+ * Shared horizontal origin for expanded-sidebar section labels, project icon
+ * slots, and section-level empty states. Full-width rows reach this origin via
+ * their 4px outer inset plus 12px inner padding.
+ */
+export const SIDEBAR_RAIL_CONTENT_INSET = '16px'
+
 /** Shared geometry for New chat, Search, Automations, Skills, Settings, and project header rows. */
 export const SIDEBAR_NAV_ROW_OUTER: CSSProperties = {
   width: 'calc(100% - 8px)',

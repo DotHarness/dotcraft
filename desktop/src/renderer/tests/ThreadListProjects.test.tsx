@@ -381,7 +381,7 @@ describe('ThreadList project-first layout', () => {
 
   it('keeps cold projects collapsed and starts them only on double click', () => {
     useWorkspaceProjectsStore.getState().setPayload({
-      foregroundWorkspacePath: '/workspace/a',
+      foregroundWorkspacePath: '',
       secondaryLimit: 8,
       projects: [
         {
@@ -413,7 +413,7 @@ describe('ThreadList project-first layout', () => {
     expect(workspaceSwitch).toHaveBeenCalledWith('/workspace/cold')
   })
 
-  it('does not repeat empty chat copy for loaded empty projects', () => {
+  it('shows a thread-aligned empty state for each loaded empty project', () => {
     useWorkspaceProjectsStore.getState().setPayload({
       foregroundWorkspacePath: '/workspace/a',
       secondaryLimit: 8,
@@ -445,6 +445,35 @@ describe('ThreadList project-first layout', () => {
 
     expect(screen.getByRole('button', { name: 'a' })).toHaveAttribute('aria-expanded', 'true')
     expect(screen.getByRole('button', { name: 'b' })).toHaveAttribute('aria-expanded', 'true')
+    const projectEmptyStates = screen.getAllByText('No chats')
+    expect(projectEmptyStates).toHaveLength(2)
+    for (const emptyState of projectEmptyStates) {
+      expect(emptyState).toHaveStyle({ padding: '4px 16px 8px 32px' })
+    }
+  })
+
+  it('shows search feedback instead of the ordinary project empty state', () => {
+    useThreadStore.getState().setSearchQuery('missing')
+    useWorkspaceProjectsStore.getState().setPayload({
+      foregroundWorkspacePath: '/workspace/a',
+      secondaryLimit: 8,
+      projects: [
+        {
+          path: '/workspace/a',
+          name: 'a',
+          state: 'foreground',
+          running: true,
+          loaded: true,
+          threadCount: 1,
+          threads: [makeThread('thread-a', 'Existing thread')],
+          pinnedThreadIds: []
+        }
+      ]
+    })
+
+    renderList()
+
+    expect(screen.getByText('No threads match your search.')).toBeInTheDocument()
     expect(screen.queryByText('No chats')).not.toBeInTheDocument()
   })
 
@@ -955,6 +984,66 @@ describe('ThreadList project-first layout', () => {
     })
   })
 
+  it('shows section-aligned empty states when there are no configured projects or recent chats', () => {
+    useWorkspaceProjectsStore.getState().setPayload({
+      foregroundWorkspacePath: '/chats',
+      foregroundProjectId: '/chats',
+      secondaryLimit: 8,
+      projects: [],
+      chat: {
+        projectId: '/chats',
+        kind: 'chat',
+        path: '/chats',
+        name: '/chats',
+        state: 'foreground',
+        running: true,
+        loaded: true,
+        threadCount: 0,
+        threads: [],
+        pinnedThreadIds: []
+      }
+    })
+
+    renderList({ workspacePath: '/chats' })
+
+    expect(screen.getByText('Projects')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Toggle Projects section' }))
+      .toHaveStyle({ padding: '8px 16px 2px' })
+    expect(screen.getByText('No projects')).toHaveStyle({ padding: '4px 16px 8px' })
+    expect(screen.getByText('Recents')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Toggle Recents section' }))
+      .toHaveStyle({ padding: '8px 16px 2px' })
+    expect(screen.getByText('No chats')).toHaveStyle({ padding: '4px 16px 8px' })
+  })
+
+  it('does not report No projects when every configured project is pinned', () => {
+    useWorkspaceProjectsStore.getState().setPayload({
+      foregroundWorkspacePath: '/workspace/a',
+      foregroundProjectId: '/workspace/a',
+      secondaryLimit: 8,
+      projects: [
+        {
+          path: '/workspace/a',
+          name: 'Pinned project',
+          state: 'foreground',
+          running: true,
+          loaded: true,
+          pinned: true,
+          threadCount: 0,
+          threads: [],
+          pinnedThreadIds: []
+        }
+      ]
+    })
+
+    renderList()
+
+    expect(screen.getByText('Pinned')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Pinned project' })).toBeInTheDocument()
+    expect(screen.getByText('Projects')).toBeInTheDocument()
+    expect(screen.queryByText('No projects')).not.toBeInTheDocument()
+  })
+
   it('renders a Recents group with default chat workspace threads after Projects', () => {
     useWorkspaceProjectsStore.getState().setPayload({
       foregroundWorkspacePath: '/workspace/a',
@@ -991,8 +1080,8 @@ describe('ThreadList project-first layout', () => {
 
     const projectsHeading = screen.getByText('Projects')
     const recentsHeading = screen.getByText('Recents')
-    expect(projectsHeading.parentElement).toHaveStyle({ padding: '8px 8px 2px' })
-    expect(recentsHeading.parentElement).toHaveStyle({ padding: '8px 8px 2px' })
+    expect(projectsHeading.parentElement).toHaveStyle({ padding: '8px 16px 2px' })
+    expect(recentsHeading.parentElement).toHaveStyle({ padding: '8px 16px 2px' })
     // Recents renders as its own group, after Projects.
     expect(projectsHeading.compareDocumentPosition(recentsHeading) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     expect(screen.getByText('General chat thread')).toBeInTheDocument()
@@ -1033,8 +1122,12 @@ describe('ThreadList project-first layout', () => {
 
     renderList()
 
-    expect(screen.getByText('Recents')).toBeInTheDocument()
-    expect(screen.getByText('No chats')).toHaveStyle({ padding: '4px 8px 8px' })
+    const recentsHeading = screen.getByText('Recents')
+    const recentsGroup = recentsHeading.parentElement?.parentElement
+    expect(recentsGroup).not.toBeNull()
+    expect(within(recentsGroup as HTMLElement).getByText('No chats')).toHaveStyle({
+      padding: '4px 16px 8px'
+    })
   })
 
   it('shows mutually exclusive waiting and running counts in project details', async () => {

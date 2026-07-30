@@ -1426,6 +1426,7 @@ export const MESSAGES_KO = {
   'projectsRail.title': 'Projects',
   'projectsRail.addProject': '프로젝트 추가',
   'projectsRail.noChats': '채팅 없음',
+  'projectsRail.noProjects': '프로젝트 없음',
   'chatsRail.title': '채팅',
   'recentsRail.title': '최근',
   'projectsRail.toggleSection': '{{section}} 섹션 토글',

@@ -44,7 +44,7 @@ import { addToast } from '../../stores/toastStore'
 import { PinIcon, ThreadEntry } from './ThreadEntry'
 import { WorkspaceOptionsMenu } from './WorkspaceHeader'
 import { useAddProjectFlow } from '../projects/AddProject'
-import { SIDEBAR_ROW_MIN_HEIGHT } from './sidebarNavRowStyles'
+import { SIDEBAR_RAIL_CONTENT_INSET, SIDEBAR_ROW_MIN_HEIGHT } from './sidebarNavRowStyles'
 import {
   isRemoteProjectKey,
   normalizeWorkspaceProjectKey,
@@ -265,8 +265,12 @@ export function ThreadList({
               <ProjectThreadSkeletonList />
             ) : (
               <>
-                {projectThreads.length === 0 && project.loaded && searchQuery && (
-                  <ProjectHint label={t('threadList.noSearchResults')} />
+                {project.loaded && rawProjectThreads.length === 0 && (
+                  <ProjectHint
+                    label={searchQuery
+                      ? t('threadList.noSearchResults')
+                      : t('projectsRail.noChats')}
+                  />
                 )}
                 {projectThreads.map((thread) => (
                   isForeground ? (
@@ -314,6 +318,9 @@ export function ThreadList({
         )}
         {showProjects && (
           <CollapsibleThreads collapsed={projectsSectionCollapsed} marginTop={0}>
+            {projectsForRender.length === 0 && (
+              <ProjectHint label={t('projectsRail.noProjects')} alignment="section" />
+            )}
             {ordinaryProjects.map(renderProjectBlock)}
           </CollapsibleThreads>
         )}
@@ -1694,10 +1701,11 @@ function ProjectHint({
     <div
       style={{
         padding: alignment === 'section'
-          ? `4px ${SIDEBAR_SECTION_INSET} 8px`
+          ? `4px ${SIDEBAR_RAIL_CONTENT_INSET} 8px`
           : '4px 16px 8px 32px',
         color: 'var(--text-dimmed)',
         fontSize: 'var(--type-secondary-size)',
+        fontWeight: 400,
         lineHeight: 'var(--type-secondary-line-height)'
       }}
     >
@@ -2109,14 +2117,12 @@ function projectFolderPaths(project: WorkspaceProjectSummary): string[] {
   })
 }
 
-const SIDEBAR_SECTION_INSET = '8px'
-
 const sidebarSectionHeaderStyle: CSSProperties = {
   display: 'flex',
   alignItems: 'center',
   gap: '4px',
   minHeight: '28px',
-  padding: `8px ${SIDEBAR_SECTION_INSET} 2px`,
+  padding: `8px ${SIDEBAR_RAIL_CONTENT_INSET} 2px`,
   cursor: 'pointer',
   userSelect: 'none'
 }
