@@ -162,6 +162,10 @@ public sealed class ChatClientRegistry(
         CancellationToken cancellationToken) =>
         _openAIClientProvider.GenerateOpenAIImageEditAsync(runtime, imageModel, prompt, images, cancellationToken);
 
+    internal IChatGptResponsesCompactTransport GetChatGptResponsesCompactTransport(
+        EffectiveModelRuntime runtime) =>
+        _openAIClientProvider.GetChatGptResponsesCompactTransport(runtime);
+
     /// <summary>
     /// Gets a cached provider-neutral chat client for a provider/model pair.
     /// </summary>

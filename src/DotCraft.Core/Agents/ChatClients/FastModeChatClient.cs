@@ -33,6 +33,14 @@ internal sealed class FastModeChatClient(
     }
 
     internal ChatOptions? PrepareOptions(ChatOptions? options)
+        => PrepareOptions(options, config, protocol, model, speed);
+
+    internal static ChatOptions? PrepareOptions(
+        ChatOptions? options,
+        AppConfig config,
+        string protocol,
+        string? model,
+        InferenceSpeed speed)
     {
         if (speed != InferenceSpeed.Fast || !ModelCatalog.SupportsFast(config, protocol, model))
             return options;
@@ -53,7 +61,7 @@ internal sealed class FastModeChatClient(
             {
                 if (raw != null && raw is not AnthropicBetaMessageCreateParams)
                     return raw;
-                return PatchAnthropic(raw as AnthropicBetaMessageCreateParams, prepared);
+                return PatchAnthropic(raw as AnthropicBetaMessageCreateParams, prepared, model);
             }
 
             return raw;
@@ -61,9 +69,10 @@ internal sealed class FastModeChatClient(
         return prepared;
     }
 
-    private AnthropicBetaMessageCreateParams PatchAnthropic(
+    private static AnthropicBetaMessageCreateParams PatchAnthropic(
         AnthropicBetaMessageCreateParams? existing,
-        ChatOptions options)
+        ChatOptions options,
+        string? model)
     {
         var betas = existing?.Betas?.ToList() ?? [];
         if (!betas.Contains(AnthropicBeta.FastMode2026_02_01))

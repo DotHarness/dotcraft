@@ -52,4 +52,31 @@ public sealed class CodexContextWindowStoreTests : IDisposable
         Assert.Equal(advanced.CurrentWindowId, loadedAdvanced.CurrentWindowId);
         Assert.Equal(advanced.PreviousWindowId, loadedAdvanced.PreviousWindowId);
     }
+
+    [Fact]
+    public async Task ReconcilePublishesCommittedWindowExactlyAndIsIdempotent()
+    {
+        var runtime = new WorkspaceStateDatabase(_root);
+        var threadStore = new ThreadStore(_root, runtime);
+        var thread = new SessionThread
+        {
+            Id = "thread_reconcile_window",
+            WorkspacePath = _root,
+            OriginChannel = "test",
+            Status = ThreadStatus.Active,
+            CreatedAt = DateTimeOffset.UtcNow,
+            LastActiveAt = DateTimeOffset.UtcNow
+        };
+        await threadStore.SaveThreadAsync(thread);
+        var store = new CodexContextWindowStore(runtime);
+        var initial = store.GetOrCreate(thread.Id);
+
+        var reconciled = store.Reconcile(thread.Id, "committed-window");
+        var idempotent = store.Reconcile(thread.Id, "committed-window");
+
+        Assert.Equal(initial.CurrentWindowId, reconciled.PreviousWindowId);
+        Assert.Equal("committed-window", reconciled.CurrentWindowId);
+        Assert.Equal(initial.Generation + 1, reconciled.Generation);
+        Assert.Equal(reconciled, idempotent);
+    }
 }

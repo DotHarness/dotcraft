@@ -106,6 +106,116 @@ public sealed class OpenAIClientProviderTests : IDisposable
     }
 
     [Fact]
+    public async Task CompactTransport_UsesResponsesFamilyOAuthWithoutCreateBodyMutation()
+    {
+        const string installationId = "11111111-2222-4333-8444-555555555555";
+        await using var server = RecordingHttpServer.Start(
+            JsonResponse(
+                """{"output":[{"type":"compaction","encrypted_content":"YWJj"}]}""",
+                headers: new Dictionary<string, string>
+                {
+                    [OpenAIAuthConstants.TurnStateHeader] = "next-turn-state"
+                }));
+        var provider = CreateOAuthProvider(installationId, "account-test");
+        var runtime = OAuthRuntime($"{server.Endpoint}/backend-api/codex", "account-test");
+        var context = CreateCodexRuntimeContext(
+            "thread-test",
+            "turn-test",
+            "window-test",
+            requestKind: ThreadConversationRequestKind.Compaction);
+        using var scope = OpenAIResponsesCodexRuntimeScope.Set(context);
+        var compactRequest = new ChatGptResponsesCompactRequest
+        {
+            Model = "gpt-test",
+            Input = [ReadObject("""{"type":"message","role":"user","content":[]}""")],
+            Reasoning = ReadObject("{}")
+        };
+
+        var response = await provider
+            .GetChatGptResponsesCompactTransport(runtime)
+            .CompactAsync(compactRequest, CancellationToken.None);
+
+        Assert.Equal("compaction", Assert.Single(response.Output!).GetProperty("type").GetString());
+        var request = Assert.Single(server.Requests);
+        Assert.Equal("POST", request.Method);
+        Assert.Equal("/backend-api/codex/responses/compact", request.Path);
+        Assert.Equal("application/json", request.Headers["Content-Type"]);
+        Assert.Equal("Bearer access-token", request.Headers["Authorization"]);
+        Assert.Equal("account-test", request.Headers[OpenAIAuthConstants.AccountIdHeader]);
+        Assert.Equal(installationId, request.Headers[OpenAIAuthConstants.InstallationIdHeader]);
+        Assert.Equal("thread-test", request.Headers[OpenAIAuthConstants.ThreadIdHeader]);
+        Assert.Equal("window-test", request.Headers[OpenAIAuthConstants.WindowIdHeader]);
+        using var sent = JsonDocument.Parse(request.Body);
+        Assert.False(sent.RootElement.TryGetProperty("client_metadata", out _));
+        Assert.False(sent.RootElement.TryGetProperty("stream", out _));
+        Assert.Equal("next-turn-state", context.TurnState);
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("   ")]
+    [InlineData("<html>gateway failure</html>")]
+    [InlineData("{\"output\":[")]
+    [InlineData("{}")]
+    [InlineData("{\"output\":{}}")]
+    public async Task CompactTransport_InvalidResponseUsesStableErrorCode(string responseBody)
+    {
+        await using var server = RecordingHttpServer.Start(JsonResponse(responseBody));
+        var provider = CreateOAuthProvider(
+            "11111111-2222-4333-8444-555555555555",
+            "account-test");
+        var runtime = OAuthRuntime($"{server.Endpoint}/backend-api/codex", "account-test");
+        using var scope = OpenAIResponsesCodexRuntimeScope.Set(CreateCodexRuntimeContext(
+            "thread-test",
+            "turn-test",
+            "window-test",
+            requestKind: ThreadConversationRequestKind.Compaction));
+        var compactRequest = new ChatGptResponsesCompactRequest
+        {
+            Model = "gpt-test",
+            Input = []
+        };
+
+        var error = await Assert.ThrowsAsync<InvalidDataException>(async () =>
+            await provider
+                .GetChatGptResponsesCompactTransport(runtime)
+                .CompactAsync(compactRequest, CancellationToken.None));
+
+        Assert.Equal(
+            "provider_compaction_invalid_response: Compact response body must match the expected JSON envelope.",
+            error.Message);
+        Assert.IsAssignableFrom<JsonException>(error.InnerException);
+    }
+
+    [Fact]
+    public async Task CompactTransport_HonorsCancellation()
+    {
+        await using var server = RecordingHttpServer.Start(
+            JsonResponse("""{"output":[{"type":"compaction","encrypted_content":"YWJj"}]}"""));
+        var provider = CreateOAuthProvider(
+            "11111111-2222-4333-8444-555555555555",
+            "account-test");
+        var runtime = OAuthRuntime($"{server.Endpoint}/backend-api/codex", "account-test");
+        using var scope = OpenAIResponsesCodexRuntimeScope.Set(CreateCodexRuntimeContext(
+            "thread-test",
+            "turn-test",
+            "window-test",
+            requestKind: ThreadConversationRequestKind.Compaction));
+        var compactRequest = new ChatGptResponsesCompactRequest
+        {
+            Model = "gpt-test",
+            Input = []
+        };
+        using var cancellation = new CancellationTokenSource();
+        await cancellation.CancelAsync();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(async () =>
+            await provider
+                .GetChatGptResponsesCompactTransport(runtime)
+                .CompactAsync(compactRequest, cancellation.Token));
+    }
+
+    [Fact]
     public void GetOpenAIImageClient_CacheKeyIncludesImageModel()
     {
         var provider = new OpenAIClientProvider();
@@ -998,6 +1108,12 @@ public sealed class OpenAIClientProviderTests : IDisposable
         HttpStatusCode status = HttpStatusCode.OK,
         IReadOnlyDictionary<string, string>? headers = null)
         => new(status, "application/json", json, headers);
+
+    private static JsonElement ReadObject(string json)
+    {
+        using var document = JsonDocument.Parse(json);
+        return document.RootElement.Clone();
+    }
 
     private static string BuildSanitizedCacheWireSnapshot(RecordedHttpRequest request)
     {

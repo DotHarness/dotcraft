@@ -94,9 +94,9 @@ The installation id is a per-machine UUID v4 generated on first launch and reuse
 and login sessions. ChatGPT's `/backend-api/codex` surface uses the id to bucket prompt-cache
 shards; including it materially improves `prompt_cache_key` hit rate on
 `chatgpt.com/backend-api/codex/responses`. The id is therefore sent both as the
-`x-codex-installation-id` HTTP header **and** inside the request body's `client_metadata` map on
-every Responses request issued through an OAuth-bound client. The id is not an auth secret and is
-not shared with the API-key code path.
+`x-codex-installation-id` HTTP header on every Responses-family request and inside the request
+body's `client_metadata` map on create-response `/responses` requests. Compact requests do not
+carry `client_metadata`. The id is not an auth secret and is not shared with the API-key code path.
 
 If the file is missing or contains an invalid value, DotCraft regenerates a fresh UUID v4 and
 overwrites the file. The id is *never* tied to a specific ChatGPT account; switching accounts
@@ -107,15 +107,16 @@ preserves the installation id.
 | Auth method | Base URL | Path | Auth header | Extra headers |
 |---|---|---|---|---|
 | API key | `https://api.openai.com/v1` | `/responses`, `/chat/completions`, `/models` | `Authorization: Bearer <api-key>` | — |
-| ChatGPT OAuth | `https://chatgpt.com/backend-api/codex` | `/responses` | `Authorization: Bearer <access_token>` | `chatgpt-account-id: <account_id>`, `originator: codex_cli_rs`, `x-codex-installation-id: <uuid>`, `session-id: <root_thread_id>`, `thread-id: <current_thread_id>`, `x-client-request-id: <current_thread_id>`, `x-codex-window-id: <window_id>`, `x-codex-turn-metadata: <json>`, `x-codex-turn-state: <state>` when established in the same logical turn |
+| ChatGPT OAuth | `https://chatgpt.com/backend-api/codex` | `/responses`, `/responses/compact` | `Authorization: Bearer <access_token>` | `chatgpt-account-id: <account_id>`, `originator: codex_cli_rs`, `x-codex-installation-id: <uuid>`, `session-id: <root_thread_id>`, `thread-id: <current_thread_id>`, `x-client-request-id: <current_thread_id>`, `x-codex-window-id: <window_id>`, `x-codex-turn-metadata: <json>`, `x-codex-turn-state: <state>` when established in the same logical turn |
 | ChatGPT OAuth | `https://chatgpt.com/backend-api/codex` | `/models` | `Authorization: Bearer <access_token>` | `chatgpt-account-id: <account_id>`, `originator: codex_cli_rs` |
 
 For HTTP Responses, DotCraft sends `session-id`, `thread-id`, and `x-client-request-id` plus the
 body-level `prompt_cache_key`. `session-id` and the default cache key use the root cache-session
 identity; `thread-id` and `x-client-request-id` use the currently executing DotCraft thread.
 They are equal for root threads and ordinary user forks. A subagent shares its root thread's cache
-session while retaining its child thread as the execution and correlation identity. `session_id`
-and `thread_id` are body-level `client_metadata` keys, not direct HTTP headers.
+session while retaining its child thread as the execution and correlation identity. On
+create-response requests, `session_id` and `thread_id` are also body-level `client_metadata` keys.
+Compact requests carry only the corresponding headers and compact body fields.
 
 Each thread/session header gives the ChatGPT backend's prompt-cache shards a finer-grained anchor
 than `chatgpt-account-id` alone so that requests on the same thread tend to land on the cache node
@@ -245,6 +246,23 @@ updates from the failed attempt remain buffered and are not surfaced or executed
 `server_error`, or any failure after visible model output, is surfaced immediately with the final
 provider message and request ID.
 
+## Responses compaction transport
+
+ChatGPT OAuth server-managed Responses threads use the provider-native backend defined in
+[Context Compaction](context-compaction.md). The backend sends
+`POST https://chatgpt.com/backend-api/codex/responses/compact`; it does not send the public OpenAI
+API compact contract to `api.openai.com`.
+
+The configured OpenAI .NET `ResponsesClient` may supply the raw protocol transport because its base
+endpoint and client pipeline already belong to the ChatGPT OAuth runtime. DotCraft constructs and
+validates the ChatGPT-compatible JSON itself. SDK response-item objects and MEAI
+`RawRepresentation` are not persistence formats.
+
+`/responses/compact` is a Responses-family request for OAuth headers, sticky routing, Turn metadata,
+and `x-codex-turn-state`. It is not a create-response request: the OAuth body policy must not inject
+`client_metadata`, streaming fields, or other `/responses`-only body rewrites. The complete raw
+`output` array is persisted as the next canonical Responses generation.
+
 ## HTTP 401 recovery
 
 OAuth SDK `/responses` requests use a bounded recovery sequence:
@@ -273,7 +291,7 @@ Two opt-in environment variables allow controlled A/B testing against the ChatGP
 | Variable | Effect |
 |---|---|
 | `DOTCRAFT_CHATGPT_OAUTH_UA_PROFILE=codex` | Use the alternate User-Agent profile (`codex_cli_rs/<version> (<os>; <arch>) dotcraft`) on OAuth-bound SDK requests |
-| `DOTCRAFT_CHATGPT_OAUTH_OPENAI_BETA=<value>` | Send `OpenAI-Beta: <value>` on OAuth `/responses` requests |
+| `DOTCRAFT_CHATGPT_OAUTH_OPENAI_BETA=<value>` | Send `OpenAI-Beta: <value>` on OAuth Responses-family requests |
 
 These switches are intentionally not enabled by default because their backend effects are not part
 of a public contract and must be evaluated with live token A/B data (`cached_input_tokens`,

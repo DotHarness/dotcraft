@@ -2,9 +2,9 @@
 
 | Field | Value |
 |---|---|
-| **Version** | 0.3.0 |
+| **Version** | 0.4.0 |
 | **Status** | Living |
-| **Date** | 2026-07-26 |
+| **Date** | 2026-07-31 |
 | **Parent Specs** | [Session Core](session-core.md), [Prompt Cache](prompt-cache.md), [OpenAI Subscription Auth](openai-subscription-auth.md) |
 
 ## Overview
@@ -17,9 +17,11 @@ prefixes.
 
 For opted-in threads, DotCraft therefore maintains a second, Responses-native history. It is the
 source of truth for the Responses `input` array only. MEAI history remains the source of truth for
-request-local model execution, UI projection, provider-neutral recovery, token estimation, and
-every non-Responses protocol. Session Core owns that history directly and persists it through the
-rollout contracts defined in [Session Core](session-core.md).
+request-local model execution, UI projection, provider-neutral recovery, and every non-Responses
+protocol. Token estimation normally uses MEAI history or a valid provider usage anchor. An active
+opaque provider-native compaction generation instead uses the provider-native estimator defined in
+[Context Compaction](context-compaction.md). Session Core owns both histories and persists them
+through the rollout contracts defined in [Session Core](session-core.md).
 
 ## Activation
 
@@ -123,8 +125,10 @@ transition set; adding an isolated lock to one method is not sufficient.
   entries in rollout order.
 - **Rollback:** entries for removed turns are excluded. A replacement whose covered turn no longer
   survives is invalid and replay continues to an earlier baseline.
-- **Compaction:** successful auto or manual replacement maps the final compacted MEAI history once,
-  starts a new provider-history generation, and shares the existing context-window advance.
+- **Compaction:** a neutral replacement maps the final compacted MEAI history once. A
+  provider-native replacement installs the compact endpoint's complete raw output without changing
+  MEAI history. Both start a new provider-history generation and share the context-window
+  transition defined in [Context Compaction](context-compaction.md).
 - **Protocol change:** leaving Responses leaves the generation untouched. Returning after
   non-Responses turns creates a replacement from current MEAI history and advances the context
   window before the next Responses request.
@@ -164,8 +168,8 @@ durable but must never be copied into diagnostics.
 
 - Consecutive tool-loop and cross-turn Responses requests keep the previous request input as a
   byte-identical prefix and append only completed provider items and new local tail items.
-- Request-local sanitization never emits `provider_history_replaced`; successful compaction emits
-  exactly one replacement for the new context window.
+- Request-local sanitization never emits `provider_history_replaced`; successful neutral or
+  provider-native compaction emits exactly one replacement for the new context window.
 - Provider IDs, `call_id`, item ordering, replayable image-generation fields, and encrypted
   reasoning bytes survive turn completion, cold resume, rollback, and compatible fork.
 - Reasoning emitted after a tool result is projected as Assistant content, while the Tool message
@@ -176,3 +180,10 @@ durable but must never be copied into diagnostics.
   as before this capability.
 - The complete test suite passes and the ChatGPT OAuth prompt-cache smoke median does not regress
   by more than five percentage points from its pre-change baseline.
+
+## Related specs
+
+- [Context Compaction](context-compaction.md)
+- [Session Core](session-core.md)
+- [Prompt Cache](prompt-cache.md)
+- [OpenAI Subscription Auth](openai-subscription-auth.md)

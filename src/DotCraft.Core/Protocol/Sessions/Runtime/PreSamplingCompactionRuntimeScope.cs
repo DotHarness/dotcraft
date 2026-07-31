@@ -1,20 +1,23 @@
 using Microsoft.Extensions.AI;
 using DotCraft.Context;
+using DotCraft.Context.Compaction;
 
 namespace DotCraft.Protocol;
 
-public sealed class PreSamplingCompactionRuntimeContext
+internal sealed class PreSamplingCompactionRuntimeContext
 {
     public required Func<
         IReadOnlyList<ChatMessage>,
+        ChatOptions?,
         CancellationToken,
-        Task<IReadOnlyList<ChatMessage>?>> TryCompactAsync { get; init; }
+        Task<CompactionExecutionResult?>> TryCompactAsync { get; init; }
 
     public Func<
         IReadOnlyList<ChatMessage>,
         PromptRequestSnapshot,
+        ChatOptions?,
         CancellationToken,
-        Task<IReadOnlyList<ChatMessage>?>>? TryCompactWithSnapshotAsync { get; init; }
+        Task<CompactionExecutionResult?>>? TryCompactWithSnapshotAsync { get; init; }
 
     public string? ProviderId { get; init; }
 
@@ -29,7 +32,7 @@ public sealed class PreSamplingCompactionRuntimeContext
     public Func<PromptRequestSnapshot, CancellationToken, Task>? CaptureSnapshotAsync { get; init; }
 }
 
-public static class PreSamplingCompactionRuntimeScope
+internal static class PreSamplingCompactionRuntimeScope
 {
     private static readonly AsyncLocal<PreSamplingCompactionRuntimeContext?> CurrentContext = new();
 

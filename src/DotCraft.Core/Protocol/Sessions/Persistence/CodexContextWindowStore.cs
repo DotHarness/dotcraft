@@ -103,6 +103,53 @@ internal sealed class CodexContextWindowStore(WorkspaceStateDatabase stateRuntim
         return updated;
     }
 
+    public CodexContextWindowRecord Reconcile(string threadId, string committedWindowId)
+    {
+        var normalizedThreadId = NormalizeThreadId(threadId);
+        if (string.IsNullOrWhiteSpace(committedWindowId))
+            throw new ArgumentException("Committed window id must be non-empty.", nameof(committedWindowId));
+        var normalizedWindowId = committedWindowId.Trim();
+
+        using var connection = stateRuntime.OpenConnection();
+        using var transaction = connection.BeginTransaction();
+        var existing = Load(connection, transaction, normalizedThreadId)
+            ?? InsertInitial(connection, transaction, normalizedThreadId);
+        if (string.Equals(existing.CurrentWindowId, normalizedWindowId, StringComparison.Ordinal))
+        {
+            transaction.Commit();
+            return existing;
+        }
+
+        var now = DateTimeOffset.UtcNow;
+        using (var update = connection.CreateCommand())
+        {
+            update.Transaction = transaction;
+            update.CommandText = """
+                UPDATE thread_context_windows
+                SET previous_window_id = current_window_id,
+                    current_window_id = $current_window_id,
+                    generation = generation + 1,
+                    updated_at = $updated_at
+                WHERE thread_id = $thread_id
+                """;
+            update.Parameters.AddWithValue("$thread_id", normalizedThreadId);
+            update.Parameters.AddWithValue("$current_window_id", normalizedWindowId);
+            update.Parameters.AddWithValue("$updated_at", now.ToString("O"));
+            update.ExecuteNonQuery();
+        }
+
+        var reconciled = Load(connection, transaction, normalizedThreadId)
+            ?? existing with
+            {
+                PreviousWindowId = existing.CurrentWindowId,
+                CurrentWindowId = normalizedWindowId,
+                Generation = existing.Generation + 1,
+                UpdatedAt = now
+            };
+        transaction.Commit();
+        return reconciled;
+    }
+
     private static CodexContextWindowRecord InsertInitial(
         SqliteConnection connection,
         SqliteTransaction transaction,

@@ -22,6 +22,7 @@ internal sealed class OpenAIOAuthPipelinePolicy : PipelinePolicy
     private const string OpenAIBetaHeader = "OpenAI-Beta";
     private const string UserAgentHeader = "User-Agent";
     private const string ResponsesPathSuffix = "/responses";
+    private const string ResponsesCompactPathSuffix = "/responses/compact";
 
     private readonly IOpenAIAuthService _authService;
     private readonly string? _configuredAccountId;
@@ -216,8 +217,9 @@ internal sealed class OpenAIOAuthPipelinePolicy : PipelinePolicy
     private static bool IsResponsesRequest(PipelineMessage message)
     {
         var uri = message.Request.Uri;
-        return uri is not null &&
-               uri.AbsolutePath.EndsWith(ResponsesPathSuffix, StringComparison.Ordinal);
+        return uri is not null
+               && (uri.AbsolutePath.EndsWith(ResponsesPathSuffix, StringComparison.Ordinal)
+                   || uri.AbsolutePath.EndsWith(ResponsesCompactPathSuffix, StringComparison.Ordinal));
     }
 
     private static void SetIfPresent(PipelineMessage message, string headerName, string? value)
