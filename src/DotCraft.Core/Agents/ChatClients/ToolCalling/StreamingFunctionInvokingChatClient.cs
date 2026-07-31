@@ -189,7 +189,7 @@ public sealed class StreamingFunctionInvokingChatClient(IChatClient innerClient,
                 options,
                 cancellationToken);
             var preparedMessages = preparation.Messages;
-            if (preparation.CanonicalHistoryWasReplaced && providerHistoryBridge != null)
+            if (preparation.NeutralHistoryWasReplaced && providerHistoryBridge != null)
             {
                 await providerHistoryBridge.HistoryReplacedAsync(
                     preparedMessages,
@@ -197,7 +197,7 @@ public sealed class StreamingFunctionInvokingChatClient(IChatClient innerClient,
                     "compaction",
                     cancellationToken);
             }
-            if (preparation.CanonicalHistoryWasReplaced
+            if (preparation.HistoryWasReplaced
                 || !ReferenceEquals(preparedMessages, currentMessages))
             {
                 currentMessages = preparedMessages;
@@ -377,7 +377,8 @@ public sealed class StreamingFunctionInvokingChatClient(IChatClient innerClient,
         {
             return new SamplingPreparationResult(
                 ModelRequestHistorySanitizer.Sanitize(messages),
-                CanonicalHistoryWasReplaced: false);
+                NeutralHistoryWasReplaced: false,
+                HistoryWasReplaced: false);
         }
 
         var snapshotBeforeCompaction = PromptRequestSnapshot.Capture(
@@ -388,10 +389,12 @@ public sealed class StreamingFunctionInvokingChatClient(IChatClient innerClient,
             compaction.ThreadId,
             compaction.TurnId,
             compaction.EstimatedInputTokens);
-        var replacement = compaction.TryCompactWithSnapshotAsync is { } compactWithSnapshot
-            ? await compactWithSnapshot(messages, snapshotBeforeCompaction, cancellationToken)
-            : await compaction.TryCompactAsync(messages, cancellationToken);
-        var preparedMessages = ModelRequestHistorySanitizer.Sanitize(replacement ?? messages);
+        var execution = compaction.TryCompactWithSnapshotAsync is { } compactWithSnapshot
+            ? await compactWithSnapshot(messages, snapshotBeforeCompaction, options, cancellationToken)
+            : await compaction.TryCompactAsync(messages, options, cancellationToken);
+        var neutralReplacement = execution?.Replacement as CompactionReplacement.Neutral;
+        var preparedMessages = ModelRequestHistorySanitizer.Sanitize(
+            neutralReplacement?.Messages ?? messages);
         if (compaction.CaptureSnapshotAsync is { } capture)
         {
             var snapshot = PromptRequestSnapshot.Capture(
@@ -407,12 +410,14 @@ public sealed class StreamingFunctionInvokingChatClient(IChatClient innerClient,
 
         return new SamplingPreparationResult(
             preparedMessages,
-            CanonicalHistoryWasReplaced: replacement != null);
+            NeutralHistoryWasReplaced: neutralReplacement != null,
+            HistoryWasReplaced: execution?.Replacement != null);
     }
 
     private readonly record struct SamplingPreparationResult(
         IReadOnlyList<ChatMessage> Messages,
-        bool CanonicalHistoryWasReplaced);
+        bool NeutralHistoryWasReplaced,
+        bool HistoryWasReplaced);
 
     private static void FixupHistories(
         IEnumerable<ChatMessage> originalMessages,

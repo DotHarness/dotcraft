@@ -161,6 +161,11 @@ public sealed class SessionPersistenceService(
     internal CodexContextWindowRecord AdvanceCodexContextWindow(string threadId)
         => _codexContextWindowStore.Advance(threadId);
 
+    internal CodexContextWindowRecord ReconcileCodexContextWindow(
+        string threadId,
+        string committedWindowId) =>
+        _codexContextWindowStore.Reconcile(threadId, committedWindowId);
+
     internal Task<ProviderHistorySnapshot> LoadProviderHistoryAsync(
         SessionThread thread,
         string currentContextWindowId,

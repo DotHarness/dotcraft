@@ -261,11 +261,36 @@ public sealed partial class SessionService(
         }
     }
 
+    private void TryReconcileCodexContextWindow(string threadId, string committedWindowId)
+    {
+        try
+        {
+            var record = persistence.ReconcileCodexContextWindow(threadId, committedWindowId);
+            var context = OpenAIResponsesCodexRuntimeScope.Current;
+            if (context != null
+                && string.Equals(
+                    context.ConversationIdentity.CurrentThreadId,
+                    threadId,
+                    StringComparison.Ordinal))
+            {
+                context.AdvanceContextWindow(record.CurrentWindowId);
+            }
+        }
+        catch (Exception ex)
+        {
+            logger?.LogDebug(
+                ex,
+                "Failed to reconcile provider context window for thread {ThreadId}",
+                threadId);
+        }
+    }
+
     private async Task<OpenAIResponsesProviderHistoryContext?> CreateResponsesProviderHistoryContextAsync(
         SessionThread thread,
-        SessionTurn turn,
+        SessionTurn? turn,
         List<ChatMessage> session,
-        CancellationToken ct)
+        CancellationToken ct,
+        string? coveredThroughTurnIdOverride = null)
     {
         if (thread.ProviderHistorySchemaVersion != ProviderHistorySchema.CurrentSchemaVersion
             || thread.HistoryMode != HistoryMode.Server)
@@ -299,9 +324,18 @@ public sealed partial class SessionService(
                     activeIdentity.ContextWindowId,
                     ct)
                 .ConfigureAwait(false);
+        if (!string.Equals(
+                snapshot.ContextWindowId,
+                activeIdentity.ContextWindowId,
+                StringComparison.Ordinal))
+        {
+            TryReconcileCodexContextWindow(thread.Id, snapshot.ContextWindowId);
+            activeIdentity = OpenAIResponsesCodexRuntimeScope.Current?.ConversationIdentity
+                ?? activeIdentity with { ContextWindowId = snapshot.ContextWindowId };
+        }
         var previousTurn = thread.Turns
             .Where(candidate =>
-                !string.Equals(candidate.Id, turn.Id, StringComparison.Ordinal)
+                (turn is null || !string.Equals(candidate.Id, turn.Id, StringComparison.Ordinal))
                 && candidate.Status is TurnStatus.Completed or TurnStatus.Failed or TurnStatus.Cancelled)
             .OrderBy(candidate => candidate.StartedAt)
             .ThenBy(candidate => candidate.Id, StringComparer.Ordinal)
@@ -318,8 +352,11 @@ public sealed partial class SessionService(
             snapshot = ProviderHistorySnapshot.Empty(activeIdentity.ContextWindowId);
         }
 
+        var providerIdentity = string.IsNullOrWhiteSpace(coveredThroughTurnIdOverride)
+            ? activeIdentity
+            : activeIdentity with { TurnId = coveredThroughTurnIdOverride };
         var context = new OpenAIResponsesProviderHistoryContext(
-            activeIdentity,
+            providerIdentity,
             snapshot,
             baselineHistory.Count,
             thread.Ephemeral
@@ -333,7 +370,14 @@ public sealed partial class SessionService(
             thread.Ephemeral
                 ? null
                 : (payload, cancellationToken) =>
-                    persistence.AbortProviderHistoryAttemptAsync(payload, cancellationToken));
+                    persistence.AbortProviderHistoryAttemptAsync(payload, cancellationToken),
+            thread.Ephemeral
+                ? null
+                : (_, committedWindowId, _) =>
+                {
+                    TryReconcileCodexContextWindow(thread.Id, committedWindowId);
+                    return Task.CompletedTask;
+                });
 
         if (requiresReplacement)
         {
@@ -770,6 +814,22 @@ public sealed partial class SessionService(
             ct: ct);
     }
 
+    private Task<ContextUsageSnapshot> SavePreparedContextEstimateAsync(
+        string threadId,
+        ContextTokenUsageEstimate estimate,
+        CancellationToken ct = default) =>
+        string.Equals(
+            estimate.Source,
+            "provider_compacted_estimate",
+            StringComparison.Ordinal)
+            ? SaveContextUsageSnapshotAsync(
+                threadId,
+                estimate.Tokens,
+                estimate.Source,
+                isEstimate: true,
+                ct)
+            : SaveCurrentRequestEstimateAsync(threadId, estimate.Tokens, ct);
+
     private ContextUsageAnchor? UpdateContextUsageAnchor(string threadId, long anchorTokens)
     {
         var snapshot = TryGetLastPromptRequestSnapshot(threadId);
@@ -839,6 +899,28 @@ public sealed partial class SessionService(
             preparedHistory,
             latestContextTokens,
             preparedSnapshot);
+        var providerOptions = preparedSnapshot is null
+            ? null
+            : MaintenanceForkRunner.BuildOptions(preparedSnapshot);
+        if (OpenAIResponsesProviderHistoryRuntimeScope.Current is { } providerHistory
+            && providerHistory.TryEstimateActiveNativeContextTokens(
+                preparedHistory,
+                providerOptions,
+                out var providerNativeTokens)
+            && estimate.Source is not (
+                "memory_anchor" or
+                "persisted_anchor" or
+                "prefix_adjusted_anchor"))
+        {
+            return new PreparedContextTokenEstimate(
+                preparedHistory,
+                preparedSnapshot,
+                new ContextTokenUsageEstimate(
+                    providerNativeTokens,
+                    "provider_compacted_estimate",
+                    EligibleForAutoCompact: true,
+                    IsEstimate: true));
+        }
         return new PreparedContextTokenEstimate(preparedHistory, preparedSnapshot, estimate);
     }
 
@@ -1828,11 +1910,19 @@ public sealed partial class SessionService(
                 PublishQueueUpdated(thread.Id, queueSnapshot);
             }
 
-            async Task<IReadOnlyList<ChatMessage>?> TryCompactBeforeSamplingAsync(
+            var samplingBoundaryOrdinal = 0;
+            ChatOptions? lastSamplingOptions = null;
+
+            async Task<CompactionExecutionResult?> TryCompactBeforeSamplingAsync(
                 IReadOnlyList<ChatMessage> modelVisibleHistory,
                 PromptRequestSnapshot? requestSnapshot,
+                ChatOptions? requestOptions,
                 CancellationToken compactionCt)
             {
+                lastSamplingOptions = requestOptions?.Clone();
+                var phase = samplingBoundaryOrdinal++ == 0
+                    ? CompactionPhase.PreTurn
+                    : CompactionPhase.MidTurn;
                 if (session is null || tokenTracker is null || modelVisibleHistory.Count == 0)
                     return null;
 
@@ -1844,16 +1934,16 @@ public sealed partial class SessionService(
                 var compactHistory = preparedEstimate.History;
                 var compactSnapshot = preparedEstimate.RequestSnapshot;
                 var usageEstimate = preparedEstimate.Estimate;
-                await SaveCurrentRequestEstimateAsync(
+                await SavePreparedContextEstimateAsync(
                     threadId,
-                    usageEstimate.Tokens,
+                    usageEstimate,
                     CancellationToken.None);
                 if (!usageEstimate.EligibleForAutoCompact)
                     return null;
 
                 var tokenHint = usageEstimate.Tokens;
-                var pipeline = GetCompactionPipelineForThread(thread);
-                var threshold = pipeline.EvaluateThreshold(tokenHint);
+                var coordinator = GetCompactionCoordinatorForThread(thread);
+                var threshold = coordinator.EvaluateThreshold(tokenHint);
                 if (!threshold.AboveAuto)
                     return null;
 
@@ -1892,19 +1982,24 @@ public sealed partial class SessionService(
                     percentLeft: threshold.PercentLeft,
                     tokenCount: threshold.Tokens);
 
-                CompactionHistoryResult result;
+                CompactionExecutionResult result;
                 var codexContext = OpenAIResponsesCodexRuntimeScope.Current;
                 try
                 {
                     using var requestKindScope = codexContext?.OverrideRequestKind(
                         ThreadConversationRequestKind.Compaction);
-                    result = await pipeline.TryAutoCompactHistoryAsync(
-                        compactHistory,
-                        threadId,
-                        tokenHint,
-                        lastActivityBeforeTurn,
-                        compactionCt,
-                        compactSnapshot);
+                    result = await coordinator.ExecuteAsync(
+                        new CompactionExecutionRequest(
+                            CompactionTrigger.Auto,
+                            phase,
+                            compactHistory,
+                            threadId,
+                            tokenHint,
+                            lastActivityBeforeTurn,
+                            compactSnapshot,
+                            Options: requestOptions,
+                            ProviderBridge: OpenAIResponsesProviderHistoryRuntimeScope.Current),
+                        compactionCt);
                 }
                 catch (OperationCanceledException)
                 {
@@ -1930,32 +2025,74 @@ public sealed partial class SessionService(
                 {
                     case CompactionOutcome.Micro:
                     case CompactionOutcome.Partial:
+                        var isProviderNative = result.Replacement is CompactionReplacement.ProviderNative;
+                        if (result.Replacement is CompactionReplacement.Neutral neutralReplacement)
+                        {
+                            var compactedHistory = neutralReplacement.Messages
+                                .Select(message => message.Clone())
+                                .ToList();
+                            pendingCompactionCheckpoint = new PendingCompactionCheckpoint(
+                                "auto",
+                                CompactionOutcomeToWire(status.Outcome),
+                                status.ThresholdBefore.Tokens,
+                                status.ThresholdAfter.Tokens,
+                                compactedHistory);
+                            persistedModelHistoryCount = compactedHistory.Count;
+                            await TryAppendCompactionCheckpointAsync(
+                                threadId,
+                                turn.Id,
+                                compactedHistory,
+                                pendingCompactionCheckpoint,
+                                CancellationToken.None);
+                            pendingCompactionCheckpoint = null;
+                            session.Clear();
+                            session.AddRange(compactedHistory);
+                            TryAdvanceCodexContextWindowAfterReplacement(threadId);
+                        }
+                        else if (result.Replacement is CompactionReplacement.ProviderNative providerReplacement
+                                 && OpenAIResponsesProviderHistoryRuntimeScope.Current is { } providerHistory)
+                        {
+                            try
+                            {
+                                await providerHistory.ReplaceNativeAsync(
+                                    providerReplacement,
+                                    CancellationToken.None);
+                            }
+                            catch (Exception ex)
+                            {
+                                logger?.LogWarning(
+                                    ex,
+                                    "Provider-native compaction installation failed for thread {ThreadId}",
+                                    threadId);
+                                eventChannel.EmitSystemEvent(
+                                    "compactFailed",
+                                    message: ex.Message,
+                                    percentLeft: threshold.PercentLeft,
+                                    tokenCount: threshold.Tokens,
+                                    contextUsage: preCompactUsage);
+                                if (threshold.AboveBlocking)
+                                {
+                                    throw new ContextCompactionFailedException(
+                                        BuildContextCompactionFailedMessage(ex.Message));
+                                }
+                                return null;
+                            }
+                        }
+                        else
+                        {
+                            throw new InvalidOperationException(
+                                $"Compaction backend '{result.BackendId}' returned no installable replacement.");
+                        }
+
                         tokenTracker.Reset();
-                        session.Clear();
-                        session.AddRange(result.Messages);
-                        if (!TrySnapshotInMemoryHistory(session, out var compactedHistory))
-                            throw new InvalidOperationException("Unable to snapshot compacted model history.");
-                        pendingCompactionCheckpoint = new PendingCompactionCheckpoint(
-                            "auto",
-                            CompactionOutcomeToWire(status.Outcome),
-                            status.ThresholdBefore.Tokens,
-                            status.ThresholdAfter.Tokens,
-                            compactedHistory);
-                        persistedModelHistoryCount = compactedHistory.Count;
-                        await TryAppendCompactionCheckpointAsync(
-                            threadId,
-                            turn.Id,
-                            session,
-                            pendingCompactionCheckpoint,
-                            CancellationToken.None);
-                        pendingCompactionCheckpoint = null;
                         InvalidatePromptRequestSnapshot(threadId, "auto_compaction");
                         var contextUsage = await SaveReplacementContextUsageSnapshotAsync(
                             threadId,
                             status.ThresholdAfter.Tokens,
-                            source: "compacted_estimate",
+                            source: isProviderNative
+                                ? "provider_compacted_estimate"
+                                : "compacted_estimate",
                             ct: CancellationToken.None);
-                        TryAdvanceCodexContextWindowAfterReplacement(threadId);
                         ReleaseStableContextPages(threadId);
                         if (status.Outcome == CompactionOutcome.Partial)
                             traceCollector?.RecordContextCompaction(threadId);
@@ -1988,7 +2125,7 @@ public sealed partial class SessionService(
                             contextUsage,
                             CompactionOutcomeToWire(status.Outcome),
                             compactionCt);
-                        return result.Messages;
+                        return result;
 
                     case CompactionOutcome.Skipped:
                         eventChannel.EmitSystemEvent(
@@ -2368,9 +2505,9 @@ public sealed partial class SessionService(
                             threadId,
                             [userMessage],
                             tokenTracker.LastContextTokens).Estimate;
-                        await SaveCurrentRequestEstimateAsync(
+                        await SavePreparedContextEstimateAsync(
                             threadId,
-                            preflightEstimate.Tokens,
+                            preflightEstimate,
                             ct: CancellationToken.None);
                     }
 
@@ -2395,14 +2532,15 @@ public sealed partial class SessionService(
                                     runtime.LastPromptRequest = preparedEstimate.RequestSnapshot ?? snapshot;
                                 if (pendingCompactionCheckpoint is null)
                                 {
-                                    await SaveCurrentRequestEstimateAsync(
+                                    await SavePreparedContextEstimateAsync(
                                         threadId,
-                                        preparedEstimate.Estimate.Tokens,
+                                        preparedEstimate.Estimate,
                                         ct: CancellationToken.None);
                                 }
                             },
                             TryCompactWithSnapshotAsync = TryCompactBeforeSamplingAsync,
-                            TryCompactAsync = (history, compactCt) => TryCompactBeforeSamplingAsync(history, null, compactCt)
+                            TryCompactAsync = (history, options, compactCt) =>
+                                TryCompactBeforeSamplingAsync(history, null, options, compactCt)
                         });
                     using var guidanceScope = TurnGuidanceRuntimeScope.Set(new TurnGuidanceRuntimeContext
                     {
@@ -3153,10 +3291,10 @@ public sealed partial class SessionService(
                 {
                     try
                     {
-                        var reactivePipeline = GetCompactionPipelineForThread(thread);
+                        var reactiveCoordinator = GetCompactionCoordinatorForThread(thread);
                         var existingContextUsage = TryGetContextUsageSnapshot(threadId);
                         var preReactiveTokens = existingContextUsage?.Tokens ?? tokenTracker?.LastContextTokens ?? 0;
-                        var preReactiveThreshold = reactivePipeline.EvaluateThreshold(preReactiveTokens);
+                        var preReactiveThreshold = reactiveCoordinator.EvaluateThreshold(preReactiveTokens);
                         var preReactiveUsage = existingContextUsage
                             ?? CreateContextUsageSnapshot(
                                 threadId,
@@ -3193,37 +3331,74 @@ public sealed partial class SessionService(
                                         turn,
                                         GetOrCreateCodexContextWindow(threadId).CurrentWindowId,
                                         ThreadConversationRequestKind.Compaction)));
-                            var status = await reactivePipeline.TryReactiveCompactAsync(
-                                session,
-                                threadId,
-                                thread.LastActiveAt,
+                            var compactExecution = await reactiveCoordinator.ExecuteAsync(
+                                new CompactionExecutionRequest(
+                                    CompactionTrigger.Reactive,
+                                    CompactionPhase.Reactive,
+                                    session,
+                                    threadId,
+                                    preReactiveTokens,
+                                    thread.LastActiveAt,
+                                    Options: lastSamplingOptions,
+                                    ProviderBridge: OpenAIResponsesProviderHistoryRuntimeScope.Current),
                                 CancellationToken.None);
+                            var status = compactExecution.Status;
                             if (status.Success)
                             {
+                                var installedProviderNative =
+                                    compactExecution.Replacement is CompactionReplacement.ProviderNative;
+                                if (compactExecution.Replacement is CompactionReplacement.Neutral neutralReplacement)
+                                {
+                                    var compactedHistory = neutralReplacement.Messages
+                                        .Select(message => message.Clone())
+                                        .ToList();
+                                    pendingCompactionCheckpoint = new PendingCompactionCheckpoint(
+                                        "reactive",
+                                        CompactionOutcomeToWire(status.Outcome),
+                                        status.ThresholdBefore.Tokens,
+                                        status.ThresholdAfter.Tokens,
+                                        compactedHistory);
+                                    persistedModelHistoryCount = compactedHistory.Count;
+                                    await TryAppendCompactionCheckpointAsync(
+                                        threadId,
+                                        turn.Id,
+                                        compactedHistory,
+                                        pendingCompactionCheckpoint,
+                                        CancellationToken.None);
+                                    pendingCompactionCheckpoint = null;
+                                    session.Clear();
+                                    session.AddRange(compactedHistory);
+                                    TryAdvanceCodexContextWindowAfterReplacement(threadId);
+                                    if (OpenAIResponsesProviderHistoryRuntimeScope.Current is { } providerHistory)
+                                    {
+                                        await providerHistory.ReplaceAsync(
+                                            compactedHistory,
+                                            lastSamplingOptions,
+                                            "reactive_compaction",
+                                            CancellationToken.None);
+                                    }
+                                }
+                                else if (compactExecution.Replacement is CompactionReplacement.ProviderNative nativeReplacement
+                                         && OpenAIResponsesProviderHistoryRuntimeScope.Current is { } providerHistory)
+                                {
+                                    await providerHistory.ReplaceNativeAsync(
+                                        nativeReplacement,
+                                        CancellationToken.None);
+                                }
+                                else
+                                {
+                                    throw new InvalidOperationException(
+                                        $"Compaction backend '{compactExecution.BackendId}' returned no installable replacement.");
+                                }
                                 tokenTracker?.Reset();
-                                if (!TrySnapshotInMemoryHistory(session, out var compactedHistory))
-                                    throw new InvalidOperationException("Unable to snapshot compacted model history.");
-                                pendingCompactionCheckpoint = new PendingCompactionCheckpoint(
-                                    "reactive",
-                                    CompactionOutcomeToWire(status.Outcome),
-                                    status.ThresholdBefore.Tokens,
-                                    status.ThresholdAfter.Tokens,
-                                    compactedHistory);
-                                persistedModelHistoryCount = compactedHistory.Count;
-                                await TryAppendCompactionCheckpointAsync(
-                                    threadId,
-                                    turn.Id,
-                                    session,
-                                    pendingCompactionCheckpoint,
-                                    CancellationToken.None);
-                                pendingCompactionCheckpoint = null;
                                 InvalidatePromptRequestSnapshot(threadId, "reactive_compaction");
                                 var contextUsage = await SaveReplacementContextUsageSnapshotAsync(
                                     threadId,
                                     status.ThresholdAfter.Tokens,
-                                    source: "compacted_estimate",
+                                    source: installedProviderNative
+                                        ? "provider_compacted_estimate"
+                                        : "compacted_estimate",
                                     ct: CancellationToken.None);
-                                TryAdvanceCodexContextWindowAfterReplacement(threadId);
                                 ReleaseStableContextPages(threadId);
                                 traceCollector?.RecordContextCompaction(threadId);
                                 eventChannel.EmitSystemEvent(
@@ -3604,6 +3779,15 @@ public sealed partial class SessionService(
 
     private CompactionPipeline GetCompactionPipelineForThread(string threadId, SessionThread? thread) =>
         Maintenance.GetCompactionPipelineForThread(threadId, thread);
+
+    private CompactionCoordinator GetCompactionCoordinatorForThread(string threadId) =>
+        Maintenance.GetCompactionCoordinatorForThread(threadId);
+
+    private CompactionCoordinator GetCompactionCoordinatorForThread(SessionThread thread) =>
+        Maintenance.GetCompactionCoordinatorForThread(thread);
+
+    private CompactionCoordinator GetCompactionCoordinatorForThread(string threadId, SessionThread? thread) =>
+        Maintenance.GetCompactionCoordinatorForThread(threadId, thread);
 
     private void ReleaseStableContextPages(string threadId) =>
         agentFactory.RuntimeContext.ContextPageManager?.ReleaseStablePages(threadId);
@@ -4711,13 +4895,13 @@ public sealed partial class SessionService(
     private async Task TryAppendCompactionCheckpointAsync(
         string threadId,
         string coveredThroughTurnId,
-        List<ChatMessage> session,
+        IReadOnlyList<ChatMessage> replacementHistory,
         PendingCompactionCheckpoint checkpoint,
         CancellationToken ct)
         => await Maintenance.TryAppendCompactionCheckpointAsync(
             threadId,
             coveredThroughTurnId,
-            session,
+            replacementHistory,
             checkpoint,
             ct);
 

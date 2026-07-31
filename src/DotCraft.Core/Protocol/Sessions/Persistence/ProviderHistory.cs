@@ -14,6 +14,16 @@ internal static class ProviderHistorySources
     public const string ProviderOutput = "provider_output";
 }
 
+internal static class ProviderHistoryReasons
+{
+    public const string RemoteCompaction = "remote_compaction";
+    public const string Fork = "fork";
+    public const string ForkNativeCompaction = "fork_native_compaction";
+
+    public static bool IsNativeCompacted(string? reason) =>
+        reason is RemoteCompaction or ForkNativeCompaction;
+}
+
 internal sealed class ProviderHistoryEntry
 {
     public string EntryId { get; init; } = string.Empty;
@@ -80,7 +90,8 @@ internal sealed record ProviderHistorySnapshot(
     string GenerationId,
     string ContextWindowId,
     IReadOnlyList<ProviderHistoryEntry> Entries,
-    string? CoveredThroughTurnId)
+    string? CoveredThroughTurnId,
+    bool IsNativeCompacted = false)
 {
     public static ProviderHistorySnapshot Empty(string contextWindowId) =>
         new(contextWindowId, contextWindowId, [], null);
@@ -169,7 +180,8 @@ internal static class ProviderHistoryReplayer
             generationId,
             contextWindowId,
             entries.Select(pair => CloneEntry(pair.Entry)).ToList(),
-            coveredThroughTurnId);
+            coveredThroughTurnId,
+            ProviderHistoryReasons.IsNativeCompacted(replacement?.Reason));
 
         void AddEntry(ProviderHistoryEntry entry, string? attemptId)
         {

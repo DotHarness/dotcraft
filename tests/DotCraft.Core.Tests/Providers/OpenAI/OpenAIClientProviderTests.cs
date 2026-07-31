@@ -106,6 +106,53 @@ public sealed class OpenAIClientProviderTests : IDisposable
     }
 
     [Fact]
+    public async Task CompactTransport_UsesResponsesFamilyOAuthWithoutCreateBodyMutation()
+    {
+        const string installationId = "11111111-2222-4333-8444-555555555555";
+        await using var server = RecordingHttpServer.Start(
+            JsonResponse(
+                """{"output":[{"type":"compaction","encrypted_content":"YWJj"}]}""",
+                headers: new Dictionary<string, string>
+                {
+                    [OpenAIAuthConstants.TurnStateHeader] = "next-turn-state"
+                }));
+        var provider = CreateOAuthProvider(installationId, "account-test");
+        var runtime = OAuthRuntime($"{server.Endpoint}/backend-api/codex", "account-test");
+        var context = CreateCodexRuntimeContext(
+            "thread-test",
+            "turn-test",
+            "window-test",
+            requestKind: ThreadConversationRequestKind.Compaction);
+        using var scope = OpenAIResponsesCodexRuntimeScope.Set(context);
+        using var requestDocument = JsonDocument.Parse(
+            """
+            {
+              "model":"gpt-test",
+              "input":[{"type":"message","role":"user","content":[]}],
+              "reasoning":{}
+            }
+            """);
+
+        var response = await provider
+            .GetChatGptResponsesCompactTransport(runtime)
+            .CompactAsync(requestDocument.RootElement.Clone(), CancellationToken.None);
+
+        Assert.Equal("compaction", response.GetProperty("output")[0].GetProperty("type").GetString());
+        var request = Assert.Single(server.Requests);
+        Assert.Equal("POST", request.Method);
+        Assert.Equal("/backend-api/codex/responses/compact", request.Path);
+        Assert.Equal("Bearer access-token", request.Headers["Authorization"]);
+        Assert.Equal("account-test", request.Headers[OpenAIAuthConstants.AccountIdHeader]);
+        Assert.Equal(installationId, request.Headers[OpenAIAuthConstants.InstallationIdHeader]);
+        Assert.Equal("thread-test", request.Headers[OpenAIAuthConstants.ThreadIdHeader]);
+        Assert.Equal("window-test", request.Headers[OpenAIAuthConstants.WindowIdHeader]);
+        using var sent = JsonDocument.Parse(request.Body);
+        Assert.False(sent.RootElement.TryGetProperty("client_metadata", out _));
+        Assert.False(sent.RootElement.TryGetProperty("stream", out _));
+        Assert.Equal("next-turn-state", context.TurnState);
+    }
+
+    [Fact]
     public void GetOpenAIImageClient_CacheKeyIncludesImageModel()
     {
         var provider = new OpenAIClientProvider();

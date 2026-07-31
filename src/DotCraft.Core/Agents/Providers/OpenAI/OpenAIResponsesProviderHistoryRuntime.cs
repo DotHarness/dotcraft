@@ -3,6 +3,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using DotCraft.Context.Compaction;
 using DotCraft.Protocol;
 using DotCraft.Tools;
 using Microsoft.Extensions.AI;
@@ -61,18 +62,20 @@ internal sealed class OpenAIResponsesProviderHistoryBridge : IProviderConversati
         OpenAIResponsesProviderHistoryRuntimeScope.Current?.EndAttempt(attemptId);
 }
 
-internal sealed class OpenAIResponsesProviderHistoryContext
+internal sealed class OpenAIResponsesProviderHistoryContext : IProviderHistoryCompactionBridge
 {
     private readonly SemaphoreSlim _gate = new(1, 1);
     private readonly ThreadConversationIdentity _identity;
     private readonly Func<ProviderHistoryItemsAppendedPayload, CancellationToken, Task>? _appendAsync;
     private readonly Func<ProviderHistoryReplacedPayload, CancellationToken, Task>? _replaceAsync;
     private readonly Func<ProviderHistoryAttemptAbortedPayload, CancellationToken, Task>? _abortAsync;
+    private readonly Func<string, string, CancellationToken, Task>? _reconcileContextWindowAsync;
     private readonly List<RuntimeEntry> _entries;
     private int _coveredMessageCount;
     private string _generationId;
     private string _contextWindowId;
     private string? _coveredThroughTurnId;
+    private bool _isNativeCompacted;
     private string? _currentAttemptId;
 
     public OpenAIResponsesProviderHistoryContext(
@@ -81,17 +84,20 @@ internal sealed class OpenAIResponsesProviderHistoryContext
         int coveredMessageCount,
         Func<ProviderHistoryItemsAppendedPayload, CancellationToken, Task>? appendAsync,
         Func<ProviderHistoryReplacedPayload, CancellationToken, Task>? replaceAsync,
-        Func<ProviderHistoryAttemptAbortedPayload, CancellationToken, Task>? abortAsync)
+        Func<ProviderHistoryAttemptAbortedPayload, CancellationToken, Task>? abortAsync,
+        Func<string, string, CancellationToken, Task>? reconcileContextWindowAsync = null)
     {
         _identity = identity ?? throw new ArgumentNullException(nameof(identity));
         ArgumentNullException.ThrowIfNull(snapshot);
         _generationId = snapshot.GenerationId;
         _contextWindowId = snapshot.ContextWindowId;
         _coveredThroughTurnId = snapshot.CoveredThroughTurnId;
+        _isNativeCompacted = snapshot.IsNativeCompacted;
         _coveredMessageCount = Math.Max(0, coveredMessageCount);
         _appendAsync = appendAsync;
         _replaceAsync = replaceAsync;
         _abortAsync = abortAsync;
+        _reconcileContextWindowAsync = reconcileContextWindowAsync;
         _entries = snapshot.Entries
             .Select(entry => new RuntimeEntry(ProviderHistoryReplayer.CloneEntry(entry), AttemptId: null))
             .ToList();
@@ -148,6 +154,146 @@ internal sealed class OpenAIResponsesProviderHistoryContext
             _gate.Release();
         }
     }
+
+    public async ValueTask<ProviderCompactionInput> CaptureCompactionInputAsync(
+        CompactionPhase phase,
+        IReadOnlyList<ChatMessage> messages,
+        ChatOptions? options,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(messages);
+        await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            if (_coveredMessageCount > messages.Count)
+            {
+                throw new InvalidDataException(
+                    "responses_provider_history_corrupt: MEAI sampling history is shorter than its canonical coverage.");
+            }
+
+            var input = BuildInputArray();
+            var coveredMessageCount = _coveredMessageCount;
+            var coveredThroughTurnId = _coveredThroughTurnId;
+            if (phase is not CompactionPhase.PreTurn)
+            {
+                var tail = messages.Skip(_coveredMessageCount).ToList();
+                if (tail.Count > 0)
+                {
+                    var mapped = ResponsesToolSearchMapper.BuildInputItems(
+                        tail,
+                        options,
+                        BuildCallCorrelationIndex(),
+                        itemOrdinalOffset: _entries.Count);
+                    foreach (var node in mapped.Input)
+                        input.Add(node?.DeepClone());
+                    NormalizeCallOutputs(input);
+                }
+
+                coveredMessageCount = messages.Count;
+                coveredThroughTurnId = _identity.TurnId ?? _coveredThroughTurnId;
+            }
+
+            var items = new List<JsonElement>(input.Count);
+            foreach (var node in input)
+            {
+                if (node is not JsonObject item)
+                    continue;
+                using var document = JsonDocument.Parse(item.ToJsonString());
+                items.Add(document.RootElement.Clone());
+            }
+
+            return new ProviderCompactionInput(
+                items,
+                coveredMessageCount,
+                coveredThroughTurnId);
+        }
+        finally
+        {
+            _gate.Release();
+        }
+    }
+
+    public async ValueTask ReplaceNativeAsync(
+        CompactionReplacement.ProviderNative replacement,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(replacement);
+        if (!string.Equals(
+                replacement.Protocol,
+                ProviderHistorySchema.OpenAIResponsesProtocol,
+                StringComparison.Ordinal))
+        {
+            throw new InvalidDataException("provider_compaction_invalid_response: Protocol mismatch.");
+        }
+        if (replacement.Items.Count == 0
+            || replacement.Items.Any(item => item.ValueKind != JsonValueKind.Object))
+        {
+            throw new InvalidDataException(
+                "provider_compaction_invalid_response: Native replacement must contain object items.");
+        }
+
+        await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            var previousWindowId = _contextWindowId;
+            var nextWindowId = CodexContextWindowRecord.CreateWindowId();
+            var entries = CreateEntries(
+                replacement.Items,
+                ProviderHistoryReasons.RemoteCompaction,
+                attemptId: null);
+            var payload = new ProviderHistoryReplacedPayload
+            {
+                SchemaVersion = ProviderHistorySchema.CurrentSchemaVersion,
+                ThreadId = _identity.CurrentThreadId,
+                Protocol = ProviderHistorySchema.OpenAIResponsesProtocol,
+                GenerationId = nextWindowId,
+                ContextWindowId = nextWindowId,
+                CoveredThroughTurnId = replacement.CoveredThroughTurnId,
+                Reason = ProviderHistoryReasons.RemoteCompaction,
+                Entries = entries
+            };
+
+            if (_replaceAsync != null)
+                await _replaceAsync(payload, cancellationToken).ConfigureAwait(false);
+
+            _entries.Clear();
+            _entries.AddRange(entries.Select(entry => new RuntimeEntry(entry, AttemptId: null)));
+            _generationId = nextWindowId;
+            _contextWindowId = nextWindowId;
+            _coveredThroughTurnId = replacement.CoveredThroughTurnId;
+            _coveredMessageCount = Math.Max(0, replacement.CoveredMessageCount);
+            _currentAttemptId = null;
+            _isNativeCompacted = true;
+
+            OpenAIResponsesCodexRuntimeScope.Current?.AdvanceContextWindow(nextWindowId);
+            if (_reconcileContextWindowAsync != null)
+            {
+                try
+                {
+                    await _reconcileContextWindowAsync(
+                            previousWindowId,
+                            nextWindowId,
+                            CancellationToken.None)
+                        .ConfigureAwait(false);
+                }
+                catch
+                {
+                    // The rollout replacement is already committed and live. The state-store
+                    // window is a projection and will be reconciled again on cold recovery.
+                }
+            }
+        }
+        finally
+        {
+            _gate.Release();
+        }
+    }
+
+    public long EstimateNativeContextTokens(
+        ProviderNativeSnapshot snapshot,
+        IReadOnlyList<ChatMessage> pendingTail,
+        ChatOptions? options) =>
+        OpenAIResponsesNativeTokenEstimator.Estimate(snapshot.Items, pendingTail, options);
 
     public async ValueTask AppendProviderOutputAsync(
         ResponseItem item,
@@ -230,6 +376,7 @@ internal sealed class OpenAIResponsesProviderHistoryContext
             _coveredThroughTurnId = _identity.TurnId;
             _coveredMessageCount = messages.Count;
             _currentAttemptId = null;
+            _isNativeCompacted = false;
         }
         finally
         {
@@ -298,7 +445,31 @@ internal sealed class OpenAIResponsesProviderHistoryContext
             _generationId,
             _contextWindowId,
             _entries.Select(entry => ProviderHistoryReplayer.CloneEntry(entry.Entry)).ToList(),
-            _coveredThroughTurnId);
+            _coveredThroughTurnId,
+            _isNativeCompacted);
+
+    public bool TryEstimateActiveNativeContextTokens(
+        IReadOnlyList<ChatMessage> messages,
+        ChatOptions? options,
+        out long tokens)
+    {
+        ArgumentNullException.ThrowIfNull(messages);
+        if (!_isNativeCompacted || _coveredMessageCount > messages.Count)
+        {
+            tokens = 0;
+            return false;
+        }
+
+        var snapshot = CaptureSnapshot();
+        tokens = EstimateNativeContextTokens(
+            new ProviderNativeSnapshot(
+                snapshot.Entries.Select(entry => entry.Item).ToArray(),
+                _coveredMessageCount,
+                snapshot.CoveredThroughTurnId),
+            messages.Skip(_coveredMessageCount).ToArray(),
+            options);
+        return true;
+    }
 
     private async Task PersistAppendAsync(
         IReadOnlyList<ProviderHistoryEntry> entries,
@@ -476,6 +647,27 @@ internal sealed class OpenAIResponsesProviderHistoryContext
             {
                 EntryId = CreateEntryId(source, attemptId, i, sequenceNumber: i, raw),
                 Item = document.RootElement.Clone()
+            });
+        }
+        return entries;
+    }
+
+    private static List<ProviderHistoryEntry> CreateEntries(
+        IReadOnlyList<JsonElement> items,
+        string source,
+        string? attemptId)
+    {
+        var entries = new List<ProviderHistoryEntry>(items.Count);
+        for (var i = 0; i < items.Count; i++)
+        {
+            var item = items[i];
+            if (item.ValueKind != JsonValueKind.Object)
+                continue;
+            var raw = item.GetRawText();
+            entries.Add(new ProviderHistoryEntry
+            {
+                EntryId = CreateEntryId(source, attemptId, i, sequenceNumber: i, raw),
+                Item = item.Clone()
             });
         }
         return entries;

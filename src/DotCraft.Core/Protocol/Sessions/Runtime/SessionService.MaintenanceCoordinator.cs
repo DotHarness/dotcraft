@@ -48,7 +48,7 @@ public sealed partial class SessionService
                 await owner.EnsurePerThreadAgentIfMissingAsync(threadId, thread, maintenanceCt);
                 var agent = owner.GetThreadAgentOrDefault(threadId);
                 var session = await owner.Persistence.LoadModelHistoryAsync(threadId, maintenanceCt);
-                var pipeline = GetCompactionPipelineForThread(thread);
+                var coordinator = GetCompactionCoordinatorForThread(thread);
                 var historyForEstimate = SessionService.PrepareProviderVisibleHistory(
                     SnapshotSessionHistoryForConsolidation(session, thread));
                 var tokenTracker = owner.AgentFactory.GetOrCreateTokenTracker(threadId);
@@ -70,7 +70,7 @@ public sealed partial class SessionService
                 var fallbackTools = manualPromptSnapshot?.Tools is { Count: > 0 }
                     ? null
                     : await RebuildCurrentThreadToolsForCompactionAsync(thread, maintenanceCt);
-                var beforeThreshold = pipeline.EvaluateThreshold(before);
+                var beforeThreshold = coordinator.EvaluateThreshold(before);
                 var beforeUsage = owner.CreateContextUsageSnapshot(
                     threadId,
                     before,
@@ -110,9 +110,18 @@ public sealed partial class SessionService
                     percentLeft: beforeThreshold.PercentLeft,
                     tokenCount: beforeThreshold.Tokens);
 
+                CompactionExecutionResult compactExecution;
                 CompactionStatus status;
+                var installedProviderNative = false;
+                IReadOnlyList<ChatMessage>? pendingNeutralReplacement = null;
                 try
                 {
+                    var manualCoveredTurn = thread.Turns
+                        .Where(candidate =>
+                            candidate.Status is TurnStatus.Completed or TurnStatus.Failed or TurnStatus.Cancelled)
+                        .OrderBy(candidate => candidate.StartedAt)
+                        .ThenBy(candidate => candidate.Id, StringComparer.Ordinal)
+                        .LastOrDefault();
                     using var codexResponsesScope = OpenAIResponsesCodexRuntimeScope.Set(
                         new OpenAIResponsesCodexRuntimeContext(
                             ThreadConversationIdentity.Create(
@@ -120,20 +129,77 @@ public sealed partial class SessionService
                                 turn: null,
                                 owner.GetOrCreateCodexContextWindow(threadId).CurrentWindowId,
                                 ThreadConversationRequestKind.Compaction)));
-                    var compactResult = await pipeline.TryManualCompactHistoryAsync(
-                        historyForEstimate,
-                        threadId,
-                        thread.LastActiveAt,
+                    var providerHistory = await owner.CreateResponsesProviderHistoryContextAsync(
+                        thread,
+                        turn: null,
+                        session,
                         maintenanceCt,
-                        inputTokenHint: before,
-                        snapshot: manualPromptSnapshot,
-                        fallbackTools: fallbackTools,
-                        carryRequestOverhead: false);
-                    status = compactResult.Status;
+                        manualCoveredTurn?.Id);
+                    using var providerHistoryScope = providerHistory == null
+                        ? null
+                        : OpenAIResponsesProviderHistoryRuntimeScope.Set(
+                            providerHistory,
+                            thread.Ephemeral
+                                ? context =>
+                                {
+                                    if (owner._runtimeRegistry.TryGetRuntime(thread.Id, out var runtime))
+                                        runtime.ResponsesProviderHistorySnapshot = context.CaptureSnapshot();
+                                }
+                                : null);
+                    var agentOptions = agent.ChatOptions ?? new ChatOptions();
+                    var manualOptions = manualPromptSnapshot is null
+                        ? agentOptions
+                        : MaintenanceForkRunner.BuildOptions(manualPromptSnapshot);
+                    manualOptions.RawRepresentationFactory ??= agentOptions.RawRepresentationFactory;
+                    manualOptions.AdditionalProperties ??= agentOptions.AdditionalProperties;
+                    if (manualOptions.Tools is not { Count: > 0 } && fallbackTools is { Count: > 0 })
+                        manualOptions.Tools = fallbackTools.ToList();
+                    var currentConfig = owner._appConfigMonitor?.Current
+                        ?? owner.AgentFactory.RuntimeContext.Config;
+                    var providerRuntime = owner.AgentFactory.RuntimeContext.ChatClientRegistry.ResolveMainRuntime(
+                        currentConfig,
+                        thread.Configuration?.ProviderId,
+                        thread.Configuration?.Model);
+                    manualOptions = FastModeChatClient.PrepareOptions(
+                        manualOptions,
+                        currentConfig,
+                        providerRuntime.Protocol,
+                        providerRuntime.Model,
+                        thread.Configuration?.Speed ?? InferenceSpeed.Standard) ?? manualOptions;
+                    compactExecution = await coordinator.ExecuteAsync(
+                        new CompactionExecutionRequest(
+                            CompactionTrigger.Manual,
+                            CompactionPhase.Manual,
+                            historyForEstimate,
+                            threadId,
+                            before,
+                            thread.LastActiveAt,
+                            manualPromptSnapshot,
+                            fallbackTools,
+                            CarryRequestOverhead: false,
+                            Options: manualOptions,
+                            ProviderBridge: providerHistory),
+                        maintenanceCt);
+                    status = compactExecution.Status;
                     if (status.Success)
                     {
-                        session.Clear();
-                        session.AddRange(compactResult.Messages);
+                        if (compactExecution.Replacement is CompactionReplacement.Neutral neutralReplacement)
+                        {
+                            pendingNeutralReplacement = neutralReplacement.Messages
+                                .Select(message => message.Clone())
+                                .ToList();
+                        }
+                        else if (compactExecution.Replacement is CompactionReplacement.ProviderNative nativeReplacement
+                                 && providerHistory != null)
+                        {
+                            await providerHistory.ReplaceNativeAsync(nativeReplacement, maintenanceCt);
+                            installedProviderNative = true;
+                        }
+                        else
+                        {
+                            throw new InvalidOperationException(
+                                $"Compaction backend '{compactExecution.BackendId}' returned no installable replacement.");
+                        }
                         owner.InvalidatePromptRequestSnapshot(threadId, "manual_compaction");
                     }
                 }
@@ -175,32 +241,48 @@ public sealed partial class SessionService
                     case CompactionOutcome.Partial:
                     {
                         tokenTracker.Reset();
-                        var coveredTurn = thread.Turns.LastOrDefault(t => t.Status == TurnStatus.Completed);
-                        if (coveredTurn != null)
+                        var coveredTurn = thread.Turns
+                            .Where(t => t.Status is TurnStatus.Completed or TurnStatus.Failed or TurnStatus.Cancelled)
+                            .OrderBy(t => t.StartedAt)
+                            .ThenBy(t => t.Id, StringComparer.Ordinal)
+                            .LastOrDefault();
+                        if (!installedProviderNative && pendingNeutralReplacement != null)
                         {
+                            if (coveredTurn == null)
+                            {
+                                throw new InvalidOperationException(
+                                    "Cannot commit a neutral compaction replacement without a terminal Turn boundary.");
+                            }
                             await TryAppendCompactionCheckpointAsync(
                                 threadId,
                                 coveredTurn.Id,
-                                session,
+                                pendingNeutralReplacement,
                                 new PendingCompactionCheckpoint(
                                     "manual",
                                     CompactionOutcomeToWire(status.Outcome),
                                     status.ThresholdBefore.Tokens,
                                     status.ThresholdAfter.Tokens),
                                 maintenanceCt);
+                            session.Clear();
+                            session.AddRange(pendingNeutralReplacement);
                         }
 
                         var contextUsage = await owner.SaveReplacementContextUsageSnapshotAsync(
                             threadId,
                             status.ThresholdAfter.Tokens,
-                            source: "compacted_estimate",
+                            source: installedProviderNative
+                                ? "provider_compacted_estimate"
+                                : "compacted_estimate",
                             ct: maintenanceCt);
-                        owner.TryAdvanceCodexContextWindowAfterReplacement(threadId);
-                        await owner.TryReplaceResponsesProviderHistoryAsync(
-                            thread,
-                            session,
-                            "manual_compaction",
-                            maintenanceCt);
+                        if (!installedProviderNative)
+                        {
+                            owner.TryAdvanceCodexContextWindowAfterReplacement(threadId);
+                            await owner.TryReplaceResponsesProviderHistoryAsync(
+                                thread,
+                                session,
+                                "manual_compaction",
+                                maintenanceCt);
+                        }
                         owner.ReleaseStableContextPages(threadId);
                         if (status.Outcome == CompactionOutcome.Partial)
                             owner.TraceCollector?.RecordContextCompaction(threadId);
@@ -370,6 +452,46 @@ public sealed partial class SessionService
                 owner._appConfigMonitor?.Current ?? owner.AgentFactory.RuntimeContext.Config,
                 thread?.Configuration?.ContextWindow?.Mode ?? ContextWindowMode.Default);
 
+        public CompactionCoordinator GetCompactionCoordinatorForThread(string threadId)
+        {
+            owner._runtimeRegistry.TryGetThread(threadId, out var thread);
+            return GetCompactionCoordinatorForThread(threadId, thread);
+        }
+
+        public CompactionCoordinator GetCompactionCoordinatorForThread(SessionThread thread) =>
+            GetCompactionCoordinatorForThread(thread.Id, thread);
+
+        public CompactionCoordinator GetCompactionCoordinatorForThread(
+            string threadId,
+            SessionThread? thread)
+        {
+            var pipeline = GetCompactionPipelineForThread(threadId, thread);
+            if (thread is null)
+            {
+                return new CompactionCoordinator(pipeline);
+            }
+
+            var config = owner._appConfigMonitor?.Current ?? owner.AgentFactory.RuntimeContext.Config;
+            var runtime = owner.AgentFactory.RuntimeContext.ChatClientRegistry.ResolveMainRuntime(
+                config,
+                thread.Configuration?.ProviderId,
+                thread.Configuration?.Model);
+            if (!ChatGptResponsesCompactEligibility.IsEligible(
+                    runtime,
+                    thread.HistoryMode,
+                    thread.ProviderHistorySchemaVersion))
+                return new CompactionCoordinator(pipeline);
+
+            return new CompactionCoordinator(
+                pipeline,
+                _ => new ChatGptResponsesCompactBackend(
+                    runtime.Model,
+                    owner.AgentFactory.RuntimeContext.ChatClientRegistry
+                        .GetChatGptResponsesCompactTransport(runtime),
+                    pipeline.EvaluateThreshold,
+                    owner.AgentFactory.RuntimeContext.ChatClientRegistry.GetChatClient(runtime)));
+        }
+
         public void CompleteThreadMaintenance(string threadId, ThreadMaintenanceState state)
         {
             if (owner._runtimeRegistry.TryGetRuntime(threadId, out var runtime)
@@ -447,15 +569,14 @@ public sealed partial class SessionService
         public async Task TryAppendCompactionCheckpointAsync(
             string threadId,
             string coveredThroughTurnId,
-            List<ChatMessage> session,
+            IReadOnlyList<ChatMessage> replacementHistory,
             PendingCompactionCheckpoint checkpoint,
             CancellationToken ct)
         {
             if (owner.IsPendingPermanentDeletion(threadId))
                 return;
 
-            if (!TrySnapshotInMemoryHistory(session, out var history))
-                return;
+            var history = replacementHistory.Select(message => message.Clone()).ToList();
 
             try
             {

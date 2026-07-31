@@ -178,6 +178,21 @@ public sealed class OpenAIClientProvider
                 chatKey.Model), this);
     }
 
+    internal IChatGptResponsesCompactTransport GetChatGptResponsesCompactTransport(
+        EffectiveModelRuntime runtime)
+    {
+        ArgumentNullException.ThrowIfNull(runtime);
+        if (!runtime.IsOpenAIResponses || !runtime.IsChatGptOAuth)
+        {
+            throw new ArgumentException(
+                "Provider must use ChatGPT OAuth with the OpenAI Responses protocol.",
+                nameof(runtime));
+        }
+
+        return new SdkChatGptResponsesCompactTransport(
+            GetOpenAIResponsesClient(OpenAIClientKey.From(runtime)));
+    }
+
     internal static OpenAIClientOptions CreateClientOptions(Uri endpoint, int networkTimeoutSeconds)
     {
         var options = new OpenAIClientOptions

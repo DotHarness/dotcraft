@@ -270,25 +270,50 @@ public sealed class CompactionPipeline
         DateTimeOffset? lastAssistantTimestampUtc,
         CancellationToken cancellationToken)
     {
+        var result = await TryReactiveCompactHistoryAsync(
+            SnapshotHistory(session),
+            threadId,
+            lastAssistantTimestampUtc,
+            cancellationToken);
+        ApplyHistoryReplacement(session, result.Messages);
+        return result.Status;
+    }
+
+    /// <summary>
+    /// Reactive compaction for an explicit model-visible history snapshot.
+    /// </summary>
+    public async Task<CompactionHistoryResult> TryReactiveCompactHistoryAsync(
+        IReadOnlyList<ChatMessage> history,
+        string threadId,
+        DateTimeOffset? lastAssistantTimestampUtc,
+        CancellationToken cancellationToken)
+    {
         if (!_config.ReactiveCompactEnabled)
-            return new CompactionStatus(
-                CompactionOutcome.Skipped,
-                0, 0,
-                EvaluateThreshold(0), EvaluateThreshold(0),
-                FailureReason: "reactive_disabled");
+        {
+            return new CompactionHistoryResult(
+                new CompactionStatus(
+                    CompactionOutcome.Skipped,
+                    0, 0,
+                    EvaluateThreshold(0), EvaluateThreshold(0),
+                    FailureReason: "reactive_disabled"),
+                history);
+        }
 
         if (_failures.IsTripped(threadId))
-            return new CompactionStatus(
-                CompactionOutcome.Failed,
-                0, 0,
-                EvaluateThreshold(0), EvaluateThreshold(0),
-                FailureReason: "circuit_breaker_tripped");
+        {
+            return new CompactionHistoryResult(
+                new CompactionStatus(
+                    CompactionOutcome.Failed,
+                    0, 0,
+                    EvaluateThreshold(0), EvaluateThreshold(0),
+                    FailureReason: "circuit_breaker_tripped"),
+                history);
+        }
 
-        var history = SnapshotHistory(session);
         var before = MessageTokenEstimator.Estimate(history);
         var beforeThreshold = EvaluateThreshold(before);
 
-        var result = await RunCompactionAsync(
+        return await RunCompactionAsync(
             history,
             before,
             beforeThreshold,
@@ -296,8 +321,6 @@ public sealed class CompactionPipeline
             lastAssistantTimestampUtc,
             cancellationToken,
             forcePartial: true);
-        ApplyHistoryReplacement(session, result.Messages);
-        return result.Status;
     }
 
     /// <summary>

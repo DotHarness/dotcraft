@@ -175,6 +175,29 @@ public sealed class ContextUsageTokenCounterTests
     }
 
     [Fact]
+    public void ContextTokenUsageEstimator_DoesNotApplyNativeEstimateToNeutralHistory()
+    {
+        var messages = new List<ChatMessage>
+        {
+            new(ChatRole.User, "short")
+        };
+        var rough = MessageTokenEstimator.Estimate(messages);
+
+        var estimate = ContextTokenUsageEstimator.Estimate(
+            messages,
+            memoryAnchor: null,
+            persistedAnchor: null,
+            latestContextTokens: 0,
+            persistedDisplayTokens: rough + 10_000,
+            persistedDisplaySource: "provider_compacted_estimate",
+            persistedDisplayIsEstimate: true);
+
+        Assert.Equal("estimate", estimate.Source);
+        Assert.Equal(rough, estimate.Tokens);
+        Assert.True(estimate.EligibleForAutoCompact);
+    }
+
+    [Fact]
     public void ContextTokenUsageEstimator_UsesValidAnchorBeforeHistoryEstimate()
     {
         var messages = new List<ChatMessage>

@@ -1,6 +1,7 @@
 using DotCraft.Agents;
 using DotCraft.Configuration;
 using DotCraft.Context;
+using DotCraft.Context.Compaction;
 using DotCraft.Hooks;
 using DotCraft.Protocol;
 using System.ClientModel.Primitives;
@@ -297,11 +298,11 @@ public sealed partial class StreamingFunctionInvokingChatClientTests
 
         using var scope = PreSamplingCompactionRuntimeScope.Set(new PreSamplingCompactionRuntimeContext
         {
-            TryCompactAsync = (messages, _) =>
+            TryCompactAsync = (messages, _, _) =>
             {
                 callbackCalls++;
                 Assert.Contains(messages, message => message.Role == ChatRole.User && message.Text == "start");
-                return Task.FromResult<IReadOnlyList<ChatMessage>?>(replacement);
+                return NeutralCompactionResult(replacement);
             }
         });
 
@@ -315,6 +316,48 @@ public sealed partial class StreamingFunctionInvokingChatClientTests
         var providerReplacement = Assert.Single(bridge.Replacements);
         Assert.Equal("compaction", providerReplacement.Reason);
         Assert.Same(replacement, providerReplacement.Messages);
+    }
+
+    [Fact]
+    public async Task GetStreamingResponseAsync_ProviderNativeReplacementKeepsNeutralMessages()
+    {
+        var bridge = new RecordingProviderHistoryBridge();
+        var inner = new ProviderHistoryBridgeFakeChatClient(bridge);
+        var client = new StreamingFunctionInvokingChatClient(inner);
+        var messages = new List<ChatMessage>
+        {
+            new(ChatRole.User, "start")
+        };
+        using var document = JsonDocument.Parse(
+            """{"type":"compaction","encrypted_content":"YWJj"}""");
+        var threshold = new CompactionThreshold(10, 8, 9, 10, 11, 0.1);
+
+        using var scope = PreSamplingCompactionRuntimeScope.Set(new PreSamplingCompactionRuntimeContext
+        {
+            TryCompactAsync = (_, _, _) => Task.FromResult<CompactionExecutionResult?>(
+                new CompactionExecutionResult(
+                    new CompactionStatus(
+                        CompactionOutcome.Partial,
+                        10,
+                        2,
+                        threshold,
+                        threshold with { Tokens = 2 }),
+                    CompactionBackendIds.ChatGptResponsesCompact,
+                    new CompactionReplacement.ProviderNative(
+                        ProviderHistorySchema.OpenAIResponsesProtocol,
+                        [document.RootElement.Clone()],
+                        1,
+                        "turn_1",
+                        2)))
+        });
+
+        await foreach (var _ in client.GetStreamingResponseAsync(messages))
+        {
+        }
+
+        Assert.Empty(bridge.Replacements);
+        var call = Assert.Single(inner.Calls);
+        Assert.Equal(["user:start"], call.Select(message => $"{message.Role}:{message.Text}"));
     }
 
     [Fact]
@@ -366,7 +409,7 @@ public sealed partial class StreamingFunctionInvokingChatClientTests
             ThreadId = "thread_1",
             TurnId = "turn_1",
             Mode = "agent",
-            TryCompactAsync = (_, _) => Task.FromResult<IReadOnlyList<ChatMessage>?>(replacement),
+            TryCompactAsync = (_, _, _) => NeutralCompactionResult(replacement),
             CaptureSnapshotAsync = (value, _) =>
             {
                 snapshot = value;
@@ -420,12 +463,12 @@ public sealed partial class StreamingFunctionInvokingChatClientTests
             ThreadId = "thread_1",
             TurnId = "turn_1",
             Mode = "agent",
-            TryCompactWithSnapshotAsync = (_, snapshot, _) =>
+            TryCompactWithSnapshotAsync = (_, snapshot, _, _) =>
             {
                 compactionSnapshot = snapshot;
-                return Task.FromResult<IReadOnlyList<ChatMessage>?>(replacement);
+                return NeutralCompactionResult(replacement);
             },
-            TryCompactAsync = (_, _) => throw new InvalidOperationException("legacy callback should not run")
+            TryCompactAsync = (_, _, _) => throw new InvalidOperationException("legacy callback should not run")
         });
 
         await foreach (var _ in client.GetStreamingResponseAsync(
@@ -624,16 +667,16 @@ public sealed partial class StreamingFunctionInvokingChatClientTests
             ThreadId = "thread_1",
             TurnId = "turn_1",
             Mode = "agent",
-            TryCompactWithSnapshotAsync = (_, _, _) =>
+            TryCompactWithSnapshotAsync = (_, _, _, _) =>
             {
-                return Task.FromResult<IReadOnlyList<ChatMessage>?>(null);
+                return NeutralCompactionResult(null);
             },
             CaptureSnapshotAsync = (value, _) =>
             {
                 snapshot = value;
                 return Task.CompletedTask;
             },
-            TryCompactAsync = (_, _) => throw new InvalidOperationException("legacy callback should not run")
+            TryCompactAsync = (_, _, _) => throw new InvalidOperationException("legacy callback should not run")
         });
 
         var danglingCall = new FunctionCallContent("call-dangling", "GetStatus", new Dictionary<string, object?>());
@@ -697,10 +740,10 @@ public sealed partial class StreamingFunctionInvokingChatClientTests
 
         using var scope = PreSamplingCompactionRuntimeScope.Set(new PreSamplingCompactionRuntimeContext
         {
-            TryCompactAsync = (_, _) =>
+            TryCompactAsync = (_, _, _) =>
             {
                 compactionCalls++;
-                return Task.FromResult<IReadOnlyList<ChatMessage>?>(
+                return NeutralCompactionResult(
                     compactionCalls == 2 ? replacement : null);
             }
         });
@@ -998,6 +1041,31 @@ public sealed partial class StreamingFunctionInvokingChatClientTests
     }
 
     private static string ThrowBoom() => throw new InvalidOperationException("boom");
+
+    private static Task<CompactionExecutionResult?> NeutralCompactionResult(
+        IReadOnlyList<ChatMessage>? messages)
+    {
+        if (messages is null)
+            return Task.FromResult<CompactionExecutionResult?>(null);
+
+        var threshold = new CompactionThreshold(
+            Tokens: 1,
+            AutoThreshold: 1,
+            WarningThreshold: 1,
+            ErrorThreshold: 1,
+            BlockingLimit: 1,
+            PercentLeft: 0);
+        return Task.FromResult<CompactionExecutionResult?>(
+            new CompactionExecutionResult(
+                new CompactionStatus(
+                    CompactionOutcome.Partial,
+                    EstimatedTokensBefore: 1,
+                    EstimatedTokensAfter: 1,
+                    threshold,
+                    threshold),
+                CompactionBackendIds.LocalSummary,
+                new CompactionReplacement.Neutral(messages)));
+    }
 
     private static string ThrowSensitiveError() =>
         throw new InvalidOperationException("Request failed.\nAuthorization: Bearer abc123 token=secret-token \u001b[31mred");
