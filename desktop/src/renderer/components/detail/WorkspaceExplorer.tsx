@@ -282,7 +282,7 @@ const panelStyle: CSSProperties = {
   flexDirection: 'column',
   height: '100%',
   minWidth: 0,
-  background: 'var(--bg-secondary)'
+  background: 'transparent'
 }
 
 const toolbarStyle: CSSProperties = {

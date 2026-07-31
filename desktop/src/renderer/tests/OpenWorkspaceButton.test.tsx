@@ -53,8 +53,8 @@ describe('OpenWorkspaceButton', () => {
     await waitFor(() => {
       expect(screen.getByRole('button', { name: 'Choose how to open workspace' })).toBeEnabled()
     })
-    expect(screen.getByRole('button', { name: 'Open' })).toHaveAttribute('data-variant', 'secondary')
-    expect(screen.getByRole('button', { name: 'Choose how to open workspace' })).toHaveAttribute('data-variant', 'secondary')
+    expect(screen.getByRole('button', { name: 'Open' })).toHaveAttribute('data-variant', 'outline')
+    expect(screen.getByRole('button', { name: 'Choose how to open workspace' })).toHaveAttribute('data-variant', 'outline')
     fireEvent.click(screen.getByRole('button', { name: 'Choose how to open workspace' }))
 
     await waitFor(() => {

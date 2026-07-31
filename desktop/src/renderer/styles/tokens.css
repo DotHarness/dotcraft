@@ -230,8 +230,9 @@
      on the card's left edge — brightest at center, fading to transparent toward
      the top and bottom. Painted only while the divider is hovered/dragged; the
      rest-state edge stays the plain --main-surface-left-border hairline that the
-     frame shadow already draws. See ThreePanel and specs/architecture/DESIGN.md. */
-  --main-surface-edge-glow-width: 2px;
+     frame shadow already draws. Shared by ThreePanel and ExplorerDock; see
+     specs/architecture/DESIGN.md. */
+  --main-surface-edge-glow-width: 1.5px;
   --main-surface-edge-glow:
     linear-gradient(
       180deg,

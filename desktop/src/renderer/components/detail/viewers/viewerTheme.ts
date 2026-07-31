@@ -10,8 +10,8 @@ export function getDocumentThemeMode(doc: Document = document): ThemeMode {
   return resolveThemeMode(doc.documentElement.getAttribute('data-theme'))
 }
 
-export function getMonacoTheme(mode: ThemeMode): 'vs' | 'vs-dark' {
-  return mode === 'light' ? 'vs' : 'vs-dark'
+export function getMonacoTheme(mode: ThemeMode): 'dotcraft-light' | 'dotcraft-dark' {
+  return mode === 'light' ? 'dotcraft-light' : 'dotcraft-dark'
 }
 
 export function createTerminalThemeFromDocument(doc: Document = document): ITheme {

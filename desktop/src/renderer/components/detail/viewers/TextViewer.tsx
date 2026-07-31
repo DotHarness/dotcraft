@@ -10,7 +10,7 @@
  * References: orca/src/renderer/src/components/editor/MonacoEditor.tsx
  */
 import { useEffect, useRef, useState } from 'react'
-import MonacoEditor, { loader, type OnMount } from '@monaco-editor/react'
+import MonacoEditor, { loader, type BeforeMount, type OnMount } from '@monaco-editor/react'
 import * as monaco from 'monaco-editor'
 import { useT } from '../../../contexts/LocaleContext'
 import type { FileNavigationHint } from '../../../../shared/viewer/types'
@@ -20,6 +20,28 @@ import { getMonacoTheme, useDocumentThemeMode } from './viewerTheme'
 const MAX_READ_BYTES = 5 * 1024 * 1024 // 5 MB
 
 loader.config({ monaco })
+
+const installDotCraftThemes: BeforeMount = (monacoApi) => {
+  const transparentEditorColors = {
+    'editor.background': '#00000000',
+    'editorGutter.background': '#00000000',
+    'editorStickyScroll.background': '#00000000',
+    'editorStickyScrollGutter.background': '#00000000'
+  }
+
+  monacoApi.editor.defineTheme('dotcraft-light', {
+    base: 'vs',
+    inherit: true,
+    rules: [],
+    colors: transparentEditorColors
+  })
+  monacoApi.editor.defineTheme('dotcraft-dark', {
+    base: 'vs-dark',
+    inherit: true,
+    rules: [],
+    colors: transparentEditorColors
+  })
+}
 
 interface TextViewerProps {
   absolutePath: string
@@ -166,6 +188,7 @@ export function TextViewer({
         <MonacoEditor
           language={language}
           value={state.text}
+          beforeMount={installDotCraftThemes}
           onMount={handleEditorMount}
           options={{
             readOnly: true,

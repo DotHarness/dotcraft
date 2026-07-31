@@ -10,6 +10,7 @@ export function OpenWorkspaceButton({ workspacePath }: OpenWorkspaceButtonProps)
   return (
     <OpenTargetButton
       targetPath={workspacePath}
+      variant="outline"
       tooltipLabel={t('threadHeader.openTitle', { path: workspacePath })}
       menuAriaLabel={t('threadHeader.openMenuAria')}
     />

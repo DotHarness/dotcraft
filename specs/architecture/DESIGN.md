@@ -278,13 +278,16 @@ Use depth instead of color variety.
   ordinary overlay carries.
 - Larger dialogs, inspectors, viewers, and non-menu popovers may use subtle
   neutral boundaries when contrast requires it.
-- The sidebar/main-surface resize divider highlights on hover and drag with a
-  neutral vertical gradient on the main card's left edge (`--main-surface-edge-glow`):
-  brightest at center, fading to transparent toward the top and bottom. The
-  rest-state edge is unchanged — the plain `--main-surface-left-border` hairline
-  the frame shadow already draws. This is a functional resize affordance in a
-  neutral tone (no accent, no bloom), not a decorative glow; the rule below still
-  forbids glow/accent treatments on ordinary controls.
+- The three workspace resize dividers — sidebar/main, conversation/detail, and
+  viewer/explorer — share the same hover and drag highlight: a `1.5px` neutral
+  vertical gradient (`--main-surface-edge-glow`) that is brightest at center and
+  fades to transparent toward the top and bottom. The rest-state `1px` hairline is
+  unchanged. This is a functional resize affordance in a neutral tone (no accent,
+  no bloom), not a decorative glow; the rule below still forbids glow/accent
+  treatments on ordinary controls.
+- File viewers and docked file lists inherit the surrounding main surface instead
+  of introducing a secondary panel fill. Use secondary and tertiary surfaces for
+  controls, hover states, and selected rows within them.
 
 Do not use glow rings, highlighted borders, accent borders, or decorative
 gradients to make ordinary controls "stand out." Use placement, hierarchy,
@@ -432,18 +435,20 @@ segments share one intent and one size; the group clips the outer corners while 
 segment drops the radius and border on the edge they meet, so the pair reads as a
 single control.
 
-One treatment covers every compound trigger: no outline and no divider. Both segments
-carry the same fill and meet flush, and hover lightens only the hovered segment, which
-is what makes the seam appear. The menu glyph sits at reduced opacity so the chevron
-reads as an affordance rather than a second action.
+Compound triggers use one joined geometry. Both segments meet flush and avoid a
+doubled seam; when an outline variant is used, the pair reads as one neutral outer
+frame. Hover changes only the hovered segment. The menu glyph sits at reduced opacity
+so the chevron reads as an affordance rather than a second action.
 
 Emphasis is carried by intent, not by a second treatment:
 
 - the `primary` neutral inversion is for the principal action of a surface. The
   catalog create control is the reference case.
-- the `secondary` same-color fill is for compound triggers that sit among other
-  chrome rather than leading it. Open-target split controls in the thread header and
-  the file viewer are the reference cases.
+- the `secondary` same-color fill is for quiet compound triggers that sit among
+  other chrome rather than leading it.
+- the `outline` neutral frame is for matched open-target controls in the thread
+  header and file viewer. These controls are the reference cases and should keep
+  the same frame treatment even when one omits its text label for compactness.
 
 Use the shared `SplitButton` rather than composing a button pair, chevron, and
 positioned menu per feature, so segment geometry, keyboard navigation, outside-click
