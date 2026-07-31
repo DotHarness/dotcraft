@@ -387,7 +387,7 @@ public sealed partial class AutomationsRequestHandler(
             throw AppServerErrors.TaskInvalidStatus(ex.Message);
         }
 
-        return new { ok = true };
+        return new AutomationTaskDeleteResult { Ok = true };
     }
 
     #region Helpers

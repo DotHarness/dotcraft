@@ -66,5 +66,5 @@ public sealed class AppSocialBindingResolveParams
 public sealed class AppSocialBindingResolveResult
 {
     [JsonIgnore(Condition = JsonIgnoreCondition.Never)]
-    public ThreadAppBindingWire? Binding { get; set; }
+    public AppBindingWire? Binding { get; set; }
 }

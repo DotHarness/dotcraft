@@ -134,19 +134,58 @@ public sealed class AppConnectionMetadataRefreshParams
 
 public sealed class AppConnectionRequestGetResult
 {
-    public string AppId { get; set; } = string.Empty;
-
+    [JsonPropertyName("connectionRequestId")]
     public string ConnectionRequestId { get; set; } = string.Empty;
 
+    [JsonPropertyName("appId")]
+    public string AppId { get; set; } = string.Empty;
+
+    [JsonPropertyName("displayName")]
     public string DisplayName { get; set; } = string.Empty;
 
+    [JsonPropertyName("developerName")]
     public string DeveloperName { get; set; } = string.Empty;
 
-    public string WorkspaceLabel { get; set; } = string.Empty;
+    [JsonPropertyName("userId")]
+    public string UserId { get; set; } = string.Empty;
 
-    public string UserLabel { get; set; } = string.Empty;
-
+    [JsonPropertyName("expiresAt")]
     public DateTimeOffset ExpiresAt { get; set; }
+}
+
+/// <summary>Result for <c>app/connection/authenticate</c>.</summary>
+public sealed class AppConnectionAuthenticateResult
+{
+    [JsonPropertyName("principal")]
+    public AppPrincipalWire Principal { get; set; } = new();
+}
+
+/// <summary>Current wire result for <c>app/connection/status</c>.</summary>
+public sealed class AppConnectionStatusResult
+{
+    [JsonPropertyName("appId")]
+    public string AppId { get; set; } = string.Empty;
+
+    [JsonPropertyName("state")]
+    public string State { get; set; } = AppConnectionStates.NotConnected;
+
+    [JsonPropertyName("principal")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public AppPrincipalWire? Principal { get; set; }
+}
+
+/// <summary>Result for <c>app/connection/revoke</c>.</summary>
+public sealed class AppConnectionRevokeResult
+{
+    [JsonPropertyName("state")]
+    public string State { get; set; } = AppBindingStates.Revoked;
+}
+
+/// <summary>Result for <c>app/bindings/list</c>.</summary>
+public sealed class AppBindingsListResult
+{
+    [JsonPropertyName("bindings")]
+    public IReadOnlyList<AppBindingWire> Bindings { get; set; } = [];
 }
 
 public sealed class AppConnectionStatusWire

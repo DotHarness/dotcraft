@@ -2,6 +2,14 @@ using System.Text.Json.Serialization;
 
 namespace DotCraft.Protocol.AppServer;
 
+/// <summary>Payload for <c>app/list/updated</c>.</summary>
+public sealed class AppListUpdatedNotification
+{
+    [JsonPropertyName("pluginId")] public string PluginId { get; set; } = string.Empty;
+    [JsonPropertyName("reason")] public string Reason { get; set; } = string.Empty;
+    [JsonPropertyName("appIds")] public IReadOnlyList<string> AppIds { get; set; } = [];
+}
+
 
 // ───── plugin/* ─────
 

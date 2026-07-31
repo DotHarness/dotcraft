@@ -99,9 +99,9 @@ internal sealed class ThreadRequestHandler(
         var startedWire = await threadProjector.ProjectAsync(thread, true, false, ct);
         await responseWriter.SendNotificationAfterResponseAsync(
             msg.Id,
-            new { thread = startedWire },
+            new ThreadStartResult { Thread = startedWire },
             AppServerMethods.ThreadStarted,
-            new { thread = startedWire },
+            new ThreadStartedNotification { Thread = startedWire },
             ct);
 
         return null;
@@ -184,9 +184,9 @@ internal sealed class ThreadRequestHandler(
 
         await responseWriter.SendNotificationAfterResponseAsync(
             msg.Id,
-            new { thread = responseWire },
+            new ThreadForkResult { Thread = responseWire },
             AppServerMethods.ThreadStarted,
-            new { thread = notificationWire },
+            new ThreadStartedNotification { Thread = notificationWire },
             ct);
 
         return null;
@@ -210,8 +210,8 @@ internal sealed class ThreadRequestHandler(
 
         var resumedBy = connection.ClientInfo?.Name ?? "appserver";
         var resumedWire = await threadProjector.ProjectAsync(thread, true, false, ct);
-        var responseResult = new { thread = resumedWire };
-        var notifParams = new { thread = resumedWire, resumedBy };
+        var responseResult = new ThreadResumeResult { Thread = resumedWire };
+        var notifParams = new ThreadResumedNotification { Thread = resumedWire, ResumedBy = resumedBy };
 
         if (connection.HasSubscription(p.ThreadId))
         {
@@ -415,7 +415,7 @@ internal sealed class ThreadRequestHandler(
             msg.Id,
             result,
             AppServerMethods.ThreadGoalUpdated,
-            new { threadId = goal.ThreadId, goal = wireGoal, turnId = (string?)null },
+            new ThreadGoalUpdatedNotification { ThreadId = goal.ThreadId, Goal = wireGoal },
             ct);
         return null;
     }
@@ -440,7 +440,7 @@ internal sealed class ThreadRequestHandler(
             msg.Id,
             wireResult,
             AppServerMethods.ThreadGoalCleared,
-            new { threadId = p.ThreadId },
+            new ThreadGoalClearedNotification { ThreadId = p.ThreadId },
             ct);
         return null;
     }
@@ -474,7 +474,7 @@ internal sealed class ThreadRequestHandler(
     {
         var p = AppServerParams.Get<ThreadMaintenanceInterruptParams>(msg);
         await sessionService.CancelThreadMaintenanceAsync(p.ThreadId, ct);
-        return new { };
+        return new RpcEmpty();
     }
 
     private async Task<object?> HandleThreadRollbackAsync(AppServerIncomingMessage msg, CancellationToken ct)
@@ -499,7 +499,7 @@ internal sealed class ThreadRequestHandler(
         if (!connection.TryAddSubscription(p.ThreadId, subCts))
         {
             subCts.Dispose();
-            await responseWriter.WriteResponseAsync(msg.Id, new { }, ct);
+            await responseWriter.WriteResponseAsync(msg.Id, new RpcEmpty(), ct);
             SchedulePendingInteractiveRequestReplay(p.ThreadId);
             return null;
         }
@@ -526,7 +526,7 @@ internal sealed class ThreadRequestHandler(
                         $"[AppServer] Subscription error for thread {p.ThreadId}: {t.Exception?.GetBaseException().Message}");
             }, TaskContinuationOptions.ExecuteSynchronously);
 
-        await responseWriter.WriteResponseAsync(msg.Id, new { }, ct);
+        await responseWriter.WriteResponseAsync(msg.Id, new RpcEmpty(), ct);
         SchedulePendingInteractiveRequestReplay(p.ThreadId);
         return null;
     }
@@ -536,7 +536,7 @@ internal sealed class ThreadRequestHandler(
         _ = ct;
         var p = AppServerParams.Get<ThreadUnsubscribeParams>(msg);
         connection.TryCancelSubscription(p.ThreadId);
-        return Task.FromResult<object?>(new { });
+        return Task.FromResult<object?>(new RpcEmpty());
     }
 
     private void SchedulePendingInteractiveRequestReplay(string threadId)
@@ -703,19 +703,24 @@ internal sealed class ThreadRequestHandler(
         await sessionService.PauseThreadAsync(p.ThreadId, ct);
 
         if (previousStatus == ThreadStatus.Paused)
-            return new { };
+            return new RpcEmpty();
 
         if (connection.HasSubscription(p.ThreadId))
         {
-            await responseWriter.WriteResponseAsync(msg.Id, new { }, ct);
+            await responseWriter.WriteResponseAsync(msg.Id, new RpcEmpty(), ct);
             return null;
         }
 
         await responseWriter.SendNotificationAfterResponseAsync(
             msg.Id,
-            new { },
+            new RpcEmpty(),
             AppServerMethods.ThreadStatusChanged,
-            new { threadId = p.ThreadId, previousStatus, newStatus = ThreadStatus.Paused },
+            new ThreadStatusChangedNotification
+            {
+                ThreadId = p.ThreadId,
+                PreviousStatus = previousStatus,
+                NewStatus = ThreadStatus.Paused
+            },
             ct);
         return null;
     }
@@ -729,22 +734,27 @@ internal sealed class ThreadRequestHandler(
         await sessionService.ArchiveThreadAsync(p.ThreadId, ct);
 
         if (previousStatus == ThreadStatus.Archived)
-            return new { };
+            return new RpcEmpty();
 
         var socialBindingCleanup = threadProjector.RevokeSocialAppBindingsForArchivedThread(thread);
         if (connection.HasSubscription(p.ThreadId))
         {
-            await responseWriter.WriteResponseAsync(msg.Id, new { }, ct);
+            await responseWriter.WriteResponseAsync(msg.Id, new RpcEmpty(), ct);
             await SendArchiveSocialBindingNotificationsAsync(socialBindingCleanup, ct);
             return null;
         }
 
-        await responseWriter.WriteResponseAsync(msg.Id, new { }, ct);
+        await responseWriter.WriteResponseAsync(msg.Id, new RpcEmpty(), ct);
         await transport.WriteMessageAsync(new
         {
             jsonrpc = "2.0",
             method = AppServerMethods.ThreadStatusChanged,
-            @params = new { threadId = p.ThreadId, previousStatus, newStatus = ThreadStatus.Archived }
+            @params = new ThreadStatusChangedNotification
+            {
+                ThreadId = p.ThreadId,
+                PreviousStatus = previousStatus,
+                NewStatus = ThreadStatus.Archived
+            }
         }, ct);
         await SendArchiveSocialBindingNotificationsAsync(socialBindingCleanup, ct);
         return null;
@@ -760,14 +770,14 @@ internal sealed class ThreadRequestHandler(
             {
                 jsonrpc = "2.0",
                 method = ThreadAppBindingsChanged,
-                @params = new
+                @params = new ThreadAppBindingsChangedNotification
                 {
-                    threadId = binding.ThreadId,
-                    bindingId = binding.BindingId,
-                    appId = binding.AppId,
-                    state = binding.State,
-                    previousState = AppBindingStates.Active,
-                    changeKind = "threadArchived"
+                    ThreadId = binding.ThreadId,
+                    BindingId = binding.BindingId,
+                    AppId = binding.AppId,
+                    State = binding.State,
+                    PreviousState = AppBindingStates.Active,
+                    ChangeKind = "threadArchived"
                 }
             }, ct);
         }
@@ -783,19 +793,24 @@ internal sealed class ThreadRequestHandler(
         await sessionService.UnarchiveThreadAsync(p.ThreadId, ct);
 
         if (previousStatus == ThreadStatus.Active)
-            return new { };
+            return new RpcEmpty();
 
         if (connection.HasSubscription(p.ThreadId))
         {
-            await responseWriter.WriteResponseAsync(msg.Id, new { }, ct);
+            await responseWriter.WriteResponseAsync(msg.Id, new RpcEmpty(), ct);
             return null;
         }
 
         await responseWriter.SendNotificationAfterResponseAsync(
             msg.Id,
-            new { },
+            new RpcEmpty(),
             AppServerMethods.ThreadStatusChanged,
-            new { threadId = p.ThreadId, previousStatus, newStatus = ThreadStatus.Active },
+            new ThreadStatusChangedNotification
+            {
+                ThreadId = p.ThreadId,
+                PreviousStatus = previousStatus,
+                NewStatus = ThreadStatus.Active
+            },
             ct);
         return null;
     }
@@ -806,7 +821,7 @@ internal sealed class ThreadRequestHandler(
         var thread = await sessionService.GetThreadAsync(p.ThreadId, ct);
         await sessionService.DeleteThreadPermanentlyAsync(p.ThreadId, ct);
         threadProjector.RevokeAppBindingsForDeletedThread(thread);
-        return new { };
+        return new RpcEmpty();
     }
 
     private async Task<object?> HandleThreadRenameAsync(AppServerIncomingMessage msg, CancellationToken ct)
@@ -815,14 +830,14 @@ internal sealed class ThreadRequestHandler(
         if (string.IsNullOrWhiteSpace(p.DisplayName))
             throw AppServerErrors.InvalidParams("'displayName' must not be empty.");
         await sessionService.RenameThreadAsync(p.ThreadId, p.DisplayName, ct);
-        return new { };
+        return new RpcEmpty();
     }
 
     private async Task<object?> HandleThreadModeSetAsync(AppServerIncomingMessage msg, CancellationToken ct)
     {
         var p = AppServerParams.Get<ThreadModeSetParams>(msg);
         await sessionService.SetThreadModeAsync(p.ThreadId, p.Mode, ct);
-        return new { };
+        return new RpcEmpty();
     }
 
     private async Task<object?> HandleThreadConfigUpdateAsync(AppServerIncomingMessage msg, CancellationToken ct)
@@ -830,7 +845,7 @@ internal sealed class ThreadRequestHandler(
         var p = AppServerParams.Get<ThreadConfigUpdateParams>(msg);
         ValidateRuntimeConfiguration(p.Config);
         await sessionService.UpdateThreadConfigurationAsync(p.ThreadId, p.Config, ct);
-        return new { };
+        return new RpcEmpty();
     }
 
     private void ValidateRuntimeConfiguration(ThreadConfiguration? config)

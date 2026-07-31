@@ -33,6 +33,24 @@ public sealed class WireAcpExtensionProxyMergeTests
     }
 
     [Fact]
+    public void MergeThreadIdIntoParams_TypedFixedRequest_PreservesNullFieldsAndWireOrder()
+    {
+        var parameters = new AcpFsReadTextFileParams
+        {
+            Path = "sample.txt",
+            Offset = null,
+            Limit = null
+        };
+
+        var merged = WireAcpExtensionProxy.MergeThreadIdIntoParams("thread-a", parameters);
+        var json = JsonSerializer.Serialize(merged, JsonOptions);
+
+        Assert.Equal(
+            "{\"path\":\"sample.txt\",\"offset\":null,\"limit\":null,\"threadId\":\"thread-a\"}",
+            json);
+    }
+
+    [Fact]
     public void MergeThreadIdIntoParams_NonObject_WrapsPayload()
     {
         var o = WireAcpExtensionProxy.MergeThreadIdIntoParams("tid", "plain");

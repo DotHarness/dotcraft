@@ -468,11 +468,11 @@ public sealed class AppServerHost(
                                     {
                                         jsonrpc = "2.0",
                                         method = AppServerMethods.SystemEvent,
-                                        @params = new
+                                        @params = new ChannelRejectedSystemEventNotification
                                         {
-                                            kind = "channelRejected",
-                                            channelName,
-                                            message =
+                                            Kind = "channelRejected",
+                                            ChannelName = channelName,
+                                            Message =
                                                 $"Channel '{channelName}' is subprocess-only; WebSocket adapter attach is not supported."
                                         }
                                     }, hostCt);
@@ -508,11 +508,11 @@ public sealed class AppServerHost(
                             {
                                 jsonrpc = "2.0",
                                 method = AppServerMethods.SystemEvent,
-                                @params = new
+                                @params = new ChannelRejectedSystemEventNotification
                                 {
-                                    kind = "channelRejected",
-                                    channelName,
-                                    message = $"Channel '{channelName}' is not registered in server configuration."
+                                    Kind = "channelRejected",
+                                    ChannelName = channelName,
+                                    Message = $"Channel '{channelName}' is not registered in server configuration."
                                 }
                             }, hostCt);
 
@@ -718,7 +718,7 @@ public sealed class AppServerHost(
             case AppServerMethods.Initialized:
                 handler.HandleInitializedNotification();
                 break;
-            // Other client notifications (none defined in v1) are silently ignored
+                // Other client notifications (none defined in v1) are silently ignored
         }
     }
 
@@ -795,13 +795,13 @@ public sealed class AppServerHost(
         int? inputTokens = null,
         int? outputTokens = null)
     {
-        object? tokenUsage = null;
+        SystemJobTokenUsageWire? tokenUsage = null;
         if (inputTokens.HasValue || outputTokens.HasValue)
         {
-            tokenUsage = new
+            tokenUsage = new SystemJobTokenUsageWire
             {
-                inputTokens = inputTokens ?? 0,
-                outputTokens = outputTokens ?? 0
+                InputTokens = inputTokens ?? 0,
+                OutputTokens = outputTokens ?? 0
             };
         }
 
@@ -809,15 +809,15 @@ public sealed class AppServerHost(
         {
             jsonrpc = "2.0",
             method = AppServerMethods.SystemJobResult,
-            @params = new
+            @params = new SystemJobResultNotification
             {
-                source,
-                jobId,
-                jobName,
-                threadId,
-                result,
-                error,
-                tokenUsage
+                Source = source,
+                JobId = jobId,
+                JobName = jobName,
+                ThreadId = threadId,
+                Result = result,
+                Error = error,
+                TokenUsage = tokenUsage
             }
         };
 
@@ -846,7 +846,7 @@ public sealed class AppServerHost(
         {
             jsonrpc = "2.0",
             method = AppServerMethods.CronStateChanged,
-            @params = new { job, removed }
+            @params = new CronStateChangedNotification { Job = job, Removed = removed }
         };
 
         foreach (var (transport, connection) in _activeTransports)
@@ -899,14 +899,14 @@ public sealed class AppServerHost(
     }
 
     private void BroadcastAppBindingStatusChanged(AppBindingWire binding) =>
-        BroadcastTrustedNotification("thread/appBindings/changed", new
+        BroadcastTrustedNotification("thread/appBindings/changed", new ThreadAppBindingsChangedNotification
         {
-            binding.ThreadId,
-            binding.BindingId,
-            binding.AppId,
-            binding.State,
-            binding.FailureReason,
-            binding.AuthorityRevision
+            ThreadId = binding.ThreadId,
+            BindingId = binding.BindingId,
+            AppId = binding.AppId,
+            State = binding.State,
+            FailureReason = binding.FailureReason,
+            AuthorityRevision = binding.AuthorityRevision
         });
 
     private void BroadcastOpenAiUsageChanged(DotCraft.Auth.OpenAI.OpenAIUsageSnapshot? snapshot)
@@ -951,15 +951,14 @@ public sealed class AppServerHost(
         {
             jsonrpc = "2.0",
             method = AppServerMethods.McpServerStartupStatusUpdated,
-            @params = new
+            @params = new McpServerStartupStatusUpdatedNotification
             {
-                threadId = (string?)null,
-                name = server.Name,
-                status,
-                error = server.LastError,
-                failureReason = server.FailureReason,
-                transport = server.Transport,
-                authStatus = server.AuthStatus
+                Name = server.Name,
+                Status = status,
+                Error = server.LastError,
+                FailureReason = server.FailureReason,
+                Transport = server.Transport,
+                AuthStatus = server.AuthStatus
             }
         };
 
@@ -1030,10 +1029,10 @@ public sealed class AppServerHost(
         {
             jsonrpc = "2.0",
             method,
-            @params = new
+            @params = new TerminalLifecycleNotification
             {
-                terminal = evt.Terminal,
-                delta = evt.Delta
+                Terminal = evt.Terminal,
+                Delta = evt.Delta
             }
         };
 
@@ -1080,7 +1079,7 @@ public sealed class AppServerHost(
         {
             jsonrpc = "2.0",
             method = AppServerMethods.ThreadStarted,
-            @params = new { thread = wire }
+            @params = new ThreadStartedNotification { Thread = wire }
         };
 
         var skipTransport = !IsSubAgentThread(thread)
@@ -1117,7 +1116,11 @@ public sealed class AppServerHost(
         {
             jsonrpc = "2.0",
             method = AppServerMethods.SubAgentGraphChanged,
-            @params = new { parentThreadId, childThreadId }
+            @params = new SubAgentGraphChangedNotification
+            {
+                ParentThreadId = parentThreadId,
+                ChildThreadId = childThreadId
+            }
         };
 
         foreach (var (transport, connection) in _activeTransports)
@@ -1150,7 +1153,12 @@ public sealed class AppServerHost(
         {
             jsonrpc = "2.0",
             method = AppServerMethods.ThreadGoalUpdated,
-            @params = new { threadId = goal.ThreadId, goal = wireGoal, turnId }
+            @params = new ThreadGoalUpdatedNotification
+            {
+                ThreadId = goal.ThreadId,
+                Goal = wireGoal,
+                TurnId = turnId
+            }
         };
 
         foreach (var (transport, connection) in _activeTransports)
@@ -1178,7 +1186,7 @@ public sealed class AppServerHost(
         {
             jsonrpc = "2.0",
             method = AppServerMethods.ThreadGoalCleared,
-            @params = new { threadId }
+            @params = new ThreadGoalClearedNotification { ThreadId = threadId }
         };
 
         foreach (var (transport, connection) in _activeTransports)
@@ -1213,7 +1221,11 @@ public sealed class AppServerHost(
         {
             jsonrpc = "2.0",
             method = AppServerMethods.ThreadRenamed,
-            @params = new { threadId = thread.Id, displayName = thread.DisplayName }
+            @params = new ThreadRenamedNotification
+            {
+                ThreadId = thread.Id,
+                DisplayName = thread.DisplayName
+            }
         };
 
         foreach (var (transport, connection) in _activeTransports)
@@ -1248,7 +1260,7 @@ public sealed class AppServerHost(
         {
             jsonrpc = "2.0",
             method = AppServerMethods.ThreadUpdated,
-            @params = new { thread = wire }
+            @params = new ThreadUpdatedNotification { Thread = wire }
         };
 
         var skipTransport = string.Equals(
@@ -1430,7 +1442,12 @@ public sealed class AppServerHost(
         {
             jsonrpc = "2.0",
             method = AppServerMethods.ThreadStatusChanged,
-            @params = new { threadId, previousStatus, newStatus }
+            @params = new ThreadStatusChangedNotification
+            {
+                ThreadId = threadId,
+                PreviousStatus = previousStatus,
+                NewStatus = newStatus
+            }
         };
 
         var skipTransport = AppServerRequestContext.CurrentTransport;
@@ -1469,7 +1486,7 @@ public sealed class AppServerHost(
         {
             jsonrpc = "2.0",
             method = AppServerMethods.ThreadDeleted,
-            @params = new { threadId }
+            @params = new ThreadDeletedNotification { ThreadId = threadId }
         };
 
         var skipTransport = AppServerRequestContext.CurrentTransport;
@@ -1532,18 +1549,18 @@ public sealed class AppServerHost(
     {
         jsonrpc = "2.0",
         method = AppServerMethods.PlanUpdated,
-        @params = new
+        @params = new PlanUpdatedNotification
         {
-            threadId,
-            title = plan.Title,
-            overview = plan.Overview,
-            content = plan.Content,
-            todos = plan.Todos.Select(t => new
+            ThreadId = threadId,
+            Title = plan.Title,
+            Overview = plan.Overview,
+            Content = plan.Content,
+            Todos = plan.Todos.Select(t => new PlanTodoWire
             {
-                id = t.Id,
-                content = t.Content,
-                priority = t.Priority,
-                status = t.Status
+                Id = t.Id,
+                Content = t.Content,
+                Priority = t.Priority,
+                Status = t.Status
             }).ToArray()
         }
     };

@@ -521,14 +521,14 @@ internal sealed class PluginRequestHandler(
             {
                 jsonrpc = "2.0",
                 method = AppBindingThreadBindingsChangedNotification,
-                @params = new
+                @params = new ThreadAppBindingsChangedNotification
                 {
-                    threadId = binding.ThreadId,
-                    bindingId = binding.BindingId,
-                    appId = binding.AppId,
-                    state = binding.State,
-                    previousState = AppBindingStates.Active,
-                    changeKind = "offline"
+                    ThreadId = binding.ThreadId,
+                    BindingId = binding.BindingId,
+                    AppId = binding.AppId,
+                    State = binding.State,
+                    PreviousState = AppBindingStates.Active,
+                    ChangeKind = "offline"
                 }
             }, ct);
         }
@@ -536,7 +536,7 @@ internal sealed class PluginRequestHandler(
         return null;
     }
 
-    private object? TryBuildAppListUpdatedNotification(
+    private AppListUpdatedNotification? TryBuildAppListUpdatedNotification(
         PluginDiscoveryResult discovery,
         string pluginId,
         string reason)
@@ -556,11 +556,11 @@ internal sealed class PluginRequestHandler(
         if (!pluginHasAppContribution && appIds.Count == 0)
             return null;
 
-        return new
+        return new AppListUpdatedNotification
         {
-            pluginId,
-            reason,
-            appIds
+            PluginId = pluginId,
+            Reason = reason,
+            AppIds = appIds
         };
     }
 

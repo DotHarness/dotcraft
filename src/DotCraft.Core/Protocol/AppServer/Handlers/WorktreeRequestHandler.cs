@@ -53,7 +53,7 @@ internal sealed class WorktreeRequestHandler(
             msg.Id,
             new WorktreeCreateAndForkResponse { Thread = responseWire, Worktree = result.Worktree },
             AppServerMethods.ThreadStarted,
-            new { thread = notificationWire },
+            new ThreadStartedNotification { Thread = notificationWire },
             ct);
 
         return null;
@@ -87,7 +87,7 @@ internal sealed class WorktreeRequestHandler(
             msg.Id,
             new WorktreeCreateAndStartResponse { Thread = startedWire, Worktree = result.Worktree },
             AppServerMethods.ThreadStarted,
-            new { thread = startedWire },
+            new ThreadStartedNotification { Thread = startedWire },
             ct);
 
         return null;
@@ -125,7 +125,7 @@ internal sealed class WorktreeRequestHandler(
             msg.Id,
             response,
             AppServerMethods.ThreadUpdated,
-            new { thread = wire },
+            new ThreadUpdatedNotification { Thread = wire },
             ct);
 
         return null;

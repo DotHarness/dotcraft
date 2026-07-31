@@ -193,6 +193,23 @@ public sealed class AutomationTaskDeleteParams
     public string TaskId { get; set; } = string.Empty;
 }
 
+/// <summary>Result for <c>automation/task/delete</c>.</summary>
+public sealed class AutomationTaskDeleteResult
+{
+    [JsonPropertyName("ok")]
+    public bool Ok { get; set; }
+}
+
+/// <summary>Payload for <c>automation/task/updated</c>.</summary>
+public sealed class AutomationTaskUpdatedNotification
+{
+    [JsonPropertyName("workspacePath")]
+    public string WorkspacePath { get; set; } = string.Empty;
+
+    [JsonPropertyName("task")]
+    public AutomationTaskWire Task { get; set; } = new();
+}
+
 public sealed class AutomationTaskDiscardWorktreeParams
 {
     public string WorkspacePath { get; set; } = string.Empty;

@@ -24,7 +24,7 @@ internal sealed class TerminalRequestHandler(
         var service = RequireBackgroundTerminals();
         var p = AppServerParams.Get<TerminalListParams>(msg);
         var sessions = await service.ListAsync(p.ThreadId, ct);
-        return new { terminals = sessions };
+        return new TerminalListResult { Terminals = sessions };
     }
 
     private async Task<object?> HandleTerminalReadAsync(AppServerIncomingMessage msg, CancellationToken ct)
@@ -35,7 +35,7 @@ internal sealed class TerminalRequestHandler(
             throw AppServerErrors.InvalidParams("'sessionId' is required.");
 
         var terminal = await service.ReadAsync(p.SessionId, p.WaitMs ?? 0, p.MaxOutputChars, ct);
-        return new { terminal };
+        return new TerminalReadResult { Terminal = terminal };
     }
 
     private async Task<object?> HandleTerminalWriteAsync(AppServerIncomingMessage msg, CancellationToken ct)
@@ -51,7 +51,7 @@ internal sealed class TerminalRequestHandler(
             p.YieldTimeMs ?? 1000,
             p.MaxOutputChars,
             ct);
-        return new { terminal };
+        return new TerminalWriteResult { Terminal = terminal };
     }
 
     private async Task<object?> HandleTerminalStopAsync(AppServerIncomingMessage msg, CancellationToken ct)
@@ -62,7 +62,7 @@ internal sealed class TerminalRequestHandler(
             throw AppServerErrors.InvalidParams("'sessionId' is required.");
 
         var terminal = await service.StopAsync(p.SessionId, ct);
-        return new { terminal };
+        return new TerminalStopResult { Terminal = terminal };
     }
 
     private async Task<object?> HandleTerminalCleanAsync(AppServerIncomingMessage msg, CancellationToken ct)
@@ -74,7 +74,7 @@ internal sealed class TerminalRequestHandler(
 
         await sessionService.CleanBackgroundTerminalsAsync(p.ThreadId, ct);
         var terminals = await service.ListAsync(p.ThreadId, ct);
-        return new { terminals };
+        return new TerminalCleanResult { Terminals = terminals };
     }
 
     private IBackgroundTerminalService RequireBackgroundTerminals()

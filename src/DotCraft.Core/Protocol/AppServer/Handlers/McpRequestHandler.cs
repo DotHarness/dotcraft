@@ -259,15 +259,15 @@ internal sealed class McpRequestHandler(
                 ServerInfo = inventory?.ServerInfo,
                 Tools = inventory?.Tools.ToDictionary(
                             static tool => tool.Name,
-                            static tool => (object)new
+                            static tool => new McpRuntimeToolWire
                             {
-                                name = tool.Name,
-                                description = tool.Description,
-                                inputSchema = tool.JsonSchema,
-                                outputSchema = tool.ReturnJsonSchema
+                                Name = tool.Name,
+                                Description = tool.Description,
+                                InputSchema = tool.JsonSchema,
+                                OutputSchema = tool.ReturnJsonSchema
                             },
                             StringComparer.Ordinal)
-                        ?? new Dictionary<string, object>(StringComparer.Ordinal),
+                        ?? new Dictionary<string, McpRuntimeToolWire>(StringComparer.Ordinal),
                 Resources = resources,
                 ResourceTemplates = resourceTemplates,
                 AuthStatus = status.AuthStatus,

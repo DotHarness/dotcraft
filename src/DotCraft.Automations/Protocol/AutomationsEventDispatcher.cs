@@ -46,10 +46,10 @@ public sealed class AutomationsEventDispatcher : IDisposable
         {
             jsonrpc = "2.0",
             method = AppServerMethods.AutomationTaskUpdated,
-            @params = new
+            @params = new AutomationTaskUpdatedNotification
             {
-                workspacePath,
-                task = AutomationsRequestHandler.ToNotificationWire(automationTask)
+                WorkspacePath = workspacePath,
+                Task = AutomationsRequestHandler.ToNotificationWire(automationTask)
             }
         };
     }

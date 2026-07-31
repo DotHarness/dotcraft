@@ -79,21 +79,21 @@ public sealed class WireNodeReplProxy : INodeReplProxy
         {
             var response = await binding.Transport.SendClientRequestAsync(
                 AppServerMethods.ExtNodeReplEvaluate,
-                new
+                new NodeReplEvaluateParams
                 {
-                    threadId,
-                    turnId,
-                    evaluationId,
-                    browserSession = new
+                    ThreadId = threadId,
+                    TurnId = turnId,
+                    EvaluationId = evaluationId,
+                    BrowserSession = new NodeReplBrowserSessionParams
                     {
-                        protocolVersion,
-                        sessionId,
-                        threadId,
-                        turnId,
-                        evaluationId
+                        ProtocolVersion = protocolVersion,
+                        SessionId = sessionId,
+                        ThreadId = threadId,
+                        TurnId = turnId,
+                        EvaluationId = evaluationId
                     },
-                    code,
-                    timeoutMs = safeTimeout * 1000
+                    Code = code,
+                    TimeoutMs = safeTimeout * 1000
                 },
                 ct,
                 TimeSpan.FromSeconds(safeTimeout + 5));
@@ -142,7 +142,7 @@ public sealed class WireNodeReplProxy : INodeReplProxy
             {
                 await binding.Transport.SendClientRequestAsync(
                     AppServerMethods.ExtNodeReplCancel,
-                    new { threadId, evaluationId },
+                    new NodeReplCancelParams { ThreadId = threadId, EvaluationId = evaluationId },
                     CancellationToken.None,
                     TimeSpan.FromSeconds(2));
             }

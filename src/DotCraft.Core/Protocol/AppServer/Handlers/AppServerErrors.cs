@@ -138,7 +138,7 @@ public static class AppServerErrors
         Create(InvalidRequestCode, "InvalidRequest", "errors.invalidRequest", "Invalid request", detail: detail);
 
     public static AppServerException MethodNotFound(string method) =>
-        Create(MethodNotFoundCode, "MethodNotFound", "errors.methodNotFound", $"Method not found: {method}", new { method });
+        Create(MethodNotFoundCode, "MethodNotFound", "errors.methodNotFound", $"Method not found: {method}", new MethodErrorParams(method));
 
     public static AppServerException InvalidParams(string detail) =>
         Create(InvalidParamsCode, "InvalidParams", "errors.invalidParams", "Invalid params", detail: detail);
@@ -156,19 +156,19 @@ public static class AppServerErrors
         Create(AlreadyInitializedCode, "AlreadyInitialized", "errors.alreadyInitialized", "Already initialized");
 
     public static AppServerException ThreadNotFound(string threadId) =>
-        Create(ThreadNotFoundCode, "ThreadNotFound", "errors.threadNotFound", $"Thread not found: {threadId}", new { threadId });
+        Create(ThreadNotFoundCode, "ThreadNotFound", "errors.threadNotFound", $"Thread not found: {threadId}", new ThreadErrorParams(threadId));
 
     public static AppServerException ThreadNotActive(string threadId) =>
-        Create(ThreadNotActiveCode, "ThreadNotActive", "errors.threadNotActive", $"Thread is not active: {threadId}", new { threadId });
+        Create(ThreadNotActiveCode, "ThreadNotActive", "errors.threadNotActive", $"Thread is not active: {threadId}", new ThreadErrorParams(threadId));
 
     public static AppServerException TurnInProgress(string threadId) =>
-        Create(TurnInProgressCode, "TurnInProgress", "errors.turnInProgress", $"A turn is already in progress on thread: {threadId}", new { threadId });
+        Create(TurnInProgressCode, "TurnInProgress", "errors.turnInProgress", $"A turn is already in progress on thread: {threadId}", new ThreadErrorParams(threadId));
 
     public static AppServerException TurnNotFound(string turnId) =>
-        Create(TurnNotFoundCode, "TurnNotFound", "errors.turnNotFound", $"Turn not found: {turnId}", new { turnId });
+        Create(TurnNotFoundCode, "TurnNotFound", "errors.turnNotFound", $"Turn not found: {turnId}", new TurnErrorParams(turnId));
 
     public static AppServerException TurnNotRunning(string turnId) =>
-        Create(TurnNotRunningCode, "TurnNotRunning", "errors.turnNotRunning", $"Turn is not running: {turnId}", new { turnId });
+        Create(TurnNotRunningCode, "TurnNotRunning", "errors.turnNotRunning", $"Turn is not running: {turnId}", new TurnErrorParams(turnId));
 
     public static AppServerException WorktreeHandoffConflict(IReadOnlyList<string> conflictPaths) =>
         Create(
@@ -176,19 +176,19 @@ public static class AppServerErrors
             "WorktreeHandoffConflict",
             "errors.worktreeHandoffConflict",
             "Local workspace has conflicting uncommitted changes.",
-            new { conflictPaths });
+            new WorktreeConflictErrorParams(conflictPaths));
 
     public static AppServerException ApprovalTimeout() =>
         Create(ApprovalTimeoutCode, "ApprovalTimeout", "errors.approvalTimeout", "Approval request timed out");
 
     public static AppServerException ChannelRejected(string channelName) =>
-        Create(ChannelRejectedCode, "ChannelRejected", "errors.channelRejected", $"Channel adapter rejected: '{channelName}' is not registered in server configuration", new { channelName });
+        Create(ChannelRejectedCode, "ChannelRejected", "errors.channelRejected", $"Channel adapter rejected: '{channelName}' is not registered in server configuration", new ChannelErrorParams(channelName));
 
     public static AppServerException CronJobNotFound(string jobId) =>
-        Create(CronJobNotFoundCode, "CronJobNotFound", "errors.cronJobNotFound", $"Cron job not found: {jobId}", new { jobId });
+        Create(CronJobNotFoundCode, "CronJobNotFound", "errors.cronJobNotFound", $"Cron job not found: {jobId}", new CronJobErrorParams(jobId));
 
     public static AppServerException SkillNotFound(string name) =>
-        Create(SkillNotFoundCode, "SkillNotFound", "errors.skillNotFound", $"Skill not found: {name}", new { name });
+        Create(SkillNotFoundCode, "SkillNotFound", "errors.skillNotFound", $"Skill not found: {name}", new NamedResourceErrorParams(name));
 
     /// <summary>
     /// Maps a marketplace failure onto the JSON-RPC error that matches its stable code, keeping
@@ -204,7 +204,7 @@ public static class AppServerErrors
             code,
             $"errors.marketplace.{ToMessageKeySuffix(code)}",
             fallbackText,
-            marketplaceName == null ? null : new { marketplaceName });
+            marketplaceName == null ? null : new MarketplaceErrorParams(marketplaceName));
     }
 
     private static string ToMessageKeySuffix(string code)
@@ -215,16 +215,16 @@ public static class AppServerErrors
     }
 
     public static AppServerException CommandNotFound(string command) =>
-        Create(CommandNotFoundCode, "CommandNotFound", "errors.commandNotFound", $"Command not found: {command}", new { command });
+        Create(CommandNotFoundCode, "CommandNotFound", "errors.commandNotFound", $"Command not found: {command}", new CommandErrorParams(command));
 
     public static AppServerException CommandPermissionDenied(string command) =>
-        Create(CommandPermissionDeniedCode, "CommandPermissionDenied", "errors.commandPermissionDenied", $"Permission denied for command: {command}", new { command });
+        Create(CommandPermissionDeniedCode, "CommandPermissionDenied", "errors.commandPermissionDenied", $"Permission denied for command: {command}", new CommandErrorParams(command));
 
     public static AppServerException CommandServiceUnavailable(string command) =>
-        Create(CommandServiceUnavailableCode, "CommandServiceUnavailable", "errors.commandServiceUnavailable", $"Service unavailable for command: {command}", new { command });
+        Create(CommandServiceUnavailableCode, "CommandServiceUnavailable", "errors.commandServiceUnavailable", $"Service unavailable for command: {command}", new CommandErrorParams(command));
 
     public static AppServerException McpServerNotFound(string name) =>
-        Create(McpServerNotFoundCode, "McpServerNotFound", "errors.mcpServerNotFound", $"MCP server not found: {name}", new { name });
+        Create(McpServerNotFoundCode, "McpServerNotFound", "errors.mcpServerNotFound", $"MCP server not found: {name}", new NamedResourceErrorParams(name));
 
     public static AppServerException McpServerValidationFailed(string detail) =>
         Create(McpServerValidationFailedCode, "McpServerValidationFailed", "errors.mcpServerValidationFailed", "MCP server validation failed", detail: detail);
@@ -236,7 +236,7 @@ public static class AppServerErrors
         Create(McpServerNameConflictCode, "McpServerNameConflict", "errors.mcpServerNameConflict", "MCP server name conflict", detail: detail);
 
     public static AppServerException McpServerReadOnly(string name) =>
-        Create(McpServerReadOnlyCode, "McpServerReadOnly", "errors.mcpServerReadOnly", $"MCP server is read-only: {name}", new { name });
+        Create(McpServerReadOnlyCode, "McpServerReadOnly", "errors.mcpServerReadOnly", $"MCP server is read-only: {name}", new NamedResourceErrorParams(name));
 
     public static AppServerException AppBindingUpgradeRequired() =>
         Create(
@@ -244,7 +244,7 @@ public static class AppServerErrors
             "AppBindingUpgradeRequired",
             "errors.appBindingUpgradeRequired",
             "App Binding version 2 is required",
-            new { requiredVersion = 2 });
+            new AppBindingVersionErrorParams(2));
 
     public static AppServerException AppPrincipalUnauthorized(string detail) =>
         Create(
@@ -276,10 +276,10 @@ public static class AppServerErrors
             "AppSurfaceUnavailable",
             "errors.appSurfaceUnavailable",
             "App surface is unavailable",
-            new { appId, surfaceId });
+            new AppSurfaceErrorParams(appId, surfaceId));
 
     public static AppServerException ExternalChannelNotFound(string name) =>
-        Create(ExternalChannelNotFoundCode, "ExternalChannelNotFound", "errors.externalChannelNotFound", $"External channel not found: {name}", new { name });
+        Create(ExternalChannelNotFoundCode, "ExternalChannelNotFound", "errors.externalChannelNotFound", $"External channel not found: {name}", new NamedResourceErrorParams(name));
 
     public static AppServerException ExternalChannelValidationFailed(string detail) =>
         Create(ExternalChannelValidationFailedCode, "ExternalChannelValidationFailed", "errors.externalChannelValidationFailed", "External channel validation failed", detail: detail);
@@ -288,7 +288,7 @@ public static class AppServerErrors
         Create(ExternalChannelNameConflictCode, "ExternalChannelNameConflict", "errors.externalChannelNameConflict", "External channel name conflict", detail: detail);
 
     public static AppServerException SubAgentProfileNotFound(string name) =>
-        Create(SubAgentProfileNotFoundCode, "SubAgentProfileNotFound", "errors.subAgentProfileNotFound", $"SubAgent profile not found: {name}", new { name });
+        Create(SubAgentProfileNotFoundCode, "SubAgentProfileNotFound", "errors.subAgentProfileNotFound", $"SubAgent profile not found: {name}", new NamedResourceErrorParams(name));
 
     public static AppServerException SubAgentProfileValidationFailed(string detail) =>
         Create(SubAgentProfileValidationFailedCode, "SubAgentProfileValidationFailed", "errors.subAgentProfileValidationFailed", "SubAgent profile validation failed", detail: detail);
@@ -307,7 +307,7 @@ public static class AppServerErrors
             "AgentProfileValidationFailed",
             "errors.agentProfileValidationFailed",
             "Agent profile validation failed",
-            diagnostics == null ? null : new { diagnostics },
+            diagnostics == null ? null : new AgentProfileDiagnosticsErrorParams(diagnostics),
             detail);
 
     public static AppServerException AgentProfileProtected(string detail) =>
@@ -320,10 +320,10 @@ public static class AppServerErrors
         Create(AgentProfileConflictCode, "AgentProfileConflict", "errors.agentProfileConflict", "Agent profile conflict", detail: detail);
 
     public static AppServerException TaskAlreadyExists(string taskId) =>
-        Create(TaskAlreadyExistsCode, "TaskAlreadyExists", "errors.taskAlreadyExists", $"Task already exists: {taskId}", new { taskId });
+        Create(TaskAlreadyExistsCode, "TaskAlreadyExists", "errors.taskAlreadyExists", $"Task already exists: {taskId}", new TaskErrorParams(taskId));
 
     public static AppServerException TaskNotFound(string taskId) =>
-        Create(TaskNotFoundCode, "TaskNotFound", "errors.taskNotFound", $"Task not found: {taskId}", new { taskId });
+        Create(TaskNotFoundCode, "TaskNotFound", "errors.taskNotFound", $"Task not found: {taskId}", new TaskErrorParams(taskId));
 
     public static AppServerException TaskInvalidStatus(string detail) =>
         Create(TaskInvalidStatusCode, "TaskInvalidStatus", "errors.taskInvalidStatus", detail, detail: detail);

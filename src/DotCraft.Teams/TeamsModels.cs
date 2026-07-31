@@ -458,3 +458,23 @@ public sealed class TeamsMemberOpenThreadResult
 {
     public string ThreadId { get; set; } = string.Empty;
 }
+
+/// <summary>Teams capability payload contributed during AppServer initialization.</summary>
+public sealed class TeamsCapabilities
+{
+    [JsonPropertyName("team")]
+    public bool Team { get; set; }
+
+    [JsonPropertyName("missions")]
+    public bool Missions { get; set; }
+}
+
+/// <summary>Payload for <c>teams/team/changed</c>.</summary>
+public sealed class TeamsTeamChangedNotification
+{
+    [JsonPropertyName("reason")]
+    public string Reason { get; set; } = string.Empty;
+
+    [JsonPropertyName("missionId")]
+    public string MissionId { get; set; } = string.Empty;
+}

@@ -207,24 +207,45 @@ public static class SessionWireMapper
                 SessionTurn turn => turn.ToWire(includeItems: true),
                 SessionItem item => item.ToWire(),
                 // Map ThreadResumedPayload to wire shape: { thread, resumedBy }
-                ThreadResumedPayload resumed => new { thread = resumed.Thread.ToWire(), resumedBy = resumed.ResumedBy },
-                // Map TurnCancelledPayload to wire shape: { turn, reason }
-                TurnCancelledPayload cancelled => new { turn = cancelled.Turn.ToWire(includeItems: true), reason = cancelled.Reason },
-                // Map TurnFailedPayload to wire shape: { turn, error }
-                TurnFailedPayload failed => new { turn = failed.Turn.ToWire(includeItems: true), error = failed.Error },
-                // Map ThreadStatusChangedPayload to wire shape: { threadId, previousStatus, newStatus }
-                ThreadStatusChangedPayload statusChanged => new { threadId = evt.ThreadId, previousStatus = statusChanged.PreviousStatus, newStatus = statusChanged.NewStatus },
-                ThreadQueueUpdatedPayload queueUpdated => new { threadId = queueUpdated.ThreadId, queuedInputs = queueUpdated.QueuedInputs },
-                // Flatten delta payloads to { delta } string per spec Section 6.3
-                AgentMessageDelta agentDelta => new { delta = agentDelta.TextDelta },
-                ReasoningContentDelta reasoningDelta => new { delta = reasoningDelta.TextDelta },
-                CommandExecutionOutputDelta commandDelta => new { delta = commandDelta.TextDelta },
-                ToolCallArgumentsDelta toolCallDelta => new
+                ThreadResumedPayload resumed => new ThreadResumedNotification
                 {
-                    deltaKind = toolCallDelta.DeltaKind,
-                    toolName = toolCallDelta.ToolName,
-                    callId = toolCallDelta.CallId,
-                    delta = toolCallDelta.Delta
+                    Thread = resumed.Thread.ToWire(),
+                    ResumedBy = resumed.ResumedBy
+                },
+                // Map TurnCancelledPayload to wire shape: { turn, reason }
+                TurnCancelledPayload cancelled => new TurnCancelledNotification
+                {
+                    Turn = cancelled.Turn.ToWire(includeItems: true),
+                    Reason = cancelled.Reason
+                },
+                // Map TurnFailedPayload to wire shape: { turn, error }
+                TurnFailedPayload failed => new TurnFailedNotification
+                {
+                    Turn = failed.Turn.ToWire(includeItems: true),
+                    Error = failed.Error
+                },
+                // Map ThreadStatusChangedPayload to wire shape: { threadId, previousStatus, newStatus }
+                ThreadStatusChangedPayload statusChanged => new ThreadStatusChangedNotification
+                {
+                    ThreadId = evt.ThreadId,
+                    PreviousStatus = statusChanged.PreviousStatus,
+                    NewStatus = statusChanged.NewStatus
+                },
+                ThreadQueueUpdatedPayload queueUpdated => new ThreadQueueUpdatedNotification
+                {
+                    ThreadId = queueUpdated.ThreadId,
+                    QueuedInputs = queueUpdated.QueuedInputs
+                },
+                // Flatten delta payloads to { delta } string per spec Section 6.3
+                AgentMessageDelta agentDelta => new ItemDeltaPayloadWire { Delta = agentDelta.TextDelta },
+                ReasoningContentDelta reasoningDelta => new ItemDeltaPayloadWire { Delta = reasoningDelta.TextDelta },
+                CommandExecutionOutputDelta commandDelta => new ItemDeltaPayloadWire { Delta = commandDelta.TextDelta },
+                ToolCallArgumentsDelta toolCallDelta => new ItemDeltaPayloadWire
+                {
+                    DeltaKind = toolCallDelta.DeltaKind,
+                    ToolName = toolCallDelta.ToolName,
+                    CallId = toolCallDelta.CallId,
+                    Delta = toolCallDelta.Delta
                 },
                 // SubAgent progress: pass through the payload as-is (entries array serialized directly)
                 SubAgentProgressPayload => evt.Payload,

@@ -561,7 +561,11 @@ public sealed class AppBindingService
         return binding;
     }
 
-    public object CreateSocialRequest(string workspaceCraftPath, string threadId, string channelName, string userId)
+    public ThreadSocialBindingRequestCreateResult CreateSocialRequest(
+        string workspaceCraftPath,
+        string threadId,
+        string channelName,
+        string userId)
     {
         Require(threadId, "threadId");
         Require(channelName, "channelName");
@@ -591,7 +595,14 @@ public sealed class AppBindingService
             };
             state.Bindings.Add(binding); state.BindingRequests.Add(request);
             Audit(state, "social.requested", binding.UserId, appId, threadId, binding.BindingId, binding.AuthorityRevision);
-            return new { request.BindingRequestId, binding.BindingId, code, channelName = normalizedChannel, request.ExpiresAt };
+            return new ThreadSocialBindingRequestCreateResult
+            {
+                BindingRequestId = request.BindingRequestId,
+                BindingId = binding.BindingId,
+                Code = code,
+                ChannelName = normalizedChannel,
+                ExpiresAt = request.ExpiresAt
+            };
         });
     }
 

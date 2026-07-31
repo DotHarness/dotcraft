@@ -1,4 +1,5 @@
 using System.Text.Json.Serialization;
+using DotCraft.Tools.BackgroundTerminals;
 
 namespace DotCraft.Protocol.AppServer;
 
@@ -39,4 +40,39 @@ public sealed class TerminalStopParams
 public sealed class TerminalCleanParams
 {
     public string ThreadId { get; set; } = string.Empty;
+}
+
+/// <summary>Result for <c>terminal/list</c>.</summary>
+public sealed class TerminalListResult
+{
+    [JsonPropertyName("terminals")]
+    public IReadOnlyList<BackgroundTerminalSnapshot> Terminals { get; set; } = [];
+}
+
+/// <summary>Result for <c>terminal/read</c>.</summary>
+public sealed class TerminalReadResult
+{
+    [JsonPropertyName("terminal")]
+    public BackgroundTerminalSnapshot Terminal { get; set; } = null!;
+}
+
+/// <summary>Result for <c>terminal/write</c>.</summary>
+public sealed class TerminalWriteResult
+{
+    [JsonPropertyName("terminal")]
+    public BackgroundTerminalSnapshot Terminal { get; set; } = null!;
+}
+
+/// <summary>Result for <c>terminal/stop</c>.</summary>
+public sealed class TerminalStopResult
+{
+    [JsonPropertyName("terminal")]
+    public BackgroundTerminalSnapshot Terminal { get; set; } = null!;
+}
+
+/// <summary>Result for <c>terminal/clean</c>.</summary>
+public sealed class TerminalCleanResult
+{
+    [JsonPropertyName("terminals")]
+    public IReadOnlyList<BackgroundTerminalSnapshot> Terminals { get; set; } = [];
 }
