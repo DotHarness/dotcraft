@@ -86,6 +86,9 @@ public sealed class ChatGptResponsesCompactBackendTests
             [new ChatMessage(ChatRole.User, "hello")],
             options,
             new NoopChatClient());
+        var wire = JsonSerializer.SerializeToElement(
+            body,
+            ChatGptResponsesCompactJson.Options);
 
         Assert.Equal(
             [
@@ -99,18 +102,42 @@ public sealed class ChatGptResponsesCompactBackendTests
                 "text",
                 "tools"
             ],
-            body.EnumerateObject()
+            wire.EnumerateObject()
                 .Select(property => property.Name)
                 .Order(StringComparer.Ordinal)
                 .ToArray());
-        Assert.Equal("priority", body.GetProperty("service_tier").GetString());
-        Assert.Equal("cache-key", body.GetProperty("prompt_cache_key").GetString());
-        Assert.Equal("high", body.GetProperty("reasoning").GetProperty("effort").GetString());
-        Assert.False(body.TryGetProperty("stream", out _));
-        Assert.False(body.TryGetProperty("store", out _));
-        Assert.False(body.TryGetProperty("include", out _));
-        Assert.False(body.TryGetProperty("client_metadata", out _));
-        Assert.False(body.TryGetProperty("max_output_tokens", out _));
+        Assert.Equal("priority", body.ServiceTier);
+        Assert.Equal("cache-key", body.PromptCacheKey);
+        Assert.Equal("high", body.Reasoning?.GetProperty("effort").GetString());
+        Assert.Equal("message", Assert.Single(body.Input).GetProperty("type").GetString());
+        Assert.False(wire.TryGetProperty("stream", out _));
+        Assert.False(wire.TryGetProperty("store", out _));
+        Assert.False(wire.TryGetProperty("include", out _));
+        Assert.False(wire.TryGetProperty("client_metadata", out _));
+        Assert.False(wire.TryGetProperty("max_output_tokens", out _));
+    }
+
+    [Fact]
+    public void RequestBuilder_OmitsEmptyInstructionsAndTools()
+    {
+        var input = new ProviderCompactionInput(
+            [ReadObject("""{"type":"retained","provider_only":true}""")],
+            CoveredMessageCount: 1,
+            CoveredThroughTurnId: "turn_1");
+        var body = ChatGptResponsesCompactRequestBuilder.Build(
+            "gpt-test",
+            input,
+            [new ChatMessage(ChatRole.User, "neutral history")],
+            new ChatOptions { Instructions = "   ", Tools = [] });
+        var wire = JsonSerializer.SerializeToElement(
+            body,
+            ChatGptResponsesCompactJson.Options);
+
+        Assert.Null(body.Instructions);
+        Assert.Null(body.Tools);
+        Assert.Equal("retained", Assert.Single(body.Input).GetProperty("type").GetString());
+        Assert.False(wire.TryGetProperty("instructions", out _));
+        Assert.False(wire.TryGetProperty("tools", out _));
     }
 
     [Fact]
@@ -125,6 +152,7 @@ public sealed class ChatGptResponsesCompactBackendTests
         var transport = new FakeTransport(
             """
             {
+              "id": "compact_response_1",
               "output": [
                 {"type":"retained","provider_field":{"value":1}},
                 {"type":"future_compaction","encrypted_content":"YWJjZA=="}
@@ -157,15 +185,26 @@ public sealed class ChatGptResponsesCompactBackendTests
     }
 
     [Theory]
-    [InlineData("""{}""")]
+    [InlineData("""{"output":null}""")]
     [InlineData("""{"output":[]}""")]
     [InlineData("""{"output":[1]}""")]
     public void ValidateOutput_RejectsInvalidWindows(string json)
     {
-        using var document = JsonDocument.Parse(json);
+        var response = JsonSerializer.Deserialize<ChatGptResponsesCompactResponse>(
+            json,
+            ChatGptResponsesCompactJson.Options)!;
         var error = Assert.Throws<InvalidDataException>(
-            () => ChatGptResponsesCompactBackend.ValidateOutput(document.RootElement));
+            () => ChatGptResponsesCompactBackend.ValidateOutput(response));
         Assert.Contains("provider_compaction_invalid_response", error.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void CompactResponseDto_RequiresOutput()
+    {
+        Assert.Throws<JsonException>(() =>
+            JsonSerializer.Deserialize<ChatGptResponsesCompactResponse>(
+                "{}",
+                ChatGptResponsesCompactJson.Options));
     }
 
     [Fact]
@@ -543,12 +582,15 @@ public sealed class ChatGptResponsesCompactBackendTests
     {
         public int CallCount { get; private set; }
 
-        public Task<JsonElement> CompactAsync(
-            JsonElement requestBody,
+        public Task<ChatGptResponsesCompactResponse> CompactAsync(
+            ChatGptResponsesCompactRequest requestBody,
             CancellationToken cancellationToken)
         {
             CallCount++;
-            return Task.FromResult(ReadObject(responseJson));
+            return Task.FromResult(
+                JsonSerializer.Deserialize<ChatGptResponsesCompactResponse>(
+                    responseJson,
+                    ChatGptResponsesCompactJson.Options)!);
         }
     }
 

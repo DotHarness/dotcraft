@@ -225,6 +225,11 @@ the configured `ResponsesClient` already owns the effective endpoint and client 
 method is transport only. Its public API request/response model is not the backend contract and SDK
 CLR response items are not persisted.
 
+DotCraft owns strongly typed request and response envelope DTOs for this transport boundary. Raw
+JSON values are limited to provider-native item arrays and open nested controls whose schemas must
+remain forward-compatible. Request and response envelopes must not be represented as unstructured
+`JsonElement` values or inspected through ad hoc property lookup.
+
 The transport is isolated behind `IChatGptResponsesCompactTransport`. If a future SDK version
 cannot preserve the ChatGPT backend request, only that transport changes.
 
@@ -270,6 +275,7 @@ identity: `x-client-request-id` remains the current executing Thread id.
 A successful response must contain a non-empty `output` array whose elements are JSON objects.
 DotCraft must:
 
+- deserialize the top-level response through the provider-owned compact response DTO;
 - preserve every returned element and its array order;
 - preserve unknown item types and unknown properties;
 - accept a window containing retained items in addition to a compaction item;

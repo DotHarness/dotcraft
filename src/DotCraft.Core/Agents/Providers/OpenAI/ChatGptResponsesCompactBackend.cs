@@ -26,20 +26,7 @@ internal static class ChatGptResponsesCompactEligibility
 
 internal static class ChatGptResponsesCompactRequestBuilder
 {
-    private static readonly HashSet<string> SupportedFields =
-    [
-        "model",
-        "input",
-        "instructions",
-        "tools",
-        "parallel_tool_calls",
-        "reasoning",
-        "service_tier",
-        "prompt_cache_key",
-        "text"
-    ];
-
-    public static JsonElement Build(
+    public static ChatGptResponsesCompactRequest Build(
         string model,
         ProviderCompactionInput input,
         IReadOnlyList<ChatMessage> neutralHistory,
@@ -51,9 +38,11 @@ internal static class ChatGptResponsesCompactRequestBuilder
         ArgumentNullException.ThrowIfNull(input);
         ArgumentNullException.ThrowIfNull(neutralHistory);
 
-        var canonicalInput = new JsonArray();
-        foreach (var item in input.Items)
-            canonicalInput.Add(JsonNode.Parse(item.GetRawText()));
+        var canonicalInput = JsonSerializer.SerializeToNode(
+                                 input.Items,
+                                 ChatGptResponsesCompactJson.Options) as JsonArray
+                             ?? throw new InvalidDataException(
+                                 "provider_compaction_invalid_request: Native history must serialize as a JSON array.");
 
         var request = ResponsesToolSearchMapper.CreateResponseRequest(
             model.Trim(),
@@ -62,31 +51,22 @@ internal static class ChatGptResponsesCompactRequestBuilder
             canonicalInput: canonicalInput,
             canonicalItemIdentity: OpenAIResponsesItemIdentityDiagnostics.FromInput(canonicalInput),
             rawRepresentationClient: rawRepresentationClient);
-        using var ordinaryDocument = JsonDocument.Parse(ModelReaderWriter.Write(request.Options).ToString());
-        var compact = new JsonObject();
-        foreach (var property in ordinaryDocument.RootElement.EnumerateObject())
-        {
-            if (!SupportedFields.Contains(property.Name))
-                continue;
-            if (property.Name is "instructions"
-                && property.Value.ValueKind == JsonValueKind.String
-                && string.IsNullOrWhiteSpace(property.Value.GetString()))
-            {
-                continue;
-            }
-            if (property.Name is "tools"
-                && property.Value.ValueKind == JsonValueKind.Array
-                && property.Value.GetArrayLength() == 0)
-            {
-                continue;
-            }
-            compact[property.Name] = JsonNode.Parse(property.Value.GetRawText());
-        }
+        var ordinaryBody = ModelReaderWriter.Write(request.Options);
+        var compact = JsonSerializer.Deserialize<ChatGptResponsesCompactRequest>(
+                          ordinaryBody.ToMemory().Span,
+                          ChatGptResponsesCompactJson.Options)
+                      ?? throw new InvalidDataException(
+                          "provider_compaction_invalid_request: Responses mapper produced an empty request body.");
 
-        compact["model"] ??= model.Trim();
-        compact["input"] = canonicalInput.DeepClone();
-        using var document = JsonDocument.Parse(compact.ToJsonString());
-        return document.RootElement.Clone();
+        return compact with
+        {
+            Model = model.Trim(),
+            Input = input.Items.Select(static item => item.Clone()).ToList(),
+            Instructions = string.IsNullOrWhiteSpace(compact.Instructions)
+                ? null
+                : compact.Instructions,
+            Tools = compact.Tools is { Count: > 0 } ? compact.Tools : null
+        };
     }
 }
 
@@ -160,19 +140,17 @@ internal sealed class ChatGptResponsesCompactBackend(
                 estimatedTokensAfter));
     }
 
-    internal static IReadOnlyList<JsonElement> ValidateOutput(JsonElement response)
+    internal static IReadOnlyList<JsonElement> ValidateOutput(ChatGptResponsesCompactResponse response)
     {
-        if (response.ValueKind != JsonValueKind.Object
-            || !response.TryGetProperty("output", out var output)
-            || output.ValueKind != JsonValueKind.Array
-            || output.GetArrayLength() == 0)
+        ArgumentNullException.ThrowIfNull(response);
+        if (response.Output is not { Count: > 0 } output)
         {
             throw new InvalidDataException(
                 "provider_compaction_invalid_response: Compact response must contain a non-empty output array.");
         }
 
-        var items = new List<JsonElement>(output.GetArrayLength());
-        foreach (var item in output.EnumerateArray())
+        var items = new List<JsonElement>(output.Count);
+        foreach (var item in output)
         {
             if (item.ValueKind != JsonValueKind.Object)
             {
