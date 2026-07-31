@@ -27,7 +27,7 @@ public sealed class ThreadAppBindingsListParams
 
 public sealed class ThreadAppBindingsListResult
 {
-    public List<ThreadAppBindingWire> Bindings { get; set; } = [];
+    public List<AppBindingWire> Bindings { get; set; } = [];
 }
 
 public sealed class ThreadAppBindingRevokeParams

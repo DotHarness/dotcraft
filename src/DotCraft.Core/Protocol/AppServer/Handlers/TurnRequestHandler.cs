@@ -109,7 +109,7 @@ internal sealed class TurnRequestHandler(
 
         async Task OnTurnStarted(SessionWireTurn initialTurn)
         {
-            var responsePayload = new { turn = initialTurn };
+            var responsePayload = new TurnStartResult { Turn = initialTurn };
             try
             {
                 await responseWriter.WriteResponseAsync(msg.Id, responsePayload, ct);
@@ -166,7 +166,7 @@ internal sealed class TurnRequestHandler(
                         var wireTurn = startedTurn.ToWire(includeItems: false) with { Items = [] };
                         try
                         {
-                            await responseWriter.WriteResponseAsync(msg.Id, new { turn = wireTurn }, ct);
+                            await responseWriter.WriteResponseAsync(msg.Id, new TurnStartResult { Turn = wireTurn }, ct);
                         }
                         catch (OperationCanceledException) when (!ct.IsCancellationRequested)
                         {
@@ -371,7 +371,7 @@ internal sealed class TurnRequestHandler(
         }
 
         await sessionService.CancelTurnAsync(p.ThreadId, p.TurnId, ct);
-        return new { };
+        return new RpcEmpty();
     }
 
     private void ValidateTurnStartInput(IReadOnlyList<SessionWireInputPart> input)

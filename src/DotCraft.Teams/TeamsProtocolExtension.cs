@@ -28,7 +28,7 @@ public sealed class TeamsProtocolExtension(TeamsService teamsService) : IAppServ
     public void ContributeCapabilities(AppServerCapabilityBuilder builder)
     {
         if (!string.IsNullOrWhiteSpace(builder.WorkspaceCraftPath))
-            builder.SetExtension("teams", new { team = true, missions = true });
+            builder.SetExtension("teams", new TeamsCapabilities { Team = true, Missions = true });
     }
 
     public async Task<object?> HandleAsync(AppServerIncomingMessage msg, AppServerExtensionContext context)
@@ -59,7 +59,11 @@ public sealed class TeamsProtocolExtension(TeamsService teamsService) : IAppServ
                     context,
                     result,
                     TeamChanged,
-                    new { reason = "missionCreated", missionId = result.Mission.MissionId });
+                    new TeamsTeamChangedNotification
+                    {
+                        Reason = "missionCreated",
+                        MissionId = result.Mission.MissionId
+                    });
             }
 
             case MissionCancel:
@@ -71,7 +75,11 @@ public sealed class TeamsProtocolExtension(TeamsService teamsService) : IAppServ
                     context,
                     result,
                     TeamChanged,
-                    new { reason = "missionCancelled", missionId = p.MissionId });
+                    new TeamsTeamChangedNotification
+                    {
+                        Reason = "missionCancelled",
+                        MissionId = p.MissionId
+                    });
             }
 
             case MissionArchive:
@@ -83,7 +91,11 @@ public sealed class TeamsProtocolExtension(TeamsService teamsService) : IAppServ
                     context,
                     result,
                     TeamChanged,
-                    new { reason = "missionArchived", missionId = p.MissionId });
+                    new TeamsTeamChangedNotification
+                    {
+                        Reason = "missionArchived",
+                        MissionId = p.MissionId
+                    });
             }
 
             case MemberOpenThread:

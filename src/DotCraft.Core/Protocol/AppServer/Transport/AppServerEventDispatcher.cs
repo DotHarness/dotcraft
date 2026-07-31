@@ -214,11 +214,11 @@ public sealed class AppServerEventDispatcher
 
     private async ValueTask<object> BuildItemCompletedParamsAsync(
         SessionEvent evt,
-        CancellationToken cancellationToken) => new
+        CancellationToken cancellationToken) => new ItemCompletedNotification
     {
-        threadId = evt.ThreadId,
-        turnId = evt.TurnId,
-        item = await ToLiveItemWireAsync(evt, cancellationToken).ConfigureAwait(false)
+        ThreadId = evt.ThreadId,
+        TurnId = evt.TurnId,
+        Item = await ToLiveItemWireAsync(evt, cancellationToken).ConfigureAwait(false)
     };
 
     private async ValueTask<object> BuildTerminalTurnParamsAsync(
@@ -234,9 +234,17 @@ public sealed class AppServerEventDispatcher
             cancellationToken).ConfigureAwait(false);
         return evt.EventType switch
         {
-            SessionEventType.TurnFailed => new { turn, error = evt.TurnFailedPayload?.Error },
-            SessionEventType.TurnCancelled => new { turn, reason = evt.TurnCancelledPayload?.Reason },
-            _ => new { turn }
+            SessionEventType.TurnFailed => new TurnFailedNotification
+            {
+                Turn = turn,
+                Error = evt.TurnFailedPayload?.Error
+            },
+            SessionEventType.TurnCancelled => new TurnCancelledNotification
+            {
+                Turn = turn,
+                Reason = evt.TurnCancelledPayload?.Reason
+            },
+            _ => new TurnCompletedNotification { Turn = turn }
         };
     }
 
@@ -280,154 +288,154 @@ public sealed class AppServerEventDispatcher
     private object? BuildParams(SessionEvent evt) => evt.EventType switch
     {
         // Thread notifications (spec Section 6.1)
-        SessionEventType.ThreadCreated => new
+        SessionEventType.ThreadCreated => new ThreadStartedNotification
         {
-            thread = EnrichThreadWire(evt.ThreadPayload?.ToWire())
+            Thread = EnrichThreadWire(evt.ThreadPayload?.ToWire())
         },
-        SessionEventType.ThreadResumed => new
+        SessionEventType.ThreadResumed => new ThreadResumedNotification
         {
-            thread = EnrichThreadWire(evt.ThreadPayload?.ToWire()),
-            resumedBy = evt.ResumedPayload?.ResumedBy
+            Thread = EnrichThreadWire(evt.ThreadPayload?.ToWire()),
+            ResumedBy = evt.ResumedPayload?.ResumedBy
         },
-        SessionEventType.ThreadStatusChanged => new
+        SessionEventType.ThreadStatusChanged => new ThreadStatusChangedNotification
         {
-            threadId = evt.ThreadId,
-            previousStatus = evt.StatusChangedPayload?.PreviousStatus,
-            newStatus = evt.StatusChangedPayload?.NewStatus
+            ThreadId = evt.ThreadId,
+            PreviousStatus = evt.StatusChangedPayload?.PreviousStatus,
+            NewStatus = evt.StatusChangedPayload?.NewStatus
         },
-        SessionEventType.ThreadQueueUpdated when evt.ThreadQueueUpdatedPayload is { } queue => new
+        SessionEventType.ThreadQueueUpdated when evt.ThreadQueueUpdatedPayload is { } queue => new ThreadQueueUpdatedNotification
         {
-            threadId = queue.ThreadId,
-            queuedInputs = queue.QueuedInputs
+            ThreadId = queue.ThreadId,
+            QueuedInputs = queue.QueuedInputs
         },
 
         // Turn notifications (spec Section 6.2)
-        SessionEventType.TurnStarted => new
+        SessionEventType.TurnStarted => new TurnStartedNotification
         {
-            turn = ToWireTurnForConnection(evt.TurnPayload)
+            Turn = ToWireTurnForConnection(evt.TurnPayload)
         },
-        SessionEventType.TurnCompleted => new
+        SessionEventType.TurnCompleted => new TurnCompletedNotification
         {
-            turn = ToWireTurnForConnection(evt.TurnPayload)
+            Turn = ToWireTurnForConnection(evt.TurnPayload)
         },
-        SessionEventType.TurnFailed => new
+        SessionEventType.TurnFailed => new TurnFailedNotification
         {
-            turn = ToWireTurnForConnection(evt.TurnPayload),
-            error = evt.TurnFailedPayload?.Error
+            Turn = ToWireTurnForConnection(evt.TurnPayload),
+            Error = evt.TurnFailedPayload?.Error
         },
-        SessionEventType.TurnCancelled => new
+        SessionEventType.TurnCancelled => new TurnCancelledNotification
         {
-            turn = ToWireTurnForConnection(evt.TurnPayload),
-            reason = evt.TurnCancelledPayload?.Reason
+            Turn = ToWireTurnForConnection(evt.TurnPayload),
+            Reason = evt.TurnCancelledPayload?.Reason
         },
 
         // Item notifications (spec Section 6.3)
-        SessionEventType.ItemStarted => new
+        SessionEventType.ItemStarted => new ItemStartedNotification
         {
-            threadId = evt.ThreadId,
-            turnId = evt.TurnId,
-            item = evt.ItemPayload?.ToWire()
+            ThreadId = evt.ThreadId,
+            TurnId = evt.TurnId,
+            Item = evt.ItemPayload?.ToWire()
         },
         // Fix 1: Include deltaKind so clients can distinguish agentMessage from reasoningContent
         // without inspecting surrounding state (spec Section 2.3).
-        SessionEventType.ItemDelta when evt.DeltaPayload is { } delta => new
+        SessionEventType.ItemDelta when evt.DeltaPayload is { } delta => new ItemDeltaNotification
         {
-            threadId = evt.ThreadId,
-            turnId = evt.TurnId,
-            itemId = evt.ItemId,
-            deltaKind = delta.DeltaKind,
-            delta = delta.TextDelta
+            ThreadId = evt.ThreadId,
+            TurnId = evt.TurnId,
+            ItemId = evt.ItemId,
+            DeltaKind = delta.DeltaKind,
+            Delta = delta.TextDelta
         },
-        SessionEventType.ItemDelta when evt.CommandExecutionDeltaPayload is { } commandDelta => new
+        SessionEventType.ItemDelta when evt.CommandExecutionDeltaPayload is { } commandDelta => new ItemDeltaNotification
         {
-            threadId = evt.ThreadId,
-            turnId = evt.TurnId,
-            itemId = evt.ItemId,
-            delta = commandDelta.TextDelta
+            ThreadId = evt.ThreadId,
+            TurnId = evt.TurnId,
+            ItemId = evt.ItemId,
+            Delta = commandDelta.TextDelta
         },
-        SessionEventType.ItemDelta when evt.ReasoningDeltaPayload is { } reasoning => new
+        SessionEventType.ItemDelta when evt.ReasoningDeltaPayload is { } reasoning => new ItemDeltaNotification
         {
-            threadId = evt.ThreadId,
-            turnId = evt.TurnId,
-            itemId = evt.ItemId,
-            deltaKind = reasoning.DeltaKind,
-            delta = reasoning.TextDelta
+            ThreadId = evt.ThreadId,
+            TurnId = evt.TurnId,
+            ItemId = evt.ItemId,
+            DeltaKind = reasoning.DeltaKind,
+            Delta = reasoning.TextDelta
         },
-        SessionEventType.ItemDelta when evt.ToolCallArgumentsDeltaPayload is { } toolCallDelta => new
+        SessionEventType.ItemDelta when evt.ToolCallArgumentsDeltaPayload is { } toolCallDelta => new ItemDeltaNotification
         {
-            threadId = evt.ThreadId,
-            turnId = evt.TurnId,
-            itemId = evt.ItemId,
-            deltaKind = toolCallDelta.DeltaKind,
-            toolName = toolCallDelta.ToolName,
-            callId = toolCallDelta.CallId,
-            delta = toolCallDelta.Delta
+            ThreadId = evt.ThreadId,
+            TurnId = evt.TurnId,
+            ItemId = evt.ItemId,
+            DeltaKind = toolCallDelta.DeltaKind,
+            ToolName = toolCallDelta.ToolName,
+            CallId = toolCallDelta.CallId,
+            Delta = toolCallDelta.Delta
         },
-        SessionEventType.ItemCompleted => new
+        SessionEventType.ItemCompleted => new ItemCompletedNotification
         {
-            threadId = evt.ThreadId,
-            turnId = evt.TurnId,
-            item = evt.ItemPayload?.ToWire()
+            ThreadId = evt.ThreadId,
+            TurnId = evt.TurnId,
+            Item = evt.ItemPayload?.ToWire()
         },
 
         // Approval resolved notification (spec Section 6.4)
-        SessionEventType.ApprovalResolved => new
+        SessionEventType.ApprovalResolved => new ApprovalResolvedNotification
         {
-            threadId = evt.ThreadId,
-            turnId = evt.TurnId,
-            item = evt.ItemPayload?.ToWire()
+            ThreadId = evt.ThreadId,
+            TurnId = evt.TurnId,
+            Item = evt.ItemPayload?.ToWire()
         },
 
         // Model question resolved notification.
-        SessionEventType.UserInputResolved => new
+        SessionEventType.UserInputResolved => new UserInputResolvedNotification
         {
-            threadId = evt.ThreadId,
-            turnId = evt.TurnId,
-            item = evt.ItemPayload?.ToWire()
+            ThreadId = evt.ThreadId,
+            TurnId = evt.TurnId,
+            Item = evt.ItemPayload?.ToWire()
         },
 
         // SubAgent progress notification (spec Section 6.5)
-        SessionEventType.SubAgentProgress when evt.SubAgentProgressPayload is { } progress => new
+        SessionEventType.SubAgentProgress when evt.SubAgentProgressPayload is { } progress => new SubAgentProgressNotification
         {
-            threadId = evt.ThreadId,
-            turnId = evt.TurnId,
-            entries = progress.Entries
+            ThreadId = evt.ThreadId,
+            TurnId = evt.TurnId,
+            Entries = progress.Entries
         },
 
         // Usage delta notification (spec Section 6.6)
-        SessionEventType.UsageDelta when evt.UsageDeltaPayload is { } usage => new
+        SessionEventType.UsageDelta when evt.UsageDeltaPayload is { } usage => new UsageDeltaNotification
         {
-            threadId = evt.ThreadId,
-            turnId = evt.TurnId,
-            inputTokens = usage.InputTokens,
-            outputTokens = usage.OutputTokens,
-            cachedInputTokens = usage.CachedInputTokens,
-            cacheWriteInputTokens = usage.CacheWriteInputTokens,
-            freshInputTokens = usage.FreshInputTokens,
-            reasoningOutputTokens = usage.ReasoningOutputTokens,
-            llmCallDelta = usage.LlmCallDelta,
-            totalInputTokens = usage.TotalInputTokens,
-            totalOutputTokens = usage.TotalOutputTokens,
-            contextInputTokens = usage.ContextInputTokens,
-            turnInputTokens = usage.TurnInputTokens,
-            turnOutputTokens = usage.TurnOutputTokens,
-            turnLlmCalls = usage.TurnLlmCalls,
-            contextUsage = usage.ContextUsage
+            ThreadId = evt.ThreadId,
+            TurnId = evt.TurnId,
+            InputTokens = usage.InputTokens,
+            OutputTokens = usage.OutputTokens,
+            CachedInputTokens = usage.CachedInputTokens,
+            CacheWriteInputTokens = usage.CacheWriteInputTokens,
+            FreshInputTokens = usage.FreshInputTokens,
+            ReasoningOutputTokens = usage.ReasoningOutputTokens,
+            LlmCallDelta = usage.LlmCallDelta,
+            TotalInputTokens = usage.TotalInputTokens,
+            TotalOutputTokens = usage.TotalOutputTokens,
+            ContextInputTokens = usage.ContextInputTokens,
+            TurnInputTokens = usage.TurnInputTokens,
+            TurnOutputTokens = usage.TurnOutputTokens,
+            TurnLlmCalls = usage.TurnLlmCalls,
+            ContextUsage = usage.ContextUsage
         },
 
         // System event notification (spec Section 6.7)
-        SessionEventType.SystemEvent when evt.SystemEventPayload is { } sysEvt => new
+        SessionEventType.SystemEvent when evt.SystemEventPayload is { } sysEvt => new SystemEventNotification
         {
-            threadId = evt.ThreadId,
-            turnId = evt.TurnId,
-            kind = sysEvt.Kind,
-            messageKey = sysEvt.MessageKey,
-            @params = sysEvt.Params,
-            fallbackText = sysEvt.FallbackText,
-            message = sysEvt.Message,
-            percentLeft = sysEvt.PercentLeft,
-            tokenCount = sysEvt.TokenCount,
-            contextUsage = sysEvt.ContextUsage
+            ThreadId = evt.ThreadId,
+            TurnId = evt.TurnId,
+            Kind = sysEvt.Kind,
+            MessageKey = sysEvt.MessageKey,
+            Params = sysEvt.Params,
+            FallbackText = sysEvt.FallbackText,
+            Message = sysEvt.Message,
+            PercentLeft = sysEvt.PercentLeft,
+            TokenCount = sysEvt.TokenCount,
+            ContextUsage = sysEvt.ContextUsage
         },
 
         _ => null

@@ -82,12 +82,12 @@ public sealed class WireAcpExtensionProxy : IAcpExtensionProxy
         if (!SupportsFileRead)
             return null;
         var el = await SendExtRawAsync(AppServerMethods.ExtAcpFsReadTextFile,
-            new { path, offset, limit }, ct);
+            new AcpFsReadTextFileParams { Path = path, Offset = offset, Limit = limit }, ct);
         if (!el.HasValue)
             return null;
         try
         {
-            return el.Value.Deserialize<AcpWireFsReadResult>(JsonOptions)?.Content;
+            return el.Value.Deserialize<AcpFsReadTextFileResult>(JsonOptions)?.Content;
         }
         catch
         {
@@ -101,12 +101,12 @@ public sealed class WireAcpExtensionProxy : IAcpExtensionProxy
         if (!SupportsFileWrite)
             return false;
         var el = await SendExtRawAsync(AppServerMethods.ExtAcpFsWriteTextFile,
-            new { path, content }, ct);
+            new AcpFsWriteTextFileParams { Path = path, Content = content }, ct);
         if (!el.HasValue)
             return false;
         try
         {
-            return el.Value.Deserialize<AcpWireFsWriteResult>(JsonOptions)?.Success ?? false;
+            return el.Value.Deserialize<AcpFsWriteTextFileResult>(JsonOptions)?.Success ?? false;
         }
         catch
         {
@@ -121,12 +121,12 @@ public sealed class WireAcpExtensionProxy : IAcpExtensionProxy
         if (!SupportsTerminal)
             return null;
         var el = await SendExtRawAsync(AppServerMethods.ExtAcpTerminalCreate,
-            new { command, cwd, env }, ct);
+            new AcpTerminalCreateParams { Command = command, Cwd = cwd, Env = env }, ct);
         if (!el.HasValue)
             return null;
         try
         {
-            return el.Value.Deserialize<AcpWireTerminalCreateResult>(JsonOptions)?.TerminalId;
+            return el.Value.Deserialize<AcpTerminalCreateResult>(JsonOptions)?.TerminalId;
         }
         catch
         {
@@ -139,12 +139,12 @@ public sealed class WireAcpExtensionProxy : IAcpExtensionProxy
         CancellationToken ct = default)
     {
         var el = await SendExtRawAsync(AppServerMethods.ExtAcpTerminalGetOutput,
-            new { terminalId }, ct);
+            new AcpTerminalGetOutputParams { TerminalId = terminalId }, ct);
         if (!el.HasValue)
             return ("", null);
         try
         {
-            var r = el.Value.Deserialize<AcpWireTerminalOutputResult>(JsonOptions);
+            var r = el.Value.Deserialize<AcpTerminalOutputResult>(JsonOptions);
             return (r?.Output ?? "", r?.ExitCode);
         }
         catch
@@ -158,12 +158,12 @@ public sealed class WireAcpExtensionProxy : IAcpExtensionProxy
         int? timeoutSeconds = null, CancellationToken ct = default)
     {
         var el = await SendExtRawAsync(AppServerMethods.ExtAcpTerminalWaitForExit,
-            new { terminalId, timeout = timeoutSeconds }, ct);
+            new AcpTerminalWaitForExitParams { TerminalId = terminalId, Timeout = timeoutSeconds }, ct);
         if (!el.HasValue)
             return ("", null);
         try
         {
-            var r = el.Value.Deserialize<AcpWireTerminalOutputResult>(JsonOptions);
+            var r = el.Value.Deserialize<AcpTerminalOutputResult>(JsonOptions);
             return (r?.Output ?? "", r?.ExitCode);
         }
         catch
@@ -175,13 +175,15 @@ public sealed class WireAcpExtensionProxy : IAcpExtensionProxy
     /// <inheritdoc />
     public async Task KillTerminalAsync(string terminalId, CancellationToken ct = default)
     {
-        await SendExtRawAsync(AppServerMethods.ExtAcpTerminalKill, new { terminalId }, ct);
+        await SendExtRawAsync(AppServerMethods.ExtAcpTerminalKill,
+            new AcpTerminalKillParams { TerminalId = terminalId }, ct);
     }
 
     /// <inheritdoc />
     public async Task ReleaseTerminalAsync(string terminalId, CancellationToken ct = default)
     {
-        await SendExtRawAsync(AppServerMethods.ExtAcpTerminalRelease, new { terminalId }, ct);
+        await SendExtRawAsync(AppServerMethods.ExtAcpTerminalRelease,
+            new AcpTerminalReleaseParams { TerminalId = terminalId }, ct);
     }
 
     /// <inheritdoc />
@@ -208,6 +210,9 @@ public sealed class WireAcpExtensionProxy : IAcpExtensionProxy
         var threadId = TracingChatClient.CurrentSessionKey;
         if (threadId == null || !_byThread.TryGetValue(threadId, out var binding))
             return null;
+
+        if (@params is IAcpThreadBoundParams threadBoundParams)
+            threadBoundParams.ThreadId = threadId;
 
         var mergedParams = MergeThreadIdIntoParams(threadId, @params);
         var response = await binding.Transport.SendClientRequestAsync(wireMethod, mergedParams, ct,
@@ -247,24 +252,4 @@ public sealed class WireAcpExtensionProxy : IAcpExtensionProxy
 
     private sealed record AcpThreadBinding(string ThreadId, IAppServerTransport Transport, AppServerConnection Connection);
 
-    private sealed class AcpWireFsReadResult
-    {
-        public string? Content { get; set; }
-    }
-
-    private sealed class AcpWireFsWriteResult
-    {
-        public bool Success { get; set; }
-    }
-
-    private sealed class AcpWireTerminalCreateResult
-    {
-        public string? TerminalId { get; set; }
-    }
-
-    private sealed class AcpWireTerminalOutputResult
-    {
-        public string? Output { get; set; }
-        public int? ExitCode { get; set; }
-    }
 }

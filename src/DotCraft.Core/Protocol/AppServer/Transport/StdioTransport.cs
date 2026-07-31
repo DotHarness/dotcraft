@@ -162,7 +162,11 @@ public sealed class StdioTransport : IAppServerTransport
                     {
                         jsonrpc = "2.0",
                         id = (object?)null,
-                        error = new { code = AppServerErrors.ParseErrorCode, message = "Parse error" }
+                        error = new AppServerError
+                        {
+                            Code = AppServerErrors.ParseErrorCode,
+                            Message = "Parse error"
+                        }
                     };
                     await WriteMessageAsync(parseErrorResponse, ct);
                     continue;

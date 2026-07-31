@@ -182,7 +182,7 @@ public sealed class McpServerRuntimeStatusWire
     public string? LastError { get; set; }
     public string AuthState { get; set; } = "notRequired";
     public object? ServerInfo { get; set; }
-    public Dictionary<string, object> Tools { get; set; } = new(StringComparer.Ordinal);
+    public Dictionary<string, McpRuntimeToolWire> Tools { get; set; } = new(StringComparer.Ordinal);
     public List<object> Resources { get; set; } = [];
     public List<object> ResourceTemplates { get; set; } = [];
     public string AuthStatus { get; set; } = "unsupported";
@@ -193,6 +193,15 @@ public sealed class McpServerRuntimeStatusWire
     public long? Generation { get; set; }
     public McpServerOriginWire? Origin { get; set; }
     public string? FailureReason { get; set; }
+}
+
+/// <summary>Stable tool inventory entry returned with an MCP runtime status.</summary>
+public sealed class McpRuntimeToolWire
+{
+    [JsonPropertyName("name")] public string Name { get; set; } = string.Empty;
+    [JsonPropertyName("description"), JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public string? Description { get; set; }
+    [JsonPropertyName("inputSchema")] public JsonElement InputSchema { get; set; }
+    [JsonPropertyName("outputSchema"), JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public JsonElement? OutputSchema { get; set; }
 }
 
 /// <summary>Result for <c>mcpServerStatus/list</c>.</summary>

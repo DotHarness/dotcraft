@@ -71,27 +71,19 @@ public sealed class AppServerWireClient(Stream input, Stream output) : IAsyncDis
         IReadOnlyList<string>? optOutMethods = null,
         AcpExtensionCapability? acpExtensions = null)
     {
-        object capabilities = acpExtensions is null
-            ? new
-            {
-                approvalSupport,
-                streamingSupport,
-                toolExecutionLifecycle,
-                optOutNotificationMethods = optOutMethods ?? Array.Empty<string>()
-            }
-            : new
-            {
-                approvalSupport,
-                streamingSupport,
-                toolExecutionLifecycle,
-                optOutNotificationMethods = optOutMethods ?? Array.Empty<string>(),
-                acpExtensions
-            };
-
-        var result = await SendRequestAsync(AppServerMethods.Initialize, new
+        var capabilities = new AppServerClientCapabilities
         {
-            clientInfo = new { name = clientName, version = clientVersion },
-            capabilities
+            ApprovalSupport = approvalSupport,
+            StreamingSupport = streamingSupport,
+            ToolExecutionLifecycle = toolExecutionLifecycle,
+            OptOutNotificationMethods = [.. optOutMethods ?? []],
+            AcpExtensions = acpExtensions
+        };
+
+        var result = await SendRequestAsync(AppServerMethods.Initialize, new AppServerInitializeParams
+        {
+            ClientInfo = new AppServerClientInfo { Name = clientName, Version = clientVersion },
+            Capabilities = capabilities
         });
         await SendNotificationAsync(AppServerMethods.Initialized);
         return result;
@@ -384,7 +376,7 @@ public sealed class AppServerWireClient(Stream input, Stream output) : IAsyncDis
     {
         var doc = await SendRequestAsync(
             AppServerMethods.CronList,
-            new { includeDisabled },
+            new CronListParams { IncludeDisabled = includeDisabled },
             ct: ct);
 
         ThrowIfError(doc, "cron/list");
@@ -402,7 +394,7 @@ public sealed class AppServerWireClient(Stream input, Stream output) : IAsyncDis
     {
         var doc = await SendRequestAsync(
             AppServerMethods.CronRemove,
-            new { jobId },
+            new CronRemoveParams { JobId = jobId },
             ct: ct);
 
         ThrowIfError(doc, jobId);
@@ -419,7 +411,7 @@ public sealed class AppServerWireClient(Stream input, Stream output) : IAsyncDis
     {
         var doc = await SendRequestAsync(
             AppServerMethods.CronEnable,
-            new { jobId, enabled },
+            new CronEnableParams { JobId = jobId, Enabled = enabled },
             ct: ct);
 
         ThrowIfError(doc, jobId);
@@ -437,7 +429,7 @@ public sealed class AppServerWireClient(Stream input, Stream output) : IAsyncDis
     {
         var doc = await SendRequestAsync(
             AppServerMethods.HeartbeatTrigger,
-            new { },
+            new RpcEmpty(),
             timeout: TimeSpan.FromSeconds(120),
             ct: ct);
 

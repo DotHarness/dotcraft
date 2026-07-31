@@ -147,35 +147,43 @@ public sealed class AppBindingProtocolExtension : IAppServerProtocolExtension
                 var result = _controlPlane.StartConnection(craftPath, parameters.AppId, userId);
                 result.Handoff = BuildHandoff(context, parameters.AppId, result.ConnectionRequestId, result.RequestToken, "connect");
                 return await SendNotificationsAfterResponseAsync(msg, context, result,
-                    ("app/connection/changed", new { appId = parameters.AppId, state = "connecting" }));
+                    ("app/connection/changed", new AppConnectionChangedNotification
+                    {
+                        AppId = parameters.AppId,
+                        State = "connecting"
+                    }));
             }
             case ConnectionRequestGet:
             {
                 var parameters = GetParams<AppConnectionRequestGetParams>(msg);
                 var request = _controlPlane.GetConnectionRequest(craftPath, parameters);
                 var app = EnsureCatalogApp(context, request.AppId);
-                return new
+                return new AppConnectionRequestGetResult
                 {
-                    request.ConnectionRequestId,
-                    request.AppId,
-                    app.Descriptor.DisplayName,
-                    app.Descriptor.DeveloperName,
-                    request.UserId,
-                    request.ExpiresAt
+                    ConnectionRequestId = request.ConnectionRequestId,
+                    AppId = request.AppId,
+                    DisplayName = app.Descriptor.DisplayName,
+                    DeveloperName = app.Descriptor.DeveloperName,
+                    UserId = request.UserId,
+                    ExpiresAt = request.ExpiresAt
                 };
             }
             case ConnectionConnect:
             {
                 var result = _controlPlane.Connect(craftPath, GetParams<AppConnectionConnectParams>(msg));
                 return await SendNotificationsAfterResponseAsync(msg, context, result,
-                    ("app/connection/changed", new { result.Principal.AppId, state = "connected" }));
+                    ("app/connection/changed", new AppConnectionChangedNotification
+                    {
+                        AppId = result.Principal.AppId,
+                        State = "connected"
+                    }));
             }
             case ConnectionAuthenticate:
             {
                 var parameters = GetParams<AppConnectionAuthenticateParams>(msg);
                 var principal = _controlPlane.Authenticate(craftPath, parameters.AppId, parameters.Credential);
                 context.Connection.BindAppPrincipal(principal.PrincipalId, principal.AppId);
-                return new { principal };
+                return new AppConnectionAuthenticateResult { Principal = principal };
             }
             case ConnectionRefresh:
                 return _controlPlane.Refresh(craftPath, RequirePrincipal(context.Connection));
@@ -185,11 +193,11 @@ public sealed class AppBindingProtocolExtension : IAppServerProtocolExtension
                 var principal = context.Connection.IsAppPrincipalAuthenticated
                     ? _controlPlane.GetActivePrincipal(craftPath, context.Connection.AppPrincipalAppId!)
                     : _controlPlane.GetActivePrincipal(craftPath, parameters.AppId);
-                return new
+                return new AppConnectionStatusResult
                 {
-                    appId = context.Connection.AppPrincipalAppId ?? parameters.AppId,
-                    state = principal == null ? "notConnected" : "connected",
-                    principal
+                    AppId = context.Connection.AppPrincipalAppId ?? parameters.AppId,
+                    State = principal == null ? "notConnected" : "connected",
+                    Principal = principal
                 };
             }
             case ConnectionRevoke:
@@ -212,9 +220,13 @@ public sealed class AppBindingProtocolExtension : IAppServerProtocolExtension
                         foreach (var binding in bindings)
                             await _coordinator.RemoveAsync(binding.ThreadId, binding.BindingId, runtime, context.CancellationToken);
                 }
-                var result = new { state = AppBindingStates.Revoked };
+                var result = new AppConnectionRevokeResult { State = AppBindingStates.Revoked };
                 return await SendNotificationsAfterResponseAsync(msg, context, result,
-                    ("app/connection/changed", new { appId = parameters.AppId ?? context.Connection.AppPrincipalAppId, state = "revoked" }));
+                    ("app/connection/changed", new AppConnectionChangedNotification
+                    {
+                        AppId = parameters.AppId ?? context.Connection.AppPrincipalAppId,
+                        State = "revoked"
+                    }));
             }
             case SurfacePublish:
                 return _controlPlane.PublishSurface(
@@ -237,9 +249,19 @@ public sealed class AppBindingProtocolExtension : IAppServerProtocolExtension
                 var result = _controlPlane.Enable(craftPath, parameters.ThreadId, parameters.AppId, userId);
                 result.Handoff = BuildHandoff(context, parameters.AppId, result.BindingRequestId, result.RequestToken, "bind");
                 context.NotifyAppPrincipal?.Invoke(parameters.AppId, "app/binding/requested",
-                    new { result.BindingRequestId, result.BindingId, parameters.ThreadId, parameters.AppId });
+                    new AppBindingRequestedNotification
+                    {
+                        BindingRequestId = result.BindingRequestId,
+                        BindingId = result.BindingId,
+                        ThreadId = parameters.ThreadId,
+                        AppId = parameters.AppId
+                    });
                 return await SendNotificationsAfterResponseAsync(msg, context, result,
-                    ("thread/appBindings/changed", new { parameters.ThreadId, state = AppBindingStates.Connecting }));
+                    ("thread/appBindings/changed", new ThreadAppBindingsChangedNotification
+                    {
+                        ThreadId = parameters.ThreadId,
+                        State = AppBindingStates.Connecting
+                    }));
             }
             case BindingRequestGet:
                 return _controlPlane.GetBindingRequest(
@@ -247,12 +269,18 @@ public sealed class AppBindingProtocolExtension : IAppServerProtocolExtension
                     GetParams<AppBindingRequestGetParams>(msg),
                     context.Connection.AppPrincipalId);
             case PrincipalBindingsList:
-                return new { bindings = _controlPlane.ListPrincipalBindings(craftPath, RequirePrincipal(context.Connection)) };
+                return new AppBindingsListResult
+                {
+                    Bindings = _controlPlane.ListPrincipalBindings(craftPath, RequirePrincipal(context.Connection))
+                };
             case ThreadBindingsList:
             {
                 EnsureTrustedClient(context.Connection);
                 var parameters = GetParams<ThreadAppBindingsListParams>(msg);
-                return new { bindings = _controlPlane.ListThreadBindings(craftPath, parameters.ThreadId) };
+                return new ThreadAppBindingsListResult
+                {
+                    Bindings = _controlPlane.ListThreadBindings(craftPath, parameters.ThreadId).ToList()
+                };
             }
             case BindingRevoke:
             {
@@ -262,7 +290,12 @@ public sealed class AppBindingProtocolExtension : IAppServerProtocolExtension
                 if (context.SessionService is IThreadMcpRuntimeService mcpRuntime)
                     await _coordinator.RemoveAsync(parameters.ThreadId, parameters.BindingId, mcpRuntime, context.CancellationToken);
                 return await SendNotificationsAfterResponseAsync(msg, context, binding,
-                    ("thread/appBindings/changed", new { parameters.ThreadId, parameters.BindingId, state = AppBindingStates.Revoked }));
+                    ("thread/appBindings/changed", new ThreadAppBindingsChangedNotification
+                    {
+                        ThreadId = parameters.ThreadId,
+                        BindingId = parameters.BindingId,
+                        State = AppBindingStates.Revoked
+                    }));
             }
             case BindingActivate:
             {
@@ -271,7 +304,7 @@ public sealed class AppBindingProtocolExtension : IAppServerProtocolExtension
                 var result = await _coordinator.ActivateAsync(craftPath, RequirePrincipal(context.Connection),
                     parameters, runtime, context.CancellationToken);
                 return await SendNotificationsAfterResponseAsync(msg, context, result,
-                    ("thread/appBindings/changed", new { result.ThreadId, result.BindingId, result.State }));
+                    ("thread/appBindings/changed", Changed(result.ThreadId, result.BindingId, result.State)));
             }
             case BindingRebind:
             {
@@ -280,7 +313,7 @@ public sealed class AppBindingProtocolExtension : IAppServerProtocolExtension
                 var result = await _coordinator.RebindAsync(craftPath, RequirePrincipal(context.Connection),
                     parameters, runtime, context.CancellationToken);
                 return await SendNotificationsAfterResponseAsync(msg, context, result,
-                    ("thread/appBindings/changed", new { result.ThreadId, result.BindingId, result.State }));
+                    ("thread/appBindings/changed", Changed(result.ThreadId, result.BindingId, result.State)));
             }
             case BindingConfirm:
             {
@@ -290,7 +323,7 @@ public sealed class AppBindingProtocolExtension : IAppServerProtocolExtension
                     parameters, userId,
                     RequireMcpRuntime(context.SessionService), context.CancellationToken);
                 return await SendNotificationsAfterResponseAsync(msg, context, result,
-                    ("thread/appBindings/changed", new { parameters.ThreadId, parameters.BindingId, result.State }));
+                    ("thread/appBindings/changed", Changed(parameters.ThreadId, parameters.BindingId, result.State)));
             }
             case SocialRequestCreate:
             {
@@ -299,8 +332,19 @@ public sealed class AppBindingProtocolExtension : IAppServerProtocolExtension
                 await context.SessionService.GetThreadAsync(parameters.ThreadId, context.CancellationToken);
                 var result = _controlPlane.CreateSocialRequest(craftPath, parameters.ThreadId, parameters.ChannelName, userId);
                 return await SendNotificationsAfterResponseAsync(msg, context, result,
-                    ("thread/appBindings/changed", new { parameters.ThreadId, state = AppBindingStates.Connecting }),
-                    ("app/binding/requested", result));
+                    ("thread/appBindings/changed", new ThreadAppBindingsChangedNotification
+                    {
+                        ThreadId = parameters.ThreadId,
+                        State = AppBindingStates.Connecting
+                    }),
+                    ("app/binding/requested", new AppBindingRequestedNotification
+                    {
+                        BindingRequestId = result.BindingRequestId,
+                        BindingId = result.BindingId,
+                        Code = result.Code,
+                        ChannelName = result.ChannelName,
+                        ExpiresAt = result.ExpiresAt
+                    }));
             }
             case SocialRequestGet:
             {
@@ -313,14 +357,14 @@ public sealed class AppBindingProtocolExtension : IAppServerProtocolExtension
                 var result = _controlPlane.AcceptSocial(craftPath, RequireChannel(context.Connection),
                     GetParams<SocialBindingAcceptParams>(msg));
                 return await SendNotificationsAfterResponseAsync(msg, context, result,
-                    ("thread/appBindings/changed", new { result.ThreadId, result.BindingId, result.State }));
+                    ("thread/appBindings/changed", Changed(result.ThreadId, result.BindingId, result.State)));
             }
             case SocialRebind:
             {
                 var result = _controlPlane.RebindSocial(craftPath, RequireChannel(context.Connection),
                     GetParams<SocialBindingRebindParams>(msg));
                 return await SendNotificationsAfterResponseAsync(msg, context, result,
-                    ("thread/appBindings/changed", new { result.ThreadId, result.BindingId, result.State }));
+                    ("thread/appBindings/changed", Changed(result.ThreadId, result.BindingId, result.State)));
             }
             case SocialResolve:
             {
@@ -328,8 +372,11 @@ public sealed class AppBindingProtocolExtension : IAppServerProtocolExtension
                 var parameters = GetParams<AppSocialBindingResolveParams>(msg);
                 if (!string.Equals(parameters.ChannelName, channel, StringComparison.OrdinalIgnoreCase))
                     throw AppServerErrors.AppPrincipalUnauthorized("A channel adapter may resolve only its own bindings.");
-                return new { binding = _controlPlane.ResolveSocial(craftPath, channel, parameters.AccountId,
-                    parameters.ConversationKind, parameters.ConversationId) };
+                return new AppSocialBindingResolveResult
+                {
+                    Binding = _controlPlane.ResolveSocial(craftPath, channel, parameters.AccountId,
+                        parameters.ConversationKind, parameters.ConversationId)
+                };
             }
             case ThreadInputEnqueue:
             {
@@ -376,6 +423,16 @@ public sealed class AppBindingProtocolExtension : IAppServerProtocolExtension
     private static IThreadMcpRuntimeService RequireMcpRuntime(ISessionService sessionService) =>
         sessionService as IThreadMcpRuntimeService
         ?? throw AppServerErrors.InvalidRequest("This host does not provide binding-scoped MCP sessions.");
+
+    private static ThreadAppBindingsChangedNotification Changed(
+        string threadId,
+        string bindingId,
+        string state) => new()
+    {
+        ThreadId = threadId,
+        BindingId = bindingId,
+        State = state
+    };
 
     private static string RequireChannel(AppServerConnection connection) =>
         connection.ChannelAdapterName
