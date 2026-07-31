@@ -407,8 +407,8 @@ public sealed class ThreadRuntimeState
     public bool WaitingOnInput { get; set; }
 
     /// <summary>
-    /// True after a plan-mode turn ends with a successful terminal CreatePlan tool call,
-    /// until the next turn starts on the same thread.
+    /// True after a completed plan-mode turn contains a successful CreatePlan tool call,
+    /// until the next turn starts on the same thread. Later calls in the same turn do not clear it.
     /// </summary>
     public bool WaitingOnPlanConfirmation { get; set; }
 

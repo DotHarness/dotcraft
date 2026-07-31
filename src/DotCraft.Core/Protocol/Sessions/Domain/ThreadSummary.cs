@@ -63,7 +63,7 @@ public sealed class ThreadSummaryRuntime
 
         var lastTurn = thread.Turns.LastOrDefault();
         var waitingOnPlanConfirmation = lastTurn is not null
-            && EndsWithSuccessfulCreatePlanInPlanMode(thread, lastTurn);
+            && ContainsSuccessfulCreatePlanInPlanMode(thread, lastTurn);
         return new ThreadSummaryRuntime
         {
             Running = false,
@@ -75,29 +75,27 @@ public sealed class ThreadSummaryRuntime
         };
     }
 
-    private static bool EndsWithSuccessfulCreatePlanInPlanMode(SessionThread thread, SessionTurn turn)
+    internal static bool ContainsSuccessfulCreatePlanInPlanMode(SessionThread thread, SessionTurn turn)
     {
         if (!string.Equals(thread.Configuration?.Mode, "plan", StringComparison.OrdinalIgnoreCase))
             return false;
 
-        for (var idx = turn.Items.Count - 1; idx >= 0; idx--)
-        {
-            if (turn.Items[idx].Payload is not ToolCallPayload toolCall)
-                continue;
+        if (turn.Status != TurnStatus.Completed)
+            return false;
 
-            if (!string.Equals(toolCall.ToolName, "CreatePlan", StringComparison.Ordinal))
-                return false;
+        var successfulCallIds = turn.Items
+            .Select(item => item.Payload)
+            .OfType<ToolResultPayload>()
+            .Where(result => result.Success)
+            .Select(result => result.CallId)
+            .ToHashSet(StringComparer.Ordinal);
 
-            return turn.Items
-                .Where(item => item.Payload is ToolResultPayload)
-                .Select(item => item.Payload as ToolResultPayload)
-                .Any(result =>
-                    result != null
-                    && string.Equals(result.CallId, toolCall.CallId, StringComparison.Ordinal)
-                    && result.Success);
-        }
-
-        return false;
+        return turn.Items
+            .Select(item => item.Payload)
+            .OfType<ToolCallPayload>()
+            .Any(call =>
+                string.Equals(call.ToolName, "CreatePlan", StringComparison.Ordinal)
+                && successfulCallIds.Contains(call.CallId));
     }
 }
 

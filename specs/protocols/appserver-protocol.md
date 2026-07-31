@@ -1788,7 +1788,7 @@ The server emits `thread/runtimeChanged` when any of the following state transit
 - an approval request is resolved;
 - a model-initiated user input request is created;
 - a model-initiated user input request is resolved;
-- a turn finishes in plan mode with a successful terminal `CreatePlan` tool call, setting `waitingOnPlanConfirmation = true`;
+- a turn finishes in plan mode and contains at least one successful `CreatePlan` tool call, setting `waitingOnPlanConfirmation = true`;
 - the next `turn/start` for that thread clears the pending plan confirmation state;
 - thread maintenance starts or completes.
 
@@ -1816,11 +1816,13 @@ The server SHOULD broadcast this notification only when the effective snapshot a
 | `runtime.running` | boolean | Whether a turn is currently executing for the thread. |
 | `runtime.waitingOnApproval` | boolean | Whether the thread currently has one or more unresolved approval requests. |
 | `runtime.waitingOnInput` | boolean | Whether the thread currently has one or more unresolved model-initiated user input requests. |
-| `runtime.waitingOnPlanConfirmation` | boolean | Whether the previous turn ended in plan mode with a successful terminal `CreatePlan` call and has not yet been cleared by the next `turn/start`. |
+| `runtime.waitingOnPlanConfirmation` | boolean | Whether the latest completed turn ran in plan mode, contains a successful `CreatePlan` call, and has not yet been cleared by the next `turn/start`. |
 | `runtime.busy` | boolean | Whether the thread is currently unable to start a new turn because a turn, approval, model-initiated input request, or blocking maintenance operation is active. |
 | `runtime.maintenanceKind` | string? | Current blocking thread maintenance kind (`"compacting"` or manual `"consolidating"`), or omitted/null when no maintenance is active. Automatic memory consolidation does not set this field. |
 
 Forward-compatibility rule: future server versions may add additional boolean flags under `runtime`. Clients MUST ignore unknown fields.
+
+A `CreatePlan` call is successful when its call id has a matching successful tool result in the same Turn. Tool calls or assistant output that follow the successful `CreatePlan` in that Turn do not clear plan confirmation; in particular, lifecycle cleanup such as `CloseAgent` may run after the plan is saved. A later Turn replaces this state, and its `turn/start` clears the pending confirmation before that Turn finishes.
 
 ### 6.2 Turn Notifications
 

@@ -1,7 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { LocaleProvider } from '../contexts/LocaleContext'
 import { PlanApprovalComposer } from '../components/conversation/PlanApprovalComposer'
+import { ConversationPanel } from '../components/layout/ConversationPanel'
+import { useConnectionStore } from '../stores/connectionStore'
 import { useConversationStore } from '../stores/conversationStore'
 import { useThreadStore } from '../stores/threadStore'
 import { useUIStore } from '../stores/uiStore'
@@ -17,6 +19,7 @@ describe('PlanApprovalComposer', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     useConversationStore.getState().reset()
+    useConnectionStore.getState().reset()
     useThreadStore.getState().reset()
     useUIStore.setState({ planApprovalDismissed: {} })
     useConversationStore.setState({ threadMode: 'plan', turnStatus: 'idle' })
@@ -40,9 +43,74 @@ describe('PlanApprovalComposer', () => {
       configurable: true,
       value: {
         settings: { get: async () => ({ locale: 'en' }) },
-        appServer: { sendRequest: appServerSendRequest }
+        appServer: { sendRequest: appServerSendRequest },
+        file: { readFile: vi.fn().mockResolvedValue('{}') },
+        shell: { listEditors: vi.fn().mockResolvedValue([]) },
+        workspace: { saveImageToTemp: vi.fn() }
       }
     })
+  })
+
+  it('renders in ConversationPanel when CloseAgent follows a successful CreatePlan', async () => {
+    useConnectionStore.setState({
+      status: 'connected',
+      capabilities: { modelCatalogManagement: true, workspaceConfigManagement: true }
+    })
+    useThreadStore.setState({
+      activeThreadId: 'thread-1',
+      activeThread: {
+        id: 'thread-1',
+        userId: 'local',
+        workspacePath: '<workspace>',
+        displayName: 'Plan thread',
+        status: 'active',
+        originChannel: 'dotcraft-desktop',
+        metadata: {},
+        createdAt: new Date().toISOString(),
+        lastActiveAt: new Date().toISOString(),
+        turns: []
+      },
+      loading: false
+    })
+    useConversationStore.setState({
+      threadMode: 'plan',
+      turnStatus: 'idle',
+      turns: [{
+        id: 'turn-plan',
+        threadId: 'thread-1',
+        status: 'completed',
+        startedAt: '2026-07-31T13:55:00.000Z',
+        completedAt: '2026-07-31T13:56:00.000Z',
+        items: [
+          {
+            id: 'item-plan',
+            type: 'toolCall',
+            status: 'completed',
+            toolName: 'CreatePlan',
+            toolCallId: 'call-plan',
+            arguments: { plan: '# Repair plan' },
+            success: true
+          },
+          {
+            id: 'item-close',
+            type: 'toolCall',
+            status: 'completed',
+            toolName: 'CloseAgent',
+            toolCallId: 'call-close',
+            success: true
+          }
+        ]
+      }]
+    })
+
+    renderWithLocale(<ConversationPanel workspacePath="<workspace>" />)
+    await act(async () => {
+      await Promise.resolve()
+    })
+
+    expect(screen.getByText('Implement this plan?')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '1. Yes, implement this plan' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Send message' })).not.toBeInTheDocument()
   })
 
   it('keeps decision pose while inheriting composer mascot effects', () => {

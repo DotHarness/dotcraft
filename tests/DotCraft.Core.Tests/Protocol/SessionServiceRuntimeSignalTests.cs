@@ -384,6 +384,36 @@ public sealed class SessionServiceRuntimeSignalTests : IDisposable
     }
 
     [Fact]
+    public async Task SubmitInputAsync_WhenCleanupFollowsCreatePlan_EmitsAwaitingPlanConfirmation()
+    {
+        IChatClient chatClient = new PlanThenCleanupChatClient();
+        await using var agentFactory = CreateAgentFactory(
+            chatClient,
+            toolProviders: [new PlanConfirmationCleanupToolSource()],
+            planStore: new PlanStore(_tempDir));
+        var svc = CreateService(agentFactory, chatClient);
+        var thread = await svc.CreateThreadAsync(MakeIdentity());
+        await svc.SetThreadModeAsync(thread.Id, "plan");
+        var seen = new List<SessionThreadRuntimeSignal>();
+        svc.ThreadRuntimeSignalForBroadcast = (threadId, signal) =>
+        {
+            if (threadId == thread.Id)
+                seen.Add(signal);
+        };
+
+        await DrainAsync(svc.SubmitInputAsync(thread.Id, [new TextContent("create a plan")]));
+
+        Assert.Equal(
+            [
+                SessionThreadRuntimeSignal.TurnStarted,
+                SessionThreadRuntimeSignal.TurnCompletedAwaitingPlanConfirmation
+            ],
+            seen);
+        var completedThread = await svc.GetThreadAsync(thread.Id);
+        Assert.True(svc.GetThreadRuntimeSnapshot(completedThread).WaitingOnPlanConfirmation);
+    }
+
+    [Fact]
     public async Task SubmitInputAsync_WhenAgentThrows_EmitsTurnStartedThenFailed()
     {
         IChatClient chatClient = new ThrowingChatClient(new InvalidOperationException("boom"));
@@ -2373,7 +2403,8 @@ public sealed class SessionServiceRuntimeSignalTests : IDisposable
         IMemoryConsolidator? memoryConsolidator = null,
         IChatClient? compactionChatClient = null,
         IApprovalService? approvalService = null,
-        IToolDispatcher? toolDispatcher = null)
+        IToolDispatcher? toolDispatcher = null,
+        PlanStore? planStore = null)
     {
         var config = AppConfigTestFactory.CreateOpenAI();
         configureConfig?.Invoke(config);
@@ -2390,6 +2421,7 @@ public sealed class SessionServiceRuntimeSignalTests : IDisposable
             chatClient: chatClientFactory,
             toolDispatcher: toolDispatcher,
             toolSources: toolProviders ?? Array.Empty<IToolSource>(),
+            planStore: planStore,
             memoryConsolidator: memoryConsolidator,
             compactionChatClient: compactionChatClient);
     }
@@ -2552,6 +2584,77 @@ public sealed class SessionServiceRuntimeSignalTests : IDisposable
             AIFunction function,
             ToolPlanningContext context) =>
             new(new PresentationId("core.read-file"));
+    }
+
+    private sealed class PlanConfirmationCleanupToolSource : AIFunctionToolSource
+    {
+        public override string SourceId => "plan-confirmation-cleanup";
+
+        protected override IEnumerable<AIFunction> CreateFunctions(ToolPlanningContext context)
+        {
+            yield return AIFunctionFactory.Create(
+                () => "Agent closed.",
+                name: "CloseAgent",
+                description: "Close a completed child agent.");
+        }
+    }
+
+    private sealed class PlanThenCleanupChatClient : IChatClient
+    {
+        private int _requestCount;
+
+        public Task<ChatResponse> GetResponseAsync(
+            IEnumerable<ChatMessage> chatMessages,
+            ChatOptions? options = null,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(new ChatResponse([new ChatMessage(ChatRole.Assistant, [new TextContent("done")])]));
+
+        public async IAsyncEnumerable<ChatResponseUpdate> GetStreamingResponseAsync(
+            IEnumerable<ChatMessage> chatMessages,
+            ChatOptions? options = null,
+            [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
+        {
+            switch (Interlocked.Increment(ref _requestCount))
+            {
+                case 1:
+                    Assert.Contains(options?.Tools ?? [], tool => string.Equals(tool.Name, "CreatePlan", StringComparison.Ordinal));
+                    yield return new ChatResponseUpdate(ChatRole.Assistant,
+                    [
+                        new FunctionCallContent(
+                            "call-plan",
+                            "CreatePlan",
+                            new Dictionary<string, object?>
+                            {
+                                ["plan"] = "# Cleanup-safe plan\n\n## Summary\n\nKeep confirmation pending.",
+                                ["todos"] = Array.Empty<PlanTodoInput>()
+                            })
+                    ]);
+                    break;
+                case 2:
+                    Assert.Contains(
+                        chatMessages.SelectMany(message => message.Contents).OfType<FunctionResultContent>(),
+                        result => string.Equals(result.CallId, "call-plan", StringComparison.Ordinal));
+                    yield return new ChatResponseUpdate(ChatRole.Assistant,
+                    [
+                        new FunctionCallContent(
+                            "call-close",
+                            "CloseAgent",
+                            new Dictionary<string, object?>())
+                    ]);
+                    break;
+                default:
+                    yield return new ChatResponseUpdate(ChatRole.Assistant, [new TextContent("Plan ready.")]);
+                    break;
+            }
+
+            await Task.CompletedTask;
+        }
+
+        public object? GetService(Type serviceType, object? serviceKey = null) => null;
+
+        public void Dispose()
+        {
+        }
     }
 
     private sealed class NormalizedFailureToolSource(string errorCode, string content) : IToolSource

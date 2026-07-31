@@ -408,6 +408,7 @@ Before changing Desktop restore behavior for a reported restore bug, the impleme
 
 - File changes produced during a thread remain discoverable until reverted or superseded.
 - Plan updates remain associated with the active thread and reflect the latest complete plan snapshot. While a `CreatePlan` tool call is still streaming its arguments, the dedicated plan surface renders a live draft (title, overview, and any fully-formed todo entries) so the user sees the plan taking shape in real time; the draft is replaced by the finalized snapshot once `plan/updated` is received.
+- When the latest completed Plan-mode Turn contains a successful `CreatePlan`, Desktop replaces the normal composer with the plan-confirmation composer. Later tool calls or assistant output in the same Turn, including SubAgent cleanup, do not suppress confirmation. The confirmation remains recoverable after switching threads or restarting Desktop and is cleared when the next Turn starts.
 - Tool output remains readable in-thread and must remain distinguishable from agent conversational text.
 - Completed `RequestUserInput` tool results render as a question-to-answer list using the original question text and the user's selected option or free-form response, rather than exposing the raw response JSON.
 - Desktop declares `backgroundTerminals = true` and treats `terminal/*` notifications as its primary live shell output data. `commandExecution` remains a persisted/compatibility projection and fallback.
