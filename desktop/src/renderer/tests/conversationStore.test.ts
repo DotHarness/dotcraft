@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import type { ConversationTurn } from '../types/conversation'
-import { useConversationStore } from '../stores/conversationStore'
+import { selectLatestCreatePlanTurnId, useConversationStore } from '../stores/conversationStore'
 import { getStreamingToolDisplay } from '../utils/toolCallDisplay'
 
 // Helper to get latest state without subscribing
@@ -36,6 +36,96 @@ describe('conversationStore — initial state', () => {
     expect(state.streamingMessageLastDeltaAt).toBeNull()
     expect(state.pendingMessage).toBeNull()
     expect(state.maintenanceKind).toBeNull()
+  })
+})
+
+describe('selectLatestCreatePlanTurnId', () => {
+  it('keeps the latest completed plan pending when cleanup tools follow CreatePlan', () => {
+    s().setTurns([{
+      id: 'turn-plan',
+      threadId: 'thread-1',
+      status: 'completed',
+      startedAt: '2026-07-31T13:55:00.000Z',
+      completedAt: '2026-07-31T13:56:00.000Z',
+      items: [
+        {
+          id: 'item-plan',
+          type: 'toolCall',
+          status: 'completed',
+          toolName: 'CreatePlan',
+          toolCallId: 'call-plan',
+          success: true
+        },
+        {
+          id: 'item-close',
+          type: 'toolCall',
+          status: 'completed',
+          toolName: 'CloseAgent',
+          toolCallId: 'call-close',
+          success: true
+        },
+        {
+          id: 'item-final',
+          type: 'agentMessage',
+          status: 'completed',
+          text: 'Plan ready.'
+        }
+      ]
+    }])
+
+    expect(selectLatestCreatePlanTurnId(s())).toBe('turn-plan')
+  })
+
+  it('does not revive a plan from an older turn after a later turn completes', () => {
+    s().setTurns([
+      {
+        id: 'turn-plan',
+        threadId: 'thread-1',
+        status: 'completed',
+        startedAt: '2026-07-31T13:55:00.000Z',
+        items: [{
+          id: 'item-plan',
+          type: 'toolCall',
+          status: 'completed',
+          toolName: 'CreatePlan',
+          toolCallId: 'call-plan',
+          success: true
+        }]
+      },
+      {
+        id: 'turn-follow-up',
+        threadId: 'thread-1',
+        status: 'completed',
+        startedAt: '2026-07-31T13:57:00.000Z',
+        items: [{
+          id: 'item-follow-up',
+          type: 'agentMessage',
+          status: 'completed',
+          text: 'Updated without creating another plan.'
+        }]
+      }
+    ])
+
+    expect(selectLatestCreatePlanTurnId(s())).toBeNull()
+  })
+
+  it('ignores failed CreatePlan calls in the latest turn', () => {
+    s().setTurns([{
+      id: 'turn-failed-plan',
+      threadId: 'thread-1',
+      status: 'completed',
+      startedAt: '2026-07-31T13:55:00.000Z',
+      items: [{
+        id: 'item-plan',
+        type: 'toolCall',
+        status: 'completed',
+        toolName: 'CreatePlan',
+        toolCallId: 'call-plan',
+        success: false
+      }]
+    }])
+
+    expect(selectLatestCreatePlanTurnId(s())).toBeNull()
   })
 })
 

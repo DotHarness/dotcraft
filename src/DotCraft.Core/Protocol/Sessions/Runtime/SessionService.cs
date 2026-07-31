@@ -3185,7 +3185,7 @@ public sealed partial class SessionService(
                     NextItemSeq);
                 ThreadRuntimeSignalForBroadcast?.Invoke(
                     threadId,
-                    EndsWithSuccessfulCreatePlanInPlanMode(thread, turn)
+                    ThreadSummaryRuntime.ContainsSuccessfulCreatePlanInPlanMode(thread, turn)
                         ? SessionThreadRuntimeSignal.TurnCompletedAwaitingPlanConfirmation
                         : SessionThreadRuntimeSignal.TurnCompleted);
 
@@ -4856,31 +4856,6 @@ public sealed partial class SessionService(
         return text.Contains("exceeded the configured timeout", StringComparison.OrdinalIgnoreCase)
             && (text.Contains("NetworkTimeout", StringComparison.OrdinalIgnoreCase)
                 || text.Contains("Network timeout", StringComparison.OrdinalIgnoreCase));
-    }
-
-    private static bool EndsWithSuccessfulCreatePlanInPlanMode(SessionThread thread, SessionTurn turn)
-    {
-        if (!string.Equals(thread.Configuration?.Mode, "plan", StringComparison.OrdinalIgnoreCase))
-            return false;
-
-        for (var idx = turn.Items.Count - 1; idx >= 0; idx--)
-        {
-            if (turn.Items[idx].Payload is not ToolCallPayload toolCall)
-                continue;
-
-            if (!string.Equals(toolCall.ToolName, "CreatePlan", StringComparison.Ordinal))
-                return false;
-
-            return turn.Items
-                .Where(item => item.Payload is ToolResultPayload)
-                .Select(item => item.Payload as ToolResultPayload)
-                .Any(result =>
-                    result != null
-                    && string.Equals(result.CallId, toolCall.CallId, StringComparison.Ordinal)
-                    && result.Success);
-        }
-
-        return false;
     }
 
     private bool TryScheduleMemoryConsolidation(
