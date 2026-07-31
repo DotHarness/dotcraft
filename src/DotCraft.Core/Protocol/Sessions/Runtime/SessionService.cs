@@ -2054,7 +2054,10 @@ public sealed partial class SessionService(
                         {
                             try
                             {
-                                await providerHistory.ReplaceNativeAsync(
+                                await coordinator.InstallProviderNativeAsync(
+                                    threadId,
+                                    result.BackendId,
+                                    providerHistory,
                                     providerReplacement,
                                     CancellationToken.None);
                             }
@@ -3381,7 +3384,10 @@ public sealed partial class SessionService(
                                 else if (compactExecution.Replacement is CompactionReplacement.ProviderNative nativeReplacement
                                          && OpenAIResponsesProviderHistoryRuntimeScope.Current is { } providerHistory)
                                 {
-                                    await providerHistory.ReplaceNativeAsync(
+                                    await reactiveCoordinator.InstallProviderNativeAsync(
+                                        threadId,
+                                        compactExecution.BackendId,
+                                        providerHistory,
                                         nativeReplacement,
                                         CancellationToken.None);
                                 }

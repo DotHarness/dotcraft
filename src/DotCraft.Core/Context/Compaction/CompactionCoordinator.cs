@@ -142,14 +142,17 @@ internal sealed class CompactionCoordinator
 {
     private readonly CompactionPipeline _thresholdPipeline;
     private readonly Func<CompactionExecutionRequest, ICompactionBackend> _resolveBackend;
+    private readonly Func<string, CompactionFailureTracker?> _resolveFailureTracker;
 
     public CompactionCoordinator(
         CompactionPipeline localPipeline,
-        Func<CompactionExecutionRequest, ICompactionBackend>? resolveBackend = null)
+        Func<CompactionExecutionRequest, ICompactionBackend>? resolveBackend = null,
+        Func<string, CompactionFailureTracker?>? resolveFailureTracker = null)
     {
         _thresholdPipeline = localPipeline ?? throw new ArgumentNullException(nameof(localPipeline));
         var localBackend = new LocalSummaryCompactionBackend(localPipeline);
         _resolveBackend = resolveBackend ?? (_ => localBackend);
+        _resolveFailureTracker = resolveFailureTracker ?? (_ => null);
     }
 
     public CompactionThreshold EvaluateThreshold(long tokens) =>
@@ -162,6 +165,79 @@ internal sealed class CompactionCoordinator
         ArgumentNullException.ThrowIfNull(request);
         var backend = _resolveBackend(request)
             ?? throw new InvalidOperationException("The compaction backend resolver returned no backend.");
-        return await backend.ExecuteAsync(request, cancellationToken).ConfigureAwait(false);
+        var failureTracker = _resolveFailureTracker(backend.Id);
+        if (failureTracker?.IsTripped(request.ThreadId) == true)
+            return CreateCircuitBreakerResult(request, backend.Id);
+
+        try
+        {
+            var result = await backend.ExecuteAsync(request, cancellationToken).ConfigureAwait(false);
+            if (result.Status.Outcome == CompactionOutcome.Failed
+                && !string.Equals(
+                    result.Status.FailureReason,
+                    "provider_compaction_empty_input",
+                    StringComparison.Ordinal))
+            {
+                failureTracker?.RecordFailure(request.ThreadId);
+            }
+            return result;
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch
+        {
+            failureTracker?.RecordFailure(request.ThreadId);
+            throw;
+        }
+    }
+
+    public async ValueTask InstallProviderNativeAsync(
+        string threadId,
+        string backendId,
+        IProviderHistoryCompactionBridge bridge,
+        CompactionReplacement.ProviderNative replacement,
+        CancellationToken cancellationToken)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(threadId);
+        ArgumentException.ThrowIfNullOrWhiteSpace(backendId);
+        ArgumentNullException.ThrowIfNull(bridge);
+        ArgumentNullException.ThrowIfNull(replacement);
+
+        var failureTracker = _resolveFailureTracker(backendId);
+        try
+        {
+            await bridge.ReplaceNativeAsync(replacement, cancellationToken).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch
+        {
+            failureTracker?.RecordFailure(threadId);
+            throw;
+        }
+
+        failureTracker?.RecordSuccess(threadId);
+    }
+
+    private CompactionExecutionResult CreateCircuitBreakerResult(
+        CompactionExecutionRequest request,
+        string backendId)
+    {
+        var tokens = (int)Math.Clamp(request.InputTokenHint, 0, int.MaxValue);
+        var threshold = EvaluateThreshold(tokens);
+        var status = new CompactionStatus(
+            request.Trigger == CompactionTrigger.Auto
+                ? CompactionOutcome.Skipped
+                : CompactionOutcome.Failed,
+            tokens,
+            tokens,
+            threshold,
+            threshold,
+            FailureReason: "circuit_breaker_tripped");
+        return new CompactionExecutionResult(status, backendId, Replacement: null);
     }
 }

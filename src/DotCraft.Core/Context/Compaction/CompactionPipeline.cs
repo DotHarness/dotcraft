@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Globalization;
 using DotCraft.Configuration;
 using DotCraft.Tracing;
@@ -75,6 +76,8 @@ public sealed class CompactionPipeline
     private readonly PartialCompactor _partial;
     private readonly FullCompactor _full;
     private readonly CompactionFailureTracker _failures;
+    private readonly ConcurrentDictionary<string, CompactionFailureTracker> _backendFailures =
+        new(StringComparer.Ordinal);
     private readonly MaintenanceForkRunner _maintenanceForkRunner;
     private readonly MaintenanceForkCacheOptions? _cacheOptions;
 
@@ -100,6 +103,14 @@ public sealed class CompactionPipeline
     /// Exposed for unit tests that need to poke the breaker directly.
     /// </summary>
     internal CompactionFailureTracker Failures => _failures;
+
+    internal CompactionFailureTracker GetBackendFailureTracker(string backendId)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(backendId);
+        return _backendFailures.GetOrAdd(
+            backendId,
+            _ => new CompactionFailureTracker(_config.MaxConsecutiveFailures));
+    }
 
     /// <summary>
     /// Exposes the configured effective context window. Used by the wire layer
@@ -432,7 +443,12 @@ public sealed class CompactionPipeline
     /// <summary>
     /// Drops any per-thread state (called on thread deletion / clear).
     /// </summary>
-    public void Forget(string threadId) => _failures.Forget(threadId);
+    public void Forget(string threadId)
+    {
+        _failures.Forget(threadId);
+        foreach (var tracker in _backendFailures.Values)
+            tracker.Forget(threadId);
+    }
 
     private async Task<CompactionHistoryResult> RunCompactionAsync(
         IReadOnlyList<ChatMessage> history,

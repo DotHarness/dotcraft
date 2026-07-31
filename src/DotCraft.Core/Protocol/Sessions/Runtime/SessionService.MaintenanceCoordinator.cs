@@ -192,7 +192,12 @@ public sealed partial class SessionService
                         else if (compactExecution.Replacement is CompactionReplacement.ProviderNative nativeReplacement
                                  && providerHistory != null)
                         {
-                            await providerHistory.ReplaceNativeAsync(nativeReplacement, maintenanceCt);
+                            await coordinator.InstallProviderNativeAsync(
+                                threadId,
+                                compactExecution.BackendId,
+                                providerHistory,
+                                nativeReplacement,
+                                maintenanceCt);
                             installedProviderNative = true;
                         }
                         else
@@ -489,7 +494,8 @@ public sealed partial class SessionService
                     owner.AgentFactory.RuntimeContext.ChatClientRegistry
                         .GetChatGptResponsesCompactTransport(runtime),
                     pipeline.EvaluateThreshold,
-                    owner.AgentFactory.RuntimeContext.ChatClientRegistry.GetChatClient(runtime)));
+                    owner.AgentFactory.RuntimeContext.ChatClientRegistry.GetChatClient(runtime)),
+                pipeline.GetBackendFailureTracker);
         }
 
         public void CompleteThreadMaintenance(string threadId, ThreadMaintenanceState state)

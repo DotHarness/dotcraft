@@ -350,6 +350,137 @@ public sealed class ChatGptResponsesCompactBackendTests
         Assert.True(expanded > baseEstimate);
     }
 
+    [Fact]
+    public void NativeEstimator_InlineImagePayloadSizeDoesNotInflateEstimate()
+    {
+        var small = CreateMessageWithContent(
+            new
+            {
+                type = "input_image",
+                image_url = "DATA:image/png;charset=utf-8;BASE64,AAAA"
+            });
+        var large = CreateMessageWithContent(
+            new
+            {
+                type = "input_image",
+                image_url = "DATA:image/png;charset=utf-8;BASE64," + new string('A', 100_000)
+            });
+
+        Assert.Equal(EstimateNative(small), EstimateNative(large));
+    }
+
+    [Fact]
+    public void NativeEstimator_RecursivelyAccountsForEachImageWithoutItsPayload()
+    {
+        var oneImage = CreateMessageWithContent(
+            new
+            {
+                type = "input_image",
+                image_url = "data:image/png;base64," + new string('A', 4_000)
+            });
+        var twoImages = JsonSerializer.Serialize(new
+        {
+            type = "message",
+            role = "user",
+            content = new object[]
+            {
+                new
+                {
+                    type = "input_image",
+                    image_url = "data:image/png;base64," + new string('A', 4)
+                },
+                new
+                {
+                    type = "output_image",
+                    image_url = "data:image/jpeg;base64," + new string('B', 40_000)
+                }
+            }
+        });
+
+        var delta = EstimateNative(twoImages) - EstimateNative(oneImage);
+
+        Assert.InRange(delta, 1_950, 2_050);
+    }
+
+    [Fact]
+    public void NativeEstimator_AudioAndGeneratedImagePayloadSizesDoNotInflateEstimate()
+    {
+        var small = JsonSerializer.Serialize(new object[]
+        {
+            new
+            {
+                type = "message",
+                content = new object[]
+                {
+                    new
+                    {
+                        type = "input_audio",
+                        input_audio = new { data = "AAAA", format = "wav" }
+                    }
+                }
+            },
+            new { type = "image_generation_call", result = "AAAA" }
+        });
+        var large = JsonSerializer.Serialize(new object[]
+        {
+            new
+            {
+                type = "message",
+                content = new object[]
+                {
+                    new
+                    {
+                        type = "input_audio",
+                        input_audio = new { data = new string('A', 80_000), format = "wav" }
+                    }
+                }
+            },
+            new { type = "image_generation_call", result = new string('B', 120_000) }
+        });
+
+        Assert.Equal(EstimateNative(small), EstimateNative(large));
+    }
+
+    [Fact]
+    public void NativeEstimator_InlineAudioUrlPayloadSizeDoesNotInflateEstimate()
+    {
+        var small = CreateMessageWithContent(
+            new
+            {
+                type = "input_audio",
+                audio_url = "data:audio/wav;charset=utf-8;base64,AAAA"
+            });
+        var large = CreateMessageWithContent(
+            new
+            {
+                type = "input_audio",
+                audio_url = "data:audio/wav;charset=utf-8;base64," + new string('A', 100_000)
+            });
+
+        Assert.Equal(EstimateNative(small), EstimateNative(large));
+    }
+
+    [Fact]
+    public void NativeEstimator_PreservesRemoteMalformedAndUnknownPayloadBytes()
+    {
+        var shortRemote = CreateMessageWithContent(
+            new { type = "input_image", image_url = "https://example.test/a.png" });
+        var longRemote = CreateMessageWithContent(
+            new { type = "input_image", image_url = "https://example.test/" + new string('a', 4_000) });
+        var shortMalformed = CreateMessageWithContent(
+            new { type = "input_image", image_url = "data:text/plain;base64,AAAA" });
+        var longMalformed = CreateMessageWithContent(
+            new { type = "input_image", image_url = "data:text/plain;base64," + new string('A', 4_000) });
+        var shortUnknown = JsonSerializer.Serialize(
+            new { type = "future_item", payload = "AAAA" });
+        var longUnknown = JsonSerializer.Serialize(
+            new { type = "future_item", payload = new string('A', 4_000) });
+
+        Assert.True(EstimateNative(longRemote) > EstimateNative(shortRemote) + 900);
+        Assert.True(EstimateNative(longMalformed) > EstimateNative(shortMalformed) + 900);
+        Assert.True(EstimateNative(longUnknown) > EstimateNative(shortUnknown) + 900);
+    }
+
     private static OpenAIResponsesProviderHistoryContext CreateContext(
         ProviderHistorySnapshot snapshot,
         int coveredMessageCount,
@@ -387,6 +518,20 @@ public sealed class ChatGptResponsesCompactBackendTests
         using var document = JsonDocument.Parse(json);
         return document.RootElement.Clone();
     }
+
+    private static string CreateMessageWithContent(object content) =>
+        JsonSerializer.Serialize(new
+        {
+            type = "message",
+            role = "user",
+            content = new[] { content }
+        });
+
+    private static long EstimateNative(string json) =>
+        OpenAIResponsesNativeTokenEstimator.Estimate(
+            [ReadObject(json)],
+            pendingTail: [],
+            options: null);
 
     private static string? ReadType(JsonElement item) =>
         item.GetProperty("type").GetString();

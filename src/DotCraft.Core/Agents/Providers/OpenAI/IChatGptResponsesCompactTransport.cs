@@ -31,7 +31,16 @@ internal sealed class SdkChatGptResponsesCompactTransport(ResponsesClient respon
                 requestOptions)
             .ConfigureAwait(false);
         var rawResponse = result.GetRawResponse();
-        using var document = JsonDocument.Parse(rawResponse.Content);
-        return document.RootElement.Clone();
+        try
+        {
+            using var document = JsonDocument.Parse(rawResponse.Content);
+            return document.RootElement.Clone();
+        }
+        catch (JsonException ex)
+        {
+            throw new InvalidDataException(
+                "provider_compaction_invalid_response: Compact response body must contain valid JSON.",
+                ex);
+        }
     }
 }

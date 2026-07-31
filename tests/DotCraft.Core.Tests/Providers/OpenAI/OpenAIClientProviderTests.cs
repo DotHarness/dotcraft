@@ -152,6 +152,37 @@ public sealed class OpenAIClientProviderTests : IDisposable
         Assert.Equal("next-turn-state", context.TurnState);
     }
 
+    [Theory]
+    [InlineData("")]
+    [InlineData("   ")]
+    [InlineData("<html>gateway failure</html>")]
+    [InlineData("{\"output\":[")]
+    public async Task CompactTransport_InvalidResponseUsesStableErrorCode(string responseBody)
+    {
+        await using var server = RecordingHttpServer.Start(JsonResponse(responseBody));
+        var provider = CreateOAuthProvider(
+            "11111111-2222-4333-8444-555555555555",
+            "account-test");
+        var runtime = OAuthRuntime($"{server.Endpoint}/backend-api/codex", "account-test");
+        using var scope = OpenAIResponsesCodexRuntimeScope.Set(CreateCodexRuntimeContext(
+            "thread-test",
+            "turn-test",
+            "window-test",
+            requestKind: ThreadConversationRequestKind.Compaction));
+        using var requestDocument = JsonDocument.Parse(
+            """{"model":"gpt-test","input":[]}""");
+
+        var error = await Assert.ThrowsAsync<InvalidDataException>(async () =>
+            await provider
+                .GetChatGptResponsesCompactTransport(runtime)
+                .CompactAsync(requestDocument.RootElement.Clone(), CancellationToken.None));
+
+        Assert.Equal(
+            "provider_compaction_invalid_response: Compact response body must contain valid JSON.",
+            error.Message);
+        Assert.IsAssignableFrom<JsonException>(error.InnerException);
+    }
+
     [Fact]
     public void GetOpenAIImageClient_CacheKeyIncludesImageModel()
     {
