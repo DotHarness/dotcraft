@@ -22,7 +22,7 @@ public sealed class OpenAIResponsesProviderHistoryTests
         var context = CreateContext(
             identity,
             ProviderHistorySnapshot.Empty("window_1"),
-            coveredMessageCount: 0,
+            coveredMessages: [],
             records);
 
         var firstMessages = new List<ChatMessage>
@@ -101,7 +101,7 @@ public sealed class OpenAIResponsesProviderHistoryTests
         var resumed = CreateContext(
             CreateIdentity(turnTwo),
             snapshot,
-            coveredMessageCount: secondMessages.Count,
+            coveredMessages: secondMessages,
             records: []);
         var thirdMessages = new List<ChatMessage>(secondMessages)
         {
@@ -116,6 +116,84 @@ public sealed class OpenAIResponsesProviderHistoryTests
     }
 
     [Fact]
+    public async Task SplitToolMessages_UseNormalizedSamplingCoverageWithoutReplacingCanonicalHistory()
+    {
+        var rawBaseline = new List<ChatMessage>
+        {
+            new(ChatRole.User, "inspect"),
+            new(
+                ChatRole.Assistant,
+                [
+                    new FunctionCallContent("call-1", "read_file", new Dictionary<string, object?>()),
+                    new FunctionCallContent("call-2", "read_file", new Dictionary<string, object?>())
+                ]),
+            new(
+                ChatRole.Tool,
+                [new FunctionResultContent("call-1", "first result")]),
+            new(
+                ChatRole.Tool,
+                [new FunctionResultContent("call-2", "second result")])
+        };
+        var initialRecords = new List<ThreadRolloutRecord>();
+        var initial = CreateContext(
+            CreateIdentity(CreateTurn("turn_001")),
+            ProviderHistorySnapshot.Empty("window_1"),
+            coveredMessages: [],
+            initialRecords);
+        await initial.ReplaceAsync(
+            rawBaseline,
+            options: null,
+            "protocol_return",
+            CancellationToken.None);
+        var canonicalPrefix = initial.CaptureSnapshot().Entries
+            .Select(entry => entry.Item.GetRawText())
+            .ToList();
+
+        var resumedRecords = new List<ThreadRolloutRecord>();
+        var resumed = CreateContext(
+            CreateIdentity(CreateTurn("turn_002")),
+            initial.CaptureSnapshot(),
+            rawBaseline,
+            resumedRecords);
+        var next = await resumed.PrepareInputAsync(
+            [.. rawBaseline, new ChatMessage(ChatRole.User, "continue")],
+            options: null,
+            CancellationToken.None);
+
+        Assert.Equal(canonicalPrefix, ItemJson(next.Input).Take(canonicalPrefix.Count));
+        Assert.Equal(canonicalPrefix.Count + 1, next.Input.Count);
+        Assert.Equal("message", ReadType(next.Input[^1]));
+        Assert.DoesNotContain(resumedRecords, record => record.ProviderHistoryReplaced is not null);
+        var append = Assert.Single(
+            resumedRecords,
+            record => record.ProviderHistoryItemsAppended is not null);
+        Assert.Single(append.ProviderHistoryItemsAppended!.Entries);
+    }
+
+    [Fact]
+    public async Task SamplingHistoryShorterThanNormalizedCoverage_StillFailsAsCorrupt()
+    {
+        var baseline = new List<ChatMessage>
+        {
+            new(ChatRole.User, "first"),
+            new(ChatRole.User, "second")
+        };
+        var context = CreateContext(
+            CreateIdentity(CreateTurn("turn_002")),
+            ProviderHistorySnapshot.Empty("window_1"),
+            baseline,
+            records: []);
+
+        var error = await Assert.ThrowsAsync<InvalidDataException>(
+            async () => await context.PrepareInputAsync(
+                [baseline[0]],
+                options: null,
+                CancellationToken.None));
+
+        Assert.Contains("responses_provider_history_corrupt", error.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task AbortedRetryAttempt_RemovesCompletedProviderItemsFromReplay()
     {
         var records = new List<ThreadRolloutRecord>();
@@ -123,7 +201,7 @@ public sealed class OpenAIResponsesProviderHistoryTests
         var context = CreateContext(
             CreateIdentity(turn),
             ProviderHistorySnapshot.Empty("window_1"),
-            coveredMessageCount: 0,
+            coveredMessages: [],
             records);
         await context.PrepareInputAsync(
             [new ChatMessage(ChatRole.User, "hello")],
@@ -162,7 +240,7 @@ public sealed class OpenAIResponsesProviderHistoryTests
         var context = CreateContext(
             CreateIdentity(CreateTurn("turn_001")),
             ProviderHistorySnapshot.Empty("window_1"),
-            coveredMessageCount: 0,
+            coveredMessages: [],
             records: []);
         await context.PrepareInputAsync(
             [new ChatMessage(ChatRole.User, "hello")],
@@ -330,7 +408,7 @@ public sealed class OpenAIResponsesProviderHistoryTests
         var context = CreateContext(
             CreateIdentity(CreateTurn("turn_001")),
             ProviderHistorySnapshot.Empty("window_1"),
-            coveredMessageCount: 0,
+            coveredMessages: [],
             records);
         using var scope = OpenAIResponsesProviderHistoryRuntimeScope.Set(context);
         using var client = new StreamRetryingChatClient(
@@ -363,7 +441,7 @@ public sealed class OpenAIResponsesProviderHistoryTests
         var context = CreateContext(
             CreateIdentity(CreateTurn("turn_001")),
             ProviderHistorySnapshot.Empty("window_1"),
-            coveredMessageCount: 0,
+            coveredMessages: [],
             records);
         using var scope = OpenAIResponsesProviderHistoryRuntimeScope.Set(context);
         using var client = new StreamRetryingChatClient(
@@ -395,7 +473,7 @@ public sealed class OpenAIResponsesProviderHistoryTests
         var context = CreateContext(
             CreateIdentity(CreateTurn("turn_001")),
             ProviderHistorySnapshot.Empty("window_1"),
-            coveredMessageCount: 0,
+            coveredMessages: [],
             records);
         var transport = new CapturingResponsesTransport(
             ReadStreamingUpdate(
@@ -444,7 +522,7 @@ public sealed class OpenAIResponsesProviderHistoryTests
         var context = CreateContext(
             CreateIdentity(CreateTurn("turn_001")),
             ProviderHistorySnapshot.Empty("window_1"),
-            coveredMessageCount: 0,
+            coveredMessages: [],
             records);
         var transport = new CapturingResponsesTransport(
             ReadStreamingUpdate(
@@ -528,7 +606,7 @@ public sealed class OpenAIResponsesProviderHistoryTests
         var context = CreateContext(
             CreateIdentity(CreateTurn("turn_002")),
             snapshot,
-            coveredMessageCount: 0,
+            coveredMessages: [],
             records);
         var transport = new CapturingResponsesTransport();
         using var adapter = new OpenAIResponsesToolSearchChatClient(
@@ -556,7 +634,7 @@ public sealed class OpenAIResponsesProviderHistoryTests
         var resumed = CreateContext(
             CreateIdentity(CreateTurn("turn_003")),
             context.CaptureSnapshot(),
-            coveredMessageCount: messages.Count,
+            coveredMessages: messages,
             records: []);
         var next = await resumed.PrepareInputAsync(
             [.. messages, new ChatMessage(ChatRole.User, "continue")],
@@ -603,12 +681,12 @@ public sealed class OpenAIResponsesProviderHistoryTests
     private static OpenAIResponsesProviderHistoryContext CreateContext(
         ThreadConversationIdentity identity,
         ProviderHistorySnapshot snapshot,
-        int coveredMessageCount,
+        IReadOnlyList<ChatMessage> coveredMessages,
         List<ThreadRolloutRecord> records) =>
         new(
             identity,
             snapshot,
-            coveredMessageCount,
+            coveredMessages,
             (payload, _) =>
             {
                 records.Add(new ThreadRolloutRecord

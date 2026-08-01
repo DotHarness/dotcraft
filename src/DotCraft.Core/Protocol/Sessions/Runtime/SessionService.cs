@@ -358,7 +358,7 @@ public sealed partial class SessionService(
         var context = new OpenAIResponsesProviderHistoryContext(
             providerIdentity,
             snapshot,
-            baselineHistory.Count,
+            baselineHistory,
             thread.Ephemeral
                 ? null
                 : (payload, cancellationToken) =>
@@ -428,7 +428,7 @@ public sealed partial class SessionService(
         var context = new OpenAIResponsesProviderHistoryContext(
             identity,
             ProviderHistorySnapshot.Empty(identity.ContextWindowId),
-            coveredMessageCount: 0,
+            coveredMessages: [],
             (payload, cancellationToken) =>
                 persistence.AppendProviderHistoryItemsAsync(payload, cancellationToken),
             (payload, cancellationToken) =>

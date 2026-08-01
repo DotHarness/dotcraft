@@ -71,7 +71,7 @@ internal sealed class OpenAIResponsesProviderHistoryContext : IProviderHistoryCo
     private readonly Func<ProviderHistoryAttemptAbortedPayload, CancellationToken, Task>? _abortAsync;
     private readonly Func<string, string, CancellationToken, Task>? _reconcileContextWindowAsync;
     private readonly List<RuntimeEntry> _entries;
-    private int _coveredMessageCount;
+    private int _coveredSamplingMessageCount;
     private string _generationId;
     private string _contextWindowId;
     private string? _coveredThroughTurnId;
@@ -81,7 +81,7 @@ internal sealed class OpenAIResponsesProviderHistoryContext : IProviderHistoryCo
     public OpenAIResponsesProviderHistoryContext(
         ThreadConversationIdentity identity,
         ProviderHistorySnapshot snapshot,
-        int coveredMessageCount,
+        IReadOnlyList<ChatMessage> coveredMessages,
         Func<ProviderHistoryItemsAppendedPayload, CancellationToken, Task>? appendAsync,
         Func<ProviderHistoryReplacedPayload, CancellationToken, Task>? replaceAsync,
         Func<ProviderHistoryAttemptAbortedPayload, CancellationToken, Task>? abortAsync,
@@ -93,7 +93,7 @@ internal sealed class OpenAIResponsesProviderHistoryContext : IProviderHistoryCo
         _contextWindowId = snapshot.ContextWindowId;
         _coveredThroughTurnId = snapshot.CoveredThroughTurnId;
         _isNativeCompacted = snapshot.IsNativeCompacted;
-        _coveredMessageCount = Math.Max(0, coveredMessageCount);
+        _coveredSamplingMessageCount = GetSamplingProjection(coveredMessages).Count;
         _appendAsync = appendAsync;
         _replaceAsync = replaceAsync;
         _abortAsync = abortAsync;
@@ -111,13 +111,14 @@ internal sealed class OpenAIResponsesProviderHistoryContext : IProviderHistoryCo
         await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
-            if (_coveredMessageCount > messages.Count)
+            var samplingMessages = GetSamplingProjection(messages);
+            if (_coveredSamplingMessageCount > samplingMessages.Count)
             {
                 throw new InvalidDataException(
                     "responses_provider_history_corrupt: MEAI sampling history is shorter than its canonical coverage.");
             }
 
-            var tail = messages.Skip(_coveredMessageCount).ToList();
+            var tail = samplingMessages.Skip(_coveredSamplingMessageCount).ToList();
             if (tail.Count > 0)
             {
                 var correlations = BuildCallCorrelationIndex();
@@ -143,7 +144,7 @@ internal sealed class OpenAIResponsesProviderHistoryContext : IProviderHistoryCo
                 }
             }
 
-            _coveredMessageCount = messages.Count;
+            _coveredSamplingMessageCount = samplingMessages.Count;
             var input = BuildInputArray();
             return new CanonicalResponsesInput(
                 input,
@@ -165,18 +166,19 @@ internal sealed class OpenAIResponsesProviderHistoryContext : IProviderHistoryCo
         await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
-            if (_coveredMessageCount > messages.Count)
+            var samplingMessages = GetSamplingProjection(messages);
+            if (_coveredSamplingMessageCount > samplingMessages.Count)
             {
                 throw new InvalidDataException(
                     "responses_provider_history_corrupt: MEAI sampling history is shorter than its canonical coverage.");
             }
 
             var input = BuildInputArray();
-            var coveredMessageCount = _coveredMessageCount;
+            var coveredMessageCount = _coveredSamplingMessageCount;
             var coveredThroughTurnId = _coveredThroughTurnId;
             if (phase is not CompactionPhase.PreTurn)
             {
-                var tail = messages.Skip(_coveredMessageCount).ToList();
+                var tail = samplingMessages.Skip(_coveredSamplingMessageCount).ToList();
                 if (tail.Count > 0)
                 {
                     var mapped = ResponsesToolSearchMapper.BuildInputItems(
@@ -189,7 +191,7 @@ internal sealed class OpenAIResponsesProviderHistoryContext : IProviderHistoryCo
                     NormalizeCallOutputs(input);
                 }
 
-                coveredMessageCount = messages.Count;
+                coveredMessageCount = samplingMessages.Count;
                 coveredThroughTurnId = _identity.TurnId ?? _coveredThroughTurnId;
             }
 
@@ -261,7 +263,7 @@ internal sealed class OpenAIResponsesProviderHistoryContext : IProviderHistoryCo
             _generationId = nextWindowId;
             _contextWindowId = nextWindowId;
             _coveredThroughTurnId = replacement.CoveredThroughTurnId;
-            _coveredMessageCount = Math.Max(0, replacement.CoveredMessageCount);
+            _coveredSamplingMessageCount = Math.Max(0, replacement.CoveredMessageCount);
             _currentAttemptId = null;
             _isNativeCompacted = true;
 
@@ -374,7 +376,7 @@ internal sealed class OpenAIResponsesProviderHistoryContext : IProviderHistoryCo
             _generationId = generationId;
             _contextWindowId = windowId;
             _coveredThroughTurnId = _identity.TurnId;
-            _coveredMessageCount = messages.Count;
+            _coveredSamplingMessageCount = GetSamplingProjection(messages).Count;
             _currentAttemptId = null;
             _isNativeCompacted = false;
         }
@@ -387,7 +389,7 @@ internal sealed class OpenAIResponsesProviderHistoryContext : IProviderHistoryCo
     public void MarkProjectionCovered(IReadOnlyList<ChatMessage> messages)
     {
         ArgumentNullException.ThrowIfNull(messages);
-        _coveredMessageCount = messages.Count;
+        _coveredSamplingMessageCount = GetSamplingProjection(messages).Count;
     }
 
     public string BeginAttempt()
@@ -454,7 +456,8 @@ internal sealed class OpenAIResponsesProviderHistoryContext : IProviderHistoryCo
         out long tokens)
     {
         ArgumentNullException.ThrowIfNull(messages);
-        if (!_isNativeCompacted || _coveredMessageCount > messages.Count)
+        var samplingMessages = GetSamplingProjection(messages);
+        if (!_isNativeCompacted || _coveredSamplingMessageCount > samplingMessages.Count)
         {
             tokens = 0;
             return false;
@@ -464,11 +467,18 @@ internal sealed class OpenAIResponsesProviderHistoryContext : IProviderHistoryCo
         tokens = EstimateNativeContextTokens(
             new ProviderNativeSnapshot(
                 snapshot.Entries.Select(entry => entry.Item).ToArray(),
-                _coveredMessageCount,
+                _coveredSamplingMessageCount,
                 snapshot.CoveredThroughTurnId),
-            messages.Skip(_coveredMessageCount).ToArray(),
+            samplingMessages.Skip(_coveredSamplingMessageCount).ToArray(),
             options);
         return true;
+    }
+
+    private static IReadOnlyList<ChatMessage> GetSamplingProjection(
+        IReadOnlyList<ChatMessage> messages)
+    {
+        ArgumentNullException.ThrowIfNull(messages);
+        return ModelRequestHistorySanitizer.Sanitize(messages);
     }
 
     private async Task PersistAppendAsync(
