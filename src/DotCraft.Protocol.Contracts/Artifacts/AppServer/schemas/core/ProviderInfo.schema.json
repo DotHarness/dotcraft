@@ -1,0 +1,106 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.dotcraft.dev/appserver/v1/core/ProviderInfo.schema.json",
+  "title": "ProviderInfo",
+  "type": "object",
+  "properties": {
+    "apiKey": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "authMethod": {
+      "type": "string"
+    },
+    "capabilities": {
+      "$ref": "./ProviderCapabilitiesWire.schema.json"
+    },
+    "chatGptAccountId": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "chatGptPlanType": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "displayName": {
+      "type": "string"
+    },
+    "endPoint": {
+      "type": "string"
+    },
+    "hasApiKey": {
+      "type": "boolean"
+    },
+    "id": {
+      "type": "string"
+    },
+    "isImplicit": {
+      "type": "boolean"
+    },
+    "maxOutputTokens": {
+      "anyOf": [
+        {
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "networkTimeoutSeconds": {
+      "anyOf": [
+        {
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "protocol": {
+      "type": "string"
+    },
+    "streamIdleTimeoutMs": {
+      "anyOf": [
+        {
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "streamMaxRetries": {
+      "anyOf": [
+        {
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "supportsHostedImageGeneration": {
+      "type": "boolean"
+    }
+  },
+  "additionalProperties": true
+}

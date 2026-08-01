@@ -19,18 +19,18 @@ internal sealed class SkillsRequestHandler(
 {
     public void RegisterMethods(AppServerMethodTable table)
     {
-        table.Map(AppServerMethods.SkillsList, HandleSkillsListAsync);
-        table.Map(AppServerMethods.SkillsRead, HandleSkillsReadAsync);
-        table.Map(AppServerMethods.SkillsView, HandleSkillsViewAsync);
-        table.Map(AppServerMethods.SkillsRestoreOriginal, HandleSkillsRestoreOriginalAsync);
-        table.Map(AppServerMethods.SkillsSetEnabled, HandleSkillsSetEnabledAsync);
-        table.Map(AppServerMethods.SkillsUninstall, HandleSkillsUninstallAsync);
+        table.Map(global::DotCraft.Protocol.Contracts.AppServer.AppServerRpc.SkillsList, HandleSkillsListAsync);
+        table.Map(global::DotCraft.Protocol.Contracts.AppServer.AppServerRpc.SkillsRead, HandleSkillsReadAsync);
+        table.Map(global::DotCraft.Protocol.Contracts.AppServer.AppServerRpc.SkillsView, HandleSkillsViewAsync);
+        table.Map(global::DotCraft.Protocol.Contracts.AppServer.AppServerRpc.SkillsRestoreOriginal, HandleSkillsRestoreOriginalAsync);
+        table.Map(global::DotCraft.Protocol.Contracts.AppServer.AppServerRpc.SkillsSetEnabled, HandleSkillsSetEnabledAsync);
+        table.Map(global::DotCraft.Protocol.Contracts.AppServer.AppServerRpc.SkillsUninstall, HandleSkillsUninstallAsync);
     }
 
     private Task<object?> HandleSkillsListAsync(AppServerIncomingMessage msg, CancellationToken ct)
     {
         if (skillsLoader == null)
-            throw AppServerErrors.MethodNotFound(AppServerMethods.SkillsList);
+            throw AppServerErrors.MethodNotFound(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.SkillsList);
         var p = AppServerParams.Get<SkillsListParams>(msg);
         var includeUnavailable = p.IncludeUnavailable ?? true;
         var list = skillsLoader.ListSkills(filterUnavailable: !includeUnavailable);
@@ -41,7 +41,7 @@ internal sealed class SkillsRequestHandler(
     private Task<object?> HandleSkillsReadAsync(AppServerIncomingMessage msg, CancellationToken ct)
     {
         if (skillsLoader == null)
-            throw AppServerErrors.MethodNotFound(AppServerMethods.SkillsRead);
+            throw AppServerErrors.MethodNotFound(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.SkillsRead);
         var p = AppServerParams.Get<SkillsReadParams>(msg);
         if (string.IsNullOrWhiteSpace(p.Name))
             throw AppServerErrors.InvalidParams("'name' is required.");
@@ -60,7 +60,7 @@ internal sealed class SkillsRequestHandler(
     private Task<object?> HandleSkillsViewAsync(AppServerIncomingMessage msg, CancellationToken ct)
     {
         if (skillsLoader == null)
-            throw AppServerErrors.MethodNotFound(AppServerMethods.SkillsView);
+            throw AppServerErrors.MethodNotFound(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.SkillsView);
         var p = AppServerParams.Get<SkillsViewParams>(msg);
         if (string.IsNullOrWhiteSpace(p.Name))
             throw AppServerErrors.InvalidParams("'name' is required.");
@@ -83,7 +83,7 @@ internal sealed class SkillsRequestHandler(
     private Task<object?> HandleSkillsRestoreOriginalAsync(AppServerIncomingMessage msg, CancellationToken ct)
     {
         if (skillsLoader == null)
-            throw AppServerErrors.MethodNotFound(AppServerMethods.SkillsRestoreOriginal);
+            throw AppServerErrors.MethodNotFound(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.SkillsRestoreOriginal);
         var p = AppServerParams.Get<SkillsRestoreOriginalParams>(msg);
         if (string.IsNullOrWhiteSpace(p.Name))
             throw AppServerErrors.InvalidParams("'name' is required.");
@@ -105,7 +105,7 @@ internal sealed class SkillsRequestHandler(
     private Task<object?> HandleSkillsSetEnabledAsync(AppServerIncomingMessage msg, CancellationToken ct)
     {
         if (skillsLoader == null || string.IsNullOrEmpty(workspaceCraftPath))
-            throw AppServerErrors.MethodNotFound(AppServerMethods.SkillsSetEnabled);
+            throw AppServerErrors.MethodNotFound(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.SkillsSetEnabled);
         var p = AppServerParams.Get<SkillsSetEnabledParams>(msg);
         if (string.IsNullOrWhiteSpace(p.Name))
             throw AppServerErrors.InvalidParams("'name' is required.");
@@ -124,7 +124,7 @@ internal sealed class SkillsRequestHandler(
         skillsLoader.SetDisabledSkills(disabled);
         AppServerContextInvalidation.MarkSkills(contextPageManager);
         appConfigMonitor?.NotifyChanged(
-            AppServerMethods.SkillsSetEnabled,
+            DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.SkillsSetEnabled,
             [ConfigChangeRegions.Skills]);
 
         var updated = skillsLoader.ListSkills(filterUnavailable: false)
@@ -136,7 +136,7 @@ internal sealed class SkillsRequestHandler(
     {
         ct.ThrowIfCancellationRequested();
         if (skillsLoader == null || string.IsNullOrEmpty(workspaceCraftPath))
-            throw AppServerErrors.MethodNotFound(AppServerMethods.SkillsUninstall);
+            throw AppServerErrors.MethodNotFound(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.SkillsUninstall);
 
         var p = AppServerParams.Get<SkillsUninstallParams>(msg);
         if (string.IsNullOrWhiteSpace(p.Name))
@@ -177,7 +177,7 @@ internal sealed class SkillsRequestHandler(
         skillsLoader.RefreshDescriptors();
         AppServerContextInvalidation.MarkSkills(contextPageManager);
         appConfigMonitor?.NotifyChanged(
-            AppServerMethods.SkillsUninstall,
+            DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.SkillsUninstall,
             [ConfigChangeRegions.Skills]);
 
         return Task.FromResult<object?>(new SkillsUninstallResult

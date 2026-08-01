@@ -1,6 +1,8 @@
 using System.Collections.Concurrent;
 using System.Text.Json;
 using System.Threading.Channels;
+using DotCraft.Protocol.Contracts;
+using DotCraft.Protocol.Contracts.AppServer;
 using DotCraft.Sdk.AppServer;
 
 namespace DotCraft.Sdk.Wire;
@@ -11,6 +13,7 @@ namespace DotCraft.Sdk.Wire;
 public sealed class DotCraftWireClient : IAsyncDisposable
 {
     private readonly IJsonRpcTransport _transport;
+    private readonly DotCraftWireClientOptions _options;
     private readonly ConcurrentDictionary<long, TaskCompletionSource<JsonElement>> _pending = new();
     private readonly ConcurrentDictionary<string, Func<ServerRequest, CancellationToken, Task<object?>>> _serverRequestHandlers = new(StringComparer.Ordinal);
     private readonly ConcurrentDictionary<long, Action<AppServerNotification>> _notificationHandlers = new();
@@ -20,14 +23,24 @@ public sealed class DotCraftWireClient : IAsyncDisposable
     private long _nextId;
     private long _nextNotificationHandlerId;
     private Task? _readerTask;
+    private TaskCompletionSource _ready = CompletedReadySource();
+    private DotCraftClientOptions? _initializeOptions;
+    private int _queuedRequests;
     private bool _disposed;
+
+    /// <summary>Current observable Wire session state.</summary>
+    public WireConnectionState State { get; private set; } = WireConnectionState.Disconnected;
+
+    /// <summary>Raised when <see cref="State"/> changes.</summary>
+    public event Action<WireConnectionState, Exception?>? StateChanged;
 
     /// <summary>
     /// Creates a wire client over an already-created JSON-RPC transport.
     /// </summary>
-    public DotCraftWireClient(IJsonRpcTransport transport)
+    public DotCraftWireClient(IJsonRpcTransport transport, DotCraftWireClientOptions? options = null)
     {
         _transport = transport;
+        _options = options ?? new DotCraftWireClientOptions();
     }
 
     /// <summary>
@@ -36,12 +49,13 @@ public sealed class DotCraftWireClient : IAsyncDisposable
     public void Start()
     {
         _readerTask ??= Task.Run(ReadLoopAsync);
+        SetState(WireConnectionState.Ready);
     }
 
     /// <summary>
     /// Registers a handler for one server-initiated JSON-RPC request method.
     /// </summary>
-    public IDisposable RegisterServerRequestHandler(
+    public IDisposable RegisterServerRequestHandlerRaw(
         string method,
         Func<ServerRequest, CancellationToken, Task<object?>> handler)
     {
@@ -50,16 +64,61 @@ public sealed class DotCraftWireClient : IAsyncDisposable
         return new DisposableAction(() => _serverRequestHandlers.TryRemove(method, out _));
     }
 
+    /// <summary>Registers a typed handler for one known server-initiated request.</summary>
+    public IDisposable RegisterServerRequestHandler<TParams, TResult>(
+        RpcRequest<TParams, TResult> descriptor,
+        Func<TParams, CancellationToken, Task<TResult>> handler)
+    {
+        ArgumentNullException.ThrowIfNull(descriptor);
+        ArgumentNullException.ThrowIfNull(handler);
+        if (descriptor.Direction != RpcDirection.ServerToClient)
+        {
+            throw new ArgumentException("The descriptor must be a server-to-client request.", nameof(descriptor));
+        }
+
+        return RegisterServerRequestHandlerRaw(descriptor.Name, async (request, cancellationToken) =>
+        {
+            var parameters = request.Params.Deserialize<TParams>(DotCraftJson.Options)
+                ?? throw new JsonException($"Request '{descriptor.Name}' had invalid parameters.");
+            return await handler(parameters, cancellationToken);
+        });
+    }
+
     /// <summary>
     /// Registers a handler that receives every AppServer notification. Handlers must be fast and
     /// non-blocking; they run on the wire read loop. Returns a disposable that unregisters the handler.
     /// </summary>
-    public IDisposable RegisterNotificationHandler(Action<AppServerNotification> handler)
+    public IDisposable RegisterNotificationHandlerRaw(Action<AppServerNotification> handler)
     {
         ArgumentNullException.ThrowIfNull(handler);
         var id = Interlocked.Increment(ref _nextNotificationHandlerId);
         _notificationHandlers[id] = handler;
         return new DisposableAction(() => _notificationHandlers.TryRemove(id, out _));
+    }
+
+    /// <summary>Registers a typed handler for one known server notification.</summary>
+    public IDisposable RegisterNotificationHandler<TParams>(
+        RpcNotification<TParams> descriptor,
+        Action<TParams> handler)
+    {
+        ArgumentNullException.ThrowIfNull(descriptor);
+        ArgumentNullException.ThrowIfNull(handler);
+        if (descriptor.Direction != RpcDirection.ServerToClient)
+        {
+            throw new ArgumentException("The descriptor must be a server-to-client notification.", nameof(descriptor));
+        }
+
+        return RegisterNotificationHandlerRaw(notification =>
+        {
+            if (!string.Equals(notification.Method, descriptor.Name, StringComparison.Ordinal))
+            {
+                return;
+            }
+
+            var parameters = notification.Params.Deserialize<TParams>(DotCraftJson.Options)
+                ?? throw new JsonException($"Notification '{descriptor.Name}' had invalid parameters.");
+            handler(parameters);
+        });
     }
 
     /// <summary>
@@ -69,46 +128,136 @@ public sealed class DotCraftWireClient : IAsyncDisposable
         DotCraftClientOptions options,
         CancellationToken cancellationToken = default)
     {
-        var capabilities = new Dictionary<string, object?>
+        _initializeOptions = options;
+        return await InitializeCoreAsync(options, cancellationToken, bypassReady: false);
+    }
+
+    private async Task<AppServerInitializeResult> InitializeCoreAsync(
+        DotCraftClientOptions options,
+        CancellationToken cancellationToken,
+        bool bypassReady)
+    {
+        SetState(WireConnectionState.Initializing);
+        var contractCapabilities = new ClientCapabilities
         {
-            ["approvalSupport"] = options.ApprovalSupport,
-            ["requestUserInputSupport"] = options.RequestUserInputSupport,
-            ["streamingSupport"] = options.StreamingSupport,
-            ["configChange"] = options.ConfigChange
-            , ["appBindingVersion"] = 2
+            ApprovalSupport = options.ApprovalSupport,
+            RequestUserInputSupport = options.RequestUserInputSupport,
+            StreamingSupport = options.StreamingSupport,
+            ConfigChange = options.ConfigChange,
+            AppBindingVersion = 2,
+            ExtensionData = options.ExtraCapabilities?.ToDictionary(
+                pair => pair.Key,
+                pair => JsonSerializer.SerializeToElement(pair.Value, DotCraftJson.Options))
         };
-        if (options.ExtraCapabilities is not null)
+        var parameters = new InitializeParams
         {
-            foreach (var pair in options.ExtraCapabilities)
+            ClientInfo = new ClientInfo
             {
-                capabilities[pair.Key] = pair.Value;
-            }
+                Name = options.ClientName,
+                Title = options.ClientTitle,
+                Version = options.ClientVersion
+            },
+            Capabilities = contractCapabilities
+        };
+        var rawResult = await RequestRawCoreAsync(
+            AppServerRpc.Initialize.Name,
+            parameters,
+            cancellationToken,
+            Timeout.InfiniteTimeSpan,
+            bypassReady);
+        var result = rawResult.Deserialize<InitializeResult>(DotCraftJson.Options)
+            ?? throw new JsonException("Request 'initialize' returned an invalid result.");
+        await NotifyRawCoreAsync(AppServerRpc.Initialized.Name, new RpcEmpty(), cancellationToken, bypassReady);
+        var parsed = ParseInitializeResult(JsonSerializer.SerializeToElement(result, DotCraftJson.Options));
+        _ready.TrySetResult();
+        SetState(WireConnectionState.Ready);
+        return parsed;
+    }
+
+    /// <summary>Sends one cataloged client request and deserializes its typed result.</summary>
+    public async Task<TResult> RequestAsync<TParams, TResult>(
+        RpcRequest<TParams, TResult> descriptor,
+        TParams parameters,
+        CancellationToken cancellationToken = default,
+        TimeSpan? timeout = null)
+    {
+        ArgumentNullException.ThrowIfNull(descriptor);
+        if (descriptor.Direction != RpcDirection.ClientToServer)
+        {
+            throw new ArgumentException("The descriptor must be a client-to-server request.", nameof(descriptor));
         }
 
-        var result = await SendRequestAsync("initialize", new
+        var result = await RequestRawAsync(descriptor.Name, parameters, cancellationToken, timeout);
+        return result.Deserialize<TResult>(DotCraftJson.Options)
+            ?? throw new JsonException($"Request '{descriptor.Name}' returned an invalid result.");
+    }
+
+    /// <summary>Sends one cataloged client notification.</summary>
+    public Task NotifyAsync<TParams>(
+        RpcNotification<TParams> descriptor,
+        TParams parameters,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(descriptor);
+        if (descriptor.Direction != RpcDirection.ClientToServer)
         {
-            clientInfo = new
-            {
-                name = options.ClientName,
-                title = options.ClientTitle,
-                version = options.ClientVersion
-            },
-            capabilities
-        }, cancellationToken);
-        await SendNotificationAsync("initialized", new { }, cancellationToken);
-        return ParseInitializeResult(result);
+            throw new ArgumentException("The descriptor must be a client-to-server notification.", nameof(descriptor));
+        }
+
+        return NotifyRawAsync(descriptor.Name, parameters, cancellationToken);
     }
 
     /// <summary>
     /// Sends a JSON-RPC request and returns the raw result JSON.
     /// </summary>
-    public async Task<JsonElement> SendRequestAsync(
+    public async Task<JsonElement> RequestRawAsync(
         string method,
         object? parameters = null,
         CancellationToken cancellationToken = default,
         TimeSpan? timeout = null)
     {
+        return await RequestRawCoreAsync(method, parameters, cancellationToken, timeout, bypassReady: false);
+    }
+
+    private async Task<JsonElement> RequestRawCoreAsync(
+        string method,
+        object? parameters,
+        CancellationToken cancellationToken,
+        TimeSpan? timeout,
+        bool bypassReady)
+    {
         ThrowIfDisposed();
+        var effectiveTimeout = timeout ?? _options.DefaultRequestTimeout;
+        using var cts = CancellationTokenSource.CreateLinkedTokenSource(_disposeCts.Token, cancellationToken);
+        if (effectiveTimeout != Timeout.InfiniteTimeSpan)
+        {
+            cts.CancelAfter(effectiveTimeout);
+        }
+
+        if (!bypassReady && !_ready.Task.IsCompletedSuccessfully)
+        {
+            if (Interlocked.Increment(ref _queuedRequests) > _options.MaxReconnectQueueSize)
+            {
+                Interlocked.Decrement(ref _queuedRequests);
+                throw new WireReconnectQueueFullException(_options.MaxReconnectQueueSize);
+            }
+            try
+            {
+                await _ready.Task.WaitAsync(cts.Token);
+            }
+            catch (OperationCanceledException) when (
+                effectiveTimeout != Timeout.InfiniteTimeSpan &&
+                !cancellationToken.IsCancellationRequested &&
+                !_disposeCts.IsCancellationRequested)
+            {
+                throw new WireRequestTimeoutException(method, effectiveTimeout);
+            }
+            finally
+            {
+                Interlocked.Decrement(ref _queuedRequests);
+            }
+        }
+
         var id = Interlocked.Increment(ref _nextId);
         var tcs = new TaskCompletionSource<JsonElement>(TaskCreationOptions.RunContinuationsAsynchronously);
         _pending[id] = tcs;
@@ -123,12 +272,19 @@ public sealed class DotCraftWireClient : IAsyncDisposable
             };
             if (parameters is not null)
                 request["params"] = parameters;
-            await _transport.WriteAsync(request, cancellationToken);
-
-            using var cts = CancellationTokenSource.CreateLinkedTokenSource(_disposeCts.Token, cancellationToken);
-            cts.CancelAfter(timeout ?? TimeSpan.FromSeconds(30));
+            await _transport.WriteAsync(request, cts.Token);
             await using var registration = cts.Token.Register(() => tcs.TrySetCanceled(cts.Token));
-            return await tcs.Task;
+            try
+            {
+                return await tcs.Task;
+            }
+            catch (OperationCanceledException) when (
+                effectiveTimeout != Timeout.InfiniteTimeSpan &&
+                !cancellationToken.IsCancellationRequested &&
+                !_disposeCts.IsCancellationRequested)
+            {
+                throw new WireRequestTimeoutException(method, effectiveTimeout);
+            }
         }
         finally
         {
@@ -139,13 +295,26 @@ public sealed class DotCraftWireClient : IAsyncDisposable
     /// <summary>
     /// Sends a JSON-RPC notification.
     /// </summary>
-    public Task SendNotificationAsync(
+    public Task NotifyRawAsync(
         string method,
         object? parameters = null,
         CancellationToken cancellationToken = default)
     {
+        return NotifyRawCoreAsync(method, parameters, cancellationToken, bypassReady: false);
+    }
+
+    private async Task NotifyRawCoreAsync(
+        string method,
+        object? parameters,
+        CancellationToken cancellationToken,
+        bool bypassReady)
+    {
         ThrowIfDisposed();
-        return _transport.WriteAsync(new
+        if (!bypassReady)
+        {
+            await _ready.Task.WaitAsync(cancellationToken);
+        }
+        await _transport.WriteAsync(new
         {
             jsonrpc = "2.0",
             method,
@@ -168,6 +337,7 @@ public sealed class DotCraftWireClient : IAsyncDisposable
         }
 
         _disposed = true;
+        SetState(WireConnectionState.Closed);
         await _disposeCts.CancelAsync();
         await _transport.DisposeAsync();
         if (_readerTask is not null)
@@ -203,6 +373,12 @@ public sealed class DotCraftWireClient : IAsyncDisposable
 
                 if (document is null)
                 {
+                    var closed = new IOException("Wire transport disconnected.");
+                    FailPending(closed);
+                    if (await TryReconnectAsync(closed))
+                    {
+                        continue;
+                    }
                     break;
                 }
 
@@ -211,13 +387,18 @@ public sealed class DotCraftWireClient : IAsyncDisposable
         }
         catch (Exception ex)
         {
-            foreach (var pending in _pending.Values)
+            FailPending(ex);
+            if (await TryReconnectAsync(ex))
             {
-                pending.TrySetException(ex);
+                await ReadLoopAsync();
             }
         }
         finally
         {
+            if (!_disposed)
+            {
+                SetState(WireConnectionState.Disconnected);
+            }
             _notifications.Writer.TryComplete();
             foreach (var pending in _pending.Values)
             {
@@ -386,6 +567,74 @@ public sealed class DotCraftWireClient : IAsyncDisposable
         {
             throw new ObjectDisposedException(nameof(DotCraftWireClient));
         }
+    }
+
+    private async Task<bool> TryReconnectAsync(Exception disconnectError)
+    {
+        if (_disposed || !_options.AutoReconnect ||
+            _initializeOptions is null || _transport is not IReconnectableJsonRpcTransport reconnectable)
+        {
+            return false;
+        }
+
+        _ready = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var delay = _options.ReconnectInitialDelay;
+        SetState(WireConnectionState.Reconnecting, disconnectError);
+        while (!_disposeCts.IsCancellationRequested)
+        {
+            var jitter = 0.8 + Random.Shared.NextDouble() * 0.4;
+            try
+            {
+                await Task.Delay(TimeSpan.FromMilliseconds(delay.TotalMilliseconds * jitter), _disposeCts.Token);
+                await reconnectable.ReconnectAsync(_disposeCts.Token);
+                var handshake = InitializeCoreAsync(_initializeOptions, _disposeCts.Token, bypassReady: true);
+                while (!handshake.IsCompleted)
+                {
+                    using var message = await _transport.ReadAsync(_disposeCts.Token)
+                        ?? throw new IOException("Wire transport closed during reconnect initialization.");
+                    await DispatchAsync(message);
+                    await Task.WhenAny(handshake, Task.Delay(1, _disposeCts.Token));
+                }
+                await handshake;
+                return true;
+            }
+            catch (OperationCanceledException) when (_disposeCts.IsCancellationRequested)
+            {
+                return false;
+            }
+            catch (Exception reconnectError)
+            {
+                FailPending(reconnectError);
+                SetState(WireConnectionState.ReconnectError, reconnectError);
+                delay = TimeSpan.FromMilliseconds(Math.Min(
+                    delay.TotalMilliseconds * 2,
+                    _options.ReconnectMaxDelay.TotalMilliseconds));
+                SetState(WireConnectionState.Reconnecting, reconnectError);
+            }
+        }
+        return false;
+    }
+
+    private void FailPending(Exception error)
+    {
+        foreach (var pending in _pending.Values)
+        {
+            pending.TrySetException(error);
+        }
+        _pending.Clear();
+    }
+
+    private void SetState(WireConnectionState state, Exception? error = null)
+    {
+        State = state;
+        StateChanged?.Invoke(state, error);
+    }
+
+    private static TaskCompletionSource CompletedReadySource()
+    {
+        var source = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        source.SetResult();
+        return source;
     }
 
     private sealed class DisposableAction(Action dispose) : IDisposable

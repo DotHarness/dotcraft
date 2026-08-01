@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.dotcraft.dev/appserver/v1/core/McpAppViewModelContextUpdateParams.schema.json",
+  "title": "McpAppViewModelContextUpdateParams",
+  "type": "object",
+  "properties": {
+    "content": {},
+    "structuredContent": {},
+    "viewHandle": {
+      "type": "string"
+    }
+  },
+  "additionalProperties": true
+}

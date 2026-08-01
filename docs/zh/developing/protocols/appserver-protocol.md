@@ -1,19 +1,21 @@
 # AppServer Protocol
 
-> App Binding 客户端通过 `capabilities.appBindingVersion: 2` 协商版本。完成认证的 App principal 连接只能调用版本 2 的 app-role allowlist：连接认证、刷新、状态和撤销；binding 请求、激活、rebind 和列表；`app/surface/publish`；以及 `app/threadInput/enqueue`。工具由 binding-scoped MCP session 提供。旧版 App Binding 方法和不支持的 App Binding 版本返回 `AppBindingUpgradeRequired`；其他越权方法返回 `AppPrincipalUnauthorized`。详见 [App Binding](../integrations/app-binding)。
+> App Binding 客户端通过 `capabilities.appBindingVersion: 2` 协商版本。完成认证的 App principal 连接只能调用版本 2 的 app-role allowlist：连接认证、刷新、状态和撤销；binding 请求、激活、rebind 和列表；`app/surface/publish`；以及 `app/threadInput/enqueue`。工具由 binding-scoped MCP session 提供。不受支持的 App Binding 版本返回 `AppBindingUpgradeRequired`；未声明的方法返回 `MethodNotFound`，其他越权方法返回 `AppPrincipalUnauthorized`。详见 [App Binding](../integrations/app-binding)。
 
 AppServer Protocol 是 DotCraft 暴露给外部客户端的 JSON-RPC wire protocol。Desktop、ACP bridge、外部 channel adapter 和自定义 IDE client 都可以通过它创建或恢复线程、提交用户输入、消费流式事件，并参与命令执行或文件变更审批。
+
+TypeScript、.NET 或 Python 应用应优先使用 [DotCraft SDK](../sdks/)。SDK 提供生成契约、强类型请求、连接生命周期，以及高层 Thread 和 Run API。只有在实现自定义传输、不受支持的语言或调试协议时，才直接实现本页的 raw 协议。
 
 如果你只是在本机寻找或启动工作区 AppServer，请先使用 [Hub Protocol](./hub-protocol)。Hub 返回 AppServer WebSocket endpoint 后，后续会话流量才进入本协议。
 
 ## 适用场景
 
-使用 AppServer Protocol 适合：
+适合直接使用 AppServer Protocol 的场景：
 
-- 构建桌面、IDE、编辑器或浏览器前端。
-- 构建非 C# client，例如 Node.js、Python、Rust 或 Swift 应用。
-- 将 DotCraft 嵌入已有产品，复用会话、工具、审批和流式事件。
-- 实现外部 channel adapter，让社交平台或机器人接入同一个工作区运行时。
+- 使用尚无 DotCraft SDK 的语言实现 client。
+- 提供自定义 stdio 或 WebSocket 传输。
+- 在调试协议行为时检查精确 JSON-RPC 消息。
+- 集成尚未进入生成契约目录的动态扩展。
 
 如果你只是要在自动化脚本中运行一次性任务，优先考虑 CLI 或 SDK；AppServer Protocol 更适合长期连接和丰富 UI。
 
@@ -600,6 +602,7 @@ JSON-RPC 错误响应使用标准 `error` 字段：
 
 ## 相关文档
 
+- [SDK 快速开始](../sdks/quickstart)
 - [Hub Protocol](./hub-protocol)
 - [Dashboard API](./dashboard-api)
 - [AppServer Mode](../lifecycle/appserver)

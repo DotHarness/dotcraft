@@ -7,16 +7,18 @@ namespace DotCraft.Sdk.Wire;
 /// <summary>
 /// WebSocket transport for DotCraft AppServer JSON-RPC messages.
 /// </summary>
-public sealed class WebSocketJsonRpcTransport : IJsonRpcTransport
+public sealed class WebSocketJsonRpcTransport : IReconnectableJsonRpcTransport
 {
     private const int MaxMessageBytes = 4 * 1024 * 1024;
-    private readonly WebSocket _socket;
+    private WebSocket _socket;
+    private readonly Uri? _reconnectUri;
     private readonly SemaphoreSlim _writeLock = new(1, 1);
     private bool _disposed;
 
-    private WebSocketJsonRpcTransport(WebSocket socket)
+    private WebSocketJsonRpcTransport(WebSocket socket, Uri? reconnectUri = null)
     {
         _socket = socket;
+        _reconnectUri = reconnectUri;
     }
 
     /// <summary>
@@ -27,15 +29,30 @@ public sealed class WebSocketJsonRpcTransport : IJsonRpcTransport
         string? token = null,
         CancellationToken cancellationToken = default)
     {
+        var uri = BuildUri(appServerUrl, token);
         var socket = new ClientWebSocket();
-        await socket.ConnectAsync(BuildUri(appServerUrl, token), cancellationToken);
-        return new WebSocketJsonRpcTransport(socket);
+        await socket.ConnectAsync(uri, cancellationToken);
+        return new WebSocketJsonRpcTransport(socket, uri);
     }
 
     /// <summary>
     /// Creates a transport from an already connected WebSocket.
     /// </summary>
     public static WebSocketJsonRpcTransport FromWebSocket(WebSocket socket) => new(socket);
+
+    /// <inheritdoc />
+    public async Task ReconnectAsync(CancellationToken cancellationToken = default)
+    {
+        if (_reconnectUri is null)
+        {
+            throw new InvalidOperationException("A transport created from an external WebSocket cannot reconnect itself.");
+        }
+
+        var replacement = new ClientWebSocket();
+        await replacement.ConnectAsync(_reconnectUri, cancellationToken);
+        var previous = Interlocked.Exchange(ref _socket, replacement);
+        previous.Dispose();
+    }
 
     /// <inheritdoc />
     public async Task<JsonDocument?> ReadAsync(CancellationToken cancellationToken = default)

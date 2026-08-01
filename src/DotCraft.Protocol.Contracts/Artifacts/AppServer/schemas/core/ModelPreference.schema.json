@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.dotcraft.dev/appserver/v1/core/ModelPreference.schema.json",
+  "title": "ModelPreference",
+  "type": "object",
+  "properties": {
+    "contextWindow": {
+      "$ref": "./ModelPreferenceContextWindow.schema.json"
+    },
+    "model": {
+      "type": "string"
+    },
+    "reasoning": {
+      "$ref": "./ReasoningConfig.schema.json"
+    },
+    "speed": {
+      "type": "string"
+    }
+  },
+  "additionalProperties": true
+}

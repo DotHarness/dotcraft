@@ -63,7 +63,7 @@ public sealed class AppServerDreamsTests : IDisposable
             dreamsService: dreamsService);
         await harness.InitializeAsync();
 
-        await harness.ExecuteRequestAsync(harness.BuildRequest(AppServerMethods.DreamsStatus, new { }));
+        await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.DreamsStatus, new { }));
 
         var response = await harness.Transport.ReadNextSentAsync();
         AppServerTestHarness.AssertIsSuccessResponse(response);
@@ -88,10 +88,10 @@ public sealed class AppServerDreamsTests : IDisposable
             dreamsService: dreamsService);
         await harness.InitializeAsync();
 
-        await harness.ExecuteRequestAsync(harness.BuildRequest(AppServerMethods.DreamsRun, new { }));
+        await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.DreamsRun, new { }));
         var first = await harness.Transport.ReadNextSentAsync();
         await runner.WaitUntilCalledAsync();
-        await harness.ExecuteRequestAsync(harness.BuildRequest(AppServerMethods.DreamsRun, new { }));
+        await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.DreamsRun, new { }));
         var second = await harness.Transport.ReadNextSentAsync();
 
         AppServerTestHarness.AssertIsSuccessResponse(first);
@@ -103,7 +103,7 @@ public sealed class AppServerDreamsTests : IDisposable
 
         runner.Release();
         await WaitForStateAsync(DreamsRunStatuses.Succeeded);
-        await harness.ExecuteRequestAsync(harness.BuildRequest(AppServerMethods.DreamsStatus, new { }));
+        await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.DreamsStatus, new { }));
         var completed = await harness.Transport.ReadNextSentAsync();
         var lastRun = completed.RootElement.GetProperty("result").GetProperty("lastRun");
         Assert.Equal("thread_dream_fake", lastRun.GetProperty("threadId").GetString());
@@ -128,7 +128,7 @@ public sealed class AppServerDreamsTests : IDisposable
             dreamsService: dreamsService);
         await harness.InitializeAsync();
 
-        await harness.ExecuteRequestAsync(harness.BuildRequest(AppServerMethods.DreamsRun, new { }));
+        await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.DreamsRun, new { }));
         var first = await harness.Transport.ReadNextSentAsync();
 
         AppServerTestHarness.AssertIsSuccessResponse(first);
@@ -156,7 +156,7 @@ public sealed class AppServerDreamsTests : IDisposable
             dreamStore: _dreamStore);
         await harness.InitializeAsync();
 
-        await harness.ExecuteRequestAsync(harness.BuildRequest(AppServerMethods.DreamsCreate, new
+        await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.DreamsCreate, new
         {
             threadIds = new[] { "thread_one" },
             instructions = "Focus protocol memory."
@@ -173,21 +173,21 @@ public sealed class AppServerDreamsTests : IDisposable
         Assert.False(string.IsNullOrWhiteSpace(completed.OutputStoreId));
         Assert.Equal(string.Empty, _dreamStore.ReadDream());
 
-        await harness.ExecuteRequestAsync(harness.BuildRequest(AppServerMethods.DreamsList, new { }));
+        await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.DreamsList, new { }));
         var listed = await harness.Transport.ReadNextSentAsync();
         AppServerTestHarness.AssertIsSuccessResponse(listed);
         Assert.Contains(
             listed.RootElement.GetProperty("result").GetProperty("runs").EnumerateArray(),
             item => item.GetProperty("id").GetString() == runId);
 
-        await harness.ExecuteRequestAsync(harness.BuildRequest(AppServerMethods.DreamsGet, new { runId }));
+        await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.DreamsGet, new { runId }));
         var details = await harness.Transport.ReadNextSentAsync();
         AppServerTestHarness.AssertIsSuccessResponse(details);
         var preview = details.RootElement.GetProperty("result").GetProperty("preview");
         Assert.Equal(string.Empty, preview.GetProperty("activeIndexMarkdown").GetString());
         Assert.Contains("Test focus", preview.GetProperty("outputIndexMarkdown").GetString(), StringComparison.Ordinal);
 
-        await harness.ExecuteRequestAsync(harness.BuildRequest(AppServerMethods.DreamsApply, new { runId }));
+        await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.DreamsApply, new { runId }));
         var applied = await harness.Transport.ReadNextSentAsync();
         AppServerTestHarness.AssertIsSuccessResponse(applied);
         var appliedRun = applied.RootElement.GetProperty("result").GetProperty("run");
@@ -195,7 +195,7 @@ public sealed class AppServerDreamsTests : IDisposable
         Assert.Equal(completed.OutputStoreId, applied.RootElement.GetProperty("result").GetProperty("activeDreamStoreId").GetString());
         Assert.Contains("Test focus", _dreamStore.ReadDream(), StringComparison.Ordinal);
 
-        await harness.ExecuteRequestAsync(harness.BuildRequest(AppServerMethods.DreamsArchive, new { runId }));
+        await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.DreamsArchive, new { runId }));
         var archived = await harness.Transport.ReadNextSentAsync();
         AppServerTestHarness.AssertIsSuccessResponse(archived);
         Assert.Equal(
@@ -216,7 +216,7 @@ public sealed class AppServerDreamsTests : IDisposable
             dreamsService: dreamsService);
         await harness.InitializeAsync();
 
-        await harness.ExecuteRequestAsync(harness.BuildRequest(AppServerMethods.DreamsRun, new { }));
+        await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.DreamsRun, new { }));
         var response = await harness.Transport.ReadNextSentAsync();
 
         AppServerTestHarness.AssertIsSuccessResponse(response);
@@ -243,7 +243,7 @@ public sealed class AppServerDreamsTests : IDisposable
             dreamsService: dreamsService);
         await harness.InitializeAsync();
 
-        await harness.ExecuteRequestAsync(harness.BuildRequest(AppServerMethods.WorkspaceConfigUpdate, new
+        await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.WorkspaceConfigUpdate, new
         {
             dreamsEnabled = false,
             dreamsInterval = "12:00:00",
@@ -286,11 +286,11 @@ public sealed class AppServerDreamsTests : IDisposable
             dreamStore: _dreamStore);
         await harness.InitializeAsync();
 
-        await harness.ExecuteRequestAsync(harness.BuildRequest(AppServerMethods.DreamsRun, new { }));
+        await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.DreamsRun, new { }));
         _ = await harness.Transport.ReadNextSentAsync();
 
         await WaitForStateAsync(DreamsRunStatuses.Succeeded);
-        await harness.ExecuteRequestAsync(harness.BuildRequest(AppServerMethods.DreamsStatus, new { }));
+        await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.DreamsStatus, new { }));
         var completed = await harness.Transport.ReadNextSentAsync();
 
         AppServerTestHarness.AssertIsSuccessResponse(completed);
@@ -314,7 +314,7 @@ public sealed class AppServerDreamsTests : IDisposable
         await harness.InitializeAsync();
 
         await harness.ExecuteRequestAsync(harness.BuildRequest(
-            AppServerMethods.WorkspaceConfigUpdate,
+            DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.WorkspaceConfigUpdate,
             new Dictionary<string, object> { [field] = value }));
 
         var response = await harness.Transport.ReadNextSentAsync();

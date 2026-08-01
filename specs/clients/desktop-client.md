@@ -2,9 +2,9 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.9.0 |
+| **Version** | 0.10.0 |
 | **Status** | Living |
-| **Date** | 2026-07-18 |
+| **Date** | 2026-08-01 |
 | **Parent Spec** | [AppServer Protocol](../protocols/appserver-protocol.md) |
 | **Related Specs** | [Tool Architecture](../architecture/tools-architecture.md), [App Binding](../protocols/app-binding.md), [Plugin Architecture](../architecture/plugin-architecture.md), [Goal Design](../features/goal.md), [Remote Server Management](../features/remote-server-management.md), [Desktop DESIGN.md](../architecture/DESIGN.md) |
 
@@ -92,6 +92,10 @@ Purpose: Define the stable user-experience behavior of **DotCraft Desktop** as a
 
 ## 3. Connection and Session Lifecycle
 
+Desktop is a host adapter over the TypeScript SDK. Electron Main owns one or more `@dotcraft/sdk/wire` and `@dotcraft/sdk/hub` clients; Preload exposes the authorized IPC projection; Renderer never opens an AppServer or Hub transport. Desktop does not maintain a parallel JSON-RPC or Hub implementation.
+
+Known AppServer request, result, notification, and server-request payloads use generated `@dotcraft/sdk/contracts` types across Main, Preload, and Renderer. Dynamic extension calls use a distinct raw IPC path and remain subject to Desktop extension grants, workspace scope, and foreground/secondary connection routing.
+
 ### 3.1 Workspace Entry
 
 - The Desktop client is workspace-centric and may show multiple known workspaces in one window.
@@ -133,6 +137,10 @@ The client exposes four user-visible connection states:
 During first-time workspace setup, provider model discovery uses the DotCraft backend model catalog rather than Desktop-owned model constants or direct provider-specific HTTP parsing. Existing providers are resolved by id; unsaved provider drafts are passed to the backend over stdin so credentials do not enter process arguments or logs. ChatGPT subscription setup completes OAuth in the wizard before requesting the account-scoped catalog. The wizard preserves a user's explicit model selection across refreshes, requires reselection when it disappears, and treats backend cache or bundled results as the only fallback source.
 
 ### 3.4 Reconnection
+
+Desktop enables the SDK Wire reconnect profile. Already-written requests fail on disconnect and are never replayed. Calls made while reconnecting remain ordered behind a successful `initialize` / `initialized` handshake. Desktop remains responsible for restoring UI subscriptions, interactive-request state, runtime Dynamic Tools, remote tunnels, and other workspace resources after the Wire connection becomes ready.
+
+Ordinary remote initialization uses a fifteen-second timeout. A temporary connectivity probe uses a ten-second timeout and disables reconnect. Desktop preserves the SDK's thirty-second ordinary RPC default unless a workflow supplies a deliberate override.
 
 - On unexpected disconnect, the client transitions to `disconnected` and attempts reconnection automatically.
 - During reconnect, the user must be able to tell that prior thread data is still local UI state while live updates are temporarily unavailable.

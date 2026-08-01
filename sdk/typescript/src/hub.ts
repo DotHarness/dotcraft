@@ -16,6 +16,8 @@ export {
 } from "./hubClient.js";
 export type {
   HubAppServerResponse,
+  HubBinaryMatchPolicy,
+  HubCapabilities,
   HubClientInfo,
   HubClientOptions,
   HubEnsureAppServerOptions,

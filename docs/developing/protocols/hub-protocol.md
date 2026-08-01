@@ -1,6 +1,8 @@
-# Hub Protocol
+# Hub protocol
 
 Hub Protocol is the local protocol DotCraft clients use to discover and manage workspace AppServers. It is intended for Desktop, CLI, editor extensions, and other local clients. If you want to talk to the agent, normal session traffic still uses [AppServer Protocol](./appserver-protocol).
+
+For TypeScript, .NET, or Python applications, prefer the [DotCraft SDK Hub API](../sdks/). It implements discovery, binary policy, structured errors, and AppServer bootstrap. Use this raw HTTP/SSE contract for a custom transport, an unsupported language, or protocol debugging.
 
 Hub coordinates local runtimes. It is not a session proxy:
 
@@ -9,7 +11,7 @@ Hub coordinates local runtimes. It is not a session proxy:
 - Hub does not expose AppServer JSON-RPC methods such as `thread/*`, `turn/*`, `approval/*`, or `mcp/*`.
 - After calling `appservers/ensure`, clients connect directly to the returned AppServer WebSocket endpoint.
 
-## When To Use It
+## When to use it
 
 Implement a Hub client when:
 
@@ -54,7 +56,7 @@ After reading the lock file, clients should verify:
 
 If verification fails, stop trusting that lock file and start `dotcraft hub` if local auto-start is enabled.
 
-## Bootstrap Flow
+## Bootstrap flow
 
 ![DotCraft Hub bootstrap flow](/hub-bootstrap-flow.svg)
 
@@ -82,7 +84,7 @@ Unauthorized response:
 
 Hub is a same-OS-user local coordinator, not a cross-user security boundary. Do not expose the Hub API on a non-loopback network.
 
-## API Overview
+## API overview
 
 | Endpoint | Auth | Description |
 |----------|------|-------------|
@@ -182,7 +184,7 @@ If `startIfMissing` is `false`, clients can inspect state without creating a new
 
 If Hub finds a stale workspace `appserver.lock`, it removes the stale lock and continues. If the lock points to a live AppServer whose `appServerWebSocket` endpoint accepts an initialize handshake, Hub may return that endpoint with `startedByHub: false` and `serviceStatus` entries marked `external`. If the live lock cannot be safely reused, Hub returns `workspaceLocked`.
 
-### Stop And Restart
+### Stop and restart
 
 Stop request:
 
@@ -256,7 +258,7 @@ Known event kinds include:
 
 Event payloads are extensible. Clients should render known fields by `kind` and ignore unknown fields.
 
-## Connect To AppServer
+## Connect to AppServer
 
 After receiving `endpoints.appServerWebSocket`, open that WebSocket and initialize AppServer Protocol:
 
@@ -321,7 +323,7 @@ Common error codes:
 | `invalidNotification` | 400 | Notification request is invalid. |
 | `hubInternalError` | 500 | Hub encountered an unexpected internal error. |
 
-## Client Recommendations
+## Client recommendations
 
 - Use Hub by default for local workspaces, while keeping explicit remote AppServer mode as an advanced path.
 - After starting Hub, reread `hub.lock` and verify `/v1/status`; do not assume the process is ready immediately.
@@ -331,6 +333,7 @@ Common error codes:
 
 ## Related docs
 
+- [SDK quickstart](../sdks/quickstart)
 - [AppServer Protocol](./appserver-protocol)
 - [Hub Local Coordination](../lifecycle/hub)
 - [AppServer Mode](../lifecycle/appserver)

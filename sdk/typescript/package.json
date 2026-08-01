@@ -11,6 +11,10 @@
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
     },
+    "./contracts": {
+      "types": "./dist/contracts.d.ts",
+      "import": "./dist/contracts.js"
+    },
     "./wire": {
       "types": "./dist/wire.d.ts",
       "import": "./dist/wire.js"
@@ -41,7 +45,7 @@
   ],
   "scripts": {
     "build": "tsc",
-    "test": "npm run build:all && node --test dist/adapter.test.js dist/channelRuntime.test.js dist/client.test.js dist/dotcraft.test.js dist/hubClient.test.js dist/moduleAdapter.test.js dist/deliveredFrontier.test.js dist/turnReply.test.js dist/mediaSource.test.js dist/transport.test.js dist/conformance-variant.test.js",
+    "test": "npm run build:all && node --test dist/adapter.test.js dist/channelRuntime.test.js dist/client.test.js dist/dotcraft.test.js dist/hubClient.test.js dist/moduleAdapter.test.js dist/deliveredFrontier.test.js dist/turnReply.test.js dist/mediaSource.test.js dist/transport.test.js dist/conformance-variant.test.js dist/protocolBaseline.test.js dist/generatedAppServer.test.js",
     "typecheck": "tsc --noEmit",
     "build:packages": "npm run build --workspace @dotcraft/channel-feishu && npm run build --workspace @dotcraft/channel-weixin && npm run build --workspace @dotcraft/channel-telegram && npm run build --workspace @dotcraft/channel-qq && npm run build --workspace @dotcraft/channel-wecom",
     "bundle:packages": "npm run bundle --workspace @dotcraft/channel-feishu && npm run bundle --workspace @dotcraft/channel-weixin && npm run bundle --workspace @dotcraft/channel-telegram && npm run bundle --workspace @dotcraft/channel-qq && npm run bundle --workspace @dotcraft/channel-wecom",

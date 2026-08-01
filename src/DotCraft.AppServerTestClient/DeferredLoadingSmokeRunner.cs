@@ -245,7 +245,7 @@ internal sealed class DeferredLoadingSmokeRunner(string dotcraftBin, DeferredLoa
         DeferredLoadingSmokeProviderSelection provider,
         string displayName)
     {
-        var threadResponse = await client.SendRequestAsync(AppServerMethods.ThreadStart, new
+        var threadResponse = await client.SendRequestAsync(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ThreadStart, new
         {
             identity = new
             {
@@ -273,7 +273,7 @@ internal sealed class DeferredLoadingSmokeRunner(string dotcraftBin, DeferredLoa
         string threadId,
         string text)
     {
-        var turnResponse = await client.SendRequestAsync(AppServerMethods.TurnStart, new
+        var turnResponse = await client.SendRequestAsync(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.TurnStart, new
         {
             threadId,
             input = new[] { new { type = "text", text } }
@@ -297,9 +297,9 @@ internal sealed class DeferredLoadingSmokeRunner(string dotcraftBin, DeferredLoa
                 continue;
 
             var method = methodElement.GetString();
-            if (method == AppServerMethods.TurnCompleted)
+            if (method == DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.TurnCompleted)
                 return;
-            if (method is AppServerMethods.TurnFailed or AppServerMethods.TurnCancelled)
+            if (method is DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.TurnFailed or DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.TurnCancelled)
                 throw new InvalidOperationException($"turn terminal failure: {ExtractNotificationMessage(notification)}");
         }
 

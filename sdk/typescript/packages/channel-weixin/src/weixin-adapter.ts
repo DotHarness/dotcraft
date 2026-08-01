@@ -11,10 +11,10 @@ import {
   DECISION_ACCEPT_FOR_SESSION,
   DECISION_CANCEL,
   DECISION_DECLINE,
+  DotCraftAppServerClient,
   type SocialChannelTarget,
 } from "@dotcraft/sdk";
 import {
-  DotCraftWireClient,
   WebSocketTransport,
   type Transport,
 } from "@dotcraft/sdk/wire";
@@ -322,7 +322,7 @@ export class WeixinAdapter extends ModuleChannelAdapter<WeixinConfig> {
 
   private async ensureDotCraftReady(config: WeixinConfig): Promise<void> {
     if (this.dotcraftStarted) return;
-    this.client = new DotCraftWireClient(this.buildTransportFromConfig(config));
+    this.client = new DotCraftAppServerClient(this.buildTransportFromConfig(config), { autoReconnect: true });
     await super.start();
     this.dotcraftStarted = true;
   }

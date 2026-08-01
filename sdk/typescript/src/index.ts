@@ -10,6 +10,8 @@ export {
   DotCraft,
   DotCraftThread,
 } from "./dotcraft.js";
+export { DotCraftAppServerClient } from "./appServerClient.js";
+export type { RuntimeAdditionalContextEntry as AppServerRuntimeAdditionalContextEntry } from "./appServerClient.js";
 export type {
   ApprovalDecision,
   ApprovalHandler,
@@ -96,6 +98,8 @@ export {
   DotCraftError,
   DotCraftSdkError,
   InitializationError,
+  ReconnectQueueFullError,
+  RequestTimeoutError,
   ThreadNotActiveError,
   ThreadNotFoundError,
   TurnCancelledError,
@@ -118,5 +122,5 @@ export {
 } from "./models.js";
 export type { Unsubscribe } from "./client.js";
 
-export const version = "0.2.1";
+export const version = "0.4.3";
 export const sdkContractVersion = "1.0.0";

@@ -686,7 +686,7 @@ async function startDotCraftInstallThread(
       workspacePath: preparation.workspacePath
     },
     historyMode: 'server'
-  }) as { thread: ThreadSummary }
+  }) as unknown as { thread: ThreadSummary }
 
   await window.api.skillMarket.bindDotCraftInstall?.({
     threadId: result.thread.id,

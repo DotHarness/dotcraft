@@ -59,10 +59,11 @@ Desktop 提供 Hub 的可视化层，Hub 自身是无界面的后台协调器。
 
 ## 实现客户端
 
-参考 [Hub 协议](../protocols/hub-protocol) 实现自己的本地客户端：发现 Hub、调用 `ensure`、订阅生命周期事件。
+常规本地 client 应使用 [DotCraft SDK](../sdks/)。其 Hub API 会发现或启动 Hub、确保工作区 AppServer、保留结构化错误，随后建立 AppServer 连接。只有在实现自定义传输、不受支持的语言或调试协议时，才直接实现 [Hub 协议](../protocols/hub-protocol)。
 
-## 相关入口
+## 相关文档
 
+- [SDK 快速开始](../sdks/quickstart) — 推荐的 client 路径
 - [AppServer 模式](./appserver) — 远程 / 多客户端 / CI
 - [Hub 协议](../protocols/hub-protocol) — 客户端协议概览
 - [统一会话核心](../architecture/session-core) — Hub 与 AppServer 在整体架构中的位置

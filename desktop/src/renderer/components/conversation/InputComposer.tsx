@@ -1362,7 +1362,7 @@ export function InputComposer({
       const response = (await window.api.appServer.sendRequest(
         'thread/read',
         { threadId, includeTurns: true }
-      )) as { thread?: Thread }
+      )) as unknown as { thread?: Thread }
       const refreshed = response.thread
       if (!refreshed || useThreadStore.getState().activeThreadId !== threadId) return
 

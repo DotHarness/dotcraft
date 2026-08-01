@@ -634,8 +634,8 @@ public sealed class AcpBridgePipeIntegrationTests
 
             object? result = msg.Method switch
             {
-                AppServerMethods.Initialize => new AppServerInitializeResult(),
-                AppServerMethods.ThreadStart => new
+                DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.Initialize => new AppServerInitializeResult(),
+                DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ThreadStart => new
                 {
                     thread = new
                     {
@@ -643,7 +643,7 @@ public sealed class AcpBridgePipeIntegrationTests
                         configuration = threadConfig
                     }
                 },
-                AppServerMethods.ModelList => new ModelListResult
+                DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ModelList => new ModelListResult
                 {
                     Success = true,
                     Models =
@@ -652,8 +652,8 @@ public sealed class AcpBridgePipeIntegrationTests
                         new ModelCatalogItem { Id = "gpt-beta" }
                     ]
                 },
-                AppServerMethods.WorkspaceConfigUpdate => new WorkspaceConfigUpdateResult(),
-                AppServerMethods.ThreadRead => new
+                DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.WorkspaceConfigUpdate => new WorkspaceConfigUpdateResult(),
+                DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ThreadRead => new
                 {
                     thread = new
                     {
@@ -662,7 +662,7 @@ public sealed class AcpBridgePipeIntegrationTests
                         turns = Array.Empty<object>()
                     }
                 },
-                AppServerMethods.ThreadConfigUpdate => UpdateThreadConfig(msg.Params, threadConfig),
+                DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ThreadConfigUpdate => UpdateThreadConfig(msg.Params, threadConfig),
                 _ => new { }
             };
 
@@ -698,10 +698,10 @@ public sealed class AcpBridgePipeIntegrationTests
             object? result;
             switch (msg.Method)
             {
-                case AppServerMethods.Initialize:
+                case DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.Initialize:
                     result = new AppServerInitializeResult();
                     break;
-                case AppServerMethods.ThreadStart:
+                case DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ThreadStart:
                     if (msg.Params is { ValueKind: JsonValueKind.Object } p)
                         capturedThreadStart.TrySetResult(p.Clone());
                     result = new
@@ -713,7 +713,7 @@ public sealed class AcpBridgePipeIntegrationTests
                         }
                     };
                     break;
-                case AppServerMethods.ModelList:
+                case DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ModelList:
                     result = new ModelListResult { Success = false };
                     break;
                 default:
@@ -800,7 +800,7 @@ internal static class WireClientIntegrationTestsRunServerLoop
 
             if (msg.IsNotification)
             {
-                if (msg.Method == AppServerMethods.Initialized)
+                if (msg.Method == DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.Initialized)
                     handler.HandleInitializedNotification();
                 continue;
             }

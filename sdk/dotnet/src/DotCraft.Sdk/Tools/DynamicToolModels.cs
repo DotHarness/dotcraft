@@ -41,38 +41,12 @@ public sealed class DynamicToolDescriptor
     public string QualifiedName =>
         string.IsNullOrEmpty(Namespace) ? LocalName : $"{Namespace}.{LocalName}";
 
-    /// <summary>
-    /// Compatibility alias for <see cref="QualifiedName"/>.
-    /// Setting the value splits it at the final dot into <see cref="Namespace"/> and
-    /// <see cref="LocalName"/>.
-    /// </summary>
-    public string Name
-    {
-        get => QualifiedName;
-        set
-        {
-            int separator = value.LastIndexOf('.');
-            if (separator < 0)
-            {
-                Namespace = "";
-                LocalName = value;
-                return;
-            }
-
-            Namespace = value[..separator];
-            LocalName = value[(separator + 1)..];
-        }
-    }
-
     public string Description { get; set; } = "";
 
     /// <summary>Full JSON Schema (preferred input for the AppServer).</summary>
     public JsonElement InputSchema { get; set; }
 
-    /// <summary>Compatibility field: a plain JSON sample for hosts that ignore the schema.</summary>
-    public string InputSchemaSample { get; set; } = "{}";
-
-    /// <summary>Declaration sort order (lower first), then by <see cref="Name"/>.</summary>
+    /// <summary>Declaration sort order (lower first), then by <see cref="QualifiedName"/>.</summary>
     public int Order { get; set; }
 
     /// <summary>Whether the host should load the tool body lazily.</summary>

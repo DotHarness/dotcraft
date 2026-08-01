@@ -2,15 +2,16 @@
  * DotCraftWireClient: JSON-RPC 2.0 client for the DotCraft AppServer Wire Protocol.
  */
 
-import {
-  InitializeResult,
-  JsonRpcMessage,
-  Thread,
-  Turn,
-} from "./models.js";
-import { DotCraftError, toDotCraftError } from "./errors.js";
+import { InitializeResult, JsonRpcMessage } from "./models.js";
+import { ReconnectQueueFullError, RequestTimeoutError, toDotCraftError } from "./errors.js";
 import { Transport, TransportClosed, WebSocketTransport } from "./transport.js";
 import type { ChannelToolDescriptor } from "./capability.js";
+import type {
+  ClientNotificationMethods,
+  ClientRequestMethods,
+  ServerNotificationMethods,
+  ServerRequestMethods,
+} from "./generated/appserver/index.js";
 
 export type NotificationHandler = (params: Record<string, unknown>) => void | Promise<void>;
 export type ServerRequestHandler = (
@@ -18,43 +19,114 @@ export type ServerRequestHandler = (
   params: Record<string, unknown>,
 ) => unknown | Promise<unknown>;
 export type Unsubscribe = () => void;
+export type WireConnectionState =
+  | "connecting"
+  | "initializing"
+  | "ready"
+  | "disconnected"
+  | "reconnecting"
+  | "reconnectError"
+  | "closed";
 
-export interface RuntimeAdditionalContextEntry {
-  kind: "application";
-  value: string;
+export interface DotCraftWireClientOptions {
+  autoReconnect?: boolean;
+  defaultTimeoutMs?: number;
+  initializeTimeoutMs?: number | null;
+  maxReconnectQueueSize?: number;
+  reconnectBaseDelayMs?: number;
+  reconnectMaxDelayMs?: number;
+  random?: () => number;
 }
 
 export class DotCraftWireClient {
   private readonly transport: Transport;
+  private readonly options: Required<Omit<DotCraftWireClientOptions, "initializeTimeoutMs">> & {
+    initializeTimeoutMs: number | null;
+  };
   private nextId = 1;
   private readonly pending = new Map<
     string | number,
-    { resolve: (v: unknown) => void; reject: (e: unknown) => void }
+    { resolve: (v: unknown) => void; reject: (e: unknown) => void; timer: ReturnType<typeof setTimeout> | null; written: boolean }
   >();
   private readonly handlers = new Map<string, NotificationHandler[]>();
+  private readonly rawNotificationHandlers = new Set<
+    (method: string, params: Record<string, unknown>) => void | Promise<void>
+  >();
   private readonly requestHandlers = new Map<string, ServerRequestHandler>();
-  private approvalHandler: ServerRequestHandler | null = null;
+  private rawServerRequestFallback: ((
+    method: string,
+    requestId: string | number,
+    params: Record<string, unknown>,
+  ) => unknown | Promise<unknown>) | null = null;
   private readerPromise: Promise<void> | null = null;
   private initialized = false;
+  private initializeResultValue: InitializeResult | null = null;
+  private initializeOptions: Parameters<DotCraftWireClient["initialize"]>[0] | null = null;
+  private reconnecting = false;
+  private explicitlyClosed = false;
+  private reconnectAttempt = 0;
+  private queuedWrites: Array<{
+    message: Record<string, unknown>;
+    requestId?: string | number;
+    resolve: () => void;
+    reject: (error: unknown) => void;
+  }> = [];
+  private stateValue: WireConnectionState = "disconnected";
+  private readonly stateHandlers = new Set<(state: WireConnectionState, error?: unknown) => void>();
 
-  constructor(transport: Transport) {
+  constructor(transport: Transport, options: DotCraftWireClientOptions = {}) {
     this.transport = transport;
+    this.options = {
+      autoReconnect: options.autoReconnect ?? false,
+      defaultTimeoutMs: options.defaultTimeoutMs ?? 30_000,
+      initializeTimeoutMs: options.initializeTimeoutMs ?? null,
+      maxReconnectQueueSize: options.maxReconnectQueueSize ?? 1024,
+      reconnectBaseDelayMs: options.reconnectBaseDelayMs ?? 1000,
+      reconnectMaxDelayMs: options.reconnectMaxDelayMs ?? 30_000,
+      random: options.random ?? Math.random,
+    };
+  }
+
+  get state(): WireConnectionState {
+    return this.stateValue;
+  }
+
+  get initializeResult(): InitializeResult | null {
+    return this.initializeResultValue;
+  }
+
+  onStateChanged(handler: (state: WireConnectionState, error?: unknown) => void): Unsubscribe {
+    this.stateHandlers.add(handler);
+    return () => this.stateHandlers.delete(handler);
+  }
+
+  private setState(state: WireConnectionState, error?: unknown): void {
+    this.stateValue = state;
+    for (const handler of this.stateHandlers) handler(state, error);
   }
 
   async connect(): Promise<void> {
+    this.setState("connecting");
     if (this.transport instanceof WebSocketTransport) {
       await this.transport.connect();
     }
+    this.setState("ready");
   }
 
   async start(): Promise<void> {
     if (this.readerPromise) return;
+    if (this.stateValue === "disconnected") this.setState("ready");
     this.readerPromise = this.readerLoop();
   }
 
   async stop(): Promise<void> {
+    this.explicitlyClosed = true;
+    this.reconnecting = false;
     await this.transport.close();
+    this.rejectAllPending(new TransportClosed("Wire client closed"));
+    this.rejectQueuedWrites(new TransportClosed("Wire client closed"));
     this.readerPromise = null;
+    this.setState("closed");
   }
 
   async initialize(opts: {
@@ -72,10 +144,12 @@ export class DotCraftWireClient {
     channelTools?: ChannelToolDescriptor[] | null;
     extraCapabilities?: Record<string, unknown> | null;
   }): Promise<InitializeResult> {
+    this.initializeOptions = { ...opts };
+    this.setState("initializing");
     if (!this.readerPromise) await this.start();
 
     const capabilities: Record<string, unknown> = {
-      approvalSupport: opts.approvalSupport ?? true,
+      approvalSupport: opts.approvalSupport ?? false,
       requestUserInputSupport: opts.requestUserInputSupport ?? false,
       streamingSupport: opts.streamingSupport ?? true,
       configChange: opts.configChange ?? false,
@@ -101,334 +175,209 @@ export class DotCraftWireClient {
       }
     }
 
-    const clientInfo: Record<string, unknown> = {
+    const clientInfo: { name: string; version: string; title?: string } = {
       name: opts.clientName,
       version: opts.clientVersion,
     };
     if (opts.clientTitle) clientInfo.title = opts.clientTitle;
 
-    const result = await this.request("initialize", {
+    const result = await this.requestRawInternal<ClientRequestMethods["initialize"]["result"]>("initialize", {
       clientInfo,
       capabilities,
-    });
-    await this.notify("initialized", {});
+    }, this.options.initializeTimeoutMs, true);
+    await this.notifyRaw("initialized", {}, true);
     this.initialized = true;
-    return InitializeResult.fromWire(result as Record<string, unknown>);
+    this.setState("ready");
+    this.initializeResultValue = InitializeResult.fromWire(result as Record<string, unknown>);
+    return this.initializeResultValue;
   }
 
-  async threadStart(params: {
-    channelName: string;
-    userId: string;
-    workspacePath?: string;
-    channelContext?: string;
-    displayName?: string | null;
-    historyMode?: string;
-    config?: Record<string, unknown> | null;
-    dynamicTools?: unknown[] | null;
-    additionalContext?: Record<string, RuntimeAdditionalContextEntry> | null;
-  }): Promise<Thread> {
-    const identity: Record<string, unknown> = {
-      channelName: params.channelName,
-      userId: params.userId,
-    };
-    if (params.workspacePath) identity.workspacePath = params.workspacePath;
-    if (params.channelContext) identity.channelContext = params.channelContext;
-
-    const p: Record<string, unknown> = {
-      identity,
-      historyMode: params.historyMode ?? "server",
-    };
-    if (params.displayName !== undefined && params.displayName !== null)
-      p.displayName = params.displayName;
-    if (params.config) p.config = params.config;
-    if (params.dynamicTools !== undefined && params.dynamicTools !== null)
-      p.dynamicTools = params.dynamicTools;
-    if (params.additionalContext) p.additionalContext = params.additionalContext;
-
-    const result = (await this.request("thread/start", p)) as Record<string, unknown>;
-    return Thread.fromWire((result.thread as Record<string, unknown>) ?? {});
+  on<M extends keyof ServerNotificationMethods>(
+    method: M,
+    fn: (params: ServerNotificationMethods[M]["params"]) => void | Promise<void>,
+  ): Unsubscribe {
+    return this.addNotificationHandler(method, fn as NotificationHandler);
   }
 
-  async threadResume(
-    threadId: string,
-    params?: {
-      dynamicTools?: unknown[] | null;
-      additionalContext?: Record<string, RuntimeAdditionalContextEntry> | null;
-    },
-  ): Promise<Thread> {
-    const payload: Record<string, unknown> = { threadId };
-    if (params?.dynamicTools !== undefined && params.dynamicTools !== null)
-      payload.dynamicTools = params.dynamicTools;
-    if (params?.additionalContext !== undefined && params.additionalContext !== null)
-      payload.additionalContext = params.additionalContext;
-    const result = (await this.request("thread/resume", payload)) as Record<string, unknown>;
-    return Thread.fromWire((result.thread as Record<string, unknown>) ?? {});
+  onRaw(method: string, fn: NotificationHandler): Unsubscribe {
+    return this.addNotificationHandler(method, fn);
   }
 
-  async threadList(params: {
-    channelName: string;
-    userId: string;
-    workspacePath?: string;
-    channelContext?: string;
-    scope?: "identity" | "workspace";
-    includeArchived?: boolean;
-    query?: string;
-    limit?: number;
-    cursor?: string;
-  }): Promise<Thread[]> {
-    const page = await this.threadListPage(params);
-    return page.threads;
+  onAnyNotificationRaw(
+    fn: (method: string, params: Record<string, unknown>) => void | Promise<void>,
+  ): Unsubscribe {
+    this.rawNotificationHandlers.add(fn);
+    return () => this.rawNotificationHandlers.delete(fn);
   }
 
-  async threadListPage(params: {
-    channelName: string;
-    userId: string;
-    workspacePath?: string;
-    channelContext?: string;
-    scope?: "identity" | "workspace";
-    includeArchived?: boolean;
-    query?: string;
-    limit?: number;
-    cursor?: string;
-  }): Promise<{ threads: Thread[]; nextCursor?: string | null; totalMatched?: number | null; raw: Record<string, unknown> }> {
-    const identity: Record<string, unknown> = {
-      channelName: params.channelName,
-      userId: params.userId,
-    };
-    if (params.workspacePath) identity.workspacePath = params.workspacePath;
-    if (params.channelContext) identity.channelContext = params.channelContext;
-
-    const payload: Record<string, unknown> = {
-      identity,
-      includeArchived: params.includeArchived ?? false,
-    };
-    if (params.scope) payload.scope = params.scope;
-    if (params.query) payload.query = params.query;
-    if (params.limit != null) payload.limit = params.limit;
-    if (params.cursor) payload.cursor = params.cursor;
-
-    const result = (await this.request("thread/list", payload)) as Record<string, unknown>;
-    const data = (result.data as Record<string, unknown>[]) ?? [];
-    return {
-      threads: data.map((t) => Thread.fromWire(t)),
-      nextCursor: typeof result.nextCursor === "string" ? result.nextCursor : null,
-      totalMatched: typeof result.totalMatched === "number" ? result.totalMatched : null,
-      raw: result,
-    };
-  }
-
-  async threadRead(
-    threadId: string,
-    includeTurns = false,
-    params?: { turnLimit?: number; cursor?: string },
-  ): Promise<Thread> {
-    const payload: Record<string, unknown> = {
-      threadId,
-      includeTurns,
-    };
-    if (params?.turnLimit != null) payload.turnLimit = params.turnLimit;
-    if (params?.cursor) payload.cursor = params.cursor;
-    const result = (await this.request("thread/read", payload)) as Record<string, unknown>;
-    return Thread.fromWire((result.thread as Record<string, unknown>) ?? {});
-  }
-
-  async threadSubscribe(threadId: string, replayRecent = false): Promise<void> {
-    await this.request("thread/subscribe", { threadId, replayRecent });
-  }
-
-  async threadUnsubscribe(threadId: string): Promise<void> {
-    await this.request("thread/unsubscribe", { threadId });
-  }
-
-  async threadPause(threadId: string): Promise<void> {
-    await this.request("thread/pause", { threadId });
-  }
-
-  async threadArchive(threadId: string): Promise<void> {
-    await this.request("thread/archive", { threadId });
-  }
-
-  async threadDelete(threadId: string): Promise<void> {
-    await this.request("thread/delete", { threadId });
-  }
-
-  async threadSetMode(threadId: string, mode: string): Promise<void> {
-    await this.request("thread/mode/set", { threadId, mode });
-  }
-
-  async turnStart(
-    threadId: string,
-    input: Record<string, unknown>[],
-    sender?: Record<string, unknown> | null,
-  ): Promise<Turn> {
-    const p: Record<string, unknown> = { threadId, input };
-    if (sender) p.sender = sender;
-    const result = (await this.request("turn/start", p)) as Record<string, unknown>;
-    return Turn.fromWire((result.turn as Record<string, unknown>) ?? {});
-  }
-
-  async turnInterrupt(threadId: string, turnId: string): Promise<void> {
-    await this.request("turn/interrupt", { threadId, turnId });
-  }
-
-  async turnEnqueue(
-    threadId: string,
-    input: Record<string, unknown>[],
-    sender?: Record<string, unknown> | null,
-  ): Promise<Record<string, unknown>> {
-    const p: Record<string, unknown> = { threadId, input };
-    if (sender) p.sender = sender;
-    return (await this.request("turn/enqueue", p)) as Record<string, unknown>;
-  }
-
-  async commandList(): Promise<Record<string, unknown>[]> {
-    const result = (await this.request("command/list", {})) as Record<string, unknown>;
-    return ((result.commands as Record<string, unknown>[]) ?? []);
-  }
-
-  async commandExecute(params: {
-    threadId: string;
-    command: string;
-    arguments?: string[];
-    sender?: Record<string, unknown> | null;
-  }): Promise<Record<string, unknown>> {
-    const payload: Record<string, unknown> = {
-      threadId: params.threadId,
-      command: params.command,
-    };
-    if (params.arguments) payload.arguments = params.arguments;
-    if (params.sender) payload.sender = params.sender;
-    return (await this.request("command/execute", payload)) as Record<string, unknown>;
-  }
-
-  on(method: string, fn: NotificationHandler): Unsubscribe {
+  private addNotificationHandler(method: string, fn: NotificationHandler): Unsubscribe {
     const list = this.handlers.get(method) ?? [];
     list.push(fn);
     this.handlers.set(method, list);
     return () => this.unregisterHandler(method, fn);
   }
 
-  registerHandler(method: string, fn: NotificationHandler): void {
-    this.on(method, fn);
-  }
-
-  unregisterHandler(method: string, fn: NotificationHandler): void {
+  private unregisterHandler(method: string, fn: NotificationHandler): void {
     const list = this.handlers.get(method);
     if (!list) return;
     const i = list.indexOf(fn);
     if (i >= 0) list.splice(i, 1);
   }
 
-  registerServerRequestHandler(method: string, fn: ServerRequestHandler): void {
-    this.requestHandlers.set(method, fn);
+  registerServerRequestHandler<M extends keyof ServerRequestMethods>(
+    method: M,
+    fn: (
+      requestId: string | number,
+      params: ServerRequestMethods[M]["params"],
+    ) => ServerRequestMethods[M]["result"] | Promise<ServerRequestMethods[M]["result"]>,
+  ): void {
+    this.requestHandlers.set(method, fn as ServerRequestHandler);
   }
 
-  setApprovalHandler(fn: ServerRequestHandler | null): void {
-    this.approvalHandler = fn;
+  registerServerRequestHandlerRaw<P extends Record<string, unknown>, R>(
+    method: string,
+    fn: (requestId: string | number, params: P) => R | Promise<R>,
+  ): void {
+    this.requestHandlers.set(method, fn as ServerRequestHandler);
   }
 
-  /**
-   * Subscribe to thread-scoped notifications before starting a turn so early deltas are not lost.
-   * Handlers are registered when this method returns; call before {@link turnStart}.
-   */
-  streamEvents(
-    threadId: string,
-    terminalMethods: readonly string[] = ["turn/completed", "turn/failed", "turn/cancelled"],
-  ): AsyncIterableIterator<JsonRpcMessage> {
-    const queue: JsonRpcMessage[] = [];
-    let resolveWait: (() => void) | null = null;
-    const allMethods = [
-      "thread/started",
-      "thread/renamed",
-      "thread/resumed",
-      "thread/statusChanged",
-      "thread/runtimeChanged",
-      "thread/queue/updated",
-      "turn/started",
-      "turn/completed",
-      "turn/failed",
-      "turn/cancelled",
-      "item/started",
-      "item/completed",
-      "item/agentMessage/delta",
-      "item/reasoning/delta",
-      "item/toolCall/argumentsDelta",
-      "item/approval/resolved",
-      "subagent/progress",
-      "item/usage/delta",
-      "system/event",
-      "plan/updated",
-    ];
+  protected hasServerRequestHandler(method: string): boolean {
+    return this.requestHandlers.has(method);
+  }
 
-    const handlers: Array<{ method: string; fn: NotificationHandler }> = [];
-    for (const methodName of allMethods) {
-      const fn: NotificationHandler = async (params) => {
-        if ("threadId" in params && params.threadId !== threadId) return;
-        queue.push(JsonRpcMessage.fromDict({ method: methodName, params }));
-        resolveWait?.();
-        resolveWait = null;
-      };
-      handlers.push({ method: methodName, fn });
-      this.registerHandler(methodName, fn);
-    }
-
-    let finished = false;
-    const cleanup = (): void => {
-      if (finished) return;
-      finished = true;
-      for (const { method, fn } of handlers) {
-        this.unregisterHandler(method, fn);
-      }
+  registerServerRequestFallbackRaw(
+    fn: (
+      method: string,
+      requestId: string | number,
+      params: Record<string, unknown>,
+    ) => unknown | Promise<unknown>,
+  ): Unsubscribe {
+    this.rawServerRequestFallback = fn;
+    return () => {
+      if (this.rawServerRequestFallback === fn) this.rawServerRequestFallback = null;
     };
-
-    const iterator: AsyncIterableIterator<JsonRpcMessage> = {
-      next: async (): Promise<IteratorResult<JsonRpcMessage>> => {
-        while (queue.length === 0) {
-          await new Promise<void>((r) => {
-            resolveWait = r;
-          });
-        }
-        const msg = queue.shift()!;
-        if (msg.method && terminalMethods.includes(msg.method)) {
-          cleanup();
-        }
-        return { value: msg, done: false };
-      },
-      return: async (): Promise<IteratorResult<JsonRpcMessage>> => {
-        cleanup();
-        return { value: undefined, done: true };
-      },
-      [Symbol.asyncIterator](): AsyncIterableIterator<JsonRpcMessage> {
-        return this;
-      },
-    };
-
-    return iterator;
   }
 
   private nextRequestId(): number {
     return this.nextId++;
   }
 
-  async request<T = unknown>(method: string, params?: unknown): Promise<T> {
+  async request<M extends keyof ClientRequestMethods>(
+    method: M,
+    params: ClientRequestMethods[M]["params"],
+    timeoutMs?: number | null,
+  ): Promise<ClientRequestMethods[M]["result"]> {
+    return await this.requestRaw<ClientRequestMethods[M]["result"]>(method, params, timeoutMs);
+  }
+
+  async requestRaw<T = unknown>(method: string, params?: unknown, timeoutMs?: number | null): Promise<T> {
+    return await this.requestRawInternal<T>(method, params, timeoutMs, false);
+  }
+
+  private async requestRawInternal<T>(
+    method: string,
+    params: unknown,
+    timeoutMs: number | null | undefined,
+    bypassReconnectQueue: boolean,
+  ): Promise<T> {
     const id = this.nextRequestId();
     return new Promise<T>((resolve, reject) => {
-      this.pending.set(id, { resolve: resolve as (v: unknown) => void, reject });
+      const effectiveTimeout = timeoutMs === undefined ? this.options.defaultTimeoutMs : timeoutMs;
+      const timer = effectiveTimeout == null
+        ? null
+        : setTimeout(() => {
+            this.pending.delete(id);
+            reject(new RequestTimeoutError(method, effectiveTimeout));
+          }, effectiveTimeout);
+      this.pending.set(id, { resolve: resolve as (v: unknown) => void, reject, timer, written: false });
       const msg = new JsonRpcMessage({
         method,
         id,
         params: params as Record<string, unknown> | undefined,
       });
-      void this.transport.writeMessage(msg.toDict()).catch((error) => {
-        this.pending.delete(id);
-        reject(error);
-      });
+      void this.writeMessage(msg.toDict(), id, bypassReconnectQueue).catch((error) => this.rejectPending(id, error));
     });
   }
 
-  async notify(method: string, params: Record<string, unknown> = {}): Promise<void> {
+  async notify<M extends keyof ClientNotificationMethods>(
+    method: M,
+    params: ClientNotificationMethods[M]["params"],
+  ): Promise<void> {
+    await this.notifyRaw(method, params);
+  }
+
+  async notifyRaw(
+    method: string,
+    params: Record<string, unknown> = {},
+    bypassReconnectQueue = false,
+  ): Promise<void> {
     const msg = new JsonRpcMessage({ method, params });
-    await this.transport.writeMessage(msg.toDict());
+    await this.writeMessage(msg.toDict(), undefined, bypassReconnectQueue);
+  }
+
+  private async writeMessage(
+    message: Record<string, unknown>,
+    requestId?: string | number,
+    bypassReconnectQueue = false,
+  ): Promise<void> {
+    if (this.explicitlyClosed) throw new TransportClosed("Wire client closed");
+    if (this.reconnecting && !bypassReconnectQueue) {
+      if (this.queuedWrites.length >= this.options.maxReconnectQueueSize) {
+        throw new ReconnectQueueFullError(this.options.maxReconnectQueueSize);
+      }
+      await new Promise<void>((resolve, reject) => {
+        this.queuedWrites.push({ message, requestId, resolve, reject });
+      });
+      return;
+    }
+
+    await this.transport.writeMessage(message);
+    if (requestId !== undefined) {
+      const pending = this.pending.get(requestId);
+      if (pending) pending.written = true;
+    }
+  }
+
+  private rejectPending(requestId: string | number, error: unknown): void {
+    const pending = this.pending.get(requestId);
+    if (!pending) return;
+    this.pending.delete(requestId);
+    if (pending.timer) clearTimeout(pending.timer);
+    pending.reject(error);
+  }
+
+  private rejectAllPending(error: unknown, writtenOnly = false): void {
+    for (const [id, pending] of this.pending) {
+      if (writtenOnly && !pending.written) continue;
+      this.pending.delete(id);
+      if (pending.timer) clearTimeout(pending.timer);
+      pending.reject(error);
+    }
+  }
+
+  private rejectQueuedWrites(error: unknown): void {
+    for (const queued of this.queuedWrites.splice(0)) queued.reject(error);
+  }
+
+  private async flushQueuedWrites(): Promise<void> {
+    const queued = this.queuedWrites.splice(0);
+    for (const item of queued) {
+      if (item.requestId !== undefined && !this.pending.has(item.requestId)) {
+        item.resolve();
+        continue;
+      }
+      try {
+        await this.transport.writeMessage(item.message);
+        if (item.requestId !== undefined) {
+          const pending = this.pending.get(item.requestId);
+          if (pending) pending.written = true;
+        }
+        item.resolve();
+      } catch (error) {
+        item.reject(error);
+        if (item.requestId !== undefined) this.rejectPending(item.requestId, error);
+      }
+    }
   }
 
   private async sendResponse(requestId: string | number, result: unknown): Promise<void> {
@@ -457,10 +406,11 @@ export class DotCraftWireClient {
           raw = await this.transport.readMessage();
         } catch (e) {
           if (e instanceof TransportClosed) {
-            for (const [, { reject }] of this.pending) {
-              reject(e);
-            }
-            this.pending.clear();
+            this.setState("disconnected", e);
+            this.rejectAllPending(e, this.options.autoReconnect);
+            if (await this.tryReconnect()) continue;
+            this.rejectAllPending(e);
+            this.rejectQueuedWrites(e);
             break;
           }
           throw e;
@@ -473,11 +423,68 @@ export class DotCraftWireClient {
     }
   }
 
+  private async tryReconnect(): Promise<boolean> {
+    if (
+      this.explicitlyClosed ||
+      !this.options.autoReconnect ||
+      !(this.transport instanceof WebSocketTransport) ||
+      !this.initializeOptions
+    ) {
+      return false;
+    }
+
+    this.reconnecting = true;
+    while (!this.explicitlyClosed) {
+      this.setState("reconnecting");
+      const delay = Math.min(
+        this.options.reconnectBaseDelayMs * 2 ** this.reconnectAttempt,
+        this.options.reconnectMaxDelayMs,
+      );
+      const jittered = Math.round(delay * (0.8 + this.options.random() * 0.4));
+      await new Promise((resolve) => setTimeout(resolve, jittered));
+      try {
+        await this.transport.connect();
+        await this.performReconnectHandshake(this.initializeOptions);
+        this.reconnectAttempt = 0;
+        this.reconnecting = false;
+        await this.flushQueuedWrites();
+        this.setState("ready");
+        return true;
+      } catch (error) {
+        this.reconnectAttempt += 1;
+        this.setState("reconnectError", error);
+      }
+    }
+    return false;
+  }
+
+  private async performReconnectHandshake(
+    options: NonNullable<DotCraftWireClient["initializeOptions"]>,
+  ): Promise<void> {
+    let settled = false;
+    let failure: unknown;
+    const handshake = this.initialize(options).then(
+      () => { settled = true; },
+      (error) => { failure = error; settled = true; },
+    );
+    while (!settled) {
+      const raw = await this.transport.readMessage();
+      await this.dispatch(JsonRpcMessage.fromDict(raw));
+      await Promise.race([
+        handshake,
+        new Promise<void>((resolve) => setTimeout(resolve, 1)),
+      ]);
+    }
+    await handshake;
+    if (failure !== undefined) throw failure;
+  }
+
   private async dispatch(msg: JsonRpcMessage): Promise<void> {
     if (msg.isResponse) {
       const fut = this.pending.get(msg.id as string | number);
       if (!fut) return;
       this.pending.delete(msg.id as string | number);
+      if (fut.timer) clearTimeout(fut.timer);
       if (msg.error) {
         const code = (msg.error.code ?? -1) as number;
         const m = String(msg.error.message ?? "Unknown error");
@@ -510,6 +517,11 @@ export class DotCraftWireClient {
         /* logged in adapter */
       });
     }
+    for (const handler of [...this.rawNotificationHandlers]) {
+      void Promise.resolve(handler(method, params)).catch(() => {
+        /* host listener failures are isolated from the read loop */
+      });
+    }
   }
 
   private async dispatchServerRequest(msg: JsonRpcMessage): Promise<void> {
@@ -517,28 +529,19 @@ export class DotCraftWireClient {
     const params = (msg.params as Record<string, unknown>) ?? {};
     const requestId = msg.id as string | number;
 
-    if (method === "item/approval/request") {
-      const handler = this.approvalHandler;
-      if (!handler) {
-        await this.sendResponse(requestId, { decision: "accept" });
-        return;
-      }
-      try {
-        const decision = await handler(requestId, params);
-        await this.sendResponse(requestId, { decision });
-      } catch {
-        await this.sendResponse(requestId, { decision: "cancel" });
-      }
-      return;
-    }
-
-    if (method === "ext/channel/heartbeat") {
-      await this.sendResponse(requestId, {});
-      return;
-    }
-
     const handler = this.requestHandlers.get(method);
     if (!handler) {
+      if (this.rawServerRequestFallback) {
+        try {
+          await this.sendResponse(
+            requestId,
+            (await this.rawServerRequestFallback(method, requestId, params)) ?? {},
+          );
+        } catch {
+          await this.sendErrorResponse(requestId, -32603, "Internal error");
+        }
+        return;
+      }
       await this.sendErrorResponse(requestId, -32601, `Method not handled: ${method}`);
       return;
     }

@@ -12,7 +12,7 @@ DotCraft 外部渠道适配器的 Telegram 参考实现。
 - **内联键盘审批** — `item/approval/request` 以 Telegram 按钮形式呈现。
 - **`/new` 命令** — 归档当前线程，开启新对话。
 - **`/help` 命令** — 显示可用命令。
-- **消息投递支持** — `ext/channel/deliver` 映射到 `bot.send_message()`。
+- **消息投递支持** — `ext/channel/send` 映射到 `bot.send_message()`。
 - **输入状态指示** — 在 Agent 处理期间显示"正在输入…"。
 - **Markdown → HTML 转换** — 将 Agent 的 Markdown 输出转换为 Telegram 兼容的 HTML。
 
@@ -29,7 +29,7 @@ DotCraft 外部渠道适配器的 Telegram 参考实现。
 pip install -r sdk/python/examples/telegram/requirements.txt
 ```
 
-这会安装 `dotcraft-wire`（SDK）和 `python-telegram-bot`。
+这会安装 `dotcraft`（SDK）和 `python-telegram-bot`。
 
 ## 配置
 
@@ -132,11 +132,11 @@ TelegramAdapter (python-telegram-bot, 长轮询)
      │ on_deliver()          → bot.send_message()
      │
      ▼
-dotcraft_wire.ChannelAdapter
+dotcraft.ChannelAdapter
      │
      │ thread/start, turn/start, 流式事件
      │ item/approval/request ↔ 响应
-     │ ext/channel/deliver
+     │ ext/channel/send
      │
      ▼
 DotCraft AppServer (stdio JSON-RPC)
@@ -162,7 +162,7 @@ examples/telegram/
 
 ## 相关文档
 
-- [Python SDK](../sdks/python)——`dotcraft_wire` SDK 概览与 API 参考。
+- [Python SDK](../sdks/python)——`dotcraft` SDK 概览与 API 参考。
 - [Channels & Bots](../../features/entry-points/channels)——所有聊天渠道的总览。
 - [Telegram 渠道适配器](./telegram)——同一平台的 TypeScript 适配器。
 

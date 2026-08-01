@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.dotcraft.dev/appserver/v1/core/UsageTimeseriesResult.schema.json",
+  "title": "UsageTimeseriesResult",
+  "type": "object",
+  "properties": {
+    "days": {
+      "type": "array",
+      "items": {
+        "$ref": "./UsageTimeseriesDay.schema.json"
+      }
+    },
+    "longestTaskMs": {
+      "type": "integer",
+      "minimum": -9007199254740991,
+      "maximum": 9007199254740991
+    },
+    "tzOffsetMinutes": {
+      "type": "integer"
+    }
+  },
+  "additionalProperties": true
+}

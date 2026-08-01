@@ -43,15 +43,15 @@ export async function runThreadFork({
       mode === 'worktree'
         ? {
             sourceThreadId: threadId,
-            ...(forkPoint ? { forkPoint } : {}),
+            ...(forkPoint ? { forkPoint: { ...forkPoint } } : {}),
             copyDirtyChanges: true
           }
         : {
             threadId,
-            ...(forkPoint ? { forkPoint } : {})
+            ...(forkPoint ? { forkPoint: { ...forkPoint } } : {})
           },
       mode === 'worktree' ? 180_000 : undefined
-    ) as ThreadForkResult
+    ) as unknown as ThreadForkResult
 
     const thread = result.thread
     if (!thread?.id) {

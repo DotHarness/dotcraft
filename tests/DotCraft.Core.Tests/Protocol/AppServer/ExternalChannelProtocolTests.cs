@@ -25,7 +25,7 @@ public sealed class ExternalChannelProtocolTests : IDisposable
     public async Task Initialize_WithChannelAdapter_SetsConnectionState()
     {
         // Arrange: build an initialize request with channelAdapter capability
-        var initMsg = InMemoryTransport.BuildRequest(AppServerMethods.Initialize, new
+        var initMsg = InMemoryTransport.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.Initialize, new
         {
             clientInfo = new { name = "telegram-adapter", version = "1.0.0" },
             capabilities = new
@@ -56,7 +56,7 @@ public sealed class ExternalChannelProtocolTests : IDisposable
     [Fact]
     public async Task Initialize_WithChannelAdapterStructuredDelivery_SetsStructuredState()
     {
-        var initMsg = InMemoryTransport.BuildRequest(AppServerMethods.Initialize, new
+        var initMsg = InMemoryTransport.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.Initialize, new
         {
             clientInfo = new { name = "media-adapter", version = "1.0.0" },
             capabilities = new
@@ -97,7 +97,7 @@ public sealed class ExternalChannelProtocolTests : IDisposable
     [Fact]
     public async Task Initialize_WithChannelAdapterTools_SetsToolState()
     {
-        var initMsg = InMemoryTransport.BuildRequest(AppServerMethods.Initialize, new
+        var initMsg = InMemoryTransport.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.Initialize, new
         {
             clientInfo = new { name = "tool-adapter", version = "1.0.0" },
             capabilities = new
@@ -140,7 +140,7 @@ public sealed class ExternalChannelProtocolTests : IDisposable
     [Fact]
     public async Task Initialize_WithChannelAdapter_WithoutDeliveryCapabilities_RemainsSendDisabledUntilAdvertised()
     {
-        var initMsg = InMemoryTransport.BuildRequest(AppServerMethods.Initialize, new
+        var initMsg = InMemoryTransport.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.Initialize, new
         {
             clientInfo = new { name = "simple-adapter", version = "1.0.0" },
             capabilities = new
@@ -179,9 +179,9 @@ public sealed class ExternalChannelProtocolTests : IDisposable
     [Fact]
     public void ExtChannelMethods_HaveCorrectValues()
     {
-        Assert.Equal("ext/channel/send", AppServerMethods.ExtChannelSend);
-        Assert.Equal("ext/channel/toolCall", AppServerMethods.ExtChannelToolCall);
-        Assert.Equal("ext/channel/heartbeat", AppServerMethods.ExtChannelHeartbeat);
+        Assert.Equal("ext/channel/send", DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ExtChannelSend);
+        Assert.Equal("ext/channel/toolCall", DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ExtChannelToolCall);
+        Assert.Equal("ext/channel/heartbeat", DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ExtChannelHeartbeat);
     }
 
     [Fact]

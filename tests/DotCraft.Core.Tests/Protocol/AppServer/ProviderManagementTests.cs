@@ -40,7 +40,7 @@ public sealed class ProviderManagementTests : IDisposable
         harness.Monitor.Changed += OnChanged;
         await harness.InitializeAsync();
 
-        await harness.ExecuteRequestAsync(harness.BuildRequest(AppServerMethods.ProviderCreate, new
+        await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ProviderCreate, new
         {
             id = "anthropic-main",
             displayName = "Anthropic Main",
@@ -76,7 +76,7 @@ public sealed class ProviderManagementTests : IDisposable
         Assert.Equal(120000, persisted.GetProperty("StreamIdleTimeoutMs").GetInt32());
 
         var change = Assert.Single(events);
-        Assert.Equal(AppServerMethods.ProviderCreate, change.Source);
+        Assert.Equal(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ProviderCreate, change.Source);
         Assert.Contains(ConfigChangeRegions.ProviderRegistry, change.Regions);
         harness.Monitor.Changed -= OnChanged;
 
@@ -89,7 +89,7 @@ public sealed class ProviderManagementTests : IDisposable
         using var harness = new AppServerTestHarness(workspaceCraftPath: _workspaceCraftPath);
         await harness.InitializeAsync();
 
-        await harness.ExecuteRequestAsync(harness.BuildRequest(AppServerMethods.ProviderCreate, new
+        await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ProviderCreate, new
         {
             id = "openai-api",
             displayName = "OpenAI",
@@ -116,7 +116,7 @@ public sealed class ProviderManagementTests : IDisposable
         using var harness = new AppServerTestHarness(workspaceCraftPath: _workspaceCraftPath);
         await harness.InitializeAsync();
 
-        await harness.ExecuteRequestAsync(harness.BuildRequest(AppServerMethods.ProviderCreate, new
+        await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ProviderCreate, new
         {
             id = "openai-responses",
             displayName = "OpenAI Responses",
@@ -144,7 +144,7 @@ public sealed class ProviderManagementTests : IDisposable
         using var harness = new AppServerTestHarness(workspaceCraftPath: _workspaceCraftPath);
         await harness.InitializeAsync();
 
-        await harness.ExecuteRequestAsync(harness.BuildRequest(AppServerMethods.ProviderCreate, new
+        await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ProviderCreate, new
         {
             id = "custom-responses",
             displayName = "Custom Responses",
@@ -168,7 +168,7 @@ public sealed class ProviderManagementTests : IDisposable
         using var harness = new AppServerTestHarness(workspaceCraftPath: _workspaceCraftPath);
         await harness.InitializeAsync();
 
-        await harness.ExecuteRequestAsync(harness.BuildRequest(AppServerMethods.ProviderCreate, new
+        await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ProviderCreate, new
         {
             id = "responses-on",
             displayName = "Responses On",
@@ -181,7 +181,7 @@ public sealed class ProviderManagementTests : IDisposable
         var enabledProvider = enabledResponse.RootElement.GetProperty("result").GetProperty("provider");
         Assert.True(enabledProvider.GetProperty("supportsHostedImageGeneration").GetBoolean());
 
-        await harness.ExecuteRequestAsync(harness.BuildRequest(AppServerMethods.ProviderCreate, new
+        await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ProviderCreate, new
         {
             id = "responses-off",
             displayName = "Responses Off",
@@ -220,7 +220,7 @@ public sealed class ProviderManagementTests : IDisposable
             """);
         await harness.InitializeAsync();
 
-        await harness.ExecuteRequestAsync(harness.BuildRequest(AppServerMethods.ProviderUpdate, new
+        await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ProviderUpdate, new
         {
             id = "openai-responses",
             displayName = "Renamed Responses"
@@ -242,7 +242,7 @@ public sealed class ProviderManagementTests : IDisposable
             ["id"] = "openai-responses",
             ["supportsHostedImageGeneration"] = null
         };
-        await harness.ExecuteRequestAsync(harness.BuildRequest(AppServerMethods.ProviderUpdate, nullParams));
+        await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ProviderUpdate, nullParams));
 
         var nullResponse = Assert.Single(await harness.Transport.WaitAndDrainAsync(1, TimeSpan.FromSeconds(5)));
         AppServerTestHarness.AssertIsErrorResponse(nullResponse, AppServerErrors.InvalidParamsCode);
@@ -275,7 +275,7 @@ public sealed class ProviderManagementTests : IDisposable
             """);
         await harness.InitializeAsync();
 
-        await harness.ExecuteRequestAsync(harness.BuildRequest(AppServerMethods.ProviderUpdate, new
+        await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ProviderUpdate, new
         {
             id = "openrouter",
             displayName = "OpenRouter",
@@ -333,7 +333,7 @@ public sealed class ProviderManagementTests : IDisposable
             """);
         await harness.InitializeAsync();
 
-        await harness.ExecuteRequestAsync(harness.BuildRequest(AppServerMethods.ProviderDelete, new { id = "anthropic-main" }));
+        await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ProviderDelete, new { id = "anthropic-main" }));
 
         var response = Assert.Single(await harness.Transport.WaitAndDrainAsync(1, TimeSpan.FromSeconds(5)));
         AppServerTestHarness.AssertIsErrorResponse(response, AppServerErrors.InvalidParamsCode);
@@ -364,7 +364,7 @@ public sealed class ProviderManagementTests : IDisposable
             """);
         await harness.InitializeAsync();
 
-        await harness.ExecuteRequestAsync(harness.BuildRequest(AppServerMethods.WorkspaceConfigUpdate, new
+        await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.WorkspaceConfigUpdate, new
         {
             providerId = "anthropic-main",
             providerPreferences = new Dictionary<string, ModelPreference>
@@ -411,7 +411,7 @@ public sealed class ProviderManagementTests : IDisposable
             """);
         await harness.InitializeAsync();
 
-        await harness.ExecuteRequestAsync(harness.BuildRequest(AppServerMethods.ProviderList, new { }));
+        await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ProviderList, new { }));
 
         var response = AssertSingleResult(await harness.Transport.WaitAndDrainAsync(1, TimeSpan.FromSeconds(5)));
         var providers = response.RootElement.GetProperty("result").GetProperty("providers").EnumerateArray().ToList();
@@ -441,7 +441,7 @@ public sealed class ProviderManagementTests : IDisposable
         using var harness = new AppServerTestHarness(workspaceCraftPath: _workspaceCraftPath);
         await harness.InitializeAsync();
 
-        await harness.ExecuteRequestAsync(harness.BuildRequest(AppServerMethods.ProviderTest, new
+        await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ProviderTest, new
         {
             protocol = "openai-chat-completions",
             apiKey = "sk-openai-test",
@@ -482,7 +482,7 @@ public sealed class ProviderManagementTests : IDisposable
         using var harness = new AppServerTestHarness(workspaceCraftPath: _workspaceCraftPath);
         await harness.InitializeAsync();
 
-        await harness.ExecuteRequestAsync(harness.BuildRequest(AppServerMethods.ProviderTest, new
+        await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ProviderTest, new
         {
             protocol = "anthropic",
             apiKey = "sk-ant-test",
@@ -522,7 +522,7 @@ public sealed class ProviderManagementTests : IDisposable
             """);
         await harness.InitializeAsync();
 
-        await harness.ExecuteRequestAsync(harness.BuildRequest(AppServerMethods.ProviderTest, new { providerId = "anthropic-main" }));
+        await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ProviderTest, new { providerId = "anthropic-main" }));
 
         var response = AssertSingleResult(await harness.Transport.WaitAndDrainAsync(1, TimeSpan.FromSeconds(5)));
         var result = response.RootElement.GetProperty("result");

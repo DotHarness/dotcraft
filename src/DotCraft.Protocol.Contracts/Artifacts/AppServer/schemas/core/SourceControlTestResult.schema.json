@@ -1,0 +1,45 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.dotcraft.dev/appserver/v1/core/SourceControlTestResult.schema.json",
+  "title": "SourceControlTestResult",
+  "type": "object",
+  "properties": {
+    "authentication": {
+      "$ref": "./SourceControlTestAuthentication.schema.json"
+    },
+    "code": {
+      "type": "string"
+    },
+    "diagnostics": {
+      "$ref": "./SourceControlTestDiagnostics.schema.json"
+    },
+    "errors": {
+      "type": "array",
+      "items": {
+        "$ref": "./SourceControlDiagnosticItem.schema.json"
+      }
+    },
+    "fallbackText": {
+      "type": "string"
+    },
+    "identity": {
+      "$ref": "./SourceControlTestIdentity.schema.json"
+    },
+    "status": {
+      "type": "string"
+    },
+    "summary": {
+      "type": "string"
+    },
+    "warnings": {
+      "type": "array",
+      "items": {
+        "$ref": "./SourceControlDiagnosticItem.schema.json"
+      }
+    },
+    "workspace": {
+      "$ref": "./SourceControlTestWorkspace.schema.json"
+    }
+  },
+  "additionalProperties": true
+}

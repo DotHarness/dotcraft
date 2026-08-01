@@ -1,88 +1,71 @@
 # DotCraft SDKs
 
-DotCraft SDKs are language bindings over the same AppServer protocol. They let applications, native apps, tools, and external channels connect to a workspace, reuse persistent threads, stream turn events, and participate in approvals without reimplementing Session Core.
+DotCraft SDKs connect applications, native hosts, tools, and external channels to the same AppServer protocol. Start with the high-level API for normal application work, and move down a layer only when you need more control.
 
-## Get started
+## Choose a layer
 
-::: code-group
+| Layer | Use it for |
+|-------|------------|
+| Contracts | Generated DTOs, method maps, registries, and protocol metadata without transport or runtime dependencies. |
+| Wire | Typed JSON-RPC requests, notifications, server requests, connection lifecycle, and explicit raw escape hatches. |
+| High-level | `DotCraft`, Thread, Run, approvals, user input, and Runtime Dynamic Tools. This is the default application API. |
+| Host Adapter | Desktop and Channel policies such as workspace routing, reconnect profiles, heartbeat, and platform delivery. These policies are not part of the general Wire client. |
 
-```bash [TypeScript]
-npm install @dotcraft/sdk
-```
+Use the [Quickstart](./quickstart) to install the SDK, connect to a workspace, and run a turn. Use the [AppServer Protocol](../protocols/appserver-protocol) directly only for a custom transport, an unsupported language, or protocol debugging.
 
-```bash [.NET]
-dotnet add package DotCraft.Sdk
-```
+## Package availability
 
-```bash [Python]
-pip install dotcraft
-```
+| Language | Package | Availability |
+|----------|---------|--------------|
+| TypeScript | `@dotcraft/sdk` | Source preview; build and install from this repository. |
+| .NET | `DotCraft.Sdk` | Published on NuGet. |
+| Python | `dotcraft` | Source preview; install from this repository. |
 
-:::
-
-Then follow the [Quickstart](./quickstart) to connect, start a thread, and run your first turn.
+Installation commands are kept in the [Quickstart](./quickstart) so setup guidance has one source of truth.
 
 ## Guide
 
-- [Quickstart](./quickstart) — install, connect, run a turn, stream events.
-- [Threads & runs](./runs) — thread lifecycle, run options, and the normalized event model.
-- [Tools & approvals](./tools) — runtime dynamic tools and approval / user-input callbacks.
-- [Channel adapters](./channels) — build external channels (TypeScript and Python).
+- [Quickstart](./quickstart) — install, connect, run a turn, and stream events.
+- [Threads & runs](./runs) — thread lifecycle, run options, events, and reconnect boundaries.
+- [Tools & approvals](./tools) — Runtime Dynamic Tools, approvals, and user-input callbacks.
+- [Channel adapters](./channels) — build external channels with the TypeScript or Python host profile.
 
-## Common Model
-
-All SDKs build on the same layers:
-
-| Layer | Role |
-|-------|------|
-| Hub bootstrap | Finds or starts the local Hub and ensures a workspace AppServer when using local mode. |
-| AppServer JSON-RPC | Carries `initialize`, thread and turn methods, notifications, server requests, and raw escape-hatch calls. |
-| Session Core | Provides the durable `Thread -> Turn -> Item` model, approvals, event ordering, and persisted history. |
-| SDK binding | Adds language-idiomatic clients, helpers, callbacks, stream reducers, and typed wrappers. |
-
-Use the SDK when you want a client library. Use the [AppServer Protocol](../protocols/appserver-protocol) directly when you are implementing a new transport, debugging the wire protocol, or need complete control over JSON-RPC messages.
-
-## App integration paths
-
-SDK clients can expose runtime dynamic tools directly on a live thread connection, or participate in App Binding when a native app needs to grant app-owned tools to one thread. Runtime tools are tied to the Wire Client connection; App Binding tools are tied to a persisted thread grant that the app accepts and reattaches.
-
-![DotCraft app integration paths: Wire Client and App Binding](https://github.com/DotHarness/resources/raw/master/dotcraft/app-integration.png)
-
-## Capability Snapshot
-
-The [SDK specification](https://github.com/DotHarness/dotcraft/blob/master/specs/sdk/sdk.md) tracks the full cross-language parity matrix.
+## Capability snapshot
 
 | Capability | TypeScript | .NET | Python |
 |------------|------------|------|--------|
 | Local Hub-managed connection | `DotCraft.local()` | `DotCraftClient.ConnectLocalAsync()` | `DotCraft.connect_local()` |
 | Remote WebSocket connection | `DotCraft.remote()` | `DotCraftClient.ConnectRemoteAsync()` | `DotCraft.connect_remote()` |
-| Raw AppServer request | `request()` | `RequestAsync()` | `request()` |
+| Typed Wire request | `request()` | `RequestAsync()` with a descriptor | Generated typed RPC methods |
+| Raw Wire request | `requestRaw()` / `notifyRaw()` | `RequestRawAsync()` / `NotifyRawAsync()` | `request_raw()` / `notify_raw()` |
 | High-level one-turn run | `thread.run()` / `runStreamed()` | `RunAsync()` / `RunStreamedAsync()` | `thread.run()` / `run_streamed()` |
-| Normalized streaming events | `DotCraftRunEvent` + raw | `DotCraftRunEvent` + raw | `RunEvent` + raw |
-| Approval & user-input callbacks | Typed handlers | Typed handlers | Typed handlers |
-| Runtime Dynamic Tools | Declaration + typed callbacks | Declaration + typed callbacks | Declaration + typed callbacks |
-| App Binding helpers | Typed/generic + handoff parse | Typed/generic + handoff parse | Typed/generic + handoff parse |
-| Channel adapter runtime | First-party TypeScript runtime | Not applicable | Channel adapter base class |
+| Approval and user-input callbacks | Typed handlers | Typed handlers | Typed handlers |
+| Runtime Dynamic Tools | Declaration and typed callbacks | Declaration and typed callbacks | Declaration and typed callbacks |
+| Channel adapter profile | TypeScript runtime | Not applicable | Python adapter base class |
 
-AppServer remains the source of truth for thread state, queue behavior, approvals, model catalog resolution, and persistence; the SDK is a client over it, not a second authority.
+AppServer remains the authority for thread state, queue behavior, approvals, model resolution, and persistence. The SDK presents those capabilities without creating a second source of truth.
 
-## Event Topology
+## App integration paths
 
-SDK clients consume AppServer notifications and sometimes answer server-initiated requests. Notifications have no JSON-RPC `id`; server requests do, and clients must respond to them.
+SDK clients can expose Runtime Dynamic Tools on a live connection or participate in App Binding when a native app grants app-owned tools to a thread. Runtime tools are bound to the active connection; App Binding tools are bound to a persisted thread grant.
+
+![DotCraft app integration paths: Wire Client and App Binding](https://github.com/DotHarness/resources/raw/master/dotcraft/app-integration.png)
+
+## Event topology
+
+SDK clients consume notifications and may answer server-initiated requests. Notifications have no JSON-RPC `id`; server requests do, and the client must respond.
 
 ![DotCraft SDK event topology](/sdk-event-topology.svg)
 
-All three SDKs normalize common wire notifications into run events (`DotCraftRunEvent` in TypeScript and .NET, `RunEvent` in Python) and keep unknown notifications as `raw`, while still exposing the raw notification stream for advanced clients.
+All three SDKs normalize common notifications into run events and preserve unknown notifications as raw events. The Wire layer also exposes an explicit raw notification listener for extensions that are not in the generated contracts.
 
-## Reference
-
-Per-language package details — identity, exports/namespaces, runtime baseline, version, and language-specific profiles:
+## Language reference
 
 - [TypeScript](./typescript) — `@dotcraft/sdk`
 - [.NET](./dotnet) — `DotCraft.Sdk`
 - [Python](./python) — `dotcraft`
 
-## Further Reading
+## Related docs
 
 - [AppServer Protocol](../protocols/appserver-protocol)
-- [Hub Local Coordination](../lifecycle/hub)
+- [Hub lifecycle](../lifecycle/hub)

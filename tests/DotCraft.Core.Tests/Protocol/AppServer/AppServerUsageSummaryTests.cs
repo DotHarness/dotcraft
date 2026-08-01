@@ -18,7 +18,7 @@ public sealed class AppServerUsageSummaryTests
         var caps = initDoc.RootElement.GetProperty("result").GetProperty("capabilities");
         Assert.False(caps.TryGetProperty("usageTelemetry", out _));
 
-        var msg = h.BuildRequest(AppServerMethods.UsageSummary, new { });
+        var msg = h.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.UsageSummary, new { });
         await h.ExecuteRequestAsync(msg);
         var resp = h.Transport.TryReadSent()!;
 
@@ -35,7 +35,7 @@ public sealed class AppServerUsageSummaryTests
         var caps = initDoc.RootElement.GetProperty("result").GetProperty("capabilities");
         Assert.True(caps.GetProperty("usageTelemetry").GetBoolean());
 
-        var msg = h.BuildRequest(AppServerMethods.UsageSummary, new { });
+        var msg = h.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.UsageSummary, new { });
         await h.ExecuteRequestAsync(msg);
         var resp = h.Transport.TryReadSent()!;
 
@@ -63,7 +63,7 @@ public sealed class AppServerUsageSummaryTests
         using var h = new AppServerTestHarness(traceStore: traceStore);
         await h.InitializeAsync();
 
-        var msg = h.BuildRequest(AppServerMethods.UsageSummary, new { });
+        var msg = h.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.UsageSummary, new { });
         await h.ExecuteRequestAsync(msg);
         var resp = h.Transport.TryReadSent()!;
 

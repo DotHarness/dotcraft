@@ -12,6 +12,8 @@
 > [!NOTE]
 > 日常 Desktop 与 `dotcraft exec` 走 [Hub 本地协调](./hub)，本页只在你需要手动管理 AppServer 时使用。
 
+应用 client 通常应使用 [DotCraft SDK](../sdks/)，让初始化、强类型契约、错误和连接生命周期保持一致。只有在实现自定义传输、不受支持的语言或调试协议时，才直接管理 AppServer 或实现 raw 协议。
+
 ## 启动
 
 ```bash
@@ -184,11 +186,12 @@ dotcraft app-server --listen ws://127.0.0.1:9100 --token my-secret
 | 用脚本运行一次性任务 | `dotcraft exec "..."` |
 | 在 Desktop / ACP / 自定义客户端之间共享一个后端 | `dotcraft app-server --listen ws://127.0.0.1:9100` |
 | 连接到远程工作区 | 用 WebSocket 监听，客户端连接 `/ws` |
-| 构建自定义客户端 | 通过 stdio 或 WebSocket 收发 JSON-RPC 2.0 |
+| 构建自定义 raw client | 通过 stdio 或 WebSocket 收发 JSON-RPC 2.0 |
 
-## 相关入口
+## 相关文档
 
+- [SDK 快速开始](../sdks/quickstart) — 推荐的 client 路径
 - [配置参考](../configuration) — `AppServer.*` / `CLI.*` 字段
-- [AppServer 协议](../protocols/appserver-protocol) — 客户端协议概览
+- [AppServer 协议](../protocols/appserver-protocol) — raw client 协议
 - [Hub 本地协调](./hub) — 日常 Desktop 与 CLI 走的路径
 - [统一会话核心](../architecture/session-core) — Thread / Turn / Item 模型

@@ -15,7 +15,7 @@ public sealed class McpOAuthBoundaryConformanceTests
         await harness.InitializeAsync();
 
         await harness.ExecuteRequestAsync(harness.BuildRequest(
-            AppServerMethods.McpServerStatusList,
+            DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.McpServerStatusList,
             new { detail = "toolsAndAuthOnly" }));
         using var statusResponse = harness.Transport.TryReadSent()!;
         var status = statusResponse.RootElement.GetProperty("result").GetProperty("data")[0];
@@ -25,7 +25,7 @@ public sealed class McpOAuthBoundaryConformanceTests
         Assert.Empty(status.GetProperty("resourceTemplates").EnumerateArray());
 
         await harness.ExecuteRequestAsync(harness.BuildRequest(
-            AppServerMethods.McpServerOAuthLogin,
+            DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.McpServerOAuthLogin,
             new { name = "public-http" }));
         using var loginResponse = harness.Transport.TryReadSent()!;
         var error = loginResponse.RootElement.GetProperty("error");

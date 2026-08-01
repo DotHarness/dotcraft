@@ -47,6 +47,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\DotCraft.Gen\DotCraft.Gen.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+    <ProjectReference Include="..\DotCraft.Protocol.Contracts\DotCraft.Protocol.Contracts.csproj" />
   </ItemGroup>
 
   <ItemGroup>

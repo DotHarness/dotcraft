@@ -35,7 +35,7 @@ public sealed class AppServerApprovalFlowTests : IDisposable
             thread.Id, AppServerTestHarness.BuildApprovalEventSequence(thread.Id));
 
         // Default auto-accept handler is set in InMemoryTransport
-        var msg = _h.BuildRequest(AppServerMethods.TurnStart, new
+        var msg = _h.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.TurnStart, new
         {
             threadId = thread.Id,
             input = new[] { new { type = "text", text = "Do something that needs approval" } }
@@ -48,7 +48,7 @@ public sealed class AppServerApprovalFlowTests : IDisposable
         // Find the approval request (a server-initiated request with method = item/approval/request)
         var approvalRequest = all.FirstOrDefault(d =>
             d.RootElement.TryGetProperty("method", out var m) &&
-            m.GetString() == AppServerMethods.ItemApprovalRequest);
+            m.GetString() == DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ApprovalRequest);
         Assert.NotNull(approvalRequest);
 
         // Verify the approval was resolved with AcceptOnce
@@ -67,7 +67,7 @@ public sealed class AppServerApprovalFlowTests : IDisposable
         _h.Transport.ApprovalHandler = (method, @params) =>
             InMemoryTransport.BuildClientResponse(999, new { decision = "decline" });
 
-        var msg = _h.BuildRequest(AppServerMethods.TurnStart, new
+        var msg = _h.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.TurnStart, new
         {
             threadId = thread.Id,
             input = new[] { new { type = "text", text = "Dangerous operation" } }
@@ -90,7 +90,7 @@ public sealed class AppServerApprovalFlowTests : IDisposable
         _h.Transport.ApprovalHandler = (method, @params) =>
             InMemoryTransport.BuildClientResponse(999, new { decision = "acceptForSession" });
 
-        var msg = _h.BuildRequest(AppServerMethods.TurnStart, new
+        var msg = _h.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.TurnStart, new
         {
             threadId = thread.Id,
             input = new[] { new { type = "text", text = "Accept for the session" } }
@@ -113,7 +113,7 @@ public sealed class AppServerApprovalFlowTests : IDisposable
         _h.Transport.ApprovalHandler = (method, @params) =>
             InMemoryTransport.BuildClientResponse(999, new { decision = "acceptAlways" });
 
-        var msg = _h.BuildRequest(AppServerMethods.TurnStart, new
+        var msg = _h.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.TurnStart, new
         {
             threadId = thread.Id,
             input = new[] { new { type = "text", text = "Accept permanently" } }
@@ -142,7 +142,7 @@ public sealed class AppServerApprovalFlowTests : IDisposable
         harness.Service.EnqueueSubmitEvents(
             thread.Id, AppServerTestHarness.BuildApprovalEventSequence(thread.Id));
 
-        var msg = harness.BuildRequest(AppServerMethods.TurnStart, new
+        var msg = harness.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.TurnStart, new
         {
             threadId = thread.Id,
             input = new[] { new { type = "text", text = "Needs approval" } }
@@ -168,7 +168,7 @@ public sealed class AppServerApprovalFlowTests : IDisposable
         harness.Service.EnqueueSubmitEvents(
             thread.Id, AppServerTestHarness.BuildApprovalEventSequence(thread.Id));
 
-        var msg = harness.BuildRequest(AppServerMethods.TurnStart, new
+        var msg = harness.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.TurnStart, new
         {
             threadId = thread.Id,
             input = new[] { new { type = "text", text = "Needs approval" } }
@@ -180,7 +180,7 @@ public sealed class AppServerApprovalFlowTests : IDisposable
         // No item/approval/request should have been written to the transport
         var approvalRequests = all.Where(d =>
             d.RootElement.TryGetProperty("method", out var m) &&
-            m.GetString() == AppServerMethods.ItemApprovalRequest).ToList();
+            m.GetString() == DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ApprovalRequest).ToList();
 
         Assert.Empty(approvalRequests);
     }
@@ -196,7 +196,7 @@ public sealed class AppServerApprovalFlowTests : IDisposable
         _h.Service.EnqueueSubmitEvents(
             thread.Id, AppServerTestHarness.BuildApprovalEventSequence(thread.Id, "turn_001", "req_123"));
 
-        var msg = _h.BuildRequest(AppServerMethods.TurnStart, new
+        var msg = _h.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.TurnStart, new
         {
             threadId = thread.Id,
             input = new[] { new { type = "text", text = "Approval test" } }
@@ -207,7 +207,7 @@ public sealed class AppServerApprovalFlowTests : IDisposable
 
         var approvalRequest = all.First(d =>
             d.RootElement.TryGetProperty("method", out var m) &&
-            m.GetString() == AppServerMethods.ItemApprovalRequest);
+            m.GetString() == DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ApprovalRequest);
 
         var @params = approvalRequest.RootElement.GetProperty("params");
         Assert.Equal("req_123", @params.GetProperty("requestId").GetString());

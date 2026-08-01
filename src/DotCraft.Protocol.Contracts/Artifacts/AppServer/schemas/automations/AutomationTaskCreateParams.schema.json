@@ -1,0 +1,95 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.dotcraft.dev/appserver/v1/automations/AutomationTaskCreateParams.schema.json",
+  "title": "AutomationTaskCreateParams",
+  "type": "object",
+  "properties": {
+    "agentProfileId": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "approvalPolicy": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "description": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "schedule": {
+      "anyOf": [
+        {
+          "$ref": "./AutomationScheduleWire.schema.json"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "templateId": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "threadBinding": {
+      "anyOf": [
+        {
+          "$ref": "./AutomationThreadBindingWire.schema.json"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "title": {
+      "type": "string"
+    },
+    "workflowTemplate": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "workspaceMode": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "workspacePath": {
+      "type": "string"
+    }
+  },
+  "additionalProperties": true
+}

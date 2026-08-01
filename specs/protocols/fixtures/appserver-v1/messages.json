@@ -1,0 +1,646 @@
+{
+  "version": 1,
+  "description": "Portable AppServer JSON-RPC examples shared by server and SDK conformance tests.",
+  "cases": [
+    {
+      "name": "initialize",
+      "tags": ["clientRequest", "clientNotification", "emptyObject"],
+      "messages": [
+        {
+          "jsonrpc": "2.0",
+          "id": 1,
+          "method": "initialize",
+          "params": {
+            "clientInfo": { "name": "fixture-client", "version": "1.0.0" },
+            "capabilities": {
+              "approvalSupport": true,
+              "requestUserInputSupport": true,
+              "optOutNotificationMethods": ["item/reasoning/delta"]
+            }
+          }
+        },
+        {
+          "jsonrpc": "2.0",
+          "id": 1,
+          "result": {
+            "serverInfo": { "name": "dotcraft", "version": "fixture", "protocolVersion": "1" },
+            "capabilities": { "threadManagement": true, "threadSubscriptions": true }
+          }
+        },
+        { "jsonrpc": "2.0", "method": "initialized", "params": {} }
+      ]
+    },
+    {
+      "name": "thread-start-response-before-notification",
+      "tags": ["clientRequest", "thread", "ordering"],
+      "messages": [
+        {
+          "jsonrpc": "2.0",
+          "id": 2,
+          "method": "thread/start",
+          "params": {
+            "identity": {
+              "channelName": "fixture",
+              "userId": "user_fixture",
+              "workspacePath": "/workspace/sample"
+            },
+            "historyMode": "server"
+          }
+        },
+        {
+          "jsonrpc": "2.0",
+          "id": 2,
+          "result": {
+            "thread": {
+              "id": "thread_fixture",
+              "status": "active",
+              "workspacePath": "/workspace/sample",
+              "turns": []
+            }
+          }
+        },
+        {
+          "jsonrpc": "2.0",
+          "method": "thread/started",
+          "params": {
+            "thread": {
+              "id": "thread_fixture",
+              "status": "active",
+              "workspacePath": "/workspace/sample",
+              "turns": []
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "thread-resume",
+      "tags": ["clientRequest", "thread"],
+      "messages": [
+        { "jsonrpc": "2.0", "id": 3, "method": "thread/resume", "params": { "threadId": "thread_fixture" } },
+        {
+          "jsonrpc": "2.0",
+          "id": 3,
+          "result": { "thread": { "id": "thread_fixture", "status": "active", "turns": [] } }
+        }
+      ]
+    },
+    {
+      "name": "thread-read",
+      "tags": ["clientRequest", "thread"],
+      "messages": [
+        {
+          "jsonrpc": "2.0",
+          "id": 4,
+          "method": "thread/read",
+          "params": { "threadId": "thread_fixture", "includeTurns": true }
+        },
+        {
+          "jsonrpc": "2.0",
+          "id": 4,
+          "result": { "thread": { "id": "thread_fixture", "status": "active", "turns": [] } }
+        }
+      ]
+    },
+    {
+      "name": "thread-list",
+      "tags": ["clientRequest", "thread", "orderedCollection"],
+      "messages": [
+        {
+          "jsonrpc": "2.0",
+          "id": 5,
+          "method": "thread/list",
+          "params": {
+            "identity": { "channelName": "fixture", "userId": "user_fixture" },
+            "scope": "identity",
+            "limit": 20
+          }
+        },
+        {
+          "jsonrpc": "2.0",
+          "id": 5,
+          "result": {
+            "data": [
+              { "id": "thread_first", "status": "active", "turns": [] },
+              { "id": "thread_second", "status": "archived", "turns": [] }
+            ],
+            "totalMatched": 2
+          }
+        }
+      ]
+    },
+    {
+      "name": "turn-start-and-complete",
+      "tags": ["clientRequest", "serverNotification", "turn", "item", "delta"],
+      "messages": [
+        {
+          "jsonrpc": "2.0",
+          "id": 6,
+          "method": "turn/start",
+          "params": {
+            "threadId": "thread_fixture",
+            "input": [{ "type": "text", "text": "Summarize the fixture." }]
+          }
+        },
+        {
+          "jsonrpc": "2.0",
+          "id": 6,
+          "result": {
+            "turn": { "id": "turn_fixture", "threadId": "thread_fixture", "status": "running", "items": [] }
+          }
+        },
+        {
+          "jsonrpc": "2.0",
+          "method": "turn/started",
+          "params": {
+            "turn": { "id": "turn_fixture", "threadId": "thread_fixture", "status": "running", "items": [] }
+          }
+        },
+        {
+          "jsonrpc": "2.0",
+          "method": "item/started",
+          "params": {
+            "threadId": "thread_fixture",
+            "turnId": "turn_fixture",
+            "item": { "id": "item_fixture", "type": "agentMessage", "payload": { "text": "" } }
+          }
+        },
+        {
+          "jsonrpc": "2.0",
+          "method": "item/agentMessage/delta",
+          "params": {
+            "threadId": "thread_fixture",
+            "turnId": "turn_fixture",
+            "itemId": "item_fixture",
+            "delta": "Fixture complete."
+          }
+        },
+        {
+          "jsonrpc": "2.0",
+          "method": "item/completed",
+          "params": {
+            "threadId": "thread_fixture",
+            "turnId": "turn_fixture",
+            "item": {
+              "id": "item_fixture",
+              "type": "agentMessage",
+              "payload": { "text": "Fixture complete." }
+            }
+          }
+        },
+        {
+          "jsonrpc": "2.0",
+          "method": "turn/completed",
+          "params": {
+            "turn": {
+              "id": "turn_fixture",
+              "threadId": "thread_fixture",
+              "status": "completed",
+              "items": [
+                {
+                  "id": "item_fixture",
+                  "type": "agentMessage",
+                  "payload": { "text": "Fixture complete." }
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "turn-enqueue-and-interrupt",
+      "tags": ["clientRequest", "turn", "emptyObject"],
+      "messages": [
+        {
+          "jsonrpc": "2.0",
+          "id": 7,
+          "method": "turn/enqueue",
+          "params": {
+            "threadId": "thread_fixture",
+            "input": [{ "type": "text", "text": "Queued input." }]
+          }
+        },
+        {
+          "jsonrpc": "2.0",
+          "id": 7,
+          "result": {
+            "queuedInput": {
+              "id": "queue_fixture",
+              "threadId": "thread_fixture",
+              "nativeInputParts": [{ "type": "text", "text": "Queued input." }],
+              "materializedInputParts": [{ "type": "text", "text": "Queued input." }],
+              "displayText": "Queued input.",
+              "status": "queued",
+              "createdAt": "2026-01-01T00:00:00+00:00"
+            },
+            "queuedInputs": [
+              {
+                "id": "queue_fixture",
+                "threadId": "thread_fixture",
+                "nativeInputParts": [{ "type": "text", "text": "Queued input." }],
+                "materializedInputParts": [{ "type": "text", "text": "Queued input." }],
+                "displayText": "Queued input.",
+                "status": "queued",
+                "createdAt": "2026-01-01T00:00:00+00:00"
+              }
+            ]
+          }
+        },
+        {
+          "jsonrpc": "2.0",
+          "id": 8,
+          "method": "turn/interrupt",
+          "params": { "threadId": "thread_fixture", "turnId": "turn_fixture" }
+        },
+        { "jsonrpc": "2.0", "id": 8, "result": {} }
+      ]
+    },
+    {
+      "name": "turn-failed",
+      "tags": ["serverNotification", "turn", "failure"],
+      "messages": [
+        {
+          "jsonrpc": "2.0",
+          "method": "turn/failed",
+          "params": {
+            "turn": { "id": "turn_failed", "threadId": "thread_fixture", "status": "failed", "items": [] },
+            "error": "Synthetic failure."
+          }
+        }
+      ]
+    },
+    {
+      "name": "turn-cancelled",
+      "tags": ["serverNotification", "turn", "cancellation"],
+      "messages": [
+        {
+          "jsonrpc": "2.0",
+          "method": "turn/cancelled",
+          "params": {
+            "turn": { "id": "turn_cancelled", "threadId": "thread_fixture", "status": "cancelled", "items": [] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "approval-callback",
+      "tags": ["serverRequest", "approval"],
+      "messages": [
+        {
+          "jsonrpc": "2.0",
+          "id": "approval_fixture",
+          "method": "item/approval/request",
+          "params": {
+            "threadId": "thread_fixture",
+            "turnId": "turn_fixture",
+            "itemId": "item_approval",
+            "requestId": "approval_request_fixture",
+            "approvalType": "shell",
+            "operation": "execute",
+            "target": "fixture-command",
+            "scopeKey": "fixture-scope",
+            "expiresAt": "2026-01-01T00:05:00+00:00"
+          }
+        },
+        { "jsonrpc": "2.0", "id": "approval_fixture", "result": { "decision": "decline" } }
+      ]
+    },
+    {
+      "name": "user-input-callback",
+      "tags": ["serverRequest", "userInput"],
+      "messages": [
+        {
+          "jsonrpc": "2.0",
+          "id": "input_fixture",
+          "method": "item/tool/requestUserInput",
+          "params": {
+            "threadId": "thread_fixture",
+            "turnId": "turn_fixture",
+            "itemId": "item_input",
+            "requestId": "input_request_fixture",
+            "questions": [
+              {
+                "id": "choice",
+                "question": "Choose a fixture option.",
+                "header": "Fixture",
+                "isOther": true,
+                "isSecret": false,
+                "options": [
+                  { "label": "First", "description": "Use the first synthetic option." },
+                  { "label": "Second", "description": "Use the second synthetic option." }
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "jsonrpc": "2.0",
+          "id": "input_fixture",
+          "result": { "answers": { "choice": { "answers": ["First"] } } }
+        }
+      ]
+    },
+    {
+      "name": "dynamic-tool-callback",
+      "tags": ["serverRequest", "dynamicTool", "opaqueJson"],
+      "messages": [
+        {
+          "jsonrpc": "2.0",
+          "id": "tool_fixture",
+          "method": "item/tool/call",
+          "params": {
+            "threadId": "thread_fixture",
+            "turnId": "turn_fixture",
+            "callId": "tool_call_fixture",
+            "tool": "fixture.lookup",
+            "arguments": { "query": "sample", "futureField": { "enabled": true } }
+          }
+        },
+        {
+          "jsonrpc": "2.0",
+          "id": "tool_fixture",
+          "result": {
+            "success": true,
+            "contentItems": [{ "type": "text", "text": "Synthetic result." }],
+            "structuredContent": {
+              "items": [{ "id": "result_fixture", "unknownProperty": 7 }],
+              "futureTopLevel": true
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "structured-error",
+      "tags": ["error", "errorData"],
+      "messages": [
+        {
+          "jsonrpc": "2.0",
+          "id": 9,
+          "method": "thread/read",
+          "params": { "threadId": "thread_missing" }
+        },
+        {
+          "jsonrpc": "2.0",
+          "id": 9,
+          "error": {
+            "code": -32001,
+            "message": "Thread not found.",
+            "data": {
+              "code": "thread_not_found",
+              "params": { "threadId": "thread_missing" }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "unknown-notification",
+      "tags": ["serverNotification", "unknown", "rawFallback"],
+      "messages": [
+        {
+          "jsonrpc": "2.0",
+          "method": "fixture/unknownNotification",
+          "params": {
+            "future": { "nested": [1, "two", null] },
+            "preserveMe": true
+          }
+        }
+      ]
+    },
+    {
+      "name": "opaque-mcp-result",
+      "tags": ["clientRequest", "mcp", "opaqueJson"],
+      "messages": [
+        {
+          "jsonrpc": "2.0",
+          "id": 10,
+          "method": "mcpServer/tool/call",
+          "params": {
+            "threadId": "thread_fixture",
+            "server": "fixture-server",
+            "tool": "fixture-tool",
+            "arguments": { "query": "sample" },
+            "_meta": { "trace": "fixture-trace" }
+          }
+        },
+        {
+          "jsonrpc": "2.0",
+          "id": 10,
+          "result": {
+            "content": [
+              { "type": "text", "text": "Synthetic MCP result.", "futureContentField": "kept" }
+            ],
+            "structuredContent": { "count": 1, "futureShape": ["kept"] },
+            "isError": false,
+            "_meta": { "source": "fixture" },
+            "futureResultField": { "kept": true }
+          }
+        }
+      ]
+    },
+    {
+      "name": "core-domain-catalog",
+      "tags": ["clientRequest", "serverNotification", "coreCoverage"],
+      "messages": [
+        { "jsonrpc": "2.0", "id": 20, "method": "agent/profiles/list", "params": {} },
+        { "jsonrpc": "2.0", "id": 20, "result": {} },
+        { "jsonrpc": "2.0", "id": 21, "method": "channel/list", "params": {} },
+        { "jsonrpc": "2.0", "id": 21, "result": {} },
+        { "jsonrpc": "2.0", "id": 22, "method": "command/list", "params": {} },
+        { "jsonrpc": "2.0", "id": 22, "result": {} },
+        { "jsonrpc": "2.0", "id": 23, "method": "cron/list", "params": {} },
+        { "jsonrpc": "2.0", "id": 23, "result": {} },
+        { "jsonrpc": "2.0", "id": 24, "method": "dreams/list", "params": {} },
+        { "jsonrpc": "2.0", "id": 24, "result": {} },
+        { "jsonrpc": "2.0", "id": 25, "method": "hooks/list", "params": {} },
+        { "jsonrpc": "2.0", "id": 25, "result": {} },
+        { "jsonrpc": "2.0", "id": 26, "method": "visualization/view/open", "params": {} },
+        { "jsonrpc": "2.0", "id": 26, "result": {} },
+        { "jsonrpc": "2.0", "id": 27, "method": "mcp/list", "params": {} },
+        { "jsonrpc": "2.0", "id": 27, "result": {} },
+        { "jsonrpc": "2.0", "id": 28, "method": "plugin/list", "params": {} },
+        { "jsonrpc": "2.0", "id": 28, "result": {} },
+        { "jsonrpc": "2.0", "id": 29, "method": "provider/list", "params": {} },
+        { "jsonrpc": "2.0", "id": 29, "result": {} },
+        { "jsonrpc": "2.0", "id": 30, "method": "skills/list", "params": {} },
+        { "jsonrpc": "2.0", "id": 30, "result": {} },
+        { "jsonrpc": "2.0", "id": 31, "method": "sourceControl/get", "params": {} },
+        { "jsonrpc": "2.0", "id": 31, "result": {} },
+        { "jsonrpc": "2.0", "id": 32, "method": "subagent/profiles/list", "params": {} },
+        { "jsonrpc": "2.0", "id": 32, "result": {} },
+        { "jsonrpc": "2.0", "id": 33, "method": "terminal/list", "params": {} },
+        { "jsonrpc": "2.0", "id": 33, "result": {} },
+        { "jsonrpc": "2.0", "id": 34, "method": "tool/list", "params": {} },
+        { "jsonrpc": "2.0", "id": 34, "result": {} },
+        { "jsonrpc": "2.0", "id": 35, "method": "usage/summary", "params": {} },
+        { "jsonrpc": "2.0", "id": 35, "result": {} },
+        { "jsonrpc": "2.0", "id": 36, "method": "workspace/config/schema", "params": {} },
+        { "jsonrpc": "2.0", "id": 36, "result": {} },
+        { "jsonrpc": "2.0", "id": 37, "method": "worktree/list", "params": {} },
+        { "jsonrpc": "2.0", "id": 37, "result": {} },
+        {
+          "jsonrpc": "2.0",
+          "method": "workspace/configChanged",
+          "params": { "source": "workspace", "regions": ["providers"], "changedAt": "2026-01-01T00:00:00+00:00" }
+        },
+        {
+          "jsonrpc": "2.0",
+          "method": "system/event",
+          "params": { "kind": "fixture", "params": { "futureLocalizedValue": true } }
+        }
+      ]
+    },
+    {
+      "name": "mcp-elicitation-callback",
+      "tags": ["serverRequest", "mcp", "opaqueJson"],
+      "messages": [
+        {
+          "jsonrpc": "2.0",
+          "id": "elicitation_fixture",
+          "method": "mcpServer/elicitation/request",
+          "params": {
+            "serverName": "fixture-server",
+            "mode": "form",
+            "message": "Provide a fixture value.",
+            "requestedSchema": {
+              "type": "object",
+              "properties": { "value": { "type": "string", "futureKeyword": true } }
+            }
+          }
+        },
+        {
+          "jsonrpc": "2.0",
+          "id": "elicitation_fixture",
+          "result": { "action": "accept", "content": { "value": "fixture", "futureField": 1 } }
+        }
+      ]
+    },
+    {
+      "name": "app-binding",
+      "tags": ["clientRequest", "firstPartyExtension", "appBinding"],
+      "messages": [
+        {
+          "jsonrpc": "2.0",
+          "id": 11,
+          "method": "app/list",
+          "params": { "threadId": "thread_fixture", "includeCatalog": true }
+        },
+        { "jsonrpc": "2.0", "id": 11, "result": { "apps": [] } },
+        {
+          "jsonrpc": "2.0",
+          "method": "thread/appBindings/changed",
+          "params": { "threadId": "thread_fixture", "state": "active" }
+        }
+      ]
+    },
+    {
+      "name": "automation",
+      "tags": ["clientRequest", "serverNotification", "firstPartyExtension", "automations"],
+      "messages": [
+        {
+          "jsonrpc": "2.0",
+          "id": 12,
+          "method": "automation/task/list",
+          "params": { "includeDisabled": false }
+        },
+        { "jsonrpc": "2.0", "id": 12, "result": { "tasks": [] } },
+        {
+          "jsonrpc": "2.0",
+          "method": "automation/task/updated",
+          "params": {
+            "reason": "updated",
+            "task": { "id": "automation_fixture", "name": "Fixture automation", "enabled": true }
+          }
+        }
+      ]
+    },
+    {
+      "name": "teams",
+      "tags": ["clientRequest", "serverNotification", "firstPartyExtension", "teams"],
+      "messages": [
+        { "jsonrpc": "2.0", "id": 13, "method": "teams/team/view", "params": {} },
+        { "jsonrpc": "2.0", "id": 13, "result": { "team": null, "missions": [] } },
+        {
+          "jsonrpc": "2.0",
+          "method": "teams/team/changed",
+          "params": { "reason": "missionCreated", "missionId": "mission_fixture" }
+        }
+      ]
+    },
+    {
+      "name": "acp-callbacks",
+      "tags": ["serverRequest", "firstPartyExtension", "acp"],
+      "messages": [
+        {
+          "jsonrpc": "2.0",
+          "id": "acp_read_fixture",
+          "method": "ext/acp/fs/readTextFile",
+          "params": { "threadId": "thread_fixture", "path": "fixture.txt", "offset": 0, "limit": 128 }
+        },
+        { "jsonrpc": "2.0", "id": "acp_read_fixture", "result": { "content": "fixture content" } },
+        {
+          "jsonrpc": "2.0",
+          "id": "acp_terminal_fixture",
+          "method": "ext/acp/terminal/create",
+          "params": { "threadId": "thread_fixture", "command": "fixture-command", "cwd": null }
+        },
+        { "jsonrpc": "2.0", "id": "acp_terminal_fixture", "result": { "terminalId": "terminal_fixture" } }
+      ]
+    },
+    {
+      "name": "node-repl-callback",
+      "tags": ["serverRequest", "firstPartyExtension", "nodeRepl"],
+      "messages": [
+        {
+          "jsonrpc": "2.0",
+          "id": "node_repl_fixture",
+          "method": "ext/nodeRepl/evaluate",
+          "params": {
+            "threadId": "thread_fixture",
+            "evaluationId": "evaluation_fixture",
+            "code": "1 + 1",
+            "timeoutMs": 1000,
+            "browserSession": {
+              "protocolVersion": 1,
+              "sessionId": "session_fixture",
+              "threadId": "thread_fixture",
+              "evaluationId": "evaluation_fixture"
+            }
+          }
+        },
+        {
+          "jsonrpc": "2.0",
+          "id": "node_repl_fixture",
+          "result": { "resultText": "2", "logs": [], "images": [], "futureField": true }
+        }
+      ]
+    },
+    {
+      "name": "external-channel",
+      "tags": ["clientRequest", "serverRequest", "firstPartyExtension", "externalChannel"],
+      "messages": [
+        { "jsonrpc": "2.0", "id": 40, "method": "externalChannel/list", "params": {} },
+        { "jsonrpc": "2.0", "id": 40, "result": { "channels": [] } },
+        {
+          "jsonrpc": "2.0",
+          "id": "channel_send_fixture",
+          "method": "ext/channel/send",
+          "params": {
+            "target": "chat_fixture",
+            "message": { "kind": "text", "text": "Fixture delivery." },
+            "metadata": { "futureField": true }
+          }
+        },
+        {
+          "jsonrpc": "2.0",
+          "id": "channel_send_fixture",
+          "result": { "delivered": true, "remoteMessageId": "remote_fixture" }
+        },
+        { "jsonrpc": "2.0", "id": "channel_heartbeat_fixture", "method": "ext/channel/heartbeat", "params": {} },
+        { "jsonrpc": "2.0", "id": "channel_heartbeat_fixture", "result": {} }
+      ]
+    }
+  ]
+}

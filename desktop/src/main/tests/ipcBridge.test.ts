@@ -2138,18 +2138,17 @@ describe('unregisterIpcHandlers', () => {
 })
 
 // ---------------------------------------------------------------------------
-// WireProtocolClient — bidirectional request routing
-// (covered in WireProtocolClient.test.ts, but verified here as integration)
+// Desktop AppServer adapter — bidirectional request routing
 // ---------------------------------------------------------------------------
 
 import { Readable, Writable, PassThrough } from 'stream'
-import { WireProtocolClient } from '../WireProtocolClient'
+import { DesktopAppServerClient } from '../DesktopAppServerClient'
 
-describe('WireProtocolClient bidirectional routing', () => {
+describe('DesktopAppServerClient bidirectional routing', () => {
   it('server request handler result is sent back as JSON-RPC response with original id', async () => {
     const toServer = new PassThrough()
     const fromServer = new PassThrough()
-    const client = new WireProtocolClient(
+    const client = new DesktopAppServerClient(
       fromServer as unknown as Readable,
       toServer as unknown as Writable
     )
@@ -2197,7 +2196,7 @@ describe('WireProtocolClient bidirectional routing', () => {
   it('sends an error response when handler throws', async () => {
     const toServer = new PassThrough()
     const fromServer = new PassThrough()
-    const client = new WireProtocolClient(
+    const client = new DesktopAppServerClient(
       fromServer as unknown as Readable,
       toServer as unknown as Writable
     )

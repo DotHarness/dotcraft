@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.dotcraft.dev/appserver/v1/core/InitializeParams.schema.json",
+  "title": "InitializeParams",
+  "type": "object",
+  "properties": {
+    "capabilities": {
+      "anyOf": [
+        {
+          "$ref": "./ClientCapabilities.schema.json"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "clientInfo": {
+      "$ref": "./ClientInfo.schema.json"
+    }
+  },
+  "additionalProperties": true,
+  "required": [
+    "clientInfo"
+  ]
+}

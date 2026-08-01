@@ -108,6 +108,7 @@ import {
   findProviderPreference,
   readProviderPreferences,
   setProviderPreference,
+  toContractProviderPreferences,
   type ModelPreference,
   type ProviderPreferences
 } from '../../../shared/modelPreference'
@@ -661,6 +662,13 @@ function createEmptyMcpServer(): McpServerConfigWire {
 
 function isPluginManagedMcpServer(server: McpServerConfigWire, originsEnabled: boolean): boolean {
   return (originsEnabled && server.origin?.kind === 'plugin') || server.readOnly === true
+}
+
+function toContractMcpServer(server: McpServerConfigWire) {
+  return {
+    ...server,
+    origin: server.origin ? { ...server.origin } : server.origin
+  }
 }
 
 function mcpPluginSourceLabel(server: McpServerConfigWire, t: (key: MessageKey | string, vars?: Record<string, string | number>) => string): string {
@@ -1832,7 +1840,10 @@ export function SettingsView({
         providerPreferences: nextProviderPreferences
       }
 
-      await window.api.appServer.sendRequest('workspace/config/update', updatePayload, 20_000)
+      await window.api.appServer.sendRequest('workspace/config/update', {
+        ...updatePayload,
+        providerPreferences: toContractProviderPreferences(updatePayload.providerPreferences)
+      }, 20_000)
       selectedProviderIdRef.current = normalized
       setSelectedProviderId(normalized)
       if (listedModels != null) {
@@ -1885,7 +1896,7 @@ export function SettingsView({
         normalized
       )
       await window.api.appServer.sendRequest('workspace/config/update', {
-        providerPreferences: nextProviderPreferences
+        providerPreferences: toContractProviderPreferences(nextProviderPreferences)
       }, 20_000)
       setProviderPreferences(nextProviderPreferences)
       setWorkspaceCoreBaseline((current) => ({
@@ -1929,7 +1940,7 @@ export function SettingsView({
         normalized
       )
       await window.api.appServer.sendRequest('subagent/settings/update', {
-        providerPreferences: nextSubProviderPreferences
+        providerPreferences: toContractProviderPreferences(nextSubProviderPreferences)
       }, 20_000)
       setSubAgentPreference(normalized)
       setSubAgentManualModelDraft(normalized?.model ?? '')
@@ -2144,7 +2155,7 @@ export function SettingsView({
 
     setDreamsStatusLoading(true)
     try {
-      const result = await window.api.appServer.sendRequest('dreams/status', undefined, 20_000)
+        const result = await window.api.appServer.sendRequest('dreams/status', {}, 20_000)
       applyDreamsStatusSnapshot(normalizeDreamsStatus(result))
     } catch (err) {
       addToast(t('settings.personalization.dreamsStatusFailed', {
@@ -2163,7 +2174,7 @@ export function SettingsView({
 
     setDreamRunsLoading(true)
     try {
-      const result = await window.api.appServer.sendRequest('dreams/list', undefined, 20_000)
+        const result = await window.api.appServer.sendRequest('dreams/list', {}, 20_000)
       const runs = normalizeDreamsRunList(result)
       setDreamRuns(runs)
     } catch (err) {
@@ -2353,12 +2364,12 @@ export function SettingsView({
 
       setRunningDreams(true)
       try {
-        const result = await window.api.appServer.sendRequest('dreams/run', undefined, 20_000)
+          const result = await window.api.appServer.sendRequest('dreams/run', {}, 20_000)
         let status = normalizeDreamsStatus(result)
         applyDreamsStatusSnapshot(status)
         for (let attempt = 0; status.running && attempt < 12; attempt++) {
           await delay(1500)
-          const next = await window.api.appServer.sendRequest('dreams/status', undefined, 20_000)
+            const next = await window.api.appServer.sendRequest('dreams/status', {}, 20_000)
           status = normalizeDreamsStatus(next)
           applyDreamsStatusSnapshot(status)
         }
@@ -2408,7 +2419,7 @@ export function SettingsView({
 
       setResettingMemory(true)
       try {
-        await window.api.appServer.sendRequest('memory/reset', undefined, 20_000)
+          await window.api.appServer.sendRequest('memory/reset', {}, 20_000)
         addToast(t('settings.personalization.resetMemorySuccess'), 'success')
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err)
@@ -2550,7 +2561,7 @@ export function SettingsView({
       .get()
       .then(async (s) => {
         const loadedMode = s.connectionMode === 'remote' ? 'remote' : 'local'
-        setBinarySource((s.binarySource ?? (s.appServerBinaryPath ? 'custom' : 'bundled')) as BinarySource)
+        setBinarySource((s.binarySource ?? 'bundled') as BinarySource)
         setBinaryPath(s.appServerBinaryPath ?? '')
         setConnectionMode(loadedMode)
         setSavedConnectionMode(loadedMode)
@@ -2575,7 +2586,7 @@ export function SettingsView({
         setBrowserUseBlockedDomains([...(s.browserUse?.blockedDomains ?? [])])
         setBrowserUseAllowedDomains([...(s.browserUse?.allowedDomains ?? [])])
         setBaselineConnection({
-          binarySource: (s.binarySource ?? (s.appServerBinaryPath ? 'custom' : 'bundled')) as BinarySource,
+          binarySource: (s.binarySource ?? 'bundled') as BinarySource,
           binaryPath: s.appServerBinaryPath ?? '',
           connectionMode: loadedMode,
           wsHost: s.webSocket?.host ?? DEFAULT_WS_HOST,
@@ -2788,7 +2799,7 @@ export function SettingsView({
     setMcpTestResult(null)
     try {
       const result = (await window.api.appServer.sendRequest('mcp/test', {
-        server: payload
+        server: toContractMcpServer(payload)
       })) as McpTestResultWire
       setMcpTestResult(result)
       addToast(
@@ -2826,7 +2837,9 @@ export function SettingsView({
         }
       }
 
-      await window.api.appServer.sendRequest('mcp/upsert', { server: payload })
+      await window.api.appServer.sendRequest('mcp/upsert', {
+        server: toContractMcpServer(payload)
+      })
       await Promise.all([reloadMcpServers(), reloadMcpStatuses()])
       setMcpSavedHint(t('settings.savedToast'))
       if (renameCleanupFailed) {
@@ -2845,10 +2858,7 @@ export function SettingsView({
     setTogglingServerName(server.name)
     try {
       await window.api.appServer.sendRequest('mcp/upsert', {
-        server: {
-          ...server,
-          enabled: nextEnabled
-        }
+        server: { ...toContractMcpServer(server), enabled: nextEnabled }
       })
       await Promise.all([reloadMcpServers(), reloadMcpStatuses()])
     } catch (err) {

@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using System.Net.WebSockets;
+using System.Text.Json;
 using DotCraft.Agents;
 using DotCraft.AppBinding;
 using Microsoft.Extensions.Logging;
@@ -21,6 +22,7 @@ using DotCraft.Tools.BackgroundTerminals;
 using DotCraft.Automations.Protocol;
 using DotCraft.Tracing;
 using DotCraft.ExternalChannel;
+using Contract = DotCraft.Protocol.Contracts.AppServer;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
@@ -40,6 +42,13 @@ public sealed class AppServerHost(
     ExternalChannelRegistry? externalChannelRegistry = null) : IDotCraftHost
 {
     private readonly IServiceProvider _services = runtime.Services;
+
+    private static TContract ProjectContract<TContract>(object wireValue)
+    {
+        var json = JsonSerializer.SerializeToElement(wireValue, wireValue.GetType(), SessionWireJsonOptions.Default);
+        return json.Deserialize<TContract>(DotCraft.Protocol.Contracts.AppServerContractJson.Options)
+               ?? throw new JsonException($"Could not project AppServer contract value to {typeof(TContract).Name}.");
+    }
 
     /// <summary>
     /// Thread-safe set of currently connected transports. Used to broadcast
@@ -444,7 +453,7 @@ public sealed class AppServerHost(
                     if (firstMsg == null)
                         return; // Client disconnected before sending anything
 
-                    if (firstMsg.IsRequest && firstMsg.Method == AppServerMethods.Initialize)
+                    if (firstMsg.IsRequest && firstMsg.Method == DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.Initialize)
                     {
                         // Process the initialize request normally
                         await ProcessRequestAsync(wsTransport, wsHandler, wsConnection, firstMsg, hostCt);
@@ -464,27 +473,25 @@ public sealed class AppServerHost(
                                         $"[yellow][[AppServer]][/] Rejected channel adapter '{channelName}': " +
                                         "channel uses subprocess transport; connect the adapter via stdio, not WebSocket.");
 
-                                    await wsTransport.WriteMessageAsync(new
-                                    {
-                                        jsonrpc = "2.0",
-                                        method = AppServerMethods.SystemEvent,
-                                        @params = new ChannelRejectedSystemEventNotification
+                                    await wsTransport.NotifyContractAsync(
+                                        Contract.AppServerRpc.SystemEvent,
+                                        new ChannelRejectedSystemEventNotification
                                         {
                                             Kind = "channelRejected",
                                             ChannelName = channelName,
                                             Message =
                                                 $"Channel '{channelName}' is subprocess-only; WebSocket adapter attach is not supported."
-                                        }
-                                    }, hostCt);
+                                        },
+                                        hostCt);
 
                                     return;
                                 }
 
                                 // Wait for the 'initialized' notification before handover
                                 var initdMsg = await wsTransport.ReadMessageAsync(hostCt);
-                                if (initdMsg is { IsNotification: true, Method: AppServerMethods.Initialized })
+                                if (initdMsg is { IsNotification: true, Method: DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.Initialized })
                                 {
-                                    wsHandler.HandleInitializedNotification();
+                                    wsHandler.HandleNotification(initdMsg);
                                 }
 
                                 // Hand over transport and connection to the ExternalChannelHost.
@@ -504,17 +511,15 @@ public sealed class AppServerHost(
                                 $"[yellow][[AppServer]][/] Rejected channel adapter '{channelName}': " +
                                 "not registered in ExternalChannels configuration.");
 
-                            await wsTransport.WriteMessageAsync(new
-                            {
-                                jsonrpc = "2.0",
-                                method = AppServerMethods.SystemEvent,
-                                @params = new ChannelRejectedSystemEventNotification
+                            await wsTransport.NotifyContractAsync(
+                                Contract.AppServerRpc.SystemEvent,
+                                new ChannelRejectedSystemEventNotification
                                 {
                                     Kind = "channelRejected",
                                     ChannelName = channelName,
                                     Message = $"Channel '{channelName}' is not registered in server configuration."
-                                }
-                            }, hostCt);
+                                },
+                                hostCt);
 
                             return; // Close connection
                         }
@@ -713,13 +718,7 @@ public sealed class AppServerHost(
 
     private static void HandleNotification(AppServerIncomingMessage msg, AppServerRequestHandler handler)
     {
-        switch (msg.Method)
-        {
-            case AppServerMethods.Initialized:
-                handler.HandleInitializedNotification();
-                break;
-                // Other client notifications (none defined in v1) are silently ignored
-        }
+        handler.HandleNotification(msg);
     }
 
     public async ValueTask DisposeAsync()
@@ -805,32 +804,27 @@ public sealed class AppServerHost(
             };
         }
 
-        var notification = new
+        var parameters = new SystemJobResultNotification
         {
-            jsonrpc = "2.0",
-            method = AppServerMethods.SystemJobResult,
-            @params = new SystemJobResultNotification
-            {
-                Source = source,
-                JobId = jobId,
-                JobName = jobName,
-                ThreadId = threadId,
-                Result = result,
-                Error = error,
-                TokenUsage = tokenUsage
-            }
+            Source = source,
+            JobId = jobId,
+            JobName = jobName,
+            ThreadId = threadId,
+            Result = result,
+            Error = error,
+            TokenUsage = tokenUsage
         };
 
         foreach (var (transport, connection) in _activeTransports)
         {
-            if (!connection.ShouldSendNotification(AppServerMethods.SystemJobResult))
+            if (!connection.ShouldSendNotification(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.SystemJobResult))
                 continue;
 
             _ = Task.Run(async () =>
             {
                 try
                 {
-                    await transport.WriteMessageAsync(notification, CancellationToken.None);
+                    await transport.NotifyContractAsync(Contract.AppServerRpc.SystemJobResult, parameters, CancellationToken.None);
                 }
                 catch
                 {
@@ -842,23 +836,18 @@ public sealed class AppServerHost(
 
     private void BroadcastCronStateChanged(CronJobWireInfo job, bool removed)
     {
-        var notification = new
-        {
-            jsonrpc = "2.0",
-            method = AppServerMethods.CronStateChanged,
-            @params = new CronStateChangedNotification { Job = job, Removed = removed }
-        };
+        var parameters = new CronStateChangedNotification { Job = job, Removed = removed };
 
         foreach (var (transport, connection) in _activeTransports)
         {
-            if (!connection.ShouldSendNotification(AppServerMethods.CronStateChanged))
+            if (!connection.ShouldSendNotification(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.CronStateChanged))
                 continue;
 
             _ = Task.Run(async () =>
             {
                 try
                 {
-                    await transport.WriteMessageAsync(notification, CancellationToken.None);
+                    await transport.NotifyContractAsync(Contract.AppServerRpc.CronStateChanged, parameters, CancellationToken.None);
                 }
                 catch
                 {
@@ -870,7 +859,6 @@ public sealed class AppServerHost(
 
     private void NotifyAppPrincipal(string appId, string method, object? parameters)
     {
-        var notification = new { jsonrpc = "2.0", method, @params = parameters };
         foreach (var (transport, connection) in _activeTransports)
         {
             if (!connection.IsAppPrincipalAuthenticated
@@ -878,7 +866,7 @@ public sealed class AppServerHost(
                 continue;
             _ = Task.Run(async () =>
             {
-                try { await transport.WriteMessageAsync(notification, CancellationToken.None); }
+                try { await transport.NotifyContractAsync(method, parameters, CancellationToken.None); }
                 catch { _activeTransports.TryRemove(transport, out _); }
             });
         }
@@ -886,13 +874,12 @@ public sealed class AppServerHost(
 
     private void BroadcastTrustedNotification(string method, object? parameters)
     {
-        var notification = new { jsonrpc = "2.0", method, @params = parameters };
         foreach (var (transport, connection) in _activeTransports)
         {
             if (connection.IsAppPrincipalAuthenticated || connection.IsChannelAdapter) continue;
             _ = Task.Run(async () =>
             {
-                try { await transport.WriteMessageAsync(notification, CancellationToken.None); }
+                try { await transport.NotifyContractAsync(method, parameters, CancellationToken.None); }
                 catch { _activeTransports.TryRemove(transport, out _); }
             });
         }
@@ -912,23 +899,16 @@ public sealed class AppServerHost(
     private void BroadcastOpenAiUsageChanged(DotCraft.Auth.OpenAI.OpenAIUsageSnapshot? snapshot)
     {
         var result = Auth.OpenAI.OpenAIUsageMapping.ToWire(snapshot);
-        var notification = new
-        {
-            jsonrpc = "2.0",
-            method = AppServerMethods.AuthOpenAiUsageChanged,
-            @params = result
-        };
-
         foreach (var (transport, connection) in _activeTransports)
         {
-            if (!connection.ShouldSendNotification(AppServerMethods.AuthOpenAiUsageChanged))
+            if (!connection.ShouldSendNotification(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.AuthOpenAiUsageChanged))
                 continue;
 
             _ = Task.Run(async () =>
             {
                 try
                 {
-                    await transport.WriteMessageAsync(notification, CancellationToken.None);
+                    await transport.NotifyContractAsync(Contract.AppServerRpc.AuthOpenAiUsageChanged, result, CancellationToken.None);
                 }
                 catch
                 {
@@ -947,31 +927,26 @@ public sealed class AppServerHost(
             "disabled" => "cancelled",
             _ => "failed"
         };
-        var notification = new
+        var parameters = new McpServerStartupStatusUpdatedNotification
         {
-            jsonrpc = "2.0",
-            method = AppServerMethods.McpServerStartupStatusUpdated,
-            @params = new McpServerStartupStatusUpdatedNotification
-            {
-                Name = server.Name,
-                Status = status,
-                Error = server.LastError,
-                FailureReason = server.FailureReason,
-                Transport = server.Transport,
-                AuthStatus = server.AuthStatus
-            }
+            Name = server.Name,
+            Status = status,
+            Error = server.LastError,
+            FailureReason = server.FailureReason,
+            Transport = server.Transport,
+            AuthStatus = server.AuthStatus
         };
 
         foreach (var (transport, connection) in _activeTransports)
         {
-            if (!connection.ShouldSendNotification(AppServerMethods.McpServerStartupStatusUpdated))
+            if (!connection.ShouldSendNotification(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.McpServerStartupStatusUpdated))
                 continue;
 
             _ = Task.Run(async () =>
             {
                 try
                 {
-                    await transport.WriteMessageAsync(notification, CancellationToken.None);
+                    await transport.NotifyContractAsync(Contract.AppServerRpc.McpServerStartupStatusUpdated, parameters, CancellationToken.None);
                 }
                 catch
                 {
@@ -983,28 +958,23 @@ public sealed class AppServerHost(
 
     private void BroadcastWorkspaceConfigChanged(AppConfigChangedEventArgs change)
     {
-        var notification = new
+        var parameters = new WorkspaceConfigChangedParams
         {
-            jsonrpc = "2.0",
-            method = AppServerMethods.WorkspaceConfigChanged,
-            @params = new WorkspaceConfigChangedParams
-            {
-                Source = change.Source,
-                Regions = [.. change.Regions],
-                ChangedAt = change.ChangedAt
-            }
+            Source = change.Source,
+            Regions = [.. change.Regions],
+            ChangedAt = change.ChangedAt
         };
 
         foreach (var (transport, connection) in _activeTransports)
         {
-            if (!connection.SupportsConfigChange || !connection.ShouldSendNotification(AppServerMethods.WorkspaceConfigChanged))
+            if (!connection.SupportsConfigChange || !connection.ShouldSendNotification(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.WorkspaceConfigChanged))
                 continue;
 
             _ = Task.Run(async () =>
             {
                 try
                 {
-                    await transport.WriteMessageAsync(notification, CancellationToken.None);
+                    await transport.NotifyContractAsync(Contract.AppServerRpc.WorkspaceConfigChanged, parameters, CancellationToken.None);
                 }
                 catch
                 {
@@ -1016,24 +986,14 @@ public sealed class AppServerHost(
 
     private void BroadcastBackgroundTerminalEvent(BackgroundTerminalEvent evt)
     {
-        var method = evt.EventType switch
+        var method = ResolveBackgroundTerminalNotificationMethod(evt.EventType);
+        if (method is null)
+            return;
+
+        var parameters = new TerminalLifecycleNotification
         {
-            "started" => AppServerMethods.TerminalStarted,
-            "outputDelta" => AppServerMethods.TerminalOutputDelta,
-            "completed" => AppServerMethods.TerminalCompleted,
-            "stalled" => AppServerMethods.TerminalStalled,
-            "cleaned" => AppServerMethods.TerminalCleaned,
-            _ => "terminal/event"
-        };
-        var notification = new
-        {
-            jsonrpc = "2.0",
-            method,
-            @params = new TerminalLifecycleNotification
-            {
-                Terminal = evt.Terminal,
-                Delta = evt.Delta
-            }
+            Terminal = evt.Terminal,
+            Delta = evt.Delta
         };
 
         foreach (var (transport, connection) in _activeTransports)
@@ -1052,9 +1012,20 @@ public sealed class AppServerHost(
                             RemoveTerminalNotificationQueue(candidate);
                         }),
                     LazyThreadSafetyMode.ExecutionAndPublication));
-            queue.Value.Enqueue(notification);
+            queue.Value.Enqueue(method, parameters);
         }
     }
+
+    internal static string? ResolveBackgroundTerminalNotificationMethod(string eventType) =>
+        eventType switch
+        {
+            "started" => DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.TerminalStarted,
+            "outputDelta" => DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.TerminalOutputDelta,
+            "completed" => DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.TerminalCompleted,
+            "stalled" => DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.TerminalStalled,
+            "cleaned" => DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.TerminalCleaned,
+            _ => null
+        };
 
     private void RemoveTerminalNotificationQueue(IAppServerTransport transport)
     {
@@ -1075,22 +1046,18 @@ public sealed class AppServerHost(
         {
             Runtime = runtime.SessionService.GetThreadRuntimeSnapshot(thread).ToWireRuntimeState()
         };
-        var notification = new
-        {
-            jsonrpc = "2.0",
-            method = AppServerMethods.ThreadStarted,
-            @params = new ThreadStartedNotification { Thread = wire }
-        };
+        var parameters = ProjectContract<Contract.ThreadNotification>(
+            new ThreadStartedNotification { Thread = wire });
 
         var skipTransport = !IsSubAgentThread(thread)
-                            && (string.Equals(AppServerRequestContext.CurrentMethod, AppServerMethods.ThreadStart, StringComparison.Ordinal)
-                                || string.Equals(AppServerRequestContext.CurrentMethod, AppServerMethods.WorktreeCreateAndStart, StringComparison.Ordinal))
+                            && (string.Equals(AppServerRequestContext.CurrentMethod, DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ThreadStart, StringComparison.Ordinal)
+                                || string.Equals(AppServerRequestContext.CurrentMethod, DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.WorktreeCreateAndStart, StringComparison.Ordinal))
             ? AppServerRequestContext.CurrentTransport
             : null;
 
         foreach (var (transport, connection) in _activeTransports)
         {
-            if (!connection.ShouldSendNotification(AppServerMethods.ThreadStarted))
+            if (!connection.ShouldSendNotification(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ThreadStarted))
                 continue;
 
             if (skipTransport != null && ReferenceEquals(transport, skipTransport))
@@ -1100,7 +1067,7 @@ public sealed class AppServerHost(
             {
                 try
                 {
-                    await transport.WriteMessageAsync(notification, CancellationToken.None);
+                    await transport.NotifyAsync(Contract.AppServerRpc.ThreadStarted, parameters, CancellationToken.None);
                 }
                 catch
                 {
@@ -1112,27 +1079,22 @@ public sealed class AppServerHost(
 
     private void BroadcastSubAgentGraphChanged(string parentThreadId, string childThreadId)
     {
-        var notification = new
+        var parameters = new SubAgentGraphChangedNotification
         {
-            jsonrpc = "2.0",
-            method = AppServerMethods.SubAgentGraphChanged,
-            @params = new SubAgentGraphChangedNotification
-            {
-                ParentThreadId = parentThreadId,
-                ChildThreadId = childThreadId
-            }
+            ParentThreadId = parentThreadId,
+            ChildThreadId = childThreadId
         };
 
         foreach (var (transport, connection) in _activeTransports)
         {
-            if (!connection.ShouldSendNotification(AppServerMethods.SubAgentGraphChanged))
+            if (!connection.ShouldSendNotification(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.SubAgentGraphChanged))
                 continue;
 
             _ = Task.Run(async () =>
             {
                 try
                 {
-                    await transport.WriteMessageAsync(notification, CancellationToken.None);
+                    await transport.NotifyContractAsync(Contract.AppServerRpc.SubAgentGraphChanged, parameters, CancellationToken.None);
                 }
                 catch
                 {
@@ -1149,28 +1111,23 @@ public sealed class AppServerHost(
     private void BroadcastThreadGoalUpdated(ThreadGoal goal, string? turnId)
     {
         var wireGoal = ThreadGoalWire.FromGoal(goal);
-        var notification = new
+        var parameters = new ThreadGoalUpdatedNotification
         {
-            jsonrpc = "2.0",
-            method = AppServerMethods.ThreadGoalUpdated,
-            @params = new ThreadGoalUpdatedNotification
-            {
-                ThreadId = goal.ThreadId,
-                Goal = wireGoal,
-                TurnId = turnId
-            }
+            ThreadId = goal.ThreadId,
+            Goal = wireGoal,
+            TurnId = turnId
         };
 
         foreach (var (transport, connection) in _activeTransports)
         {
-            if (!connection.ShouldSendNotification(AppServerMethods.ThreadGoalUpdated))
+            if (!connection.ShouldSendNotification(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ThreadGoalUpdated))
                 continue;
 
             _ = Task.Run(async () =>
             {
                 try
                 {
-                    await transport.WriteMessageAsync(notification, CancellationToken.None);
+                    await transport.NotifyContractAsync(Contract.AppServerRpc.ThreadGoalUpdated, parameters, CancellationToken.None);
                 }
                 catch
                 {
@@ -1182,23 +1139,18 @@ public sealed class AppServerHost(
 
     private void BroadcastThreadGoalCleared(string threadId)
     {
-        var notification = new
-        {
-            jsonrpc = "2.0",
-            method = AppServerMethods.ThreadGoalCleared,
-            @params = new ThreadGoalClearedNotification { ThreadId = threadId }
-        };
+        var parameters = new ThreadGoalClearedNotification { ThreadId = threadId };
 
         foreach (var (transport, connection) in _activeTransports)
         {
-            if (!connection.ShouldSendNotification(AppServerMethods.ThreadGoalCleared))
+            if (!connection.ShouldSendNotification(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ThreadGoalCleared))
                 continue;
 
             _ = Task.Run(async () =>
             {
                 try
                 {
-                    await transport.WriteMessageAsync(notification, CancellationToken.None);
+                    await transport.NotifyContractAsync(Contract.AppServerRpc.ThreadGoalCleared, parameters, CancellationToken.None);
                 }
                 catch
                 {
@@ -1217,27 +1169,22 @@ public sealed class AppServerHost(
         if (string.IsNullOrEmpty(thread.DisplayName))
             return;
 
-        var notification = new
+        var parameters = new ThreadRenamedNotification
         {
-            jsonrpc = "2.0",
-            method = AppServerMethods.ThreadRenamed,
-            @params = new ThreadRenamedNotification
-            {
-                ThreadId = thread.Id,
-                DisplayName = thread.DisplayName
-            }
+            ThreadId = thread.Id,
+            DisplayName = thread.DisplayName
         };
 
         foreach (var (transport, connection) in _activeTransports)
         {
-            if (!connection.ShouldSendNotification(AppServerMethods.ThreadRenamed))
+            if (!connection.ShouldSendNotification(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ThreadRenamed))
                 continue;
 
             _ = Task.Run(async () =>
             {
                 try
                 {
-                    await transport.WriteMessageAsync(notification, CancellationToken.None);
+                    await transport.NotifyContractAsync(Contract.AppServerRpc.ThreadRenamed, parameters, CancellationToken.None);
                 }
                 catch
                 {
@@ -1256,23 +1203,19 @@ public sealed class AppServerHost(
         {
             Runtime = runtime.SessionService.GetThreadRuntimeSnapshot(thread).ToWireRuntimeState()
         };
-        var notification = new
-        {
-            jsonrpc = "2.0",
-            method = AppServerMethods.ThreadUpdated,
-            @params = new ThreadUpdatedNotification { Thread = wire }
-        };
+        var parameters = ProjectContract<Contract.ThreadNotification>(
+            new ThreadUpdatedNotification { Thread = wire });
 
         var skipTransport = string.Equals(
             AppServerRequestContext.CurrentMethod,
-            AppServerMethods.ThreadWorktreeHandoff,
+            DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ThreadWorktreeHandoff,
             StringComparison.Ordinal)
             ? AppServerRequestContext.CurrentTransport
             : null;
 
         foreach (var (transport, connection) in _activeTransports)
         {
-            if (!connection.ShouldSendNotification(AppServerMethods.ThreadUpdated))
+            if (!connection.ShouldSendNotification(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ThreadUpdated))
                 continue;
 
             if (skipTransport != null && ReferenceEquals(transport, skipTransport))
@@ -1282,7 +1225,7 @@ public sealed class AppServerHost(
             {
                 try
                 {
-                    await transport.WriteMessageAsync(notification, CancellationToken.None);
+                    await transport.NotifyAsync(Contract.AppServerRpc.ThreadUpdated, parameters, CancellationToken.None);
                 }
                 catch
                 {
@@ -1406,27 +1349,22 @@ public sealed class AppServerHost(
 
     private void BroadcastThreadRuntime(string threadId, ThreadRuntimeState runtime)
     {
-        var notification = new
+        var parameters = new ThreadRuntimeChangedParams
         {
-            jsonrpc = "2.0",
-            method = AppServerMethods.ThreadRuntimeChanged,
-            @params = new ThreadRuntimeChangedParams
-            {
-                ThreadId = threadId,
-                Runtime = runtime
-            }
+            ThreadId = threadId,
+            Runtime = runtime
         };
 
         foreach (var (transport, connection) in _activeTransports)
         {
-            if (!connection.ShouldSendNotification(AppServerMethods.ThreadRuntimeChanged))
+            if (!connection.ShouldSendNotification(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ThreadRuntimeChanged))
                 continue;
 
             _ = Task.Run(async () =>
             {
                 try
                 {
-                    await transport.WriteMessageAsync(notification, CancellationToken.None);
+                    await transport.NotifyContractAsync(Contract.AppServerRpc.ThreadRuntimeChanged, parameters, CancellationToken.None);
                 }
                 catch
                 {
@@ -1438,23 +1376,18 @@ public sealed class AppServerHost(
 
     private void BroadcastThreadStatusChanged(string threadId, ThreadStatus previousStatus, ThreadStatus newStatus)
     {
-        var notification = new
+        var parameters = new ThreadStatusChangedNotification
         {
-            jsonrpc = "2.0",
-            method = AppServerMethods.ThreadStatusChanged,
-            @params = new ThreadStatusChangedNotification
-            {
-                ThreadId = threadId,
-                PreviousStatus = previousStatus,
-                NewStatus = newStatus
-            }
+            ThreadId = threadId,
+            PreviousStatus = previousStatus,
+            NewStatus = newStatus
         };
 
         var skipTransport = AppServerRequestContext.CurrentTransport;
 
         foreach (var (transport, connection) in _activeTransports)
         {
-            if (!connection.ShouldSendNotification(AppServerMethods.ThreadStatusChanged))
+            if (!connection.ShouldSendNotification(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ThreadStatusChanged))
                 continue;
 
             if (skipTransport != null && ReferenceEquals(transport, skipTransport))
@@ -1464,7 +1397,7 @@ public sealed class AppServerHost(
             {
                 try
                 {
-                    await transport.WriteMessageAsync(notification, CancellationToken.None);
+                    await transport.NotifyContractAsync(Contract.AppServerRpc.ThreadStatusChanged, parameters, CancellationToken.None);
                 }
                 catch
                 {
@@ -1482,18 +1415,14 @@ public sealed class AppServerHost(
     {
         _threadRuntime.TryRemove(threadId, out _);
 
-        var notification = new
-        {
-            jsonrpc = "2.0",
-            method = AppServerMethods.ThreadDeleted,
-            @params = new ThreadDeletedNotification { ThreadId = threadId }
-        };
+        var parameters = ProjectContract<Contract.ThreadDeletedNotification>(
+            new ThreadDeletedNotification { ThreadId = threadId });
 
         var skipTransport = AppServerRequestContext.CurrentTransport;
 
         foreach (var (transport, connection) in _activeTransports)
         {
-            if (!connection.ShouldSendNotification(AppServerMethods.ThreadDeleted))
+            if (!connection.ShouldSendNotification(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ThreadDeleted))
                 continue;
 
             if (skipTransport != null && ReferenceEquals(transport, skipTransport))
@@ -1503,7 +1432,7 @@ public sealed class AppServerHost(
             {
                 try
                 {
-                    await transport.WriteMessageAsync(notification, CancellationToken.None);
+                    await transport.NotifyAsync(Contract.AppServerRpc.ThreadDeleted, parameters, CancellationToken.None);
                 }
                 catch
                 {
@@ -1521,20 +1450,20 @@ public sealed class AppServerHost(
     /// </summary>
     private void BroadcastPlanUpdated(string threadId, StructuredPlan plan)
     {
-        var notification = BuildPlanUpdatedNotification(threadId, plan);
+        var parameters = BuildPlanUpdatedParameters(threadId, plan);
 
         // Fire-and-forget broadcast to all connected clients.
         // Errors on individual transports (e.g. disconnected) are silently ignored.
         foreach (var (transport, connection) in _activeTransports)
         {
-            if (!connection.ShouldSendNotification(AppServerMethods.PlanUpdated))
+            if (!connection.ShouldSendNotification(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.PlanUpdated))
                 continue;
 
             _ = Task.Run(async () =>
             {
                 try
                 {
-                    await transport.WriteMessageAsync(notification, CancellationToken.None);
+                    await transport.NotifyContractAsync(Contract.AppServerRpc.PlanUpdated, parameters, CancellationToken.None);
                 }
                 catch
                 {
@@ -1548,21 +1477,23 @@ public sealed class AppServerHost(
     internal static object BuildPlanUpdatedNotification(string threadId, StructuredPlan plan) => new
     {
         jsonrpc = "2.0",
-        method = AppServerMethods.PlanUpdated,
-        @params = new PlanUpdatedNotification
+        method = DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.PlanUpdated,
+        @params = BuildPlanUpdatedParameters(threadId, plan)
+    };
+
+    private static PlanUpdatedNotification BuildPlanUpdatedParameters(string threadId, StructuredPlan plan) => new()
+    {
+        ThreadId = threadId,
+        Title = plan.Title,
+        Overview = plan.Overview,
+        Content = plan.Content,
+        Todos = plan.Todos.Select(t => new PlanTodoWire
         {
-            ThreadId = threadId,
-            Title = plan.Title,
-            Overview = plan.Overview,
-            Content = plan.Content,
-            Todos = plan.Todos.Select(t => new PlanTodoWire
-            {
-                Id = t.Id,
-                Content = t.Content,
-                Priority = t.Priority,
-                Status = t.Status
-            }).ToArray()
-        }
+            Id = t.Id,
+            Content = t.Content,
+            Priority = t.Priority,
+            Status = t.Status
+        }).ToArray()
     };
 
     /// <summary>
@@ -1571,18 +1502,18 @@ public sealed class AppServerHost(
     /// </summary>
     private void BroadcastAutomationTaskUpdated(IAutomationTaskEventPayload task)
     {
-        var notification = AutomationsEventDispatcher.BuildNotification(task, runtime.Paths.WorkspacePath);
+        var parameters = AutomationsEventDispatcher.BuildNotificationParams(task, runtime.Paths.WorkspacePath);
 
         foreach (var (transport, connection) in _activeTransports)
         {
-            if (!connection.ShouldSendNotification(AppServerMethods.AutomationTaskUpdated))
+            if (!connection.ShouldSendNotification(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.AutomationTaskUpdated))
                 continue;
 
             _ = Task.Run(async () =>
             {
                 try
                 {
-                    await transport.WriteMessageAsync(notification, CancellationToken.None);
+                    await transport.NotifyContractAsync(Contract.AppServerRpc.AutomationTaskUpdated, parameters, CancellationToken.None);
                 }
                 catch
                 {

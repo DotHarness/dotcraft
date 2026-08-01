@@ -18,13 +18,13 @@ internal sealed class ChannelRequestHandler(
 {
     public void RegisterMethods(AppServerMethodTable table)
     {
-        table.Map(AppServerMethods.ChannelList, HandleChannelListAsync);
-        table.Map(AppServerMethods.ChannelStatus, HandleChannelStatusAsync);
-        table.Map(AppServerMethods.ExternalChannelList, HandleExternalChannelListAsync);
-        table.Map(AppServerMethods.ExternalChannelGet, HandleExternalChannelGetAsync);
-        table.Map(AppServerMethods.ExternalChannelUpsert, HandleExternalChannelUpsertAsync);
-        table.Map(AppServerMethods.ExternalChannelRemove, HandleExternalChannelRemoveAsync);
-        table.Map(AppServerMethods.ExternalChannelLogs, HandleExternalChannelLogsAsync);
+        table.Map(global::DotCraft.Protocol.Contracts.AppServer.AppServerRpc.ChannelList, HandleChannelListAsync);
+        table.Map(global::DotCraft.Protocol.Contracts.AppServer.AppServerRpc.ChannelStatus, HandleChannelStatusAsync);
+        table.Map(global::DotCraft.Protocol.Contracts.AppServer.AppServerRpc.ExternalChannelList, HandleExternalChannelListAsync);
+        table.Map(global::DotCraft.Protocol.Contracts.AppServer.AppServerRpc.ExternalChannelGet, HandleExternalChannelGetAsync);
+        table.Map(global::DotCraft.Protocol.Contracts.AppServer.AppServerRpc.ExternalChannelUpsert, HandleExternalChannelUpsertAsync);
+        table.Map(global::DotCraft.Protocol.Contracts.AppServer.AppServerRpc.ExternalChannelRemove, HandleExternalChannelRemoveAsync);
+        table.Map(global::DotCraft.Protocol.Contracts.AppServer.AppServerRpc.ExternalChannelLogs, HandleExternalChannelLogsAsync);
     }
 
     private Task<object?> HandleChannelListAsync(AppServerIncomingMessage msg, CancellationToken ct)
@@ -81,7 +81,7 @@ internal sealed class ChannelRequestHandler(
         _ = ct;
 
         if (channelStatusProvider == null)
-            throw AppServerErrors.MethodNotFound(AppServerMethods.ChannelStatus);
+            throw AppServerErrors.MethodNotFound(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ChannelStatus);
 
         var statuses = channelStatusProvider.GetChannelStatuses();
         return Task.FromResult<object?>(new ChannelStatusResult { Channels = [.. statuses] });
@@ -137,7 +137,7 @@ internal sealed class ChannelRequestHandler(
         if (onExternalChannelUpserted != null)
             await onExternalChannelUpserted(channel, ct);
         appConfigMonitor?.NotifyChanged(
-            AppServerMethods.ExternalChannelUpsert,
+            DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ExternalChannelUpsert,
             [ConfigChangeRegions.ExternalChannel]);
 
         return new ExternalChannelUpsertResult
@@ -162,7 +162,7 @@ internal sealed class ChannelRequestHandler(
         if (onExternalChannelRemoved != null)
             await onExternalChannelRemoved(p.Name, ct);
         appConfigMonitor?.NotifyChanged(
-            AppServerMethods.ExternalChannelRemove,
+            DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ExternalChannelRemove,
             [ConfigChangeRegions.ExternalChannel]);
 
         return new ExternalChannelRemoveResult { Removed = true };

@@ -48,7 +48,7 @@ public sealed class ExternalChannelManagementHooksTests : IDisposable
             });
 
         await _h.InitializeAsync();
-        var request = _h.BuildRequest(AppServerMethods.ExternalChannelUpsert, new
+        var request = _h.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ExternalChannelUpsert, new
         {
             channel = new
             {
@@ -85,7 +85,7 @@ public sealed class ExternalChannelManagementHooksTests : IDisposable
 
         await _h.InitializeAsync();
 
-        var upsert = _h.BuildRequest(AppServerMethods.ExternalChannelUpsert, new
+        var upsert = _h.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ExternalChannelUpsert, new
         {
             channel = new
             {
@@ -97,7 +97,7 @@ public sealed class ExternalChannelManagementHooksTests : IDisposable
         await _h.ExecuteRequestAsync(upsert);
         _ = await _h.Transport.ReadNextSentAsync();
 
-        var remove = _h.BuildRequest(AppServerMethods.ExternalChannelRemove, new
+        var remove = _h.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ExternalChannelRemove, new
         {
             name = "weixin"
         });
@@ -118,7 +118,7 @@ public sealed class ExternalChannelManagementHooksTests : IDisposable
                 new ChannelInfo { Name = "feishu", Category = "external" }));
 
         await _h.InitializeAsync();
-        var request = _h.BuildRequest(AppServerMethods.ExternalChannelUpsert, new
+        var request = _h.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ExternalChannelUpsert, new
         {
             channel = new
             {
@@ -145,7 +145,7 @@ public sealed class ExternalChannelManagementHooksTests : IDisposable
         _h = new AppServerTestHarness(workspaceCraftPath: _workspaceCraftPath);
 
         await _h.InitializeAsync();
-        var request = _h.BuildRequest(AppServerMethods.ExternalChannelUpsert, new
+        var request = _h.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ExternalChannelUpsert, new
         {
             channel = new
             {
@@ -176,7 +176,7 @@ public sealed class ExternalChannelManagementHooksTests : IDisposable
         _h = new AppServerTestHarness(workspaceCraftPath: _workspaceCraftPath);
 
         await _h.InitializeAsync();
-        var request = _h.BuildRequest(AppServerMethods.ExternalChannelUpsert, new
+        var request = _h.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ExternalChannelUpsert, new
         {
             channel = new
             {
@@ -202,7 +202,7 @@ public sealed class ExternalChannelManagementHooksTests : IDisposable
                 new ChannelInfo { Name = "cli", Category = "builtin" }));
 
         await _h.InitializeAsync();
-        var request = _h.BuildRequest(AppServerMethods.ExternalChannelUpsert, new
+        var request = _h.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ExternalChannelUpsert, new
         {
             channel = new
             {

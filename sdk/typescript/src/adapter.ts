@@ -2,7 +2,7 @@
  * ChannelAdapter: high-level base class for external channel adapters.
  */
 
-import { DotCraftWireClient } from "./client.js";
+import { DotCraftAppServerClient } from "./appServerClient.js";
 import { DotCraftError } from "./errors.js";
 import {
   ERR_THREAD_NOT_ACTIVE,
@@ -45,7 +45,7 @@ export type ChannelAdapterOptions = {
 };
 
 export abstract class ChannelAdapter {
-  protected client: DotCraftWireClient;
+  protected client: DotCraftAppServerClient;
   protected readonly channelName: string;
   private readonly clientName: string;
   private readonly clientVersion: string;
@@ -76,7 +76,7 @@ export abstract class ChannelAdapter {
     optOutNotifications: string[] = [],
     options?: ChannelAdapterOptions,
   ) {
-    this.client = new DotCraftWireClient(transport);
+    this.client = new DotCraftAppServerClient(transport, { autoReconnect: true });
     this.channelName = channelName;
     this.clientName = clientName;
     this.clientVersion = clientVersion;
@@ -117,7 +117,6 @@ export abstract class ChannelAdapter {
     });
     this.deliveryDispatcher = new DeliveryDispatcher({
       client: () => this.client,
-      onDeliver: (target, content, metadata) => this.onDeliver(target, content, metadata),
       onSend: (target, message, metadata) => this.onSend(target, message, metadata),
     });
     this.channelToolDispatcher = new ChannelToolDispatcher({
@@ -345,11 +344,11 @@ export abstract class ChannelAdapter {
     if (!target) return false;
 
     try {
-      await this.client.request<AppBindingRequestGetResult>(
+      await this.client.requestRaw<AppBindingRequestGetResult>(
         "app/socialBinding/request/get",
         { code: bindCode },
       );
-      const binding = await this.client.request<ThreadAppBinding>(
+      const binding = await this.client.requestRaw<ThreadAppBinding>(
         "app/socialBinding/accept",
         { code: bindCode, target },
       );
@@ -515,7 +514,7 @@ export abstract class ChannelAdapter {
     opts: ChannelAdapterMessageOpts,
     sender: Record<string, unknown>,
   ): Promise<void> {
-    await this.client.request("app/threadInput/enqueue", {
+    await this.client.requestRaw("app/threadInput/enqueue", {
       bindingId: binding.bindingId,
       input,
       displayText: opts.text,
@@ -530,7 +529,7 @@ export abstract class ChannelAdapter {
     target: SocialChannelTarget,
   ): Promise<ThreadAppBinding | null> {
     try {
-      const result = await this.client.request<{ binding?: ThreadAppBinding | null }>(
+      const result = await this.client.requestRaw<{ binding?: ThreadAppBinding | null }>(
         "app/socialBinding/resolve",
         {
           channelName: target.channelName,
@@ -563,7 +562,7 @@ export abstract class ChannelAdapter {
 
   /**
    * Runs the streaming loop for an already-started turn. Separated so callers can subscribe
-   * to events before {@link DotCraftWireClient.turnStart}.
+   * to events before {@link DotCraftAppServerClient.turnStart}.
    */
   protected async consumeTurnEventStream(
     eventStream: AsyncIterableIterator<JsonRpcMessage>,

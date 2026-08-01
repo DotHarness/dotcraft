@@ -10,6 +10,7 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react'
+import type { ClientRequestMethods } from '@dotcraft/sdk/contracts'
 import { useThreadStore } from '../../stores/threadStore'
 import { useConversationStore } from '../../stores/conversationStore'
 import type { ThreadSummary } from '../../types/thread'
@@ -53,7 +54,10 @@ interface Result {
   syncDraft: (rawContent: string) => Promise<void>
 }
 
-async function rpc<T>(method: string, params: Record<string, unknown>): Promise<T> {
+async function rpc<T>(
+  method: keyof ClientRequestMethods,
+  params: ClientRequestMethods[keyof ClientRequestMethods]['params']
+): Promise<T> {
   return (await window.api.appServer.sendRequest(method, params)) as T
 }
 

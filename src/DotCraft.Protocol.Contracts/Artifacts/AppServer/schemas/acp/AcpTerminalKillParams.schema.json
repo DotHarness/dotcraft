@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.dotcraft.dev/appserver/v1/acp/AcpTerminalKillParams.schema.json",
+  "title": "AcpTerminalKillParams",
+  "type": "object",
+  "properties": {
+    "terminalId": {
+      "type": "string"
+    },
+    "threadId": {
+      "type": "string"
+    }
+  },
+  "additionalProperties": true
+}

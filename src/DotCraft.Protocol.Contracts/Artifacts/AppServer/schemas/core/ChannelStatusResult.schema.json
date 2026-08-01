@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.dotcraft.dev/appserver/v1/core/ChannelStatusResult.schema.json",
+  "title": "ChannelStatusResult",
+  "type": "object",
+  "properties": {
+    "channels": {
+      "type": "array",
+      "items": {
+        "$ref": "./ChannelStatusInfo.schema.json"
+      }
+    }
+  },
+  "additionalProperties": true
+}

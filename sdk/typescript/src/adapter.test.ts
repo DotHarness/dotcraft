@@ -181,7 +181,7 @@ test("processMessage enqueues bound social input instead of streaming a turn", a
   client.turnStart = async () => {
     throw new Error("bound social input must not start a streaming turn");
   };
-  client.request = async (method: unknown, params: unknown) => {
+  client.requestRaw = async (method: unknown, params: unknown) => {
     if (method === "app/socialBinding/resolve") {
       resolveParams = params as Record<string, unknown>;
       return {
@@ -259,7 +259,7 @@ test("processMessage falls back to normal channel routing for unbound social inp
         params: { threadId: "thread-unbound-1", turn: { items: [] } },
       };
     })();
-  client.request = async (method: unknown, params: unknown) => {
+  client.requestRaw = async (method: unknown, params: unknown) => {
     if (method === "app/socialBinding/resolve") {
       resolveParams = params as Record<string, unknown>;
       return { binding: null };
@@ -310,7 +310,7 @@ test("processMessage falls back to normal channel routing when social binding re
         params: { threadId: "thread-fallback-1", turn: { items: [] } },
       };
     })();
-  client.request = async (method: unknown) => {
+  client.requestRaw = async (method: unknown) => {
     if (method === "app/socialBinding/resolve") throw new Error("resolve unavailable");
     throw new Error(`unexpected request ${String(method)}`);
   };
@@ -341,7 +341,7 @@ test("handleMessage caches accepted social binding thread", async () => {
   const client = (adapter as unknown as { client: Record<string, unknown> }).client;
   const requests: string[] = [];
 
-  client.request = async (method: unknown) => {
+  client.requestRaw = async (method: unknown) => {
     requests.push(String(method));
     if (method === "app/socialBinding/request/get") {
       return {
@@ -389,7 +389,7 @@ test("handleMessage resolves social binding before running slash commands", asyn
   (adapter as unknown as { running: boolean }).running = true;
   (adapter as unknown as { threadResolver: { setCachedThread(identityKey: string, threadId: string): void } })
     .threadResolver.setCachedThread("u:group-123", "thread-legacy-1");
-  client.request = async (method: unknown, params: unknown) => {
+  client.requestRaw = async (method: unknown, params: unknown) => {
     if (method === "app/socialBinding/resolve") {
       resolveParams = params as Record<string, unknown>;
       return {

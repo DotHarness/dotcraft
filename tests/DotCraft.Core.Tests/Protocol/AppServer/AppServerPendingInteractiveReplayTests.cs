@@ -1,6 +1,7 @@
 using System.Text.Json;
 using DotCraft.Protocol;
 using DotCraft.Protocol.AppServer;
+using Contract = DotCraft.Protocol.Contracts.AppServer;
 
 namespace DotCraft.Tests.Sessions.Protocol.AppServer;
 
@@ -26,7 +27,7 @@ public sealed class AppServerPendingInteractiveReplayTests
         AddWaitingUserInputRequest(turn, "item_input_001", "req_input_001");
 
         await harness.ExecuteRequestAsync(harness.BuildRequest(
-            AppServerMethods.ThreadRead,
+            DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ThreadRead,
             new { threadId = thread.Id, includeTurns = true }));
 
         using var response = await harness.Transport.ReadNextSentAsync();
@@ -53,8 +54,8 @@ public sealed class AppServerPendingInteractiveReplayTests
 
         harness.Transport.ApprovalHandler = (method, @params) =>
         {
-            Assert.Equal(AppServerMethods.ItemRequestUserInput, method);
-            var request = Assert.IsType<AppServerRequestUserInputParams>(@params);
+            Assert.Equal(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.UserInputRequest, method);
+            var request = Assert.IsType<Contract.UserInputRequestParams>(@params);
             Assert.Equal(thread.Id, request.ThreadId);
             Assert.Equal("turn_001", request.TurnId);
             Assert.Equal("item_input_001", request.ItemId);
@@ -70,13 +71,13 @@ public sealed class AppServerPendingInteractiveReplayTests
         };
 
         await harness.ExecuteRequestAsync(harness.BuildRequest(
-            AppServerMethods.ThreadSubscribe,
+            DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ThreadSubscribe,
             new { threadId = thread.Id }));
 
         using var response = await harness.Transport.ReadNextSentAsync();
         AppServerTestHarness.AssertIsSuccessResponse(response);
         using var replay = await harness.Transport.ReadNextSentAsync();
-        Assert.Equal(AppServerMethods.ItemRequestUserInput, replay.RootElement.GetProperty("method").GetString());
+        Assert.Equal(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.UserInputRequest, replay.RootElement.GetProperty("method").GetString());
 
         await WaitForAsync(() => harness.Service.ResolvedUserInputs.Count == 1);
         var resolved = Assert.Single(harness.Service.ResolvedUserInputs);
@@ -94,8 +95,8 @@ public sealed class AppServerPendingInteractiveReplayTests
 
         harness.Transport.ApprovalHandler = (method, @params) =>
         {
-            Assert.Equal(AppServerMethods.ItemApprovalRequest, method);
-            var request = Assert.IsType<AppServerApprovalRequestParams>(@params);
+            Assert.Equal(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ApprovalRequest, method);
+            var request = Assert.IsType<Contract.ApprovalRequestParams>(@params);
             Assert.Equal(thread.Id, request.ThreadId);
             Assert.Equal("turn_001", request.TurnId);
             Assert.Equal("item_approval_001", request.ItemId);
@@ -105,15 +106,15 @@ public sealed class AppServerPendingInteractiveReplayTests
         };
 
         await harness.ExecuteRequestAsync(harness.BuildRequest(
-            AppServerMethods.ThreadResume,
+            DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ThreadResume,
             new { threadId = thread.Id }));
 
         using var response = await harness.Transport.ReadNextSentAsync();
         AppServerTestHarness.AssertIsSuccessResponse(response);
         using var resumed = await harness.Transport.ReadNextSentAsync();
-        AppServerTestHarness.AssertIsNotification(resumed, AppServerMethods.ThreadResumed);
+        AppServerTestHarness.AssertIsNotification(resumed, DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ThreadResumed);
         using var replay = await harness.Transport.ReadNextSentAsync();
-        Assert.Equal(AppServerMethods.ItemApprovalRequest, replay.RootElement.GetProperty("method").GetString());
+        Assert.Equal(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ApprovalRequest, replay.RootElement.GetProperty("method").GetString());
 
         await WaitForAsync(() => harness.Service.ResolvedApprovals.Count == 1);
         var resolved = Assert.Single(harness.Service.ResolvedApprovals);
@@ -135,26 +136,26 @@ public sealed class AppServerPendingInteractiveReplayTests
         var handledRequestIds = new List<string>();
         harness.Transport.ApprovalHandler = (method, @params) =>
         {
-            Assert.Equal(AppServerMethods.ItemApprovalRequest, method);
-            var request = Assert.IsType<AppServerApprovalRequestParams>(@params);
+            Assert.Equal(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ApprovalRequest, method);
+            var request = Assert.IsType<Contract.ApprovalRequestParams>(@params);
             handledRequestIds.Add(request.RequestId);
             return InMemoryTransport.BuildClientResponse(1, new { decision = "accept" });
         };
 
         await harness.ExecuteRequestAsync(harness.BuildRequest(
-            AppServerMethods.ThreadResume,
+            DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ThreadResume,
             new { threadId = thread.Id }));
 
         using var response = await harness.Transport.ReadNextSentAsync();
         AppServerTestHarness.AssertIsSuccessResponse(response);
         using var resumed = await harness.Transport.ReadNextSentAsync();
-        AppServerTestHarness.AssertIsNotification(resumed, AppServerMethods.ThreadResumed);
+        AppServerTestHarness.AssertIsNotification(resumed, DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ThreadResumed);
 
         var replayedRequestIds = new List<string>();
         for (var i = 0; i < 3; i++)
         {
             using var replay = await harness.Transport.ReadNextSentAsync();
-            Assert.Equal(AppServerMethods.ItemApprovalRequest, replay.RootElement.GetProperty("method").GetString());
+            Assert.Equal(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ApprovalRequest, replay.RootElement.GetProperty("method").GetString());
             replayedRequestIds.Add(
                 replay.RootElement.GetProperty("params").GetProperty("requestId").GetString()!);
         }
@@ -192,27 +193,27 @@ public sealed class AppServerPendingInteractiveReplayTests
 
         harness.Transport.ApprovalHandlerAsync = (method, @params) =>
         {
-            Assert.Equal(AppServerMethods.ItemApprovalRequest, method);
-            var request = Assert.IsType<AppServerApprovalRequestParams>(@params);
+            Assert.Equal(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ApprovalRequest, method);
+            var request = Assert.IsType<Contract.ApprovalRequestParams>(@params);
             observedRequestIds.Enqueue(request.RequestId);
             return responses[request.RequestId].Task;
         };
 
         await harness.ExecuteRequestAsync(harness.BuildRequest(
-            AppServerMethods.ThreadResume,
+            DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ThreadResume,
             new { threadId = thread.Id }));
 
         using var response = await harness.Transport.ReadNextSentAsync();
         AppServerTestHarness.AssertIsSuccessResponse(response);
         using var resumed = await harness.Transport.ReadNextSentAsync();
-        AppServerTestHarness.AssertIsNotification(resumed, AppServerMethods.ThreadResumed);
+        AppServerTestHarness.AssertIsNotification(resumed, DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ThreadResumed);
 
         using var firstReplay = await harness.Transport.ReadNextSentAsync();
         AssertApprovalReplay(firstReplay, "req_approval_001");
         await WaitForAsync(() => observedRequestIds.Count == 1);
 
         await harness.ExecuteRequestAsync(harness.BuildRequest(
-            AppServerMethods.ThreadSubscribe,
+            DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ThreadSubscribe,
             new { threadId = thread.Id }));
         using var subscribeResponse = await harness.Transport.ReadNextSentAsync();
         AppServerTestHarness.AssertIsSuccessResponse(subscribeResponse);
@@ -257,7 +258,7 @@ public sealed class AppServerPendingInteractiveReplayTests
 
         harness.Transport.ApprovalHandler = (method, @params) =>
         {
-            Assert.Equal(AppServerMethods.ItemRequestUserInput, method);
+            Assert.Equal(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.UserInputRequest, method);
             requestCount++;
             return InMemoryTransport.BuildClientResponse(1, new
             {
@@ -266,16 +267,16 @@ public sealed class AppServerPendingInteractiveReplayTests
         };
 
         await harness.ExecuteRequestAsync(harness.BuildRequest(
-            AppServerMethods.ThreadSubscribe,
+            DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ThreadSubscribe,
             new { threadId = thread.Id }));
         using var firstResponse = await harness.Transport.ReadNextSentAsync();
         AppServerTestHarness.AssertIsSuccessResponse(firstResponse);
         using var firstReplay = await harness.Transport.ReadNextSentAsync();
-        Assert.Equal(AppServerMethods.ItemRequestUserInput, firstReplay.RootElement.GetProperty("method").GetString());
+        Assert.Equal(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.UserInputRequest, firstReplay.RootElement.GetProperty("method").GetString());
         await WaitForAsync(() => harness.Service.ResolvedUserInputs.Count == 1);
 
         await harness.ExecuteRequestAsync(harness.BuildRequest(
-            AppServerMethods.ThreadSubscribe,
+            DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ThreadSubscribe,
             new { threadId = thread.Id }));
         using var secondResponse = await harness.Transport.ReadNextSentAsync();
         AppServerTestHarness.AssertIsSuccessResponse(secondResponse);
@@ -400,7 +401,7 @@ public sealed class AppServerPendingInteractiveReplayTests
 
     private static void AssertApprovalReplay(JsonDocument replay, string requestId)
     {
-        Assert.Equal(AppServerMethods.ItemApprovalRequest, replay.RootElement.GetProperty("method").GetString());
+        Assert.Equal(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ApprovalRequest, replay.RootElement.GetProperty("method").GetString());
         Assert.Equal(
             requestId,
             replay.RootElement.GetProperty("params").GetProperty("requestId").GetString());

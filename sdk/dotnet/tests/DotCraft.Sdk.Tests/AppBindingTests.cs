@@ -198,6 +198,13 @@ public sealed class AppBindingTests
     }
 
     [Fact]
+    public void Handoff_Parse_RejectsAlternateQueryNames()
+    {
+        Assert.Throws<FormatException>(() => AppBindingHandoff.Parse(
+            "board-example://dotcraft/bind?appId=com.example.board&requestId=bind_req_1&requestToken=tok"));
+    }
+
+    [Fact]
     public void ToolError_UsesStandardShape()
     {
         var result = DotCraftAppBindingClient.ToolError(AppBindingErrorCodes.Offline, "App is offline.");

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type JSX } from 'react'
 import { Ban, Check } from 'lucide-react'
+import type { ClientRequestMethods } from '@dotcraft/sdk/contracts'
 
 import { useT } from '../../../contexts/LocaleContext'
 import type { MessageKey } from '../../../../shared/locales'
@@ -143,7 +144,11 @@ const PERFORCE_CONNECTION_KEYS: Array<keyof PerforceConnectionWire> = [
   'timeoutSeconds'
 ]
 
-function scRequest<T>(method: string, params: unknown, timeoutMs = 20_000): Promise<T> {
+function scRequest<T>(
+  method: keyof ClientRequestMethods,
+  params: ClientRequestMethods[keyof ClientRequestMethods]['params'],
+  timeoutMs = 20_000
+): Promise<T> {
   return window.api.appServer.sendRequest(method, params, timeoutMs) as Promise<T>
 }
 

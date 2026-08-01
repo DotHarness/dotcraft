@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.dotcraft.dev/appserver/v1/app-binding/AppConnectionRequestGetResult.schema.json",
+  "title": "AppConnectionRequestGetResult",
+  "type": "object",
+  "properties": {
+    "appId": {
+      "type": "string"
+    },
+    "connectionRequestId": {
+      "type": "string"
+    },
+    "developerName": {
+      "type": "string"
+    },
+    "displayName": {
+      "type": "string"
+    },
+    "expiresAt": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "userId": {
+      "type": "string"
+    }
+  },
+  "additionalProperties": true
+}

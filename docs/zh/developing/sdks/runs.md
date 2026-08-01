@@ -124,6 +124,12 @@ result = await thread.run("Later: deploy to staging.", enqueue_if_busy=True)
 
 每个事件都在 `raw` 上保留原始通知，不丢信息。缓冲式 `run` 复用同一条流，并把 agent-message 增量与最终快照合并，因此 `result.text` 不会重复。
 
+## 重连边界
+
+重连会恢复 Wire 传输、重新执行 `initialize`，并保留本地 handler 注册。它不会替你重建 thread subscription、恢复活动 Run 或重新绑定运行时动态工具。
+
+应把因断线中断的 Run 视为已经中断的应用工作。连接再次 ready 后，显式读取或恢复 thread 以取得当前服务端状态；需要时重新订阅，再从该状态发起下一项操作。不要假定已经发送的请求会被重放。
+
 ## 错误
 
 失败或取消的轮次会让 `run` 抛出 typed error（在 `runStreamed` 中表现为 `failed` / `cancelled` 事件）：
@@ -136,7 +142,7 @@ result = await thread.run("Later: deploy to staging.", enqueue_if_busy=True)
 
 传入 `enqueueIfBusy` 可把最后一种情形从抛错变成排队。
 
-## 参见
+## 相关文档
 
 - [工具与审批](./tools)——用你自己的工具与审批处理扩展一轮。
 - 参考：[TypeScript](./typescript) · [.NET](./dotnet) · [Python](./python)。

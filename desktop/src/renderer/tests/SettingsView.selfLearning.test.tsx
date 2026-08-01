@@ -537,7 +537,7 @@ describe('SettingsView self-learning settings', () => {
         title: 'Reset memory?',
         danger: true
       }))
-      expect(appServerSendRequest).toHaveBeenCalledWith('memory/reset', undefined, 20_000)
+      expect(appServerSendRequest).toHaveBeenCalledWith('memory/reset', {}, 20_000)
     })
     expect(useToastStore.getState().toasts).toEqual(
       expect.arrayContaining([
@@ -568,7 +568,7 @@ describe('SettingsView self-learning settings', () => {
 
     expect(screen.queryByText('Enable Dreams')).not.toBeInTheDocument()
     expect(screen.queryByText('Dreams')).not.toBeInTheDocument()
-    expect(appServerSendRequest).not.toHaveBeenCalledWith('dreams/status', undefined, 20_000)
+    expect(appServerSendRequest).not.toHaveBeenCalledWith('dreams/status', {}, 20_000)
   })
 
   it('loads Dreams status and saves Dreams settings', async () => {
@@ -590,7 +590,7 @@ describe('SettingsView self-learning settings', () => {
     expect(await screen.findByRole('switch', { name: 'Enable Dreams' })).toHaveAttribute('aria-checked', 'true')
     expect(screen.getByRole('switch', { name: 'Auto-update Dreams' })).toHaveAttribute('aria-checked', 'false')
     await waitFor(() => {
-      expect(appServerSendRequest).toHaveBeenCalledWith('dreams/status', undefined, 20_000)
+      expect(appServerSendRequest).toHaveBeenCalledWith('dreams/status', {}, 20_000)
     })
 
     fireEvent.click(screen.getByRole('switch', { name: 'Auto-update Dreams' }))
@@ -630,7 +630,7 @@ describe('SettingsView self-learning settings', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Run now' }))
 
     await waitFor(() => {
-      expect(appServerSendRequest).toHaveBeenCalledWith('dreams/run', undefined, 20_000)
+      expect(appServerSendRequest).toHaveBeenCalledWith('dreams/run', {}, 20_000)
       expect(useToastStore.getState().toasts).toEqual(
         expect.arrayContaining([
           expect.objectContaining({ message: 'Dreams run complete', type: 'success' })
@@ -656,7 +656,7 @@ describe('SettingsView self-learning settings', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Run now' }))
 
     await waitFor(() => {
-      expect(appServerSendRequest).toHaveBeenCalledWith('dreams/run', undefined, 20_000)
+      expect(appServerSendRequest).toHaveBeenCalledWith('dreams/run', {}, 20_000)
     })
 
     fireEvent.click(screen.getByRole('button', { name: 'Manage Dreams' }))

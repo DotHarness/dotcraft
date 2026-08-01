@@ -34,7 +34,7 @@ public sealed class WireNodeReplProxyTests
             LastParams = JsonSerializer.SerializeToElement(@params, SessionWireJsonOptions.Default);
             Calls.Add((method, LastParams.Value));
 
-            if (method == AppServerMethods.ExtNodeReplCancel)
+            if (method == DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ExtNodeReplCancel)
             {
                 _cancelSeen.TrySetResult(null);
                 var cancelResponse = JsonSerializer.Serialize(new
@@ -131,7 +131,7 @@ public sealed class WireNodeReplProxyTests
 
             Assert.NotNull(result);
             Assert.Equal("ok", result!.ResultText);
-            Assert.Equal(AppServerMethods.ExtNodeReplEvaluate, transport.LastMethod);
+            Assert.Equal(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ExtNodeReplEvaluate, transport.LastMethod);
             Assert.True(transport.LastParams.HasValue);
             var p = transport.LastParams.Value;
             Assert.Equal("thread-b", p.GetProperty("threadId").GetString());
@@ -180,8 +180,8 @@ public sealed class WireNodeReplProxyTests
 
             Assert.NotNull(result);
             Assert.Contains("cancelled", result!.Error);
-            var evaluate = transport.Calls.Single(call => call.Method == AppServerMethods.ExtNodeReplEvaluate);
-            var cancel = transport.Calls.Single(call => call.Method == AppServerMethods.ExtNodeReplCancel);
+            var evaluate = transport.Calls.Single(call => call.Method == DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ExtNodeReplEvaluate);
+            var cancel = transport.Calls.Single(call => call.Method == DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ExtNodeReplCancel);
             Assert.Equal("thread-c", cancel.Params.GetProperty("threadId").GetString());
             Assert.Equal(
                 evaluate.Params.GetProperty("evaluationId").GetString(),

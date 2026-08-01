@@ -15,8 +15,8 @@ internal sealed class CommandRequestHandler(
 {
     public void RegisterMethods(AppServerMethodTable table)
     {
-        table.Map(AppServerMethods.CommandList, HandleCommandListAsync);
-        table.Map(AppServerMethods.CommandExecute, HandleCommandExecuteAsync);
+        table.Map(global::DotCraft.Protocol.Contracts.AppServer.AppServerRpc.CommandList, HandleCommandListAsync);
+        table.Map(global::DotCraft.Protocol.Contracts.AppServer.AppServerRpc.CommandExecute, HandleCommandExecuteAsync);
     }
 
     private Task<object?> HandleCommandListAsync(AppServerIncomingMessage msg, CancellationToken ct)

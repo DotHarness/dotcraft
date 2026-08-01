@@ -4,7 +4,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 
-import type { DotCraftWireClient, NotificationHandler, ServerRequestHandler } from "./client.js";
+import type { DotCraftAppServerClient } from "./appServerClient.js";
+import type { NotificationHandler, ServerRequestHandler } from "./client.js";
 import {
   ApprovalDispatcher,
   ChannelMessageQueue,
@@ -64,7 +65,6 @@ class FakeRuntimeClient {
   readonly events: string[] = [];
   readonly notificationHandlers = new Map<string, NotificationHandler>();
   readonly requestHandlers = new Map<string, ServerRequestHandler>();
-  approvalHandler: ServerRequestHandler | null = null;
   listResult: Thread[] = [];
   readFailures = new Set<string>();
   nextStartedId = "thread-created";
@@ -117,13 +117,10 @@ class FakeRuntimeClient {
     this.requestHandlers.set(method, fn);
   }
 
-  setApprovalHandler(fn: ServerRequestHandler | null): void {
-    this.approvalHandler = fn;
-  }
 }
 
-function asWire(fake: FakeRuntimeClient): DotCraftWireClient {
-  return fake as unknown as DotCraftWireClient;
+function asWire(fake: FakeRuntimeClient): DotCraftAppServerClient {
+  return fake as unknown as DotCraftAppServerClient;
 }
 
 test("ChannelMessageQueue serializes each identity and keeps identities independent", async () => {
@@ -565,7 +562,6 @@ test("dispatchers register approval, user-input, delivery, tool, and heartbeat h
   }).register();
   new DeliveryDispatcher({
     client: asWire(fake),
-    onDeliver: async (_target, content) => content !== "throw",
     onSend: async (_target, message) => ({ delivered: true, kind: message.kind }),
     onError: (message) => errors.push(message),
   }).register();
@@ -580,15 +576,12 @@ test("dispatchers register approval, user-input, delivery, tool, and heartbeat h
     onError: (message) => errors.push(message),
   }).register();
 
-  assert.equal(await fake.approvalHandler?.("approval", {}), "accept");
+  assert.deepEqual(await fake.requestHandlers.get("item/approval/request")?.("approval", {}), {
+    decision: "accept",
+  });
   assert.deepEqual(await fake.requestHandlers.get("item/tool/requestUserInput")?.("input", {
     choice: "B",
   }), { answers: { choice: { answers: ["B"] } } });
-  assert.deepEqual(await fake.requestHandlers.get("ext/channel/deliver")?.("d1", {
-    target: "chat",
-    content: "hello",
-    metadata: { a: 1 },
-  }), { delivered: true });
   assert.deepEqual(await fake.requestHandlers.get("ext/channel/send")?.("s1", {
     target: "chat",
     message: { kind: "image" },
@@ -599,11 +592,6 @@ test("dispatchers register approval, user-input, delivery, tool, and heartbeat h
   }), { success: true, tool: "Upload" });
   assert.deepEqual(await fake.requestHandlers.get("ext/channel/heartbeat")?.("h1", {}), {});
 
-  await fake.notificationHandlers.get("ext/channel/deliver")?.({
-    target: "chat",
-    content: "throw",
-    metadata: {},
-  });
   assert.deepEqual(errors, []);
 });
 
@@ -618,9 +606,6 @@ test("dispatchers preserve exception fallback shapes", async () => {
   }).register();
   new DeliveryDispatcher({
     client: asWire(fake),
-    onDeliver: async () => {
-      throw new Error("delivery failed");
-    },
     onSend: async () => {
       throw new Error("send failed");
     },
@@ -641,13 +626,11 @@ test("dispatchers preserve exception fallback shapes", async () => {
     onError: () => {},
   }).register();
 
-  assert.equal(await fake.approvalHandler?.("approval", {}), "cancel");
+  assert.deepEqual(await fake.requestHandlers.get("item/approval/request")?.("approval", {}), {
+    decision: "cancel",
+  });
   assert.deepEqual(await fake.requestHandlers.get("item/tool/requestUserInput")?.("input", {}), {
     answers: {},
-  });
-  assert.deepEqual(await fake.requestHandlers.get("ext/channel/deliver")?.("d1", {}), {
-    delivered: false,
-    error: "Error: delivery failed",
   });
   assert.deepEqual(await fake.requestHandlers.get("ext/channel/send")?.("s1", {}), {
     delivered: false,

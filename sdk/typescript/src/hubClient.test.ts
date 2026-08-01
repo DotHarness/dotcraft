@@ -167,3 +167,84 @@ test("ensureDefaultChatAppServer posts concrete default workspace path", async (
     await rm(dir, { recursive: true, force: true });
   }
 });
+
+test("Hub management methods share structured models and authorization", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "dotcraft-sdk-hub-management-"));
+  const originalFetch = globalThis.fetch;
+  try {
+    await mkdir(join(dir, ".craft", "hub"), { recursive: true });
+    await writeFile(join(dir, ".craft", "hub", "hub.lock"), JSON.stringify({
+      pid: process.pid,
+      apiBaseUrl: "http://127.0.0.1:49127",
+      token: "hub-token",
+      binaryPath: "/opt/dotcraft",
+    }), "utf8");
+    const calls: Array<{ path: string; authorization?: string }> = [];
+    globalThis.fetch = (async (input: string | URL | Request, init?: RequestInit) => {
+      const url = new URL(input instanceof Request ? input.url : String(input));
+      const headers = (init?.headers ?? {}) as Record<string, string>;
+      calls.push({ path: url.pathname, authorization: headers.Authorization });
+      if (url.pathname === "/v1/status") {
+        return new Response(JSON.stringify({
+          hubVersion: "1",
+          pid: process.pid,
+          startedAt: "2026-01-01T00:00:00Z",
+          statePath: "/tmp/state",
+          apiBaseUrl: "http://127.0.0.1:49127",
+          binaryPath: "/opt/dotcraft",
+          capabilities: { appServerManagement: true, portManagement: true, events: true, notifications: true, tray: true },
+        }), { status: 200 });
+      }
+      if (url.pathname === "/v1/appservers/by-workspace") return new Response("", { status: 404 });
+      if (url.pathname === "/v1/appservers") return new Response("[]", { status: 200 });
+      return new Response(JSON.stringify({
+        workspacePath: "/repo",
+        canonicalWorkspacePath: "/repo",
+        state: "running",
+        endpoints: {},
+        serviceStatus: {},
+        startedByHub: true,
+      }), { status: 200 });
+    }) as typeof fetch;
+
+    const client = new HubClient({ homeDir: dir });
+    assert.equal(await client.getAppServerByWorkspace("/missing"), null);
+    assert.deepEqual(await client.listAppServers(), []);
+    assert.equal((await client.restartAppServer("/repo")).state, "running");
+    assert.equal((await client.stopAppServer("/repo")).state, "running");
+    assert.equal((await client.getStatus()).capabilities.appServerManagement, true);
+    assert.ok(calls.filter((call) => call.path.startsWith("/v1/appservers")).every((call) => call.authorization === "Bearer hub-token"));
+  } finally {
+    globalThis.fetch = originalFetch;
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("Hub binary mismatch policy returns structured details", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "dotcraft-sdk-hub-mismatch-"));
+  const originalFetch = globalThis.fetch;
+  try {
+    await mkdir(join(dir, ".craft", "hub"), { recursive: true });
+    await writeFile(join(dir, ".craft", "hub", "hub.lock"), JSON.stringify({
+      pid: process.pid,
+      apiBaseUrl: "http://127.0.0.1:49128",
+      token: "hub-token",
+      binaryPath: "/old/dotcraft",
+    }), "utf8");
+    globalThis.fetch = (async () => new Response(JSON.stringify({ binaryPath: "/old/dotcraft" }), { status: 200 })) as typeof fetch;
+
+    await assert.rejects(
+      new HubClient({
+        homeDir: dir,
+        expectedExecutable: "/new/dotcraft",
+        binaryMatchPolicy: "errorIfMismatch",
+      }).ensureHub(),
+      (error: unknown) => error instanceof HubClientError
+        && error.code === "hubBinaryMismatch"
+        && (error.details as { actualExecutable?: string }).actualExecutable === "/old/dotcraft",
+    );
+  } finally {
+    globalThis.fetch = originalFetch;
+    await rm(dir, { recursive: true, force: true });
+  }
+});

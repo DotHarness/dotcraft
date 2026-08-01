@@ -35,6 +35,8 @@
   <ItemGroup>
     <EmbeddedResource Include="Protocol\Fixtures\model-history-schema-v1.json"
                       LogicalName="DotCraft.Tests.ModelHistorySchemaV1.json" />
+    <EmbeddedResource Include="..\..\specs\protocols\fixtures\appserver-v1\messages.json"
+                      LogicalName="DotCraft.Tests.AppServerMessagesV1.json" />
   </ItemGroup>
 
 </Project>

@@ -51,7 +51,7 @@ public sealed class AppServerBackgroundTerminalTests : IAsyncLifetime
             TimeoutSeconds = 5
         });
 
-        var msg = harness.BuildRequest(AppServerMethods.TerminalList, new { threadId = "thread_wire" });
+        var msg = harness.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.TerminalList, new { threadId = "thread_wire" });
         await harness.ExecuteRequestAsync(msg);
 
         var response = await harness.Transport.ReadNextSentAsync();

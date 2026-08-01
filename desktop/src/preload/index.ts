@@ -1,4 +1,5 @@
 import { contextBridge, ipcRenderer, shell, webFrame, webUtils } from 'electron'
+import type { ClientRequestMethods } from '@dotcraft/sdk/contracts'
 import { resolveThemeMode, type ThemeMode } from '../shared/theme'
 import { readInitialWorkspaceStatusFromArgv } from '../shared/initialWorkspaceStatus'
 import type { DesktopProviderProtocol } from '../shared/providerProtocols'
@@ -46,6 +47,14 @@ import type { WorkspaceProjectsPayload } from '../shared/workspaceProjects'
 import type { GitHeadInspection } from '../shared/gitHead'
 import type { InlineVisualizationCaptureRect, InlineVisualizationCaptureResult } from '../shared/inlineVisualization'
 import { TokenMulticastDispatcher } from './notificationDispatcher'
+import {
+  isKnownServerNotification,
+  isKnownServerRequest,
+  type KnownNotificationPayload,
+  type KnownServerRequestPayload,
+  type RawNotificationPayload,
+  type RawServerRequestPayload
+} from '../shared/appServerBoundary'
 
 export type UnsubscribeFn = () => void
 export type ConnectionMode = 'local' | 'remote'
@@ -116,13 +125,6 @@ if (typeof document !== 'undefined') {
   }
 }
 
-export interface NotificationPayload {
-  method: string
-  params: unknown
-  workspacePath?: string
-  foreground?: boolean
-}
-
 export interface ConnectionStatusPayload {
   status: 'connecting' | 'connected' | 'disconnected' | 'error'
   serverInfo?: {
@@ -182,12 +184,6 @@ export interface WorkspaceConfigSchemaSection {
 
 export interface WorkspaceConfigSchema {
   sections: WorkspaceConfigSchemaSection[]
-}
-
-export interface ServerRequestPayload {
-  bridgeId: string
-  method: string
-  params: unknown
 }
 
 export interface OpenThreadPayload {
@@ -393,13 +389,20 @@ export interface WindowVisibilityState {
 // reference equality (=== or Set/Map) unreliable across the bridge boundary,
 // so registrations are tracked with monotonically-increasing tokens.
 
-const notificationDispatcher = new TokenMulticastDispatcher<NotificationPayload>((error) => {
+const notificationDispatcher = new TokenMulticastDispatcher<KnownNotificationPayload>((error) => {
   console.error('appserver:notification subscriber failed:', error)
+})
+const rawNotificationDispatcher = new TokenMulticastDispatcher<RawNotificationPayload>((error) => {
+  console.error('appserver:raw-notification subscriber failed:', error)
 })
 ipcRenderer.on(
   'appserver:notification',
-  (_event: Electron.IpcRendererEvent, payload: NotificationPayload) => {
-    notificationDispatcher.dispatch(payload)
+  (_event: Electron.IpcRendererEvent, payload: RawNotificationPayload) => {
+    if (isKnownServerNotification(payload)) {
+      notificationDispatcher.dispatch(payload)
+    } else {
+      rawNotificationDispatcher.dispatch(payload)
+    }
   }
 )
 
@@ -413,11 +416,17 @@ ipcRenderer.on(
 )
 
 let serverRequestToken = 0
-let activeServerRequestCallback: ((payload: ServerRequestPayload) => void) | null = null
+let activeServerRequestCallback: ((payload: KnownServerRequestPayload) => void) | null = null
+let rawServerRequestToken = 0
+let activeRawServerRequestCallback: ((payload: RawServerRequestPayload) => void) | null = null
 ipcRenderer.on(
   'appserver:server-request',
-  (_event: Electron.IpcRendererEvent, payload: ServerRequestPayload) => {
-    activeServerRequestCallback?.(payload)
+  (_event: Electron.IpcRendererEvent, payload: RawServerRequestPayload) => {
+    if (isKnownServerRequest(payload)) {
+      activeServerRequestCallback?.(payload)
+    } else {
+      activeRawServerRequestCallback?.(payload)
+    }
   }
 )
 
@@ -552,8 +561,16 @@ const api = {
      * Sends a JSON-RPC request to the AppServer via Main Process.
      * Returns the result or throws on error.
      */
-    sendRequest(method: string, params?: unknown, timeoutMs?: number): Promise<unknown> {
+    sendRequest<M extends keyof ClientRequestMethods>(
+      method: M,
+      params: ClientRequestMethods[M]['params'],
+      timeoutMs?: number | null
+    ): Promise<ClientRequestMethods[M]['result']> {
       return ipcRenderer.invoke('appserver:send-request', method, params, timeoutMs)
+    },
+
+    sendRequestRaw(method: string, params?: unknown, timeoutMs?: number | null): Promise<unknown> {
+      return ipcRenderer.invoke('appserver:send-request-raw', method, params, timeoutMs)
     },
 
     listModels(): Promise<unknown> {
@@ -599,8 +616,12 @@ const api = {
      * Subscribes to Wire Protocol notifications forwarded from Main.
      * Returns an unsubscribe function.
      */
-    onNotification(callback: (payload: NotificationPayload) => void): UnsubscribeFn {
+    onNotification(callback: (payload: KnownNotificationPayload) => void): UnsubscribeFn {
       return notificationDispatcher.subscribe(callback)
+    },
+
+    onNotificationRaw(callback: (payload: RawNotificationPayload) => void): UnsubscribeFn {
+      return rawNotificationDispatcher.subscribe(callback)
     },
 
     /**
@@ -619,11 +640,19 @@ const api = {
      * Subscribes to server-initiated requests (e.g. item/approval/request).
      * The callback receives a bridgeId that must be passed to sendServerResponse.
      */
-    onServerRequest(callback: (payload: ServerRequestPayload) => void): UnsubscribeFn {
+    onServerRequest(callback: (payload: KnownServerRequestPayload) => void): UnsubscribeFn {
       const token = ++serverRequestToken
       activeServerRequestCallback = callback
       return () => {
         if (serverRequestToken === token) activeServerRequestCallback = null
+      }
+    },
+
+    onServerRequestRaw(callback: (payload: RawServerRequestPayload) => void): UnsubscribeFn {
+      const token = ++rawServerRequestToken
+      activeRawServerRequestCallback = callback
+      return () => {
+        if (rawServerRequestToken === token) activeRawServerRequestCallback = null
       }
     },
 

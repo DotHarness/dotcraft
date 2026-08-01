@@ -11,7 +11,8 @@ from dataclasses import dataclass, field
 from typing import Any, AsyncIterator, Awaitable, Callable
 
 from .app_binding import AppBindingManager
-from .client import DotCraftClient, DotCraftError
+from .appserver_client import DotCraftAppServerClient
+from .client import DotCraftError
 from .errors import TurnCancelledError, TurnFailedError, TurnInProgressError
 from .events import (
     AGENT_MESSAGE_DELTA,
@@ -71,9 +72,9 @@ class LocalOptions:
     client_name: str = "dotcraft-python"
     client_version: str = "0.0.0"
     client_title: str | None = None
-    dotcraft_bin: str | None = None
+    executable: str | None = None
     home_dir: str | None = None
-    hub_startup_timeout: float = 30.0
+    hub_startup_timeout: float = 15.0
     approval_handler: ApprovalHandler | None = None
     user_input_handler: UserInputHandler | None = None
     capabilities: dict | None = None
@@ -84,9 +85,9 @@ class LocalChatOptions:
     client_name: str = "dotcraft-python"
     client_version: str = "0.0.0"
     client_title: str | None = None
-    dotcraft_bin: str | None = None
+    executable: str | None = None
     home_dir: str | None = None
-    hub_startup_timeout: float = 30.0
+    hub_startup_timeout: float = 15.0
     approval_handler: ApprovalHandler | None = None
     user_input_handler: UserInputHandler | None = None
     capabilities: dict | None = None
@@ -104,8 +105,10 @@ class RunResult:
 class DotCraft:
     """One initialized AppServer connection with the high-level surface."""
 
-    def __init__(self, client: DotCraftClient) -> None:
+    def __init__(self, client: DotCraftAppServerClient) -> None:
         self._client = client
+        self._approval_configured = False
+        self._user_input_configured = False
         self._server_info: ServerInfo | None = None
         self._capabilities: ServerCapabilities | None = None
         self._threads = ThreadManager(self)
@@ -138,7 +141,7 @@ class DotCraft:
         return self._mcp_runtime
 
     @property
-    def client(self) -> DotCraftClient:
+    def client(self) -> DotCraftAppServerClient:
         return self._client
 
     @classmethod
@@ -146,7 +149,7 @@ class DotCraft:
         from .transport import WebSocketTransport
 
         transport = WebSocketTransport(options.url, token=options.token)
-        client = DotCraftClient(transport)
+        client = DotCraftAppServerClient(transport, auto_reconnect=True)
         self = cls(client)
         self._install_handlers(options.approval_handler, options.user_input_handler)
         await client.connect()
@@ -156,7 +159,7 @@ class DotCraft:
 
     @classmethod
     async def connect_local(cls, options: LocalOptions) -> "DotCraft":
-        hub = HubClient(dotcraft_bin=options.dotcraft_bin, home_dir=options.home_dir)
+        hub = HubClient(executable=options.executable, home_dir=options.home_dir)
         ensured = await hub.ensure_app_server(
             options.workspace_path,
             client_name=options.client_name,
@@ -178,7 +181,7 @@ class DotCraft:
     @classmethod
     async def connect_local_chat(cls, options: LocalChatOptions | None = None) -> "DotCraft":
         value = options or LocalChatOptions()
-        hub = HubClient(dotcraft_bin=value.dotcraft_bin, home_dir=value.home_dir)
+        hub = HubClient(executable=value.executable, home_dir=value.home_dir)
         ensured = await hub.ensure_default_chat_app_server(
             client_name=value.client_name,
             client_version=value.client_version,
@@ -196,17 +199,17 @@ class DotCraft:
             capabilities=value.capabilities,
         ))
 
-    async def request(self, method: str, params: dict | None = None) -> Any:
+    async def request_raw(self, method: str, params: dict | None = None) -> Any:
         """Raw AppServer request escape hatch."""
-        return await self._client.request(method, params)
+        return await self._client.request_raw(method, params)
 
-    async def notify(self, method: str, params: dict | None = None) -> None:
-        await self._client.notify(method, params)
+    async def notify_raw(self, method: str, params: dict | None = None) -> None:
+        await self._client.notify_raw(method, params)
 
-    def on(self, method: str, handler: Callable[[dict], Awaitable[None]]) -> Callable[[], None]:
+    def on_raw(self, method: str, handler: Callable[[dict], Awaitable[None]]) -> Callable[[], None]:
         """Register a raw notification handler. Returns an unregister callable."""
-        self._client.register_handler(method, handler)
-        return lambda: self._client.unregister_handler(method, handler)
+        self._client.register_notification_raw(method, handler)
+        return lambda: self._client.unregister_notification_raw(method, handler)
 
     def register_dynamic_tool_handler(self, handler, thread_id=None, namespace=None, tool=None):
         return self._client.register_dynamic_tool_handler(handler, thread_id, namespace, tool)
@@ -230,25 +233,31 @@ class DotCraft:
                 result = approval(params)
                 if asyncio.iscoroutine(result):
                     result = await result
-                return result
-            self._client.on_approval_request(_approval)
+                return {"decision": result}
+            self._client.register_server_request_handler_raw("item/approval/request", _approval)
+            self._approval_configured = True
 
         if user_input is not None:
             async def _user_input(_request_id, params):
                 result = user_input(params)
                 if asyncio.iscoroutine(result):
                     result = await result
-                return result
-            self._client.on_user_input_request(_user_input)
+                return {"answers": result or {}}
+            self._client.register_server_request_handler_raw("item/tool/requestUserInput", _user_input)
+            self._user_input_configured = True
 
     async def _initialize(self, client_name, client_version, client_title, request_user_input_support, capabilities):
+        if capabilities and capabilities.get("approvalSupport") is True and not self._approval_configured:
+            raise ValueError("approvalSupport requires an approval_handler")
+        if capabilities and capabilities.get("requestUserInputSupport") is True and not self._user_input_configured:
+            raise ValueError("requestUserInputSupport requires a user_input_handler")
         init = await self._client.initialize(
             client_name=client_name,
             client_version=client_version,
             client_title=client_title,
-            approval_support=True,
+            approval_support=self._approval_configured,
             streaming_support=True,
-            request_user_input_support=request_user_input_support,
+            request_user_input_support=self._user_input_configured,
             config_change=True,
             extra_capabilities=capabilities,
         )
@@ -259,7 +268,7 @@ class DotCraft:
 class ModelManager:
     """Lists the model catalog of the connected AppServer."""
 
-    def __init__(self, client: DotCraftClient) -> None:
+    def __init__(self, client: DotCraftAppServerClient) -> None:
         self._client = client
 
     async def list(self) -> list[ModelInfo]:
@@ -269,7 +278,7 @@ class ModelManager:
 class McpRuntimeManager:
     """MCP runtime and control operations."""
 
-    def __init__(self, client: DotCraftClient) -> None:
+    def __init__(self, client: DotCraftAppServerClient) -> None:
         self._client = client
 
     async def list_status(self, **kwargs: Any) -> McpServerStatusListResult:
@@ -443,7 +452,7 @@ class Thread:
                     return
                 await queue.put((_method, params))
             handlers[method] = handler
-            self._client.register_handler(method, handler)
+            self._client.register_notification_raw(method, handler)
 
         try:
             try:
@@ -465,7 +474,7 @@ class Thread:
                     break
         finally:
             for method, handler in handlers.items():
-                self._client.unregister_handler(method, handler)
+                self._client.unregister_notification_raw(method, handler)
 
     async def enqueue(self, input, sender: dict | None = None) -> dict:
         parts, sender = _to_parts(input, sender)

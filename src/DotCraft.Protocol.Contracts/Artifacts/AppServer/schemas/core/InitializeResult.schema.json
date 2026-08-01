@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.dotcraft.dev/appserver/v1/core/InitializeResult.schema.json",
+  "title": "InitializeResult",
+  "type": "object",
+  "properties": {
+    "capabilities": {
+      "$ref": "./ServerCapabilities.schema.json"
+    },
+    "dashboardUrl": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "serverInfo": {
+      "$ref": "./ServerInfo.schema.json"
+    }
+  },
+  "additionalProperties": true,
+  "required": [
+    "capabilities",
+    "serverInfo"
+  ]
+}

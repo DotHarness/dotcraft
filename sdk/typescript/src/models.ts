@@ -164,6 +164,7 @@ export class ServerCapabilities {
     public mcpStatus = false,
     public appBindingVersion = 0,
     public extensions: Record<string, unknown> | null = null,
+    public raw: Record<string, unknown> = {},
   ) {}
 
   static fromWire(data: Record<string, unknown>): ServerCapabilities {
@@ -201,6 +202,7 @@ export class ServerCapabilities {
       Boolean(data.mcpStatus),
       Number(data.appBindingVersion ?? 0),
       (data.extensions as Record<string, unknown>) ?? null,
+      { ...data },
     );
   }
 }
@@ -209,12 +211,16 @@ export class InitializeResult {
   constructor(
     public serverInfo: ServerInfo,
     public capabilities: ServerCapabilities,
+    public dashboardUrl?: string,
+    public raw: Record<string, unknown> = {},
   ) {}
 
   static fromWire(data: Record<string, unknown>): InitializeResult {
     return new InitializeResult(
       ServerInfo.fromWire((data.serverInfo as Record<string, unknown>) ?? {}),
       ServerCapabilities.fromWire((data.capabilities as Record<string, unknown>) ?? {}),
+      typeof data.dashboardUrl === "string" ? data.dashboardUrl : undefined,
+      { ...data },
     );
   }
 }

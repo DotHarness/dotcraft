@@ -109,7 +109,7 @@ A handler returns a success result (`success: true` with at least one useful tex
 
 ## Approvals
 
-When the agent requests approval for a sensitive action, the SDK routes it to your handler, which returns a decision (`accept`, `acceptForSession`, `acceptAlways`, `decline`, `cancel`). Without a handler, the SDK auto-accepts — provide an explicit handler in production.
+When the agent requests approval for a sensitive action, the SDK routes it to your handler, which returns a decision (`accept`, `acceptForSession`, `acceptAlways`, `decline`, `cancel`). A client cannot advertise approval support without registering this handler first.
 
 ::: code-group
 
@@ -144,7 +144,7 @@ dotcraft = await DotCraft.connect_local(LocalOptions(
 
 ## User input
 
-Plan Mode and some tools ask the user a structured question. Provide a user-input handler that returns answers. Without one, the SDK returns empty answers so non-interactive clients never block.
+Plan Mode and some tools ask the user a structured question. Provide a user-input handler that returns answers. The high-level client advertises user-input support only when a handler is registered. If a caller explicitly enables the capability without providing its handler, initialization fails with a stable configuration error instead of inventing an answer.
 
 ::: code-group
 
@@ -173,7 +173,7 @@ dotcraft = await DotCraft.connect_local(LocalOptions(
 
 :::
 
-## See also
+## Related docs
 
 - [Threads & runs](./runs) — the run loop these callbacks fire during.
 - [Build an App](../integrations/build-an-app) — App Binding tools from an external native app.

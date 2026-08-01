@@ -13,7 +13,7 @@ bindings.
 4. [AppServer Protocol](protocols/appserver-protocol.md) for the JSON-RPC projection used by clients and SDKs.
 5. [Plugin Architecture](architecture/plugin-architecture.md), [Skill 2.0](architecture/skill-2.0.md), and [Plugin Registry](architecture/plugin-registry.md) for extension loading, skill resolution, plugin boundaries, and public plugin distribution.
 6. [Desktop Client](clients/desktop-client.md) and [Desktop DESIGN.md](architecture/DESIGN.md) for first-party client behavior and shared Desktop visual rules.
-7. [SDK](sdk/sdk.md) for cross-language client binding expectations.
+7. [SDK](sdk/sdk.md) for cross-language client binding expectations and [AppServer Protocol Contracts and SDK Generation](sdk/protocol-contract-generation.md) for the executable wire contract and generated low-level bindings.
 
 ## Categories
 
@@ -31,4 +31,4 @@ bindings.
 - Features: [agent-profiles.md](features/agent-profiles.md), [agent-teams.md](features/agent-teams.md), [external-cli-subagent.md](features/external-cli-subagent.md), [goal.md](features/goal.md), [memory-consolidation.md](features/memory-consolidation.md), [dreams.md](features/dreams.md), [lifecycle-hooks.md](features/lifecycle-hooks.md), [context-export-cli.md](features/context-export-cli.md), [automations-lifecycle.md](features/automations-lifecycle.md), [default-chat-workspace.md](features/default-chat-workspace.md), [model-options.md](features/model-options.md), [multi-folder-projects.md](features/multi-folder-projects.md), [remote-server-management.md](features/remote-server-management.md), [chrome-browser-runtime.md](features/chrome-browser-runtime.md), [desktop-inapp-browser.md](features/desktop-inapp-browser.md)
 - Protocols: [appserver-protocol.md](protocols/appserver-protocol.md), [external-channel-adapter.md](protocols/external-channel-adapter.md), [app-binding.md](protocols/app-binding.md)
 - Clients: [desktop-client.md](clients/desktop-client.md)
-- SDK: [sdk.md](sdk/sdk.md), [typescript.md](sdk/typescript.md), [dotnet.md](sdk/dotnet.md), [python.md](sdk/python.md)
+- SDK: [sdk.md](sdk/sdk.md), [protocol-contract-generation.md](sdk/protocol-contract-generation.md), [typescript.md](sdk/typescript.md), [dotnet.md](sdk/dotnet.md), [python.md](sdk/python.md)

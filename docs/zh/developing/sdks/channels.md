@@ -3,9 +3,11 @@
 渠道适配器把外部消息平台（Telegram、飞书、QQ 等）作为一等渠道桥接到 DotCraft。适配器为每个用户解析线程、运行轮次，并把回复投递回平台。
 
 > [!NOTE]
-> 渠道适配器是一个语言特定的 profile，**TypeScript 与 Python** 提供。.NET SDK 不提供渠道适配器。其 wire 契约由 [External Channel Adapter](https://github.com/DotHarness/dotcraft/blob/master/specs/protocols/external-channel-adapter.md) 规范定义。
+> Channel Adapter 是语言特定的 profile，**TypeScript 与 Python** 提供。.NET SDK 不提供 Channel Adapter。
 
-继承适配器基类并实现平台钩子——投递、审批，以及（可选的）渠道工具。其余由 SDK 负责：按身份的消息排队、线程解析与恢复、斜杠命令路由、轮次流归并、心跳。
+继承 adapter 基类并实现平台钩子——投递、审批，以及（可选的）渠道工具。该 profile 使用高层 AppServer client，启用重连与重新初始化，并负责按身份的消息排队、thread 解析、斜杠命令路由、turn 流归并和心跳。
+
+重连会恢复 AppServer 连接，但如何恢复对话和投递仍由 Channel 策略决定。心跳、审批处理和平台投递属于 Channel 行为，而不是通用 Wire 行为。
 
 ::: code-group
 
@@ -58,7 +60,7 @@ Python 提供 Telegram 参考适配器：
 
 - [Telegram (Python)](../channels/python-telegram)
 
-## 参见
+## 相关文档
 
-- [External Channel Adapter](https://github.com/DotHarness/dotcraft/blob/master/specs/protocols/external-channel-adapter.md)——渠道 wire 契约。
+- [AppServer 协议](../protocols/appserver-protocol)——底层 JSON-RPC 契约。
 - 参考：[TypeScript](./typescript) · [Python](./python)。

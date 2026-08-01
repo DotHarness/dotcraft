@@ -3,9 +3,11 @@
 A channel adapter bridges an external messaging platform (Telegram, Feishu, QQ, …) to DotCraft as a first-class channel. The adapter resolves a thread per user, runs turns, and delivers replies back to the platform.
 
 > [!NOTE]
-> The channel adapter is a language-specific profile, available in **TypeScript and Python**. The .NET SDK does not ship a channel adapter. The wire contract is defined by the [External Channel Adapter](https://github.com/DotHarness/dotcraft/blob/master/specs/protocols/external-channel-adapter.md) spec.
+> The channel adapter is a language-specific profile, available in **TypeScript and Python**. The .NET SDK does not ship a channel adapter.
 
-Subclass the adapter base class and implement the platform hooks — delivery, approval, and (optionally) channel tools. The SDK owns the rest: per-identity message queueing, thread resolution and recovery, slash-command routing, turn-stream reduction, and heartbeat.
+Subclass the adapter base class and implement the platform hooks — delivery, approval, and (optionally) channel tools. The profile uses the high-level AppServer client, enables reconnect and reinitialization, and owns per-identity message queueing, thread resolution, slash-command routing, turn-stream reduction, and heartbeat.
+
+Reconnect restores the AppServer connection, but Channel policy still decides how to recover conversations and delivery. Heartbeat, approval handling, and platform delivery remain Channel behavior rather than general Wire behavior.
 
 ::: code-group
 
@@ -58,7 +60,7 @@ Python ships a Telegram reference adapter:
 
 - [Telegram (Python)](../channels/python-telegram)
 
-## See also
+## Related docs
 
-- [External Channel Adapter](https://github.com/DotHarness/dotcraft/blob/master/specs/protocols/external-channel-adapter.md) — the channel wire contract.
+- [AppServer Protocol](../protocols/appserver-protocol) — the underlying JSON-RPC contract.
 - Reference: [TypeScript](./typescript) · [Python](./python).

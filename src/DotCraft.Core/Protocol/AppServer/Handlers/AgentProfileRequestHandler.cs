@@ -12,14 +12,14 @@ internal sealed class AgentProfileRequestHandler(
 {
     public void RegisterMethods(AppServerMethodTable table)
     {
-        table.Map(AppServerMethods.AgentProfileList, HandleListAsync);
-        table.Map(AppServerMethods.AgentProfileRead, HandleReadAsync);
-        table.Map(AppServerMethods.AgentProfileValidate, HandleValidateAsync);
-        table.Map(AppServerMethods.AgentProfileUpsert, HandleUpsertAsync);
-        table.Map(AppServerMethods.AgentProfileRemove, HandleRemoveAsync);
-        table.Map(AppServerMethods.AgentProfileRefreshThread, HandleRefreshThreadAsync);
-        table.Map(AppServerMethods.AgentProfileBuilderDraftRead, HandleBuilderDraftReadAsync);
-        table.Map(AppServerMethods.AgentProfileBuilderDraftUpdate, HandleBuilderDraftUpdateAsync);
+        table.Map(global::DotCraft.Protocol.Contracts.AppServer.AppServerRpc.AgentProfileList, HandleListAsync);
+        table.Map(global::DotCraft.Protocol.Contracts.AppServer.AppServerRpc.AgentProfileRead, HandleReadAsync);
+        table.Map(global::DotCraft.Protocol.Contracts.AppServer.AppServerRpc.AgentProfileValidate, HandleValidateAsync);
+        table.Map(global::DotCraft.Protocol.Contracts.AppServer.AppServerRpc.AgentProfileUpsert, HandleUpsertAsync);
+        table.Map(global::DotCraft.Protocol.Contracts.AppServer.AppServerRpc.AgentProfileRemove, HandleRemoveAsync);
+        table.Map(global::DotCraft.Protocol.Contracts.AppServer.AppServerRpc.AgentProfileRefreshThread, HandleRefreshThreadAsync);
+        table.Map(global::DotCraft.Protocol.Contracts.AppServer.AppServerRpc.AgentProfileBuilderDraftRead, HandleBuilderDraftReadAsync);
+        table.Map(global::DotCraft.Protocol.Contracts.AppServer.AppServerRpc.AgentProfileBuilderDraftUpdate, HandleBuilderDraftUpdateAsync);
     }
 
     private async Task<object?> HandleListAsync(AppServerIncomingMessage msg, CancellationToken ct)

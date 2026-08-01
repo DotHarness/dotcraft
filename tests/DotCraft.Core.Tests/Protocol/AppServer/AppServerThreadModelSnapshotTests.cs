@@ -93,7 +93,7 @@ public sealed class AppServerThreadModelSnapshotTests : IDisposable
             expectedSpeed: "fast");
 
         var update = InMemoryTransport.BuildRequest(
-            AppServerMethods.WorkspaceConfigUpdate,
+            DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.WorkspaceConfigUpdate,
             new
             {
                 providerPreferences = new Dictionary<string, ModelPreference>
@@ -106,7 +106,7 @@ public sealed class AppServerThreadModelSnapshotTests : IDisposable
         await ReadResponseForIdAsync(transport, 11);
 
         var oldThreadRead = InMemoryTransport.BuildRequest(
-            AppServerMethods.ThreadRead,
+            DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ThreadRead,
             new { threadId = firstThreadId, includeTurns = false },
             id: 12);
         await ExecuteRequestAsync(handler, transport, oldThreadRead);
@@ -202,7 +202,7 @@ public sealed class AppServerThreadModelSnapshotTests : IDisposable
             expectedProviderId: "anthropic-main");
 
         var update = InMemoryTransport.BuildRequest(
-            AppServerMethods.WorkspaceConfigUpdate,
+            DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.WorkspaceConfigUpdate,
             new
             {
                 providerId = "openrouter",
@@ -217,7 +217,7 @@ public sealed class AppServerThreadModelSnapshotTests : IDisposable
         await ReadResponseForIdAsync(transport, 21);
 
         var oldThreadRead = InMemoryTransport.BuildRequest(
-            AppServerMethods.ThreadRead,
+            DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ThreadRead,
             new { threadId = firstThreadId, includeTurns = false },
             id: 22);
         await ExecuteRequestAsync(handler, transport, oldThreadRead);
@@ -299,7 +299,7 @@ public sealed class AppServerThreadModelSnapshotTests : IDisposable
             });
 
         var profileThreadRead = InMemoryTransport.BuildRequest(
-            AppServerMethods.ThreadRead,
+            DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ThreadRead,
             new { threadId = profileThreadId, includeTurns = false },
             id: 27);
         await ExecuteRequestAsync(handler, transport, profileThreadRead);
@@ -338,7 +338,7 @@ public sealed class AppServerThreadModelSnapshotTests : IDisposable
         string? expectedSpeed = null)
     {
         var start = InMemoryTransport.BuildRequest(
-            AppServerMethods.ThreadStart,
+            DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ThreadStart,
             new
             {
                 identity = new
@@ -361,7 +361,7 @@ public sealed class AppServerThreadModelSnapshotTests : IDisposable
         if (expectedSpeed != null)
             Assert.Equal(expectedSpeed, thread.GetProperty("configuration").GetProperty("speed").GetString());
 
-        var notification = await ReadNotificationAsync(transport, AppServerMethods.ThreadStarted);
+        var notification = await ReadNotificationAsync(transport, DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ThreadStarted);
         var notificationThread = notification.RootElement.GetProperty("params").GetProperty("thread");
         Assert.Equal(expectedModel, GetThreadModel(notificationThread));
         if (expectedProviderId != null)
@@ -374,7 +374,7 @@ public sealed class AppServerThreadModelSnapshotTests : IDisposable
 
     private static async Task InitializeAsync(AppServerRequestHandler handler, InMemoryTransport transport)
     {
-        var init = InMemoryTransport.BuildRequest(AppServerMethods.Initialize, new
+        var init = InMemoryTransport.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.Initialize, new
         {
             clientInfo = new { name = "test-client", version = "0.0.1" },
             capabilities = new { approvalSupport = true, streamingSupport = true }

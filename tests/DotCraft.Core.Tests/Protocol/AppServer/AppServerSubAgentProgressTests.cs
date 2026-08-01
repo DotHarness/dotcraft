@@ -36,7 +36,7 @@ public sealed class AppServerSubAgentProgressTests : IDisposable
         var events = BuildTurnWithSubAgentProgress(thread.Id);
         _h.Service.EnqueueSubmitEvents(thread.Id, events);
 
-        var msg = _h.BuildRequest(AppServerMethods.TurnStart, new
+        var msg = _h.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.TurnStart, new
         {
             threadId = thread.Id,
             input = new[] { new { type = "text", text = "Hello" } }
@@ -49,7 +49,7 @@ public sealed class AppServerSubAgentProgressTests : IDisposable
         // Find the subagent/progress notification
         var progressNotif = all.Find(d =>
             d.RootElement.TryGetProperty("method", out var m)
-            && m.GetString() == AppServerMethods.SubAgentProgress);
+            && m.GetString() == DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.SubAgentProgress);
 
         Assert.NotNull(progressNotif);
 
@@ -83,7 +83,7 @@ public sealed class AppServerSubAgentProgressTests : IDisposable
             ]);
         _h.Service.EnqueueSubmitEvents(thread.Id, events);
 
-        var msg = _h.BuildRequest(AppServerMethods.TurnStart, new
+        var msg = _h.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.TurnStart, new
         {
             threadId = thread.Id,
             input = new[] { new { type = "text", text = "Hello" } }
@@ -93,7 +93,7 @@ public sealed class AppServerSubAgentProgressTests : IDisposable
         var all = await _h.Transport.WaitAndDrainAsync(5, TimeSpan.FromSeconds(10));
         var progressNotif = all.Find(d =>
             d.RootElement.TryGetProperty("method", out var m)
-            && m.GetString() == AppServerMethods.SubAgentProgress);
+            && m.GetString() == DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.SubAgentProgress);
 
         Assert.NotNull(progressNotif);
 
@@ -138,7 +138,7 @@ public sealed class AppServerSubAgentProgressTests : IDisposable
             ]);
         _h.Service.EnqueueSubmitEvents(thread.Id, events);
 
-        var msg = _h.BuildRequest(AppServerMethods.TurnStart, new
+        var msg = _h.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.TurnStart, new
         {
             threadId = thread.Id,
             input = new[] { new { type = "text", text = "Hello" } }
@@ -148,7 +148,7 @@ public sealed class AppServerSubAgentProgressTests : IDisposable
         var all = await _h.Transport.WaitAndDrainAsync(5, TimeSpan.FromSeconds(10));
         var progressNotif = all.Find(d =>
             d.RootElement.TryGetProperty("method", out var m)
-            && m.GetString() == AppServerMethods.SubAgentProgress);
+            && m.GetString() == DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.SubAgentProgress);
 
         Assert.NotNull(progressNotif);
 
@@ -180,7 +180,7 @@ public sealed class AppServerSubAgentProgressTests : IDisposable
         var events = BuildTurnWithFinalSubAgentProgress(thread.Id);
         _h.Service.EnqueueSubmitEvents(thread.Id, events);
 
-        var msg = _h.BuildRequest(AppServerMethods.TurnStart, new
+        var msg = _h.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.TurnStart, new
         {
             threadId = thread.Id,
             input = new[] { new { type = "text", text = "Hello" } }
@@ -196,9 +196,9 @@ public sealed class AppServerSubAgentProgressTests : IDisposable
             if (all[i].RootElement.TryGetProperty("method", out var m))
             {
                 var method = m.GetString();
-                if (method == AppServerMethods.SubAgentProgress)
+                if (method == DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.SubAgentProgress)
                     progressIndex = i; // Take the last one
-                if (method == AppServerMethods.TurnCompleted)
+                if (method == DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.TurnCompleted)
                     turnCompletedIndex = i;
             }
         }
@@ -231,7 +231,7 @@ public sealed class AppServerSubAgentProgressTests : IDisposable
         var events = BuildTurnWithToolResultAndProgress(thread.Id);
         _h.Service.EnqueueSubmitEvents(thread.Id, events);
 
-        var msg = _h.BuildRequest(AppServerMethods.TurnStart, new
+        var msg = _h.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.TurnStart, new
         {
             threadId = thread.Id,
             input = new[] { new { type = "text", text = "Hello" } }
@@ -246,11 +246,11 @@ public sealed class AppServerSubAgentProgressTests : IDisposable
             .ToList();
 
         // Verify: subagent/progress must be present
-        Assert.Contains(AppServerMethods.SubAgentProgress, methods);
+        Assert.Contains(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.SubAgentProgress, methods);
 
         // turn/completed must be the last notification
         var lastNotif = methods.Last();
-        Assert.Equal(AppServerMethods.TurnCompleted, lastNotif);
+        Assert.Equal(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.TurnCompleted, lastNotif);
     }
 
     // -------------------------------------------------------------------------
@@ -261,13 +261,13 @@ public sealed class AppServerSubAgentProgressTests : IDisposable
     public async Task SubAgentProgress_OptedOut_NotSent()
     {
         using var harness = new AppServerTestHarness();
-        await harness.InitializeAsync(optOutMethods: [AppServerMethods.SubAgentProgress]);
+        await harness.InitializeAsync(optOutMethods: [DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.SubAgentProgress]);
 
         var thread = await harness.Service.CreateThreadAsync(harness.Identity);
         var events = BuildTurnWithSubAgentProgress(thread.Id);
         harness.Service.EnqueueSubmitEvents(thread.Id, events);
 
-        var msg = harness.BuildRequest(AppServerMethods.TurnStart, new
+        var msg = harness.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.TurnStart, new
         {
             threadId = thread.Id,
             input = new[] { new { type = "text", text = "Hello" } }
@@ -283,7 +283,7 @@ public sealed class AppServerSubAgentProgressTests : IDisposable
             .Where(m => m != null)
             .ToList();
 
-        Assert.DoesNotContain(AppServerMethods.SubAgentProgress, methods);
+        Assert.DoesNotContain(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.SubAgentProgress, methods);
     }
 
     // -------------------------------------------------------------------------
@@ -303,7 +303,7 @@ public sealed class AppServerSubAgentProgressTests : IDisposable
         var events = BuildTurnWithMultipleProgressSnapshots(thread.Id);
         _h.Service.EnqueueSubmitEvents(thread.Id, events);
 
-        var msg = _h.BuildRequest(AppServerMethods.TurnStart, new
+        var msg = _h.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.TurnStart, new
         {
             threadId = thread.Id,
             input = new[] { new { type = "text", text = "Hello" } }
@@ -315,7 +315,7 @@ public sealed class AppServerSubAgentProgressTests : IDisposable
         // Collect all subagent/progress notifications
         var progressNotifs = all.Where(d =>
             d.RootElement.TryGetProperty("method", out var m)
-            && m.GetString() == AppServerMethods.SubAgentProgress).ToList();
+            && m.GetString() == DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.SubAgentProgress).ToList();
 
         Assert.True(progressNotifs.Count >= 2, "Expected at least 2 subagent/progress notifications");
 

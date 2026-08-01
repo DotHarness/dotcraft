@@ -27,6 +27,7 @@ out
 __pycache__
 *.egg-info
 *.egg
+**/TestResults/
 .venv
 venv
 tmp

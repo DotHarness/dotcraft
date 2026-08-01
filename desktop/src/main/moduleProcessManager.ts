@@ -1,6 +1,6 @@
 import { promises as fs } from 'fs'
 import * as path from 'path'
-import type { WireProtocolClient } from './WireProtocolClient'
+import type { DesktopAppServerClient } from './DesktopAppServerClient'
 import type { DiscoveredModule } from './moduleScanner'
 import { QrFileWatcher, type QrUpdatePayload } from './qrWatcher'
 
@@ -72,7 +72,7 @@ function externalChannelTransportForModule(module: DiscoveredModule): 'managedWe
 
 export class ModuleProcessManager {
   private readonly workspacePath: string
-  private readonly getWireClient: () => WireProtocolClient | null
+  private readonly getWireClient: () => DesktopAppServerClient | null
   private readonly onStatusChanged: (statusMap: ModuleStatusMap) => void
   private readonly getCachedModules: () => DiscoveredModule[] | null
   private readonly qrWatcher: QrFileWatcher
@@ -83,7 +83,7 @@ export class ModuleProcessManager {
 
   constructor(options: {
     workspacePath: string
-    getWireClient: () => WireProtocolClient | null
+    getWireClient: () => DesktopAppServerClient | null
     onStatusChanged: (statusMap: ModuleStatusMap) => void
     getCachedModules: () => DiscoveredModule[] | null
     onQrUpdate: (payload: QrUpdatePayload) => void

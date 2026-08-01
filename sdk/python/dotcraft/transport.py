@@ -98,8 +98,7 @@ class StdioTransport(Transport):
 # ---------------------------------------------------------------------------
 
 try:
-    import websockets
-    import websockets.client
+    from websockets.asyncio.client import ClientConnection, connect
     _WEBSOCKETS_AVAILABLE = True
 except ImportError:
     _WEBSOCKETS_AVAILABLE = False
@@ -110,15 +109,16 @@ class WebSocketTransport(Transport):
     One JSON-RPC message per WebSocket text frame.
 
     Used when the adapter connects to DotCraft's AppServer WebSocket endpoint
-    independently (transport: "websocket" in config). Supports automatic
-    reconnection with exponential backoff.
+    independently (transport: "websocket" in config). Reconnection policy is
+    owned by the Wire client so the initialize handshake can be replayed before
+    application requests resume.
     """
 
     def __init__(
         self,
         url: str,
         token: str | None = None,
-        reconnect: bool = True,
+        reconnect: bool = False,
         reconnect_initial_delay: float = 1.0,
         reconnect_max_delay: float = 30.0,
     ) -> None:
@@ -131,7 +131,7 @@ class WebSocketTransport(Transport):
         self._reconnect_initial_delay = reconnect_initial_delay
         self._reconnect_max_delay = reconnect_max_delay
 
-        self._ws = None
+        self._ws: ClientConnection | None = None
         self._closed = False
         self._connect_lock = asyncio.Lock()
 
@@ -145,7 +145,7 @@ class WebSocketTransport(Transport):
     async def connect(self) -> None:
         """Establish the WebSocket connection."""
         async with self._connect_lock:
-            self._ws = await websockets.client.connect(self._url)
+            self._ws = await connect(self._url)
         logger.debug("WebSocketTransport connected to %s", self._base_url)
 
     async def _reconnect_loop(self) -> None:
@@ -168,16 +168,19 @@ class WebSocketTransport(Transport):
             try:
                 if self._ws is None:
                     await self.connect()
-                raw = await self._ws.recv()
+                connection = self._ws
+                if connection is None:
+                    raise TransportClosed("WebSocketTransport failed to connect")
+                raw = await connection.recv()
                 return json.loads(raw)
             except Exception as e:
                 if self._closed:
                     raise TransportClosed("WebSocketTransport closed during read") from e
+                self._ws = None
                 if self._reconnect:
                     logger.warning("WebSocketTransport read error: %s", e)
-                    self._ws = None
                     await self._reconnect_loop()
-                    # Caller (DotCraftClient) is responsible for re-initializing
+                    # Caller (DotCraftWireClient) is responsible for re-initializing
                     # after reconnect; raise a special exception to signal this.
                     raise TransportClosed("WebSocket reconnected; re-initialize required") from e
                 raise TransportError(f"WebSocket read error: {e}") from e

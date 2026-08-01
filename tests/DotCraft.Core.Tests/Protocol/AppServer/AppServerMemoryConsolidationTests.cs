@@ -21,7 +21,7 @@ public sealed class AppServerMemoryConsolidationTests : IDisposable
                 HistoryWritten = true
             });
 
-        var msg = _h.BuildRequest(AppServerMethods.ThreadMemoryConsolidateStart, new
+        var msg = _h.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ThreadMemoryConsolidateStart, new
         {
             threadId = "thread_001"
         });
@@ -43,7 +43,7 @@ public sealed class AppServerMemoryConsolidationTests : IDisposable
             throw new InvalidOperationException(
                 $"Thread '{threadId}' has a running Turn. Wait for it to complete or cancel it first.");
 
-        var msg = _h.BuildRequest(AppServerMethods.ThreadMemoryConsolidateStart, new
+        var msg = _h.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ThreadMemoryConsolidateStart, new
         {
             threadId = "thread_running"
         });

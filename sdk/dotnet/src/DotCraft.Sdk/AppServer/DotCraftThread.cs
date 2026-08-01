@@ -98,7 +98,7 @@ public sealed class DotCraftThread
         await EnsureSubscribedAsync(cancellationToken).ConfigureAwait(false);
 
         var channel = Channel.CreateUnbounded<DotCraftRunEvent>(new UnboundedChannelOptions { SingleReader = true });
-        using var registration = _client.Wire.RegisterNotificationHandler(notification =>
+        using var registration = _client.Wire.RegisterNotificationHandlerRaw(notification =>
         {
             var threadId = ExtractThreadId(notification.Params);
             if (threadId is null || !string.Equals(threadId, Id, StringComparison.Ordinal))
@@ -184,28 +184,28 @@ public sealed class DotCraftThread
     /// <summary>Subscribes this connection to the thread's events.</summary>
     public async Task SubscribeAsync(bool replayRecent = false, CancellationToken cancellationToken = default)
     {
-        await _client.RequestAsync("thread/subscribe", new { threadId = Id, replayRecent }, cancellationToken).ConfigureAwait(false);
+        await _client.RequestRawAsync("thread/subscribe", new { threadId = Id, replayRecent }, cancellationToken).ConfigureAwait(false);
         _subscribed = true;
     }
 
     /// <summary>Unsubscribes this connection from the thread's events.</summary>
     public async Task UnsubscribeAsync(CancellationToken cancellationToken = default)
     {
-        await _client.RequestAsync("thread/unsubscribe", new { threadId = Id }, cancellationToken).ConfigureAwait(false);
+        await _client.RequestRawAsync("thread/unsubscribe", new { threadId = Id }, cancellationToken).ConfigureAwait(false);
         _subscribed = false;
     }
 
     /// <summary>Sets the thread operational mode.</summary>
     public Task SetModeAsync(string mode, CancellationToken cancellationToken = default) =>
-        _client.RequestAsync("thread/mode/set", new { threadId = Id, mode }, cancellationToken);
+        _client.RequestRawAsync("thread/mode/set", new { threadId = Id, mode }, cancellationToken);
 
     /// <summary>Archives the thread.</summary>
     public Task ArchiveAsync(CancellationToken cancellationToken = default) =>
-        _client.RequestAsync("thread/archive", new { threadId = Id }, cancellationToken);
+        _client.RequestRawAsync("thread/archive", new { threadId = Id }, cancellationToken);
 
     /// <summary>Deletes the thread.</summary>
     public Task DeleteAsync(CancellationToken cancellationToken = default) =>
-        _client.RequestAsync("thread/delete", new { threadId = Id }, cancellationToken);
+        _client.RequestRawAsync("thread/delete", new { threadId = Id }, cancellationToken);
 
     /// <summary>Re-reads the thread snapshot from the server.</summary>
     public async Task<JsonElement> RefreshAsync(CancellationToken cancellationToken = default)
@@ -239,7 +239,7 @@ public sealed class DotCraftThread
                 return;
             }
 
-            await _client.RequestAsync("thread/subscribe", new { threadId = Id, replayRecent = false }, cancellationToken).ConfigureAwait(false);
+            await _client.RequestRawAsync("thread/subscribe", new { threadId = Id, replayRecent = false }, cancellationToken).ConfigureAwait(false);
             _subscribed = true;
         }
         finally

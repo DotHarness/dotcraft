@@ -21,16 +21,16 @@ internal sealed class ProviderRequestHandler(
 {
     public void RegisterMethods(AppServerMethodTable table)
     {
-        table.Map(AppServerMethods.ProviderList, HandleProviderListAsync);
-        table.Map(AppServerMethods.ProviderCreate, HandleProviderCreateAsync);
-        table.Map(AppServerMethods.ProviderUpdate, HandleProviderUpdateAsync);
-        table.Map(AppServerMethods.ProviderDelete, HandleProviderDeleteAsync);
-        table.Map(AppServerMethods.ProviderTest, HandleProviderTestAsync);
-        table.Map(AppServerMethods.ModelList, HandleModelListAsync);
-        table.Map(AppServerMethods.AuthOpenAiStatus, HandleAuthOpenAiStatusAsync);
-        table.Map(AppServerMethods.AuthOpenAiLogin, HandleAuthOpenAiLoginAsync);
-        table.Map(AppServerMethods.AuthOpenAiLogout, HandleAuthOpenAiLogoutAsync);
-        table.Map(AppServerMethods.AuthOpenAiUsage, HandleAuthOpenAiUsageAsync);
+        table.Map(global::DotCraft.Protocol.Contracts.AppServer.AppServerRpc.ProviderList, HandleProviderListAsync);
+        table.Map(global::DotCraft.Protocol.Contracts.AppServer.AppServerRpc.ProviderCreate, HandleProviderCreateAsync);
+        table.Map(global::DotCraft.Protocol.Contracts.AppServer.AppServerRpc.ProviderUpdate, HandleProviderUpdateAsync);
+        table.Map(global::DotCraft.Protocol.Contracts.AppServer.AppServerRpc.ProviderDelete, HandleProviderDeleteAsync);
+        table.Map(global::DotCraft.Protocol.Contracts.AppServer.AppServerRpc.ProviderTest, HandleProviderTestAsync);
+        table.Map(global::DotCraft.Protocol.Contracts.AppServer.AppServerRpc.ModelList, HandleModelListAsync);
+        table.Map(global::DotCraft.Protocol.Contracts.AppServer.AppServerRpc.AuthOpenAiStatus, HandleAuthOpenAiStatusAsync);
+        table.Map(global::DotCraft.Protocol.Contracts.AppServer.AppServerRpc.AuthOpenAiLogin, HandleAuthOpenAiLoginAsync);
+        table.Map(global::DotCraft.Protocol.Contracts.AppServer.AppServerRpc.AuthOpenAiLogout, HandleAuthOpenAiLogoutAsync);
+        table.Map(global::DotCraft.Protocol.Contracts.AppServer.AppServerRpc.AuthOpenAiUsage, HandleAuthOpenAiUsageAsync);
     }
 
     private Task<object?> HandleProviderListAsync(AppServerIncomingMessage msg, CancellationToken ct)
@@ -97,7 +97,7 @@ internal sealed class ProviderRequestHandler(
 
         runtimeConfig.RefreshCurrentLlmConfig();
         runtimeConfig.InvalidateThreadAgents();
-        appConfigMonitor?.NotifyChanged(AppServerMethods.ProviderCreate, [ConfigChangeRegions.ProviderRegistry]);
+        appConfigMonitor?.NotifyChanged(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ProviderCreate, [ConfigChangeRegions.ProviderRegistry]);
 
         var current = workspaceConfig.LoadCurrentMergedConfig();
         return Task.FromResult<object?>(new ProviderMutationResult
@@ -188,7 +188,7 @@ internal sealed class ProviderRequestHandler(
 
         runtimeConfig.RefreshCurrentLlmConfig();
         runtimeConfig.InvalidateThreadAgents();
-        appConfigMonitor?.NotifyChanged(AppServerMethods.ProviderUpdate, [ConfigChangeRegions.ProviderRegistry]);
+        appConfigMonitor?.NotifyChanged(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ProviderUpdate, [ConfigChangeRegions.ProviderRegistry]);
 
         var current = workspaceConfig.LoadCurrentMergedConfig();
         return Task.FromResult<object?>(new ProviderMutationResult
@@ -224,7 +224,7 @@ internal sealed class ProviderRequestHandler(
         {
             runtimeConfig.RefreshCurrentLlmConfig();
             runtimeConfig.InvalidateThreadAgents();
-            appConfigMonitor?.NotifyChanged(AppServerMethods.ProviderDelete, [ConfigChangeRegions.ProviderRegistry]);
+            appConfigMonitor?.NotifyChanged(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ProviderDelete, [ConfigChangeRegions.ProviderRegistry]);
         }
 
         return Task.FromResult<object?>(new ProviderDeleteResult { Deleted = removed });
@@ -235,7 +235,7 @@ internal sealed class ProviderRequestHandler(
         var p = AppServerParams.Get<ModelListParams>(msg);
 
         if (string.IsNullOrWhiteSpace(workspaceCraftPath))
-            throw AppServerErrors.MethodNotFound(AppServerMethods.ModelList);
+            throw AppServerErrors.MethodNotFound(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ModelList);
 
         var config = appConfigMonitor?.Current
             ?? AppConfig.LoadWithGlobalFallback(Path.Combine(workspaceCraftPath, "config.json"), workspaceConfig.EffectiveGlobalConfigPath);
@@ -345,16 +345,14 @@ internal sealed class ProviderRequestHandler(
                 openBrowser,
                 onAuthorizationUrl: url =>
                 {
-                    _ = transport.WriteMessageAsync(new
-                    {
-                        jsonrpc = "2.0",
-                        method = AppServerMethods.AuthOpenAiAuthorizeUrl,
-                        @params = new AuthOpenAiAuthorizeUrlNotification
+                    _ = transport.NotifyContractAsync(
+                        global::DotCraft.Protocol.Contracts.AppServer.AppServerRpc.AuthOpenAiAuthorizeUrl,
+                        new AuthOpenAiAuthorizeUrlNotification
                         {
                             Url = url,
                             CallbackPort = OpenAIAuthConstants.RedirectPortPrimary
-                        }
-                    }, ct);
+                        },
+                        ct);
                 },
                 ct).ConfigureAwait(false);
         }
@@ -374,7 +372,7 @@ internal sealed class ProviderRequestHandler(
 
         runtimeConfig.RefreshCurrentLlmConfig();
         runtimeConfig.InvalidateThreadAgents();
-        appConfigMonitor?.NotifyChanged(AppServerMethods.AuthOpenAiLogin, [ConfigChangeRegions.ProviderRegistry]);
+        appConfigMonitor?.NotifyChanged(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.AuthOpenAiLogin, [ConfigChangeRegions.ProviderRegistry]);
 
         return BuildAuthStatusResult(status, providerId);
     }
@@ -400,7 +398,7 @@ internal sealed class ProviderRequestHandler(
 
         runtimeConfig.RefreshCurrentLlmConfig();
         runtimeConfig.InvalidateThreadAgents();
-        appConfigMonitor?.NotifyChanged(AppServerMethods.AuthOpenAiLogout, [ConfigChangeRegions.ProviderRegistry]);
+        appConfigMonitor?.NotifyChanged(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.AuthOpenAiLogout, [ConfigChangeRegions.ProviderRegistry]);
 
         return new AuthOpenAiStatusResult { LoggedIn = false, ProviderId = providerId };
     }

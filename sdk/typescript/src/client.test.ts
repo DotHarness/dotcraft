@@ -1,10 +1,14 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { WebSocketServer } from "ws";
 
 import { DotCraftWireClient, type ServerRequestHandler } from "./client.js";
+import { DotCraftAppServerClient } from "./appServerClient.js";
 import { TurnInProgressError } from "./errors.js";
+import { RequestTimeoutError } from "./errors.js";
 import { ERR_TURN_IN_PROGRESS } from "./models.js";
 import { type Transport, TransportClosed } from "./transport.js";
+import { WebSocketTransport } from "./transport.js";
 
 class QueueTransport implements Transport {
   readonly written: Record<string, unknown>[] = [];
@@ -53,14 +57,28 @@ class QueueTransport implements Transport {
   }
 }
 
+function assertWireSurfaceIsProtocolOnly(client: DotCraftWireClient): void {
+  if (false) {
+    // @ts-expect-error Thread helpers belong to DotCraftAppServerClient.
+    void client.threadStart({ channelName: "test", userId: "user" });
+  }
+}
+
+test("DotCraftWireClient excludes high-level Thread operations", () => {
+  const client = new DotCraftWireClient(new QueueTransport());
+  assertWireSurfaceIsProtocolOnly(client);
+  assert.equal("threadStart" in client, false);
+  assert.equal("streamEvents" in client, false);
+});
+
 test("DotCraftWireClient correlates responses and maps common JSON-RPC errors", async () => {
   const transport = new QueueTransport();
   const client = new DotCraftWireClient(transport);
   await client.start();
 
-  const first = client.request("alpha");
+  const first = client.requestRaw("alpha");
   const firstWrite = await transport.nextWrite();
-  const second = client.request("beta");
+  const second = client.requestRaw("beta");
   const secondWrite = await transport.nextWrite();
 
   transport.push({ jsonrpc: "2.0", id: secondWrite.id, result: { ok: "second" } });
@@ -76,12 +94,72 @@ test("DotCraftWireClient correlates responses and maps common JSON-RPC errors", 
   await client.stop();
 });
 
+test("DotCraftWireClient applies the default request timeout", async () => {
+  const transport = new QueueTransport();
+  const client = new DotCraftWireClient(transport, { defaultTimeoutMs: 5 });
+  await client.start();
+
+  await assert.rejects(client.requestRaw("fixture/timeout"), RequestTimeoutError);
+  await client.stop();
+});
+
+test("DotCraftWireClient reinitializes before releasing reconnect-queued requests", async () => {
+  const server = new WebSocketServer({ port: 0 });
+  await new Promise<void>((resolve) => server.once("listening", resolve));
+  const address = server.address();
+  if (!address || typeof address === "string") throw new Error("Expected a TCP listener address.");
+  const port = address.port;
+  let connectionCount = 0;
+  server.on("connection", (socket) => {
+    connectionCount += 1;
+    const connectionNumber = connectionCount;
+    socket.on("message", (data) => {
+      const message = JSON.parse(data.toString()) as Record<string, unknown>;
+      if (message.method === "initialize") {
+        socket.send(JSON.stringify({
+          jsonrpc: "2.0",
+          id: message.id,
+          result: {
+            serverInfo: { name: "fixture", version: "1", protocolVersion: "1" },
+            capabilities: {},
+          },
+        }));
+      } else if (message.method === "initialized" && connectionNumber === 1) {
+        socket.close();
+      } else if (message.method === "fixture/queued") {
+        socket.send(JSON.stringify({ jsonrpc: "2.0", id: message.id, result: { ok: true } }));
+      }
+    });
+  });
+
+  const transport = new WebSocketTransport({ url: `ws://127.0.0.1:${port}` });
+  const client = new DotCraftWireClient(transport, {
+    autoReconnect: true,
+    reconnectBaseDelayMs: 1,
+    reconnectMaxDelayMs: 1,
+    random: () => 0.5,
+  });
+  const reconnecting = new Promise<void>((resolve) => {
+    client.onStateChanged((state) => {
+      if (state === "reconnecting") resolve();
+    });
+  });
+  await client.connect();
+  await client.initialize({ clientName: "fixture", clientVersion: "1" });
+  await reconnecting;
+  assert.deepEqual(await client.requestRaw("fixture/queued", {}), { ok: true });
+  assert.equal(connectionCount, 2);
+
+  await client.stop();
+  await new Promise<void>((resolve) => server.close(() => resolve()));
+});
+
 test("DotCraftWireClient omits params when a request has no parameters", async () => {
   const transport = new QueueTransport();
   const client = new DotCraftWireClient(transport);
   await client.start();
 
-  const pending = client.request("config/mcpServer/reload");
+  const pending = client.requestRaw("config/mcpServer/reload");
   const written = await transport.nextWrite();
   assert.equal("params" in written, false);
   transport.push({ jsonrpc: "2.0", id: written.id, result: {} });
@@ -90,9 +168,9 @@ test("DotCraftWireClient omits params when a request has no parameters", async (
   await client.stop();
 });
 
-test("DotCraftWireClient sends workspace scope for thread list requests", async () => {
+test("DotCraftAppServerClient sends workspace scope for thread list requests", async () => {
   const transport = new QueueTransport();
-  const client = new DotCraftWireClient(transport);
+  const client = new DotCraftAppServerClient(transport);
   await client.start();
 
   const pending = client.threadListPage({
@@ -121,9 +199,9 @@ test("DotCraftWireClient dispatches server requests without blocking the reader"
   const calls: string[] = [];
   await client.start();
 
-  client.setApprovalHandler(async () => {
+  client.registerServerRequestHandler("item/approval/request", async () => {
     calls.push("approval");
-    return "decline";
+    return { decision: "decline" };
   });
   client.registerServerRequestHandler("item/tool/call", async (_id, params) => {
     calls.push(String(params.tool));
@@ -164,6 +242,7 @@ test("DotCraftWireClient dispatches server requests without blocking the reader"
 test("DotCraftWireClient initialize sends initialized notification", async () => {
   const transport = new QueueTransport();
   const client = new DotCraftWireClient(transport);
+  client.registerServerRequestHandler("item/tool/requestUserInput", async () => ({ answers: {} }));
 
   const initialized = client.initialize({
     clientName: "test-client",

@@ -1,5 +1,6 @@
 using System.Net.WebSockets;
 using DotCraft.Logging;
+using Contract = DotCraft.Protocol.Contracts.AppServer;
 
 namespace DotCraft.Protocol.AppServer;
 
@@ -517,7 +518,7 @@ public sealed class AppServerEventDispatcher
     private bool ShouldSuppressTerminalMirror(SessionEvent evt) =>
         evt.CommandExecutionDeltaPayload?.MirrorsTerminalOutput == true
         && _connection.SupportsBackgroundTerminals
-        && _connection.ShouldSendNotification(AppServerMethods.TerminalOutputDelta);
+        && _connection.ShouldSendNotification(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.TerminalOutputDelta);
 
     private void LogOutboundDelta(SessionEvent evt, string method)
     {
@@ -625,16 +626,9 @@ public sealed class AppServerEventDispatcher
         if (_transportUnavailable)
             return;
 
-        var notification = new
-        {
-            jsonrpc = "2.0",
-            method,
-            @params
-        };
-
         try
         {
-            await _transport.WriteMessageAsync(notification, ct);
+            await SendMappedNotificationAsync(method, @params, ct);
         }
         catch (OperationCanceledException) when (!ct.IsCancellationRequested)
         {
@@ -645,6 +639,79 @@ public sealed class AppServerEventDispatcher
             MarkTransportUnavailable();
         }
     }
+
+    private Task SendMappedNotificationAsync(string method, object? parameters, CancellationToken ct) => method switch
+    {
+        DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ThreadStarted => _transport.NotifyAsync(
+            Contract.AppServerRpc.ThreadStarted,
+            AppServerContractMapper.ToContract(Require<ThreadStartedNotification>(method, parameters)),
+            ct),
+        DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ThreadResumed => _transport.NotifyAsync(
+            Contract.AppServerRpc.ThreadResumed,
+            AppServerContractMapper.ToContract(Require<ThreadResumedNotification>(method, parameters)),
+            ct),
+        DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ThreadUpdated => _transport.NotifyAsync(
+            Contract.AppServerRpc.ThreadUpdated,
+            AppServerContractMapper.ToContract(Require<ThreadUpdatedNotification>(method, parameters)),
+            ct),
+        DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ThreadDeleted => _transport.NotifyAsync(
+            Contract.AppServerRpc.ThreadDeleted,
+            AppServerContractMapper.ToContract(Require<ThreadDeletedNotification>(method, parameters)),
+            ct),
+        DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.TurnStarted => _transport.NotifyAsync(
+            Contract.AppServerRpc.TurnStarted,
+            AppServerContractMapper.ToContract(Require<TurnStartedNotification>(method, parameters)),
+            ct),
+        DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.TurnCompleted => _transport.NotifyAsync(
+            Contract.AppServerRpc.TurnCompleted,
+            AppServerContractMapper.ToContract(Require<TurnCompletedNotification>(method, parameters)),
+            ct),
+        DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.TurnFailed => _transport.NotifyAsync(
+            Contract.AppServerRpc.TurnFailed,
+            AppServerContractMapper.ToContract(Require<TurnFailedNotification>(method, parameters)),
+            ct),
+        DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.TurnCancelled => _transport.NotifyAsync(
+            Contract.AppServerRpc.TurnCancelled,
+            AppServerContractMapper.ToContract(Require<TurnCancelledNotification>(method, parameters)),
+            ct),
+        DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ItemStarted => _transport.NotifyAsync(
+            Contract.AppServerRpc.ItemStarted,
+            AppServerContractMapper.ToContract(Require<ItemStartedNotification>(method, parameters)),
+            ct),
+        DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ItemCompleted => _transport.NotifyAsync(
+            Contract.AppServerRpc.ItemCompleted,
+            AppServerContractMapper.ToContract(Require<ItemCompletedNotification>(method, parameters)),
+            ct),
+        DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.AgentMessageDelta => _transport.NotifyAsync(
+            Contract.AppServerRpc.AgentMessageDelta,
+            AppServerContractMapper.ToContract(Require<ItemDeltaNotification>(method, parameters)),
+            ct),
+        DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ReasoningDelta => _transport.NotifyAsync(
+            Contract.AppServerRpc.ReasoningDelta,
+            AppServerContractMapper.ToContract(Require<ItemDeltaNotification>(method, parameters)),
+            ct),
+        DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.CommandOutputDelta => _transport.NotifyAsync(
+            Contract.AppServerRpc.CommandOutputDelta,
+            AppServerContractMapper.ToContract(Require<ItemDeltaNotification>(method, parameters)),
+            ct),
+        DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ToolArgumentsDelta => _transport.NotifyAsync(
+            Contract.AppServerRpc.ToolArgumentsDelta,
+            AppServerContractMapper.ToContract(Require<ItemDeltaNotification>(method, parameters)),
+            ct),
+        DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ApprovalResolved => _transport.NotifyAsync(
+            Contract.AppServerRpc.ApprovalResolved,
+            AppServerContractMapper.ToContract(Require<ApprovalResolvedNotification>(method, parameters)),
+            ct),
+        DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.UserInputResolved => _transport.NotifyAsync(
+            Contract.AppServerRpc.UserInputResolved,
+            AppServerContractMapper.ToContract(Require<UserInputResolvedNotification>(method, parameters)),
+            ct),
+        _ => _transport.NotifyContractAsync(method, parameters, ct)
+    };
+
+    private static T Require<T>(string method, object? parameters) where T : class =>
+        parameters as T
+        ?? throw new InvalidOperationException($"Notification '{method}' received an unrelated payload type.");
 
     private void MarkTransportUnavailable() => _transportUnavailable = true;
 

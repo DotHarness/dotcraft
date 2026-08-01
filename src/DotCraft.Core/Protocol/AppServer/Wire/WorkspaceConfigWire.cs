@@ -5,7 +5,7 @@ namespace DotCraft.Protocol.AppServer;
 
 
 /// <summary>
-/// Params for <see cref="AppServerMethods.WorkspaceCommitMessageSuggest"/>.
+/// Params for <see cref="DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.WorkspaceCommitMessageSuggest"/>.
 /// </summary>
 public sealed class WorkspaceCommitMessageSuggestParams
 {
@@ -20,7 +20,7 @@ public sealed class WorkspaceCommitMessageSuggestParams
 }
 
 /// <summary>
-/// Result for <see cref="AppServerMethods.WorkspaceCommitMessageSuggest"/>.
+/// Result for <see cref="DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.WorkspaceCommitMessageSuggest"/>.
 /// </summary>
 public sealed class WorkspaceCommitMessageSuggestResult
 {
@@ -28,7 +28,7 @@ public sealed class WorkspaceCommitMessageSuggestResult
 }
 
 /// <summary>
-/// Params for <see cref="AppServerMethods.WelcomeSuggestions"/>.
+/// Params for <see cref="DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.WelcomeSuggestions"/>.
 /// </summary>
 public sealed class WelcomeSuggestionsParams
 {
@@ -48,7 +48,7 @@ public sealed class WelcomeSuggestionItem
 }
 
 /// <summary>
-/// Result for <see cref="AppServerMethods.WelcomeSuggestions"/>.
+/// Result for <see cref="DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.WelcomeSuggestions"/>.
 /// </summary>
 public sealed class WelcomeSuggestionsResult
 {
@@ -64,7 +64,7 @@ public sealed class WelcomeSuggestionsResult
 // ───── workspace/config/update (workspace config management) ─────
 
 /// <summary>
-/// Params for <see cref="AppServerMethods.WorkspaceConfigUpdate"/>.
+/// Params for <see cref="DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.WorkspaceConfigUpdate"/>.
 /// </summary>
 public sealed class WorkspaceConfigUpdateParams
 {
@@ -138,7 +138,7 @@ public sealed class WorkspaceConfigUpdateParams
 }
 
 /// <summary>
-/// Result for <see cref="AppServerMethods.WorkspaceConfigUpdate"/>.
+/// Result for <see cref="DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.WorkspaceConfigUpdate"/>.
 /// </summary>
 public sealed class WorkspaceConfigUpdateResult
 {
@@ -220,7 +220,7 @@ public sealed class WorkspaceConfigUpdateResult
 }
 
 /// <summary>
-/// Params for <see cref="AppServerMethods.WorkspaceConfigSchema"/>.
+/// Params for <see cref="DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.WorkspaceConfigSchema"/>.
 /// Reserved for future filters.
 /// </summary>
 public sealed class WorkspaceConfigSchemaParams
@@ -230,14 +230,14 @@ public sealed class WorkspaceConfigSchemaParams
 // ───── memory/reset (memory management) ─────
 
 /// <summary>
-/// Result for <see cref="AppServerMethods.MemoryReset"/>.
+/// Result for <see cref="DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.MemoryReset"/>.
 /// </summary>
 public sealed class MemoryResetResult
 {
 }
 
 /// <summary>
-/// Result for <see cref="AppServerMethods.WorkspaceConfigSchema"/>.
+/// Result for <see cref="DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.WorkspaceConfigSchema"/>.
 /// </summary>
 public sealed class WorkspaceConfigSchemaResult
 {
@@ -245,7 +245,7 @@ public sealed class WorkspaceConfigSchemaResult
 }
 
 /// <summary>
-/// Params for <see cref="AppServerMethods.WorkspaceConfigChanged"/>.
+/// Params for <see cref="DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.WorkspaceConfigChanged"/>.
 /// </summary>
 public sealed class WorkspaceConfigChangedParams
 {

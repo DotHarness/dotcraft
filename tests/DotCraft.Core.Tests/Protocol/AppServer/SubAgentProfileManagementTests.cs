@@ -34,7 +34,7 @@ public sealed class SubAgentProfileManagementTests : IDisposable
         using var harness = new AppServerTestHarness(workspaceCraftPath: _workspaceCraftPath);
         await harness.InitializeAsync();
 
-        var req = harness.BuildRequest(AppServerMethods.SubAgentProfileList, new { });
+        var req = harness.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.SubAgentProfileList, new { });
         await harness.ExecuteRequestAsync(req);
 
         var sent = await harness.Transport.WaitAndDrainAsync(1, TimeSpan.FromSeconds(5));
@@ -71,7 +71,7 @@ public sealed class SubAgentProfileManagementTests : IDisposable
         var codex = profiles["codex-cli"]!.AsObject();
         Assert.Equal(600, codex["Timeout"]?.GetValue<int>());
 
-        var listReq = harness.BuildRequest(AppServerMethods.SubAgentProfileList, new { });
+        var listReq = harness.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.SubAgentProfileList, new { });
         await harness.ExecuteRequestAsync(listReq);
         var listSent = await harness.Transport.WaitAndDrainAsync(1, TimeSpan.FromSeconds(5));
         var listedProfiles = listSent[0].RootElement.GetProperty("result").GetProperty("profiles").EnumerateArray().ToList();
@@ -90,12 +90,12 @@ public sealed class SubAgentProfileManagementTests : IDisposable
         await harness.ExecuteRequestAsync(BuildUpsertRequest(harness, "codex-cli", timeout: 600));
         await harness.Transport.WaitAndDrainAsync(1, TimeSpan.FromSeconds(5));
 
-        var removeReq = harness.BuildRequest(AppServerMethods.SubAgentProfileRemove, new { name = "codex-cli" });
+        var removeReq = harness.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.SubAgentProfileRemove, new { name = "codex-cli" });
         await harness.ExecuteRequestAsync(removeReq);
         var removeSent = await harness.Transport.WaitAndDrainAsync(1, TimeSpan.FromSeconds(5));
         AppServerTestHarness.AssertIsSuccessResponse(removeSent[0]);
 
-        var listReq = harness.BuildRequest(AppServerMethods.SubAgentProfileList, new { });
+        var listReq = harness.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.SubAgentProfileList, new { });
         await harness.ExecuteRequestAsync(listReq);
         var listSent = await harness.Transport.WaitAndDrainAsync(1, TimeSpan.FromSeconds(5));
         var profiles = listSent[0].RootElement.GetProperty("result").GetProperty("profiles").EnumerateArray().ToList();
@@ -110,7 +110,7 @@ public sealed class SubAgentProfileManagementTests : IDisposable
         using var harness = new AppServerTestHarness(workspaceCraftPath: _workspaceCraftPath);
         await harness.InitializeAsync();
 
-        var req = harness.BuildRequest(AppServerMethods.SubAgentProfileSetEnabled, new
+        var req = harness.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.SubAgentProfileSetEnabled, new
         {
             name = "native",
             enabled = false
@@ -127,7 +127,7 @@ public sealed class SubAgentProfileManagementTests : IDisposable
         using var harness = new AppServerTestHarness(workspaceCraftPath: _workspaceCraftPath);
         await harness.InitializeAsync();
 
-        var req = harness.BuildRequest(AppServerMethods.SubAgentProfileSetEnabled, new
+        var req = harness.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.SubAgentProfileSetEnabled, new
         {
             name = "cursor-cli",
             enabled = false
@@ -153,7 +153,7 @@ public sealed class SubAgentProfileManagementTests : IDisposable
         using var harness = new AppServerTestHarness(workspaceCraftPath: _workspaceCraftPath);
         await harness.InitializeAsync();
 
-        var updateReq = harness.BuildRequest(AppServerMethods.SubAgentSettingsUpdate, new
+        var updateReq = harness.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.SubAgentSettingsUpdate, new
         {
             providerPreferences = new Dictionary<string, ModelPreference>
             {
@@ -176,7 +176,7 @@ public sealed class SubAgentProfileManagementTests : IDisposable
         Assert.Equal("gpt-x", persisted["openai"]!["Model"]!.GetValue<string>());
         Assert.Equal("claude-y", persisted["anthropic-main"]!["Model"]!.GetValue<string>());
 
-        var listReq = harness.BuildRequest(AppServerMethods.SubAgentProfileList, new { });
+        var listReq = harness.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.SubAgentProfileList, new { });
         await harness.ExecuteRequestAsync(listReq);
         var listSent = await harness.Transport.WaitAndDrainAsync(1, TimeSpan.FromSeconds(5));
         var listedSettings = listSent[0].RootElement.GetProperty("result").GetProperty("settings");
@@ -189,13 +189,13 @@ public sealed class SubAgentProfileManagementTests : IDisposable
         using var harness = new AppServerTestHarness(workspaceCraftPath: _workspaceCraftPath);
         await harness.InitializeAsync();
 
-        await harness.ExecuteRequestAsync(harness.BuildRequest(AppServerMethods.SubAgentSettingsUpdate, new
+        await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.SubAgentSettingsUpdate, new
         {
             providerPreferences = new Dictionary<string, ModelPreference> { ["openai"] = ModelPreferenceRules.CreateManual("gpt-x") }
         }));
         await harness.Transport.WaitAndDrainAsync(1, TimeSpan.FromSeconds(5));
 
-        await harness.ExecuteRequestAsync(harness.BuildRequest(AppServerMethods.SubAgentSettingsUpdate, new
+        await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.SubAgentSettingsUpdate, new
         {
             providerPreferences = new Dictionary<string, ModelPreference>()
         }));
@@ -219,7 +219,7 @@ public sealed class SubAgentProfileManagementTests : IDisposable
         var configPath = Path.Combine(_workspaceCraftPath, "config.json");
         await File.WriteAllTextAsync(configPath, "{\"SubAgent\":{\"CustomSettings\":{\"keep\":true}}}");
 
-        await harness.ExecuteRequestAsync(harness.BuildRequest(AppServerMethods.SubAgentSettingsUpdate, new
+        await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.SubAgentSettingsUpdate, new
         {
             providerPreferences = new Dictionary<string, ModelPreference> { ["openai"] = ModelPreferenceRules.CreateManual("gpt-x") }
         }));
@@ -243,7 +243,7 @@ public sealed class SubAgentProfileManagementTests : IDisposable
         await File.WriteAllTextAsync(configPath, "{\"SubAgent\":{\"CustomSettings\":{\"keep\":true}}}");
 
         await harness.ExecuteRequestAsync(harness.BuildRequest(
-            AppServerMethods.SubAgentSettingsUpdate,
+            DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.SubAgentSettingsUpdate,
             new JsonObject { ["externalCliSessionResumeEnabled"] = true }));
         var sent = await harness.Transport.WaitAndDrainAsync(1, TimeSpan.FromSeconds(5));
         AppServerTestHarness.AssertIsSuccessResponse(sent[0]);
@@ -259,7 +259,7 @@ public sealed class SubAgentProfileManagementTests : IDisposable
         using var harness = new AppServerTestHarness(workspaceCraftPath: _workspaceCraftPath);
         await harness.InitializeAsync();
 
-        var updateReq = harness.BuildRequest(AppServerMethods.SubAgentSettingsUpdate, new
+        var updateReq = harness.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.SubAgentSettingsUpdate, new
         {
             minWaitTimeoutMs = 500,
             defaultWaitTimeoutMs = 1000,
@@ -281,7 +281,7 @@ public sealed class SubAgentProfileManagementTests : IDisposable
         Assert.Equal(1000, root["SubAgent"]!["DefaultWaitTimeoutMs"]!.GetValue<int>());
         Assert.Equal(2000, root["SubAgent"]!["MaxWaitTimeoutMs"]!.GetValue<int>());
 
-        await harness.ExecuteRequestAsync(harness.BuildRequest(AppServerMethods.SubAgentProfileSetEnabled, new
+        await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.SubAgentProfileSetEnabled, new
         {
             name = "codex-cli",
             enabled = false
@@ -293,7 +293,7 @@ public sealed class SubAgentProfileManagementTests : IDisposable
         Assert.Equal(1000, root["SubAgent"]!["DefaultWaitTimeoutMs"]!.GetValue<int>());
         Assert.Equal(2000, root["SubAgent"]!["MaxWaitTimeoutMs"]!.GetValue<int>());
 
-        var listReq = harness.BuildRequest(AppServerMethods.SubAgentProfileList, new { });
+        var listReq = harness.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.SubAgentProfileList, new { });
         await harness.ExecuteRequestAsync(listReq);
         var listSent = await harness.Transport.WaitAndDrainAsync(1, TimeSpan.FromSeconds(5));
         var listedSettings = listSent[0].RootElement.GetProperty("result").GetProperty("settings");
@@ -308,7 +308,7 @@ public sealed class SubAgentProfileManagementTests : IDisposable
         using var harness = new AppServerTestHarness(workspaceCraftPath: _workspaceCraftPath);
         await harness.InitializeAsync();
 
-        var updateReq = harness.BuildRequest(AppServerMethods.SubAgentSettingsUpdate, new
+        var updateReq = harness.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.SubAgentSettingsUpdate, new
         {
             minWaitTimeoutMs = 2000,
             defaultWaitTimeoutMs = 1000,
@@ -325,7 +325,7 @@ public sealed class SubAgentProfileManagementTests : IDisposable
         string name,
         int timeout)
     {
-        return harness.BuildRequest(AppServerMethods.SubAgentProfileUpsert, new
+        return harness.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.SubAgentProfileUpsert, new
         {
             name,
             definition = new

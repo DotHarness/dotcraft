@@ -18,14 +18,14 @@ internal sealed class SourceControlRequestHandler(
 {
     public void RegisterMethods(AppServerMethodTable table)
     {
-        table.Map(AppServerMethods.SourceControlGet, HandleGetAsync);
-        table.Map(AppServerMethods.SourceControlUpdate, HandleUpdateAsync);
-        table.Map(AppServerMethods.SourceControlTest, HandleTestAsync);
-        table.Map(AppServerMethods.SourceControlChangelistList, HandleChangelistListAsync);
-        table.Map(AppServerMethods.SourceControlChangelistCreate, HandleChangelistCreateAsync);
-        table.Map(AppServerMethods.SourceControlChangelistPrepare, HandleChangelistPrepareAsync);
-        table.Map(AppServerMethods.SourceControlThreadTargetGet, HandleThreadTargetGetAsync);
-        table.Map(AppServerMethods.SourceControlThreadTargetUpdate, HandleThreadTargetUpdateAsync);
+        table.Map(global::DotCraft.Protocol.Contracts.AppServer.AppServerRpc.SourceControlGet, HandleGetAsync);
+        table.Map(global::DotCraft.Protocol.Contracts.AppServer.AppServerRpc.SourceControlUpdate, HandleUpdateAsync);
+        table.Map(global::DotCraft.Protocol.Contracts.AppServer.AppServerRpc.SourceControlTest, HandleTestAsync);
+        table.Map(global::DotCraft.Protocol.Contracts.AppServer.AppServerRpc.SourceControlChangelistList, HandleChangelistListAsync);
+        table.Map(global::DotCraft.Protocol.Contracts.AppServer.AppServerRpc.SourceControlChangelistCreate, HandleChangelistCreateAsync);
+        table.Map(global::DotCraft.Protocol.Contracts.AppServer.AppServerRpc.SourceControlChangelistPrepare, HandleChangelistPrepareAsync);
+        table.Map(global::DotCraft.Protocol.Contracts.AppServer.AppServerRpc.SourceControlThreadTargetGet, HandleThreadTargetGetAsync);
+        table.Map(global::DotCraft.Protocol.Contracts.AppServer.AppServerRpc.SourceControlThreadTargetUpdate, HandleThreadTargetUpdateAsync);
     }
 
     private Task<object?> HandleGetAsync(AppServerIncomingMessage msg, CancellationToken ct)
@@ -71,7 +71,7 @@ internal sealed class SourceControlRequestHandler(
         if (appConfigMonitor != null)
         {
             appConfigMonitor.Current.SourceControl = updated;
-            appConfigMonitor.NotifyChanged(AppServerMethods.SourceControlUpdate, [ConfigChangeRegions.SourceControl]);
+            appConfigMonitor.NotifyChanged(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.SourceControlUpdate, [ConfigChangeRegions.SourceControl]);
         }
 
         return Task.FromResult<object?>(BuildSnapshot(updated));
@@ -291,7 +291,7 @@ internal sealed class SourceControlRequestHandler(
     private void EnsureManagementAvailable()
     {
         if (string.IsNullOrWhiteSpace(workspaceCraftPath))
-            throw AppServerErrors.MethodNotFound(AppServerMethods.SourceControlGet);
+            throw AppServerErrors.MethodNotFound(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.SourceControlGet);
     }
 
     /// <summary>Builds the wire snapshot from config, resolving the effective provider and status.</summary>

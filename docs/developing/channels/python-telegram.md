@@ -12,7 +12,7 @@ This adapter maps each Telegram chat to a DotCraft thread. Users interact with t
 - **Inline keyboard approvals** — `item/approval/request` is presented as Telegram buttons.
 - **`/new` command** — archives the current thread and starts fresh.
 - **`/help` command** — shows available commands.
-- **Delivery support** — `ext/channel/deliver` is mapped to `bot.send_message()`.
+- **Delivery support** — `ext/channel/send` is mapped to `bot.send_message()`.
 - **Typing indicator** — shows "typing…" while the agent is processing.
 - **Markdown → HTML** — converts agent Markdown output to Telegram-compatible HTML.
 
@@ -29,7 +29,7 @@ This adapter maps each Telegram chat to a DotCraft thread. Users interact with t
 pip install -r sdk/python/examples/telegram/requirements.txt
 ```
 
-This installs `dotcraft-wire` (the SDK) and `python-telegram-bot`.
+This installs `dotcraft` (the SDK) and `python-telegram-bot`.
 
 ## Configuration
 
@@ -132,11 +132,11 @@ TelegramAdapter (python-telegram-bot, long polling)
      │ on_deliver()          → bot.send_message()
      │
      ▼
-dotcraft_wire.ChannelAdapter
+dotcraft.ChannelAdapter
      │
      │ thread/start, turn/start, stream events
      │ item/approval/request ↔ response
-     │ ext/channel/deliver
+     │ ext/channel/send
      │
      ▼
 DotCraft AppServer (stdio JSON-RPC)
@@ -162,6 +162,6 @@ examples/telegram/
 
 ## Related docs
 
-- [Python SDK](../sdks/python) — `dotcraft_wire` SDK overview and API reference.
+- [Python SDK](../sdks/python) — `dotcraft` SDK overview and API reference.
 - [Channels & Bots](../../features/entry-points/channels) — overview of every chat channel.
 - [Telegram Channel Adapter](./telegram) — the TypeScript adapter for the same platform.

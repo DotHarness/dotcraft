@@ -1,0 +1,83 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.dotcraft.dev/appserver/v1/core/UsageSummaryResult.schema.json",
+  "title": "UsageSummaryResult",
+  "type": "object",
+  "properties": {
+    "avgToolDurationMs": {
+      "type": "number"
+    },
+    "cacheHitRate": {
+      "type": "number"
+    },
+    "maxToolDurationMs": {
+      "type": "integer",
+      "minimum": -9007199254740991,
+      "maximum": 9007199254740991
+    },
+    "sessionCount": {
+      "type": "integer"
+    },
+    "totalCacheWriteInputTokens": {
+      "type": "integer",
+      "minimum": -9007199254740991,
+      "maximum": 9007199254740991
+    },
+    "totalCachedInputTokens": {
+      "type": "integer",
+      "minimum": -9007199254740991,
+      "maximum": 9007199254740991
+    },
+    "totalContextCompactions": {
+      "type": "integer"
+    },
+    "totalErrors": {
+      "type": "integer"
+    },
+    "totalFreshInputTokens": {
+      "type": "integer",
+      "minimum": -9007199254740991,
+      "maximum": 9007199254740991
+    },
+    "totalInputTokens": {
+      "type": "integer",
+      "minimum": -9007199254740991,
+      "maximum": 9007199254740991
+    },
+    "totalNonCachedInputTokens": {
+      "type": "integer",
+      "minimum": -9007199254740991,
+      "maximum": 9007199254740991
+    },
+    "totalOutputTokens": {
+      "type": "integer",
+      "minimum": -9007199254740991,
+      "maximum": 9007199254740991
+    },
+    "totalReasoningOutputTokens": {
+      "type": "integer",
+      "minimum": -9007199254740991,
+      "maximum": 9007199254740991
+    },
+    "totalRequests": {
+      "type": "integer"
+    },
+    "totalResponses": {
+      "type": "integer"
+    },
+    "totalTokens": {
+      "type": "integer",
+      "minimum": -9007199254740991,
+      "maximum": 9007199254740991
+    },
+    "totalToolCalls": {
+      "type": "integer"
+    },
+    "totalToolDurationMs": {
+      "type": "integer",
+      "minimum": -9007199254740991,
+      "maximum": 9007199254740991
+    }
+  },
+  "additionalProperties": true
+}

@@ -233,7 +233,7 @@ public sealed class AutomationTaskDiscardWorktreeResult
 }
 
 /// <summary>
-/// Params for <see cref="AppServerMethods.AutomationTaskUpdateBinding"/>.
+/// Params for <see cref="DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.AutomationTaskUpdateBinding"/>.
 /// When <see cref="ThreadBinding"/> is null the task is unbound (uses its own automation thread).
 /// </summary>
 public sealed class AutomationTaskUpdateBindingParams
@@ -251,7 +251,7 @@ public sealed class AutomationTaskUpdateBindingResult
 }
 
 /// <summary>
-/// Params for <see cref="AppServerMethods.AutomationTemplateList"/>. Currently takes no fields;
+/// Params for <see cref="DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.AutomationTemplateList"/>. Currently takes no fields;
 /// reserved for future locale / capability filters.
 /// </summary>
 public sealed class AutomationTemplateListParams
@@ -331,7 +331,7 @@ public sealed class AutomationTemplateListResult
 }
 
 /// <summary>
-/// Params for <see cref="AppServerMethods.AutomationTemplateSave"/>.
+/// Params for <see cref="DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.AutomationTemplateSave"/>.
 /// Upsert semantics: when <see cref="Id"/> is supplied and matches an existing user template,
 /// the save overwrites that template; otherwise the server assigns a fresh id.
 /// </summary>
@@ -376,19 +376,19 @@ public sealed class AutomationTemplateSaveParams
     public string? DefaultDescription { get; set; }
 }
 
-/// <summary>Result of <see cref="AppServerMethods.AutomationTemplateSave"/>.</summary>
+/// <summary>Result of <see cref="DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.AutomationTemplateSave"/>.</summary>
 public sealed class AutomationTemplateSaveResult
 {
     public AutomationTemplateWire Template { get; set; } = new();
 }
 
-/// <summary>Params for <see cref="AppServerMethods.AutomationTemplateDelete"/>.</summary>
+/// <summary>Params for <see cref="DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.AutomationTemplateDelete"/>.</summary>
 public sealed class AutomationTemplateDeleteParams
 {
     public string Id { get; set; } = string.Empty;
 }
 
-/// <summary>Result of <see cref="AppServerMethods.AutomationTemplateDelete"/>.</summary>
+/// <summary>Result of <see cref="DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.AutomationTemplateDelete"/>.</summary>
 public sealed class AutomationTemplateDeleteResult
 {
     public bool Ok { get; set; } = true;

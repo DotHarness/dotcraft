@@ -1,0 +1,27 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.dotcraft.dev/appserver/v1/core/PluginListResult.schema.json",
+  "title": "PluginListResult",
+  "type": "object",
+  "properties": {
+    "diagnostics": {
+      "type": "array",
+      "items": {
+        "$ref": "./PluginDiagnosticWire.schema.json"
+      }
+    },
+    "marketplaces": {
+      "type": "array",
+      "items": {
+        "$ref": "./MarketplaceInfoWire.schema.json"
+      }
+    },
+    "plugins": {
+      "type": "array",
+      "items": {
+        "$ref": "./PluginInfoWire.schema.json"
+      }
+    }
+  },
+  "additionalProperties": true
+}

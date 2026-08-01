@@ -12,7 +12,7 @@
   <ItemGroup>
     <PackageReference Include="Microsoft.Data.Sqlite" Version="9.0.4" />
 
-    <!-- Reference DotCraft.Core for AppServer protocol DTOs and method constants -->
+    <!-- Reference DotCraft.Core for AppServer runtime test infrastructure -->
     <ProjectReference Include="..\..\src\DotCraft.Core\DotCraft.Core.csproj" />
   </ItemGroup>
 

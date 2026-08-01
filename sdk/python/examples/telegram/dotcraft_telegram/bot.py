@@ -6,7 +6,7 @@ Maps each Telegram chat to a DotCraft thread. Supports:
 - Slash commands via server command pipeline (`command/execute`)
 - Agent replies streamed and sent progressively by completed segments
 - Approval flow via Telegram inline keyboard buttons
-- ext/channel/deliver mapped to bot.send_message()
+- ext/channel/send mapped to bot.send_message()
 - Typing indicator while the agent is processing
 """
 
@@ -36,7 +36,7 @@ from telegram.ext import (
 )
 from telegram.request import HTTPXRequest
 
-# Add the sdk/python directory to the path so dotcraft_wire is importable
+# Add the sdk/python directory to the path so dotcraft is importable
 # when running the example directly without installing the package.
 # __file__ is at sdk/python/examples/telegram/dotcraft_telegram/bot.py
 # three levels up reaches sdk/python/
@@ -44,7 +44,7 @@ _SDK_DIR = os.path.join(os.path.dirname(__file__), "..", "..", "..")
 if _SDK_DIR not in sys.path:
     sys.path.insert(0, _SDK_DIR)
 
-from dotcraft_wire import (
+from dotcraft import (
     DECISION_ACCEPT,
     DECISION_ACCEPT_ALWAYS,
     DECISION_ACCEPT_FOR_SESSION,

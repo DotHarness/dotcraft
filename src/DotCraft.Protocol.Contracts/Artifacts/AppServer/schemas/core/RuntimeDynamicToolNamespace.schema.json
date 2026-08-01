@@ -1,0 +1,31 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.dotcraft.dev/appserver/v1/core/RuntimeDynamicToolNamespace.schema.json",
+  "title": "RuntimeDynamicToolNamespace",
+  "type": "object",
+  "properties": {
+    "type": {
+      "type": "string",
+      "const": "namespace"
+    },
+    "description": {
+      "type": "string"
+    },
+    "name": {
+      "type": "string"
+    },
+    "tools": {
+      "type": "array",
+      "items": {
+        "$ref": "./RuntimeDynamicToolDeclaration.schema.json"
+      }
+    }
+  },
+  "additionalProperties": true,
+  "required": [
+    "description",
+    "name",
+    "tools",
+    "type"
+  ]
+}

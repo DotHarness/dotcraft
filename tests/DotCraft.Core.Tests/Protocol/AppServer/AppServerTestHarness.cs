@@ -13,6 +13,7 @@ using DotCraft.Protocol.AppServer;
 using DotCraft.Skills;
 using DotCraft.Tools.BackgroundTerminals;
 using DotCraft.Tracing;
+using Contract = DotCraft.Protocol.Contracts.AppServer;
 
 namespace DotCraft.Tests.Sessions.Protocol.AppServer;
 
@@ -182,7 +183,7 @@ internal sealed class AppServerTestHarness : IDisposable
                 }
                 : null
         };
-        var initMsg = BuildRequest(AppServerMethods.Initialize, new
+        var initMsg = BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.Initialize, new
         {
             clientInfo = new { name = "test-client", version = "0.0.1" },
             capabilities = caps
@@ -197,7 +198,7 @@ internal sealed class AppServerTestHarness : IDisposable
         var initResponse = Transport.TryReadSent()!;
 
         // Send the initialized notification to complete the handshake
-        Handler.HandleInitializedNotification();
+        Assert.True(Handler.HandleNotification(BuildNotification(Contract.AppServerRpc.Initialized.Name, new { })));
 
         return initResponse;
     }

@@ -1,0 +1,58 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.dotcraft.dev/appserver/v1/core/ApprovalRequestParams.schema.json",
+  "title": "ApprovalRequestParams",
+  "type": "object",
+  "properties": {
+    "approvalType": {
+      "type": "string"
+    },
+    "expiresAt": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "itemId": {
+      "type": "string"
+    },
+    "operation": {
+      "type": "string"
+    },
+    "reason": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "requestId": {
+      "type": "string"
+    },
+    "scopeKey": {
+      "type": "string"
+    },
+    "target": {
+      "type": "string"
+    },
+    "threadId": {
+      "type": "string"
+    },
+    "turnId": {
+      "type": "string"
+    }
+  },
+  "additionalProperties": true,
+  "required": [
+    "approvalType",
+    "expiresAt",
+    "itemId",
+    "operation",
+    "requestId",
+    "scopeKey",
+    "target",
+    "threadId",
+    "turnId"
+  ]
+}

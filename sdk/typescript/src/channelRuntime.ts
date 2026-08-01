@@ -5,7 +5,8 @@
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 
-import type { DotCraftWireClient, NotificationHandler, ServerRequestHandler } from "./client.js";
+import type { NotificationHandler, ServerRequestHandler } from "./client.js";
+import type { DotCraftAppServerClient } from "./appServerClient.js";
 import { DotCraftError } from "./errors.js";
 import { JsonRpcMessage, Thread, commandRefPart } from "./models.js";
 import type { LifecycleStatus, ModuleError, ModuleErrorCode } from "./lifecycle.js";
@@ -19,9 +20,9 @@ import {
 import { shouldFlushSegmentOnItemStarted } from "./segmentBoundaries.js";
 import { emptyUserInputResponse, type UserInputResponse } from "./userInput.js";
 
-type ClientProvider = DotCraftWireClient | (() => DotCraftWireClient);
+type ClientProvider = DotCraftAppServerClient | (() => DotCraftAppServerClient);
 
-function resolveClient(provider: ClientProvider): DotCraftWireClient {
+function resolveClient(provider: ClientProvider): DotCraftAppServerClient {
   return typeof provider === "function" ? provider() : provider;
 }
 
@@ -943,12 +944,12 @@ export class ApprovalDispatcher {
   }
 
   register(): void {
-    resolveClient(this.client).setApprovalHandler(async (_id, params) => {
+    resolveClient(this.client).registerServerRequestHandler("item/approval/request", async (_id, params) => {
       try {
-        return await this.onApprovalRequest(params);
+        return { decision: await this.onApprovalRequest(params) };
       } catch (error) {
         this.onError("onApprovalRequest raised:", error);
-        return "cancel";
+        return { decision: "cancel" };
       }
     });
   }
@@ -974,10 +975,10 @@ export class UserInputDispatcher {
   register(): void {
     resolveClient(this.client).registerServerRequestHandler("item/tool/requestUserInput", async (_id, params) => {
       try {
-        return await this.onUserInputRequest(params);
+        return await this.onUserInputRequest(params) as never;
       } catch (error) {
         this.onError("onUserInputRequest raised:", error);
-        return emptyUserInputResponse();
+        return emptyUserInputResponse() as never;
       }
     });
   }
@@ -985,7 +986,6 @@ export class UserInputDispatcher {
 
 export interface DeliveryDispatcherOptions {
   client: ClientProvider;
-  onDeliver: (target: string, content: string, metadata: Record<string, unknown>) => Promise<boolean>;
   onSend: (
     target: string,
     message: Record<string, unknown>,
@@ -996,7 +996,6 @@ export interface DeliveryDispatcherOptions {
 
 export class DeliveryDispatcher {
   private readonly client: ClientProvider;
-  private readonly onDeliver: (target: string, content: string, metadata: Record<string, unknown>) => Promise<boolean>;
   private readonly onSend: (
     target: string,
     message: Record<string, unknown>,
@@ -1006,28 +1005,12 @@ export class DeliveryDispatcher {
 
   constructor(options: DeliveryDispatcherOptions) {
     this.client = options.client;
-    this.onDeliver = options.onDeliver;
     this.onSend = options.onSend;
     this.onError = options.onError ?? ((message, error) => console.error(message, error));
   }
 
   register(): void {
     const client = resolveClient(this.client);
-    client.registerHandler("ext/channel/deliver", async (params) => {
-      await this.handleDeliverNotification(params);
-    });
-    client.registerServerRequestHandler("ext/channel/deliver", async (_id, params) => {
-      const target = String(params.target ?? "");
-      const content = String(params.content ?? "");
-      const metadata = (params.metadata as Record<string, unknown>) ?? {};
-      try {
-        const ok = await this.onDeliver(target, content, metadata);
-        return { delivered: ok };
-      } catch (error) {
-        this.onError("onDeliver raised:", error);
-        return { delivered: false, error: String(error) };
-      }
-    });
     client.registerServerRequestHandler("ext/channel/send", async (_id, params) => {
       const target = String(params.target ?? "");
       const message = (params.message as Record<string, unknown>) ?? {};
@@ -1043,17 +1026,6 @@ export class DeliveryDispatcher {
         };
       }
     });
-  }
-
-  async handleDeliverNotification(params: Record<string, unknown>): Promise<void> {
-    const target = String(params.target ?? "");
-    const content = String(params.content ?? "");
-    const metadata = (params.metadata as Record<string, unknown>) ?? {};
-    try {
-      await this.onDeliver(target, content, metadata);
-    } catch (error) {
-      this.onError("onDeliver (notification) raised:", error);
-    }
   }
 }
 

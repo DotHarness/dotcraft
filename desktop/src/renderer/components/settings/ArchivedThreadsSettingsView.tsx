@@ -53,11 +53,11 @@ export function ArchivedThreadsSettingsView({
         workspacePath
       }
       const result = await window.api.appServer.sendRequest('thread/list', {
-        identity,
+        identity: { ...identity },
         scope: 'workspace',
         includeArchived: true,
       })
-      const archivedThreads = ((result as { data?: ThreadSummary[] }).data ?? []).filter(
+      const archivedThreads = ((result as unknown as { data?: ThreadSummary[] }).data ?? []).filter(
         (thread) => thread.status === 'archived' && !isSubAgentThread(thread)
       )
       setThreads(archivedThreads)

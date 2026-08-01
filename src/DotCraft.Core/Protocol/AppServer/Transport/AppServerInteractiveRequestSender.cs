@@ -1,4 +1,4 @@
-using System.Text.Json;
+using Contract = DotCraft.Protocol.Contracts.AppServer;
 
 namespace DotCraft.Protocol.AppServer;
 
@@ -48,7 +48,7 @@ internal sealed class AppServerInteractiveRequestSender
         }
 
         if (!_connection.TryRegisterInteractiveRequest(
-            AppServerMethods.ItemApprovalRequest,
+            DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ApprovalRequest,
             threadId,
             turnId,
             request.RequestId))
@@ -68,12 +68,12 @@ internal sealed class AppServerInteractiveRequestSender
             ExpiresAt = request.ExpiresAt
         };
 
-        AppServerIncomingMessage response;
+        AppServerTypedClientResponse<Contract.ApprovalResponseResult> response;
         try
         {
-            response = await _transport.SendClientRequestAsync(
-                AppServerMethods.ItemApprovalRequest,
-                approvalParams,
+            response = await _transport.RequestAsync(
+                Contract.AppServerRpc.ApprovalRequest,
+                AppServerContractMapper.ToContract(approvalParams),
                 CancellationToken.None,
                 timeout: RemainingApprovalTimeout(request.ExpiresAt));
         }
@@ -89,7 +89,7 @@ internal sealed class AppServerInteractiveRequestSender
             return;
         }
 
-        var decision = ParseApprovalDecision(response);
+        var decision = ParseApprovalDecision(response.Result);
         await TryResolveApprovalAsync(threadId, turnId, request.RequestId, decision, CancellationToken.None);
     }
 
@@ -116,7 +116,7 @@ internal sealed class AppServerInteractiveRequestSender
         }
 
         if (!_connection.TryRegisterInteractiveRequest(
-            AppServerMethods.ItemRequestUserInput,
+            DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.UserInputRequest,
             threadId,
             turnId,
             request.RequestId))
@@ -131,12 +131,12 @@ internal sealed class AppServerInteractiveRequestSender
             Questions = request.Questions.ToList()
         };
 
-        AppServerIncomingMessage response;
+        AppServerTypedClientResponse<Contract.UserInputResponseResult> response;
         try
         {
-            response = await _transport.SendClientRequestAsync(
-                AppServerMethods.ItemRequestUserInput,
-                requestParams,
+            response = await _transport.RequestAsync(
+                Contract.AppServerRpc.UserInputRequest,
+                AppServerContractMapper.ToContract(requestParams),
                 CancellationToken.None,
                 timeout: Timeout.InfiniteTimeSpan);
         }
@@ -152,7 +152,7 @@ internal sealed class AppServerInteractiveRequestSender
             return;
         }
 
-        await TryResolveUserInputAsync(threadId, turnId, request.RequestId, ParseUserInputResponse(response), CancellationToken.None);
+        await TryResolveUserInputAsync(threadId, turnId, request.RequestId, ParseUserInputResponse(response.Result), CancellationToken.None);
     }
 
     public async Task ResolveApprovalWithFallbackAsync(
@@ -218,47 +218,31 @@ internal sealed class AppServerInteractiveRequestSender
         catch (OperationCanceledException) { /* Ignore if session was cancelled */ }
     }
 
-    private static SessionApprovalDecision ParseApprovalDecision(AppServerIncomingMessage response)
+    private static SessionApprovalDecision ParseApprovalDecision(Contract.ApprovalResponseResult? result)
     {
-        if (!response.Result.HasValue)
-            return SessionApprovalDecision.Reject;
-
-        try
+        return result?.Decision switch
         {
-            var result = JsonSerializer.Deserialize<AppServerApprovalResponseResult>(
-                response.Result.Value.GetRawText(),
-                SessionWireJsonOptions.Default);
-
-            return result?.Decision switch
-            {
-                "accept" => SessionApprovalDecision.AcceptOnce,
-                "acceptForSession" => SessionApprovalDecision.AcceptForSession,
-                "acceptAlways" => SessionApprovalDecision.AcceptAlways,
-                "decline" => SessionApprovalDecision.Reject,
-                "cancel" => SessionApprovalDecision.CancelTurn,
-                _ => SessionApprovalDecision.Reject
-            };
-        }
-        catch
-        {
-            return SessionApprovalDecision.Reject;
-        }
+            "accept" => SessionApprovalDecision.AcceptOnce,
+            "acceptForSession" => SessionApprovalDecision.AcceptForSession,
+            "acceptAlways" => SessionApprovalDecision.AcceptAlways,
+            "decline" => SessionApprovalDecision.Reject,
+            "cancel" => SessionApprovalDecision.CancelTurn,
+            _ => SessionApprovalDecision.Reject
+        };
     }
 
-    private static RequestUserInputResponse ParseUserInputResponse(AppServerIncomingMessage response)
+    private static RequestUserInputResponse ParseUserInputResponse(Contract.UserInputResponseResult? result)
     {
-        if (!response.Result.HasValue)
+        if (result is null)
             return new RequestUserInputResponse();
 
         try
         {
-            var result = JsonSerializer.Deserialize<AppServerRequestUserInputResponseResult>(
-                response.Result.Value.GetRawText(),
-                SessionWireJsonOptions.Default);
+            var domain = AppServerContractMapper.ToDomain(result);
 
             return new RequestUserInputResponse
             {
-                Answers = result?.Answers ?? new Dictionary<string, RequestUserInputAnswer>(StringComparer.Ordinal)
+                Answers = domain.Answers ?? new Dictionary<string, RequestUserInputAnswer>(StringComparer.Ordinal)
             };
         }
         catch

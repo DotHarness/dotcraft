@@ -2,6 +2,7 @@ using System.Collections.Concurrent;
 using System.Reflection;
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using Contract = DotCraft.Protocol.Contracts.AppServer;
 using DotCraft.AppBinding;
 using DotCraft.Plugins;
 using DotCraft.Tools;
@@ -272,38 +273,30 @@ public sealed class WireDynamicToolProxy : IToolSource, IThreadScopedToolSource
 
         try
         {
-            var response = await binding.Transport.SendClientRequestAsync(
-                AppServerMethods.ItemToolCall,
-                new DynamicToolCallParams
-                {
-                    ThreadId = execution.ThreadId,
-                    TurnId = execution.TurnId ?? string.Empty,
-                    CallId = execution.CallId,
-                    Namespace = spec.Namespace,
-                    Tool = spec.Name,
-                    Arguments = arguments
-                },
+            var requestParams = new DynamicToolCallParams
+            {
+                ThreadId = execution.ThreadId,
+                TurnId = execution.TurnId ?? string.Empty,
+                CallId = execution.CallId,
+                Namespace = spec.Namespace,
+                Tool = spec.Name,
+                Arguments = arguments
+            };
+            var response = await binding.Transport.RequestAsync(
+                Contract.AppServerRpc.DynamicToolCall,
+                AppServerContractMapper.ToContract(requestParams),
                 cancellationToken,
                 TimeSpan.FromSeconds(120));
 
             if (response.Error.HasValue)
                 return Failed("DynamicToolProtocolError", response.Error.Value.ToString());
 
-            if (!response.Result.HasValue)
-                return Failed("DynamicToolResultInvalid", $"Dynamic tool '{spec.Name}' returned no result.");
+            if (response.Result is null)
+                return Failed(
+                    "DynamicToolResultInvalid",
+                    response.InvalidResult ?? $"Dynamic tool '{spec.Name}' returned no result.");
 
-            RuntimeDynamicToolCallResult? result;
-            try
-            {
-                result = response.Result.Value.Deserialize<RuntimeDynamicToolCallResult>(JsonOptions);
-            }
-            catch (JsonException ex)
-            {
-                return Failed("DynamicToolResultInvalid", ex.Message);
-            }
-
-            if (result == null)
-                return Failed("DynamicToolResultInvalid", $"Dynamic tool '{spec.Name}' returned an invalid result.");
+            var result = AppServerContractMapper.ToDomain(response.Result);
 
             return TryValidateResult(result, out var resultError)
                 ? result

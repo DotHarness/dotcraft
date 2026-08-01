@@ -4,7 +4,7 @@ import { tmpdir } from 'os'
 import { join } from 'path'
 import { ModuleProcessManager } from '../moduleProcessManager'
 import type { DiscoveredModule } from '../moduleScanner'
-import type { WireProtocolClient } from '../WireProtocolClient'
+import type { DesktopAppServerClient } from '../DesktopAppServerClient'
 
 function makeModule(overrides: Partial<DiscoveredModule>): DiscoveredModule {
   return {
@@ -106,7 +106,7 @@ describe('ModuleProcessManager', () => {
   })
 })
 
-function makeFakeClient(requests: Array<{ method: string; params: unknown }>): WireProtocolClient {
+function makeFakeClient(requests: Array<{ method: string; params: unknown }>): DesktopAppServerClient {
   return {
     sendRequest: vi.fn(async (method: string, params?: unknown) => {
       requests.push({ method, params })
@@ -118,5 +118,5 @@ function makeFakeClient(requests: Array<{ method: string; params: unknown }>): W
       }
       return {}
     })
-  } as unknown as WireProtocolClient
+  } as unknown as DesktopAppServerClient
 }

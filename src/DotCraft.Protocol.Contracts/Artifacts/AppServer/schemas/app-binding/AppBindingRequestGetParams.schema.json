@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.dotcraft.dev/appserver/v1/app-binding/AppBindingRequestGetParams.schema.json",
+  "title": "AppBindingRequestGetParams",
+  "type": "object",
+  "properties": {
+    "bindingRequestId": {
+      "type": "string"
+    },
+    "requestToken": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    }
+  },
+  "additionalProperties": true
+}

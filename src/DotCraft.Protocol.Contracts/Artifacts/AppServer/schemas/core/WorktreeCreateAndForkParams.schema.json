@@ -1,0 +1,126 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.dotcraft.dev/appserver/v1/core/WorktreeCreateAndForkParams.schema.json",
+  "title": "WorktreeCreateAndForkParams",
+  "type": "object",
+  "properties": {
+    "additionalContext": {
+      "anyOf": [
+        {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "./RuntimeAdditionalContextEntry.schema.json"
+          }
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "baseRef": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "branchName": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "config": {
+      "anyOf": [
+        {
+          "$ref": "./ThreadConfiguration.schema.json"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "copyDirtyChanges": {
+      "anyOf": [
+        {
+          "type": "boolean"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "displayName": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "dynamicTools": {
+      "anyOf": [
+        {
+          "type": "array",
+          "items": {}
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "excludeTurns": {
+      "anyOf": [
+        {
+          "type": "boolean"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "forkPoint": {
+      "anyOf": [
+        {
+          "$ref": "./ThreadForkPoint.schema.json"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "identity": {
+      "anyOf": [
+        {
+          "$ref": "./SessionIdentity.schema.json"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "path": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "sourceThreadId": {
+      "type": "string"
+    }
+  },
+  "additionalProperties": true
+}

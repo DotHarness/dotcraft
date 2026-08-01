@@ -138,6 +138,85 @@ public sealed class HubClientTests
         Assert.Equal("{}" + Environment.NewLine, await File.ReadAllTextAsync(Path.Combine(expectedWorkspace, ".craft", "config.json")));
     }
 
+    [Fact]
+    public async Task ManagementMethods_UseSharedModelsAndPreserveErrorDetails()
+    {
+        using var temp = new TemporaryDirectory();
+        var lockPath = Path.Combine(temp.Path, "hub.lock");
+        await File.WriteAllTextAsync(lockPath, $$"""
+            { "pid": {{Environment.ProcessId}}, "apiBaseUrl": "http://127.0.0.1:49125", "token": "hub-token" }
+            """);
+        var paths = new List<string>();
+        var handler = new CaptureHandler(request =>
+        {
+            var path = request.RequestUri!.AbsolutePath;
+            paths.Add(path);
+            if (path == "/v1/status")
+            {
+                return Json(HttpStatusCode.OK, """
+                    {"hubVersion":"test","pid":1,"startedAt":"2026-05-18T00:00:00Z","statePath":"","apiBaseUrl":"http://127.0.0.1:49125","capabilities":{"appServerManagement":true,"portManagement":true,"events":true,"notifications":true,"tray":true}}
+                    """);
+            }
+            Assert.Equal("Bearer", request.Headers.Authorization?.Scheme);
+            if (path == "/v1/appservers")
+            {
+                return Json(HttpStatusCode.OK, "[]");
+            }
+            if (path == "/v1/appservers/stop")
+            {
+                return Json(HttpStatusCode.Conflict, """
+                    {"error":{"code":"stopConflict","message":"Cannot stop.","details":{"workspacePath":"X:/fixtures/workspace"}}}
+                    """);
+            }
+            return Json(HttpStatusCode.OK, AppServerJson);
+        });
+        var hub = new HubClient(new DotCraftHubClientOptions
+        {
+            HubLockPath = lockPath,
+            StartHubIfMissing = false,
+            HttpClientFactory = () => new HttpClient(handler)
+        });
+
+        Assert.Empty(await hub.ListAppServersAsync());
+        Assert.Equal(HubAppServerStates.Running, (await hub.RestartAppServerAsync("X:/fixtures/workspace")).State);
+        var error = await Assert.ThrowsAsync<HubClientException>(() => hub.StopAppServerAsync("X:/fixtures/workspace"));
+        Assert.Equal("stopConflict", error.Code);
+        Assert.Equal("X:/fixtures/workspace", error.Details?.GetProperty("workspacePath").GetString());
+        Assert.Contains("/v1/appservers/restart", paths);
+    }
+
+    [Fact]
+    public async Task BinaryMismatchError_ContainsExpectedAndActualExecutables()
+    {
+        using var temp = new TemporaryDirectory();
+        var lockPath = Path.Combine(temp.Path, "hub.lock");
+        await File.WriteAllTextAsync(lockPath, $$"""
+            { "pid": {{Environment.ProcessId}}, "apiBaseUrl": "http://127.0.0.1:49126", "token": "hub-token", "binaryPath": "old-dotcraft" }
+            """);
+        var handler = new CaptureHandler(_ => Json(HttpStatusCode.OK, """{"binaryPath":"old-dotcraft"}"""));
+        var hub = new HubClient(new DotCraftHubClientOptions
+        {
+            HubLockPath = lockPath,
+            StartHubIfMissing = false,
+            ExpectedExecutable = "new-dotcraft",
+            BinaryMatchPolicy = HubBinaryMatchPolicy.ErrorIfMismatch,
+            HttpClientFactory = () => new HttpClient(handler)
+        });
+
+        var error = await Assert.ThrowsAsync<HubClientException>(() => hub.EnsureHubAsync());
+        Assert.Equal("hubBinaryMismatch", error.Code);
+        Assert.EndsWith("new-dotcraft", error.Details?.GetProperty("expectedExecutable").GetString());
+    }
+
+    private const string AppServerJson = """
+        {"workspacePath":"X:/fixtures/workspace","canonicalWorkspacePath":"X:/fixtures/workspace","state":"running","pid":123,"endpoints":{},"serviceStatus":{},"serverVersion":"0.1","startedByHub":true}
+        """;
+
+    private static HttpResponseMessage Json(HttpStatusCode status, string body) => new(status)
+    {
+        Content = new StringContent(body)
+    };
+
     private sealed class CaptureHandler(Func<HttpRequestMessage, HttpResponseMessage> handle) : HttpMessageHandler
     {
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken) =>

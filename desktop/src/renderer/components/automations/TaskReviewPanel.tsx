@@ -133,7 +133,7 @@ function WorktreeReviewSection({ task }: { task: AutomationTask }): JSX.Element 
     const result = (await window.api.appServer.sendRequest('thread/read', {
       threadId: task.threadId,
       includeTurns: false
-    })) as { thread?: Thread }
+    })) as unknown as { thread?: Thread }
     return result.thread ?? null
   }
 

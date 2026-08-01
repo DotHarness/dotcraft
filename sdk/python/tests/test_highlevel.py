@@ -15,7 +15,8 @@ from dotcraft import (
     TurnInProgressError,
 )
 
-from dotcraft.client import DotCraftClient
+from dotcraft.client import DotCraftWireClient, RequestTimeoutError
+from dotcraft.appserver_client import DotCraftAppServerClient
 from dotcraft.events import merge_run_text, normalize
 from dotcraft.transport import Transport, TransportClosed
 
@@ -30,6 +31,15 @@ def test_app_binding_v2_canonical_fixture_is_stable() -> None:
         "connecting", "syncing", "active", "offline", "needsConfirmation", "revoked", "failed", "cancelled"
     ]
     assert APP_BINDING_V2_FIXTURE["errors"]["upgradeRequired"] == "AppBindingUpgradeRequired"
+
+
+def test_wire_surface_is_protocol_only() -> None:
+    wire = DotCraftWireClient(FakeTransport())
+    appserver = DotCraftAppServerClient(FakeTransport())
+    assert not hasattr(wire, "thread_start")
+    assert not hasattr(wire, "stream_events")
+    assert hasattr(appserver, "thread_start")
+    assert hasattr(appserver, "stream_events")
 
 
 class FakeTransport(Transport):
@@ -68,7 +78,7 @@ def _notification(method: str, params: dict) -> dict:
 
 async def _connect(approval=None, user_input=None):
     transport = FakeTransport()
-    client = DotCraftClient(transport)
+    client = DotCraftAppServerClient(transport)
     dotcraft = DotCraft(client)
     dotcraft._install_handlers(approval, user_input)
     await client.start()
@@ -86,6 +96,19 @@ async def _connect(approval=None, user_input=None):
     assert initialized["method"] == "initialized"
     await init_task
     return dotcraft, transport
+
+
+async def test_wire_request_timeout_uses_stable_error_and_state():
+    transport = FakeTransport()
+    client = DotCraftWireClient(transport, default_timeout=0.01)
+    await client.start()
+
+    with pytest.raises(RequestTimeoutError) as error:
+        await client.request_raw("fixture/timeout")
+
+    assert error.value.method == "fixture/timeout"
+    assert client.state == "ready"
+    await client.stop()
 
 
 async def _start_thread(dotcraft, transport):
@@ -253,11 +276,11 @@ async def test_approval_handler_responds_with_decision():
     await dotcraft.close()
 
 
-async def test_approval_auto_accepts_without_handler():
+async def test_approval_without_handler_returns_method_not_found():
     dotcraft, transport = await _connect()
     await transport.push({"jsonrpc": "2.0", "id": 5, "method": "item/approval/request", "params": {"threadId": "thread_1"}})
     response = await transport.read_outbound()
-    assert response["result"]["decision"] == "accept"
+    assert response["error"]["code"] == -32601
     await dotcraft.close()
 
 
@@ -274,7 +297,7 @@ async def test_user_input_handler_responds_with_answers():
 
 async def test_initialize_advertises_user_input_support_when_handler_provided():
     transport = FakeTransport()
-    client = DotCraftClient(transport)
+    client = DotCraftAppServerClient(transport)
     dotcraft = DotCraft(client)
 
     async def user_input(params):
@@ -421,6 +444,12 @@ def test_app_binding_handoff_rejects_wrong_scheme():
     url = "evil://dotcraft/connect?app=x&request=r&token=t"
     with pytest.raises(ValueError):
         AppBindingHandoff.parse(url, expected_scheme="board-example")
+
+
+def test_app_binding_handoff_rejects_alternate_query_names():
+    url = "board-example://dotcraft/connect?appId=com.example.board&requestId=req_1&requestToken=tok_1"
+    with pytest.raises(ValueError):
+        AppBindingHandoff.parse(url)
 
 
 def test_merge_run_text_prefers_turn_items():
