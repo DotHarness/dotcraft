@@ -10,9 +10,8 @@ High-level usage::
     result = await thread.run("Summarize this project.")
     print(result.text)
 
-The low-level wire client, transports, and channel adapter remain available for
-advanced clients. ``dotcraft_wire`` is a compatibility alias that re-exports the
-wire/adapter surface from this package.
+The low-level wire client, contracts, transports, and channel adapter remain
+available for advanced clients through the ``dotcraft`` package.
 """
 
 from .adapter import ChannelAdapter
@@ -30,7 +29,8 @@ from .app_binding import (
     ThreadAppBinding,
     app_binding_tool_error,
 )
-from .client import DotCraftClient, DotCraftError
+from .client import DotCraftWireClient, DotCraftError, ReconnectQueueFullError, RequestTimeoutError
+from .appserver_client import DotCraftAppServerClient
 from .errors import (
     ApprovalTimeoutError,
     InitializationError,
@@ -52,9 +52,13 @@ from .highlevel import (
     ThreadManager,
 )
 from .hub import (
+    HubAppServerResponse,
     HubClient,
     HubError,
+    HubEvent,
     HubLockInfo,
+    HubRuntimeToolsRequest,
+    HubStatusResponse,
     default_chat_workspace_path,
     ensure_default_chat_workspace,
 )
@@ -109,7 +113,7 @@ from .transport import (
     WebSocketTransport,
 )
 
-__version__ = "0.2.1"
+__version__ = "0.4.3"
 sdk_contract_version = "1.0.0"
 
 __all__ = [
@@ -124,7 +128,10 @@ __all__ = [
     "RemoteOptions",
     "McpRuntimeManager",
     # Wire client
-    "DotCraftClient",
+    "DotCraftWireClient",
+    "DotCraftAppServerClient",
+    "ReconnectQueueFullError",
+    "RequestTimeoutError",
     "DotCraftError",
     "JsonRpcMessage",
     # Transports
@@ -137,6 +144,10 @@ __all__ = [
     "HubClient",
     "HubLockInfo",
     "HubError",
+    "HubAppServerResponse",
+    "HubRuntimeToolsRequest",
+    "HubStatusResponse",
+    "HubEvent",
     "default_chat_workspace_path",
     "ensure_default_chat_workspace",
     # App Binding

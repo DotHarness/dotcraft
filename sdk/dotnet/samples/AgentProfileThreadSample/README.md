@@ -31,7 +31,7 @@ Useful options:
 ```powershell
 dotnet run --project sdk\dotnet\samples\AgentProfileThreadSample -- "<workspacePath>" --overwrite-profile
 dotnet run --project sdk\dotnet\samples\AgentProfileThreadSample -- "<workspacePath>" --profile-id smoke-reviewer
-dotnet run --project sdk\dotnet\samples\AgentProfileThreadSample -- "<workspacePath>" --dotcraft-bin "<path-to-dotcraft.exe>"
+dotnet run --project sdk\dotnet\samples\AgentProfileThreadSample -- "<workspacePath>" --executable "<path-to-dotcraft.exe>"
 ```
 
 The sample may start the local Hub and AppServer if they are not already

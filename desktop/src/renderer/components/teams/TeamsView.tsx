@@ -389,7 +389,7 @@ export function TeamsView(): JSX.Element {
 
   useEffect(() => {
     void refresh()
-    const unsubscribe = window.api.appServer.onNotification((payload: { method: string }) => {
+    const unsubscribe = window.api.appServer.onNotification((payload) => {
       if (
         payload.method === 'teams/team/changed' ||
         payload.method === 'thread/queue/updated' ||

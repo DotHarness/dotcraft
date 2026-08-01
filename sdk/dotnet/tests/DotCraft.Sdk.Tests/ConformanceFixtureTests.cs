@@ -23,7 +23,7 @@ public sealed class ConformanceFixtureTests
         var parameters = root.GetProperty("params");
         Assert.Equal("dotcraft-dotnet-test", parameters.GetProperty("clientInfo").GetProperty("name").GetString());
         Assert.Equal("DotCraft .NET Test", parameters.GetProperty("clientInfo").GetProperty("title").GetString());
-        Assert.True(parameters.GetProperty("capabilities").GetProperty("approvalSupport").GetBoolean());
+        Assert.False(parameters.GetProperty("capabilities").GetProperty("approvalSupport").GetBoolean());
         Assert.True(parameters.GetProperty("capabilities").GetProperty("streamingSupport").GetBoolean());
 
         await RespondToInitializeAsync(transport, root.GetProperty("id").GetInt64());

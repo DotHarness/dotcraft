@@ -174,7 +174,7 @@ export function useComposerMascot({
             workspacePath
           },
           historyMode: 'server'
-        })) as { thread: ThreadSummary }
+        })) as unknown as { thread: ThreadSummary }
 
         const inputParts: InputPart[] = [
           { type: 'skillRef', name: skill },

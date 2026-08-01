@@ -4,13 +4,21 @@ using DotCraft.Sdk.Wire;
 
 namespace DotCraft.Sdk.Tests;
 
-internal sealed class TestJsonRpcTransport : IJsonRpcTransport
+internal sealed class TestJsonRpcTransport : IReconnectableJsonRpcTransport
 {
     private readonly Channel<JsonDocument> _inbound = Channel.CreateUnbounded<JsonDocument>();
     private readonly Channel<JsonDocument> _outbound = Channel.CreateUnbounded<JsonDocument>();
 
     public Task<JsonDocument?> ReadAsync(CancellationToken cancellationToken = default) =>
         ReadNullableAsync(_inbound.Reader, cancellationToken);
+
+    public int ReconnectCount { get; private set; }
+
+    public Task ReconnectAsync(CancellationToken cancellationToken = default)
+    {
+        ReconnectCount++;
+        return Task.CompletedTask;
+    }
 
     public Task WriteAsync(object message, CancellationToken cancellationToken = default)
     {
@@ -23,6 +31,12 @@ internal sealed class TestJsonRpcTransport : IJsonRpcTransport
     {
         var json = JsonSerializer.Serialize(message, DotCraft.Sdk.Wire.DotCraftJson.Options);
         _inbound.Writer.TryWrite(JsonDocument.Parse(json));
+        return Task.CompletedTask;
+    }
+
+    public Task PushDisconnectAsync()
+    {
+        _inbound.Writer.TryWrite(JsonDocument.Parse("null"));
         return Task.CompletedTask;
     }
 
@@ -40,7 +54,13 @@ internal sealed class TestJsonRpcTransport : IJsonRpcTransport
     {
         try
         {
-            return await reader.ReadAsync(cancellationToken);
+            var document = await reader.ReadAsync(cancellationToken);
+            if (document.RootElement.ValueKind == JsonValueKind.Null)
+            {
+                document.Dispose();
+                return null;
+            }
+            return document;
         }
         catch (ChannelClosedException)
         {

@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
+using System.Runtime.CompilerServices;
 using System.Text.Json;
 using DotCraft.Sdk.Wire;
 
@@ -149,7 +150,20 @@ public sealed class HubClient
             ParseHubBaseUrl(lockInfo.ApiBaseUrl);
             using var http = CreateHttpClient();
             using var response = await http.Client.GetAsync($"{lockInfo.ApiBaseUrl.TrimEnd('/')}/v1/status", cancellationToken);
-            return response.IsSuccessStatusCode ? lockInfo : null;
+            if (!response.IsSuccessStatusCode)
+            {
+                return null;
+            }
+
+            try
+            {
+                var status = await response.Content.ReadFromJsonAsync<HubStatusResponse>(DotCraftJson.Options, cancellationToken);
+                return lockInfo with { BinaryPath = status?.BinaryPath ?? lockInfo.BinaryPath };
+            }
+            catch
+            {
+                return lockInfo;
+            }
         }
         catch
         {
@@ -164,7 +178,24 @@ public sealed class HubClient
     {
         if (await TryGetLiveHubAsync(cancellationToken) is { } live)
         {
-            return live;
+            if (GetBinaryMismatch(live) is not { } mismatch)
+            {
+                return live;
+            }
+
+            switch (_options.BinaryMatchPolicy)
+            {
+                case HubBinaryMatchPolicy.ErrorIfMismatch:
+                    throw new HubClientException(
+                        "hubBinaryMismatch",
+                        "Hub is running from a different executable.",
+                        mismatch);
+                case HubBinaryMatchPolicy.RestartIfMismatch:
+                    await ShutdownMismatchedHubAsync(live, mismatch, cancellationToken);
+                    break;
+                default:
+                    return live;
+            }
         }
 
         if (!_options.StartHubIfMissing)
@@ -265,6 +296,114 @@ public sealed class HubClient
         return EnsureAppServerAsync(workspacePath, options, cancellationToken);
     }
 
+    /// <summary>Restarts the AppServer for a workspace.</summary>
+    public async Task<HubAppServerResponse> RestartAppServerAsync(
+        string workspacePath,
+        HubRuntimeToolsRequest? runtimeTools = null,
+        CancellationToken cancellationToken = default)
+    {
+        var hub = await EnsureHubAsync(cancellationToken);
+        return await PostAppServerAsync(hub, "/v1/appservers/restart", new { workspacePath, runtimeTools }, cancellationToken);
+    }
+
+    /// <summary>Stops the AppServer for a workspace.</summary>
+    public async Task<HubAppServerResponse> StopAppServerAsync(
+        string workspacePath,
+        CancellationToken cancellationToken = default)
+    {
+        var hub = await EnsureHubAsync(cancellationToken);
+        return await PostAppServerAsync(hub, "/v1/appservers/stop", new { workspacePath }, cancellationToken);
+    }
+
+    /// <summary>Lists all Hub AppServer registry entries.</summary>
+    public async Task<IReadOnlyList<HubAppServerResponse>> ListAppServersAsync(
+        CancellationToken cancellationToken = default)
+    {
+        var hub = await EnsureHubAsync(cancellationToken);
+        using var http = CreateHttpClient();
+        using var request = new HttpRequestMessage(HttpMethod.Get, $"{hub.ApiBaseUrl.TrimEnd('/')}/v1/appservers");
+        ApplyAuthorization(request, hub);
+        using var response = await http.Client.SendAsync(request, cancellationToken);
+        if (!response.IsSuccessStatusCode)
+        {
+            throw await ToClientExceptionAsync(response, cancellationToken);
+        }
+        return await response.Content.ReadFromJsonAsync<IReadOnlyList<HubAppServerResponse>>(DotCraftJson.Options, cancellationToken)
+               ?? [];
+    }
+
+    /// <summary>Gets the current Hub status.</summary>
+    public async Task<HubStatusResponse> GetStatusAsync(CancellationToken cancellationToken = default)
+    {
+        var hub = await EnsureHubAsync(cancellationToken);
+        using var http = CreateHttpClient();
+        using var response = await http.Client.GetAsync($"{hub.ApiBaseUrl.TrimEnd('/')}/v1/status", cancellationToken);
+        if (!response.IsSuccessStatusCode)
+        {
+            throw await ToClientExceptionAsync(response, cancellationToken);
+        }
+        return await response.Content.ReadFromJsonAsync<HubStatusResponse>(DotCraftJson.Options, cancellationToken)
+               ?? throw new HubClientException("hubInvalidResponse", "Hub returned an empty status response.");
+    }
+
+    /// <summary>Stops a live Hub; does nothing when no live Hub exists.</summary>
+    public async Task ShutdownHubAsync(CancellationToken cancellationToken = default)
+    {
+        if (await TryGetLiveHubAsync(cancellationToken) is not { } hub)
+        {
+            return;
+        }
+        await PostJsonAsync(hub, "/v1/shutdown", new { }, cancellationToken);
+    }
+
+    /// <summary>Streams Hub lifecycle events.</summary>
+    public async IAsyncEnumerable<HubEvent> SubscribeEventsAsync(
+        [EnumeratorCancellation] CancellationToken cancellationToken = default)
+    {
+        var hub = await EnsureHubAsync(cancellationToken);
+        using var http = CreateHttpClient();
+        using var request = new HttpRequestMessage(HttpMethod.Get, $"{hub.ApiBaseUrl.TrimEnd('/')}/v1/events");
+        ApplyAuthorization(request, hub);
+        using var response = await http.Client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
+        if (!response.IsSuccessStatusCode)
+        {
+            throw await ToClientExceptionAsync(response, cancellationToken);
+        }
+
+        await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
+        using var reader = new StreamReader(stream);
+        while (!cancellationToken.IsCancellationRequested)
+        {
+            var line = await reader.ReadLineAsync(cancellationToken);
+            if (line is null)
+            {
+                break;
+            }
+            if (line?.StartsWith("data:", StringComparison.Ordinal) != true)
+            {
+                continue;
+            }
+            var data = line["data:".Length..].Trim();
+            if (string.IsNullOrWhiteSpace(data))
+            {
+                continue;
+            }
+            HubEvent? parsed;
+            try
+            {
+                parsed = JsonSerializer.Deserialize<HubEvent>(data, DotCraftJson.Options);
+            }
+            catch (JsonException)
+            {
+                continue;
+            }
+            if (parsed is not null)
+            {
+                yield return parsed;
+            }
+        }
+    }
+
     /// <summary>
     /// Ensures the default Chat workspace directory structure exists.
     /// </summary>
@@ -307,13 +446,13 @@ public sealed class HubClient
 
     private void StartHubProcess()
     {
-        var dotcraftBin = string.IsNullOrWhiteSpace(_options.DotCraftBin)
+        var executable = string.IsNullOrWhiteSpace(_options.Executable)
             ? "dotcraft"
-            : _options.DotCraftBin!;
-        var isDll = dotcraftBin.EndsWith(".dll", StringComparison.OrdinalIgnoreCase);
+            : _options.Executable!;
+        var isDll = executable.EndsWith(".dll", StringComparison.OrdinalIgnoreCase);
         var startInfo = new ProcessStartInfo
         {
-            FileName = isDll ? "dotnet" : dotcraftBin,
+            FileName = isDll ? "dotnet" : executable,
             UseShellExecute = false,
             CreateNoWindow = true,
             RedirectStandardInput = false,
@@ -322,7 +461,7 @@ public sealed class HubClient
         };
         if (isDll)
         {
-            startInfo.ArgumentList.Add(dotcraftBin);
+            startInfo.ArgumentList.Add(executable);
         }
 
         startInfo.ArgumentList.Add("hub");
@@ -332,7 +471,7 @@ public sealed class HubClient
         }
         catch (Exception ex)
         {
-            throw new HubClientException("hubUnavailable", $"DotCraft Hub failed to start: {ex.Message}", ex);
+            throw new HubClientException("hubUnavailable", $"DotCraft Hub failed to start: {ex.Message}", innerException: ex);
         }
     }
 
@@ -347,7 +486,10 @@ public sealed class HubClient
             var error = root.TryGetProperty("error", out var errorElement) ? errorElement : root;
             var code = ReadString(error, "code") ?? (response.StatusCode == HttpStatusCode.Unauthorized ? "unauthorized" : "hubRequestFailed");
             var message = ReadString(error, "message") ?? $"Hub request failed with HTTP {(int)response.StatusCode}.";
-            return new HubClientException(code, message);
+            var details = error.ValueKind == JsonValueKind.Object && error.TryGetProperty("details", out var detailsElement)
+                ? detailsElement.Clone()
+                : (JsonElement?)null;
+            return new HubClientException(code, message, details);
         }
         catch
         {
@@ -355,6 +497,87 @@ public sealed class HubClient
                 response.StatusCode == HttpStatusCode.Unauthorized ? "unauthorized" : "hubRequestFailed",
                 $"Hub request failed with HTTP {(int)response.StatusCode}.");
         }
+    }
+
+    private async Task<HubAppServerResponse> PostAppServerAsync(
+        HubLockInfo hub,
+        string path,
+        object body,
+        CancellationToken cancellationToken)
+    {
+        var element = await PostJsonAsync(hub, path, body, cancellationToken);
+        return element.Deserialize<HubAppServerResponse>(DotCraftJson.Options)
+               ?? throw new HubClientException("hubInvalidResponse", "Hub returned an empty AppServer response.");
+    }
+
+    private async Task<JsonElement> PostJsonAsync(
+        HubLockInfo hub,
+        string path,
+        object body,
+        CancellationToken cancellationToken)
+    {
+        using var http = CreateHttpClient();
+        using var request = new HttpRequestMessage(HttpMethod.Post, $"{hub.ApiBaseUrl.TrimEnd('/')}{path}")
+        {
+            Content = JsonContent.Create(body, options: DotCraftJson.Options)
+        };
+        ApplyAuthorization(request, hub);
+        using var response = await http.Client.SendAsync(request, cancellationToken);
+        if (!response.IsSuccessStatusCode)
+        {
+            throw await ToClientExceptionAsync(response, cancellationToken);
+        }
+        return JsonSerializer.Deserialize<JsonElement>(await response.Content.ReadAsStringAsync(cancellationToken), DotCraftJson.Options);
+    }
+
+    private JsonElement? GetBinaryMismatch(HubLockInfo hub)
+    {
+        if (string.IsNullOrWhiteSpace(_options.ExpectedExecutable) || _options.BinaryMatchPolicy == HubBinaryMatchPolicy.Ignore)
+        {
+            return null;
+        }
+        var expected = Path.GetFullPath(_options.ExpectedExecutable);
+        var actual = string.IsNullOrWhiteSpace(hub.BinaryPath) ? null : Path.GetFullPath(hub.BinaryPath);
+        var comparison = OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
+        if (actual is not null && string.Equals(actual, expected, comparison))
+        {
+            return null;
+        }
+        return JsonSerializer.SerializeToElement(new { expectedExecutable = expected, actualExecutable = actual }, DotCraftJson.Options);
+    }
+
+    private async Task ShutdownMismatchedHubAsync(
+        HubLockInfo hub,
+        JsonElement details,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            await PostJsonAsync(hub, "/v1/shutdown", new { }, cancellationToken);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            throw new HubClientException(
+                "hubMismatchShutdownFailed",
+                "Hub uses a different executable and could not be stopped.",
+                details,
+                ex);
+        }
+
+        var deadline = DateTimeOffset.UtcNow + _options.ShutdownTimeout;
+        while (DateTimeOffset.UtcNow < deadline)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (!IsProcessAlive(hub.Pid))
+            {
+                return;
+            }
+            await Task.Delay(PollInterval, cancellationToken);
+        }
+        throw new HubClientException(
+            "hubMismatchShutdownTimeout",
+            "Hub uses a different executable and did not stop after shutdown.",
+            details);
     }
 
     private static string? ReadString(JsonElement element, string propertyName)

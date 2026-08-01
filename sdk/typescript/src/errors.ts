@@ -73,6 +73,20 @@ export class InitializationError extends DotCraftSdkError {
   }
 }
 
+export class RequestTimeoutError extends DotCraftSdkError {
+  constructor(method: string, timeoutMs: number) {
+    super("RequestTimeout", `Request '${method}' timed out after ${timeoutMs}ms.`);
+    this.name = "RequestTimeoutError";
+  }
+}
+
+export class ReconnectQueueFullError extends DotCraftSdkError {
+  constructor(limit: number) {
+    super("ReconnectQueueFull", `Reconnect queue reached its ${limit} message limit.`);
+    this.name = "ReconnectQueueFullError";
+  }
+}
+
 export class TurnFailedError extends DotCraftSdkError {
   readonly turn?: unknown;
 

@@ -2,16 +2,14 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.1.0 |
+| **Version** | 0.4.0 |
 | **Status** | Living |
-| **Date** | 2026-06-03 |
+| **Date** | 2026-08-01 |
 | **Related Specs** | [Unified SDK Specification](sdk.md), [AppServer Protocol](../protocols/appserver-protocol.md), [AppServer Protocol Contracts and SDK Generation](protocol-contract-generation.md), [Hub Architecture](../architecture/hub-architecture.md), [App Binding](../protocols/app-binding.md), [External Channel Adapter](../protocols/external-channel-adapter.md), [Session Core](../architecture/session-core.md), [TypeScript SDK Binding](typescript.md), [.NET SDK Binding](dotnet.md) |
 
 Purpose: Define the Python binding — package identity, runtime baseline, full general-purpose client surface, channel adapter, and compatibility strategy — for the DotCraft Python SDK.
 
-Shared SDK behavior is defined by [Unified SDK Specification](sdk.md). This language binding adds Python-specific package structure, async idioms, and the migration from the `dotcraft-wire` wire/adapter package to the full `dotcraft` client SDK. It must not redefine shared SDK semantics.
-
-This spec is a target contract. [Section 3](#3-current-implementation-snapshot) records the current `dotcraft-wire` baseline and the gaps the implementation closes to reach the parity targets in [Unified SDK Specification §5](sdk.md#5-capability-matrix).
+Shared SDK behavior is defined by [Unified SDK Specification](sdk.md). This language binding adds Python-specific package structure and async idioms without redefining shared SDK semantics.
 
 ---
 
@@ -61,7 +59,7 @@ It defines:
 - Approval, user-input, and runtime dynamic tool callback contracts.
 - App Binding helpers.
 - The channel adapter surface.
-- Documentation, examples, testing, security, and compatibility requirements, including the `dotcraft-wire` → `dotcraft` migration.
+- Documentation, examples, testing, security, and compatibility requirements.
 
 ### 1.2 What This Spec Does Not Define
 
@@ -121,32 +119,20 @@ If the Python implementation discovers a required change to AppServer Protocol, 
 
 ## 3. Current Implementation Snapshot
 
-The canonical package is `dotcraft` (`sdk/python/dotcraft/`); `dotcraft_wire` is retained as a compatibility alias that re-exports the wire client, transports, and channel adapter. The high-level promotion described by this spec is implemented: Hub bootstrap, the `DotCraft` facade, the active `Thread` handle, `run` / `run_streamed` with normalized `RunEvent` and text merge, a public `request()` escape hatch, approval and user-input callbacks, runtime dynamic tools, and App Binding helpers. The baseline below records the pre-promotion `dotcraft-wire` surface for reference.
+The canonical and only package is `dotcraft` (`sdk/python/dotcraft/`). Its public surface is split into generated contracts, the pure `DotCraftWireClient`, the business-oriented `DotCraftAppServerClient`, the `DotCraft` / active `Thread` API, Hub helpers, App Binding helpers, and the channel adapter.
 
 Current surface:
 
 | Area | Current symbol | Status |
 |------|----------------|--------|
 | Transports | `StdioTransport`, `WebSocketTransport` | Present |
-| Wire client | `DotCraftClient(transport)` with `thread_*` / `turn_*` methods, `on()`, `stream_events()` | Present, low-level only |
-| Notifications | `on()`, `register_handler()`, `stream_events()` | Raw envelopes only |
-| Approval callback | `on_approval_request` | Present |
+| Wire client | `DotCraftWireClient(transport)` with typed RPC mixin and explicit raw APIs | Present, protocol-only |
+| AppServer client | `DotCraftAppServerClient(transport)` with Thread, Turn, command, MCP, event stream, and Dynamic Tool operations | Present, high-level |
+| Notifications | Generated registry plus explicit raw handlers | Present |
+| Approval callback | `approval_handler` on high-level options | Present |
 | Channel adapter | `ChannelAdapter` | Present |
 | Input parts | `text_part`, `image_url_part`, `local_image_part` | Present |
-| Reply merge helpers | `turn_reply.merge_reply_text_from_delta_and_snapshot` | Present, not integrated/exported |
-
-Gaps in the `dotcraft-wire` baseline, now closed in `dotcraft`:
-
-- Local Hub bootstrap (`HubClient`: discovery, startup, `appservers/ensure`).
-- Public `request()` / `notify()` raw escape hatch (the prior `_request` was private).
-- The `DotCraft` facade, `ThreadManager`, and active `Thread` handle.
-- High-level `run()` / `run_streamed()` with the normalized `RunEvent` model and delta/snapshot text merge.
-- The `turn/enqueue` wrapper.
-- The user-input callback.
-- Runtime dynamic tool declaration (`dynamic_tools` on start/resume) and the `item/tool/call` callback (`on_tool_call`).
-- App Binding helpers (handoff parse, principal authentication, enable, activate, rebind, confirm, revoke).
-
-The model-list wrapper (`dotcraft.models.list()`) and typed App Binding DTOs are also implemented. No client-surface gaps remain; future work is limited to synchronous wrappers and reconnect policy.
+| Reply merge helpers | `turn_reply.merge_reply_text_from_delta_and_snapshot` | Integrated by Run and Channel profiles |
 
 ---
 
@@ -160,7 +146,7 @@ The canonical Python SDK package is:
 dotcraft         # distribution and import name
 ```
 
-The previous `dotcraft-wire` package is retained as a compatibility distribution that re-exports the wire and channel-adapter surface from `dotcraft` (see [§21.3](#213-package-rename-and-compatibility)). New code uses `dotcraft`.
+`dotcraft` is the only supported distribution and import root. No compatibility package or re-export package exists.
 
 ### 4.2 Public Module Surface
 
@@ -169,8 +155,10 @@ The package exposes a curated public API through `dotcraft/__init__.py`. Logical
 | Group | Public symbols |
 |-------|----------------|
 | High-level client | `DotCraft`, `Thread`, `ThreadManager`, `RunResult`, `RunEvent` |
+| AppServer client | `DotCraftAppServerClient` business-oriented protocol helpers |
 | Connection options | `LocalOptions`, `RemoteOptions` |
-| Wire client | `DotCraftClient`, `JsonRpcMessage` |
+| Contracts | `dotcraft.contracts` Pydantic models, registries, method groups, protocol info |
+| Wire client | `dotcraft.wire.DotCraftWireClient`, `JsonRpcMessage` |
 | Transports | `Transport`, `StdioTransport`, `WebSocketTransport` |
 | Hub | `HubClient`, `HubLockInfo`, `HubError` |
 | App Binding | `AppBindingManager`, `AppBindingHandoff`, `app_binding_tool_error`, `APP_BINDING_ERROR_CODES` |
@@ -228,7 +216,7 @@ class LocalOptions:
     client_name: str = "dotcraft-python"
     client_version: str = "..."
     client_title: str | None = None
-    dotcraft_bin: str | None = None
+    executable: str | None = None
     hub_startup_timeout: float = 30.0
     approval_handler: ApprovalHandler | None = None
     user_input_handler: UserInputHandler | None = None
@@ -268,7 +256,7 @@ High-level clients send:
 }
 ```
 
-If no `user_input_handler` is provided, the SDK may still advertise `requestUserInputSupport` and return empty answers, matching AppServer fallback semantics. Channel adapters additionally send `capabilities.channelAdapter`.
+If `approvalSupport` or `requestUserInputSupport` is explicitly advertised, the matching handler must be configured before initialization or connection fails with a stable configuration error. Channel adapters additionally send `capabilities.channelAdapter`.
 
 ---
 
@@ -276,7 +264,7 @@ If no `user_input_handler` is provided, the SDK may still advertise `requestUser
 
 ### 7.1 Responsibilities
 
-`HubClient` provides Hub lock path resolution, lock JSON parsing, process liveness checks, loopback URL validation, status probing, Hub startup, and `appservers/ensure`. Behavior follows [Unified SDK Specification §3.2](sdk.md#32-hub-bootstrap-profile).
+`HubClient` provides Hub lock path resolution, lock JSON parsing, process liveness checks, loopback URL validation, status probing, Hub startup, live discovery, workspace lookup, AppServer ensure/restart/stop/list, status, SSE events, and Hub shutdown. It preserves complete runtime-tool fields and exposes structured `code`, `message`, and `details` errors. Behavior follows [Unified SDK Specification §3.2](sdk.md#32-hub-bootstrap-profile).
 
 ### 7.2 Hub Lock
 
@@ -295,7 +283,7 @@ class HubLockInfo:
 
 ### 7.3 Hub Startup
 
-When Hub is not live, the SDK starts `dotcraft hub` (or `dotnet <dotcraft_bin> hub` when `dotcraft_bin` is a `.dll`). The child process is detached and not connected to the parent stdio streams.
+When Hub is not live, the SDK starts `dotcraft hub` (or `dotnet <executable> hub` when `executable` is a `.dll`). The child process is detached and not connected to the parent stdio streams.
 
 ### 7.4 AppServer Ensure
 
@@ -309,7 +297,7 @@ When Hub is not live, the SDK starts `dotcraft hub` (or `dotnet <dotcraft_bin> h
 
 ### 8.1 Responsibilities
 
-`DotCraftClient` handles request id generation, JSON-RPC serialization, response correlation, error conversion, notification dispatch, server-initiated request dispatch, transport close handling, and graceful shutdown.
+`DotCraftWireClient` handles request id generation, JSON-RPC serialization, response correlation, error conversion, typed and raw notification/server-request dispatch, initialization gating, timeout, opt-in reconnect, transport close handling, and graceful shutdown. It contains no Thread, Run, callback, or Channel business policy.
 
 ### 8.2 Transport Interface
 
@@ -320,22 +308,22 @@ class Transport(abc.ABC):
     async def close(self) -> None: ...
 ```
 
-`StdioTransport` uses newline-delimited JSON; `WebSocketTransport` uses one JSON-RPC message per text frame, appends a bearer token query parameter when provided separately, and supports backoff reconnect.
+`StdioTransport` uses newline-delimited JSON; `WebSocketTransport` uses one JSON-RPC message per text frame and appends a bearer token query parameter when provided separately. A transport represents one connection; `DotCraftWireClient` owns optional reconnect and protocol reinitialization.
 
 ### 8.3 Raw Request Escape Hatch
 
-The wire client exposes a public raw request and notification API:
+Generated mixins expose catalog-typed known methods. Unknown extensions use explicit raw APIs:
 
 ```python
-await client.request("method/name", params)      # public; supersedes the prior private _request
-await client.notify("method/name", params)
+await client.request_raw("ext/vendor/method", params)
+await client.notify_raw("ext/vendor/event", params)
 ```
 
-The high-level `DotCraft` client exposes the same `request()` method, delegating to the wire client.
+The high-level `DotCraft` client exposes the same explicit raw escape hatch. Typed methods do not accept an arbitrary method string.
 
 ### 8.4 Typed Wire Methods
 
-The wire client provides typed wrappers for the AppServer methods listed in [Unified SDK Specification §4.3](sdk.md#43-thread-and-turn): `thread_start`, `thread_resume`, `thread_read`, `thread_list`, `thread_subscribe`, `thread_unsubscribe`, `thread_archive`, `thread_delete`, `thread_set_mode`, `turn_start`, `turn_enqueue`, `turn_interrupt`, plus `command_list` / `command_execute`. Methods not wrapped remain reachable through `request()`.
+The generated wire mixin provides typed wrappers for every cataloged client request and notification. Unknown methods remain reachable through `request_raw()` and `notify_raw()` only.
 
 ---
 
@@ -522,7 +510,7 @@ The SDK answers `item/approval/request`, `item/tool/call`, `item/tool/requestUse
 ApprovalHandler = Callable[[ApprovalRequest], Awaitable[str] | str]
 ```
 
-Allowed decisions: `DECISION_ACCEPT`, `DECISION_ACCEPT_FOR_SESSION`, `DECISION_ACCEPT_ALWAYS`, `DECISION_DECLINE`, `DECISION_CANCEL`. When no handler is registered, high-level clients default to accept for compatibility; documentation must warn production users to provide an explicit handler.
+Allowed decisions: `DECISION_ACCEPT`, `DECISION_ACCEPT_FOR_SESSION`, `DECISION_ACCEPT_ALWAYS`, `DECISION_DECLINE`, `DECISION_CANCEL`. Initialization fails before connecting when approval support is declared without an approval handler; the Wire layer never invents a decision.
 
 ### 14.3 Dynamic Tool Handler
 
@@ -540,7 +528,7 @@ Missing handler returns `UnsupportedTool`; a raised handler returns `AdapterTool
 UserInputHandler = Callable[[UserInputRequest], Awaitable[UserInputResponse] | UserInputResponse]
 ```
 
-When no handler is registered, the SDK returns `{"answers": {}}`, matching AppServer fallback semantics.
+The high-level client registers this server-request method only when a handler is configured. Without a handler, the Wire layer returns JSON-RPC `-32601`; it never invents an answer.
 
 ### 14.5 Heartbeat
 
@@ -558,7 +546,7 @@ The Python SDK provides the App Binding profile from [Unified SDK Specification 
 AppBindingHandoff.parse(url, *, expected_scheme=None, expected_app_id=None) -> AppBindingHandoff
 ```
 
-Result fields: `scheme`, `operation`, `app_id`, `request_id`, `request_token`, `app_server_url`. Supported query aliases match the .NET parser (`app`/`appId`, `request`/`requestId`, `token`/`requestToken`, `endpoint`/`appServer`).
+Result fields: `scheme`, `operation`, `app_id`, `request_id`, `request_token`, `app_server_url`. The accepted query keys are exactly `app`, `request`, `token`, and optional `endpoint`.
 
 ### 15.2 App Binding Manager
 
@@ -621,7 +609,7 @@ The page follows the shared SDK doc skeleton (see [§19.3](#193-documentation-va
 
 ### 18.2 Examples
 
-At least one runnable example demonstrates local and remote connect, `run_streamed()`, an approval handler, a dynamic tool handler, a user-input handler or empty-answer fallback, and clean shutdown. The Telegram reference adapter remains as the channel example.
+At least one runnable example demonstrates local and remote connect, `run_streamed()`, an approval handler, a dynamic tool handler, a user-input handler, and clean shutdown. The Telegram reference adapter remains as the channel example.
 
 ---
 
@@ -670,9 +658,9 @@ The SDK exposes `sdk_contract_version`, aligned with the TypeScript SDK contract
 
 The SDK inspects `initialize` server info and capabilities and gates optional methods (dynamic tool rebind, command methods, workspace config, model list, App Binding) on the matching capability flags.
 
-### 21.3 Package Rename and Compatibility
+### 21.3 Package Identity
 
-`dotcraft` is the canonical package. `dotcraft-wire` becomes a compatibility distribution that depends on `dotcraft` and re-exports the wire client, transports, and channel adapter, with a deprecation notice. Removing `dotcraft-wire` entirely is a breaking change under [Unified SDK Specification §9](sdk.md#9-versioning-and-compatibility) and is deferred to a future major release.
+`dotcraft` is the canonical package and no alternate facade or re-export package exists. External package versioning is handled by the release workflow.
 
 ### 21.4 Stable and Unstable Surfaces
 
@@ -684,7 +672,7 @@ Stable: the high-level `DotCraft` / `Thread` API, the wire client and transports
 
 A complete implementation of this specification satisfies:
 
-- `dotcraft` is the canonical package; `dotcraft-wire` re-exports from it.
+- `dotcraft` is the sole canonical package.
 - Python 3.10 is the documented runtime baseline; `__version__` and `pyproject.toml` agree.
 - Local mode discovers or starts Hub and connects to the ensured AppServer.
 - Remote mode connects directly to the AppServer WebSocket.
@@ -692,7 +680,7 @@ A complete implementation of this specification satisfies:
 - Streaming yields normalized `RunEvent` values and preserves raw messages.
 - Final run results merge delta and snapshot text without duplication.
 - Approval, dynamic tool, and user-input callbacks work.
-- A public `request()` escape hatch is available on the high-level and wire clients.
+- Explicit `request_raw()` and `notify_raw()` escape hatches are available on high-level and wire clients.
 - App Binding handoff parse, connection, authentication, activation, rebind, confirmation, and tool error shape work.
 - The channel adapter preserves existing behavior.
 - AppServer Pydantic wire models, notification registry, RPC mixins, method groups, and protocol metadata are generated under `dotcraft/_generated/appserver/`; handwritten transports and high-level APIs retain raw fallbacks.
@@ -708,6 +696,4 @@ Future amendments may cover:
 
 - Public PyPI publishing and provenance.
 - Synchronous convenience wrappers over the async core.
-- Typed App Binding DTOs replacing generic mappings.
-- Reconnection and callback rebind policy for long-lived remote clients.
 - Pluggable logging and telemetry hooks.

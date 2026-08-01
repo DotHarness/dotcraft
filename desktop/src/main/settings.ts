@@ -150,7 +150,7 @@ function normalizeBinarySource(settings: AppSettings): BinarySource {
   if (source === 'bundled' || source === 'path' || source === 'custom') {
     return source
   }
-  return settings.appServerBinaryPath?.trim() ? 'custom' : 'bundled'
+  return 'bundled'
 }
 
 function normalizeModulesDirectory(settings: AppSettings): string | undefined {

@@ -3,7 +3,7 @@
  */
 
 import { ChannelAdapter, type ChannelAdapterOptions } from "./adapter.js";
-import { DotCraftWireClient } from "./client.js";
+import { DotCraftAppServerClient } from "./appServerClient.js";
 import type { ModuleError, ModuleErrorCode } from "./lifecycle.js";
 import type { WorkspaceContext } from "./module.js";
 import { StdioTransport, Transport, TransportClosed } from "./transport.js";
@@ -63,7 +63,7 @@ export abstract class ModuleChannelAdapter<TConfig = unknown> extends ChannelAda
       const transport = loaded.stdioRuntime
         ? new StdioTransport()
         : this.buildTransportFromConfig(loaded.config);
-      this.client = new DotCraftWireClient(transport);
+      this.client = new DotCraftAppServerClient(transport);
       await super.start();
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);

@@ -83,7 +83,7 @@ test("wire client preserves the shared unknown-notification fixture", async () =
   await client.start();
 
   const received = new Promise<Record<string, unknown>>((resolve) => {
-    client.on("fixture/unknownNotification", resolve);
+    client.onRaw("fixture/unknownNotification", resolve);
   });
   transport.push(fixtureCase("unknown-notification").messages[0]);
 

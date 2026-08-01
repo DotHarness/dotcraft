@@ -7,9 +7,8 @@ Package identity and language-specific details for `dotcraft`. For how-to, start
 | | |
 |---|---|
 | Package | `dotcraft` (PyPI) |
-| Compatibility alias | `dotcraft_wire` (re-exports the wire client, transports, and channel adapter) |
 | Runtime baseline | Python 3.10+, asyncio-native |
-| Dependencies | `websockets` |
+| Dependencies | `pydantic` v2, `websockets` |
 
 ```bash
 pip install dotcraft
@@ -20,7 +19,9 @@ pip install dotcraft
 | Group | Symbols |
 |-------|---------|
 | High-level client | `DotCraft`, `Thread`, `ThreadManager`, `RunResult`, `RunEvent`, `LocalOptions`, `RemoteOptions` |
-| Wire client | `DotCraftClient`, `JsonRpcMessage` |
+| Contracts | `dotcraft.contracts` generated Pydantic models and protocol metadata |
+| Wire client | `DotCraftWireClient`, `JsonRpcMessage` |
+| AppServer client | `DotCraftAppServerClient` business-oriented Thread, Turn, MCP, and event helpers |
 | Transports | `Transport`, `StdioTransport`, `WebSocketTransport` |
 | Hub | `HubClient`, `HubLockInfo`, `HubError` |
 | App Binding | `AppBindingManager`, `AppBindingHandoff`, `app_binding_tool_error`, `APP_BINDING_ERROR_CODES` |
@@ -28,7 +29,7 @@ pip install dotcraft
 | Input parts | `text_part`, `image_url_part`, `local_image_part`, `skill_ref_part`, `command_ref_part`, `file_ref_part` |
 | Errors | `DotCraftError`, `TurnInProgressError`, `TurnFailedError`, `TurnCancelledError`, `ThreadNotFoundError`, … |
 
-`DotCraft.connect_local` / `connect_remote` return the high-level client; the low-level `DotCraftClient` and transports remain available for advanced use.
+`DotCraft.connect_local` / `connect_remote` return the high-level client. `DotCraftWireClient` and the transports remain available for protocol-level use; unknown extensions require the explicitly named raw APIs.
 
 ## Validation
 

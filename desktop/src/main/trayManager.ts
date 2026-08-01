@@ -2,7 +2,12 @@ import { app, Menu, nativeImage, nativeTheme, Notification, shell, Tray, type Me
 import { spawn } from 'child_process'
 import { basename, join } from 'path'
 import { existsSync } from 'fs'
-import { HubClient, type HubAppServerResponse, type HubEvent } from './HubClient'
+import {
+  createDesktopHubClient,
+  type DesktopHubClient,
+  type HubAppServerResponse,
+  type HubEvent
+} from './desktopHub'
 import {
   getRecentWorkspaces,
   loadSettings,
@@ -237,7 +242,7 @@ function dashboardUrlOf(server: HubAppServerResponse): string | null {
 
 function buildAppServerMenu(
   server: HubAppServerResponse,
-  hubClient: HubClient,
+  hubClient: DesktopHubClient,
   refresh: () => void,
   locale: AppLocale
 ): MenuItemConstructorOptions {
@@ -299,7 +304,7 @@ function buildRecentMenu(recent: RecentWorkspace[], locale: AppLocale): MenuItem
 
 function buildTrayMenu(
   state: TrayState,
-  hubClient: HubClient,
+  hubClient: DesktopHubClient,
   refresh: () => void,
   exitAll: () => Promise<void>
 ): Menu {
@@ -459,12 +464,9 @@ export async function runTrayProcess(): Promise<void> {
   }
 
   let tray: Tray | null = new Tray(createTrayIcon())
-  const hubClient = new HubClient({
-    binarySource: settings.binarySource,
-    binaryPath: settings.appServerBinaryPath,
+  const hubClient = createDesktopHubClient(settings, {
     preferDevBuild: import.meta.env.DEV,
-    requireDevBuild: import.meta.env.DEV,
-    ...(import.meta.env.DEV ? { restartMismatchedHub: true } : {})
+    requireDevBuild: import.meta.env.DEV
   })
   let eventAbortController: AbortController | null = null
   let refreshTimer: ReturnType<typeof setInterval> | null = null

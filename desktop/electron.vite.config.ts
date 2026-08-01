@@ -6,10 +6,10 @@ import pkg from './package.json'
 
 export default defineConfig({
   main: {
-    plugins: [externalizeDepsPlugin()]
+    plugins: [externalizeDepsPlugin({ exclude: ['@dotcraft/sdk'] })]
   },
   preload: {
-    plugins: [externalizeDepsPlugin()]
+    plugins: [externalizeDepsPlugin({ exclude: ['@dotcraft/sdk'] })]
   },
   renderer: {
     define: {

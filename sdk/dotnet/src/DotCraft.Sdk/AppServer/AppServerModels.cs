@@ -26,7 +26,7 @@ public class DotCraftClientOptions
     /// <summary>
     /// Whether the client can answer approval requests.
     /// </summary>
-    public bool ApprovalSupport { get; set; } = true;
+    public bool ApprovalSupport { get; set; }
 
     /// <summary>
     /// Whether the client wants streaming delta notifications.
@@ -49,12 +49,12 @@ public class DotCraftClientOptions
     public IReadOnlyDictionary<string, object?>? ExtraCapabilities { get; set; }
 
     /// <summary>
-    /// Optional handler for server-initiated approval requests. When unset, approvals auto-accept.
+    /// Optional handler for server-initiated approval requests.
     /// </summary>
     public ApprovalHandler? ApprovalHandler { get; set; }
 
     /// <summary>
-    /// Optional handler for server-initiated user-input requests. When unset, the SDK returns empty answers.
+    /// Optional handler for server-initiated user-input requests.
     /// Providing a handler also advertises <c>requestUserInputSupport</c>.
     /// </summary>
     public UserInputHandler? UserInputHandler { get; set; }
@@ -68,7 +68,7 @@ public sealed class DotCraftLocalClientOptions : DotCraftClientOptions
     /// <summary>
     /// Optional dotcraft executable or dll path used when starting Hub.
     /// </summary>
-    public string? DotCraftBin { get; set; }
+    public string? Executable { get; set; }
 
     /// <summary>
     /// Optional override for the Hub lock file path.
@@ -209,12 +209,6 @@ public sealed record DotCraftTurnStartResult(string? TurnId, JsonElement Raw);
 /// turn/enqueue result.
 /// </summary>
 public sealed record DotCraftTurnEnqueueResult(string? QueuedInputId, JsonElement Raw);
-
-/// <summary>
-/// Backward-compatible lightweight model projection returned by
-/// <see cref="DotCraftModelClient.ListAsync(CancellationToken)"/>.
-/// </summary>
-public sealed record ModelInfo(string Id, string DisplayName, string? Provider);
 
 /// <summary>Safe provenance for an effective MCP runtime server.</summary>
 public sealed record McpServerOrigin(

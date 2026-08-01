@@ -3,12 +3,20 @@
  */
 
 export { DotCraftWireClient } from "./client.js";
-export type { NotificationHandler, ServerRequestHandler, Unsubscribe } from "./client.js";
+export type {
+  DotCraftWireClientOptions,
+  NotificationHandler,
+  ServerRequestHandler,
+  Unsubscribe,
+  WireConnectionState,
+} from "./client.js";
 export {
   DotCraftError,
   DotCraftSdkError,
   ApprovalTimeoutError,
   InitializationError,
+  ReconnectQueueFullError,
+  RequestTimeoutError,
   ThreadNotActiveError,
   ThreadNotFoundError,
   TurnCancelledError,

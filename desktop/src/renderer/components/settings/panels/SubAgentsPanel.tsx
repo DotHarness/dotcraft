@@ -173,7 +173,7 @@ export function SubAgentsPanel({ enabled, refreshTick = 0 }: SubAgentsPanelProps
       try {
         await window.api.appServer.sendRequest('subagent/profiles/upsert', {
           name: profile.name,
-          definition
+          definition: { ...definition }
         })
         addToast(t('settings.subAgents.savedToast', { name: profile.name }), 'success')
         await loadProfiles({ kind: 'preset', name: profile.name })
@@ -220,7 +220,7 @@ export function SubAgentsPanel({ enabled, refreshTick = 0 }: SubAgentsPanelProps
     try {
       await window.api.appServer.sendRequest('subagent/profiles/upsert', {
           name,
-          definition
+          definition: { ...definition }
       })
         addToast(t('settings.subAgents.savedToast', { name }), 'success')
         await loadProfiles({ kind: 'custom', name })

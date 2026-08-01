@@ -41,6 +41,10 @@ class GeneratedBindingTransport implements Transport {
 test("generated method maps type and execute a low-level request", async () => {
   const transport = new GeneratedBindingTransport();
   const client = new DotCraftWireClient(transport);
+  if (false) {
+    // @ts-expect-error Unknown methods must use requestRaw().
+    void client.request("fixture/typo", {});
+  }
   await client.start();
 
   const params: ClientRequestMethods["initialize"]["params"] = {

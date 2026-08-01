@@ -9,7 +9,7 @@ description = "Python SDK for DotCraft (AppServer client, Run profile, App Bindi
 requires-python = ">=3.10"
 dependencies = [
     "pydantic>=2.13.4,<3",
-    "websockets>=12.0",
+    "websockets>=13.0",
 ]
 
 [project.optional-dependencies]
@@ -19,7 +19,14 @@ dev = [
     "datamodel-code-generator==0.42.2",
     "black==26.5.1",
     "isort==7.0.0",
+    "pyright==1.1.411",
 ]
+
+[tool.pyright]
+include = ["dotcraft"]
+ignore = ["dotcraft/_generated"]
+pythonVersion = "3.10"
+typeCheckingMode = "basic"
 
 [tool.setuptools.packages.find]
 where = ["."]

@@ -74,11 +74,11 @@ public sealed class DynamicToolRegistry
         }
     }
 
-    /// <summary>Lists all tool declarations, ordered by (Order, Name).</summary>
+    /// <summary>Lists all tool declarations, ordered by (Order, QualifiedName).</summary>
     public IReadOnlyList<DynamicToolDescriptor> ListDescriptors()
         => _descriptors
             .OrderBy(d => d.Order)
-            .ThenBy(d => d.Name, StringComparer.Ordinal)
+            .ThenBy(d => d.QualifiedName, StringComparer.Ordinal)
             .ToList();
 
     /// <summary>Invokes a tool by namespace + short name, returning a normalized outcome.</summary>

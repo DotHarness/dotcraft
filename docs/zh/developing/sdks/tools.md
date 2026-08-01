@@ -109,7 +109,7 @@ thread.on_tool_call("myapp", "GetIssue", lambda call: {
 
 ## 审批
 
-当 Agent 为敏感操作请求审批时，SDK 会把它路由到你的处理器，由处理器返回决策（`accept`、`acceptForSession`、`acceptAlways`、`decline`、`cancel`）。没有处理器时 SDK 会自动接受——生产环境请提供显式处理器。
+当 Agent 为敏感操作请求审批时，SDK 会把它路由到你的处理器，由处理器返回决策（`accept`、`acceptForSession`、`acceptAlways`、`decline`、`cancel`）。客户端必须先注册该处理器，才能声明支持审批。
 
 ::: code-group
 

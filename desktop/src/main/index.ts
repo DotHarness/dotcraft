@@ -28,13 +28,18 @@ import { existsSync } from 'fs'
 import { promises as fs } from 'fs'
 import { spawn } from 'child_process'
 import net from 'net'
-import WebSocket from 'ws'
-import { WireProtocolClient, type InitializeResult } from './WireProtocolClient'
+import { DesktopAppServerClient, type InitializeResult } from './DesktopAppServerClient'
 import {
   handleDesktopRuntimeThreadToolCall,
   resetDesktopThreadToolBindings
 } from './desktopRuntimeThreadTools'
-import { HubClient, type HubAppServerResponse, type HubEvent } from './HubClient'
+import {
+  createDesktopHubClient,
+  resolveDesktopBinarySource,
+  type DesktopHubClient,
+  type HubAppServerResponse,
+  type HubEvent
+} from './desktopHub'
 import {
   registerIpcHandlers,
   unregisterIpcHandlers,
@@ -172,7 +177,7 @@ import {
 // multi-window-in-one-process design had.
 
 let mainWindow: BrowserWindow | null = null
-let wireClient: WireProtocolClient | null = null
+let wireClient: DesktopAppServerClient | null = null
 let currentWorkspacePath = ''
 /** Last DashBoard URL from a successful initialize (for View menu). */
 let lastDashboardUrl: string | null = null
@@ -200,7 +205,7 @@ interface WorkspaceConnectionEntry {
   displayPath?: string
   remote?: WorkspaceRemoteProjectMetadata
   wsUrl: string
-  client: WireProtocolClient
+  client: DesktopAppServerClient
   role: WorkspaceConnectionRole
   connected: boolean
   connecting: boolean
@@ -373,7 +378,7 @@ function isProjectPinned(keyOrPath: string): boolean {
   ))
 }
 
-function findWorkspaceConnectionByClient(client: WireProtocolClient): WorkspaceConnectionEntry | undefined {
+function findWorkspaceConnectionByClient(client: DesktopAppServerClient): WorkspaceConnectionEntry | undefined {
   return [...workspaceConnections.values()].find((entry) => entry.client === client)
 }
 
@@ -396,7 +401,7 @@ function releaseConnectionThreadSubscription(entry: WorkspaceConnectionEntry, re
 }
 
 function observeAppServerRequestCompletion(
-  client: WireProtocolClient,
+  client: DesktopAppServerClient,
   method: string,
   params: unknown
 ): void {
@@ -1009,21 +1014,10 @@ function scheduleActiveRemoteStackReconnect(reason: string): void {
   }, delayMs)
 }
 
-function resolveBinarySource(settings: AppSettings): BinarySource {
-  const source = settings.binarySource
-  if (source === 'bundled' || source === 'path' || source === 'custom') {
-    return source
-  }
-  return settings.appServerBinaryPath?.trim() ? 'custom' : 'bundled'
-}
-
-function createHubClient(settings: AppSettings): HubClient {
-  return new HubClient({
-    binarySource: resolveBinarySource(settings),
-    binaryPath: settings.appServerBinaryPath,
+function createHubClient(settings: AppSettings): DesktopHubClient {
+  return createDesktopHubClient(settings, {
     preferDevBuild: import.meta.env.DEV,
-    requireDevBuild: import.meta.env.DEV,
-    ...(import.meta.env.DEV ? { restartMismatchedHub: true } : {})
+    requireDevBuild: import.meta.env.DEV
   })
 }
 
@@ -1036,7 +1030,7 @@ function releaseCurrentWorkspaceLock(): void {
 
 function registerDesktopIpcHandlers(
   workspacePath: string,
-  getWireClient: () => WireProtocolClient | null
+  getWireClient: () => DesktopAppServerClient | null
 ): void {
   if (ipcHandlersRegistered) {
     unregisterIpcHandlers()
@@ -1620,85 +1614,25 @@ function classifyRemoteInitialError(message: string): ConnectionErrorType {
 function probeRemoteAppServerConnection(wsUrl: string): Promise<void> {
   return new Promise((resolve, reject) => {
     let settled = false
-    const ws = new WebSocket(wsUrl)
-    const timer = setTimeout(() => {
-      settle(new Error('Remote AppServer did not respond within 10 seconds.'))
-    }, REMOTE_CONNECTION_PROBE_TIMEOUT_MS)
+    const client = DesktopAppServerClient.fromWebSocket(wsUrl, {
+      autoReconnect: false,
+      initializeTimeoutMs: REMOTE_CONNECTION_PROBE_TIMEOUT_MS
+    })
 
     function settle(error?: Error): void {
       if (settled) return
       settled = true
-      clearTimeout(timer)
-      ws.removeAllListeners()
-      try {
-        ws.close()
-      } catch {
-        // Best-effort cleanup after a failed probe.
-      }
+      client.removeAllListeners()
+      client.dispose()
       if (error) reject(error)
       else resolve()
     }
 
-    ws.on('open', () => {
-      ws.send(JSON.stringify({
-        jsonrpc: '2.0',
-        id: 1,
-        method: 'initialize',
-        params: {
-          clientInfo: {
-            name: 'dotcraft-desktop',
-            title: 'DotCraft',
-            version: process.env.npm_package_version ?? '0.1.0'
-          },
-          capabilities: {
-            approvalSupport: true,
-            requestUserInputSupport: true,
-            streamingSupport: true,
-            commandExecutionStreaming: true,
-            toolExecutionLifecycle: true,
-            backgroundTerminals: true,
-            configChange: true,
-            optOutNotificationMethods: [],
-            nodeRepl: {
-              backend: 'desktop-node'
-            },
-            browserUse: {
-              backend: 'desktop-iab',
-              backends: ['desktop-iab'],
-              protocolVersion: 2,
-              supportsCancel: true,
-              browserSessionProtocolVersion: 1,
-              defaultCommandTimeoutMs: 10000,
-              maxCommandTimeoutMs: 120000,
-              supportsTypedFinalize: true
-            }
-          }
-        }
-      }))
-    })
-
-    ws.on('message', (data) => {
-      let response: { id?: unknown; error?: { message?: string; data?: unknown } }
-      try {
-        response = JSON.parse(data.toString()) as typeof response
-      } catch {
-        return
-      }
-      if (response.id !== 1) return
-      if (response.error) {
-        const message = response.error.message || 'Remote AppServer rejected initialize.'
-        settle(new Error(message))
-        return
-      }
-      ws.send(JSON.stringify({ jsonrpc: '2.0', method: 'initialized', params: {} }))
-      settle()
-    })
-
-    ws.on('error', (error) => {
+    client.once('ready', () => settle())
+    client.once('reconnect-error', (error) => {
       settle(error instanceof Error ? error : new Error(String(error)))
     })
-
-    ws.on('close', () => {
+    client.once('close', () => {
       settle(new Error('Remote AppServer connection closed before initialize completed.'))
     })
   })
@@ -1850,7 +1784,7 @@ async function connectViaWebSocket(
   reregisterIpcForWorkspace(workspacePath)
 
   const generation = ++connectionGeneration
-  const client = WireProtocolClient.fromWebSocket(wsUrl, {
+  const client = DesktopAppServerClient.fromWebSocket(wsUrl, {
     autoReconnect: options.autoReconnect,
     initializeTimeoutMs: options.initializeTimeoutMs
   })
@@ -2101,7 +2035,7 @@ function scheduleSecondaryWorkspaceRefresh(): void {
   }, 150)
 }
 
-function startHubEventSubscription(workspacePath: string, hubClient: HubClient): void {
+function startHubEventSubscription(workspacePath: string, hubClient: DesktopHubClient): void {
   hubEventAbortController?.abort()
   const controller = new AbortController()
   hubEventAbortController = controller
@@ -2205,7 +2139,7 @@ function createSecondaryWorkspaceConnection(
     return existing
   }
 
-  const client = WireProtocolClient.fromWebSocket(wsUrl, {
+  const client = DesktopAppServerClient.fromWebSocket(wsUrl, {
     initializeProfile: 'secondary'
   })
   const entry: WorkspaceConnectionEntry = {
@@ -2754,7 +2688,7 @@ async function connectToAppServer(workspacePath: string): Promise<boolean> {
       emitConnectionStatus(mainWindow, {
         status: 'error',
         errorMessage: message,
-        ...(isBinaryError ? { binarySource: resolveBinarySource(sharedSettings) } : {}),
+        ...(isBinaryError ? { binarySource: resolveDesktopBinarySource(sharedSettings) } : {}),
         ...(isBinaryError ? { errorType: 'binary-not-found' } : {})
       } as ConnectionStatusPayload)
     }

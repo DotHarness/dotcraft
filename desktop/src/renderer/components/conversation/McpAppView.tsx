@@ -1,4 +1,5 @@
 import { AppBridge } from '@modelcontextprotocol/ext-apps/app-bridge'
+import type { JsonValue } from '@dotcraft/sdk/contracts'
 import { Maximize2, Minimize2, Puzzle, ShieldCheck, TriangleAlert } from 'lucide-react'
 import { memo, useCallback, useEffect, useRef, useState } from 'react'
 import { useLocale } from '../../contexts/LocaleContext'
@@ -362,7 +363,7 @@ function McpAppViewImpl({ item, threadId, turnId }: McpAppViewProps): JSX.Elemen
       return await window.api.appServer.sendRequest('mcpApp/view/tool/call', {
         viewHandle: handle,
         tool: name,
-        arguments: args ?? {}
+        arguments: (args ?? {}) as JsonValue
       }, ACTION_TIMEOUT_MS) as never
     }
     ;(bridge as AppBridge & { onlisttools?: (params: Record<string, never>) => Promise<unknown> }).onlisttools = async () => {
@@ -389,8 +390,8 @@ function McpAppViewImpl({ item, threadId, turnId }: McpAppViewProps): JSX.Elemen
     bridge.onupdatemodelcontext = async ({ content, structuredContent }) => {
       await window.api.appServer.sendRequest('mcpApp/view/modelContext/update', {
         viewHandle: handle,
-        content: content ?? [],
-        structuredContent
+        content: (content ?? []) as JsonValue,
+        structuredContent: structuredContent as JsonValue | undefined
       })
       return {}
     }

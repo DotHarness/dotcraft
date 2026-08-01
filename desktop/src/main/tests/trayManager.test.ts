@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import type { HubEvent } from '../HubClient'
+import type { HubEvent } from '../desktopHub'
 import type { WorkspaceWindowState } from '../desktopActivation'
 import type { AppSettings } from '../settings'
 import type { WorkspaceLockStatus } from '../workspaceLock'
@@ -36,7 +36,7 @@ const hubClientMocks = vi.hoisted(() => {
   const shutdownHub = vi.fn(async () => {})
   const restartAppServer = vi.fn(async () => {})
   const stopAppServer = vi.fn(async () => {})
-  const HubClient = vi.fn().mockImplementation(() => ({
+  const createDesktopHubClient = vi.fn().mockImplementation(() => ({
     getStatus,
     listAppServers,
     subscribeEvents,
@@ -45,7 +45,7 @@ const hubClientMocks = vi.hoisted(() => {
     stopAppServer
   }))
   return {
-    HubClient,
+    createDesktopHubClient,
     getStatus,
     listAppServers,
     subscribeEvents,
@@ -154,7 +154,7 @@ vi.mock('../settings', async (importOriginal) => {
 
 vi.mock('../trayLock', () => trayLockMocks)
 
-vi.mock('../HubClient', () => ({ HubClient: hubClientMocks.HubClient }))
+vi.mock('../desktopHub', () => ({ createDesktopHubClient: hubClientMocks.createDesktopHubClient }))
 
 vi.mock('../desktopActivation', () => activationMocks)
 

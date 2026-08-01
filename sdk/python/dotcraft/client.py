@@ -1,39 +1,49 @@
-"""DotCraftClient: JSON-RPC 2.0 client for the DotCraft AppServer Wire Protocol."""
+"""DotCraftWireClient: JSON-RPC 2.0 client for the DotCraft AppServer Wire Protocol."""
 
 from __future__ import annotations
 
 import asyncio
 import json
 import logging
-from typing import Any, AsyncIterator, Callable, Coroutine, Literal
+import random
+from typing import Any, Awaitable, Callable, Literal
 
 from ._generated.appserver.client_methods_generated import GeneratedAppServerClientMixin
-
-from .models import (
-    DynamicToolDeclaration,
-    DynamicToolResult,
-    InitializeResult,
-    JsonRpcMessage,
-    McpServerOAuthLoginResult,
-    McpServerReloadResult,
-    McpServerResourceReadResult,
-    McpServerStatusListResult,
-    McpServerToolCallResult,
-    ModelInfo,
-    Thread,
-    Turn,
+from ._generated.appserver.method_groups_generated import (
+    SERVER_NOTIFICATION_METHODS,
+    SERVER_REQUEST_METHODS,
 )
+from ._generated.appserver.notification_registry_generated import (
+    parse_server_notification,
+    parse_server_request,
+)
+from pydantic import BaseModel
+
+from .models import InitializeResult, JsonRpcMessage
 from .transport import Transport, TransportClosed, TransportError
 
 logger = logging.getLogger(__name__)
 
 # Type aliases
-Handler = Callable[[dict], Coroutine]
-RequestHandler = Callable[[str | int, dict], Coroutine[Any, Any, Any]]
+Handler = Callable[[dict], Awaitable[Any]]
+RequestHandler = Callable[[str | int, dict], Awaitable[Any]]
+WireConnectionState = Literal[
+    "connecting", "initializing", "ready", "disconnected", "reconnecting", "reconnectError", "closed"
+]
+_TIMEOUT_UNSET = object()
 
 
-def _omit_none(values: dict) -> dict:
-    return {key: value for key, value in values.items() if value is not None}
+class RequestTimeoutError(TimeoutError):
+    """Raised when a Wire request exceeds its configured timeout."""
+
+    def __init__(self, method: str, timeout: float) -> None:
+        super().__init__(f"Request '{method}' timed out after {timeout:g}s.")
+        self.method = method
+        self.timeout = timeout
+
+
+class ReconnectQueueFullError(RuntimeError):
+    """Raised when the reconnect request queue reaches its configured limit."""
 
 
 class DotCraftError(Exception):
@@ -46,7 +56,7 @@ class DotCraftError(Exception):
         self.data = data
 
 
-class DotCraftClient(GeneratedAppServerClientMixin):
+class DotCraftWireClient(GeneratedAppServerClientMixin):
     """
     Transport-agnostic JSON-RPC 2.0 client for the DotCraft AppServer Wire Protocol.
 
@@ -57,18 +67,50 @@ class DotCraftClient(GeneratedAppServerClientMixin):
     - Background reader loop
     """
 
-    def __init__(self, transport: Transport) -> None:
+    def __init__(
+        self,
+        transport: Transport,
+        *,
+        default_timeout: float | None = 30.0,
+        initialize_timeout: float | None = None,
+        auto_reconnect: bool = False,
+        max_reconnect_queue: int = 1024,
+        reconnect_initial_delay: float = 1.0,
+        reconnect_max_delay: float = 30.0,
+    ) -> None:
         self._transport = transport
+        self._default_timeout = default_timeout
+        self._initialize_timeout = initialize_timeout
+        self._auto_reconnect = auto_reconnect
+        self._max_reconnect_queue = max_reconnect_queue
+        self._reconnect_initial_delay = reconnect_initial_delay
+        self._reconnect_max_delay = reconnect_max_delay
+        self._queued_requests = 0
         self._next_id = 1
         self._pending: dict[int | str, asyncio.Future] = {}
         self._handlers: dict[str, list[Handler]] = {}
         self._request_handlers: dict[str, RequestHandler] = {}
-        self._approval_handler: RequestHandler | None = None
-        self._user_input_handler: RequestHandler | None = None
-        self._dynamic_tool_handlers: dict[str, Callable] = {}
-        self._fallback_dynamic_tool_handler: Callable | None = None
         self._reader_task: asyncio.Task | None = None
         self._initialized = False
+        self._initialize_kwargs: dict[str, Any] | None = None
+        self._state: WireConnectionState = "disconnected"
+        self._state_handlers: list[Callable[[WireConnectionState, Exception | None], None]] = []
+        self._ready = asyncio.Event()
+
+    @property
+    def state(self) -> WireConnectionState:
+        return self._state
+
+    def on_state_changed(
+        self, handler: Callable[[WireConnectionState, Exception | None], None]
+    ) -> Callable[[], None]:
+        self._state_handlers.append(handler)
+        return lambda: self._state_handlers.remove(handler) if handler in self._state_handlers else None
+
+    def _set_state(self, state: WireConnectionState, error: Exception | None = None) -> None:
+        self._state = state
+        for handler in list(self._state_handlers):
+            handler(state, error)
 
     # ------------------------------------------------------------------
     # Connection lifecycle
@@ -77,12 +119,17 @@ class DotCraftClient(GeneratedAppServerClientMixin):
     async def connect(self) -> None:
         """Connect the underlying transport (WebSocket mode only)."""
         from .transport import WebSocketTransport
+        self._set_state("connecting")
         if isinstance(self._transport, WebSocketTransport):
             await self._transport.connect()
+        self._ready.set()
+        self._set_state("ready")
 
     async def start(self) -> None:
         """Start the background reader loop."""
         self._reader_task = asyncio.create_task(self._reader_loop(), name="dotcraft-reader")
+        self._ready.set()
+        self._set_state("ready")
 
     async def stop(self) -> None:
         """Stop the client and close the transport."""
@@ -93,6 +140,8 @@ class DotCraftClient(GeneratedAppServerClientMixin):
             except asyncio.CancelledError:
                 pass
         await self._transport.close()
+        self._ready.clear()
+        self._set_state("closed")
 
     # ------------------------------------------------------------------
     # Initialization handshake
@@ -103,7 +152,7 @@ class DotCraftClient(GeneratedAppServerClientMixin):
         client_name: str,
         client_version: str,
         client_title: str | None = None,
-        approval_support: bool = True,
+        approval_support: bool = False,
         streaming_support: bool = True,
         request_user_input_support: bool = False,
         config_change: bool = False,
@@ -120,8 +169,25 @@ class DotCraftClient(GeneratedAppServerClientMixin):
         If channel_name is provided, the channelAdapter capability is included,
         identifying this client as an external channel adapter.
         """
+        self._initialize_kwargs = {
+            "client_name": client_name,
+            "client_version": client_version,
+            "client_title": client_title,
+            "approval_support": approval_support,
+            "streaming_support": streaming_support,
+            "request_user_input_support": request_user_input_support,
+            "config_change": config_change,
+            "opt_out_notifications": opt_out_notifications,
+            "channel_name": channel_name,
+            "delivery_support": delivery_support,
+            "delivery_capabilities": delivery_capabilities,
+            "channel_tools": channel_tools,
+            "extra_capabilities": extra_capabilities,
+        }
         if self._reader_task is None:
             await self.start()
+        self._ready.clear()
+        self._set_state("initializing")
 
         capabilities: dict = {
             "approvalSupport": approval_support,
@@ -153,312 +219,30 @@ class DotCraftClient(GeneratedAppServerClientMixin):
         if client_title:
             client_info["title"] = client_title
 
-        result = await self._request("initialize", {
+        result = await self._request_internal("initialize", {
             "clientInfo": client_info,
             "capabilities": capabilities,
-        })
+        }, self._initialize_timeout, bypass_ready=True)
 
         # Send the initialized notification
-        await self._notify("initialized", {})
+        await self._notify_internal("initialized", {}, bypass_ready=True)
         self._initialized = True
+        self._ready.set()
+        self._set_state("ready")
 
         return InitializeResult.from_wire(result)
-
-    # ------------------------------------------------------------------
-    # Thread methods
-    # ------------------------------------------------------------------
-
-    async def thread_start(
-        self,
-        channel_name: str,
-        user_id: str,
-        workspace_path: str = "",
-        channel_context: str = "",
-        display_name: str | None = None,
-        history_mode: str = "server",
-        dynamic_tools: list[DynamicToolDeclaration | dict] | None = None,
-    ) -> Thread:
-        """Create a new thread."""
-        identity: dict = {
-            "channelName": channel_name,
-            "userId": user_id,
-        }
-        if workspace_path:
-            identity["workspacePath"] = workspace_path
-        if channel_context:
-            identity["channelContext"] = channel_context
-
-        params: dict = {
-            "identity": identity,
-            "historyMode": history_mode,
-        }
-        if display_name is not None:
-            params["displayName"] = display_name
-        if dynamic_tools is not None:
-            params["dynamicTools"] = [
-                tool.to_wire() if hasattr(tool, "to_wire") else tool
-                for tool in dynamic_tools
-            ]
-
-        result = await self._request("thread/start", params)
-        return Thread.from_wire(result["thread"])
-
-    async def thread_resume(
-        self,
-        thread_id: str,
-        dynamic_tools: list[DynamicToolDeclaration | dict] | None = None,
-    ) -> Thread:
-        """Resume a paused thread."""
-        params: dict = {"threadId": thread_id}
-        if dynamic_tools is not None:
-            params["dynamicTools"] = [
-                tool.to_wire() if hasattr(tool, "to_wire") else tool
-                for tool in dynamic_tools
-            ]
-        result = await self._request("thread/resume", params)
-        return Thread.from_wire(result["thread"])
-
-    async def thread_list(
-        self,
-        channel_name: str,
-        user_id: str,
-        workspace_path: str = "",
-        channel_context: str = "",
-        include_archived: bool = False,
-        query: str | None = None,
-        limit: int | None = None,
-        cursor: str | None = None,
-    ) -> list[Thread]:
-        """List threads for a given identity."""
-        identity: dict = {
-            "channelName": channel_name,
-            "userId": user_id,
-        }
-        if workspace_path:
-            identity["workspacePath"] = workspace_path
-        if channel_context:
-            identity["channelContext"] = channel_context
-
-        params: dict = {
-            "identity": identity,
-            "includeArchived": include_archived,
-        }
-        if query:
-            params["query"] = query
-        if limit is not None:
-            params["limit"] = limit
-        if cursor:
-            params["cursor"] = cursor
-
-        result = await self._request("thread/list", params)
-        return [Thread.from_wire(t) for t in result.get("data", [])]
-
-    async def thread_read(
-        self,
-        thread_id: str,
-        include_turns: bool = False,
-        turn_limit: int | None = None,
-        cursor: str | None = None,
-    ) -> Thread:
-        """Read a thread by ID."""
-        params: dict = {
-            "threadId": thread_id,
-            "includeTurns": include_turns,
-        }
-        if turn_limit is not None:
-            params["turnLimit"] = turn_limit
-        if cursor:
-            params["cursor"] = cursor
-        result = await self._request("thread/read", params)
-        return Thread.from_wire(result["thread"])
-
-    async def thread_subscribe(self, thread_id: str, replay_recent: bool = False) -> None:
-        """Subscribe to future events for a thread."""
-        await self._request("thread/subscribe", {
-            "threadId": thread_id,
-            "replayRecent": replay_recent,
-        })
-
-    async def thread_unsubscribe(self, thread_id: str) -> None:
-        """Remove subscription from a thread."""
-        await self._request("thread/unsubscribe", {"threadId": thread_id})
-
-    async def thread_pause(self, thread_id: str) -> None:
-        """Pause an active thread."""
-        await self._request("thread/pause", {"threadId": thread_id})
-
-    async def thread_archive(self, thread_id: str) -> None:
-        """Archive a thread."""
-        await self._request("thread/archive", {"threadId": thread_id})
-
-    async def thread_delete(self, thread_id: str) -> None:
-        """Permanently delete a thread."""
-        await self._request("thread/delete", {"threadId": thread_id})
-
-    async def thread_set_mode(self, thread_id: str, mode: str) -> None:
-        """Set the agent mode for a thread."""
-        await self._request("thread/mode/set", {"threadId": thread_id, "mode": mode})
-
-    # ------------------------------------------------------------------
-    # Turn methods
-    # ------------------------------------------------------------------
-
-    async def turn_start(
-        self,
-        thread_id: str,
-        input: list[dict],
-        sender: dict | None = None,
-    ) -> Turn:
-        """Submit user input to a thread and begin agent execution."""
-        params: dict = {
-            "threadId": thread_id,
-            "input": input,
-        }
-        if sender:
-            params["sender"] = sender
-
-        result = await self._request("turn/start", params)
-        return Turn.from_wire(result["turn"])
-
-    async def turn_enqueue(
-        self,
-        thread_id: str,
-        input: list[dict],
-        sender: dict | None = None,
-    ) -> dict:
-        """Enqueue input to run after the active turn finishes."""
-        params: dict = {
-            "threadId": thread_id,
-            "input": input,
-        }
-        if sender:
-            params["sender"] = sender
-        return await self._request("turn/enqueue", params)
-
-    async def turn_interrupt(self, thread_id: str, turn_id: str) -> None:
-        """Request cancellation of an in-progress turn."""
-        await self._request("turn/interrupt", {
-            "threadId": thread_id,
-            "turnId": turn_id,
-        })
-
-    async def model_list(self) -> list[ModelInfo]:
-        """List available models from the connected AppServer (``model/list``)."""
-        result = await self._request("model/list", {})
-        items = None
-        if isinstance(result, dict):
-            items = result.get("models") or result.get("items")
-        elif isinstance(result, list):
-            items = result
-        return [ModelInfo.from_wire(m) for m in (items or []) if isinstance(m, dict)]
-
-    async def command_list(self, language: str | None = None) -> list[dict]:
-        """List commands exposed by the server command registry."""
-        params: dict = {}
-        if language:
-            params["language"] = language
-        result = await self._request("command/list", params)
-        return result.get("commands", [])
-
-    async def command_execute(
-        self,
-        thread_id: str,
-        command: str,
-        arguments: list[str] | None = None,
-        sender: dict | None = None,
-    ) -> dict:
-        """Execute a slash command via the server command pipeline."""
-        params: dict = {
-            "threadId": thread_id,
-            "command": command,
-        }
-        if arguments is not None:
-            params["arguments"] = arguments
-        if sender is not None:
-            params["sender"] = sender
-        return await self._request("command/execute", params)
-
-    # ------------------------------------------------------------------
-    # MCP runtime/control
-    # ------------------------------------------------------------------
-
-    async def mcp_server_status_list(
-        self,
-        thread_id: str | None = None,
-        cursor: str | None = None,
-        limit: int | None = None,
-        detail: Literal["full", "toolsAndAuthOnly"] | None = None,
-    ) -> McpServerStatusListResult:
-        params = _omit_none({
-            "threadId": thread_id,
-            "cursor": cursor,
-            "limit": limit,
-            "detail": detail,
-        })
-        return McpServerStatusListResult.from_wire(
-            await self._request("mcpServerStatus/list", params)
-        )
-
-    async def mcp_server_resource_read(
-        self,
-        server: str,
-        uri: str,
-        thread_id: str | None = None,
-    ) -> McpServerResourceReadResult:
-        result = await self._request("mcpServer/resource/read", _omit_none({
-            "threadId": thread_id,
-            "server": server,
-            "uri": uri,
-        }))
-        return McpServerResourceReadResult(result.get("contents"))
-
-    async def mcp_server_tool_call(
-        self,
-        thread_id: str,
-        server: str,
-        tool: str,
-        arguments: dict | None = None,
-        meta: Any = None,
-    ) -> McpServerToolCallResult:
-        result = await self._request("mcpServer/tool/call", _omit_none({
-            "threadId": thread_id,
-            "server": server,
-            "tool": tool,
-            "arguments": arguments,
-            "_meta": meta,
-        }))
-        return McpServerToolCallResult.from_wire(result)
-
-    async def mcp_server_oauth_login(
-        self,
-        name: str,
-        thread_id: str | None = None,
-        scopes: list[str] | None = None,
-        timeout_secs: float | None = None,
-    ) -> McpServerOAuthLoginResult:
-        result = await self._request("mcpServer/oauth/login", _omit_none({
-            "name": name,
-            "threadId": thread_id,
-            "scopes": scopes,
-            "timeoutSecs": timeout_secs,
-        }))
-        return McpServerOAuthLoginResult(result.get("authorizationUrl", ""))
-
-    async def mcp_server_reload(self) -> McpServerReloadResult:
-        await self._request("config/mcpServer/reload")
-        return McpServerReloadResult()
 
     # ------------------------------------------------------------------
     # Event streaming
     # ------------------------------------------------------------------
 
-    def on(self, method: str) -> Callable:
+    def on_raw(self, method: str) -> Callable:
         """
         Decorator to register a notification handler.
 
         Usage::
 
-            @client.on("turn/completed")
+            @client.on_raw("turn/completed")
             async def handle_done(params):
                 print("Turn completed", params)
         """
@@ -467,11 +251,24 @@ class DotCraftClient(GeneratedAppServerClientMixin):
             return fn
         return decorator
 
-    def register_handler(self, method: str, fn: Handler) -> None:
+    def register_notification_raw(self, method: str, fn: Handler) -> None:
         """Register a notification handler programmatically."""
         self._handlers.setdefault(method, []).append(fn)
 
-    def unregister_handler(self, method: str, fn: Handler) -> None:
+    def register_notification(self, method: str, fn: Callable) -> Callable[[], None]:
+        """Register a generated-model handler for a known server notification."""
+        if method not in SERVER_NOTIFICATION_METHODS:
+            raise ValueError(f"Unknown server notification method: {method}")
+
+        async def typed_handler(params: dict) -> None:
+            result = fn(parse_server_notification(method, params))
+            if asyncio.iscoroutine(result):
+                await result
+
+        self.register_notification_raw(method, typed_handler)
+        return lambda: self.unregister_notification_raw(method, typed_handler)
+
+    def unregister_notification_raw(self, method: str, fn: Handler) -> None:
         """Remove a previously registered notification handler."""
         if method in self._handlers:
             try:
@@ -479,7 +276,7 @@ class DotCraftClient(GeneratedAppServerClientMixin):
             except ValueError:
                 pass
 
-    def on_server_request(self, method: str) -> Callable:
+    def on_server_request_raw(self, method: str) -> Callable:
         """
         Decorator to register a handler for server-initiated requests.
 
@@ -487,7 +284,7 @@ class DotCraftClient(GeneratedAppServerClientMixin):
 
         Usage::
 
-            @client.on_server_request("ext/channel/send")
+            @client.on_server_request_raw("ext/channel/send")
             async def handle_send(request_id, params):
                 print("Send:", params["message"])
                 return {"delivered": True}
@@ -497,145 +294,53 @@ class DotCraftClient(GeneratedAppServerClientMixin):
             return fn
         return decorator
 
-    @property
-    def on_approval_request(self) -> Callable:
-        """
-        Decorator to register the approval request handler.
+    def register_server_request_handler_raw(self, method: str, fn: RequestHandler) -> Callable[[], None]:
+        """Register an unknown or extension server-request handler."""
+        self._request_handlers[method] = fn
 
-        The handler receives (request_id, params) and must return a decision string.
+        def unregister() -> None:
+            if self._request_handlers.get(method) is fn:
+                self._request_handlers.pop(method, None)
 
-        Usage::
+        return unregister
 
-            @client.on_approval_request
-            async def handle_approval(request_id, params):
-                return "accept"
-        """
-        def decorator(fn: RequestHandler) -> RequestHandler:
-            self._approval_handler = fn
-            return fn
-        return decorator
+    def register_server_request_handler(self, method: str, fn: Callable) -> Callable[[], None]:
+        """Register a generated-model handler for a known server request."""
+        if method not in SERVER_REQUEST_METHODS:
+            raise ValueError(f"Unknown server request method: {method}")
 
-    async def stream_events(
-        self,
-        thread_id: str,
-        terminal_methods: tuple[str, ...] = ("turn/completed", "turn/failed", "turn/cancelled"),
-    ) -> AsyncIterator[JsonRpcMessage]:
-        """
-        Async generator that yields notifications for a thread until the turn ends.
+        async def typed_handler(request_id: str | int, params: dict) -> Any:
+            result = fn(request_id, parse_server_request(method, params))
+            if asyncio.iscoroutine(result):
+                result = await result
+            if isinstance(result, BaseModel):
+                return result.model_dump(by_alias=True, exclude_unset=True, mode="json")
+            return result
 
-        Filters notifications by threadId where applicable.
-        Stops automatically when a terminal turn notification is received.
-        """
-        queue: asyncio.Queue[JsonRpcMessage | None] = asyncio.Queue()
-        terminal_seen = False
-
-        async def enqueue(params: dict) -> None:
-            nonlocal terminal_seen
-            # Filter by threadId when present in params
-            if "threadId" in params and params["threadId"] != thread_id:
-                return
-            msg = JsonRpcMessage(method=_current_method[0], params=params)
-            await queue.put(msg)
-
-        # Sentinel to track current method inside closure
-        _current_method: list[str] = [""]
-
-        # Register handlers for all relevant methods
-        all_methods = [
-            "thread/started", "thread/renamed", "thread/resumed", "thread/statusChanged",
-            "turn/started", "turn/completed", "turn/failed", "turn/cancelled",
-            "item/started", "item/completed",
-            "item/agentMessage/delta", "item/reasoning/delta",
-            "item/approval/resolved",
-            "subagent/progress", "item/usage/delta", "system/event", "plan/updated",
-        ]
-
-        async def make_handler(method_name: str) -> Handler:
-            async def handler(params: dict) -> None:
-                _current_method[0] = method_name
-                await enqueue(params)
-            return handler
-
-        handlers: dict[str, Handler] = {}
-        for m in all_methods:
-            h = await make_handler(m)
-            handlers[m] = h
-            self.register_handler(m, h)
-
-        try:
-            while True:
-                msg = await queue.get()
-                if msg is None:
-                    break
-                yield msg
-                if msg.method in terminal_methods:
-                    break
-        finally:
-            for m, h in handlers.items():
-                self.unregister_handler(m, h)
+        return self.register_server_request_handler_raw(method, typed_handler)
 
     # ------------------------------------------------------------------
     # Raw escape hatch
     # ------------------------------------------------------------------
 
-    async def request(self, method: str, params: dict | None = None) -> Any:
+    async def request_raw(
+        self,
+        method: str,
+        params: dict | None = None,
+        *,
+        timeout: float | None | object = _TIMEOUT_UNSET,
+    ) -> Any:
         """Send a raw JSON-RPC request and return the result. Public escape hatch."""
-        return await self._request(method, params)
+        effective_timeout: float | None
+        if timeout is _TIMEOUT_UNSET:
+            effective_timeout = self._default_timeout
+        else:
+            effective_timeout = timeout  # type: ignore[assignment]
+        return await self._request_internal(method, params, effective_timeout)
 
-    async def notify(self, method: str, params: dict | None = None) -> None:
+    async def notify_raw(self, method: str, params: dict | None = None) -> None:
         """Send a raw JSON-RPC notification."""
         await self._notify(method, params or {})
-
-    # ------------------------------------------------------------------
-    # User-input and runtime dynamic tool callbacks
-    # ------------------------------------------------------------------
-
-    @property
-    def on_user_input_request(self) -> Callable:
-        """Decorator to register the user-input request handler.
-
-        The handler receives (request_id, params) and returns an answers dict.
-        """
-        def decorator(fn: RequestHandler) -> RequestHandler:
-            self._user_input_handler = fn
-            return fn
-        return decorator
-
-    def register_dynamic_tool_handler(
-        self,
-        handler: Callable,
-        thread_id: str | None = None,
-        namespace: str | None = None,
-        tool: str | None = None,
-    ) -> Callable[[], None]:
-        """Register a runtime dynamic tool handler.
-
-        With no thread_id/tool, registers a catch-all fallback. Returns an unregister callable.
-        The handler receives a call dict and returns a result dict or ``DynamicToolResult``
-        (``{"success": True, "contentItems": [...], "structuredContent": {...}}``
-        or ``{"success": False, "errorCode": "...", "errorMessage": "..."}``).
-        """
-        if thread_id is None and tool is None:
-            self._fallback_dynamic_tool_handler = handler
-
-            def _unregister_fallback() -> None:
-                if self._fallback_dynamic_tool_handler is handler:
-                    self._fallback_dynamic_tool_handler = None
-
-            return _unregister_fallback
-
-        key = self._tool_key(thread_id or "", namespace, tool or "")
-        self._dynamic_tool_handlers[key] = handler
-
-        def _unregister() -> None:
-            if self._dynamic_tool_handlers.get(key) is handler:
-                self._dynamic_tool_handlers.pop(key, None)
-
-        return _unregister
-
-    @staticmethod
-    def _tool_key(thread_id: str, namespace: str | None, tool: str) -> str:
-        return f"{thread_id}\x00{namespace or ''}\x00{tool}"
 
     # ------------------------------------------------------------------
     # Internal: JSON-RPC primitives
@@ -648,21 +353,58 @@ class DotCraftClient(GeneratedAppServerClientMixin):
 
     async def _request(self, method: str, params: dict | None = None) -> Any:
         """Send a JSON-RPC request and wait for the response."""
-        rid = self._next_request_id()
-        future: asyncio.Future = asyncio.get_event_loop().create_future()
-        self._pending[rid] = future
+        return await self._request_internal(method, params, self._default_timeout)
 
-        msg = JsonRpcMessage(method=method, id=rid, params=params)
-        await self._transport.write_message(msg.to_dict())
+    async def _request_internal(
+        self,
+        method: str,
+        params: dict | None,
+        timeout: float | None,
+        *,
+        bypass_ready: bool = False,
+    ) -> Any:
+        async def send_and_wait() -> Any:
+            if not bypass_ready and not self._ready.is_set():
+                if self._state not in ("initializing", "reconnecting", "reconnectError"):
+                    raise TransportClosed("Wire transport is not ready")
+                if self._queued_requests >= self._max_reconnect_queue:
+                    raise ReconnectQueueFullError("Wire reconnect request queue is full")
+                self._queued_requests += 1
+                try:
+                    await self._ready.wait()
+                finally:
+                    self._queued_requests -= 1
 
+            rid = self._next_request_id()
+            future: asyncio.Future = asyncio.get_running_loop().create_future()
+            self._pending[rid] = future
+            try:
+                msg = JsonRpcMessage(method=method, id=rid, params=params)
+                await self._transport.write_message(msg.to_dict())
+                return await future
+            finally:
+                pending = self._pending.pop(rid, None)
+                if pending is not None and not pending.done():
+                    pending.cancel()
+
+        if timeout is None:
+            return await send_and_wait()
         try:
-            return await future
-        except asyncio.CancelledError:
-            self._pending.pop(rid, None)
-            raise
+            return await asyncio.wait_for(send_and_wait(), timeout=timeout)
+        except asyncio.TimeoutError as exc:
+            raise RequestTimeoutError(method, timeout) from exc
 
     async def _notify(self, method: str, params: dict) -> None:
         """Send a JSON-RPC notification (no id, no response expected)."""
+        await self._notify_internal(method, params)
+
+    async def _notify_internal(
+        self, method: str, params: dict, *, bypass_ready: bool = False
+    ) -> None:
+        if not bypass_ready and not self._ready.is_set():
+            if self._state not in ("initializing", "reconnecting", "reconnectError"):
+                raise TransportClosed("Wire transport is not ready")
+            await self._ready.wait()
         msg = JsonRpcMessage(method=method, params=params)
         await self._transport.write_message(msg.to_dict())
 
@@ -687,31 +429,75 @@ class DotCraftClient(GeneratedAppServerClientMixin):
         while True:
             try:
                 raw = await self._transport.read_message()
-            except TransportClosed:
-                logger.debug("DotCraftClient: transport closed, stopping reader loop")
-                # Cancel all pending futures
-                for fut in self._pending.values():
-                    if not fut.done():
-                        fut.cancel()
+            except TransportClosed as e:
+                if await self._handle_disconnect(e):
+                    continue
                 break
             except TransportError as e:
-                logger.error("DotCraftClient: transport error: %s", e)
+                if await self._handle_disconnect(e):
+                    continue
                 break
             except Exception as e:
-                logger.error("DotCraftClient: unexpected error in reader loop: %s", e)
+                logger.error("DotCraftWireClient: unexpected error in reader loop: %s", e)
                 break
 
             try:
                 msg = JsonRpcMessage.from_dict(raw)
                 await self._dispatch(msg)
             except Exception as e:
-                logger.error("DotCraftClient: error dispatching message: %s", e)
+                logger.error("DotCraftWireClient: error dispatching message: %s", e)
+
+    async def _handle_disconnect(self, error: Exception) -> bool:
+        from .transport import WebSocketTransport
+
+        self._ready.clear()
+        self._initialized = False
+        for future in list(self._pending.values()):
+            if not future.done():
+                future.set_exception(TransportClosed("Wire transport disconnected"))
+        self._pending.clear()
+
+        if (
+            not self._auto_reconnect
+            or self._initialize_kwargs is None
+            or not isinstance(self._transport, WebSocketTransport)
+            or self._state == "closed"
+        ):
+            self._set_state("disconnected", error)
+            return False
+
+        delay = self._reconnect_initial_delay
+        self._set_state("reconnecting", error)
+        while self._state != "closed":
+            jittered = delay * random.uniform(0.8, 1.2)
+            await asyncio.sleep(jittered)
+            try:
+                await self._transport.connect()
+                handshake = asyncio.create_task(self.initialize(**self._initialize_kwargs))
+                while not handshake.done():
+                    raw = await self._transport.read_message()
+                    await self._dispatch(JsonRpcMessage.from_dict(raw))
+                    await asyncio.sleep(0)
+                await handshake
+                return True
+            except asyncio.CancelledError:
+                raise
+            except Exception as reconnect_error:
+                if 'handshake' in locals() and not handshake.done():
+                    handshake.cancel()
+                self._set_state("reconnectError", reconnect_error)
+                delay = min(delay * 2, self._reconnect_max_delay)
+                self._set_state("reconnecting", reconnect_error)
+        return False
 
     async def _dispatch(self, msg: JsonRpcMessage) -> None:
         """Dispatch a parsed message to the appropriate handler."""
         if msg.is_response:
             # Server replied to one of our requests
-            fut = self._pending.pop(msg.id, None)
+            request_id = msg.id
+            if request_id is None:
+                return
+            fut = self._pending.pop(request_id, None)
             if fut is None:
                 logger.warning("Received response for unknown id: %s", msg.id)
                 return
@@ -758,48 +544,9 @@ class DotCraftClient(GeneratedAppServerClientMixin):
         method = msg.method or ""
         params = msg.params or {}
         request_id = msg.id
-
-        # Approval request has a dedicated handler
-        if method == "item/approval/request":
-            handler = self._approval_handler
-            if handler is None:
-                # Default: auto-accept if no handler registered
-                logger.warning("No approval handler registered; auto-accepting")
-                await self._send_response(request_id, {"decision": "accept"})
-                return
-            try:
-                decision = await handler(request_id, params)
-                await self._send_response(request_id, {"decision": decision})
-            except Exception as e:
-                logger.error("Approval handler error: %s", e)
-                await self._send_response(request_id, {"decision": "cancel"})
+        if request_id is None:
             return
 
-        # User-input request (Plan Mode and tools)
-        if method == "item/tool/requestUserInput":
-            handler = self._user_input_handler
-            if handler is None:
-                await self._send_response(request_id, {"answers": {}})
-                return
-            try:
-                answers = await handler(request_id, params)
-                await self._send_response(request_id, {"answers": answers or {}})
-            except Exception as e:
-                logger.error("User-input handler error: %s", e)
-                await self._send_response(request_id, {"answers": {}})
-            return
-
-        # Runtime dynamic tool call
-        if method == "item/tool/call":
-            await self._send_response(request_id, await self._handle_dynamic_tool_call(params))
-            return
-
-        # Heartbeat: always respond immediately
-        if method == "ext/channel/heartbeat":
-            await self._send_response(request_id, {})
-            return
-
-        # Other server requests
         handler = self._request_handlers.get(method)
         if handler is None:
             logger.warning("No handler registered for server request method: %s", method)
@@ -812,28 +559,3 @@ class DotCraftClient(GeneratedAppServerClientMixin):
         except Exception as e:
             logger.error("Server request handler error for %s: %s", method, e)
             await self._send_error_response(request_id, -32603, str(e))
-
-    async def _handle_dynamic_tool_call(self, params: dict) -> dict:
-        """Route a server-initiated item/tool/call to a registered dynamic tool handler."""
-        thread_id = params.get("threadId", "")
-        namespace = params.get("namespace")
-        tool = params.get("tool", "")
-        key = self._tool_key(thread_id, namespace, tool)
-        handler = self._dynamic_tool_handlers.get(key) or self._fallback_dynamic_tool_handler
-        if handler is None:
-            return {
-                "success": False,
-                "errorCode": "UnsupportedTool",
-                "errorMessage": "No handler registered for this runtime dynamic tool.",
-            }
-        try:
-            result = handler(params)
-            if asyncio.iscoroutine(result):
-                result = await result
-            return result.to_wire() if isinstance(result, DynamicToolResult) else result
-        except Exception as e:
-            return {
-                "success": False,
-                "errorCode": "AdapterToolCallFailed",
-                "errorMessage": str(e),
-            }

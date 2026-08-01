@@ -381,7 +381,7 @@ Task<ThreadStartResult> ThreadStartAsync(
     CancellationToken cancellationToken = default);
 ```
 
-The .NET SDK retains its raw `RequestAsync(string, object?)` API. Generated helpers delegate to the existing transport and error model.
+The .NET SDK exposes descriptor-typed `RequestAsync` / `NotifyAsync` APIs. Unknown extensions use separately named `RequestRawAsync` / `NotifyRawAsync` methods; there is no arbitrary-string overload on the typed methods.
 
 ### 11.2 TypeScript
 
@@ -397,7 +397,7 @@ sdk/typescript/src/generated/appserver/
 `-- method-groups.generated.ts
 ```
 
-The TypeScript emitter consumes Contract IR directly. It generates interfaces, string unions, discriminated unions, JSON value aliases, and four direction-specific method maps.
+The TypeScript emitter consumes Contract IR directly. It generates interfaces, string unions, discriminated unions, JSON value aliases, four direction-specific method maps, and exhaustive known notification/server-request envelope unions suitable for typed dispatch and host IPC boundaries.
 
 ```typescript
 export interface ClientRequestMap {
@@ -408,11 +408,11 @@ export interface ClientRequestMap {
 }
 ```
 
-The low-level client uses method literals to infer params and result types. Unknown methods remain available through the raw request API.
+The low-level client uses method literals to infer params and result types. Unknown methods remain available only through explicitly named raw APIs. `@dotcraft/sdk/contracts` re-exports these I/O-free generated artifacts.
 
 ### 11.3 Python
 
-ProtocolGen writes a normalized aggregate Schema and invokes an exactly pinned `datamodel-code-generator` development dependency to produce Pydantic v2 models. Custom emitters use the Manifest to generate notification registries, raw RPC mixins, and protocol metadata.
+ProtocolGen writes a normalized aggregate Schema and invokes an exactly pinned `datamodel-code-generator` development dependency to produce Pydantic v2 models. Custom emitters use the Manifest to generate notification registries, typed RPC mixins, and protocol metadata.
 
 ```text
 sdk/python/dotcraft/_generated/appserver/
@@ -435,21 +435,24 @@ Generated models inherit a contract-owned `WireModel` base with these semantics:
 
 Schema normalization, generator templates, or structured generator extension points resolve naming and semantic gaps. Generated Python source is not repaired through ad hoc string replacement.
 
-The Python SDK adds Pydantic v2 as a runtime dependency. `datamodel-code-generator` remains an exactly pinned development dependency.
+The Python SDK adds Pydantic v2 as a runtime dependency. `datamodel-code-generator` remains an exactly pinned development dependency. `dotcraft.contracts` provides the supported public re-export surface while implementation files remain generated internals.
 
 ### 11.4 Handwritten SDK layer
 
 All language bindings keep these components handwritten:
 
 - transports and response correlation;
+- initialization gating, timeouts, lifecycle state, and opt-in reconnect;
 - Hub discovery and connection management;
 - high-level `DotCraft`, `Thread`, and Run APIs;
 - event reduction and text merging;
 - callback orchestration;
 - language-specific exception types;
-- compatibility adapters and raw escape hatches.
+- explicitly named raw escape hatches.
 
 Generated files remain internal low-level building blocks unless a language binding spec explicitly exports them.
+
+Known operations use generated maps, descriptors, or mixins. Unknown extensions use separately named raw methods so a misspelled known method cannot silently bypass compile-time checking. Host adapters may project generated contracts across IPC, but must not fork the contract model.
 
 ## 12. Typed server integration
 

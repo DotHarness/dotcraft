@@ -109,7 +109,7 @@ A handler returns a success result (`success: true` with at least one useful tex
 
 ## Approvals
 
-When the agent requests approval for a sensitive action, the SDK routes it to your handler, which returns a decision (`accept`, `acceptForSession`, `acceptAlways`, `decline`, `cancel`). Without a handler, the SDK auto-accepts — provide an explicit handler in production.
+When the agent requests approval for a sensitive action, the SDK routes it to your handler, which returns a decision (`accept`, `acceptForSession`, `acceptAlways`, `decline`, `cancel`). A client cannot advertise approval support without registering this handler first.
 
 ::: code-group
 

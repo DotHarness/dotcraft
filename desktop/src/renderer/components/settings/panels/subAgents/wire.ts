@@ -1,3 +1,5 @@
+import type { JsonValue } from '@dotcraft/sdk/contracts'
+
 export const PRESET_PROFILE_NAMES = ['native', 'codex-cli', 'cursor-cli'] as const
 export type PresetProfileName = (typeof PRESET_PROFILE_NAMES)[number]
 export const PERMISSION_MODE_KEYS = ['interactive', 'auto-approve', 'restricted'] as const
@@ -36,7 +38,7 @@ export interface SubAgentProfileWriteWire {
   timeout?: number | null
   trustLevel?: string | null
   permissionModeMapping?: Record<string, string> | null
-  sanitizationRules?: Record<string, unknown> | null
+  sanitizationRules?: JsonValue
 }
 
 export interface SubAgentProfileDiagnosticWire {
@@ -257,7 +259,7 @@ export function buildCustomWriteWire(
       timeout: timeout.value,
       trustLevel: nullableString(draft.trustLevel),
       permissionModeMapping,
-      sanitizationRules: sanitizationRules.value
+      sanitizationRules: sanitizationRules.value as JsonValue
     }
   }
 }

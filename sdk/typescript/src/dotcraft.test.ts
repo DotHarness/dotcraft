@@ -28,7 +28,6 @@ test("App Binding canonical fixture is stable", () => {
 });
 
 class FakeWire {
-  approvalHandler: ServerRequestHandler | null = null;
   readonly requestHandlers = new Map<string, ServerRequestHandler>();
   readonly calls: string[] = [];
   readonly requests: Array<{ method: string; params: unknown }> = [];
@@ -42,10 +41,6 @@ class FakeWire {
   cancelAfterInterrupt = false;
   interrupted: { threadId: string; turnId: string } | null = null;
   private releaseAfterInterrupt: (() => void) | null = null;
-
-  setApprovalHandler(handler: ServerRequestHandler | null): void {
-    this.approvalHandler = handler;
-  }
 
   registerServerRequestHandler(method: string, handler: ServerRequestHandler): void {
     this.requestHandlers.set(method, handler);
@@ -110,7 +105,7 @@ class FakeWire {
     this.releaseAfterInterrupt?.();
   }
 
-  async request<T>(method: string, params?: unknown): Promise<T> {
+  async requestRaw<T>(method: string, params?: unknown): Promise<T> {
     this.requests.push({ method, params: toJsonParams(params) });
     if (this.requestResults.has(method)) {
       return this.requestResults.get(method) as T;
@@ -252,12 +247,12 @@ test("MCP runtime manager uses the specified methods and wire fields", async () 
   ]);
 });
 
-test("DotCraft default callbacks are non-blocking fallbacks", async () => {
+test("DotCraft does not install callback fallbacks", async () => {
   const wire = new FakeWire();
   createSdk(wire);
 
-  assert.equal(await wire.approvalHandler?.("approval", {}), "accept");
-  assert.deepEqual(await wire.requestHandlers.get("item/tool/requestUserInput")?.("input", {}), { answers: {} });
+  assert.equal(wire.requestHandlers.has("item/approval/request"), false);
+  assert.equal(wire.requestHandlers.has("item/tool/requestUserInput"), false);
 });
 
 test("DotCraft uses explicit approval and user-input callbacks when provided", async () => {
@@ -268,7 +263,9 @@ test("DotCraft uses explicit approval and user-input callbacks when provided", a
     async () => ({ answers: { value: "42" } }),
   );
 
-  assert.equal(await wire.approvalHandler?.("approval", {}), "decline");
+  assert.deepEqual(await wire.requestHandlers.get("item/approval/request")?.("approval", {}), {
+    decision: "decline",
+  });
   assert.deepEqual(await wire.requestHandlers.get("item/tool/requestUserInput")?.("input", {}), {
     answers: { value: "42" },
   });
@@ -369,6 +366,12 @@ test("parseAppBindingHandoff rejects an unexpected scheme", () => {
       expectedScheme: "board-example",
     }),
   );
+});
+
+test("parseAppBindingHandoff rejects alternate query names", () => {
+  assert.throws(() => parseAppBindingHandoff(
+    "board-example://dotcraft/connect?appId=com.example.board&requestId=req_1&requestToken=tok_1",
+  ));
 });
 
 test("DotCraft models.list returns typed model info", async () => {

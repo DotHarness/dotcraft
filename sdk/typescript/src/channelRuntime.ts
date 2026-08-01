@@ -5,7 +5,8 @@
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 
-import type { DotCraftWireClient, NotificationHandler, ServerRequestHandler } from "./client.js";
+import type { NotificationHandler, ServerRequestHandler } from "./client.js";
+import type { DotCraftAppServerClient } from "./appServerClient.js";
 import { DotCraftError } from "./errors.js";
 import { JsonRpcMessage, Thread, commandRefPart } from "./models.js";
 import type { LifecycleStatus, ModuleError, ModuleErrorCode } from "./lifecycle.js";
@@ -19,9 +20,9 @@ import {
 import { shouldFlushSegmentOnItemStarted } from "./segmentBoundaries.js";
 import { emptyUserInputResponse, type UserInputResponse } from "./userInput.js";
 
-type ClientProvider = DotCraftWireClient | (() => DotCraftWireClient);
+type ClientProvider = DotCraftAppServerClient | (() => DotCraftAppServerClient);
 
-function resolveClient(provider: ClientProvider): DotCraftWireClient {
+function resolveClient(provider: ClientProvider): DotCraftAppServerClient {
   return typeof provider === "function" ? provider() : provider;
 }
 
@@ -943,12 +944,12 @@ export class ApprovalDispatcher {
   }
 
   register(): void {
-    resolveClient(this.client).setApprovalHandler(async (_id, params) => {
+    resolveClient(this.client).registerServerRequestHandler("item/approval/request", async (_id, params) => {
       try {
-        return await this.onApprovalRequest(params);
+        return { decision: await this.onApprovalRequest(params) };
       } catch (error) {
         this.onError("onApprovalRequest raised:", error);
-        return "cancel";
+        return { decision: "cancel" };
       }
     });
   }
@@ -974,10 +975,10 @@ export class UserInputDispatcher {
   register(): void {
     resolveClient(this.client).registerServerRequestHandler("item/tool/requestUserInput", async (_id, params) => {
       try {
-        return await this.onUserInputRequest(params);
+        return await this.onUserInputRequest(params) as never;
       } catch (error) {
         this.onError("onUserInputRequest raised:", error);
-        return emptyUserInputResponse();
+        return emptyUserInputResponse() as never;
       }
     });
   }

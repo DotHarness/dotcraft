@@ -473,10 +473,11 @@ def dynamic_tool_image(
     """Create a Runtime Dynamic image with exactly one URL or base64 source."""
     if (url is None) == (data_base64 is None):
         raise ValueError("Exactly one of url or data_base64 must be provided.")
-    result = {"type": "image", "mediaType": media_type}
+    result: dict[str, str] = {"type": "image", "mediaType": media_type}
     if url is not None:
         result["url"] = url
     else:
+        assert data_base64 is not None
         result["dataBase64"] = data_base64
     return result
 

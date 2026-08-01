@@ -1,6 +1,7 @@
 import { userInfo } from "node:os";
 
-import { DotCraftWireClient, type NotificationHandler, type Unsubscribe } from "./client.js";
+import { type NotificationHandler, type Unsubscribe } from "./client.js";
+import { DotCraftAppServerClient } from "./appServerClient.js";
 import {
   JsonRpcMessage,
   ServerCapabilities,
@@ -10,7 +11,7 @@ import {
   textPart,
 } from "./models.js";
 import { WebSocketTransport } from "./transport.js";
-import { HubClient } from "./hubClient.js";
+import { HubClient, type HubBinaryMatchPolicy } from "./hubClient.js";
 import {
   InitializationError,
   TurnCancelledError,
@@ -21,6 +22,10 @@ import {
   extractAgentReplyTextFromTurnCompletedParams,
   mergeReplyTextFromDeltaAndSnapshot,
 } from "./turnReply.js";
+import type {
+  ClientRequestMethods,
+  ServerNotificationMethods,
+} from "./generated/appserver/index.js";
 
 export type InputPart = Record<string, unknown>;
 export type SenderContext = Record<string, unknown>;
@@ -44,7 +49,9 @@ export interface DotCraftLocalOptions {
   clientName?: string;
   clientVersion?: string;
   clientTitle?: string;
-  dotcraftBin?: string;
+  executable?: string;
+  expectedExecutable?: string;
+  binaryMatchPolicy?: HubBinaryMatchPolicy;
   hubStartupTimeoutMs?: number;
   homeDir?: string;
   approvalHandler?: ApprovalHandler;
@@ -531,15 +538,12 @@ export function parseAppBindingHandoff(
 
   const operation = parsed.pathname.replace(/^\//, "");
   const query = parsed.searchParams;
-  const first = (...keys: string[]): string | undefined => {
-    for (const key of keys) {
-      const value = query.get(key);
-      if (value) return value;
-    }
-    return undefined;
-  };
-
-  const appId = first("app", "appId") ?? "";
+  const appId = query.get("app") ?? "";
+  const requestId = query.get("request") ?? "";
+  const requestToken = query.get("token") ?? "";
+  if (!appId || !requestId || !requestToken) {
+    throw new Error("The handoff URL must contain app, request, and token query parameters.");
+  }
   if (options?.expectedAppId && appId !== options.expectedAppId) {
     throw new Error(`Unexpected handoff appId '${appId}', expected '${options.expectedAppId}'.`);
   }
@@ -548,9 +552,9 @@ export function parseAppBindingHandoff(
     scheme,
     operation,
     appId,
-    requestId: first("request", "requestId") ?? "",
-    requestToken: first("token", "requestToken") ?? "",
-    appServerUrl: first("endpoint", "appServer"),
+    requestId,
+    requestToken,
+    appServerUrl: query.get("endpoint") ?? undefined,
   };
 }
 
@@ -909,7 +913,7 @@ class AppBindingManagerImpl implements AppBindingManager {
     includeCatalog?: boolean;
     forceRefresh?: boolean;
   } = {}): Promise<AppInfo[]> {
-    const result = await this.sdk.request<{ apps?: AppInfo[] }>("app/list", {
+    const result = await this.sdk.requestRaw<{ apps?: AppInfo[] }>("app/list", {
       includeCatalog: params.includeCatalog ?? true,
       includeDisabled: params.includeDisabled ?? true,
       threadId: params.threadId,
@@ -919,7 +923,7 @@ class AppBindingManagerImpl implements AppBindingManager {
   }
 
   async viewApp(appId: string, params: { threadId?: string } = {}): Promise<AppInfo> {
-    const result = await this.sdk.request<{ app?: AppInfo }>("app/view", {
+    const result = await this.sdk.requestRaw<{ app?: AppInfo }>("app/view", {
       appId,
       threadId: params.threadId,
     });
@@ -928,7 +932,7 @@ class AppBindingManagerImpl implements AppBindingManager {
   }
 
   async registerLocalApp(appId: string, rootPath: string): Promise<AppInfo> {
-    const result = await this.sdk.request<{ app?: AppInfo }>("app/local/register", {
+    const result = await this.sdk.requestRaw<{ app?: AppInfo }>("app/local/register", {
       appId,
       rootPath,
     });
@@ -940,7 +944,7 @@ class AppBindingManagerImpl implements AppBindingManager {
     appId: string,
     params: { handoffMode?: string; returnTo?: string } = {},
   ): Promise<AppConnectionStartResult> {
-    return await this.sdk.request<AppConnectionStartResult>("app/connection/start", {
+    return await this.sdk.requestRaw<AppConnectionStartResult>("app/connection/start", {
       appId,
       handoffMode: params.handoffMode,
       returnTo: params.returnTo,
@@ -952,7 +956,7 @@ class AppBindingManagerImpl implements AppBindingManager {
     requestToken: string;
     accountLabel?: string;
   }): Promise<AppConnectionConnectResult> {
-    return await this.sdk.request<AppConnectionConnectResult>("app/connection/connect", {
+    return await this.sdk.requestRaw<AppConnectionConnectResult>("app/connection/connect", {
       connectionRequestId: params.connectionRequestId,
       requestToken: params.requestToken,
       accountLabel: params.accountLabel,
@@ -960,15 +964,15 @@ class AppBindingManagerImpl implements AppBindingManager {
   }
 
   async connectionStatus(appId: string): Promise<AppConnectionStatus> {
-    return await this.sdk.request<AppConnectionStatus>("app/connection/status", { appId });
+    return await this.sdk.requestRaw<AppConnectionStatus>("app/connection/status", { appId });
   }
 
   async revokeConnection(appId: string, reason?: string): Promise<AppConnectionStatus> {
-    return await this.sdk.request<AppConnectionStatus>("app/connection/revoke", { appId, reason });
+    return await this.sdk.requestRaw<AppConnectionStatus>("app/connection/revoke", { appId, reason });
   }
 
   async publishSurface(params: AppSurfacePublishParams): Promise<AppSurface> {
-    return await this.sdk.request<AppSurface>("app/surface/publish", {
+    return await this.sdk.requestRaw<AppSurface>("app/surface/publish", {
       surfaceId: params.surfaceId,
       endpoint: params.endpoint,
       bearer: params.bearer,
@@ -976,34 +980,34 @@ class AppBindingManagerImpl implements AppBindingManager {
   }
 
   async resolveSurface(params: AppSurfaceResolveParams): Promise<AppSurface> {
-    return await this.sdk.request<AppSurface>("app/surface/resolve", {
+    return await this.sdk.requestRaw<AppSurface>("app/surface/resolve", {
       appId: params.appId,
       surfaceId: params.surfaceId,
     });
   }
 
   async authenticate(appId: string, credential: string): Promise<Record<string, unknown>> {
-    return await this.sdk.request("app/connection/authenticate", { appId, credential });
+    return await this.sdk.requestRaw("app/connection/authenticate", { appId, credential });
   }
 
   async refreshCredential(): Promise<Record<string, unknown>> {
-    return await this.sdk.request("app/connection/refresh", {});
+    return await this.sdk.requestRaw("app/connection/refresh", {});
   }
 
   async activate(params: { bindingRequestId: string; endpoint: string; bearer: string; bearerExpiresAt?: string }): Promise<Record<string, unknown>> {
-    return await this.sdk.request("app/binding/activate", params);
+    return await this.sdk.requestRaw("app/binding/activate", params);
   }
 
   async rebind(params: { bindingId: string; authorityRevision: number; endpoint: string; bearer: string; bearerExpiresAt?: string }): Promise<Record<string, unknown>> {
-    return await this.sdk.request("app/binding/rebind", params);
+    return await this.sdk.requestRaw("app/binding/rebind", params);
   }
 
   async confirmCapabilities(threadId: string, bindingId: string, candidateRevision: number, decision: "accept" | "reject"): Promise<Record<string, unknown>> {
-    return await this.sdk.request("thread/appBindings/confirmCapabilities", { threadId, bindingId, candidateRevision, decision });
+    return await this.sdk.requestRaw("thread/appBindings/confirmCapabilities", { threadId, bindingId, candidateRevision, decision });
   }
 
   async enable(threadId: string, appId: string): Promise<AppBindingRequestCreateResult> {
-    return await this.sdk.request<AppBindingRequestCreateResult>("thread/appBindings/enable", {
+    return await this.sdk.requestRaw<AppBindingRequestCreateResult>("thread/appBindings/enable", {
       threadId,
       appId,
     });
@@ -1013,7 +1017,7 @@ class AppBindingManagerImpl implements AppBindingManager {
     threadId: string;
     channelName: string;
   }): Promise<AppBindingRequestCreateResult> {
-    return await this.sdk.request<AppBindingRequestCreateResult>("thread/socialBindings/request/create", {
+    return await this.sdk.requestRaw<AppBindingRequestCreateResult>("thread/socialBindings/request/create", {
       threadId: params.threadId,
       channelName: params.channelName,
     });
@@ -1024,7 +1028,7 @@ class AppBindingManagerImpl implements AppBindingManager {
     requestToken?: string;
     bindCode?: string;
   }): Promise<AppBindingRequestGetResult> {
-    return await this.sdk.request<AppBindingRequestGetResult>(
+    return await this.sdk.requestRaw<AppBindingRequestGetResult>(
       params.bindCode ? "app/socialBinding/request/get" : "app/binding/request/get",
       params.bindCode ? { code: params.bindCode } : {
         bindingRequestId: params.bindingRequestId,
@@ -1038,14 +1042,14 @@ class AppBindingManagerImpl implements AppBindingManager {
     socialTarget: SocialChannelTarget;
   }): Promise<ThreadAppBinding> {
     const target = params.socialTarget;
-    return await this.sdk.request<ThreadAppBinding>("app/socialBinding/accept", {
+    return await this.sdk.requestRaw<ThreadAppBinding>("app/socialBinding/accept", {
       code: params.requestToken,
       target,
     });
   }
 
   async resolveSocialBinding(params: AppSocialBindingResolveParams): Promise<AppSocialBindingResolveResult> {
-    return await this.sdk.request<AppSocialBindingResolveResult>("app/socialBinding/resolve", {
+    return await this.sdk.requestRaw<AppSocialBindingResolveResult>("app/socialBinding/resolve", {
       channelName: params.channelName,
       accountId: params.accountId,
       conversationKind: params.conversationKind,
@@ -1062,11 +1066,11 @@ class AppBindingManagerImpl implements AppBindingManager {
     startPolicy?: string;
     sender?: SenderContext;
   }): Promise<AppThreadInputEnqueueResult> {
-    return await this.sdk.request<AppThreadInputEnqueueResult>("app/threadInput/enqueue", params);
+    return await this.sdk.requestRaw<AppThreadInputEnqueueResult>("app/threadInput/enqueue", params);
   }
 
   async listThreadBindings(threadId: string, includeRevoked = false): Promise<ThreadAppBinding[]> {
-    const result = await this.sdk.request<{ bindings?: ThreadAppBinding[] }>("thread/appBindings/list", {
+    const result = await this.sdk.requestRaw<{ bindings?: ThreadAppBinding[] }>("thread/appBindings/list", {
       threadId,
       includeRevoked,
     });
@@ -1074,7 +1078,7 @@ class AppBindingManagerImpl implements AppBindingManager {
   }
 
   async revokeThreadBinding(threadId: string, bindingId: string, reason?: string): Promise<Record<string, unknown>> {
-    return await this.sdk.request<Record<string, unknown>>("thread/appBindings/revoke", {
+    return await this.sdk.requestRaw<Record<string, unknown>>("thread/appBindings/revoke", {
       threadId,
       bindingId,
       reason,
@@ -1082,7 +1086,7 @@ class AppBindingManagerImpl implements AppBindingManager {
   }
 
   async refreshThreadBindings(threadId: string, bindingId?: string): Promise<Record<string, unknown>[]> {
-    const result = await this.sdk.request<{ bindings?: Record<string, unknown>[] }>("thread/appBindings/list", { threadId });
+    const result = await this.sdk.requestRaw<{ bindings?: Record<string, unknown>[] }>("thread/appBindings/list", { threadId });
     return result.bindings ?? [];
   }
 }
@@ -1101,7 +1105,7 @@ class ModelManagerImpl implements ModelManager {
   constructor(private readonly sdk: DotCraft) {}
 
   async list(): Promise<ModelInfo[]> {
-    const result = await this.sdk.request<{ models?: unknown[]; items?: unknown[] }>("model/list", {});
+    const result = await this.sdk.requestRaw<{ models?: unknown[]; items?: unknown[] }>("model/list", {});
     const items = (result.models ?? result.items ?? []) as unknown[];
     return items
       .filter((m): m is Record<string, unknown> => typeof m === "object" && m !== null)
@@ -1118,23 +1122,23 @@ class McpRuntimeManagerImpl implements McpRuntimeManager {
   constructor(private readonly sdk: DotCraft) {}
 
   listStatus(params: McpServerStatusListParams = {}): Promise<McpServerStatusListResult> {
-    return this.sdk.request("mcpServerStatus/list", params);
+    return this.sdk.requestRaw<McpServerStatusListResult>("mcpServerStatus/list", params);
   }
 
   readResource(params: McpServerResourceReadParams): Promise<McpServerResourceReadResult> {
-    return this.sdk.request("mcpServer/resource/read", params);
+    return this.sdk.requestRaw<McpServerResourceReadResult>("mcpServer/resource/read", params);
   }
 
   callTool(params: McpServerToolCallParams): Promise<McpServerToolCallResult> {
-    return this.sdk.request("mcpServer/tool/call", params);
+    return this.sdk.requestRaw<McpServerToolCallResult>("mcpServer/tool/call", params);
   }
 
   loginOAuth(params: McpServerOAuthLoginParams): Promise<McpServerOAuthLoginResult> {
-    return this.sdk.request("mcpServer/oauth/login", params);
+    return this.sdk.requestRaw<McpServerOAuthLoginResult>("mcpServer/oauth/login", params);
   }
 
   reload(): Promise<McpServerReloadResult> {
-    return this.sdk.request("config/mcpServer/reload");
+    return this.sdk.requestRaw<McpServerReloadResult>("config/mcpServer/reload");
   }
 }
 
@@ -1145,7 +1149,7 @@ export class DotCraft {
   readonly mcpRuntime: McpRuntimeManager;
 
   private constructor(
-    readonly wire: DotCraftWireClient,
+    readonly wire: DotCraftAppServerClient,
     readonly serverInfo: ServerInfo,
     readonly capabilities: ServerCapabilities,
     private readonly approvalHandler?: ApprovalHandler,
@@ -1163,7 +1167,9 @@ export class DotCraft {
       throw new InitializationError("workspacePath is required for DotCraft.local().");
     }
     const hub = new HubClient({
-      dotcraftBin: options.dotcraftBin,
+      executable: options.executable,
+      expectedExecutable: options.expectedExecutable,
+      binaryMatchPolicy: options.binaryMatchPolicy,
       hubStartupTimeoutMs: options.hubStartupTimeoutMs,
       homeDir: options.homeDir,
     });
@@ -1178,7 +1184,9 @@ export class DotCraft {
 
   static async localChat(options: DotCraftLocalChatOptions = {}): Promise<DotCraft> {
     const hub = new HubClient({
-      dotcraftBin: options.dotcraftBin,
+      executable: options.executable,
+      expectedExecutable: options.expectedExecutable,
+      binaryMatchPolicy: options.binaryMatchPolicy,
       hubStartupTimeoutMs: options.hubStartupTimeoutMs,
       homeDir: options.homeDir,
     });
@@ -1198,12 +1206,26 @@ export class DotCraft {
     return await DotCraft.connect(new WebSocketTransport({ url: options.url, token: options.token }), options);
   }
 
-  request<T>(method: string, params?: unknown): Promise<T> {
-    return this.wire.request<T>(method, params);
+  request<M extends keyof ClientRequestMethods>(
+    method: M,
+    params: ClientRequestMethods[M]["params"],
+  ): Promise<ClientRequestMethods[M]["result"]> {
+    return this.wire.request(method, params);
   }
 
-  on(event: string, handler: NotificationHandler): Unsubscribe {
+  requestRaw<T = unknown>(method: string, params?: unknown): Promise<T> {
+    return this.wire.requestRaw<T>(method, params);
+  }
+
+  on<M extends keyof ServerNotificationMethods>(
+    event: M,
+    handler: (params: ServerNotificationMethods[M]["params"]) => void | Promise<void>,
+  ): Unsubscribe {
     return this.wire.on(event, handler);
+  }
+
+  onRaw(event: string, handler: NotificationHandler): Unsubscribe {
+    return this.wire.onRaw(event, handler);
   }
 
   async close(): Promise<void> {
@@ -1227,48 +1249,80 @@ export class DotCraft {
     transport: WebSocketTransport,
     options: DotCraftLocalOptions | DotCraftRemoteOptions,
   ): Promise<DotCraft> {
-    const wire = new DotCraftWireClient(transport);
+    if (options.capabilities?.approvalSupport === true && !options.approvalHandler) {
+      throw new InitializationError("approvalSupport requires an approvalHandler.");
+    }
+    if (options.capabilities?.requestUserInputSupport === true && !options.userInputHandler) {
+      throw new InitializationError("requestUserInputSupport requires a userInputHandler.");
+    }
+    const wire = new DotCraftAppServerClient(transport, { autoReconnect: true });
+    let sdk: DotCraft | undefined;
+    if (options.approvalHandler) {
+      wire.registerServerRequestHandler("item/approval/request", async (_id, params) => ({
+        decision: await options.approvalHandler!(params),
+      }));
+    }
+    if (options.userInputHandler) {
+      wire.registerServerRequestHandler("item/tool/requestUserInput", async (_id, params) => (
+        await options.userInputHandler!(params)
+      ) as never);
+    }
+    wire.registerServerRequestHandler("item/tool/call", async (_id, params) => {
+      const request = params as unknown as DynamicToolCallRequest;
+      const handler = sdk?.dynamicToolHandlers.get(toolKey(request.threadId, request.namespace, request.tool));
+      if (!handler) {
+        return { success: false, errorCode: "UnsupportedTool", errorMessage: "No handler registered for this dynamic tool." };
+      }
+      try {
+        return await handler(request) as never;
+      } catch (error) {
+        return {
+          success: false,
+          errorCode: "AdapterToolCallFailed",
+          errorMessage: error instanceof Error ? error.message : String(error),
+        };
+      }
+    });
     await wire.connect();
     const initialized = await wire.initialize({
       clientName: options.clientName ?? "dotcraft-sdk",
       clientVersion: options.clientVersion ?? "0.1.0",
       clientTitle: options.clientTitle,
-      approvalSupport: true,
-      requestUserInputSupport: true,
+      approvalSupport: Boolean(options.approvalHandler),
+      requestUserInputSupport: Boolean(options.userInputHandler),
       streamingSupport: true,
       configChange: true,
       extraCapabilities: options.capabilities,
     });
-    return new DotCraft(
+    sdk = new DotCraft(
       wire,
       initialized.serverInfo,
       initialized.capabilities,
       options.approvalHandler,
       options.userInputHandler,
     );
+    return sdk;
   }
 
   private installServerRequestHandlers(): void {
-    this.wire.setApprovalHandler(async (_id, params) => {
-      if (!this.approvalHandler) return "accept";
-      return await this.approvalHandler(params);
-    });
-    this.wire.registerServerRequestHandler("item/tool/requestUserInput", async (_id, params) => {
-      if (!this.userInputHandler) return { answers: {} };
-      return await this.userInputHandler(params);
-    });
+    if (this.approvalHandler) {
+      this.wire.registerServerRequestHandler("item/approval/request", async (_id, params) => ({
+        decision: await this.approvalHandler!(params),
+      }));
+    }
+    if (this.userInputHandler) {
+      this.wire.registerServerRequestHandler("item/tool/requestUserInput", async (_id, params) => (
+        await this.userInputHandler!(params)
+      ) as never);
+    }
     this.wire.registerServerRequestHandler("item/tool/call", async (_id, params) => {
       const request = params as unknown as DynamicToolCallRequest;
       const handler = this.dynamicToolHandlers.get(toolKey(request.threadId, request.namespace, request.tool));
       if (!handler) {
-        return {
-          success: false,
-          errorCode: "UnsupportedTool",
-          errorMessage: "No handler registered for this dynamic tool.",
-        };
+        return { success: false, errorCode: "UnsupportedTool", errorMessage: "No handler registered for this dynamic tool." };
       }
       try {
-        return await handler(request);
+        return await handler(request) as never;
       } catch (error) {
         return {
           success: false,

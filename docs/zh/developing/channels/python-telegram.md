@@ -29,7 +29,7 @@ DotCraft 外部渠道适配器的 Telegram 参考实现。
 pip install -r sdk/python/examples/telegram/requirements.txt
 ```
 
-这会安装 `dotcraft-wire`（SDK）和 `python-telegram-bot`。
+这会安装 `dotcraft`（SDK）和 `python-telegram-bot`。
 
 ## 配置
 
@@ -132,7 +132,7 @@ TelegramAdapter (python-telegram-bot, 长轮询)
      │ on_deliver()          → bot.send_message()
      │
      ▼
-dotcraft_wire.ChannelAdapter
+dotcraft.ChannelAdapter
      │
      │ thread/start, turn/start, 流式事件
      │ item/approval/request ↔ 响应
@@ -162,7 +162,7 @@ examples/telegram/
 
 ## 相关文档
 
-- [Python SDK](../sdks/python)——`dotcraft_wire` SDK 概览与 API 参考。
+- [Python SDK](../sdks/python)——`dotcraft` SDK 概览与 API 参考。
 - [Channels & Bots](../../features/entry-points/channels)——所有聊天渠道的总览。
 - [Telegram 渠道适配器](./telegram)——同一平台的 TypeScript 适配器。
 

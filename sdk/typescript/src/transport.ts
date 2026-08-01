@@ -110,6 +110,8 @@ export class WebSocketTransport implements Transport {
   async connect(): Promise<void> {
     if (this.closed) throw new TransportClosed();
     if (this.ws !== null) return;
+    this.terminalError = null;
+    this.receivedFrames = [];
     this.ws = new WebSocket(this.urlWithToken);
     await new Promise<void>((resolve, reject) => {
       const w = this.ws!;
@@ -192,7 +194,6 @@ export class WebSocketTransport implements Transport {
     });
     ws.on("close", () => {
       if (this.closed) return;
-      this.closed = true;
       this.ws = null;
       const err = new TransportClosed("WebSocket closed");
       this.terminalError = err;

@@ -29,6 +29,13 @@ import type { AppLocale } from '../shared/locales'
 import type { WorkspaceProjectsPayload } from '../shared/workspaceProjects'
 import type { GitHeadInspection } from '../shared/gitHead'
 import type { InlineVisualizationCaptureRect, InlineVisualizationCaptureResult } from '../shared/inlineVisualization'
+import type {
+  KnownNotificationPayload,
+  KnownServerRequestPayload,
+  RawNotificationPayload,
+  RawServerRequestPayload,
+  TypedAppServerRequestApi
+} from '../shared/appServerBoundary'
 
 export type UnsubscribeFn = () => void
 export type ConnectionMode = 'local' | 'remote'
@@ -53,13 +60,6 @@ export type EditorId =
   | 'github-desktop'
   | 'git-bash'
   | 'terminal'
-
-export interface NotificationPayload {
-  method: string
-  params: unknown
-  workspacePath?: string
-  foreground?: boolean
-}
 
 export interface PinnedThreadIdsChangedPayload {
   workspacePath: string
@@ -190,12 +190,6 @@ export interface WorkspaceConfigSchemaSection {
 
 export interface WorkspaceConfigSchema {
   sections: WorkspaceConfigSchemaSection[]
-}
-
-export interface ServerRequestPayload {
-  bridgeId: string
-  method: string
-  params: unknown
 }
 
 export interface WorkspaceStatusPayload {
@@ -415,8 +409,7 @@ declare global {
       visualization: {
         copyImage(rect: InlineVisualizationCaptureRect): Promise<InlineVisualizationCaptureResult>
       }
-      appServer: {
-        sendRequest(method: string, params?: unknown, timeoutMs?: number): Promise<unknown>
+      appServer: TypedAppServerRequestApi & {
         listModels(): Promise<unknown>
         requestWorkspaceConfigSchema(): Promise<WorkspaceConfigSchema | null>
         getConnectionStatus(): Promise<ConnectionStatusPayload>
@@ -428,11 +421,13 @@ declare global {
         restartManaged(): Promise<void>
         retryConnection(request?: RetryConnectionRequest): Promise<void>
         applyConnectionSettings(draft: ConnectionSettingsDraft): Promise<void>
-        onNotification(callback: (payload: NotificationPayload) => void): UnsubscribeFn
+        onNotification(callback: (payload: KnownNotificationPayload) => void): UnsubscribeFn
+        onNotificationRaw(callback: (payload: RawNotificationPayload) => void): UnsubscribeFn
         onConnectionStatus(
           callback: (status: ConnectionStatusPayload) => void
         ): UnsubscribeFn
-        onServerRequest(callback: (payload: ServerRequestPayload) => void): UnsubscribeFn
+        onServerRequest(callback: (payload: KnownServerRequestPayload) => void): UnsubscribeFn
+        onServerRequestRaw(callback: (payload: RawServerRequestPayload) => void): UnsubscribeFn
         sendServerResponse(bridgeId: string, result: unknown): Promise<void>
       }
       workspaceConfig: {

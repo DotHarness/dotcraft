@@ -172,7 +172,7 @@ public sealed class RunProfileTests
     }
 
     [Fact]
-    public async Task ApprovalRequest_AutoAccepts_WhenNoHandler()
+    public async Task ApprovalRequest_ReturnsMethodNotFound_WhenNoHandler()
     {
         var (client, transport) = await ConnectAsync();
         await using var _ = client;
@@ -186,7 +186,7 @@ public sealed class RunProfileTests
         });
 
         using var outbound = await transport.ReadOutboundAsync();
-        Assert.Equal("accept", outbound.RootElement.GetProperty("result").GetProperty("decision").GetString());
+        Assert.Equal(-32601, outbound.RootElement.GetProperty("error").GetProperty("code").GetInt32());
     }
 
     [Fact]

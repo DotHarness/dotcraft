@@ -858,8 +858,8 @@ export function ChannelsView(): JSX.Element {
       }
 
       const upsertRes = (await window.api.appServer.sendRequest('externalChannel/upsert', {
-        channel: payload
-      })) as { channel?: ExternalChannelConfigWire }
+        channel: { ...payload }
+      })) as unknown as { channel?: ExternalChannelConfigWire }
       const savedChannel = upsertRes.channel
         ? cloneExternalChannel(upsertRes.channel)
         : cloneExternalChannel(payload)

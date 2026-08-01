@@ -6,7 +6,7 @@ public sealed class DotCraftMcpRuntimeClient(DotCraftClient client)
     public Task<McpServerStatusListResult> ListStatusAsync(
         McpServerStatusListParams? parameters = null,
         CancellationToken cancellationToken = default) =>
-        client.RequestAsync<McpServerStatusListResult>(
+        client.RequestRawAsync<McpServerStatusListResult>(
             "mcpServerStatus/list",
             parameters ?? new McpServerStatusListParams(),
             cancellationToken);
@@ -14,24 +14,24 @@ public sealed class DotCraftMcpRuntimeClient(DotCraftClient client)
     public Task<McpServerResourceReadResult> ReadResourceAsync(
         McpServerResourceReadParams parameters,
         CancellationToken cancellationToken = default) =>
-        client.RequestAsync<McpServerResourceReadResult>(
+        client.RequestRawAsync<McpServerResourceReadResult>(
             "mcpServer/resource/read", parameters, cancellationToken);
 
     public Task<McpServerToolCallResult> CallToolAsync(
         McpServerToolCallParams parameters,
         CancellationToken cancellationToken = default) =>
-        client.RequestAsync<McpServerToolCallResult>(
+        client.RequestRawAsync<McpServerToolCallResult>(
             "mcpServer/tool/call", parameters, cancellationToken);
 
     public Task<McpServerOAuthLoginResult> LoginOAuthAsync(
         McpServerOAuthLoginParams parameters,
         CancellationToken cancellationToken = default) =>
-        client.RequestAsync<McpServerOAuthLoginResult>(
+        client.RequestRawAsync<McpServerOAuthLoginResult>(
             "mcpServer/oauth/login", parameters, cancellationToken);
 
     public Task<McpServerReloadResult> ReloadAsync(
         CancellationToken cancellationToken = default) =>
-        client.RequestAsync<McpServerReloadResult>(
+        client.RequestRawAsync<McpServerReloadResult>(
             "config/mcpServer/reload",
             null,
             cancellationToken);

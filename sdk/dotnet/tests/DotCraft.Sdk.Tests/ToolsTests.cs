@@ -114,8 +114,8 @@ public class ToolsTests
                 "sample.ping", "sample.search", "sample.confirm_only", "sample.free_form",
                 "sample.boom", "sample.explode", "sample.async_echo", "sample.nested", "sample.cancel",
             },
-            descriptors.Select(d => d.Name));
-        DynamicToolDescriptor search = descriptors.Single(d => d.Name == "sample.search");
+            descriptors.Select(d => d.QualifiedName));
+        DynamicToolDescriptor search = descriptors.Single(d => d.QualifiedName == "sample.search");
         Assert.Equal("sample", search.Namespace);
         Assert.Equal("search", search.LocalName);
         Assert.Equal("sample.search", search.QualifiedName);
@@ -126,7 +126,7 @@ public class ToolsTests
     public void Record_schema_has_constraints_description_and_required()
     {
         DynamicToolRegistry registry = BuildRecordRegistry(out _);
-        JsonElement schema = registry.ListDescriptors().Single(d => d.Name == "sample.search").InputSchema;
+        JsonElement schema = registry.ListDescriptors().Single(d => d.QualifiedName == "sample.search").InputSchema;
 
         Assert.Equal("object", schema.GetProperty("type").GetString());
         Assert.False(schema.GetProperty("additionalProperties").GetBoolean());
@@ -154,7 +154,7 @@ public class ToolsTests
     public void Empty_args_schema_has_empty_properties()
     {
         DynamicToolRegistry registry = BuildRecordRegistry(out _);
-        JsonElement schema = registry.ListDescriptors().Single(d => d.Name == "sample.ping").InputSchema;
+        JsonElement schema = registry.ListDescriptors().Single(d => d.QualifiedName == "sample.ping").InputSchema;
 
         Assert.Equal("object", schema.GetProperty("type").GetString());
         Assert.False(schema.GetProperty("additionalProperties").GetBoolean());
@@ -166,7 +166,7 @@ public class ToolsTests
     public void Const_true_flag_becomes_boolean_enum()
     {
         DynamicToolRegistry registry = BuildRecordRegistry(out _);
-        JsonElement schema = registry.ListDescriptors().Single(d => d.Name == "sample.confirm_only").InputSchema;
+        JsonElement schema = registry.ListDescriptors().Single(d => d.QualifiedName == "sample.confirm_only").InputSchema;
         JsonElement confirm = schema.GetProperty("properties").GetProperty("confirm");
 
         Assert.Equal("boolean", confirm.GetProperty("type").GetString());
@@ -177,7 +177,7 @@ public class ToolsTests
     public void Free_form_object_allows_additional_properties()
     {
         DynamicToolRegistry registry = BuildRecordRegistry(out _);
-        JsonElement schema = registry.ListDescriptors().Single(d => d.Name == "sample.free_form").InputSchema;
+        JsonElement schema = registry.ListDescriptors().Single(d => d.QualifiedName == "sample.free_form").InputSchema;
         Assert.True(schema.GetProperty("additionalProperties").GetBoolean());
     }
 

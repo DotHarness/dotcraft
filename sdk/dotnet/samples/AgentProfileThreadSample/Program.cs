@@ -50,7 +50,7 @@ async Task<int> RunAsync(SampleOptions sampleOptions, CancellationToken cancella
             ClientName = ClientName,
             ClientTitle = "Agent Profile Thread Sample",
             ClientVersion = ClientVersion,
-            DotCraftBin = sampleOptions.DotCraftBin,
+            Executable = sampleOptions.Executable,
             ApprovalHandler = HandleApprovalAsync
         },
         cancellationToken);
@@ -472,7 +472,7 @@ static void PrintUsage()
           --profile-id <id>       Agent Profile id to use. Default: smoke-reviewer
           --overwrite-profile     Replace the workspace profile with the sample smoke profile.
           --display-name <name>   Thread display name.
-          --dotcraft-bin <path>   DotCraft executable used when starting the local Hub.
+          --executable <path>     DotCraft executable used when starting the local Hub.
           --help                  Show this help.
 
         REPL commands:
@@ -492,7 +492,7 @@ sealed class SampleOptions
 
     public string? DisplayName { get; private init; }
 
-    public string? DotCraftBin { get; private init; }
+    public string? Executable { get; private init; }
 
     public bool ShowHelp { get; private init; }
 
@@ -502,7 +502,7 @@ sealed class SampleOptions
         var profileId = DefaultProfileId;
         var overwriteProfile = false;
         string? displayName = null;
-        string? dotCraftBin = null;
+        string? executable = null;
         var showHelp = false;
 
         for (var i = 0; i < args.Length; i++)
@@ -522,8 +522,8 @@ sealed class SampleOptions
                 case "--display-name" when i + 1 < args.Length:
                     displayName = args[++i];
                     break;
-                case "--dotcraft-bin" when i + 1 < args.Length:
-                    dotCraftBin = args[++i];
+                case "--executable" when i + 1 < args.Length:
+                    executable = args[++i];
                     break;
                 default:
                     if (arg.StartsWith("--", StringComparison.Ordinal))
@@ -542,7 +542,7 @@ sealed class SampleOptions
             ProfileId = profileId.Trim(),
             OverwriteProfile = overwriteProfile,
             DisplayName = string.IsNullOrWhiteSpace(displayName) ? null : displayName,
-            DotCraftBin = string.IsNullOrWhiteSpace(dotCraftBin) ? null : dotCraftBin,
+            Executable = string.IsNullOrWhiteSpace(executable) ? null : executable,
             ShowHelp = showHelp
         };
     }

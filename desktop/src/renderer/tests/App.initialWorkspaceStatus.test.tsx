@@ -318,6 +318,7 @@ function installApi(
     appServerSendRequest?: ReturnType<typeof vi.fn>
     onNotification?: ReturnType<typeof vi.fn>
     onServerRequest?: ReturnType<typeof vi.fn>
+    onServerRequestRaw?: ReturnType<typeof vi.fn>
     modulesList?: ReturnType<typeof vi.fn>
     modulesRunning?: ReturnType<typeof vi.fn>
     getReleases?: ReturnType<typeof vi.fn>
@@ -351,6 +352,7 @@ function installApi(
   const appServerSendRequest = overrides.appServerSendRequest ?? vi.fn().mockResolvedValue({})
   const onNotification = overrides.onNotification ?? vi.fn(() => vi.fn())
   const onServerRequest = overrides.onServerRequest ?? vi.fn(() => vi.fn())
+  const onServerRequestRaw = overrides.onServerRequestRaw ?? vi.fn(() => vi.fn())
   const modulesList = overrides.modulesList ?? vi.fn(() => pending)
   const modulesRunning = overrides.modulesRunning ?? vi.fn(() => pending)
   const getReleases = overrides.getReleases ?? vi.fn().mockResolvedValue(WHATS_NEW_TEST_RELEASES)
@@ -399,6 +401,7 @@ function installApi(
         onConnectionStatus: vi.fn(() => vi.fn()),
         onNotification,
         onServerRequest,
+        onServerRequestRaw,
         sendServerResponse: vi.fn()
       },
       workspace: {

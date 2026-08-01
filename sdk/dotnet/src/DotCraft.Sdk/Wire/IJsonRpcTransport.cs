@@ -17,3 +17,10 @@ public interface IJsonRpcTransport : IAsyncDisposable
     /// </summary>
     Task WriteAsync(object message, CancellationToken cancellationToken = default);
 }
+
+/// <summary>A transport that can replace its underlying connection after an unexpected close.</summary>
+public interface IReconnectableJsonRpcTransport : IJsonRpcTransport
+{
+    /// <summary>Opens a fresh connection using the original endpoint and authentication.</summary>
+    Task ReconnectAsync(CancellationToken cancellationToken = default);
+}

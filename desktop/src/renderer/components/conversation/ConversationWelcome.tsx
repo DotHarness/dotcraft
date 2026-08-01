@@ -64,6 +64,7 @@ import {
   findProviderPreference,
   readProviderPreferences,
   setProviderPreference,
+  toContractProviderPreferences,
   type ModelPreference,
   type ProviderPreferences
 } from '../../../shared/modelPreference'
@@ -900,7 +901,7 @@ export function ConversationWelcome({
               )
               await window.api.appServer.sendRequest('workspace/config/update', {
                 providerId: nextProviderId,
-                providerPreferences
+                providerPreferences: toContractProviderPreferences(providerPreferences)
               })
             }
           }
@@ -1026,7 +1027,7 @@ export function ConversationWelcome({
     )
     await window.api.appServer.sendRequest('workspace/config/update', {
       providerId: nextProviderId,
-      providerPreferences
+      providerPreferences: toContractProviderPreferences(providerPreferences)
     })
   }, [providerId, readWorkspaceProviderPreferences, workspaceConfigPath])
 
@@ -1243,13 +1244,13 @@ export function ConversationWelcome({
           baseRef: welcomeBaseRef || undefined,
           branchName: welcomeWorktreeBranchName || undefined,
           config
-        }, 180_000) as { thread: ThreadSummary }).thread
+        }, 180_000) as unknown as { thread: ThreadSummary }).thread
       : (await window.api.appServer.sendRequest('thread/start', {
           identity,
           historyMode: 'server',
           config,
           ...rootsField
-        }) as { thread: ThreadSummary }).thread
+        }) as unknown as { thread: ThreadSummary }).thread
 
     // Apply a welcome pre-selected Perforce changelist to the new thread (non-default only).
     if (welcomeChangelist && welcomeChangelist !== 'default') {

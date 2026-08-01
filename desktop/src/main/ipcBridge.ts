@@ -3,7 +3,7 @@ import { promises as fs, existsSync } from 'fs'
 import { execFile } from 'child_process'
 import * as os from 'os'
 import * as path from 'path'
-import type { WireProtocolClient } from './WireProtocolClient'
+import type { DesktopAppServerClient } from './DesktopAppServerClient'
 import type {
   AppSettings,
   RecentWorkspace,
@@ -109,6 +109,7 @@ import {
 } from '../shared/remoteConnection'
 import { sendDesktopAppServerRequest } from './desktopRuntimeThreadTools'
 import type { WorkspaceProjectsPayload } from '../shared/workspaceProjects'
+import type { AppServerRequestMethod } from '../shared/appServerBoundary'
 
 interface WindowVisibilityState {
   minimized: boolean
@@ -693,7 +694,7 @@ export function resolveDesktopExtensionAppSurfaceUrl(endpoint: string, relativeP
 }
 
 async function resolveDesktopExtensionAppSurface(
-  client: WireProtocolClient,
+  client: DesktopAppServerClient,
   appId: string,
   surfaceId: string
 ): Promise<ResolvedDesktopAppSurface> {
@@ -715,7 +716,7 @@ async function resolveDesktopExtensionAppSurface(
 }
 
 export async function requestDesktopExtensionAppSurfaceJson(
-  client: WireProtocolClient,
+  client: DesktopAppServerClient,
   grant: DesktopExtensionGrant,
   method: 'GET' | 'POST',
   appId: string,
@@ -1117,7 +1118,7 @@ export interface IpcHandlerCallbacks {
   getWorkspaceStatus: () => WorkspaceStatusPayload
   /** Observes successful renderer AppServer requests for Desktop-local routing state. */
   onAppServerRequestCompleted?: (
-    client: WireProtocolClient,
+    client: DesktopAppServerClient,
     method: string,
     params: unknown,
     result: unknown
@@ -1125,12 +1126,12 @@ export interface IpcHandlerCallbacks {
 }
 
 /**
- * Registers all ipcMain handlers that bridge the Renderer and the WireProtocolClient.
+ * Registers all ipcMain handlers that bridge the Renderer and the Desktop AppServer adapter.
  *
  * IPC channels:
- * - `appserver:send-request`      (renderer -> main, invoke) -> forwards to WireProtocolClient
+ * - `appserver:send-request`      (renderer -> main, invoke) -> forwards to the Desktop AppServer adapter
  * - `appserver:server-response`   (renderer -> main, invoke) -> resolves pending server request
- * - `appserver:notification`      (main -> renderer, send)   -> forwarded from WireProtocolClient
+ * - `appserver:notification`      (main -> renderer, send)   -> forwarded from the Desktop AppServer adapter
  * - `appserver:server-request`    (main -> renderer, send)   -> server-initiated request
  * - `appserver:connection-status` (main -> renderer, send)   -> connection state changes
  * - `appserver:get-connection-status` (renderer -> main, invoke) -> latest status snapshot
@@ -1248,8 +1249,8 @@ export async function autoStartModuleProcessesByChannelName(
 }
 
 export function registerIpcHandlers(
-  _wireClient: WireProtocolClient | null,
-  getWireClient: () => WireProtocolClient | null,
+  _wireClient: DesktopAppServerClient | null,
+  getWireClient: () => DesktopAppServerClient | null,
   workspacePath: string,
   callbacks?: IpcHandlerCallbacks
 ): void {
@@ -1359,6 +1360,20 @@ export function registerIpcHandlers(
       })
       callbacks?.onAppServerRequestCompleted?.(client, method, params, result)
       return result
+    }
+  )
+
+  // Explicit escape hatch for third-party and dynamically discovered extension methods.
+  handleSafe(
+    'appserver:send-request-raw',
+    async (_event, method: AppServerRequestMethod, params?: unknown, timeoutMs?: number) => {
+      const client = getWireClient()
+      if (!client) {
+        throw new Error(translate(mainLocale(callbacks), 'ipc.appServerNotConnected'))
+      }
+      return await sendDesktopAppServerRequest(client, method, params, timeoutMs, {
+        supportsDynamicToolRebind: callbacks?.getConnectionStatus().capabilities?.dynamicToolRebind === true
+      })
     }
   )
 
@@ -2817,6 +2832,7 @@ export function unregisterIpcHandlers(): void {
     ipcMain.removeHandler(channel)
   }
   ipcMain.removeHandler('appserver:send-request')
+  ipcMain.removeHandler('appserver:send-request-raw')
   ipcMain.removeHandler('visualization:copy-image')
   ipcMain.removeHandler('appserver:model-list')
   ipcMain.removeHandler('appserver:workspace-config-schema')

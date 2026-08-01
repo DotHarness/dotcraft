@@ -2,9 +2,9 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.1.0 |
+| **Version** | 0.4.0 |
 | **Status** | Living |
-| **Date** | 2026-05-18 |
+| **Date** | 2026-08-01 |
 | **Related Specs** | [Unified SDK Specification](sdk.md), [AppServer Protocol](../protocols/appserver-protocol.md), [AppServer Protocol Contracts and SDK Generation](protocol-contract-generation.md), [Hub Architecture](../architecture/hub-architecture.md), [External Channel Adapter](../protocols/external-channel-adapter.md), [Session Core](../architecture/session-core.md), [.NET SDK Binding](dotnet.md), [Python SDK Binding](python.md), [Plugin Architecture](../architecture/plugin-architecture.md) |
 
 Purpose: Define the TypeScript binding, package contract, Node.js runtime requirements, channel runtime, documentation model, and compatibility strategy for `@dotcraft/sdk`.
@@ -36,7 +36,7 @@ Shared SDK behavior is defined by [Unified SDK Specification](sdk.md). This lang
 - [19. Testing and Conformance](#19-testing-and-conformance)
 - [20. Security](#20-security)
 - [21. Versioning and Compatibility](#21-versioning-and-compatibility)
-- [22. Rollout and Migration](#22-rollout-and-migration)
+- [22. Repository Integration](#22-repository-integration)
 - [23. Acceptance Contract](#23-acceptance-contract)
 - [24. Future Work](#24-future-work)
 
@@ -144,7 +144,10 @@ If SDK implementation discovers a required change to AppServer Protocol, Hub Pro
 │   delivery/tool dispatch, module lifecycle                      │
 ├───────────────────────────────────────────────────────────────┤
 │ @dotcraft/sdk/wire                 @dotcraft/sdk/hub           │
-│   JSON-RPC client, transports       Hub discovery/start/ensure  │
+│   typed/raw JSON-RPC session        Hub discovery/management    │
+├───────────────────────────────────────────────────────────────┤
+│ @dotcraft/sdk/contracts                                        │
+│   generated DTOs, method maps, unions, protocol metadata       │
 ├───────────────────────────────────────────────────────────────┤
 │ DotCraft AppServer Protocol       DotCraft Hub Local API        │
 └───────────────────────────────────────────────────────────────┘
@@ -212,6 +215,7 @@ Repository-local implementations may keep `private: true` until a publish phase 
 | Entry point | Purpose |
 |-------------|---------|
 | `@dotcraft/sdk` | High-level application API. |
+| `@dotcraft/sdk/contracts` | I/O-free generated AppServer contracts and protocol metadata. |
 | `@dotcraft/sdk/wire` | Low-level AppServer JSON-RPC client and protocol helpers. |
 | `@dotcraft/sdk/hub` | Hub discovery, startup, management, and SSE helpers. |
 | `@dotcraft/sdk/channel` | Channel adapter and module runtime. |
@@ -222,6 +226,7 @@ Repository-local implementations may keep `private: true` until a publish phase 
 The top-level package exports:
 
 - `DotCraft`
+- `DotCraftAppServerClient`
 - `DotCraftThread`
 - `DotCraftRunResult`
 - `DotCraftRunEvent`
@@ -237,9 +242,13 @@ The top-level package exports:
 - `commandRefPart`
 - common approval decision constants
 
-The top-level package should not expose every raw DTO by default. Raw protocol types belong under `@dotcraft/sdk/wire`.
+The top-level package should not expose every wire DTO by default. Generated protocol types belong under `@dotcraft/sdk/contracts` and may be re-exported selectively by `@dotcraft/sdk/wire`.
 
-### 4.4 Wire Exports
+### 4.4 Contracts Exports
+
+`@dotcraft/sdk/contracts` exports generated DTOs, client request and notification maps, server request and notification maps, discriminated method envelopes, method groups, and protocol information. It must not import Node.js APIs, transports, Hub helpers, or high-level SDK code.
+
+### 4.5 Wire Exports
 
 `@dotcraft/sdk/wire` exports:
 
@@ -248,10 +257,11 @@ The top-level package should not expose every raw DTO by default. Raw protocol t
 - `StdioTransport`.
 - `WebSocketTransport`.
 - transport errors.
-- wire DTOs for common thread, turn, item, command, and callback payloads.
-- raw request and notification registration APIs.
+- contract types needed to use the Wire API;
+- typed request, notification, notification-listener, and server-request registration APIs;
+- explicit `requestRaw`, `notifyRaw`, unknown-notification, and unknown-server-request APIs.
 
-### 4.5 Hub Exports
+### 4.6 Hub Exports
 
 `@dotcraft/sdk/hub` exports:
 
@@ -264,7 +274,7 @@ The top-level package should not expose every raw DTO by default. Raw protocol t
 - `findSseBoundary`
 - typed request option interfaces
 
-### 4.6 Channel Exports
+### 4.7 Channel Exports
 
 `@dotcraft/sdk/channel` exports:
 
@@ -280,7 +290,7 @@ The top-level package should not expose every raw DTO by default. Raw protocol t
 - channel capability and tool descriptor types
 - media source helper types and utilities for upload-capable channel tools
 
-### 4.7 Testing Exports
+### 4.8 Testing Exports
 
 `@dotcraft/sdk/testing` exports:
 
@@ -344,7 +354,9 @@ interface DotCraftLocalOptions {
   clientName?: string;
   clientVersion?: string;
   clientTitle?: string;
-  dotcraftBin?: string;
+  executable?: string;
+  expectedExecutable?: string;
+  binaryMatchPolicy?: "ignore" | "restartIfMismatch" | "errorIfMismatch";
   hubStartupTimeoutMs?: number;
   approvalHandler?: ApprovalHandler;
   userInputHandler?: UserInputHandler;
@@ -407,7 +419,7 @@ High-level SDK clients send:
 }
 ```
 
-If no `userInputHandler` is provided, the SDK may still advertise `requestUserInputSupport` when it can safely return empty answers. This lets unsupported prompts resolve immediately while preserving protocol semantics.
+Advertising `approvalSupport` or `requestUserInputSupport` requires the matching handler before initialization. High-level connection fails with a stable configuration error rather than advertising an unsupported callback or inventing a response.
 
 Channel adapters additionally send `capabilities.channelAdapter` as defined in [External Channel Adapter](../protocols/external-channel-adapter.md).
 
@@ -467,7 +479,7 @@ dotcraft hub
 
 Binary resolution order:
 
-1. Explicit `dotcraftBin`.
+1. Explicit `executable`.
 2. A host-provided resolver when available.
 3. `dotcraft` on PATH.
 
@@ -513,7 +525,10 @@ The wire client handles:
 - server-initiated request dispatch;
 - transport close handling;
 - graceful shutdown;
-- raw request and notification methods.
+- initialization gating, timeouts, lifecycle state, and opt-in reconnect;
+- typed known-method dispatch and explicitly named raw escape hatches.
+
+It does not expose Thread, Turn, Run, approval, user-input, Dynamic Tool, or Channel convenience behavior.
 
 ### 8.2 Transport Interface
 
@@ -549,18 +564,25 @@ The transport must:
 - reject pending reads and writes on close;
 - expose typed transport errors.
 
-Automatic reconnect is not required at the transport layer. Reconnect behavior belongs to higher-level clients that can reinitialize and rebind thread-specific callback state.
+The transport represents one socket or stream and does not reconnect itself. `DotCraftWireClient` owns optional reconnect because it can repeat the protocol handshake without attempting to reconstruct application state. Raw clients default to reconnect disabled; Desktop and Channel profiles enable it explicitly.
 
 ### 8.5 Raw Request Escape Hatch
 
-The wire client exposes:
+Known methods are compile-time constrained by generated maps:
 
 ```ts
-await client.request<T>("method/name", params);
-await client.notify("method/name", params);
+await client.request("thread/read", params);
+await client.notify("initialized", params);
 ```
 
-High-level APIs should use typed wrappers where available, but raw request remains necessary for newly added server methods.
+Unknown extensions use separate methods:
+
+```ts
+await client.requestRaw<Result>("ext/vendor/method", params);
+await client.notifyRaw("ext/vendor/event", params);
+```
+
+The typed methods do not accept arbitrary string overloads. Known and unknown notifications and server requests also use separate typed and raw registration APIs.
 
 ---
 
@@ -876,7 +898,7 @@ Allowed decisions:
 - `decline`
 - `cancel`
 
-If no handler is registered, high-level clients should default to `accept` for compatibility with current wire-client behavior. Documentation must warn production users to provide an explicit handler.
+High-level initialization fails before connecting if `approvalSupport` is declared without an approval handler. The SDK never invents an approval decision.
 
 ### 14.3 Dynamic Tool Handler
 
@@ -932,13 +954,7 @@ type UserInputHandler = (request: UserInputRequest) =>
   Promise<UserInputResponse> | UserInputResponse;
 ```
 
-If no handler is registered, the SDK returns:
-
-```json
-{ "answers": {} }
-```
-
-This matches AppServer fallback semantics and prevents non-interactive applications from blocking indefinitely.
+The high-level client registers this server-request method only when a handler is configured. Without a handler, the Wire layer returns JSON-RPC `-32601`; it never invents an answer.
 
 ### 14.5 Heartbeat
 
@@ -1263,7 +1279,7 @@ At least one runnable Node.js example should demonstrate:
 - `runStreamed()`;
 - approval handler;
 - dynamic tool handler;
-- user input handler or empty-answer fallback;
+- user input handler;
 - clean shutdown.
 
 Examples should be small and copyable. Full application templates belong to a later release.
@@ -1367,7 +1383,7 @@ The SDK should avoid printing full WebSocket URLs with tokens in logs or error m
 
 The SDK must document that production applications should provide explicit approval handlers.
 
-Auto-accept defaults exist only for low-level compatibility and non-interactive test ergonomics.
+The Wire layer has no approval policy. High-level clients that advertise approval support require an explicit handler before initialization.
 
 ### 20.4 Dynamic Tools
 
@@ -1410,9 +1426,7 @@ Examples:
 
 The canonical SDK name is `@dotcraft/sdk`.
 
-The previous repository package identity `dotcraft-wire` is not part of the long-term public contract. Repository code may migrate directly to `@dotcraft/sdk` and its subpaths.
-
-If external usage of `dotcraft-wire` becomes significant before public SDK release, a future compatibility release may define alias packages or transitional exports.
+`@dotcraft/sdk` and its documented subpaths are the only TypeScript SDK package surface. No alias package, transitional export, or parallel Wire client is retained.
 
 ### 21.4 Stable and Unstable Surfaces
 
@@ -1433,27 +1447,19 @@ Less stable:
 
 ---
 
-## 22. Rollout and Migration
+## 22. Repository Integration
 
-### 22.1 Repository Migration
+### 22.1 Repository Consumers
 
-Repository migration should:
+Repository consumers import high-level APIs from `@dotcraft/sdk`, protocol-only APIs from `@dotcraft/sdk/wire`, generated types from `@dotcraft/sdk/contracts`, Hub operations from `@dotcraft/sdk/hub`, and channel runtime APIs from `@dotcraft/sdk/channel`. First-party packages must not import SDK source files through checkout-relative paths.
 
-1. Rename the TypeScript SDK package to `@dotcraft/sdk`.
-2. Add subpath exports.
-3. Move existing low-level wire exports to `@dotcraft/sdk/wire`.
-4. Move channel adapter exports to `@dotcraft/sdk/channel`.
-5. Add Hub client exports under `@dotcraft/sdk/hub`.
-6. Add high-level `DotCraft` API.
-7. Update first-party channel package dependencies and imports.
-8. Update docs and examples.
-9. Run TypeScript and docs validation.
+### 22.2 Desktop Integration
 
-### 22.2 Desktop Migration
+Desktop is the production reference consumer of `@dotcraft/sdk/wire`, `@dotcraft/sdk/contracts`, and `@dotcraft/sdk/hub`. It does not maintain a second JSON-RPC or Hub client.
 
-Desktop currently has its own Hub and wire clients. Migrating Desktop to consume `@dotcraft/sdk` is not required by this spec.
+Electron Main owns SDK connections and host policy. Preload exposes an end-to-end typed IPC boundary for known catalog methods; Renderer imports contract types only and never opens a transport. Dynamic extensions use a separately named raw IPC path that remains subject to Desktop authorization and scope checks.
 
-A future implementation phase may evaluate whether Desktop should share the SDK wire client to reduce duplicate protocol logic.
+The repository-local package is bundled into Electron Main and Preload output rather than externalized, so packaged applications do not depend on the checkout-relative package path.
 
 ### 22.3 Python SDK Relationship
 
@@ -1476,6 +1482,9 @@ A complete implementation of this specification satisfies:
 - Final run results merge delta and snapshot text without duplication.
 - Approval, dynamic tool, and user-input callbacks work.
 - Raw wire API remains available.
+- `@dotcraft/sdk/contracts` is I/O-free and safe for type-only Renderer consumption.
+- Known Wire methods are catalog-typed and unknown methods require explicit raw APIs.
+- Desktop consumes the shared Wire and Hub clients without duplicate protocol implementations.
 - Hub API is exported and independently testable.
 - Channel SDK is factored into reusable runtime components.
 - First-party TypeScript channel packages use `@dotcraft/sdk` imports.
@@ -1493,11 +1502,8 @@ A complete implementation of this specification satisfies:
 Future specs or amendments may cover:
 
 - Public npm publishing and package provenance.
-- `dotcraft-wire` compatibility aliasing.
 - Browser-compatible SDK build.
-- Desktop adoption of shared SDK wire and Hub clients.
 - Full typed wrappers for provider, model, MCP, plugin, skill, automation, memory, dreams, and workspace config management.
 - Higher-level one-shot `dotcraft.run()` convenience API.
-- Reconnection and callback rebind policy for long-lived remote clients.
 - Pluggable logger and telemetry hooks.
 - Template generation for new channel modules.

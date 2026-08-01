@@ -16,6 +16,7 @@ from dotcraft._generated.appserver.notification_registry_generated import (
     parse_server_notification,
 )
 from dotcraft._generated.appserver.protocol_info_generated import CONTRACT_SHA256
+from dotcraft.contracts import ThreadReadParams as PublicThreadReadParams
 
 
 class GeneratedClient(GeneratedAppServerClientMixin):
@@ -31,6 +32,7 @@ class GeneratedClient(GeneratedAppServerClientMixin):
 
 
 def test_generated_models_use_snake_case_aliases_and_preserve_extra_fields() -> None:
+    assert PublicThreadReadParams is ThreadReadParams
     params = ThreadReadParams.model_validate(
         {"threadId": "thread-1", "includeTurns": None, "futureField": {"kept": True}}
     )

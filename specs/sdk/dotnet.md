@@ -2,14 +2,14 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.1.0 |
+| **Version** | 0.4.0 |
 | **Status** | Living |
-| **Date** | 2026-05-19 |
+| **Date** | 2026-08-01 |
 | **Related Specs** | [Unified SDK Specification](sdk.md), [AppServer Protocol](../protocols/appserver-protocol.md), [AppServer Protocol Contracts and SDK Generation](protocol-contract-generation.md), [Hub Architecture](../architecture/hub-architecture.md), [App Binding](../protocols/app-binding.md), [Session Core](../architecture/session-core.md), [TypeScript SDK Binding](typescript.md), [Python SDK Binding](python.md) |
 
 Purpose: Define the .NET binding, public API shape, AppServer method coverage, App Binding helper surface, testing expectations, and compatibility strategy for `DotCraft.Sdk`.
 
-Shared SDK behavior is defined by [Unified SDK Specification](sdk.md). This language binding records the current .NET SDK implementation baseline and the .NET-specific design, package, and publishing rules.
+Shared SDK behavior is defined by [Unified SDK Specification](sdk.md). This language binding records the .NET-specific design, package, and publishing rules.
 
 ---
 
@@ -150,8 +150,8 @@ Current AppServer features with typed or semi-typed SDK support:
 | Initialize handshake | `initialize`, `initialized` | `DotCraftWireClient.InitializeAsync`, `DotCraftClient.ConnectAsync` |
 | Remote AppServer connection | WebSocket transport | `DotCraftClient.ConnectRemoteAsync`, `WebSocketJsonRpcTransport` |
 | Custom transport connection | transport abstraction | `DotCraftClient.ConnectAsync`, `IJsonRpcTransport` |
-| Raw requests | any client-to-server JSON-RPC method | `DotCraftClient.RequestAsync`, `DotCraftWireClient.SendRequestAsync` |
-| Raw notifications | any server-to-client notification | `DotCraftClient.ReadNotificationsAsync`, `DotCraftWireClient.ReadNotificationsAsync` |
+| Raw requests | any client-to-server JSON-RPC method | `DotCraftClient.RequestRawAsync`, `DotCraftWireClient.RequestRawAsync` |
+| Raw notifications | server-to-client notification stream | `DotCraftClient.ReadNotificationsAsync`, `DotCraftWireClient.ReadNotificationsAsync` |
 | Server request dispatch | any registered server-to-client JSON-RPC request | `DotCraftWireClient.RegisterServerRequestHandler` |
 | Thread start | `thread/start` | `DotCraftThreadClient.StartAsync` |
 | Thread resume | `thread/resume` | `DotCraftThreadClient.ResumeAsync` |
@@ -162,7 +162,7 @@ Current AppServer features with typed or semi-typed SDK support:
 | Turn enqueue | `turn/enqueue` | `DotCraftTurnClient.EnqueueAsync` |
 | Turn interrupt | `turn/interrupt` | `DotCraftTurnClient.InterruptAsync` |
 | Provider list | `provider/list` | `DotCraftProviderClient.ListAsync` |
-| Model list | `model/list` | `DotCraftModelClient.ListAsync`, `GetCatalogAsync(providerId)` |
+| Model list | `model/list` | `DotCraftModelClient.GetCatalogAsync(providerId)` |
 | Runtime Dynamic Tools | `thread/start.dynamicTools`, `thread/resume.dynamicTools`, `item/tool/call` | `RuntimeDynamicToolDeclaration`, `DynamicToolRegistry`, `RegisterDynamicToolHandler` |
 | App connection request read | `app/connection/request/get` | `DotCraftAppBindingClient.GetConnectionRequestAsync<T>` |
 | App connection completion | `app/connection/connect` | `DotCraftAppBindingClient.ConnectAsync<T>` |
@@ -184,12 +184,15 @@ Current Hub features:
 | Hub startup | `dotcraft hub` | `HubClient.EnsureHubAsync` |
 | Workspace AppServer lookup | `GET /v1/appservers/by-workspace` | `HubClient.GetAppServerByWorkspaceAsync` |
 | Workspace AppServer ensure | `POST /v1/appservers/ensure` | `HubClient.EnsureAppServerAsync`, `DotCraftClient.ConnectLocalAsync` |
+| Workspace AppServer restart/stop/list | Hub AppServer endpoints | `RestartAppServerAsync`, `StopAppServerAsync`, `ListAppServersAsync` |
+| Hub status and events | `GET /v1/status`, `GET /v1/events` | `GetStatusAsync`, `SubscribeEventsAsync` |
+| Hub shutdown | `POST /v1/shutdown` | `ShutdownAsync` |
 
 The Run profile provides:
 
 - `DotCraftThread.RunAsync` / `RunStreamedAsync` provide the high-level run abstraction that waits for terminal turn notifications and returns merged text.
 - `DotCraftRunEvent` plus `RunStreamedAsync` normalize streaming notifications; a delta/snapshot reducer merges agent text.
-- `DotCraftClientOptions.ApprovalHandler` and `UserInputHandler` provide typed approval and user-input callbacks (with auto-accept / empty-answer fallbacks).
+- `DotCraftClientOptions.ApprovalHandler` and `UserInputHandler` provide typed approval and user-input callbacks. Advertising either capability without its handler fails before initialization.
 - `ApprovalRequest` exposes the stable request, thread, turn, and item identifiers together with the approval type, operation, target, reason, and authoritative `ExpiresAt`. `Raw` remains available for forward-compatible fields.
 - Typed wrappers exist for `thread/list` (`Threads.ListAsync`), `thread/unsubscribe`, `thread/archive`, `thread/delete`, and `thread/mode/set` (on `DotCraftThread`).
 
@@ -197,7 +200,7 @@ Current explicit gaps:
 
 - No typed wrappers for `thread/rename`, goal methods, maintenance methods, or memory consolidation methods.
 - Provider discovery and Thread model configuration are typed. Provider mutation, workspace config, skills, plugins, commands, cron, heartbeat, external channel, subagent, memory, and Dreams methods remain raw.
-- No automatic reconnect or callback rebind policy.
+- Dynamic Tool and subscription resource recovery remains a high-level application decision after Wire reconnect.
 
 ---
 
@@ -228,6 +231,8 @@ until a public NuGet release process is approved.
 | `DotCraft.Sdk.Hub` | `HubClient`, Hub DTO records, `HubClientException`, `HubAppServerStates`. |
 | `DotCraft.Sdk.Wire` | `IJsonRpcTransport`, `DotCraftWireClient`, `StreamJsonRpcTransport`, `WebSocketJsonRpcTransport`, `DotCraftJson`, `JsonRpcException`. |
 
+Wire DTOs and RPC descriptors come directly from `DotCraft.Protocol.Contracts`. `DotCraft.Sdk` does not define a second contract model.
+
 ### 4.3 Top-Level Client
 
 `DotCraftClient` represents one initialized AppServer connection.
@@ -248,8 +253,8 @@ public sealed class DotCraftClient : IAsyncDisposable
     public static Task<DotCraftClient> ConnectLocalAsync(...);
     public static Task<DotCraftClient> ConnectRemoteAsync(...);
     public static Task<DotCraftClient> ConnectAsync(...);
-    public Task<T> RequestAsync<T>(...);
-    public Task<JsonElement> RequestAsync(...);
+    public Task<T> RequestRawAsync<T>(...);
+    public Task<JsonElement> RequestRawAsync(...);
     public IAsyncEnumerable<AppServerNotification> ReadNotificationsAsync(...);
 }
 ```
@@ -323,7 +328,7 @@ Options:
 ```csharp
 public sealed class DotCraftLocalClientOptions : DotCraftClientOptions
 {
-    public string? DotCraftBin { get; set; }
+    public string? Executable { get; set; }
     public string? HubLockPath { get; set; }
     public TimeSpan HubStartupTimeout { get; set; }
 }
@@ -444,10 +449,10 @@ When configured with `StartHubIfMissing = true`, the SDK starts:
 dotcraft hub
 ```
 
-If `DotCraftBin` points to a `.dll`, the SDK starts:
+If `Executable` points to a `.dll`, the SDK starts:
 
 ```text
-dotnet <DotCraftBin> hub
+dotnet <Executable> hub
 ```
 
 The child process is started without redirected stdio and without a visible console window where supported.
@@ -486,8 +491,12 @@ The SDK requires `endpoints.appServerWebSocket` when `ConnectLocalAsync()` uses 
 - notification dispatch;
 - server-initiated request dispatch;
 - initialize / initialized handshake;
-- raw request and notification methods;
+- descriptor-typed known request and notification methods;
+- explicitly named raw request and notification methods;
+- lifecycle state, timeouts, initialization gating, and opt-in reconnect;
 - graceful disposal of the underlying transport.
+
+It contains no Thread, Run, approval, user-input, Dynamic Tool, or Channel policy.
 
 ### 8.2 Transport Interface
 
@@ -529,25 +538,29 @@ Required behavior:
 - synchronize concurrent writes;
 - attempt best-effort normal close on disposal.
 
-Automatic reconnect is not required at the transport layer.
+The transport represents one WebSocket connection and does not reconnect itself. `DotCraftWireClient` owns optional reconnect and protocol reinitialization according to the unified SDK lifecycle.
 
 ### 8.5 Raw Request Escape Hatch
 
-The wire client exposes:
+Known methods use shared Contracts descriptors:
 
 ```csharp
-Task<JsonElement> SendRequestAsync(string method, object? parameters = null, ...);
-Task SendNotificationAsync(string method, object? parameters = null, ...);
+Task<TResult> RequestAsync<TParams, TResult>(
+    RpcRequest<TParams, TResult> descriptor,
+    TParams parameters,
+    ...);
+Task NotifyAsync<TParams>(RpcNotification<TParams> descriptor, TParams parameters, ...);
 ```
 
-The high-level client exposes:
+Unknown extension methods use explicit raw APIs:
 
 ```csharp
-Task<T> RequestAsync<T>(string method, object? parameters = null, ...);
-Task<JsonElement> RequestAsync(string method, object? parameters = null, ...);
+Task<T> RequestRawAsync<T>(string method, object? parameters = null, ...);
+Task<JsonElement> RequestRawAsync(string method, object? parameters = null, ...);
+Task NotifyRawAsync(string method, object? parameters = null, ...);
 ```
 
-Typed wrappers should use the raw request path internally. Callers may use raw requests for any AppServer method not yet wrapped.
+The typed methods do not accept arbitrary method strings. High-level clients delegate unknown extension calls to the explicit raw APIs.
 
 ### 8.6 Server-Initiated Request Dispatch
 
@@ -561,7 +574,7 @@ IDisposable RegisterServerRequestHandler(
 
 When no handler is registered, the SDK responds with JSON-RPC `-32601`.
 
-Current high-level `DotCraftClient` automatically registers one handler:
+Known server requests register through descriptors; an explicit raw fallback handles unknown extension requests. Current high-level `DotCraftClient` registers one business handler:
 
 ```text
 item/tool/call
@@ -816,9 +829,6 @@ project only fields appropriate to their trust boundary.
 
 ### 12.2 Model catalog
 
-`DotCraftClient.Models.ListAsync()` retains the backward-compatible lightweight
-`ModelInfo` projection for the Runtime-selected Provider.
-
 `DotCraftClient.Models.GetCatalogAsync(providerId)` maps to:
 
 ```text
@@ -911,7 +921,7 @@ public Task<Issue> GetIssueAsync(GetIssueArgs args, CancellationToken cancellati
 - `Order`
 - `DeferLoading`
 
-`DynamicToolDescriptor.Name` remains a compatibility alias for `QualifiedName`.
+`DynamicToolDescriptor.QualifiedName` is the canonical local identity.
 
 The registry supports:
 
@@ -1187,6 +1197,7 @@ Hub discovery and management failures are represented as:
 public sealed class HubClientException : Exception
 {
     public string Code { get; }
+    public JsonElement? Details { get; }
 }
 ```
 
@@ -1202,16 +1213,18 @@ Current codes include:
 
 ### 16.3 Typed Future Errors
 
-Before a stable NuGet release, the SDK should introduce a common base exception and typed high-level errors for common AppServer cases such as:
+The SDK exposes stable typed errors for common SDK-local cases including:
 
 - initialization failure;
 - transport closed;
+- request timeout;
+- reconnect queue full;
 - turn already in progress;
 - thread not found;
 - approval timeout;
 - App Binding authorization failure.
 
-Until then, callers should catch `JsonRpcException`, `HubClientException`, transport exceptions, and cancellation exceptions.
+JSON-RPC failures preserve `code`, `message`, and `data`; Hub failures preserve `code`, `message`, and `details`.
 
 ---
 
@@ -1258,7 +1271,7 @@ Legend:
 | Runtime Dynamic Tools | `thread/start.dynamicTools` | required | Typed | `RuntimeDynamicToolDeclaration`, `DynamicToolRegistry` |
 | Runtime Dynamic Tools | `thread/resume.dynamicTools` | `dynamicToolRebind` | Typed | `DotCraftThreadResumeRequest.DynamicTools` |
 | Runtime Dynamic Tools | `item/tool/call` | required for declared tools | Callback | `RegisterDynamicToolHandler` |
-| Models | `model/list` | `modelCatalogManagement` | Typed | `Models.ListAsync` |
+| Models | `model/list` | `modelCatalogManagement` | Typed | `Models.GetCatalogAsync` |
 | Providers | `provider/list` | `providerManagement` | Typed | `Providers.ListAsync` |
 | Providers | `provider/create` | `providerManagement` | Raw | `RequestAsync` |
 | Providers | `provider/update` | `providerManagement` | Raw | `RequestAsync` |
@@ -1571,7 +1584,7 @@ Future amendments may cover:
 
 - package signing and stronger package provenance;
 - a stable SDK contract version constant;
-- automatic reconnect and dynamic tool rebind policy;
+- optional high-level Dynamic Tool and subscription restoration policies after reconnect;
 - typed wrappers for thread rename, config, goals, and maintenance;
 - typed wrappers for provider, workspace config, skills, plugins, commands, cron, heartbeat, MCP, external channels, subagents, memory, and Dreams;
 - additional typed App Binding DTO refinements for app-defined connection and binding payloads;

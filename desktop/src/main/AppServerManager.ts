@@ -104,11 +104,6 @@ function resolveBundledBinaryPath(options: Pick<ResolveBinaryLocationOptions, 'p
     }
   }
 
-  const legacySibling = resolvePath(process.execPath, '..', binaryName)
-  if (existsSync(legacySibling)) {
-    return legacySibling
-  }
-
   const devFallback = resolveDevBuildBinaryPath()
   if (devFallback) {
     return devFallback
@@ -158,7 +153,7 @@ export function resolveBinaryLocation(options: ResolveBinaryLocationOptions): Re
 /**
  * Manages the DotCraft AppServer subprocess lifecycle.
  * Spawns `dotcraft app-server` (optionally with `--listen`) and manages transport streams.
- * Emits lifecycle events for the WireProtocolClient and Main Process to consume.
+ * Emits lifecycle events for the Desktop AppServer adapter and Main Process to consume.
  */
 export class AppServerManager extends EventEmitter {
   private static readonly STDIO_TO_TERM_GRACE_MS = 700

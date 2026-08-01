@@ -930,10 +930,10 @@ export function App(): JSX.Element {
     try {
       const settings = await window.api.settings.get()
       if (!isCurrentRequest()) return
-      const params = { identity, scope: 'workspace', includeSubAgents: true }
+      const params = { identity: { ...identity }, scope: 'workspace' as const, includeSubAgents: true }
       const result = await window.api.appServer.sendRequest('thread/list', params)
       if (!isCurrentRequest()) return
-      const res = result as { data: ThreadSummary[] }
+      const res = result as unknown as { data: ThreadSummary[] }
       const threadStore = useThreadStore.getState()
       threadStore.setThreadList(res.data ?? [], projectKey)
       if (threadListRetryRef.current.timer != null) {
@@ -1698,7 +1698,7 @@ export function App(): JSX.Element {
     // up on unmount. Store actions are accessed via .getState() to avoid closure
     // stale-reference issues and to prevent re-subscription on state changes.
     const unsubscribe = window.api.appServer.onNotification(
-      (payload: { method: string; params: unknown; workspacePath?: string; foreground?: boolean }) => {
+      (payload) => {
         if (payload.foreground === false) {
           return
         }
@@ -2361,7 +2361,7 @@ export function App(): JSX.Element {
   // Server-initiated requests (approval and model question flows)
   // -------------------------------------------------------------------------
   useEffect(() => {
-    const unsubscribe = window.api.appServer.onServerRequest((payload) => {
+    const unsubscribeKnown = window.api.appServer.onServerRequest((payload) => {
       const { bridgeId, method, params } = payload
       const p = (params ?? {}) as Record<string, unknown>
 
@@ -2415,12 +2415,6 @@ export function App(): JSX.Element {
         requestActiveConversationReconcile(threadId, 'user-input-request')
         return
       }
-      if (method === 'ui/tool/approval/request') {
-        // Decoupled mutate-approval for a UI tool call (M-v): show it in the shared approval
-        // composer (generic-approval slot), independent of any turn.
-        useConversationStore.getState().setGenericApproval(buildUiToolApproval(p, bridgeId, localeRef.current))
-        return
-      }
       if (method === 'mcpServer/elicitation/request') {
         const mode = p.mode === 'url' ? 'url' : p.mode === 'form' ? 'form' : null
         if (mode == null) {
@@ -2437,13 +2431,30 @@ export function App(): JSX.Element {
         })
         return
       }
-        // Unknown server requests: respond with null to unblock AppServer
-        // (will be handled by specific cases above in future)
-        window.api.appServer.sendServerResponse(bridgeId, {
-          error: `Unsupported server request: ${method}`
-        })
+
+      window.api.appServer.sendServerResponse(bridgeId, {
+        error: `Unsupported server request: ${method}`
       })
-    return unsubscribe
+    })
+
+    const unsubscribeRaw = window.api.appServer.onServerRequestRaw((payload) => {
+      const { bridgeId, method, params } = payload
+      const p = (params ?? {}) as Record<string, unknown>
+      if (method === 'ui/tool/approval/request') {
+        // Desktop-only mutate approval is intentionally outside the stable AppServer Catalog.
+        useConversationStore.getState().setGenericApproval(buildUiToolApproval(p, bridgeId, localeRef.current))
+        return
+      }
+
+      window.api.appServer.sendServerResponse(bridgeId, {
+        error: `Unsupported server request: ${method}`
+      })
+    })
+
+    return () => {
+      unsubscribeKnown()
+      unsubscribeRaw()
+    }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
@@ -3031,7 +3042,7 @@ export function App(): JSX.Element {
             useUIStore.getState().cancelPendingWelcomeTurnForThread(requestedId)
             return
           }
-          const res = result as { thread: Thread }
+          const res = result as unknown as { thread: Thread }
           const restoreWasSuperseded =
             restoreGeneration !== activeThreadSnapshotReconcileGenerationRef.current
           if (!restoreWasSuperseded) {
@@ -3390,7 +3401,7 @@ export function App(): JSX.Element {
           // snapshot and immediately read again before releasing parked UI.
           if (generation !== activeThreadSnapshotReconcileGenerationRef.current) continue
 
-          const res = result as { thread?: Thread }
+          const res = result as unknown as { thread?: Thread }
           if (!res.thread) return false
           applyActiveThreadSnapshot(res.thread, requestedId, true)
           activateParkedInteractiveRequests(requestedId)
@@ -3447,7 +3458,7 @@ export function App(): JSX.Element {
           includeTurns: false
         })
         if (disposed || useThreadStore.getState().activeThreadId !== requestedId) return
-        const res = result as { thread?: Thread }
+        const res = result as unknown as { thread?: Thread }
         if (!res.thread) return
 
         const threadStore = useThreadStore.getState()

@@ -16,7 +16,8 @@ import logging
 from abc import ABC, abstractmethod
 from typing import AsyncIterator
 
-from .client import DotCraftClient, DotCraftError
+from .appserver_client import DotCraftAppServerClient
+from .client import DotCraftError
 from .models import ERR_TURN_IN_PROGRESS, Thread
 from .transport import Transport
 from .turn_reply import (
@@ -62,7 +63,7 @@ class ChannelAdapter(ABC):
         opt_out_notifications: list[str] | None = None,
     ) -> None:
         self._channel_name = channel_name
-        self._client = DotCraftClient(transport)
+        self._client = DotCraftAppServerClient(transport, auto_reconnect=True)
 
         # Thread identity cache: identity_key -> thread_id
         self._thread_map: dict[str, str] = {}
@@ -190,6 +191,12 @@ class ChannelAdapter(ABC):
         await self._client.connect()
         await self._client.start()
 
+        # High-level Channel policy is registered before capabilities are advertised.
+        self._client.register_server_request_handler_raw("item/approval/request", self._handle_approval_request)
+        self._client.register_server_request_handler_raw("ext/channel/send", self._handle_send_request)
+        self._client.register_server_request_handler_raw("ext/channel/toolCall", self._handle_tool_call_request)
+        self._client.register_server_request_handler_raw("ext/channel/heartbeat", self._handle_heartbeat)
+
         await self._client.initialize(
             client_name=self._client_name,
             client_version=self._client_version,
@@ -202,12 +209,6 @@ class ChannelAdapter(ABC):
             channel_tools=self.get_channel_tools(),
         )
         self._running = True
-
-        # Register server-request handlers
-        self._client._approval_handler = self._handle_approval_request
-        self._client._request_handlers["ext/channel/send"] = self._handle_send_request
-        self._client._request_handlers["ext/channel/toolCall"] = self._handle_tool_call_request
-        self._client._request_handlers["ext/channel/heartbeat"] = self._handle_heartbeat
 
         logger.info(
             "ChannelAdapter '%s' started (client: %s %s)",
@@ -554,7 +555,7 @@ class ChannelAdapter(ABC):
 
         async for event in self._client.stream_events(thread.id):
             if event.method == "item/agentMessage/delta":
-                delta = event.params.get("delta", "")
+                delta = (event.params or {}).get("delta", "")
                 all_delta_parts.append(delta)
                 current_segment_parts.append(delta)
 
@@ -602,7 +603,7 @@ class ChannelAdapter(ABC):
                 break
 
             elif event.method == "turn/failed":
-                error = event.params.get("turn", {}).get("error", "Unknown error")
+                error = (event.params or {}).get("turn", {}).get("error", "Unknown error")
                 await self.on_turn_failed(thread.id, turn.id, error)
                 break
 
@@ -683,13 +684,13 @@ class ChannelAdapter(ABC):
     # Server-request handlers
     # ------------------------------------------------------------------
 
-    async def _handle_approval_request(self, request_id, params: dict) -> str:
+    async def _handle_approval_request(self, request_id, params: dict) -> dict:
         """Route approval request to the subclass."""
         try:
-            return await self.on_approval_request(params)
+            return {"decision": await self.on_approval_request(params)}
         except Exception as e:
             logger.error("on_approval_request raised: %s", e)
-            return "cancel"
+            return {"decision": "cancel"}
 
     async def _handle_send_request(self, request_id, params: dict) -> dict:
         """Route ext/channel/send to the subclass or default structured handler."""

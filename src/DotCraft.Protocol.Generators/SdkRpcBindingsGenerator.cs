@@ -71,7 +71,7 @@ public sealed class SdkRpcBindingsGenerator : IIncrementalGenerator
                     .Append("        ").Append(paramsType).AppendLine(" parameters,")
                     .AppendLine("        global::System.Threading.CancellationToken cancellationToken = default)")
                     .AppendLine("    {")
-                    .Append("        var result = await client.SendRequestAsync(\"").Append(Escape(method.WireName)).AppendLine("\", parameters, cancellationToken).ConfigureAwait(false);")
+                    .Append("        var result = await client.RequestRawAsync(\"").Append(Escape(method.WireName)).AppendLine("\", parameters, cancellationToken).ConfigureAwait(false);")
                     .Append("        return result.Deserialize<").Append(resultType).AppendLine(">(DotCraftJson.Options)")
                     .Append("            ?? throw new JsonException(\"AppServer returned null for ").Append(Escape(method.WireName)).AppendLine(".\");")
                     .AppendLine("    }");
@@ -83,7 +83,7 @@ public sealed class SdkRpcBindingsGenerator : IIncrementalGenerator
                     .AppendLine("        this DotCraftWireClient client,")
                     .Append("        ").Append(paramsType).AppendLine(" parameters,")
                     .AppendLine("        global::System.Threading.CancellationToken cancellationToken = default) =>")
-                    .Append("        client.SendNotificationAsync(\"").Append(Escape(method.WireName)).AppendLine("\", parameters, cancellationToken);");
+                    .Append("        client.NotifyRawAsync(\"").Append(Escape(method.WireName)).AppendLine("\", parameters, cancellationToken);");
             }
             else if (method.Kind == "request")
             {
@@ -91,7 +91,7 @@ public sealed class SdkRpcBindingsGenerator : IIncrementalGenerator
                     .Append("    public static global::System.IDisposable Register").Append(name).AppendLine("Handler(")
                     .AppendLine("        this DotCraftWireClient client,")
                     .Append("        global::System.Func<").Append(paramsType).Append(", global::System.Threading.CancellationToken, global::System.Threading.Tasks.Task<").Append(resultType).AppendLine(">> handler) =>")
-                    .Append("        client.RegisterServerRequestHandler(\"").Append(Escape(method.WireName)).AppendLine("\", async (request, cancellationToken) =>")
+                    .Append("        client.RegisterServerRequestHandlerRaw(\"").Append(Escape(method.WireName)).AppendLine("\", async (request, cancellationToken) =>")
                     .AppendLine("        {")
                     .Append("            var parameters = request.Params.Deserialize<").Append(paramsType).AppendLine(">(DotCraftJson.Options)")
                     .Append("                ?? throw new JsonException(\"AppServer sent null params for ").Append(Escape(method.WireName)).AppendLine(".\");")
@@ -104,7 +104,7 @@ public sealed class SdkRpcBindingsGenerator : IIncrementalGenerator
                     .Append("    public static global::System.IDisposable Register").Append(name).AppendLine("Handler(")
                     .AppendLine("        this DotCraftWireClient client,")
                     .Append("        global::System.Action<").Append(paramsType).AppendLine("> handler) =>")
-                    .AppendLine("        client.RegisterNotificationHandler(notification =>")
+                    .AppendLine("        client.RegisterNotificationHandlerRaw(notification =>")
                     .AppendLine("        {")
                     .Append("            if (!global::System.StringComparer.Ordinal.Equals(notification.Method, \"").Append(Escape(method.WireName)).AppendLine("\"))")
                     .AppendLine("                return;")

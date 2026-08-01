@@ -4,10 +4,10 @@ from types import SimpleNamespace
 
 import pytest
 
-from dotcraft_wire.adapter import ChannelAdapter
-from dotcraft_wire.client import DotCraftError
-from dotcraft_wire.models import ERR_TURN_IN_PROGRESS, Thread
-from dotcraft_wire.transport import Transport
+from dotcraft.adapter import ChannelAdapter
+from dotcraft.client import DotCraftError
+from dotcraft.models import ERR_TURN_IN_PROGRESS, Thread
+from dotcraft.transport import Transport
 
 
 class _DummyTransport(Transport):
@@ -74,7 +74,7 @@ async def test_process_message_reenqueue_sets_skip_command_true_after_expanded_p
         command_execute=fake_command_execute,
         turn_start=fake_turn_start,
     )
-    monkeypatch.setattr("dotcraft_wire.adapter.asyncio.sleep", fake_sleep)
+    monkeypatch.setattr("dotcraft.adapter.asyncio.sleep", fake_sleep)
 
     await adapter._process_message(
         "user-1:",

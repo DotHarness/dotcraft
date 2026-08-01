@@ -4,7 +4,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 
-import type { DotCraftWireClient, NotificationHandler, ServerRequestHandler } from "./client.js";
+import type { DotCraftAppServerClient } from "./appServerClient.js";
+import type { NotificationHandler, ServerRequestHandler } from "./client.js";
 import {
   ApprovalDispatcher,
   ChannelMessageQueue,
@@ -64,7 +65,6 @@ class FakeRuntimeClient {
   readonly events: string[] = [];
   readonly notificationHandlers = new Map<string, NotificationHandler>();
   readonly requestHandlers = new Map<string, ServerRequestHandler>();
-  approvalHandler: ServerRequestHandler | null = null;
   listResult: Thread[] = [];
   readFailures = new Set<string>();
   nextStartedId = "thread-created";
@@ -117,13 +117,10 @@ class FakeRuntimeClient {
     this.requestHandlers.set(method, fn);
   }
 
-  setApprovalHandler(fn: ServerRequestHandler | null): void {
-    this.approvalHandler = fn;
-  }
 }
 
-function asWire(fake: FakeRuntimeClient): DotCraftWireClient {
-  return fake as unknown as DotCraftWireClient;
+function asWire(fake: FakeRuntimeClient): DotCraftAppServerClient {
+  return fake as unknown as DotCraftAppServerClient;
 }
 
 test("ChannelMessageQueue serializes each identity and keeps identities independent", async () => {
@@ -579,7 +576,9 @@ test("dispatchers register approval, user-input, delivery, tool, and heartbeat h
     onError: (message) => errors.push(message),
   }).register();
 
-  assert.equal(await fake.approvalHandler?.("approval", {}), "accept");
+  assert.deepEqual(await fake.requestHandlers.get("item/approval/request")?.("approval", {}), {
+    decision: "accept",
+  });
   assert.deepEqual(await fake.requestHandlers.get("item/tool/requestUserInput")?.("input", {
     choice: "B",
   }), { answers: { choice: { answers: ["B"] } } });
@@ -627,7 +626,9 @@ test("dispatchers preserve exception fallback shapes", async () => {
     onError: () => {},
   }).register();
 
-  assert.equal(await fake.approvalHandler?.("approval", {}), "cancel");
+  assert.deepEqual(await fake.requestHandlers.get("item/approval/request")?.("approval", {}), {
+    decision: "cancel",
+  });
   assert.deepEqual(await fake.requestHandlers.get("item/tool/requestUserInput")?.("input", {}), {
     answers: {},
   });

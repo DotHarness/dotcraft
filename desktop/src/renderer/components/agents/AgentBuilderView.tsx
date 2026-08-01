@@ -12,6 +12,7 @@ import {
   type SetStateAction
 } from 'react'
 import { createPortal } from 'react-dom'
+import type { ClientRequestMethods } from '@dotcraft/sdk/contracts'
 import { ArrowLeft, BookOpen, CircleHelp, Clock, Eye, FileSearch, FileText, Globe, ListChecks, MoreHorizontal, MousePointer2, Pencil, Plus, RefreshCw, Search, Server, Shuffle, Tag, Trash2, Wrench, X, type LucideIcon } from 'lucide-react'
 import { showToast } from '../../stores/toastStore'
 import { useModelCatalogStore } from '../../stores/modelCatalogStore'
@@ -243,7 +244,10 @@ function markerContentEnd(target: HTMLElement): number {
 const galleryAvatar: CSSProperties = { flex: '0 0 auto', display: 'inline-flex' }
 const galleryText: CSSProperties = { minWidth: 0, flex: 1, display: 'flex', flexDirection: 'column' }
 
-async function rpc<T>(method: string, params: Record<string, unknown> = {}): Promise<T> {
+async function rpc<T>(
+  method: keyof ClientRequestMethods,
+  params: ClientRequestMethods[keyof ClientRequestMethods]['params'] = {}
+): Promise<T> {
   return (await window.api.appServer.sendRequest(method, params)) as T
 }
 

@@ -2,9 +2,9 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.3.0 |
+| **Version** | 0.4.0 |
 | **Status** | Living |
-| **Date** | 2026-06-03 |
+| **Date** | 2026-08-01 |
 | **Related Specs** | [AppServer Protocol](../protocols/appserver-protocol.md), [AppServer Protocol Contracts and SDK Generation](protocol-contract-generation.md), [Hub Architecture](../architecture/hub-architecture.md), [App Binding](../protocols/app-binding.md), [External Channel Adapter](../protocols/external-channel-adapter.md), [Session Core](../architecture/session-core.md), [TypeScript SDK Binding](typescript.md), [.NET SDK Binding](dotnet.md), [Python SDK Binding](python.md) |
 
 Purpose: define the shared SDK design contract for DotCraft across languages while allowing each language binding to keep idiomatic package structure, runtime constraints, publishing rules, and environment-specific helpers.
@@ -46,7 +46,7 @@ The canonical surface below is the spine all general-purpose bindings converge o
 | Connect (local Hub) | `DotCraft.local()` | `DotCraftClient.ConnectLocalAsync()` | `DotCraft.connect_local()` |
 | Connect (default Chat) | `DotCraft.localChat()` | `DotCraftClient.ConnectLocalChatAsync()` | `DotCraft.connect_local_chat()` |
 | Connect (remote WebSocket) | `DotCraft.remote()` | `DotCraftClient.ConnectRemoteAsync()` | `DotCraft.connect_remote()` |
-| Raw request escape hatch | `request()` | `RequestAsync()` | `request()` |
+| Raw request escape hatch | `requestRaw()` | `RequestRawAsync()` | `request_raw()` |
 | Thread manager | `dotcraft.threads` | `client.Threads` | `dotcraft.threads` |
 | Active thread handle | `DotCraftThread` | `DotCraftThread` | `Thread` |
 | Run, buffered | `thread.run()` | `thread.RunAsync()` | `thread.run()` |
@@ -59,19 +59,30 @@ The canonical surface below is the spine all general-purpose bindings converge o
 
 Streaming is a variant of one verb (`run` vs `runStreamed`), not a separate object model. Both return the same normalized event type, exposed over each language's native iteration primitive: `for await … of` (TypeScript), `await foreach` over `IAsyncEnumerable<T>` (.NET), `async for` (Python).
 
-### 2.2 AppServer And Hub Are Authoritative
+### 2.2 Layered SDK Architecture
+
+Every general-purpose binding has four explicit layers:
+
+1. **Contracts** contains generated wire DTOs, the four RPC direction maps or descriptors, method groups, notification registries, and protocol metadata. It performs no transport I/O.
+2. **Wire** owns JSON-RPC framing, typed and explicit raw calls, initialization, request correlation, connection state, timeouts, and optional reconnection. It contains no Thread, Run, approval, user-input, Dynamic Tool, or Channel policy.
+3. **High-level** owns application concepts such as `DotCraft`, Thread, Run, callbacks, App Binding helpers, and Channel adapters. It composes the Wire layer instead of reimplementing it.
+4. **Host adapters** integrate an SDK with an environment such as Electron. They own IPC, window and workspace routing, executable discovery, UI localization, and host security policy, but not another JSON-RPC client.
+
+The raw Wire API is the low-level SDK surface. Bindings must not preserve a parallel legacy wire client or compatibility facade after consumers migrate.
+
+### 2.3 AppServer And Hub Are Authoritative
 
 SDKs are clients. They must not duplicate server-side thread state machines, queue semantics, approval policy, App Binding validation, model catalog resolution, or persistence rules.
 
-### 2.3 Raw Escape Hatch Is Required
+### 2.4 Raw Escape Hatch Is Required
 
-Every general-purpose SDK must expose a raw AppServer request API and a raw notification stream or registration API so callers can use newly added protocol methods before typed wrappers exist.
+Every general-purpose SDK must expose explicitly named raw AppServer request, notification, notification-listener, and server-request fallback APIs so callers can use newly added protocol methods before typed wrappers exist. Known methods use generated typed APIs. A typed API must not accept an arbitrary string overload that silently bypasses the method catalog.
 
-### 2.4 Typed Wrappers Are Traceable
+### 2.5 Typed Wrappers Are Traceable
 
 Every typed SDK wrapper must map to one or more rows in this spec's capability matrix and to the owning protocol spec. If a language adds a typed wrapper first, this shared spec must be updated in the same change.
 
-### 2.5 Language-Specific Profiles Are Allowed
+### 2.6 Language-Specific Profiles Are Allowed
 
 A few SDK surfaces are naturally language-specific. Examples:
 
@@ -104,13 +115,16 @@ The Hub Bootstrap profile is required for local-workspace SDK clients:
 - Reject stale process ids and non-loopback Hub URLs.
 - Probe `GET /v1/status`.
 - Start `dotcraft hub` when configured.
-- Call `POST /v1/appservers/ensure`.
+- Call the Hub operations for live discovery, workspace lookup, AppServer ensure, restart, stop, list, status, event streaming, and shutdown.
 - Require `endpoints.appServerWebSocket` for local AppServer connections.
+- Preserve every runtime tool field returned by Hub.
+- Expose structured Hub failures with `code`, `message`, and optional `details`.
+- Accept an explicit executable and binary-match policy: `ignore`, `restartIfMismatch`, or `errorIfMismatch`.
 - Avoid logging Hub tokens or AppServer WebSocket tokens.
 
 Default Chat local bootstrap is the same profile after resolving and ensuring the concrete workspace path `~/.craft/workspaces/chats`. It must not use an empty `workspacePath` or a separate Hub endpoint.
 
-Additional Hub management APIs, such as appserver lookup and event subscription, are optional typed wrappers when the language binding needs them.
+When no expected executable is supplied, binary matching defaults to `ignore`. A host adapter may resolve an executable and select `restartIfMismatch` without moving host-specific discovery into the SDK.
 
 ### 3.3 Application Profile
 
@@ -187,9 +201,24 @@ Wire clients must:
 - Serialize JSON-RPC 2.0 messages.
 - Correlate responses.
 - Preserve `error.code`, `error.message`, and optional `error.data`.
-- Dispatch notifications by method or expose an async stream.
-- Dispatch server requests by method.
-- Return `Method not handled` for unregistered server requests unless the protocol defines a default response.
+- Dispatch known notifications through generated types and unknown notifications through an explicit raw listener.
+- Dispatch known server requests through generated types and unknown requests through an explicit raw fallback.
+- Return JSON-RPC `-32601` for an unregistered server request and `-32603` when its handler throws.
+- Process server requests concurrently so a long handler cannot block the receive loop.
+- Keep business policy out of the Wire layer, including automatic approval, user-input fallbacks, heartbeat defaults, Thread helpers, and Run aggregation.
+
+Wire connection behavior is shared across bindings:
+
+- Raw clients default to `autoReconnect=false`; Desktop and Channel profiles opt in.
+- Connection state is `connecting`, `initializing`, `ready`, `disconnected`, `reconnecting`, `reconnectError`, or `closed`.
+- Reconnect uses exponential backoff from one to thirty seconds with plus or minus twenty percent jitter.
+- A disconnect rejects all already-written in-flight requests and never replays them.
+- Calls made during reconnect queue in invocation order up to 1,024 entries. Timeout includes queue time; overflow returns a stable queue-full error.
+- After reconnect, the client replays the exact initialization parameters, sends `initialized`, and only then releases queued application messages.
+- Notification and server-request handler registrations survive reconnect. Explicit close cancels retries.
+- Wire does not recover Thread, Run, subscription, or Dynamic Tool state. Those decisions belong to the high-level client or host adapter.
+
+Normal RPC calls default to thirty seconds and allow a finite override or no timeout. Ordinary local initialization defaults to no timeout. Desktop remote initialization uses fifteen seconds, and a Desktop connection probe uses ten seconds.
 
 ### 4.3 Thread And Turn
 
@@ -231,7 +260,7 @@ When an SDK advertises callback support, it must be able to answer the matching 
 - `requestUserInputSupport` requires `item/tool/requestUserInput` handling.
 - Channel adapters must answer `ext/channel/heartbeat` with `{}`.
 
-Non-interactive SDK clients may provide documented fallback behavior, but production examples must encourage explicit handlers for approval-sensitive flows.
+The high-level client must reject configuration before initialization when `approvalSupport=true` has no approval handler or `requestUserInputSupport=true` has no user-input handler. The Wire layer never invents a successful response for either capability.
 
 ### 4.6 Error Model
 
@@ -239,6 +268,8 @@ SDKs should expose stable error codes for common AppServer and SDK cases:
 
 - initialization failure;
 - transport closed;
+- request timeout;
+- reconnect queue full;
 - thread not found;
 - thread not active;
 - turn already in progress;
@@ -391,6 +422,9 @@ Breaking changes include:
 - Removing a required Core, Hub, Application, Run, or App Binding capability from a language that had advertised the profile.
 - Changing a typed wrapper's wire method or payload shape incompatibly.
 - Changing callback fallback behavior in a way that can block non-interactive clients.
+- Reintroducing a broad string overload on a typed method or maintaining a second legacy Wire implementation.
+
+Repository consumers may migrate atomically during an explicitly approved breaking refactor. Package version changes and external release compatibility are handled by the release workflow and are not implied by an internal refactor commit.
 
 Non-breaking changes include:
 
@@ -404,7 +438,8 @@ A complete shared SDK specification state satisfies:
 
 - `specs/sdk/sdk.md` defines the shared semantic SDK contract.
 - Language binding specs live under `specs/sdk/`.
-- Existing root SDK spec paths are compatibility pointers only.
 - Cross-spec links point to the new SDK directory.
 - Capability parity is tracked in this document's matrix.
 - Language-specific SDK designs remain documented without duplicating shared protocol semantics.
+- Contracts, Wire, high-level, and host-adapter responsibilities remain distinct.
+- TypeScript, .NET, and Python expose equivalent typed and explicit raw Wire semantics and the same generic Hub capability set.
