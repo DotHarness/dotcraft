@@ -72,10 +72,12 @@ For a version-1 thread, the Responses request input is:
 1. the current canonical generation;
 2. plus only the current MEAI sampling tail not already represented by that generation.
 
-The turn runtime captures a fingerprinted MEAI baseline before the current user input enters the
-agent. The function-invocation wrapper marks MEAI response projections as covered after it updates
-its augmented sampling history. This lets the next tool-loop request map only newly appended tool
-results and guidance.
+The turn runtime captures the MEAI baseline before the current user input enters the agent.
+Coverage is an append-only message boundary measured against the same sanitizer-normalized
+sampling projection used for provider requests, not against the raw MEAI collection shape. The
+function-invocation wrapper marks that projection as covered after it updates its augmented
+sampling history. This lets the next tool-loop request map only newly appended tool results and
+guidance without rewriting the canonical generation.
 
 Request-local history sanitization is not a conversation-history replacement. A sanitizer may
 repair an incomplete tool pair or remove content that is invalid for a role in the current request,
@@ -170,6 +172,8 @@ durable but must never be copied into diagnostics.
   byte-identical prefix and append only completed provider items and new local tail items.
 - Request-local sanitization never emits `provider_history_replaced`; successful neutral or
   provider-native compaction emits exactly one replacement for the new context window.
+- Coverage accounting uses the sanitizer-normalized sampling projection even when replay or fork
+  materialization reconstructs multiple MEAI tool messages for one assistant tool-call block.
 - Provider IDs, `call_id`, item ordering, replayable image-generation fields, and encrypted
   reasoning bytes survive turn completion, cold resume, rollback, and compatible fork.
 - Reasoning emitted after a tool result is projected as Assistant content, while the Tool message

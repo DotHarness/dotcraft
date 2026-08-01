@@ -370,13 +370,19 @@ public sealed partial class StreamingFunctionInvokingChatClientTests
         {
             new(
                 ChatRole.Assistant,
-                [new FunctionCallContent("call-1", "GetStatus", new Dictionary<string, object?>())]),
+                [
+                    new FunctionCallContent("call-1", "GetStatus", new Dictionary<string, object?>()),
+                    new FunctionCallContent("call-2", "GetDetails", new Dictionary<string, object?>())
+                ]),
             new(
                 ChatRole.Tool,
                 [
                     new TextReasoningContent("must stay canonical"),
                     new FunctionResultContent("call-1", "tool result")
-                ])
+                ]),
+            new(
+                ChatRole.Tool,
+                [new FunctionResultContent("call-2", "details result")])
         };
 
         await foreach (var _ in client.GetStreamingResponseAsync(messages))
@@ -387,8 +393,8 @@ public sealed partial class StreamingFunctionInvokingChatClientTests
         var request = Assert.Single(inner.Calls);
         Assert.Equal(2, request.Count);
         var tool = request[1];
-        Assert.Single(tool.Contents);
-        Assert.IsType<FunctionResultContent>(tool.Contents[0]);
+        Assert.Equal(2, tool.Contents.Count);
+        Assert.All(tool.Contents, content => Assert.IsType<FunctionResultContent>(content));
     }
 
     [Fact]

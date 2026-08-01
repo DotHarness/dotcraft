@@ -217,7 +217,7 @@ public sealed class ChatGptResponsesCompactBackendTests
                 "window_1",
                 [Entry("old", """{"type":"message","role":"user","content":[]}""")],
                 "turn_1"),
-            coveredMessageCount: 1,
+            coveredMessages: [new ChatMessage(ChatRole.User, "old")],
             appendAsync: (_, _) =>
             {
                 appendCount++;
@@ -249,6 +249,56 @@ public sealed class ChatGptResponsesCompactBackendTests
     }
 
     [Fact]
+    public async Task ProviderHistoryNativeCoverage_UsesNormalizedSamplingProjection()
+    {
+        var rawBaseline = new List<ChatMessage>
+        {
+            new(
+                ChatRole.Assistant,
+                [
+                    new FunctionCallContent("call-1", "read_file", new Dictionary<string, object?>()),
+                    new FunctionCallContent("call-2", "read_file", new Dictionary<string, object?>())
+                ]),
+            new(
+                ChatRole.Tool,
+                [new FunctionResultContent("call-1", "first result")]),
+            new(
+                ChatRole.Tool,
+                [new FunctionResultContent("call-2", "second result")])
+        };
+        var context = CreateContext(
+            new ProviderHistorySnapshot(
+                "window_1",
+                "window_1",
+                [Entry("old", """{"type":"message","role":"user","content":[]}""")],
+                "turn_1"),
+            coveredMessages: rawBaseline);
+        var nextMessages = new List<ChatMessage>(rawBaseline)
+        {
+            new(ChatRole.User, "continue")
+        };
+
+        var preTurn = await context.CaptureCompactionInputAsync(
+            CompactionPhase.PreTurn,
+            nextMessages,
+            options: null,
+            CancellationToken.None);
+        Assert.Equal(2, preTurn.CoveredMessageCount);
+
+        await context.ReplaceNativeAsync(
+            new CompactionReplacement.ProviderNative(
+                ProviderHistorySchema.OpenAIResponsesProtocol,
+                [ReadObject("""{"type":"compaction","encrypted_content":"YWJj"}""")],
+                preTurn.CoveredMessageCount,
+                "turn_1",
+                EstimatedTokensAfter: 10),
+            CancellationToken.None);
+
+        Assert.True(context.TryEstimateActiveNativeContextTokens(nextMessages, options: null, out var tokens));
+        Assert.True(tokens > 0);
+    }
+
+    [Fact]
     public async Task ProviderHistoryNativeInstall_PublishesOnlyAfterDurableReplacement()
     {
         ProviderHistoryReplacedPayload? persisted = null;
@@ -261,7 +311,7 @@ public sealed class ChatGptResponsesCompactBackendTests
                 "window_1",
                 [Entry("old", """{"type":"message","role":"user","content":[]}""")],
                 "turn_1"),
-            coveredMessageCount: 1,
+            coveredMessages: [new ChatMessage(ChatRole.User, "old")],
             replaceAsync: (payload, _) =>
             {
                 snapshotDuringCommit = context!.CaptureSnapshot();
@@ -305,7 +355,7 @@ public sealed class ChatGptResponsesCompactBackendTests
                 "window_1",
                 [Entry("old", """{"type":"message","role":"user","content":[]}""")],
                 "turn_1"),
-            coveredMessageCount: 1,
+            coveredMessages: [new ChatMessage(ChatRole.User, "old")],
             replaceAsync: (_, _) => throw new IOException("write failed"));
         var replacement = new CompactionReplacement.ProviderNative(
             ProviderHistorySchema.OpenAIResponsesProtocol,
@@ -522,7 +572,7 @@ public sealed class ChatGptResponsesCompactBackendTests
 
     private static OpenAIResponsesProviderHistoryContext CreateContext(
         ProviderHistorySnapshot snapshot,
-        int coveredMessageCount,
+        IReadOnlyList<ChatMessage> coveredMessages,
         Func<ProviderHistoryItemsAppendedPayload, CancellationToken, Task>? appendAsync = null,
         Func<ProviderHistoryReplacedPayload, CancellationToken, Task>? replaceAsync = null,
         Func<string, string, CancellationToken, Task>? reconcileAsync = null) =>
@@ -539,7 +589,7 @@ public sealed class ChatGptResponsesCompactBackendTests
                 ThreadSource: "test",
                 SubagentKind: null),
             snapshot,
-            coveredMessageCount,
+            coveredMessages,
             appendAsync,
             replaceAsync,
             abortAsync: null,

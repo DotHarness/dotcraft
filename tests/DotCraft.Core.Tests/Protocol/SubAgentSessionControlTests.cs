@@ -1349,6 +1349,62 @@ public sealed class SubAgentSessionControlTests : IDisposable
     }
 
     [Fact]
+    public async Task SpawnAgent_ForkedSplitToolResultsKeepResponsesCoverageAligned()
+    {
+        var context = await CreateContextAsync();
+        AddCompletedToolTurn(context.ParentThread);
+
+        var spawned = await SubAgentSessionControl.SpawnAgentAsync(
+            context,
+            new SubAgentSpawnOptions { AgentPrompt = "continue", TaskName = "tool_history" },
+            waitForCompletion: false,
+            coordinator: null,
+            CancellationToken.None);
+        var child = await _sessionService.GetThreadAsync(spawned.ChildThreadId);
+        var rawBaseline = child.Turns
+            .SelectMany(ThreadStore.BuildModelVisibleHistoryFromTurn)
+            .ToList();
+        var providerHistory = new OpenAIResponsesProviderHistoryContext(
+            new ThreadConversationIdentity(
+                child.Id,
+                child.Id,
+                context.ParentThread.Id,
+                ForkedFromThreadId: null,
+                TurnId: "turn_child",
+                ContextWindowId: "window_child",
+                RequestKind: ThreadConversationRequestKind.Turn,
+                TurnStartedAtUnixMs: 1,
+                ThreadSource: "subagent",
+                SubagentKind: "native"),
+            ProviderHistorySnapshot.Empty("window_child"),
+            rawBaseline,
+            appendAsync: null,
+            replaceAsync: null,
+            abortAsync: null);
+        await providerHistory.ReplaceAsync(
+            rawBaseline,
+            options: null,
+            "protocol_return",
+            CancellationToken.None);
+        var canonicalPrefix = providerHistory.CaptureSnapshot().Entries
+            .Select(entry => entry.Item.GetRawText())
+            .ToList();
+        var preparedMessages = ModelRequestHistorySanitizer.Sanitize(
+            [.. rawBaseline, new ChatMessage(ChatRole.User, "continue")]);
+
+        var request = await providerHistory.PrepareInputAsync(
+            preparedMessages,
+            options: null,
+            CancellationToken.None);
+
+        Assert.True(rawBaseline.Count > preparedMessages.Count - 1);
+        Assert.Equal(canonicalPrefix, request.Input
+            .Take(canonicalPrefix.Count)
+            .Select(item => item!.ToJsonString()));
+        Assert.Equal(canonicalPrefix.Count + 1, request.Input.Count);
+    }
+
+    [Fact]
     public async Task SpawnAgent_ForkTurnsKeepsOnlyStableActiveTurnInput()
     {
         var context = await CreateContextAsync();
@@ -1553,6 +1609,68 @@ public sealed class SubAgentSessionControlTests : IDisposable
         };
         turn.Input = userItem;
         turn.Items.Add(userItem);
+        thread.Turns.Add(turn);
+    }
+
+    private static void AddCompletedToolTurn(SessionThread thread)
+    {
+        var now = DateTimeOffset.UtcNow;
+        var turn = new SessionTurn
+        {
+            Id = "turn_tools",
+            ThreadId = thread.Id,
+            Status = TurnStatus.Completed,
+            StartedAt = now,
+            CompletedAt = now
+        };
+        var userItem = new SessionItem
+        {
+            Id = "turn_tools_user",
+            TurnId = turn.Id,
+            Type = ItemType.UserMessage,
+            Status = ItemStatus.Completed,
+            CreatedAt = now,
+            CompletedAt = now,
+            Payload = new UserMessagePayload { Text = "inspect files" }
+        };
+        turn.Input = userItem;
+        turn.Items.Add(userItem);
+        for (var index = 1; index <= 2; index++)
+        {
+            turn.Items.Add(new SessionItem
+            {
+                Id = $"turn_tools_call_{index}",
+                TurnId = turn.Id,
+                Type = ItemType.ToolCall,
+                Status = ItemStatus.Completed,
+                CreatedAt = now,
+                CompletedAt = now,
+                Payload = new ToolCallPayload
+                {
+                    CallId = $"call_{index}",
+                    ToolName = "ReadFile",
+                    ProviderFlatName = "ReadFile",
+                    Arguments = new System.Text.Json.Nodes.JsonObject()
+                }
+            });
+        }
+        for (var index = 1; index <= 2; index++)
+        {
+            turn.Items.Add(new SessionItem
+            {
+                Id = $"turn_tools_result_{index}",
+                TurnId = turn.Id,
+                Type = ItemType.ToolResult,
+                Status = ItemStatus.Completed,
+                CreatedAt = now,
+                CompletedAt = now,
+                Payload = new ToolResultPayload
+                {
+                    CallId = $"call_{index}",
+                    Result = $"result {index}"
+                }
+            });
+        }
         thread.Turns.Add(turn);
     }
 
