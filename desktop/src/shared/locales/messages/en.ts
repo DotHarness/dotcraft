@@ -393,7 +393,6 @@ export const MESSAGES_EN = {
   'settings.dreams.title': 'Dreams',
   'settings.dreams.description': 'View run history and open Dashboard for detailed review.',
   'settings.dreams.overview': 'Overview',
-  'settings.dreams.backToPersonalization': 'Personalization',
   'settings.dreams.refresh': 'Refresh',
   'settings.dreams.activeStore': 'Active store',
   'settings.dreams.noActiveStore': 'No active Dream store',

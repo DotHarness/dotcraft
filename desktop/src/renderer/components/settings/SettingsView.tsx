@@ -4429,25 +4429,23 @@ export function SettingsView({
                       {t('settings.dreams.description')}
                     </SettingsDescriptionWithLearnMore>
                   }
-                >
-                <SettingsGroup
-                  title={t('settings.dreams.overview')}
-                  headerAction={
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
-                      <Button
-                        onClick={() => setActiveSettingsTab('personalization')}
-                      >
-                        {t('settings.dreams.backToPersonalization')}
-                      </Button>
-                      <Button
-                        disabled={dreamRunsLoading}
-                        onClick={() => void reloadDreamRuns()}
-                      >
-                        {t('settings.dreams.refresh')}
-                      </Button>
-                    </div>
+                  breadcrumb={
+                    <SettingsBreadcrumb
+                      parentLabel={t('settings.tab.personalization')}
+                      currentLabel={t('settings.dreams.title')}
+                      onBack={() => setActiveSettingsTab('personalization')}
+                    />
+                  }
+                  action={
+                    <Button
+                      disabled={dreamRunsLoading}
+                      onClick={() => void reloadDreamRuns()}
+                    >
+                      {t('settings.dreams.refresh')}
+                    </Button>
                   }
                 >
+                <SettingsGroup title={t('settings.dreams.overview')}>
                   <SettingsRow
                     label={t('settings.dreams.activeStore')}
                     description={dreamsStatus?.activeDreamStoreId ?? t('settings.dreams.noActiveStore')}

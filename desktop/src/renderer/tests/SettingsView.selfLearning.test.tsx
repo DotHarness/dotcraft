@@ -662,6 +662,16 @@ describe('SettingsView self-learning settings', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Manage Dreams' }))
 
     expect(await screen.findByText('dream_20260511000000_test')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Back to Personalization' })).toBeInTheDocument()
+    expect(screen.getAllByRole('button', { name: 'Personalization', exact: true })).toHaveLength(1)
+    expect(screen.getByRole('button', { name: 'Personalization', exact: true })).toHaveAttribute('aria-current', 'page')
+
+    const listCallsBeforeRefresh = appServerSendRequest.mock.calls.filter(([method]) => method === 'dreams/list').length
+    fireEvent.click(screen.getByRole('button', { name: 'Refresh' }))
+    await waitFor(() => {
+      expect(appServerSendRequest.mock.calls.filter(([method]) => method === 'dreams/list')).toHaveLength(listCallsBeforeRefresh + 1)
+    })
+
     fireEvent.click(await screen.findByRole('button', { name: 'Review' }))
 
     await waitFor(() => {
@@ -671,6 +681,9 @@ describe('SettingsView self-learning settings', () => {
     })
     expect(appServerSendRequest).not.toHaveBeenCalledWith('dreams/get', expect.anything(), expect.anything())
     expect(appServerSendRequest).not.toHaveBeenCalledWith('dreams/apply', expect.anything(), expect.anything())
+
+    fireEvent.click(screen.getByRole('button', { name: 'Back to Personalization' }))
+    expect(await screen.findByRole('button', { name: 'Manage Dreams' })).toBeInTheDocument()
   })
 
   it('shows memory reset failures in a toast', async () => {

@@ -516,7 +516,6 @@ export const MESSAGES_ZH_HANS = {
   'settings.dreams.title': '梦境',
   'settings.dreams.description': '查看运行记录，并打开 Dashboard 进行详细审阅。',
   'settings.dreams.overview': '概览',
-  'settings.dreams.backToPersonalization': '个性化',
   'settings.dreams.refresh': '刷新',
   'settings.dreams.activeStore': '当前 store',
   'settings.dreams.noActiveStore': '暂无启用的梦境 store',

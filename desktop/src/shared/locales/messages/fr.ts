@@ -535,7 +535,6 @@ export const MESSAGES_FR = {
   'settings.dreams.title': 'Rêves',
   'settings.dreams.description': 'Consultez l’historique des exécutions et ouvrez Dashboard pour un examen détaillé.',
   'settings.dreams.overview': 'Aperçu',
-  'settings.dreams.backToPersonalization': 'Personnalisation',
   'settings.dreams.refresh': 'Actualiser',
   'settings.dreams.activeStore': 'Magasin actif',
   'settings.dreams.noActiveStore': 'Aucune boutique Dream active',

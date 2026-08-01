@@ -17,6 +17,7 @@ export function SettingsSidebar(): JSX.Element {
   const capabilities = useConnectionStore((s) => s.capabilities)
   const sidebarCollapsed = useUIStore((s) => s.sidebarCollapsed)
   const activeSettingsTab = useUIStore((s) => s.activeSettingsTab)
+  const activeSidebarTab = activeSettingsTab === 'dreams' ? 'personalization' : activeSettingsTab
   const setActiveSettingsTab = useUIStore((s) => s.setActiveSettingsTab)
   const requestCloseSettings = useUIStore((s) => s.requestCloseSettings)
 
@@ -48,7 +49,7 @@ export function SettingsSidebar(): JSX.Element {
         </ActionTooltip>
 
         {tabs.map((tab) => {
-          const active = activeSettingsTab === tab.id
+          const active = activeSidebarTab === tab.id
           const TabIcon = tab.icon
           return (
             <ActionTooltip key={tab.id} label={tab.label} placement="right">
@@ -86,7 +87,7 @@ export function SettingsSidebar(): JSX.Element {
 
       <nav aria-label={t('settings.title')} style={navStyle}>
         {tabs.map((tab, index) => {
-          const active = activeSettingsTab === tab.id
+          const active = activeSidebarTab === tab.id
           const TabIcon = tab.icon
           const showGroupLabel = index === 0 || tabs[index - 1].group !== tab.group
           return (

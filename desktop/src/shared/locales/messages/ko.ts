@@ -535,7 +535,6 @@ export const MESSAGES_KO = {
   'settings.dreams.title': '꿈',
   'settings.dreams.description': '실행 기록을 보고 Dashboard을(를) 열어 자세한 검토를 받으세요.',
   'settings.dreams.overview': '개요',
-  'settings.dreams.backToPersonalization': '개인화',
   'settings.dreams.refresh': '새로 고침',
   'settings.dreams.activeStore': '활성 매장',
   'settings.dreams.noActiveStore': '활성화된 드림 매장이 없습니다.',

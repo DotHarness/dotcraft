@@ -535,7 +535,6 @@ export const MESSAGES_JA = {
   'settings.dreams.title': '夢',
   'settings.dreams.description': '実行履歴を表示し、Dashboard を開いて詳細を確認します。',
   'settings.dreams.overview': '概要',
-  'settings.dreams.backToPersonalization': 'パーソナライズ',
   'settings.dreams.refresh': '更新',
   'settings.dreams.activeStore': 'アクティブストア',
   'settings.dreams.noActiveStore': 'アクティブな Dream ストアはありません',
