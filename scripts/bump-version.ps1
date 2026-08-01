@@ -81,6 +81,30 @@ function Update-TomlVersionLine {
     Write-Utf8NoBomFile -Path $Path -Content $content
 }
 
+function Update-PythonModuleVersion {
+    param(
+        [Parameter(Mandatory = $true)][string]$Path,
+        [Parameter(Mandatory = $true)][string]$NewVersion
+    )
+
+    Assert-Exists -Path $Path
+    $content = [System.IO.File]::ReadAllText($Path)
+    $content = Replace-Regex -Content $content -Pattern '(^\s*__version__\s*=\s*")[^"]+(")' -Replacement ('${1}' + $NewVersion + '${2}') -Multiline
+    Write-Utf8NoBomFile -Path $Path -Content $content
+}
+
+function Update-TypeScriptModuleVersion {
+    param(
+        [Parameter(Mandatory = $true)][string]$Path,
+        [Parameter(Mandatory = $true)][string]$NewVersion
+    )
+
+    Assert-Exists -Path $Path
+    $content = [System.IO.File]::ReadAllText($Path)
+    $content = Replace-Regex -Content $content -Pattern '(^\s*export\s+const\s+version\s*=\s*")[^"]+(";)' -Replacement ('${1}' + $NewVersion + '${2}') -Multiline
+    Write-Utf8NoBomFile -Path $Path -Content $content
+}
+
 function Update-PackageJsonVersion {
     param(
         [Parameter(Mandatory = $true)][string]$Path,
@@ -158,7 +182,7 @@ function Update-NpmLockLinkedSdkVersion {
 
     Assert-Exists -Path $Path
     $content = [System.IO.File]::ReadAllText($Path)
-    $pattern = '("\.\./\.\."\s*:\s*\{\s*"name"\s*:\s*"@dotcraft/sdk"\s*,\s*"version"\s*:\s*")[^"]+(")'
+    $pattern = '("\.\./sdk/typescript"\s*:\s*\{\s*"name"\s*:\s*"@dotcraft/sdk"\s*,\s*"version"\s*:\s*")[^"]+(")'
     $content = Replace-Regex -Content $content -Pattern $pattern -Replacement ('${1}' + $NewVersion + '${2}') -Singleline
     Write-Utf8NoBomFile -Path $Path -Content $content
 }
@@ -177,10 +201,12 @@ $targets = @(
     @{ Type = "xml"; Path = "src/DotCraft.App/DotCraft.App.csproj" },
     @{ Type = "dotnetPackage"; Path = "sdk/dotnet/src/DotCraft.Sdk/DotCraft.Sdk.csproj" },
     @{ Type = "toml"; Path = "sdk/python/pyproject.toml" },
+    @{ Type = "pythonModule"; Path = "sdk/python/dotcraft/__init__.py" },
     @{ Type = "packageJson"; Path = "desktop/package.json" },
-    @{ Type = "npmLock"; Path = "desktop/package-lock.json"; Name = "dotcraft-desktop" },
+    @{ Type = "npmLock"; Path = "desktop/package-lock.json"; Name = "dotcraft-desktop"; UpdateLinkedSdk = $true },
     @{ Type = "packageJson"; Path = "sdk/typescript/package.json" },
     @{ Type = "npmLock"; Path = "sdk/typescript/package-lock.json"; Name = "@dotcraft/sdk" },
+    @{ Type = "typescriptModule"; Path = "sdk/typescript/src/index.ts" },
     @{ Type = "packageJson"; Path = "sdk/typescript/packages/channel-feishu/package.json" },
     @{ Type = "packageJson"; Path = "sdk/typescript/packages/channel-weixin/package.json" },
     @{ Type = "packageJson"; Path = "sdk/typescript/packages/channel-telegram/package.json" },
@@ -219,6 +245,12 @@ foreach ($target in $targets) {
         }
         "toml" {
             Update-TomlVersionLine -Path $absolutePath -NewVersion $Version
+        }
+        "pythonModule" {
+            Update-PythonModuleVersion -Path $absolutePath -NewVersion $Version
+        }
+        "typescriptModule" {
+            Update-TypeScriptModuleVersion -Path $absolutePath -NewVersion $Version
         }
         "packageJson" {
             Update-PackageJsonVersion -Path $absolutePath -NewVersion $Version

@@ -113,7 +113,7 @@ from .transport import (
     WebSocketTransport,
 )
 
-__version__ = "0.4.3"
+__version__ = "0.5.0"
 sdk_contract_version = "1.0.0"
 
 __all__ = [
