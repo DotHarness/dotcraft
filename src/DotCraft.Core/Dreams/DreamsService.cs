@@ -151,6 +151,83 @@ public sealed class DreamsService(
         return state;
     }
 
+    public async Task<DreamsRunDeletionResult?> DeleteRunAsync(
+        string runId,
+        CancellationToken cancellationToken = default)
+    {
+        ThrowIfDisposed();
+        if (!await _runGate.WaitAsync(0, cancellationToken).ConfigureAwait(false))
+            throw new InvalidOperationException("Dream runs cannot be deleted while a run is active.");
+
+        try
+        {
+            var state = stateStore.Load(runId);
+            if (state == null)
+                return null;
+            if (state.Status == DreamsRunStatuses.Running && !state.EndedAt.HasValue)
+                throw new InvalidOperationException("A running Dream run cannot be deleted.");
+
+            return DeleteRunCore(state);
+        }
+        finally
+        {
+            _runGate.Release();
+        }
+    }
+
+    public async Task<IReadOnlyList<DreamsRunDeletionResult>> DeleteAllRunsAsync(
+        CancellationToken cancellationToken = default)
+    {
+        ThrowIfDisposed();
+        if (!await _runGate.WaitAsync(0, cancellationToken).ConfigureAwait(false))
+            throw new InvalidOperationException("Dream runs cannot be deleted while a run is active.");
+
+        try
+        {
+            var states = stateStore.List(includeArchived: true);
+            if (states.Any(static state => state.Status == DreamsRunStatuses.Running && !state.EndedAt.HasValue))
+                throw new InvalidOperationException("Dream runs cannot be deleted while a run is active.");
+
+            stateStore.DeleteAllRuns();
+            return states.Select(DeleteRunArtifactsCore).ToArray();
+        }
+        finally
+        {
+            _runGate.Release();
+        }
+    }
+
+    private DreamsRunDeletionResult DeleteRunCore(DreamsRunState state)
+    {
+        if (!stateStore.DeleteRun(state.Id))
+            throw new InvalidOperationException("Dream run not found.");
+        return DeleteRunArtifactsCore(state);
+    }
+
+    private DreamsRunDeletionResult DeleteRunArtifactsCore(DreamsRunState state)
+    {
+        var warnings = new List<string>();
+        var activeStoreId = dreamStore.GetActiveStoreId();
+        var activeStorePreserved = !string.IsNullOrWhiteSpace(state.OutputStoreId)
+            && string.Equals(state.OutputStoreId, activeStoreId, StringComparison.OrdinalIgnoreCase);
+        var outputStoreDeleted = false;
+
+        if (!string.IsNullOrWhiteSpace(state.OutputStoreId) && !activeStorePreserved)
+        {
+            try
+            {
+                outputStoreDeleted = dreamStore.DeleteStore(state.OutputStoreId);
+            }
+            catch (Exception ex)
+            {
+                warnings.Add($"Failed to delete output store '{state.OutputStoreId}': {ex.Message}");
+                logger?.LogWarning(ex, "Failed to delete output store {StoreId} for Dream run {RunId}.", state.OutputStoreId, state.Id);
+            }
+        }
+
+        return new DreamsRunDeletionResult(state, outputStoreDeleted, activeStorePreserved, warnings);
+    }
+
     /// <summary>
     /// Requests an immediate forced Dream Run without waiting for completion.
     /// </summary>

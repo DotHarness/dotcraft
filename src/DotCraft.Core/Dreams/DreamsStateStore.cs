@@ -99,28 +99,7 @@ public sealed class DreamsStateStore
     {
         lock (_syncRoot)
         {
-            var dir = Path.GetDirectoryName(_statePath)!;
-            Directory.CreateDirectory(dir);
-            var tempFile = Path.Combine(dir, $".state.{Guid.NewGuid():N}.tmp");
-            var json = JsonSerializer.Serialize(state, AppConfig.SerializerOptions) + Environment.NewLine;
-            File.WriteAllText(tempFile, json, Encoding.UTF8);
-            try
-            {
-                if (File.Exists(_statePath))
-                {
-                    File.Replace(tempFile, _statePath, null);
-                }
-                else
-                {
-                    File.Move(tempFile, _statePath);
-                }
-            }
-            finally
-            {
-                if (File.Exists(tempFile))
-                    File.Delete(tempFile);
-            }
-
+            SaveLatestStateCore(state);
             SaveRunStateCore(state);
         }
     }
@@ -132,7 +111,82 @@ public sealed class DreamsStateStore
             SaveRunStateCore(state);
             var latest = Load();
             if (latest?.Id == state.Id)
-                Save(state);
+                SaveLatestStateCore(state);
+        }
+    }
+
+    public bool DeleteRun(string runId)
+    {
+        lock (_syncRoot)
+        {
+            var runDirectory = Path.GetDirectoryName(GetRunStatePath(runId))!;
+            if (!Directory.Exists(runDirectory))
+                return false;
+
+            var latest = Load();
+            var attributes = File.GetAttributes(runDirectory);
+            Directory.Delete(runDirectory, recursive: (attributes & FileAttributes.ReparsePoint) == 0);
+
+            if (latest?.Id == runId)
+            {
+                var replacement = List(includeArchived: true).FirstOrDefault();
+                if (replacement == null)
+                {
+                    if (File.Exists(_statePath))
+                        File.Delete(_statePath);
+                }
+                else
+                {
+                    SaveLatestStateCore(replacement);
+                }
+            }
+
+            return true;
+        }
+    }
+
+    public int DeleteAllRuns()
+    {
+        lock (_syncRoot)
+        {
+            var count = List(includeArchived: true).Count;
+            if (Directory.Exists(_runsDir))
+            {
+                foreach (var entry in Directory.EnumerateFileSystemEntries(_runsDir).ToArray())
+                {
+                    var attributes = File.GetAttributes(entry);
+                    if ((attributes & FileAttributes.Directory) != 0)
+                        Directory.Delete(entry, recursive: (attributes & FileAttributes.ReparsePoint) == 0);
+                    else
+                        File.Delete(entry);
+                }
+            }
+
+            if (File.Exists(_statePath))
+                File.Delete(_statePath);
+            Directory.CreateDirectory(_runsDir);
+            return count;
+        }
+    }
+
+    private void SaveLatestStateCore(DreamsRunState state)
+    {
+        var dir = Path.GetDirectoryName(_statePath)!;
+        Directory.CreateDirectory(dir);
+        var tempFile = Path.Combine(dir, $".state.{Guid.NewGuid():N}.tmp");
+        var json = JsonSerializer.Serialize(state, AppConfig.SerializerOptions) + Environment.NewLine;
+        File.WriteAllText(tempFile, json, Encoding.UTF8);
+        try
+        {
+            if (File.Exists(_statePath))
+                File.Replace(tempFile, _statePath, null);
+            else
+                File.Move(tempFile, _statePath);
+        }
+        finally
+        {
+            if (File.Exists(tempFile))
+                File.Delete(tempFile);
         }
     }
 

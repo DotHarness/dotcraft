@@ -2,9 +2,9 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.4.0 |
+| **Version** | 0.5.0 |
 | **Status** | Living |
-| **Date** | 2026-05-18 |
+| **Date** | 2026-08-01 |
 | **Related Specs** | [Session Core](../architecture/session-core.md), [AppServer Protocol](../protocols/appserver-protocol.md), [Memory Consolidation](memory-consolidation.md), [Desktop Client](../clients/desktop-client.md), [Automations Lifecycle](automations-lifecycle.md) |
 
 Purpose: Define **Dreams**, DotCraft's workspace-level background memory maintenance product and runtime capability. Dreams gives each workspace an offline memory management loop that can run from AppServer without an active client or conversation session.
@@ -319,6 +319,33 @@ Write rules:
   artifacts remain unchanged.
 - Failed runs must not switch the active Dream Store.
 
+### 6.7 Archive And Permanent Deletion
+
+Archive is a reversible review-state operation, not physical deletion. The existing
+`dreams/archive` AppServer method sets `reviewStatus = archived` and retains the
+run directory, input snapshot, output store, internal thread, and trace. Desktop
+uses this method for both single-run **Archive** and **Archive all**; bulk archive
+is a client-side sequence of `dreams/archive` calls and does not add a bulk
+AppServer method.
+
+Permanent deletion is Dashboard-only and uses the Dashboard HTTP `DELETE`
+endpoints in [Section 11](#11-dashboard-ux-contract). Deleting a run removes:
+
+- `.craft/dreams/runs/<runId>/`, including run state and input snapshot.
+- The run's output store when it is not the active Dream Store.
+- The related internal Dream Run thread and its trace records when `threadId` is
+  present.
+
+The active Dream Store is never removed by run deletion, even when the deleted
+run originally produced it. A running run cannot be deleted. Bulk deletion fails
+with a conflict before deleting anything when any targeted run is running.
+
+After deletion, `.craft/dreams/state.json` is rebuilt from the newest remaining
+run or cleared when no runs remain. Run and store deletion are authoritative;
+internal thread/trace cleanup is best-effort. A trace cleanup failure therefore
+produces a successful partial-cleanup response that identifies the affected
+thread instead of restoring already deleted Dreams artifacts.
+
 ---
 
 ## 7. Agent Context Integration
@@ -618,8 +645,13 @@ Required UX behavior:
 - Disable "Run now" while `running = true`.
 - Poll `dreams/status` after `dreams/run` until the run completes or the client times out.
 - Load `dreams/list` in the management surface.
-- Do not show raw markdown previews, index diffs, or apply/discard/archive/cancel
-  review actions in Desktop.
+- Provide **Archive** for one non-running run and **Archive all** for all eligible
+  runs. Implement both through the existing `dreams/archive` method; **Archive
+  all** issues one request per run.
+- Treat archive as hiding run history, not deleting files, stores, internal
+  threads, or traces. Desktop does not expose permanent deletion.
+- Do not show raw markdown previews, index diffs, or apply/discard/cancel review
+  actions in Desktop.
 - Disable the run-row Review action when the connected server does not expose a
   Dashboard URL, and explain that review happens in Dashboard.
 - Show concise success, skipped, and failure states.
@@ -639,6 +671,8 @@ Required Dashboard behavior:
   on `hashchange`.
 - Present summary-first status: current status, active store, pending count,
   auto-apply setting, run records, change summary, and trace/session links.
+- List archived runs together with other run records so users can review and
+  permanently delete archived history.
 - Show detailed review material only in expandable areas: active/output index
   diff, raw markdown, topic paths, input manifest, and error details.
 - Provide complete controls:
@@ -648,21 +682,40 @@ Required Dashboard behavior:
   - Make active any succeeded, non-discarded, non-archived run.
   - Discard pending runs.
   - Archive non-running runs.
+  - Permanently delete one non-running run.
+  - Permanently delete all runs when none is running.
 - Reusing apply semantics for "Make active" allows rollback to an older
   succeeded run after an automatically applied store proves bad.
+- **Delete** and **Delete all** require irreversible-action confirmation and use
+  the Dashboard HTTP `DELETE` endpoints. They do not call `dreams/archive`.
 
 Dashboard HTTP endpoints:
 
 | Endpoint | Purpose |
 |----------|---------|
 | `GET /dashboard/api/dreams/status` | Read Dreams config/status, active store, and latest run. |
-| `GET /dashboard/api/dreams/runs` | List Dream Runs. |
+| `GET /dashboard/api/dreams/runs` | List all Dream Runs, including archived runs. |
 | `GET /dashboard/api/dreams/runs/{runId}` | Read one run plus review preview. |
 | `POST /dashboard/api/dreams/run` | Request a manual Dream Run. |
 | `POST /dashboard/api/dreams/runs/{runId}/apply` | Apply or make a succeeded run active. |
 | `POST /dashboard/api/dreams/runs/{runId}/discard` | Discard a pending run. |
-| `POST /dashboard/api/dreams/runs/{runId}/archive` | Archive a non-running run. |
+| `POST /dashboard/api/dreams/runs/{runId}/archive` | Archive a non-running run without physically deleting its artifacts. |
 | `POST /dashboard/api/dreams/runs/{runId}/cancel` | Cancel a running run best-effort. |
+| `DELETE /dashboard/api/dreams/runs/{runId}` | Permanently delete one non-running run and clean up its non-active artifacts. |
+| `DELETE /dashboard/api/dreams/runs` | Permanently delete all runs when none is running. |
+
+Deletion endpoint semantics:
+
+- The single-run endpoint returns `404 Not Found` when `runId` does not exist.
+- Either endpoint returns `409 Conflict` without deleting anything when a
+  targeted run is running.
+- A successful response reports `deletedRunIds`, `deletedCount`,
+  `activeDreamStoreId`, `partial`, and `traceCleanupFailures`.
+- `partial` is `true` only when Dreams run/input and eligible output-store
+  deletion succeeded but one or more related internal thread/trace cleanups
+  failed. Each `traceCleanupFailures` entry identifies `runId`, `threadId`, and
+  an error message.
+- `activeDreamStoreId` remains unchanged when its producing run is deleted.
 
 Suggested English copy:
 
@@ -743,7 +796,12 @@ Dreams may still call the configured model provider like other DotCraft model wo
 - Desktop hides Dreams controls when capability is unavailable.
 - Desktop shows Dreams controls under Personalization when available.
 - Desktop exposes a lightweight Dreams run-history surface that opens Dashboard review links.
-- Dashboard exposes detailed Dreams review, diff, trace links, apply/make-active, discard, cancel, and archive controls.
+- Desktop supports single Archive and Archive all through `dreams/archive`; neither operation physically deletes Dreams artifacts.
+- Desktop does not expose permanent Dream Run deletion.
+- Dashboard lists archived runs and exposes detailed Dreams review, diff, trace links, apply/make-active, discard, cancel, archive, Delete, and Delete all controls.
+- Dashboard permanent deletion removes run/input artifacts, non-active output stores, and related internal thread/trace data while preserving the active store.
+- Dashboard rejects deletion when any targeted run is running, then rebuilds or clears latest run state after successful deletion.
+- Dashboard reports partial success when only related internal thread/trace cleanup fails.
 - Desktop uses Dreams terminology consistently.
 - Desktop can run now and refresh status.
 

@@ -535,7 +535,6 @@ export const MESSAGES_ES = {
   'settings.dreams.title': 'Sueños',
   'settings.dreams.description': 'Vea el historial de ejecución y abra Dashboard para una revisión detallada.',
   'settings.dreams.overview': 'Descripción general',
-  'settings.dreams.backToPersonalization': 'Personalización',
   'settings.dreams.refresh': 'Actualizar',
   'settings.dreams.activeStore': 'Tienda activa',
   'settings.dreams.noActiveStore': 'Ninguna tienda Dream activa',
@@ -2053,7 +2052,17 @@ export const MESSAGES_ES = {
   'settings.dreams.apply': 'Aplicar',
   'settings.dreams.discard': 'Descartar',
   'settings.dreams.cancel': 'Cancelar',
-  'settings.dreams.archive': 'Archivo',
+  'settings.dreams.archive': 'Archivar',
+  'settings.dreams.archiveAll': 'Archivar todo',
+  'settings.dreams.archiveConfirmTitle': '¿Archivar esta ejecución de Dreams?',
+  'settings.dreams.archiveConfirmMessage':
+    'Al archivarla, esta ejecución se oculta en Desktop, pero sigue disponible en Dashboard.',
+  'settings.dreams.archiveAllConfirmTitle': '¿Archivar todas las ejecuciones de Dreams?',
+  'settings.dreams.archiveAllConfirmMessage':
+    'Al archivarlas, estas {{count}} ejecuciones se ocultan en Desktop, pero siguen disponibles en Dashboard.',
+  'settings.dreams.archiveAllSucceeded': 'Se archivaron {{count}} ejecuciones de Dreams',
+  'settings.dreams.archiveAllPartial':
+    'Se archivaron {{archived}} de {{total}} ejecuciones de Dreams. Las demás siguen visibles.',
   'settings.dreams.reviewStatus.pending': 'Pendiente',
   'settings.dreams.reviewStatus.applied': 'Aplicado',
   'settings.dreams.reviewStatus.discarded': 'Descartado',

@@ -535,7 +535,6 @@ export const MESSAGES_JA = {
   'settings.dreams.title': '夢',
   'settings.dreams.description': '実行履歴を表示し、Dashboard を開いて詳細を確認します。',
   'settings.dreams.overview': '概要',
-  'settings.dreams.backToPersonalization': 'パーソナライズ',
   'settings.dreams.refresh': '更新',
   'settings.dreams.activeStore': 'アクティブストア',
   'settings.dreams.noActiveStore': 'アクティブな Dream ストアはありません',
@@ -2049,6 +2048,16 @@ export const MESSAGES_JA = {
   'settings.dreams.discard': '廃棄する',
   'settings.dreams.cancel': 'キャンセル',
   'settings.dreams.archive': 'アーカイブ',
+  'settings.dreams.archiveAll': 'すべてアーカイブ',
+  'settings.dreams.archiveConfirmTitle': 'この Dreams 実行をアーカイブしますか？',
+  'settings.dreams.archiveConfirmMessage':
+    'アーカイブすると、この実行は Desktop で非表示になりますが、Dashboard では引き続き確認できます。',
+  'settings.dreams.archiveAllConfirmTitle': 'すべての Dreams 実行をアーカイブしますか？',
+  'settings.dreams.archiveAllConfirmMessage':
+    'アーカイブすると、これら {{count}} 件の実行は Desktop で非表示になりますが、Dashboard では引き続き確認できます。',
+  'settings.dreams.archiveAllSucceeded': '{{count}} 件の Dreams 実行をアーカイブしました',
+  'settings.dreams.archiveAllPartial':
+    '{{total}} 件中 {{archived}} 件の Dreams 実行をアーカイブしました。残りは引き続き表示されます。',
   'settings.dreams.reviewStatus.pending': '保留中',
   'settings.dreams.reviewStatus.applied': '適用済み',
   'settings.dreams.reviewStatus.discarded': '廃棄されました',

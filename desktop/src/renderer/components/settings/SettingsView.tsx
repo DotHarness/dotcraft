@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type JSX } from 'react'
 import {
+  Archive,
   Hand,
   ListChecks,
   OctagonAlert,
@@ -46,6 +47,7 @@ import { ExtensionsIcon, FolderIcon, OpenInBrowserIcon, RefreshIcon, WrenchIcon 
 import { IconButton } from '../ui/IconButton'
 import { Input } from '../ui/Input'
 import { Button } from '../ui/Button'
+import { Skeleton } from '../ui/Skeleton'
 import { InputWithAction } from '../ui/InputWithAction'
 import { SelectionCard, ResolvedPill } from '../ui/SelectionCard'
 import { PillSwitch } from '../ui/PillSwitch'
@@ -1439,6 +1441,8 @@ export function SettingsView({
   const [dreamsStatusLoading, setDreamsStatusLoading] = useState(false)
   const [dreamRuns, setDreamRuns] = useState<DreamsRunState[]>([])
   const [dreamRunsLoading, setDreamRunsLoading] = useState(false)
+  const [archivingDreamRunId, setArchivingDreamRunId] = useState<string | null>(null)
+  const [archivingAllDreamRuns, setArchivingAllDreamRuns] = useState(false)
   const [applyingDreams, setApplyingDreams] = useState(false)
   const [runningDreams, setRunningDreams] = useState(false)
   const [defaultApprovalPolicy, setDefaultApprovalPolicy] = useState<VisibleApprovalPolicy>('default')
@@ -2402,6 +2406,87 @@ export function SettingsView({
       await window.api.shell.openExternal(`${baseUrl}#dreams/run/${encodeURIComponent(runId)}`)
     },
     [dashboardUrl]
+  )
+
+  const handleArchiveDreamRun = useCallback(
+    async (run: DreamsRunState): Promise<void> => {
+      if (run.status === 'running' || archivingDreamRunId != null || archivingAllDreamRuns) return
+
+      const confirmed = await confirm({
+        title: t('settings.dreams.archiveConfirmTitle'),
+        message: t('settings.dreams.archiveConfirmMessage'),
+        confirmLabel: t('settings.dreams.archive'),
+        cancelLabel: t('common.cancel')
+      })
+      if (!confirmed) return
+
+      setArchivingDreamRunId(run.id)
+      try {
+        await window.api.appServer.sendRequest('dreams/archive', { runId: run.id }, 20_000)
+        addToast(t('settings.dreams.archiveSucceeded'), 'success')
+        await reloadDreamRuns()
+      } catch (err) {
+        addToast(t('settings.dreams.actionFailed', {
+          error: err instanceof Error ? err.message : String(err)
+        }), 'error')
+      } finally {
+        setArchivingDreamRunId(null)
+      }
+    },
+    [archivingAllDreamRuns, archivingDreamRunId, confirm, reloadDreamRuns, t]
+  )
+
+  const handleArchiveAllDreamRuns = useCallback(
+    async (): Promise<void> => {
+      if (
+        dreamRuns.length === 0 ||
+        dreamRunsLoading ||
+        archivingDreamRunId != null ||
+        archivingAllDreamRuns ||
+        dreamRuns.some((run) => run.status === 'running')
+      ) {
+        return
+      }
+
+      const confirmed = await confirm({
+        title: t('settings.dreams.archiveAllConfirmTitle'),
+        message: t('settings.dreams.archiveAllConfirmMessage', { count: dreamRuns.length }),
+        confirmLabel: t('settings.dreams.archiveAll'),
+        cancelLabel: t('common.cancel')
+      })
+      if (!confirmed) return
+
+      setArchivingAllDreamRuns(true)
+      let archivedCount = 0
+      let firstError = ''
+      try {
+        for (const run of dreamRuns) {
+          try {
+            await window.api.appServer.sendRequest('dreams/archive', { runId: run.id }, 20_000)
+            archivedCount += 1
+          } catch (err) {
+            if (!firstError) {
+              firstError = err instanceof Error ? err.message : String(err)
+            }
+          }
+        }
+
+        if (archivedCount === dreamRuns.length) {
+          addToast(t('settings.dreams.archiveAllSucceeded', { count: archivedCount }), 'success')
+        } else if (archivedCount > 0) {
+          addToast(t('settings.dreams.archiveAllPartial', {
+            archived: archivedCount,
+            total: dreamRuns.length
+          }), 'warning')
+        } else {
+          addToast(t('settings.dreams.actionFailed', { error: firstError }), 'error')
+        }
+        await reloadDreamRuns()
+      } finally {
+        setArchivingAllDreamRuns(false)
+      }
+    },
+    [archivingAllDreamRuns, archivingDreamRunId, confirm, dreamRuns, dreamRunsLoading, reloadDreamRuns, t]
   )
 
   const handleResetMemory = useCallback(
@@ -3369,6 +3454,12 @@ export function SettingsView({
     return [statusLabel, reviewLabel, dateLabel].filter(Boolean).join(' · ')
   }, [dreamsStatus, dreamsStatusLoading, t])
   const dreamsRunDisabled = runningDreams || dreamsStatus?.running === true || dreamsEnabled === false
+  const dreamsArchiveBusy = archivingDreamRunId != null || archivingAllDreamRuns
+  const archiveAllDreamRunsDisabled =
+    dreamRuns.length === 0 ||
+    dreamRunsLoading ||
+    dreamsArchiveBusy ||
+    dreamRuns.some((run) => run.status === 'running')
 
   return (
     <div
@@ -4429,127 +4520,114 @@ export function SettingsView({
                       {t('settings.dreams.description')}
                     </SettingsDescriptionWithLearnMore>
                   }
-                >
-                <SettingsGroup
-                  title={t('settings.dreams.overview')}
-                  headerAction={
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
-                      <Button
-                        onClick={() => setActiveSettingsTab('personalization')}
-                      >
-                        {t('settings.dreams.backToPersonalization')}
-                      </Button>
-                      <Button
-                        disabled={dreamRunsLoading}
-                        onClick={() => void reloadDreamRuns()}
-                      >
-                        {t('settings.dreams.refresh')}
-                      </Button>
-                    </div>
+                  breadcrumb={
+                    <SettingsBreadcrumb
+                      parentLabel={t('settings.tab.personalization')}
+                      currentLabel={t('settings.dreams.title')}
+                      onBack={() => setActiveSettingsTab('personalization')}
+                    />
+                  }
+                  action={
+                    <IconButton
+                      icon={<RefreshIcon size={15} />}
+                      label={t('settings.dreams.refresh')}
+                      tooltipLabel={t('settings.dreams.refresh')}
+                      disabled={dreamRunsLoading}
+                      onClick={() => void reloadDreamRuns()}
+                    />
                   }
                 >
-                  <SettingsRow
-                    label={t('settings.dreams.activeStore')}
-                    description={dreamsStatus?.activeDreamStoreId ?? t('settings.dreams.noActiveStore')}
-                  />
-                  <SettingsRow
-                    label={t('settings.personalization.dreamsLastRun')}
-                    description={dreamsStatusText}
-                  />
-                  <SettingsRow
-                    label={t('settings.personalization.dreamsAutoApply')}
-                    description={dreamsAutoApply
-                      ? t('settings.dreams.autoApplyEnabled')
-                      : t('settings.dreams.autoApplyDisabled')}
-                  />
-                  {!dashboardUrl && (
-                    <SettingsRow
-                      label={t('settings.dreams.dashboard')}
-                      description={t('settings.dreams.dashboardUnavailable')}
-                    />
-                  )}
-                </SettingsGroup>
-
-                <SettingsGroup title={t('settings.dreams.runs')} flush>
-                  <div style={{ display: 'flex', flexDirection: 'column' }}>
-                    {dreamRunsLoading && dreamRuns.length === 0 ? (
-                      <div style={settingsPlaceholderStyle()}>
-                        {t('settings.dreams.loading')}
-                      </div>
-                    ) : dreamRuns.length === 0 ? (
-                      <div style={settingsPlaceholderStyle()}>
-                        {t('settings.dreams.empty')}
-                      </div>
-                    ) : (
-                      dreamRuns.map((run, index) => {
-                        const runTime = run.endedAt ?? run.startedAt
-                        return (
-                          <div
-                            key={run.id}
-                            style={{
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'space-between',
-                              gap: '12px',
-                              padding: index === 0 ? '0 0 12px' : '12px 0',
-                              borderTop: index === 0 ? 'none' : '1px solid var(--border-default)'
-                            }}
+                <SettingsGroup
+                  title={t('settings.dreams.runs')}
+                  headerAction={
+                    <Button
+                      variant="danger"
+                      disabled={archiveAllDreamRunsDisabled}
+                      onClick={() => void handleArchiveAllDreamRuns()}
+                    >
+                      {t('settings.dreams.archiveAll')}
+                    </Button>
+                  }
+                >
+                  {dreamRunsLoading && dreamRuns.length === 0 &&
+                    ['58%', '44%', '64%'].map((labelWidth, index) => (
+                      <SettingsRow
+                        key={`dream-run-skeleton-${index}`}
+                        label={
+                          <span
+                            role={index === 0 ? 'status' : undefined}
+                            aria-label={index === 0 ? t('settings.dreams.loading') : undefined}
                           >
-                            <div
-                              style={{
-                                flex: 1,
-                                minWidth: 0,
-                                color: 'var(--text-primary)',
-                                textAlign: 'left'
-                              }}
+                            <Skeleton width={labelWidth} height={13} />
+                          </span>
+                        }
+                        description={<Skeleton width="34%" height={11} />}
+                        control={<Skeleton width={99} height={32} radius={8} />}
+                      />
+                    ))}
+
+                  {!dreamRunsLoading && dreamRuns.length === 0 && (
+                    <SettingsRow>
+                      <div style={settingsPlaceholderStyle()}>{t('settings.dreams.empty')}</div>
+                    </SettingsRow>
+                  )}
+
+                  {!dreamRunsLoading && dreamRuns.map((run) => {
+                    const runTime = run.endedAt ?? run.startedAt
+                    const statusColor = run.status === 'succeeded'
+                      ? 'var(--success)'
+                      : run.status === 'failed'
+                        ? 'var(--error)'
+                        : run.status === 'running'
+                          ? 'var(--info)'
+                          : 'var(--text-secondary)'
+                    const running = run.status === 'running'
+                    return (
+                      <SettingsRow
+                        key={run.id}
+                        label={
+                          <span style={{ display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {runTime
+                              ? new Date(runTime).toLocaleString(locale)
+                              : t('settings.personalization.dreamsStatus.unknownTime')}
+                          </span>
+                        }
+                        description={
+                          <span style={{ display: 'inline-flex', alignItems: 'center', flexWrap: 'wrap', gap: '6px' }}>
+                            <span style={{ color: statusColor }}>
+                              {t(`settings.personalization.dreamsStatus.${run.status}`)}
+                            </span>
+                            <span aria-hidden>·</span>
+                            <span>{t('settings.dreams.threadCount', { count: run.processedThreadCount })}</span>
+                          </span>
+                        }
+                        control={
+                          <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
+                            <ActionTooltip
+                              label={dashboardUrl ? t('settings.dreams.openReview') : t('settings.dreams.dashboardUnavailable')}
                             >
-                              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-                                <span style={{ fontSize: '13px', fontWeight: 600 }}>
-                                  {run.id}
-                                </span>
-                                <span style={mcpSourcePillStyle()}>
-                                  {t(`settings.personalization.dreamsStatus.${run.status}`)}
-                                </span>
-                                {run.reviewStatus && (
-                                  <span style={mcpSourcePillStyle()}>
-                                    {t(`settings.dreams.reviewStatus.${run.reviewStatus}`)}
-                                  </span>
-                                )}
-                                {run.autoApplied && (
-                                  <span style={mcpSourcePillStyle()}>
-                                    {t('settings.dreams.autoApplied')}
-                                  </span>
-                                )}
-                              </div>
-                              <div style={settingsMetaTextStyle(true)}>
-                                {runTime ? new Date(runTime).toLocaleString() : t('settings.personalization.dreamsStatus.unknownTime')}
-                                {' · '}
-                                {t('settings.dreams.threadCount', { count: run.processedThreadCount })}
-                                {run.outputStoreId ? ` · ${run.outputStoreId}` : ''}
-                              </div>
-                              {run.message && (
-                                <div style={settingsHintStyle()}>
-                                  {run.message}
-                                </div>
-                              )}
-                            </div>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
-                              <ActionTooltip
-                                label={dashboardUrl ? t('settings.dreams.openReview') : t('settings.dreams.dashboardUnavailable')}
+                              <Button
+                                disabled={!dashboardUrl || running}
+                                onClick={() => void openDreamReview(run.id)}
                               >
-                                <Button
-                                  disabled={!dashboardUrl}
-                                  onClick={() => void openDreamReview(run.id)}
-                                >
-                                  {t('settings.dreams.openReview')}
-                                </Button>
-                              </ActionTooltip>
-                            </div>
+                                {t('settings.dreams.openReview')}
+                              </Button>
+                            </ActionTooltip>
+                            <IconButton
+                              icon={<Archive size={14} aria-hidden />}
+                              label={t('settings.dreams.archive')}
+                              tooltipLabel={t('settings.dreams.archive')}
+                              size={24}
+                              radius={8}
+                              className="dc-thread-list-icon-button"
+                              disabled={running || dreamsArchiveBusy}
+                              onClick={() => void handleArchiveDreamRun(run)}
+                            />
                           </div>
-                        )
-                      })
-                    )}
-                  </div>
+                        }
+                      />
+                    )
+                  })}
                 </SettingsGroup>
               </SettingsPanelShell>
               </GeneralPanel>

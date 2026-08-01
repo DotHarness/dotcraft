@@ -393,7 +393,6 @@ export const MESSAGES_EN = {
   'settings.dreams.title': 'Dreams',
   'settings.dreams.description': 'View run history and open Dashboard for detailed review.',
   'settings.dreams.overview': 'Overview',
-  'settings.dreams.backToPersonalization': 'Personalization',
   'settings.dreams.refresh': 'Refresh',
   'settings.dreams.activeStore': 'Active store',
   'settings.dreams.noActiveStore': 'No active Dream store',
@@ -419,6 +418,16 @@ export const MESSAGES_EN = {
   'settings.dreams.discard': 'Discard',
   'settings.dreams.cancel': 'Cancel',
   'settings.dreams.archive': 'Archive',
+  'settings.dreams.archiveAll': 'Archive all',
+  'settings.dreams.archiveConfirmTitle': 'Archive this Dreams run?',
+  'settings.dreams.archiveConfirmMessage':
+    'This run will be hidden from Desktop, but it will remain available in Dashboard.',
+  'settings.dreams.archiveAllConfirmTitle': 'Archive all Dreams runs?',
+  'settings.dreams.archiveAllConfirmMessage':
+    'These {{count}} runs will be hidden from Desktop, but they will remain available in Dashboard.',
+  'settings.dreams.archiveAllSucceeded': 'Archived {{count}} Dreams runs',
+  'settings.dreams.archiveAllPartial':
+    'Archived {{archived}} of {{total}} Dreams runs. The remaining runs are still visible.',
   'settings.dreams.reviewStatus.pending': 'Pending',
   'settings.dreams.reviewStatus.applied': 'Applied',
   'settings.dreams.reviewStatus.discarded': 'Discarded',

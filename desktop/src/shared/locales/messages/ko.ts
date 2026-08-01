@@ -535,7 +535,6 @@ export const MESSAGES_KO = {
   'settings.dreams.title': '꿈',
   'settings.dreams.description': '실행 기록을 보고 Dashboard을(를) 열어 자세한 검토를 받으세요.',
   'settings.dreams.overview': '개요',
-  'settings.dreams.backToPersonalization': '개인화',
   'settings.dreams.refresh': '새로 고침',
   'settings.dreams.activeStore': '활성 매장',
   'settings.dreams.noActiveStore': '활성화된 드림 매장이 없습니다.',
@@ -2053,6 +2052,16 @@ export const MESSAGES_KO = {
   'settings.dreams.discard': '폐기',
   'settings.dreams.cancel': '취소',
   'settings.dreams.archive': '아카이브',
+  'settings.dreams.archiveAll': '모두 아카이브',
+  'settings.dreams.archiveConfirmTitle': '이 Dreams 실행을 아카이브하시겠습니까?',
+  'settings.dreams.archiveConfirmMessage':
+    '아카이브하면 이 실행은 Desktop에서 숨겨지지만 Dashboard에서는 계속 확인할 수 있습니다.',
+  'settings.dreams.archiveAllConfirmTitle': '모든 Dreams 실행을 아카이브하시겠습니까?',
+  'settings.dreams.archiveAllConfirmMessage':
+    '아카이브하면 이 {{count}}개 실행은 Desktop에서 숨겨지지만 Dashboard에서는 계속 확인할 수 있습니다.',
+  'settings.dreams.archiveAllSucceeded': 'Dreams 실행 {{count}}개를 아카이브했습니다',
+  'settings.dreams.archiveAllPartial':
+    'Dreams 실행 {{total}}개 중 {{archived}}개를 아카이브했습니다. 나머지 실행은 계속 표시됩니다.',
   'settings.dreams.reviewStatus.pending': '보류 중',
   'settings.dreams.reviewStatus.applied': '적용됨',
   'settings.dreams.reviewStatus.discarded': '폐기됨',

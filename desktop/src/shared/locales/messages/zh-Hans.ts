@@ -516,7 +516,6 @@ export const MESSAGES_ZH_HANS = {
   'settings.dreams.title': '梦境',
   'settings.dreams.description': '查看运行记录，并打开 Dashboard 进行详细审阅。',
   'settings.dreams.overview': '概览',
-  'settings.dreams.backToPersonalization': '个性化',
   'settings.dreams.refresh': '刷新',
   'settings.dreams.activeStore': '当前 store',
   'settings.dreams.noActiveStore': '暂无启用的梦境 store',
@@ -542,6 +541,16 @@ export const MESSAGES_ZH_HANS = {
   'settings.dreams.discard': '丢弃',
   'settings.dreams.cancel': '取消',
   'settings.dreams.archive': '归档',
+  'settings.dreams.archiveAll': '全部归档',
+  'settings.dreams.archiveConfirmTitle': '归档此梦境运行？',
+  'settings.dreams.archiveConfirmMessage':
+    '归档后，此运行将不再显示在桌面端，但仍可在 Dashboard 中查看。',
+  'settings.dreams.archiveAllConfirmTitle': '归档所有梦境运行？',
+  'settings.dreams.archiveAllConfirmMessage':
+    '归档后，这 {{count}} 个运行将不再显示在桌面端，但仍可在 Dashboard 中查看。',
+  'settings.dreams.archiveAllSucceeded': '已归档 {{count}} 个梦境运行',
+  'settings.dreams.archiveAllPartial':
+    '已归档 {{archived}}/{{total}} 个梦境运行，其余运行仍会显示。',
   'settings.dreams.reviewStatus.pending': '待审阅',
   'settings.dreams.reviewStatus.applied': '已应用',
   'settings.dreams.reviewStatus.discarded': '已丢弃',
