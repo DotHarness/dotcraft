@@ -1,6 +1,6 @@
-# TypeScript Module Integration
+# TypeScript module integration
 
-This guide is for developers embedding TypeScript external channel modules into a host — Desktop, a CLI tool, or any supervisor process — through the `@dotcraft/sdk/channel` module contract. It assumes you have the `@dotcraft/sdk` package and a channel module package (such as `@dotcraft/channel-feishu`) installed.
+This guide is for developers embedding TypeScript external channel modules into a host — Desktop, a CLI tool, or any supervisor process — through the `@dotcraft/sdk/channel` module contract. The SDK and channel packages are source previews: build `sdk/typescript` and install the required local package directories before following this guide. See the [TypeScript SDK setup](../sdks/typescript).
 
 ## 1. Overview
 
@@ -14,7 +14,7 @@ The module contract gives hosts a stable boundary:
 
 Import only from the package root. Don't import package-internal files or infer behavior from the source layout.
 
-## 2. Loading A Module
+## 2. Loading a module
 
 Import from the package root only.
 
@@ -29,7 +29,7 @@ console.log(moduleManifest.moduleId);
 console.log(configDescriptors.length);
 ```
 
-## 3. Discovering Modules
+## 3. Discovering modules
 
 A host can maintain a registry from an allowlist of package roots or `moduleId` mappings.
 
@@ -42,7 +42,7 @@ Recommended model:
 
 The selection key is `moduleId`. Runtime channel identity remains `channelName`.
 
-## 4. Creating And Starting A Module Instance
+## 4. Creating and starting a module instance
 
 Create `WorkspaceContext` explicitly and pass it to the module factory.
 
@@ -63,7 +63,7 @@ await instance.start();
 
 The host controls startup inputs. Pass the workspace context explicitly — a module does not rely on the current working directory to locate the workspace.
 
-## 5. Observing Lifecycle
+## 5. Observing lifecycle
 
 Register status handlers before calling `start()` so no early transition is missed.
 
@@ -101,7 +101,7 @@ function observeLifecycle(instance: ModuleInstance): void {
 
 The host can query immediate state through `instance.getStatus()` and last error through `instance.getError()`.
 
-## 6. Rendering Config UI
+## 6. Rendering config UI
 
 If exported, `configDescriptors` can drive host config forms without package-internal schema parsing.
 
@@ -139,7 +139,7 @@ Have the host UI respect:
 - `masked` and `dataKind: "secret"` for protected input display
 - descriptor labels/descriptions as user-facing guidance
 
-## 7. Interactive Setup
+## 7. Interactive setup
 
 Interactive setup is signaled by lifecycle status, not host-specific UI assumptions.
 
@@ -165,7 +165,7 @@ function attachInteractiveSetupHandlers(instance: ModuleInstance): void {
 
 The host decides the UI (Desktop panel, CLI prompt, dashboard notification). The contract only requires structured state signaling.
 
-## 8. Stopping A Module
+## 8. Stopping a module
 
 Stop with `await instance.stop()` and treat `stopped` as terminal for that runtime instance.
 
@@ -175,7 +175,7 @@ Recommended host behavior:
 2. Mark connection as offline.
 3. Keep last structured error for diagnostics.
 
-## 9. Variant Substitution
+## 9. Variant substitution
 
 Variant substitution lets hosts swap module implementations while preserving logical channel identity.
 
@@ -192,7 +192,7 @@ Example:
 
 A host can switch variants by changing the selected `moduleId` without changing the host-facing integration model.
 
-## 10. Adding New Modules
+## 10. Adding new modules
 
 A third-party package is loadable by the same model when it exports from package root:
 

@@ -1,13 +1,17 @@
 # SDK 快速开始
 
-用 DotCraft SDK 连接工作区并运行第一轮对话。本教程覆盖三个 SDK——**TypeScript**、**.NET**、**Python**——带你从安装走到流式回复。在每个标签页里选择你的语言。
+用 DotCraft SDK 连接工作区并运行第一个 turn。在每组代码中选择 TypeScript、.NET 或 Python。
 
 ## 安装
 
 ::: code-group
 
 ```bash [TypeScript]
-npm install @dotcraft/sdk
+git clone https://github.com/DotHarness/dotcraft.git
+npm --prefix ./dotcraft/sdk/typescript install
+npm --prefix ./dotcraft/sdk/typescript run build
+# 最后一条命令在你的应用目录中执行：
+npm install /absolute/path/to/dotcraft/sdk/typescript
 ```
 
 ```bash [.NET]
@@ -15,10 +19,14 @@ dotnet add package DotCraft.Sdk
 ```
 
 ```bash [Python]
-pip install dotcraft
+git clone https://github.com/DotHarness/dotcraft.git
+python -m pip install -e /absolute/path/to/dotcraft/sdk/python
 ```
 
 :::
+
+> [!NOTE]
+> `DotCraft.Sdk` 已发布到 NuGet。TypeScript 和 Python 包目前是源码预览，尚未发布到 npm 或 PyPI；请按上面的方式从本地仓库构建或安装。
 
 ## 1. 连接
 
@@ -124,7 +132,7 @@ async for event in thread.run_streamed("And list the open questions."):
 
 :::
 
-## 下一步
+## 相关文档
 
 - [线程与运行](./runs)——线程生命周期、运行选项、归一化事件模型。
 - [工具与审批](./tools)——运行时动态工具、审批与用户输入回调。

@@ -144,7 +144,7 @@ dotcraft = await DotCraft.connect_local(LocalOptions(
 
 ## 用户输入
 
-Plan Mode 和某些工具会向用户提出结构化问题。提供一个用户输入处理器返回答案。没有处理器时，SDK 返回空答案，从而让非交互式客户端不会阻塞。
+Plan Mode 和某些工具会向用户提出结构化问题。提供用户输入 handler 返回答案。高层 client 只有在注册 handler 后才会声明支持用户输入；如果调用方显式开启 capability 却没有提供 handler，初始化会立即返回稳定的配置错误，而不会虚构答案。
 
 ::: code-group
 
@@ -173,7 +173,7 @@ dotcraft = await DotCraft.connect_local(LocalOptions(
 
 :::
 
-## 参见
+## 相关文档
 
 - [线程与运行](./runs)——这些回调触发其间的运行循环。
 - [构建应用](../integrations/build-an-app)——来自外部原生应用的 App Binding 工具。

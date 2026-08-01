@@ -1,19 +1,21 @@
-# AppServer Protocol
+# AppServer protocol
 
-> App Binding clients negotiate `capabilities.appBindingVersion: 2`. Authenticated app-principal connections may call only the version-2 app-role allowlist: connection authentication, refresh, status, and revoke; binding request, activation, rebind, and list; `app/surface/publish`; and `app/threadInput/enqueue`. Tools are delivered by binding-scoped MCP sessions. Legacy App Binding methods and unsupported App Binding versions return `AppBindingUpgradeRequired`; other unauthorized methods return `AppPrincipalUnauthorized`. See [App Binding](../integrations/app-binding).
+> App Binding clients negotiate `capabilities.appBindingVersion: 2`. Authenticated app-principal connections may call only the version-2 app-role allowlist: connection authentication, refresh, status, and revoke; binding request, activation, rebind, and list; `app/surface/publish`; and `app/threadInput/enqueue`. Tools are delivered by binding-scoped MCP sessions. An unsupported App Binding version returns `AppBindingUpgradeRequired`; undeclared methods return `MethodNotFound`, and other unauthorized methods return `AppPrincipalUnauthorized`. See [App Binding](../integrations/app-binding).
 
 AppServer Protocol is DotCraft's JSON-RPC wire protocol for external clients. Desktop, ACP bridges, external channel adapters, and custom IDE clients can use it to create or resume threads, submit user input, consume streaming events, and participate in command or file-change approvals.
 
+For TypeScript, .NET, or Python applications, prefer a [DotCraft SDK](../sdks/). It supplies generated contracts, typed requests, connection lifecycle, and high-level Thread and Run APIs. Implement the raw protocol on this page only for a custom transport, an unsupported language, or protocol debugging.
+
 If you only need to find or start a local workspace AppServer, use [Hub Protocol](./hub-protocol) first. After Hub returns an AppServer WebSocket endpoint, session traffic uses this protocol.
 
-## When To Use It
+## When to use it
 
-Use AppServer Protocol when you want to:
+Use AppServer Protocol directly when you want to:
 
-- Build desktop, IDE, editor, or browser frontends.
-- Build non-C# clients in Node.js, Python, Rust, Swift, or another language.
-- Embed DotCraft into an existing product while reusing sessions, tools, approvals, and streaming events.
-- Implement an external channel adapter that connects social platforms or bots to the same workspace runtime.
+- Implement a client in a language without a DotCraft SDK.
+- Provide a custom stdio or WebSocket transport.
+- Inspect exact JSON-RPC messages while debugging protocol behavior.
+- Integrate a dynamic extension that has not entered the generated contract catalog.
 
 For one-shot automation scripts, prefer the CLI or SDK. AppServer Protocol is designed for long-lived connections and rich UIs.
 
@@ -146,7 +148,7 @@ Then send:
 
 Requests sent before initialization are rejected. Repeated `initialize` calls on the same connection are also rejected.
 
-## Core Primitives
+## Core primitives
 
 | Primitive | Description |
 |-----------|-------------|
@@ -229,7 +231,7 @@ Common thread methods:
 
 Archiving is reversible: it blocks new turns and stops or invalidates active background terminals, but it does not cancel a main Turn that is already executing. Conversation history is retained, while retained artifacts remain subject to their normal retention rules. Restoring a parent restores only descendants whose SubAgent edges remain open. Deletion permanently removes persisted thread data and bound tracing data; cleanup of thread-owned filesystem artifacts is attempted synchronously, and individual failures can be retried. Clients receive `thread/statusChanged` for archive and restore operations, and a workspace-level `thread/deleted` broadcast after deletion. See [Session persistence](../architecture/session-persistence) for the storage lifecycle.
 
-### Runtime Dynamic Tools and App Context
+### Runtime Dynamic Tools and app context
 
 Clients that expose Runtime Dynamic Tools can also attach compact app context on `thread/start` or `thread/resume`. Use `additionalContext` for short model-visible guidance that helps the agent discover or use client-owned capabilities, especially deferred tools.
 
@@ -376,7 +378,7 @@ Common decisions include `accept`, `acceptForSession`, `acceptAlways`, `decline`
 
 If a client declares `approvalSupport: false` during `initialize`, the server handles non-interactive approval situations according to server policy. Rich UI clients should keep `approvalSupport: true`.
 
-## API Overview
+## API overview
 
 The table below covers common method families used by AppServer clients.
 
@@ -412,7 +414,7 @@ Clients that render automation review UI can call `worktree/status` for the task
 
 Use `automation/task/discardWorktree` with `{ taskId }` to remove a task's managed worktree and branch while keeping the task. The server rejects discard while the task is running. Use `thread/worktree/handoff` with `mode: "local"` when the user wants to keep reviewing the work locally.
 
-### Plugin and Skill Management
+### Plugin and skill management
 
 Clients should check `capabilities.skillsManagement` before calling `skills/*`, `capabilities.pluginManagement` before calling `plugin/*`, and `capabilities.pluginMarketplaces` before calling `marketplace/*`.
 
@@ -484,7 +486,7 @@ Marketplace request failures use JSON-RPC code `-32093` for invalid requests and
 
 See [Plugin Market](../integrations/plugin-market) for source validation and the marketplace document.
 
-## Minimal Node Client
+## Minimal Node client
 
 This example starts AppServer over stdio, initializes the connection, creates a thread, and starts a turn:
 
@@ -564,7 +566,7 @@ send(
 
 Production clients should also handle process exit, JSON parse errors, request timeouts, approval requests, turn cancellation, and reconnect.
 
-## Errors And Backpressure
+## Errors and backpressure
 
 JSON-RPC errors use the standard `error` field:
 
@@ -587,7 +589,7 @@ Recommended handling:
 - `Server overloaded; retry later.`: use exponential backoff and jitter for WebSocket requests.
 - Turn failure: listen for error events and the final `turn/failed`; do not rely only on request responses.
 
-## Client Checklist
+## Client checklist
 
 - Initialize exactly once per connection and send `initialized` after the response.
 - Assign a unique `id` to every request and preserve the id type.
@@ -600,6 +602,7 @@ Recommended handling:
 
 ## Related docs
 
+- [SDK quickstart](../sdks/quickstart)
 - [Hub Protocol](./hub-protocol)
 - [Dashboard API](./dashboard-api)
 - [AppServer Mode](../lifecycle/appserver)

@@ -1,13 +1,17 @@
-# SDK Quickstart
+# SDK quickstart
 
-Connect to a workspace and run your first turn with the DotCraft SDK. This tutorial covers all three SDKs — **TypeScript**, **.NET**, and **Python** — and takes you from install to a streamed reply. Pick your language in each tab.
+Connect to a workspace and run your first turn with the DotCraft SDK. Pick TypeScript, .NET, or Python in each code group.
 
 ## Install
 
 ::: code-group
 
 ```bash [TypeScript]
-npm install @dotcraft/sdk
+git clone https://github.com/DotHarness/dotcraft.git
+npm --prefix ./dotcraft/sdk/typescript install
+npm --prefix ./dotcraft/sdk/typescript run build
+# Run this last command from your application:
+npm install /absolute/path/to/dotcraft/sdk/typescript
 ```
 
 ```bash [.NET]
@@ -15,10 +19,14 @@ dotnet add package DotCraft.Sdk
 ```
 
 ```bash [Python]
-pip install dotcraft
+git clone https://github.com/DotHarness/dotcraft.git
+python -m pip install -e /absolute/path/to/dotcraft/sdk/python
 ```
 
 :::
+
+> [!NOTE]
+> `DotCraft.Sdk` is published on NuGet. The TypeScript and Python packages are source previews and are not currently published to npm or PyPI. Build or install them from a local checkout as shown above.
 
 ## 1. Connect
 
@@ -124,7 +132,7 @@ async for event in thread.run_streamed("And list the open questions."):
 
 :::
 
-## Next steps
+## Related docs
 
 - [Threads & runs](./runs) — thread lifecycle, run options, and the normalized event model.
 - [Tools & approvals](./tools) — runtime dynamic tools and approval / user-input callbacks.

@@ -1,88 +1,71 @@
 # DotCraft SDK
 
-DotCraft SDK 是同一套 AppServer 协议之上的语言绑定。应用、原生 App、工具和外部渠道可以通过 SDK 连接工作区、复用持久化线程、流式接收对话事件，并参与审批流，而不需要自己重写 Session Core。
+DotCraft SDK 让应用、原生宿主、工具和外部渠道连接到同一套 AppServer 协议。一般应用应从高层 API 开始，只有在需要更多控制时才下沉到更底层。
 
-## 开始
+## 选择层级
 
-::: code-group
+| 层级 | 适用场景 |
+|------|----------|
+| Contracts | 使用生成的 DTO、方法映射、注册表和协议元数据，不引入传输或运行时依赖。 |
+| Wire | 使用强类型 JSON-RPC 请求、通知、服务端请求、连接生命周期和显式 raw 逃生口。 |
+| High-level | 使用 `DotCraft`、Thread、Run、审批、用户输入和运行时动态工具。这是默认的应用 API。 |
+| Host Adapter | 使用 Desktop 和 Channel 的工作区路由、重连策略、心跳和平台投递等宿主策略。这些策略不属于通用 Wire Client。 |
 
-```bash [TypeScript]
-npm install @dotcraft/sdk
-```
+按照[快速开始](./quickstart)安装 SDK、连接工作区并运行一个 turn。只有在实现自定义传输、不受支持的语言或调试协议时，才直接使用 [AppServer 协议](../protocols/appserver-protocol)。
 
-```bash [.NET]
-dotnet add package DotCraft.Sdk
-```
+## 包可用性
 
-```bash [Python]
-pip install dotcraft
-```
+| 语言 | 包 | 可用状态 |
+|------|----|----------|
+| TypeScript | `@dotcraft/sdk` | 源码预览；从当前仓库构建并安装。 |
+| .NET | `DotCraft.Sdk` | 已发布到 NuGet。 |
+| Python | `dotcraft` | 源码预览；从当前仓库安装。 |
 
-:::
-
-随后跟随[快速开始](./quickstart)完成连接、开启线程并运行第一轮。
+安装命令统一维护在[快速开始](./quickstart)中，避免产生多个不一致的安装入口。
 
 ## 指南
 
-- [快速开始](./quickstart)——安装、连接、运行一轮、流式接收事件。
-- [线程与运行](./runs)——线程生命周期、运行选项、归一化事件模型。
-- [工具与审批](./tools)——运行时动态工具、审批与用户输入回调。
-- [渠道适配器](./channels)——构建外部渠道（TypeScript 与 Python）。
+- [快速开始](./quickstart) — 安装、连接、运行 turn 并流式读取事件。
+- [Thread 与 Run](./runs) — thread 生命周期、run 选项、事件和重连边界。
+- [工具与审批](./tools) — 运行时动态工具、审批和用户输入回调。
+- [Channel Adapter](./channels) — 使用 TypeScript 或 Python 宿主配置构建外部渠道。
 
-## 共同模型
-
-所有 SDK 都基于同一组层次：
-
-| 层 | 作用 |
-|----|------|
-| Hub bootstrap | 在 local 模式下发现或启动本机 Hub，并确保目标工作区的 AppServer。 |
-| AppServer JSON-RPC | 承载 `initialize`、线程/轮次方法、通知、服务端请求和 raw escape hatch。 |
-| Session Core | 提供持久化的 `Thread -> Turn -> Item` 模型、审批、事件顺序和历史记录。 |
-| SDK binding | 提供符合语言习惯的客户端、辅助方法、回调、流 reducer 和 typed wrapper。 |
-
-需要客户端库时使用 SDK。需要实现新传输、调试 wire protocol，或完全控制 JSON-RPC 消息时，直接使用 [AppServer 协议](../protocols/appserver-protocol)。
-
-## 应用集成路径
-
-SDK 客户端可以在活跃线程连接上直接提供运行时动态工具，也可以参与 App Binding，让原生应用把自有工具授权给某一个线程。运行时工具绑定在当前 Wire Client 连接上；App Binding 工具绑定在应用接受并可重新挂载的持久化线程授权上。
-
-![DotCraft 应用集成路径：Wire Client 与 App Binding](https://github.com/DotHarness/resources/raw/master/dotcraft/app-integration.png)
-
-## 能力快照
-
-完整的跨语言 parity 矩阵见 [SDK 规范](https://github.com/DotHarness/dotcraft/blob/master/specs/sdk/sdk.md)。
+## 能力概览
 
 | 能力 | TypeScript | .NET | Python |
 |------|------------|------|--------|
-| 本地 Hub-managed 连接 | `DotCraft.local()` | `DotCraftClient.ConnectLocalAsync()` | `DotCraft.connect_local()` |
+| Hub 管理的本地连接 | `DotCraft.local()` | `DotCraftClient.ConnectLocalAsync()` | `DotCraft.connect_local()` |
 | 远程 WebSocket 连接 | `DotCraft.remote()` | `DotCraftClient.ConnectRemoteAsync()` | `DotCraft.connect_remote()` |
-| Raw AppServer request | `request()` | `RequestAsync()` | `request()` |
-| 高层单轮运行 | `thread.run()` / `runStreamed()` | `RunAsync()` / `RunStreamedAsync()` | `thread.run()` / `run_streamed()` |
-| 归一化流式事件 | `DotCraftRunEvent` + raw | `DotCraftRunEvent` + raw | `RunEvent` + raw |
-| 审批与用户输入回调 | typed handler | typed handler | typed handler |
-| Runtime Dynamic Tools | 声明 + typed callbacks | 声明 + typed callbacks | 声明 + typed callbacks |
-| App Binding helper | typed/generic + 交接解析 | typed/generic + 交接解析 | typed/generic + 交接解析 |
-| Channel adapter runtime | 一方 TypeScript runtime | 不适用 | channel adapter 基类 |
+| 强类型 Wire 请求 | `request()` | 使用 descriptor 的 `RequestAsync()` | 生成的强类型 RPC 方法 |
+| Raw Wire 请求 | `requestRaw()` / `notifyRaw()` | `RequestRawAsync()` / `NotifyRawAsync()` | `request_raw()` / `notify_raw()` |
+| 高层单次 Run | `thread.run()` / `runStreamed()` | `RunAsync()` / `RunStreamedAsync()` | `thread.run()` / `run_streamed()` |
+| 审批和用户输入回调 | 强类型 handler | 强类型 handler | 强类型 handler |
+| 运行时动态工具 | 声明和强类型回调 | 声明和强类型回调 | 声明和强类型回调 |
+| Channel Adapter 配置 | TypeScript runtime | 不适用 | Python adapter 基类 |
 
-线程状态、队列行为、审批、模型目录解析和持久化都以 AppServer 为准；SDK 是它之上的客户端，而非第二份权威。
+AppServer 仍是 thread 状态、队列行为、审批、模型解析和持久化的权威来源。SDK 只呈现这些能力，不创建第二套真源。
+
+## 应用集成路径
+
+SDK client 可以在活动连接上暴露运行时动态工具；原生应用也可以通过 App Binding 将应用工具授予一个 thread。运行时工具绑定到活动连接，App Binding 工具绑定到持久化的 thread 授权。
+
+![DotCraft 应用集成路径：Wire Client 与 App Binding](https://github.com/DotHarness/resources/raw/master/dotcraft/app-integration.png)
 
 ## 事件拓扑
 
-SDK 客户端会消费 AppServer 通知，有时也需要回答服务端主动发起的请求。通知没有 JSON-RPC `id`；服务端请求带有 `id`，客户端必须返回响应。
+SDK client 消费通知，并可能回答服务端发起的请求。通知没有 JSON-RPC `id`；服务端请求有 `id`，client 必须返回响应。
 
-![DotCraft SDK event topology](/sdk-event-topology.svg)
+![DotCraft SDK 事件拓扑](/sdk-event-topology.svg)
 
-三个 SDK 都会把常见 wire 通知归一成 run event（TypeScript 与 .NET 为 `DotCraftRunEvent`，Python 为 `RunEvent`），未知通知保留为 `raw`，同时仍向高级客户端暴露 raw notification stream。
+三个 SDK 都会把常见通知标准化为 Run 事件，并将未知通知保留为 raw 事件。Wire 层还为尚未进入生成契约的扩展提供显式 raw 通知监听器。
 
-## 参考
+## 语言参考
 
-各语言的包细节——标识、导出/命名空间、运行时基线、版本和语言特定 profile：
+- [TypeScript](./typescript) — `@dotcraft/sdk`
+- [.NET](./dotnet) — `DotCraft.Sdk`
+- [Python](./python) — `dotcraft`
 
-- [TypeScript](./typescript)——`@dotcraft/sdk`
-- [.NET](./dotnet)——`DotCraft.Sdk`
-- [Python](./python)——`dotcraft`
-
-## 继续阅读
+## 相关文档
 
 - [AppServer 协议](../protocols/appserver-protocol)
-- [Hub 本地协调](../lifecycle/hub)
+- [Hub 生命周期](../lifecycle/hub)

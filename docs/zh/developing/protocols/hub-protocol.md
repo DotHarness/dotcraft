@@ -2,6 +2,8 @@
 
 Hub Protocol 是 DotCraft 本地客户端用来发现和管理工作区 AppServer 的本机协议。它面向 Desktop、CLI、编辑器扩展和其他本地客户端；如果你只想和 Agent 对话，真正的会话流量仍然走 [AppServer Protocol](./appserver-protocol)。
 
+TypeScript、.NET 或 Python 应用应优先使用 [DotCraft SDK Hub API](../sdks/)。它已经实现发现、binary policy、结构化错误和 AppServer 启动流程。只有在实现自定义传输、不受支持的语言或调试协议时，才直接使用本页的 raw HTTP/SSE 契约。
+
 Hub 的职责是本地协调，不是会话代理：
 
 - Hub 通过 HTTP JSON API 管理本机工作区 AppServer。
@@ -331,6 +333,7 @@ data: {"kind":"appserver.running","at":"2026-04-30T06:31:00Z","workspacePath":"/
 
 ## 相关文档
 
+- [SDK 快速开始](../sdks/quickstart)
 - [AppServer Protocol](./appserver-protocol)
 - [Hub Local Coordination](../lifecycle/hub)
 - [AppServer Mode](../lifecycle/appserver)

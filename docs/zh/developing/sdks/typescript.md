@@ -1,53 +1,98 @@
 # TypeScript SDK 参考
 
-`@dotcraft/sdk` 的包标识与语言特定细节。如何使用请从[快速开始](./quickstart)入手。
+`@dotcraft/sdk` 提供生成契约、纯 JSON-RPC client、高层 Thread 与 Run API、Hub 管理和宿主配置。安装和首次运行请从[快速开始](./quickstart)开始。
 
-## 包
+## 包信息
 
 | | |
 |---|---|
-| 包名 | `@dotcraft/sdk`（npm） |
+| 包 | `@dotcraft/sdk`（源码预览） |
 | 模块格式 | ESM（`"type": "module"`） |
 | 运行时基线 | Node.js 20+ |
-| 版本 | 从包导出的 `version`、`sdkContractVersion` |
+| 协议元数据 | 导出的 `version` 和 `sdkContractVersion` |
 
-```bash
-npm install @dotcraft/sdk
-```
+该包目前尚未发布到 npm。请按照[快速开始](./quickstart)从仓库构建，并安装本地目录。
 
 ## 入口点
 
-包按 subpath export 拆分，应用只引入所需部分：
-
 | 入口点 | 用途 |
 |--------|------|
-| `@dotcraft/sdk` | 高层应用 API（`DotCraft`、`DotCraftThread`、run、events）。 |
-| `@dotcraft/sdk/wire` | 低层 JSON-RPC 客户端、传输、raw DTO。 |
-| `@dotcraft/sdk/hub` | Hub 发现、启动与 SSE 辅助。 |
-| `@dotcraft/sdk/channel` | 渠道适配器与托管模块 runtime。 |
-| `@dotcraft/sdk/testing` | 一致性测试辅助。 |
+| `@dotcraft/sdk/contracts` | 生成的 DTO、方法映射、联合类型和协议元数据；不依赖 Node.js、WebSocket 或运行时 I/O。 |
+| `@dotcraft/sdk/wire` | `DotCraftWireClient`、JSON-RPC 传输、生命周期状态，以及 typed/raw 协议 API。 |
+| `@dotcraft/sdk` | `DotCraft`、`DotCraftThread`、Run API、回调和 `DotCraftAppServerClient`。 |
+| `@dotcraft/sdk/hub` | Hub 发现、管理、进程启动、结构化错误和事件流。 |
+| `@dotcraft/sdk/channel` | Channel Adapter 和托管模块运行时。 |
+| `@dotcraft/sdk/testing` | 传输与一致性测试辅助工具。 |
 
-`@dotcraft/sdk/channel` 也导出 media source 辅助函数，供渠道模块把已审批的路径、base64 载荷和允许的 URL 统一转换为 bytes、临时文件或上传 URI 字符串，同时保持工具 schema 稳定。
+DotCraft Desktop 是该 SDK 的第一个完整生产宿主消费者。Electron Renderer 可以安全导入 `@dotcraft/sdk/contracts`；运行时入口应放在 Node.js 或 Electron Main，Renderer 不应直接创建 AppServer 或 Hub 连接。
 
-## 顶层导出
+## Wire API
 
-`DotCraft`、`DotCraftThread`、`DotCraftRunResult`、`DotCraftRunEvent`、`DotCraftError`、typed error 类（`TurnInProgressError`、`TurnFailedError` 等）、输入 part 构造器（`textPart`、`imageUrlPart`、`localImagePart`、`skillRefPart`、`commandRefPart`、`fileRefPart`）、App Binding 辅助（`parseAppBindingHandoff`、`appBindingToolError`、`APP_BINDING_ERROR_CODES`），以及审批决策常量。
+已知协议方法会通过生成的方法映射进行类型检查：
 
-## 渠道模块
+```ts
+const wire = new DotCraftWireClient(transport, options);
 
-TypeScript 拥有一方托管渠道模块，均依赖 `@dotcraft/sdk`：
+const result = await wire.request("thread/list", params);
+await wire.notify("initialized", {});
+const dispose = wire.on("thread/started", (params) => {
+  console.log(params.thread.id);
+});
+```
 
-`@dotcraft/channel-feishu`、`@dotcraft/channel-weixin`、`@dotcraft/channel-telegram`、`@dotcraft/channel-qq`、`@dotcraft/channel-wecom`。参见[渠道适配器](./channels)。
+只有第三方扩展或尚未进入目录的方法才使用显式命名的 raw API：
+
+```ts
+const value = await wire.requestRaw("ext/example/read", { id: "42" });
+await wire.notifyRaw("ext/example/changed", { id: "42" });
+const dispose = wire.onRaw("ext/example/event", (params) => console.log(params));
+```
+
+`DotCraftAppServerClient` 在纯 Wire Client 之上提供 Thread、Turn、command、model、MCP 和事件辅助方法。`DotCraft` 再提供面向应用的 Thread 与 Run 模型。
+
+## 连接生命周期
+
+Wire Client 会报告 `connecting`、`initializing`、`ready`、`disconnected`、`reconnecting`、`reconnectError` 和 `closed`。
+
+- Raw Wire 连接默认不重连；高层和 Channel 配置会显式启用重连。
+- 默认 RPC 超时为 30 秒，包含在重连队列中的等待时间。
+- 重连使用 1 到 30 秒的指数退避和抖动，最多按调用顺序排队 1024 个新请求。
+- 断线时进行中的请求会失败且不会重放。新传输完成初始化后才释放排队请求。
+- Handler 注册会跨重连保留；thread subscription、活动 Run 和运行时动态工具资源不会自动重建。
+
+## Hub API
+
+Hub Client 可以读取 lock/default chat、查询或确保活动 Hub、解析工作区 AppServer、ensure/restart/stop/list AppServer、读取状态和事件，以及关闭 Hub。
+
+Hub 错误保留结构化 `code`、`message` 和 `details`。进程启动接受显式 executable 和 binary mismatch policy：
+
+- `ignore`
+- `restartIfMismatch`
+- `errorIfMismatch`
+
+未提供 expected executable 时，默认策略是 `ignore`。
+
+## 高层导出
+
+主入口导出 `DotCraft`、`DotCraftThread`、`DotCraftRunResult`、`DotCraftRunEvent`、`DotCraftAppServerClient`、强类型错误、输入构造器、审批决策、运行时动态工具类型和 App Binding 辅助方法。
+
+## Channel 模块
+
+一方 TypeScript Channel 模块依赖本地 SDK 包：`@dotcraft/channel-feishu`、`@dotcraft/channel-weixin`、`@dotcraft/channel-telegram`、`@dotcraft/channel-qq` 和 `@dotcraft/channel-wecom`。参见 [Channel Adapter](./channels)。
 
 ## 验证
 
 ```bash
 cd sdk/typescript
+npm run build
 npm run typecheck:all
 npm run test:all
 ```
 
-## 参见
+## 相关文档
 
-- [快速开始](./quickstart) · [线程与运行](./runs) · [工具与审批](./tools) · [渠道适配器](./channels)
-- TypeScript 绑定规范：`specs/sdk/typescript.md`
+- [快速开始](./quickstart)
+- [Thread 与 Run](./runs)
+- [工具与审批](./tools)
+- [Channel Adapter](./channels)
+- [AppServer 协议](../protocols/appserver-protocol)

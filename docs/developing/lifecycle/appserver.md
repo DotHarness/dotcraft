@@ -1,4 +1,4 @@
-# AppServer Mode
+# AppServer mode
 
 This page targets integrators and contributors who manage AppServer directly. AppServer is DotCraft's wire protocol server. It exposes Agent capabilities (session management, tool invocation, approval flows) to external clients via JSON-RPC. Desktop, ACP, `dotcraft exec`, external channel adapters, and custom integrations can all connect to the same AppServer.
 
@@ -11,6 +11,8 @@ Use cases:
 
 > [!NOTE]
 > Day-to-day Desktop and `dotcraft exec` go through [Hub local coordination](./hub). This page is for manual AppServer management.
+
+Application clients should normally use a [DotCraft SDK](../sdks/) so initialization, typed contracts, errors, and connection lifecycle stay consistent. Manage AppServer or implement its raw protocol directly only for a custom transport, an unsupported language, or protocol debugging.
 
 ## Starting AppServer
 
@@ -27,7 +29,7 @@ dotcraft app-server --listen ws+stdio://127.0.0.1:9100
 
 The server listens on the bare `ws://host:port` (or `wss://host:port`) address; clients append the `/ws` path to connect, for example `ws://host:port/ws`. The examples below follow this rule.
 
-## Connecting from the Command Line
+## Connecting from the command line
 
 ```bash
 # One-shot task
@@ -37,9 +39,9 @@ dotcraft exec --remote ws://127.0.0.1:9100/ws "Summarize this workspace"
 dotcraft exec --remote ws://server:9100/ws --token my-secret "Summarize this workspace"
 ```
 
-## Command-Line Reference
+## Command-line reference
 
-### Subcommands and Global Options
+### Subcommands and global options
 
 | Command / Option | Description |
 |---|---|
@@ -50,7 +52,7 @@ dotcraft exec --remote ws://server:9100/ws --token my-secret "Summarize this wor
 | `--remote <URL>` | Client connection to a remote AppServer, used with `exec` or ACP |
 | `--token <VALUE>` | WebSocket auth token, used with `--listen` or `--remote` |
 
-### `--listen` URL Schemes
+### `--listen` URL schemes
 
 | Scheme | Transport | stdout | Example |
 |---|---|---|---|
@@ -59,9 +61,9 @@ dotcraft exec --remote ws://server:9100/ws --token my-secret "Summarize this wor
 | `wss://host:port` | Pure WebSocket (TLS) | Normal console output | `--listen wss://0.0.0.0:9100` |
 | `ws+stdio://host:port` | stdio + WebSocket | Reserved for JSON-RPC | `--listen ws+stdio://127.0.0.1:9100` |
 
-## Transport Modes
+## Transport modes
 
-### stdio (Default)
+### stdio (default)
 
 AppServer communicates over stdin/stdout using newline-delimited JSON (JSONL). This is the local subprocess communication method commonly used by ACP and custom clients.
 
@@ -91,7 +93,7 @@ dotcraft app-server --listen ws://127.0.0.1:9100
 - stdout is free; console output works normally
 - Supports remote connections and network authentication
 
-### stdio + WebSocket Dual Mode
+### stdio + WebSocket dual mode
 
 ```bash
 dotcraft app-server --listen ws+stdio://127.0.0.1:9100
@@ -99,7 +101,7 @@ dotcraft app-server --listen ws+stdio://127.0.0.1:9100
 
 For deployments that need both subprocess and remote connections.
 
-## Security Authentication
+## Security authentication
 
 When AppServer listens on a non-loopback address (not `127.0.0.1` / `::1`), **strongly** set up token authentication.
 
@@ -122,7 +124,7 @@ The token is passed via the WebSocket query: `ws://host:port/ws?token=<value>`. 
 
 ## Configuration
 
-### Command-Line (Recommended)
+### Command line (recommended)
 
 CLI arguments override config-file values:
 
@@ -130,7 +132,7 @@ CLI arguments override config-file values:
 dotcraft app-server --listen ws://127.0.0.1:9100 --token my-secret
 ```
 
-### config.json (Alternative)
+### config.json (alternative)
 
 Suitable for fixed deployments. `ExternalChannels` tells DotCraft how to launch an external adapter; structured delivery capabilities and `channelTools` are not in config — adapters declare them dynamically during `initialize`.
 
@@ -175,7 +177,7 @@ Suitable for fixed deployments. `ExternalChannels` tells DotCraft how to launch 
 }
 ```
 
-## How It Works
+## How it works
 
 ![DotCraft AppServer mode topology](/appserver-mode-topology.svg)
 
@@ -184,11 +186,12 @@ Suitable for fixed deployments. `ExternalChannels` tells DotCraft how to launch 
 | Run one task from a script | `dotcraft exec "..."` |
 | Share one backend across Desktop / ACP / custom clients | `dotcraft app-server --listen ws://127.0.0.1:9100` |
 | Connect to a remote workspace | Listen with WebSocket; clients connect to `/ws` |
-| Build a custom client | Speak JSON-RPC 2.0 over stdio or WebSocket |
+| Build a custom raw client | Speak JSON-RPC 2.0 over stdio or WebSocket |
 
-## Related
+## Related docs
 
-- [Configuration Reference](../configuration) — `AppServer.*` / `CLI.*` fields
-- [AppServer Protocol](../protocols/appserver-protocol) — client protocol overview
-- [Hub Local Coordination](./hub) — the path Desktop and CLI take by default
+- [SDK quickstart](../sdks/quickstart) — the recommended client path
+- [Configuration reference](../configuration) — `AppServer.*` / `CLI.*` fields
+- [AppServer Protocol](../protocols/appserver-protocol) — raw client protocol
+- [Hub local coordination](./hub) — the path Desktop and CLI take by default
 - [Unified Session Core](../architecture/session-core) — Thread / Turn / Item model

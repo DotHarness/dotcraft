@@ -124,6 +124,12 @@ result = await thread.run("Later: deploy to staging.", enqueue_if_busy=True)
 
 Every event keeps the original notification on `raw`, so nothing is lost. The buffered `run` reuses the same stream and merges agent-message deltas with the final snapshot, so `result.text` is never duplicated.
 
+## Reconnect boundaries
+
+Reconnect restores the Wire transport, repeats `initialize`, and preserves local handler registrations. It does not recreate a thread subscription, resume an active Run, or rebind Runtime Dynamic Tools on your behalf.
+
+Treat a Run interrupted by disconnection as interrupted application work. After the connection is ready again, explicitly read or resume the thread to obtain current server state, resubscribe if needed, and start the next operation from that state. Do not assume a request that was already sent will be replayed.
+
 ## Errors
 
 A failed or cancelled turn raises a typed error from `run` (and surfaces as a `failed` / `cancelled` event in `runStreamed`):
@@ -136,7 +142,7 @@ A failed or cancelled turn raises a typed error from `run` (and surfaces as a `f
 
 Pass `enqueueIfBusy` to turn the last case into an enqueue instead of an error.
 
-## See also
+## Related docs
 
 - [Tools & approvals](./tools) — extend a turn with your own tools and approval handling.
 - Reference: [TypeScript](./typescript) · [.NET](./dotnet) · [Python](./python).
