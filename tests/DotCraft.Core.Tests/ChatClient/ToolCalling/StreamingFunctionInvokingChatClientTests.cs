@@ -536,43 +536,6 @@ public sealed partial class StreamingFunctionInvokingChatClientTests
     }
 
     [Fact]
-    public async Task GetStreamingResponseAsync_UsesFinalToolFreeRequestAtIterationLimit()
-    {
-        var inner = new ManyToolCallsFakeChatClient(toolRoundCount: 10);
-        var tool = AIFunctionFactory.Create(() => "tool ok", name: "GetStatus");
-        var client = new StreamingFunctionInvokingChatClient(inner)
-        {
-            MaximumIterationsPerRequest = 2
-        };
-
-        await foreach (var _ in client.GetStreamingResponseAsync(
-                           [new ChatMessage(ChatRole.User, "start")],
-                           new ChatOptions
-                           {
-                               Tools = [tool],
-                               ToolMode = ChatToolMode.RequireAny
-                           }))
-        {
-        }
-
-        Assert.Equal(3, inner.Calls.Count);
-        Assert.NotEmpty(inner.Options[0].Tools!);
-        Assert.NotEmpty(inner.Options[1].Tools!);
-        Assert.Null(inner.Options[2].Tools);
-        Assert.Null(inner.Options[2].ToolMode);
-    }
-
-    [Fact]
-    public void MaximumIterationsPerRequest_RejectsValuesBelowOne()
-    {
-        var client = new StreamingFunctionInvokingChatClient(new SingleReplyFakeChatClient());
-
-        Assert.Equal(40, client.MaximumIterationsPerRequest);
-        Assert.Throws<ArgumentOutOfRangeException>(
-            () => client.MaximumIterationsPerRequest = 0);
-    }
-
-    [Fact]
     public async Task GetStreamingResponseAsync_UnknownToolCreatesFunctionResultByDefault()
     {
         var inner = new UnknownToolFakeChatClient();
@@ -643,15 +606,12 @@ public sealed partial class StreamingFunctionInvokingChatClientTests
     }
 
     [Fact]
-    public async Task GetStreamingResponseAsync_AllowsConfiguredLongToolLoops()
+    public async Task GetStreamingResponseAsync_AllowsLongToolLoopsWithoutChangingTools()
     {
         const int toolRoundCount = 105;
         var inner = new ManyToolCallsFakeChatClient(toolRoundCount);
         var tool = AIFunctionFactory.Create(() => "tool ok", name: "GetStatus");
-        var client = new StreamingFunctionInvokingChatClient(inner)
-        {
-            MaximumIterationsPerRequest = toolRoundCount + 1
-        };
+        var client = new StreamingFunctionInvokingChatClient(inner);
 
         var updates = await CollectAsync(client.GetStreamingResponseAsync(
             [new ChatMessage(ChatRole.User, "start")],
@@ -659,6 +619,7 @@ public sealed partial class StreamingFunctionInvokingChatClientTests
 
         Assert.Equal(toolRoundCount + 1, inner.Calls.Count);
         Assert.Contains(updates, update => update.Text.Contains("done", StringComparison.Ordinal));
+        Assert.All(inner.Options, option => Assert.Equal("GetStatus", Assert.Single(option.Tools!).Name));
     }
 
     [Fact]
