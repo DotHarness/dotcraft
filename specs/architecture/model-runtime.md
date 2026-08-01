@@ -308,6 +308,11 @@ This sequence is a behavioral contract, not a requirement to introduce a second 
 machine or request/event type hierarchy. It remains implemented through an MEAI `IChatClient`
 pipeline unless a narrower change is justified.
 
+Tool-call sampling has no fixed iteration limit. It continues while the model emits handleable
+calls and ends through normal model completion, cancellation, the consecutive-error policy, or
+context compaction. Loop control must not issue a terminal sampling request with a reduced tool
+surface.
+
 Retries are sampling-attempt transitions, not recursive agent runs. An attempt that produced no
 externally committed output may be retried under the configured bounded policy. Completed
 provider items and tool effects are never executed again merely because transport streaming

@@ -61,21 +61,6 @@ public sealed class StreamingFunctionInvokingChatClient(IChatClient innerClient,
     public bool AllowConcurrentInvocation { get; set; }
 
     /// <summary>
-    /// Gets or sets the maximum number of tool round trips before one final tool-free sampling
-    /// request is made.
-    /// </summary>
-    public int MaximumIterationsPerRequest
-    {
-        get;
-        set
-        {
-            if (value < 1)
-                throw new ArgumentOutOfRangeException(nameof(value));
-            field = value;
-        }
-    } = 40;
-
-    /// <summary>
     /// Includes additional exception details in generated function result content.
     /// </summary>
     public bool IncludeDetailedErrors { get; set; }
@@ -180,9 +165,6 @@ public sealed class StreamingFunctionInvokingChatClient(IChatClient innerClient,
         for (var iteration = 0; ; iteration++)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            var reachedIterationLimit = iteration >= MaximumIterationsPerRequest;
-            if (reachedIterationLimit)
-                PrepareOptionsForLastIteration(ref options);
 
             var preparation = await PrepareMessagesForSamplingAsync(
                 currentMessages,
@@ -286,7 +268,7 @@ public sealed class StreamingFunctionInvokingChatClient(IChatClient innerClient,
             var response = updates.ToChatResponse();
             (responseMessages ??= []).AddRange(response.Messages);
 
-            if (reachedIterationLimit || ShouldTerminateLoopBasedOnHandleableFunctions(functionCalls, options))
+            if (ShouldTerminateLoopBasedOnHandleableFunctions(functionCalls, options))
             {
                 FixupHistories(
                     originalMessages,
@@ -299,8 +281,7 @@ public sealed class StreamingFunctionInvokingChatClient(IChatClient innerClient,
                     augmentedHistory ?? throw new InvalidOperationException("Augmented history was not initialized."));
 
                 var history = augmentedHistory ?? throw new InvalidOperationException("Augmented history was not initialized.");
-                if (!reachedIterationLimit &&
-                    guidanceContinuationCount < MaximumGuidanceContinuationsPerRequest &&
+                if (guidanceContinuationCount < MaximumGuidanceContinuationsPerRequest &&
                     await TryAppendGuidanceAsync(history, cancellationToken))
                 {
                     guidanceContinuationCount++;
@@ -1168,23 +1149,6 @@ public sealed class StreamingFunctionInvokingChatClient(IChatClient innerClient,
 
         if (options?.ContinuationToken != null)
             options.ContinuationToken = null;
-    }
-
-    private static void PrepareOptionsForLastIteration(ref ChatOptions? options)
-    {
-        if (options?.Tools is not { Count: > 0 })
-            return;
-
-        var remainingTools = options.Tools
-            .Where(static tool => tool is not AIFunctionDeclaration)
-            .ToList();
-        if (remainingTools.Count == options.Tools.Count)
-            return;
-
-        options = options.Clone();
-        options.Tools = remainingTools.Count == 0 ? null : remainingTools;
-        if (remainingTools.Count == 0)
-            options.ToolMode = null;
     }
 
     private static void ThrowFunctionExceptions(List<Exception> exceptions)
