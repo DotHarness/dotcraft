@@ -9,6 +9,12 @@ namespace DotCraft.Sdk.AppServer;
 public class DotCraftClientOptions
 {
     /// <summary>
+    /// Overrides the connection entry point's reconnect default. Local and remote connections
+    /// default to enabled; custom transports default to disabled.
+    /// </summary>
+    public bool? AutoReconnect { get; set; }
+
+    /// <summary>
     /// Machine-readable client name.
     /// </summary>
     public string ClientName { get; set; } = "dotcraft-dotnet";

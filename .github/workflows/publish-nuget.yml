@@ -153,8 +153,91 @@ jobs:
           if (!(Test-Path $snupkg)) {
             throw "Missing symbol package: $snupkg"
           }
+
+          Add-Type -AssemblyName System.IO.Compression.FileSystem
+          $package = [System.IO.Compression.ZipFile]::OpenRead((Resolve-Path $nupkg))
+          try {
+            $entries = @($package.Entries | ForEach-Object { $_.FullName })
+            foreach ($required in @(
+              "lib/net10.0/DotCraft.Sdk.dll",
+              "lib/net10.0/DotCraft.Protocol.Contracts.dll"
+            )) {
+              if ($entries -notcontains $required) {
+                throw "Package is missing required entry: $required"
+              }
+            }
+
+            $nuspecEntry = $package.Entries | Where-Object { $_.FullName -like "*.nuspec" } | Select-Object -Single
+            $reader = [System.IO.StreamReader]::new($nuspecEntry.Open())
+            try {
+              $nuspec = $reader.ReadToEnd()
+            }
+            finally {
+              $reader.Dispose()
+            }
+            if ($nuspec -match '<dependency\s+id="DotCraft\.Protocol\.Contracts"') {
+              throw "DotCraft.Sdk must bundle Contracts instead of declaring a package dependency."
+            }
+          }
+          finally {
+            $package.Dispose()
+          }
+
+          $symbols = [System.IO.Compression.ZipFile]::OpenRead((Resolve-Path $snupkg))
+          try {
+            if ($symbols.Entries.FullName -contains "lib/net10.0/DotCraft.Protocol.Contracts.pdb") {
+              throw "The symbol package must not contain DotCraft.Protocol.Contracts.pdb."
+            }
+          }
+          finally {
+            $symbols.Dispose()
+          }
+
           Get-ChildItem artifacts/nuget | Format-Table Name, Length
           Get-FileHash $nupkg, $snupkg -Algorithm SHA256 | Format-Table Algorithm, Hash, Path
+
+      - name: Restore bundled contracts from isolated source
+        shell: pwsh
+        env:
+          PACKAGE_VERSION: ${{ steps.validate.outputs.version }}
+        run: |
+          $ErrorActionPreference = "Stop"
+          $probe = Join-Path ([System.IO.Path]::GetTempPath()) "dotcraft-sdk-package-probe-$([guid]::NewGuid().ToString('N'))"
+          New-Item -ItemType Directory -Path $probe | Out-Null
+          try {
+            dotnet new console --framework net10.0 --no-restore --output $probe
+            Push-Location $probe
+            try {
+              dotnet add package DotCraft.Sdk --version $env:PACKAGE_VERSION --no-restore
+              $nugetConfig = @'
+          <?xml version="1.0" encoding="utf-8"?>
+          <configuration>
+            <packageSources>
+              <clear />
+              <add key="package-under-test" value="PACKAGE_SOURCE" />
+            </packageSources>
+          </configuration>
+          '@
+              $packageSource = (Resolve-Path "$env:GITHUB_WORKSPACE/artifacts/nuget").Path
+              $nugetConfig.Replace("PACKAGE_SOURCE", $packageSource) | Set-Content -Encoding utf8 NuGet.config
+              $program = @'
+          using DotCraft.Protocol.Contracts;
+          using DotCraft.Sdk.AppServer;
+
+          _ = new RpcEmpty();
+          _ = new DotCraftClientOptions();
+          '@
+              $program | Set-Content -Encoding utf8 Program.cs
+              dotnet restore --configfile NuGet.config
+              dotnet build --no-restore
+            }
+            finally {
+              Pop-Location
+            }
+          }
+          finally {
+            Remove-Item -LiteralPath $probe -Recurse -Force
+          }
 
       - name: Upload package artifacts
         uses: actions/upload-artifact@v4

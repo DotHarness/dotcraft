@@ -10,6 +10,7 @@
     <Version>0.1.0</Version>
     <Authors>DotHarness</Authors>
     <PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
+    <IsPackable>false</IsPackable>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(Configuration)'=='Release'">

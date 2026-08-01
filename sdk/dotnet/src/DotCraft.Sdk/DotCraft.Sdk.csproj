@@ -16,6 +16,9 @@
     <PackageTags>dotcraft;appserver;json-rpc;sdk;ai</PackageTags>
     <IncludeSymbols>true</IncludeSymbols>
     <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+    <SuppressDependenciesWhenPacking>true</SuppressDependenciesWhenPacking>
+    <NoWarn>$(NoWarn);NU5128</NoWarn>
+    <TargetsForTfmSpecificBuildOutput>$(TargetsForTfmSpecificBuildOutput);IncludeContractsAssemblyInPackage</TargetsForTfmSpecificBuildOutput>
   </PropertyGroup>
 
   <ItemGroup>
@@ -29,5 +32,12 @@
                       ReferenceOutputAssembly="false" />
     <AdditionalFiles Include="..\..\..\..\src\DotCraft.Protocol.Contracts\Artifacts\AppServer\appserver.manifest.json" />
   </ItemGroup>
+
+  <Target Name="IncludeContractsAssemblyInPackage">
+    <ItemGroup>
+      <BuildOutputInPackage Include="$(OutputPath)DotCraft.Protocol.Contracts.dll"
+                            TargetPath="DotCraft.Protocol.Contracts.dll" />
+    </ItemGroup>
+  </Target>
 
 </Project>

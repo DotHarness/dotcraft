@@ -28,6 +28,8 @@ This reference describes the current repository surface. The latest NuGet releas
 
 Core and the SDK use the same `DotCraft.Protocol.Contracts` assembly; the SDK does not maintain a second copy of Wire DTOs.
 
+The `DotCraft.Sdk` NuGet package includes both `DotCraft.Sdk.dll` and `DotCraft.Protocol.Contracts.dll`. Install only `DotCraft.Sdk`; Contracts is a separate logical layer and assembly, not a separate package.
+
 ## Typed and raw Wire APIs
 
 `DotCraftWireClient.RequestAsync` and `NotifyAsync` accept generated descriptors, so the descriptor determines the parameter and result types. Typed notification and server-request handlers use the same contracts.
@@ -40,11 +42,11 @@ Unknown or third-party extensions use the separate `RequestRawAsync` and `Notify
 
 The Wire client reports `Connecting`, `Initializing`, `Ready`, `Disconnected`, `Reconnecting`, `ReconnectError`, and `Closed`.
 
-- Raw Wire connections default to no reconnect. High-level clients and host profiles opt in explicitly.
+- Raw Wire connections default to no reconnect. Local and remote high-level connections enable it by default. Set `DotCraftClientOptions.AutoReconnect` to override the entry-point default.
 - The default RPC timeout is 30 seconds and includes reconnect queue time.
 - Reconnect uses 1-to-30-second exponential backoff with jitter and queues at most 1024 new requests in call order.
 - In-flight requests fail on disconnect and are not replayed. The client replays `initialize`, sends `initialized`, and then releases queued requests.
-- Registered handlers remain installed. Thread subscriptions, active Runs, and Runtime Dynamic Tools are not recreated automatically.
+- Registered handlers remain installed. Thread subscriptions and Runtime Dynamic Tools are not recreated automatically. An active Run fails with `RunDisconnectedError`; the SDK never replays `turn/start`.
 
 `ConnectLocalAsync` uses the Hub to ensure a workspace AppServer. Set `DotCraftLocalClientOptions.Executable` when the host has resolved a specific DotCraft binary. `ConnectRemoteAsync` connects to a known AppServer WebSocket, and `ConnectAsync` accepts a custom `IJsonRpcTransport`.
 

@@ -16,7 +16,7 @@ public sealed class DotCraftThread
     private readonly DotCraftClient _client;
     private readonly SemaphoreSlim _subscribeLock = new(1, 1);
     private JsonElement _snapshot;
-    private bool _subscribed;
+    private long _subscribedGeneration;
 
     internal DotCraftThread(DotCraftClient client, string id, JsonElement snapshot)
     {
@@ -95,9 +95,21 @@ public sealed class DotCraftThread
         [EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
         var opts = options ?? new RunOptions();
-        await EnsureSubscribedAsync(cancellationToken).ConfigureAwait(false);
-
         var channel = Channel.CreateUnbounded<DotCraftRunEvent>(new UnboundedChannelOptions { SingleReader = true });
+        string? turnId = null;
+
+        void HandleConnectionState(WireConnectionState state, Exception? error)
+        {
+            if (state == WireConnectionState.Ready)
+            {
+                return;
+            }
+
+            Interlocked.Exchange(ref _subscribedGeneration, 0);
+            channel.Writer.TryComplete(new RunDisconnectedError(Id, turnId, error));
+        }
+
+        _client.Wire.StateChanged += HandleConnectionState;
         using var registration = _client.Wire.RegisterNotificationHandlerRaw(notification =>
         {
             var threadId = ExtractThreadId(notification.Params);
@@ -107,66 +119,74 @@ public sealed class DotCraftThread
             }
 
             var runEvent = Normalize(notification);
+            turnId ??= runEvent.TurnId;
             channel.Writer.TryWrite(runEvent);
             if (IsTerminal(runEvent.Type))
             {
                 channel.Writer.TryComplete();
             }
         });
-
-        string? turnId = null;
-        var busy = false;
         try
         {
-            var startResult = await _client.Turns
-                .StartAsync(Id, input, opts.Sender, opts.ModelId, cancellationToken)
-                .ConfigureAwait(false);
-            turnId = startResult.TurnId;
-        }
-        catch (JsonRpcException ex) when (ex.Code == AppServerErrorCodes.TurnInProgress)
-        {
-            if (!opts.EnqueueIfBusy)
+            await EnsureSubscribedAsync(cancellationToken).ConfigureAwait(false);
+
+            var busy = false;
+            try
             {
-                throw new TurnInProgressError("A turn is already running on this thread.", ex);
+                var startResult = await _client.Turns
+                    .StartAsync(Id, input, opts.Sender, opts.ModelId, cancellationToken)
+                    .ConfigureAwait(false);
+                turnId = startResult.TurnId;
+            }
+            catch (JsonRpcException ex) when (ex.Code == AppServerErrorCodes.TurnInProgress)
+            {
+                if (!opts.EnqueueIfBusy)
+                {
+                    throw new TurnInProgressError("A turn is already running on this thread.", ex);
+                }
+
+                busy = true;
             }
 
-            busy = true;
-        }
-
-        if (busy)
-        {
-            var enqueue = await _client.Turns
-                .EnqueueAsync(Id, input, opts.Sender, cancellationToken)
-                .ConfigureAwait(false);
-            yield return new DotCraftRunEvent(
-                DotCraftRunEventTypes.QueueUpdated,
-                Id,
-                null,
-                new AppServerNotification("turn/enqueue", enqueue.Raw));
-            yield break;
-        }
-
-        await using var interruptRegistration = turnId is null
-            ? default
-            : cancellationToken.Register(() =>
+            if (busy)
             {
-                try
-                {
-                    _ = _client.Turns.InterruptAsync(Id, turnId, CancellationToken.None);
-                }
-                catch
-                {
-                    // Best-effort interrupt on cancellation.
-                }
-            });
-
-        await foreach (var runEvent in channel.Reader.ReadAllAsync(cancellationToken).ConfigureAwait(false))
-        {
-            yield return runEvent;
-            if (IsTerminal(runEvent.Type))
-            {
+                var enqueue = await _client.Turns
+                    .EnqueueAsync(Id, input, opts.Sender, cancellationToken)
+                    .ConfigureAwait(false);
+                yield return new DotCraftRunEvent(
+                    DotCraftRunEventTypes.QueueUpdated,
+                    Id,
+                    null,
+                    new AppServerNotification("turn/enqueue", enqueue.Raw));
                 yield break;
             }
+
+            await using var interruptRegistration = turnId is null
+                ? default
+                : cancellationToken.Register(() =>
+                {
+                    try
+                    {
+                        _ = _client.Turns.InterruptAsync(Id, turnId, CancellationToken.None);
+                    }
+                    catch
+                    {
+                        // Best-effort interrupt on cancellation.
+                    }
+                });
+
+            await foreach (var runEvent in channel.Reader.ReadAllAsync(cancellationToken).ConfigureAwait(false))
+            {
+                yield return runEvent;
+                if (IsTerminal(runEvent.Type))
+                {
+                    yield break;
+                }
+            }
+        }
+        finally
+        {
+            _client.Wire.StateChanged -= HandleConnectionState;
         }
     }
 
@@ -185,14 +205,14 @@ public sealed class DotCraftThread
     public async Task SubscribeAsync(bool replayRecent = false, CancellationToken cancellationToken = default)
     {
         await _client.RequestRawAsync("thread/subscribe", new { threadId = Id, replayRecent }, cancellationToken).ConfigureAwait(false);
-        _subscribed = true;
+        Interlocked.Exchange(ref _subscribedGeneration, _client.Wire.ConnectionGeneration);
     }
 
     /// <summary>Unsubscribes this connection from the thread's events.</summary>
     public async Task UnsubscribeAsync(CancellationToken cancellationToken = default)
     {
         await _client.RequestRawAsync("thread/unsubscribe", new { threadId = Id }, cancellationToken).ConfigureAwait(false);
-        _subscribed = false;
+        Interlocked.Exchange(ref _subscribedGeneration, 0);
     }
 
     /// <summary>Sets the thread operational mode.</summary>
@@ -226,7 +246,7 @@ public sealed class DotCraftThread
 
     private async Task EnsureSubscribedAsync(CancellationToken cancellationToken)
     {
-        if (_subscribed)
+        if (HasCurrentSubscription())
         {
             return;
         }
@@ -234,18 +254,30 @@ public sealed class DotCraftThread
         await _subscribeLock.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
-            if (_subscribed)
+            if (HasCurrentSubscription())
             {
                 return;
             }
 
             await _client.RequestRawAsync("thread/subscribe", new { threadId = Id, replayRecent = false }, cancellationToken).ConfigureAwait(false);
-            _subscribed = true;
+            var generation = _client.Wire.ConnectionGeneration;
+            if (_client.Wire.State == WireConnectionState.Ready)
+            {
+                Interlocked.Exchange(ref _subscribedGeneration, generation);
+            }
         }
         finally
         {
             _subscribeLock.Release();
         }
+    }
+
+    private bool HasCurrentSubscription()
+    {
+        var generation = _client.Wire.ConnectionGeneration;
+        return generation != 0 &&
+               _client.Wire.State == WireConnectionState.Ready &&
+               Interlocked.Read(ref _subscribedGeneration) == generation;
     }
 
     private static IReadOnlyList<TurnInputPart> ToParts(string text) => [new TurnInputPart("text", Text: text)];

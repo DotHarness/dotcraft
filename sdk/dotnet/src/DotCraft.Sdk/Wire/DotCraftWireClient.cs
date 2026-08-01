@@ -26,10 +26,17 @@ public sealed class DotCraftWireClient : IAsyncDisposable
     private TaskCompletionSource _ready = CompletedReadySource();
     private DotCraftClientOptions? _initializeOptions;
     private int _queuedRequests;
+    private long _connectionGeneration;
     private bool _disposed;
 
     /// <summary>Current observable Wire session state.</summary>
     public WireConnectionState State { get; private set; } = WireConnectionState.Disconnected;
+
+    /// <summary>
+    /// Monotonically increasing initialized Wire session generation. The value changes only after
+    /// a successful initialize handshake, including one performed during reconnect.
+    /// </summary>
+    public long ConnectionGeneration => Interlocked.Read(ref _connectionGeneration);
 
     /// <summary>Raised when <see cref="State"/> changes.</summary>
     public event Action<WireConnectionState, Exception?>? StateChanged;
@@ -169,6 +176,7 @@ public sealed class DotCraftWireClient : IAsyncDisposable
             ?? throw new JsonException("Request 'initialize' returned an invalid result.");
         await NotifyRawCoreAsync(AppServerRpc.Initialized.Name, new RpcEmpty(), cancellationToken, bypassReady);
         var parsed = ParseInitializeResult(JsonSerializer.SerializeToElement(result, DotCraftJson.Options));
+        Interlocked.Increment(ref _connectionGeneration);
         _ready.TrySetResult();
         SetState(WireConnectionState.Ready);
         return parsed;
@@ -375,6 +383,7 @@ public sealed class DotCraftWireClient : IAsyncDisposable
                 {
                     var closed = new IOException("Wire transport disconnected.");
                     FailPending(closed);
+                    SetState(WireConnectionState.Disconnected, closed);
                     if (await TryReconnectAsync(closed))
                     {
                         continue;
@@ -388,6 +397,7 @@ public sealed class DotCraftWireClient : IAsyncDisposable
         catch (Exception ex)
         {
             FailPending(ex);
+            SetState(WireConnectionState.Disconnected, ex);
             if (await TryReconnectAsync(ex))
             {
                 await ReadLoopAsync();
@@ -395,7 +405,7 @@ public sealed class DotCraftWireClient : IAsyncDisposable
         }
         finally
         {
-            if (!_disposed)
+            if (!_disposed && State != WireConnectionState.Disconnected)
             {
                 SetState(WireConnectionState.Disconnected);
             }

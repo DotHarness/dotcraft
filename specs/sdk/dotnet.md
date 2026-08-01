@@ -214,13 +214,7 @@ The canonical .NET SDK package id is:
 DotCraft.Sdk
 ```
 
-Repository-local consumers may reference:
-
-```text
-src/DotCraft.Sdk/DotCraft.Sdk.csproj
-```
-
-until a public NuGet release process is approved.
+The public `DotCraft.Sdk` NuGet package contains both `DotCraft.Sdk.dll` and `DotCraft.Protocol.Contracts.dll`. Contracts remains a separate transport-free project and assembly, but it is not published as an independent NuGet package.
 
 ### 4.2 Namespace Layout
 
@@ -232,6 +226,8 @@ until a public NuGet release process is approved.
 | `DotCraft.Sdk.Wire` | `IJsonRpcTransport`, `DotCraftWireClient`, `StreamJsonRpcTransport`, `WebSocketJsonRpcTransport`, `DotCraftJson`, `JsonRpcException`. |
 
 Wire DTOs and RPC descriptors come directly from `DotCraft.Protocol.Contracts`. `DotCraft.Sdk` does not define a second contract model.
+
+Installing `DotCraft.Sdk` makes both namespaces available. Consumers must not add a separate `DotCraft.Protocol.Contracts` package reference.
 
 ### 4.3 Top-Level Client
 
@@ -539,6 +535,8 @@ Required behavior:
 - attempt best-effort normal close on disposal.
 
 The transport represents one WebSocket connection and does not reconnect itself. `DotCraftWireClient` owns optional reconnect and protocol reinitialization according to the unified SDK lifecycle.
+
+`DotCraftClientOptions.AutoReconnect` overrides the entry-point default. Local and remote high-level connections default to reconnect enabled; custom transports default to disabled. When a ready session is lost, active `RunStreamedAsync` enumerations fail with `RunDisconnectedError`, cached subscription state becomes invalid, and no `turn/start` request is replayed.
 
 ### 8.5 Raw Request Escape Hatch
 
@@ -1467,13 +1465,13 @@ The SDK currently exposes `ApprovalSupport` as an initialize option but does not
 The package version is currently:
 
 ```text
-0.1.0
+0.5.0
 ```
 
 Preview NuGet packages use prerelease package versions such as:
 
 ```text
-0.1.0-preview.1
+0.5.0-preview.1
 ```
 
 ### 21.2 Publishing Policy
@@ -1493,6 +1491,9 @@ The release workflow must:
 - avoid storing long-lived NuGet API keys in repository secrets;
 - push exact package filenames, never broad globs;
 - fail when the requested package version already exists on nuget.org.
+- include `DotCraft.Sdk.dll` and `DotCraft.Protocol.Contracts.dll` in the single SDK package;
+- verify from an isolated local source that installing only `DotCraft.Sdk` exposes both assemblies;
+- reject a package whose nuspec declares an independent `DotCraft.Protocol.Contracts` package dependency.
 
 The Trusted Publishing policy on nuget.org must be configured for:
 

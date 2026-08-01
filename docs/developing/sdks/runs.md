@@ -126,7 +126,7 @@ Every event keeps the original notification on `raw`, so nothing is lost. The bu
 
 ## Reconnect boundaries
 
-Reconnect restores the Wire transport, repeats `initialize`, and preserves local handler registrations. It does not recreate a thread subscription, resume an active Run, or rebind Runtime Dynamic Tools on your behalf.
+Reconnect restores the Wire transport, repeats `initialize`, and preserves local handler registrations. It does not recreate a thread subscription or rebind Runtime Dynamic Tools on your behalf. An active .NET Run fails with `RunDisconnectedError`; no SDK binding replays `turn/start`.
 
 Treat a Run interrupted by disconnection as interrupted application work. After the connection is ready again, explicitly read or resume the thread to obtain current server state, resubscribe if needed, and start the next operation from that state. Do not assume a request that was already sent will be replayed.
 
