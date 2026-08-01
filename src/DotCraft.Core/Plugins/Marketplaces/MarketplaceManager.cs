@@ -140,6 +140,20 @@ internal sealed class MarketplaceManager
         PluginsConfigPersistence.WritePluginRegistries(_configPath, configured);
 
         var source = MarketplaceSourceParser.FromConfigured(removed.SourceType, removed.Url!, removed.Ref, removed.SparsePaths);
+        if (IsArchiveSource(source))
+        {
+            var removedRoot = new PluginRegistryArchiveCache(
+                _craftHome,
+                (path, message) => _logger?.LogWarning(
+                    "{Message} Path: {Path}",
+                    message,
+                    path)).Remove(
+                source.Value,
+                NormalizeMarketplacePath(removed.MarketplacePath),
+                marketplaceName);
+            return new MarketplaceRemoveOutcome(marketplaceName, removedRoot);
+        }
+
         if (source.Kind != MarketplaceSourceKind.Git)
             return new MarketplaceRemoveOutcome(marketplaceName, RemovedRoot: null);
 
@@ -201,17 +215,17 @@ internal sealed class MarketplaceManager
         var marketplacePath = NormalizeMarketplacePath(entry.MarketplacePath);
         var source = MarketplaceSourceParser.FromConfigured(entry.SourceType, entry.Url, entry.Ref, entry.SparsePaths);
 
+        if (IsArchiveSource(source))
+        {
+            PluginSourceRegistryCatalog.InvalidateArchiveCache(source.Value, marketplacePath, _craftHome);
+            return Record(configured, index, entryName, null, source with { Kind = MarketplaceSourceKind.Archive }, marketplacePath, revision: null);
+        }
+
         if (source.Kind == MarketplaceSourceKind.Local)
         {
             var (name, displayName) = MarketplaceDocumentLoader.ValidateRoot(source.Value, marketplacePath);
             EnsureRefreshKeepsName(entryName, name);
             return Record(configured, index, name, displayName, source, marketplacePath, revision: null);
-        }
-
-        if (source.Kind == MarketplaceSourceKind.Archive)
-        {
-            PluginSourceRegistryCatalog.InvalidateArchiveCache(source.Value, marketplacePath);
-            return Record(configured, index, entryName, null, source, marketplacePath, revision: null);
         }
 
         MarketplaceStore.CleanStagingDirectories(_craftHome);
@@ -448,6 +462,10 @@ internal sealed class MarketplaceManager
 
     private static bool IsSameName(AppConfig.PluginRegistryConfig entry, string name) =>
         string.Equals(entry.Name?.Trim(), name, StringComparison.OrdinalIgnoreCase);
+
+    private static bool IsArchiveSource(MarketplaceSource source) =>
+        source.Kind == MarketplaceSourceKind.Archive
+        || (source.Kind == MarketplaceSourceKind.Local && File.Exists(source.Value));
 
     private static string ToConfigSourceType(MarketplaceSourceKind kind) => kind switch
     {
