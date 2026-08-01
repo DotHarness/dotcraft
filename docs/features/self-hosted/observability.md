@@ -42,7 +42,13 @@ After triggering a session, open **Trace Timeline** and confirm:
 
 If the token stream is empty, provider credentials / endpoint usually do not match. Check the merged result in the **Settings** page under `Providers[id]`.
 
-Provider-side terminal diagnostics are also recorded separately from visible response text. Use `ResponseTerminal`, `ProviderError`, and `ProviderResponseDiagnostic` events to distinguish empty text, provider error content, and provider incomplete/length-limit metadata.
+Terminal and provider diagnostics are recorded separately from visible response text. Use the **Responses** filter to inspect `ResponseTerminal` events for empty or usage-only streams. Use the **Provider** filter to inspect `ProviderError` and `ProviderResponseDiagnostic` events.
+
+Use the **Provider** filter to inspect retry behavior. A `stream_attempt` diagnostic shows the
+attempt number, outcome, retry decision, duration, and whether visible output prevented a retry.
+For OpenAI Responses, it also shows the final HTTP status, upstream request ID, and abbreviated
+session, thread, and prompt-cache hashes. Compare those hashes across attempts to confirm that
+routing stayed stable without exposing the underlying identifiers.
 
 ### 2. Diagnose a failed tool call
 

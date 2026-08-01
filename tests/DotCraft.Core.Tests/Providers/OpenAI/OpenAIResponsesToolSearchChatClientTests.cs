@@ -1095,6 +1095,7 @@ public sealed class OpenAIResponsesToolSearchChatClientTests
         {
             TracingChatClient.ResetCallState(sessionKey);
             TracingChatClient.CurrentSessionKey = sessionKey;
+            using var attemptScope = ModelStreamAttemptRuntimeScope.Begin(3);
 
             _ = await CollectStreamingAsync(client.GetStreamingResponseAsync(
                 [
@@ -1132,6 +1133,7 @@ public sealed class OpenAIResponsesToolSearchChatClientTests
         using var metadata = JsonDocument.Parse(evt.MetadataJson);
         var root = metadata.RootElement;
         Assert.Equal(1, root.GetProperty("requestIndex").GetInt32());
+        Assert.Equal(3, root.GetProperty("attemptNumber").GetInt32());
         Assert.Equal("openai-responses", root.GetProperty("protocol").GetString());
         Assert.False(root.GetProperty("maxOutputTokensPresentAfterOAuthRewrite").GetBoolean());
         Assert.False(root.GetProperty("maxOutputTokensRemovedByOAuthRewrite").GetBoolean());

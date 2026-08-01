@@ -4,6 +4,7 @@ using System.Security.Cryptography;
 using System.Text.Encodings.Web;
 using System.Text.Json;
 using DotCraft.Context;
+using DotCraft.Protocol;
 using DotCraft.Tools;
 using Microsoft.Extensions.AI;
 
@@ -230,6 +231,40 @@ public sealed class TraceCollector(TraceStore store)
         });
     }
 
+    public void RecordStreamAttemptDiagnostic(
+        string sessionKey,
+        ModelStreamAttemptDiagnostic diagnostic,
+        DateTimeOffset? timestamp = null)
+    {
+        ArgumentNullException.ThrowIfNull(diagnostic);
+        store.Record(new TraceEvent
+        {
+            Type = TraceEventType.ProviderResponseDiagnostic,
+            SessionKey = sessionKey,
+            Timestamp = timestamp ?? DateTimeOffset.UtcNow,
+            Content = $"Provider stream attempt {diagnostic.AttemptNumber}: {diagnostic.Outcome}",
+            RequestIndex = diagnostic.RequestIndex,
+            DurationMs = diagnostic.DurationMs,
+            MetadataJson = SerializeMetadata(new
+            {
+                eventType = "stream_attempt",
+                requestIndex = diagnostic.RequestIndex,
+                attemptNumber = diagnostic.AttemptNumber,
+                retryLimit = diagnostic.RetryLimit,
+                outcome = diagnostic.Outcome,
+                retryDecision = diagnostic.RetryDecision,
+                failureKind = diagnostic.FailureKind,
+                durationMs = diagnostic.DurationMs,
+                visibleOutputEmitted = diagnostic.VisibleOutputEmitted,
+                statusCode = diagnostic.StatusCode,
+                requestId = diagnostic.RequestId,
+                sessionIdHash = diagnostic.SessionIdHash,
+                threadIdHash = diagnostic.ThreadIdHash,
+                promptCacheKeyHash = diagnostic.PromptCacheKeyHash
+            })
+        });
+    }
+
     /// <summary>
     /// Records that a skill was exercised — either referenced as a <c>$name</c> tag in turn
     /// input or loaded by the agent via the SkillView tool — powering the Profile skill
@@ -437,6 +472,7 @@ public sealed class TraceCollector(TraceStore store)
         string sessionKey,
         PromptCacheRequestShapeSnapshot snapshot,
         int? requestIndex = null,
+        int? attemptNumber = null,
         DateTimeOffset? timestamp = null)
     {
         if (string.IsNullOrWhiteSpace(sessionKey))
@@ -456,6 +492,7 @@ public sealed class TraceCollector(TraceStore store)
                 protocol = snapshot.Protocol,
                 model = snapshot.Model,
                 requestIndex,
+                attemptNumber,
                 promptCacheKeyHash = snapshot.PromptCacheKeyHash,
                 promptCacheKeySource = snapshot.PromptCacheKeySource,
                 instructionsHash = snapshot.InstructionsHash,

@@ -66,13 +66,15 @@ internal sealed class PromptCacheRequestShapeTracingChatClient(
             removesUnsupportedOAuthResponsesFields: removesUnsupportedOAuthResponsesFields,
             canonicalInput: canonicalInput?.Input,
             canonicalItemIdentity: canonicalInput?.ItemIdentity);
+        ModelStreamAttemptRuntimeScope.Current?.CapturePromptCacheKeyHash(request.Shape.PromptCacheKeyHash);
         var sessionKey = TracingChatClient.CurrentSessionKey ?? TracingChatClient.GetActiveSessionKey();
         if (!string.IsNullOrWhiteSpace(sessionKey))
         {
             traceCollector.RecordPromptCacheRequestShape(
                 sessionKey,
                 request.Shape,
-                PromptCacheRequestShapeTraceScope.RequestIndex);
+                PromptCacheRequestShapeTraceScope.RequestIndex,
+                ModelStreamAttemptRuntimeScope.Current?.AttemptNumber);
         }
 
         return new PreparedTracingRequest(preparedMessages, options);

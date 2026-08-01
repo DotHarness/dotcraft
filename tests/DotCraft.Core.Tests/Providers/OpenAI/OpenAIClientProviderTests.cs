@@ -684,6 +684,55 @@ public sealed class OpenAIClientProviderTests : IDisposable
     }
 
     [Fact]
+    public async Task ChatGptOAuthResponsesAttemptDiagnosticCapturesOnlyStatusRequestIdAndRoutingHashes()
+    {
+        const string installationId = "11111111-1111-4111-8111-111111111111";
+        const string rootThreadId = "thread-root-secret";
+        const string currentThreadId = "thread-child-secret";
+        const string requestId = "req_attempt_500";
+
+        try
+        {
+            await using var server = RecordingHttpServer.Start(JsonResponse(
+                """{"error":{"message":"provider failed","type":"server_error"}}""",
+                HttpStatusCode.InternalServerError,
+                new Dictionary<string, string> { ["x-request-id"] = requestId }));
+            var provider = CreateOAuthProvider(installationId, accountId: "acct_token");
+            TracingChatClient.CurrentSessionKey = currentThreadId;
+            using var codexScope = OpenAIResponsesCodexRuntimeScope.Set(CreateCodexRuntimeContext(
+                currentThreadId,
+                "turn_attempt",
+                "window_attempt",
+                rootThreadId: rootThreadId,
+                parentThreadId: rootThreadId,
+                subagentKind: "thread_spawn"));
+            using var attemptScope = ModelStreamAttemptRuntimeScope.Begin(1);
+
+            await Assert.ThrowsAnyAsync<Exception>(async () =>
+                await provider.GetOpenAIClient(OAuthRuntime($"{server.Endpoint}/backend-api/codex"))
+                    .GetResponsesClient()
+                    .CreateResponseAsync(CreateNonStreamingResponseOptions("gpt-test", "hello")));
+
+            var diagnostic = Assert.IsType<ModelStreamAttemptRuntimeContext>(ModelStreamAttemptRuntimeScope.Current);
+            Assert.Equal(500, diagnostic.StatusCode);
+            Assert.Equal(requestId, diagnostic.RequestId);
+            Assert.Equal(ComputeSha256(rootThreadId), diagnostic.SessionIdHash);
+            Assert.Equal(ComputeSha256(currentThreadId), diagnostic.ThreadIdHash);
+            Assert.Equal(ComputeSha256(rootThreadId), diagnostic.PromptCacheKeyHash);
+            var serialized = JsonSerializer.Serialize(diagnostic);
+            Assert.DoesNotContain(rootThreadId, serialized, StringComparison.Ordinal);
+            Assert.DoesNotContain(currentThreadId, serialized, StringComparison.Ordinal);
+            Assert.DoesNotContain("acct_token", serialized, StringComparison.Ordinal);
+            Assert.DoesNotContain("provider failed", serialized, StringComparison.Ordinal);
+        }
+        finally
+        {
+            TracingChatClient.CurrentSessionKey = null;
+            TracingChatClient.ClearActiveSession(currentThreadId);
+        }
+    }
+
+    [Fact]
     public async Task ChatGptOAuthResponsesRetryPreservesHeadersAfterUnauthorized()
     {
         const string installationId = "11111111-1111-4111-8111-111111111111";

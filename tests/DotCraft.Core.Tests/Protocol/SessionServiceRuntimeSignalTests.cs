@@ -7,6 +7,7 @@ using DotCraft.Context;
 using DotCraft.Context.Compaction;
 using DotCraft.Memory;
 using DotCraft.Mcp;
+using DotCraft.Persistence;
 using DotCraft.Protocol;
 using DotCraft.Security;
 using DotCraft.Sessions;
@@ -525,7 +526,11 @@ public sealed class SessionServiceRuntimeSignalTests : IDisposable
             inner,
             new StreamRetryOptions(1, TimeSpan.FromSeconds(30)));
         await using var agentFactory = CreateAgentFactory(chatClient);
-        var svc = CreateService(agentFactory, chatClient);
+        var traceStore = new TraceStore(
+            new WorkspaceStateDatabase(_tempDir),
+            maxEventsPerSession: 5000,
+            synchronousPersist: true);
+        var svc = CreateService(agentFactory, chatClient, traceCollector: new TraceCollector(traceStore));
         var thread = await svc.CreateThreadAsync(MakeIdentity());
 
         var events = await CollectAsync(svc.SubmitInputAsync(thread.Id, [new TextContent("hello")]));
@@ -538,6 +543,14 @@ public sealed class SessionServiceRuntimeSignalTests : IDisposable
         Assert.Contains(events, evt => evt.EventType == SessionEventType.TurnCompleted);
         var updatedThread = await svc.GetThreadAsync(thread.Id);
         Assert.Equal(TurnStatus.Completed, Assert.Single(updatedThread.Turns).Status);
+        var attempts = traceStore.GetEvents(thread.Id)
+            .Where(evt => evt.Type == TraceEventType.ProviderResponseDiagnostic)
+            .Select(evt => JsonDocument.Parse(evt.MetadataJson!).RootElement.Clone())
+            .Where(metadata => metadata.GetProperty("eventType").GetString() == "stream_attempt")
+            .ToArray();
+        Assert.Equal([1, 2], attempts.Select(metadata => metadata.GetProperty("attemptNumber").GetInt32()).ToArray());
+        Assert.Equal("scheduled", attempts[0].GetProperty("retryDecision").GetString());
+        Assert.Equal("succeeded", attempts[1].GetProperty("outcome").GetString());
     }
 
     [Fact]
@@ -2584,6 +2597,57 @@ public sealed class SessionServiceRuntimeSignalTests : IDisposable
             AIFunction function,
             ToolPlanningContext context) =>
             new(new PresentationId("core.read-file"));
+    }
+
+    [Fact]
+    public async Task SubmitInputAsync_SubAgentTraceBindingPreservesLineageAcrossResume()
+    {
+        const string rootThreadId = "trace-root";
+        const string childThreadId = "trace-child";
+        var traceStore = new TraceStore(
+            new WorkspaceStateDatabase(_tempDir),
+            maxEventsPerSession: 5000,
+            synchronousPersist: true);
+        var traceCollector = new TraceCollector(traceStore);
+        IChatClient firstChatClient = new FakeChatClient([
+            new ChatResponseUpdate(ChatRole.Assistant, [new TextContent("first")])
+        ]);
+        await using var firstFactory = CreateAgentFactory(firstChatClient);
+        var firstService = CreateService(firstFactory, firstChatClient, traceCollector: traceCollector);
+        _ = await firstService.CreateThreadAsync(MakeIdentity(), threadId: rootThreadId);
+        var child = await firstService.CreateThreadAsync(
+            new SessionIdentity
+            {
+                ChannelName = SubAgentThreadOrigin.ChannelName,
+                UserId = "u",
+                ChannelContext = rootThreadId,
+                WorkspacePath = _tempDir
+            },
+            threadId: childThreadId,
+            source: ThreadSource.ForSubAgent(new SubAgentThreadSource
+            {
+                ParentThreadId = rootThreadId,
+                RootThreadId = rootThreadId,
+                Depth = 1
+            }));
+
+        await DrainAsync(firstService.SubmitInputAsync(child.Id, [new TextContent("first")]));
+
+        var liveBinding = traceStore.DescribeSessionDeletion(child.Id);
+        Assert.Equal("threadChild", liveBinding.BindingKind);
+        Assert.Equal(rootThreadId, liveBinding.RootThreadId);
+
+        IChatClient resumedChatClient = new FakeChatClient([
+            new ChatResponseUpdate(ChatRole.Assistant, [new TextContent("resumed")])
+        ]);
+        await using var resumedFactory = CreateAgentFactory(resumedChatClient);
+        var resumedService = CreateService(resumedFactory, resumedChatClient, traceCollector: traceCollector);
+        await resumedService.ResumeThreadAsync(child.Id);
+        await DrainAsync(resumedService.SubmitInputAsync(child.Id, [new TextContent("again")]));
+
+        var resumedBinding = traceStore.DescribeSessionDeletion(child.Id);
+        Assert.Equal("threadChild", resumedBinding.BindingKind);
+        Assert.Equal(rootThreadId, resumedBinding.RootThreadId);
     }
 
     private sealed class PlanConfirmationCleanupToolSource : AIFunctionToolSource

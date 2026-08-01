@@ -30,7 +30,7 @@ Read-only mode only exposes trace, session listing, token usage, tools, runtime 
 | `Error` | Runtime error |
 | `ResponseTerminal` | Terminal diagnostic for one streaming model request, even when no text was emitted |
 | `ProviderError` | Non-fatal provider error content or provider stream error metadata |
-| `ProviderResponseDiagnostic` | Sanitized provider terminal/status metadata such as OpenAI Responses incomplete reasons |
+| `ProviderResponseDiagnostic` | Sanitized provider terminal/status metadata, stream-attempt outcomes, and OpenAI request identifiers |
 | `ContextCompaction` | Context compaction |
 | `Thinking` | Model thinking content segment |
 | `PromptCachePoint` | Prompt cache breakpoint summary |
@@ -42,6 +42,15 @@ Read-only mode only exposes trace, session listing, token usage, tools, runtime 
 Dashboard records `Thinking` and `Response` trace events by contiguous streaming content segment, not per chunk, and does not collapse a full turn into one event. `ThinkingCount` and `ResponseCount` therefore count segments. The realtime event stream emits a segment event once that segment ends and is recorded.
 
 `ResponseTerminal`, `ProviderError`, and `ProviderResponseDiagnostic` are diagnostic-only events. They are not written into thread rollout history as assistant text. `ResponseTerminal` records finish reason and stream-shape metadata even for usage-only or empty terminal updates. Provider diagnostics record sanitized status, error, and incomplete reason fields only; they must not persist raw prompts, full request bodies, or large tool arguments.
+
+The **Responses** filter includes `Response` and `ResponseTerminal`. The **Provider** filter includes `ProviderError` and `ProviderResponseDiagnostic`.
+
+Each completed provider stream attempt emits a `ProviderResponseDiagnostic` with
+`eventType=stream_attempt`. Its metadata includes `requestIndex`, `attemptNumber`, `retryLimit`,
+`outcome`, `retryDecision`, `failureKind`, `durationMs`, and `visibleOutputEmitted`. OpenAI
+Responses diagnostics also include the final HTTP status, upstream request ID, and SHA-256 hashes
+of the effective session, thread, and prompt-cache identities. Raw routing identities, credentials,
+request bodies, and response bodies are excluded.
 
 Maintenance requests such as context compaction and memory consolidation also record `MaintenanceForkRequest` / `MaintenanceForkResponse` events. These events preserve snapshot/cache metadata, raw model text, tool-call-only responses, empty responses, and fallback reasons so Dashboard can diagnose issues such as `summary_unavailable`.
 

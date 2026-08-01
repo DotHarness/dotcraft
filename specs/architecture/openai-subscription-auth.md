@@ -246,6 +246,14 @@ updates from the failed attempt remain buffered and are not surfaced or executed
 `server_error`, or any failure after visible model output, is surfaced immediately with the final
 provider message and request ID.
 
+Every completed stream attempt records a sanitized `ProviderResponseDiagnostic` trace event with
+`eventType=stream_attempt`. The event identifies the logical request by its existing request index
+and records the one-based attempt number, retry limit, outcome, retry decision, normalized failure
+kind, duration, and whether visible output was emitted. OpenAI Responses attempts additionally
+record the final HTTP status and upstream request ID when available. Routing values are recorded
+only as SHA-256 hashes of `session-id`, `thread-id`, and `prompt_cache_key`; credentials, account
+identifiers, request or response bodies, prompts, and raw routing values are never persisted.
+
 ## Responses compaction transport
 
 ChatGPT OAuth server-managed Responses threads use the provider-native backend defined in
