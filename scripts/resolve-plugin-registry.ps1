@@ -11,6 +11,9 @@ $ErrorActionPreference = "Stop"
 
 $RefreshInterval = [TimeSpan]::FromHours(6)
 $DownloadTimeout = [TimeSpan]::FromSeconds(2)
+$StaleTemporaryDirectoryAge = [TimeSpan]::FromMinutes(10)
+$CacheMetadataSchemaVersion = 1
+$CacheMetadataFileName = "metadata.json"
 
 Add-Type -AssemblyName System.IO.Compression | Out-Null
 Add-Type -AssemblyName System.Net.Http | Out-Null
@@ -114,6 +117,189 @@ function Get-RegistryCacheRoot {
     return Join-Path (Get-CacheBaseRoot) $key
 }
 
+function Remove-RegistryCacheDirectoryBestEffort {
+    param([Parameter(Mandatory = $true)][string]$PathValue)
+
+    try {
+        if (Test-Path -LiteralPath $PathValue -PathType Container) {
+            Remove-Item -LiteralPath $PathValue -Recurse -Force
+        }
+    } catch {
+        Write-Warning "Plugin registry cache cleanup failed for '$PathValue': $($_.Exception.Message)"
+    }
+}
+
+function Remove-StaleRegistryCacheTemporaryDirectories {
+    param([DateTimeOffset]$Now = [DateTimeOffset]::UtcNow)
+
+    $cacheBaseRoot = Get-CacheBaseRoot
+    if (-not (Test-Path -LiteralPath $cacheBaseRoot -PathType Container)) {
+        return
+    }
+
+    foreach ($directory in Get-ChildItem -LiteralPath $cacheBaseRoot -Directory -ErrorAction SilentlyContinue) {
+        if ($directory.Name -notmatch '^\..+\.(tmp|backup)$') {
+            continue
+        }
+
+        $modified = [DateTimeOffset]::new($directory.LastWriteTimeUtc, [TimeSpan]::Zero)
+        if (($Now - $modified) -ge $StaleTemporaryDirectoryAge) {
+            Remove-RegistryCacheDirectoryBestEffort -PathValue $directory.FullName
+        }
+    }
+}
+
+function Read-MarketplaceIdentity {
+    param(
+        [Parameter(Mandatory = $true)][string]$SnapshotRoot,
+        [Parameter(Mandatory = $true)][string]$MarketplacePathValue,
+        [Parameter(Mandatory = $true)][string]$SourceName
+    )
+
+    $registryRoot = Resolve-RegistryRoot `
+        -SnapshotRoot $SnapshotRoot `
+        -MarketplacePathValue $MarketplacePathValue `
+        -SourceName $SourceName
+    $documentPath = Join-Path $registryRoot (Normalize-RelativePath -PathValue $MarketplacePathValue)
+    try {
+        $document = Get-Content -LiteralPath $documentPath -Raw | ConvertFrom-Json
+    } catch {
+        throw "Plugin registry marketplace document is invalid at '$documentPath': $($_.Exception.Message)"
+    }
+
+    $marketplaceName = [string]$document.name
+    if ([string]::IsNullOrWhiteSpace($marketplaceName)) {
+        throw "Plugin registry marketplace document must declare a name: $documentPath"
+    }
+    $marketplaceName = $marketplaceName.Trim()
+    if ($marketplaceName -in @('.', '..') `
+        -or $marketplaceName.IndexOfAny([System.IO.Path]::GetInvalidFileNameChars()) -ge 0 `
+        -or $marketplaceName.Contains('/') `
+        -or $marketplaceName.Contains('\')) {
+        throw "Plugin registry marketplace name '$marketplaceName' is not a usable directory name: $documentPath"
+    }
+
+    return [pscustomobject]@{
+        Name = $marketplaceName
+        Root = $registryRoot
+    }
+}
+
+function Get-RegistryCacheUpdatedAt {
+    param([Parameter(Mandatory = $true)][string]$SourceCacheRoot)
+
+    $markerPath = Join-Path $SourceCacheRoot "updatedAt.txt"
+    if (Test-Path -LiteralPath $markerPath -PathType Leaf) {
+        return [DateTimeOffset]::new((Get-Item -LiteralPath $markerPath).LastWriteTimeUtc, [TimeSpan]::Zero)
+    }
+
+    return [DateTimeOffset]::UtcNow
+}
+
+function Write-RegistryCacheMetadata {
+    param(
+        [Parameter(Mandatory = $true)][string]$SourceCacheRoot,
+        [Parameter(Mandatory = $true)][string]$MarketplaceName,
+        [Parameter(Mandatory = $true)][string]$SourceKey,
+        [Parameter(Mandatory = $true)][string]$MarketplacePathValue,
+        [DateTimeOffset]$UpdatedAt = [DateTimeOffset]::UtcNow
+    )
+
+    $metadata = [ordered]@{
+        schemaVersion = $CacheMetadataSchemaVersion
+        marketplaceName = $MarketplaceName
+        sourceKey = $SourceKey
+        marketplacePath = $MarketplacePathValue
+        updatedAt = $UpdatedAt.ToString("O")
+    }
+    [System.IO.File]::WriteAllText(
+        (Join-Path $SourceCacheRoot $CacheMetadataFileName),
+        ($metadata | ConvertTo-Json))
+}
+
+function Get-RegistryCacheMetadata {
+    param(
+        [Parameter(Mandatory = $true)][string]$SourceCacheRoot,
+        [Parameter(Mandatory = $true)][string]$MarketplacePathValue
+    )
+
+    $metadataPath = Join-Path $SourceCacheRoot $CacheMetadataFileName
+    if (Test-Path -LiteralPath $metadataPath -PathType Leaf) {
+        try {
+            $metadata = Get-Content -LiteralPath $metadataPath -Raw | ConvertFrom-Json
+            if ([int]$metadata.schemaVersion -eq $CacheMetadataSchemaVersion `
+                -and -not [string]::IsNullOrWhiteSpace([string]$metadata.marketplaceName)) {
+                return $metadata
+            }
+        } catch {
+            # Fall through to legacy metadata reconstruction.
+        }
+    }
+
+    $snapshotRoot = Join-Path $SourceCacheRoot "snapshot"
+    if (-not (Test-Path -LiteralPath $snapshotRoot -PathType Container)) {
+        return $null
+    }
+
+    try {
+        $identity = Read-MarketplaceIdentity `
+            -SnapshotRoot $snapshotRoot `
+            -MarketplacePathValue $MarketplacePathValue `
+            -SourceName $SourceCacheRoot
+        $sourceKey = [System.IO.Path]::GetFileName($SourceCacheRoot)
+        Write-RegistryCacheMetadata `
+            -SourceCacheRoot $SourceCacheRoot `
+            -MarketplaceName $identity.Name `
+            -SourceKey $sourceKey `
+            -MarketplacePathValue $MarketplacePathValue `
+            -UpdatedAt (Get-RegistryCacheUpdatedAt -SourceCacheRoot $SourceCacheRoot)
+        return Get-Content -LiteralPath $metadataPath -Raw | ConvertFrom-Json
+    } catch {
+        return $null
+    }
+}
+
+function Remove-OtherRegistryCacheVersions {
+    param(
+        [Parameter(Mandatory = $true)][string]$MarketplaceName,
+        [string]$CurrentCacheRoot,
+        [Parameter(Mandatory = $true)][string]$MarketplacePathValue
+    )
+
+    $cacheBaseRoot = Get-CacheBaseRoot
+    if (-not (Test-Path -LiteralPath $cacheBaseRoot -PathType Container)) {
+        return
+    }
+
+    $currentFullPath = if ([string]::IsNullOrWhiteSpace($CurrentCacheRoot)) {
+        $null
+    } else {
+        [System.IO.Path]::GetFullPath($CurrentCacheRoot)
+    }
+
+    foreach ($directory in Get-ChildItem -LiteralPath $cacheBaseRoot -Directory -ErrorAction SilentlyContinue) {
+        if ($directory.Name -match '^\..+\.(tmp|backup)$' `
+            -or ($currentFullPath -and [string]::Equals($directory.FullName, $currentFullPath, [StringComparison]::OrdinalIgnoreCase))) {
+            continue
+        }
+
+        $metadata = Get-RegistryCacheMetadata `
+            -SourceCacheRoot $directory.FullName `
+            -MarketplacePathValue $MarketplacePathValue
+        if ($null -eq $metadata `
+            -and -not [string]::Equals($MarketplacePathValue, ".craft/plugins/marketplace.json", [StringComparison]::Ordinal)) {
+            $metadata = Get-RegistryCacheMetadata `
+                -SourceCacheRoot $directory.FullName `
+                -MarketplacePathValue ".craft/plugins/marketplace.json"
+        }
+
+        if ($null -ne $metadata `
+            -and [string]::Equals([string]$metadata.marketplaceName, $MarketplaceName, [StringComparison]::OrdinalIgnoreCase)) {
+            Remove-RegistryCacheDirectoryBestEffort -PathValue $directory.FullName
+        }
+    }
+}
+
 function Test-ShouldRefresh {
     param([Parameter(Mandatory = $true)][string]$SourceCacheRoot)
 
@@ -170,6 +356,40 @@ function Get-CachedSnapshotRoot {
     return $null
 }
 
+function Resolve-ArchiveRegistryRoot {
+    param(
+        [Parameter(Mandatory = $true)][string]$SnapshotRoot,
+        [Parameter(Mandatory = $true)][string]$SourceUrl,
+        [Parameter(Mandatory = $true)][string]$MarketplacePathValue,
+        [Parameter(Mandatory = $true)][string]$SourceName
+    )
+
+    $identity = Read-MarketplaceIdentity `
+        -SnapshotRoot $SnapshotRoot `
+        -MarketplacePathValue $MarketplacePathValue `
+        -SourceName $SourceName
+    $sourceCacheRoot = Get-RegistryCacheRoot `
+        -SourceUrl $SourceUrl `
+        -MarketplacePathValue $MarketplacePathValue
+    $sourceKey = [System.IO.Path]::GetFileName($sourceCacheRoot)
+    try {
+        Write-RegistryCacheMetadata `
+            -SourceCacheRoot $sourceCacheRoot `
+            -MarketplaceName $identity.Name `
+            -SourceKey $sourceKey `
+            -MarketplacePathValue $MarketplacePathValue `
+            -UpdatedAt (Get-RegistryCacheUpdatedAt -SourceCacheRoot $sourceCacheRoot)
+    } catch {
+        Write-Warning "Plugin registry cache metadata update failed for '$sourceCacheRoot': $($_.Exception.Message)"
+    }
+
+    Remove-OtherRegistryCacheVersions `
+        -MarketplaceName $identity.Name `
+        -CurrentCacheRoot $sourceCacheRoot `
+        -MarketplacePathValue $MarketplacePathValue
+    return $identity.Root
+}
+
 function Expand-ArchiveToCache {
     param(
         [Parameter(Mandatory = $true)][byte[]]$ArchiveBytes,
@@ -180,8 +400,10 @@ function Expand-ArchiveToCache {
     $sourceCacheRoot = Get-RegistryCacheRoot -SourceUrl $SourceUrl -MarketplacePathValue $MarketplacePathValue
     $cacheParent = [System.IO.Path]::GetDirectoryName($sourceCacheRoot)
     [System.IO.Directory]::CreateDirectory($cacheParent) | Out-Null
+    Remove-StaleRegistryCacheTemporaryDirectories
 
-    $tempRoot = Join-Path $cacheParent ("." + [System.IO.Path]::GetFileName($sourceCacheRoot) + "." + [Guid]::NewGuid().ToString("N") + ".tmp")
+    $sourceKey = [System.IO.Path]::GetFileName($sourceCacheRoot)
+    $tempRoot = Join-Path $cacheParent ("." + $sourceKey + "." + [Guid]::NewGuid().ToString("N") + ".tmp")
     $tempSnapshotRoot = Join-Path $tempRoot "snapshot"
 
     try {
@@ -236,14 +458,47 @@ function Expand-ArchiveToCache {
             throw "Resolved cache root is outside the cache parent: $sourceCacheRoot"
         }
 
-        if (Test-Path -LiteralPath $sourceCacheRoot) {
-            Remove-Item -LiteralPath $sourceCacheRoot -Recurse -Force
+        $identity = Read-MarketplaceIdentity `
+            -SnapshotRoot $tempSnapshotRoot `
+            -MarketplacePathValue $MarketplacePathValue `
+            -SourceName $SourceUrl
+        $activatedAt = [DateTimeOffset]::UtcNow
+        Write-RegistryCacheMetadata `
+            -SourceCacheRoot $tempRoot `
+            -MarketplaceName $identity.Name `
+            -SourceKey $sourceKey `
+            -MarketplacePathValue $MarketplacePathValue `
+            -UpdatedAt $activatedAt
+        [System.IO.File]::WriteAllText(
+            (Join-Path $tempRoot "updatedAt.txt"),
+            $activatedAt.ToString("O"))
+
+        $backupRoot = Join-Path $cacheParent ("." + $sourceKey + "." + [Guid]::NewGuid().ToString("N") + ".backup")
+        $hasBackup = Test-Path -LiteralPath $sourceCacheRoot -PathType Container
+        if ($hasBackup) {
+            Move-Item -LiteralPath $sourceCacheRoot -Destination $backupRoot
         }
 
-        Move-Item -LiteralPath $tempRoot -Destination $sourceCacheRoot | Out-Null
-        [System.IO.File]::WriteAllText(
-            (Join-Path $sourceCacheRoot "updatedAt.txt"),
-            [DateTimeOffset]::UtcNow.ToString("O"))
+        try {
+            Move-Item -LiteralPath $tempRoot -Destination $sourceCacheRoot
+        } catch {
+            if ($hasBackup `
+                -and -not (Test-Path -LiteralPath $sourceCacheRoot) `
+                -and (Test-Path -LiteralPath $backupRoot -PathType Container)) {
+                Move-Item -LiteralPath $backupRoot -Destination $sourceCacheRoot
+            }
+
+            throw
+        }
+
+        if ($hasBackup) {
+            Remove-RegistryCacheDirectoryBestEffort -PathValue $backupRoot
+        }
+
+        Remove-OtherRegistryCacheVersions `
+            -MarketplaceName $identity.Name `
+            -CurrentCacheRoot $sourceCacheRoot `
+            -MarketplacePathValue $MarketplacePathValue
 
         return Join-Path $sourceCacheRoot "snapshot"
     } finally {
@@ -277,6 +532,8 @@ function Read-RemoteArchiveBytes {
 }
 
 function Resolve-PluginRegistryRoot {
+    Remove-StaleRegistryCacheTemporaryDirectories
+
     $sourceUrl = $RegistryUrl
     if ([string]::IsNullOrWhiteSpace($sourceUrl)) {
         $sourceUrl = Get-DefaultRegistryUrl
@@ -292,18 +549,27 @@ function Resolve-PluginRegistryRoot {
 
     if (Test-Path -LiteralPath $sourceUrl -PathType Leaf) {
         Write-Host "Extracting plugin registry archive: $sourceUrl" -ForegroundColor Gray
+        $archivePath = [System.IO.Path]::GetFullPath($sourceUrl)
         try {
             $snapshotRoot = Expand-ArchiveToCache `
-                -ArchiveBytes ([System.IO.File]::ReadAllBytes([System.IO.Path]::GetFullPath($sourceUrl))) `
-                -SourceUrl ([System.IO.Path]::GetFullPath($sourceUrl)) `
+                -ArchiveBytes ([System.IO.File]::ReadAllBytes($archivePath)) `
+                -SourceUrl $archivePath `
                 -MarketplacePathValue $MarketplacePath
-            return Resolve-RegistryRoot -SnapshotRoot $snapshotRoot -MarketplacePathValue $MarketplacePath -SourceName $sourceName
+            return Resolve-ArchiveRegistryRoot `
+                -SnapshotRoot $snapshotRoot `
+                -SourceUrl $archivePath `
+                -MarketplacePathValue $MarketplacePath `
+                -SourceName $sourceName
         } catch {
             Write-Warning "Plugin registry archive could not be extracted: $($_.Exception.Message)"
-            $cachedSnapshot = Get-CachedSnapshotRoot -SourceUrl ([System.IO.Path]::GetFullPath($sourceUrl)) -MarketplacePathValue $MarketplacePath
+            $cachedSnapshot = Get-CachedSnapshotRoot -SourceUrl $archivePath -MarketplacePathValue $MarketplacePath
             if ($cachedSnapshot) {
                 Write-Warning "Using cached plugin registry snapshot: $cachedSnapshot"
-                return Resolve-RegistryRoot -SnapshotRoot $cachedSnapshot -MarketplacePathValue $MarketplacePath -SourceName $sourceName
+                return Resolve-ArchiveRegistryRoot `
+                    -SnapshotRoot $cachedSnapshot `
+                    -SourceUrl $archivePath `
+                    -MarketplacePathValue $MarketplacePath `
+                    -SourceName $sourceName
             }
 
             throw
@@ -322,19 +588,31 @@ function Resolve-PluginRegistryRoot {
         -and -not $ForceRefresh `
         -and -not (Test-ShouldRefresh -SourceCacheRoot $sourceCacheRoot)) {
         Write-Host "Using cached plugin registry snapshot: $cachedSnapshotRoot" -ForegroundColor Gray
-        return Resolve-RegistryRoot -SnapshotRoot $cachedSnapshotRoot -MarketplacePathValue $MarketplacePath -SourceName $sourceName
+        return Resolve-ArchiveRegistryRoot `
+            -SnapshotRoot $cachedSnapshotRoot `
+            -SourceUrl $sourceUrl `
+            -MarketplacePathValue $MarketplacePath `
+            -SourceName $sourceName
     }
 
     Write-Host "Downloading plugin registry: $sourceUrl" -ForegroundColor Gray
     try {
         $archiveBytes = Read-RemoteArchiveBytes -Uri $uri
         $snapshotRoot = Expand-ArchiveToCache -ArchiveBytes $archiveBytes -SourceUrl $sourceUrl -MarketplacePathValue $MarketplacePath
-        return Resolve-RegistryRoot -SnapshotRoot $snapshotRoot -MarketplacePathValue $MarketplacePath -SourceName $sourceName
+        return Resolve-ArchiveRegistryRoot `
+            -SnapshotRoot $snapshotRoot `
+            -SourceUrl $sourceUrl `
+            -MarketplacePathValue $MarketplacePath `
+            -SourceName $sourceName
     } catch {
         Write-Warning "Plugin registry download failed: $($_.Exception.Message)"
         if (Test-Path -LiteralPath $cachedSnapshotRoot -PathType Container) {
             Write-Warning "Using cached plugin registry snapshot: $cachedSnapshotRoot"
-            return Resolve-RegistryRoot -SnapshotRoot $cachedSnapshotRoot -MarketplacePathValue $MarketplacePath -SourceName $sourceName
+            return Resolve-ArchiveRegistryRoot `
+                -SnapshotRoot $cachedSnapshotRoot `
+                -SourceUrl $sourceUrl `
+                -MarketplacePathValue $MarketplacePath `
+                -SourceName $sourceName
         }
 
         throw "Failed to resolve plugin registry '$sourceUrl' and no cached snapshot is available."

@@ -1,6 +1,3 @@
-using System.IO.Compression;
-using System.Security.Cryptography;
-using System.Text;
 using DotCraft.Configuration;
 using DotCraft.Plugins.Marketplaces;
 
@@ -39,11 +36,18 @@ internal static class PluginSourceRegistryCatalog
         var resolvedCraftHome = string.IsNullOrWhiteSpace(craftHome)
             ? MarketplacePaths.DefaultCraftHome()
             : Path.GetFullPath(craftHome);
+        var archiveCache = new PluginRegistryArchiveCache(
+            resolvedCraftHome,
+            (path, message) => diagnostics.Add(PluginDiagnostic.Warning(
+                "PluginRegistryCacheCleanupFailed",
+                message,
+                path: path)));
+        archiveCache.CleanStaleTemporaryDirectories();
 
         var plugins = new List<BuiltInPluginSource>();
         foreach (var source in sources)
         {
-            var snapshotRoot = ResolveSnapshotRoot(source, diagnostics, resolvedCraftHome);
+            var snapshotRoot = ResolveSnapshotRoot(source, diagnostics, resolvedCraftHome, archiveCache);
             if (snapshotRoot == null)
                 continue;
 
@@ -70,6 +74,9 @@ internal static class PluginSourceRegistryCatalog
                 continue;
             }
 
+            if (IsArchiveBackedSource(source) && !string.IsNullOrWhiteSpace(document.Name))
+                archiveCache.RegisterAndPrune(source.Url, source.MarketplacePath, document.Name.Trim());
+
             if (document.Plugins.Count == 0)
                 continue;
 
@@ -88,18 +95,12 @@ internal static class PluginSourceRegistryCatalog
     /// <summary>
     /// Drops the freshness marker for an archive source so the next discovery pass re-downloads it.
     /// </summary>
-    public static void InvalidateArchiveCache(string url, string marketplacePath)
+    public static void InvalidateArchiveCache(string url, string marketplacePath, string? craftHome = null)
     {
-        var markerPath = Path.Combine(CacheRootFor(url, marketplacePath), "updatedAt.txt");
-        try
-        {
-            if (File.Exists(markerPath))
-                File.Delete(markerPath);
-        }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
-        {
-            // A stale marker only delays the next refresh; it is not worth failing the request.
-        }
+        var resolvedCraftHome = string.IsNullOrWhiteSpace(craftHome)
+            ? MarketplacePaths.DefaultCraftHome()
+            : Path.GetFullPath(craftHome);
+        new PluginRegistryArchiveCache(resolvedCraftHome).Invalidate(url, marketplacePath);
     }
 
     private static IReadOnlyList<PluginRegistrySource> ResolveSources(
@@ -279,7 +280,8 @@ internal static class PluginSourceRegistryCatalog
     private static string? ResolveSnapshotRoot(
         PluginRegistrySource source,
         List<PluginDiagnostic> diagnostics,
-        string craftHome)
+        string craftHome,
+        PluginRegistryArchiveCache archiveCache)
     {
         if (source.Kind == MarketplaceSourceKind.Git)
             return ResolveMaterializedRoot(source, diagnostics, craftHome);
@@ -298,11 +300,11 @@ internal static class PluginSourceRegistryCatalog
                 return null;
             }
 
-            return ExtractArchiveToCache(source, File.ReadAllBytes(source.Url), diagnostics)
-                   ?? ResolveCachedSnapshot(source);
+            return ExtractArchiveToCache(source, File.ReadAllBytes(source.Url), diagnostics, archiveCache)
+                   ?? ResolveCachedSnapshot(source, archiveCache);
         }
 
-        return ResolveArchiveSnapshotRoot(source, diagnostics);
+        return ResolveArchiveSnapshotRoot(source, diagnostics, archiveCache);
     }
 
     // Repository marketplaces are materialized by the explicit add and refresh operations.
@@ -338,7 +340,8 @@ internal static class PluginSourceRegistryCatalog
 
     private static string? ResolveArchiveSnapshotRoot(
         PluginRegistrySource source,
-        List<PluginDiagnostic> diagnostics)
+        List<PluginDiagnostic> diagnostics,
+        PluginRegistryArchiveCache archiveCache)
     {
         if (!Uri.TryCreate(source.Url, UriKind.Absolute, out var uri)
             || !string.Equals(uri.Scheme, Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase))
@@ -350,9 +353,9 @@ internal static class PluginSourceRegistryCatalog
             return null;
         }
 
-        var cacheRoot = CacheRootFor(source.Url, source.MarketplacePath);
-        var snapshotRoot = Path.Combine(cacheRoot, "snapshot");
-        if (Directory.Exists(snapshotRoot) && !ShouldRefresh(cacheRoot))
+        var snapshotRoot = archiveCache.SnapshotRootFor(source.Url, source.MarketplacePath);
+        if (Directory.Exists(snapshotRoot)
+            && !archiveCache.ShouldRefresh(source.Url, source.MarketplacePath, RefreshInterval))
             return snapshotRoot;
 
         try
@@ -366,11 +369,12 @@ internal static class PluginSourceRegistryCatalog
                     "PluginRegistryDownloadFailed",
                     $"Plugin marketplace '{source.Name}' download failed with HTTP {(int)response.StatusCode}.",
                     path: source.Url));
-                return ResolveCachedSnapshot(source);
+                return ResolveCachedSnapshot(source, archiveCache);
             }
 
             var bytes = response.Content.ReadAsByteArrayAsync().GetAwaiter().GetResult();
-            return ExtractArchiveToCache(source, bytes, diagnostics) ?? ResolveCachedSnapshot(source);
+            return ExtractArchiveToCache(source, bytes, diagnostics, archiveCache)
+                   ?? ResolveCachedSnapshot(source, archiveCache);
         }
         catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or InvalidOperationException)
         {
@@ -378,66 +382,32 @@ internal static class PluginSourceRegistryCatalog
                 "PluginRegistryDownloadFailed",
                 $"Plugin marketplace '{source.Name}' download failed: {ex.Message}",
                 path: source.Url));
-            return ResolveCachedSnapshot(source);
+            return ResolveCachedSnapshot(source, archiveCache);
         }
     }
 
-    private static bool ShouldRefresh(string cacheRoot)
+    private static string? ResolveCachedSnapshot(
+        PluginRegistrySource source,
+        PluginRegistryArchiveCache archiveCache)
     {
-        var markerPath = Path.Combine(cacheRoot, "updatedAt.txt");
-        if (!File.Exists(markerPath))
-            return true;
-        var updatedAt = new DateTimeOffset(File.GetLastWriteTimeUtc(markerPath), TimeSpan.Zero);
-        return DateTimeOffset.UtcNow - updatedAt > RefreshInterval;
-    }
-
-    private static string? ResolveCachedSnapshot(PluginRegistrySource source)
-    {
-        var snapshotRoot = Path.Combine(CacheRootFor(source.Url, source.MarketplacePath), "snapshot");
+        var snapshotRoot = archiveCache.SnapshotRootFor(source.Url, source.MarketplacePath);
         return Directory.Exists(snapshotRoot) ? snapshotRoot : null;
     }
 
     private static string? ExtractArchiveToCache(
         PluginRegistrySource source,
         byte[] bytes,
-        List<PluginDiagnostic> diagnostics)
+        List<PluginDiagnostic> diagnostics,
+        PluginRegistryArchiveCache archiveCache)
     {
-        var cacheRoot = CacheRootFor(source.Url, source.MarketplacePath);
-        var parent = Path.GetDirectoryName(cacheRoot)!;
-        var tempRoot = Path.Combine(parent, $".{Path.GetFileName(cacheRoot)}.{Guid.NewGuid():N}.tmp");
-        var tempSnapshot = Path.Combine(tempRoot, "snapshot");
         try
         {
-            Directory.CreateDirectory(tempSnapshot);
-            using var archive = new ZipArchive(new MemoryStream(bytes), ZipArchiveMode.Read);
-            foreach (var entry in archive.Entries)
-            {
-                if (string.IsNullOrWhiteSpace(entry.FullName))
-                    continue;
-
-                var destination = Path.GetFullPath(Path.Combine(tempSnapshot, entry.FullName));
-                if (!IsPathWithin(destination, tempSnapshot))
-                    throw new InvalidDataException($"Zip entry '{entry.FullName}' escapes the marketplace snapshot root.");
-
-                if (entry.FullName.EndsWith("/", StringComparison.Ordinal)
-                    || entry.FullName.EndsWith("\\", StringComparison.Ordinal))
-                {
-                    Directory.CreateDirectory(destination);
-                    continue;
-                }
-
-                Directory.CreateDirectory(Path.GetDirectoryName(destination)!);
-                entry.ExtractToFile(destination, overwrite: true);
-            }
-
-            Directory.CreateDirectory(parent);
-            if (Directory.Exists(cacheRoot))
-                Directory.Delete(cacheRoot, recursive: true);
-            Directory.Move(tempRoot, cacheRoot);
-            File.WriteAllText(Path.Combine(cacheRoot, "updatedAt.txt"), DateTimeOffset.UtcNow.ToString("O"));
-            return Path.Combine(cacheRoot, "snapshot");
+            return archiveCache.Activate(source.Url, source.MarketplacePath, bytes);
         }
-        catch (Exception ex) when (ex is IOException or InvalidDataException or UnauthorizedAccessException)
+        catch (Exception ex) when (ex is IOException
+                                   or InvalidDataException
+                                   or UnauthorizedAccessException
+                                   or MarketplaceException)
         {
             diagnostics.Add(PluginDiagnostic.Warning(
                 "PluginRegistryExtractFailed",
@@ -445,19 +415,11 @@ internal static class PluginSourceRegistryCatalog
                 path: source.Url));
             return null;
         }
-        finally
-        {
-            if (Directory.Exists(tempRoot))
-                Directory.Delete(tempRoot, recursive: true);
-        }
     }
 
-    private static string CacheRootFor(string url, string marketplacePath)
-    {
-        var key = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(
-            url + "\n" + marketplacePath))).ToLowerInvariant();
-        return Path.Combine(MarketplacePaths.DefaultCraftHome(), "cache", "plugin-registries", key);
-    }
+    private static bool IsArchiveBackedSource(PluginRegistrySource source) =>
+        source.Kind == MarketplaceSourceKind.Archive
+        || (source.Kind == MarketplaceSourceKind.Local && File.Exists(source.Url));
 
     private static string? ResolveRegistryRelativePath(string path, out string error)
     {

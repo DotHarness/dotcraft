@@ -943,7 +943,7 @@ public sealed class PluginDiscoveryTests
         var config = new AppConfig();
         config.Plugins.PluginRegistries.Add(new AppConfig.PluginRegistryConfig { Url = registryRoot });
 
-        var result = new BuiltInPluginCatalog([], config.Plugins).Discover();
+        var result = new BuiltInPluginCatalog([], config.Plugins, root).Discover();
 
         Assert.DoesNotContain(result.Diagnostics, d => d.Severity == PluginDiagnosticSeverity.Error);
         var plugin = Assert.Single(result.Plugins);
@@ -965,12 +965,13 @@ public sealed class PluginDiscoveryTests
         var config = new AppConfig();
         config.Plugins.PluginRegistries.Add(new AppConfig.PluginRegistryConfig { Url = zipPath });
 
-        var result = new BuiltInPluginCatalog([], config.Plugins).Discover();
+        var result = new BuiltInPluginCatalog([], config.Plugins, root).Discover();
 
         Assert.DoesNotContain(result.Diagnostics, d => d.Severity == PluginDiagnosticSeverity.Error);
         var plugin = Assert.Single(result.Plugins);
         Assert.Equal("registry-archive", plugin.Manifest.Id);
         Assert.Equal("Registry Archive", plugin.Manifest.DisplayName);
+        Assert.Single(Directory.GetDirectories(Path.Combine(root, "cache", PluginRegistryArchiveCache.CacheDirectory)));
     }
 
     [Fact]

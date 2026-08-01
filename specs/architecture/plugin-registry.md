@@ -2,9 +2,9 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.3.0 |
+| **Version** | 0.4.0 |
 | **Status** | Draft |
-| **Date** | 2026-07-22 |
+| **Date** | 2026-08-02 |
 | **Related Specs** | [Plugin Architecture](plugin-architecture.md), [AppServer Protocol](../protocols/appserver-protocol.md), [App Binding](../protocols/app-binding.md) |
 
 Purpose: define the product and process contract for DotCraft plugin marketplaces. A marketplace lets DotCraft discover installable external integration plugins without bundling every integration in the DotCraft Desktop release package, and lets users and organizations add their own plugin sources.
@@ -171,6 +171,16 @@ Removing a marketplace deletes its configuration entry and, for materialized kin
 ### 7.5 Discovery never fetches
 
 Plugin discovery runs on every plugin listing and every plugin mutation. Discovery reads only materialized roots, local source directories, and cached archive snapshots that already exist on disk. Discovery must never start a version control fetch. Archive sources retain their existing bounded, non-fatal cached refresh; every other fetch happens only through an explicit add or refresh operation.
+
+### 7.6 Archive cache lifecycle
+
+Archive marketplaces use the user-global cache under `<craft-home>/cache/plugin-registries`. The marketplace document `name` is the stable cache identity, and only one successfully activated archive snapshot is retained for that identity.
+
+An archive refresh must extract into a temporary directory, validate the marketplace document, and atomically activate the new snapshot before deleting an older snapshot. A failed download, extraction, validation, or activation leaves the previous snapshot available. After successful activation, DotCraft immediately removes other cache generations for the same marketplace identity on a best-effort basis; cleanup failure must not make the new snapshot unavailable. Removing an archive marketplace also removes its managed cache snapshots.
+
+Each activated snapshot stores internal cache metadata containing a schema version, marketplace identity, source key, marketplace path, and update time. Existing snapshots without metadata remain readable: DotCraft derives their identity from the marketplace document, writes metadata when possible, and applies the same single-version pruning rule. Cache operations also remove interrupted archive staging directories older than ten minutes while leaving newer staging directories and unrelated files untouched.
+
+The cache root must be derived from the effective Craft home supplied to the runtime or development resolver. Tests and alternate Craft homes must not write into the default user's cache. These cache mechanics do not apply to Git marketplace roots, local marketplaces, or plugins already installed into a workspace.
 
 ---
 

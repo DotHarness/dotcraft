@@ -1,3 +1,4 @@
+using System.IO.Compression;
 using DotCraft.Configuration;
 using DotCraft.Plugins;
 using DotCraft.Plugins.Marketplaces;
@@ -155,6 +156,67 @@ public sealed class MarketplaceManagerTests
     }
 
     [Fact]
+    public void Remove_DeletesArchiveMarketplaceCache()
+    {
+        var craftHome = NewTempDir();
+        const string source = "https://example.test/archive-marketplace.zip";
+        var cache = new PluginRegistryArchiveCache(craftHome);
+        var archiveRoot = NewTempDir();
+        WriteMarketplace(archiveRoot, "archive-marketplace");
+        var archivePath = Path.Combine(NewTempDir(), "marketplace.zip");
+        ZipFile.CreateFromDirectory(archiveRoot, archivePath);
+        var snapshot = cache.Activate(
+            source,
+            MarketplaceDocumentLoader.DefaultMarketplacePath,
+            File.ReadAllBytes(archivePath));
+        PluginsConfigPersistence.WritePluginRegistries(
+            ConfigPath(craftHome),
+            [new AppConfig.PluginRegistryConfig
+            {
+                Name = "archive-marketplace",
+                SourceType = "archive",
+                Url = source,
+                MarketplacePath = MarketplaceDocumentLoader.DefaultMarketplacePath
+            }]);
+        var manager = NewManager(craftHome, new FakeGitFetcher(_ => { }));
+
+        var removed = manager.Remove("archive-marketplace");
+
+        Assert.Equal(Path.GetDirectoryName(snapshot), removed.RemovedRoot);
+        Assert.False(Directory.Exists(Path.GetDirectoryName(snapshot)));
+        Assert.Empty(PluginsConfigPersistence.ReadPluginRegistries(ConfigPath(craftHome)));
+    }
+
+    [Fact]
+    public void Remove_DeletesLegacyLocalArchiveCache()
+    {
+        var craftHome = NewTempDir();
+        var archiveRoot = NewTempDir();
+        WriteMarketplace(archiveRoot, "legacy-archive-marketplace");
+        var archivePath = Path.Combine(NewTempDir(), "marketplace.zip");
+        ZipFile.CreateFromDirectory(archiveRoot, archivePath);
+        var cache = new PluginRegistryArchiveCache(craftHome);
+        var snapshot = cache.Activate(
+            archivePath,
+            MarketplaceDocumentLoader.DefaultMarketplacePath,
+            File.ReadAllBytes(archivePath));
+        PluginsConfigPersistence.WritePluginRegistries(
+            ConfigPath(craftHome),
+            [new AppConfig.PluginRegistryConfig
+            {
+                Name = "legacy-archive-marketplace",
+                Url = archivePath,
+                MarketplacePath = MarketplaceDocumentLoader.DefaultMarketplacePath
+            }]);
+        var manager = NewManager(craftHome, new FakeGitFetcher(_ => { }));
+
+        manager.Remove("legacy-archive-marketplace");
+
+        Assert.False(Directory.Exists(Path.GetDirectoryName(snapshot)));
+        Assert.True(File.Exists(archivePath));
+    }
+
+    [Fact]
     public void Remove_RejectsUnknownMarketplace()
     {
         var manager = NewManager(NewTempDir(), new FakeGitFetcher(_ => { }));
@@ -193,6 +255,40 @@ public sealed class MarketplaceManagerTests
             () => manager.RefreshAsync("missing", CancellationToken.None));
 
         Assert.Equal(MarketplaceErrorCodes.NotFound, error.Code);
+    }
+
+    [Fact]
+    public async Task RefreshAsync_MigratesLegacyLocalArchiveAndInvalidatesItsCache()
+    {
+        var craftHome = NewTempDir();
+        var archiveRoot = NewTempDir();
+        WriteMarketplace(archiveRoot, "legacy-archive-marketplace");
+        var archivePath = Path.Combine(NewTempDir(), "marketplace.zip");
+        ZipFile.CreateFromDirectory(archiveRoot, archivePath);
+        var cache = new PluginRegistryArchiveCache(craftHome);
+        cache.Activate(
+            archivePath,
+            MarketplaceDocumentLoader.DefaultMarketplacePath,
+            File.ReadAllBytes(archivePath));
+        PluginsConfigPersistence.WritePluginRegistries(
+            ConfigPath(craftHome),
+            [new AppConfig.PluginRegistryConfig
+            {
+                Name = "legacy-archive-marketplace",
+                Url = archivePath,
+                MarketplacePath = MarketplaceDocumentLoader.DefaultMarketplacePath
+            }]);
+        var manager = NewManager(craftHome, new FakeGitFetcher(_ => { }));
+
+        var result = await manager.RefreshAsync("legacy-archive-marketplace", CancellationToken.None);
+
+        Assert.Empty(result.Errors);
+        Assert.Equal(MarketplaceSourceKind.Archive, Assert.Single(result.Marketplaces).Kind);
+        var configured = Assert.Single(PluginsConfigPersistence.ReadPluginRegistries(ConfigPath(craftHome)));
+        Assert.Equal("archive", configured.SourceType);
+        Assert.False(File.Exists(Path.Combine(
+            cache.CacheRootFor(archivePath, MarketplaceDocumentLoader.DefaultMarketplacePath),
+            PluginRegistryArchiveCache.UpdatedAtFileName)));
     }
 
     [Fact]
