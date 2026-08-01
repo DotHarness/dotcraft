@@ -12,11 +12,11 @@ internal sealed class TerminalRequestHandler(
 {
     public void RegisterMethods(AppServerMethodTable table)
     {
-        table.Map(AppServerMethods.TerminalList, HandleTerminalListAsync);
-        table.Map(AppServerMethods.TerminalRead, HandleTerminalReadAsync);
-        table.Map(AppServerMethods.TerminalWrite, HandleTerminalWriteAsync);
-        table.Map(AppServerMethods.TerminalStop, HandleTerminalStopAsync);
-        table.Map(AppServerMethods.TerminalClean, HandleTerminalCleanAsync);
+        table.Map(global::DotCraft.Protocol.Contracts.AppServer.AppServerRpc.TerminalList, HandleTerminalListAsync);
+        table.Map(global::DotCraft.Protocol.Contracts.AppServer.AppServerRpc.TerminalRead, HandleTerminalReadAsync);
+        table.Map(global::DotCraft.Protocol.Contracts.AppServer.AppServerRpc.TerminalWrite, HandleTerminalWriteAsync);
+        table.Map(global::DotCraft.Protocol.Contracts.AppServer.AppServerRpc.TerminalStop, HandleTerminalStopAsync);
+        table.Map(global::DotCraft.Protocol.Contracts.AppServer.AppServerRpc.TerminalClean, HandleTerminalCleanAsync);
     }
 
     private async Task<object?> HandleTerminalListAsync(AppServerIncomingMessage msg, CancellationToken ct)

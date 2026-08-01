@@ -2,6 +2,8 @@ using System.Collections.Concurrent;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using DotCraft.Tracing;
+using DotCraft.Protocol.Contracts;
+using Contract = DotCraft.Protocol.Contracts.AppServer;
 
 namespace DotCraft.Protocol.AppServer;
 
@@ -81,7 +83,7 @@ public sealed class WireAcpExtensionProxy : IAcpExtensionProxy
     {
         if (!SupportsFileRead)
             return null;
-        var el = await SendExtRawAsync(AppServerMethods.ExtAcpFsReadTextFile,
+        var el = await SendExtRawAsync(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ExtAcpFsReadTextFile,
             new AcpFsReadTextFileParams { Path = path, Offset = offset, Limit = limit }, ct);
         if (!el.HasValue)
             return null;
@@ -100,7 +102,7 @@ public sealed class WireAcpExtensionProxy : IAcpExtensionProxy
     {
         if (!SupportsFileWrite)
             return false;
-        var el = await SendExtRawAsync(AppServerMethods.ExtAcpFsWriteTextFile,
+        var el = await SendExtRawAsync(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ExtAcpFsWriteTextFile,
             new AcpFsWriteTextFileParams { Path = path, Content = content }, ct);
         if (!el.HasValue)
             return false;
@@ -120,7 +122,7 @@ public sealed class WireAcpExtensionProxy : IAcpExtensionProxy
     {
         if (!SupportsTerminal)
             return null;
-        var el = await SendExtRawAsync(AppServerMethods.ExtAcpTerminalCreate,
+        var el = await SendExtRawAsync(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ExtAcpTerminalCreate,
             new AcpTerminalCreateParams { Command = command, Cwd = cwd, Env = env }, ct);
         if (!el.HasValue)
             return null;
@@ -138,7 +140,7 @@ public sealed class WireAcpExtensionProxy : IAcpExtensionProxy
     public async Task<(string output, int? exitCode)> GetTerminalOutputAsync(string terminalId,
         CancellationToken ct = default)
     {
-        var el = await SendExtRawAsync(AppServerMethods.ExtAcpTerminalGetOutput,
+        var el = await SendExtRawAsync(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ExtAcpTerminalGetOutput,
             new AcpTerminalGetOutputParams { TerminalId = terminalId }, ct);
         if (!el.HasValue)
             return ("", null);
@@ -157,7 +159,7 @@ public sealed class WireAcpExtensionProxy : IAcpExtensionProxy
     public async Task<(string output, int? exitCode)> WaitForTerminalExitAsync(string terminalId,
         int? timeoutSeconds = null, CancellationToken ct = default)
     {
-        var el = await SendExtRawAsync(AppServerMethods.ExtAcpTerminalWaitForExit,
+        var el = await SendExtRawAsync(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ExtAcpTerminalWaitForExit,
             new AcpTerminalWaitForExitParams { TerminalId = terminalId, Timeout = timeoutSeconds }, ct);
         if (!el.HasValue)
             return ("", null);
@@ -175,14 +177,14 @@ public sealed class WireAcpExtensionProxy : IAcpExtensionProxy
     /// <inheritdoc />
     public async Task KillTerminalAsync(string terminalId, CancellationToken ct = default)
     {
-        await SendExtRawAsync(AppServerMethods.ExtAcpTerminalKill,
+        await SendExtRawAsync(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ExtAcpTerminalKill,
             new AcpTerminalKillParams { TerminalId = terminalId }, ct);
     }
 
     /// <inheritdoc />
     public async Task ReleaseTerminalAsync(string terminalId, CancellationToken ct = default)
     {
-        await SendExtRawAsync(AppServerMethods.ExtAcpTerminalRelease,
+        await SendExtRawAsync(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ExtAcpTerminalRelease,
             new AcpTerminalReleaseParams { TerminalId = terminalId }, ct);
     }
 
@@ -215,11 +217,53 @@ public sealed class WireAcpExtensionProxy : IAcpExtensionProxy
             threadBoundParams.ThreadId = threadId;
 
         var mergedParams = MergeThreadIdIntoParams(threadId, @params);
+        var typedResult = wireMethod switch
+        {
+            DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ExtAcpFsReadTextFile => await SendTypedAsync(
+                binding.Transport, Contract.AppServerRpc.ExtAcpFsReadTextFile, mergedParams, ct, timeout),
+            DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ExtAcpFsWriteTextFile => await SendTypedAsync(
+                binding.Transport, Contract.AppServerRpc.ExtAcpFsWriteTextFile, mergedParams, ct, timeout),
+            DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ExtAcpTerminalCreate => await SendTypedAsync(
+                binding.Transport, Contract.AppServerRpc.ExtAcpTerminalCreate, mergedParams, ct, timeout),
+            DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ExtAcpTerminalGetOutput => await SendTypedAsync(
+                binding.Transport, Contract.AppServerRpc.ExtAcpTerminalGetOutput, mergedParams, ct, timeout),
+            DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ExtAcpTerminalWaitForExit => await SendTypedAsync(
+                binding.Transport, Contract.AppServerRpc.ExtAcpTerminalWaitForExit, mergedParams, ct, timeout),
+            DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ExtAcpTerminalKill => await SendTypedAsync(
+                binding.Transport, Contract.AppServerRpc.ExtAcpTerminalKill, mergedParams, ct, timeout),
+            DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ExtAcpTerminalRelease => await SendTypedAsync(
+                binding.Transport, Contract.AppServerRpc.ExtAcpTerminalRelease, mergedParams, ct, timeout),
+            _ => (Handled: false, Result: (JsonElement?)null)
+        };
+        if (typedResult.Handled)
+            return typedResult.Result;
+
         var response = await binding.Transport.SendClientRequestAsync(wireMethod, mergedParams, ct,
             timeout ?? TimeSpan.FromSeconds(30));
         if (!response.Result.HasValue)
             return null;
         return response.Result.Value;
+    }
+
+    private static async Task<(bool Handled, JsonElement? Result)> SendTypedAsync<TParams, TResult>(
+        IAppServerTransport transport,
+        RpcRequest<TParams, TResult> descriptor,
+        object parameters,
+        CancellationToken ct,
+        TimeSpan? timeout)
+        where TParams : class
+        where TResult : class
+    {
+        var response = await transport.RequestAsync(
+            descriptor,
+            AppServerContractMapper.ToContract<TParams>(parameters),
+            ct,
+            timeout ?? TimeSpan.FromSeconds(30));
+        return response.Result is null
+            ? (true, null)
+            : (true, JsonSerializer.SerializeToElement(
+                response.Result,
+                DotCraft.Protocol.Contracts.AppServerContractJson.Options));
     }
 
     /// <summary>

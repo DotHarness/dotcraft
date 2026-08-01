@@ -1,0 +1,51 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.dotcraft.dev/appserver/v1/app-binding/SocialChannelTargetWire.schema.json",
+  "title": "SocialChannelTargetWire",
+  "type": "object",
+  "properties": {
+    "accountId": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "boundBy": {
+      "anyOf": [
+        {
+          "$ref": "./SocialChannelBoundByWire.schema.json"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "channelName": {
+      "type": "string"
+    },
+    "conversationId": {
+      "type": "string"
+    },
+    "conversationKind": {
+      "type": "string"
+    },
+    "deliveryTarget": {
+      "type": "string"
+    },
+    "displayName": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    }
+  },
+  "additionalProperties": true
+}

@@ -4,6 +4,7 @@ using DotCraft.Protocol.AppServer;
 using DotCraft.Protocol.InlineVisualizations;
 using DotCraft.Tools;
 using Microsoft.Extensions.AI;
+using Contract = DotCraft.Protocol.Contracts.AppServer;
 
 namespace DotCraft.Tests.Sessions.Protocol.AppServer;
 
@@ -36,21 +37,21 @@ public sealed class InlineVisualizationViewLifecycleTests : IDisposable
         using var handler = new InlineVisualizationRequestHandler(sessions, connection, assets, runtime);
         var table = new AppServerMethodTable();
         handler.RegisterMethods(table);
-        Assert.True(table.TryGet(AppServerMethods.InlineVisualizationViewOpen, out var open));
-        var opened = Assert.IsType<InlineVisualizationViewOpenResult>(await open(
+        Assert.True(table.TryGet(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.InlineVisualizationViewOpen, out var open));
+        var opened = Assert.IsType<Contract.InlineVisualizationViewOpenResult>(await open(
             InMemoryTransport.BuildRequest(
-                AppServerMethods.InlineVisualizationViewOpen,
+                DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.InlineVisualizationViewOpen,
                 new { threadId = thread.Id, turnId = "turn_test", itemId = "item_agent", file = "chart.html" }),
             CancellationToken.None));
-        Assert.Equal("<div>chart</div>", opened.Fragment);
+        Assert.Equal("<div>chart</div>", opened.Fragment.Value);
 
-        Assert.True(table.TryGet(AppServerMethods.InlineVisualizationViewMessage, out var message));
-        var sent = Assert.IsType<InlineVisualizationViewMessageResult>(await message(
+        Assert.True(table.TryGet(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.InlineVisualizationViewMessage, out var message));
+        var sent = Assert.IsType<Contract.InlineVisualizationViewMessageResult>(await message(
             InMemoryTransport.BuildRequest(
-                AppServerMethods.InlineVisualizationViewMessage,
-                new { viewHandle = opened.ViewHandle, prompt = "Explain the selected point." }),
+                DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.InlineVisualizationViewMessage,
+                new { viewHandle = opened.ViewHandle.Value, prompt = "Explain the selected point." }),
             CancellationToken.None));
-        Assert.Equal(sent.QueuedInputId, sessions.LastStartedQueuedInput?.Id);
+        Assert.Equal(sent.QueuedInputId.Value, sessions.LastStartedQueuedInput?.Id);
         Assert.Equal("visualization", sessions.LastStartedQueuedInput?.TriggerKind);
         Assert.Equal("chart.html", sessions.LastStartedQueuedInput?.TriggerLabel);
         Assert.Equal("item_agent", sessions.LastStartedQueuedInput?.TriggerRefId);
@@ -58,18 +59,18 @@ public sealed class InlineVisualizationViewLifecycleTests : IDisposable
             "Explain the selected point.",
             Assert.IsType<TextContent>(Assert.Single(sessions.LastSubmittedContent)).Text);
 
-        Assert.True(table.TryGet(AppServerMethods.InlineVisualizationViewClose, out var close));
-        var closed = Assert.IsType<InlineVisualizationViewCloseResult>(await close(
+        Assert.True(table.TryGet(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.InlineVisualizationViewClose, out var close));
+        var closed = Assert.IsType<Contract.InlineVisualizationViewCloseResult>(await close(
             InMemoryTransport.BuildRequest(
-                AppServerMethods.InlineVisualizationViewClose,
-                new { viewHandle = opened.ViewHandle }),
+                DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.InlineVisualizationViewClose,
+                new { viewHandle = opened.ViewHandle.Value }),
             CancellationToken.None));
-        Assert.True(closed.Closed);
+        Assert.True(closed.Closed.Value);
 
         var stale = await Assert.ThrowsAsync<AppServerException>(() => message(
             InMemoryTransport.BuildRequest(
-                AppServerMethods.InlineVisualizationViewMessage,
-                new { viewHandle = opened.ViewHandle, prompt = "retry" }),
+                DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.InlineVisualizationViewMessage,
+                new { viewHandle = opened.ViewHandle.Value, prompt = "retry" }),
             CancellationToken.None));
         Assert.Equal("stale_view", Assert.IsType<AppServerErrorData>(stale.ErrorData).Code);
     }

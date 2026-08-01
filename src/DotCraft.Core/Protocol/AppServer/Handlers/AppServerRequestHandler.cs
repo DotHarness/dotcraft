@@ -3,6 +3,8 @@ using DotCraft.Agents;
 using DotCraft.Commands.Core;
 using DotCraft.Commands.Custom;
 using DotCraft.Configuration;
+using DotCraft.Protocol.Contracts;
+using Contract = DotCraft.Protocol.Contracts.AppServer;
 
 namespace DotCraft.Protocol.AppServer;
 
@@ -36,6 +38,13 @@ public sealed class AppServerRequestHandler(
 
     private readonly IReadOnlyDictionary<string, IAppServerMethodHandler> _extensionMethods =
         BuildExtensionMethodMap(services.ProtocolExtensions);
+
+    private static readonly IReadOnlyDictionary<string, IRpcMethodDescriptor> BundledExtensionRequests =
+        Contract.AppServerRpcCatalog.All
+            .Where(static descriptor => descriptor.Module != "core" &&
+                                        descriptor.Kind == "request" &&
+                                        descriptor.Direction == RpcDirection.ClientToServer)
+            .ToDictionary(static descriptor => descriptor.Name, StringComparer.Ordinal);
 
     private readonly IReadOnlyList<IAppServerCapabilityContributor> _capabilityContributors =
         services.ProtocolExtensions?.Cast<IAppServerCapabilityContributor>().ToArray()
@@ -98,6 +107,7 @@ public sealed class AppServerRequestHandler(
             sessionService as IThreadMcpRuntimeService);
 
     private AppServerMethodTable? _domainMethods;
+    private AppServerNotificationTable? _clientNotifications;
 
     /// <summary>
     /// Methods owned by built-in domain handlers. The dispatcher resolves a request against this
@@ -106,11 +116,20 @@ public sealed class AppServerRequestHandler(
     /// </summary>
     private AppServerMethodTable DomainMethods => _domainMethods ??= BuildDomainMethods();
 
+    private AppServerNotificationTable ClientNotifications => _clientNotifications ??= BuildClientNotifications();
+
     private AppServerMethodTable BuildDomainMethods()
     {
         var table = new AppServerMethodTable();
         foreach (var handler in BuildDomainHandlers())
             handler.RegisterMethods(table);
+        return table;
+    }
+
+    private AppServerNotificationTable BuildClientNotifications()
+    {
+        var table = new AppServerNotificationTable();
+        table.Map(Contract.AppServerRpc.Initialized, _ => connection.MarkClientReady());
         return table;
     }
 
@@ -153,144 +172,15 @@ public sealed class AppServerRequestHandler(
     ];
 
     private static readonly HashSet<string> ReservedMethodNames =
-    [
-        AppServerMethods.Initialize,
-        AppServerMethods.ChannelList,
-        AppServerMethods.ChannelStatus,
-        AppServerMethods.ProviderList,
-        AppServerMethods.ProviderCreate,
-        AppServerMethods.ProviderUpdate,
-        AppServerMethods.ProviderDelete,
-        AppServerMethods.ProviderTest,
-        AppServerMethods.ModelList,
-        AppServerMethods.ThreadStart,
-        AppServerMethods.ThreadFork,
-        AppServerMethods.WorktreeCreateAndFork,
-        AppServerMethods.WorktreeList,
-        AppServerMethods.WorktreeStatus,
-        AppServerMethods.ThreadResume,
-        AppServerMethods.ThreadList,
-        AppServerMethods.ThreadRead,
-        AppServerMethods.ThreadGoalGet,
-        AppServerMethods.ThreadGoalSet,
-        AppServerMethods.ThreadGoalClear,
-        AppServerMethods.ItemWidgetStateSet,
-        AppServerMethods.ThreadRollback,
-        AppServerMethods.ThreadSubscribe,
-        AppServerMethods.ThreadUnsubscribe,
-        AppServerMethods.ThreadPause,
-        AppServerMethods.ThreadArchive,
-        AppServerMethods.ThreadUnarchive,
-        AppServerMethods.ThreadDelete,
-        AppServerMethods.ThreadRename,
-        AppServerMethods.ThreadModeSet,
-        AppServerMethods.ThreadConfigUpdate,
-        AppServerMethods.TurnStart,
-        AppServerMethods.TurnEnqueue,
-        AppServerMethods.TurnQueueRemove,
-        AppServerMethods.TurnQueueReorder,
-        AppServerMethods.TurnSteer,
-        AppServerMethods.TurnInterrupt,
-        AppServerMethods.TerminalList,
-        AppServerMethods.TerminalRead,
-        AppServerMethods.TerminalWrite,
-        AppServerMethods.TerminalStop,
-        AppServerMethods.TerminalClean,
-        AppServerMethods.WorkspaceCommitMessageSuggest,
-        AppServerMethods.WelcomeSuggestions,
-        AppServerMethods.WorkspaceConfigSchema,
-        AppServerMethods.WorkspaceConfigUpdate,
-        AppServerMethods.SourceControlGet,
-        AppServerMethods.SourceControlUpdate,
-        AppServerMethods.SourceControlTest,
-        AppServerMethods.SourceControlChangelistList,
-        AppServerMethods.SourceControlChangelistCreate,
-        AppServerMethods.SourceControlChangelistPrepare,
-        AppServerMethods.SourceControlThreadTargetGet,
-        AppServerMethods.SourceControlThreadTargetUpdate,
-        AppServerMethods.DreamsStatus,
-        AppServerMethods.DreamsRun,
-        AppServerMethods.DreamsCreate,
-        AppServerMethods.DreamsGet,
-        AppServerMethods.DreamsList,
-        AppServerMethods.DreamsCancel,
-        AppServerMethods.DreamsArchive,
-        AppServerMethods.DreamsApply,
-        AppServerMethods.DreamsDiscard,
-        AppServerMethods.MemoryReset,
-        AppServerMethods.UsageSummary,
-        AppServerMethods.UsageTimeseries,
-        AppServerMethods.ProfileInsights,
-        AppServerMethods.CronList,
-        AppServerMethods.CronRemove,
-        AppServerMethods.CronEnable,
-        AppServerMethods.CronRun,
-        AppServerMethods.HeartbeatTrigger,
-        AppServerMethods.SkillsList,
-        AppServerMethods.SkillsRead,
-        AppServerMethods.SkillsView,
-        AppServerMethods.SkillsRestoreOriginal,
-        AppServerMethods.SkillsSetEnabled,
-        AppServerMethods.SkillsUninstall,
-        AppServerMethods.ToolList,
-        AppServerMethods.McpAppViewOpen,
-        AppServerMethods.McpAppViewResourceRead,
-        AppServerMethods.McpAppViewToolsList,
-        AppServerMethods.McpAppViewToolCall,
-        AppServerMethods.McpAppViewMessage,
-        AppServerMethods.McpAppViewModelContextUpdate,
-        AppServerMethods.McpAppViewOpenLink,
-        AppServerMethods.McpAppViewClose,
-        AppServerMethods.InlineVisualizationViewOpen,
-        AppServerMethods.InlineVisualizationViewMessage,
-        AppServerMethods.InlineVisualizationViewClose,
-        AppServerMethods.PluginList,
-        AppServerMethods.PluginView,
-        AppServerMethods.PluginInstall,
-        AppServerMethods.PluginRemove,
-        AppServerMethods.PluginSetEnabled,
-        AppServerMethods.MarketplaceAdd,
-        AppServerMethods.MarketplaceRemove,
-        AppServerMethods.MarketplaceRefresh,
-        AppServerMethods.CommandList,
-        AppServerMethods.CommandExecute,
-        AppServerMethods.AutomationTaskList,
-        AppServerMethods.AutomationTaskRead,
-        AppServerMethods.AutomationTaskCreate,
-        AppServerMethods.AutomationTaskRun,
-        AppServerMethods.AutomationTaskDelete,
-        AppServerMethods.AutomationTaskUpdateBinding,
-        AppServerMethods.AutomationTemplateList,
-        AppServerMethods.AutomationTemplateSave,
-        AppServerMethods.AutomationTemplateDelete,
-        AppServerMethods.McpList,
-        AppServerMethods.McpGet,
-        AppServerMethods.McpUpsert,
-        AppServerMethods.McpRemove,
-        AppServerMethods.McpTest,
-        AppServerMethods.HooksList,
-        AppServerMethods.HooksSetState,
-        AppServerMethods.HooksTrustPlugin,
-        AppServerMethods.ExternalChannelList,
-        AppServerMethods.ExternalChannelGet,
-        AppServerMethods.ExternalChannelUpsert,
-        AppServerMethods.ExternalChannelRemove,
-        AppServerMethods.ExternalChannelLogs,
-        AppServerMethods.AgentProfileList,
-        AppServerMethods.AgentProfileRead,
-        AppServerMethods.AgentProfileValidate,
-        AppServerMethods.AgentProfileUpsert,
-        AppServerMethods.AgentProfileRemove,
-        AppServerMethods.SubAgentProfileList,
-        AppServerMethods.SubAgentSettingsUpdate,
-        AppServerMethods.SubAgentProfileSetEnabled,
-        AppServerMethods.SubAgentProfileUpsert,
-        AppServerMethods.SubAgentProfileRemove,
-        AppServerMethods.SubAgentChildrenList,
-        AppServerMethods.SubAgentSendMessage,
-        AppServerMethods.SubAgentFollowupTask,
-        AppServerMethods.SubAgentClose
-    ];
+        Contract.AppServerRpcCatalog.All
+            .Where(static descriptor => descriptor is
+            {
+                Kind: "request",
+                Direction: RpcDirection.ClientToServer,
+                Module: "core" or "automations" or "external-channel"
+            })
+            .Select(static descriptor => descriptor.Name)
+            .ToHashSet(StringComparer.Ordinal);
 
     // -------------------------------------------------------------------------
     // Main dispatch
@@ -308,13 +198,13 @@ public sealed class AppServerRequestHandler(
         var method = msg.Method ?? string.Empty;
 
         // initialize is the only method allowed before the handshake
-        if (method != AppServerMethods.Initialize && !connection.IsInitialized)
+        if (method != Contract.AppServerRpc.Initialize.Name && !connection.IsInitialized)
             throw AppServerErrors.NotInitialized();
 
         // After initialize response, block all requests until the client sends the
         // `initialized` notification (IsClientReady). This prevents premature operations
         // before the client has finished processing server capabilities.
-        if (method != AppServerMethods.Initialize && connection.IsInitialized && !connection.IsClientReady)
+        if (method != Contract.AppServerRpc.Initialize.Name && connection.IsInitialized && !connection.IsClientReady)
             throw AppServerErrors.InvalidRequest("Server is awaiting the 'initialized' notification before handling requests.");
 
         if (connection.IsAppPrincipalAuthenticated && !IsAppPrincipalMethod(method))
@@ -348,17 +238,21 @@ public sealed class AppServerRequestHandler(
         }
     }
 
-    private static bool IsAppPrincipalMethod(string method) => method is
-        "app/connection/authenticate"
-        or "app/connection/refresh"
-        or "app/connection/status"
-        or "app/connection/revoke"
-        or "app/surface/publish"
-        or "app/binding/request/get"
-        or "app/binding/activate"
-        or "app/binding/rebind"
-        or "app/bindings/list"
-        or "app/threadInput/enqueue";
+    private static readonly HashSet<string> AppPrincipalMethods =
+    [
+        Contract.AppServerRpc.AppConnectionAuthenticate.Name,
+        Contract.AppServerRpc.AppConnectionRefresh.Name,
+        Contract.AppServerRpc.AppConnectionStatus.Name,
+        Contract.AppServerRpc.AppConnectionRevoke.Name,
+        Contract.AppServerRpc.AppSurfacePublish.Name,
+        Contract.AppServerRpc.AppBindingRequestGet.Name,
+        Contract.AppServerRpc.AppBindingActivate.Name,
+        Contract.AppServerRpc.AppBindingRebind.Name,
+        Contract.AppServerRpc.AppBindingsList.Name,
+        Contract.AppServerRpc.AppThreadInputEnqueue.Name
+    ];
+
+    private static bool IsAppPrincipalMethod(string method) => AppPrincipalMethods.Contains(method);
 
     /// <summary>
     /// Handles the <c>initialized</c> client notification (no response required).
@@ -368,12 +262,19 @@ public sealed class AppServerRequestHandler(
         connection.MarkClientReady();
     }
 
-    private Task<object?> TryHandleExtensionAsync(string method, AppServerIncomingMessage msg, CancellationToken ct)
+    /// <summary>Dispatches a client notification through the typed notification catalog.</summary>
+    public bool HandleNotification(AppServerIncomingMessage message) => ClientNotifications.TryHandle(message);
+
+    private async Task<object?> TryHandleExtensionAsync(string method, AppServerIncomingMessage msg, CancellationToken ct)
     {
         if (!_extensionMethods.TryGetValue(method, out var handler))
             throw AppServerErrors.MethodNotFound(method);
 
-        return handler.HandleAsync(
+        BundledExtensionRequests.TryGetValue(method, out var descriptor);
+        if (descriptor is not null)
+            _ = AppServerTypedParams.Deserialize(descriptor.ParamsType, msg);
+
+        var result = await handler.HandleAsync(
             msg,
             new AppServerExtensionContext(
                 connection,
@@ -385,6 +286,9 @@ public sealed class AppServerRequestHandler(
                 services.NotifyAppPrincipal,
                 services.BroadcastTrustedNotification,
                 ct));
+        return descriptor is null || result is null
+            ? result
+            : AppServerContractMapper.ToContract(descriptor.ResultType, result);
     }
 
     private static IReadOnlyDictionary<string, IAppServerMethodHandler> BuildExtensionMethodMap(
@@ -396,6 +300,31 @@ public sealed class AppServerRequestHandler(
         var methods = new Dictionary<string, IAppServerMethodHandler>(StringComparer.Ordinal);
         foreach (var extension in protocolExtensions)
         {
+            if (extension is IAppServerContractExtension contractExtension)
+            {
+                var declaredMethods = contractExtension.ContractMethods
+                    .Select(static descriptor => descriptor.Name)
+                    .ToHashSet(StringComparer.Ordinal);
+                foreach (var descriptor in contractExtension.ContractMethods)
+                {
+                    if (descriptor is not { Kind: "request", Direction: RpcDirection.ClientToServer } ||
+                        descriptor.Module == "core")
+                    {
+                        throw new InvalidOperationException(
+                            $"Bundled extension descriptor '{descriptor.Name}' is not a client request owned by an extension module.");
+                    }
+                    if (!extension.Methods.Contains(descriptor.Name, StringComparer.Ordinal))
+                        throw new InvalidOperationException($"Bundled extension descriptor '{descriptor.Name}' has no runtime route.");
+                }
+
+                var undeclaredMethod = extension.Methods.FirstOrDefault(method => !declaredMethods.Contains(method));
+                if (undeclaredMethod is not null)
+                {
+                    throw new InvalidOperationException(
+                        $"Bundled extension method '{undeclaredMethod}' has no executable contract descriptor.");
+                }
+            }
+
             foreach (var method in extension.Methods)
             {
                 if (string.IsNullOrWhiteSpace(method))

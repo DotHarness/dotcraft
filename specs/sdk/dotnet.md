@@ -5,7 +5,7 @@
 | **Version** | 0.1.0 |
 | **Status** | Living |
 | **Date** | 2026-05-19 |
-| **Related Specs** | [Unified SDK Specification](sdk.md), [AppServer Protocol](../protocols/appserver-protocol.md), [Hub Architecture](../architecture/hub-architecture.md), [App Binding](../protocols/app-binding.md), [Session Core](../architecture/session-core.md), [TypeScript SDK Binding](typescript.md), [Python SDK Binding](python.md) |
+| **Related Specs** | [Unified SDK Specification](sdk.md), [AppServer Protocol](../protocols/appserver-protocol.md), [AppServer Protocol Contracts and SDK Generation](protocol-contract-generation.md), [Hub Architecture](../architecture/hub-architecture.md), [App Binding](../protocols/app-binding.md), [Session Core](../architecture/session-core.md), [TypeScript SDK Binding](typescript.md), [Python SDK Binding](python.md) |
 
 Purpose: Define the .NET binding, public API shape, AppServer method coverage, App Binding helper surface, testing expectations, and compatibility strategy for `DotCraft.Sdk`.
 
@@ -1561,6 +1561,7 @@ A complete implementation of the current .NET SDK baseline satisfies:
 - Hub lock validation rejects non-loopback URLs and uses bearer auth for protected Hub calls.
 - Current test suite passes.
 - This spec's coverage matrix reflects all typed and generic SDK capabilities.
+- AppServer low-level bindings share `DotCraft.Protocol.Contracts` with the server; no generated or handwritten second copy of the public C# wire DTOs exists, and raw request APIs remain available.
 
 ---
 
@@ -1574,7 +1575,6 @@ Future amendments may cover:
 - typed wrappers for thread rename, config, goals, and maintenance;
 - typed wrappers for provider, workspace config, skills, plugins, commands, cron, heartbeat, MCP, external channels, subagents, memory, and Dreams;
 - additional typed App Binding DTO refinements for app-defined connection and binding payloads;
-- generated .NET protocol DTOs from a shared AppServer schema;
 - multi-targeting earlier .NET versions;
 - structured logging with safe token redaction;
 - bilingual DotCraft documentation pages for .NET SDK users.

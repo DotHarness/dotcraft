@@ -1,7 +1,7 @@
 namespace DotCraft.Protocol.AppServer;
 
 /// <summary>
-/// Supplies base (non-external-config) entries for <see cref="AppServerMethods.ChannelList"/>.
+/// Supplies base (non-external-config) entries for <see cref="DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ChannelList"/>.
 /// </summary>
 public interface IAppServerChannelListContributor
 {

@@ -1,13 +1,15 @@
 using System.Text.Json;
 using DotCraft.Protocol;
 using DotCraft.Protocol.AppServer;
+using DotCraft.Protocol.Contracts;
+using Contract = DotCraft.Protocol.Contracts.AppServer;
 
 namespace DotCraft.Teams;
 
 /// <summary>
 /// AppServer JSON-RPC surface for the Desktop Team.
 /// </summary>
-public sealed class TeamsProtocolExtension(TeamsService teamsService) : IAppServerProtocolExtension
+public sealed class TeamsProtocolExtension(TeamsService teamsService) : IAppServerContractExtension
 {
     private const string TeamView = "teams/team/view";
     private const string MissionCreate = "teams/mission/create";
@@ -23,6 +25,15 @@ public sealed class TeamsProtocolExtension(TeamsService teamsService) : IAppServ
         MissionCancel,
         MissionArchive,
         MemberOpenThread
+    ];
+
+    public IReadOnlyCollection<IRpcMethodDescriptor> ContractMethods { get; } =
+    [
+        Contract.AppServerRpc.TeamsTeamView,
+        Contract.AppServerRpc.TeamsMissionCreate,
+        Contract.AppServerRpc.TeamsMissionCancel,
+        Contract.AppServerRpc.TeamsMissionArchive,
+        Contract.AppServerRpc.TeamsMemberOpenThread
     ];
 
     public void ContributeCapabilities(AppServerCapabilityBuilder builder)
@@ -116,16 +127,18 @@ public sealed class TeamsProtocolExtension(TeamsService teamsService) : IAppServ
         string notificationMethod,
         object notificationParams)
     {
+        var descriptor = Contract.AppServerRpcCatalog.All.Single(candidate =>
+            candidate.Name == msg.Method &&
+            candidate.Kind == "request" &&
+            candidate.Direction == RpcDirection.ClientToServer);
         await context.Transport.WriteMessageAsync(
-            AppServerRequestHandler.BuildResponse(msg.Id, result),
+            AppServerRequestHandler.BuildResponse(
+                msg.Id,
+                AppServerContractMapper.ToContract(descriptor.ResultType, result)),
             context.CancellationToken);
-        await context.Transport.WriteMessageAsync(
-            new
-            {
-                jsonrpc = "2.0",
-                method = notificationMethod,
-                @params = notificationParams
-            },
+        await context.Transport.NotifyContractAsync(
+            notificationMethod,
+            notificationParams,
             context.CancellationToken);
         return null;
     }

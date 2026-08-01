@@ -15,7 +15,7 @@ internal sealed class ToolRequestHandler : IAppServerDomainHandler
 {
     public void RegisterMethods(AppServerMethodTable table)
     {
-        table.Map(AppServerMethods.ToolList, HandleListAsync);
+        table.Map(global::DotCraft.Protocol.Contracts.AppServer.AppServerRpc.ToolList, HandleListAsync);
     }
 
     private Task<object?> HandleListAsync(AppServerIncomingMessage msg, CancellationToken ct)

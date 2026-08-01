@@ -1,0 +1,116 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.dotcraft.dev/appserver/v1/core/QueuedTurnInput.schema.json",
+  "title": "QueuedTurnInput",
+  "type": "object",
+  "properties": {
+    "createdAt": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "deliveryBindingId": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "displayText": {
+      "type": "string"
+    },
+    "id": {
+      "type": "string"
+    },
+    "materializedInputParts": {
+      "type": "array",
+      "items": {
+        "$ref": "./InputPart.schema.json"
+      }
+    },
+    "nativeInputParts": {
+      "type": "array",
+      "items": {
+        "$ref": "./InputPart.schema.json"
+      }
+    },
+    "readyAfterTurnId": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "sender": {
+      "anyOf": [
+        {
+          "$ref": "./SenderContext.schema.json"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "sentAsGoal": {
+      "anyOf": [
+        {
+          "type": "boolean"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "status": {
+      "type": "string"
+    },
+    "threadId": {
+      "type": "string"
+    },
+    "triggerKind": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "triggerLabel": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "triggerRefId": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    }
+  },
+  "additionalProperties": true,
+  "required": [
+    "createdAt",
+    "displayText",
+    "id",
+    "materializedInputParts",
+    "nativeInputParts",
+    "status",
+    "threadId"
+  ]
+}

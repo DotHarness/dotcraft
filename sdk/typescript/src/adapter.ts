@@ -117,7 +117,6 @@ export abstract class ChannelAdapter {
     });
     this.deliveryDispatcher = new DeliveryDispatcher({
       client: () => this.client,
-      onDeliver: (target, content, metadata) => this.onDeliver(target, content, metadata),
       onSend: (target, message, metadata) => this.onSend(target, message, metadata),
     });
     this.channelToolDispatcher = new ChannelToolDispatcher({

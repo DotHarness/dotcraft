@@ -5,7 +5,7 @@
 | **Version** | 0.1.0 |
 | **Status** | Living |
 | **Date** | 2026-05-18 |
-| **Related Specs** | [Unified SDK Specification](sdk.md), [AppServer Protocol](../protocols/appserver-protocol.md), [Hub Architecture](../architecture/hub-architecture.md), [External Channel Adapter](../protocols/external-channel-adapter.md), [Session Core](../architecture/session-core.md), [.NET SDK Binding](dotnet.md), [Python SDK Binding](python.md), [Plugin Architecture](../architecture/plugin-architecture.md) |
+| **Related Specs** | [Unified SDK Specification](sdk.md), [AppServer Protocol](../protocols/appserver-protocol.md), [AppServer Protocol Contracts and SDK Generation](protocol-contract-generation.md), [Hub Architecture](../architecture/hub-architecture.md), [External Channel Adapter](../protocols/external-channel-adapter.md), [Session Core](../architecture/session-core.md), [.NET SDK Binding](dotnet.md), [Python SDK Binding](python.md), [Plugin Architecture](../architecture/plugin-architecture.md) |
 
 Purpose: Define the TypeScript binding, package contract, Node.js runtime requirements, channel runtime, documentation model, and compatibility strategy for `@dotcraft/sdk`.
 
@@ -1037,7 +1037,7 @@ The channel SDK should factor reusable runtime pieces:
 | `CommandRouter` | Route slash commands through `command/execute` and apply reset results. |
 | `TurnStreamReducer` | Consume turn notifications and merge text. |
 | `SegmentBoundaryPolicy` | Decide when progressive channel delivery should flush partial agent text. |
-| `DeliveryDispatcher` | Handle `ext/channel/deliver` and `ext/channel/send`. |
+| `DeliveryDispatcher` | Handle `ext/channel/send`. |
 | `ChannelToolDispatcher` | Handle `ext/channel/toolCall`. |
 | `ApprovalDispatcher` | Route `item/approval/request` to platform approval hooks. |
 | `UserInputDispatcher` | Route `item/tool/requestUserInput` to platform question hooks. |
@@ -1480,6 +1480,7 @@ A complete implementation of this specification satisfies:
 - Channel SDK is factored into reusable runtime components.
 - First-party TypeScript channel packages use `@dotcraft/sdk` imports.
 - Existing channel behavior is preserved.
+- AppServer wire DTOs, four-direction method maps, and method groups are generated from the shared Contract IR under `sdk/typescript/src/generated/appserver/`; handwritten transports and high-level APIs consume them while retaining raw fallbacks.
 - TypeScript SDK and channel package test suites pass.
 - Chinese and English TypeScript SDK docs are updated.
 - A runnable TypeScript SDK example exists.
@@ -1493,7 +1494,6 @@ Future specs or amendments may cover:
 
 - Public npm publishing and package provenance.
 - `dotcraft-wire` compatibility aliasing.
-- Generated TypeScript protocol types from C# DTOs or protocol schemas.
 - Browser-compatible SDK build.
 - Desktop adoption of shared SDK wire and Hub clients.
 - Full typed wrappers for provider, model, MCP, plugin, skill, automation, memory, dreams, and workspace config management.

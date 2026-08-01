@@ -1,0 +1,34 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.dotcraft.dev/appserver/v1/core/ThreadRuntimeState.schema.json",
+  "title": "ThreadRuntimeState",
+  "type": "object",
+  "properties": {
+    "busy": {
+      "type": "boolean"
+    },
+    "maintenanceKind": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "running": {
+      "type": "boolean"
+    },
+    "waitingOnApproval": {
+      "type": "boolean"
+    },
+    "waitingOnInput": {
+      "type": "boolean"
+    },
+    "waitingOnPlanConfirmation": {
+      "type": "boolean"
+    }
+  },
+  "additionalProperties": true
+}

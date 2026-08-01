@@ -7,6 +7,8 @@ import json
 import logging
 from typing import Any, AsyncIterator, Callable, Coroutine, Literal
 
+from ._generated.appserver.client_methods_generated import GeneratedAppServerClientMixin
+
 from .models import (
     DynamicToolDeclaration,
     DynamicToolResult,
@@ -44,7 +46,7 @@ class DotCraftError(Exception):
         self.data = data
 
 
-class DotCraftClient:
+class DotCraftClient(GeneratedAppServerClientMixin):
     """
     Transport-agnostic JSON-RPC 2.0 client for the DotCraft AppServer Wire Protocol.
 
@@ -485,9 +487,9 @@ class DotCraftClient:
 
         Usage::
 
-            @client.on_server_request("ext/channel/deliver")
-            async def handle_deliver(request_id, params):
-                print("Deliver:", params["content"])
+            @client.on_server_request("ext/channel/send")
+            async def handle_send(request_id, params):
+                print("Send:", params["message"])
                 return {"delivered": True}
         """
         def decorator(fn: RequestHandler) -> RequestHandler:
@@ -797,7 +799,7 @@ class DotCraftClient:
             await self._send_response(request_id, {})
             return
 
-        # Other server requests (ext/channel/deliver, etc.)
+        # Other server requests
         handler = self._request_handlers.get(method)
         if handler is None:
             logger.warning("No handler registered for server request method: %s", method)

@@ -22,4 +22,12 @@
     <None Include="..\..\README.md" Pack="true" PackagePath="\" />
   </ItemGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\..\src\DotCraft.Protocol.Contracts\DotCraft.Protocol.Contracts.csproj" />
+    <ProjectReference Include="..\..\..\..\src\DotCraft.Protocol.Generators\DotCraft.Protocol.Generators.csproj"
+                      OutputItemType="Analyzer"
+                      ReferenceOutputAssembly="false" />
+    <AdditionalFiles Include="..\..\..\..\src\DotCraft.Protocol.Contracts\Artifacts\AppServer\appserver.manifest.json" />
+  </ItemGroup>
+
 </Project>

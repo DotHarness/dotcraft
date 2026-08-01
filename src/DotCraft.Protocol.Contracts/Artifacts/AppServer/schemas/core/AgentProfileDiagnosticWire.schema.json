@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.dotcraft.dev/appserver/v1/core/AgentProfileDiagnosticWire.schema.json",
+  "title": "AgentProfileDiagnosticWire",
+  "type": "object",
+  "properties": {
+    "code": {
+      "type": "string"
+    },
+    "message": {
+      "type": "string"
+    },
+    "severity": {
+      "type": "string"
+    }
+  },
+  "additionalProperties": true
+}

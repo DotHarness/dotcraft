@@ -149,7 +149,7 @@ public sealed class CliHost(
         {
             await Task.CompletedTask.ConfigureAwait(false);
             if (request.RootElement.TryGetProperty("method", out var method)
-                && method.GetString() == AppServerMethods.ItemApprovalRequest)
+                && method.GetString() == DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ApprovalRequest)
             {
                 approvalRequested = true;
                 return new { decision = "decline" };
@@ -160,7 +160,7 @@ public sealed class CliHost(
 
         try
         {
-            var startResult = await wire.SendRequestAsync(AppServerMethods.TurnStart, new
+            var startResult = await wire.SendRequestAsync(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.TurnStart, new
             {
                 threadId,
                 input = new[] { new { type = "text", text = prompt } }
@@ -218,7 +218,7 @@ public sealed class CliHost(
 
     private async Task<string> CreateThreadAsync(AppServerWireClient wire, CancellationToken ct)
     {
-        var result = await wire.SendRequestAsync(AppServerMethods.ThreadStart, new
+        var result = await wire.SendRequestAsync(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ThreadStart, new
         {
             identity = new
             {
@@ -260,19 +260,19 @@ internal sealed record OneShotNotification(OneShotNotificationKind Kind, string?
 
         return method switch
         {
-            AppServerMethods.ItemAgentMessageDelta => new OneShotNotification(
+            DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.AgentMessageDelta => new OneShotNotification(
                 OneShotNotificationKind.AgentDelta,
                 hasParams && @params.TryGetProperty("delta", out var delta) ? delta.GetString() : null),
 
-            AppServerMethods.TurnFailed => new OneShotNotification(
+            DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.TurnFailed => new OneShotNotification(
                 OneShotNotificationKind.Failed,
                 hasParams && @params.TryGetProperty("error", out var error) ? error.GetString() : null),
 
-            AppServerMethods.TurnCancelled => new OneShotNotification(OneShotNotificationKind.Cancelled, null),
+            DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.TurnCancelled => new OneShotNotification(OneShotNotificationKind.Cancelled, null),
 
-            AppServerMethods.ItemStarted => ReadItemStarted(@params, hasParams),
-            AppServerMethods.ItemCompleted => ReadItemCompleted(@params, hasParams),
-            AppServerMethods.SystemEvent => ReadSystemEvent(@params, hasParams),
+            DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ItemStarted => ReadItemStarted(@params, hasParams),
+            DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ItemCompleted => ReadItemCompleted(@params, hasParams),
+            DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.SystemEvent => ReadSystemEvent(@params, hasParams),
 
             _ => new OneShotNotification(OneShotNotificationKind.Ignored, null)
         };

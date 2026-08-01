@@ -565,7 +565,6 @@ test("dispatchers register approval, user-input, delivery, tool, and heartbeat h
   }).register();
   new DeliveryDispatcher({
     client: asWire(fake),
-    onDeliver: async (_target, content) => content !== "throw",
     onSend: async (_target, message) => ({ delivered: true, kind: message.kind }),
     onError: (message) => errors.push(message),
   }).register();
@@ -584,11 +583,6 @@ test("dispatchers register approval, user-input, delivery, tool, and heartbeat h
   assert.deepEqual(await fake.requestHandlers.get("item/tool/requestUserInput")?.("input", {
     choice: "B",
   }), { answers: { choice: { answers: ["B"] } } });
-  assert.deepEqual(await fake.requestHandlers.get("ext/channel/deliver")?.("d1", {
-    target: "chat",
-    content: "hello",
-    metadata: { a: 1 },
-  }), { delivered: true });
   assert.deepEqual(await fake.requestHandlers.get("ext/channel/send")?.("s1", {
     target: "chat",
     message: { kind: "image" },
@@ -599,11 +593,6 @@ test("dispatchers register approval, user-input, delivery, tool, and heartbeat h
   }), { success: true, tool: "Upload" });
   assert.deepEqual(await fake.requestHandlers.get("ext/channel/heartbeat")?.("h1", {}), {});
 
-  await fake.notificationHandlers.get("ext/channel/deliver")?.({
-    target: "chat",
-    content: "throw",
-    metadata: {},
-  });
   assert.deepEqual(errors, []);
 });
 
@@ -618,9 +607,6 @@ test("dispatchers preserve exception fallback shapes", async () => {
   }).register();
   new DeliveryDispatcher({
     client: asWire(fake),
-    onDeliver: async () => {
-      throw new Error("delivery failed");
-    },
     onSend: async () => {
       throw new Error("send failed");
     },
@@ -644,10 +630,6 @@ test("dispatchers preserve exception fallback shapes", async () => {
   assert.equal(await fake.approvalHandler?.("approval", {}), "cancel");
   assert.deepEqual(await fake.requestHandlers.get("item/tool/requestUserInput")?.("input", {}), {
     answers: {},
-  });
-  assert.deepEqual(await fake.requestHandlers.get("ext/channel/deliver")?.("d1", {}), {
-    delivered: false,
-    error: "Error: delivery failed",
   });
   assert.deepEqual(await fake.requestHandlers.get("ext/channel/send")?.("s1", {}), {
     delivered: false,

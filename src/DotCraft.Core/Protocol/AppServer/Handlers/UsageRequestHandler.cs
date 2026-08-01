@@ -15,14 +15,14 @@ internal sealed class UsageRequestHandler(
 {
     public void RegisterMethods(AppServerMethodTable table)
     {
-        table.Map(AppServerMethods.UsageSummary, HandleUsageSummaryAsync);
-        table.Map(AppServerMethods.UsageTimeseries, HandleUsageTimeseriesAsync);
-        table.Map(AppServerMethods.ProfileInsights, HandleProfileInsightsAsync);
+        table.Map(global::DotCraft.Protocol.Contracts.AppServer.AppServerRpc.UsageSummary, HandleUsageSummaryAsync);
+        table.Map(global::DotCraft.Protocol.Contracts.AppServer.AppServerRpc.UsageTimeseries, HandleUsageTimeseriesAsync);
+        table.Map(global::DotCraft.Protocol.Contracts.AppServer.AppServerRpc.ProfileInsights, HandleProfileInsightsAsync);
     }
 
     private Task<object?> HandleUsageSummaryAsync(AppServerIncomingMessage msg, CancellationToken ct)
     {
-        if (traceStore == null) throw AppServerErrors.MethodNotFound(AppServerMethods.UsageSummary);
+        if (traceStore == null) throw AppServerErrors.MethodNotFound(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.UsageSummary);
         var s = traceStore.GetSummary();
         return Task.FromResult<object?>(new UsageSummaryResult
         {
@@ -49,7 +49,7 @@ internal sealed class UsageRequestHandler(
 
     private Task<object?> HandleUsageTimeseriesAsync(AppServerIncomingMessage msg, CancellationToken ct)
     {
-        if (traceStore == null) throw AppServerErrors.MethodNotFound(AppServerMethods.UsageTimeseries);
+        if (traceStore == null) throw AppServerErrors.MethodNotFound(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.UsageTimeseries);
         var p = AppServerParams.Get<UsageTimeseriesParams>(msg);
 
         var from = ParseUsageDate(p.From, "from");
@@ -76,7 +76,7 @@ internal sealed class UsageRequestHandler(
 
     private async Task<object?> HandleProfileInsightsAsync(AppServerIncomingMessage msg, CancellationToken ct)
     {
-        if (traceStore == null) throw AppServerErrors.MethodNotFound(AppServerMethods.ProfileInsights);
+        if (traceStore == null) throw AppServerErrors.MethodNotFound(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ProfileInsights);
         var p = AppServerParams.Get<ProfileInsightsParams>(msg);
         var topSkills = Math.Clamp(p.TopSkills ?? 5, 1, 20);
 

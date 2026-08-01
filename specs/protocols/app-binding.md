@@ -34,7 +34,7 @@ An app descriptor contains product identity, installation and connection UX, bra
 
 ## 2. Capability negotiation
 
-AppServer advertises `appBindingVersion: 2`. A client that requires App Binding MUST declare version 2. Unsupported App Binding methods return `AppBindingUpgradeRequired` with `requiredVersion: 2`.
+AppServer advertises `appBindingVersion: 2`. A client that requires App Binding MUST declare version 2. A mismatched declared version returns `AppBindingUpgradeRequired` with `requiredVersion: 2`; undeclared methods return the standard `MethodNotFound` error.
 
 ## 3. App-principal connection
 

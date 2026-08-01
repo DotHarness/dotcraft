@@ -246,7 +246,7 @@ internal sealed class CompactSmokeRunner(string dotcraftBin, CompactSmokeCliOpti
         await RunTurnAsync(client, threadId, "Compact smoke manual snapshot setup. Reply with exactly: manual-ready.");
         await Task.Delay(CacheWarmupDelay);
         var compactResponse = await client.SendRequestAsync(
-            AppServerMethods.ThreadCompactStart,
+            DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ThreadCompactStart,
             new { threadId },
             timeout: options.TurnTimeout);
         EnsureNoJsonRpcError(compactResponse, "thread/compact/start");
@@ -271,7 +271,7 @@ internal sealed class CompactSmokeRunner(string dotcraftBin, CompactSmokeCliOpti
         await using var compactClient = await AppServerClient.SpawnAsync(dotcraftBin, workspacePath);
         await compactClient.InitializeAsync();
         var compactResponse = await compactClient.SendRequestAsync(
-            AppServerMethods.ThreadCompactStart,
+            DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ThreadCompactStart,
             new { threadId },
             timeout: options.TurnTimeout);
         EnsureNoJsonRpcError(compactResponse, "thread/compact/start");
@@ -314,7 +314,7 @@ internal sealed class CompactSmokeRunner(string dotcraftBin, CompactSmokeCliOpti
         CompactSmokeProviderSelection provider,
         string displayName)
     {
-        var threadResponse = await client.SendRequestAsync(AppServerMethods.ThreadStart, new
+        var threadResponse = await client.SendRequestAsync(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ThreadStart, new
         {
             identity = new
             {
@@ -342,7 +342,7 @@ internal sealed class CompactSmokeRunner(string dotcraftBin, CompactSmokeCliOpti
         string threadId,
         string text)
     {
-        var turnResponse = await client.SendRequestAsync(AppServerMethods.TurnStart, new
+        var turnResponse = await client.SendRequestAsync(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.TurnStart, new
         {
             threadId,
             input = new[] { new { type = "text", text } }
@@ -368,9 +368,9 @@ internal sealed class CompactSmokeRunner(string dotcraftBin, CompactSmokeCliOpti
                 continue;
 
             var method = methodElement.GetString();
-            if (method == AppServerMethods.TurnCompleted)
+            if (method == DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.TurnCompleted)
                 return notifications;
-            if (method is AppServerMethods.TurnFailed or AppServerMethods.TurnCancelled)
+            if (method is DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.TurnFailed or DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.TurnCancelled)
                 throw new InvalidOperationException($"turn terminal failure: {ExtractNotificationMessage(notification)}");
         }
 
@@ -417,7 +417,7 @@ internal sealed class CompactSmokeRunner(string dotcraftBin, CompactSmokeCliOpti
         {
             var root = notification.RootElement;
             if (!root.TryGetProperty("method", out var method) ||
-                method.GetString() != AppServerMethods.SystemEvent ||
+                method.GetString() != DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.SystemEvent ||
                 !root.TryGetProperty("params", out var parameters) ||
                 !parameters.TryGetProperty("kind", out var kindElement))
             {

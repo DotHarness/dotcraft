@@ -285,7 +285,7 @@ public sealed class ExtChannelSendResult
 
 /// <summary>
 /// Runtime status for one social or external channel.
-/// See <see cref="AppServerMethods.ChannelStatus"/> and spec Section 20.
+/// See <see cref="DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ChannelStatus"/> and spec Section 20.
 /// </summary>
 public sealed class ChannelStatusInfo
 {
@@ -308,7 +308,7 @@ public sealed class ChannelStatusInfo
 }
 
 /// <summary>
-/// Result for <see cref="AppServerMethods.ChannelStatus"/>.
+/// Result for <see cref="DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ChannelStatus"/>.
 /// </summary>
 public sealed class ChannelStatusResult
 {
@@ -318,7 +318,7 @@ public sealed class ChannelStatusResult
 // ───── channel/list (Desktop cross-channel picker) ─────
 
 /// <summary>
-/// One discoverable session channel for <see cref="AppServerMethods.ChannelList"/> (originChannel values).
+/// One discoverable session channel for <see cref="DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ChannelList"/> (originChannel values).
 /// </summary>
 public sealed class ChannelInfo
 {
@@ -331,7 +331,7 @@ public sealed class ChannelInfo
 }
 
 /// <summary>
-/// Result for <see cref="AppServerMethods.ChannelList"/>.
+/// Result for <see cref="DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ChannelList"/>.
 /// </summary>
 public sealed class ChannelListResult
 {

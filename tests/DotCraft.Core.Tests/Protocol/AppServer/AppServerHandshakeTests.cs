@@ -168,7 +168,7 @@ public sealed class AppServerHandshakeTests : IDisposable
         await _h.InitializeAsync();
 
         // Second call should produce AlreadyInitialized (-32003)
-        var secondInit = _h.BuildRequest(AppServerMethods.Initialize, new
+        var secondInit = _h.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.Initialize, new
         {
             clientInfo = new { name = "test-client", version = "0.0.1" }
         });
@@ -185,7 +185,7 @@ public sealed class AppServerHandshakeTests : IDisposable
     [Fact]
     public async Task ThreadList_BeforeInitialize_ReturnsNotInitialized()
     {
-        var msg = _h.BuildRequest(AppServerMethods.ThreadList, new
+        var msg = _h.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ThreadList, new
         {
             identity = new { channelName = "test", workspacePath = _h.Identity.WorkspacePath }
         });
@@ -198,7 +198,7 @@ public sealed class AppServerHandshakeTests : IDisposable
     [Fact]
     public async Task TurnStart_BeforeInitialize_ReturnsNotInitialized()
     {
-        var msg = _h.BuildRequest(AppServerMethods.TurnStart, new
+        var msg = _h.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.TurnStart, new
         {
             threadId = "thread_fake",
             input = new[] { new { type = "text", text = "hello" } }
@@ -217,7 +217,7 @@ public sealed class AppServerHandshakeTests : IDisposable
     public async Task ThreadList_AfterInitializeBeforeInitializedNotif_ReturnsNotReady()
     {
         // Send initialize but NOT the initialized notification
-        var initMsg = _h.BuildRequest(AppServerMethods.Initialize, new
+        var initMsg = _h.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.Initialize, new
         {
             clientInfo = new { name = "test-client", version = "0.0.1" }
         });
@@ -231,7 +231,7 @@ public sealed class AppServerHandshakeTests : IDisposable
         Assert.True(_h.Connection.IsInitialized);
         Assert.False(_h.Connection.IsClientReady);
 
-        var listMsg = _h.BuildRequest(AppServerMethods.ThreadList, new
+        var listMsg = _h.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ThreadList, new
         {
             identity = new { channelName = "test", workspacePath = _h.Identity.WorkspacePath }
         });
@@ -248,7 +248,7 @@ public sealed class AppServerHandshakeTests : IDisposable
     [Fact]
     public async Task InitializedNotification_SetsClientReady()
     {
-        var initMsg = _h.BuildRequest(AppServerMethods.Initialize, new
+        var initMsg = _h.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.Initialize, new
         {
             clientInfo = new { name = "test-client", version = "0.0.1" }
         });
@@ -267,7 +267,7 @@ public sealed class AppServerHandshakeTests : IDisposable
     {
         await _h.InitializeAsync();
 
-        var msg = _h.BuildRequest(AppServerMethods.ThreadList, new
+        var msg = _h.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ThreadList, new
         {
             identity = new { channelName = "appserver", userId = "test_user", workspacePath = _h.Identity.WorkspacePath }
         });

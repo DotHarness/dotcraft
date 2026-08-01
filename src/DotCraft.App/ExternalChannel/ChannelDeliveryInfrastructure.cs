@@ -4,6 +4,7 @@ using System.Text.Json;
 using DotCraft.Protocol;
 using DotCraft.Protocol.AppServer;
 using DotCraft.Security;
+using Contract = DotCraft.Protocol.Contracts.AppServer;
 
 namespace DotCraft.ExternalChannel;
 
@@ -399,14 +400,15 @@ internal sealed class ExternalChannelMessageDispatcher(
         {
             try
             {
-                var response = await transport.SendClientRequestAsync(
-                    AppServerMethods.ExtChannelSend,
-                    new ExtChannelSendParams
-                    {
-                        Target = target,
-                        Message = message,
-                        Metadata = metadata
-                    },
+                var request = new ExtChannelSendParams
+                {
+                    Target = target,
+                    Message = message,
+                    Metadata = metadata
+                };
+                var response = await transport.RequestAsync(
+                    Contract.AppServerRpc.ExtChannelSend,
+                    AppServerContractMapper.ToContract<Contract.ExtChannelSendParams>(request),
                     cancellationToken,
                     TimeSpan.FromSeconds(10));
                 return ParseResult(response);
@@ -455,9 +457,9 @@ internal sealed class ExternalChannelMessageDispatcher(
                 Metadata = metadata
             };
 
-            var response = await transport.SendClientRequestAsync(
-                AppServerMethods.ExtChannelSend,
-                request,
+            var response = await transport.RequestAsync(
+                Contract.AppServerRpc.ExtChannelSend,
+                AppServerContractMapper.ToContract<Contract.ExtChannelSendParams>(request),
                 cancellationToken,
                 TimeSpan.FromSeconds(10));
 
@@ -570,27 +572,16 @@ internal sealed class ExternalChannelMessageDispatcher(
         return null;
     }
 
-    private static ExtChannelSendResult ParseResult(AppServerIncomingMessage response)
+    private static ExtChannelSendResult ParseResult(
+        AppServerTypedClientResponse<Contract.ExtChannelSendResult> response)
     {
-        if (response.Result is not { } result || result.ValueKind != JsonValueKind.Object)
+        if (response.Result is not { } result)
             return Failure("AdapterProtocolViolation", "Adapter returned an invalid response payload.");
 
-        var parsed = System.Text.Json.JsonSerializer.Deserialize<ExtChannelSendResult>(
-            result.GetRawText(),
-            SessionWireJsonOptions.Default);
-
-        if (parsed == null)
-            return Failure("AdapterProtocolViolation", "Adapter returned an empty response payload.");
+        var parsed = AppServerContractMapper.ToDomain<ExtChannelSendResult>(result);
 
         if (!parsed.Delivered && string.IsNullOrWhiteSpace(parsed.ErrorCode))
             parsed.ErrorCode = "AdapterDeliveryFailed";
-        if (!parsed.Delivered &&
-            string.IsNullOrWhiteSpace(parsed.ErrorMessage) &&
-            result.TryGetProperty("error", out var legacyError) &&
-            legacyError.ValueKind == JsonValueKind.String)
-        {
-            parsed.ErrorMessage = legacyError.GetString();
-        }
 
         return parsed;
     }

@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.dotcraft.dev/appserver/v1/core/TerminalCleanResult.schema.json",
+  "title": "TerminalCleanResult",
+  "type": "object",
+  "properties": {
+    "terminals": {
+      "type": "array",
+      "items": {
+        "$ref": "./BackgroundTerminalSnapshot.schema.json"
+      }
+    }
+  },
+  "additionalProperties": true
+}

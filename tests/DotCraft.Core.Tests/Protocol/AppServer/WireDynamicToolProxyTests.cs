@@ -4,6 +4,7 @@ using DotCraft.Protocol;
 using DotCraft.Protocol.AppServer;
 using DotCraft.Tools;
 using Microsoft.Extensions.AI;
+using Contract = DotCraft.Protocol.Contracts.AppServer;
 
 namespace DotCraft.Core.Tests.Protocol.AppServer;
 
@@ -31,12 +32,12 @@ public sealed class WireDynamicToolProxyTests
         Assert.True(result.Success);
         Assert.Equal("draft submitted", result.Content);
         Assert.Equal("r1", result.StructuredContent?.GetProperty("reviewId").GetString());
-        Assert.Equal(AppServerMethods.ItemToolCall, transport.Method);
-        var request = Assert.IsType<DynamicToolCallParams>(transport.Params);
+        Assert.Equal(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.DynamicToolCall, transport.Method);
+        var request = Assert.IsType<Contract.DynamicToolCallParams>(transport.Params);
         Assert.Equal("provider-call-42", request.CallId);
         Assert.Equal("turn_001", request.TurnId);
         Assert.Equal("SubmitReviewDraft", request.Tool);
-        Assert.Equal("Looks good.", request.Arguments["body"]?.GetValue<string>());
+        Assert.Equal("Looks good.", request.Arguments.GetProperty("body").GetString());
     }
 
     [Fact]
@@ -99,7 +100,7 @@ public sealed class WireDynamicToolProxyTests
         Assert.Null(oldTransport.Method);
         Assert.True(currentResult.Success);
         Assert.Equal("new", currentResult.Content);
-        Assert.Equal(AppServerMethods.ItemToolCall, newTransport.Method);
+        Assert.Equal(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.DynamicToolCall, newTransport.Method);
     }
 
     [Fact]

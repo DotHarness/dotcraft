@@ -14,16 +14,16 @@ internal sealed class CronRequestHandler(
 {
     public void RegisterMethods(AppServerMethodTable table)
     {
-        table.Map(AppServerMethods.CronList, HandleCronListAsync);
-        table.Map(AppServerMethods.CronRemove, HandleCronRemoveAsync);
-        table.Map(AppServerMethods.CronEnable, HandleCronEnableAsync);
-        table.Map(AppServerMethods.CronRun, HandleCronRunAsync);
-        table.Map(AppServerMethods.HeartbeatTrigger, HandleHeartbeatTriggerAsync);
+        table.Map(global::DotCraft.Protocol.Contracts.AppServer.AppServerRpc.CronList, HandleCronListAsync);
+        table.Map(global::DotCraft.Protocol.Contracts.AppServer.AppServerRpc.CronRemove, HandleCronRemoveAsync);
+        table.Map(global::DotCraft.Protocol.Contracts.AppServer.AppServerRpc.CronEnable, HandleCronEnableAsync);
+        table.Map(global::DotCraft.Protocol.Contracts.AppServer.AppServerRpc.CronRun, HandleCronRunAsync);
+        table.Map(global::DotCraft.Protocol.Contracts.AppServer.AppServerRpc.HeartbeatTrigger, HandleHeartbeatTriggerAsync);
     }
 
     private Task<object?> HandleCronListAsync(AppServerIncomingMessage msg, CancellationToken ct)
     {
-        if (cronService == null) throw AppServerErrors.MethodNotFound(AppServerMethods.CronList);
+        if (cronService == null) throw AppServerErrors.MethodNotFound(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.CronList);
         var p = AppServerParams.Get<CronListParams>(msg);
         var jobs = cronService.ListJobs(includeDisabled: p.IncludeDisabled);
         return Task.FromResult<object?>(new CronListResult
@@ -34,7 +34,7 @@ internal sealed class CronRequestHandler(
 
     private Task<object?> HandleCronRemoveAsync(AppServerIncomingMessage msg, CancellationToken ct)
     {
-        if (cronService == null) throw AppServerErrors.MethodNotFound(AppServerMethods.CronRemove);
+        if (cronService == null) throw AppServerErrors.MethodNotFound(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.CronRemove);
         var p = AppServerParams.Get<CronRemoveParams>(msg);
         if (string.IsNullOrWhiteSpace(p.JobId))
             throw AppServerErrors.InvalidParams("'jobId' is required.");
@@ -46,7 +46,7 @@ internal sealed class CronRequestHandler(
 
     private Task<object?> HandleCronEnableAsync(AppServerIncomingMessage msg, CancellationToken ct)
     {
-        if (cronService == null) throw AppServerErrors.MethodNotFound(AppServerMethods.CronEnable);
+        if (cronService == null) throw AppServerErrors.MethodNotFound(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.CronEnable);
         var p = AppServerParams.Get<CronEnableParams>(msg);
         if (string.IsNullOrWhiteSpace(p.JobId))
             throw AppServerErrors.InvalidParams("'jobId' is required.");
@@ -58,7 +58,7 @@ internal sealed class CronRequestHandler(
 
     private Task<object?> HandleCronRunAsync(AppServerIncomingMessage msg, CancellationToken ct)
     {
-        if (cronService == null) throw AppServerErrors.MethodNotFound(AppServerMethods.CronRun);
+        if (cronService == null) throw AppServerErrors.MethodNotFound(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.CronRun);
         var p = AppServerParams.Get<CronRunParams>(msg);
         if (string.IsNullOrWhiteSpace(p.JobId))
             throw AppServerErrors.InvalidParams("'jobId' is required.");
@@ -76,7 +76,7 @@ internal sealed class CronRequestHandler(
         _ = msg;
         _ = ct;
         if (heartbeatService == null)
-            throw AppServerErrors.MethodNotFound(AppServerMethods.HeartbeatTrigger);
+            throw AppServerErrors.MethodNotFound(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.HeartbeatTrigger);
 
         try
         {

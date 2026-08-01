@@ -20,23 +20,16 @@ public sealed class AppBindingProtocolTests : IDisposable
         Assert.False(capabilities.TryGetProperty("appContextBlocks", out _));
     }
 
-    [Theory]
-    [InlineData("app/binding/request/create")]
-    [InlineData("app/binding/accept")]
-    [InlineData("app/binding/attachTools")]
-    [InlineData("app/binding/context/upsert")]
-    [InlineData("ui/resource/read")]
-    [InlineData("ui/tool/call")]
-    public async Task V1Methods_ReturnStableUpgradeRequired(string method)
+    [Fact]
+    public async Task UndeclaredAppBindingMethod_ReturnsMethodNotFound()
     {
         using var harness = CreateHarness();
         await harness.InitializeAsync();
-        await harness.ExecuteRequestAsync(harness.BuildRequest(method, new { }));
+        await harness.ExecuteRequestAsync(harness.BuildRequest("app/binding/request/create", new { }));
         using var response = await harness.Transport.ReadNextSentAsync();
         var error = response.RootElement.GetProperty("error");
-        Assert.Equal(-32076, error.GetProperty("code").GetInt32());
-        Assert.Equal("AppBindingUpgradeRequired", error.GetProperty("data").GetProperty("code").GetString());
-        Assert.Equal(2, error.GetProperty("data").GetProperty("params").GetProperty("requiredVersion").GetInt32());
+        Assert.Equal(-32601, error.GetProperty("code").GetInt32());
+        Assert.Equal("MethodNotFound", error.GetProperty("data").GetProperty("code").GetString());
     }
 
     [Fact]

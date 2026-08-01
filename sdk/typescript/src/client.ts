@@ -11,6 +11,12 @@ import {
 import { DotCraftError, toDotCraftError } from "./errors.js";
 import { Transport, TransportClosed, WebSocketTransport } from "./transport.js";
 import type { ChannelToolDescriptor } from "./capability.js";
+import type {
+  ClientNotificationMethods,
+  ClientRequestMethods,
+  ServerNotificationMethods,
+  ServerRequestMethods,
+} from "./generated/appserver/index.js";
 
 export type NotificationHandler = (params: Record<string, unknown>) => void | Promise<void>;
 export type ServerRequestHandler = (
@@ -301,6 +307,11 @@ export class DotCraftWireClient {
     return (await this.request("command/execute", payload)) as Record<string, unknown>;
   }
 
+  on<M extends keyof ServerNotificationMethods>(
+    method: M,
+    fn: (params: ServerNotificationMethods[M]["params"]) => void | Promise<void>,
+  ): Unsubscribe;
+  on(method: string, fn: NotificationHandler): Unsubscribe;
   on(method: string, fn: NotificationHandler): Unsubscribe {
     const list = this.handlers.get(method) ?? [];
     list.push(fn);
@@ -319,8 +330,22 @@ export class DotCraftWireClient {
     if (i >= 0) list.splice(i, 1);
   }
 
-  registerServerRequestHandler(method: string, fn: ServerRequestHandler): void {
-    this.requestHandlers.set(method, fn);
+  registerServerRequestHandler<M extends keyof ServerRequestMethods>(
+    method: M,
+    fn: (
+      requestId: string | number,
+      params: ServerRequestMethods[M]["params"],
+    ) => ServerRequestMethods[M]["result"] | Promise<ServerRequestMethods[M]["result"]>,
+  ): void;
+  registerServerRequestHandler<P extends Record<string, unknown>, R>(
+    method: string,
+    fn: (requestId: string | number, params: P) => R | Promise<R>,
+  ): void;
+  registerServerRequestHandler(
+    method: string,
+    fn: (requestId: string | number, params: any) => unknown | Promise<unknown>,
+  ): void {
+    this.requestHandlers.set(method, fn as ServerRequestHandler);
   }
 
   setApprovalHandler(fn: ServerRequestHandler | null): void {
@@ -410,6 +435,11 @@ export class DotCraftWireClient {
     return this.nextId++;
   }
 
+  async request<M extends keyof ClientRequestMethods>(
+    method: M,
+    params: ClientRequestMethods[M]["params"],
+  ): Promise<ClientRequestMethods[M]["result"]>;
+  async request<T = unknown>(method: string, params?: unknown): Promise<T>;
   async request<T = unknown>(method: string, params?: unknown): Promise<T> {
     const id = this.nextRequestId();
     return new Promise<T>((resolve, reject) => {
@@ -426,6 +456,11 @@ export class DotCraftWireClient {
     });
   }
 
+  async notify<M extends keyof ClientNotificationMethods>(
+    method: M,
+    params: ClientNotificationMethods[M]["params"],
+  ): Promise<void>;
+  async notify(method: string, params?: Record<string, unknown>): Promise<void>;
   async notify(method: string, params: Record<string, unknown> = {}): Promise<void> {
     const msg = new JsonRpcMessage({ method, params });
     await this.transport.writeMessage(msg.toDict());

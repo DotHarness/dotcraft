@@ -6,7 +6,7 @@ Implements the behavioral contract from specs/protocols/external-channel-adapter
 - Thread-per-identity mapping via SessionIdentity
 - Per-thread message serialization (queue while a turn is running)
 - Approval flow: server request → platform UI → JSON-RPC response
-- Delivery: ext/channel/deliver → platform send
+- Delivery: ext/channel/send → platform send
 """
 
 from __future__ import annotations
@@ -205,11 +205,6 @@ class ChannelAdapter(ABC):
 
         # Register server-request handlers
         self._client._approval_handler = self._handle_approval_request
-        self._client.register_handler(
-            "ext/channel/deliver",
-            self._handle_deliver_notification,
-        )
-        self._client._request_handlers["ext/channel/deliver"] = self._handle_deliver_request
         self._client._request_handlers["ext/channel/send"] = self._handle_send_request
         self._client._request_handlers["ext/channel/toolCall"] = self._handle_tool_call_request
         self._client._request_handlers["ext/channel/heartbeat"] = self._handle_heartbeat
@@ -695,22 +690,6 @@ class ChannelAdapter(ABC):
         except Exception as e:
             logger.error("on_approval_request raised: %s", e)
             return "cancel"
-
-    async def _handle_deliver_request(self, request_id, params: dict) -> dict:
-        """Route ext/channel/deliver to the subclass."""
-        target = params.get("target", "")
-        content = params.get("content", "")
-        metadata = params.get("metadata") or {}
-        try:
-            ok = await self.on_deliver(target, content, metadata)
-            return {"delivered": ok}
-        except Exception as e:
-            logger.error("on_deliver raised: %s", e)
-            return {"delivered": False, "error": str(e)}
-
-    async def _handle_deliver_notification(self, params: dict) -> None:
-        """Handle ext/channel/deliver if sent as a notification (shouldn't happen per spec)."""
-        await self._handle_deliver_request(None, params)
 
     async def _handle_send_request(self, request_id, params: dict) -> dict:
         """Route ext/channel/send to the subclass or default structured handler."""

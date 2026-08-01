@@ -5,6 +5,7 @@ using DotCraft.Logging;
 using DotCraft.Skills;
 using DotCraft.Tracing;
 using Microsoft.Extensions.AI;
+using Contract = DotCraft.Protocol.Contracts.AppServer;
 
 namespace DotCraft.Protocol.AppServer;
 
@@ -25,12 +26,12 @@ internal sealed class TurnRequestHandler(
 
     public void RegisterMethods(AppServerMethodTable table)
     {
-        table.Map(AppServerMethods.TurnStart, HandleTurnStartAsync);
-        table.Map(AppServerMethods.TurnEnqueue, HandleTurnEnqueueAsync);
-        table.Map(AppServerMethods.TurnQueueRemove, HandleTurnQueueRemoveAsync);
-        table.Map(AppServerMethods.TurnQueueReorder, HandleTurnQueueReorderAsync);
-        table.Map(AppServerMethods.TurnSteer, HandleTurnSteerAsync);
-        table.Map(AppServerMethods.TurnInterrupt, HandleTurnInterruptAsync);
+        table.Map(Contract.AppServerRpc.TurnStart, HandleTurnStartAsync);
+        table.Map(Contract.AppServerRpc.TurnEnqueue, HandleTurnEnqueueAsync);
+        table.Map(global::DotCraft.Protocol.Contracts.AppServer.AppServerRpc.TurnQueueRemove, HandleTurnQueueRemoveAsync);
+        table.Map(global::DotCraft.Protocol.Contracts.AppServer.AppServerRpc.TurnQueueReorder, HandleTurnQueueReorderAsync);
+        table.Map(global::DotCraft.Protocol.Contracts.AppServer.AppServerRpc.TurnSteer, HandleTurnSteerAsync);
+        table.Map(Contract.AppServerRpc.TurnInterrupt, HandleTurnInterruptAsync);
     }
 
     private void RecordSkillReferences(string threadId, IReadOnlyList<SessionWireInputPart> nativeParts)
@@ -56,9 +57,12 @@ internal sealed class TurnRequestHandler(
         }
     }
 
-    private async Task<object?> HandleTurnStartAsync(AppServerIncomingMessage msg, CancellationToken ct)
+    private async Task<AppServerTypedResult<Contract.TurnStartResult>> HandleTurnStartAsync(
+        AppServerTypedRequest<Contract.TurnStartParams> request,
+        CancellationToken ct)
     {
-        var p = AppServerParams.Get<TurnStartParams>(msg);
+        var msg = request.Message;
+        var p = AppServerContractMapper.ToDomain(request.Params);
 
         if (p.Input.Count == 0)
             throw AppServerErrors.InvalidParams("'input' must contain at least one part.");
@@ -109,7 +113,7 @@ internal sealed class TurnRequestHandler(
 
         async Task OnTurnStarted(SessionWireTurn initialTurn)
         {
-            var responsePayload = new TurnStartResult { Turn = initialTurn };
+            var responsePayload = AppServerContractMapper.ToContract(new TurnStartResult { Turn = initialTurn });
             try
             {
                 await responseWriter.WriteResponseAsync(msg.Id, responsePayload, ct);
@@ -166,7 +170,10 @@ internal sealed class TurnRequestHandler(
                         var wireTurn = startedTurn.ToWire(includeItems: false) with { Items = [] };
                         try
                         {
-                            await responseWriter.WriteResponseAsync(msg.Id, new TurnStartResult { Turn = wireTurn }, ct);
+                            await responseWriter.WriteResponseAsync(
+                                msg.Id,
+                                AppServerContractMapper.ToContract(new TurnStartResult { Turn = wireTurn }),
+                                ct);
                         }
                         catch (OperationCanceledException) when (!ct.IsCancellationRequested)
                         {
@@ -189,7 +196,7 @@ internal sealed class TurnRequestHandler(
                     await subscribedEnumerator.DisposeAsync();
             }
 
-            return null;
+            return AppServerTypedResult<Contract.TurnStartResult>.Written;
         }
 
         var dispatcher = new AppServerEventDispatcher(
@@ -217,7 +224,7 @@ internal sealed class TurnRequestHandler(
         }, TaskContinuationOptions.ExecuteSynchronously);
 
         await initialTurnTcs.Task;
-        return null;
+        return AppServerTypedResult<Contract.TurnStartResult>.Written;
     }
 
     private async Task DrainSubscribedTurnEventsAsync(
@@ -289,9 +296,11 @@ internal sealed class TurnRequestHandler(
         return Task.CompletedTask;
     }
 
-    private async Task<object?> HandleTurnEnqueueAsync(AppServerIncomingMessage msg, CancellationToken ct)
+    private async Task<AppServerTypedResult<Contract.TurnEnqueueResult>> HandleTurnEnqueueAsync(
+        AppServerTypedRequest<Contract.TurnEnqueueParams> request,
+        CancellationToken ct)
     {
-        var p = AppServerParams.Get<TurnEnqueueParams>(msg);
+        var p = AppServerContractMapper.ToDomain(request.Params);
         var materializedInput = await PrepareTurnInputAsync(p.Input, ct);
         RecordSkillReferences(p.ThreadId, materializedInput.NativeInputParts);
 
@@ -310,11 +319,13 @@ internal sealed class TurnRequestHandler(
                 SentAsGoal = p.SentAsGoal
             });
         var thread = await sessionService.GetThreadAsync(p.ThreadId, ct);
-        return new TurnEnqueueResponse
+        var result = new TurnEnqueueResponse
         {
             QueuedInput = queued,
             QueuedInputs = thread.QueuedInputs.ToList()
         };
+        return AppServerTypedResult<Contract.TurnEnqueueResult>.FromResult(
+            AppServerContractMapper.ToContract(result));
     }
 
     private async Task<object?> HandleTurnQueueRemoveAsync(AppServerIncomingMessage msg, CancellationToken ct)
@@ -354,9 +365,11 @@ internal sealed class TurnRequestHandler(
         return new TurnSteerResponse { TurnId = result.TurnId, QueuedInputs = result.QueuedInputs.ToList() };
     }
 
-    private async Task<object?> HandleTurnInterruptAsync(AppServerIncomingMessage msg, CancellationToken ct)
+    private async Task<AppServerTypedResult<DotCraft.Protocol.Contracts.RpcEmpty>> HandleTurnInterruptAsync(
+        AppServerTypedRequest<Contract.TurnInterruptParams> request,
+        CancellationToken ct)
     {
-        var p = AppServerParams.Get<TurnInterruptParams>(msg);
+        var p = AppServerContractMapper.ToDomain(request.Params);
         var thread = await sessionService.GetThreadAsync(p.ThreadId, ct);
 
         var turn = thread.Turns.FirstOrDefault(t => t.Id == p.TurnId);
@@ -371,7 +384,7 @@ internal sealed class TurnRequestHandler(
         }
 
         await sessionService.CancelTurnAsync(p.ThreadId, p.TurnId, ct);
-        return new RpcEmpty();
+        return AppServerTypedResult<DotCraft.Protocol.Contracts.RpcEmpty>.FromResult(new());
     }
 
     private void ValidateTurnStartInput(IReadOnlyList<SessionWireInputPart> input)

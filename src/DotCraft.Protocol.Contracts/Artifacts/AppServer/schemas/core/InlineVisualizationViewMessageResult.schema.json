@@ -1,0 +1,12 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.dotcraft.dev/appserver/v1/core/InlineVisualizationViewMessageResult.schema.json",
+  "title": "InlineVisualizationViewMessageResult",
+  "type": "object",
+  "properties": {
+    "queuedInputId": {
+      "type": "string"
+    }
+  },
+  "additionalProperties": true
+}

@@ -27,11 +27,11 @@ internal sealed class WorkspaceRequestHandler(
 {
     public void RegisterMethods(AppServerMethodTable table)
     {
-        table.Map(AppServerMethods.WorkspaceCommitMessageSuggest, HandleWorkspaceCommitMessageSuggestAsync);
-        table.Map(AppServerMethods.WelcomeSuggestions, HandleWelcomeSuggestionsAsync);
-        table.Map(AppServerMethods.WorkspaceConfigSchema, HandleWorkspaceConfigSchemaAsync);
-        table.Map(AppServerMethods.WorkspaceConfigUpdate, HandleWorkspaceConfigUpdateAsync);
-        table.Map(AppServerMethods.MemoryReset, HandleMemoryResetAsync);
+        table.Map(global::DotCraft.Protocol.Contracts.AppServer.AppServerRpc.WorkspaceCommitMessageSuggest, HandleWorkspaceCommitMessageSuggestAsync);
+        table.Map(global::DotCraft.Protocol.Contracts.AppServer.AppServerRpc.WelcomeSuggestions, HandleWelcomeSuggestionsAsync);
+        table.Map(global::DotCraft.Protocol.Contracts.AppServer.AppServerRpc.WorkspaceConfigSchema, HandleWorkspaceConfigSchemaAsync);
+        table.Map(global::DotCraft.Protocol.Contracts.AppServer.AppServerRpc.WorkspaceConfigUpdate, HandleWorkspaceConfigUpdateAsync);
+        table.Map(global::DotCraft.Protocol.Contracts.AppServer.AppServerRpc.MemoryReset, HandleMemoryResetAsync);
     }
 
     private async Task<object?> HandleWorkspaceCommitMessageSuggestAsync(AppServerIncomingMessage msg, CancellationToken ct)
@@ -84,7 +84,7 @@ internal sealed class WorkspaceRequestHandler(
         _ = ct;
         _ = AppServerParams.Get<WorkspaceConfigSchemaParams>(msg);
         if (configSchema.Count == 0)
-            throw AppServerErrors.MethodNotFound(AppServerMethods.WorkspaceConfigSchema);
+            throw AppServerErrors.MethodNotFound(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.WorkspaceConfigSchema);
 
         return Task.FromResult<object?>(new WorkspaceConfigSchemaResult
         {
@@ -101,7 +101,7 @@ internal sealed class WorkspaceRequestHandler(
             "is required.";
 
         if (string.IsNullOrWhiteSpace(workspaceCraftPath))
-            throw AppServerErrors.MethodNotFound(AppServerMethods.WorkspaceConfigUpdate);
+            throw AppServerErrors.MethodNotFound(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.WorkspaceConfigUpdate);
         if (!msg.Params.HasValue || msg.Params.Value.ValueKind != JsonValueKind.Object)
             throw AppServerErrors.InvalidParams(requiredFieldMessage);
 
@@ -274,7 +274,7 @@ internal sealed class WorkspaceRequestHandler(
         if (changedRegions.Count > 0)
         {
             appConfigMonitor?.NotifyChanged(
-                AppServerMethods.WorkspaceConfigUpdate,
+                DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.WorkspaceConfigUpdate,
                 changedRegions);
         }
 
@@ -298,7 +298,7 @@ internal sealed class WorkspaceRequestHandler(
     {
         _ = ct;
         if (memoryStore == null)
-            throw AppServerErrors.MethodNotFound(AppServerMethods.MemoryReset);
+            throw AppServerErrors.MethodNotFound(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.MemoryReset);
         if (msg.Params.HasValue
             && msg.Params.Value.ValueKind is not JsonValueKind.Null
                 and not JsonValueKind.Object
@@ -321,7 +321,7 @@ internal sealed class WorkspaceRequestHandler(
         }
 
         appConfigMonitor?.NotifyChanged(
-            AppServerMethods.MemoryReset,
+            DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.MemoryReset,
             [ConfigChangeRegions.Memory]);
 
         return Task.FromResult<object?>(new MemoryResetResult());

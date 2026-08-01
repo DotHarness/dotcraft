@@ -4,7 +4,7 @@ namespace DotCraft.Protocol.AppServer;
 
 // ───── sourceControl/get, sourceControl/update (spec Section 25A) ─────
 
-/// <summary>Params for <see cref="AppServerMethods.SourceControlGet"/>. Reserved for future filters.</summary>
+/// <summary>Params for <see cref="DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.SourceControlGet"/>. Reserved for future filters.</summary>
 public sealed class SourceControlGetParams
 {
 }
@@ -50,7 +50,7 @@ public sealed class SourceControlCapabilitiesWire
 
 /// <summary>
 /// Effective source control binding snapshot returned by
-/// <see cref="AppServerMethods.SourceControlGet"/> and <see cref="AppServerMethods.SourceControlUpdate"/>.
+/// <see cref="DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.SourceControlGet"/> and <see cref="DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.SourceControlUpdate"/>.
 /// </summary>
 public sealed class SourceControlSnapshot
 {
@@ -71,7 +71,7 @@ public sealed class SourceControlSnapshot
     public SourceControlCapabilitiesWire Capabilities { get; set; } = new();
 }
 
-/// <summary>Params for <see cref="AppServerMethods.SourceControlUpdate"/>.</summary>
+/// <summary>Params for <see cref="DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.SourceControlUpdate"/>.</summary>
 public sealed class SourceControlUpdateParams
 {
     public string Provider { get; set; } = string.Empty;
@@ -85,7 +85,7 @@ public sealed class SourceControlUpdateParams
 
 // ───── sourceControl/test (spec Section 25A.4) ─────
 
-/// <summary>Params for <see cref="AppServerMethods.SourceControlTest"/>.</summary>
+/// <summary>Params for <see cref="DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.SourceControlTest"/>.</summary>
 public sealed class SourceControlTestParams
 {
     public string Provider { get; set; } = string.Empty;
@@ -172,7 +172,7 @@ public sealed class SourceControlTestDiagnostics
     public string? ErrorCode { get; set; }
 }
 
-/// <summary>Structured result for <see cref="AppServerMethods.SourceControlTest"/>. Never persisted.</summary>
+/// <summary>Structured result for <see cref="DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.SourceControlTest"/>. Never persisted.</summary>
 public sealed class SourceControlTestResult
 {
     public string Status { get; set; } = "error";

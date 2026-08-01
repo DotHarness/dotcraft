@@ -80,12 +80,12 @@ public sealed class AppServerWireClient(Stream input, Stream output) : IAsyncDis
             AcpExtensions = acpExtensions
         };
 
-        var result = await SendRequestAsync(AppServerMethods.Initialize, new AppServerInitializeParams
+        var result = await SendRequestAsync(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.Initialize, new AppServerInitializeParams
         {
             ClientInfo = new AppServerClientInfo { Name = clientName, Version = clientVersion },
             Capabilities = capabilities
         });
-        await SendNotificationAsync(AppServerMethods.Initialized);
+        await SendNotificationAsync(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.Initialized);
         return result;
     }
 
@@ -115,7 +115,7 @@ public sealed class AppServerWireClient(Stream input, Stream output) : IAsyncDis
             if (notif.RootElement.TryGetProperty("method", out var m))
             {
                 var method = m.GetString();
-                if (method is AppServerMethods.TurnCompleted or AppServerMethods.TurnFailed or AppServerMethods.TurnCancelled)
+                if (method is DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.TurnCompleted or DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.TurnFailed or DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.TurnCancelled)
                     yield break;
             }
         }
@@ -150,7 +150,7 @@ public sealed class AppServerWireClient(Stream input, Stream output) : IAsyncDis
             if (notif.RootElement.TryGetProperty("method", out var m))
             {
                 var method = m.GetString();
-                if (method is AppServerMethods.TurnCompleted or AppServerMethods.TurnFailed or AppServerMethods.TurnCancelled)
+                if (method is DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.TurnCompleted or DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.TurnFailed or DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.TurnCancelled)
                     yield break;
             }
         }
@@ -214,7 +214,7 @@ public sealed class AppServerWireClient(Stream input, Stream output) : IAsyncDis
     public async Task<ModelListResult> ModelListAsync(string? providerId, CancellationToken ct = default)
     {
         var doc = await SendRequestAsync(
-            AppServerMethods.ModelList,
+            DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ModelList,
             new ModelListParams { ProviderId = providerId },
             ct: ct);
 
@@ -240,7 +240,7 @@ public sealed class AppServerWireClient(Stream input, Stream output) : IAsyncDis
     public async Task<List<ProviderInfo>> ProviderListAsync(CancellationToken ct = default)
     {
         var doc = await SendRequestAsync(
-            AppServerMethods.ProviderList,
+            DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ProviderList,
             new ProviderListParams(),
             ct: ct);
 
@@ -257,7 +257,7 @@ public sealed class AppServerWireClient(Stream input, Stream output) : IAsyncDis
     public async Task<ProviderInfo> ProviderCreateAsync(ProviderCreateParams provider, CancellationToken ct = default)
     {
         var doc = await SendRequestAsync(
-            AppServerMethods.ProviderCreate,
+            DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ProviderCreate,
             provider,
             ct: ct);
 
@@ -274,7 +274,7 @@ public sealed class AppServerWireClient(Stream input, Stream output) : IAsyncDis
     public async Task<ProviderInfo> ProviderUpdateAsync(ProviderUpdateParams provider, CancellationToken ct = default)
     {
         var doc = await SendRequestAsync(
-            AppServerMethods.ProviderUpdate,
+            DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ProviderUpdate,
             provider,
             ct: ct);
 
@@ -291,7 +291,7 @@ public sealed class AppServerWireClient(Stream input, Stream output) : IAsyncDis
     public async Task<bool> ProviderDeleteAsync(string id, CancellationToken ct = default)
     {
         var doc = await SendRequestAsync(
-            AppServerMethods.ProviderDelete,
+            DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ProviderDelete,
             new ProviderDeleteParams { Id = id },
             ct: ct);
 
@@ -308,7 +308,7 @@ public sealed class AppServerWireClient(Stream input, Stream output) : IAsyncDis
     public async Task<ProviderTestResult> ProviderTestAsync(ProviderTestParams provider, CancellationToken ct = default)
     {
         var doc = await SendRequestAsync(
-            AppServerMethods.ProviderTest,
+            DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ProviderTest,
             provider,
             ct: ct);
 
@@ -350,7 +350,7 @@ public sealed class AppServerWireClient(Stream input, Stream output) : IAsyncDis
     public async Task<WorkspaceConfigUpdateResult> WorkspaceConfigUpdateAsync(JsonObject payload, CancellationToken ct = default)
     {
         var doc = await SendRequestAsync(
-            AppServerMethods.WorkspaceConfigUpdate,
+            DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.WorkspaceConfigUpdate,
             payload,
             ct: ct);
 
@@ -375,7 +375,7 @@ public sealed class AppServerWireClient(Stream input, Stream output) : IAsyncDis
         CancellationToken ct = default)
     {
         var doc = await SendRequestAsync(
-            AppServerMethods.CronList,
+            DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.CronList,
             new CronListParams { IncludeDisabled = includeDisabled },
             ct: ct);
 
@@ -393,7 +393,7 @@ public sealed class AppServerWireClient(Stream input, Stream output) : IAsyncDis
     public async Task CronRemoveAsync(string jobId, CancellationToken ct = default)
     {
         var doc = await SendRequestAsync(
-            AppServerMethods.CronRemove,
+            DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.CronRemove,
             new CronRemoveParams { JobId = jobId },
             ct: ct);
 
@@ -410,7 +410,7 @@ public sealed class AppServerWireClient(Stream input, Stream output) : IAsyncDis
         CancellationToken ct = default)
     {
         var doc = await SendRequestAsync(
-            AppServerMethods.CronEnable,
+            DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.CronEnable,
             new CronEnableParams { JobId = jobId, Enabled = enabled },
             ct: ct);
 
@@ -428,7 +428,7 @@ public sealed class AppServerWireClient(Stream input, Stream output) : IAsyncDis
     public async Task<HeartbeatTriggerResult> HeartbeatTriggerAsync(CancellationToken ct = default)
     {
         var doc = await SendRequestAsync(
-            AppServerMethods.HeartbeatTrigger,
+            DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.HeartbeatTrigger,
             new RpcEmpty(),
             timeout: TimeSpan.FromSeconds(120),
             ct: ct);
@@ -674,7 +674,7 @@ public sealed class AppServerWireClient(Stream input, Stream output) : IAsyncDis
                 }
 
                 // system/jobResult → dedicated channel to avoid being consumed during a turn
-                if (hasMethod && methodEl.GetString() == AppServerMethods.SystemJobResult)
+                if (hasMethod && methodEl.GetString() == DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.SystemJobResult)
                 {
                     _jobResultNotifications.Writer.TryWrite(doc);
                     continue;

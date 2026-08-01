@@ -102,7 +102,7 @@ public sealed class AppServerErrorTests : IDisposable
         await _h.InitializeAsync();
         var thread = await _h.Service.CreateThreadAsync(_h.Identity);
 
-        var msg = _h.BuildRequest(AppServerMethods.TurnStart, new
+        var msg = _h.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.TurnStart, new
         {
             threadId = thread.Id,
             input = Array.Empty<object>()
@@ -120,7 +120,7 @@ public sealed class AppServerErrorTests : IDisposable
     [Fact]
     public async Task AnyMethod_BeforeInitialize_ReturnsNotInitialized()
     {
-        var msg = _h.BuildRequest(AppServerMethods.ThreadList, new
+        var msg = _h.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ThreadList, new
         {
             identity = new { channelName = "test", workspacePath = "/tmp" }
         });
@@ -139,7 +139,7 @@ public sealed class AppServerErrorTests : IDisposable
     {
         await _h.InitializeAsync();
 
-        var secondInit = _h.BuildRequest(AppServerMethods.Initialize, new
+        var secondInit = _h.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.Initialize, new
         {
             clientInfo = new { name = "re-init", version = "0.0.1" }
         });
@@ -168,7 +168,7 @@ public sealed class AppServerErrorTests : IDisposable
         connection.MarkClientReady();
 
         // Simulate the gate rejection logic from AppServerHost
-        var msg = InMemoryTransport.BuildRequest(AppServerMethods.ThreadList,
+        var msg = InMemoryTransport.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ThreadList,
             new { identity = new { channelName = "test", workspacePath = "/tmp" } });
 
         if (!await gate.WaitAsync(0))
@@ -191,7 +191,7 @@ public sealed class AppServerErrorTests : IDisposable
     {
         await _h.InitializeAsync();
 
-        var msg = _h.BuildRequest(AppServerMethods.ThreadRead, new { threadId = "thread_does_not_exist" });
+        var msg = _h.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ThreadRead, new { threadId = "thread_does_not_exist" });
         await _h.ExecuteRequestAsync(msg);
 
         var doc = await _h.Transport.ReadNextSentAsync();
@@ -203,7 +203,7 @@ public sealed class AppServerErrorTests : IDisposable
     {
         await _h.InitializeAsync();
 
-        var msg = _h.BuildRequest(AppServerMethods.ThreadPause, new { threadId = "thread_ghost" });
+        var msg = _h.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ThreadPause, new { threadId = "thread_ghost" });
         await _h.ExecuteRequestAsync(msg);
 
         var doc = await _h.Transport.ReadNextSentAsync();
@@ -215,7 +215,7 @@ public sealed class AppServerErrorTests : IDisposable
     {
         await _h.InitializeAsync();
 
-        var msg = _h.BuildRequest(AppServerMethods.ThreadResume, new { threadId = "thread_ghost" });
+        var msg = _h.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ThreadResume, new { threadId = "thread_ghost" });
         await _h.ExecuteRequestAsync(msg);
 
         var doc = await _h.Transport.ReadNextSentAsync();
@@ -232,7 +232,7 @@ public sealed class AppServerErrorTests : IDisposable
         await _h.InitializeAsync();
         var thread = await _h.Service.CreateThreadAsync(_h.Identity);
 
-        var msg = _h.BuildRequest(AppServerMethods.TurnInterrupt, new
+        var msg = _h.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.TurnInterrupt, new
         {
             threadId = thread.Id,
             turnId = "turn_does_not_exist"
@@ -248,7 +248,7 @@ public sealed class AppServerErrorTests : IDisposable
     {
         await _h.InitializeAsync();
 
-        var msg = _h.BuildRequest(AppServerMethods.TurnInterrupt, new
+        var msg = _h.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.TurnInterrupt, new
         {
             threadId = "thread_ghost",
             turnId = "turn_001"
@@ -276,7 +276,7 @@ public sealed class AppServerErrorTests : IDisposable
         };
         thread.Turns.Add(completedTurn);
 
-        var msg = _h.BuildRequest(AppServerMethods.TurnInterrupt, new
+        var msg = _h.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.TurnInterrupt, new
         {
             threadId = thread.Id,
             turnId = "turn_001"
@@ -294,7 +294,7 @@ public sealed class AppServerErrorTests : IDisposable
     [Fact]
     public async Task ErrorResponse_ContainsRequestId()
     {
-        var msg = InMemoryTransport.BuildRequest(AppServerMethods.ThreadList,
+        var msg = InMemoryTransport.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ThreadList,
             new { identity = new { channelName = "test", workspacePath = "/tmp" } }, id: 42);
         await _h.ExecuteRequestAsync(msg);
 

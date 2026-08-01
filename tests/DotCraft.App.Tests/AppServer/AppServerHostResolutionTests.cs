@@ -10,6 +10,25 @@ namespace DotCraft.Tests.AppServer;
 
 public sealed class AppServerHostResolutionTests
 {
+    [Theory]
+    [InlineData("started", DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.TerminalStarted)]
+    [InlineData("outputDelta", DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.TerminalOutputDelta)]
+    [InlineData("completed", DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.TerminalCompleted)]
+    [InlineData("stalled", DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.TerminalStalled)]
+    [InlineData("cleaned", DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.TerminalCleaned)]
+    public void BackgroundTerminalEvent_KnownType_UsesDeclaredNotification(
+        string eventType,
+        string expectedMethod)
+    {
+        Assert.Equal(expectedMethod, AppServerHost.ResolveBackgroundTerminalNotificationMethod(eventType));
+    }
+
+    [Fact]
+    public void BackgroundTerminalEvent_UnknownType_DoesNotProduceNotification()
+    {
+        Assert.Null(AppServerHost.ResolveBackgroundTerminalNotificationMethod("future"));
+    }
+
     [Fact]
     public async Task HostBuilder_BuildsAppServerHost_WithWorkspaceRuntimeRegistered()
     {

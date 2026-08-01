@@ -1,0 +1,31 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.dotcraft.dev/appserver/v1/app-binding/AppToolCatalogEntry.schema.json",
+  "title": "AppToolCatalogEntry",
+  "type": "object",
+  "properties": {
+    "defaultExposure": {
+      "type": "string"
+    },
+    "description": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "name": {
+      "type": "string"
+    },
+    "risk": {
+      "type": "string"
+    },
+    "scope": {
+      "type": "string"
+    }
+  },
+  "additionalProperties": true
+}

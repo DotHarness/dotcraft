@@ -48,7 +48,7 @@ public sealed class AppServerModelCatalogRuntimeConfigTests : IDisposable
             openAIClientProvider: new OpenAIClientProvider(new FakeOpenAIAuthService(), handler));
         await harness.InitializeAsync();
 
-        await harness.ExecuteRequestAsync(harness.BuildRequest(AppServerMethods.ModelList, new { }));
+        await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ModelList, new { }));
 
         var sent = await harness.Transport.WaitAndDrainAsync(1, TimeSpan.FromSeconds(5));
         var response = Assert.Single(sent);
@@ -88,7 +88,7 @@ public sealed class AppServerModelCatalogRuntimeConfigTests : IDisposable
             openAIClientProvider: new OpenAIClientProvider(new FakeOpenAIAuthService(), handler));
         await harness.InitializeAsync();
 
-        await harness.ExecuteRequestAsync(harness.BuildRequest(AppServerMethods.ModelList, new { }));
+        await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ModelList, new { }));
 
         var sent = await harness.Transport.WaitAndDrainAsync(1, TimeSpan.FromSeconds(5));
         var response = Assert.Single(sent);
@@ -144,7 +144,7 @@ public sealed class AppServerModelCatalogRuntimeConfigTests : IDisposable
             appConfigMonitor: monitor);
         await harness.InitializeAsync();
 
-        await harness.ExecuteRequestAsync(harness.BuildRequest(AppServerMethods.ModelList, new { }));
+        await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ModelList, new { }));
 
         var sent = await harness.Transport.WaitAndDrainAsync(1, TimeSpan.FromSeconds(5));
         var response = Assert.Single(sent);

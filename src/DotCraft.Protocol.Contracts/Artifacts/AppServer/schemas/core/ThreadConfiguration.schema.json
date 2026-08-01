@@ -1,0 +1,372 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.dotcraft.dev/appserver/v1/core/ThreadConfiguration.schema.json",
+  "title": "ThreadConfiguration",
+  "type": "object",
+  "properties": {
+    "agentBuilderTargetId": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "agentBuilderTargetSource": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "agentControlToolAccess": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "agentInstructions": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "agentProfileFingerprint": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "agentProfileId": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "agentProfileSource": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "allowedAgentControlTools": {
+      "anyOf": [
+        {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "approvalPolicy": {
+      "type": "string"
+    },
+    "approvalTimeoutSeconds": {
+      "anyOf": [
+        {
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "automationTaskDirectory": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "contextWindow": {
+      "anyOf": [
+        {
+          "$ref": "./ThreadContextWindowConfig.schema.json"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "customTools": {
+      "anyOf": [
+        {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "cwd": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "executionWorkspaceOverride": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "extensions": {
+      "anyOf": [
+        {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "mcpPolicy": {
+      "anyOf": [
+        {
+          "$ref": "./ThreadMcpPolicy.schema.json"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "mcpServers": {
+      "anyOf": [
+        {
+          "type": "array",
+          "items": {
+            "$ref": "./McpServerConfig.schema.json"
+          }
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "mode": {
+      "type": "string"
+    },
+    "model": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "overrideBasePrompt": {
+      "type": "boolean"
+    },
+    "pluginPolicy": {
+      "anyOf": [
+        {
+          "$ref": "./ThreadPluginPolicy.schema.json"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "promptProfile": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "providerId": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "reasoning": {
+      "anyOf": [
+        {
+          "$ref": "./ReasoningConfig.schema.json"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "requireApprovalOutsideWorkspace": {
+      "anyOf": [
+        {
+          "type": "boolean"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "roleInstructions": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "runtimeWorkspaceRoots": {
+      "anyOf": [
+        {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "skillsPolicy": {
+      "anyOf": [
+        {
+          "$ref": "./ThreadSkillsPolicy.schema.json"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "speed": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "teamsPolicy": {
+      "anyOf": [
+        {
+          "$ref": "./ThreadTeamsPolicy.schema.json"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "toolAllowList": {
+      "anyOf": [
+        {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "toolDenyList": {
+      "anyOf": [
+        {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "toolPolicy": {
+      "anyOf": [
+        {
+          "$ref": "./ThreadToolPolicy.schema.json"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "toolProfile": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "useToolProfileOnly": {
+      "type": "boolean"
+    },
+    "workspaceOverride": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    }
+  },
+  "additionalProperties": true
+}

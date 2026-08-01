@@ -1,4 +1,5 @@
 using System.Text.Json;
+using DotCraft.Protocol.Contracts;
 
 namespace DotCraft.Protocol.AppServer;
 
@@ -18,11 +19,17 @@ internal sealed class AppServerResponseWriter(IAppServerTransport transport)
         CancellationToken ct)
     {
         await WriteResponseAsync(requestId, responseResult, ct);
-        await transport.WriteMessageAsync(new
-        {
-            jsonrpc = "2.0",
-            method = notificationMethod,
-            @params = notificationParams
-        }, ct);
+        await transport.NotifyContractAsync(notificationMethod, notificationParams, ct);
+    }
+
+    public async Task SendNotificationAfterResponseAsync<TResult, TNotification>(
+        JsonElement? requestId,
+        TResult responseResult,
+        RpcNotification<TNotification> notification,
+        TNotification notificationParams,
+        CancellationToken ct)
+    {
+        await WriteResponseAsync(requestId, responseResult, ct);
+        await transport.NotifyAsync(notification, notificationParams, ct);
     }
 }

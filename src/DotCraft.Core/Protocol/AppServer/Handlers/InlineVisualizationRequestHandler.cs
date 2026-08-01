@@ -26,9 +26,9 @@ internal sealed class InlineVisualizationRequestHandler : IAppServerDomainHandle
 
     public void RegisterMethods(AppServerMethodTable table)
     {
-        table.Map(AppServerMethods.InlineVisualizationViewOpen, OpenAsync);
-        table.Map(AppServerMethods.InlineVisualizationViewMessage, MessageAsync);
-        table.Map(AppServerMethods.InlineVisualizationViewClose, CloseAsync);
+        table.Map(global::DotCraft.Protocol.Contracts.AppServer.AppServerRpc.InlineVisualizationViewOpen, OpenAsync);
+        table.Map(global::DotCraft.Protocol.Contracts.AppServer.AppServerRpc.InlineVisualizationViewMessage, MessageAsync);
+        table.Map(global::DotCraft.Protocol.Contracts.AppServer.AppServerRpc.InlineVisualizationViewClose, CloseAsync);
     }
 
     private async Task<object?> OpenAsync(AppServerIncomingMessage message, CancellationToken cancellationToken)
@@ -90,7 +90,7 @@ internal sealed class InlineVisualizationRequestHandler : IAppServerDomainHandle
     private void EnsureAvailable()
     {
         if (!connection.SupportsInlineVisualizations || store is null || runtimeRegistry is null)
-            throw AppServerErrors.MethodNotFound(AppServerMethods.InlineVisualizationViewOpen);
+            throw AppServerErrors.MethodNotFound(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.InlineVisualizationViewOpen);
     }
 
     private async Task DisposeWhenConnectionClosesAsync()

@@ -34,7 +34,7 @@ public sealed class AppServerWelcomeSuggestionsTests : IDisposable
     {
         await _h.InitializeAsync();
 
-        var msg = _h.BuildRequest(AppServerMethods.WelcomeSuggestions, new
+        var msg = _h.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.WelcomeSuggestions, new
         {
             identity = new
             {
@@ -59,7 +59,7 @@ public sealed class AppServerWelcomeSuggestionsTests : IDisposable
     [Fact]
     public async Task WelcomeSuggestions_BeforeInitialize_ReturnsNotInitialized()
     {
-        var msg = _h.BuildRequest(AppServerMethods.WelcomeSuggestions, new
+        var msg = _h.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.WelcomeSuggestions, new
         {
             identity = new
             {

@@ -432,7 +432,7 @@ public sealed class AcpBridgeHandler(
         if (p?.McpServers is { Count: > 0 })
             config = new ThreadConfiguration { McpServers = ConvertToMcpConfigs(p.McpServers).ToArray() };
 
-        var startDoc = await wire.SendRequestAsync(AppServerMethods.ThreadStart, new
+        var startDoc = await wire.SendRequestAsync(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ThreadStart, new
         {
             identity = new
             {
@@ -479,7 +479,7 @@ public sealed class AcpBridgeHandler(
 
         var sessionId = p.SessionId;
 
-        var resumeDoc = await wire.SendRequestAsync(AppServerMethods.ThreadResume, new
+        var resumeDoc = await wire.SendRequestAsync(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ThreadResume, new
         {
             threadId = sessionId,
             dynamicTools = RuntimeDynamicToolsOrNull()
@@ -489,12 +489,12 @@ public sealed class AcpBridgeHandler(
         if (p.McpServers is { Count: > 0 })
         {
             var config = new ThreadConfiguration { McpServers = ConvertToMcpConfigs(p.McpServers).ToArray() };
-            var configDoc = await wire.SendRequestAsync(AppServerMethods.ThreadConfigUpdate,
+            var configDoc = await wire.SendRequestAsync(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ThreadConfigUpdate,
                 new { threadId = sessionId, config }, ct: ct);
             ThrowIfWireError(configDoc, "thread/configUpdate");
         }
 
-        var readDoc = await wire.SendRequestAsync(AppServerMethods.ThreadRead, new
+        var readDoc = await wire.SendRequestAsync(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ThreadRead, new
         {
             threadId = sessionId,
             includeTurns = true
@@ -607,7 +607,7 @@ public sealed class AcpBridgeHandler(
     {
         if (!await EnsureInitialized(request)) return;
 
-        var listDoc = await wire.SendRequestAsync(AppServerMethods.ThreadList, new
+        var listDoc = await wire.SendRequestAsync(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ThreadList, new
         {
             identity = new
             {
@@ -653,7 +653,7 @@ public sealed class AcpBridgeHandler(
 
         _activeTurnIds.TryRemove(p.SessionId, out _);
 
-        await wire.SendRequestAsync(AppServerMethods.ThreadArchive, new { threadId = p.SessionId }, ct: ct);
+        await wire.SendRequestAsync(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ThreadArchive, new { threadId = p.SessionId }, ct: ct);
         await acpTransport.SendResponseAsync(request.Id, new SessionDeleteResult());
     }
 
@@ -723,7 +723,7 @@ public sealed class AcpBridgeHandler(
             // Route turn notifications to a per-session channel so concurrent prompts do not share one queue.
             wire.RegisterThreadChannel(sessionId);
             channelRegistered = true;
-            var startDoc = await wire.SendRequestAsync(AppServerMethods.TurnStart, new
+            var startDoc = await wire.SendRequestAsync(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.TurnStart, new
             {
                 threadId = sessionId,
                 input = inputParts
@@ -746,13 +746,13 @@ public sealed class AcpBridgeHandler(
                 if (!notif.RootElement.TryGetProperty("params", out var @params))
                     continue;
 
-                if (method == AppServerMethods.TurnFailed)
+                if (method == DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.TurnFailed)
                 {
                     turnFailed = true;
                     if (@params.TryGetProperty("error", out var err))
                         turnFailMessage = err.GetString();
                 }
-                else if (method == AppServerMethods.TurnCancelled)
+                else if (method == DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.TurnCancelled)
                 {
                     turnCancelled = true;
                 }
@@ -830,7 +830,7 @@ public sealed class AcpBridgeHandler(
 
         string? sessionId = null;
 
-        if (method == AppServerMethods.ItemApprovalRequest)
+        if (method == DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ApprovalRequest)
         {
             if (!string.IsNullOrEmpty(threadId) && _activePrompts.ContainsKey(threadId))
                 sessionId = threadId;
@@ -857,7 +857,7 @@ public sealed class AcpBridgeHandler(
                 return new { decision = "decline" };
             }
         }
-        else if (method == AppServerMethods.ItemToolCall)
+        else if (method == DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.DynamicToolCall)
         {
             if (string.IsNullOrEmpty(threadId))
             {
@@ -898,7 +898,7 @@ public sealed class AcpBridgeHandler(
         if (string.IsNullOrEmpty(sessionId) || !_activePrompts.TryGetValue(sessionId, out var cts))
         {
             logger?.LogEvent($"Wire server request could not resolve active session for method={method}");
-            if (method == AppServerMethods.ItemToolCall)
+            if (method == DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.DynamicToolCall)
                 return RuntimeToolFailed("InactiveThread", "Dynamic tool request targeted an inactive ACP session.");
             return new { decision = "decline" };
         }
@@ -911,7 +911,7 @@ public sealed class AcpBridgeHandler(
         catch (ObjectDisposedException)
         {
             logger?.LogEvent($"Wire server request for disposed prompt CTS sessionId={sessionId}");
-            if (method == AppServerMethods.ItemToolCall)
+            if (method == DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.DynamicToolCall)
                 return RuntimeToolFailed("InactiveThread", "Dynamic tool request targeted an inactive ACP session.");
             return new { decision = "decline" };
         }
@@ -928,7 +928,7 @@ public sealed class AcpBridgeHandler(
         if (!root.TryGetProperty("params", out var wireParams))
             return new { decision = "decline" };
 
-        if (method == AppServerMethods.ItemApprovalRequest)
+        if (method == DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ApprovalRequest)
         {
             var approvalType = wireParams.TryGetProperty("approvalType", out var at) ? at.GetString() : null;
             var operation = wireParams.TryGetProperty("operation", out var op) ? op.GetString() ?? "" : "";
@@ -985,7 +985,7 @@ public sealed class AcpBridgeHandler(
             }
         }
 
-        if (method == AppServerMethods.ItemToolCall)
+        if (method == DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.DynamicToolCall)
             return await HandleRuntimeToolCallAsync(wireParams, ct);
 
         if (method.StartsWith("ext/acp/", StringComparison.Ordinal))
@@ -1106,21 +1106,21 @@ public sealed class AcpBridgeHandler(
     {
         switch (method)
         {
-            case AppServerMethods.ItemAgentMessageDelta:
+            case DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.AgentMessageDelta:
             {
                 var delta = @params.TryGetProperty("delta", out var d) ? d.GetString() : null;
                 if (!string.IsNullOrEmpty(delta))
                     await SendMessageChunk(sessionId, delta);
                 break;
             }
-            case AppServerMethods.ItemReasoningDelta:
+            case DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ReasoningDelta:
             {
                 var delta = @params.TryGetProperty("delta", out var d) ? d.GetString() : null;
                 if (!string.IsNullOrEmpty(delta))
                     await SendThoughtChunk(sessionId, delta);
                 break;
             }
-            case AppServerMethods.ItemStarted:
+            case DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ItemStarted:
             {
                 if (!@params.TryGetProperty("item", out var item)) break;
                 var type = item.TryGetProperty("type", out var t) ? t.GetString() : null;
@@ -1176,7 +1176,7 @@ public sealed class AcpBridgeHandler(
                 });
                 break;
             }
-            case AppServerMethods.ItemCompleted:
+            case DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ItemCompleted:
             {
                 if (!@params.TryGetProperty("item", out var item)) break;
                 var type = item.TryGetProperty("type", out var t) ? t.GetString() : null;
@@ -1218,11 +1218,11 @@ public sealed class AcpBridgeHandler(
                 });
                 break;
             }
-            case AppServerMethods.TurnCompleted:
+            case DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.TurnCompleted:
             {
                 break;
             }
-            case AppServerMethods.PlanUpdated:
+            case DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.PlanUpdated:
             {
                 if (!@params.TryGetProperty("todos", out var todosEl) || todosEl.ValueKind != JsonValueKind.Array)
                     break;
@@ -1363,7 +1363,7 @@ public sealed class AcpBridgeHandler(
         {
             try
             {
-                await wire.SendRequestAsync(AppServerMethods.TurnInterrupt, new
+                await wire.SendRequestAsync(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.TurnInterrupt, new
                 {
                     threadId = p.SessionId,
                     turnId
@@ -1391,7 +1391,7 @@ public sealed class AcpBridgeHandler(
         }
 
         var modeName = p.Mode?.ToLowerInvariant() ?? "agent";
-        await wire.SendRequestAsync(AppServerMethods.ThreadModeSet, new { threadId = p.SessionId, mode = modeName },
+        await wire.SendRequestAsync(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ThreadModeSet, new { threadId = p.SessionId, mode = modeName },
             ct: ct);
 
         var resolvedMode = modeName == "plan" ? AgentMode.Plan : AgentMode.Agent;
@@ -1414,7 +1414,7 @@ public sealed class AcpBridgeHandler(
         if (p.ConfigId == "mode")
         {
             var modeName = p.Value.ToLowerInvariant();
-            await wire.SendRequestAsync(AppServerMethods.ThreadModeSet,
+            await wire.SendRequestAsync(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ThreadModeSet,
                 new { threadId = p.SessionId, mode = modeName }, ct: ct);
 
             var current = await ReadThreadConfigurationAsync(p.SessionId, includeTurns: false, ct);
@@ -1450,7 +1450,7 @@ public sealed class AcpBridgeHandler(
             var config = current.Configuration ?? new JsonObject();
             SetCaseInsensitiveStringProperty(config, "model", nextModel);
 
-            var updateDoc = await wire.SendRequestAsync(AppServerMethods.ThreadConfigUpdate,
+            var updateDoc = await wire.SendRequestAsync(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ThreadConfigUpdate,
                 new { threadId = p.SessionId, config }, ct: ct);
             ThrowIfWireError(updateDoc, "thread/config/update");
 
@@ -1697,7 +1697,7 @@ public sealed class AcpBridgeHandler(
         bool includeTurns,
         CancellationToken ct)
     {
-        var readDoc = await wire.SendRequestAsync(AppServerMethods.ThreadRead, new
+        var readDoc = await wire.SendRequestAsync(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ThreadRead, new
         {
             threadId,
             includeTurns

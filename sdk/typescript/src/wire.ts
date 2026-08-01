@@ -52,6 +52,7 @@ export {
   WebSocketTransport,
 } from "./transport.js";
 export type { Transport, WebSocketTransportOptions } from "./transport.js";
+export * from "./generated/appserver/index.js";
 export {
   configureTextMergeDebug,
   extractAgentReplyTextFromTurnCompletedParams,

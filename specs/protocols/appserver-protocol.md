@@ -6,7 +6,7 @@
 | **Status** | Living |
 | **Date** | 2026-07-31 |
 | **Parent Spec** | [Session Core](../architecture/session-core.md) (Section 20) |
-| **Related Specs** | [Context Compaction](../architecture/context-compaction.md), [Tool Architecture](../architecture/tools-architecture.md), [Desktop Client](../clients/desktop-client.md) |
+| **Related Specs** | [AppServer Protocol Contracts and SDK Generation](../sdk/protocol-contract-generation.md), [Context Compaction](../architecture/context-compaction.md), [Tool Architecture](../architecture/tools-architecture.md), [Desktop Client](../clients/desktop-client.md) |
 
 Purpose: Define a language-neutral JSON-RPC wire protocol that exposes Session Core (`ISessionService`) and related AppServer capabilities to out-of-process clients, enabling them to create and resume threads, submit turns, stream events, participate in approval flows, and call server-level management methods through one transport-stable contract.
 
@@ -6376,6 +6376,25 @@ Params:
 
 `target` is an absolute agent path or a relative reference resolved from the caller's agent path. `subagent/sendMessage` records an inter-agent message for the target and does not start a child turn by itself.
 
+The result is a `SubAgentControlResult`. The same result envelope is returned by
+`subagent/followupTask` and `subagent/close`:
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `agentPath` | string | no | Resolved stable agent path. |
+| `taskName` | string | no | Stable task-name path segment when available. |
+| `status` | string | yes | Result state such as `sent`, `running`, `queued`, `guidancePending`, or `closed`. |
+| `message` | string | no | Optional runtime detail. |
+| `agentNickname` | string | no | Optional display nickname. |
+| `agentRole` | string | no | Optional role label. |
+| `profileName` | string | no | Selected SubAgent profile. |
+| `runtimeType` | string | no | Selected runtime type. |
+| `supportsSendMessage` | boolean | yes | Whether mailbox messages are supported. |
+| `supportsFollowupTask` | boolean | yes | Whether follow-up tasks are supported. |
+| `supportsClose` | boolean | yes | Whether closing is supported. |
+
+Internal child-thread ids and runtime-resume flags are not serialized in this result.
+
 Path-addressable child turn completion writes a mailbox notification for the parent agent path. The notification is model-visible inside the parent turn at the next sampling boundary and is persisted as a `userMessage` with `deliveryMode = "subagentMailbox"` and `triggerKind = "subagentMailbox"`. Clients should preserve these items for history/model reconstruction but should not render them as user-authored parent-thread bubbles or as visible child-agent reply bubbles. AppServer child listing remains a graph/status surface and does not expose child final text.
 
 #### `subagent/followupTask`
@@ -7322,3 +7341,14 @@ The DotCraft AppServer Protocol is the authoritative wire contract for
 DotCraft clients and adapters. Its methods, notifications, item types,
 capability flags, transport behaviors, and extension surfaces are defined on
 their own terms in this document.
+
+The executable representation is owned by `DotCraft.Protocol.Contracts`: named
+wire DTOs and the typed RPC catalog bind every bundled method to its direction,
+params, result, module, capability, errors, and specification anchor. The
+checked-in Manifest, JSON Schema, OpenRPC document, and TypeScript/Python
+low-level bindings are deterministic projections governed by
+[AppServer Protocol Contracts and SDK Generation](../sdk/protocol-contract-generation.md).
+Runtime domain projections and high-level SDK models are not independent
+wire-contract sources. Canonical C# method-name constants are generated from the
+typed catalog. Dynamic third-party extension methods remain on the explicit raw
+JSON-RPC path.

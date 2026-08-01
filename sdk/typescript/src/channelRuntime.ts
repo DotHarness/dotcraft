@@ -985,7 +985,6 @@ export class UserInputDispatcher {
 
 export interface DeliveryDispatcherOptions {
   client: ClientProvider;
-  onDeliver: (target: string, content: string, metadata: Record<string, unknown>) => Promise<boolean>;
   onSend: (
     target: string,
     message: Record<string, unknown>,
@@ -996,7 +995,6 @@ export interface DeliveryDispatcherOptions {
 
 export class DeliveryDispatcher {
   private readonly client: ClientProvider;
-  private readonly onDeliver: (target: string, content: string, metadata: Record<string, unknown>) => Promise<boolean>;
   private readonly onSend: (
     target: string,
     message: Record<string, unknown>,
@@ -1006,28 +1004,12 @@ export class DeliveryDispatcher {
 
   constructor(options: DeliveryDispatcherOptions) {
     this.client = options.client;
-    this.onDeliver = options.onDeliver;
     this.onSend = options.onSend;
     this.onError = options.onError ?? ((message, error) => console.error(message, error));
   }
 
   register(): void {
     const client = resolveClient(this.client);
-    client.registerHandler("ext/channel/deliver", async (params) => {
-      await this.handleDeliverNotification(params);
-    });
-    client.registerServerRequestHandler("ext/channel/deliver", async (_id, params) => {
-      const target = String(params.target ?? "");
-      const content = String(params.content ?? "");
-      const metadata = (params.metadata as Record<string, unknown>) ?? {};
-      try {
-        const ok = await this.onDeliver(target, content, metadata);
-        return { delivered: ok };
-      } catch (error) {
-        this.onError("onDeliver raised:", error);
-        return { delivered: false, error: String(error) };
-      }
-    });
     client.registerServerRequestHandler("ext/channel/send", async (_id, params) => {
       const target = String(params.target ?? "");
       const message = (params.message as Record<string, unknown>) ?? {};
@@ -1043,17 +1025,6 @@ export class DeliveryDispatcher {
         };
       }
     });
-  }
-
-  async handleDeliverNotification(params: Record<string, unknown>): Promise<void> {
-    const target = String(params.target ?? "");
-    const content = String(params.content ?? "");
-    const metadata = (params.metadata as Record<string, unknown>) ?? {};
-    try {
-      await this.onDeliver(target, content, metadata);
-    } catch (error) {
-      this.onError("onDeliver (notification) raised:", error);
-    }
   }
 }
 

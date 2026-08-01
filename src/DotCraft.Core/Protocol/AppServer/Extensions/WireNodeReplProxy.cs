@@ -1,6 +1,6 @@
 using System.Collections.Concurrent;
-using System.Text.Json;
 using DotCraft.Tracing;
+using Contract = DotCraft.Protocol.Contracts.AppServer;
 
 namespace DotCraft.Protocol.AppServer;
 
@@ -9,12 +9,6 @@ namespace DotCraft.Protocol.AppServer;
 /// </summary>
 public sealed class WireNodeReplProxy : INodeReplProxy
 {
-    private static readonly JsonSerializerOptions JsonOptions = new()
-    {
-        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-        PropertyNameCaseInsensitive = true
-    };
-
     private readonly ConcurrentDictionary<string, NodeReplThreadBinding> _byThread = new();
 
     /// <inheritdoc />
@@ -77,36 +71,37 @@ public sealed class WireNodeReplProxy : INodeReplProxy
         var protocolVersion = metadata?.ProtocolVersion > 0 ? metadata.ProtocolVersion : 1;
         try
         {
-            var response = await binding.Transport.SendClientRequestAsync(
-                AppServerMethods.ExtNodeReplEvaluate,
-                new NodeReplEvaluateParams
+            var request = new NodeReplEvaluateParams
+            {
+                ThreadId = threadId,
+                TurnId = turnId,
+                EvaluationId = evaluationId,
+                BrowserSession = new NodeReplBrowserSessionParams
                 {
+                    ProtocolVersion = protocolVersion,
+                    SessionId = sessionId,
                     ThreadId = threadId,
                     TurnId = turnId,
                     EvaluationId = evaluationId,
-                    BrowserSession = new NodeReplBrowserSessionParams
-                    {
-                        ProtocolVersion = protocolVersion,
-                        SessionId = sessionId,
-                        ThreadId = threadId,
-                        TurnId = turnId,
-                        EvaluationId = evaluationId
-                    },
-                    Code = code,
-                    TimeoutMs = safeTimeout * 1000
                 },
+                Code = code,
+                TimeoutMs = safeTimeout * 1000
+            };
+            var response = await binding.Transport.RequestAsync(
+                Contract.AppServerRpc.ExtNodeReplEvaluate,
+                AppServerContractMapper.ToContract<Contract.NodeReplEvaluateParams>(request),
                 ct,
                 TimeSpan.FromSeconds(safeTimeout + 5));
 
-            if (!response.Result.HasValue)
+            if (response.Result is null)
                 return new NodeReplEvaluateResult
                 {
-                    Error = response.Error.HasValue ? response.Error.Value.ToString() : "Node REPL client returned no result."
+                    Error = response.Error?.ToString() ?? response.InvalidResult ?? "Node REPL client returned no result."
                 };
 
             try
             {
-                return response.Result.Value.Deserialize<NodeReplEvaluateResult>(JsonOptions);
+                return AppServerContractMapper.ToDomain<NodeReplEvaluateResult>(response.Result);
             }
             catch (Exception ex)
             {
@@ -140,9 +135,10 @@ public sealed class WireNodeReplProxy : INodeReplProxy
         {
             try
             {
-                await binding.Transport.SendClientRequestAsync(
-                    AppServerMethods.ExtNodeReplCancel,
-                    new NodeReplCancelParams { ThreadId = threadId, EvaluationId = evaluationId },
+                await binding.Transport.RequestAsync(
+                    Contract.AppServerRpc.ExtNodeReplCancel,
+                    AppServerContractMapper.ToContract<Contract.NodeReplCancelParams>(
+                        new NodeReplCancelParams { ThreadId = threadId, EvaluationId = evaluationId }),
                     CancellationToken.None,
                     TimeSpan.FromSeconds(2));
             }

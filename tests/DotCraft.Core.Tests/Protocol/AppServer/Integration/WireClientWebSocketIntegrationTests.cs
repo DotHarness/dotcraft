@@ -89,7 +89,7 @@ public sealed class WireClientWebSocketIntegrationTests : IAsyncDisposable
     {
         await _connection.Wire.InitializeAsync();
 
-        var result = await _connection.Wire.SendRequestAsync(AppServerMethods.ThreadStart, new
+        var result = await _connection.Wire.SendRequestAsync(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ThreadStart, new
         {
             identity = new
             {
@@ -115,7 +115,7 @@ public sealed class WireClientWebSocketIntegrationTests : IAsyncDisposable
     {
         await _connection.Wire.InitializeAsync();
 
-        var createResult = await _connection.Wire.SendRequestAsync(AppServerMethods.ThreadStart, new
+        var createResult = await _connection.Wire.SendRequestAsync(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ThreadStart, new
         {
             identity = new { channelName = "cli", userId = "local", workspacePath = _tempDir },
             historyMode = "server"
@@ -125,7 +125,7 @@ public sealed class WireClientWebSocketIntegrationTests : IAsyncDisposable
 
         _service.EnqueueSubmitEvents(threadId, AppServerTestHarness.BuildTurnEventSequence(threadId));
 
-        var turnResult = await _connection.Wire.SendRequestAsync(AppServerMethods.TurnStart, new
+        var turnResult = await _connection.Wire.SendRequestAsync(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.TurnStart, new
         {
             threadId,
             input = new[] { new { type = "text", text = "Hello" } }
@@ -142,8 +142,8 @@ public sealed class WireClientWebSocketIntegrationTests : IAsyncDisposable
                 notifications.Add(m.GetString() ?? string.Empty);
         }
 
-        Assert.Contains(AppServerMethods.ItemAgentMessageDelta, notifications);
-        Assert.Equal(AppServerMethods.TurnCompleted, notifications[^1]);
+        Assert.Contains(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.AgentMessageDelta, notifications);
+        Assert.Equal(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.TurnCompleted, notifications[^1]);
     }
 
     // -------------------------------------------------------------------------
@@ -155,7 +155,7 @@ public sealed class WireClientWebSocketIntegrationTests : IAsyncDisposable
     {
         await _connection.Wire.InitializeAsync(approvalSupport: true);
 
-        var createResult = await _connection.Wire.SendRequestAsync(AppServerMethods.ThreadStart, new
+        var createResult = await _connection.Wire.SendRequestAsync(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ThreadStart, new
         {
             identity = new { channelName = "cli", userId = "local", workspacePath = _tempDir },
             historyMode = "server"
@@ -173,7 +173,7 @@ public sealed class WireClientWebSocketIntegrationTests : IAsyncDisposable
             return new { decision = "accept" };
         };
 
-        await _connection.Wire.SendRequestAsync(AppServerMethods.TurnStart, new
+        await _connection.Wire.SendRequestAsync(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.TurnStart, new
         {
             threadId,
             input = new[] { new { type = "text", text = "shell command please" } }
@@ -186,8 +186,8 @@ public sealed class WireClientWebSocketIntegrationTests : IAsyncDisposable
                 methods.Add(m.GetString() ?? string.Empty);
         }
 
-        Assert.Contains(AppServerMethods.ItemApprovalRequest, approvalRequests);
-        Assert.Equal(AppServerMethods.TurnCompleted, methods[^1]);
+        Assert.Contains(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ApprovalRequest, approvalRequests);
+        Assert.Equal(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.TurnCompleted, methods[^1]);
     }
 
     // -------------------------------------------------------------------------
@@ -227,7 +227,7 @@ public sealed class WireClientWebSocketIntegrationTests : IAsyncDisposable
             await connection2.Wire.InitializeAsync(clientName: "client-2");
 
             // Client 1 creates a thread
-            var result1 = await _connection.Wire.SendRequestAsync(AppServerMethods.ThreadStart, new
+            var result1 = await _connection.Wire.SendRequestAsync(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ThreadStart, new
             {
                 identity = new { channelName = "cli", userId = "user1", workspacePath = _tempDir },
                 historyMode = "server"
@@ -236,7 +236,7 @@ public sealed class WireClientWebSocketIntegrationTests : IAsyncDisposable
                 .GetProperty("thread").GetProperty("id").GetString()!;
 
             // Client 2 lists threads — should see the thread created by client 1 (shared service)
-            var listResult = await connection2.Wire.SendRequestAsync(AppServerMethods.ThreadList, new
+            var listResult = await connection2.Wire.SendRequestAsync(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ThreadList, new
             {
                 identity = new { channelName = "cli", userId = "user1", workspacePath = _tempDir }
             });
@@ -276,7 +276,7 @@ public sealed class WireClientWebSocketIntegrationTests : IAsyncDisposable
 
             if (msg.IsNotification)
             {
-                if (msg.Method == AppServerMethods.Initialized)
+                if (msg.Method == DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.Initialized)
                     handler.HandleInitializedNotification();
                 continue;
             }

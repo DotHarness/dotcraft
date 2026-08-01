@@ -12,7 +12,7 @@ This adapter maps each Telegram chat to a DotCraft thread. Users interact with t
 - **Inline keyboard approvals** — `item/approval/request` is presented as Telegram buttons.
 - **`/new` command** — archives the current thread and starts fresh.
 - **`/help` command** — shows available commands.
-- **Delivery support** — `ext/channel/deliver` is mapped to `bot.send_message()`.
+- **Delivery support** — `ext/channel/send` is mapped to `bot.send_message()`.
 - **Typing indicator** — shows "typing…" while the agent is processing.
 - **Markdown → HTML** — converts agent Markdown output to Telegram-compatible HTML.
 
@@ -136,7 +136,7 @@ dotcraft_wire.ChannelAdapter
      │
      │ thread/start, turn/start, stream events
      │ item/approval/request ↔ response
-     │ ext/channel/deliver
+     │ ext/channel/send
      │
      ▼
 DotCraft AppServer (stdio JSON-RPC)

@@ -1,3 +1,5 @@
+using Contract = DotCraft.Protocol.Contracts.AppServer;
+
 namespace DotCraft.Protocol.AppServer;
 
 internal sealed class InitializeRequestHandler(
@@ -9,13 +11,15 @@ internal sealed class InitializeRequestHandler(
 {
     public void RegisterMethods(AppServerMethodTable table)
     {
-        table.Map(AppServerMethods.Initialize, HandleInitializeAsync);
+        table.Map(Contract.AppServerRpc.Initialize, HandleInitializeAsync);
     }
 
-    private Task<object?> HandleInitializeAsync(AppServerIncomingMessage msg, CancellationToken ct)
+    private Task<AppServerTypedResult<Contract.InitializeResult>> HandleInitializeAsync(
+        AppServerTypedRequest<Contract.InitializeParams> request,
+        CancellationToken ct)
     {
         _ = ct;
-        var p = AppServerParams.Get<AppServerInitializeParams>(msg);
+        var p = AppServerContractMapper.ToDomain(request.Params);
         if (p.Capabilities?.AppBindingVersion is { } requestedAppBindingVersion
             && requestedAppBindingVersion != DotCraft.AppBinding.AppBindingContract.Version)
         {
@@ -83,7 +87,7 @@ internal sealed class InitializeRequestHandler(
         if (services.WelcomeSuggestionService != null)
             capabilityBuilder.SetExtension("welcomeSuggestions", true);
 
-        return Task.FromResult<object?>(new AppServerInitializeResult
+        var result = new AppServerInitializeResult
         {
             ServerInfo = new AppServerServerInfo
             {
@@ -93,6 +97,8 @@ internal sealed class InitializeRequestHandler(
             },
             Capabilities = capabilities,
             DashboardUrl = services.DashboardUrl
-        });
+        };
+        return Task.FromResult(AppServerTypedResult<Contract.InitializeResult>.FromResult(
+            AppServerContractMapper.ToContract(result)));
     }
 }

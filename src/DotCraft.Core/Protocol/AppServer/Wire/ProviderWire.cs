@@ -193,7 +193,7 @@ public sealed class ProviderTestResult
     public string? ErrorMessage { get; set; }
 }
 
-/// <summary>Params for <see cref="AppServerMethods.AuthOpenAiLogin"/>.</summary>
+/// <summary>Params for <see cref="DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.AuthOpenAiLogin"/>.</summary>
 public sealed class AuthOpenAiLoginParams
 {
     /// <summary>Provider id to bind to ChatGPT subscription; defaults to "openai".</summary>
@@ -203,13 +203,13 @@ public sealed class AuthOpenAiLoginParams
     public bool? OpenBrowser { get; set; }
 }
 
-/// <summary>Params for <see cref="AppServerMethods.AuthOpenAiLogout"/>.</summary>
+/// <summary>Params for <see cref="DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.AuthOpenAiLogout"/>.</summary>
 public sealed class AuthOpenAiLogoutParams
 {
     public string? ProviderId { get; set; }
 }
 
-/// <summary>Server → Client notification payload for <see cref="AppServerMethods.AuthOpenAiAuthorizeUrl"/>.</summary>
+/// <summary>Server → Client notification payload for <see cref="DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.AuthOpenAiAuthorizeUrl"/>.</summary>
 public sealed class AuthOpenAiAuthorizeUrlNotification
 {
     public string Url { get; set; } = string.Empty;
@@ -240,8 +240,8 @@ public sealed class AuthOpenAiUsageCredits
 }
 
 /// <summary>
-/// Result of <see cref="AppServerMethods.AuthOpenAiUsage"/> and payload of
-/// <see cref="AppServerMethods.AuthOpenAiUsageChanged"/>.
+/// Result of <see cref="DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.AuthOpenAiUsage"/> and payload of
+/// <see cref="DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.AuthOpenAiUsageChanged"/>.
 /// </summary>
 public sealed class AuthOpenAiUsageResult
 {
@@ -293,7 +293,7 @@ public sealed class AuthOpenAiStatusResult
 }
 
 /// <summary>
-/// Params for <see cref="AppServerMethods.ModelList"/>.
+/// Params for <see cref="DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ModelList"/>.
 /// </summary>
 public sealed class ModelListParams
 {
@@ -365,7 +365,7 @@ public sealed class ModelContextWindowCapabilityWire
 }
 
 /// <summary>
-/// Result for <see cref="AppServerMethods.ModelList"/>.
+/// Result for <see cref="DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ModelList"/>.
 /// </summary>
 public sealed class ModelListResult
 {

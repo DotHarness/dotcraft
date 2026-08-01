@@ -16,15 +16,15 @@ internal sealed class SubAgentRequestHandler(
 {
     public void RegisterMethods(AppServerMethodTable table)
     {
-        table.Map(AppServerMethods.SubAgentProfileList, HandleSubAgentProfileListAsync);
-        table.Map(AppServerMethods.SubAgentSettingsUpdate, HandleSubAgentSettingsUpdateAsync);
-        table.Map(AppServerMethods.SubAgentProfileSetEnabled, HandleSubAgentProfileSetEnabledAsync);
-        table.Map(AppServerMethods.SubAgentProfileUpsert, HandleSubAgentProfileUpsertAsync);
-        table.Map(AppServerMethods.SubAgentProfileRemove, HandleSubAgentProfileRemoveAsync);
-        table.Map(AppServerMethods.SubAgentChildrenList, HandleSubAgentChildrenListAsync);
-        table.Map(AppServerMethods.SubAgentSendMessage, HandleSubAgentSendMessageAsync);
-        table.Map(AppServerMethods.SubAgentFollowupTask, HandleSubAgentFollowupTaskAsync);
-        table.Map(AppServerMethods.SubAgentClose, HandleSubAgentCloseAsync);
+        table.Map(global::DotCraft.Protocol.Contracts.AppServer.AppServerRpc.SubAgentProfileList, HandleSubAgentProfileListAsync);
+        table.Map(global::DotCraft.Protocol.Contracts.AppServer.AppServerRpc.SubAgentSettingsUpdate, HandleSubAgentSettingsUpdateAsync);
+        table.Map(global::DotCraft.Protocol.Contracts.AppServer.AppServerRpc.SubAgentProfileSetEnabled, HandleSubAgentProfileSetEnabledAsync);
+        table.Map(global::DotCraft.Protocol.Contracts.AppServer.AppServerRpc.SubAgentProfileUpsert, HandleSubAgentProfileUpsertAsync);
+        table.Map(global::DotCraft.Protocol.Contracts.AppServer.AppServerRpc.SubAgentProfileRemove, HandleSubAgentProfileRemoveAsync);
+        table.Map(global::DotCraft.Protocol.Contracts.AppServer.AppServerRpc.SubAgentChildrenList, HandleSubAgentChildrenListAsync);
+        table.Map(global::DotCraft.Protocol.Contracts.AppServer.AppServerRpc.SubAgentSendMessage, HandleSubAgentSendMessageAsync);
+        table.Map(global::DotCraft.Protocol.Contracts.AppServer.AppServerRpc.SubAgentFollowupTask, HandleSubAgentFollowupTaskAsync);
+        table.Map(global::DotCraft.Protocol.Contracts.AppServer.AppServerRpc.SubAgentClose, HandleSubAgentCloseAsync);
     }
 
     private Task<object?> HandleSubAgentProfileListAsync(AppServerIncomingMessage msg, CancellationToken ct)
@@ -109,7 +109,7 @@ internal sealed class SubAgentRequestHandler(
         runtimeConfig.RefreshCurrentSubAgentConfig();
         runtimeConfig.InvalidateThreadAgents();
         appConfigMonitor?.NotifyChanged(
-            AppServerMethods.SubAgentSettingsUpdate,
+            DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.SubAgentSettingsUpdate,
             [ConfigChangeRegions.SubAgent]);
 
         return Task.FromResult<object?>(new SubAgentSettingsUpdateResult
@@ -167,7 +167,7 @@ internal sealed class SubAgentRequestHandler(
         runtimeConfig.RefreshCurrentSubAgentConfig();
         runtimeConfig.InvalidateThreadAgents();
         appConfigMonitor?.NotifyChanged(
-            AppServerMethods.SubAgentProfileSetEnabled,
+            DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.SubAgentProfileSetEnabled,
             [ConfigChangeRegions.SubAgent]);
 
         var updated = BuildSubAgentProfileListResult().Profiles
@@ -204,7 +204,7 @@ internal sealed class SubAgentRequestHandler(
         runtimeConfig.RefreshCurrentSubAgentConfig();
         runtimeConfig.InvalidateThreadAgents();
         appConfigMonitor?.NotifyChanged(
-            AppServerMethods.SubAgentProfileUpsert,
+            DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.SubAgentProfileUpsert,
             [ConfigChangeRegions.SubAgent]);
 
         var updated = BuildSubAgentProfileListResult().Profiles
@@ -243,7 +243,7 @@ internal sealed class SubAgentRequestHandler(
         runtimeConfig.RefreshCurrentSubAgentConfig();
         runtimeConfig.InvalidateThreadAgents();
         appConfigMonitor?.NotifyChanged(
-            AppServerMethods.SubAgentProfileRemove,
+            DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.SubAgentProfileRemove,
             [ConfigChangeRegions.SubAgent]);
 
         return Task.FromResult<object?>(new SubAgentProfileRemoveResult { Removed = true });

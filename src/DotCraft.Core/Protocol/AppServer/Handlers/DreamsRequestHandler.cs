@@ -20,29 +20,29 @@ internal sealed class DreamsRequestHandler(
 {
     public void RegisterMethods(AppServerMethodTable table)
     {
-        table.Map(AppServerMethods.DreamsStatus, HandleDreamsStatusAsync);
-        table.Map(AppServerMethods.DreamsRun, HandleDreamsRunAsync);
-        table.Map(AppServerMethods.DreamsCreate, HandleDreamsCreateAsync);
-        table.Map(AppServerMethods.DreamsGet, HandleDreamsGetAsync);
-        table.Map(AppServerMethods.DreamsList, HandleDreamsListAsync);
-        table.Map(AppServerMethods.DreamsCancel, HandleDreamsCancelAsync);
-        table.Map(AppServerMethods.DreamsArchive, HandleDreamsArchiveAsync);
-        table.Map(AppServerMethods.DreamsApply, HandleDreamsApplyAsync);
-        table.Map(AppServerMethods.DreamsDiscard, HandleDreamsDiscardAsync);
+        table.Map(global::DotCraft.Protocol.Contracts.AppServer.AppServerRpc.DreamsStatus, HandleDreamsStatusAsync);
+        table.Map(global::DotCraft.Protocol.Contracts.AppServer.AppServerRpc.DreamsRun, HandleDreamsRunAsync);
+        table.Map(global::DotCraft.Protocol.Contracts.AppServer.AppServerRpc.DreamsCreate, HandleDreamsCreateAsync);
+        table.Map(global::DotCraft.Protocol.Contracts.AppServer.AppServerRpc.DreamsGet, HandleDreamsGetAsync);
+        table.Map(global::DotCraft.Protocol.Contracts.AppServer.AppServerRpc.DreamsList, HandleDreamsListAsync);
+        table.Map(global::DotCraft.Protocol.Contracts.AppServer.AppServerRpc.DreamsCancel, HandleDreamsCancelAsync);
+        table.Map(global::DotCraft.Protocol.Contracts.AppServer.AppServerRpc.DreamsArchive, HandleDreamsArchiveAsync);
+        table.Map(global::DotCraft.Protocol.Contracts.AppServer.AppServerRpc.DreamsApply, HandleDreamsApplyAsync);
+        table.Map(global::DotCraft.Protocol.Contracts.AppServer.AppServerRpc.DreamsDiscard, HandleDreamsDiscardAsync);
     }
 
     private Task<object?> HandleDreamsStatusAsync(AppServerIncomingMessage msg, CancellationToken ct)
     {
         _ = ct;
         EnsureDreamsAvailable();
-        ValidateEmptyObjectParams(msg, AppServerMethods.DreamsStatus);
+        ValidateEmptyObjectParams(msg, DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.DreamsStatus);
         return Task.FromResult<object?>(BuildDreamsStatusResult());
     }
 
     private async Task<object?> HandleDreamsRunAsync(AppServerIncomingMessage msg, CancellationToken ct)
     {
         EnsureDreamsAvailable();
-        ValidateEmptyObjectParams(msg, AppServerMethods.DreamsRun);
+        ValidateEmptyObjectParams(msg, DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.DreamsRun);
         await dreamsService!.RequestRunAsync(cancellationToken: ct).ConfigureAwait(false);
         return BuildDreamsStatusResult();
     }
@@ -136,7 +136,7 @@ internal sealed class DreamsRequestHandler(
         if (state == null)
             throw AppServerErrors.InvalidParams("Dream run not found.");
         AppServerContextInvalidation.MarkMemory(contextPageManager);
-        appConfigMonitor?.NotifyChanged(AppServerMethods.DreamsApply, [ConfigChangeRegions.Memory]);
+        appConfigMonitor?.NotifyChanged(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.DreamsApply, [ConfigChangeRegions.Memory]);
         return Task.FromResult<object?>(new DreamsRunResult { Run = ToDreamRunWire(state), ActiveDreamStoreId = dreamStore?.GetActiveStoreId() });
     }
 
@@ -154,7 +154,7 @@ internal sealed class DreamsRequestHandler(
     private void EnsureDreamsAvailable()
     {
         if (dreamsService == null || string.IsNullOrWhiteSpace(workspaceCraftPath))
-            throw AppServerErrors.MethodNotFound(AppServerMethods.DreamsStatus);
+            throw AppServerErrors.MethodNotFound(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.DreamsStatus);
     }
 
     private DreamsStatusResult BuildDreamsStatusResult()

@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.dotcraft.dev/appserver/v1/automations/AutomationTaskUpdateBindingParams.schema.json",
+  "title": "AutomationTaskUpdateBindingParams",
+  "type": "object",
+  "properties": {
+    "taskId": {
+      "type": "string"
+    },
+    "threadBinding": {
+      "anyOf": [
+        {
+          "$ref": "./AutomationThreadBindingWire.schema.json"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "workspacePath": {
+      "type": "string"
+    }
+  },
+  "additionalProperties": true
+}

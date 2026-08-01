@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.dotcraft.dev/appserver/v1/app-binding/AppConnectionStatusResult.schema.json",
+  "title": "AppConnectionStatusResult",
+  "type": "object",
+  "properties": {
+    "appId": {
+      "type": "string"
+    },
+    "principal": {
+      "anyOf": [
+        {
+          "$ref": "./AppPrincipalWire.schema.json"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "state": {
+      "type": "string"
+    }
+  },
+  "additionalProperties": true
+}

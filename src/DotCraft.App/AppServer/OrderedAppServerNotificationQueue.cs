@@ -29,6 +29,9 @@ internal sealed class OrderedAppServerNotificationQueue
 
     public bool Enqueue(object notification) => _notifications.Writer.TryWrite(notification);
 
+    public bool Enqueue(string method, object parameters) =>
+        _notifications.Writer.TryWrite(new ContractNotification(method, parameters));
+
     public void Complete() => _notifications.Writer.TryComplete();
 
     private async Task PumpAsync()
@@ -36,11 +39,25 @@ internal sealed class OrderedAppServerNotificationQueue
         try
         {
             await foreach (var notification in _notifications.Reader.ReadAllAsync().ConfigureAwait(false))
-                await _transport.WriteMessageAsync(notification, CancellationToken.None).ConfigureAwait(false);
+            {
+                if (notification is ContractNotification contract)
+                {
+                    await _transport.NotifyContractAsync(
+                        contract.Method,
+                        contract.Parameters,
+                        CancellationToken.None).ConfigureAwait(false);
+                }
+                else
+                {
+                    await _transport.WriteMessageAsync(notification, CancellationToken.None).ConfigureAwait(false);
+                }
+            }
         }
         catch
         {
             _onWriteFailed();
         }
     }
+
+    private sealed record ContractNotification(string Method, object Parameters);
 }

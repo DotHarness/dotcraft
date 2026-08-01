@@ -3,11 +3,13 @@ using DotCraft.Configuration;
 using DotCraft.Protocol;
 using DotCraft.Protocol.AppServer;
 using DotCraft.Skills;
+using DotCraft.Protocol.Contracts;
+using Contract = DotCraft.Protocol.Contracts.AppServer;
 
 namespace DotCraft.AppBinding;
 
 /// <summary>AppServer extension for the App Binding control plane.</summary>
-public sealed class AppBindingProtocolExtension : IAppServerProtocolExtension
+public sealed class AppBindingProtocolExtension : IAppServerContractExtension
 {
     private const string AppList = "app/list";
     private const string AppView = "app/view";
@@ -34,23 +36,6 @@ public sealed class AppBindingProtocolExtension : IAppServerProtocolExtension
     private const string SocialRebind = "app/socialBinding/rebind";
     private const string SocialResolve = "app/socialBinding/resolve";
     private const string ThreadInputEnqueue = "app/threadInput/enqueue";
-
-    private static readonly HashSet<string> LegacyMethods = new(StringComparer.Ordinal)
-    {
-        "app/connection/refreshMetadata",
-        "app/binding/request/create",
-        "app/binding/request/cancel",
-        "app/binding/accept",
-        "app/binding/attachTools",
-        "app/binding/context/upsert",
-        "app/binding/context/remove",
-        "thread/appBindings/refresh",
-        "thread/appContextBlocks/list",
-        "ui/resource/read",
-        "ui/tool/call",
-        "ui/open-link",
-        "ui/update-model-context"
-    };
 
     private readonly AppBindingService _controlPlane;
     private readonly AppBindingCoordinator _coordinator;
@@ -85,8 +70,24 @@ public sealed class AppBindingProtocolExtension : IAppServerProtocolExtension
         BindingEnable, BindingRequestGet, BindingActivate, BindingRebind,
         PrincipalBindingsList, ThreadBindingsList, BindingConfirm, BindingRevoke,
         SocialRequestCreate, SocialRequestGet, SocialAccept, SocialRebind, SocialResolve,
-        ThreadInputEnqueue,
-        ..LegacyMethods
+        ThreadInputEnqueue
+    ];
+
+    public IReadOnlyCollection<IRpcMethodDescriptor> ContractMethods { get; } =
+    [
+        Contract.AppServerRpc.AppList, Contract.AppServerRpc.AppView,
+        Contract.AppServerRpc.AppConnectionStart, Contract.AppServerRpc.AppConnectionRequestGet,
+        Contract.AppServerRpc.AppConnectionConnect, Contract.AppServerRpc.AppConnectionAuthenticate,
+        Contract.AppServerRpc.AppConnectionRefresh, Contract.AppServerRpc.AppConnectionStatus,
+        Contract.AppServerRpc.AppConnectionRevoke, Contract.AppServerRpc.AppSurfacePublish,
+        Contract.AppServerRpc.AppSurfaceResolve, Contract.AppServerRpc.ThreadAppBindingEnable,
+        Contract.AppServerRpc.AppBindingRequestGet, Contract.AppServerRpc.AppBindingActivate,
+        Contract.AppServerRpc.AppBindingRebind, Contract.AppServerRpc.AppBindingsList,
+        Contract.AppServerRpc.ThreadAppBindingsList, Contract.AppServerRpc.ThreadAppBindingConfirmCapabilities,
+        Contract.AppServerRpc.ThreadAppBindingRevoke, Contract.AppServerRpc.ThreadSocialBindingRequestCreate,
+        Contract.AppServerRpc.SocialBindingRequestGet, Contract.AppServerRpc.SocialBindingAccept,
+        Contract.AppServerRpc.SocialBindingRebind, Contract.AppServerRpc.AppSocialBindingResolve,
+        Contract.AppServerRpc.AppThreadInputEnqueue
     ];
 
     public void ContributeCapabilities(AppServerCapabilityBuilder builder)
@@ -101,9 +102,6 @@ public sealed class AppBindingProtocolExtension : IAppServerProtocolExtension
     public async Task<object?> HandleAsync(AppServerIncomingMessage msg, AppServerExtensionContext context)
     {
         var method = msg.Method ?? string.Empty;
-        if (LegacyMethods.Contains(method))
-            throw AppServerErrors.AppBindingUpgradeRequired();
-
         var craftPath = RequireWorkspace(context, method);
         var userId = CurrentUser(context);
 
@@ -512,7 +510,6 @@ public sealed class AppBindingProtocolExtension : IAppServerProtocolExtension
         template
             .Replace("{appId}", Uri.EscapeDataString(appId), StringComparison.Ordinal)
             .Replace("{requestId}", Uri.EscapeDataString(requestId), StringComparison.Ordinal)
-            .Replace("{request}", Uri.EscapeDataString(requestId), StringComparison.Ordinal)
             .Replace("{requestToken}", Uri.EscapeDataString(token), StringComparison.Ordinal)
             .Replace("{operation}", Uri.EscapeDataString(operation), StringComparison.Ordinal)
             .Replace("{endpoint}", Uri.EscapeDataString(endpoint), StringComparison.Ordinal);
@@ -618,20 +615,24 @@ public sealed class AppBindingProtocolExtension : IAppServerProtocolExtension
         object result,
         params (string Method, object Params)[] notifications)
     {
+        var descriptor = Contract.AppServerRpcCatalog.All.Single(candidate =>
+            candidate.Name == msg.Method &&
+            candidate.Kind == "request" &&
+            candidate.Direction == RpcDirection.ClientToServer);
         await context.Transport.WriteMessageAsync(
-            AppServerRequestHandler.BuildResponse(msg.Id, result),
+            AppServerRequestHandler.BuildResponse(
+                msg.Id,
+                AppServerContractMapper.ToContract(descriptor.ResultType, result)),
             context.CancellationToken);
         foreach (var notification in notifications)
         {
             if (context.BroadcastTrustedNotification != null)
                 context.BroadcastTrustedNotification(notification.Method, notification.Params);
             else
-                await context.Transport.WriteMessageAsync(new
-                {
-                    jsonrpc = "2.0",
-                    method = notification.Method,
-                    @params = notification.Params
-                }, context.CancellationToken);
+                await context.Transport.NotifyContractAsync(
+                    notification.Method,
+                    notification.Params,
+                    context.CancellationToken);
         }
         return null;
     }

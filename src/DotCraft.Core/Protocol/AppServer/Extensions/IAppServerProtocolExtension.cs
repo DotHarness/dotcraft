@@ -1,3 +1,5 @@
+using DotCraft.Protocol.Contracts;
+
 namespace DotCraft.Protocol.AppServer;
 
 /// <summary>
@@ -32,4 +34,13 @@ public interface IAppServerCapabilityContributor
 /// </summary>
 public interface IAppServerProtocolExtension : IAppServerMethodHandler, IAppServerCapabilityContributor
 {
+}
+
+/// <summary>
+/// Bundled extension whose methods are registered exclusively through executable contract descriptors.
+/// </summary>
+public interface IAppServerContractExtension : IAppServerProtocolExtension
+{
+    /// <summary>Stable request descriptors owned by the bundled extension.</summary>
+    IReadOnlyCollection<IRpcMethodDescriptor> ContractMethods { get; }
 }

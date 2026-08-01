@@ -54,7 +54,7 @@ public sealed class AppServerMarketplaceTests : IDisposable
         await harness.InitializeAsync();
 
         await harness.ExecuteRequestAsync(harness.BuildRequest(
-            AppServerMethods.MarketplaceAdd,
+            DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.MarketplaceAdd,
             new { source = sourceRoot }));
 
         using var response = await harness.Transport.ReadNextSentAsync();
@@ -88,12 +88,12 @@ public sealed class AppServerMarketplaceTests : IDisposable
         using var harness = CreateHarness();
         await harness.InitializeAsync();
 
-        await harness.ExecuteRequestAsync(harness.BuildRequest(AppServerMethods.MarketplaceAdd, new { source = sourceRoot }));
+        await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.MarketplaceAdd, new { source = sourceRoot }));
         using (await harness.Transport.ReadNextSentAsync())
         {
         }
 
-        await harness.ExecuteRequestAsync(harness.BuildRequest(AppServerMethods.MarketplaceAdd, new { source = sourceRoot }));
+        await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.MarketplaceAdd, new { source = sourceRoot }));
         using var response = await harness.Transport.ReadNextSentAsync();
 
         AppServerTestHarness.AssertIsSuccessResponse(response);
@@ -107,7 +107,7 @@ public sealed class AppServerMarketplaceTests : IDisposable
         await harness.InitializeAsync();
 
         await harness.ExecuteRequestAsync(harness.BuildRequest(
-            AppServerMethods.MarketplaceAdd,
+            DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.MarketplaceAdd,
             new { source = "https://user:secret@example.com/team/repo.git" }));
 
         using var response = await harness.Transport.ReadNextSentAsync();
@@ -125,7 +125,7 @@ public sealed class AppServerMarketplaceTests : IDisposable
         await harness.InitializeAsync();
 
         await harness.ExecuteRequestAsync(harness.BuildRequest(
-            AppServerMethods.MarketplaceAdd,
+            DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.MarketplaceAdd,
             new { source = sourceRoot, sparsePaths = new[] { "plugins/example" } }));
 
         using var response = await harness.Transport.ReadNextSentAsync();
@@ -142,13 +142,13 @@ public sealed class AppServerMarketplaceTests : IDisposable
         WritePlugin(Path.Combine(sourceRoot, "plugins", "example-plugin"), "example-plugin");
         using var harness = CreateHarness();
         await harness.InitializeAsync();
-        await harness.ExecuteRequestAsync(harness.BuildRequest(AppServerMethods.MarketplaceAdd, new { source = sourceRoot }));
+        await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.MarketplaceAdd, new { source = sourceRoot }));
         using (await harness.Transport.ReadNextSentAsync())
         {
         }
 
         await harness.ExecuteRequestAsync(harness.BuildRequest(
-            AppServerMethods.MarketplaceRemove,
+            DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.MarketplaceRemove,
             new { name = "example-marketplace" }));
 
         using var response = await harness.Transport.ReadNextSentAsync();
@@ -171,7 +171,7 @@ public sealed class AppServerMarketplaceTests : IDisposable
         await harness.InitializeAsync();
 
         await harness.ExecuteRequestAsync(harness.BuildRequest(
-            AppServerMethods.MarketplaceRemove,
+            DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.MarketplaceRemove,
             new { name = "missing" }));
 
         using var response = await harness.Transport.ReadNextSentAsync();
@@ -187,12 +187,12 @@ public sealed class AppServerMarketplaceTests : IDisposable
         WriteMarketplace(sourceRoot, "example-marketplace");
         using var harness = CreateHarness();
         await harness.InitializeAsync();
-        await harness.ExecuteRequestAsync(harness.BuildRequest(AppServerMethods.MarketplaceAdd, new { source = sourceRoot }));
+        await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.MarketplaceAdd, new { source = sourceRoot }));
         using (await harness.Transport.ReadNextSentAsync())
         {
         }
 
-        await harness.ExecuteRequestAsync(harness.BuildRequest(AppServerMethods.MarketplaceRefresh, new { }));
+        await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.MarketplaceRefresh, new { }));
 
         using var response = await harness.Transport.ReadNextSentAsync();
         AppServerTestHarness.AssertIsSuccessResponse(response);
@@ -208,13 +208,13 @@ public sealed class AppServerMarketplaceTests : IDisposable
         WriteMarketplace(sourceRoot, "example-marketplace");
         using var harness = CreateHarness();
         await harness.InitializeAsync();
-        await harness.ExecuteRequestAsync(harness.BuildRequest(AppServerMethods.MarketplaceAdd, new { source = sourceRoot }));
+        await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.MarketplaceAdd, new { source = sourceRoot }));
         using (await harness.Transport.ReadNextSentAsync())
         {
         }
 
         Directory.Delete(sourceRoot, recursive: true);
-        await harness.ExecuteRequestAsync(harness.BuildRequest(AppServerMethods.MarketplaceRefresh, new { }));
+        await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.MarketplaceRefresh, new { }));
 
         using var response = await harness.Transport.ReadNextSentAsync();
         AppServerTestHarness.AssertIsSuccessResponse(response);
@@ -228,7 +228,7 @@ public sealed class AppServerMarketplaceTests : IDisposable
     private async Task<System.Text.Json.JsonDocument> ListPluginsAsync(AppServerTestHarness harness)
     {
         await harness.ExecuteRequestAsync(harness.BuildRequest(
-            AppServerMethods.PluginList,
+            DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.PluginList,
             new { includeDisabled = true }));
         return await harness.Transport.ReadNextSentAsync();
     }

@@ -32,7 +32,7 @@ public sealed class AppServerPlanNotificationTests
         using var doc = JsonDocument.Parse(JsonSerializer.Serialize(notification));
         var root = doc.RootElement;
         Assert.Equal("2.0", root.GetProperty("jsonrpc").GetString());
-        Assert.Equal(AppServerMethods.PlanUpdated, root.GetProperty("method").GetString());
+        Assert.Equal(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.PlanUpdated, root.GetProperty("method").GetString());
 
         var @params = root.GetProperty("params");
         Assert.Equal("thread-plan-1", @params.GetProperty("threadId").GetString());

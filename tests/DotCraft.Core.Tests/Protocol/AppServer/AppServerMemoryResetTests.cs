@@ -83,7 +83,7 @@ public sealed class AppServerMemoryResetTests : IDisposable
         AppServerTestHarness.AssertIsSuccessResponse(response);
         Assert.Equal(JsonValueKind.Object, response.RootElement.GetProperty("result").ValueKind);
         Assert.Empty(response.RootElement.GetProperty("result").EnumerateObject());
-        AssertSingleConfigChanged(sent, AppServerMethods.MemoryReset, ConfigChangeRegions.Memory);
+        AssertSingleConfigChanged(sent, DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.MemoryReset, ConfigChangeRegions.Memory);
 
         Assert.True(Directory.Exists(memoryStore.MemoryDirectoryPath));
         Assert.Empty(Directory.EnumerateFileSystemEntries(memoryStore.MemoryDirectoryPath));
@@ -112,7 +112,7 @@ public sealed class AppServerMemoryResetTests : IDisposable
             memoryStore: memoryStore);
         await harness.InitializeAsync();
 
-        await harness.ExecuteRequestAsync(harness.BuildRequest(AppServerMethods.MemoryReset, new { }));
+        await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.MemoryReset, new { }));
 
         var response = await harness.Transport.ReadNextSentAsync();
         AppServerTestHarness.AssertIsSuccessResponse(response);
@@ -129,7 +129,7 @@ public sealed class AppServerMemoryResetTests : IDisposable
             memoryStore: memoryStore);
         await harness.InitializeAsync();
 
-        await harness.ExecuteRequestAsync(harness.BuildRequest(AppServerMethods.MemoryReset, "bad"));
+        await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.MemoryReset, "bad"));
 
         var response = await harness.Transport.ReadNextSentAsync();
         AppServerTestHarness.AssertIsErrorResponse(response, AppServerErrors.InvalidParamsCode);
@@ -142,7 +142,7 @@ public sealed class AppServerMemoryResetTests : IDisposable
         {
             JsonRpc = "2.0",
             Id = idDoc.RootElement.Clone(),
-            Method = AppServerMethods.MemoryReset
+            Method = DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.MemoryReset
         };
     }
 
@@ -150,13 +150,13 @@ public sealed class AppServerMemoryResetTests : IDisposable
     {
         void OnChanged(object? sender, AppConfigChangedEventArgs change)
         {
-            if (!harness.Connection.SupportsConfigChange || !harness.Connection.ShouldSendNotification(AppServerMethods.WorkspaceConfigChanged))
+            if (!harness.Connection.SupportsConfigChange || !harness.Connection.ShouldSendNotification(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.WorkspaceConfigChanged))
                 return;
 
             var notification = new
             {
                 jsonrpc = "2.0",
-                method = AppServerMethods.WorkspaceConfigChanged,
+                method = DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.WorkspaceConfigChanged,
                 @params = new WorkspaceConfigChangedParams
                 {
                     Source = change.Source,
@@ -179,7 +179,7 @@ public sealed class AppServerMemoryResetTests : IDisposable
         var notifications = sent
             .Where(d =>
                 d.RootElement.TryGetProperty("method", out var method)
-                && string.Equals(method.GetString(), AppServerMethods.WorkspaceConfigChanged, StringComparison.Ordinal))
+                && string.Equals(method.GetString(), DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.WorkspaceConfigChanged, StringComparison.Ordinal))
             .ToList();
         Assert.Single(notifications);
 

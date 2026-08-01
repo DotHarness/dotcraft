@@ -1,4 +1,5 @@
 using DotCraft.Configuration;
+using Contract = DotCraft.Protocol.Contracts.AppServer;
 
 namespace DotCraft.Protocol.AppServer;
 
@@ -13,11 +14,11 @@ internal sealed class WorktreeRequestHandler(
 {
     public void RegisterMethods(AppServerMethodTable table)
     {
-        table.Map(AppServerMethods.WorktreeCreateAndFork, HandleWorktreeCreateAndForkAsync);
-        table.Map(AppServerMethods.WorktreeCreateAndStart, HandleWorktreeCreateAndStartAsync);
-        table.Map(AppServerMethods.ThreadWorktreeHandoff, HandleThreadWorktreeHandoffAsync);
-        table.Map(AppServerMethods.WorktreeList, HandleWorktreeListAsync);
-        table.Map(AppServerMethods.WorktreeStatus, HandleWorktreeStatusAsync);
+        table.Map(global::DotCraft.Protocol.Contracts.AppServer.AppServerRpc.WorktreeCreateAndFork, HandleWorktreeCreateAndForkAsync);
+        table.Map(global::DotCraft.Protocol.Contracts.AppServer.AppServerRpc.WorktreeCreateAndStart, HandleWorktreeCreateAndStartAsync);
+        table.Map(global::DotCraft.Protocol.Contracts.AppServer.AppServerRpc.ThreadWorktreeHandoff, HandleThreadWorktreeHandoffAsync);
+        table.Map(global::DotCraft.Protocol.Contracts.AppServer.AppServerRpc.WorktreeList, HandleWorktreeListAsync);
+        table.Map(global::DotCraft.Protocol.Contracts.AppServer.AppServerRpc.WorktreeStatus, HandleWorktreeStatusAsync);
     }
 
     private async Task<object?> HandleWorktreeCreateAndForkAsync(AppServerIncomingMessage msg, CancellationToken ct)
@@ -52,8 +53,8 @@ internal sealed class WorktreeRequestHandler(
         await responseWriter.SendNotificationAfterResponseAsync(
             msg.Id,
             new WorktreeCreateAndForkResponse { Thread = responseWire, Worktree = result.Worktree },
-            AppServerMethods.ThreadStarted,
-            new ThreadStartedNotification { Thread = notificationWire },
+            Contract.AppServerRpc.ThreadStarted,
+            AppServerContractMapper.ToContract(new ThreadStartedNotification { Thread = notificationWire }),
             ct);
 
         return null;
@@ -86,8 +87,8 @@ internal sealed class WorktreeRequestHandler(
         await responseWriter.SendNotificationAfterResponseAsync(
             msg.Id,
             new WorktreeCreateAndStartResponse { Thread = startedWire, Worktree = result.Worktree },
-            AppServerMethods.ThreadStarted,
-            new ThreadStartedNotification { Thread = startedWire },
+            Contract.AppServerRpc.ThreadStarted,
+            AppServerContractMapper.ToContract(new ThreadStartedNotification { Thread = startedWire }),
             ct);
 
         return null;
@@ -124,8 +125,8 @@ internal sealed class WorktreeRequestHandler(
         await responseWriter.SendNotificationAfterResponseAsync(
             msg.Id,
             response,
-            AppServerMethods.ThreadUpdated,
-            new ThreadUpdatedNotification { Thread = wire },
+            Contract.AppServerRpc.ThreadUpdated,
+            AppServerContractMapper.ToContract(new ThreadUpdatedNotification { Thread = wire }),
             ct);
 
         return null;

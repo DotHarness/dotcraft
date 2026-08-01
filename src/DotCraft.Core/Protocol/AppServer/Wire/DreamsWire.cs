@@ -6,21 +6,21 @@ namespace DotCraft.Protocol.AppServer;
 // ───── dreams/* (workspace Dreams management) ─────
 
 /// <summary>
-/// Params for <see cref="AppServerMethods.DreamsStatus"/>.
+/// Params for <see cref="DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.DreamsStatus"/>.
 /// </summary>
 public sealed class DreamsStatusParams
 {
 }
 
 /// <summary>
-/// Params for <see cref="AppServerMethods.DreamsRun"/>.
+/// Params for <see cref="DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.DreamsRun"/>.
 /// </summary>
 public sealed class DreamsRunParams
 {
 }
 
 /// <summary>
-/// Params for <see cref="AppServerMethods.DreamsCreate"/>.
+/// Params for <see cref="DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.DreamsCreate"/>.
 /// </summary>
 public sealed class DreamsCreateParams
 {
@@ -44,7 +44,7 @@ public sealed class DreamsListParams
 }
 
 /// <summary>
-/// Result for <see cref="AppServerMethods.DreamsStatus"/> and <see cref="AppServerMethods.DreamsRun"/>.
+/// Result for <see cref="DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.DreamsStatus"/> and <see cref="DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.DreamsRun"/>.
 /// </summary>
 public sealed class DreamsStatusResult
 {

@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.dotcraft.dev/appserver/v1/automations/AutomationTaskUpdatedNotification.schema.json",
+  "title": "AutomationTaskUpdatedNotification",
+  "type": "object",
+  "properties": {
+    "task": {
+      "$ref": "./AutomationTaskWire.schema.json"
+    },
+    "workspacePath": {
+      "type": "string"
+    }
+  },
+  "additionalProperties": true
+}

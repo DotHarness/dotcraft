@@ -21,13 +21,13 @@ public sealed class AppServerNotificationOptOutTests : IDisposable
     public async Task OptOut_TurnCompleted_SuppressesTurnCompletedNotification()
     {
         using var harness = new AppServerTestHarness();
-        await harness.InitializeAsync(optOutMethods: [AppServerMethods.TurnCompleted]);
+        await harness.InitializeAsync(optOutMethods: [DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.TurnCompleted]);
 
         var thread = await harness.Service.CreateThreadAsync(harness.Identity);
         harness.Service.EnqueueSubmitEvents(
             thread.Id, AppServerTestHarness.BuildTurnEventSequence(thread.Id));
 
-        var msg = harness.BuildRequest(AppServerMethods.TurnStart, new
+        var msg = harness.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.TurnStart, new
         {
             threadId = thread.Id,
             input = new[] { new { type = "text", text = "Hello" } }
@@ -42,9 +42,9 @@ public sealed class AppServerNotificationOptOutTests : IDisposable
             .Select(d => d.RootElement.TryGetProperty("method", out var m) ? m.GetString() : null)
             .ToList();
 
-        Assert.DoesNotContain(AppServerMethods.TurnCompleted, methods);
-        Assert.Contains(AppServerMethods.TurnStarted, methods);
-        Assert.Contains(AppServerMethods.ItemAgentMessageDelta, methods);
+        Assert.DoesNotContain(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.TurnCompleted, methods);
+        Assert.Contains(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.TurnStarted, methods);
+        Assert.Contains(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.AgentMessageDelta, methods);
     }
 
     [Fact]
@@ -53,15 +53,15 @@ public sealed class AppServerNotificationOptOutTests : IDisposable
         using var harness = new AppServerTestHarness();
         await harness.InitializeAsync(optOutMethods:
         [
-            AppServerMethods.ItemAgentMessageDelta,
-            AppServerMethods.ItemReasoningDelta
+            DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.AgentMessageDelta,
+            DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ReasoningDelta
         ]);
 
         var thread = await harness.Service.CreateThreadAsync(harness.Identity);
         harness.Service.EnqueueSubmitEvents(
             thread.Id, AppServerTestHarness.BuildTurnEventSequence(thread.Id));
 
-        var msg = harness.BuildRequest(AppServerMethods.TurnStart, new
+        var msg = harness.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.TurnStart, new
         {
             threadId = thread.Id,
             input = new[] { new { type = "text", text = "Hello" } }
@@ -75,8 +75,8 @@ public sealed class AppServerNotificationOptOutTests : IDisposable
             .Select(d => d.RootElement.TryGetProperty("method", out var m) ? m.GetString() : null)
             .ToList();
 
-        Assert.DoesNotContain(AppServerMethods.ItemAgentMessageDelta, methods);
-        Assert.DoesNotContain(AppServerMethods.ItemReasoningDelta, methods);
+        Assert.DoesNotContain(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.AgentMessageDelta, methods);
+        Assert.DoesNotContain(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ReasoningDelta, methods);
     }
 
     [Fact]
@@ -89,7 +89,7 @@ public sealed class AppServerNotificationOptOutTests : IDisposable
         harness.Service.EnqueueSubmitEvents(
             thread.Id, AppServerTestHarness.BuildTurnEventSequence(thread.Id));
 
-        var msg = harness.BuildRequest(AppServerMethods.TurnStart, new
+        var msg = harness.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.TurnStart, new
         {
             threadId = thread.Id,
             input = new[] { new { type = "text", text = "Hello" } }
@@ -115,7 +115,7 @@ public sealed class AppServerNotificationOptOutTests : IDisposable
         harness.Service.EnqueueSubmitEvents(
             thread.Id, AppServerTestHarness.BuildTurnEventSequence(thread.Id));
 
-        var msg = harness.BuildRequest(AppServerMethods.TurnStart, new
+        var msg = harness.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.TurnStart, new
         {
             threadId = thread.Id,
             input = new[] { new { type = "text", text = "Hello" } }
@@ -128,8 +128,8 @@ public sealed class AppServerNotificationOptOutTests : IDisposable
             .Select(d => d.RootElement.TryGetProperty("method", out var m) ? m.GetString() : null)
             .ToList();
 
-        Assert.DoesNotContain(AppServerMethods.ItemAgentMessageDelta, methods);
-        Assert.DoesNotContain(AppServerMethods.ItemReasoningDelta, methods);
+        Assert.DoesNotContain(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.AgentMessageDelta, methods);
+        Assert.DoesNotContain(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ReasoningDelta, methods);
     }
 
     [Fact]
@@ -142,7 +142,7 @@ public sealed class AppServerNotificationOptOutTests : IDisposable
         harness.Service.EnqueueSubmitEvents(
             thread.Id, AppServerTestHarness.BuildTurnEventSequence(thread.Id));
 
-        var msg = harness.BuildRequest(AppServerMethods.TurnStart, new
+        var msg = harness.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.TurnStart, new
         {
             threadId = thread.Id,
             input = new[] { new { type = "text", text = "Hello" } }
@@ -155,7 +155,7 @@ public sealed class AppServerNotificationOptOutTests : IDisposable
             .Select(d => d.RootElement.TryGetProperty("method", out var m) ? m.GetString() : null)
             .ToList();
 
-        Assert.Contains(AppServerMethods.ItemAgentMessageDelta, methods);
+        Assert.Contains(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.AgentMessageDelta, methods);
     }
 
     // -------------------------------------------------------------------------
@@ -168,7 +168,7 @@ public sealed class AppServerNotificationOptOutTests : IDisposable
         using var harness = new AppServerTestHarness();
 
         // Only send initialize, NOT initialized notification
-        var initMsg = harness.BuildRequest(AppServerMethods.Initialize, new
+        var initMsg = harness.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.Initialize, new
         {
             clientInfo = new { name = "test-client", version = "0.0.1" }
         });
@@ -179,7 +179,7 @@ public sealed class AppServerNotificationOptOutTests : IDisposable
         harness.Transport.TryReadSent(); // drain init response
 
         // Attempt to send a thread/list before initialized — should get "not ready" error
-        var listMsg = harness.BuildRequest(AppServerMethods.ThreadList, new
+        var listMsg = harness.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ThreadList, new
         {
             identity = new { channelName = "test", workspacePath = harness.Identity.WorkspacePath }
         });
@@ -199,13 +199,13 @@ public sealed class AppServerNotificationOptOutTests : IDisposable
         using var harness = new AppServerTestHarness();
         await harness.InitializeAsync(
             streamingSupport: false,
-            optOutMethods: [AppServerMethods.ItemStarted]);
+            optOutMethods: [DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ItemStarted]);
 
         var thread = await harness.Service.CreateThreadAsync(harness.Identity);
         harness.Service.EnqueueSubmitEvents(
             thread.Id, AppServerTestHarness.BuildTurnEventSequence(thread.Id));
 
-        var msg = harness.BuildRequest(AppServerMethods.TurnStart, new
+        var msg = harness.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.TurnStart, new
         {
             threadId = thread.Id,
             input = new[] { new { type = "text", text = "Hello" } }
@@ -219,8 +219,8 @@ public sealed class AppServerNotificationOptOutTests : IDisposable
             .Select(d => d.RootElement.TryGetProperty("method", out var m) ? m.GetString() : null)
             .ToList();
 
-        Assert.DoesNotContain(AppServerMethods.ItemAgentMessageDelta, methods);
-        Assert.DoesNotContain(AppServerMethods.ItemStarted, methods);
-        Assert.Contains(AppServerMethods.TurnCompleted, methods);
+        Assert.DoesNotContain(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.AgentMessageDelta, methods);
+        Assert.DoesNotContain(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ItemStarted, methods);
+        Assert.Contains(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.TurnCompleted, methods);
     }
 }

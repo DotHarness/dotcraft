@@ -5,7 +5,7 @@
 | **Version** | 0.1.0 |
 | **Status** | Living |
 | **Date** | 2026-06-03 |
-| **Related Specs** | [Unified SDK Specification](sdk.md), [AppServer Protocol](../protocols/appserver-protocol.md), [Hub Architecture](../architecture/hub-architecture.md), [App Binding](../protocols/app-binding.md), [External Channel Adapter](../protocols/external-channel-adapter.md), [Session Core](../architecture/session-core.md), [TypeScript SDK Binding](typescript.md), [.NET SDK Binding](dotnet.md) |
+| **Related Specs** | [Unified SDK Specification](sdk.md), [AppServer Protocol](../protocols/appserver-protocol.md), [AppServer Protocol Contracts and SDK Generation](protocol-contract-generation.md), [Hub Architecture](../architecture/hub-architecture.md), [App Binding](../protocols/app-binding.md), [External Channel Adapter](../protocols/external-channel-adapter.md), [Session Core](../architecture/session-core.md), [TypeScript SDK Binding](typescript.md), [.NET SDK Binding](dotnet.md) |
 
 Purpose: Define the Python binding — package identity, runtime baseline, full general-purpose client surface, channel adapter, and compatibility strategy — for the DotCraft Python SDK.
 
@@ -695,6 +695,7 @@ A complete implementation of this specification satisfies:
 - A public `request()` escape hatch is available on the high-level and wire clients.
 - App Binding handoff parse, connection, authentication, activation, rebind, confirmation, and tool error shape work.
 - The channel adapter preserves existing behavior.
+- AppServer Pydantic wire models, notification registry, RPC mixins, method groups, and protocol metadata are generated under `dotcraft/_generated/appserver/`; handwritten transports and high-level APIs retain raw fallbacks.
 - Python SDK tests pass.
 - Chinese and English Python SDK docs follow the shared skeleton.
 - The Unified SDK capability matrix reflects Python's status in the same change.
@@ -707,7 +708,6 @@ Future amendments may cover:
 
 - Public PyPI publishing and provenance.
 - Synchronous convenience wrappers over the async core.
-- Generated Python protocol types from a shared AppServer schema.
 - Typed App Binding DTOs replacing generic mappings.
 - Reconnection and callback rebind policy for long-lived remote clients.
 - Pluggable logging and telemetry hooks.

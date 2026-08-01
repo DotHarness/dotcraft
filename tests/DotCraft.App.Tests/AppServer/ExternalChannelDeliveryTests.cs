@@ -16,6 +16,7 @@ using DotCraft.Protocol.AppServer;
 using DotCraft.Security;
 using DotCraft.Sessions;
 using DotCraft.Tools;
+using Contract = DotCraft.Protocol.Contracts.AppServer;
 using DotCraft.Skills;
 using Microsoft.Extensions.AI;
 
@@ -330,7 +331,7 @@ public sealed class ExternalChannelDeliveryTests : IDisposable
     [Fact]
     public async Task ExternalChannelMessageDispatcher_TextDelivery_RequiresUnifiedSendCapabilities()
     {
-        var transport = new StubTransport(new { delivered = false, error = "legacy failed" });
+        var transport = new StubTransport(new ExtChannelSendResult { Delivered = false });
         var store = new FileSystemChannelMediaArtifactStore(_tempDir);
         var resolver = CreateResolver(store, _tempDir);
         var dispatcher = new ExternalChannelMessageDispatcher(resolver, store);
@@ -404,7 +405,7 @@ public sealed class ExternalChannelDeliveryTests : IDisposable
             metadata: null);
 
         Assert.True(result.Delivered);
-        Assert.Equal(AppServerMethods.ExtChannelSend, transport.LastMethod);
+        Assert.Equal(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ExtChannelSend, transport.LastMethod);
     }
 
     [Fact]
@@ -690,10 +691,11 @@ public sealed class ExternalChannelDeliveryTests : IDisposable
 
         Assert.True(result.Success);
         Assert.Equal("Document sent.", result.Content);
-        var toolParams = Assert.IsType<ExtChannelToolCallParams>(transport.LastParams);
-        Assert.Equal("provider-call-42", toolParams.CallId);
-        Assert.Equal("chat_123", toolParams.Context.ChannelContext);
-        Assert.Equal("user_42", toolParams.Context.SenderId);
+        var toolParams = Assert.IsType<Contract.ExtChannelToolCallParams>(transport.LastParams);
+        Assert.Equal("provider-call-42", toolParams.CallId.Value);
+        var toolContext = Assert.IsType<Contract.ExtChannelToolCallContext>(toolParams.Context.Value);
+        Assert.Equal("chat_123", toolContext.ChannelContext.Value);
+        Assert.Equal("user_42", toolContext.SenderId.Value);
     }
 
 

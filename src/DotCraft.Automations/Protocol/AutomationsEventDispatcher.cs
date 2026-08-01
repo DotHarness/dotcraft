@@ -38,19 +38,24 @@ public sealed class AutomationsEventDispatcher : IDisposable
     /// Builds the JSON-RPC notification object for <c>automation/task/updated</c>.
     /// </summary>
     public static object BuildNotification(DotCraft.Protocol.AppServer.IAutomationTaskEventPayload task, string workspacePath)
+        => new
+        {
+            jsonrpc = "2.0",
+            method = DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.AutomationTaskUpdated,
+            @params = BuildNotificationParams(task, workspacePath)
+        };
+
+    public static AutomationTaskUpdatedNotification BuildNotificationParams(
+        DotCraft.Protocol.AppServer.IAutomationTaskEventPayload task,
+        string workspacePath)
     {
         if (task is not AutomationTask automationTask)
             throw new InvalidOperationException("Unsupported automation task payload.");
 
-        return new
+        return new AutomationTaskUpdatedNotification
         {
-            jsonrpc = "2.0",
-            method = AppServerMethods.AutomationTaskUpdated,
-            @params = new AutomationTaskUpdatedNotification
-            {
-                WorkspacePath = workspacePath,
-                Task = AutomationsRequestHandler.ToNotificationWire(automationTask)
-            }
+            WorkspacePath = workspacePath,
+            Task = AutomationsRequestHandler.ToNotificationWire(automationTask)
         };
     }
 }

@@ -6,7 +6,7 @@ Maps each Telegram chat to a DotCraft thread. Supports:
 - Slash commands via server command pipeline (`command/execute`)
 - Agent replies streamed and sent progressively by completed segments
 - Approval flow via Telegram inline keyboard buttons
-- ext/channel/deliver mapped to bot.send_message()
+- ext/channel/send mapped to bot.send_message()
 - Typing indicator while the agent is processing
 """
 

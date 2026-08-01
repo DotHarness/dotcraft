@@ -13,6 +13,7 @@ using DotCraft.Protocol;
 using DotCraft.Logging;
 using DotCraft.Security;
 using Spectre.Console;
+using Contract = DotCraft.Protocol.Contracts.AppServer;
 
 namespace DotCraft.ExternalChannel;
 
@@ -390,9 +391,9 @@ public sealed class ExternalChannelHost : IChannelService, IChannelToolRegistrat
 
         try
         {
-            var response = await _transport.SendClientRequestAsync(
-                AppServerMethods.ExtChannelToolCall,
-                request,
+            var response = await _transport.RequestAsync(
+                Contract.AppServerRpc.ExtChannelToolCall,
+                AppServerContractMapper.ToContract<Contract.ExtChannelToolCallParams>(request),
                 cancellationToken,
                 TimeSpan.FromSeconds(20));
             return ParseToolResult(response);
@@ -948,13 +949,10 @@ public sealed class ExternalChannelHost : IChannelService, IChannelToolRegistrat
 
     private void HandleNotification(AppServerIncomingMessage msg, AppServerRequestHandler handler)
     {
-        switch (msg.Method)
+        if (handler.HandleNotification(msg) && msg.Method == DotCraft.Protocol.Contracts.AppServer.AppServerRpc.Initialized.Name)
         {
-            case AppServerMethods.Initialized:
-                handler.HandleInitializedNotification();
-                // Start heartbeat probing after adapter is ready
-                StartHeartbeatTimer();
-                break;
+            // Start heartbeat probing after adapter is ready
+            StartHeartbeatTimer();
         }
     }
 
@@ -985,9 +983,9 @@ public sealed class ExternalChannelHost : IChannelService, IChannelToolRegistrat
 
         try
         {
-            await _transport.SendClientRequestAsync(
-                AppServerMethods.ExtChannelHeartbeat,
-                new { },
+            await _transport.RequestAsync(
+                Contract.AppServerRpc.ExtChannelHeartbeat,
+                new DotCraft.Protocol.Contracts.RpcEmpty(),
                 timeout: HeartbeatTimeout);
 
             // Heartbeat succeeded — connection is healthy
@@ -1048,9 +1046,10 @@ public sealed class ExternalChannelHost : IChannelService, IChannelToolRegistrat
         return new ExternalChannelDeliveryDependencies(artifactStore, resolver, dispatcher);
     }
 
-    private static ExtChannelToolCallResult ParseToolResult(AppServerIncomingMessage response)
+    private static ExtChannelToolCallResult ParseToolResult(
+        AppServerTypedClientResponse<Contract.ExtChannelToolCallResult> response)
     {
-        if (response.Result is not { } result || result.ValueKind != JsonValueKind.Object)
+        if (response.Result is not { } result)
         {
             return new ExtChannelToolCallResult
             {
@@ -1060,18 +1059,7 @@ public sealed class ExternalChannelHost : IChannelService, IChannelToolRegistrat
             };
         }
 
-        var parsed = JsonSerializer.Deserialize<ExtChannelToolCallResult>(
-            result.GetRawText(),
-            SessionWireJsonOptions.Default);
-        if (parsed == null)
-        {
-            return new ExtChannelToolCallResult
-            {
-                Success = false,
-                ErrorCode = "AdapterProtocolViolation",
-                ErrorMessage = "Adapter returned an empty tool response payload."
-            };
-        }
+        var parsed = AppServerContractMapper.ToDomain<ExtChannelToolCallResult>(result);
 
         if (!parsed.Success && string.IsNullOrWhiteSpace(parsed.ErrorCode))
             parsed.ErrorCode = "AdapterToolCallFailed";
