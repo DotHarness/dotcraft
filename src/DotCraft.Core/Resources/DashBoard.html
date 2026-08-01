@@ -480,6 +480,13 @@ body {
   justify-content: flex-start;
 }
 .dreams-pane-head--list { grid-area: listhead; }
+.dreams-history-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
 #dreamsDetailHead { grid-area: detailhead; }
 #dreamsRunList { grid-area: listbody; }
 #dreamsRunDetail { grid-area: detailbody; min-width: 0; }
@@ -2235,7 +2242,10 @@ body {
           <div class="stats-grid" id="dreamsStats"></div>
           <div class="dreams-layout">
             <div class="dreams-pane-head dreams-pane-head--list">
-              <div class="section-heading" style="margin-bottom:0">Run history</div>
+              <div class="dreams-history-head">
+                <div class="section-heading" style="margin-bottom:0">Run history</div>
+                <button class="btn btn-danger" id="dreamsDeleteAllBtn" onclick="confirmDeleteAllDreamRuns()" disabled>Delete all</button>
+              </div>
               <div id="dreamsFilter" class="dreams-filter"></div>
             </div>
             <div class="dreams-pane-head" id="dreamsDetailHead"></div>
@@ -2357,6 +2367,7 @@ let selectedDreamRunDetails = null;
 let dreamsFilter = 'all';
 let dreamsListLoading = false;
 let dreamsDetailLoading = false;
+let dreamsDeleteBusy = null;
 let dashboardRuntime = {
   mode: 'interactive',
   readOnly: false,
@@ -5623,10 +5634,29 @@ function renderDreamsStats() {
   updateDreamsRunNowBtn();
 }
 
+function dreamsAnyRunRunning() {
+  return !!dreamsStatus?.running || dreamsRuns.some(run => run.status === 'running');
+}
+
+function updateDreamsDeleteAllBtn() {
+  const btn = document.getElementById('dreamsDeleteAllBtn');
+  if (!btn) return;
+  const running = dreamsAnyRunRunning();
+  const busy = dreamsDeleteBusy !== null;
+  btn.disabled = !dreamsRuns.length || running || busy;
+  btn.textContent = dreamsDeleteBusy === 'all' ? 'Deleting…' : 'Delete all';
+  btn.title = running
+    ? 'Dream Runs cannot be deleted while any run is in progress.'
+    : !dreamsRuns.length ? 'There are no Dream Runs to delete.'
+    : busy ? 'A Dreams deletion is already in progress.'
+    : 'Permanently delete all Dream Runs and their non-active artifacts.';
+}
+
 function filteredDreamRuns() {
   if (dreamsFilter === 'pending') return dreamsRuns.filter(r => r.reviewStatus === 'pending');
-  if (dreamsFilter === 'applied') return dreamsRuns.filter(r => r.reviewStatus === 'applied' || r.autoApplied);
-  if (dreamsFilter === 'other') return dreamsRuns.filter(r => r.reviewStatus !== 'pending' && r.reviewStatus !== 'applied' && !r.autoApplied);
+  if (dreamsFilter === 'applied') return dreamsRuns.filter(r => r.reviewStatus === 'applied' || (r.autoApplied && r.reviewStatus !== 'archived'));
+  if (dreamsFilter === 'archived') return dreamsRuns.filter(r => r.reviewStatus === 'archived');
+  if (dreamsFilter === 'other') return dreamsRuns.filter(r => r.reviewStatus !== 'pending' && r.reviewStatus !== 'applied' && r.reviewStatus !== 'archived' && !r.autoApplied);
   return dreamsRuns;
 }
 
@@ -5643,11 +5673,12 @@ function renderDreamsFilter() {
   const counts = {
     all: dreamsRuns.length,
     pending: dreamsRuns.filter(r => r.reviewStatus === 'pending').length,
-    applied: dreamsRuns.filter(r => r.reviewStatus === 'applied' || r.autoApplied).length,
+    applied: dreamsRuns.filter(r => r.reviewStatus === 'applied' || (r.autoApplied && r.reviewStatus !== 'archived')).length,
+    archived: dreamsRuns.filter(r => r.reviewStatus === 'archived').length,
   };
-  counts.other = counts.all - counts.pending - counts.applied;
+  counts.other = counts.all - counts.pending - counts.applied - counts.archived;
   const chip = (id, label) => `<button class="dreams-chip ${dreamsFilter === id ? 'active' : ''}" onclick="setDreamsFilter('${id}')">${label}<span class="dreams-chip-count">${counts[id]}</span></button>`;
-  el.innerHTML = chip('all', 'All') + chip('pending', 'Pending') + chip('applied', 'Applied') + chip('other', 'Other');
+  el.innerHTML = chip('all', 'All') + chip('pending', 'Pending') + chip('applied', 'Applied') + chip('archived', 'Archived') + chip('other', 'Other');
 }
 
 function dreamsRunSkeleton(n = 3) {
@@ -5666,6 +5697,7 @@ function renderDreamsRunList() {
   const listEl = document.getElementById('dreamsRunList');
   if (!listEl) return;
   renderDreamsFilter();
+  updateDreamsDeleteAllBtn();
   if (dreamsListLoading) { listEl.innerHTML = dreamsRunSkeleton(); return; }
   if (!dreamsRuns.length) {
     listEl.innerHTML = '<div class="empty-state"><p>No Dreams runs yet.</p></div>';
@@ -5746,6 +5778,7 @@ function renderDreamsRunDetail() {
   const canDiscard = run.reviewStatus === 'pending';
   const canCancel = run.status === 'running';
   const canArchive = run.status !== 'running' && run.reviewStatus !== 'archived';
+  const deleteDisabled = dreamsAnyRunRunning() || dreamsDeleteBusy !== null;
   const enc = encodeURIComponent(run.id);
 
   // Actions: exactly one primary (Apply / Make active, neutral inversion); the rest secondary.
@@ -5754,6 +5787,7 @@ function renderDreamsRunDetail() {
   if (canCancel) actions.push(`<button class="btn" onclick="dreamAction('${enc}','cancel')">Cancel</button>`);
   if (canDiscard) actions.push(`<button class="btn" onclick="dreamAction('${enc}','discard')">Discard</button>`);
   if (canArchive) actions.push(`<button class="btn" onclick="dreamAction('${enc}','archive')">Archive</button>`);
+  actions.push(`<button class="btn btn-danger" onclick="confirmDeleteDreamRun('${enc}')" ${deleteDisabled ? 'disabled' : ''} title="${dreamsAnyRunRunning() ? 'Dream Runs cannot be deleted while any run is in progress.' : dreamsDeleteBusy !== null ? 'A Dreams deletion is already in progress.' : 'Permanently delete this Dream Run and its non-active artifacts.'}">${dreamsDeleteBusy !== null ? 'Deleting…' : 'Delete'}</button>`);
   if (canApply) actions.push(`<button class="btn btn-primary" onclick="dreamAction('${enc}','apply')">${run.reviewStatus === 'pending' ? 'Apply pending' : 'Make active'}</button>`);
 
   const badges = [`<span class="badge ${dreamBadgeClass(run.status)}">${escapeHtml(run.status)}</span>`];
@@ -5851,7 +5885,7 @@ async function refreshDreams() {
   dreamsListLoading = !dreamsRuns.length;
   if (dreamsListLoading) renderDreamsRunList();
   dreamsStatus = await fetchJson('/dreams/status');
-  const list = await fetchJson('/dreams/runs');
+  const list = await fetchJson('/dreams/runs?includeArchived=true');
   dreamsRuns = Array.isArray(list?.runs) ? list.runs : [];
   dreamsListLoading = false;
   if (selectedDreamRunId && !dreamsRuns.some(run => run.id === selectedDreamRunId)) {
@@ -5914,6 +5948,134 @@ async function dreamAction(encodedRunId, action) {
     await loadDreamRun(runId);
   } catch (error) {
     showToast(error.message || `Dreams ${action} failed.`, 'error');
+  }
+}
+
+function syncDreamsSelectionHash() {
+  const nextHash = selectedDreamRunId
+    ? '#dreams/run/' + encodeURIComponent(selectedDreamRunId)
+    : '#dreams';
+  history.replaceState(null, '', nextHash);
+}
+
+async function deleteDreamsJson(url) {
+  const res = await fetch(API + url, { method: 'DELETE', credentials: 'same-origin' });
+  const body = await res.json().catch(() => null);
+  if (res.status === 401) throw new Error('Not authorized — sign in to the dashboard first.');
+  if (!res.ok) throw new Error(body?.error || `Delete failed (HTTP ${res.status})`);
+  return body || {};
+}
+
+function showDreamsDeleteToasts(result, successMessage) {
+  showToast(successMessage, 'success');
+  if (result?.activeStorePreserved) {
+    showToast('The active Dream Store was preserved and remains available.', 'info', 7000);
+  }
+  const cleanupWarnings = result?.cleanupWarnings ?? result?.traceCleanupFailures;
+  const warnings = Array.isArray(cleanupWarnings)
+    ? cleanupWarnings
+    : cleanupWarnings ? [cleanupWarnings] : [];
+  if (result?.partial && !warnings.length) {
+    showToast('Dreams artifacts were deleted, but trace cleanup was only partial.', 'warning', 10000);
+  }
+  for (const warning of warnings) {
+    const threadId = warning && typeof warning === 'object' ? warning.threadId : null;
+    const detail = typeof warning === 'string'
+      ? warning
+      : warning?.message || warning?.error || warning?.warning || '';
+    const target = threadId ? ` for thread ${threadId}` : '';
+    const suffix = detail ? `: ${detail}` : '.';
+    showToast(`Dreams artifacts were deleted, but trace cleanup was only partial${target}${suffix}`, 'warning', 10000);
+  }
+}
+
+function confirmDeleteDreamRun(encodedRunId) {
+  if (!dashboardCapability('dreams')) return;
+  const runId = decodeURIComponent(encodedRunId);
+  const run = dreamsRuns.find(item => item.id === runId);
+  if (!run) {
+    showToast('Dream Run not found. Refreshing history.', 'warning');
+    refreshDreams();
+    return;
+  }
+  if (dreamsAnyRunRunning()) {
+    showToast('Dream Runs cannot be deleted while any run is in progress.', 'info');
+    return;
+  }
+  if (dreamsDeleteBusy !== null) return;
+  showConfirmModal(
+    'Delete Dream Run',
+    `Permanently delete "${run.id}" and its run data, non-active output store, internal thread, and traces? The active Dream Store will be preserved. This cannot be undone.`,
+    () => deleteDreamRun(run.id),
+    'btn-danger',
+    'Delete'
+  );
+}
+
+async function deleteDreamRun(runId) {
+  if (dreamsAnyRunRunning()) {
+    showToast('Dream Runs cannot be deleted while any run is in progress.', 'info');
+    return;
+  }
+  dreamsDeleteBusy = runId;
+  renderDreamsRunList();
+  renderDreamsRunDetail();
+  try {
+    const result = await deleteDreamsJson('/dreams/runs/' + encodeURIComponent(runId));
+    if (selectedDreamRunId === runId) {
+      selectedDreamRunId = null;
+      selectedDreamRunDetails = null;
+    }
+    await refreshDreams();
+    syncDreamsSelectionHash();
+    showDreamsDeleteToasts(result, 'Dream Run permanently deleted.');
+  } catch (error) {
+    showToast(error.message || 'Dream Run deletion failed.', 'error');
+  } finally {
+    dreamsDeleteBusy = null;
+    renderDreamsRunList();
+    renderDreamsRunDetail();
+  }
+}
+
+function confirmDeleteAllDreamRuns() {
+  if (!dashboardCapability('dreams')) return;
+  if (!dreamsRuns.length) return;
+  if (dreamsAnyRunRunning()) {
+    showToast('Dream Runs cannot be deleted while any run is in progress.', 'info');
+    return;
+  }
+  if (dreamsDeleteBusy !== null) return;
+  showConfirmModal(
+    'Delete All Dream Runs',
+    `Permanently delete all ${dreamsRuns.length} Dream Runs, their run data, non-active output stores, internal threads, and traces? The active Dream Store will be preserved. This cannot be undone.`,
+    deleteAllDreamRuns,
+    'btn-danger',
+    'Delete All'
+  );
+}
+
+async function deleteAllDreamRuns() {
+  if (dreamsAnyRunRunning()) {
+    showToast('Dream Runs cannot be deleted while any run is in progress.', 'info');
+    return;
+  }
+  dreamsDeleteBusy = 'all';
+  renderDreamsRunList();
+  renderDreamsRunDetail();
+  try {
+    const result = await deleteDreamsJson('/dreams/runs');
+    selectedDreamRunId = null;
+    selectedDreamRunDetails = null;
+    await refreshDreams();
+    syncDreamsSelectionHash();
+    showDreamsDeleteToasts(result, 'All Dream Runs permanently deleted.');
+  } catch (error) {
+    showToast(error.message || 'Dream Run deletion failed.', 'error');
+  } finally {
+    dreamsDeleteBusy = null;
+    renderDreamsRunList();
+    renderDreamsRunDetail();
   }
 }
 

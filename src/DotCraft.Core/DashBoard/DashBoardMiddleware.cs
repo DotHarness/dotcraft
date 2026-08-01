@@ -485,7 +485,16 @@ public static class DashBoardMiddleware
         }
 
         if (dreamsAvailable)
-            MapDreamsEndpoints(endpoints, paths, dreamStore!, dreamsService!, logger);
+            MapDreamsEndpoints(
+                endpoints,
+                paths,
+                dreamStore!,
+                dreamsService!,
+                traceStore,
+                persistence,
+                deleteThreadAsync,
+                sessionHandler,
+                logger);
 
         endpoints.MapGet("/dashboard/api/events/stream", async ctx =>
         {
@@ -655,6 +664,10 @@ public static class DashBoardMiddleware
         DotCraftPaths paths,
         DreamStore dreamStore,
         DreamsService dreamsService,
+        TraceStore traceStore,
+        SessionPersistenceService? persistence,
+        Func<string, CancellationToken, Task>? deleteThreadAsync,
+        IDashBoardSessionHandler? sessionHandler,
         ILogger? logger)
     {
         endpoints.MapGet("/dashboard/api/dreams/status", (HttpContext ctx) =>
@@ -738,6 +751,125 @@ public static class DashBoardMiddleware
                 return Results.Json(new { error = ex.Message }, JsonOptions, statusCode: StatusCodes.Status500InternalServerError);
             }
         });
+
+        endpoints.MapDelete("/dashboard/api/dreams/runs/{runId}", async (HttpContext ctx, string runId) =>
+        {
+            try
+            {
+                var deleted = await dreamsService.DeleteRunAsync(runId.Trim(), ctx.RequestAborted).ConfigureAwait(false);
+                if (deleted == null)
+                    return Results.Json(new { error = "Dream run not found." }, JsonOptions, statusCode: StatusCodes.Status404NotFound);
+
+                var warnings = deleted.CleanupWarnings.ToList();
+                var traceDeleted = await DeleteDreamTraceAsync(deleted.Run.ThreadId, ctx.RequestAborted).ConfigureAwait(false);
+                if (!traceDeleted && !string.IsNullOrWhiteSpace(deleted.Run.ThreadId))
+                    warnings.Add($"Failed to delete trace for thread '{deleted.Run.ThreadId}'.");
+
+                return Results.Json(new
+                {
+                    deleted = true,
+                    runId = deleted.Run.Id,
+                    deleted.OutputStoreDeleted,
+                    deleted.ActiveStorePreserved,
+                    traceDeleted,
+                    partial = warnings.Count > 0,
+                    cleanupWarnings = warnings
+                }, JsonOptions);
+            }
+            catch (InvalidOperationException ex)
+            {
+                return Results.Json(new { error = ex.Message }, JsonOptions, statusCode: StatusCodes.Status409Conflict);
+            }
+            catch (Exception ex)
+            {
+                logger?.LogWarning(ex, "Dashboard Dream run deletion failed for {RunId}", runId);
+                return Results.Json(new { error = ex.Message }, JsonOptions, statusCode: StatusCodes.Status500InternalServerError);
+            }
+        });
+
+        endpoints.MapDelete("/dashboard/api/dreams/runs", async (HttpContext ctx) =>
+        {
+            try
+            {
+                var deleted = await dreamsService.DeleteAllRunsAsync(ctx.RequestAborted).ConfigureAwait(false);
+                var warnings = deleted.SelectMany(static result => result.CleanupWarnings).ToList();
+                var traceDeletedCount = 0;
+                foreach (var result in deleted)
+                {
+                    if (await DeleteDreamTraceAsync(result.Run.ThreadId, ctx.RequestAborted).ConfigureAwait(false))
+                    {
+                        if (!string.IsNullOrWhiteSpace(result.Run.ThreadId))
+                            traceDeletedCount++;
+                    }
+                    else if (!string.IsNullOrWhiteSpace(result.Run.ThreadId))
+                    {
+                        warnings.Add($"Failed to delete trace for thread '{result.Run.ThreadId}'.");
+                    }
+                }
+
+                return Results.Json(new
+                {
+                    deleted = true,
+                    deletedCount = deleted.Count,
+                    traceDeletedCount,
+                    activeStorePreserved = deleted.Any(static result => result.ActiveStorePreserved),
+                    partial = warnings.Count > 0,
+                    cleanupWarnings = warnings
+                }, JsonOptions);
+            }
+            catch (InvalidOperationException ex)
+            {
+                return Results.Json(new { error = ex.Message }, JsonOptions, statusCode: StatusCodes.Status409Conflict);
+            }
+            catch (Exception ex)
+            {
+                logger?.LogWarning(ex, "Dashboard Dream run bulk deletion failed");
+                return Results.Json(new { error = ex.Message }, JsonOptions, statusCode: StatusCodes.Status500InternalServerError);
+            }
+        });
+
+        async Task<bool> DeleteDreamTraceAsync(string? threadId, CancellationToken cancellationToken)
+        {
+            if (string.IsNullOrWhiteSpace(threadId))
+                return true;
+
+            try
+            {
+                if (persistence != null)
+                {
+                    var deleted = await persistence.DeleteTraceSessionAsync(threadId, deleteThreadAsync, cancellationToken).ConfigureAwait(false);
+                    if (!deleted && deleteThreadAsync != null)
+                    {
+                        await deleteThreadAsync(threadId, cancellationToken).ConfigureAwait(false);
+                        return true;
+                    }
+                    return deleted;
+                }
+
+                _ = traceStore.ClearSession(threadId);
+                if (sessionHandler != null)
+                {
+                    try
+                    {
+                        await sessionHandler.DeleteThreadAsync(threadId).ConfigureAwait(false);
+                    }
+                    catch (KeyNotFoundException)
+                    {
+                    }
+                }
+                else if (deleteThreadAsync != null)
+                {
+                    await deleteThreadAsync(threadId, cancellationToken).ConfigureAwait(false);
+                }
+
+                return true;
+            }
+            catch (Exception ex)
+            {
+                logger?.LogWarning(ex, "Failed to delete Dream trace/thread {ThreadId}", threadId);
+                return false;
+            }
+        }
     }
 
     private static object BuildDreamsStatus(

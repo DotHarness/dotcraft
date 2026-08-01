@@ -206,6 +206,25 @@ public sealed class DreamStore
     }
 
     /// <summary>
+    /// Permanently deletes a Dream store directory when it exists.
+    /// Callers must protect the active store before invoking this method.
+    /// </summary>
+    public bool DeleteStore(string storeId)
+    {
+        var normalized = NormalizeStoreId(storeId);
+        lock (_syncRoot)
+        {
+            var directory = GetStoreDescriptorCore(normalized).DirectoryPath;
+            if (!Directory.Exists(directory))
+                return false;
+
+            var attributes = File.GetAttributes(directory);
+            Directory.Delete(directory, recursive: (attributes & FileAttributes.ReparsePoint) == 0);
+            return true;
+        }
+    }
+
+    /// <summary>
     /// Gets a run directory path by run id.
     /// </summary>
     public string GetRunDirectory(string runId) =>

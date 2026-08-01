@@ -136,6 +136,12 @@ public sealed record DreamsGenerationResult(
 
 public sealed record DreamsRunSessionBinding(string ThreadId, string? TurnId);
 
+public sealed record DreamsRunDeletionResult(
+    DreamsRunState Run,
+    bool OutputStoreDeleted,
+    bool ActiveStorePreserved,
+    IReadOnlyList<string> CleanupWarnings);
+
 public sealed class DreamsRunState
 {
     public string Id { get; set; } = string.Empty;

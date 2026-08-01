@@ -1439,6 +1439,8 @@ export function SettingsView({
   const [dreamsStatusLoading, setDreamsStatusLoading] = useState(false)
   const [dreamRuns, setDreamRuns] = useState<DreamsRunState[]>([])
   const [dreamRunsLoading, setDreamRunsLoading] = useState(false)
+  const [archivingDreamRunId, setArchivingDreamRunId] = useState<string | null>(null)
+  const [archivingAllDreamRuns, setArchivingAllDreamRuns] = useState(false)
   const [applyingDreams, setApplyingDreams] = useState(false)
   const [runningDreams, setRunningDreams] = useState(false)
   const [defaultApprovalPolicy, setDefaultApprovalPolicy] = useState<VisibleApprovalPolicy>('default')
@@ -2402,6 +2404,87 @@ export function SettingsView({
       await window.api.shell.openExternal(`${baseUrl}#dreams/run/${encodeURIComponent(runId)}`)
     },
     [dashboardUrl]
+  )
+
+  const handleArchiveDreamRun = useCallback(
+    async (run: DreamsRunState): Promise<void> => {
+      if (run.status === 'running' || archivingDreamRunId != null || archivingAllDreamRuns) return
+
+      const confirmed = await confirm({
+        title: t('settings.dreams.archiveConfirmTitle'),
+        message: t('settings.dreams.archiveConfirmMessage'),
+        confirmLabel: t('settings.dreams.archive'),
+        cancelLabel: t('common.cancel')
+      })
+      if (!confirmed) return
+
+      setArchivingDreamRunId(run.id)
+      try {
+        await window.api.appServer.sendRequest('dreams/archive', { runId: run.id }, 20_000)
+        addToast(t('settings.dreams.archiveSucceeded'), 'success')
+        await reloadDreamRuns()
+      } catch (err) {
+        addToast(t('settings.dreams.actionFailed', {
+          error: err instanceof Error ? err.message : String(err)
+        }), 'error')
+      } finally {
+        setArchivingDreamRunId(null)
+      }
+    },
+    [archivingAllDreamRuns, archivingDreamRunId, confirm, reloadDreamRuns, t]
+  )
+
+  const handleArchiveAllDreamRuns = useCallback(
+    async (): Promise<void> => {
+      if (
+        dreamRuns.length === 0 ||
+        dreamRunsLoading ||
+        archivingDreamRunId != null ||
+        archivingAllDreamRuns ||
+        dreamRuns.some((run) => run.status === 'running')
+      ) {
+        return
+      }
+
+      const confirmed = await confirm({
+        title: t('settings.dreams.archiveAllConfirmTitle'),
+        message: t('settings.dreams.archiveAllConfirmMessage', { count: dreamRuns.length }),
+        confirmLabel: t('settings.dreams.archiveAll'),
+        cancelLabel: t('common.cancel')
+      })
+      if (!confirmed) return
+
+      setArchivingAllDreamRuns(true)
+      let archivedCount = 0
+      let firstError = ''
+      try {
+        for (const run of dreamRuns) {
+          try {
+            await window.api.appServer.sendRequest('dreams/archive', { runId: run.id }, 20_000)
+            archivedCount += 1
+          } catch (err) {
+            if (!firstError) {
+              firstError = err instanceof Error ? err.message : String(err)
+            }
+          }
+        }
+
+        if (archivedCount === dreamRuns.length) {
+          addToast(t('settings.dreams.archiveAllSucceeded', { count: archivedCount }), 'success')
+        } else if (archivedCount > 0) {
+          addToast(t('settings.dreams.archiveAllPartial', {
+            archived: archivedCount,
+            total: dreamRuns.length
+          }), 'warning')
+        } else {
+          addToast(t('settings.dreams.actionFailed', { error: firstError }), 'error')
+        }
+        await reloadDreamRuns()
+      } finally {
+        setArchivingAllDreamRuns(false)
+      }
+    },
+    [archivingAllDreamRuns, archivingDreamRunId, confirm, dreamRuns, dreamRunsLoading, reloadDreamRuns, t]
   )
 
   const handleResetMemory = useCallback(
@@ -3369,6 +3452,12 @@ export function SettingsView({
     return [statusLabel, reviewLabel, dateLabel].filter(Boolean).join(' · ')
   }, [dreamsStatus, dreamsStatusLoading, t])
   const dreamsRunDisabled = runningDreams || dreamsStatus?.running === true || dreamsEnabled === false
+  const dreamsArchiveBusy = archivingDreamRunId != null || archivingAllDreamRuns
+  const archiveAllDreamRunsDisabled =
+    dreamRuns.length === 0 ||
+    dreamRunsLoading ||
+    dreamsArchiveBusy ||
+    dreamRuns.some((run) => run.status === 'running')
 
   return (
     <div
@@ -4468,7 +4557,18 @@ export function SettingsView({
                   )}
                 </SettingsGroup>
 
-                <SettingsGroup title={t('settings.dreams.runs')} flush>
+                <SettingsGroup
+                  title={t('settings.dreams.runs')}
+                  headerAction={
+                    <Button
+                      disabled={archiveAllDreamRunsDisabled}
+                      onClick={() => void handleArchiveAllDreamRuns()}
+                    >
+                      {t('settings.dreams.archiveAll')}
+                    </Button>
+                  }
+                  flush
+                >
                   <div style={{ display: 'flex', flexDirection: 'column' }}>
                     {dreamRunsLoading && dreamRuns.length === 0 ? (
                       <div style={settingsPlaceholderStyle()}>
@@ -4542,6 +4642,12 @@ export function SettingsView({
                                   {t('settings.dreams.openReview')}
                                 </Button>
                               </ActionTooltip>
+                              <Button
+                                disabled={run.status === 'running' || dreamsArchiveBusy}
+                                onClick={() => void handleArchiveDreamRun(run)}
+                              >
+                                {t('settings.dreams.archive')}
+                              </Button>
                             </div>
                           </div>
                         )

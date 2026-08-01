@@ -245,8 +245,9 @@ describe('SettingsView self-learning settings', () => {
         return { ...dreamsStatus }
       }
       if (method === 'dreams/run') {
+        const runNumber = dreamRuns.length + 1
         const run = {
-          id: 'dream_20260511000000_test',
+          id: runNumber === 1 ? 'dream_20260511000000_test' : `dream_20260511000000_test_${runNumber}`,
           status: 'succeeded',
           startedAt: '2026-05-11T00:00:00Z',
           endedAt: '2026-05-11T00:00:02Z',
@@ -276,7 +277,7 @@ describe('SettingsView self-learning settings', () => {
         return { ...dreamsStatus }
       }
       if (method === 'dreams/list') {
-        return { runs: [...dreamRuns] }
+        return { runs: dreamRuns.filter((run) => run.reviewStatus !== 'archived') }
       }
       if (method === 'dreams/get') {
         const run = dreamRuns.find((item) => item.id === params?.runId) ?? null
@@ -684,6 +685,148 @@ describe('SettingsView self-learning settings', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Back to Personalization' }))
     expect(await screen.findByRole('button', { name: 'Manage Dreams' })).toBeInTheDocument()
+  })
+
+  it('archives a Dreams run after confirmation and hides it from the Desktop list', async () => {
+    const confirm = vi.fn().mockResolvedValue(true)
+    ;(window as Window & { __confirmDialog?: unknown }).__confirmDialog = confirm
+    useConnectionStore.setState({
+      status: 'connected',
+      capabilities: {
+        workspaceConfigManagement: true,
+        memoryManagement: true,
+        dreams: true
+      }
+    })
+
+    renderView()
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Personalization' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Run now' }))
+    await waitFor(() => {
+      expect(appServerSendRequest).toHaveBeenCalledWith('dreams/run', {}, 20_000)
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Manage Dreams' }))
+
+    expect(await screen.findByText('dream_20260511000000_test')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Archive', exact: true }))
+
+    await waitFor(() => {
+      expect(confirm).toHaveBeenCalledWith(expect.objectContaining({
+        title: 'Archive this Dreams run?',
+        message: expect.stringContaining('hidden from Desktop')
+      }))
+      expect(confirm).toHaveBeenCalledWith(expect.objectContaining({
+        message: expect.stringContaining('available in Dashboard')
+      }))
+      expect(appServerSendRequest).toHaveBeenCalledWith('dreams/archive', {
+        runId: 'dream_20260511000000_test'
+      }, 20_000)
+      expect(screen.queryByText('dream_20260511000000_test')).not.toBeInTheDocument()
+    })
+    expect(useToastStore.getState().toasts).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ message: 'Dreams run archived', type: 'success' })
+      ])
+    )
+  })
+
+  it('archives all Dreams runs sequentially and warns when only some succeed', async () => {
+    const confirm = vi.fn().mockResolvedValue(true)
+    ;(window as Window & { __confirmDialog?: unknown }).__confirmDialog = confirm
+    const defaultSendRequest = appServerSendRequest.getMockImplementation()
+    appServerSendRequest.mockImplementation(async (method: string, params?: Record<string, unknown>) => {
+      if (method === 'dreams/archive' && params?.runId === 'dream_20260511000000_test_2') {
+        throw new Error('archive denied')
+      }
+      return defaultSendRequest?.(method, params)
+    })
+    useConnectionStore.setState({
+      status: 'connected',
+      capabilities: {
+        workspaceConfigManagement: true,
+        memoryManagement: true,
+        dreams: true
+      }
+    })
+
+    renderView()
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Personalization' }))
+    const runNow = await screen.findByRole('button', { name: 'Run now' })
+    fireEvent.click(runNow)
+    await waitFor(() => {
+      expect(appServerSendRequest.mock.calls.filter(([method]) => method === 'dreams/run')).toHaveLength(1)
+      expect(runNow).not.toBeDisabled()
+    })
+    fireEvent.click(runNow)
+    await waitFor(() => {
+      expect(appServerSendRequest.mock.calls.filter(([method]) => method === 'dreams/run')).toHaveLength(2)
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Manage Dreams' }))
+
+    expect(await screen.findByText('dream_20260511000000_test_2')).toBeInTheDocument()
+    expect(screen.getByText('dream_20260511000000_test')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Archive all' }))
+
+    await waitFor(() => {
+      expect(confirm).toHaveBeenCalledWith(expect.objectContaining({
+        title: 'Archive all Dreams runs?',
+        message: expect.stringContaining('hidden from Desktop')
+      }))
+      expect(confirm).toHaveBeenCalledWith(expect.objectContaining({
+        message: expect.stringContaining('available in Dashboard')
+      }))
+      expect(appServerSendRequest).toHaveBeenCalledWith('dreams/archive', {
+        runId: 'dream_20260511000000_test_2'
+      }, 20_000)
+      expect(appServerSendRequest).toHaveBeenCalledWith('dreams/archive', {
+        runId: 'dream_20260511000000_test'
+      }, 20_000)
+      expect(useToastStore.getState().toasts).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            message: 'Archived 1 of 2 Dreams runs. The remaining runs are still visible.',
+            type: 'warning'
+          })
+        ])
+      )
+    })
+    expect(screen.getByText('dream_20260511000000_test_2')).toBeInTheDocument()
+    expect(screen.queryByText('dream_20260511000000_test')).not.toBeInTheDocument()
+  })
+
+  it('disables Dreams archive actions while a run is running', async () => {
+    const defaultSendRequest = appServerSendRequest.getMockImplementation()
+    appServerSendRequest.mockImplementation(async (method: string, params?: Record<string, unknown>) => {
+      if (method === 'dreams/list') {
+        return {
+          runs: [{
+            id: 'dream_running',
+            status: 'running',
+            startedAt: '2026-05-11T00:00:00Z'
+          }]
+        }
+      }
+      return defaultSendRequest?.(method, params)
+    })
+    useConnectionStore.setState({
+      status: 'connected',
+      capabilities: {
+        workspaceConfigManagement: true,
+        memoryManagement: true,
+        dreams: true
+      }
+    })
+
+    renderView()
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Personalization' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Manage Dreams' }))
+
+    expect(await screen.findByText('dream_running')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Archive', exact: true })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Archive all' })).toBeDisabled()
   })
 
   it('shows memory reset failures in a toast', async () => {

@@ -98,7 +98,7 @@ Returns current workspace Dreams config, run status, active store, and latest ru
 
 ### `GET /dashboard/api/dreams/runs`
 
-Returns Dreams run records. Archived runs are omitted by default.
+Returns all Dreams run records, including archived runs. Archive changes review state and does not physically delete run artifacts.
 
 ### `GET /dashboard/api/dreams/runs/{runId}`
 
@@ -112,6 +112,49 @@ Requests an immediate Dreams run.
 
 Runs a Dreams review action. `action` supports `apply`, `discard`, `archive`, and `cancel`.
 `apply` also makes any succeeded, non-discarded, non-archived run the active store.
+`archive` retains the run directory, input snapshot, output store, internal thread, and trace. Desktop uses this existing action for both Archive and Archive all; Archive all sends one request per eligible run.
+
+### `DELETE /dashboard/api/dreams/runs/{runId}`
+
+Permanently deletes one non-running Dreams run. Deletion removes the run directory and input snapshot, removes its output store unless that store is active, and cleans up the related internal thread and trace when present. The active store is preserved even when its producing run is deleted.
+
+Returns `404 Not Found` when the run does not exist. Returns `409 Conflict` without deleting anything when the run is running.
+
+### `DELETE /dashboard/api/dreams/runs`
+
+Permanently deletes all Dreams runs. The request includes archived runs and uses the same cleanup rules as single-run deletion. If any run is running, the endpoint returns `409 Conflict` before deleting anything.
+
+After either endpoint succeeds, Dashboard rebuilds the latest Dreams state from the newest remaining run or clears it when no runs remain.
+
+A successful deletion returns:
+
+```json
+{
+  "deletedRunIds": ["dream_20260511000000_abc123"],
+  "deletedCount": 1,
+  "activeDreamStoreId": "store_20260510000000_active",
+  "partial": false,
+  "traceCleanupFailures": []
+}
+```
+
+Run/input and eligible output-store deletion is authoritative. Internal thread and trace cleanup is best-effort. If that cleanup fails after the Dreams artifacts are deleted, the endpoint still succeeds with `partial: true` and identifies each failure:
+
+```json
+{
+  "deletedRunIds": ["dream_20260511000000_abc123"],
+  "deletedCount": 1,
+  "activeDreamStoreId": "store_20260510000000_active",
+  "partial": true,
+  "traceCleanupFailures": [
+    {
+      "runId": "dream_20260511000000_abc123",
+      "threadId": "thread_20260511_abcd",
+      "error": "Internal thread cleanup failed."
+    }
+  ]
+}
+```
 
 ### `DELETE /api/sessions/{sessionKey}`
 

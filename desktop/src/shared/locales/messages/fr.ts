@@ -2054,6 +2054,16 @@ export const MESSAGES_FR = {
   'settings.dreams.discard': 'Jeter',
   'settings.dreams.cancel': 'Annuler',
   'settings.dreams.archive': 'Archiver',
+  'settings.dreams.archiveAll': 'Tout archiver',
+  'settings.dreams.archiveConfirmTitle': 'Archiver cette exécution Dreams ?',
+  'settings.dreams.archiveConfirmMessage':
+    'L’archivage masque cette exécution dans Desktop, mais elle reste disponible dans Dashboard.',
+  'settings.dreams.archiveAllConfirmTitle': 'Archiver toutes les exécutions Dreams ?',
+  'settings.dreams.archiveAllConfirmMessage':
+    'L’archivage masque ces {{count}} exécutions dans Desktop, mais elles restent disponibles dans Dashboard.',
+  'settings.dreams.archiveAllSucceeded': '{{count}} exécutions Dreams archivées',
+  'settings.dreams.archiveAllPartial':
+    '{{archived}} exécutions Dreams sur {{total}} ont été archivées. Les autres restent visibles.',
   'settings.dreams.reviewStatus.pending': 'En attente',
   'settings.dreams.reviewStatus.applied': 'Appliqué',
   'settings.dreams.reviewStatus.discarded': 'Rejeté',

@@ -46,8 +46,13 @@ public sealed class DashBoardDreamsEndpointTests : IDisposable
     {
         await SaveThreadAsync("thread_one");
         var config = CreateConfig();
+        var deletedThreadIds = new List<string>();
         await using var dreamsService = CreateDreamsService(config);
-        await using var app = await CreateDashboardApp(dreamsService);
+        await using var app = await CreateDashboardApp(dreamsService, (threadId, _) =>
+        {
+            deletedThreadIds.Add(threadId);
+            return Task.CompletedTask;
+        });
         using var http = new HttpClient { BaseAddress = new Uri(app.Urls.Single()) };
 
         using var status = await http.GetAsync("/dashboard/api/dreams/status");
@@ -85,9 +90,60 @@ public sealed class DashBoardDreamsEndpointTests : IDisposable
         using var archived = await http.PostAsync($"/dashboard/api/dreams/runs/{runId}/archive", content: null);
         Assert.Equal(HttpStatusCode.OK, archived.StatusCode);
         Assert.Equal(DreamsReviewStatuses.Archived, _stateStore.Load(runId)?.ReviewStatus);
+
+        var activeStorePath = _dreamStore.GetStoreDescriptor(outputStoreId!).IndexPath;
+        using var deleted = await http.DeleteAsync($"/dashboard/api/dreams/runs/{runId}");
+        Assert.Equal(HttpStatusCode.OK, deleted.StatusCode);
+        using var deletedDoc = JsonDocument.Parse(await deleted.Content.ReadAsStringAsync());
+        Assert.True(deletedDoc.RootElement.GetProperty("deleted").GetBoolean());
+        Assert.True(deletedDoc.RootElement.GetProperty("activeStorePreserved").GetBoolean());
+        Assert.True(deletedDoc.RootElement.GetProperty("traceDeleted").GetBoolean());
+        Assert.Null(_stateStore.Load(runId));
+        Assert.True(File.Exists(activeStorePath));
+        Assert.Contains("thread_dream_fake", deletedThreadIds);
     }
 
-    private async Task<WebApplication> CreateDashboardApp(DreamsService dreamsService)
+    [Fact]
+    public async Task DreamsDeleteAll_IncludesArchivedRunsAndPreservesActiveStore()
+    {
+        await SaveThreadAsync("thread_one");
+        var deletedThreadIds = new List<string>();
+        await using var dreamsService = CreateDreamsService(CreateConfig());
+        await using var app = await CreateDashboardApp(dreamsService, (threadId, _) =>
+        {
+            deletedThreadIds.Add(threadId);
+            return Task.CompletedTask;
+        });
+        using var http = new HttpClient { BaseAddress = new Uri(app.Urls.Single()) };
+
+        using var firstRequest = await http.PostAsync("/dashboard/api/dreams/run", content: null);
+        Assert.Equal(HttpStatusCode.OK, firstRequest.StatusCode);
+        var first = await WaitForStateAsync(DreamsRunStatuses.Succeeded);
+        _ = dreamsService.ApplyRun(first.Id);
+
+        using var secondRequest = await http.PostAsync("/dashboard/api/dreams/run", content: null);
+        Assert.Equal(HttpStatusCode.OK, secondRequest.StatusCode);
+        var second = await WaitForDifferentStateAsync(first.Id, DreamsRunStatuses.Succeeded);
+        _ = dreamsService.ArchiveRun(second.Id);
+
+        var activeStorePath = _dreamStore.GetStoreDescriptor(first.OutputStoreId!).IndexPath;
+        var inactiveStorePath = _dreamStore.GetStoreDescriptor(second.OutputStoreId!).DirectoryPath;
+        using var deleted = await http.DeleteAsync("/dashboard/api/dreams/runs");
+
+        Assert.Equal(HttpStatusCode.OK, deleted.StatusCode);
+        using var deletedDoc = JsonDocument.Parse(await deleted.Content.ReadAsStringAsync());
+        Assert.Equal(2, deletedDoc.RootElement.GetProperty("deletedCount").GetInt32());
+        Assert.True(deletedDoc.RootElement.GetProperty("activeStorePreserved").GetBoolean());
+        Assert.Null(_stateStore.Load());
+        Assert.Empty(_stateStore.List(includeArchived: true));
+        Assert.True(File.Exists(activeStorePath));
+        Assert.False(Directory.Exists(inactiveStorePath));
+        Assert.Equal(2, deletedThreadIds.Count);
+    }
+
+    private async Task<WebApplication> CreateDashboardApp(
+        DreamsService dreamsService,
+        Func<string, CancellationToken, Task>? deleteThreadAsync = null)
     {
         var builder = WebApplication.CreateBuilder();
         builder.Logging.ClearProviders();
@@ -95,6 +151,7 @@ public sealed class DashBoardDreamsEndpointTests : IDisposable
         app.MapDashBoard(
             new TraceStore(),
             new DotCraftPaths { WorkspacePath = _workspace, CraftPath = _craft },
+            deleteThreadAsync: deleteThreadAsync,
             dreamStore: _dreamStore,
             dreamsService: dreamsService);
         app.Urls.Add($"http://127.0.0.1:{GetFreeTcpPort()}");
@@ -132,6 +189,21 @@ public sealed class DashBoardDreamsEndpointTests : IDisposable
             await Task.Delay(50);
         }
 
+        Assert.Equal(status, _stateStore.Load()?.Status);
+        throw new InvalidOperationException("Unreachable.");
+    }
+
+    private async Task<DreamsRunState> WaitForDifferentStateAsync(string previousRunId, string status)
+    {
+        for (var attempt = 0; attempt < 20; attempt++)
+        {
+            var state = _stateStore.Load();
+            if (state?.Id != previousRunId && state?.Status == status)
+                return state;
+            await Task.Delay(50);
+        }
+
+        Assert.NotEqual(previousRunId, _stateStore.Load()?.Id);
         Assert.Equal(status, _stateStore.Load()?.Status);
         throw new InvalidOperationException("Unreachable.");
     }

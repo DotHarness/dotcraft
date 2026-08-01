@@ -2054,7 +2054,17 @@ export const MESSAGES_DE = {
   'settings.dreams.apply': 'Bewerben',
   'settings.dreams.discard': 'Verwerfen',
   'settings.dreams.cancel': 'Abbrechen',
-  'settings.dreams.archive': 'Archiv',
+  'settings.dreams.archive': 'Archivieren',
+  'settings.dreams.archiveAll': 'Alle archivieren',
+  'settings.dreams.archiveConfirmTitle': 'Diesen Dreams-Lauf archivieren?',
+  'settings.dreams.archiveConfirmMessage':
+    'Durch das Archivieren wird dieser Lauf in Desktop ausgeblendet, bleibt aber in Dashboard verfügbar.',
+  'settings.dreams.archiveAllConfirmTitle': 'Alle Dreams-Läufe archivieren?',
+  'settings.dreams.archiveAllConfirmMessage':
+    'Durch das Archivieren werden diese {{count}} Läufe in Desktop ausgeblendet, bleiben aber in Dashboard verfügbar.',
+  'settings.dreams.archiveAllSucceeded': '{{count}} Dreams-Läufe archiviert',
+  'settings.dreams.archiveAllPartial':
+    '{{archived}} von {{total}} Dreams-Läufen wurden archiviert. Die übrigen Läufe bleiben sichtbar.',
   'settings.dreams.reviewStatus.pending': 'Ausstehend',
   'settings.dreams.reviewStatus.applied': 'Angewendet',
   'settings.dreams.reviewStatus.discarded': 'Weggeworfen',
