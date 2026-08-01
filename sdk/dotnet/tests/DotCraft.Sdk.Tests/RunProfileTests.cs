@@ -85,6 +85,80 @@ public sealed class RunProfileTests
     }
 
     [Fact]
+    public async Task RunAsync_DisconnectFailsRunAndResubscribesAfterReconnect()
+    {
+        var (client, transport) = await ConnectAsync(new DotCraftClientOptions
+        {
+            ClientName = "test",
+            ClientVersion = "0.1",
+            AutoReconnect = true
+        });
+        await using var _ = client;
+        var thread = await StartThreadAsync(client, transport);
+
+        var firstRun = thread.RunAsync("first");
+        await RespondAsync(transport, "thread/subscribe", new { ok = true });
+        await RespondAsync(transport, "turn/start", new { turnId = "turn_1" });
+        await PushNotificationAsync(transport, "turn/started", new { threadId = "thread_1", turnId = "turn_1" });
+
+        await transport.PushDisconnectAsync();
+
+        var error = await Assert.ThrowsAsync<RunDisconnectedError>(async () => await firstRun.WaitAsync(Timeout));
+        Assert.Equal("runDisconnected", error.Code);
+        Assert.Equal("thread_1", error.ThreadId);
+        Assert.Equal("turn_1", error.TurnId);
+        Assert.NotNull(error.InnerException);
+
+        using (var initialize = await transport.ReadOutboundAsync().WaitAsync(Timeout))
+        {
+            Assert.Equal("initialize", initialize.RootElement.GetProperty("method").GetString());
+            await transport.PushInboundAsync(new
+            {
+                jsonrpc = "2.0",
+                id = initialize.RootElement.GetProperty("id").GetInt64(),
+                result = new
+                {
+                    serverInfo = new { name = "dotcraft", version = "test", protocolVersion = "1" },
+                    capabilities = new { threadManagement = true, threadSubscriptions = true }
+                }
+            });
+        }
+        using (var initialized = await transport.ReadOutboundAsync().WaitAsync(Timeout))
+        {
+            Assert.Equal("initialized", initialized.RootElement.GetProperty("method").GetString());
+        }
+
+        var secondRun = thread.RunAsync("second");
+        await RespondAsync(transport, "thread/subscribe", new { ok = true });
+        await RespondAsync(transport, "turn/start", new { turnId = "turn_2" });
+        await PushNotificationAsync(transport, "turn/completed", new
+        {
+            turn = new { id = "turn_2", threadId = "thread_1", status = "completed", items = Array.Empty<object>() }
+        });
+
+        var result = await secondRun.WaitAsync(Timeout);
+        Assert.Equal("turn_2", result.TurnId);
+        Assert.Equal(1, transport.ReconnectCount);
+    }
+
+    [Fact]
+    public async Task RunAsync_DisconnectWithoutReconnectPreservesTransportError()
+    {
+        var (client, transport) = await ConnectAsync();
+        await using var _ = client;
+        var thread = await StartThreadAsync(client, transport);
+
+        var run = thread.RunAsync("first");
+        await RespondAsync(transport, "thread/subscribe", new { ok = true });
+        await RespondAsync(transport, "turn/start", new { turnId = "turn_1" });
+        await transport.PushDisconnectAsync();
+
+        var error = await Assert.ThrowsAsync<RunDisconnectedError>(async () => await run.WaitAsync(Timeout));
+        Assert.IsType<IOException>(error.InnerException);
+        Assert.Equal(0, transport.ReconnectCount);
+    }
+
+    [Fact]
     public async Task RunAsync_ThrowsTurnFailedError_OnFailure()
     {
         var (client, transport) = await ConnectAsync();

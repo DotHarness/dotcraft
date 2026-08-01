@@ -126,7 +126,7 @@ result = await thread.run("Later: deploy to staging.", enqueue_if_busy=True)
 
 ## 重连边界
 
-重连会恢复 Wire 传输、重新执行 `initialize`，并保留本地 handler 注册。它不会替你重建 thread subscription、恢复活动 Run 或重新绑定运行时动态工具。
+重连会恢复 Wire 传输、重新执行 `initialize`，并保留本地 handler 注册。它不会替你重建 thread subscription 或重新绑定运行时动态工具。活动的 .NET Run 会以 `RunDisconnectedError` 失败；任何 SDK binding 都不会重放 `turn/start`。
 
 应把因断线中断的 Run 视为已经中断的应用工作。连接再次 ready 后，显式读取或恢复 thread 以取得当前服务端状态；需要时重新订阅，再从该状态发起下一项操作。不要假定已经发送的请求会被重放。
 

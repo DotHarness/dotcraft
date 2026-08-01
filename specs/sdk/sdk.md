@@ -68,6 +68,8 @@ Every general-purpose binding has four explicit layers:
 3. **High-level** owns application concepts such as `DotCraft`, Thread, Run, callbacks, App Binding helpers, and Channel adapters. It composes the Wire layer instead of reimplementing it.
 4. **Host adapters** integrate an SDK with an environment such as Electron. They own IPC, window and workspace routing, executable discovery, UI localization, and host security policy, but not another JSON-RPC client.
 
+Logical layers do not require one published package per layer. A binding may ship Contracts and runtime assemblies together when that keeps installation atomic, provided the dependency boundary and transport-free Contracts surface remain intact.
+
 The raw Wire API is the low-level SDK surface. Bindings must not preserve a parallel legacy wire client or compatibility facade after consumers migrate.
 
 ### 2.3 AppServer And Hub Are Authoritative
@@ -217,6 +219,7 @@ Wire connection behavior is shared across bindings:
 - After reconnect, the client replays the exact initialization parameters, sends `initialized`, and only then releases queued application messages.
 - Notification and server-request handler registrations survive reconnect. Explicit close cancels retries.
 - Wire does not recover Thread, Run, subscription, or Dynamic Tool state. Those decisions belong to the high-level client or host adapter.
+- A high-level Run that loses its Wire session terminates with a stable disconnect error. Reconnect must never replay `turn/start`; applications recover from persisted Thread and Turn state explicitly.
 
 Normal RPC calls default to thirty seconds and allow a finite override or no timeout. Ordinary local initialization defaults to no timeout. Desktop remote initialization uses fifteen seconds, and a Desktop connection probe uses ten seconds.
 

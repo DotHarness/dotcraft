@@ -156,7 +156,7 @@ public sealed class DotCraftClient : IAsyncDisposable
         CancellationToken cancellationToken = default)
     {
         var transport = await WebSocketJsonRpcTransport.ConnectAsync(appServerUrl, token, cancellationToken);
-        return await ConnectAsync(transport, options, cancellationToken, autoReconnect: true);
+        return await ConnectCoreAsync(transport, options, defaultAutoReconnect: true, cancellationToken);
     }
 
     /// <summary>
@@ -165,8 +165,14 @@ public sealed class DotCraftClient : IAsyncDisposable
     public static async Task<DotCraftClient> ConnectAsync(
         IJsonRpcTransport transport,
         DotCraftClientOptions? options = null,
-        CancellationToken cancellationToken = default,
-        bool autoReconnect = false)
+        CancellationToken cancellationToken = default) =>
+        await ConnectCoreAsync(transport, options, defaultAutoReconnect: false, cancellationToken);
+
+    private static async Task<DotCraftClient> ConnectCoreAsync(
+        IJsonRpcTransport transport,
+        DotCraftClientOptions? options,
+        bool defaultAutoReconnect,
+        CancellationToken cancellationToken)
     {
         var effectiveOptions = options ?? new DotCraftClientOptions();
         if (effectiveOptions.ApprovalSupport && effectiveOptions.ApprovalHandler is null)
@@ -188,7 +194,7 @@ public sealed class DotCraftClient : IAsyncDisposable
 
         var wire = new DotCraftWireClient(transport, new DotCraftWireClientOptions
         {
-            AutoReconnect = autoReconnect
+            AutoReconnect = effectiveOptions.AutoReconnect ?? defaultAutoReconnect
         });
         if (effectiveOptions.ApprovalHandler is not null)
         {

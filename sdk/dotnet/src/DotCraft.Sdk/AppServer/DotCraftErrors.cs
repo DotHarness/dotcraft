@@ -84,6 +84,20 @@ public sealed class TurnCancelledError(string threadId, string? turnId, string? 
     public string? TurnId { get; } = turnId;
 }
 
+/// <summary>The Wire session ended while a high-level Run was active.</summary>
+public sealed class RunDisconnectedError(
+    string threadId,
+    string? turnId,
+    Exception? innerException = null)
+    : DotCraftSdkException("runDisconnected", "The connection ended while the run was active.", innerException)
+{
+    /// <summary>Thread that owns the interrupted Run.</summary>
+    public string ThreadId { get; } = threadId;
+
+    /// <summary>Identifier of the interrupted Turn when it was already known.</summary>
+    public string? TurnId { get; } = turnId;
+}
+
 /// <summary>The client did not answer an approval request in time.</summary>
 public sealed class ApprovalTimeoutError(string message, Exception? innerException = null)
     : DotCraftSdkException("approvalTimeout", message, innerException);

@@ -8,6 +8,39 @@ namespace DotCraft.Sdk.Tests;
 public sealed class WireClientTests
 {
     [Fact]
+    public async Task HighLevelCustomTransport_DoesNotReconnectByDefault()
+    {
+        var transport = new TestJsonRpcTransport();
+        var connectTask = DotCraftClient.ConnectAsync(transport, new DotCraftClientOptions
+        {
+            ClientName = "test",
+            ClientVersion = "1"
+        });
+        using (var initialize = await transport.ReadOutboundAsync())
+        {
+            await transport.PushInboundAsync(new
+            {
+                jsonrpc = "2.0",
+                id = initialize.RootElement.GetProperty("id").GetInt64(),
+                result = new
+                {
+                    serverInfo = new { name = "dotcraft", version = "1", protocolVersion = "1" },
+                    capabilities = new { }
+                }
+            });
+        }
+        using (await transport.ReadOutboundAsync())
+        {
+        }
+
+        await using var client = await connectTask;
+        await transport.PushDisconnectAsync();
+        await WaitUntilAsync(() => client.Wire.State == WireConnectionState.Disconnected);
+
+        Assert.Equal(0, transport.ReconnectCount);
+    }
+
+    [Fact]
     public async Task Reconnect_ReinitializesBeforeQueuedRequests()
     {
         await using var transport = new TestJsonRpcTransport();
