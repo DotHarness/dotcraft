@@ -44,6 +44,12 @@ If the token stream is empty, provider credentials / endpoint usually do not mat
 
 Provider-side terminal diagnostics are also recorded separately from visible response text. Use `ResponseTerminal`, `ProviderError`, and `ProviderResponseDiagnostic` events to distinguish empty text, provider error content, and provider incomplete/length-limit metadata.
 
+Use the **Provider** filter to inspect retry behavior. A `stream_attempt` diagnostic shows the
+attempt number, outcome, retry decision, duration, and whether visible output prevented a retry.
+For OpenAI Responses, it also shows the final HTTP status, upstream request ID, and abbreviated
+session, thread, and prompt-cache hashes. Compare those hashes across attempts to confirm that
+routing stayed stable without exposing the underlying identifiers.
+
 ### 2. Diagnose a failed tool call
 
 Open the session detail:

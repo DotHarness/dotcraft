@@ -204,6 +204,7 @@ public sealed class OpenAIClientProvider
         options.AddPolicy(new PromptCacheControlPipelinePolicy(), PipelinePosition.PerCall);
         options.AddPolicy(new DotCraftUserAgentPipelinePolicy(), PipelinePosition.PerCall);
         options.AddPolicy(new OpenAIResponsesRequestBodyCanonicalizationPipelinePolicy(), PipelinePosition.PerCall);
+        options.AddPolicy(new OpenAIResponsesAttemptDiagnosticPipelinePolicy(), PipelinePosition.PerCall);
         options.AddPolicy(new LlmHttpCapturePipelinePolicy(), PipelinePosition.PerCall);
         return options;
     }

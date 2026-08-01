@@ -126,6 +126,14 @@ public sealed class DashBoardReadOnlyEndpointTests : IDisposable
             Content = "maintenance",
             Timestamp = startedAt.AddSeconds(1)
         });
+        writer.Record(new TraceEvent
+        {
+            SessionKey = "thread_page",
+            Type = TraceEventType.ProviderResponseDiagnostic,
+            Content = "openai-responses stream attempt 1: failed",
+            Timestamp = startedAt.AddSeconds(2),
+            MetadataJson = """{"eventType":"stream_attempt","attemptNumber":1,"outcome":"failed"}"""
+        });
 
         await using var app = await CreateDashboardApp();
         using var http = new HttpClient { BaseAddress = new Uri(app.Urls.Single()) };
@@ -139,6 +147,14 @@ public sealed class DashBoardReadOnlyEndpointTests : IDisposable
         var evt = Assert.Single(root.GetProperty("events").EnumerateArray());
         Assert.Equal("MaintenanceForkRequest", evt.GetProperty("type").GetString());
         Assert.Equal("maintenance", evt.GetProperty("content").GetString());
+
+        using var providerResponse = await http.GetAsync(
+            "/dashboard/api/sessions/thread_page/events/page?limit=10&filter=Provider");
+        Assert.Equal(HttpStatusCode.OK, providerResponse.StatusCode);
+        using var providerDoc = JsonDocument.Parse(await providerResponse.Content.ReadAsStringAsync());
+        var providerEvent = Assert.Single(providerDoc.RootElement.GetProperty("events").EnumerateArray());
+        Assert.Equal("ProviderResponseDiagnostic", providerEvent.GetProperty("type").GetString());
+        Assert.Contains("stream_attempt", providerEvent.GetProperty("metadataJson").GetString(), StringComparison.Ordinal);
     }
 
     [Fact]

@@ -59,4 +59,18 @@ public sealed class DashBoardFrontendTests
         Assert.Contains("evt.type === 'ThreadRollback'", html);
         Assert.Contains("rollback ${formatNumber(session.rollbackCount)}", html);
     }
+
+    [Fact]
+    public void Html_RendersProviderAttemptDiagnosticsInExistingTraceTimeline()
+    {
+        var html = DashBoardFrontend.GetHtml();
+
+        Assert.Contains("data-filter=\"Provider\"", html);
+        Assert.Contains("md.eventType === 'stream_attempt'", html);
+        Assert.Contains("Provider Stream Attempt", html);
+        Assert.Contains("request ID: ${escapeHtml(md.requestId)}", html);
+        Assert.Contains("session ${shortHash(md.sessionIdHash)}", html);
+        Assert.Contains("thread ${shortHash(md.threadIdHash)}", html);
+        Assert.Contains("cache ${shortHash(md.promptCacheKeyHash)}", html);
+    }
 }

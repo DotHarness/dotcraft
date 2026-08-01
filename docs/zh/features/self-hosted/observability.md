@@ -44,6 +44,11 @@ dotcraft gateway
 
 Provider 侧终止诊断会和可见响应文本分开记录。排查空文本、provider 错误内容或 provider incomplete / length-limit 元数据时，优先查看 `ResponseTerminal`、`ProviderError` 和 `ProviderResponseDiagnostic` 事件。
 
+使用 **Provider** 过滤器检查重试行为。`stream_attempt` 诊断会显示 attempt 编号、结果、
+重试决策、耗时，以及是否因为已产生可见输出而停止重试。对于 OpenAI Responses，它还会
+显示最终 HTTP status、上游 request ID，以及缩写后的 session、thread 和 prompt-cache
+哈希。对比不同 attempt 的哈希即可确认路由是否稳定，同时不会暴露原始 identity。
+
 ### 2. 排查工具调用失败
 
 打开会话详情：

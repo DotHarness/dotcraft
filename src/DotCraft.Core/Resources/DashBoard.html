@@ -2173,6 +2173,7 @@ body {
             <button class="filter-chip" data-filter="Thinking" onclick="setTraceFilter('Thinking')">Thinking</button>
             <button class="filter-chip" data-filter="Tool" onclick="setTraceFilter('Tool')">Tools</button>
             <button class="filter-chip" data-filter="Maintenance" onclick="setTraceFilter('Maintenance')">Maintenance</button>
+            <button class="filter-chip" data-filter="Provider" onclick="setTraceFilter('Provider')">Provider</button>
             <button class="filter-chip" data-filter="TokenUsage" onclick="setTraceFilter('TokenUsage')">Tokens</button>
             <button class="filter-chip" data-filter="Error" onclick="setTraceFilter('Error')">Errors</button>
           </div>
@@ -3456,6 +3457,50 @@ function renderTraceEvent(e) {
 
     case 'ProviderResponseDiagnostic': {
       const md = parseTraceMetadata(e.metadataJson) || {};
+      if (md.eventType === 'stream_attempt') {
+        const outcomeClass = md.outcome === 'succeeded'
+          ? 'badge-success'
+          : md.outcome === 'canceled'
+            ? 'badge-info'
+            : 'badge-warning';
+        const retryClass = md.retryDecision === 'scheduled' || md.retryDecision === 'suppressed'
+          ? 'badge-warning'
+          : md.retryDecision === 'exhausted'
+            ? 'badge-accent'
+            : 'badge-info';
+        const badges = [
+          md.attemptNumber != null ? `<span class="badge badge-info">attempt ${escapeHtml(String(md.attemptNumber))}</span>` : '',
+          md.retryLimit != null ? `<span class="badge badge-info">retry limit ${escapeHtml(String(md.retryLimit))}</span>` : '',
+          md.outcome ? `<span class="badge ${outcomeClass}">${escapeHtml(md.outcome)}</span>` : '',
+          md.retryDecision ? `<span class="badge ${retryClass}">${escapeHtml(md.retryDecision)}</span>` : '',
+          md.failureKind ? `<span class="badge badge-warning">${escapeHtml(md.failureKind)}</span>` : '',
+          md.statusCode != null ? `<span class="badge badge-info">HTTP ${escapeHtml(String(md.statusCode))}</span>` : '',
+          md.visibleOutputEmitted ? '<span class="badge badge-warning">visible output</span>' : ''
+        ].filter(Boolean).join('');
+        const routing = [
+          md.sessionIdHash ? `session ${shortHash(md.sessionIdHash)}` : '',
+          md.threadIdHash ? `thread ${shortHash(md.threadIdHash)}` : '',
+          md.promptCacheKeyHash ? `cache ${shortHash(md.promptCacheKeyHash)}` : ''
+        ].filter(Boolean).join(' · ');
+        const requestId = md.requestId
+          ? `<div class="session-meta-line">request ID: ${escapeHtml(md.requestId)}</div>`
+          : '';
+        const duration = md.durationMs != null
+          ? `<div class="trace-duration">${formatDurationMs(md.durationMs)}</div>`
+          : '';
+        return `<div class="trace-event type-ProviderResponseDiagnostic">
+          <div class="trace-time">${time}</div>
+          <div class="trace-icon">${iconSvg(md.outcome === 'succeeded' ? 'check' : 'alert', 14)}</div>
+          <div class="trace-body">
+            <div class="trace-label">Provider Stream Attempt${e.sessionKey && !selectedSession ? ' <span class="badge badge-info">' + escapeHtml(e.sessionKey) + '</span>' : ''}</div>
+            ${duration}
+            <div style="margin-top:6px;display:flex;gap:6px;flex-wrap:wrap">${badges}</div>
+            ${requestId}
+            ${routing ? `<div class="session-meta-line">${escapeHtml(routing)}</div>` : ''}
+            ${metaLine}
+            ${renderMetadataDetail(evtId, e.metadataJson)}
+          </div></div>`;
+      }
       const badges = [
         md.providerProtocol ? `<span class="badge badge-info">${escapeHtml(md.providerProtocol)}</span>` : '',
         md.eventType ? `<span class="badge badge-accent">${escapeHtml(md.eventType)}</span>` : '',

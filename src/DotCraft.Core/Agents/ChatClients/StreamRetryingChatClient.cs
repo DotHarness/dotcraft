@@ -1,8 +1,10 @@
+using System.Diagnostics;
 using System.Net;
 using System.Net.Sockets;
 using System.Reflection;
 using System.Runtime.CompilerServices;
 using DotCraft.Protocol;
+using DotCraft.Tracing;
 using Microsoft.Extensions.AI;
 
 namespace DotCraft.Agents;
@@ -33,11 +35,17 @@ internal sealed class StreamRetryingChatClient(
         var transportRetries = 0;
         var providerServerErrorRetries = 0;
         var totalRetries = 0;
+        var attemptNumber = 0;
+        var nextAttemptRetryLimit = retryOptions.MaxRetries;
         var providerHistoryBridge =
             GetService(typeof(IProviderConversationHistoryBridge)) as IProviderConversationHistoryBridge;
 
         while (true)
         {
+            attemptNumber++;
+            var attemptRetryLimit = nextAttemptRetryLimit;
+            using var attemptTraceScope = ModelStreamAttemptRuntimeScope.Begin(attemptNumber);
+            var attemptStopwatch = Stopwatch.StartNew();
             var providerHistoryAttemptId = providerHistoryBridge?.BeginAttempt();
             await using var providerHistoryAttempt = new ProviderHistoryAttemptLease(
                 providerHistoryBridge,
@@ -103,6 +111,14 @@ internal sealed class StreamRetryingChatClient(
 
             if (failure == null)
             {
+                ReportAttemptCompleted(
+                    attemptNumber,
+                    attemptRetryLimit,
+                    outcome: "succeeded",
+                    retryDecision: "none",
+                    failure: null,
+                    attemptStopwatch.Elapsed.TotalMilliseconds,
+                    emittedVisibleUpdate);
                 foreach (var update in bufferedNonVisibleUpdates)
                     yield return update;
                 providerHistoryAttempt.Complete();
@@ -122,6 +138,15 @@ internal sealed class StreamRetryingChatClient(
                 else
                     transportRetries++;
                 totalRetries++;
+                nextAttemptRetryLimit = retryLimit;
+                ReportAttemptCompleted(
+                    attemptNumber,
+                    retryLimit,
+                    outcome: "failed",
+                    retryDecision: "scheduled",
+                    failure,
+                    attemptStopwatch.Elapsed.TotalMilliseconds,
+                    emittedVisibleUpdate);
                 ModelStreamRetryRuntimeScope.Current?.NotifyRetry(
                     retryCount + 1,
                     retryLimit,
@@ -130,13 +155,33 @@ internal sealed class StreamRetryingChatClient(
                 continue;
             }
 
-            if (ShouldReportRetrySuppressed(
+            var retrySuppressed = ShouldReportRetrySuppressed(
                     failure,
                     cancellationToken,
                     emittedVisibleUpdate,
                     retryCount,
-                    retryLimit))
+                    retryLimit);
+            if (retrySuppressed)
                 ModelStreamRetryRuntimeScope.Current?.NotifyRetrySuppressed?.Invoke(failure, "visible_output_emitted");
+
+            var canceled = cancellationToken.IsCancellationRequested
+                           || failure is OperationCanceledException;
+            var retryExhausted = !canceled
+                                 && !emittedVisibleUpdate
+                                 && IsRetryable(failure)
+                                 && retryCount >= retryLimit;
+            ReportAttemptCompleted(
+                attemptNumber,
+                retryLimit,
+                outcome: canceled ? "canceled" : "failed",
+                retryDecision: retrySuppressed
+                    ? "suppressed"
+                    : retryExhausted
+                        ? "exhausted"
+                        : "none",
+                failure,
+                attemptStopwatch.Elapsed.TotalMilliseconds,
+                emittedVisibleUpdate);
 
             if (totalRetries > 0)
                 ModelStreamRetryRuntimeScope.Current?.NotifyFinalFailure?.Invoke(failure);
@@ -144,6 +189,35 @@ internal sealed class StreamRetryingChatClient(
             providerHistoryAttempt.Complete();
             throw failure;
         }
+    }
+
+    private void ReportAttemptCompleted(
+        int attemptNumber,
+        int retryLimit,
+        string outcome,
+        string retryDecision,
+        Exception? failure,
+        double durationMs,
+        bool visibleOutputEmitted)
+    {
+        var transport = ModelStreamAttemptRuntimeScope.Current;
+        var statusCode = transport?.StatusCode
+                         ?? (failure == null ? null : (int?)TryReadStatusCode(failure));
+        ModelStreamRetryRuntimeScope.Current?.NotifyAttemptCompleted?.Invoke(
+            new ModelStreamAttemptDiagnostic(
+                PromptCacheRequestShapeTraceScope.RequestIndex,
+                attemptNumber,
+                retryLimit,
+                outcome,
+                retryDecision,
+                ClassifyFailure(failure),
+                durationMs,
+                visibleOutputEmitted,
+                statusCode,
+                transport?.RequestId,
+                transport?.SessionIdHash,
+                transport?.ThreadIdHash,
+                transport?.PromptCacheKeyHash));
     }
 
     private async Task<MoveNextResult> MoveNextWithIdleTimeoutAsync(
@@ -269,6 +343,29 @@ internal sealed class StreamRetryingChatClient(
 
         var statusCode = TryReadStatusCode(exception);
         return statusCode.HasValue && IsRetryableStatusCode(statusCode.Value);
+    }
+
+    private static string? ClassifyFailure(Exception? exception)
+    {
+        if (exception == null)
+            return null;
+        if (exception is ProviderServerErrorException)
+            return "provider_server_error";
+        if (exception is ModelStreamDisconnectedException)
+            return "idle_timeout";
+        if (LooksLikePrematureResponsesEnd(exception))
+            return "premature_end";
+        if (exception is OperationCanceledException or TaskCanceledException)
+            return "canceled";
+        if (exception is TimeoutException)
+            return "timeout";
+        if (exception is SocketException || ContainsInner<SocketException>(exception))
+            return "socket";
+        if (exception is IOException || ContainsInner<IOException>(exception))
+            return "io";
+        if (TryReadStatusCode(exception).HasValue || exception is HttpRequestException)
+            return "http";
+        return "unknown";
     }
 
     private static bool LooksLikePrematureResponsesEnd(Exception exception)

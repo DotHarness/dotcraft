@@ -22,7 +22,30 @@ public sealed class ModelStreamRetryRuntimeContext
     /// tool effects.
     /// </summary>
     public Action<Exception, string>? NotifyRetrySuppressed { get; init; }
+
+    /// <summary>
+    /// Reports the sanitized outcome of one completed provider stream attempt.
+    /// </summary>
+    public Action<ModelStreamAttemptDiagnostic>? NotifyAttemptCompleted { get; init; }
 }
+
+/// <summary>
+/// Sanitized provider stream attempt data exposed to the active Session Core turn.
+/// </summary>
+public sealed record ModelStreamAttemptDiagnostic(
+    int? RequestIndex,
+    int AttemptNumber,
+    int RetryLimit,
+    string Outcome,
+    string RetryDecision,
+    string? FailureKind,
+    double DurationMs,
+    bool VisibleOutputEmitted,
+    int? StatusCode,
+    string? RequestId,
+    string? SessionIdHash,
+    string? ThreadIdHash,
+    string? PromptCacheKeyHash);
 
 /// <summary>
 /// Async-local bridge between provider-neutral chat clients and Session Core

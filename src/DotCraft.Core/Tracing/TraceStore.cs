@@ -1606,6 +1606,11 @@ public sealed class TraceStore
                 TraceEventType.ContextCompaction,
                 TraceEventType.ThreadRollback
             ],
+            "provider" => [
+                TraceEventType.ProviderResponseDiagnostic,
+                TraceEventType.ProviderError,
+                TraceEventType.ResponseTerminal
+            ],
             "tokenusage" or "tokens" => [TraceEventType.TokenUsage],
             "error" => [TraceEventType.Error],
             _ => Enum.TryParse<TraceEventType>(filter, ignoreCase: true, out var type)

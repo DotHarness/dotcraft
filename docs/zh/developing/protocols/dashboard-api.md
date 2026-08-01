@@ -30,7 +30,7 @@ dotcraft dashboard --workspace /path/to/workspace --host 127.0.0.1 --port 8081
 | `Error` | 运行错误 |
 | `ResponseTerminal` | 单次 streaming 模型请求的终止诊断，即使没有文本也会记录 |
 | `ProviderError` | provider 返回的非致命错误内容或 stream 错误元数据 |
-| `ProviderResponseDiagnostic` | provider 终止/status 元数据摘要，例如 OpenAI Responses incomplete reason |
+| `ProviderResponseDiagnostic` | 经过清洗的 provider 终止/status 元数据、stream attempt 结果和 OpenAI request ID |
 | `ContextCompaction` | 上下文压缩 |
 | `Thinking` | 模型思考内容段 |
 | `PromptCachePoint` | prompt cache 断点摘要 |
@@ -42,6 +42,13 @@ dotcraft dashboard --workspace /path/to/workspace --host 127.0.0.1 --port 8081
 Dashboard 按连续 streaming 内容段记录 `Thinking` 和 `Response` trace 事件，既不按每个 chunk 记录，也不会把整轮合并为单条。`ThinkingCount` 和 `ResponseCount` 因此表示内容段数量。实时事件流会在当前段结束并落库后发送该段事件。
 
 `ResponseTerminal`、`ProviderError` 和 `ProviderResponseDiagnostic` 都是诊断事件，不会作为 assistant 文本写入 thread rollout。`ResponseTerminal` 会记录 finish reason 和 stream 形状元数据，即使用量-only 或空 terminal update 也会保留证据。Provider 诊断只记录经过清洗的 status、error、incomplete reason 等字段；不得持久化原始 prompt、完整请求体或大型工具参数。
+
+每个完成的 provider stream attempt 都会产生一条 `eventType=stream_attempt` 的
+`ProviderResponseDiagnostic`。其 metadata 包含 `requestIndex`、`attemptNumber`、
+`retryLimit`、`outcome`、`retryDecision`、`failureKind`、`durationMs` 和
+`visibleOutputEmitted`。OpenAI Responses 诊断还会包含最终 HTTP status、上游 request ID，
+以及实际 session、thread 和 prompt-cache identity 的 SHA-256 哈希。原始路由 identity、
+凭据、请求体和响应体不会写入 trace。
 
 上下文压缩和记忆整理等维护请求会额外记录 `MaintenanceForkRequest` / `MaintenanceForkResponse`。这些事件保留维护请求的 snapshot/cache 元数据、模型原始文本、tool-call-only 响应、空响应和 fallback reason，便于从 Dashboard 诊断 `summary_unavailable` 一类问题。
 

@@ -2220,7 +2220,22 @@ public sealed partial class SessionService(
                     agent = GetThreadAgentOrDefault(threadId);
 
                 // Bind tracing and token tracking before model history reconstruction.
-                traceCollector?.BindThreadMainSession(threadId);
+                if (traceCollector != null && thread.Source.SubAgent is { } subAgentSource)
+                {
+                    var traceRootThreadId = string.IsNullOrWhiteSpace(subAgentSource.RootThreadId)
+                        ? threadId
+                        : subAgentSource.RootThreadId;
+                    traceCollector.BindChildSession(
+                        threadId,
+                        traceRootThreadId,
+                        string.IsNullOrWhiteSpace(subAgentSource.ParentThreadId)
+                            ? traceRootThreadId
+                            : subAgentSource.ParentThreadId);
+                }
+                else
+                {
+                    traceCollector?.BindThreadMainSession(threadId);
+                }
                 TracingChatClient.CurrentSessionKey = threadId;
                 TracingChatClient.ResetCallState(threadId);
                 mainTraceUsageBaseline = traceCollector?.GetTokenUsageCount(threadId) ?? 0;
@@ -2559,7 +2574,9 @@ public sealed partial class SessionService(
                             NotifyRetry = (attempt, maxAttempts, _) =>
                                 eventChannel.EmitSystemEvent(
                                     "streamError",
-                                    $"Reconnecting... {attempt}/{maxAttempts}")
+                                    $"Reconnecting... {attempt}/{maxAttempts}"),
+                            NotifyAttemptCompleted = diagnostic =>
+                                traceCollector?.RecordStreamAttemptDiagnostic(threadId, diagnostic)
                         });
 
                     await foreach (var update in agent.RunStreamingAsync(userMessage, session)
