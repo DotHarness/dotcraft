@@ -11,7 +11,7 @@ public sealed class DashBoardFrontendTests
 
         Assert.Contains("type-DeferredToolLoading", html);
         Assert.Contains("case 'DeferredToolLoading':", html);
-        Assert.Contains("e.type === 'DeferredToolLoading'", html);
+        Assert.Contains("evt.type === 'DeferredToolLoading'", html);
         Assert.Contains("strategy ${escapeHtml(strategy)}", html);
         Assert.Contains("protocol ${escapeHtml(md.providerProtocol)}", html);
         Assert.Contains("wire ${escapeHtml(md.wireShape)}", html);
@@ -55,7 +55,6 @@ public sealed class DashBoardFrontendTests
         Assert.Contains("/operations", html);
         Assert.Contains("mergeTraceEventsWithOperations", html);
         Assert.Contains("rollbackDedupeKeyFromEvent", html);
-        Assert.Contains("e.type === 'ThreadRollback'", html);
         Assert.Contains("evt.type === 'ThreadRollback'", html);
         Assert.Contains("rollback ${formatNumber(session.rollbackCount)}", html);
     }
@@ -72,5 +71,17 @@ public sealed class DashBoardFrontendTests
         Assert.Contains("session ${shortHash(md.sessionIdHash)}", html);
         Assert.Contains("thread ${shortHash(md.threadIdHash)}", html);
         Assert.Contains("cache ${shortHash(md.promptCacheKeyHash)}", html);
+    }
+
+    [Fact]
+    public void Html_UsesSharedProviderAndResponseFilterCategories()
+    {
+        var html = DashBoardFrontend.GetHtml();
+
+        Assert.Contains("function traceEventMatchesFilter(evt, filter)", html);
+        Assert.Contains("filter === 'Response') return evt.type === 'Response' || evt.type === 'ResponseTerminal'", html);
+        Assert.Contains("filter === 'Provider') return evt.type === 'ProviderResponseDiagnostic' || evt.type === 'ProviderError'", html);
+        Assert.Contains("decoratedEvents.filter(e => traceEventMatchesFilter(e, currentFilter))", html);
+        Assert.Contains("return traceEventMatchesFilter(evt, currentFilter);", html);
     }
 }

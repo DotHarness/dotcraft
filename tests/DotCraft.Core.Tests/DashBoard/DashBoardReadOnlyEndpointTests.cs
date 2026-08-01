@@ -134,6 +134,27 @@ public sealed class DashBoardReadOnlyEndpointTests : IDisposable
             Timestamp = startedAt.AddSeconds(2),
             MetadataJson = """{"eventType":"stream_attempt","attemptNumber":1,"outcome":"failed"}"""
         });
+        writer.Record(new TraceEvent
+        {
+            SessionKey = "thread_page",
+            Type = TraceEventType.ProviderError,
+            Content = "provider error",
+            Timestamp = startedAt.AddSeconds(3)
+        });
+        writer.Record(new TraceEvent
+        {
+            SessionKey = "thread_page",
+            Type = TraceEventType.Response,
+            Content = "response text",
+            Timestamp = startedAt.AddSeconds(4)
+        });
+        writer.Record(new TraceEvent
+        {
+            SessionKey = "thread_page",
+            Type = TraceEventType.ResponseTerminal,
+            Content = "response terminal",
+            Timestamp = startedAt.AddSeconds(5)
+        });
 
         await using var app = await CreateDashboardApp();
         using var http = new HttpClient { BaseAddress = new Uri(app.Urls.Single()) };
@@ -152,9 +173,23 @@ public sealed class DashBoardReadOnlyEndpointTests : IDisposable
             "/dashboard/api/sessions/thread_page/events/page?limit=10&filter=Provider");
         Assert.Equal(HttpStatusCode.OK, providerResponse.StatusCode);
         using var providerDoc = JsonDocument.Parse(await providerResponse.Content.ReadAsStringAsync());
-        var providerEvent = Assert.Single(providerDoc.RootElement.GetProperty("events").EnumerateArray());
-        Assert.Equal("ProviderResponseDiagnostic", providerEvent.GetProperty("type").GetString());
-        Assert.Contains("stream_attempt", providerEvent.GetProperty("metadataJson").GetString(), StringComparison.Ordinal);
+        var providerEvents = providerDoc.RootElement.GetProperty("events").EnumerateArray().ToArray();
+        Assert.Equal(
+            ["ProviderError", "ProviderResponseDiagnostic"],
+            providerEvents.Select(evt => evt.GetProperty("type").GetString()!).Order().ToArray());
+        var attemptEvent = Assert.Single(
+            providerEvents,
+            evt => evt.GetProperty("type").GetString() == "ProviderResponseDiagnostic");
+        Assert.Contains("stream_attempt", attemptEvent.GetProperty("metadataJson").GetString(), StringComparison.Ordinal);
+
+        using var responsesResponse = await http.GetAsync(
+            "/dashboard/api/sessions/thread_page/events/page?limit=10&filter=Response");
+        Assert.Equal(HttpStatusCode.OK, responsesResponse.StatusCode);
+        using var responsesDoc = JsonDocument.Parse(await responsesResponse.Content.ReadAsStringAsync());
+        var responseEvents = responsesDoc.RootElement.GetProperty("events").EnumerateArray().ToArray();
+        Assert.Equal(
+            ["Response", "ResponseTerminal"],
+            responseEvents.Select(evt => evt.GetProperty("type").GetString()!).Order().ToArray());
     }
 
     [Fact]

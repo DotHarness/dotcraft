@@ -43,6 +43,8 @@ Dashboard records `Thinking` and `Response` trace events by contiguous streaming
 
 `ResponseTerminal`, `ProviderError`, and `ProviderResponseDiagnostic` are diagnostic-only events. They are not written into thread rollout history as assistant text. `ResponseTerminal` records finish reason and stream-shape metadata even for usage-only or empty terminal updates. Provider diagnostics record sanitized status, error, and incomplete reason fields only; they must not persist raw prompts, full request bodies, or large tool arguments.
 
+The **Responses** filter includes `Response` and `ResponseTerminal`. The **Provider** filter includes `ProviderError` and `ProviderResponseDiagnostic`.
+
 Each completed provider stream attempt emits a `ProviderResponseDiagnostic` with
 `eventType=stream_attempt`. Its metadata includes `requestIndex`, `attemptNumber`, `retryLimit`,
 `outcome`, `retryDecision`, `failureKind`, `durationMs`, and `visibleOutputEmitted`. OpenAI

@@ -1592,7 +1592,10 @@ public sealed class TraceStore
         return filter.Trim().ToLowerInvariant() switch
         {
             "request" => [TraceEventType.Request],
-            "response" => [TraceEventType.Response],
+            "response" => [
+                TraceEventType.Response,
+                TraceEventType.ResponseTerminal
+            ],
             "thinking" => [TraceEventType.Thinking],
             "tool" => [
                 TraceEventType.ToolCallStarted,
@@ -1608,8 +1611,7 @@ public sealed class TraceStore
             ],
             "provider" => [
                 TraceEventType.ProviderResponseDiagnostic,
-                TraceEventType.ProviderError,
-                TraceEventType.ResponseTerminal
+                TraceEventType.ProviderError
             ],
             "tokenusage" or "tokens" => [TraceEventType.TokenUsage],
             "error" => [TraceEventType.Error],

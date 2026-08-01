@@ -3090,16 +3090,22 @@ function mergeTraceEvents(prefix, suffix) {
   return merged;
 }
 
+function traceEventMatchesFilter(evt, filter) {
+  if (!evt) return false;
+  if (!filter || filter === 'all') return true;
+  if (filter === 'Response') return evt.type === 'Response' || evt.type === 'ResponseTerminal';
+  if (filter === 'Provider') return evt.type === 'ProviderResponseDiagnostic' || evt.type === 'ProviderError';
+  if (filter === 'Tool') return evt.type === 'ToolCallStarted' || evt.type === 'ToolCallCompleted' || evt.type === 'ToolInjection' || evt.type === 'DeferredToolLoading';
+  if (filter === 'Maintenance') return evt.type === 'MaintenanceForkRequest' || evt.type === 'MaintenanceForkResponse' || evt.type === 'ContextCompaction' || evt.type === 'ThreadRollback';
+  return evt.type === filter;
+}
+
 function renderTraceTimeline(events, options = {}) {
   const container = document.getElementById('traceTimeline');
   const timelineEvents = mergeTraceEventsWithOperations(events || [], selectedSessionOperations || []);
   const decoratedEvents = decorateTraceEventsWithPromptCacheDiagnostics(timelineEvents);
 
-  const filtered = currentFilter === 'all' ? decoratedEvents : decoratedEvents.filter(e => {
-    if (currentFilter === 'Tool') return e.type === 'ToolCallStarted' || e.type === 'ToolCallCompleted' || e.type === 'ToolInjection' || e.type === 'DeferredToolLoading';
-    if (currentFilter === 'Maintenance') return e.type === 'MaintenanceForkRequest' || e.type === 'MaintenanceForkResponse' || e.type === 'ContextCompaction' || e.type === 'ThreadRollback';
-    return e.type === currentFilter;
-  });
+  const filtered = decoratedEvents.filter(e => traceEventMatchesFilter(e, currentFilter));
 
   if (filtered.length === 0) {
     container.innerHTML = `
@@ -4102,20 +4108,7 @@ function traceEventBelongsToCurrentView(evt) {
 }
 
 function traceEventMatchesCurrentFilter(evt) {
-  if (!evt || currentFilter === 'all') return true;
-  if (currentFilter === 'Tool') {
-    return evt.type === 'ToolCallStarted' ||
-      evt.type === 'ToolCallCompleted' ||
-      evt.type === 'ToolInjection' ||
-      evt.type === 'DeferredToolLoading';
-  }
-  if (currentFilter === 'Maintenance') {
-    return evt.type === 'MaintenanceForkRequest' ||
-      evt.type === 'MaintenanceForkResponse' ||
-      evt.type === 'ContextCompaction' ||
-      evt.type === 'ThreadRollback';
-  }
-  return evt.type === currentFilter;
+  return traceEventMatchesFilter(evt, currentFilter);
 }
 
 let CONFIG_SCHEMA = [];

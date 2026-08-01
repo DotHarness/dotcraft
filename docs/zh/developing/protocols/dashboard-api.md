@@ -43,6 +43,8 @@ Dashboard 按连续 streaming 内容段记录 `Thinking` 和 `Response` trace �
 
 `ResponseTerminal`、`ProviderError` 和 `ProviderResponseDiagnostic` 都是诊断事件，不会作为 assistant 文本写入 thread rollout。`ResponseTerminal` 会记录 finish reason 和 stream 形状元数据，即使用量-only 或空 terminal update 也会保留证据。Provider 诊断只记录经过清洗的 status、error、incomplete reason 等字段；不得持久化原始 prompt、完整请求体或大型工具参数。
 
+**Responses** 过滤器包含 `Response` 和 `ResponseTerminal`。**Provider** 过滤器包含 `ProviderError` 和 `ProviderResponseDiagnostic`。
+
 每个完成的 provider stream attempt 都会产生一条 `eventType=stream_attempt` 的
 `ProviderResponseDiagnostic`。其 metadata 包含 `requestIndex`、`attemptNumber`、
 `retryLimit`、`outcome`、`retryDecision`、`failureKind`、`durationMs` 和
