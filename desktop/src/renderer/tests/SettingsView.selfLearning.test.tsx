@@ -662,7 +662,10 @@ describe('SettingsView self-learning settings', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Manage Dreams' }))
 
-    expect(await screen.findByText('dream_20260511000000_test')).toBeInTheDocument()
+    expect(await screen.findByText('2 threads')).toBeInTheDocument()
+    expect(screen.getByText('Succeeded')).toBeInTheDocument()
+    expect(screen.queryByText('dream_20260511000000_test')).not.toBeInTheDocument()
+    expect(screen.queryByText('Overview')).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Back to Personalization' })).toBeInTheDocument()
     expect(screen.getAllByRole('button', { name: 'Personalization', exact: true })).toHaveLength(1)
     expect(screen.getByRole('button', { name: 'Personalization', exact: true })).toHaveAttribute('aria-current', 'page')
@@ -708,7 +711,7 @@ describe('SettingsView self-learning settings', () => {
     })
     fireEvent.click(screen.getByRole('button', { name: 'Manage Dreams' }))
 
-    expect(await screen.findByText('dream_20260511000000_test')).toBeInTheDocument()
+    expect(await screen.findByText('2 threads')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Archive', exact: true }))
 
     await waitFor(() => {
@@ -722,7 +725,7 @@ describe('SettingsView self-learning settings', () => {
       expect(appServerSendRequest).toHaveBeenCalledWith('dreams/archive', {
         runId: 'dream_20260511000000_test'
       }, 20_000)
-      expect(screen.queryByText('dream_20260511000000_test')).not.toBeInTheDocument()
+      expect(screen.getByText('No Dreams runs yet.')).toBeInTheDocument()
     })
     expect(useToastStore.getState().toasts).toEqual(
       expect.arrayContaining([
@@ -765,8 +768,7 @@ describe('SettingsView self-learning settings', () => {
     })
     fireEvent.click(screen.getByRole('button', { name: 'Manage Dreams' }))
 
-    expect(await screen.findByText('dream_20260511000000_test_2')).toBeInTheDocument()
-    expect(screen.getByText('dream_20260511000000_test')).toBeInTheDocument()
+    expect(await screen.findAllByRole('button', { name: 'Review' })).toHaveLength(2)
     fireEvent.click(screen.getByRole('button', { name: 'Archive all' }))
 
     await waitFor(() => {
@@ -792,8 +794,7 @@ describe('SettingsView self-learning settings', () => {
         ])
       )
     })
-    expect(screen.getByText('dream_20260511000000_test_2')).toBeInTheDocument()
-    expect(screen.queryByText('dream_20260511000000_test')).not.toBeInTheDocument()
+    expect(screen.getAllByRole('button', { name: 'Review' })).toHaveLength(1)
   })
 
   it('disables Dreams archive actions while a run is running', async () => {
@@ -824,7 +825,8 @@ describe('SettingsView self-learning settings', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Personalization' }))
     fireEvent.click(await screen.findByRole('button', { name: 'Manage Dreams' }))
 
-    expect(await screen.findByText('dream_running')).toBeInTheDocument()
+    expect(await screen.findByText('Running')).toBeInTheDocument()
+    expect(screen.queryByText('dream_running')).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Archive', exact: true })).toBeDisabled()
     expect(screen.getByRole('button', { name: 'Archive all' })).toBeDisabled()
   })
