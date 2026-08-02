@@ -1749,7 +1749,6 @@ export function InputComposer({
         }
         footerAction={
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            {!minimalChrome && <ChatGptUsageBadge provider={activeChatGptProvider} />}
             {!hasSubmitOverride && <ContextUsageRing />}
             <ModelPicker
               providerId={providerId}
@@ -1839,6 +1838,7 @@ export function InputComposer({
               variant="thread"
               thread={activeThread}
               remoteWorkspace={remoteWorkspace}
+              trailing={<ChatGptUsageBadge provider={activeChatGptProvider} />}
             />
           )
         }

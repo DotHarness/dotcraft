@@ -32,6 +32,8 @@ interface ComposerWorkspaceFooterProps {
   onBaseRefChange?: (baseRef: string | null) => void
   onWorktreeBranchNameChange?: (branchName: string | null) => void
   onWelcomeWorkspaceChange?: (workspacePath: string) => Promise<void> | void
+  /** Context control rendered after project, workspace, branch, or changelist controls. */
+  trailing?: ReactNode
   // Perforce changelist pre-selected on the welcome screen; applied to the thread the first message creates.
   welcomeChangelist?: string | null
   onWelcomeChangelistChange?: (changelist: string) => void
@@ -241,6 +243,7 @@ export function ComposerWorkspaceFooter({
   onBaseRefChange,
   onWorktreeBranchNameChange,
   onWelcomeWorkspaceChange,
+  trailing,
   welcomeChangelist = null,
   onWelcomeChangelistChange
 }: ComposerWorkspaceFooterProps): JSX.Element | null {
@@ -940,6 +943,7 @@ export function ComposerWorkspaceFooter({
           )}
         </div>
       )}
+      {trailing}
       {createChangelistOpen && createPortal(
         <CreateChangelistDialog
           value={changelistDraft}

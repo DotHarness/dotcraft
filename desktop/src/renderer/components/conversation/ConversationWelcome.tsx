@@ -1883,7 +1883,6 @@ export function ConversationWelcome({
               }
               footerAction={
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                  <ChatGptUsageBadge provider={activeChatGptProvider} />
                   <ModelPicker
                     providerId={providerId}
                     providerOptions={providerOptions}
@@ -1970,6 +1969,7 @@ export function ConversationWelcome({
                     onBaseRefChange={setWelcomeBaseRef}
                     onWorktreeBranchNameChange={setWelcomeWorktreeBranchName}
                     onWelcomeWorkspaceChange={switchWelcomeWorkspace}
+                    trailing={<ChatGptUsageBadge provider={activeChatGptProvider} />}
                     welcomeChangelist={welcomeChangelist}
                     onWelcomeChangelistChange={setWelcomeChangelist}
                   />

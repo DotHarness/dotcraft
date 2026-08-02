@@ -4,7 +4,7 @@ import { LocaleProvider } from '../contexts/LocaleContext'
 import { ConversationWelcome } from '../components/conversation/ConversationWelcome'
 import { COMMAND_REF_CLASS, FILE_REF_CLASS, SKILL_REF_CLASS } from '../components/conversation/richInputConstants'
 import { useConnectionStore } from '../stores/connectionStore'
-import { useGitStore } from '../stores/gitStore'
+import { normalizeGitPathKey, useGitStore } from '../stores/gitStore'
 import { useModelCatalogStore } from '../stores/modelCatalogStore'
 import { useProvidersStore } from '../stores/providersStore'
 import { useThreadStore } from '../stores/threadStore'
@@ -183,6 +183,23 @@ describe('ConversationWelcome composer', () => {
 
     useConnectionStore.getState().reset()
     useGitStore.getState().reset()
+    useGitStore.setState({
+      branchesByPath: {
+        [normalizeGitPathKey('F:\\dotcraft')]: {
+          path: 'F:\\dotcraft',
+          status: 'available',
+          snapshot: {
+            current: 'main',
+            detachedHead: null,
+            branches: [{ name: 'main', current: true }]
+          },
+          refreshing: false,
+          errorMessage: null,
+          updatedAt: Date.now(),
+          requestId: 1
+        }
+      }
+    })
     useThreadStore.getState().reset()
     useConversationStore.getState().reset()
     useConversationStore.setState({ remoteWorkspaceActive: false })
@@ -638,6 +655,8 @@ describe('ConversationWelcome composer', () => {
     renderWelcome()
 
     const badge = await screen.findByRole('button', { name: /ChatGPT.*96% left in the 5h window.*76% left this week/i })
+    const branch = await screen.findByRole('button', { name: 'main' })
+    expect(Boolean(branch.compareDocumentPosition(badge) & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(true)
     expect(badge).not.toHaveAttribute('title')
     expect(badge.querySelector('img')).toBeNull()
     expect(badge.querySelector('svg[data-provider-mark="openai"]')).toBeInTheDocument()

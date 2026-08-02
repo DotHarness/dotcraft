@@ -568,6 +568,10 @@ Text inputs, textareas, selects, search boxes, and picker triggers stay neutral:
 - when a composer-adjacent dock overlaps the composer, the composer draws a
   `--composer-top-accessory-separator` hairline on the shared edge so the two
   surfaces remain distinct in both light and dark themes;
+- the composer card keeps model, context-window, and send controls in its primary
+  action row; project, work location, source-control branch or changelist, and
+  provider subscription status form the context row below the card, with
+  subscription status immediately following the branch or changelist control;
 - use `--border-default` for rest state; the primary message composer uses
   `--composer-input-rest-border` so the light theme has a subtle frame while the
   dark theme can remain effectively frameless, shows a soft brand-gradient glow

@@ -11,7 +11,7 @@ import { useSubAgentStore } from '../stores/subAgentStore'
 import { useThreadStore } from '../stores/threadStore'
 import { useToastStore } from '../stores/toastStore'
 import { useUIStore } from '../stores/uiStore'
-import { useGitStore } from '../stores/gitStore'
+import { normalizeGitPathKey, useGitStore } from '../stores/gitStore'
 import { useComposerDraftStore } from '../stores/composerDraftStore'
 import type { ConversationTurn } from '../types/conversation'
 
@@ -29,6 +29,7 @@ Object.defineProperty(globalThis, 'ResizeObserver', {
 
 const settingsGet = vi.fn()
 const appServerSendRequest = vi.fn()
+const gitListBranches = vi.fn()
 const readImageAsDataUrl = vi.fn()
 
 function renderComposer(extraProps: Partial<ComponentProps<typeof InputComposer>> = {}): void {
@@ -81,12 +82,18 @@ describe('InputComposer layout', () => {
     settingsGet.mockResolvedValue({ locale: 'en' })
     appServerSendRequest.mockResolvedValue({})
     readImageAsDataUrl.mockResolvedValue({ dataUrl: 'data:image/png;base64,AA==' })
+    gitListBranches.mockResolvedValue({
+      current: 'main',
+      detachedHead: null,
+      branches: [{ name: 'main', current: true }]
+    })
 
     Object.defineProperty(window, 'api', {
       configurable: true,
       value: {
         settings: { get: settingsGet },
         appServer: { sendRequest: appServerSendRequest },
+        git: { listBranches: gitListBranches },
         workspace: { saveImageToTemp: vi.fn(), readImageAsDataUrl }
       }
     })
@@ -98,6 +105,23 @@ describe('InputComposer layout', () => {
     useSubAgentStore.getState().reset()
     useThreadStore.getState().reset()
     useGitStore.getState().reset()
+    useGitStore.setState({
+      branchesByPath: {
+        [normalizeGitPathKey('C:\\sample\\workspace')]: {
+          path: 'C:\\sample\\workspace',
+          status: 'available',
+          snapshot: {
+            current: 'main',
+            detachedHead: null,
+            branches: [{ name: 'main', current: true }]
+          },
+          refreshing: false,
+          errorMessage: null,
+          updatedAt: Date.now(),
+          requestId: 1
+        }
+      }
+    })
     useComposerDraftStore.setState({ draftsByThread: {} })
     useToastStore.setState({ toasts: [] })
     useUIStore.setState({
@@ -906,6 +930,8 @@ describe('InputComposer layout', () => {
     renderComposer()
 
     const badge = await screen.findByRole('button', { name: /ChatGPT.*96% left in the 5h window.*76% left this week/i })
+    const branch = await screen.findByRole('button', { name: 'main' })
+    expect(Boolean(branch.compareDocumentPosition(badge) & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(true)
     expect(badge).not.toHaveAttribute('title')
     expect(badge.querySelector('img')).toBeNull()
     expect(badge.querySelector('svg[data-provider-mark="openai"]')).toBeInTheDocument()
