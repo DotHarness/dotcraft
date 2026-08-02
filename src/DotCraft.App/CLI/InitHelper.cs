@@ -122,15 +122,18 @@ public static class InitHelper
 
     private static void RemoveCaseInsensitive(JsonObject node, string key)
     {
-        var matched = node.FirstOrDefault(p => string.Equals(p.Key, key, StringComparison.OrdinalIgnoreCase));
-        if (!string.IsNullOrEmpty(matched.Key))
-            node.Remove(matched.Key);
+        var matches = node
+            .Select(pair => pair.Key)
+            .Where(candidate => string.Equals(candidate, key, StringComparison.OrdinalIgnoreCase))
+            .ToArray();
+        foreach (var match in matches)
+            node.Remove(match);
     }
 
     private static void RemoveProviderAwareWorkspaceFields(JsonObject node)
     {
-        node.Remove("ProviderId");
-        node.Remove("ProviderPreferences");
+        RemoveCaseInsensitive(node, "ProviderId");
+        RemoveCaseInsensitive(node, "ProviderPreferences");
     }
 
     private static JsonObject GetOrCreateObject(JsonObject node, string key)

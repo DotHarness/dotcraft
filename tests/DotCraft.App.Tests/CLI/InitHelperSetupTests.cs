@@ -123,6 +123,19 @@ public sealed class InitHelperSetupTests : IDisposable
     {
         var craftPath = Path.Combine(tempRoot, ".craft");
         var globalConfigPath = Path.Combine(tempRoot, "user", ".craft", "config.json");
+        Directory.CreateDirectory(craftPath);
+        File.WriteAllText(Path.Combine(craftPath, "config.json"), """
+        {
+          "providerId": "stale-lower",
+          "PROVIDERID": "stale-upper",
+          "providerPreferences": {
+            "stale-lower": { "model": "stale-lower-model" }
+          },
+          "PROVIDERPREFERENCES": {
+            "stale-upper": { "model": "stale-upper-model" }
+          }
+        }
+        """);
         Directory.CreateDirectory(Path.GetDirectoryName(globalConfigPath)!);
         File.WriteAllText(globalConfigPath, """
         {
@@ -170,6 +183,10 @@ public sealed class InitHelperSetupTests : IDisposable
         Assert.Equal(
             "gpt-5.6-sol",
             workspaceNode["ProviderPreferences"]!["openai"]!["model"]?.GetValue<string>());
+        Assert.False(workspaceNode.ContainsKey("providerId"));
+        Assert.False(workspaceNode.ContainsKey("PROVIDERID"));
+        Assert.False(workspaceNode.ContainsKey("providerPreferences"));
+        Assert.False(workspaceNode.ContainsKey("PROVIDERPREFERENCES"));
 
         var globalNode = JsonNode.Parse(File.ReadAllText(globalConfigPath))!.AsObject();
         Assert.Equal("openai", globalNode["ProviderId"]?.GetValue<string>());
