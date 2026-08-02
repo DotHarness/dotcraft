@@ -302,7 +302,7 @@ Response:
 - `commandRef`: structured slash-command reference.
 - `skillRef`: structured skill reference.
 - `fileRef`: structured file reference.
-- `image`: remote image URL.
+- `image`: inline image encoded as a base64 `data:image/...` URL. HTTP and HTTPS image URLs are rejected; download remote images in the client and submit a data URL or `localImage` instead.
 - `localImage`: local image path with optional MIME metadata.
 
 If a turn is already running, Desktop-style clients usually use `turn/enqueue` to queue the next input, or `turn/interrupt` to cancel the current turn.

@@ -1985,6 +1985,7 @@ export const MESSAGES_EN = {
   'errors.invalidRequest': 'Invalid request',
   'errors.methodNotFound': 'Method not found: {{method}}',
   'errors.invalidParams': 'Invalid params',
+  'errors.input.remoteImageUrlNotSupported': 'Remote image URLs are not supported. Use an inline data URL instead.',
   'errors.internal': 'Internal error',
   'errors.serverOverloaded': 'Server overloaded; retry later.',
   'errors.notInitialized': 'Not initialized',

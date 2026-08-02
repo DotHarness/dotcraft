@@ -137,7 +137,6 @@ public sealed partial class SessionService(
     private ThreadQueueCoordinator? _threadQueueCoordinator;
     private MaintenanceCoordinator? _maintenanceCoordinator;
     private static readonly AsyncLocal<bool> SuppressGoalBroadcastContext = new();
-    private static readonly HttpClient QueuedInputHttpClient = new();
     private readonly IAppConfigMonitor? _appConfigMonitor = appConfigMonitor;
     private readonly ConcurrentDictionary<string, byte> _sessionStartHookThreads = new(StringComparer.Ordinal);
     private volatile bool _forcePerThreadAgents;

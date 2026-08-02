@@ -1368,14 +1368,23 @@ public class SerializationTests
     }
 
     [Fact]
-    public void SessionWireInputPart_Image_ToAIContent_ReturnsPlaceholderText()
+    public void SessionWireInputPart_InlineImage_ToAIContent_ReturnsDataContent()
     {
-        // DataContent requires data: URIs, so image URLs become TextContent placeholders.
-        // The AppServer is responsible for fetching image bytes and creating proper DataContent.
+        var part = new SessionWireInputPart { Type = "image", Url = "data:image/png;base64,AQID" };
+        var content = part.ToAIContent();
+        var data = Assert.IsType<DataContent>(content);
+        Assert.Equal("image/png", data.MediaType);
+        Assert.Equal([1, 2, 3], data.Data.ToArray());
+    }
+
+    [Fact]
+    public void SessionWireInputPart_RemoteImage_ToAIContent_ReturnsSafePlaceholderText()
+    {
         var part = new SessionWireInputPart { Type = "image", Url = "https://example.com/img.png" };
         var content = part.ToAIContent();
-        var tc = Assert.IsType<TextContent>(content);
-        Assert.Contains("https://example.com/img.png", tc.Text);
+        var text = Assert.IsType<TextContent>(content);
+        Assert.Equal(SessionInputPartResolver.RemoteImageOmittedText, text.Text);
+        Assert.DoesNotContain("example.com", text.Text);
     }
 
     [Fact]

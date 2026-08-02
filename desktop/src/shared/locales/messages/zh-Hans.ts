@@ -1930,6 +1930,7 @@ export const MESSAGES_ZH_HANS = {
   'errors.invalidRequest': '无效请求',
   'errors.methodNotFound': '找不到方法：{{method}}',
   'errors.invalidParams': '参数无效',
+  'errors.input.remoteImageUrlNotSupported': '不支持远程图片 URL，请改用内联 data URL。',
   'errors.internal': '内部错误',
   'errors.serverOverloaded': '服务器繁忙，请稍后重试。',
   'errors.notInitialized': '尚未初始化',

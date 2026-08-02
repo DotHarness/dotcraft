@@ -239,6 +239,90 @@ public sealed class AppServerTurnTests : IDisposable
     }
 
     [Fact]
+    public async Task TurnStart_InlineImageDataUrl_IsDecodedWithoutNetworkAccess()
+    {
+        var thread = await _h.Service.CreateThreadAsync(_h.Identity);
+        _h.Service.EnqueueSubmitEvents(thread.Id, AppServerTestHarness.BuildTurnEventSequence(thread.Id));
+
+        var msg = _h.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.TurnStart, new
+        {
+            threadId = thread.Id,
+            input = new[] { new { type = "image", url = "data:image/png;base64,AQID" } }
+        });
+        await _h.ExecuteRequestAsync(msg);
+
+        var response = await _h.Transport.ReadNextSentAsync();
+        AppServerTestHarness.AssertIsSuccessResponse(response);
+        var dataContent = Assert.IsType<DataContent>(_h.Service.LastSubmittedContent.Single());
+        Assert.Equal("image/png", dataContent.MediaType);
+        Assert.Equal([1, 2, 3], dataContent.Data.ToArray());
+    }
+
+    [Theory]
+    [InlineData("http://example.com/image.png")]
+    [InlineData("HTTPS://example.com/image.png")]
+    public async Task TurnStart_RemoteImageUrl_ReturnsInvalidParams(string url)
+    {
+        var thread = await _h.Service.CreateThreadAsync(_h.Identity);
+        var msg = _h.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.TurnStart, new
+        {
+            threadId = thread.Id,
+            input = new[] { new { type = "image", url } }
+        });
+        await _h.ExecuteRequestAsync(msg);
+
+        var response = await _h.Transport.ReadNextSentAsync();
+        AppServerTestHarness.AssertIsErrorResponse(response, AppServerErrors.InvalidParamsCode);
+        Assert.Equal(
+            SessionInputPartResolver.RemoteImageUrlError,
+            response.RootElement.GetProperty("error").GetProperty("message").GetString());
+        Assert.Equal(
+            SessionInputPartResolver.RemoteImageUrlErrorCode,
+            response.RootElement.GetProperty("error").GetProperty("data").GetProperty("code").GetString());
+        Assert.Empty(thread.QueuedInputs);
+    }
+
+    [Theory]
+    [InlineData("data:text/plain;base64,SGVsbG8=")]
+    [InlineData("data:image/png,AAAA")]
+    [InlineData("data:image/png;base64,%%%")]
+    [InlineData("ftp://example.com/image.png")]
+    [InlineData("http://example.com/image.png")]
+    [InlineData("HTTPS://example.com/image.png")]
+    public async Task TurnEnqueue_InvalidInlineImage_ReturnsInvalidParamsWithoutPersisting(string url)
+    {
+        var thread = await _h.Service.CreateThreadAsync(_h.Identity);
+        var msg = _h.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.TurnEnqueue, new
+        {
+            threadId = thread.Id,
+            input = new[] { new { type = "image", url } }
+        });
+        await _h.ExecuteRequestAsync(msg);
+
+        var response = await _h.Transport.ReadNextSentAsync();
+        AppServerTestHarness.AssertIsErrorResponse(response, AppServerErrors.InvalidParamsCode);
+        Assert.Empty(thread.QueuedInputs);
+    }
+
+    [Fact]
+    public async Task TurnEnqueue_InlineImageDataUrl_PersistsValidatedSnapshot()
+    {
+        var thread = await _h.Service.CreateThreadAsync(_h.Identity);
+        const string dataUrl = "data:image/jpeg;base64,AQID";
+        var msg = _h.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.TurnEnqueue, new
+        {
+            threadId = thread.Id,
+            input = new[] { new { type = "image", url = dataUrl } }
+        });
+        await _h.ExecuteRequestAsync(msg);
+
+        var response = await _h.Transport.ReadNextSentAsync();
+        AppServerTestHarness.AssertIsSuccessResponse(response);
+        var queued = Assert.Single(thread.QueuedInputs);
+        Assert.Equal(dataUrl, Assert.Single(queued.MaterializedInputParts).Url);
+    }
+
+    [Fact]
     public async Task TurnStart_ToolCallArgumentsDelta_EmitsNotificationWithExpectedShape()
     {
         var thread = await _h.Service.CreateThreadAsync(_h.Identity);

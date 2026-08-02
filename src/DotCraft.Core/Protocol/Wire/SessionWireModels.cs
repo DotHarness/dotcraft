@@ -450,7 +450,8 @@ public sealed record SessionWireInputPart
     public string? DisplayPath { get; init; }
 
     /// <summary>
-    /// Remote image URL. Present when <see cref="Type"/> is "image".
+    /// Base64 <c>data:image/...</c> URL. Present when <see cref="Type"/> is "image".
+    /// HTTP and HTTPS image URLs are not supported.
     /// </summary>
     public string? Url { get; init; }
 

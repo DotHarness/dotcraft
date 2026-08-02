@@ -4,6 +4,7 @@ using DotCraft.Protocol;
 using DotCraft.Protocol.AppServer;
 using DotCraft.Skills;
 using DotCraft.Protocol.Contracts;
+using Microsoft.Extensions.AI;
 using Contract = DotCraft.Protocol.Contracts.AppServer;
 
 namespace DotCraft.AppBinding;
@@ -386,7 +387,25 @@ public sealed class AppBindingProtocolExtension : IAppServerContractExtension
                 if (parameters.Input.Count == 0)
                     throw AppServerErrors.InvalidParams("'input' must not be empty.");
                 await context.SessionService.EnsureThreadLoadedAsync(binding.ThreadId, context.CancellationToken);
-                var contents = parameters.Input.Select(part => part.ToAIContent()).ToList();
+                List<AIContent> contents;
+                try
+                {
+                    contents = await SessionInputPartResolver.ResolveStrictAsync(
+                        parameters.Input,
+                        context.CancellationToken);
+                }
+                catch (SessionInputPartValidationException ex)
+                {
+                    if (string.Equals(
+                        ex.Code,
+                        SessionInputPartResolver.RemoteImageUrlErrorCode,
+                        StringComparison.Ordinal))
+                    {
+                        throw AppServerErrors.RemoteImageUrlNotSupported();
+                    }
+
+                    throw AppServerErrors.InvalidParams(ex.Message);
+                }
                 using (TurnTriggerScope.Set(new TurnTriggerInfo
                        {
                            Kind = "app",

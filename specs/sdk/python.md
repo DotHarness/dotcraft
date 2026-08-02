@@ -131,7 +131,7 @@ Current surface:
 | Notifications | Generated registry plus explicit raw handlers | Present |
 | Approval callback | `approval_handler` on high-level options | Present |
 | Channel adapter | `ChannelAdapter` | Present |
-| Input parts | `text_part`, `image_url_part`, `local_image_part` | Present |
+| Input parts | `text_part`, `image_data_url_part`, `local_image_part` | Present |
 | Reply merge helpers | `turn_reply.merge_reply_text_from_delta_and_snapshot` | Integrated by Run and Channel profiles |
 
 ---
@@ -163,7 +163,7 @@ The package exposes a curated public API through `dotcraft/__init__.py`. Logical
 | Hub | `HubClient`, `HubLockInfo`, `HubError` |
 | App Binding | `AppBindingManager`, `AppBindingHandoff`, `app_binding_tool_error`, `APP_BINDING_ERROR_CODES` |
 | Channel adapter | `ChannelAdapter` |
-| Input parts | `text_part`, `image_url_part`, `local_image_part`, `skill_ref_part`, `command_ref_part`, `file_ref_part` |
+| Input parts | `text_part`, `image_data_url_part`, `local_image_part`, `skill_ref_part`, `command_ref_part`, `file_ref_part` |
 | Constants | `DECISION_ACCEPT`, `DECISION_ACCEPT_FOR_SESSION`, `DECISION_ACCEPT_ALWAYS`, `DECISION_DECLINE`, `DECISION_CANCEL`, `ERR_*` |
 | Errors | `DotCraftError`, `TransportError`, `TransportClosed`, `InitializationError`, `TurnInProgressError`, `ThreadNotFoundError`, `ThreadNotActiveError`, `TurnFailedError`, `TurnCancelledError`, `ApprovalTimeoutError` |
 | Version | `__version__`, `sdk_contract_version` |
@@ -459,7 +459,7 @@ When the supplied `abort` (an `asyncio.Event` or cancellation token) fires after
 
 ```python
 text_part(text)
-image_url_part(url)
+image_data_url_part(data_url)
 local_image_part(path, *, mime_type=None)
 skill_ref_part(name)
 command_ref_part(raw_text)

@@ -1437,10 +1437,12 @@ Clients that intend to render a turn from `thread/subscribe` notifications SHOUL
 - `{ "type": "commandRef", "name": "code-review", "argsText": "src/foo.cs", "rawText": "/code-review src/foo.cs" }` — native custom-command reference. The server materializes this reference before agent execution and persists both the native reference and the materialized prompt snapshot.
 - `{ "type": "skillRef", "name": "browser" }` — native skill reference. The server materializes this reference into a model-visible `<skill>` block containing only the effective skill name and path while preserving the original `$skill` form for history rendering. Skill instructions are not inlined into the user input; the agent loads them through `SkillView` when available, or by reading the referenced `SKILL.md` path as a fallback.
 - `{ "type": "fileRef", "path": "src/foo.cs", "displayPath": "src/foo.cs" }` — native file reference. `path` is the canonical referenced path and may be workspace-relative or a local absolute path. `displayPath` is an optional UI-facing path when the server and client canonical forms differ. Referencing an outside-workspace path does not grant implicit access; later file reads still follow the server file-tool approval policy.
-- `{ "type": "image", "url": "https://..." }` — remote image URL.
+- `{ "type": "image", "url": "data:image/png;base64,..." }` — inline image encoded as a base64 image data URL.
 - `{ "type": "localImage", "path": "/tmp/screenshot.png", "mimeType": "image/png", "fileName": "screenshot.png" }` — local image file path with optional UI metadata.
 
-Before starting the agent, the server MUST normalize the incoming `InputPart[]`, persist a `UserMessage` item whose payload captures both the native input parts and the materialized input parts, and only then convert the materialized parts into the `AIContent[]` passed to Session Core execution.
+For `image` input, the server accepts only a valid base64 `data:image/...` URL whose decoded payload does not exceed 64 MiB. Non-image media types, non-base64 data URLs, malformed base64 payloads, and oversized payloads are rejected with `InvalidParams` (`-32602`). HTTP and HTTPS image URLs are not supported and are rejected with `InvalidParams`, `error.data.code = "RemoteImageUrlNotSupported"`, and the message `remote image URLs are not supported; use an inline data URL instead`. Clients that receive a remote image must download it themselves and submit either an inline data URL or a `localImage` reference.
+
+Before starting the agent or persisting a queued input, the server MUST normalize, validate, and locally resolve the incoming `InputPart[]`. It persists the validated native and materialized snapshots and passes the resolved `AIContent[]` to Session Core. Input validation is identical for `turn/start` and `turn/enqueue`.
 
 Tag semantics:
 
@@ -1474,6 +1476,8 @@ Tag semantics:
 | `triggerRefId` | string? | Optional stable source id for client-side click-through or audit correlation. |
 
 When a queued input later starts a Turn or is promoted into current-Turn guidance, the resulting `userMessage` item preserves `triggerKind`, `triggerLabel`, and `triggerRefId`.
+
+Queued-input materialization never dereferences an image URL. A persisted inline data URL is decoded locally. If a queue snapshot created by an older server contains an HTTP or HTTPS image URL, the server replaces that image part with the model-visible text `image content omitted because remote image URLs are not supported` and continues consuming the remaining input. This compatibility fallback applies both when starting a queued Turn and when admitting `guidancePending` input.
 
 `SenderContext`:
 

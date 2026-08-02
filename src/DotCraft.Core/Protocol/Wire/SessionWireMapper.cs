@@ -258,10 +258,9 @@ public static class SessionWireMapper
     /// <summary>
     /// Converts a wire input part into a <see cref="AIContent"/> for use with <see cref="ISessionService.SubmitInputAsync"/>.
     /// For <c>text</c> parts, returns <see cref="TextContent"/> directly.
-    /// For <c>image</c> and <c>localImage</c> parts, returns a <see cref="TextContent"/> placeholder
-    /// because <see cref="DataContent"/> requires base64-encoded <c>data:</c> URIs.
-    /// The AppServer is responsible for fetching/reading image bytes and constructing proper
-    /// <see cref="DataContent"/> instances before passing them to <see cref="ISessionService.SubmitInputAsync"/>.
+    /// For <c>image</c> parts, decodes a valid base64 image data URL without network access and
+    /// returns a safe text placeholder for unsupported persisted values. For <c>localImage</c>
+    /// parts, returns a placeholder because local file reads require the shared input resolver.
     /// </summary>
     public static AIContent ToAIContent(this SessionWireInputPart part) =>
         part.Type switch
@@ -270,8 +269,7 @@ public static class SessionWireMapper
             "commandRef" => new TextContent(BuildCommandRefText(part)),
             "skillRef" => new TextContent(BuildSkillRefText(part)),
             "fileRef" => new TextContent(BuildFileRefText(part)),
-            // image/localImage: AppServer must resolve to DataContent(bytes, mediaType) before dispatch
-            "image" when part.Url is { } url => new TextContent($"[image:{url}]"),
+            "image" => SessionInputPartResolver.ResolvePersistedImage(part.Url),
             "localImage" when part.Path is { } path => new TextContent($"[localImage:{path}]"),
             _ => new TextContent(part.Text ?? string.Empty)
         };

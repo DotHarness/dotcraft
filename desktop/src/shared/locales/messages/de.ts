@@ -2690,6 +2690,7 @@ export const MESSAGES_DE = {
   'errors.invalidRequest': 'Ungültige Anfrage',
   'errors.methodNotFound': 'Methode nicht gefunden: {{method}}',
   'errors.invalidParams': 'Ungültige Parameter',
+  'errors.input.remoteImageUrlNotSupported': 'Remote-Bild-URLs werden nicht unterstützt. Verwende stattdessen eine eingebettete Daten-URL.',
   'errors.internal': 'Interner Fehler',
   'errors.serverOverloaded': 'Server überlastet; Versuchen Sie es später noch einmal.',
   'errors.notInitialized': 'Nicht initialisiert',

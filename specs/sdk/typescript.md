@@ -236,7 +236,7 @@ The top-level package exports:
 - `parseAppBindingHandoff`
 - `appBindingToolError`
 - `textPart`
-- `imageUrlPart`
+- `imageDataUrlPart`
 - `localImagePart`
 - `skillRefPart`
 - `commandRefPart`
@@ -773,7 +773,7 @@ The SDK exports:
 
 ```ts
 textPart(text: string): TextPart
-imageUrlPart(url: string): ImagePart
+imageDataUrlPart(dataUrl: string): ImagePart
 localImagePart(path: string, options?: LocalImageOptions): LocalImagePart
 skillRefPart(name: string): SkillRefPart
 commandRefPart(rawText: string): CommandRefPart

@@ -2683,6 +2683,7 @@ export const MESSAGES_KO = {
   'errors.invalidRequest': '잘못된 요청',
   'errors.methodNotFound': '메소드를 찾을 수 없습니다: {{method}}',
   'errors.invalidParams': '잘못된 매개변수',
+  'errors.input.remoteImageUrlNotSupported': '원격 이미지 URL은 지원되지 않습니다. 인라인 data URL을 사용하세요.',
   'errors.internal': '내부 오류',
   'errors.serverOverloaded': '서버 과부하; 나중에 다시 시도하세요.',
   'errors.notInitialized': '초기화되지 않음',

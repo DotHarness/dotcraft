@@ -229,8 +229,8 @@ export function textPart(text: string): Record<string, unknown> {
   return { type: "text", text };
 }
 
-export function imageUrlPart(url: string): Record<string, unknown> {
-  return { type: "image", url };
+export function imageDataUrlPart(dataUrl: string): Record<string, unknown> {
+  return { type: "image", url: dataUrl };
 }
 
 export function localImagePart(path: string): Record<string, unknown> {

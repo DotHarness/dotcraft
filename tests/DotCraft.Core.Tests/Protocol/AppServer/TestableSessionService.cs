@@ -1072,7 +1072,9 @@ internal sealed class TestableSessionService : ISessionService, IThreadAgentRefr
         await _store.SaveThreadAsync(thread, ct);
 
         LastStartedQueuedInput = queued;
-        LastSubmittedContent = queued.MaterializedInputParts.Select(part => part.ToAIContent()).ToList();
+        LastSubmittedContent = await SessionInputPartResolver.ResolvePersistedAsync(
+            queued.MaterializedInputParts,
+            ct);
     }
 
     public async Task<IReadOnlyList<QueuedTurnInput>> RemoveQueuedTurnInputAsync(

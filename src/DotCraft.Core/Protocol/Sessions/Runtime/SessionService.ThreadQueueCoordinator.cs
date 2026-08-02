@@ -314,23 +314,10 @@ public sealed partial class SessionService
             }
         }
 
-        public async Task<List<AIContent>> ResolveInputPartsAsync(
+        public Task<List<AIContent>> ResolveInputPartsAsync(
             List<SessionWireInputPart> parts,
-            CancellationToken ct)
-        {
-            var result = new List<AIContent>(parts.Count);
-            foreach (var part in parts)
-            {
-                result.Add(part.Type switch
-                {
-                    "localImage" when part.Path is { } path => await ResolveQueuedLocalImageAsync(path, part.MimeType, part.FileName, ct),
-                    "image" when part.Url is { } url => await ResolveQueuedRemoteImageAsync(url, ct),
-                    _ => part.ToAIContent()
-                });
-            }
-
-            return result;
-        }
+            CancellationToken ct) =>
+            SessionInputPartResolver.ResolvePersistedAsync(parts, ct);
 
         private static List<QueuedTurnInput> BuildReorderedQueuedInputs(
             IReadOnlyList<QueuedTurnInput> queue,
@@ -369,57 +356,5 @@ public sealed partial class SessionService
             });
         }
 
-        private static async Task<AIContent> ResolveQueuedLocalImageAsync(
-            string path,
-            string? mimeTypeHint,
-            string? fileNameHint,
-            CancellationToken ct)
-        {
-            try
-            {
-                var bytes = await File.ReadAllBytesAsync(path, ct);
-                var data = new DataContent(bytes, InferMediaType(path));
-                data.AdditionalProperties ??= new AdditionalPropertiesDictionary();
-                data.AdditionalProperties["localImage.path"] = path;
-                if (!string.IsNullOrWhiteSpace(mimeTypeHint))
-                    data.AdditionalProperties["localImage.mimeType"] = mimeTypeHint.Trim();
-                if (!string.IsNullOrWhiteSpace(fileNameHint))
-                    data.AdditionalProperties["localImage.fileName"] = fileNameHint.Trim();
-                return data;
-            }
-            catch
-            {
-                return new TextContent($"[localImage:{path}]");
-            }
-        }
-
-        private static async Task<AIContent> ResolveQueuedRemoteImageAsync(string url, CancellationToken ct)
-        {
-            try
-            {
-                using var response = await QueuedInputHttpClient.GetAsync(url, ct);
-                response.EnsureSuccessStatusCode();
-                var mediaType = response.Content.Headers.ContentType?.MediaType ?? "image/png";
-                var bytes = await response.Content.ReadAsByteArrayAsync(ct);
-                return new DataContent(bytes, mediaType);
-            }
-            catch
-            {
-                return new TextContent($"[image:{url}]");
-            }
-        }
-
-        private static string InferMediaType(string path)
-        {
-            var ext = Path.GetExtension(path).ToLowerInvariant();
-            return ext switch
-            {
-                ".jpg" or ".jpeg" => "image/jpeg",
-                ".gif" => "image/gif",
-                ".webp" => "image/webp",
-                ".bmp" => "image/bmp",
-                _ => "image/png"
-            };
-        }
     }
 }

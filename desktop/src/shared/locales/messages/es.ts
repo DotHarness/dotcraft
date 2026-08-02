@@ -2686,6 +2686,7 @@ export const MESSAGES_ES = {
   'errors.invalidRequest': 'Solicitud no válida',
   'errors.methodNotFound': 'Método no encontrado: {{method}}',
   'errors.invalidParams': 'parámetros no válidos',
+  'errors.input.remoteImageUrlNotSupported': 'No se admiten las URL de imágenes remotas. Usa una URL de datos insertada.',
   'errors.internal': 'error interno',
   'errors.serverOverloaded': 'Servidor sobrecargado; Vuelva a intentarlo más tarde.',
   'errors.notInitialized': 'No inicializado',
