@@ -73,11 +73,13 @@ For a version-1 thread, the Responses request input is:
 2. plus only the current MEAI sampling tail not already represented by that generation.
 
 The turn runtime captures the MEAI baseline before the current user input enters the agent.
-Coverage is an append-only message boundary measured against the same sanitizer-normalized
-sampling projection used for provider requests, not against the raw MEAI collection shape. The
-function-invocation wrapper marks that projection as covered after it updates its augmented
-sampling history. This lets the next tool-loop request map only newly appended tool results and
-guidance without rewriting the canonical generation.
+Coverage is an append-only message boundary measured against the sanitizer-normalized sampling
+projection used for provider requests, not against the raw MEAI collection shape. Raw baselines,
+replacement histories, and compaction inputs are normalized when they enter that projection. The
+function-invocation wrapper then passes the already-prepared sampling buffer through the live tool
+loop. Provider-history preparation and coverage marking must use that buffer directly rather than
+sanitize it again. This keeps newly appended real tool results beyond the covered provider-output
+prefix so the next request maps them without rewriting the canonical generation.
 
 Request-local history sanitization is not a conversation-history replacement. A sanitizer may
 repair an incomplete tool pair or remove content that is invalid for a role in the current request,

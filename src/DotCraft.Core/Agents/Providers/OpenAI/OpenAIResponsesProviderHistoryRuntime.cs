@@ -21,7 +21,7 @@ internal interface IProviderConversationHistoryBridge
         string reason,
         CancellationToken cancellationToken);
 
-    void MarkProjectionCovered(IReadOnlyList<ChatMessage> messages);
+    void MarkProjectionCovered(IReadOnlyList<ChatMessage> samplingMessages);
 
     string? BeginAttempt();
 
@@ -47,8 +47,8 @@ internal sealed class OpenAIResponsesProviderHistoryBridge : IProviderConversati
             ? context.ReplaceAsync(messages, options, reason, cancellationToken)
             : ValueTask.CompletedTask;
 
-    public void MarkProjectionCovered(IReadOnlyList<ChatMessage> messages) =>
-        OpenAIResponsesProviderHistoryRuntimeScope.Current?.MarkProjectionCovered(messages);
+    public void MarkProjectionCovered(IReadOnlyList<ChatMessage> samplingMessages) =>
+        OpenAIResponsesProviderHistoryRuntimeScope.Current?.MarkProjectionCovered(samplingMessages);
 
     public string? BeginAttempt() =>
         OpenAIResponsesProviderHistoryRuntimeScope.Current?.BeginAttempt();
@@ -104,14 +104,13 @@ internal sealed class OpenAIResponsesProviderHistoryContext : IProviderHistoryCo
     }
 
     public async ValueTask<CanonicalResponsesInput> PrepareInputAsync(
-        IReadOnlyList<ChatMessage> messages,
+        IReadOnlyList<ChatMessage> samplingMessages,
         ChatOptions? options,
         CancellationToken cancellationToken)
     {
         await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
-            var samplingMessages = GetSamplingProjection(messages);
             if (_coveredSamplingMessageCount > samplingMessages.Count)
             {
                 throw new InvalidDataException(
@@ -386,10 +385,10 @@ internal sealed class OpenAIResponsesProviderHistoryContext : IProviderHistoryCo
         }
     }
 
-    public void MarkProjectionCovered(IReadOnlyList<ChatMessage> messages)
+    public void MarkProjectionCovered(IReadOnlyList<ChatMessage> samplingMessages)
     {
-        ArgumentNullException.ThrowIfNull(messages);
-        _coveredSamplingMessageCount = GetSamplingProjection(messages).Count;
+        ArgumentNullException.ThrowIfNull(samplingMessages);
+        _coveredSamplingMessageCount = samplingMessages.Count;
     }
 
     public string BeginAttempt()
