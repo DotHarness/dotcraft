@@ -605,7 +605,7 @@ public sealed class AppServerTurnTests : IDisposable
     }
 
     [Fact]
-    public async Task TurnSteer_MarksQueuedInputGuidancePending()
+    public async Task TurnQueueUpdate_MarksQueuedInputGuidancePending()
     {
         var thread = await _h.Service.CreateThreadAsync(_h.Identity);
         thread.Turns.Add(new SessionTurn
@@ -625,20 +625,64 @@ public sealed class AppServerTurnTests : IDisposable
                 DisplayText = "Use this hint"
             });
 
-        var msg = _h.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.TurnSteer, new
+        var msg = _h.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.TurnQueueUpdate, new
         {
             threadId = thread.Id,
             expectedTurnId = "turn_001",
-            queuedInputId = queued.Id
+            queuedInputId = queued.Id,
+            status = "guidancePending"
         });
         await _h.ExecuteRequestAsync(msg);
 
         var doc = await _h.Transport.ReadNextSentAsync();
         AppServerTestHarness.AssertIsSuccessResponse(doc);
-        Assert.Equal("turn_001", doc.RootElement.GetProperty("result").GetProperty("turnId").GetString());
         var resultQueued = Assert.Single(doc.RootElement.GetProperty("result").GetProperty("queuedInputs").EnumerateArray());
         Assert.Equal("guidancePending", resultQueued.GetProperty("status").GetString());
         Assert.Empty(thread.Turns[0].Items);
+    }
+
+    [Fact]
+    public async Task TurnQueueUpdate_RestoresGuidancePendingInputToQueuedIdempotently()
+    {
+        var thread = await _h.Service.CreateThreadAsync(_h.Identity);
+        thread.Turns.Add(new SessionTurn
+        {
+            Id = "turn_001",
+            ThreadId = thread.Id,
+            Status = TurnStatus.Running,
+            StartedAt = DateTimeOffset.UtcNow
+        });
+        var queued = await EnqueueTextAsync(thread.Id, "Use this hint");
+        await _h.Service.UpdateQueuedTurnInputAsync(thread.Id, queued.Id, "turn_001", "guidancePending");
+
+        var msg = _h.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.TurnQueueUpdate, new
+        {
+            threadId = thread.Id,
+            expectedTurnId = "turn_001",
+            queuedInputId = queued.Id,
+            status = "queued"
+        });
+        await _h.ExecuteRequestAsync(msg);
+
+        var doc = await _h.Transport.ReadNextSentAsync();
+        AppServerTestHarness.AssertIsSuccessResponse(doc);
+        var resultQueued = Assert.Single(doc.RootElement.GetProperty("result").GetProperty("queuedInputs").EnumerateArray());
+        Assert.Equal("queued", resultQueued.GetProperty("status").GetString());
+        Assert.Equal("Use this hint", resultQueued.GetProperty("displayText").GetString());
+        Assert.Empty(thread.Turns[0].Items);
+
+        var retry = _h.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.TurnQueueUpdate, new
+        {
+            threadId = thread.Id,
+            expectedTurnId = "turn_001",
+            queuedInputId = queued.Id,
+            status = "queued"
+        });
+        await _h.ExecuteRequestAsync(retry);
+        var retryDoc = await _h.Transport.ReadNextSentAsync();
+        AppServerTestHarness.AssertIsSuccessResponse(retryDoc);
+        var retried = Assert.Single(retryDoc.RootElement.GetProperty("result").GetProperty("queuedInputs").EnumerateArray());
+        Assert.Equal("queued", retried.GetProperty("status").GetString());
     }
 
     // -------------------------------------------------------------------------

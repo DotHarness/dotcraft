@@ -28,6 +28,36 @@ beforeEach(() => {
   })
 })
 
+describe('openFiles', () => {
+  it('reuses one empty viewer per thread', () => {
+    const first = store().openFiles({ threadId: THREAD_A, initialLabel: 'Files' })
+    const second = store().openFiles({ threadId: THREAD_A, initialLabel: 'Files' })
+    const state = store().getThreadState(THREAD_A)
+    expect(second).toBe(first)
+    expect(state.tabs).toEqual([expect.objectContaining({ id: first, kind: 'files', label: 'Files' })])
+    expect(state.activeTabId).toBe(first)
+  })
+
+  it('replaces the active empty viewer in place when a file is selected', () => {
+    const placeholderId = store().openFiles({ threadId: THREAD_A, initialLabel: 'Files' })
+    const fileId = openFile(THREAD_A, 'src/index.ts')
+    const state = store().getThreadState(THREAD_A)
+    expect(fileId).toBe(placeholderId)
+    expect(state.tabs).toHaveLength(1)
+    expect(state.tabs[0]).toMatchObject({ id: placeholderId, kind: 'file', relativePath: 'src/index.ts' })
+  })
+
+  it('closes the active placeholder and focuses an already open file', () => {
+    const existingId = openFile(THREAD_A, 'src/index.ts')
+    store().openFiles({ threadId: THREAD_A, initialLabel: 'Files' })
+    const focusedId = openFile(THREAD_A, 'src/index.ts')
+    const state = store().getThreadState(THREAD_A)
+    expect(focusedId).toBe(existingId)
+    expect(state.tabs).toHaveLength(1)
+    expect(state.activeTabId).toBe(existingId)
+  })
+})
+
 // ---------------------------------------------------------------------------
 // openFile — basic behaviour
 // ---------------------------------------------------------------------------

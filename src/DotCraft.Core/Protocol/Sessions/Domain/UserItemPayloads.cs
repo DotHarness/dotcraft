@@ -213,13 +213,3 @@ public sealed record QueuedTurnInput
     /// </summary>
     public bool? SentAsGoal { get; init; }
 }
-
-/// <summary>
-/// Result returned when a queued input is promoted to current-turn guidance.
-/// </summary>
-public sealed record TurnSteerResult
-{
-    public string TurnId { get; init; } = string.Empty;
-
-    public IReadOnlyList<QueuedTurnInput> QueuedInputs { get; init; } = [];
-}

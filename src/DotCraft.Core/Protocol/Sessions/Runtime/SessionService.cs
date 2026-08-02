@@ -3555,13 +3555,13 @@ public sealed partial class SessionService(
         => await ThreadQueue.ReorderAsync(threadId, orderedQueuedInputIds, ct);
 
     /// <inheritdoc/>
-    public async Task<TurnSteerResult> SteerTurnAsync(
+    public async Task<IReadOnlyList<QueuedTurnInput>> UpdateQueuedTurnInputAsync(
         string threadId,
-        string expectedTurnId,
         string queuedInputId,
-        CancellationToken ct = default,
-        SenderContext? sender = null)
-        => await ThreadQueue.SteerAsync(threadId, expectedTurnId, queuedInputId, ct, sender);
+        string expectedTurnId,
+        string status,
+        CancellationToken ct = default)
+        => await ThreadQueue.UpdateAsync(threadId, queuedInputId, expectedTurnId, status, ct);
 
     /// <inheritdoc/>
     public async Task<SessionThread> RollbackThreadAsync(string threadId, int numTurns, CancellationToken ct = default)

@@ -5,7 +5,7 @@ import type { SystemDetailTab } from '../../stores/uiStore'
 import { useViewerTabStore } from '../../stores/viewerTabStore'
 import { useConversationStore } from '../../stores/conversationStore'
 import { useThreadStore } from '../../stores/threadStore'
-import { FilePlus2, ListChecks, SquareTerminal, Plus, X, Globe, PanelRightClose, MousePointer2, Bot } from 'lucide-react'
+import { FilePlus2, FolderOpen, ListChecks, SquareTerminal, Plus, X, Globe, PanelRightClose, MousePointer2, Bot } from 'lucide-react'
 import { ChangesTab } from '../detail/ChangesTab'
 import { PlanTab } from '../detail/PlanTab'
 import { SubagentsTab } from '../detail/SubagentsTab'
@@ -158,8 +158,7 @@ export function DetailPanel({
         {
           action: 'openFile',
           label: t('detailPanel.addTabOpenFile'),
-          shortcut: fmt(ACTION_SHORTCUTS.quickOpen),
-          enabled: !remoteWorkspace
+          enabled: canOpenWorkspaceTab && !remoteWorkspace
         },
         {
           action: 'newBrowser',
@@ -290,13 +289,15 @@ export function DetailPanel({
                 : browserTabIcon(tab.faviconDataUrl))
             : tab.kind === 'terminal'
               ? <SquareTerminal size={14} strokeWidth={2} aria-hidden style={{ display: 'block' }} />
-              : <FileTypeIcon path={tab.relativePath} size={14} />
+              : tab.kind === 'files'
+                ? <FolderOpen size={14} strokeWidth={2} aria-hidden style={{ display: 'block' }} />
+                : <FileTypeIcon path={tab.relativePath} size={14} />
           return (
             <DetailPanelTab
               key={tab.id}
               className={automationActive ? 'dotcraft-automation-viewer-tab' : undefined}
               active={activeViewerId === tab.id}
-              title={tab.kind === 'browser' ? tab.currentUrl : tab.kind === 'terminal' ? tab.cwd : tab.absolutePath}
+              title={tab.kind === 'browser' ? tab.currentUrl : tab.kind === 'terminal' ? tab.cwd : tab.kind === 'files' ? tab.label : tab.absolutePath}
               icon={icon}
               label={tab.label}
               closeLabel={`${t('viewer.close')} ${tab.label}`}

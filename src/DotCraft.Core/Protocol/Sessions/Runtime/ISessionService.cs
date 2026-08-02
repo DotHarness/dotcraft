@@ -322,14 +322,14 @@ public interface ISessionService
         CancellationToken ct = default);
 
     /// <summary>
-    /// Marks one queued input as same-turn guidance for the active turn.
+    /// Sets one queued input's desired status before it is admitted into a turn.
     /// </summary>
-    Task<TurnSteerResult> SteerTurnAsync(
+    Task<IReadOnlyList<QueuedTurnInput>> UpdateQueuedTurnInputAsync(
         string threadId,
-        string expectedTurnId,
         string queuedInputId,
-        CancellationToken ct = default,
-        SenderContext? sender = null);
+        string expectedTurnId,
+        string status,
+        CancellationToken ct = default);
 
     /// <summary>
     /// Resolves a pending approval request within a WaitingApproval Turn.

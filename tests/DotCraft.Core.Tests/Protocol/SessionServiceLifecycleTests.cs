@@ -1066,12 +1066,12 @@ internal sealed class FakeSessionService : ISessionService, ISubAgentThreadLifec
         CancellationToken ct = default) =>
         throw new NotSupportedException("Use FakeSessionService for lifecycle tests only.");
 
-    public Task<TurnSteerResult> SteerTurnAsync(
+    public Task<IReadOnlyList<QueuedTurnInput>> UpdateQueuedTurnInputAsync(
         string threadId,
-        string expectedTurnId,
         string queuedInputId,
-        CancellationToken ct = default,
-        SenderContext? sender = null) =>
+        string expectedTurnId,
+        string status,
+        CancellationToken ct = default) =>
         throw new NotSupportedException("Use FakeSessionService for lifecycle tests only.");
 
     public async Task SetThreadModeAsync(string threadId, string mode, CancellationToken ct = default)

@@ -4247,6 +4247,17 @@ class TurnQueueReorderParams(BaseModel):
     thread_id: str | None = Field(None, alias='threadId')
 
 
+class TurnQueueUpdateParams(BaseModel):
+    model_config = ConfigDict(
+        extra='allow',
+        populate_by_name=True,
+    )
+    expected_turn_id: str | None = Field(None, alias='expectedTurnId')
+    queued_input_id: str | None = Field(None, alias='queuedInputId')
+    status: str | None = None
+    thread_id: str | None = Field(None, alias='threadId')
+
+
 class TurnStartParams(BaseModel):
     model_config = ConfigDict(
         extra='allow',
@@ -4269,18 +4280,6 @@ class TurnStartResult(BaseModel):
         populate_by_name=True,
     )
     turn: SessionTurn
-
-
-class TurnSteerParams(BaseModel):
-    model_config = ConfigDict(
-        extra='allow',
-        populate_by_name=True,
-    )
-    expected_turn_id: str | None = Field(None, alias='expectedTurnId')
-    input: List[InputPart] | None = None
-    queued_input_id: str | None = Field(None, alias='queuedInputId')
-    sender: SenderContext | None = None
-    thread_id: str | None = Field(None, alias='threadId')
 
 
 class UiResourceContent(BaseModel):
@@ -5697,13 +5696,12 @@ class TurnQueueReorderResponse(BaseModel):
     queued_inputs: List[QueuedTurnInput] | None = Field(None, alias='queuedInputs')
 
 
-class TurnSteerResult(BaseModel):
+class TurnQueueUpdateResult(BaseModel):
     model_config = ConfigDict(
         extra='allow',
         populate_by_name=True,
     )
     queued_inputs: List[QueuedTurnInput] | None = Field(None, alias='queuedInputs')
-    turn_id: str | None = Field(None, alias='turnId')
 
 
 class WorkspaceConfigUpdateParams(BaseModel):

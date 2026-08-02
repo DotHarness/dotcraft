@@ -600,7 +600,7 @@ describe('detail panel add-tab menu', () => {
 
     const menu = await screen.findByRole('menu', { name: 'Add tab' })
     expect(menu).toBeTruthy()
-    expect(screen.getByRole('menuitem', { name: /Open File/ })).not.toHaveProperty('disabled', true)
+    expect(screen.getByRole('menuitem', { name: /^Files$/ })).not.toHaveProperty('disabled', true)
     expect(screen.getByRole('menuitem', { name: /Browser/ })).not.toHaveProperty('disabled', true)
     expect(screen.getByRole('menuitem', { name: /Terminal/ })).not.toHaveProperty('disabled', true)
   })
@@ -610,7 +610,7 @@ describe('detail panel add-tab menu', () => {
 
     fireEvent.click(screen.getByLabelText('Add tab'))
 
-    expect(await screen.findByRole('menuitem', { name: /Open File/ })).not.toHaveProperty('disabled', true)
+    expect(await screen.findByRole('menuitem', { name: /^Files$/ })).toHaveProperty('disabled', true)
     expect(screen.getByRole('menuitem', { name: /Browser/ })).toHaveProperty('disabled', true)
     expect(screen.getByRole('menuitem', { name: /Terminal/ })).toHaveProperty('disabled', true)
   })
@@ -628,14 +628,22 @@ describe('detail panel add-tab menu', () => {
     expect(ui().openSystemTabs).toEqual(['plan'])
   })
 
-  it('opens Quick Open when the menu returns openFile', async () => {
+  it('opens an empty Files viewer when the menu returns openFile', async () => {
+    cs().setWorkspacePath('/workspace/path')
+    useThreadStore.getState().setActiveThreadId('thread-1')
+    useViewerTabStore.getState().onThreadSwitched('thread-1')
     render(createElement(Harness, {}))
 
     fireEvent.click(screen.getByLabelText('Add tab'))
-    fireEvent.click(await screen.findByRole('menuitem', { name: /Open File/ }))
+    fireEvent.click(await screen.findByRole('menuitem', { name: /^Files$/ }))
 
     await waitFor(() => {
-      expect(useUIStore.getState().quickOpenVisible).toBe(true)
+      const state = useViewerTabStore.getState().getThreadState('thread-1')
+      expect(state.tabs).toHaveLength(1)
+      expect(state.tabs[0]).toMatchObject({ kind: 'files', label: 'Files' })
+      expect(useUIStore.getState().activeDetailTab).toEqual({ kind: 'viewer', id: state.tabs[0]?.id })
+      expect(useUIStore.getState().explorerVisible).toBe(true)
+      expect(useUIStore.getState().quickOpenVisible).toBe(false)
     })
   })
 

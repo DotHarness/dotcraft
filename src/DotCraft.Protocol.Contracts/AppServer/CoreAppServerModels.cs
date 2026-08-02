@@ -6468,24 +6468,20 @@ public sealed class TurnQueueReorderResponse : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for TurnSteerParams.</summary>
-public sealed class TurnSteerParams : ExtensibleJsonObject
+/// <summary>Executable wire contract for TurnQueueUpdateParams.</summary>
+public sealed class TurnQueueUpdateParams : ExtensibleJsonObject
 {
     [JsonPropertyName("expectedTurnId")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<string> ExpectedTurnId { get; init; }
 
-    [JsonPropertyName("input")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<IReadOnlyList<InputPart>> Input { get; init; }
-
     [JsonPropertyName("queuedInputId")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<string> QueuedInputId { get; init; }
 
-    [JsonPropertyName("sender")]
+    [JsonPropertyName("status")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<SenderContext?> Sender { get; init; }
+    public Optional<string> Status { get; init; }
 
     [JsonPropertyName("threadId")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
@@ -6493,16 +6489,12 @@ public sealed class TurnSteerParams : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for TurnSteerResult.</summary>
-public sealed class TurnSteerResult : ExtensibleJsonObject
+/// <summary>Executable wire contract for TurnQueueUpdateResult.</summary>
+public sealed class TurnQueueUpdateResult : ExtensibleJsonObject
 {
     [JsonPropertyName("queuedInputs")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<IReadOnlyList<QueuedTurnInput>> QueuedInputs { get; init; }
-
-    [JsonPropertyName("turnId")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<string> TurnId { get; init; }
 
 }
 

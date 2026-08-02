@@ -2361,7 +2361,7 @@ public sealed class SessionServiceRuntimeSignalTests : IDisposable
             if (index % 2 == 0)
                 await svc.RemoveQueuedTurnInputAsync(thread.Id, queued.Id);
             else
-                await svc.SteerTurnAsync(thread.Id, "turn_001", queued.Id);
+                await svc.UpdateQueuedTurnInputAsync(thread.Id, queued.Id, "turn_001", "guidancePending");
         }).ToArray();
 
         await Task.WhenAll(operations);

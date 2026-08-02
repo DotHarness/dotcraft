@@ -464,7 +464,6 @@ describe('InputComposer layout', () => {
       },
       {
         // A closed child (the Subagents tab requests these into shared state).
-        // The dock's "Done · N" must not count it.
         childThreadId: 'child-closed',
         parentThreadId: 'thread-1',
         nickname: 'Retired',
@@ -492,8 +491,7 @@ describe('InputComposer layout', () => {
 
     const dock = screen.getByTestId('subagent-dock')
     expect(within(dock).getByText('1 background agents')).toBeInTheDocument()
-    // Only the finished-but-open child counts; the closed one is excluded.
-    expect(within(dock).getByRole('button', { name: 'Done · 1' })).toBeInTheDocument()
+    expect(within(dock).queryByText(/Done ·/)).not.toBeInTheDocument()
   })
 
   it('renders queued messages inside the background activity dock with neutral drag handles', async () => {
@@ -523,7 +521,8 @@ describe('InputComposer layout', () => {
     expect(within(dock).getByText('first queued follow-up')).toBeInTheDocument()
     expect(within(dock).getByText('second queued follow-up')).toBeInTheDocument()
     expect(within(dock).getAllByRole('button', { name: 'Reorder queued message' })).toHaveLength(2)
-    expect(within(dock).getByRole('button', { name: 'Steering' })).toBeDisabled()
+    expect(within(dock).getByRole('button', { name: 'Steering' })).not.toBeDisabled()
+    expect(within(dock).getByRole('button', { name: 'Steering' })).toHaveAttribute('aria-pressed', 'true')
     expect(within(dock).getAllByRole('button', { name: 'Reorder queued message' })[1]).toBeDisabled()
     expect(within(dock).getAllByRole('button', { name: 'Remove' })[0]).toHaveAttribute('data-tone', 'neutral')
     const firstEditButton = within(dock).getAllByRole('button', { name: 'Edit queued message' })[0]
@@ -684,7 +683,7 @@ describe('InputComposer layout', () => {
     })
   })
 
-  it('disables queued edit for guidance and system-triggered inputs', () => {
+  it('keeps queued edit available for guidance but disables system-triggered inputs', () => {
     useConversationStore.setState({
       queuedInputs: [
         {
@@ -709,8 +708,44 @@ describe('InputComposer layout', () => {
 
     const editButtons = screen.getAllByRole('button', { name: 'Edit queued message' })
     expect(editButtons).toHaveLength(2)
-    expect(editButtons[0]).toBeDisabled()
+    expect(editButtons[0]).not.toBeDisabled()
     expect(editButtons[1]).toBeDisabled()
+  })
+
+  it('cancels Steering after the active turn ends through turn/queue/update', async () => {
+    useConversationStore.setState({
+      activeTurnId: null,
+      queuedInputs: [{
+        id: 'queued-guidance',
+        threadId: 'thread-1',
+        displayText: 'pending guidance',
+        status: 'guidancePending',
+        readyAfterTurnId: 'turn-active',
+        createdAt: new Date().toISOString()
+      }]
+    })
+    appServerSendRequest.mockResolvedValueOnce({
+      queuedInputs: [{
+        id: 'queued-guidance',
+        threadId: 'thread-1',
+        displayText: 'pending guidance',
+        status: 'queued',
+        createdAt: new Date().toISOString()
+      }]
+    })
+
+    renderComposer()
+    fireEvent.click(screen.getByRole('button', { name: 'Steering' }))
+
+    await waitFor(() => {
+      expect(appServerSendRequest).toHaveBeenCalledWith('turn/queue/update', {
+        threadId: 'thread-1',
+        expectedTurnId: 'turn-active',
+        queuedInputId: 'queued-guidance',
+        status: 'queued'
+      })
+    })
+    expect(useConversationStore.getState().queuedInputs[0]?.status).toBe('queued')
   })
 
   it('keeps the queue and current composer when a queued image cannot be restored', async () => {

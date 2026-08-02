@@ -136,37 +136,30 @@ public sealed partial class SessionService
             return queueSnapshot;
         }
 
-        public async Task<TurnSteerResult> SteerAsync(
+        public async Task<IReadOnlyList<QueuedTurnInput>> UpdateAsync(
             string threadId,
-            string expectedTurnId,
             string queuedInputId,
-            CancellationToken ct,
-            SenderContext? sender)
+            string expectedTurnId,
+            string status,
+            CancellationToken ct)
         {
             if (string.IsNullOrWhiteSpace(expectedTurnId))
                 throw new InvalidOperationException("expectedTurnId must not be empty.");
             if (string.IsNullOrWhiteSpace(queuedInputId))
                 throw new InvalidOperationException("queuedInputId must not be empty.");
+            if (!string.Equals(status, "queued", StringComparison.Ordinal)
+                && !string.Equals(status, "guidancePending", StringComparison.Ordinal))
+            {
+                throw new InvalidOperationException("status must be 'queued' or 'guidancePending'.");
+            }
 
             var thread = await owner.GetOrLoadThreadAsync(threadId, ct);
-            if (thread.Status != ThreadStatus.Active)
-                throw new InvalidOperationException($"Thread '{threadId}' is not Active (current status: {thread.Status}). Cannot steer turn.");
-
-            var turn = thread.Turns.LastOrDefault(t => t.Status is TurnStatus.Running or TurnStatus.WaitingApproval or TurnStatus.WaitingInput)
-                ?? throw new InvalidOperationException($"Thread '{threadId}' has no active turn to steer.");
-            if (!string.Equals(turn.Id, expectedTurnId, StringComparison.Ordinal))
-                throw new InvalidOperationException($"Expected active turn id '{expectedTurnId}' but found '{turn.Id}'.");
-
             IReadOnlyList<QueuedTurnInput> queueSnapshot;
+            var changed = false;
             using (await owner.AcquireThreadQueueLockAsync(threadId, ct))
             {
                 if (owner._runtimeRegistry.TryGetThread(threadId, out var cachedThread))
                     thread = cachedThread;
-
-                turn = thread.Turns.LastOrDefault(t => t.Status is TurnStatus.Running or TurnStatus.WaitingApproval or TurnStatus.WaitingInput)
-                    ?? throw new InvalidOperationException($"Thread '{threadId}' has no active turn to steer.");
-                if (!string.Equals(turn.Id, expectedTurnId, StringComparison.Ordinal))
-                    throw new InvalidOperationException($"Expected active turn id '{expectedTurnId}' but found '{turn.Id}'.");
 
                 var queue = thread.QueuedInputs.ToList();
                 var queueIndex = queue.FindIndex(q => string.Equals(q.Id, queuedInputId, StringComparison.Ordinal));
@@ -174,28 +167,52 @@ public sealed partial class SessionService
                     throw new KeyNotFoundException($"Queued input '{queuedInputId}' not found.");
 
                 var queued = queue[queueIndex];
-                if (!string.Equals(queued.Status, "queued", StringComparison.Ordinal))
-                    throw new InvalidOperationException($"Queued input '{queuedInputId}' is not queued (current status: {queued.Status}).");
-
-                queue[queueIndex] = queued with
+                if (string.Equals(queued.Status, status, StringComparison.Ordinal))
                 {
-                    Status = "guidancePending",
-                    ReadyAfterTurnId = turn.Id,
-                    Sender = sender ?? queued.Sender
-                };
-                thread.QueuedInputs = queue;
-                thread.LastActiveAt = DateTimeOffset.UtcNow;
-                await owner.PersistThreadWithMaterializationAsync(thread, ct);
-                queueSnapshot = queue.ToList();
+                    if (string.Equals(status, "guidancePending", StringComparison.Ordinal)
+                        && !string.Equals(queued.ReadyAfterTurnId, expectedTurnId, StringComparison.Ordinal))
+                    {
+                        throw new InvalidOperationException($"Queued input '{queuedInputId}' is pending guidance for a different turn.");
+                    }
+                    queueSnapshot = queue;
+                }
+                else if (string.Equals(status, "guidancePending", StringComparison.Ordinal))
+                {
+                    if (!string.Equals(queued.Status, "queued", StringComparison.Ordinal))
+                        throw new InvalidOperationException($"Queued input '{queuedInputId}' cannot transition from '{queued.Status}' to guidancePending.");
+                    if (thread.Status != ThreadStatus.Active)
+                        throw new InvalidOperationException($"Thread '{threadId}' is not Active (current status: {thread.Status}). Cannot promote queued guidance.");
+                    var turn = thread.Turns.LastOrDefault(t => t.Status is TurnStatus.Running or TurnStatus.WaitingApproval or TurnStatus.WaitingInput)
+                        ?? throw new InvalidOperationException($"Thread '{threadId}' has no active turn to guide.");
+                    if (!string.Equals(turn.Id, expectedTurnId, StringComparison.Ordinal))
+                        throw new InvalidOperationException($"Expected active turn id '{expectedTurnId}' but found '{turn.Id}'.");
+
+                    queue[queueIndex] = queued with { Status = "guidancePending", ReadyAfterTurnId = turn.Id };
+                    thread.QueuedInputs = queue;
+                    thread.LastActiveAt = DateTimeOffset.UtcNow;
+                    await owner.PersistThreadWithMaterializationAsync(thread, ct);
+                    queueSnapshot = queue.ToList();
+                    changed = true;
+                }
+                else
+                {
+                    if (!string.Equals(queued.Status, "guidancePending", StringComparison.Ordinal))
+                        throw new InvalidOperationException($"Queued input '{queuedInputId}' cannot transition from '{queued.Status}' to queued.");
+                    if (!string.Equals(queued.ReadyAfterTurnId, expectedTurnId, StringComparison.Ordinal))
+                        throw new InvalidOperationException($"Queued input '{queuedInputId}' is not pending guidance for turn '{expectedTurnId}'.");
+
+                    queue[queueIndex] = queued with { Status = "queued" };
+                    thread.QueuedInputs = queue;
+                    thread.LastActiveAt = DateTimeOffset.UtcNow;
+                    await owner.PersistThreadWithMaterializationAsync(thread, ct);
+                    queueSnapshot = queue.ToList();
+                    changed = true;
+                }
             }
 
-            owner.PublishQueueUpdated(thread.Id, queueSnapshot);
-
-            return new TurnSteerResult
-            {
-                TurnId = turn.Id,
-                QueuedInputs = queueSnapshot
-            };
+            if (changed)
+                owner.PublishQueueUpdated(thread.Id, queueSnapshot);
+            return queueSnapshot;
         }
 
         public async Task TryStartNextAsync(string threadId, CancellationToken ct)

@@ -30,7 +30,7 @@ internal sealed class TurnRequestHandler(
         table.Map(Contract.AppServerRpc.TurnEnqueue, HandleTurnEnqueueAsync);
         table.Map(global::DotCraft.Protocol.Contracts.AppServer.AppServerRpc.TurnQueueRemove, HandleTurnQueueRemoveAsync);
         table.Map(global::DotCraft.Protocol.Contracts.AppServer.AppServerRpc.TurnQueueReorder, HandleTurnQueueReorderAsync);
-        table.Map(global::DotCraft.Protocol.Contracts.AppServer.AppServerRpc.TurnSteer, HandleTurnSteerAsync);
+        table.Map(global::DotCraft.Protocol.Contracts.AppServer.AppServerRpc.TurnQueueUpdate, HandleTurnQueueUpdateAsync);
         table.Map(Contract.AppServerRpc.TurnInterrupt, HandleTurnInterruptAsync);
     }
 
@@ -346,23 +346,27 @@ internal sealed class TurnRequestHandler(
         return new TurnQueueReorderResponse { QueuedInputs = queuedInputs.ToList() };
     }
 
-    private async Task<object?> HandleTurnSteerAsync(AppServerIncomingMessage msg, CancellationToken ct)
+    private async Task<object?> HandleTurnQueueUpdateAsync(AppServerIncomingMessage msg, CancellationToken ct)
     {
-        var p = AppServerParams.Get<TurnSteerParams>(msg);
+        var p = AppServerParams.Get<TurnQueueUpdateParams>(msg);
         if (string.IsNullOrWhiteSpace(p.ExpectedTurnId))
             throw AppServerErrors.InvalidParams("'expectedTurnId' is required.");
         if (string.IsNullOrWhiteSpace(p.QueuedInputId))
             throw AppServerErrors.InvalidParams("'queuedInputId' is required.");
+        if (!string.Equals(p.Status, "queued", StringComparison.Ordinal)
+            && !string.Equals(p.Status, "guidancePending", StringComparison.Ordinal))
+        {
+            throw AppServerErrors.InvalidParams("'status' must be 'queued' or 'guidancePending'.");
+        }
 
-        using var channelScope = CreateChannelScope(p.Sender);
         await sessionService.EnsureThreadLoadedAsync(p.ThreadId, ct);
-        var result = await sessionService.SteerTurnAsync(
+        var queuedInputs = await sessionService.UpdateQueuedTurnInputAsync(
             p.ThreadId,
-            p.ExpectedTurnId,
             p.QueuedInputId,
-            ct,
-            p.Sender);
-        return new TurnSteerResponse { TurnId = result.TurnId, QueuedInputs = result.QueuedInputs.ToList() };
+            p.ExpectedTurnId,
+            p.Status,
+            ct);
+        return new TurnQueueUpdateResponse { QueuedInputs = queuedInputs.ToList() };
     }
 
     private async Task<AppServerTypedResult<DotCraft.Protocol.Contracts.RpcEmpty>> HandleTurnInterruptAsync(

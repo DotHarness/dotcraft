@@ -4017,6 +4017,19 @@ export interface TurnQueueReorderResponse {
   [key: string]: unknown;
 }
 
+export interface TurnQueueUpdateParams {
+  expectedTurnId?: string;
+  queuedInputId?: string;
+  status?: string;
+  threadId?: string;
+  [key: string]: unknown;
+}
+
+export interface TurnQueueUpdateResult {
+  queuedInputs?: QueuedTurnInput[];
+  [key: string]: unknown;
+}
+
 export interface TurnStartParams {
   cwd?: string | null;
   input: InputPart[];
@@ -4030,21 +4043,6 @@ export interface TurnStartParams {
 
 export interface TurnStartResult {
   turn: SessionTurn;
-  [key: string]: unknown;
-}
-
-export interface TurnSteerParams {
-  expectedTurnId?: string;
-  input?: InputPart[];
-  queuedInputId?: string;
-  sender?: SenderContext | null;
-  threadId?: string;
-  [key: string]: unknown;
-}
-
-export interface TurnSteerResult {
-  queuedInputs?: QueuedTurnInput[];
-  turnId?: string;
   [key: string]: unknown;
 }
 

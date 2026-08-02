@@ -1609,9 +1609,9 @@ Replace the current queued input order. This changes the order in which queued i
 
 **Result**: `{ "queuedInputs": QueuedTurnInput[] }`
 
-### 5.2.4 `turn/steer`
+### 5.2.4 `turn/queue/update`
 
-Promote a queued input into a pending guidance request for the current active Turn. This is not the default send path; clients should call it only when the user explicitly promotes a queued message into guidance.
+Set a queued input's desired delivery status. This operation is the reversible pre-admission control used by queue UIs; it does not retract input that has already been admitted into an active Turn.
 
 **Direction**: client → server (request)
 
@@ -1621,12 +1621,16 @@ Promote a queued input into a pending guidance request for the current active Tu
 |-------|------|----------|-------------|
 | `threadId` | string | yes | Target active thread. |
 | `expectedTurnId` | string | yes | Active Turn ID observed by the client. The server rejects the request if it no longer matches. |
-| `queuedInputId` | string | yes | Queued input ID to promote. The server uses the persisted queued input snapshot as the source of truth. |
-| `sender` | SenderContext | no | Sender identity for group sessions. |
+| `queuedInputId` | string | yes | Queued input ID to update. The server uses the persisted queued input snapshot as the source of truth. |
+| `status` | string | yes | Desired status: `"queued"` or `"guidancePending"`. |
 
-**Result**: `{ "turnId": "<active-turn-id>", "queuedInputs": QueuedTurnInput[] }`
+**Result**: `{ "queuedInputs": QueuedTurnInput[] }`
 
-The server first marks the queued input as `guidancePending` and broadcasts `thread/queue/updated`; clients should keep the queue row visible in that state. When the model/tool loop reaches the next safe boundary, the server appends a `userMessage` item with `deliveryMode = "guidance"`, injects the input into the active Turn's model history, removes the queued input, and broadcasts `thread/queue/updated` again. If the Turn ends before insertion, the pending item returns to `queued`.
+For `status = "guidancePending"`, the server requires an active regular Turn matching `expectedTurnId`, changes the queue item under the per-thread queue lock, and broadcasts `thread/queue/updated`. Setting the same pending status for the same Turn is an idempotent success. At the next safe model/tool boundary, the server resolves the queued snapshot and then reacquires the same lock to recheck its status and target Turn. It atomically appends a `userMessage` item with `deliveryMode = "guidance"`, removes the queued input, persists the thread, and broadcasts the updated queue.
+
+For `status = "queued"`, an item already in that status is an idempotent success. A `guidancePending` item returns to its existing queue position when its bound Turn matches `expectedTurnId`; the target Turn is not required to remain active. If cancellation wins the queue lock, subsequent guidance admission observes the changed status and stops. If admission wins, the queued input has already been removed and the update fails with not-found. Input already admitted into model history is never retracted. If the Turn ends before admission, the server also restores its pending items to `queued`.
+
+`turn/steer` is not used for persisted queue mutation. DotCraft currently exposes reversible steering only through this queue resource operation.
 
 ### 5.3 `workspace/commitMessage/suggest`
 

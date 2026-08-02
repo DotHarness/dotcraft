@@ -19748,6 +19748,63 @@
       "variants": []
     },
     {
+      "id": "core.TurnQueueUpdateParams",
+      "name": "TurnQueueUpdateParams",
+      "module": "core",
+      "kind": "object",
+      "schema": "schemas/core/TurnQueueUpdateParams.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "expectedTurnId",
+          "type": "string",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "queuedInputId",
+          "type": "string",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "status",
+          "type": "string",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "threadId",
+          "type": "string",
+          "required": false,
+          "nullable": false,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
+      "id": "core.TurnQueueUpdateResult",
+      "name": "TurnQueueUpdateResult",
+      "module": "core",
+      "kind": "object",
+      "schema": "schemas/core/TurnQueueUpdateResult.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "queuedInputs",
+          "type": "array<core.QueuedTurnInput>",
+          "required": false,
+          "nullable": false,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
       "id": "core.TurnStartParams",
       "name": "TurnStartParams",
       "module": "core",
@@ -19819,77 +19876,6 @@
           "name": "turn",
           "type": "core.SessionTurn",
           "required": true,
-          "nullable": false,
-          "const": null
-        }
-      ],
-      "variants": []
-    },
-    {
-      "id": "core.TurnSteerParams",
-      "name": "TurnSteerParams",
-      "module": "core",
-      "kind": "object",
-      "schema": "schemas/core/TurnSteerParams.schema.json",
-      "additionalProperties": true,
-      "fields": [
-        {
-          "name": "expectedTurnId",
-          "type": "string",
-          "required": false,
-          "nullable": false,
-          "const": null
-        },
-        {
-          "name": "input",
-          "type": "array<core.InputPart>",
-          "required": false,
-          "nullable": false,
-          "const": null
-        },
-        {
-          "name": "queuedInputId",
-          "type": "string",
-          "required": false,
-          "nullable": false,
-          "const": null
-        },
-        {
-          "name": "sender",
-          "type": "core.SenderContext",
-          "required": false,
-          "nullable": true,
-          "const": null
-        },
-        {
-          "name": "threadId",
-          "type": "string",
-          "required": false,
-          "nullable": false,
-          "const": null
-        }
-      ],
-      "variants": []
-    },
-    {
-      "id": "core.TurnSteerResult",
-      "name": "TurnSteerResult",
-      "module": "core",
-      "kind": "object",
-      "schema": "schemas/core/TurnSteerResult.schema.json",
-      "additionalProperties": true,
-      "fields": [
-        {
-          "name": "queuedInputs",
-          "type": "array<core.QueuedTurnInput>",
-          "required": false,
-          "nullable": false,
-          "const": null
-        },
-        {
-          "name": "turnId",
-          "type": "string",
-          "required": false,
           "nullable": false,
           "const": null
         }
@@ -25476,6 +25462,25 @@
       "stability": "stable"
     },
     {
+      "name": "turn/queue/update",
+      "kind": "request",
+      "direction": "clientToServer",
+      "paramsType": "core.TurnQueueUpdateParams",
+      "resultType": "core.TurnQueueUpdateResult",
+      "module": "core",
+      "capability": null,
+      "scope": "thread",
+      "notificationOptOut": false,
+      "errors": [
+        "InvalidParams",
+        "InvalidRequest",
+        "MethodNotFound"
+      ],
+      "since": "1",
+      "specRef": "specs/protocols/appserver-protocol.md",
+      "stability": "stable"
+    },
+    {
       "name": "turn/start",
       "kind": "request",
       "direction": "clientToServer",
@@ -25505,25 +25510,6 @@
       "scope": "thread",
       "notificationOptOut": true,
       "errors": [],
-      "since": "1",
-      "specRef": "specs/protocols/appserver-protocol.md",
-      "stability": "stable"
-    },
-    {
-      "name": "turn/steer",
-      "kind": "request",
-      "direction": "clientToServer",
-      "paramsType": "core.TurnSteerParams",
-      "resultType": "core.TurnSteerResult",
-      "module": "core",
-      "capability": null,
-      "scope": "thread",
-      "notificationOptOut": false,
-      "errors": [
-        "InvalidParams",
-        "InvalidRequest",
-        "MethodNotFound"
-      ],
       "since": "1",
       "specRef": "specs/protocols/appserver-protocol.md",
       "stability": "stable"
