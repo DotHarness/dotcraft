@@ -298,7 +298,7 @@ weight, spacing, and neutral inversion first.
 Ordinary controls and cards use 8px radius or less unless an established
 component family uses another token.
 
-- Toolbar/catalog controls: 8px.
+- Compact text buttons and catalog-toolbar controls: 10px.
 - Compact icon buttons: 6px or 8px depending on the local family.
 - Cards and repeated items: 8px.
 - Dialogs and elevated popovers: 8px to 10px.
@@ -353,6 +353,7 @@ Text action buttons use a shared size so controls line up across panels,
 toolbars, rows, and dialogs:
 
 - default height `32px`, `8px` radius, `13px` type, `box-sizing: border-box`;
+- compact `sm` height `28px`, `10px` radius, `12px` type;
 - horizontal padding around `12–14px`; icon+label controls keep a `6px` gap;
 - buttons that share a row (for example a primary next to a secondary or a
   refresh) must share the same height so the row reads as one control band.

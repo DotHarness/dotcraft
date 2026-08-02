@@ -13,7 +13,7 @@ interface InlineDiffViewProps {
   streaming?: boolean
   variant?: 'standalone' | 'embedded'
   headerMode?: 'full' | 'compact'
-  presentation?: 'default' | 'conversation-file-tool'
+  presentation?: 'default' | 'conversation-file-tool' | 'body-only'
   resolvedPath?: string
   locale?: AppLocale
 }
@@ -37,6 +37,7 @@ export function InlineDiffView({
   const totalDel = diff.deletions
   const embedded = variant === 'embedded'
   const conversationFileTool = presentation === 'conversation-file-tool'
+  const bodyOnly = presentation === 'body-only'
   const displayPath = headerMode === 'compact' ? getFilename(diff.filePath) : diff.filePath
 
   return (
@@ -54,17 +55,19 @@ export function InlineDiffView({
         borderColor: embedded ? 'transparent' : 'var(--border-default)'
       }}
     >
-      <FileResultHeader
-        filePath={diff.filePath}
-        resolvedPath={resolvedPath}
-        displayPath={displayPath}
-        additions={totalAdd}
-        deletions={totalDel}
-        meta={headerMode === 'full' && diff.isNewFile ? '(new file)' : undefined}
-        copyPath={conversationFileTool}
-        inlineStats={conversationFileTool}
-        locale={locale}
-      />
+      {!bodyOnly && (
+        <FileResultHeader
+          filePath={diff.filePath}
+          resolvedPath={resolvedPath}
+          displayPath={displayPath}
+          additions={totalAdd}
+          deletions={totalDel}
+          meta={headerMode === 'full' && diff.isNewFile ? '(new file)' : undefined}
+          copyPath={conversationFileTool}
+          inlineStats={conversationFileTool}
+          locale={locale}
+        />
+      )}
 
       <div
         data-testid="inline-diff-body"
@@ -79,7 +82,7 @@ export function InlineDiffView({
           let newLineNum = hunk.newStart
           return (
             <div key={hunkIdx}>
-              {!conversationFileTool && (
+              {!conversationFileTool && !bodyOnly && (
                 <div
                   style={{
                     padding: '2px 8px',

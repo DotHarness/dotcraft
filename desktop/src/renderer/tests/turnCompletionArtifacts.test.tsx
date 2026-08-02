@@ -193,9 +193,15 @@ describe('turn completion artifacts', () => {
     renderWithLocale(<TurnCompletionSummary turnId="turn-1" />)
 
     fireEvent.click(screen.getAllByRole('button', { name: /src\/App\.tsx/ })[0]!)
-    expect(screen.getByText('@@ -1,1 +1,1 @@')).toBeInTheDocument()
+    expect(screen.queryByTestId('file-result-header')).toBeNull()
+    expect(screen.queryByText('@@ -1,1 +1,1 @@')).toBeNull()
+    expect(screen.getByText('old')).toBeInTheDocument()
+    expect(screen.getByText('new')).toBeInTheDocument()
 
-    fireEvent.click(screen.getByRole('button', { name: 'Undo' }))
+    const undoButton = screen.getByRole('button', { name: 'Undo' })
+    expect(undoButton).toHaveAttribute('data-variant', 'ghost')
+    expect(undoButton).toHaveAttribute('data-size', 'sm')
+    fireEvent.click(undoButton)
     await waitFor(() => {
       expect(writeFile).toHaveBeenCalledWith('F:/workspace/src/App.tsx', 'old\n')
     })

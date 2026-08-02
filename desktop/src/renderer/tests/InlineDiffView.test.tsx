@@ -72,6 +72,22 @@ describe('InlineDiffView', () => {
     expect(screen.queryByText('No changes')).toBeNull()
   })
 
+  it('renders body-only diffs without repeated file or hunk metadata', () => {
+    render(
+      <InlineDiffView
+        diff={baseDiff}
+        variant="embedded"
+        presentation="body-only"
+      />
+    )
+
+    expect(screen.queryByTestId('file-result-header')).toBeNull()
+    expect(screen.queryByText('@@ -35,2 +35,2 @@')).toBeNull()
+    expect(screen.getByText('unchanged')).toBeInTheDocument()
+    expect(screen.getByText('old line')).toBeInTheDocument()
+    expect(screen.getByText('new line')).toBeInTheDocument()
+  })
+
   it('uses the conversation file-tool header, wrapping body, and path copy action', async () => {
     const writeText = vi.fn(async () => undefined)
     Object.defineProperty(navigator, 'clipboard', {

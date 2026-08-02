@@ -4276,7 +4276,7 @@ html[data-theme="light"] [data-mascot-speed='fast'] .composer-mascot-fast-echo {
 .dc-button[data-size="sm"] {
   height: var(--button-height-sm);
   padding: 0 10px;
-  border-radius: 6px;
+  border-radius: 10px;
   font-size: 12px;
 }
 

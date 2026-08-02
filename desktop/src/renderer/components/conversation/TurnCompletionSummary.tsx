@@ -8,6 +8,7 @@ import { useConfirmDialog } from '../ui/ConfirmDialog'
 import type { FileDiff } from '../../types/toolCall'
 import { InlineDiffView } from './InlineDiffView'
 import { ActionTooltip } from '../ui/ActionTooltip'
+import { Button } from '../ui/Button'
 import { FileDiffStats } from './FileDiffStats'
 
 interface TurnCompletionSummaryProps {
@@ -93,26 +94,16 @@ export const TurnCompletionSummary = memo(function TurnCompletionSummary({ turnI
           {totalAdd > 0 && <span style={{ color: 'var(--success)' }}>+{totalAdd}</span>}
           {totalDel > 0 && <span style={{ color: 'var(--error)' }}>-{totalDel}</span>}
         </span>
-        <button
-          type="button"
+        <Button
+          variant="ghost"
+          size="sm"
           disabled={hasReverted}
           aria-label={hasReverted ? t('turnChanges.reverted') : t('turnChanges.undo')}
           onClick={() => { void handleUndo() }}
-          style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: '5px',
-            border: 'none',
-            background: 'transparent',
-            color: hasReverted ? 'var(--text-dimmed)' : 'var(--text-secondary)',
-            cursor: hasReverted ? 'default' : 'pointer',
-            padding: '2px 4px',
-            fontSize: '12px'
-          }}
         >
           {hasReverted ? t('turnChanges.reverted') : t('turnChanges.undo')}
           {!hasReverted && <Undo2 size={14} strokeWidth={1.8} aria-hidden />}
-        </button>
+        </Button>
       </div>
 
       {turnFiles.map((file, idx) => {
@@ -122,6 +113,7 @@ export const TurnCompletionSummary = memo(function TurnCompletionSummary({ turnI
             <div
               role="button"
               tabIndex={0}
+              aria-expanded={isExpanded}
               onClick={() => toggleFile(file.filePath)}
               onKeyDown={(event) => {
                 if (event.key === 'Enter' || event.key === ' ') {
@@ -162,7 +154,7 @@ export const TurnCompletionSummary = memo(function TurnCompletionSummary({ turnI
             </div>
             {isExpanded && (
               <div style={{ borderTop: '1px solid var(--border-default)', background: 'var(--bg-primary)' }}>
-                <InlineDiffView diff={file} />
+                <InlineDiffView diff={file} variant="embedded" presentation="body-only" />
               </div>
             )}
           </div>
