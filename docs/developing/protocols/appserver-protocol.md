@@ -258,6 +258,35 @@ Check `capabilities.runtimeAdditionalContext` before sending `additionalContext`
 
 On `thread/resume`, omitting `additionalContext` keeps the current runtime context; sending `{}` clears it.
 
+### ACP bridge runtime tools
+
+An ACP client can expose client-owned Runtime Dynamic Tools through DotCraft's private ACP extension. Advertise the extension through `clientCapabilities._meta.dotcraft`; ACP capability objects do not accept custom root fields.
+
+```json
+{
+  "clientCapabilities": {
+    "_meta": {
+      "dotcraft": {
+        "runtimeTools": {
+          "version": 1,
+          "tools": [
+            {
+              "namespace": "unity",
+              "name": "unity_execute_csharp",
+              "description": "Execute a C# snippet in Unity.",
+              "inputSchema": { "type": "object" },
+              "acpMethod": "_unity/execute_csharp"
+            }
+          ]
+        }
+      }
+    }
+  }
+}
+```
+
+`runtimeTools.version` is `1`. Custom methods start with `_`; filesystem and terminal callbacks use their standard ACP capabilities. Each callback returns DotCraft's Runtime Dynamic result envelope with `success`, `contentItems`, `structuredContent`, `errorCode`, and `errorMessage`. This envelope is a private extension carried by a standard ACP JSON-RPC response, not an ACP Tool Call or MCP tool result.
+
 ## Turns
 
 `turn/start` submits user input and starts agent execution. The response returns the initial turn immediately; later output streams through notifications.

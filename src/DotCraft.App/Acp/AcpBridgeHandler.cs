@@ -154,7 +154,7 @@ public sealed class AcpBridgeHandler(
         foreach (var descriptor in runtimeDescriptors)
             _runtimeToolDescriptors[RuntimeToolKey(descriptor.Namespace, descriptor.Name)] = descriptor;
 
-        var acpExt = BuildAcpExtensionCapability(_clientCapabilities);
+        var acpExt = BuildAcpExtensionCapability(_clientCapabilities, runtimeDescriptors);
 
         try
         {
@@ -222,8 +222,8 @@ public sealed class AcpBridgeHandler(
         if (_clientCapabilities?.Fs?.ReadTextFile == true) caps.Add("fs.read");
         if (_clientCapabilities?.Fs?.WriteTextFile == true) caps.Add("fs.write");
         if (_clientCapabilities?.Terminal?.Create == true) caps.Add("terminal");
-        if (_clientCapabilities?.Extensions is { Count: > 0 } exts)
-            caps.AddRange(exts.Select(e => $"ext:{e}"));
+        var extensionFamilies = GetCustomExtensionFamilies(runtimeDescriptors);
+        caps.AddRange(extensionFamilies.Select(e => $"ext:{e}"));
         if (_runtimeDynamicTools.Count > 0)
             caps.Add($"runtimeTools:{_runtimeDynamicTools.Count}");
         var capsStr = caps.Count > 0 ? string.Join(", ", caps) : "none";
@@ -231,11 +231,14 @@ public sealed class AcpBridgeHandler(
         AnsiConsole.MarkupLine($"[green][[ACP]][/] Initialized via AppServer (client capabilities: {Markup.Escape(capsStr)})");
     }
 
-    internal static AcpExtensionCapability? BuildAcpExtensionCapability(ClientCapabilities? caps)
+    internal static AcpExtensionCapability? BuildAcpExtensionCapability(
+        ClientCapabilities? caps,
+        IReadOnlyList<AcpRuntimeToolDescriptor>? runtimeDescriptors = null)
     {
         if (caps == null)
             return null;
-        if (caps.Fs == null && caps.Terminal == null && caps.Extensions is not { Count: > 0 })
+        var extensions = GetCustomExtensionFamilies(runtimeDescriptors);
+        if (caps.Fs == null && caps.Terminal == null && extensions.Count == 0)
             return null;
 
         return new AcpExtensionCapability
@@ -243,8 +246,24 @@ public sealed class AcpBridgeHandler(
             FsReadTextFile = caps.Fs?.ReadTextFile == true ? true : null,
             FsWriteTextFile = caps.Fs?.WriteTextFile == true ? true : null,
             TerminalCreate = caps.Terminal?.Create == true ? true : null,
-            Extensions = caps.Extensions is { Count: > 0 } ? [.. caps.Extensions] : null
+            Extensions = extensions.Count > 0 ? [.. extensions] : null
         };
+    }
+
+    private static IReadOnlyList<string> GetCustomExtensionFamilies(
+        IReadOnlyList<AcpRuntimeToolDescriptor>? runtimeDescriptors)
+    {
+        if (runtimeDescriptors is not { Count: > 0 })
+            return [];
+
+        return runtimeDescriptors
+            .Select(descriptor => descriptor.AcpMethod?.Split('/', 2)[0])
+            .Where(family => !string.IsNullOrWhiteSpace(family)
+                             && family.StartsWith('_'))
+            .Select(family => family!)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .Order(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
     }
 
     internal static bool TryBuildRuntimeTools(
@@ -257,7 +276,17 @@ public sealed class AcpBridgeHandler(
         descriptors = [];
         message = string.Empty;
 
-        var requested = caps?.Meta?.DotCraft?.RuntimeTools;
+        var capability = caps?.Meta?.DotCraft?.RuntimeTools;
+        if (capability == null)
+            return true;
+
+        if (capability.Version != 1)
+        {
+            message = "clientCapabilities._meta.dotcraft.runtimeTools.version must be 1.";
+            return false;
+        }
+
+        var requested = capability.Tools;
         if (requested is not { Count: > 0 })
             return true;
 
@@ -404,9 +433,9 @@ public sealed class AcpBridgeHandler(
                 return false;
             }
         }
-        else if (caps?.Extensions?.Any(ext => ext.Equals(parts[0], StringComparison.OrdinalIgnoreCase)) != true)
+        else if (!parts[0].StartsWith('_'))
         {
-            message = $"runtime tool acpMethod '{rawMethod}' requires advertised extension '{parts[0]}'.";
+            message = $"runtime tool acpMethod '{rawMethod}' must use an ACP custom method beginning with '_'.";
             return false;
         }
 
@@ -1038,23 +1067,52 @@ public sealed class AcpBridgeHandler(
                 arguments,
                 ct,
                 timeout: _extForwardTimeout).ConfigureAwait(false);
-            return new RuntimeDynamicToolCallResult
+            RuntimeDynamicToolCallResult? toolResult;
+            try
             {
-                Success = true,
-                ContentItems =
-                [
-                    new RuntimeDynamicToolContentItem
-                    {
-                        Type = "text",
-                        Text = $"ACP runtime tool '{toolName}' completed successfully."
-                    }
-                ],
-                StructuredContent = JsonNode.Parse(result.GetRawText())
-            };
+                toolResult = result.Deserialize<RuntimeDynamicToolCallResult>(JsonOptions);
+            }
+            catch (JsonException ex)
+            {
+                return RuntimeToolFailed("DynamicToolResultInvalid", ex.Message);
+            }
+
+            if (toolResult == null)
+                return RuntimeToolFailed(
+                    "DynamicToolResultInvalid",
+                    "ACP runtime tool returned an empty result.");
+
+            if (!TryValidateAcpRuntimeToolResult(toolResult, out var resultError))
+                return RuntimeToolFailed("DynamicToolResultInvalid", resultError);
+
+            return toolResult;
         }
         catch (OperationCanceledException) when (!ct.IsCancellationRequested)
         {
             return RuntimeToolFailed("DynamicToolTimeout", $"Dynamic tool '{toolName}' timed out.");
+        }
+        catch (OperationCanceledException)
+        {
+            return RuntimeToolFailed("DynamicToolCancelled", $"Dynamic tool '{toolName}' was cancelled.");
+        }
+        catch (AcpClientException ex)
+        {
+            var code = ex.Code switch
+            {
+                -32601 => "DynamicToolUnavailable",
+                -32602 => "InvalidArguments",
+                -32800 => "DynamicToolCancelled",
+                _ => "DynamicToolProtocolError"
+            };
+            var structured = new JsonObject
+            {
+                ["code"] = ex.Code,
+                ["message"] = ex.Message
+            };
+            if (ex.ErrorData is { } data)
+                structured["data"] = JsonNode.Parse(data.GetRawText());
+
+            return RuntimeToolFailed(code, ex.Message, structured);
         }
         catch (Exception ex)
         {
@@ -1062,14 +1120,43 @@ public sealed class AcpBridgeHandler(
         }
     }
 
-    private static RuntimeDynamicToolCallResult RuntimeToolFailed(string code, string message)
+    private static RuntimeDynamicToolCallResult RuntimeToolFailed(
+        string code,
+        string message,
+        JsonNode? structuredContent = null)
         => new()
         {
             Success = false,
             ErrorCode = code,
             ErrorMessage = message,
-            ContentItems = [new RuntimeDynamicToolContentItem { Type = "text", Text = $"{code}: {message}" }]
+            ContentItems = [new RuntimeDynamicToolContentItem { Type = "text", Text = $"{code}: {message}" }],
+            StructuredContent = structuredContent
         };
+
+    private static bool TryValidateAcpRuntimeToolResult(
+        RuntimeDynamicToolCallResult result,
+        out string message)
+    {
+        var hasUsefulText = result.ContentItems?.Any(item =>
+            string.Equals(item.Type, "text", StringComparison.Ordinal)
+            && !string.IsNullOrWhiteSpace(item.Text)) == true;
+        if (result.Success && !hasUsefulText)
+        {
+            message = "A successful ACP runtime tool result requires a useful text content item.";
+            return false;
+        }
+
+        if (!result.Success
+            && (string.IsNullOrWhiteSpace(result.ErrorCode)
+                || string.IsNullOrWhiteSpace(result.ErrorMessage)))
+        {
+            message = "A failed ACP runtime tool result requires errorCode and errorMessage.";
+            return false;
+        }
+
+        message = string.Empty;
+        return true;
+    }
 
     /// <summary>
     /// Strips routing-only <c>threadId</c> from wire params before forwarding <c>ext/acp/*</c> to the IDE.

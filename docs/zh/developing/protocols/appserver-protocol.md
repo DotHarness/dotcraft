@@ -258,6 +258,35 @@ Server 还会广播 `thread/started`。多 client 场景下，发起请求的 cl
 
 在 `thread/resume` 上，省略 `additionalContext` 会保留当前 runtime context；发送 `{}` 会清空它。
 
+### ACP bridge runtime tools
+
+ACP client 可以通过 DotCraft 的私有 ACP extension 暴露 client-owned Runtime Dynamic Tools。该扩展必须放在 `clientCapabilities._meta.dotcraft` 中；ACP capability 对象不接受自定义根字段。
+
+```json
+{
+  "clientCapabilities": {
+    "_meta": {
+      "dotcraft": {
+        "runtimeTools": {
+          "version": 1,
+          "tools": [
+            {
+              "namespace": "unity",
+              "name": "unity_execute_csharp",
+              "description": "Execute a C# snippet in Unity.",
+              "inputSchema": { "type": "object" },
+              "acpMethod": "_unity/execute_csharp"
+            }
+          ]
+        }
+      }
+    }
+  }
+}
+```
+
+`runtimeTools.version` 固定为 `1`。自定义方法必须以 `_` 开头；文件系统和终端 callback 继续使用对应的 ACP 标准 capability。每个 callback 返回 DotCraft Runtime Dynamic result envelope，其中包含 `success`、`contentItems`、`structuredContent`、`errorCode` 和 `errorMessage`。该 envelope 是标准 ACP JSON-RPC response 承载的私有 extension，不是 ACP Tool Call，也不是 MCP tool result。
+
 ## 回合
 
 `turn/start` 提交用户输入并启动 agent 执行。响应会立即返回初始 turn，后续输出通过 notification 流式发送。

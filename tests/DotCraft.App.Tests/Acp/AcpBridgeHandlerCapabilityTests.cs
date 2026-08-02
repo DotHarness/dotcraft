@@ -19,17 +19,21 @@ public sealed class AcpBridgeHandlerCapabilityTests
                 ReadTextFile = true,
                 WriteTextFile = true
             },
-            Terminal = new TerminalCapabilities { Create = true },
-            Extensions = ["_unity", "foo"]
+            Terminal = new TerminalCapabilities { Create = true }
         };
 
-        var ext = AcpBridgeHandler.BuildAcpExtensionCapability(caps);
+        var descriptors = new[]
+        {
+            new AcpRuntimeToolDescriptor { AcpMethod = "_unity/scene_query" }
+        };
+
+        var ext = AcpBridgeHandler.BuildAcpExtensionCapability(caps, descriptors);
 
         Assert.NotNull(ext);
         Assert.True(ext!.FsReadTextFile);
         Assert.True(ext.FsWriteTextFile);
         Assert.True(ext.TerminalCreate);
-        Assert.Equal(["_unity", "foo"], ext.Extensions);
+        Assert.Equal(["_unity"], ext.Extensions);
     }
 
     [Fact]
@@ -37,31 +41,34 @@ public sealed class AcpBridgeHandlerCapabilityTests
     {
         var caps = new ClientCapabilities
         {
-            Extensions = ["_unity"],
             Meta = new ClientCapabilitiesMeta
             {
                 DotCraft = new DotCraftClientCapabilities
                 {
-                    RuntimeTools =
-                    [
-                        new AcpRuntimeToolDescriptor
-                        {
-                            Namespace = "unity",
-                            Name = "unity_scene_query",
-                            Description = "Query Unity scene hierarchy.",
-                            InputSchema = new JsonObject
+                    RuntimeTools = new AcpRuntimeToolsCapability
+                    {
+                        Version = 1,
+                        Tools =
+                        [
+                            new AcpRuntimeToolDescriptor
                             {
-                                ["type"] = "object",
-                                ["properties"] = new JsonObject
+                                Namespace = "unity",
+                                Name = "unity_scene_query",
+                                Description = "Query Unity scene hierarchy.",
+                                InputSchema = new JsonObject
                                 {
-                                    ["query"] = new JsonObject { ["type"] = "string" }
-                                }
-                            },
-                            AcpMethod = "_unity/scene_query",
-                            Kind = AcpToolKind.Unity,
-                            DeferLoading = true
-                        }
-                    ]
+                                    ["type"] = "object",
+                                    ["properties"] = new JsonObject
+                                    {
+                                        ["query"] = new JsonObject { ["type"] = "string" }
+                                    }
+                                },
+                                AcpMethod = "_unity/scene_query",
+                                Kind = AcpToolKind.Unity,
+                                DeferLoading = true
+                            }
+                        ]
+                    }
                 }
             }
         };
@@ -88,29 +95,32 @@ public sealed class AcpBridgeHandlerCapabilityTests
     }
 
     [Fact]
-    public void TryBuildRuntimeTools_RejectsUnadvertisedExtensionMethod()
+    public void TryBuildRuntimeTools_RejectsCustomMethodWithoutUnderscore()
     {
         var caps = new ClientCapabilities
         {
-            Extensions = [],
             Meta = new ClientCapabilitiesMeta
             {
                 DotCraft = new DotCraftClientCapabilities
                 {
-                    RuntimeTools =
-                    [
-                        new AcpRuntimeToolDescriptor
-                        {
-                            Name = "unity_scene_query",
-                            Description = "Query Unity scene hierarchy.",
-                            InputSchema = new JsonObject
+                    RuntimeTools = new AcpRuntimeToolsCapability
+                    {
+                        Version = 1,
+                        Tools =
+                        [
+                            new AcpRuntimeToolDescriptor
                             {
-                                ["type"] = "object",
-                                ["properties"] = new JsonObject()
-                            },
-                            AcpMethod = "_unity/scene_query"
-                        }
-                    ]
+                                Name = "unity_scene_query",
+                                Description = "Query Unity scene hierarchy.",
+                                InputSchema = new JsonObject
+                                {
+                                    ["type"] = "object",
+                                    ["properties"] = new JsonObject()
+                                },
+                                AcpMethod = "unity/scene_query"
+                            }
+                        ]
+                    }
                 }
             }
         };
@@ -123,7 +133,37 @@ public sealed class AcpBridgeHandlerCapabilityTests
 
         Assert.Empty(dynamicTools);
         Assert.Empty(descriptors);
-        Assert.Contains("requires advertised extension '_unity'", message);
+        Assert.Contains("must use an ACP custom method beginning with '_'", message);
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(2)]
+    public void TryBuildRuntimeTools_RejectsUnsupportedPrivateContractVersion(int version)
+    {
+        var caps = new ClientCapabilities
+        {
+            Meta = new ClientCapabilitiesMeta
+            {
+                DotCraft = new DotCraftClientCapabilities
+                {
+                    RuntimeTools = new AcpRuntimeToolsCapability
+                    {
+                        Version = version,
+                        Tools = []
+                    }
+                }
+            }
+        };
+
+        Assert.False(AcpBridgeHandler.TryBuildRuntimeTools(
+            caps,
+            out var dynamicTools,
+            out var descriptors,
+            out var message));
+        Assert.Empty(dynamicTools);
+        Assert.Empty(descriptors);
+        Assert.Contains("runtimeTools.version must be 1", message);
     }
 
     [Fact]

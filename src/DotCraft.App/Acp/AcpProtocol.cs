@@ -102,13 +102,6 @@ public sealed class ClientCapabilities
     [JsonConverter(typeof(BoolOrObjectConverter<TerminalCapabilities>))]
     public TerminalCapabilities? Terminal { get; set; }
 
-    /// <summary>
-    /// Extension method prefixes supported by the client (e.g. ["_unity"]).
-    /// Allows the agent to discover which extension tool families are available.
-    /// </summary>
-    [JsonPropertyName("extensions")]
-    public List<string>? Extensions { get; set; }
-
     [JsonPropertyName("_meta")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public ClientCapabilitiesMeta? Meta { get; set; }
@@ -124,11 +117,20 @@ public sealed class ClientCapabilitiesMeta
 public sealed class DotCraftClientCapabilities
 {
     /// <summary>
-    /// Runtime tools implemented by this ACP client and bridged to AppServer Dynamic Tools.
+    /// Versioned Runtime Tools capability implemented by this ACP client.
     /// </summary>
     [JsonPropertyName("runtimeTools")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public List<AcpRuntimeToolDescriptor>? RuntimeTools { get; set; }
+    public AcpRuntimeToolsCapability? RuntimeTools { get; set; }
+}
+
+public sealed class AcpRuntimeToolsCapability
+{
+    [JsonPropertyName("version")]
+    public int Version { get; set; }
+
+    [JsonPropertyName("tools")]
+    public List<AcpRuntimeToolDescriptor>? Tools { get; set; }
 }
 
 public sealed class AcpRuntimeToolDescriptor
