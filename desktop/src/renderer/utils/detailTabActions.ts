@@ -24,12 +24,6 @@ interface AddTabActionContext {
 export function performAddTabAction(action: AddTabMenuAction, ctx: AddTabActionContext): void {
   const ui = useUIStore.getState()
 
-  if (action === 'openFile') {
-    ui.setQuickOpenVisible(true)
-    ui.setDetailPanelVisible(true)
-    return
-  }
-
   // System tabs (Diff / Progress) — no active workspace required.
   if (action === 'newChanges') {
     ui.setActiveDetailTab('changes')
@@ -47,6 +41,13 @@ export function performAddTabAction(action: AddTabMenuAction, ctx: AddTabActionC
   const { threadId, workspacePath, t } = ctx
   if (!threadId || !workspacePath) return
   const viewer = useViewerTabStore.getState()
+
+  if (action === 'openFile') {
+    const tabId = viewer.openFiles({ threadId, initialLabel: t('detailPanel.launcherFilesTitle') })
+    ui.setExplorerVisible(true)
+    ui.setActiveViewerTab(tabId)
+    return
+  }
 
   if (action === 'newBrowser') {
     const tabId = viewer.openBrowser({ threadId, initialLabel: t('viewer.newBrowserTab') })

@@ -4,7 +4,7 @@
  */
 
 /** Supported viewer tab kinds. */
-export type ViewerKind = 'file' | 'browser' | 'terminal'
+export type ViewerKind = 'files' | 'file' | 'browser' | 'terminal'
 
 /** Content class resolved for an opened file. */
 export type ViewerContentClass = 'text' | 'image' | 'pdf' | 'unsupported'
@@ -27,6 +27,11 @@ interface ViewerTabBase {
    * If set, the tab renders an in-tab error state instead of the viewer body.
    */
   errorMessage?: string
+}
+
+/** Empty workspace file-viewer tab descriptor. */
+export interface FilesViewerTab extends ViewerTabBase {
+  kind: 'files'
 }
 
 /** File-viewer tab descriptor. */
@@ -104,7 +109,7 @@ export interface TerminalViewerTab extends ViewerTabBase {
 }
 
 /** A single viewer tab descriptor, owned by a specific thread. */
-export type ViewerTab = FileViewerTab | BrowserViewerTab | TerminalViewerTab
+export type ViewerTab = FilesViewerTab | FileViewerTab | BrowserViewerTab | TerminalViewerTab
 
 /** Per-thread viewer tab state stored in viewerTabStore. */
 export interface PerThreadViewerState {

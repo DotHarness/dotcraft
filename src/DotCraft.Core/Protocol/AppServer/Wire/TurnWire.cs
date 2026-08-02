@@ -110,7 +110,7 @@ public sealed class TurnQueueReorderResponse
     public List<QueuedTurnInput> QueuedInputs { get; set; } = [];
 }
 
-public sealed class TurnSteerParams
+public sealed class TurnQueueUpdateParams
 {
     public string ThreadId { get; set; } = string.Empty;
 
@@ -118,16 +118,11 @@ public sealed class TurnSteerParams
 
     public string QueuedInputId { get; set; } = string.Empty;
 
-    public List<SessionWireInputPart> Input { get; set; } = [];
-
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public SenderContext? Sender { get; set; }
+    public string Status { get; set; } = string.Empty;
 }
 
-public sealed class TurnSteerResponse
+public sealed class TurnQueueUpdateResponse
 {
-    public string TurnId { get; set; } = string.Empty;
-
     public List<QueuedTurnInput> QueuedInputs { get; set; } = [];
 }
 

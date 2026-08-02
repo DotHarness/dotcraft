@@ -1072,7 +1072,9 @@ internal sealed class TestableSessionService : ISessionService, IThreadAgentRefr
         await _store.SaveThreadAsync(thread, ct);
 
         LastStartedQueuedInput = queued;
-        LastSubmittedContent = queued.MaterializedInputParts.Select(part => part.ToAIContent()).ToList();
+        LastSubmittedContent = await SessionInputPartResolver.ResolvePersistedAsync(
+            queued.MaterializedInputParts,
+            ct);
     }
 
     public async Task<IReadOnlyList<QueuedTurnInput>> RemoveQueuedTurnInputAsync(
@@ -1111,30 +1113,44 @@ internal sealed class TestableSessionService : ISessionService, IThreadAgentRefr
         return thread.QueuedInputs.ToList();
     }
 
-    public async Task<TurnSteerResult> SteerTurnAsync(
+    public async Task<IReadOnlyList<QueuedTurnInput>> UpdateQueuedTurnInputAsync(
         string threadId,
-        string expectedTurnId,
         string queuedInputId,
-        CancellationToken ct = default,
-        SenderContext? sender = null)
+        string expectedTurnId,
+        string status,
+        CancellationToken ct = default)
     {
         var thread = await GetOrLoadAsync(threadId, ct);
-        var turn = thread.Turns.LastOrDefault(t => t.Status is TurnStatus.Running or TurnStatus.WaitingApproval or TurnStatus.WaitingInput)
-            ?? throw new InvalidOperationException("No active turn.");
-        if (!string.Equals(turn.Id, expectedTurnId, StringComparison.Ordinal))
-            throw new InvalidOperationException("Active turn mismatch.");
-
         var index = thread.QueuedInputs.FindIndex(q => string.Equals(q.Id, queuedInputId, StringComparison.Ordinal));
         if (index < 0)
             throw new KeyNotFoundException($"Queued input '{queuedInputId}' not found.");
-        thread.QueuedInputs[index] = thread.QueuedInputs[index] with
+        var queued = thread.QueuedInputs[index];
+        if (string.Equals(queued.Status, status, StringComparison.Ordinal))
+            return thread.QueuedInputs.ToList();
+        if (string.Equals(status, "guidancePending", StringComparison.Ordinal))
         {
-            Status = "guidancePending",
-            ReadyAfterTurnId = turn.Id,
-            Sender = sender ?? thread.QueuedInputs[index].Sender
-        };
+            var turn = thread.Turns.LastOrDefault(t => t.Status is TurnStatus.Running or TurnStatus.WaitingApproval or TurnStatus.WaitingInput)
+                ?? throw new InvalidOperationException("No active turn.");
+            if (!string.Equals(turn.Id, expectedTurnId, StringComparison.Ordinal))
+                throw new InvalidOperationException("Active turn mismatch.");
+            thread.QueuedInputs[index] = queued with { Status = "guidancePending", ReadyAfterTurnId = turn.Id };
+        }
+        else if (string.Equals(status, "queued", StringComparison.Ordinal))
+        {
+            if (!string.Equals(queued.Status, "guidancePending", StringComparison.Ordinal)
+                || !string.Equals(queued.ReadyAfterTurnId, expectedTurnId, StringComparison.Ordinal))
+            {
+                throw new InvalidOperationException("Pending guidance turn mismatch.");
+            }
+            thread.QueuedInputs[index] = queued with { Status = "queued" };
+        }
+        else
+        {
+            throw new InvalidOperationException("Invalid queued input status.");
+        }
+
         await _store.SaveThreadAsync(thread, ct);
-        return new TurnSteerResult { TurnId = turn.Id, QueuedInputs = thread.QueuedInputs.ToList() };
+        return thread.QueuedInputs.ToList();
     }
 
     // -------------------------------------------------------------------------

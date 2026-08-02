@@ -14,10 +14,11 @@ import { lazy, Suspense, useCallback } from 'react'
 import { useT } from '../../contexts/LocaleContext'
 import { useViewerTabStore } from '../../stores/viewerTabStore'
 import { useUIStore } from '../../stores/uiStore'
-import { AlertTriangle } from 'lucide-react'
+import { AlertTriangle, Folder, FolderOpen } from 'lucide-react'
 import { ViewerHeader } from './ViewerHeader'
 import { WorkspaceExplorer } from './WorkspaceExplorer'
 import { ExplorerDock } from './ExplorerDock'
+import { IconButton } from '../ui/IconButton'
 
 const LazyTextViewer = lazy(() =>
   import('./viewers/TextViewer').then((m) => ({ default: m.TextViewer }))
@@ -60,6 +61,7 @@ export function ViewerTab({ tabId }: ViewerTabProps): JSX.Element {
   const setWordWrap = useViewerTabStore((s) => s.setWordWrap)
   const explorerVisible = useUIStore((s) => s.explorerVisible)
   const explorerWidth = useUIStore((s) => s.explorerWidth)
+  const setExplorerVisible = useUIStore((s) => s.setExplorerVisible)
 
   const handleExplorerDrag = useCallback((delta: number) => {
     const state = useUIStore.getState()
@@ -72,6 +74,41 @@ export function ViewerTab({ tabId }: ViewerTabProps): JSX.Element {
 
   if (tab.errorMessage) {
     return <CenteredNotice message={tab.errorMessage} />
+  }
+
+  if (tab.kind === 'files') {
+    return (
+      <div style={{ height: '100%', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+        <div style={{ height: 38, flexShrink: 0, display: 'flex', alignItems: 'center', padding: '0 8px 0 14px', borderBottom: '1px solid var(--glass-border)' }}>
+          <span style={{ flex: 1, color: 'var(--text-primary)', fontSize: 13 }}>/</span>
+          <IconButton
+            size={26}
+            radius={6}
+            active={explorerVisible}
+            activeTone="neutral"
+            aria-pressed={explorerVisible}
+            label={explorerVisible ? t('viewer.closeExplorer') : t('viewer.openExplorer')}
+            tooltipLabel={explorerVisible ? t('viewer.closeExplorer') : t('viewer.openExplorer')}
+            onClick={() => setExplorerVisible(!explorerVisible)}
+            icon={explorerVisible
+              ? <FolderOpen size={16} aria-hidden style={{ display: 'block' }} />
+              : <Folder size={16} aria-hidden style={{ display: 'block' }} />}
+          />
+        </div>
+        <div style={{ flex: 1, minHeight: 0, display: 'flex' }}>
+          <div style={{ flex: 1, minWidth: 160, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 8, color: 'var(--text-secondary)', textAlign: 'center', padding: 24 }}>
+            <FolderOpen size={28} strokeWidth={1.5} aria-hidden style={{ opacity: 0.72 }} />
+            <strong style={{ color: 'var(--text-primary)', fontSize: 14, fontWeight: 600 }}>{t('quickOpen.title')}</strong>
+            <span style={{ fontSize: 12 }}>{t('viewer.openFileHint')}</span>
+          </div>
+          {explorerVisible && (
+            <ExplorerDock width={explorerWidth} onDrag={handleExplorerDrag}>
+              <WorkspaceExplorer />
+            </ExplorerDock>
+          )}
+        </div>
+      </div>
+    )
   }
 
   const suspenseFallback = (

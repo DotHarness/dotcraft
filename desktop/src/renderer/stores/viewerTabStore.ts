@@ -17,6 +17,7 @@
 import { create } from 'zustand'
 import type {
   ViewerTab,
+  FilesViewerTab,
   FileViewerTab,
   BrowserViewerTab,
   TerminalViewerTab,
@@ -61,6 +62,7 @@ function computeLabels(tabs: ViewerTab[]): ViewerTab[] {
   // For non-colliding tabs, the label is simply the basename.
   // For colliding tabs, we extend with parent path segments.
   const labels = tabs.map((tab) => {
+    if (tab.kind === 'files') return tab.label
     if (tab.kind === 'browser') return browserDefaultLabel(tab)
     if (tab.kind === 'terminal') return tab.label
     const parts = tab.relativePath.replace(/\\/g, '/').split('/')
@@ -113,6 +115,7 @@ function computeLabels(tabs: ViewerTab[]): ViewerTab[] {
     if (tab.kind === 'terminal') {
       return { ...tab, label: terminalDefaultLabel(tabs, i) }
     }
+    if (tab.kind === 'files') return tab
     return { ...tab, label: labels[i] ?? tab.label }
   })
 }
@@ -160,6 +163,9 @@ interface ViewerTabStoreState {
 }
 
 interface ViewerTabStoreActions {
+  /** Opens or focuses the thread's single empty workspace file viewer. */
+  openFiles(params: { threadId: string; initialLabel: string }): string
+
   /**
    * Opens a file tab in the given thread.
    * If an identical tab (same absolutePath) already exists, focuses it and returns its id.
@@ -267,6 +273,27 @@ export const useViewerTabStore = create<ViewerTabStore>((set, get) => ({
   currentThreadId: null,
   currentWorkspacePath: null,
 
+  openFiles({ threadId, initialLabel }) {
+    const threadState = get().getThreadState(threadId)
+    const existing = threadState.tabs.find((tab): tab is FilesViewerTab => tab.kind === 'files')
+    if (existing) {
+      set((s) => {
+        const next = new Map(s.byThread)
+        next.set(threadId, { ...threadState, activeTabId: existing.id })
+        return { byThread: next }
+      })
+      return existing.id
+    }
+
+    const newTab: FilesViewerTab = { id: nextTabId(), kind: 'files', label: initialLabel }
+    set((s) => {
+      const next = new Map(s.byThread)
+      next.set(threadId, { tabs: [...threadState.tabs, newTab], activeTabId: newTab.id })
+      return { byThread: next }
+    })
+    return newTab.id
+  },
+
   openFile({
     threadId,
     absolutePath,
@@ -283,11 +310,14 @@ export const useViewerTabStore = create<ViewerTabStore>((set, get) => ({
     const existing = forceNew
       ? undefined
       : threadState.tabs.find((t): t is FileViewerTab => t.kind === 'file' && t.absolutePath === absolutePath)
+    const activeFilesTab = !forceNew
+      ? threadState.tabs.find((tab) => tab.id === threadState.activeTabId && tab.kind === 'files')
+      : undefined
     if (existing && !forceNew) {
       const nextTabs = computeLabels(threadState.tabs.map((tab) => {
         if (tab.id !== existing.id || tab.kind !== 'file') return tab
         return applyFileNavigationHint(tab, navigationHint)
-      }))
+      }).filter((tab) => tab.id !== activeFilesTab?.id))
       set((s) => {
         const next = new Map(s.byThread)
         next.set(threadId, { tabs: nextTabs, activeTabId: existing.id })
@@ -298,7 +328,7 @@ export const useViewerTabStore = create<ViewerTabStore>((set, get) => ({
 
     // Create new tab
     const newTab: FileViewerTab = {
-      id: nextTabId(),
+      id: activeFilesTab?.id ?? nextTabId(),
       kind: 'file',
       absolutePath,
       relativePath,
@@ -308,7 +338,9 @@ export const useViewerTabStore = create<ViewerTabStore>((set, get) => ({
       ...(navigationHint ? { navigationHint: { ...navigationHint } } : {})
     }
 
-    const newTabs = computeLabels([...threadState.tabs, newTab])
+    const newTabs = computeLabels(activeFilesTab
+      ? threadState.tabs.map((tab) => tab.id === activeFilesTab.id ? newTab : tab)
+      : [...threadState.tabs, newTab])
     set((s) => {
       const next = new Map(s.byThread)
       next.set(threadId, { tabs: newTabs, activeTabId: newTab.id })

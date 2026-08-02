@@ -1437,10 +1437,12 @@ Clients that intend to render a turn from `thread/subscribe` notifications SHOUL
 - `{ "type": "commandRef", "name": "code-review", "argsText": "src/foo.cs", "rawText": "/code-review src/foo.cs" }` — native custom-command reference. The server materializes this reference before agent execution and persists both the native reference and the materialized prompt snapshot.
 - `{ "type": "skillRef", "name": "browser" }` — native skill reference. The server materializes this reference into a model-visible `<skill>` block containing only the effective skill name and path while preserving the original `$skill` form for history rendering. Skill instructions are not inlined into the user input; the agent loads them through `SkillView` when available, or by reading the referenced `SKILL.md` path as a fallback.
 - `{ "type": "fileRef", "path": "src/foo.cs", "displayPath": "src/foo.cs" }` — native file reference. `path` is the canonical referenced path and may be workspace-relative or a local absolute path. `displayPath` is an optional UI-facing path when the server and client canonical forms differ. Referencing an outside-workspace path does not grant implicit access; later file reads still follow the server file-tool approval policy.
-- `{ "type": "image", "url": "https://..." }` — remote image URL.
+- `{ "type": "image", "url": "data:image/png;base64,..." }` — inline image encoded as a base64 image data URL.
 - `{ "type": "localImage", "path": "/tmp/screenshot.png", "mimeType": "image/png", "fileName": "screenshot.png" }` — local image file path with optional UI metadata.
 
-Before starting the agent, the server MUST normalize the incoming `InputPart[]`, persist a `UserMessage` item whose payload captures both the native input parts and the materialized input parts, and only then convert the materialized parts into the `AIContent[]` passed to Session Core execution.
+For `image` input, the server accepts only a valid base64 `data:image/...` URL whose decoded payload does not exceed 64 MiB. Non-image media types, non-base64 data URLs, malformed base64 payloads, and oversized payloads are rejected with `InvalidParams` (`-32602`). HTTP and HTTPS image URLs are not supported and are rejected with `InvalidParams`, `error.data.code = "RemoteImageUrlNotSupported"`, and the message `remote image URLs are not supported; use an inline data URL instead`. Clients that receive a remote image must download it themselves and submit either an inline data URL or a `localImage` reference.
+
+Before starting the agent or persisting a queued input, the server MUST normalize, validate, and locally resolve the incoming `InputPart[]`. It persists the validated native and materialized snapshots and passes the resolved `AIContent[]` to Session Core. Input validation is identical for `turn/start` and `turn/enqueue`.
 
 Tag semantics:
 
@@ -1474,6 +1476,8 @@ Tag semantics:
 | `triggerRefId` | string? | Optional stable source id for client-side click-through or audit correlation. |
 
 When a queued input later starts a Turn or is promoted into current-Turn guidance, the resulting `userMessage` item preserves `triggerKind`, `triggerLabel`, and `triggerRefId`.
+
+Queued-input materialization never dereferences an image URL. A persisted inline data URL is decoded locally. If a queue snapshot created by an older server contains an HTTP or HTTPS image URL, the server replaces that image part with the model-visible text `image content omitted because remote image URLs are not supported` and continues consuming the remaining input. This compatibility fallback applies both when starting a queued Turn and when admitting `guidancePending` input.
 
 `SenderContext`:
 
@@ -1609,9 +1613,9 @@ Replace the current queued input order. This changes the order in which queued i
 
 **Result**: `{ "queuedInputs": QueuedTurnInput[] }`
 
-### 5.2.4 `turn/steer`
+### 5.2.4 `turn/queue/update`
 
-Promote a queued input into a pending guidance request for the current active Turn. This is not the default send path; clients should call it only when the user explicitly promotes a queued message into guidance.
+Set a queued input's desired delivery status. This operation is the reversible pre-admission control used by queue UIs; it does not retract input that has already been admitted into an active Turn.
 
 **Direction**: client → server (request)
 
@@ -1621,12 +1625,16 @@ Promote a queued input into a pending guidance request for the current active Tu
 |-------|------|----------|-------------|
 | `threadId` | string | yes | Target active thread. |
 | `expectedTurnId` | string | yes | Active Turn ID observed by the client. The server rejects the request if it no longer matches. |
-| `queuedInputId` | string | yes | Queued input ID to promote. The server uses the persisted queued input snapshot as the source of truth. |
-| `sender` | SenderContext | no | Sender identity for group sessions. |
+| `queuedInputId` | string | yes | Queued input ID to update. The server uses the persisted queued input snapshot as the source of truth. |
+| `status` | string | yes | Desired status: `"queued"` or `"guidancePending"`. |
 
-**Result**: `{ "turnId": "<active-turn-id>", "queuedInputs": QueuedTurnInput[] }`
+**Result**: `{ "queuedInputs": QueuedTurnInput[] }`
 
-The server first marks the queued input as `guidancePending` and broadcasts `thread/queue/updated`; clients should keep the queue row visible in that state. When the model/tool loop reaches the next safe boundary, the server appends a `userMessage` item with `deliveryMode = "guidance"`, injects the input into the active Turn's model history, removes the queued input, and broadcasts `thread/queue/updated` again. If the Turn ends before insertion, the pending item returns to `queued`.
+For `status = "guidancePending"`, the server requires an active regular Turn matching `expectedTurnId`, changes the queue item under the per-thread queue lock, and broadcasts `thread/queue/updated`. Setting the same pending status for the same Turn is an idempotent success. At the next safe model/tool boundary, the server resolves the queued snapshot and then reacquires the same lock to recheck its status and target Turn. It atomically appends a `userMessage` item with `deliveryMode = "guidance"`, removes the queued input, persists the thread, and broadcasts the updated queue.
+
+For `status = "queued"`, an item already in that status is an idempotent success. A `guidancePending` item returns to its existing queue position when its bound Turn matches `expectedTurnId`; the target Turn is not required to remain active. If cancellation wins the queue lock, subsequent guidance admission observes the changed status and stops. If admission wins, the queued input has already been removed and the update fails with not-found. Input already admitted into model history is never retracted. If the Turn ends before admission, the server also restores its pending items to `queued`.
+
+`turn/steer` is not used for persisted queue mutation. DotCraft currently exposes reversible steering only through this queue resource operation.
 
 ### 5.3 `workspace/commitMessage/suggest`
 

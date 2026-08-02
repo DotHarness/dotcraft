@@ -143,6 +143,13 @@ public static class AppServerErrors
     public static AppServerException InvalidParams(string detail) =>
         Create(InvalidParamsCode, "InvalidParams", "errors.invalidParams", "Invalid params", detail: detail);
 
+    public static AppServerException RemoteImageUrlNotSupported() =>
+        Create(
+            InvalidParamsCode,
+            SessionInputPartResolver.RemoteImageUrlErrorCode,
+            "errors.input.remoteImageUrlNotSupported",
+            SessionInputPartResolver.RemoteImageUrlError);
+
     public static AppServerException InternalError(string detail) =>
         Create(InternalErrorCode, "InternalError", "errors.internal", "Internal error", detail: detail);
 

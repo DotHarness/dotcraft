@@ -193,6 +193,8 @@ public sealed record DotCraftThreadReadResult(
 
 /// <summary>
 /// One input part for turn/start and turn/enqueue.
+/// For image input, <paramref name="Url"/> must be a base64 <c>data:image/...</c> URL;
+/// HTTP and HTTPS image URLs are not supported.
 /// </summary>
 public sealed record TurnInputPart(
     string Type,

@@ -288,7 +288,7 @@ public static partial class AppServerRpc
 
     public static readonly RpcRequest<TurnQueueReorderParams, TurnQueueReorderResponse> TurnQueueReorder = new("turn/queue/reorder", RpcDirection.ClientToServer, "1", "specs/protocols/appserver-protocol.md", scope: "thread", errors: CommonErrors);
 
-    public static readonly RpcRequest<TurnSteerParams, TurnSteerResult> TurnSteer = new("turn/steer", RpcDirection.ClientToServer, "1", "specs/protocols/appserver-protocol.md", scope: "thread", errors: CommonErrors);
+    public static readonly RpcRequest<TurnQueueUpdateParams, TurnQueueUpdateResult> TurnQueueUpdate = new("turn/queue/update", RpcDirection.ClientToServer, "1", "specs/protocols/appserver-protocol.md", scope: "thread", errors: CommonErrors);
 
     public static readonly RpcRequest<global::DotCraft.Protocol.Contracts.RpcEmpty, UsageSummaryResult> UsageSummary = new("usage/summary", RpcDirection.ClientToServer, "1", "specs/protocols/appserver-protocol.md", scope: "connection", errors: CommonErrors);
 

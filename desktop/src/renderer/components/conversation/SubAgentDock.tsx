@@ -18,7 +18,6 @@ import { CSS } from '@dnd-kit/utilities'
 import { Bot, ChevronDown, CornerDownRight, ExternalLink, GripVertical, ListChecks, Pencil, Square, Trash2 } from 'lucide-react'
 import { useT } from '../../contexts/LocaleContext'
 import {
-  isSubAgentChildClosed,
   isSubAgentChildRunning,
   useSubAgentStore,
   type SubAgentChild
@@ -79,21 +78,13 @@ export function BackgroundActivityDock({
     void fetchChildren(parentThreadId)
   }, [fetchChildren, parentThreadId])
 
-  // Dock is for in-flight work only: it shows running subagents (and the queue).
-  // Completed subagents live in the Subagents detail tab, reached via "View done".
+  // Dock is for in-flight work only: it shows running subagents and the queue.
   if (runningChildren.length === 0 && queuedInputs.length === 0) return null
 
   const hasSubAgents = runningChildren.length > 0
   const hasQueue = queuedInputs.length > 0
-  // Count only finished-but-open subagents. The shared store may include closed
-  // ones (the Subagents tab requests them), but the dock's "Done · N" link should
-  // ignore closed/reclaimed agents.
-  const doneCount = children.filter(
-    (child) => !isSubAgentChildRunning(child) && !isSubAgentChildClosed(child)
-  ).length
   const closeableRunning = runningChildren.filter((child) => child.supportsClose && child.agentPath)
   const contentMaxHeight = Math.min(runningChildren.length * 62 + 8, 260)
-  const openSubagentsTab = (): void => useUIStore.getState().setActiveDetailTab('subagents')
 
   const stopAll = async (): Promise<void> => {
     try {
@@ -152,20 +143,6 @@ export function BackgroundActivityDock({
           </div>
         )}
         <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', flexShrink: 0 }}>
-          {doneCount > 0 && (
-            <Button
-              variant="ghost"
-              size="sm"
-              aria-label={t('subAgentDock.viewDone', { count: doneCount })}
-              onClick={(event) => {
-                event.stopPropagation()
-                openSubagentsTab()
-              }}
-              style={compactTextButtonStyle}
-            >
-              {t('subAgentDock.viewDone', { count: doneCount })}
-            </Button>
-          )}
           {closeableRunning.length > 0 && (
             <IconButton
               icon={<Square size={12} fill="currentColor" aria-hidden="true" />}
@@ -314,7 +291,7 @@ function QueuedInputDockRow({
 }): JSX.Element {
   const t = useT()
   const isGuidancePending = item.status === 'guidancePending'
-  const canEdit = item.status === 'queued' && !item.triggerKind && item.sentAsGoal !== true && Boolean(onEdit)
+  const canEdit = (item.status === 'queued' || isGuidancePending) && !item.triggerKind && item.sentAsGoal !== true && Boolean(onEdit)
   const {
     attributes,
     listeners,
@@ -369,7 +346,8 @@ function QueuedInputDockRow({
           size="sm"
           iconLeft={<CornerDownRight size={13} strokeWidth={1.9} />}
           onClick={() => onSteer?.(item.id)}
-          disabled={isGuidancePending || !onSteer}
+          disabled={!onSteer}
+          aria-pressed={isGuidancePending}
           aria-label={isGuidancePending ? t('composer.queueGuidancePending') : t('composer.queueGuide')}
           style={compactQueueGuideButtonStyle}
         >

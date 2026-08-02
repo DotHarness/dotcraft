@@ -15866,6 +15866,38 @@
       },
       "additionalProperties": true
     },
+    "TurnQueueUpdateParams": {
+      "title": "TurnQueueUpdateParams",
+      "type": "object",
+      "properties": {
+        "expectedTurnId": {
+          "type": "string"
+        },
+        "queuedInputId": {
+          "type": "string"
+        },
+        "status": {
+          "type": "string"
+        },
+        "threadId": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true
+    },
+    "TurnQueueUpdateResult": {
+      "title": "TurnQueueUpdateResult",
+      "type": "object",
+      "properties": {
+        "queuedInputs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/QueuedTurnInput"
+          }
+        }
+      },
+      "additionalProperties": true
+    },
     "TurnStartParams": {
       "title": "TurnStartParams",
       "type": "object",
@@ -15942,54 +15974,6 @@
       "required": [
         "turn"
       ]
-    },
-    "TurnSteerParams": {
-      "title": "TurnSteerParams",
-      "type": "object",
-      "properties": {
-        "expectedTurnId": {
-          "type": "string"
-        },
-        "input": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/InputPart"
-          }
-        },
-        "queuedInputId": {
-          "type": "string"
-        },
-        "sender": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/SenderContext"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "threadId": {
-          "type": "string"
-        }
-      },
-      "additionalProperties": true
-    },
-    "TurnSteerResult": {
-      "title": "TurnSteerResult",
-      "type": "object",
-      "properties": {
-        "queuedInputs": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/QueuedTurnInput"
-          }
-        },
-        "turnId": {
-          "type": "string"
-        }
-      },
-      "additionalProperties": true
     },
     "UiResourceContent": {
       "title": "UiResourceContent",

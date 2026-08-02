@@ -51,8 +51,7 @@ export function DetailPanelLauncher({
       title: t('detailPanel.launcherFilesTitle'),
       description: t('detailPanel.launcherFilesDesc'),
       icon: <FolderOpen size={22} strokeWidth={1.75} aria-hidden style={iconStyle} />,
-      shortcut: fmt(ACTION_SHORTCUTS.quickOpen),
-      enabled: !remoteWorkspace
+      enabled: canOpenWorkspaceTab && !remoteWorkspace
     },
     {
       action: 'newBrowser',

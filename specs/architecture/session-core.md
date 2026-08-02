@@ -286,7 +286,9 @@ Fields:
 - `DeliveryBindingId` (string, nullable)
   - Optional App Binding id that owns the default output delivery target for the future Turn.
 
-When a queued input starts a future Turn, Session Core must copy trigger metadata, the queued input id, and any default delivery binding id into the persisted `UserMessagePayload`. When a queued input is promoted into current-turn guidance, the guidance `UserMessage` item must preserve the same trigger metadata.
+When a queued input starts a future Turn, Session Core must copy trigger metadata, the queued input id, and any default delivery binding id into the persisted `UserMessagePayload`. When a queued input is promoted into current-turn guidance, the guidance `UserMessage` item must preserve the same trigger metadata. Before guidance is admitted into the active Turn, a client may change the queued input's desired status back to `"queued"` without changing its input payload, metadata, or queue position. Once admission atomically persists the guidance `UserMessage` and removes the queued input, the input is no longer retractable.
+
+Queued-input materialization is a local-only operation. Inline `image` parts contain base64 `data:image/...` URLs and are decoded without network access; `localImage` parts are read from their persisted local paths. Session Core must never dereference HTTP or HTTPS image URLs while starting a queued Turn or admitting current-Turn guidance. A legacy queued snapshot containing such a URL is materialized as the text `image content omitted because remote image URLs are not supported`, while the remaining parts continue normally.
 
 #### 4.1.1.4 SubAgent Child Threads
 
@@ -1278,7 +1280,7 @@ IAsyncEnumerable<SessionEvent> SubmitInputAsync(
     ...)
 ```
 
-The `content` parameter accepts multimodal input (text, images, etc.) as a list of `AIContent` parts. When the transport provides native input metadata (for example native command, skill, or file-reference parts), Session Core persists both the transport-native snapshot and the materialized `AIContent` snapshot on `UserMessagePayload`, derives `UserMessagePayload.Text` from the native snapshot for compatibility/display, and passes the full multimodal materialized content to the agent via `ChatMessage`. A convenience extension method `SubmitInputAsync(string threadId, string text, ...)` wraps plain text into `[new TextContent(text)]` for text-only callers.
+The `content` parameter accepts multimodal input (text, images, etc.) as a list of `AIContent` parts. When the transport provides native input metadata (for example native command, skill, or file-reference parts), the transport validates and materializes those parts before submission. Session Core persists both the transport-native snapshot and the materialized `AIContent` snapshot on `UserMessagePayload`, derives `UserMessagePayload.Text` from the native snapshot for compatibility/display, and passes the full multimodal materialized content to the agent via `ChatMessage`. A convenience extension method `SubmitInputAsync(string threadId, string text, ...)` wraps plain text into `[new TextContent(text)]` for text-only callers.
 
 `UserMessagePayload.DeliveryMode` is optional and indicates how the user message entered the conversation: `"normal"` (or omitted) for a direct Turn start, `"queued"` for a queued input that later became a Turn, and `"guidance"` for a user request appended to an active Turn.
 
@@ -1305,15 +1307,15 @@ Task<IReadOnlyList<QueuedTurnInput>> RemoveQueuedTurnInputAsync(
 Removes a queued input without starting a Turn.
 
 ```
-Task<TurnSteerResult> SteerTurnAsync(
+Task<IReadOnlyList<QueuedTurnInput>> UpdateQueuedTurnInputAsync(
     string threadId,
-    string expectedTurnId,
     string queuedInputId,
-    CancellationToken ct = default,
-    SenderContext? sender = null)
+    string expectedTurnId,
+    string status,
+    CancellationToken ct = default)
 ```
 
-Marks the referenced queued input as `guidancePending` after validating that `expectedTurnId` still matches the current active Turn. The active execution loop drains pending guidance only at safe model/tool boundaries, appends a `UserMessage` item with `DeliveryMode = "guidance"` at insertion time, removes the queued input, and injects the input into the current model history. If the Turn ends before insertion, pending guidance is restored to `queued`.
+Sets the referenced queued input's desired status to `"queued"` or `"guidancePending"`. Promotion to `guidancePending` validates that `expectedTurnId` matches the active Turn. Restoring `queued` validates the queued input's bound Turn but does not require that Turn to remain active. Setting the current status again is an idempotent success. The active execution loop drains pending guidance only at safe model/tool boundaries, and the final status recheck, `UserMessage` persistence, and queue removal occur under the same per-thread queue lock used by update and removal operations. If update-to-queued wins the lock, admission is skipped; if admission wins, the queued input no longer exists and the later update fails. If the Turn ends before admission, pending guidance is restored to `queued`.
 
 The adapter starts a turn and immediately consumes the returned async stream. Callback-style consumption is a helper-layer concern (for example, wrapping the stream in a local event handler), not part of the `ISessionService` contract.
 

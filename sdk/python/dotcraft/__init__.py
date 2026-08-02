@@ -98,7 +98,7 @@ from .models import (
     dynamic_tool_image,
     dynamic_tool_text,
     file_ref_part,
-    image_url_part,
+    image_data_url_part,
     local_image_part,
     skill_ref_part,
     text_part,
@@ -190,7 +190,7 @@ __all__ = [
     "ServerCapabilities",
     # Input part helpers
     "text_part",
-    "image_url_part",
+    "image_data_url_part",
     "local_image_part",
     "skill_ref_part",
     "command_ref_part",

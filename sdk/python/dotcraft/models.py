@@ -492,9 +492,9 @@ def text_part(text: str) -> dict:
     return {"type": "text", "text": text}
 
 
-def image_url_part(url: str) -> dict:
-    """Create a remote image URL input part."""
-    return {"type": "image", "url": url}
+def image_data_url_part(data_url: str) -> dict:
+    """Create an inline base64 image data URL input part."""
+    return {"type": "image", "url": data_url}
 
 
 def local_image_part(path: str, mime_type: str | None = None) -> dict:

@@ -6,6 +6,7 @@ import asyncio
 import json
 from pathlib import Path
 
+import dotcraft as dotcraft_sdk
 import pytest
 
 from dotcraft import (
@@ -13,6 +14,7 @@ from dotcraft import (
     DotCraft,
     TurnFailedError,
     TurnInProgressError,
+    image_data_url_part,
 )
 
 from dotcraft.client import DotCraftWireClient, RequestTimeoutError
@@ -40,6 +42,12 @@ def test_wire_surface_is_protocol_only() -> None:
     assert not hasattr(wire, "stream_events")
     assert hasattr(appserver, "thread_start")
     assert hasattr(appserver, "stream_events")
+
+
+def test_image_data_url_part_replaces_remote_url_helper() -> None:
+    data_url = "data:image/png;base64,iVBORw0KGgo="
+    assert image_data_url_part(data_url) == {"type": "image", "url": data_url}
+    assert not hasattr(dotcraft_sdk, "image_url_part")
 
 
 class FakeTransport(Transport):

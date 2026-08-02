@@ -137,7 +137,6 @@ public sealed partial class SessionService(
     private ThreadQueueCoordinator? _threadQueueCoordinator;
     private MaintenanceCoordinator? _maintenanceCoordinator;
     private static readonly AsyncLocal<bool> SuppressGoalBroadcastContext = new();
-    private static readonly HttpClient QueuedInputHttpClient = new();
     private readonly IAppConfigMonitor? _appConfigMonitor = appConfigMonitor;
     private readonly ConcurrentDictionary<string, byte> _sessionStartHookThreads = new(StringComparer.Ordinal);
     private volatile bool _forcePerThreadAgents;
@@ -3555,13 +3554,13 @@ public sealed partial class SessionService(
         => await ThreadQueue.ReorderAsync(threadId, orderedQueuedInputIds, ct);
 
     /// <inheritdoc/>
-    public async Task<TurnSteerResult> SteerTurnAsync(
+    public async Task<IReadOnlyList<QueuedTurnInput>> UpdateQueuedTurnInputAsync(
         string threadId,
-        string expectedTurnId,
         string queuedInputId,
-        CancellationToken ct = default,
-        SenderContext? sender = null)
-        => await ThreadQueue.SteerAsync(threadId, expectedTurnId, queuedInputId, ct, sender);
+        string expectedTurnId,
+        string status,
+        CancellationToken ct = default)
+        => await ThreadQueue.UpdateAsync(threadId, queuedInputId, expectedTurnId, status, ct);
 
     /// <inheritdoc/>
     public async Task<SessionThread> RollbackThreadAsync(string threadId, int numTurns, CancellationToken ct = default)

@@ -47,7 +47,7 @@ export {
   Turn,
   commandRefPart,
   fileRefPart,
-  imageUrlPart,
+  imageDataUrlPart,
   localImagePart,
   skillRefPart,
   textPart,

@@ -734,7 +734,12 @@ public static class SubAgentSessionControl
     {
         try
         {
-            await sessionService.SteerTurnAsync(resolved.ThreadId, activeTurnId, queued.Id, ct);
+            await sessionService.UpdateQueuedTurnInputAsync(
+                resolved.ThreadId,
+                queued.Id,
+                activeTurnId,
+                "guidancePending",
+                ct);
             result.Status = "guidancePending";
             return result;
         }

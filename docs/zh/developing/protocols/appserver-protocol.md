@@ -302,7 +302,7 @@ Server 还会广播 `thread/started`。多 client 场景下，发起请求的 cl
 - `commandRef`：结构化 slash command 引用。
 - `skillRef`：结构化 skill 引用。
 - `fileRef`：结构化文件引用。
-- `image`：远程图片 URL。
+- `image`：使用 base64 `data:image/...` URL 编码的内联图片。服务端会拒绝 HTTP 和 HTTPS 图片 URL；客户端应先下载远程图片，再提交 data URL 或 `localImage`。
 - `localImage`：本地图片路径和可选 MIME 信息。
 
 如果一个 turn 正在运行，Desktop 类客户端通常使用 `turn/enqueue` 将下一条输入加入队列，或使用 `turn/interrupt` 取消当前 turn。

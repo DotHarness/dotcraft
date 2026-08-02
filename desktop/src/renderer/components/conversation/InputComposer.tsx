@@ -1173,7 +1173,7 @@ export function InputComposer({
   const editQueuedInput = useCallback(async (queuedInputId: string): Promise<void> => {
     if (editingQueuedInputIdRef.current) return
     const queued = useConversationStore.getState().queuedInputs.find((item) => item.id === queuedInputId)
-    if (!queued || queued.status !== 'queued' || queued.triggerKind || queued.sentAsGoal === true) return
+    if (!queued || (queued.status !== 'queued' && queued.status !== 'guidancePending') || queued.triggerKind || queued.sentAsGoal === true) return
 
     editingQueuedInputIdRef.current = queuedInputId
     setEditingQueuedInputId(queuedInputId)
@@ -1215,15 +1215,19 @@ export function InputComposer({
 
   const steerQueuedInput = useCallback(async (queuedInputId: string): Promise<void> => {
     const state = useConversationStore.getState()
-    const activeTurnId = state.activeTurnId
     const queued = state.queuedInputs.find((item) => item.id === queuedInputId)
-    if (!activeTurnId || !queued) return
-    if (queued.status === 'guidancePending') return
+    if (!queued) return
     try {
-      const res = await window.api.appServer.sendRequest('turn/steer', {
+      const status = queued.status === 'guidancePending' ? 'queued' : 'guidancePending'
+      const expectedTurnId = status === 'queued'
+        ? (queued.readyAfterTurnId ?? state.activeTurnId)
+        : state.activeTurnId
+      if (!expectedTurnId) return
+      const res = await window.api.appServer.sendRequest('turn/queue/update', {
         threadId,
-        expectedTurnId: activeTurnId,
-        queuedInputId
+        expectedTurnId,
+        queuedInputId,
+        status
       }) as { queuedInputs?: unknown[] }
       useConversationStore.getState().setQueuedInputs((res.queuedInputs ?? []) as QueuedTurnInput[])
     } catch (err) {

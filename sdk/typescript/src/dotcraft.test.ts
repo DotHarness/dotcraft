@@ -11,13 +11,20 @@ import {
   type UserInputHandler,
 } from "./dotcraft.js";
 import { TurnInProgressError } from "./errors.js";
-import { ERR_TURN_IN_PROGRESS, JsonRpcMessage, ServerCapabilities, ServerInfo, Thread, Turn } from "./models.js";
+import * as modelExports from "./models.js";
+import { ERR_TURN_IN_PROGRESS, imageDataUrlPart, JsonRpcMessage, ServerCapabilities, ServerInfo, Thread, Turn } from "./models.js";
 import type { DotCraftWireClient, ServerRequestHandler } from "./client.js";
 
 const appBindingFixture = JSON.parse(readFileSync(
   new URL("../../../specs/protocols/fixtures/app-binding-v2.json", import.meta.url),
   "utf8",
 )) as { version: number; states: string[]; socialMethods: string[]; errors: Record<string, string> };
+
+test("imageDataUrlPart creates inline image input without the removed remote URL helper", () => {
+  const dataUrl = "data:image/png;base64,iVBORw0KGgo=";
+  assert.deepEqual(imageDataUrlPart(dataUrl), { type: "image", url: dataUrl });
+  assert.equal("imageUrlPart" in modelExports, false);
+});
 
 test("App Binding canonical fixture is stable", () => {
   assert.equal(appBindingFixture.version, 2);

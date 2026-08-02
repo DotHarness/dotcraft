@@ -56,18 +56,18 @@ describe('DetailPanelLauncher', () => {
     expect(onAction).toHaveBeenCalledWith('newPlan')
   })
 
-  it('disables Browser and Terminal without an active workspace', () => {
+  it('disables Files, Browser, and Terminal without an active workspace', () => {
     renderLauncher({ onAction: vi.fn(), canOpenWorkspaceTab: false })
     expect(screen.getByRole('button', { name: 'Browser' })).toBeDisabled()
     expect(screen.getByRole('button', { name: 'Terminal' })).toBeDisabled()
-    expect(screen.getByRole('button', { name: 'Files' })).not.toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Files' })).toBeDisabled()
     expect(screen.getByRole('button', { name: 'Changes' })).not.toBeDisabled()
     expect(screen.getByRole('button', { name: 'Checks' })).not.toBeDisabled()
   })
 
   it('shows keyboard shortcuts on the cards that have them', () => {
     renderLauncher({ onAction: vi.fn() })
-    expect(screen.getByText('Ctrl+P')).toBeInTheDocument()
+    expect(screen.queryByText('Ctrl+P')).not.toBeInTheDocument()
     expect(screen.getByText('Ctrl+T')).toBeInTheDocument()
     expect(screen.getByText('Ctrl+Shift+G')).toBeInTheDocument()
     expect(screen.getByText('Ctrl+Shift+P')).toBeInTheDocument()

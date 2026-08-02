@@ -440,6 +440,10 @@ public sealed class InputPart : ExtensibleJsonObject
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? DisplayPath { get; init; }
 
+    /// <summary>
+    /// Base64 <c>data:image/...</c> URL for an <c>image</c> input part.
+    /// HTTP and HTTPS image URLs are not supported.
+    /// </summary>
     [JsonPropertyName("url")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? Url { get; init; }

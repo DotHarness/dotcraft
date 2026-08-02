@@ -115,7 +115,7 @@ export {
   DECISION_DECLINE,
   commandRefPart,
   fileRefPart,
-  imageUrlPart,
+  imageDataUrlPart,
   localImagePart,
   skillRefPart,
   textPart,
