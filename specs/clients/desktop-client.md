@@ -136,6 +136,8 @@ The client exposes four user-visible connection states:
 
 During first-time workspace setup, provider model discovery uses the DotCraft backend model catalog rather than Desktop-owned model constants or direct provider-specific HTTP parsing. Existing providers are resolved by id; unsaved provider drafts are passed to the backend over stdin so credentials do not enter process arguments or logs. ChatGPT subscription setup completes OAuth in the wizard before requesting the account-scoped catalog. The wizard preserves a user's explicit model selection across refreshes, requires reselection when it disappears, and treats backend cache or bundled results as the only fallback source.
 
+The setup wizard's future-default choice controls configuration scope. When disabled, the selected provider and complete model preference are persisted as explicit workspace overrides even when they equal the current personal defaults, so later personal-default changes do not affect the workspace. When enabled, setup updates the personal provider and preference defaults and removes equivalent workspace overrides so the workspace inherits them. Provider credentials remain personal in both cases.
+
 ### 3.4 Reconnection
 
 Desktop enables the SDK Wire reconnect profile. Already-written requests fail on disconnect and are never replayed. Calls made while reconnecting remain ordered behind a successful `initialize` / `initialized` handshake. Desktop remains responsible for restoring UI subscriptions, interactive-request state, runtime Dynamic Tools, remote tunnels, and other workspace resources after the Wire connection becomes ready.

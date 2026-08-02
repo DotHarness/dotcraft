@@ -119,6 +119,66 @@ public sealed class InitHelperSetupTests : IDisposable
     }
 
     [Fact]
+    public void RunSetup_ExistingPersonalDefaultWithoutFutureDefault_PinsMatchingWorkspacePreference()
+    {
+        var craftPath = Path.Combine(tempRoot, ".craft");
+        var globalConfigPath = Path.Combine(tempRoot, "user", ".craft", "config.json");
+        Directory.CreateDirectory(Path.GetDirectoryName(globalConfigPath)!);
+        File.WriteAllText(globalConfigPath, """
+        {
+          "ProviderId": "openai",
+          "ProviderPreferences": {
+            "openai": {
+              "model": "gpt-5.6-sol",
+              "reasoning": {
+                "enabled": false,
+                "effort": "Medium",
+                "output": "Full"
+              },
+              "speed": "Standard",
+              "contextWindow": {
+                "mode": "Default"
+              }
+            }
+          },
+          "Providers": {
+            "openai": {
+              "DisplayName": "OpenAI",
+              "Protocol": "openai-responses",
+              "ApiKey": "test-existing-key"
+            }
+          }
+        }
+        """);
+
+        var result = InitHelper.RunSetup(craftPath, new WorkspaceSetupRequest
+        {
+            ApiKey = "",
+            EndPoint = "",
+            Model = "gpt-5.6-sol",
+            Preference = new ModelPreference { Model = "gpt-5.6-sol" },
+            Profile = WorkspaceBootstrapProfile.Default,
+            ProviderMode = WorkspaceSetupProviderMode.Existing,
+            ProviderId = "openai",
+            SetAsUserDefault = false
+        }, globalConfigPath);
+
+        Assert.Equal(0, result);
+
+        var workspaceNode = JsonNode.Parse(File.ReadAllText(Path.Combine(craftPath, "config.json")))!.AsObject();
+        Assert.Equal("openai", workspaceNode["ProviderId"]?.GetValue<string>());
+        Assert.Equal(
+            "gpt-5.6-sol",
+            workspaceNode["ProviderPreferences"]!["openai"]!["model"]?.GetValue<string>());
+
+        var globalNode = JsonNode.Parse(File.ReadAllText(globalConfigPath))!.AsObject();
+        Assert.Equal("openai", globalNode["ProviderId"]?.GetValue<string>());
+        Assert.Equal(
+            "gpt-5.6-sol",
+            globalNode["ProviderPreferences"]!["openai"]!["model"]?.GetValue<string>());
+    }
+
+    [Fact]
     public void RunSetup_SkipProvider_PreservesUnrelatedGlobalSettings()
     {
         var craftPath = Path.Combine(tempRoot, ".craft");

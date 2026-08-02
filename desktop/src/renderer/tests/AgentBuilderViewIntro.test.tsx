@@ -257,18 +257,24 @@ describe('AgentBuilderView intro composer', () => {
     expect(appServerSendRequest.mock.calls.some(([method]) => method === 'turn/enqueue')).toBe(false)
   })
 
-  it('starts a detached builder thread with the provider-specific workspace model', async () => {
-    vi.mocked(window.api.file.readFile).mockResolvedValue(JSON.stringify({
-      ProviderId: 'provider-a',
-      ProviderPreferences: {
-        'provider-a': {
-          Model: 'provider-model',
-          Reasoning: { Enabled: false, Effort: 'Medium', Output: 'Full' },
-          Speed: 'Standard',
-          ContextWindow: { Mode: 'Default' }
+  it('starts a detached builder thread with an inherited personal provider preference', async () => {
+    vi.mocked(window.api.workspaceConfig.getCore).mockResolvedValue({
+      workspace: {
+        providerId: null,
+        providerPreferences: {}
+      },
+      userDefaults: {
+        providerId: 'provider-a',
+        providerPreferences: {
+          'provider-a': {
+            model: 'provider-model',
+            reasoning: { enabled: false, effort: 'medium', output: 'full' },
+            speed: 'standard',
+            contextWindow: { mode: 'default' }
+          }
         }
       }
-    }))
+    } as unknown as Awaited<ReturnType<typeof window.api.workspaceConfig.getCore>>)
     const defaultSendRequest = appServerSendRequest.getMockImplementation()
     appServerSendRequest.mockImplementation(async (method: string, params?: Record<string, unknown>) => {
       if (method === 'model/list') {

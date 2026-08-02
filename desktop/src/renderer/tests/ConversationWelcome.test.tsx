@@ -177,6 +177,25 @@ function workspacePreferenceConfig(
   }
 }
 
+function configValue(config: Record<string, unknown>, key: string): unknown {
+  const expected = key.toLowerCase()
+  return Object.entries(config).find(([candidate]) => candidate.toLowerCase() === expected)?.[1]
+}
+
+function coreSnapshotFromConfig(config: Record<string, unknown>): Record<string, unknown> {
+  const providerId = configValue(config, 'ProviderId')
+  const providerPreferences = configValue(config, 'ProviderPreferences')
+  return {
+    providerId: typeof providerId === 'string' ? providerId : null,
+    providerPreferences:
+      providerPreferences != null && typeof providerPreferences === 'object' && !Array.isArray(providerPreferences)
+        ? providerPreferences
+        : {},
+    welcomeSuggestionsEnabled: null,
+    defaultApprovalPolicy: null
+  }
+}
+
 describe('ConversationWelcome composer', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -259,16 +278,12 @@ describe('ConversationWelcome composer', () => {
     })
 
     fileReadFile.mockResolvedValue('{}')
-    workspaceConfigGetCore.mockResolvedValue({
-      workspace: {
-        providerPreferences: {},
-        welcomeSuggestionsEnabled: null,
-        defaultApprovalPolicy: null
-      },
-      userDefaults: {
-        providerPreferences: {},
-        welcomeSuggestionsEnabled: null,
-        defaultApprovalPolicy: null
+    workspaceConfigGetCore.mockImplementation(async () => {
+      const raw = await fileReadFile()
+      const config = typeof raw === 'string' && raw.trim() ? JSON.parse(raw) as Record<string, unknown> : {}
+      return {
+        workspace: coreSnapshotFromConfig(config),
+        userDefaults: coreSnapshotFromConfig({})
       }
     })
     settingsGet.mockResolvedValue({ locale: 'en' })
@@ -819,6 +834,106 @@ describe('ConversationWelcome composer', () => {
     })
     expect(workspaceConfigGetCore).toHaveBeenCalled()
     expect(fileReadFile).not.toHaveBeenCalled()
+  })
+
+  it('loads an inherited personal provider preference for a local workspace without persisting it', async () => {
+    useConnectionStore.setState((state) => ({
+      capabilities: { ...state.capabilities, providerManagement: true }
+    }))
+    workspaceConfigGetCore.mockResolvedValue({
+      workspace: {
+        providerId: null,
+        providerPreferences: {},
+        welcomeSuggestionsEnabled: null,
+        defaultApprovalPolicy: null
+      },
+      userDefaults: {
+        providerId: 'openai',
+        providerPreferences: { openai: preference('gpt-5.6-sol') },
+        welcomeSuggestionsEnabled: null,
+        defaultApprovalPolicy: null
+      }
+    })
+    const defaultSendRequest = appServerSendRequest.getMockImplementation()
+    appServerSendRequest.mockImplementation(async (method: string, params?: Record<string, unknown>) => {
+      if (method === 'provider/list') {
+        return {
+          providers: [
+            { id: 'openai', displayName: 'OpenAI', protocol: 'openai-responses' }
+          ]
+        }
+      }
+      if (method === 'model/list') {
+        return { success: true, providerId: params?.providerId, models: [{ id: 'gpt-5.6-sol' }] }
+      }
+      return defaultSendRequest?.(method, params)
+    })
+
+    renderWelcome()
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Select model' })).toHaveTextContent('gpt-5.6-sol')
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Select model' }))
+    expect(screen.getByRole('menuitem', { name: /Provider.*OpenAI/ })).toBeInTheDocument()
+    expect(appServerSendRequest).not.toHaveBeenCalledWith('workspace/config/update', expect.anything())
+  })
+
+  it('uses an inherited personal preference when switching providers and persists only the workspace override', async () => {
+    useConnectionStore.setState((state) => ({
+      capabilities: { ...state.capabilities, providerManagement: true }
+    }))
+    workspaceConfigGetCore.mockResolvedValue({
+      workspace: {
+        providerId: null,
+        providerPreferences: {},
+        welcomeSuggestionsEnabled: null,
+        defaultApprovalPolicy: null
+      },
+      userDefaults: {
+        providerId: 'openai',
+        providerPreferences: {
+          openai: preference('gpt-5.6-sol'),
+          anthropic: preference('claude-sonnet-4-5')
+        },
+        welcomeSuggestionsEnabled: null,
+        defaultApprovalPolicy: null
+      }
+    })
+    const defaultSendRequest = appServerSendRequest.getMockImplementation()
+    appServerSendRequest.mockImplementation(async (method: string, params?: Record<string, unknown>) => {
+      if (method === 'provider/list') {
+        return {
+          providers: [
+            { id: 'openai', displayName: 'OpenAI', protocol: 'openai-responses' },
+            { id: 'anthropic', displayName: 'Anthropic', protocol: 'anthropic' }
+          ]
+        }
+      }
+      if (method === 'model/list') {
+        const model = params?.providerId === 'anthropic' ? 'claude-sonnet-4-5' : 'gpt-5.6-sol'
+        return { success: true, providerId: params?.providerId, models: [{ id: model }] }
+      }
+      return defaultSendRequest?.(method, params)
+    })
+
+    renderWelcome()
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Select model' })).toHaveTextContent('gpt-5.6-sol')
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Select model' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: /Provider.*OpenAI/ }))
+    fireEvent.click(within(screen.getByRole('listbox', { name: 'Provider' })).getByRole('option', { name: /Anthropic/ }))
+
+    await waitFor(() => {
+      expect(appServerSendRequest).toHaveBeenCalledWith('workspace/config/update', {
+        providerId: 'anthropic',
+        providerPreferences: {
+          anthropic: preference('claude-sonnet-4-5')
+        }
+      })
+    })
   })
 
   it('stages connected welcome apps with a switch and restores an explicit empty selection', async () => {

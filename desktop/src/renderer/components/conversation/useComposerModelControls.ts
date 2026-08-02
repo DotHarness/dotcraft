@@ -141,6 +141,14 @@ export function useComposerModelControls({
     return parseJsonConfig<Record<string, unknown>>(raw, {})
   }, [remoteWorkspace, workspaceConfigPath])
 
+  const readEffectiveWorkspaceConfig = useCallback(async (): Promise<Record<string, unknown>> => {
+    const getCore = window.api.workspaceConfig?.getCore
+    if (typeof getCore === 'function') {
+      return configObjectFromWorkspaceCore(await getCore() as WorkspaceCoreConfigLike)
+    }
+    return readWorkspaceConfig()
+  }, [readWorkspaceConfig])
+
   const setCaseInsensitiveField = useCallback(
     (target: Record<string, unknown>, key: string, value: unknown): void => {
       const lower = key.toLowerCase()
@@ -222,7 +230,7 @@ export function useComposerModelControls({
     let disposed = false
     const loadEffectiveModel = async (): Promise<void> => {
       try {
-        const workspaceCfg = await readWorkspaceConfig()
+        const workspaceCfg = await readEffectiveWorkspaceConfig()
         if (disposed) return
         const effectiveProviderId = resolveEffectiveProvider(activeThread, workspaceCfg)
         setProviderId(effectiveProviderId)
@@ -284,7 +292,7 @@ export function useComposerModelControls({
     detachedReasoningTouched,
     detachedSpeedTouched,
     detachedContextTouched,
-    readWorkspaceConfig,
+    readEffectiveWorkspaceConfig,
     resolveEffectiveModel,
     resolveEffectiveProvider,
     resolveEffectiveReasoning,
@@ -355,7 +363,7 @@ export function useComposerModelControls({
     if (!nextProviderId || nextProviderId === providerId || detached || !activeThread) return
     setModelApplying(true)
     try {
-      const workspaceCfg = await readWorkspaceConfig()
+      const workspaceCfg = await readEffectiveWorkspaceConfig()
       await loadModels(true, nextProviderId)
       const catalogState = useModelCatalogStore.getState()
       const remembered = readWorkspacePreference(workspaceCfg, nextProviderId)
@@ -402,7 +410,7 @@ export function useComposerModelControls({
     } finally {
       setModelApplying(false)
     }
-  }, [activeThread, detached, loadModels, providerId, readWorkspaceConfig, setCaseInsensitiveField, t])
+  }, [activeThread, detached, loadModels, providerId, readEffectiveWorkspaceConfig, setCaseInsensitiveField, t])
 
   const handleReasoningChange = useCallback(
     async (nextReasoning: ReasoningQuickValue): Promise<void> => {

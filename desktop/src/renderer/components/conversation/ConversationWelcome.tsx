@@ -464,6 +464,14 @@ export function ConversationWelcome({
     return parseJsonConfig<Record<string, unknown>>(raw, {})
   }, [remoteWorkspace, workspaceConfigPath])
 
+  const readEffectiveWorkspaceConfig = useCallback(async (): Promise<Record<string, unknown>> => {
+    const getCore = window.api.workspaceConfig?.getCore
+    if (typeof getCore === 'function') {
+      return configObjectFromWorkspaceCore(await getCore() as WorkspaceCoreConfigLike)
+    }
+    return readWorkspaceConfig()
+  }, [readWorkspaceConfig])
+
   const readWorkspaceProviderPreferences = useCallback(async (): Promise<ProviderPreferences> => {
     if (remoteWorkspace) {
       const getCore = window.api.workspaceConfig?.getCore
@@ -874,7 +882,7 @@ export function ConversationWelcome({
       }
 
       try {
-        const cfg = await readWorkspaceConfig()
+        const cfg = await readEffectiveWorkspaceConfig()
         if (disposed) return
         const nextProviderId = resolveWorkspaceProviderFromConfig(cfg)
         // A concrete workspace provider is authoritative even when a draft exists. This keeps
@@ -936,7 +944,7 @@ export function ConversationWelcome({
       disposed = true
     }
   }, [
-    readWorkspaceConfig,
+    readEffectiveWorkspaceConfig,
     loadModels,
     readWorkspaceProviderPreferences,
     workspaceConfigChange,
@@ -1076,7 +1084,7 @@ export function ConversationWelcome({
     const previousProvider = providerId
     const previousModel = modelName
     try {
-      const cfg = await readWorkspaceConfig()
+      const cfg = await readEffectiveWorkspaceConfig()
       await loadModels(true, nextProviderId)
       const catalogState = useModelCatalogStore.getState()
       const remembered = findProviderPreference(
@@ -1106,7 +1114,7 @@ export function ConversationWelcome({
     } finally {
       setModelApplying(false)
     }
-  }, [loadModels, modelName, persistWelcomePreference, providerId, readWorkspaceConfig, t, workspaceConfigPath])
+  }, [loadModels, modelName, persistWelcomePreference, providerId, readEffectiveWorkspaceConfig, t, workspaceConfigPath])
 
   const handleReasoningChange = useCallback(
     async (nextReasoning: ReasoningQuickValue): Promise<void> => {
