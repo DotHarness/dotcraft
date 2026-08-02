@@ -120,23 +120,20 @@ public static class InitHelper
         createdItems?.Add(("[green]✓[/]", ".gitignore"));
     }
 
-    private static string? ReadTrimmedString(JsonObject node, string key)
-    {
-        var matched = node.FirstOrDefault(p => string.Equals(p.Key, key, StringComparison.OrdinalIgnoreCase));
-        return matched.Value?.GetValue<string>()?.Trim();
-    }
-
     private static void RemoveCaseInsensitive(JsonObject node, string key)
     {
-        var matched = node.FirstOrDefault(p => string.Equals(p.Key, key, StringComparison.OrdinalIgnoreCase));
-        if (!string.IsNullOrEmpty(matched.Key))
-            node.Remove(matched.Key);
+        var matches = node
+            .Select(pair => pair.Key)
+            .Where(candidate => string.Equals(candidate, key, StringComparison.OrdinalIgnoreCase))
+            .ToArray();
+        foreach (var match in matches)
+            node.Remove(match);
     }
 
     private static void RemoveProviderAwareWorkspaceFields(JsonObject node)
     {
-        node.Remove("ProviderId");
-        node.Remove("ProviderPreferences");
+        RemoveCaseInsensitive(node, "ProviderId");
+        RemoveCaseInsensitive(node, "ProviderPreferences");
     }
 
     private static JsonObject GetOrCreateObject(JsonObject node, string key)
@@ -237,34 +234,19 @@ public static class InitHelper
 
     private static void ApplyProviderAwareWorkspaceSelection(
         JsonObject workspaceNode,
-        JsonObject globalNode,
         string providerId,
-        ModelPreference preference)
+        ModelPreference preference,
+        bool inheritPersonalDefault)
     {
         RemoveProviderAwareWorkspaceFields(workspaceNode);
 
-        var trimmedProviderId = providerId.Trim();
-        if (!string.IsNullOrWhiteSpace(trimmedProviderId)
-            && !string.Equals(ReadTrimmedString(globalNode, "ProviderId"), trimmedProviderId, StringComparison.Ordinal))
-        {
-            workspaceNode["ProviderId"] = trimmedProviderId;
-        }
-        else
-        {
-            workspaceNode.Remove("ProviderId");
-        }
+        if (inheritPersonalDefault)
+            return;
 
-        var globalPreferences = globalNode["ProviderPreferences"] as JsonObject;
-        var inheritedPreference = globalPreferences?
-            .FirstOrDefault(pair => string.Equals(
-                pair.Key,
-                trimmedProviderId,
-                StringComparison.OrdinalIgnoreCase)).Value;
-        var preferenceNode = JsonSerializer.SerializeToNode(preference, JsonOptions);
-        if (!JsonNode.DeepEquals(inheritedPreference, preferenceNode))
-        {
-            GetOrCreateObject(workspaceNode, "ProviderPreferences")[trimmedProviderId] = preferenceNode;
-        }
+        var trimmedProviderId = providerId.Trim();
+        workspaceNode["ProviderId"] = trimmedProviderId;
+        GetOrCreateObject(workspaceNode, "ProviderPreferences")[trimmedProviderId] =
+            JsonSerializer.SerializeToNode(preference, JsonOptions);
     }
 
     private static int RunProviderAwareSetup(
@@ -319,7 +301,11 @@ public static class InitHelper
         }
 
         SaveJsonObject(globalConfigPath, globalNode);
-        ApplyProviderAwareWorkspaceSelection(workspaceNode, globalNode, providerId, preference);
+        ApplyProviderAwareWorkspaceSelection(
+            workspaceNode,
+            providerId,
+            preference,
+            inheritPersonalDefault: setAsUserDefault);
         SaveJsonObject(workspaceConfigPath, workspaceNode);
         WriteWorkspaceTemplates(craftPath, request.Profile);
         return 0;
