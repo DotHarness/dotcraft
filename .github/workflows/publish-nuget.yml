@@ -167,7 +167,11 @@ jobs:
               }
             }
 
-            $nuspecEntry = $package.Entries | Where-Object { $_.FullName -like "*.nuspec" } | Select-Object -Single
+            $nuspecEntries = @($package.Entries | Where-Object { $_.FullName -like "*.nuspec" })
+            if ($nuspecEntries.Count -ne 1) {
+              throw "Expected exactly one .nuspec entry, found $($nuspecEntries.Count)."
+            }
+            $nuspecEntry = $nuspecEntries[0]
             $reader = [System.IO.StreamReader]::new($nuspecEntry.Open())
             try {
               $nuspec = $reader.ReadToEnd()
