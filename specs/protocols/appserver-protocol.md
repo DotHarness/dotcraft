@@ -3164,7 +3164,28 @@ The ACP (Agent Client Protocol) integration allows the agent's tools to access t
 
 **Custom extensions**: Method pattern `ext/acp/<family>/<method>` where `<family>` was listed in `acpExtensions.extensions` (e.g. `ext/acp/_unity/scene_query`).
 
-**ACP bridge runtime tools**: ACP clients that expose DotCraft-specific runtime tool descriptors during ACP `initialize` can have those descriptors translated by the ACP bridge into `thread/start.dynamicTools` and `thread/resume.dynamicTools`. Each descriptor's ACP method must correspond to an advertised filesystem, terminal, or custom extension capability. The model-visible tool contract is the Runtime Dynamic Tool spec from [Section 4.1.0](#410-runtime-dynamic-tools); the ACP method remains the private client callback used to execute the tool.
+**ACP bridge runtime tools**: ACP clients can expose DotCraft-specific runtime tool descriptors during ACP `initialize`. This is a private DotCraft ACP extension, not an ACP runtime-tool contract. The capability is advertised only through the ACP-defined `_meta` extension point:
+
+```json
+{
+  "clientCapabilities": {
+    "_meta": {
+      "dotcraft": {
+        "runtimeTools": {
+          "version": 1,
+          "tools": []
+        }
+      }
+    }
+  }
+}
+```
+
+`runtimeTools.version` MUST equal `1`. A present capability with a missing or unsupported version, or an invalid descriptor, fails ACP `initialize` with `-32602`. There is no alternate legacy shape. Custom descriptor methods MUST start with `_`; `fs/*` and `terminal/*` descriptors remain gated by their standard ACP client capabilities. The bridge derives custom extension families from the validated descriptor methods and MUST NOT add custom fields such as `extensions` to the root ACP capability object.
+
+The bridge translates validated descriptors into `thread/start.dynamicTools` and `thread/resume.dynamicTools`. The model-visible tool contract is the Runtime Dynamic Tool spec from [Section 4.1.0](#410-runtime-dynamic-tools); the ACP method remains the private client callback used to execute the tool.
+
+Version 1 callbacks return the same result envelope as `item/tool/call`: `success`, optional `contentItems` and `structuredContent`, and failure-only `errorCode` and `errorMessage`. The envelope is a DotCraft extension response carried in the standard ACP JSON-RPC `result`; it is not an ACP Tool Call or MCP tool result. The bridge validates it using the Runtime Dynamic result rules and preserves failures instead of treating every JSON-RPC `result` as success. A completed `dynamicToolCall` preserves a callback's non-empty `errorCode` and `errorMessage`; it falls back to the server's stable dispatcher error only when the callback omits a usable field. A JSON-RPC `error` remains a transport or protocol failure and is mapped to the corresponding Runtime Dynamic failure category.
 
 | ACP method (IDE) | Wire extension method |
 |------------------|----------------------|

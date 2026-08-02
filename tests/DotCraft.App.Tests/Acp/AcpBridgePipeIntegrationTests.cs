@@ -150,19 +150,30 @@ public sealed class AcpBridgePipeIntegrationTests
         serverTransport.Start();
 
         var capturedThreadStart = new TaskCompletionSource<JsonElement>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var beginRuntimeCalls = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var capturedRuntimeResults = new TaskCompletionSource<IReadOnlyList<AppServerIncomingMessage>>(
+            TaskCreationOptions.RunContinuationsAsynchronously);
         var serverCts = new CancellationTokenSource();
-        var serverLoop = Task.Run(() => RunRuntimeToolWireStubAsync(serverTransport, capturedThreadStart, serverCts.Token));
+        var serverLoop = Task.Run(() => RunRuntimeToolWireStubAsync(
+            serverTransport,
+            capturedThreadStart,
+            beginRuntimeCalls,
+            capturedRuntimeResults,
+            serverCts.Token));
 
         await using var wire = new AppServerWireClient(
             serverToClient.Reader.AsStream(),
             clientToServer.Writer.AsStream());
         wire.Start();
 
-        await using var acp = new AcpTransport(ideToBridge.Reader.AsStream(), bridgeToIde.Writer.AsStream());
+        await using var acp = new AcpTransport(ideToBridge.Reader.AsStream(), bridgeToIde.Writer.AsStream())
+        {
+            HeartbeatInterval = Timeout.InfiniteTimeSpan
+        };
         acp.StartReaderLoop();
 
         var bridgeCts = new CancellationTokenSource();
-        var bridge = new AcpBridgeHandler(acp, wire, tempDir);
+        var bridge = new AcpBridgeHandler(acp, wire, tempDir, extForwardTimeoutSeconds: 1);
         var bridgeTask = Task.Run(() => bridge.RunAsync(bridgeCts.Token));
 
         try
@@ -172,7 +183,7 @@ public sealed class AcpBridgePipeIntegrationTests
 
             const string initLine =
                 "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{\"protocolVersion\":1,"
-                + "\"clientCapabilities\":{\"extensions\":[\"_unity\"],\"_meta\":{\"dotcraft\":{\"runtimeTools\":[{"
+                + "\"clientCapabilities\":{\"_meta\":{\"dotcraft\":{\"runtimeTools\":{\"version\":1,\"tools\":[{"
                 + "\"namespace\":\"unity\","
                 + "\"name\":\"unity_scene_query\","
                 + "\"description\":\"Query Unity scene hierarchy.\","
@@ -180,7 +191,7 @@ public sealed class AcpBridgePipeIntegrationTests
                 + "\"acpMethod\":\"_unity/scene_query\","
                 + "\"kind\":\"unity\","
                 + "\"deferLoading\":true"
-                + "}]}}},"
+                + "}]}}}},"
                 + "\"clientInfo\":{\"name\":\"test-ide\",\"version\":\"1.0\"}}}";
             await ideWriter.WriteLineAsync(initLine);
 
@@ -206,6 +217,97 @@ public sealed class AcpBridgePipeIntegrationTests
             using var sessionDoc = JsonDocument.Parse(sessionResponse);
             Assert.True(sessionDoc.RootElement.TryGetProperty("result", out var sessionResult));
             Assert.Equal("thread_runtime_tools", sessionResult.GetProperty("sessionId").GetString());
+
+            await ideWriter.WriteLineAsync(
+                "{\"jsonrpc\":\"2.0\",\"id\":3,\"method\":\"session/prompt\",\"params\":{"
+                + "\"sessionId\":\"thread_runtime_tools\","
+                + "\"prompt\":[{\"type\":\"text\",\"text\":\"Run the scene query\"}]}}");
+            for (var callbackIndex = 0; callbackIndex < 5; callbackIndex++)
+            {
+                var callbackLineTask = ideReader.ReadLineAsync();
+                var completed = await Task.WhenAny(callbackLineTask, capturedRuntimeResults.Task)
+                    .WaitAsync(TimeSpan.FromSeconds(10));
+                if (completed == capturedRuntimeResults.Task)
+                {
+                    var earlyResults = await capturedRuntimeResults.Task;
+                    throw new InvalidOperationException(
+                        $"Runtime callbacks completed before the IDE request was sent: "
+                        + JsonSerializer.Serialize(earlyResults.Select(response => response.Result)));
+                }
+
+                var callbackLine = await callbackLineTask;
+                Assert.NotNull(callbackLine);
+                using var callback = JsonDocument.Parse(callbackLine);
+                var callbackRoot = callback.RootElement;
+                Assert.Equal("_unity/scene_query", callbackRoot.GetProperty("method").GetString());
+                var callbackId = callbackRoot.GetProperty("id").GetInt32();
+
+                object? response = callbackIndex switch
+                {
+                    0 => new
+                    {
+                        jsonrpc = "2.0",
+                        id = callbackId,
+                        result = new
+                        {
+                            success = true,
+                            contentItems = new[] { new { type = "text", text = "Scene query completed." } },
+                            structuredContent = new { objects = 3 }
+                        }
+                    },
+                    1 => new
+                    {
+                        jsonrpc = "2.0",
+                        id = callbackId,
+                        result = new
+                        {
+                            success = false,
+                            contentItems = new[] { new { type = "text", text = "C# compilation failed." } },
+                            structuredContent = new
+                            {
+                                diagnostics = new[] { new { id = "CS1001", line = 1, column = 7 } }
+                            },
+                            errorCode = "CompilationFailed",
+                            errorMessage = "C# compilation failed."
+                        }
+                    },
+                    2 => new
+                    {
+                        jsonrpc = "2.0",
+                        id = callbackId,
+                        error = new
+                        {
+                            code = -32602,
+                            message = "Invalid runtime tool arguments.",
+                            data = new { argument = "query" }
+                        }
+                    },
+                    3 => new
+                    {
+                        jsonrpc = "2.0",
+                        id = callbackId,
+                        result = new { success = false }
+                    },
+                    _ => null
+                };
+
+                if (response != null)
+                    await ideWriter.WriteLineAsync(JsonSerializer.Serialize(response));
+            }
+
+            var runtimeResponses = await capturedRuntimeResults.Task.WaitAsync(TimeSpan.FromSeconds(10));
+            AssertRuntimeResult(runtimeResponses[0], success: true, expectedCode: null);
+            AssertRuntimeResult(runtimeResponses[1], success: false, expectedCode: "CompilationFailed");
+            Assert.Equal("CS1001", runtimeResponses[1].Result!.Value
+                .GetProperty("structuredContent").GetProperty("diagnostics")[0].GetProperty("id").GetString());
+            AssertRuntimeResult(runtimeResponses[2], success: false, expectedCode: "InvalidArguments");
+            Assert.Equal(-32602, runtimeResponses[2].Result!.Value
+                .GetProperty("structuredContent").GetProperty("code").GetInt32());
+            AssertRuntimeResult(runtimeResponses[3], success: false, expectedCode: "DynamicToolResultInvalid");
+            AssertRuntimeResult(runtimeResponses[4], success: false, expectedCode: "DynamicToolTimeout");
+            using var promptResponse = JsonDocument.Parse(await ReadJsonLineForIdAsync(ideReader, 3));
+            Assert.Equal(AcpStopReason.EndTurn,
+                promptResponse.RootElement.GetProperty("result").GetProperty("stopReason").GetString());
         }
         finally
         {
@@ -596,6 +698,23 @@ public sealed class AcpBridgePipeIntegrationTests
         Assert.Equal(expectedText, content.GetProperty("text").GetString());
     }
 
+    private static void AssertRuntimeResult(
+        AppServerIncomingMessage response,
+        bool success,
+        string? expectedCode)
+    {
+        Assert.Null(response.Error);
+        Assert.True(response.Result.HasValue);
+        var result = response.Result.Value;
+        Assert.Equal(success, result.GetProperty("success").GetBoolean());
+        Assert.False(string.IsNullOrWhiteSpace(
+            result.GetProperty("contentItems")[0].GetProperty("text").GetString()));
+        if (expectedCode == null)
+            Assert.False(result.TryGetProperty("errorCode", out _));
+        else
+            Assert.Equal(expectedCode, result.GetProperty("errorCode").GetString());
+    }
+
     private static JsonElement FindConfigOption(JsonElement configOptions, string id)
     {
         foreach (var option in configOptions.EnumerateArray())
@@ -673,9 +792,41 @@ public sealed class AcpBridgePipeIntegrationTests
     private static async Task RunRuntimeToolWireStubAsync(
         IAppServerTransport transport,
         TaskCompletionSource<JsonElement> capturedThreadStart,
+        TaskCompletionSource beginRuntimeCalls,
+        TaskCompletionSource<IReadOnlyList<AppServerIncomingMessage>> capturedRuntimeResults,
         CancellationToken ct)
     {
         const string threadId = "thread_runtime_tools";
+        var runtimeCallTask = Task.Run(async () =>
+        {
+            await beginRuntimeCalls.Task.WaitAsync(ct);
+            var responses = new List<AppServerIncomingMessage>();
+            for (var i = 0; i < 5; i++)
+            {
+                responses.Add(await transport.SendClientRequestAsync(
+                    DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.DynamicToolCall,
+                    new
+                    {
+                        threadId,
+                        turnId = $"turn_{i}",
+                        callId = $"call_{i}",
+                        @namespace = "unity",
+                        tool = "unity_scene_query",
+                        arguments = new { query = "Main Camera" }
+                    },
+                    ct,
+                    TimeSpan.FromSeconds(10)));
+            }
+
+            capturedRuntimeResults.TrySetResult(responses);
+            await transport.WriteMessageAsync(new
+            {
+                jsonrpc = "2.0",
+                method = DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.TurnCompleted,
+                @params = new { threadId }
+            }, ct);
+        }, ct);
+
         while (!ct.IsCancellationRequested)
         {
             AppServerIncomingMessage? msg;
@@ -696,6 +847,7 @@ public sealed class AcpBridgePipeIntegrationTests
                 continue;
 
             object? result;
+            var startRuntimeCalls = false;
             switch (msg.Method)
             {
                 case DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.Initialize:
@@ -713,6 +865,19 @@ public sealed class AcpBridgePipeIntegrationTests
                         }
                     };
                     break;
+                case DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.TurnStart:
+                    startRuntimeCalls = true;
+                    result = new
+                    {
+                        turn = new
+                        {
+                            id = "turn_runtime_tools",
+                            threadId,
+                            status = "inProgress",
+                            items = Array.Empty<object>()
+                        }
+                    };
+                    break;
                 case DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ModelList:
                     result = new ModelListResult { Success = false };
                     break;
@@ -722,6 +887,21 @@ public sealed class AcpBridgePipeIntegrationTests
             }
 
             await transport.WriteMessageAsync(AppServerRequestHandler.BuildResponse(msg.Id, result), ct);
+            if (startRuntimeCalls)
+                beginRuntimeCalls.TrySetResult();
+        }
+
+        try
+        {
+            await runtimeCallTask;
+        }
+        catch (OperationCanceledException)
+        {
+            capturedRuntimeResults.TrySetCanceled(ct);
+        }
+        catch (Exception ex)
+        {
+            capturedRuntimeResults.TrySetException(ex);
         }
     }
 

@@ -167,7 +167,7 @@ public sealed class AcpTransport(Stream input, Stream output) : IAsyncDisposable
                         if (root.TryGetProperty("result", out var resultProp))
                             tcs.TrySetResult(resultProp);
                         else if (root.TryGetProperty("error", out var errorProp))
-                            tcs.TrySetException(new AcpClientException(errorProp.ToString()));
+                            tcs.TrySetException(AcpClientException.FromJson(errorProp));
                         else
                             tcs.TrySetResult(default);
                         continue;
@@ -353,4 +353,40 @@ public sealed class AcpTransport(Stream input, Stream output) : IAsyncDisposable
     }
 }
 
-public sealed class AcpClientException(string message) : Exception(message);
+public sealed class AcpClientException : Exception
+{
+    public AcpClientException(string message)
+        : this(-32603, message)
+    {
+    }
+
+    public AcpClientException(int code, string message, JsonElement? data = null)
+        : base(message)
+    {
+        Code = code;
+        ErrorData = data?.Clone();
+    }
+
+    public int Code { get; }
+
+    public JsonElement? ErrorData { get; }
+
+    internal static AcpClientException FromJson(JsonElement error)
+    {
+        var code = error.ValueKind == JsonValueKind.Object
+                   && error.TryGetProperty("code", out var codeElement)
+                   && codeElement.TryGetInt32(out var parsedCode)
+            ? parsedCode
+            : -32603;
+        var message = error.ValueKind == JsonValueKind.Object
+                      && error.TryGetProperty("message", out var messageElement)
+                      && messageElement.ValueKind == JsonValueKind.String
+            ? messageElement.GetString() ?? "ACP client request failed."
+            : "ACP client request failed.";
+        JsonElement? data = error.ValueKind == JsonValueKind.Object
+                            && error.TryGetProperty("data", out var dataElement)
+            ? dataElement.Clone()
+            : null;
+        return new AcpClientException(code, message, data);
+    }
+}
