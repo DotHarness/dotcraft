@@ -87,6 +87,7 @@ public sealed class OpenAIResponsesProviderHistoryTests
         Assert.Equal(
             ["message", "reasoning", "function_call", "function_call_output"],
             second.Input.Select(ReadType));
+        Assert.Equal("file contents", second.Input[^1]!["output"]!.GetValue<string>());
         Assert.Equal(
             "encrypted-provider-bytes",
             second.Input[1]!["encrypted_content"]!.GetValue<string>());
@@ -155,8 +156,10 @@ public sealed class OpenAIResponsesProviderHistoryTests
             initial.CaptureSnapshot(),
             rawBaseline,
             resumedRecords);
+        var samplingHistory = ModelRequestHistorySanitizer.Sanitize(
+            [.. rawBaseline, new ChatMessage(ChatRole.User, "continue")]);
         var next = await resumed.PrepareInputAsync(
-            [.. rawBaseline, new ChatMessage(ChatRole.User, "continue")],
+            samplingHistory,
             options: null,
             CancellationToken.None);
 
