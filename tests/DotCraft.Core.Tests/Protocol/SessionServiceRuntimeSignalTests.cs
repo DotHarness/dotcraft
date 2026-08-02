@@ -238,6 +238,112 @@ public sealed class SessionServiceRuntimeSignalTests : IDisposable
     }
 
     [Fact]
+    public async Task SubmitInputAsync_DynamicToolFailurePreservesSourceErrorInLifecycle()
+    {
+        const string sourceErrorCode = "CompilationFailed";
+        const string sourceErrorMessage = "C# compilation failed.";
+        const string modelContent = "C# compilation failed.\nCS1001: Identifier expected.";
+        var structuredContent = JsonSerializer.SerializeToElement(new
+        {
+            diagnostics = new[] { new { id = "CS1001", line = 1, column = 7 } }
+        });
+        var rawResult = JsonSerializer.SerializeToElement(new
+        {
+            success = false,
+            contentItems = new[] { new { type = "text", text = modelContent } },
+            structuredContent,
+            errorCode = sourceErrorCode,
+            errorMessage = sourceErrorMessage
+        });
+        var runtimeResult = new ToolExecutionResult(
+            false,
+            modelContent,
+            structuredContent,
+            rawSourceResult: rawResult,
+            error: new ToolError(ToolErrorCodes.ExecutionFailed, sourceErrorMessage));
+        var chatClient = new CapturingToolFailureChatClient("RuntimeProjection");
+        var recorder = new ToolInvocationRecorderRouter();
+        var dispatcher = new ToolDispatcher(recorder: recorder);
+        await using var agentFactory = CreateAgentFactory(
+            chatClient,
+            [new DynamicProjectionToolSource(runtimeResult)],
+            toolDispatcher: dispatcher);
+        var service = CreateService(agentFactory, chatClient, useStreamingFunctionInvoker: true);
+        recorder.Bind(service);
+        var thread = await service.CreateThreadAsync(MakeIdentity());
+        await service.RefreshThreadAgentAsync(thread.Id);
+
+        var events = await CollectAsync(service.SubmitInputAsync(
+            thread.Id,
+            [new TextContent("compile the script")]));
+
+        var modelResult = Assert.IsType<FunctionResultContent>(chatClient.ToolResult);
+        Assert.Equal(modelContent, modelResult.Result);
+        Assert.Equal(
+            ToolErrorCodes.ExecutionFailed,
+            StreamingFunctionInvokingChatClient.GetToolResultErrorCode(modelResult));
+
+        var completedEvent = Assert.Single(events, evt =>
+            evt.EventType == SessionEventType.ItemCompleted
+            && evt.ItemPayload?.Payload is DynamicToolCallPayload);
+        AssertDynamicSourceFailure(
+            Assert.IsType<DynamicToolCallPayload>(completedEvent.ItemPayload!.Payload),
+            sourceErrorCode,
+            sourceErrorMessage);
+
+        var updated = await service.GetThreadAsync(thread.Id);
+        var updatedPayload = Assert.IsType<DynamicToolCallPayload>(
+            Assert.Single(Assert.Single(updated.Turns).Items, item => item.Type == ItemType.DynamicToolCall).Payload);
+        AssertDynamicSourceFailure(updatedPayload, sourceErrorCode, sourceErrorMessage);
+
+        var reloaded = await new ThreadStore(_tempDir).LoadThreadAsync(thread.Id);
+        var persistedPayload = Assert.IsType<DynamicToolCallPayload>(
+            Assert.Single(Assert.Single(reloaded!.Turns).Items, item => item.Type == ItemType.DynamicToolCall).Payload);
+        AssertDynamicSourceFailure(persistedPayload, sourceErrorCode, sourceErrorMessage);
+    }
+
+    [Fact]
+    public async Task SubmitInputAsync_DynamicToolFailureFallsBackToDispatcherError()
+    {
+        var runtimeResult = new ToolExecutionResult(
+            false,
+            "Dynamic tool call failed.",
+            rawSourceResult: JsonSerializer.SerializeToElement(new
+            {
+                success = false,
+                errorCode = 123,
+                errorMessage = " "
+            }),
+            error: new ToolError(ToolErrorCodes.ExecutionFailed, "Dynamic tool call failed."));
+
+        var payload = await ExecuteDynamicProjectionAsync(runtimeResult);
+
+        Assert.False(payload.Success);
+        Assert.Equal(ToolErrorCodes.ExecutionFailed, payload.ErrorCode);
+        Assert.Equal("Dynamic tool call failed.", payload.ErrorMessage);
+    }
+
+    [Fact]
+    public async Task SubmitInputAsync_SuccessfulDynamicToolDoesNotProjectRawErrorFields()
+    {
+        var runtimeResult = ToolExecutionResult.Succeeded(
+            "RuntimeProjection completed.",
+            rawSourceResult: JsonSerializer.SerializeToElement(new
+            {
+                success = true,
+                contentItems = new[] { new { type = "text", text = "RuntimeProjection completed." } },
+                errorCode = "ShouldNotLeak",
+                errorMessage = "Should not leak."
+            }));
+
+        var payload = await ExecuteDynamicProjectionAsync(runtimeResult);
+
+        Assert.True(payload.Success);
+        Assert.Null(payload.ErrorCode);
+        Assert.Null(payload.ErrorMessage);
+    }
+
+    [Fact]
     public async Task SubmitInputAsync_NodeReplImageReachesModelAndToolResult()
     {
         var imageBytes = Convert.FromBase64String(
@@ -2719,6 +2825,82 @@ public sealed class SessionServiceRuntimeSignalTests : IDisposable
         public void Dispose()
         {
         }
+    }
+
+    private static void AssertDynamicSourceFailure(
+        DynamicToolCallPayload payload,
+        string expectedCode,
+        string expectedMessage)
+    {
+        Assert.False(payload.Success);
+        Assert.Equal("failed", payload.Status);
+        Assert.Equal(expectedCode, payload.ErrorCode);
+        Assert.Equal(expectedMessage, payload.ErrorMessage);
+        Assert.Equal("CS1001", payload.StructuredContent?["diagnostics"]?[0]?["id"]?.GetValue<string>());
+    }
+
+    private async Task<DynamicToolCallPayload> ExecuteDynamicProjectionAsync(ToolExecutionResult runtimeResult)
+    {
+        var chatClient = new CapturingToolFailureChatClient("RuntimeProjection");
+        var recorder = new ToolInvocationRecorderRouter();
+        var dispatcher = new ToolDispatcher(recorder: recorder);
+        await using var agentFactory = CreateAgentFactory(
+            chatClient,
+            [new DynamicProjectionToolSource(runtimeResult)],
+            toolDispatcher: dispatcher);
+        var service = CreateService(agentFactory, chatClient, useStreamingFunctionInvoker: true);
+        recorder.Bind(service);
+        var thread = await service.CreateThreadAsync(MakeIdentity());
+        await service.RefreshThreadAgentAsync(thread.Id);
+
+        await DrainAsync(service.SubmitInputAsync(thread.Id, [new TextContent("run the dynamic tool")]));
+
+        var updated = await service.GetThreadAsync(thread.Id);
+        return Assert.IsType<DynamicToolCallPayload>(
+            Assert.Single(Assert.Single(updated.Turns).Items, item => item.Type == ItemType.DynamicToolCall).Payload);
+    }
+
+    private sealed class DynamicProjectionToolSource(ToolExecutionResult result) : IToolSource
+    {
+        public string SourceId => "runtime-dynamic-test";
+
+        public ValueTask<IReadOnlyList<ToolRegistration>> GetRegistrationsAsync(
+            ToolPlanningContext context,
+            CancellationToken cancellationToken = default)
+        {
+            var sourceToolId = new SourceToolId("RuntimeProjection");
+            var definitionId = new ToolDefinitionId(ToolSourceKind.RuntimeDynamic, SourceId, sourceToolId);
+            var definition = new ToolDefinition(
+                definitionId,
+                new ToolName(null, "RuntimeProjection"),
+                "Return a Runtime Dynamic projection test result.",
+                JsonSerializer.SerializeToElement(new { type = "object" }),
+                provenance: new ToolProvenance(ToolSourceKind.RuntimeDynamic, SourceId, "thread"));
+            var binding = new ToolRuntimeBinding(
+                new RuntimeBindingId("runtime-dynamic-test:1"),
+                definitionId,
+                new DynamicProjectionRuntime(result),
+                ToolBindingLeases.AlwaysAvailable,
+                "test:runtime-dynamic",
+                context.Revision);
+            return ValueTask.FromResult<IReadOnlyList<ToolRegistration>>([
+                new ToolRegistration(
+                    definition,
+                    binding,
+                    ToolProjectionShape.DynamicLifecycle,
+                    ToolExposure.Direct,
+                    ToolInvocationAudience.Model)
+            ]);
+        }
+    }
+
+    private sealed class DynamicProjectionRuntime(ToolExecutionResult result) : IToolRuntime
+    {
+        public ValueTask<ToolExecutionResult> InvokeAsync(
+            ToolInvocationContext context,
+            JsonObject arguments,
+            CancellationToken cancellationToken = default) =>
+            ValueTask.FromResult(result);
     }
 
     private sealed class NormalizedFailureToolSource(string errorCode, string content) : IToolSource

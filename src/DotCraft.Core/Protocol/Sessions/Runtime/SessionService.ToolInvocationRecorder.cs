@@ -414,16 +414,25 @@ public sealed partial class SessionService
     private static DynamicToolCallPayload CompleteDynamicPayload(
         DynamicToolCallPayload started,
         ToolExecutionResult result,
-        long durationMs) => started with
+        long durationMs)
     {
-        Status = result.Success ? "completed" : "failed",
-        DurationMs = durationMs,
-        ContentItems = ExtractDynamicContentItems(result.RawSourceResult) ?? ToModelContentItems(result.Content),
-        StructuredContent = ToJsonNode(result.StructuredContent),
-        Success = result.Success,
-        ErrorCode = result.Error?.Code,
-        ErrorMessage = result.Error?.Message
-    };
+        var sourceErrorCode = result.Success
+            ? null
+            : ExtractDynamicResultString(result.RawSourceResult, "errorCode");
+        var sourceErrorMessage = result.Success
+            ? null
+            : ExtractDynamicResultString(result.RawSourceResult, "errorMessage");
+        return started with
+        {
+            Status = result.Success ? "completed" : "failed",
+            DurationMs = durationMs,
+            ContentItems = ExtractDynamicContentItems(result.RawSourceResult) ?? ToModelContentItems(result.Content),
+            StructuredContent = ToJsonNode(result.StructuredContent),
+            Success = result.Success,
+            ErrorCode = result.Success ? null : sourceErrorCode ?? result.Error?.Code,
+            ErrorMessage = result.Success ? null : sourceErrorMessage ?? result.Error?.Message
+        };
+    }
 
     private static IReadOnlyList<PluginFunctionContentItem>? ToModelContentItems(string? content) =>
         string.IsNullOrEmpty(content)
@@ -497,5 +506,18 @@ public sealed partial class SessionService
         }
 
         return mapped.Count == 0 ? null : mapped;
+    }
+
+    private static string? ExtractDynamicResultString(JsonElement? raw, string propertyName)
+    {
+        if (raw is not { ValueKind: JsonValueKind.Object }
+            || !raw.Value.TryGetProperty(propertyName, out var value)
+            || value.ValueKind != JsonValueKind.String)
+        {
+            return null;
+        }
+
+        var text = value.GetString();
+        return string.IsNullOrWhiteSpace(text) ? null : text;
     }
 }

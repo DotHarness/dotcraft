@@ -285,7 +285,7 @@ ACP client 可以通过 DotCraft 的私有 ACP extension 暴露 client-owned Run
 }
 ```
 
-`runtimeTools.version` 固定为 `1`。自定义方法必须以 `_` 开头；文件系统和终端 callback 继续使用对应的 ACP 标准 capability。每个 callback 返回 DotCraft Runtime Dynamic result envelope，其中包含 `success`、`contentItems`、`structuredContent`、`errorCode` 和 `errorMessage`。该 envelope 是标准 ACP JSON-RPC response 承载的私有 extension，不是 ACP Tool Call，也不是 MCP tool result。
+`runtimeTools.version` 固定为 `1`。自定义方法必须以 `_` 开头；文件系统和终端 callback 继续使用对应的 ACP 标准 capability。每个 callback 返回 DotCraft Runtime Dynamic result envelope，其中包含 `success`、`contentItems`、`structuredContent`、`errorCode` 和 `errorMessage`。该 envelope 是标准 ACP JSON-RPC response 承载的私有 extension，不是 ACP Tool Call，也不是 MCP tool result。失败的 `dynamicToolCall` 会保留 callback 返回的非空 `errorCode` 和 `errorMessage`；只有 callback 未提供可用字段时，才回退到服务端稳定的 dispatcher 错误。
 
 ## 回合
 

@@ -285,7 +285,7 @@ An ACP client can expose client-owned Runtime Dynamic Tools through DotCraft's p
 }
 ```
 
-`runtimeTools.version` is `1`. Custom methods start with `_`; filesystem and terminal callbacks use their standard ACP capabilities. Each callback returns DotCraft's Runtime Dynamic result envelope with `success`, `contentItems`, `structuredContent`, `errorCode`, and `errorMessage`. This envelope is a private extension carried by a standard ACP JSON-RPC response, not an ACP Tool Call or MCP tool result.
+`runtimeTools.version` is `1`. Custom methods start with `_`; filesystem and terminal callbacks use their standard ACP capabilities. Each callback returns DotCraft's Runtime Dynamic result envelope with `success`, `contentItems`, `structuredContent`, `errorCode`, and `errorMessage`. This envelope is a private extension carried by a standard ACP JSON-RPC response, not an ACP Tool Call or MCP tool result. A failed `dynamicToolCall` preserves the callback's non-empty `errorCode` and `errorMessage`, falling back to the server's stable dispatcher error only when the callback omits a usable field.
 
 ## Turns
 
