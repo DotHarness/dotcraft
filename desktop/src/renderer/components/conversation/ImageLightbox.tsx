@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState, type CSSProperties, type ReactNode } 
 import { createPortal } from 'react-dom'
 import { X, ZoomIn, ZoomOut } from 'lucide-react'
 import { useT } from '../../contexts/LocaleContext'
+import { LayerBoundary } from '../../contexts/LayerContext'
 import { IconButton } from '../ui/IconButton'
 
 interface ImageLightboxProps {
@@ -57,7 +58,7 @@ export function ImageLightbox({ src, alt = '', onClose }: ImageLightboxProps): J
     }
   }, [onKeyDown])
 
-  return createPortal(
+  const lightbox = (
     <div
       role="dialog"
       aria-modal="true"
@@ -117,7 +118,11 @@ export function ImageLightbox({ src, alt = '', onClose }: ImageLightboxProps): J
           <ZoomIn size={18} strokeWidth={2} aria-hidden />
         </ZoomControlButton>
       </div>
-    </div>,
+    </div>
+  )
+
+  return createPortal(
+    <LayerBoundary blocksNativeViews>{lightbox}</LayerBoundary>,
     document.body
   )
 }

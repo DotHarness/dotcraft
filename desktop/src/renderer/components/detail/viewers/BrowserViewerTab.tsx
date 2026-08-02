@@ -1,4 +1,4 @@
-import { type FormEvent, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { type FormEvent, type ReactNode, useCallback, useEffect, useRef, useState } from 'react'
 import {
   ArrowLeft,
   ArrowRight,
@@ -11,6 +11,7 @@ import { useT } from '../../../contexts/LocaleContext'
 import { useViewerTabStore } from '../../../stores/viewerTabStore'
 import { useConversationStore } from '../../../stores/conversationStore'
 import { useUIStore } from '../../../stores/uiStore'
+import { useTransientOverlayStore } from '../../../stores/transientOverlayStore'
 import { IconButton } from '../../ui/IconButton'
 import { Input } from '../../ui/Input'
 
@@ -38,21 +39,17 @@ export function BrowserViewerTab({ tabId }: BrowserViewerTabProps): JSX.Element 
   const canGoBack = useViewerTabStore((s) => findBrowserTab(s, currentThreadId, tabId)?.canGoBack ?? false)
   const canGoForward = useViewerTabStore((s) => findBrowserTab(s, currentThreadId, tabId)?.canGoForward ?? false)
   const currentUrl = useViewerTabStore((s) => findBrowserTab(s, currentThreadId, tabId)?.currentUrl ?? '')
-  const tabTitle = useViewerTabStore((s) => findBrowserTab(s, currentThreadId, tabId)?.title ?? '')
-  const faviconDataUrl = useViewerTabStore((s) => findBrowserTab(s, currentThreadId, tabId)?.faviconDataUrl)
   const crashed = useViewerTabStore((s) => Boolean(findBrowserTab(s, currentThreadId, tabId)?.crashed))
   const blockedMessage = useViewerTabStore((s) => findBrowserTab(s, currentThreadId, tabId)?.blockedMessage ?? '')
   const downloadMessage = useViewerTabStore((s) => findBrowserTab(s, currentThreadId, tabId)?.downloadMessage ?? '')
   const errorMessage = useViewerTabStore((s) => findBrowserTab(s, currentThreadId, tabId)?.errorMessage ?? '')
-  const automationActive = useViewerTabStore((s) => Boolean(findBrowserTab(s, currentThreadId, tabId)?.automationActive))
-  const automationSessionName = useViewerTabStore((s) => findBrowserTab(s, currentThreadId, tabId)?.automationSessionName ?? '')
-  const lastAutomationAction = useViewerTabStore((s) => findBrowserTab(s, currentThreadId, tabId)?.lastAutomationAction ?? '')
   const workspacePath = useConversationStore((s) => s.workspacePath)
   const updateBrowserTab = useViewerTabStore((s) => s.updateBrowserTab)
   const activeMainView = useUIStore((s) => s.activeMainView)
   const activeDetailTab = useUIStore((s) => s.activeDetailTab)
   const detailPanelVisible = useUIStore((s) => s.detailPanelVisible)
   const quickOpenVisible = useUIStore((s) => s.quickOpenVisible)
+  const nativeViewBlocked = useTransientOverlayStore((s) => s.nativeViewBlockerCount > 0)
 
   const [urlInput, setUrlInput] = useState('')
   const [editingAddress, setEditingAddress] = useState(false)
@@ -66,6 +63,7 @@ export function BrowserViewerTab({ tabId }: BrowserViewerTabProps): JSX.Element 
     activeMainView === 'conversation' &&
     detailPanelVisible &&
     !quickOpenVisible &&
+    !nativeViewBlocked &&
     activeDetailTab.kind === 'viewer' &&
     activeDetailTab.id === tabId
   const nativeViewVisible = isActiveBrowserSurface && !isBlank
@@ -165,16 +163,6 @@ export function BrowserViewerTab({ tabId }: BrowserViewerTabProps): JSX.Element 
   }, [existsTab, nativeViewVisible, scheduleBounds])
 
   const toolbarDisabled = !existsTab
-  const title = useMemo(() => {
-    if (!existsTab) return t('viewer.newBrowserTab')
-    if (tabTitle.trim()) return tabTitle
-    try {
-      return new URL(currentUrl).host || t('viewer.newBrowserTab')
-    } catch {
-      return t('viewer.newBrowserTab')
-    }
-  }, [currentUrl, existsTab, tabTitle, t])
-
   if (!existsTab) {
     return (
       <div style={{
@@ -302,39 +290,6 @@ export function BrowserViewerTab({ tabId }: BrowserViewerTabProps): JSX.Element 
             </span>
           )}
           {!crashed && (blockedMessage || downloadMessage || errorMessage)}
-        </div>
-      )}
-
-      {!isBlank && (
-        <div style={{
-          padding: '4px 10px',
-          borderBottom: '1px solid var(--border-default)',
-          fontSize: '12px',
-          color: 'var(--text-secondary)',
-          display: 'flex',
-          alignItems: 'center',
-          gap: '6px',
-          flexShrink: 0
-        }}>
-          {faviconDataUrl
-            ? <img src={faviconDataUrl} alt="" width={14} height={14} style={{ borderRadius: '2px' }} />
-            : <Globe size={14} aria-hidden style={{ display: 'block' }} />}
-          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-            {automationSessionName.trim() || title}
-          </span>
-          {automationActive && lastAutomationAction && (
-            <span style={{
-              flexShrink: 0,
-              maxWidth: '120px',
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-              whiteSpace: 'nowrap',
-              color: 'var(--accent)',
-              fontSize: '11px'
-            }}>
-              {lastAutomationAction}
-            </span>
-          )}
         </div>
       )}
 

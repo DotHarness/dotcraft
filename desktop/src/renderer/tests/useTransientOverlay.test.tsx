@@ -13,7 +13,7 @@ function wrapperAt(depth: number) {
 
 afterEach(() => {
   act(() => {
-    useTransientOverlayStore.setState({ openDepths: [], topDepth: 0 })
+    useTransientOverlayStore.setState({ openDepths: [], topDepth: 0, nativeViewBlockerCount: 0 })
   })
 })
 

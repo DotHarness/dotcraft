@@ -182,6 +182,21 @@ describe('ChangesTab diff stream', () => {
     })
   })
 
+  it('keeps revert and re-apply actions visually neutral', async () => {
+    cs().upsertChangedFile(makeDiff({ filePath: 'src/a.ts' }))
+
+    const { rerender } = render(<Harness />)
+
+    expect(screen.getByRole('button', { name: 'Revert this file' })).toHaveAttribute('data-tone', 'neutral')
+
+    act(() => {
+      cs().upsertChangedFile(makeDiff({ filePath: 'src/a.ts', status: 'reverted' }))
+    })
+    rerender(<Harness />)
+
+    expect(screen.getByRole('button', { name: 'Re-apply this file' })).toHaveAttribute('data-tone', 'neutral')
+  })
+
 })
 
 describe('DiffViewer split mode', () => {

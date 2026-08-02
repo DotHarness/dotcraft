@@ -14,6 +14,7 @@ import {
 import { useUIStore } from './stores/uiStore'
 import { welcomeApprovalPolicyToWrite } from './stores/welcomeApprovalPolicy'
 import { useViewerTabStore } from './stores/viewerTabStore'
+import { useTransientOverlayStore } from './stores/transientOverlayStore'
 import { useWindowMaximized } from './hooks/useWindowMaximized'
 import { QuickOpenDialog } from './components/detail/QuickOpenDialog'
 import { ThreePanel } from './components/layout/ThreePanel'
@@ -704,6 +705,7 @@ export function App(): JSX.Element {
   const activeDetailTab = useUIStore((s) => s.activeDetailTab)
   const detailPanelVisible = useUIStore((s) => s.detailPanelVisible)
   const quickOpenVisible = useUIStore((s) => s.quickOpenVisible)
+  const nativeViewBlocked = useTransientOverlayStore((s) => s.nativeViewBlockerCount > 0)
   const activeThreadEffectiveWorkspacePath = useThreadStore((s) => s.activeThread?.effectiveWorkspacePath ?? null)
   const plugins = usePluginStore((s) => s.plugins)
   const activeDesktopExtensionView = useMemo(
@@ -2892,6 +2894,7 @@ export function App(): JSX.Element {
     }
     const shouldHideBrowser =
       quickOpenVisible
+      || nativeViewBlocked
       || activeMainView !== 'conversation'
       || !detailPanelVisible
       || activeDetailTab.kind !== 'viewer'
@@ -2923,7 +2926,7 @@ export function App(): JSX.Element {
     } else if (!activeBrowserTabId) {
       activeBrowserTabSentRef.current = null
     }
-  }, [activeDetailTab, activeMainView, detailPanelVisible, quickOpenVisible])
+  }, [activeDetailTab, activeMainView, detailPanelVisible, nativeViewBlocked, quickOpenVisible])
 
   useEffect(() => {
     const prev = prevThreadIdRef.current

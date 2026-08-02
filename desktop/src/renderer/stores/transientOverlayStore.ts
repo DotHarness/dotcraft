@@ -17,10 +17,16 @@ interface TransientOverlayState {
   openDepths: number[]
   /** Highest open layer depth, or 0 when nothing is open. */
   topDepth: number
+  /** Number of fullscreen layers that must cover Electron native views. */
+  nativeViewBlockerCount: number
   /** Register an open layer at `depth`. */
   pushLayer(depth: number): void
   /** Remove one previously registered layer at `depth`. */
   popLayer(depth: number): void
+  /** Register a fullscreen layer that must temporarily hide native views. */
+  pushNativeViewBlocker(): void
+  /** Remove one previously registered native-view blocker. */
+  popNativeViewBlocker(): void
 }
 
 function maxDepth(depths: number[]): number {
@@ -30,6 +36,7 @@ function maxDepth(depths: number[]): number {
 export const useTransientOverlayStore = create<TransientOverlayState>((set) => ({
   openDepths: [],
   topDepth: 0,
+  nativeViewBlockerCount: 0,
   pushLayer(depth) {
     set((state) => {
       const openDepths = [...state.openDepths, depth]
@@ -44,5 +51,11 @@ export const useTransientOverlayStore = create<TransientOverlayState>((set) => (
       openDepths.splice(index, 1)
       return { openDepths, topDepth: maxDepth(openDepths) }
     })
+  },
+  pushNativeViewBlocker() {
+    set((state) => ({ nativeViewBlockerCount: state.nativeViewBlockerCount + 1 }))
+  },
+  popNativeViewBlocker() {
+    set((state) => ({ nativeViewBlockerCount: Math.max(0, state.nativeViewBlockerCount - 1) }))
   }
 }))

@@ -278,6 +278,11 @@ Use depth instead of color variety.
   ordinary overlay carries.
 - Larger dialogs, inspectors, viewers, and non-menu popovers may use subtle
   neutral boundaries when contrast requires it.
+- A fullscreen renderer overlay that crosses an Electron native view, such as an
+  image lightbox above the embedded browser, must register as a native-view
+  blocker for its complete mounted lifetime. Hide the native view while blocked
+  and restore only the active view after the last blocker closes; ordinary menus
+  and local popovers do not use this behavior.
 - The three workspace resize dividers — sidebar/main, conversation/detail, and
   viewer/explorer — share the same hover and drag highlight: a `1.5px` neutral
   vertical gradient (`--main-surface-edge-glow`) that is brightest at center and

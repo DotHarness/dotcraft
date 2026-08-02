@@ -368,7 +368,7 @@ function FileDiffSection({
           tooltipPlacement="bottom"
           size={24}
           radius={5}
-          tone={isReverted ? 'neutral' : 'danger'}
+          tone="neutral"
           onClick={(event) => {
             event.stopPropagation()
             if (isReverted) onReapply()

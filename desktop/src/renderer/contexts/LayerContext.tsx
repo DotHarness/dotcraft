@@ -18,7 +18,7 @@ export const LayerContext = createContext(0)
  * Pass `active={false}` for a component that stays mounted but is only sometimes
  * a layer; conditionally-rendered dialogs can leave it defaulted to `true`.
  */
-export function useLayerPresence(active = true): number {
+export function useLayerPresence(active = true, blocksNativeViews = false): number {
   const parentDepth = useContext(LayerContext)
   const depth = parentDepth + 1
 
@@ -28,6 +28,13 @@ export function useLayerPresence(active = true): number {
     pushLayer(depth)
     return () => popLayer(depth)
   }, [active, depth])
+
+  useEffect(() => {
+    if (!active || !blocksNativeViews) return
+    const { pushNativeViewBlocker, popNativeViewBlocker } = useTransientOverlayStore.getState()
+    pushNativeViewBlocker()
+    return () => popNativeViewBlocker()
+  }, [active, blocksNativeViews])
 
   return depth
 }
@@ -40,11 +47,14 @@ export function useLayerPresence(active = true): number {
  */
 export function LayerBoundary({
   active = true,
+  blocksNativeViews = false,
   children
 }: {
   active?: boolean
+  /** Hide Electron native views while this fullscreen layer is mounted. */
+  blocksNativeViews?: boolean
   children: ReactNode
 }): JSX.Element {
-  const depth = useLayerPresence(active)
+  const depth = useLayerPresence(active, blocksNativeViews)
   return <LayerContext.Provider value={depth}>{children}</LayerContext.Provider>
 }

@@ -1,10 +1,11 @@
 // @vitest-environment jsdom
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { render, waitFor } from '@testing-library/react'
+import { act, render, screen, waitFor } from '@testing-library/react'
 import { LocaleProvider } from '../contexts/LocaleContext'
 import { useConversationStore } from '../stores/conversationStore'
 import { useViewerTabStore } from '../stores/viewerTabStore'
 import { useUIStore } from '../stores/uiStore'
+import { useTransientOverlayStore } from '../stores/transientOverlayStore'
 import { BrowserViewerTab } from '../components/detail/viewers/BrowserViewerTab'
 
 const THREAD_ID = 'thread-a'
@@ -76,6 +77,11 @@ beforeEach(() => {
     activeDetailTab: { kind: 'launcher' },
     detailPanelVisible: true,
     quickOpenVisible: false
+  })
+  useTransientOverlayStore.setState({
+    openDepths: [],
+    topDepth: 0,
+    nativeViewBlockerCount: 0
   })
   useViewerTabStore.getState().openBrowser({
     threadId: THREAD_ID,
@@ -173,5 +179,58 @@ describe('BrowserViewerTab', () => {
     expect(rectSpy).not.toHaveBeenCalled()
 
     rectSpy.mockRestore()
+  })
+
+  it('omits the redundant page and automation status row', () => {
+    useViewerTabStore.getState().updateBrowserTab(THREAD_ID, TAB_ID, {
+      title: 'Composer subscription placement review',
+      automationActive: true,
+      automationSessionName: 'Design review',
+      lastAutomationAction: 'screenshot'
+    })
+
+    render(
+      <LocaleProvider>
+        <BrowserViewerTab tabId={TAB_ID} />
+      </LocaleProvider>
+    )
+
+    expect(screen.queryByText('Composer subscription placement review')).not.toBeInTheDocument()
+    expect(screen.queryByText('Design review')).not.toBeInTheDocument()
+    expect(screen.queryByText('screenshot')).not.toBeInTheDocument()
+  })
+
+  it('keeps the native view hidden until every fullscreen renderer blocker closes', async () => {
+    useUIStore.setState({
+      activeDetailTab: { kind: 'viewer', id: TAB_ID }
+    })
+    act(() => {
+      useTransientOverlayStore.getState().pushNativeViewBlocker()
+      useTransientOverlayStore.getState().pushNativeViewBlocker()
+    })
+
+    render(
+      <LocaleProvider>
+        <BrowserViewerTab tabId={TAB_ID} />
+      </LocaleProvider>
+    )
+
+    await waitFor(() => {
+      expect(browserApi.setVisible).toHaveBeenCalledWith({ tabId: TAB_ID, visible: false })
+    })
+    browserApi.setVisible.mockClear()
+
+    act(() => {
+      useTransientOverlayStore.getState().popNativeViewBlocker()
+    })
+    expect(browserApi.setVisible).not.toHaveBeenCalledWith({ tabId: TAB_ID, visible: true })
+
+    act(() => {
+      useTransientOverlayStore.getState().popNativeViewBlocker()
+    })
+
+    await waitFor(() => {
+      expect(browserApi.setVisible).toHaveBeenCalledWith({ tabId: TAB_ID, visible: true })
+    })
   })
 })

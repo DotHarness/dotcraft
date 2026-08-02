@@ -6,6 +6,7 @@ import { useConversationStore } from '../stores/conversationStore'
 import { useThreadStore } from '../stores/threadStore'
 import { useUIStore } from '../stores/uiStore'
 import { useViewerTabStore } from '../stores/viewerTabStore'
+import { useTransientOverlayStore } from '../stores/transientOverlayStore'
 
 const settingsGet = vi.fn()
 const authorizeFile = vi.fn()
@@ -37,6 +38,11 @@ describe('AttachmentStrip', () => {
       activeDetailTab: { kind: 'system', id: 'changes' },
       detailPanelPreferredVisible: false,
       detailPanelVisible: false
+    })
+    useTransientOverlayStore.setState({
+      openDepths: [],
+      topDepth: 0,
+      nativeViewBlockerCount: 0
     })
     Object.defineProperty(window, 'api', {
       configurable: true,
@@ -78,6 +84,10 @@ describe('AttachmentStrip', () => {
     expect(container).not.toContainElement(lightbox)
     expect(authorizeFile).not.toHaveBeenCalled()
     expect(useViewerTabStore.getState().getThreadState('thread-1').tabs).toEqual([])
+    expect(useTransientOverlayStore.getState().nativeViewBlockerCount).toBe(1)
+
+    fireEvent.click(lightbox)
+    expect(useTransientOverlayStore.getState().nativeViewBlockerCount).toBe(0)
   })
 
   it('opens pending file attachments in the internal viewer', async () => {
