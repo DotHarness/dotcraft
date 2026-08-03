@@ -42,7 +42,7 @@ export function SettingsSidebar(): JSX.Element {
             type="button"
             onClick={requestCloseSettings}
             aria-label={t('common.backToApp')}
-            style={collapsedButtonStyle}
+            style={collapsedBackButtonStyle}
           >
             <ArrowLeft size={16} strokeWidth={2} aria-hidden="true" />
           </button>
@@ -176,7 +176,8 @@ const groupLabelStyle: CSSProperties = {
 
 const backRowStyle: CSSProperties = {
   ...SIDEBAR_NAV_ROW_OUTER,
-  ...SIDEBAR_NAV_BORDER_INACTIVE
+  ...SIDEBAR_NAV_BORDER_INACTIVE,
+  color: 'var(--text-secondary)'
 }
 
 // Match the main sidebar nav rows: active state changes background + text
@@ -195,6 +196,11 @@ const collapsedButtonStyle: CSSProperties = {
   border: 'none',
   borderRadius: 'var(--sidebar-icon-control-radius)',
   padding: 0
+}
+
+const collapsedBackButtonStyle: CSSProperties = {
+  ...collapsedButtonStyle,
+  color: 'var(--text-secondary)'
 }
 
 const iconSlotStyle: CSSProperties = SIDEBAR_NAV_ICON_SLOT

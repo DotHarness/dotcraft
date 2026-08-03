@@ -405,6 +405,10 @@ function SubAgentDockRow({
     useUIStore.getState().setActiveMainView('conversation')
   }
 
+  const openSubagentDetails = (): void => {
+    useUIStore.getState().setActiveDetailTab('subagents')
+  }
+
   const stop = async (): Promise<void> => {
     if (!child.agentPath) return
     try {
@@ -433,12 +437,18 @@ function SubAgentDockRow({
             }}
           />
         </span>
-        <span style={nameGroupStyle}>
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={openSubagentDetails}
+          aria-label={t('subagentsPanel.openAria', { name: child.nickname })}
+          style={nameButtonStyle}
+        >
           <ActionTooltip label={child.nickname} wrapperStyle={{ display: 'block', minWidth: 0, overflow: 'hidden', flexShrink: 1 }}>
             <span style={{ ...nicknameStyle, color, display: 'block' }}>{child.nickname}</span>
           </ActionTooltip>
           {roleMeta && <span style={metaStyle}>({roleMeta})</span>}
-        </span>
+        </Button>
         <ActionTooltip label={statusLabel} wrapperStyle={{ display: 'block', minWidth: 0, overflow: 'hidden' }}>
           <span
             className={running ? 'tool-running-gradient-text' : undefined}
@@ -706,13 +716,16 @@ const nicknameStyle: CSSProperties = {
   fontWeight: 600
 }
 
-const nameGroupStyle: CSSProperties = {
+const nameButtonStyle: CSSProperties = {
   minWidth: 0,
-  display: 'inline-flex',
-  alignItems: 'center',
+  height: '24px',
+  minHeight: '24px',
+  justifyContent: 'flex-start',
+  padding: '0 2px',
   gap: '5px',
   overflow: 'hidden',
-  whiteSpace: 'nowrap'
+  whiteSpace: 'nowrap',
+  borderRadius: '4px'
 }
 
 const metaStyle: CSSProperties = {

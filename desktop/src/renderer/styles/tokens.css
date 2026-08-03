@@ -3904,7 +3904,7 @@ html[data-theme="light"] [data-mascot-speed='fast'] .composer-mascot-fast-echo {
 /* ─── Sidebar navigation rows ─── */
 .dotcraft-sidebar-nav-button {
   background: transparent;
-  color: var(--text-secondary);
+  color: var(--text-primary);
   cursor: pointer;
   transition: background-color 120ms ease, color 120ms ease;
 }

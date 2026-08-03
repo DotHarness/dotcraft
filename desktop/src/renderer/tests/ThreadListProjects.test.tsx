@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { LocaleProvider } from '../contexts/LocaleContext'
 import { ThreadList } from '../components/sidebar/ThreadList'
+import { ConfirmDialogHost } from '../components/ui/ConfirmDialog'
 import { useThreadStore } from '../stores/threadStore'
 import { useUIStore } from '../stores/uiStore'
 import { useWorkspaceProjectsStore } from '../stores/workspaceProjectsStore'
@@ -44,6 +45,7 @@ function renderList(props: {
   render(
     <LocaleProvider>
       <ThreadList {...props} />
+      <ConfirmDialogHost />
     </LocaleProvider>
   )
 }
@@ -1338,6 +1340,60 @@ describe('ThreadList project-first layout', () => {
     })
   })
 
+  it('confirms a neutral Remove action before removing a project', async () => {
+    useWorkspaceProjectsStore.getState().setPayload({
+      foregroundWorkspacePath: '/workspace/a',
+      foregroundProjectId: '/workspace/a',
+      secondaryLimit: 8,
+      projects: [
+        {
+          path: '/workspace/a',
+          name: 'a',
+          state: 'foreground',
+          running: true,
+          loaded: true,
+          threadCount: 0,
+          threads: [],
+          pinnedThreadIds: []
+        },
+        {
+          path: '/workspace/b',
+          name: 'b',
+          state: 'secondary',
+          running: true,
+          loaded: true,
+          threadCount: 0,
+          threads: [],
+          pinnedThreadIds: []
+        }
+      ]
+    })
+
+    renderList({ workspacePath: '/workspace/a' })
+    const projectRow = screen.getByRole('button', { name: 'b' })
+    fireEvent.mouseEnter(projectRow)
+    fireEvent.click(screen.getByRole('button', { name: 'Project actions' }))
+
+    expect(screen.getByRole('menuitem', { name: 'Restart' })).toBeInTheDocument()
+    expect(screen.getByRole('menuitem', { name: 'Stop' })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Remove' }))
+
+    expect(screen.getByRole('dialog', { name: 'Remove b?' })).toBeInTheDocument()
+    expect(screen.getByText("This removes the project from the app. Files on your computer and existing chats won't be deleted.")).toBeInTheDocument()
+    expect(workspaceRemoveRecent).not.toHaveBeenCalled()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
+    expect(workspaceRemoveRecent).not.toHaveBeenCalled()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Project actions' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Remove' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Remove project' }))
+
+    await waitFor(() => {
+      expect(workspaceRemoveRecent).toHaveBeenCalledWith('/workspace/b')
+    })
+  })
+
   it('keeps the Projects header available when Recents is foreground with no projects', async () => {
     useWorkspaceProjectsStore.getState().setPayload({
       foregroundWorkspacePath: '/chats',
@@ -1915,7 +1971,7 @@ describe('ThreadList project-first layout', () => {
     // Open the foreground project's action menu and stop it.
     fireEvent.mouseEnter(screen.getByRole('button', { name: 'a' }))
     fireEvent.click(screen.getByRole('button', { name: 'Project actions' }))
-    fireEvent.click(await screen.findByText('Stop Workspace'))
+    fireEvent.click(await screen.findByText('Stop'))
 
     await waitFor(() => {
       expect(workspaceStop).toHaveBeenCalledWith('/workspace/a')

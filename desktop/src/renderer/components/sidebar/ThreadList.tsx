@@ -37,6 +37,7 @@ import { Skeleton } from '../ui/Skeleton'
 import { RunningSpinner } from '../ui/RunningSpinner'
 import { ActionTooltip } from '../ui/ActionTooltip'
 import { IconButton } from '../ui/IconButton'
+import { useConfirmDialog } from '../ui/ConfirmDialog'
 import { useLocale } from '../../contexts/LocaleContext'
 import { formatRelativeTime } from '../../utils/relativeTime'
 import type { WorkspaceProjectSummary, WorkspaceProjectState } from '../../../shared/workspaceProjects'
@@ -1060,6 +1061,7 @@ function ProjectHeader({
   onToggle: () => void
 }): JSX.Element {
   const t = useT()
+  const confirm = useConfirmDialog()
   const [hovered, setHovered] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
   const rowRef = useRef<HTMLDivElement>(null)
@@ -1220,6 +1222,14 @@ function ProjectHeader({
   async function removeProject(): Promise<void> {
     if (active) return
     if (isRemoteProject(project)) return
+    const confirmed = await confirm({
+      title: t('projectsRail.removeProjectTitle', { project: label }),
+      message: t('projectsRail.removeProjectMessage'),
+      confirmLabel: t('projectsRail.removeProjectConfirm'),
+      cancelLabel: t('common.cancel'),
+      danger: true
+    })
+    if (!confirmed) return
     await window.api.workspace.removeRecent(project.path)
   }
 
@@ -1410,10 +1420,10 @@ function ProjectHeader({
             <ProjectMenuItem icon={<Settings size={14} aria-hidden />} label={t('projectsRail.editProject')} onClick={() => { setMenuOpen(false); addProject.beginEdit(project, active) }} />
           )}
           {!isRemoteProject(project) && project.running && (
-            <ProjectMenuItem icon={<RotateCw size={14} aria-hidden />} label={t('tray.restartAppServer')} onClick={() => { setMenuOpen(false); void restartWorkspace() }} />
+            <ProjectMenuItem icon={<RotateCw size={14} aria-hidden />} label={t('projectsRail.restartWorkspace')} onClick={() => { setMenuOpen(false); void restartWorkspace() }} />
           )}
           {!isRemoteProject(project) && project.running && (
-            <ProjectMenuItem icon={<Square size={14} aria-hidden />} label={t('tray.stopAppServer')} onClick={() => { setMenuOpen(false); void stopWorkspace() }} />
+            <ProjectMenuItem icon={<Square size={14} aria-hidden />} label={t('projectsRail.stopWorkspace')} onClick={() => { setMenuOpen(false); void stopWorkspace() }} />
           )}
           {isRemoteProject(project) ? (
             <ProjectMenuItem
@@ -1427,7 +1437,6 @@ function ProjectHeader({
               icon={<Trash2 size={14} aria-hidden />}
               label={t('projectsRail.removeProject')}
               disabled={active}
-              danger
               onClick={() => { setMenuOpen(false); void removeProject() }}
             />
           )}

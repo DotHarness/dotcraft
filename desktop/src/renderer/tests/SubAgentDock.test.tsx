@@ -72,7 +72,15 @@ describe('SubAgentDock', () => {
 
     useSubAgentStore.getState().reset()
     useThreadStore.getState().reset()
-    useUIStore.setState({ activeMainView: 'settings' })
+    useUIStore.setState({
+      activeMainView: 'settings',
+      responsiveLayout: 'full',
+      activeDetailTab: { kind: 'launcher' },
+      openSystemTabs: [],
+      detailPanelPreferredVisible: false,
+      detailPanelPreferredVisibleByThread: {},
+      detailPanelVisible: false
+    })
     useSubAgentStore.getState().setChildren('parent-1', [
       {
         childThreadId: 'child-1',
@@ -103,7 +111,7 @@ describe('SubAgentDock', () => {
     ])
   })
 
-  it('renders running child status above the composer and opens the child thread', () => {
+  it('opens Subagents details from the name and the child thread from Open', () => {
     renderDock()
 
     expect(screen.getByText('1 background agents')).toBeInTheDocument()
@@ -122,6 +130,12 @@ describe('SubAgentDock', () => {
     const description = screen.getByText('Reading sprite atlas')
     expect(description).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Stop Lovelace' })).toHaveAttribute('data-tone', 'neutral')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open subagent Lovelace' }))
+
+    expect(useUIStore.getState().activeDetailTab).toEqual({ kind: 'system', id: 'subagents' })
+    expect(useUIStore.getState().openSystemTabs).toContain('subagents')
+    expect(useUIStore.getState().detailPanelVisible).toBe(true)
 
     fireEvent.click(screen.getByRole('button', { name: 'Open' }))
 

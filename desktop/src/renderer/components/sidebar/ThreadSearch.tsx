@@ -53,7 +53,7 @@ export function ThreadSearch({ workspaceName }: ThreadSearchProps): JSX.Element 
             ...SIDEBAR_NAV_ROW_OUTER,
             ...SIDEBAR_NAV_BORDER_INACTIVE,
             cursor: 'pointer',
-            color: active ? 'var(--text-primary)' : 'var(--text-secondary)',
+            color: 'var(--text-primary)',
             backgroundColor: active ? 'var(--sidebar-control-hover)' : 'transparent',
             justifyContent: 'space-between',
             transition: 'background-color 120ms ease, color 120ms ease'

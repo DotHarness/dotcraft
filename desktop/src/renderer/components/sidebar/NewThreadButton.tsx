@@ -46,9 +46,7 @@ export function NewThreadButton(): JSX.Element {
           backgroundColor: active && isConnected ? 'var(--sidebar-control-hover)' : 'transparent',
           color: !isConnected
             ? 'var(--text-tertiary)'
-            : active
-              ? 'var(--text-primary)'
-              : 'var(--text-secondary)',
+            : 'var(--text-primary)',
           borderRadius: 'var(--sidebar-row-radius)',
           cursor: isConnected ? 'pointer' : 'default',
           justifyContent: 'space-between',

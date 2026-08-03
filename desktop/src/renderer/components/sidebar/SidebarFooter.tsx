@@ -23,7 +23,6 @@ export function SidebarFooter(): JSX.Element {
   const { activeMainView, setActiveMainView } = useUIStore()
   const settingsActive = activeMainView === 'settings'
   const [settingsRowActive, setSettingsRowActive] = useState(false)
-  const settingsVisualActive = settingsActive || settingsRowActive
   return (
     <div
       style={{
@@ -49,7 +48,7 @@ export function SidebarFooter(): JSX.Element {
             : settingsRowActive
               ? 'var(--sidebar-control-hover)'
               : 'transparent',
-          color: settingsVisualActive ? 'var(--text-primary)' : 'var(--text-secondary)',
+          color: 'var(--text-primary)',
           cursor: 'pointer',
           justifyContent: 'space-between',
           transition: 'background-color 120ms ease, color 120ms ease'
