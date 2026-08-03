@@ -320,8 +320,6 @@ public static class SubAgentSessionControl
             CreatedAt = now,
             UpdatedAt = now
         }, ct);
-        if (context.SessionService is not ISubAgentCommunicationRuntimeProvider)
-            SubAgentCommunicationRuntime.For(context.SessionService).PublishGraph(context.RootThreadId);
         await RunLifecycleHookAsync(
             context.LifecycleHook,
             HookEvent.SubagentStart,
@@ -410,12 +408,6 @@ public static class SubAgentSessionControl
         await context.SessionService.AddSubAgentMailboxEntryAsync(
             SubAgentMailboxEntry.FromCommunication(communication),
             ct);
-        if (context.SessionService is not ISubAgentCommunicationRuntimeProvider)
-        {
-            SubAgentCommunicationRuntime.For(context.SessionService).PublishMailbox(
-                context.RootThreadId,
-                resolved.Path.Value);
-        }
         return new SubAgentControlResult
         {
             ChildThreadId = resolved.ThreadId,
@@ -532,13 +524,6 @@ public static class SubAgentSessionControl
         result.TaskName = resolved.Edge?.TaskName;
         result.SupportsSendMessage = resolved.Edge?.SupportsSendMessage ?? true;
         result.SupportsFollowupTask = resolved.Edge?.SupportsFollowupTask ?? true;
-        if (context.SessionService is not ISubAgentCommunicationRuntimeProvider
-            && string.Equals(result.Status, "guidancePending", StringComparison.Ordinal))
-        {
-            SubAgentCommunicationRuntime.For(context.SessionService).PublishSteer(
-                context.RootThreadId,
-                resolved.Path.Value);
-        }
         return result;
     }
 
@@ -912,12 +897,6 @@ public static class SubAgentSessionControl
 
         if (sessionService is ISubAgentThreadLifecycleService lifecycle)
             await lifecycle.ArchiveSubAgentTreeForCloseAsync(childThreadId, ct);
-
-        var rootThreadId = string.IsNullOrWhiteSpace(child.Source.SubAgent?.RootThreadId)
-            ? child.Id
-            : child.Source.SubAgent.RootThreadId;
-        if (sessionService is not ISubAgentCommunicationRuntimeProvider)
-            SubAgentCommunicationRuntime.For(sessionService).PublishGraph(rootThreadId);
 
         return new SubAgentControlResult
         {
@@ -1829,12 +1808,6 @@ $$"""
         await sessionService.AddSubAgentMailboxEntryAsync(
             SubAgentMailboxEntry.FromCommunication(communication),
             ct).ConfigureAwait(false);
-        if (sessionService is not ISubAgentCommunicationRuntimeProvider)
-        {
-            SubAgentCommunicationRuntime.For(sessionService).PublishMailbox(
-                source.RootThreadId,
-                childPath.ParentValue!);
-        }
     }
 
     private static string? NormalizeCompletionNotificationStatus(string? status)

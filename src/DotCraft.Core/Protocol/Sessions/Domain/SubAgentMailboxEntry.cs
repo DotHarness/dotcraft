@@ -12,12 +12,6 @@ public static class SubAgentMailboxDelivery
 {
     /// <summary>Delivery mode used for internal SubAgent mailbox context messages.</summary>
     public const string DeliveryMode = "subagentMailbox";
-
-    /// <summary>Start tag for serialized SubAgent completion notifications.</summary>
-    public const string NotificationStartTag = "<subagent_notification>";
-
-    /// <summary>End tag for serialized SubAgent completion notifications.</summary>
-    public const string NotificationEndTag = "</subagent_notification>";
 }
 
 internal static class SubAgentCommunicationMessageType
@@ -26,21 +20,15 @@ internal static class SubAgentCommunicationMessageType
     public const string NewTask = "NEW_TASK";
     public const string FinalAnswer = "FINAL_ANSWER";
 
-    public static string Normalize(string? value, string payload)
-    {
-        if (IsLegacyCompletionPayload(payload))
-            return FinalAnswer;
-
-        return value?.Trim().ToUpperInvariant() switch
+    public static string RequireValid(string? value) =>
+        value switch
         {
+            Message => Message,
             NewTask => NewTask,
             FinalAnswer => FinalAnswer,
-            _ => Message
+            _ => throw new InvalidOperationException(
+                $"Unsupported SubAgent communication message type '{value ?? "<null>"}'.")
         };
-    }
-
-    private static bool IsLegacyCompletionPayload(string payload) =>
-        payload.TrimStart().StartsWith(SubAgentMailboxDelivery.NotificationStartTag, StringComparison.Ordinal);
 }
 
 internal sealed record SubAgentCommunication
@@ -63,7 +51,7 @@ internal sealed record SubAgentCommunication
 
     public string RenderForModel()
     {
-        var messageType = SubAgentCommunicationMessageType.Normalize(MessageType, Payload);
+        var messageType = SubAgentCommunicationMessageType.RequireValid(MessageType);
         return $"""
 Message Type: {messageType}
 Task name: {RecipientAgentPath}
@@ -106,7 +94,7 @@ public sealed class SubAgentMailboxEntry
             RootThreadId = RootThreadId,
             AuthorAgentPath = SenderAgentPath,
             RecipientAgentPath = TargetAgentPath,
-            MessageType = SubAgentCommunicationMessageType.Normalize(MessageType, Message),
+            MessageType = SubAgentCommunicationMessageType.RequireValid(MessageType),
             Payload = Message,
             ParentTurnId = ParentTurnId,
             CreatedAt = CreatedAt
@@ -119,9 +107,7 @@ public sealed class SubAgentMailboxEntry
             RootThreadId = communication.RootThreadId,
             SenderAgentPath = communication.AuthorAgentPath,
             TargetAgentPath = communication.RecipientAgentPath,
-            MessageType = SubAgentCommunicationMessageType.Normalize(
-                communication.MessageType,
-                communication.Payload),
+            MessageType = SubAgentCommunicationMessageType.RequireValid(communication.MessageType),
             Message = communication.Payload,
             ParentTurnId = communication.ParentTurnId,
             Status = SubAgentMailboxStatus.Pending,

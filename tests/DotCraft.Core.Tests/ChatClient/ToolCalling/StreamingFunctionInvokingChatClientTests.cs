@@ -259,7 +259,13 @@ public sealed partial class StreamingFunctionInvokingChatClientTests
             AdditionalTools = [tool]
         };
         var drained = false;
-        const string notification = "<subagent_notification>{\"agentPath\":\"/root/worker\",\"status\":{\"completed\":\"done\"}}</subagent_notification>";
+        const string notification = """
+            Message Type: FINAL_ANSWER
+            Task name: /root
+            Sender: /root/worker
+            Payload:
+            {"agentPath":"/root/worker","status":{"completed":"done"}}
+            """;
 
         using var scope = TurnGuidanceRuntimeScope.Set(new TurnGuidanceRuntimeContext
         {

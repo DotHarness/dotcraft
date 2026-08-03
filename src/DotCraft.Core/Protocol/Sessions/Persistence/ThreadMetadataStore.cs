@@ -496,7 +496,7 @@ internal sealed class ThreadMetadataStore(WorkspaceStateDatabase stateRuntime)
         command.Parameters.AddWithValue("$message", entry.Message);
         command.Parameters.AddWithValue(
             "$message_type",
-            SubAgentCommunicationMessageType.Normalize(entry.MessageType, entry.Message));
+            SubAgentCommunicationMessageType.RequireValid(entry.MessageType));
         command.Parameters.AddWithValue("$parent_turn_id", entry.ParentTurnId ?? (object)DBNull.Value);
         command.Parameters.AddWithValue("$status", entry.Status);
         command.Parameters.AddWithValue("$created_at", entry.CreatedAt.UtcDateTime.ToString("O"));
@@ -565,9 +565,8 @@ internal sealed class ThreadMetadataStore(WorkspaceStateDatabase stateRuntime)
             SenderAgentPath = reader.GetString(2),
             TargetAgentPath = reader.GetString(3),
             Message = reader.GetString(4),
-            MessageType = SubAgentCommunicationMessageType.Normalize(
-                reader.IsDBNull(5) ? null : reader.GetString(5),
-                reader.GetString(4)),
+            MessageType = SubAgentCommunicationMessageType.RequireValid(
+                reader.IsDBNull(5) ? null : reader.GetString(5)),
             ParentTurnId = reader.IsDBNull(6) ? null : reader.GetString(6),
             Status = reader.GetString(7),
             CreatedAt = DateTimeOffset.Parse(reader.GetString(8)),

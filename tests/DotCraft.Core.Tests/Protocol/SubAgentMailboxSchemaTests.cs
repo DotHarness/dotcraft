@@ -11,7 +11,7 @@ public sealed class SubAgentMailboxSchemaTests : IDisposable
         "SubAgentMailboxSchemaTests_" + Guid.NewGuid().ToString("N")[..8]);
 
     [Fact]
-    public void Initialize_ExistingMailboxTable_AddsTypedProvenanceAndReadsLegacyCompletion()
+    public void Initialize_ExistingMailboxTable_AddsTypedProvenanceWithMessageDefault()
     {
         Directory.CreateDirectory(_root);
         var databasePath = Path.Combine(_root, "state.db");
@@ -34,8 +34,8 @@ public sealed class SubAgentMailboxSchemaTests : IDisposable
                     id, root_thread_id, sender_agent_path, target_agent_path,
                     message, status, created_at, delivered_at
                 ) VALUES (
-                    'legacy-final', 'root-thread', '/root/worker', '/root',
-                    '<subagent_notification>{"completed":"done"}</subagent_notification>',
+                    'existing-message', 'root-thread', '/root/worker', '/root',
+                    'existing payload',
                     'pending', '2026-08-03T00:00:00.0000000Z', NULL
                 );
                 """;
@@ -46,7 +46,7 @@ public sealed class SubAgentMailboxSchemaTests : IDisposable
         var store = new ThreadMetadataStore(state);
         var entry = Assert.Single(store.ListPendingSubAgentMailbox("root-thread", AgentPath.Root));
 
-        Assert.Equal("FINAL_ANSWER", entry.MessageType);
+        Assert.Equal("MESSAGE", entry.MessageType);
         Assert.Null(entry.ParentTurnId);
 
         using var migratedConnection = state.OpenConnection();

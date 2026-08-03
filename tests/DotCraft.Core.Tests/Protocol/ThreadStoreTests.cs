@@ -1145,7 +1145,13 @@ public sealed class ThreadStoreTests : IDisposable
         var thread = CreateThread();
         AddTurnWithMessages(thread, "hello", "before mailbox", TurnStatus.Completed);
         var turn = thread.Turns[0];
-        const string notification = "<subagent_notification>{\"agentPath\":\"/root/inspect\",\"status\":{\"completed\":\"done\"}}</subagent_notification>";
+        const string notification = """
+            Message Type: FINAL_ANSWER
+            Task name: /root
+            Sender: /root/inspect
+            Payload:
+            {"agentPath":"/root/inspect","status":{"completed":"done"}}
+            """;
         turn.Items.Add(new SessionItem
         {
             Id = SessionIdGenerator.NewItemId(3),

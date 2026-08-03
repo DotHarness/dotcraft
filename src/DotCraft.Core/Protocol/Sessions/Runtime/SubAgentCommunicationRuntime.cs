@@ -1,5 +1,4 @@
 using System.Collections.Concurrent;
-using System.Runtime.CompilerServices;
 
 namespace DotCraft.Protocol;
 
@@ -53,7 +52,6 @@ internal sealed class SubAgentCommunicationRuntime
         }
     }
 
-    private static readonly ConditionalWeakTable<ISessionService, SubAgentCommunicationRuntime> FallbackRuntimes = new();
     private readonly ConcurrentDictionary<InboxKey, SemaphoreSlim> _inboxLocks = new();
     private readonly Lock _subscriptionsLock = new();
     private readonly HashSet<ActivitySubscription> _subscriptions = [];
@@ -61,7 +59,8 @@ internal sealed class SubAgentCommunicationRuntime
     public static SubAgentCommunicationRuntime For(ISessionService sessionService) =>
         sessionService is ISubAgentCommunicationRuntimeProvider provider
             ? provider.CommunicationRuntime
-            : FallbackRuntimes.GetValue(sessionService, static _ => new SubAgentCommunicationRuntime());
+            : throw new InvalidOperationException(
+                $"Session service '{sessionService.GetType().Name}' does not provide a SubAgent communication runtime.");
 
     public async Task<IDisposable> AcquireInboxAsync(
         string rootThreadId,
