@@ -265,8 +265,8 @@ function writableSource(source: string | null): SaveTarget {
   return source === 'user' ? 'user' : 'workspace'
 }
 
-function avatarForEntry(entry: Pick<ProfileEntry, 'id' | 'name' | 'avatar'>): AvatarSpec {
-  return resolveProfileAvatar(entry.name || entry.id, entry.avatar)
+function avatarForEntry(entry: Pick<ProfileEntry, 'id' | 'avatar'>): AvatarSpec {
+  return resolveProfileAvatar(entry.id, entry.avatar)
 }
 
 function draftWithAvatar(draft: ProfileDraft, avatar: AvatarSpec): ProfileDraft {
