@@ -50,6 +50,16 @@ Prerequisite: .NET 10 SDK (preview).
 - **Docs** (`docs/`): English root + Chinese under `docs/zh/` only.
 - **C# runtime/protocol messages**: stable key/code + English fallback; Desktop owns UI localization (no server-side translation catalogs).
 
+## Code Organization
+
+- Prefer focused modules, services, components, and styles over growing central orchestration files.
+- Target fewer than 500 lines for hand-written source files. Treat roughly 800 lines as a refactoring trigger, not a mechanical limit.
+- When making a non-trivial change to a file over 800 lines, extract the responsibility being changed instead of adding another responsibility to that file. Keep the original file focused on composition, routing, or orchestration.
+- Move related tests, types, local styles, and documentation with extracted code so ownership remains clear.
+- Split large tests by behavior or scenario. Do not split files evenly by line count or introduce one-use wrappers solely to reduce file size.
+- Apply this rule incrementally. A small, isolated fix may remain in a large file when extraction would broaden the change; state the reason in the handoff.
+- Generated code, schemas, localization catalogs, snapshots, fixtures, and lock files are exempt. Change their source or generator instead of editing generated output by hand.
+
 ## Go Deeper
 
 - Development norms: `dev-guide` skill
