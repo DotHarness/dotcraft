@@ -39,8 +39,11 @@ jobs:
         cache: 'pip'
         cache-dependency-path: sdk/python/pyproject.toml
 
+    - name: Select ProtocolGen Python
+      run: echo "DOTCRAFT_PYTHON=$(python -c 'import sys; print(sys.executable)')" >> "$GITHUB_ENV"
+
     - name: Install Python SDK development dependencies
-      run: python -m pip install ".[dev]"
+      run: "$DOTCRAFT_PYTHON" -m pip install ".[dev]"
       working-directory: sdk/python
 
     - name: Restore dependencies

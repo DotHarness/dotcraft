@@ -174,10 +174,15 @@ public static class SubAgentSessionControl
     private const string SubAgentFollowupTriggerKind = "subagentFollowupTask";
     private const string SubAgentInputTriggerKind = "subagentInput";
 
-    private sealed record RunningChild(
-        string ParentThreadId,
-        CancellationTokenSource Cancellation,
-        Task<SubAgentRunResult> Completion);
+    private sealed class RunningChild(
+        string parentThreadId,
+        CancellationTokenSource cancellation,
+        Task<SubAgentRunResult> completion)
+    {
+        public string ParentThreadId { get; } = parentThreadId;
+        public CancellationTokenSource Cancellation { get; } = cancellation;
+        public Task<SubAgentRunResult> Completion { get; } = completion;
+    }
 
     private static readonly ConcurrentDictionary<string, RunningChild> RunningChildren = new(StringComparer.Ordinal);
     private sealed record ResolvedAgentTarget(
@@ -333,8 +338,9 @@ public static class SubAgentSessionControl
         var completion = string.Equals(runtimeType, NativeSubAgentRuntime.RuntimeTypeName, StringComparison.OrdinalIgnoreCase)
             ? RunChildTurnAsync(context.SessionService, childThread.Id, prompt, initialTrigger, childCts.Token)
             : RunExternalChildTurnsAsync(context.SessionService, coordinator, prepared!, childThread.Id, prompt, initialTrigger, childCts.Token);
-        RunningChildren[childThread.Id] = new RunningChild(context.ParentThread.Id, childCts, completion);
-        _ = ObserveChildCompletionAsync(context.SessionService, childThread.Id, completion, context.LifecycleHook);
+        var runningChild = new RunningChild(context.ParentThread.Id, childCts, completion);
+        RunningChildren[childThread.Id] = runningChild;
+        _ = ObserveChildCompletionAsync(context.SessionService, childThread.Id, runningChild, context.LifecycleHook);
 
         if (!waitForCompletion)
         {
@@ -681,8 +687,9 @@ public static class SubAgentSessionControl
                 dispatchStarted);
         }
 
-        RunningChildren[childThreadId] = new RunningChild(parentThreadId, childCts, completion);
-        _ = ObserveChildCompletionAsync(sessionService, childThreadId, completion, lifecycleHook);
+        var runningChild = new RunningChild(parentThreadId, childCts, completion);
+        RunningChildren[childThreadId] = runningChild;
+        _ = ObserveChildCompletionAsync(sessionService, childThreadId, runningChild, lifecycleHook);
         await dispatchStarted.Task.WaitAsync(ct);
 
         return new SubAgentControlResult
@@ -1718,13 +1725,13 @@ $$"""
     private static async Task ObserveChildCompletionAsync(
         ISessionService sessionService,
         string childThreadId,
-        Task<SubAgentRunResult> completion,
+        RunningChild runningChild,
         Func<SubAgentLifecycleHookRequest, CancellationToken, Task>? lifecycleHook)
     {
         SubAgentRunResult result;
         try
         {
-            result = await completion.ConfigureAwait(false);
+            result = await runningChild.Completion.ConfigureAwait(false);
         }
         catch (OperationCanceledException)
         {
@@ -1768,8 +1775,8 @@ $$"""
         }
         finally
         {
-            RunningChildren.TryRemove(childThreadId, out var active);
-            active?.Cancellation.Dispose();
+            RunningChildren.TryRemove(KeyValuePair.Create(childThreadId, runningChild));
+            runningChild.Cancellation.Dispose();
         }
     }
 

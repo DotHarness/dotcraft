@@ -221,6 +221,75 @@ public sealed class SubAgentSessionControlTests : IDisposable
     }
 
     [Fact]
+    public async Task SendInput_WhenPreviousObserverFinishes_DoesNotRemoveCurrentRun()
+    {
+        var firstStopEntered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var releaseFirstStop = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var stopCount = 0;
+        var runtime = new FakeRuntime(CliOneshotRuntime.RuntimeTypeName, "initial", resultSessionId: "sess-1");
+        var store = new FakeExternalCliSessionStore();
+        var coordinator = CreateCoordinator(runtime, supportsResume: true, resumeEnabled: true, store);
+        var context = await CreateContextAsync(lifecycleHook: async (request, ct) =>
+        {
+            if (request.Event != HookEvent.SubagentStop || Interlocked.Increment(ref stopCount) != 1)
+                return;
+
+            firstStopEntered.TrySetResult();
+            await releaseFirstStop.Task.WaitAsync(ct);
+        });
+        var pendingContinuation = new TaskCompletionSource<DotCraft.Agents.SubAgentRunResult>(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        var continued = new DotCraft.Agents.SubAgentRunResult
+        {
+            Text = "continued",
+            SessionId = "sess-2"
+        };
+
+        try
+        {
+            var spawned = await SubAgentSessionControl.SpawnAgentAsync(
+                context,
+                new SubAgentSpawnOptions { AgentPrompt = "inspect code", TaskName = "inspect", AgentNickname = "Inspect", ProfileName = "cli-run" },
+                waitForCompletion: true,
+                coordinator,
+                CancellationToken.None);
+            await firstStopEntered.Task.WaitAsync(TimeSpan.FromSeconds(5));
+
+            runtime.PendingResult = pendingContinuation;
+            await SubAgentSessionControl.SendInputAsync(
+                _sessionService,
+                spawned.ChildThreadId,
+                "continue",
+                coordinator,
+                CancellationToken.None);
+
+            releaseFirstStop.TrySetResult();
+            await WaitUntilAsync(async () =>
+                (await _sessionService.ListPendingSubAgentMailboxAsync(context.RootThreadId, AgentPath.Root)).Count > 0);
+            await Task.Yield();
+
+            var waitTask = SubAgentSessionControl.WaitAgentAsync(
+                _sessionService,
+                spawned.ChildThreadId,
+                timeoutSeconds: 5,
+                CancellationToken.None);
+            await Task.Delay(50);
+            Assert.False(waitTask.IsCompleted);
+
+            pendingContinuation.TrySetResult(continued);
+            var waited = await waitTask;
+
+            Assert.Equal("completed", waited.Status);
+            Assert.Equal("continued", waited.Message);
+        }
+        finally
+        {
+            releaseFirstStop.TrySetResult();
+            pendingContinuation.TrySetResult(continued);
+        }
+    }
+
+    [Fact]
     public async Task SendInput_RunsSubagentStartAndStopLifecycleHooks()
     {
         var events = new ConcurrentQueue<(HookEvent Event, string? AgentPath, string? Status)>();
@@ -1703,6 +1772,15 @@ public sealed class SubAgentSessionControlTests : IDisposable
         }
     }
 
+    private static async Task WaitUntilAsync(Func<Task<bool>> predicate)
+    {
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        while (!await predicate())
+        {
+            await Task.Delay(20, timeout.Token);
+        }
+    }
+
     private async Task<SessionThread> CreatePathSubAgentAsync(
         SubAgentSessionContext context,
         string runtimeType = NativeSubAgentRuntime.RuntimeTypeName,
@@ -1979,7 +2057,7 @@ public sealed class SubAgentSessionControlTests : IDisposable
 
         public bool WaitForCancellation { get; init; }
 
-        public TaskCompletionSource<DotCraft.Agents.SubAgentRunResult>? PendingResult { get; init; }
+        public TaskCompletionSource<DotCraft.Agents.SubAgentRunResult>? PendingResult { get; set; }
 
         public SubAgentLaunchContext? LastLaunchContext { get; private set; }
 
